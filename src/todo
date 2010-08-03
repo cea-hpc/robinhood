@@ -1,25 +1,11 @@
-Passage a git
 Pusher dans la repo oracle
 
 Doc:
 ====
-* mettre des tags new v2.1.x v2.2.0
 * config sqlite et disclaimer
-
-* nouveau type d'expressions: expression ensemblistes
-
-* indiquer que les logs tournantes sont bien gerees
-* path et tree: lister les differents modes: chemin relatif, absolu ou 
-  n'importe quel niveau de repertoire (**)
-
-* conseiller de mettre un critere last_mod dans les alertes
-* parametre pour batcher les alertes on non (batch_alert_max)
-* parametre pour lister les parametres des fichiers dans les alertes (alert_show_attrs)
 
 Features:
 =========
-x union/intersections de fileclass. liberation des types set.
-
 * Daily report (migr, purge, ...)
 * possibilite de n'appliquer un trigger qu'a un sous-repertoire, un fileset ou autre...
 * 'Heriter' des parametres d'un parent
