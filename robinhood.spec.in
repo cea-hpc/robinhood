@@ -129,6 +129,9 @@ install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/@PURPOS
 install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC@
 %endif
 
+mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
+install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/@PURPOSE_SVC@
+
 %clean
 rm -rf $RPM_BUILD_ROOT
 
@@ -164,6 +167,8 @@ fi
 %{_sbindir}/*
 #%{_mandir}/man5/*
 #%{_mandir}/man8/*
+
+%config(noreplace) %{_sysconfdir}/sysconfig/@PURPOSE_SVC@
 
 %dir %{_sysconfdir}/robinhood.d
 %dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@

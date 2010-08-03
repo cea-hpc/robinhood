@@ -36,6 +36,31 @@ if [[ -n $ERRORS ]]; then
 	exit 1
 fi
 
+echo "Building rpms"
+
+ERRORS=""
+
+for purp in $purp_list; do
+for db in MYSQL SQLITE; do 
+
+# default per purpose and DB
+config_cmd="./configure --with-db=$db --with-purpose=$purp"
+
+echo "TEST: $config_cmd"
+ 
+(CFLAGS=-I/home/leibovi/export_rh_1101814/sherpa_cache/src/include $config_cmd && make rpm ) 2>&1 | grep -i error \
+		&& ( echo FAILED; ERRORS="$ERRORS Error using compilation switches:$config_cmd\n" )
+
+make clean 2>&1 >/dev/null
+
+done
+done
+
+if [[ -n $ERRORS ]]; then
+	echo "$ERRORS"
+	exit 1
+f
+
 echo "Now testing advanced compilation switches"
 
 

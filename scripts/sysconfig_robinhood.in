@@ -1,0 +1,12 @@
+
+# directory of configuration files for this service
+#RH_CONF_DIR=/etc/robinhood.d/@PURPOSE_EXT@
+# current directory where the daemon is started
+#RH_RUN_DIR=/
+# path to robinhood command
+#DAEMON=/usr/sbin/@PURPOSE_BIN@
+
+# options for starting the daemon
+# eg. --scan --purge (leave empty for default actions).
+# RBH_OPT="--scan --detach"
+

@@ -290,6 +290,7 @@ AC_CONFIG_FILES([Makefile
          scripts/Makefile
          scripts/robinhood.init
          scripts/robinhood.init.sles
+         scripts/sysconfig_robinhood
          tests/Makefile
          robinhood.spec
          doc/doxygen/doxygen.cfg])

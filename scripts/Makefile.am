@@ -3,6 +3,8 @@ EXTRA_DIST= robinhood.init			\
 	robinhood.init.in			\
 	robinhood.init.sles         		\
 	robinhood.init.sles.in      		\
+	sysconfig_robinhood			\
+	sysconfig_robinhood.in			\
 	rbh-config				\
 	type_gen.pl				\
 	indent.sh 				\
