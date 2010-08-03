@@ -1,0 +1,177 @@
+.\"
+.\" robinhood(8)
+.\"
+.\" Copyright (C) 2008 CEA/DAM
+.TH robinhood 8 "19 Feb 2009"
+
+.SH NAME
+RobinHood Reporting Tool - Tool for building detailed reports about a filesystem.
+
+.SH SYNOPSIS
+robinhood-report [options] [report_type]
+
+.SH DESCRIPTION
+
+This command builds detailed reports by retrieving information from Robinhood's database.
+For example, it can report the total number of entries of each type in the filesystem,
+the min/max/average size of files, the min/max/avg number of entries in directories,
+the space used by each user...
+
+.SH COMMAND LINE OPTIONS
+
+.BR
+.SH Report types
+.BR
+
+.B -a
+,
+.B --activity
+            Displays a report about Robinhood daemon's activity
+
+.B -i
+,
+.B --fsinfo
+            Displays a report about filesystem content
+
+.B -u
+.ul
+user
+,
+.B --userinfo
+[
+.ul
+user
+]
+            Displays a report about a given user. If no user is specified, generate reports for all users.
+
+.B -g
+.ul
+group
+,
+.B --groupinfo
+[
+.ul
+group
+]
+            Displays a report about a given group. If no group is specified, generate reports for all groups.
+
+.B -d
+.ul
+count
+,
+.B --topdirs
+[
+.ul
+count
+]
+            Returns a list of the
+.ul
+count
+largest directories (with the highest number of child entries). 
+
+.B -s
+.ul
+count
+,
+.B --topsize
+[
+.ul
+count
+]
+            Returns a list of the
+.ul
+count
+largest files.
+
+.B -p
+.ul
+count
+,
+.B --toppurge
+[
+.ul
+count
+]
+            Returns a list of the
+.ul
+count
+files that are likely to be purged first (estimation).
+
+.B -r
+.ul
+count
+,
+.B --toprmdir
+[
+.ul
+count
+]
+            Displays oldest empty directories eligible for rmdir, and their deadline.
+
+.B -U
+.ul
+count
+,
+.B --topusers
+[
+.ul
+count
+]
+            Returns a list of the top disk space consumers in filesystem.
+
+.BR
+.SH Config file options
+.BR
+
+.B -f
+.ul
+file
+,
+.B --config-file=
+.ul
+file
+            Specifies path to configuration file. This should be the same as Robinhood daemon.
+
+.BR
+.SH Output format options
+.BR
+
+.B -c
+,
+.B --csv
+	Output stats in a csv-like format for parsing them easily.
+
+.BR
+.SH Log options
+.BR
+
+.B -l
+.ul
+level
+,
+.B --log-level=
+.ul
+level
+            Force the log verbosity level (overides configuration value).
+            Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.
+
+.BR
+.SH Miscellaneous options
+.BR
+
+.B -h
+,
+.B --help
+            Display a short help about command line options.
+
+.B -V
+,
+.B --version
+            Display version info
+
+.SH SEE ALSO
+.BR robinhood(8)
+.SH AUTHORS
+.BR
+Thomas Leibovici <thomas.leibovici@cea.fr>
+.BR

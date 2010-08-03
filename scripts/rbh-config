@@ -1,0 +1,314 @@
+#!/bin/bash
+#
+# Robinhood configuration helper
+#
+
+# check caller
+who=`whoami`
+
+if [[ $who != root ]]; then
+	echo "This script must be executed by root" >&2
+	exit 1
+fi
+
+
+# this function creates the database for robinhood
+# it must be launched by root.
+function db_check
+{
+	echo "Checking system configuration..."
+
+	if [[ ! -x `which mysqladmin` ]]; then
+		echo "Command 'mysqladmin' not found."
+		echo "Install 'mysql' and 'mysql-server' packages on your system."
+		exit 2 
+	fi
+	echo "mysqladmin command OK."
+
+	if [[ ! -x `which mysql_config` ]]; then
+		echo "Command 'mysql_config' not found."
+		echo "Install 'mysql' package on your system."
+		exit 2 
+	fi
+	echo "mysql_config command OK."
+
+	version=`mysql_config --version | cut -d . -f 1`
+	if (( $? )); then
+		echo "Error executing 'mysql_config --version'."
+		exit 2 
+	fi
+	echo "MySQL version is $version."
+
+	/sbin/service mysqld status | grep running >/dev/null 2>/dev/null
+	if (( $? )); then
+		running=1
+		pgrep mysqld >/dev/null || running=0
+	 
+		if (( $running == 0 )); then
+			echo "Service 'mysqld' is not running."
+			echo "It must be started to run this script."
+			exit 2 
+		else
+			echo "mysqld is running"
+		fi
+	else
+		echo "mysqld service OK."
+	fi
+
+	if [[ ! -x `which mysql` ]]; then
+		echo "Command 'mysql' not found."
+		echo "Install 'mysql' package on your system."
+		exit 2 
+	fi
+	echo "mysql command OK."
+}
+
+
+function db_config
+{
+	echo
+	echo "Enter a custom identifier for your filesystem. E.g. lustre"
+
+	while (( 1 )); do
+		read -p "fsname (max 8 chars): " fsname
+		if [[ "$fsname" =~ "^[a-zA-Z][a-zA-Z0-9_]{0,7}$" ]]; then
+			break
+		else
+			echo
+			unmatched=`echo $fsname | sed -e "s/[a-zA-Z0-9_]//g"`
+			echo "Error: unexpected '" $unmatched "'."
+			echo "Filesystem name must only contain alpha-num chars with no space."
+		fi
+	done
+
+	echo
+	echo "Enter hosts where robinhood commands will run. E.g. localhost"
+	echo "You can use '%' as wildcard: \"%\" for all hosts, \"cluster%\" for nodes starting with 'cluster'..."
+
+	read -p "hosts: " clienthost
+
+	while (( 1 )); do
+		echo
+		echo "Choose a password for connecting to the database (user 'robinhood'). "
+		read -p "password: " -s pass1
+		echo
+		read -p  "confirm password: " -s pass2
+		echo
+		
+		if [[ "$pass1" = "$pass2" ]]; then
+			break
+		else
+			echo "Passwords don't match."
+			echo "Try again."
+		fi
+	done
+
+	echo "Write this password to /etc/robinhood.d/.dbpassword file"
+
+
+	DB_NAME="robinhood_$fsname"
+
+	echo
+	echo "Configuration summary:"
+	echo "- Database name: '$DB_NAME'"
+	echo "- Client hosts: '$clienthost'"
+	echo "- Database user name: 'robinhood'"
+	echo
+	echo -n "Do you agree? [y/N]"
+
+	read -n 1 ok
+	echo
+	if [[ $ok != [yY] ]]; then
+		echo "aborting."
+		exit 1
+	fi
+
+	echo
+	echo "Enter password for root's database account (leave blank if none is set):"
+	read -p "root's DB password: " -s pass_root
+	echo
+
+	echo
+	echo "Creating database '$DB_NAME'..."
+
+	mysqladmin --password="$pass_root" create $DB_NAME
+
+	if (( $? )); then
+		echo "Error creating DB."
+		exit 1
+	fi
+	sleep 1
+	echo "done"
+
+	echo
+	echo "Setting access right for user 'robinhood'@'$clienthost'..."
+
+	sleep 1
+
+	echo
+	mysql --password="$pass_root" $DB_NAME << EOF
+GRANT USAGE ON $DB_NAME.* TO 'robinhood'@'localhost' IDENTIFIED BY '$pass1' ;
+GRANT USAGE ON $DB_NAME.* TO 'robinhood'@'$clienthost' IDENTIFIED BY '$pass1' ;
+GRANT ALL PRIVILEGES ON $DB_NAME.* TO 'robinhood'@'localhost' IDENTIFIED BY '$pass1' ;
+GRANT ALL PRIVILEGES ON $DB_NAME.* TO 'robinhood'@'$clienthost' IDENTIFIED BY '$pass1' ;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'robinhood'@'$clienthost';
+EOF
+
+	if (( $? )); then
+		echo "Error setting access rights for 'robinhood'@'$clienthost'"
+		exit 1
+	fi
+
+	echo
+	echo "Testing connection to '$DB_NAME'..."
+	sleep 1
+	mysql --user=robinhood --password=$pass1 $DB_NAME << EOF
+quit
+EOF
+
+	if (( $? )); then
+		echo "Connection to $DB_NAME@localhost failed"
+		exit 1
+	fi
+
+	echo
+	echo "Database sucessfully created!"
+}
+
+
+
+function enable_changelogs
+{
+	# check if we are on mdt
+	echo -n "Checking available MDTs...	"
+	fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | xargs`
+	echo $fslist
+
+	if [[ -z "$fslist" ]]; then
+		echo "No MDT found on this machine. Run the command on MDT."
+		exit 2
+	fi
+
+	echo "Select the filesystem you want to activate changelogs for:"
+	while ((1)); do
+		read -p "$fslist: " fsname
+		if [[ -n "$fsname" ]]; then
+			if [[ $fslist = *$fsname* ]]; then
+				break
+			else
+				echo "$fsname: unknown"
+			fi
+		fi
+	done
+
+	echo "Checking if \"cl1\" is already registered for $fsname..."
+	is_cl1=`grep cl1 /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT*/changelog_users 2>/dev/null | wc -l`
+
+	if (( $is_cl1 == 0 )); then
+		echo "No client registered yet"
+		lctl --device $fsname-MDT0000 changelog_register || echo "FAILED"
+	else
+		echo "\"cl1\" is already registered. Skipping registration."
+	fi
+
+	echo "Checking event mask..."
+
+	for event in HSM CREAT UNLNK TRUNC SATTR TIME; do
+		missing=0
+		lctl get_param mdd.$fsname-MDT*.changelog_mask | grep $event >/dev/null || missing=1
+
+		if (( $missing != 0 )); then
+			echo "event $event not in changelog mask: setting it"
+			lctl set_param mdd.$fsname-MDT*.changelog_mask "+$event" || echo "FAILED"
+		else
+			echo "event $event OK"
+		fi
+	done
+	#lctl set_param mdd.*.changelog_mask "CREAT UNLNK OPEN CLOSE TRUNC TIME HSM"
+}
+
+function empty_db
+{
+	echo
+	echo "Enter password for root's database account (leave blank if none is set):"
+	read -p "root's DB password: " -s pass_root
+	echo
+
+	db_list=`mysql -Ns --password="$pass_root" -e "show databases" | grep -v mysql | xargs`
+	
+        if (( $? )); then
+                echo "Failed to get database list"
+                exit 1
+        fi
+	if [[ -z "$db_list" ]]; then
+		echo "No DB found"
+		exit 2
+	fi
+	
+	echo "Available databases are: $db_list"
+
+	while ((1)); do
+		read -p "Select database to clean: " db
+		if [[ -n "$db" ]]; then
+			if [[ $db_list = *$db* ]]; then
+				break
+			else
+				echo "$db: unknown"
+			fi
+		fi
+	done
+
+	echo "Testing connection to '$db'..."
+	mysql $db --password="$pass_root" << EOF
+quit
+EOF
+
+	if (( $? )); then
+		echo "Connection to $db@localhost failed"
+		exit 1
+	else
+		echo "OK"
+	fi
+
+	echo "Cleaning tables..."
+	mysql -v --password="$pass_root" $db << EOF
+BEGIN;
+DROP TABLE IF EXISTS ENTRIES;
+DROP TABLE IF EXISTS STRIPE_INFO;
+DROP TABLE IF EXISTS STRIPE_ITEMS;
+DROP TABLE IF EXISTS VARS;
+DROP TABLE IF EXISTS ANNEX_INFO;
+DROP TABLE IF EXISTS ID_MAPPING;
+DROP TABLE IF EXISTS SOFT_RM;
+COMMIT;
+EOF
+	if (( $? )); then
+		echo "Command failed"
+		exit 1
+	else
+		echo "DONE"
+	fi
+}
+
+
+echo "#######################################################"
+echo "#       Configuration script for RobinHood            #"
+echo "#######################################################"
+
+if [[ "$1" = "precheck_db" ]]; then 
+	db_check
+elif [[ "$1" = "create_db" ]]; then
+	db_check && db_config
+elif [[ "$1" = "enable_chglogs" ]]; then
+	enable_changelogs
+elif [[ "$1" = "empty_db" ]]; then
+	empty_db
+else
+	echo "Usage: $0 <action>"
+	echo "Actions:"
+	echo "	precheck_db: check database packages and service"
+	echo "	create_db: create robinhood db"
+	echo "	enable_chglogs: enable changelogs on MDT"
+	echo "	empty_db: delete robinhood database content"
+fi

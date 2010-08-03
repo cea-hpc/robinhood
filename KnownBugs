@@ -1,0 +1,28 @@
+
+Description:
+	Process terminates with SEGFAULT when MySQL server restarts.
+Cause:
+	This is due to a bad resilience of MySQL client API to server crash when prepared statements are used.
+	This is known as bug #33384 in MySQL tracker (see http://bugs.mysql.com/bug.php?id=33384 for current bug status).
+Workaround:
+	Disable prepared statements in Robinhood: to do so, use '--disable-prep-stmts' argument to ./configure
+	before compiling the program or building the RPM.
+
+
+Description:
+	There are a lot of <defunc> process when reading Lustre's Changelogs.
+Cause:
+	In early Lustre 2.0 releases (before alpha8) , liblustreapi forks a process each time the changelog is reopened.
+Workaround:
+	Make Robihood trap SIGCHLD, by specifiying specifying the following option to configure: "--enable-llapi-fork-support".
+Side effect:
+	Trapping events causes some internal calls to be interrupted by signals.
+
+Description:
+	"with" or "bcond_with" macros are unknown when building the RPM.
+Cause:
+	rpm or rpmbuild are too old.
+Workaround:
+	Replace robinhood.spec.in with robinhood.old_spec.in.
+	Then re-run "configure" and "make rpm".
+

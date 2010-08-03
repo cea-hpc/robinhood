@@ -1,0 +1,1673 @@
+/* -*- mode: c; c-basic-offset: 4; indent-tabs-mode: nil; -*-
+ * vim:expandtab:shiftwidth=4:tabstop=4:
+ */
+/*
+ * Copyright (C) 2009, 2010 CEA/DAM
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the CeCILL License.
+ *
+ * The fact that you are presently reading this means that you have had
+ * knowledge of the CeCILL license (http://www.cecill.info) and that you
+ * accept its terms.
+ */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#define RESMON_TAG "ResMonitor"
+
+#include "RobinhoodConfig.h"
+#include "RobinhoodMisc.h"
+#include "resource_monitor.h"
+#include "resmon_purge.h"
+#include "queue.h"
+#include "Memory.h"
+#include "xplatform_print.h"
+#include <errno.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <sys/vfs.h>
+
+/* ------------ Types and global variables ------------ */
+
+/* Running mode (default is daemon) */
+static resmon_opt_t module_args =
+{
+    .mode = RESMON_DAEMON,
+    .flags = 0,
+    .ost_index = 0,
+    .target_usage = 0.0
+};
+
+typedef enum
+{
+    TRIG_NOT_CHECKED,                            /* not checked yet */
+    TRIG_BEING_CHECKED,                          /* currently beeing checked */
+    TRIG_PURGE_RUNNING,                          /* purge running for this trigger */
+    TRIG_OK,                                     /* no purge is needed */
+    TRIG_NO_LIST,                                /* no list available */
+    TRIG_NOT_ENOUGH,                             /* not enough candidates */
+    TRIG_CHECK_ERROR,                            /* Misc Error */
+    TRIG_UNSUPPORTED                             /* Trigger not supported in this mode */
+} trigger_status_t;
+
+/* Info about each trigger */
+typedef struct trigger_status__
+{
+    time_t         last_check;                   /* the last time this trigger was tested */
+    trigger_status_t status;
+
+    /* @TODO more stats about tiggers */
+
+    /* its usage, the last time it was checked for OST and global FS triggers */
+    double         last_usage;
+} trigger_info_t;
+
+static trigger_info_t *trigger_status_list = NULL;
+static time_t  trigger_check_interval = 1;
+
+static pthread_t trigger_check_thread_id;
+static lmgr_t  lmgr;
+
+static dev_t   fsdev = 0;
+
+static void update_trigger_status( unsigned int i, trigger_status_t state )
+{
+    trigger_status_list[i].status = state;
+
+    if ( state == TRIG_BEING_CHECKED )
+        trigger_status_list[i].last_check = time( NULL );
+}
+
+
+/**
+ * Function for checking that filesystem hasn't been unmounted
+ */
+static int CheckFSDevice(  )
+{
+    struct stat    fsstat;
+
+    /* retrieve device of filesystem, to compare it to initial device id */
+
+    if ( stat( global_config.fs_path, &fsstat ) == -1 )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Stat on '%s' failed! Error %d: %s",
+                    global_config.fs_path, errno, strerror( errno ) );
+        return FALSE;
+    }
+
+    if ( global_config.stay_in_fs && ( fsdev != fsstat.st_dev ) )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "ERROR: Device number of '%s' has changed !!! (%" PRINT_DEV_T " <> %"
+                    PRINT_DEV_T "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
+
+        DisplayAlert( "Robinhood alert: Filesystem changed.",
+                      "Device number of '%s' has changed !!! (%" PRINT_DEV_T " <> %"
+                      PRINT_DEV_T "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
+
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static unsigned long FSInfo2Blocs512( unsigned long nb_blocs, unsigned long sz_blocks )
+{
+    uint64_t       total_sz;
+    unsigned long  nb_blocs_512;
+    unsigned long  reste;
+
+    /* evite les calculs inutiles */
+    if ( sz_blocks == DEV_BSIZE )
+        return nb_blocs;
+
+    /* cas ou le nombre de blocs est different */
+    total_sz = nb_blocs * sz_blocks;
+    nb_blocs_512 = total_sz / DEV_BSIZE;
+    reste = total_sz % DEV_BSIZE;
+
+    if ( reste == 0 )
+        return nb_blocs_512;
+    else
+        return nb_blocs_512 + 1;
+}
+
+/* ------------ Functions for checking each type of trigger ------------ */
+
+/** function for checking thresholds (for global FS, single OST,...)
+ * @return negative value on error
+ *         0 on success (in this case, to_be_purged gives the number of blocks to be purged)
+ */
+static int check_thresholds( trigger_item_t * p_trigger, const char *storage_descr,
+                             const struct statfs *p_statfs, unsigned long *to_be_purged_512,
+                             double *p_used_pct )
+{
+    unsigned long  total_user_blocks;
+    unsigned long  block_target;
+    char           tmp1[128];
+    char           tmp2[128];
+    double         used_pct; 
+
+    *to_be_purged_512 = 0;
+
+    /* check df consistency:
+     * used = total - free = f_blocks - f_bfree
+     * if used + available <= 0, there's something wrong
+     */
+    if ( p_statfs->f_blocks + p_statfs->f_bavail - p_statfs->f_bfree <= 0 )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG, "ERROR: statfs on %s returned inconsistent values!!!",
+                    storage_descr );
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Detail: blks=%" PRINT_ST_SIZE " avail=%" PRINT_ST_SIZE " free=%" PRINT_ST_SIZE,
+		    p_statfs->f_blocks, p_statfs->f_bavail, p_statfs->f_bfree );
+        return -EINVAL;
+    }
+
+    /* number of blocks available to users */
+    total_user_blocks = ( p_statfs->f_blocks + p_statfs->f_bavail - p_statfs->f_bfree );
+
+    used_pct = 100.0 * ( ( double ) p_statfs->f_blocks - ( double ) p_statfs->f_bfree )
+                / ( ( double ) total_user_blocks );
+
+    /* return last usage */
+    if ( p_used_pct )
+        *p_used_pct = used_pct;
+
+    /* is this a condition on volume or percentage ? */
+    if ( p_trigger->hw_type == VOL_THRESHOLD )
+    {
+        /* compute used volume and compare it to threshold */
+        unsigned long long used_vol =
+            ( p_statfs->f_blocks - p_statfs->f_bfree ) * p_statfs->f_bsize;
+
+        FormatFileSize( tmp1, 128, used_vol );
+        FormatFileSize( tmp2, 128, p_trigger->hw_volume );
+
+        DisplayLog( LVL_EVENT, RESMON_TAG, "%s usage: %s / high watermark: %s", storage_descr,
+                    tmp1, tmp2 );
+
+        if ( used_vol < p_trigger->hw_volume )
+        {
+            DisplayLog( LVL_VERB, RESMON_TAG,
+                        "%s usage is under high watermark: nothing to do.", storage_descr );
+            return 0;
+        }
+    }
+    else if ( p_trigger->hw_type == PCT_THRESHOLD )
+    {
+        unsigned long  used_hw =
+            ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
+
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "%s usage: %.2f%% (%Lu blocks) / high watermark: %.2f%% (%lu blocks)",
+                    storage_descr, used_pct, p_statfs->f_blocks - p_statfs->f_bfree,
+                    p_trigger->hw_percent, used_hw );
+
+        if ( used_pct < p_trigger->hw_percent )
+        {
+            DisplayLog( LVL_VERB, RESMON_TAG,
+                        "%s usage is under high watermark: nothing to do.", storage_descr );
+            return 0;
+        }
+
+    }
+    /* if we reach this point, high watermark is exceeded compute the amount of data for reaching low watermark */
+
+    if ( p_trigger->lw_type == VOL_THRESHOLD )
+    {
+        block_target = ( p_trigger->lw_volume / p_statfs->f_bsize );
+        if ( p_trigger->lw_volume % p_statfs->f_bsize )
+            block_target++;
+        DisplayLog( LVL_VERB, RESMON_TAG, "Target usage volume: %s (%lu blocks)",
+                    FormatFileSize( tmp1, 128, p_trigger->lw_volume ), block_target );
+    }
+    else if ( p_trigger->lw_type == PCT_THRESHOLD )
+    {
+        block_target =
+            ( unsigned long ) ( ( p_trigger->lw_percent * ( double ) total_user_blocks ) / 100.0 );
+        DisplayLog( LVL_VERB, RESMON_TAG, "Target usage percentage: %.2f%% (%lu blocks)",
+                    p_trigger->lw_percent, block_target );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Unexpected Low Watermark type %d. Trigger skipped.",
+                    p_trigger->lw_type );
+        return EINVAL;
+    }
+
+    if ( p_statfs->f_blocks - p_statfs->f_bfree <= block_target )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG, "Usage is already under low watermark. Do nothing." );
+        return 0;
+    }
+
+    /* to be purged= blocks used - block_target */
+    *to_be_purged_512 =
+        FSInfo2Blocs512( ( p_statfs->f_blocks - p_statfs->f_bfree ) - block_target,
+                         p_statfs->f_bsize );
+
+    DisplayLog( LVL_EVENT, RESMON_TAG,
+                "%lu blocks (x%u) must be purged on %s (used=%Lu, target=%lu, block size=%u)",
+                *to_be_purged_512, DEV_BSIZE, storage_descr, p_statfs->f_blocks - p_statfs->f_bfree,
+                block_target, p_statfs->f_bsize );
+
+    return 0;
+
+}
+
+
+
+/** Check triggers on global filesystem usage */
+static int check_global_trigger( unsigned trigger_index )
+{
+    struct statfs  statfs_glob;
+    char           traverse_path[MAXPATHLEN];
+    purge_param_t  purge_param;
+    int            rc;
+    unsigned long  purged, spec;
+    char           timestamp[128];
+
+    snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+
+    if ( !CheckFSDevice(  ) )
+        return ENXIO;
+
+    update_trigger_status( trigger_index, TRIG_BEING_CHECKED );
+
+    /* retrieve filesystem usage info */
+
+    if ( statfs( traverse_path, &statfs_glob ) != 0 )
+    {
+        int            err = errno;
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Could not make a 'df' on %s: error %d: %s",
+                    global_config.fs_path, err, strerror( err ) );
+        update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+        return err;
+    }
+
+    rc = check_thresholds( &( resmon_config.trigger_list[trigger_index] ), "Filesystem",
+                           &statfs_glob, &purge_param.nb_blocks,
+                           &trigger_status_list[trigger_index].last_usage );
+    if ( rc )
+    {
+        update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+        return rc;
+    }
+    else if ( purge_param.nb_blocks == 0 )
+    {
+        update_trigger_status( trigger_index, TRIG_OK );
+        return 0;
+    }
+
+    purge_param.type = PURGE_FS;
+    purge_param.flags = module_args.flags;
+
+    update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
+
+    /* perform the purge */
+    rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
+
+    /* update last purge time and target */
+    sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Global Filesystem" );
+
+    if ( rc == 0 )
+    {
+        DisplayLog( LVL_MAJOR, RESMON_TAG,
+                    "Global filesystem purge summary: %lu blocks purged (initial estimation %lu)/%lu blocks needed in %s",
+                    purged, spec, purge_param.nb_blocks, global_config.fs_path );
+    }
+
+    if ( purged < purge_param.nb_blocks )
+    {
+        if ( rc != ENOENT )
+        {
+            update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "Could not purge %lu blocks in %s: not enough eligible files. Only %lu blocks freed.",
+                        purge_param.nb_blocks, global_config.fs_path, purged );
+            DisplayAlert( "Robinhood alert: cannot purge filesystem",
+                          "Could not purge %lu blocks in filesystem: "
+                          "not enough eligible files. Only %lu blocks freed.",
+                          purge_param.nb_blocks, purged );
+
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "Not enough eligible files" );
+        }
+        else
+        {
+            update_trigger_status( trigger_index, TRIG_NO_LIST );
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "Could not purge %lu blocks in %s: no list is available.",
+                        purge_param.nb_blocks, global_config.fs_path );
+
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "No list available" );
+        }
+
+    }
+    else
+    {
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "OK" );
+        update_trigger_status( trigger_index, TRIG_OK );
+    }
+
+    FlushLogs(  );
+
+    if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "Waiting %lus before performing 'df' on other storage units.",
+                    resmon_config.post_purge_df_latency );
+        rh_sleep( resmon_config.post_purge_df_latency );
+    }
+
+    return rc;
+
+}
+
+/** Check triggers on OST usage */
+static int check_ost_trigger( unsigned trigger_index )
+{
+    struct statfs  statfs_ost;
+    purge_param_t  purge_param;
+    unsigned int   ost_index;
+    int            rc;
+    char           ostname[128];
+    char           timestamp[128];
+    unsigned long  purged, spec;
+    double         ost_usage = 0.0;
+
+#ifndef _LUSTRE
+    DisplayLog( LVL_CRIT, RESMON_TAG,
+                "'OST_usage' trigger is not supported: you should rebuild the program with '_LUSTRE' flag enabled." );
+    return ENOTSUP;
+#else
+
+    /* Only for lustre filesystems */
+    if ( strcasecmp( global_config.fs_type, "lustre" ) )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "'OST_usage' trigger is only supported on Lustre filesystems: skipped." );
+
+        update_trigger_status( trigger_index, TRIG_UNSUPPORTED );
+        return ENOTSUP;
+    }
+
+    /* Check that filesystem is mounted before purging entries */
+    if ( !CheckFSDevice(  ) )
+        return ENXIO;
+
+    /* first initialize max_ost_usage */
+    trigger_status_list[trigger_index].last_usage = 0.0;
+
+    /* for each OST: get usage info and check it */
+    for ( ost_index = 0;; ost_index++ )
+    {
+        rc = Get_OST_usage( global_config.fs_path, ost_index, &statfs_ost );
+        if ( rc == ENODEV )     /* end of OST list */
+            break;
+        else if ( rc != 0 )
+        {
+            update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+            continue;
+        }
+
+        snprintf( ostname, 128, "OST #%u", ost_index );
+
+        update_trigger_status( trigger_index, TRIG_BEING_CHECKED );
+
+        /* check thresholds */
+        rc = check_thresholds( &( resmon_config.trigger_list[trigger_index] ), ostname,
+                               &statfs_ost, &purge_param.nb_blocks, &ost_usage );
+
+        /* compute max ost usage */
+        if ( ( rc == 0 ) && ( ost_usage > trigger_status_list[trigger_index].last_usage ) )
+            trigger_status_list[trigger_index].last_usage = ost_usage;
+
+        if ( rc )
+        {
+            update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+            return rc;
+        }
+        else if ( purge_param.nb_blocks == 0 )
+        {
+            update_trigger_status( trigger_index, TRIG_OK );
+            continue;
+        }
+
+        purge_param.type = PURGE_BY_OST;
+        purge_param.param_u.ost_index = ost_index;
+        purge_param.flags = module_args.flags;
+
+        update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
+
+        rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
+
+        /* update last purge time and target */
+        sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, ostname );
+
+
+        if ( rc == 0 )
+            DisplayLog( LVL_MAJOR, RESMON_TAG,
+                        "OST #%u purge summary: %lu blocks purged in OST #%u (%lu total)/%lu blocks needed",
+                        ost_index, spec, ost_index, purged, purge_param.nb_blocks );
+
+        if ( spec < purge_param.nb_blocks )
+        {
+            if ( rc != ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Could not purge %lu blocks in OST #%u: not enough eligible files. Only %lu blocks freed.",
+                            purge_param.nb_blocks, ost_index, spec );
+                DisplayAlert( "Robinhood alert: cannot purge OST",
+                              "Could not purge %lu blocks in OST #%u: not enough eligible files. Only %lu blocks freed.",
+                              purge_param.nb_blocks, ost_index, spec );
+
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "Not enough eligible files" );
+            }
+            else
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks in OST #%u: no list is available.",
+                            purge_param.nb_blocks, ost_index );
+
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "No list available" );
+            }
+
+        }
+        else
+        {
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "OK" );
+            update_trigger_status( trigger_index, TRIG_OK );
+        }
+
+        FlushLogs(  );
+
+        if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+        {
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "Waiting %lus before performing 'df' on other storage units.",
+                        resmon_config.post_purge_df_latency );
+            rh_sleep( resmon_config.post_purge_df_latency );
+        }
+
+    }
+#endif
+    return 0;
+}
+
+
+/** Check triggers on pool usage */
+static int check_pool_trigger( unsigned trigger_index )
+{
+
+#ifndef _LUSTRE
+    DisplayLog( LVL_CRIT, RESMON_TAG,
+                "'pool_usage' trigger is not supported: you should rebuild the program with '_LUSTRE' flag enabled." );
+    return ENOTSUP;
+#else
+#ifndef HAVE_LLAPI_GETPOOL_INFO
+    DisplayLog( LVL_CRIT, RESMON_TAG,
+                "'pool_usage' trigger is not supported for this lustre release. Consider using a lustre version over 2.x" );
+                                                                                                                             /** @TODO */
+    return ENOTSUP;
+#else
+    struct statfs  statfs_pool;
+    purge_param_t  purge_param;
+    char         **pool_list;
+    int            pool_count;
+    char           pool_string[128];
+    int            rc, i;
+    char           timestamp[128];
+    unsigned long  purged, spec;
+    double         pool_usage = 0.0;
+
+    /* Only for lustre filesystems */
+    if ( strcasecmp( global_config.fs_type, "lustre" ) )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "'pool_usage' trigger is only supported on Lustre filesystems: skipped." );
+
+        update_trigger_status( trigger_index, TRIG_UNSUPPORTED );
+        return ENOTSUP;
+    }
+
+    if ( !CheckFSDevice(  ) )
+        return ENXIO;
+
+    /* If no list of pool is specified, get the entire list */
+    if ( resmon_config.trigger_list[trigger_index].list_size == 0 )
+    {
+        pool_list = NULL;
+        pool_count = 0;
+    }
+    else
+    {
+        pool_list = resmon_config.trigger_list[trigger_index].list;
+        pool_count = resmon_config.trigger_list[trigger_index].list_size;
+    }
+
+    /* first initialize max_pool_usage */
+    trigger_status_list[trigger_index].last_usage = 0.0;
+
+    /* check usage for each pool in list */
+
+    for ( i = 0; i < pool_count; i++ )
+    {
+        rc = Get_pool_usage( pool_list[i], &statfs_pool );
+        if ( rc )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG, "Could not retrieve usage info for pool '%s': %s",
+                        pool_list[i], strerror( rc ) );
+            update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+            continue;
+        }
+
+        update_trigger_status( trigger_index, TRIG_BEING_CHECKED );
+
+        sprintf( pool_string, "pool '%s'", pool_list[i] );
+        /* check thresholds */
+        rc = check_thresholds( &( resmon_config.trigger_list[trigger_index] ), pool_string,
+                               &statfs_pool, &purge_param.nb_blocks, &pool_usage );
+
+        /* update max pool usage */
+        if ( ( rc == 0 ) && ( pool_usage > trigger_status_list[trigger_index].last_usage ) )
+            trigger_status_list[trigger_index].last_usage = pool_usage;
+
+        if ( rc )
+        {
+            update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+            return rc;
+        }
+        else if ( purge_param.nb_blocks == 0 )
+        {
+            update_trigger_status( trigger_index, TRIG_OK );
+            continue;
+        }
+
+        purge_param.type = PURGE_BY_POOL;
+        purge_param.param_u.pool_name = pool_list[i];
+        purge_param.flags = module_args.flags;
+
+        update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
+
+        rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
+
+        /* update last purge time and target */
+        sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, pool_string );
+
+        if ( rc == 0 )
+            DisplayLog( LVL_MAJOR, RESMON_TAG,
+                        "Pool '%s' purge summary: %lu blocks purged in '%s' (%lu total)/%lu blocks needed",
+                        pool_list[i], spec, pool_list[i], purged, purge_param.nb_blocks );
+
+        if ( spec < purge_param.nb_blocks )
+        {
+            if ( rc != ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Could not purge %lu blocks in %s: not enough eligible files. Only %lu blocks freed.",
+                            purge_param.nb_blocks, pool_string, spec );
+                DisplayAlert( "Robinhood alert: cannot purge pool",
+                              "Could not purge %lu blocks in %s: not enough eligible files. Only %lu blocks freed.",
+                              purge_param.nb_blocks, pool_string, spec );
+
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "Not enough eligible files" );
+            }
+            else
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks in %s: no list is available.",
+                            purge_param.nb_blocks, pool_string );
+
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "No list available" );
+            }
+
+        }
+        else
+        {
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "OK" );
+            update_trigger_status( trigger_index, TRIG_OK );
+        }
+
+        FlushLogs(  );
+
+        if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+        {
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "Waiting %lus before performing 'df' on other storage units.",
+                        resmon_config.post_purge_df_latency );
+            rh_sleep( resmon_config.post_purge_df_latency );
+        }
+
+    }
+
+    return 0;
+#endif
+#endif
+}
+
+/** Check trigger on user usage */
+static int check_user_trigger( unsigned trigger_index )
+{
+    unsigned long long max_blk512, low_blk512;
+    report_field_descr_t user_info[2];
+    db_value_t     result[2];
+    unsigned int   result_count;
+    struct lmgr_report_t *it;
+    filter_value_t fv;
+    lmgr_filter_t  filter;
+    int            rc;
+    purge_param_t  purge_param;
+    struct statfs  statfs_glob;
+    unsigned long  total_user_blocks = 0;
+
+    trigger_item_t *p_trigger = &resmon_config.trigger_list[trigger_index];
+
+    update_trigger_status( trigger_index, TRIG_BEING_CHECKED );
+
+    /* if PCT_THRESHOLD is used, statfs is needed */
+    if ( ( p_trigger->hw_type == PCT_THRESHOLD ) || ( p_trigger->lw_type == PCT_THRESHOLD ) )
+    {
+        char           traverse_path[MAXPATHLEN];
+        snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+
+        if ( statfs( traverse_path, &statfs_glob ) != 0 )
+        {
+            int            err = errno;
+            DisplayLog( LVL_CRIT, RESMON_TAG, "Could not make a 'df' on %s: error %d: %s",
+                        global_config.fs_path, err, strerror( err ) );
+            update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+            return err;
+        }
+
+        /* number of blocks available to users */
+        total_user_blocks = ( statfs_glob.f_blocks + statfs_glob.f_bavail - statfs_glob.f_bfree );
+
+    }
+
+    /* compute high watermark, in number of blocks */
+
+    if ( p_trigger->hw_type == VOL_THRESHOLD )
+        max_blk512 = p_trigger->hw_volume / DEV_BSIZE;
+    else
+    {
+        unsigned long  used_hw =
+            ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
+
+        max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
+    }
+
+    /* compute low watermark */
+    if ( p_trigger->lw_type == VOL_THRESHOLD )
+        low_blk512 = p_trigger->lw_volume / DEV_BSIZE;
+    else
+    {
+        unsigned long  target =
+            ( unsigned long ) ( ( p_trigger->lw_percent * total_user_blocks ) / 100.0 );
+        low_blk512 = FSInfo2Blocs512( target, statfs_glob.f_bsize );
+    }
+
+    /* build report parameters */
+
+    user_info[0].attr_index = ATTR_INDEX_owner;
+    user_info[0].report_type = REPORT_GROUP_BY;
+    user_info[0].sort_flag = SORT_NONE;
+    user_info[0].filter = FALSE;
+
+    /** @TODO if a specific set of users is specified, make a filter for this */
+
+    /* select users whose sum(blocks) > high_watermark */
+    user_info[1].attr_index = ATTR_INDEX_blocks;
+    user_info[1].report_type = REPORT_SUM;
+    user_info[1].sort_flag = SORT_NONE;
+    user_info[1].filter = TRUE;
+    user_info[1].filter_compar = MORETHAN_STRICT;
+    user_info[1].filter_value.val_biguint = max_blk512;
+
+    /* filtre non-whitelisted/non-invalid entries */
+    lmgr_simple_filter_init( &filter );
+    fv.val_bool = TRUE;
+#ifdef ATTR_INDEX_whitelisted
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0 );
+#endif
+#ifdef ATTR_INDEX_invalid
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0 );
+#endif
+
+    it = ListMgr_Report( &lmgr, user_info, 2, &filter, NULL );
+
+    lmgr_simple_filter_free( &filter );
+
+    if ( it == NULL )
+    {
+        update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Could not retrieve user stats from database. Skipping user_usage trigger check." );
+        return -1;
+    }
+
+    result_count = 2;
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    {
+        unsigned long  blocks_purged;
+        char           user_desc[128];
+        char           timestamp[128];
+
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "User '%s' exceeds high watermark: used: %llu blocks / high watermark: %llu blocks (x%u).",
+                    result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
+                    DEV_BSIZE );
+
+        purge_param.type = PURGE_BY_USER;
+        purge_param.flags = module_args.flags;
+        purge_param.param_u.user_name = result[0].value_u.val_str;
+        purge_param.nb_blocks = result[1].value_u.val_biguint - low_blk512;
+
+        result_count = 2;
+
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "%lu blocks (x%u) must be purged for user '%s' (used=%Lu, target=%Lu)",
+                    purge_param.nb_blocks, DEV_BSIZE, result[0].value_u.val_str,
+                    result[1].value_u.val_biguint, low_blk512 );
+
+        update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
+
+        /* perform the purge */
+        rc = perform_purge( &lmgr, &purge_param, &blocks_purged, NULL );
+
+        /* update last purge time and target */
+        sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+        snprintf( user_desc, 128, "user \"%s\"", result[0].value_u.val_str );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, user_desc );
+
+
+        if ( rc == 0 )
+        {
+            DisplayLog( LVL_MAJOR, RESMON_TAG,
+                        "User files purge summary: %lu blocks purged/%lu blocks needed for user '%s'",
+                        blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str );
+        }
+
+        if ( blocks_purged < purge_param.nb_blocks )
+        {
+            if ( rc != ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Could not purge %lu blocks for user '%s': not enough eligible files. Only %lu blocks freed.",
+                            purge_param.nb_blocks, result[0].value_u.val_str, blocks_purged );
+                DisplayAlert( "Robinhood alert: cannot purge user files",
+                              "Could not purge %lu blocks for user '%s': not enough eligible files. Only %lu blocks freed.",
+                              purge_param.nb_blocks, result[0].value_u.val_str, blocks_purged );
+
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "Not enough eligible files" );
+            }
+            else
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks for user '%s': no list is available.",
+                            purge_param.nb_blocks, result[0].value_u.val_str );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "No list available" );
+            }
+
+        }
+        else
+        {
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "OK" );
+            update_trigger_status( trigger_index, TRIG_OK );
+        }
+
+        FlushLogs(  );
+
+    }                           /* loop for reading report */
+
+    ListMgr_CloseReport( it );
+
+    if ( trigger_status_list[trigger_index].status == TRIG_BEING_CHECKED )
+        update_trigger_status( trigger_index, TRIG_OK );
+
+    return 0;
+}
+
+/** Check trigger on group usage */
+static int check_group_trigger( unsigned trigger_index )
+{
+    unsigned long long max_blk512, low_blk512;
+    report_field_descr_t group_info[2];
+    db_value_t     result[2];
+    unsigned int   result_count;
+    struct lmgr_report_t *it;
+    filter_value_t fv;
+    lmgr_filter_t  filter;
+    int            rc;
+    purge_param_t  purge_param;
+    struct statfs  statfs_glob;
+    unsigned long  total_user_blocks = 0;
+
+    trigger_item_t *p_trigger = &resmon_config.trigger_list[trigger_index];
+
+    update_trigger_status( trigger_index, TRIG_BEING_CHECKED );
+
+    /* if PCT_THRESHOLD is used, statfs is needed */
+    if ( ( p_trigger->hw_type == PCT_THRESHOLD ) || ( p_trigger->lw_type == PCT_THRESHOLD ) )
+    {
+        char           traverse_path[MAXPATHLEN];
+        snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+
+        if ( statfs( traverse_path, &statfs_glob ) != 0 )
+        {
+            int            err = errno;
+            DisplayLog( LVL_CRIT, RESMON_TAG, "Could not make a 'df' on %s: error %d: %s",
+                        global_config.fs_path, err, strerror( err ) );
+            update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+            return err;
+        }
+
+        /* number of blocks available to users */
+        total_user_blocks = ( statfs_glob.f_blocks + statfs_glob.f_bavail - statfs_glob.f_bfree );
+
+    }
+
+    /* compute high watermark, in number of blocks */
+
+    if ( p_trigger->hw_type == VOL_THRESHOLD )
+        max_blk512 = p_trigger->hw_volume / DEV_BSIZE;
+    else
+    {
+        unsigned long  used_hw =
+            ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
+
+        max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
+    }
+
+    /* compute low watermark */
+    if ( p_trigger->lw_type == VOL_THRESHOLD )
+        low_blk512 = p_trigger->lw_volume / DEV_BSIZE;
+    else
+    {
+        unsigned long  target =
+            ( unsigned long ) ( ( p_trigger->lw_percent * total_user_blocks ) / 100.0 );
+        low_blk512 = FSInfo2Blocs512( target, statfs_glob.f_bsize );
+    }
+
+    /* build report parameters */
+
+    group_info[0].attr_index = ATTR_INDEX_gr_name;
+    group_info[0].report_type = REPORT_GROUP_BY;
+    group_info[0].sort_flag = SORT_NONE;
+    group_info[0].filter = FALSE;
+
+    /* @TODO if a specific set of groups is specified, make a filter for this */
+
+    /* select groups whose sum(blocks) > high_watermark */
+    group_info[1].attr_index = ATTR_INDEX_blocks;
+    group_info[1].report_type = REPORT_SUM;
+    group_info[1].sort_flag = SORT_NONE;
+    group_info[1].filter = TRUE;
+    group_info[1].filter_compar = MORETHAN_STRICT;
+    group_info[1].filter_value.val_biguint = max_blk512;
+
+    /* filtre non-whitelisted/non-invalid entries */
+    lmgr_simple_filter_init( &filter );
+    fv.val_bool = TRUE;
+#ifdef ATTR_INDEX_whitelisted
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0 );
+#endif
+#ifdef ATTR_INDEX_invalid
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0 );
+#endif
+
+    it = ListMgr_Report( &lmgr, group_info, 2, &filter, NULL );
+
+    lmgr_simple_filter_free( &filter );
+
+    if ( it == NULL )
+    {
+        update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Could not retrieve group stats from database. Skipping group_usage trigger check." );
+        return -1;
+    }
+
+    result_count = 2;
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    {
+        unsigned long  blocks_purged;
+        char           timestamp[128];
+        char           group_desc[128];
+
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "Group '%s' exceeds high watermark: used: %llu blocks / high watermark: %llu blocks (x%u).",
+                    result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
+                    DEV_BSIZE );
+
+        purge_param.type = PURGE_BY_USER;
+        purge_param.flags = module_args.flags;
+        purge_param.param_u.group_name = result[0].value_u.val_str;
+        purge_param.nb_blocks = result[1].value_u.val_biguint - low_blk512;
+
+        result_count = 2;
+
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "%lu blocks (x%u) must be purged for group '%s' (used=%Lu, target=%Lu)",
+                    purge_param.nb_blocks, DEV_BSIZE, result[0].value_u.val_str,
+                    result[1].value_u.val_biguint, low_blk512 );
+
+        update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
+
+        /* perform the purge */
+        rc = perform_purge( &lmgr, &purge_param, &blocks_purged, NULL );
+
+        /* update last purge time and target */
+        sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+        snprintf( group_desc, 128, "group \"%s\"", result[0].value_u.val_str );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, group_desc );
+
+        if ( rc == 0 )
+        {
+            DisplayLog( LVL_MAJOR, RESMON_TAG,
+                        "Group files purge summary: %lu blocks purged/%lu blocks needed for group '%s'",
+                        blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str );
+        }
+
+        if ( blocks_purged < purge_param.nb_blocks )
+        {
+            if ( rc != ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Could not purge %lu blocks for group '%s': not enough eligible files. Only %lu blocks freed.",
+                            purge_param.nb_blocks, result[0].value_u.val_str, blocks_purged );
+                DisplayAlert( "Robinhood alert: cannot purge group files",
+                              "Could not purge %lu blocks for group '%s': not enough eligible files. Only %lu blocks freed.",
+                              purge_param.nb_blocks, result[0].value_u.val_str, blocks_purged );
+
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "Not enough eligible files" );
+            }
+            else
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks for group '%s': no list is available.",
+                            purge_param.nb_blocks, result[0].value_u.val_str );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "No list available" );
+            }
+
+        }
+        else
+        {
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "OK" );
+            update_trigger_status( trigger_index, TRIG_OK );
+        }
+
+        FlushLogs(  );
+
+    }                           /* loop for reading report */
+
+    ListMgr_CloseReport( it );
+
+    if ( trigger_status_list[trigger_index].status == TRIG_BEING_CHECKED )
+        update_trigger_status( trigger_index, TRIG_OK );
+
+    return 0;
+
+}
+
+static int check_cmd_trigger( unsigned trigger_index )
+{                               /* @TODO */
+    return 0;
+}
+
+/**
+ * This thread is for performing a manual purge on a given OST
+ */
+static void   *force_ost_trigger_thr( void *arg )
+{
+    int            rc;
+    struct statfs  statfs_ost;
+    purge_param_t  purge_param;
+    char           ostname[128];
+    char           timestamp[128];
+    unsigned long  purged, spec;
+    double         ost_usage = 0.0;
+    trigger_item_t trig;
+
+#ifndef _LUSTRE
+    DisplayLog( LVL_CRIT, RESMON_TAG,
+                "OST purge is not supported: you must rebuild the program with Lustre support." );
+    goto end_of_thread;
+#else
+
+    /* Only for lustre filesystems */
+    if ( strcasecmp( global_config.fs_type, "lustre" ) )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Purge per OST is only supported for Lustre filesystems: operation cancelled." );
+        goto end_of_thread;
+    }
+
+    rc = ListMgr_InitAccess( &lmgr );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Could not connect to database (error %d). OST usage cannot be checked.", rc );
+        goto end_of_thread;
+    }
+
+    if ( !CheckFSDevice(  ) )
+        goto disconnect;
+
+    rc = Get_OST_usage( global_config.fs_path, module_args.ost_index, &statfs_ost );
+
+    if ( rc == ENODEV )         /* end of OST list */
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Cannot purge OST #%u: no such device.", module_args.ost_index );
+        goto disconnect;
+    }
+    else if ( rc != 0 )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Cannot retrieve usage for OST #%u: error %d", module_args.ost_index, rc );
+        goto disconnect;
+    }
+
+    snprintf( ostname, 128, "OST #%u", module_args.ost_index );
+
+    /* build a custom trigger for this OST */
+    trig.type = TRIGGER_OST_USAGE;
+    trig.list = NULL;
+    trig.list_size = 0;
+    trig.check_interval = 0;
+    /* in this case, HW=LW=target */
+    trig.hw_type = PCT_THRESHOLD;
+    trig.lw_type = PCT_THRESHOLD;
+    trig.hw_percent = module_args.target_usage;
+    trig.lw_percent = module_args.target_usage;
+
+    /* check thresholds */
+    rc = check_thresholds( &trig, ostname, &statfs_ost, &purge_param.nb_blocks, &ost_usage );
+
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Error %d checking usage for OST #%u.", rc, module_args.ost_index );
+        goto disconnect;
+    }
+    else if ( purge_param.nb_blocks == 0 )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Nothing to do for OST #%u", module_args.ost_index );
+        goto disconnect;
+    }
+
+    purge_param.type = PURGE_BY_OST;
+    purge_param.flags = module_args.flags;
+    purge_param.param_u.ost_index = module_args.ost_index;
+
+    rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
+
+    /* update last purge time and target */
+    sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, ostname );
+
+    if ( rc == 0 )
+        DisplayLog( LVL_MAJOR, RESMON_TAG,
+                    "OST #%u purge summary: %lu blocks purged in OST #%u (%lu total)/%lu blocks needed",
+                    module_args.ost_index, spec, module_args.ost_index, purged,
+                    purge_param.nb_blocks );
+
+    if ( spec < purge_param.nb_blocks )
+    {
+        if ( rc != ENOENT )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "Could not purge %lu blocks in OST #%u: not enough eligible files. "
+                        "Only %lu blocks freed.",
+                        purge_param.nb_blocks, module_args.ost_index, spec );
+            DisplayAlert( "Robinhood alert: cannot purge OST",
+                          "Could not purge %lu blocks in OST #%u: not enough eligible files. "
+                          "Only %lu blocks freed.",
+                          purge_param.nb_blocks, module_args.ost_index, spec );
+
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "Not enough eligible files" );
+        }
+        else
+        {
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "Could not purge %lu blocks in OST #%u: no list is available.",
+                        purge_param.nb_blocks, module_args.ost_index );
+
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "No list available" );
+        }
+
+    }
+    else
+    {
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "OK" );
+    }
+
+    FlushLogs(  );
+
+    if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "It is advised waiting %lus before performing purge on other storage units.",
+                    resmon_config.post_purge_df_latency );
+    }
+#endif
+  disconnect:
+    ListMgr_CloseAccess( &lmgr );
+  end_of_thread:
+    pthread_exit( NULL );
+    return NULL;
+}
+
+/**
+ * This thread performs a manual purge on the entire filesystem
+ */
+static void   *force_fs_trigger_thr( void *arg )
+{
+    struct statfs  statfs_glob;
+    char           traverse_path[MAXPATHLEN];
+    purge_param_t  purge_param;
+    int            rc;
+    unsigned long  purged, spec;
+    char           timestamp[128];
+    trigger_item_t trig;
+    double         curr_usage;
+
+    snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+
+    rc = ListMgr_InitAccess( &lmgr );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Could not connect to database (error %d). FS usage cannot be checked.", rc );
+        goto end_of_thread;
+    }
+
+    if ( !CheckFSDevice(  ) )
+        goto disconnect;
+
+    /* retrieve filesystem usage info */
+
+    if ( statfs( traverse_path, &statfs_glob ) != 0 )
+    {
+        int            err = errno;
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Could not make a 'df' on %s: error %d: %s",
+                    global_config.fs_path, err, strerror( err ) );
+        goto disconnect;
+    }
+
+    /* build a custom policy for the FS */
+    trig.type = TRIGGER_GLOBAL_USAGE;
+    trig.list = NULL;
+    trig.list_size = 0;
+    trig.check_interval = 0;
+    /* in this case, HW=LW=target */
+    trig.hw_type = PCT_THRESHOLD;
+    trig.lw_type = PCT_THRESHOLD;
+    trig.hw_percent = module_args.target_usage;
+    trig.lw_percent = module_args.target_usage;
+
+    rc = check_thresholds( &trig, "Filesystem", &statfs_glob, &purge_param.nb_blocks, &curr_usage );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Error %d checking usage for Filesystem.", rc );
+        goto disconnect;
+    }
+    else if ( purge_param.nb_blocks == 0 )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Nothing to do for filesystem." );
+        goto disconnect;
+    }
+
+    purge_param.type = PURGE_FS;
+    purge_param.flags = module_args.flags;
+
+    /* perform the purge */
+    rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
+
+    /* update last purge time and target */
+    sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Global Filesystem" );
+
+    if ( rc == 0 )
+    {
+        DisplayLog( LVL_MAJOR, RESMON_TAG,
+                    "Global filesystem purge summary: %lu blocks purged (initial estimation %lu)/%lu blocks needed in %s",
+                    purged, spec, purge_param.nb_blocks, global_config.fs_path );
+    }
+
+    if ( purged < purge_param.nb_blocks )
+    {
+        if ( rc != ENOENT )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "Could not purge %lu blocks in %s: not enough eligible files. Only %lu blocks freed.",
+                        purge_param.nb_blocks, global_config.fs_path, purged );
+            DisplayAlert( "Robinhood alert: cannot purge filesystem",
+                          "Could not purge %lu blocks in filesystem: not enough eligible files. Only %lu blocks freed.",
+                          purge_param.nb_blocks, purged );
+
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "Not enough eligible files" );
+        }
+        else
+        {
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "Could not purge %lu blocks in %s: no list is available.",
+                        purge_param.nb_blocks, global_config.fs_path );
+
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "No list available" );
+        }
+
+    }
+    else
+    {
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "OK" );
+    }
+
+    FlushLogs(  );
+
+    if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "It is advised waiting %lus before performing purge on other storage units.",
+                    resmon_config.post_purge_df_latency );
+    }
+
+  disconnect:
+    ListMgr_CloseAccess( &lmgr );
+  end_of_thread:
+    pthread_exit( NULL );
+    return NULL;
+}
+
+
+static inline char *trigger2str( trigger_type_t type )
+{
+    switch ( type )
+    {
+    case TRIGGER_GLOBAL_USAGE:
+        return "global_usage";
+    case TRIGGER_OST_USAGE:
+        return "OST_usage";
+    case TRIGGER_POOL_USAGE:
+        return "pool_usage";
+    case TRIGGER_USER_USAGE:
+        return "user_usage";
+    case TRIGGER_GROUP_USAGE:
+        return "group_usage";
+    case TRIGGER_CUSTOM_CMD:
+        return "external_command";
+    default:
+        return "?";
+    }
+}
+
+
+/**
+ * Main loop for checking triggers periodically
+ */
+static void   *trigger_check_thr( void *thr_arg )
+{
+    unsigned int   i;
+    int            rc;
+    double         max_usage;
+    char           tmpstr[128];
+
+    rc = ListMgr_InitAccess( &lmgr );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Could not connect to database (error %d). Trigger checking cannot be started.",
+                    rc );
+        return NULL;
+    }
+
+    do
+    {
+        max_usage = 0.0;
+
+        /* check every trigger */
+        for ( i = 0; i < resmon_config.trigger_count; i++ )
+        {
+            if ( time( NULL ) - trigger_status_list[i].last_check >=
+                 resmon_config.trigger_list[i].check_interval )
+            {
+                if ( trigger_status_list[i].last_check != 0 )
+                    DisplayLog( LVL_DEBUG, RESMON_TAG,
+                                "Checking trigger #%u (last check %lus ago)", i,
+                                time( NULL ) - trigger_status_list[i].last_check );
+                else
+                    DisplayLog( LVL_DEBUG, RESMON_TAG, "Checking trigger #%u (never checked)", i );
+
+                /* call the appropriate checking function depending on trigger type */
+                switch ( resmon_config.trigger_list[i].type )
+                {
+                case TRIGGER_GLOBAL_USAGE:
+                    rc = check_global_trigger( i );
+                    break;
+                case TRIGGER_OST_USAGE:
+                    rc = check_ost_trigger( i );
+                    break;
+                case TRIGGER_POOL_USAGE:
+                    rc = check_pool_trigger( i );
+                    break;
+                case TRIGGER_USER_USAGE:
+                    rc = check_user_trigger( i );
+                    break;
+                case TRIGGER_GROUP_USAGE:
+                    rc = check_group_trigger( i );
+                    break;
+                case TRIGGER_CUSTOM_CMD:
+                    rc = check_cmd_trigger( i );
+                    break;
+                default:
+                    DisplayLog( LVL_CRIT, RESMON_TAG,
+                                "Unexpected trigger type %d for trigger #%u: ignored.",
+                                resmon_config.trigger_list[i].type, i );
+                    rc = 0;     /* don't retry immediately */
+                }
+
+                /* don't update last_check if trigger check failed */
+                if ( rc != 0 )
+                    DisplayLog( LVL_CRIT, RESMON_TAG,
+                                "Trigger #%u check function returned error %d... Will retry later",
+                                i, rc );
+                else
+                    trigger_status_list[i].last_check = time( NULL );
+
+            }
+
+            /* in any case compute max usage */
+            if ( trigger_status_list[i].last_usage > max_usage )
+                max_usage = trigger_status_list[i].last_usage;
+        }
+
+        /* Finaly update max_usage in persistent stats */
+        snprintf( tmpstr, 128, "%.2f", max_usage );
+        if ( ListMgr_SetVar( &lmgr, USAGE_MAX_VAR, tmpstr ) != DB_SUCCESS )
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "Error updating value of " USAGE_MAX_VAR " variable (value = %s)", tmpstr );
+
+        if ( module_args.mode == RESMON_DAEMON )
+            rh_sleep( trigger_check_interval );
+        else
+        {
+            ListMgr_CloseAccess( &lmgr );
+            pthread_exit( NULL );
+            return NULL;
+        }
+
+    }
+    while ( 1 );
+
+    return NULL;
+
+}
+
+/* ------------ Exported functions ------------ */
+
+/** Recompute trigger check interval as the GCD of all triggers */
+void ResMon_UpdateCheckInterval(  )
+{
+    unsigned int   i;
+
+    if ( resmon_config.trigger_count == 0 )
+        return;
+
+    trigger_check_interval = 1;
+
+    /* compute GCD of trigger check intervals */
+
+    if ( resmon_config.trigger_count == 1 )
+        trigger_check_interval = resmon_config.trigger_list[0].check_interval;
+    else if ( resmon_config.trigger_count > 1 )
+    {
+        trigger_check_interval =
+            gcd( resmon_config.trigger_list[0].check_interval,
+                 resmon_config.trigger_list[1].check_interval );
+        for ( i = 2; i < resmon_config.trigger_count; i++ )
+            trigger_check_interval =
+                gcd( trigger_check_interval, resmon_config.trigger_list[i].check_interval );
+    }
+
+    DisplayLog( LVL_DEBUG, RESMON_TAG, "GCD of trigger check intervals is %us",
+                ( unsigned int ) trigger_check_interval );
+
+}
+
+/**
+ * Initialize module and start main thread
+ */
+int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t options )
+{
+    unsigned int   i;
+    int            rc;
+
+    /* Check mount point and FS type.  */
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev );
+    if ( rc != 0 )
+        return rc;
+
+    /* store configuration */
+    resmon_config = *p_config;
+    module_args = options;
+
+    /* intervals must only be computed for daemon mode */
+    if ( options.mode == RESMON_DAEMON )
+    {
+        if ( resmon_config.trigger_count == 0 )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "No purge trigger defined in configuration file... Exiting." );
+            return ENOENT;
+        }
+
+        trigger_check_interval = 1;
+
+        if ( resmon_config.trigger_count == 0 )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "No purge trigger defined in configuration file... Exiting." );
+            return ENOENT;
+        }
+
+        ResMon_UpdateCheckInterval(  );
+    }
+
+    /* alloc and initialize trigger status array (except for FORCE_PURGE modes) */
+    if ( ( module_args.mode != RESMON_PURGE_OST ) && ( module_args.mode != RESMON_PURGE_FS ) )
+    {
+        trigger_status_list =
+            ( trigger_info_t * ) MemCalloc( resmon_config.trigger_count, sizeof( trigger_info_t ) );
+
+        if ( trigger_status_list == NULL )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG, "Memory Error in %s", __FUNCTION__ );
+            return ENOMEM;
+        }
+
+        for ( i = 0; i < resmon_config.trigger_count; i++ )
+        {
+            trigger_status_list[i].last_check = 0;      /* not checked yet */
+            trigger_status_list[i].status = TRIG_NOT_CHECKED;
+            trigger_status_list[i].last_usage = 0.0;
+        }
+    }
+
+    /* initialize purge queue */
+    rc = CreateQueue( &purge_queue, resmon_config.purge_queue_size, PURGE_ST_COUNT - 1,
+                      PURGE_FDBK_COUNT );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Error %d initializing purge queue", rc );
+        return rc;
+    }
+
+    /* start purge threads */
+    rc = start_purge_threads( resmon_config.nb_threads_purge );
+    if ( rc )
+        return rc;
+
+    if ( module_args.mode == RESMON_PURGE_OST )
+    {
+        rc = pthread_create( &trigger_check_thread_id, NULL, force_ost_trigger_thr, NULL );
+    }
+    else if ( module_args.mode == RESMON_PURGE_FS )
+    {
+        rc = pthread_create( &trigger_check_thread_id, NULL, force_fs_trigger_thr, NULL );
+    }
+    else
+    {
+        rc = pthread_create( &trigger_check_thread_id, NULL, trigger_check_thr, NULL );
+    }
+
+    if ( rc != 0 )
+    {
+        rc = errno;
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Error %d starting main thread of Resource Monitor: %s", rc,
+                    strerror( rc ) );
+        return rc;
+    }
+
+    return 0;
+}
+
+
+int Wait_ResourceMonitor(  )
+{
+    void          *returned;
+    pthread_join( trigger_check_thread_id, &returned );
+    return 0;
+}
+
+
+void Dump_ResourceMonitor_Stats(  )
+{
+    unsigned int   status_tab[PURGE_ST_COUNT];
+    unsigned long long feedback_tab[PURGE_FDBK_COUNT];
+
+    unsigned int   nb_waiting, nb_items;
+    time_t         last_submitted, last_started, last_ack;
+
+    unsigned long long sz;
+    char           tmp_buff[256];
+    char           trigstr[256];
+    time_t         now = time( NULL );
+    int            i;
+    struct tm      paramtm;
+
+
+    /* Stats about triggers */
+
+    DisplayLog( LVL_MAJOR, "STATS", "======= Resource Monitor stats ======" );
+
+    /* sanity check */
+    if ( trigger_status_list != NULL )
+        for ( i = 0; i < resmon_config.trigger_count; i++ )
+        {
+
+            snprintf( trigstr, 256, "Trigger #%u (%s)", i,
+                      trigger2str( resmon_config.trigger_list[i].type ) );
+
+            switch ( trigger_status_list[i].status )
+            {
+            case TRIG_NOT_CHECKED:     /* not checked yet */
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: not checked yet.", trigstr );
+                break;
+            case TRIG_BEING_CHECKED:   /* currently beeing checked */
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: being checked.", trigstr );
+                break;
+            case TRIG_PURGE_RUNNING:   /* purge running for this trigger */
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: purge running.", trigstr );
+                break;
+            case TRIG_OK:      /* no purge is needed */
+                strftime( tmp_buff, 256, "%Y/%m/%d %T",
+                          localtime_r( &trigger_status_list[i].last_check, &paramtm ) );
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: OK (last check: %s).", trigstr, tmp_buff );
+                break;
+            case TRIG_NO_LIST: /* no list available */
+                strftime( tmp_buff, 256, "%Y/%m/%d %T",
+                          localtime_r( &trigger_status_list[i].last_check, &paramtm ) );
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: no list available (last check: %s).",
+                            trigstr, tmp_buff );
+                break;
+            case TRIG_NOT_ENOUGH:      /* not enough candidates */
+                strftime( tmp_buff, 256, "%Y/%m/%d %T",
+                          localtime_r( &trigger_status_list[i].last_check, &paramtm ) );
+                DisplayLog( LVL_MAJOR, "STATS",
+                            "%-30s: last purge (%s) was incomplete: not enough eligible files.",
+                            trigstr, tmp_buff );
+                break;
+
+            case TRIG_CHECK_ERROR:     /* Misc Error */
+                strftime( tmp_buff, 256, "%Y/%m/%d %T",
+                          localtime_r( &trigger_status_list[i].last_check, &paramtm ) );
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: an error occured at last check (%s).",
+                            trigstr, tmp_buff );
+                break;
+
+            case TRIG_UNSUPPORTED:     /* Trigger not supported in this mode */
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: not supported in this mode.", trigstr );
+                break;
+
+            }
+        }
+
+    /* Purge stats */
+
+    RetrieveQueueStats( &purge_queue, &nb_waiting, &nb_items, &last_submitted, &last_started,
+                        &last_ack, status_tab, feedback_tab );
+
+    DisplayLog( LVL_MAJOR, "STATS", "============ Purge stats ============" );
+    DisplayLog( LVL_MAJOR, "STATS", "idle purge threads       = %u", nb_waiting );
+    DisplayLog( LVL_MAJOR, "STATS", "purge operations pending = %u", nb_items );
+    DisplayLog( LVL_MAJOR, "STATS", "purge status:" );
+
+    for ( i = 0; i < PURGE_ST_COUNT; i++ )
+    {
+        /* always display PURGE_OK count and display error only if they have occured */
+        if ( ( status_tab[i] > 0 ) || ( i == PURGE_OK ) )
+            DisplayLog( LVL_MAJOR, "STATS", "    %-30s = %u", purge_status_descr[i],
+                        status_tab[i] );
+    }
+
+    sz = feedback_tab[PURGE_FDBK_BLOCKS] * DEV_BSIZE;
+
+    DisplayLog( LVL_MAJOR, "STATS", "total purged volume = %llu (%s)", sz,
+                FormatFileSize( tmp_buff, 256, sz ) );
+
+    if ( last_submitted )
+        DisplayLog( LVL_MAJOR, "STATS", "last file submitted %2d s ago",
+                    ( int ) ( now - last_submitted ) );
+
+    if ( last_started )
+        DisplayLog( LVL_MAJOR, "STATS", "last file handled   %2d s ago",
+                    ( int ) ( now - last_started ) );
+
+    if ( last_ack )
+        DisplayLog( LVL_MAJOR, "STATS", "last file purged    %2d s ago",
+                    ( int ) ( now - last_ack ) );
+
+}

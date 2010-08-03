@@ -1,0 +1,126 @@
+%header
+/* -*- mode: c; c-basic-offset: 4; indent-tabs-mode: nil; -*-
+ * vim:expandtab:shiftwidth=4:tabstop=4:
+ */
+/*
+ * Copyright (C) 2009 CEA/DAM
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the CeCILL License.
+ *
+ * The fact that you are presently reading this means that you have had
+ * knowledge of the CeCILL license (http://www.cecill.info) and that you
+ * accept its terms.
+ */
+/**
+ * \file   tmp_fs_mgr_types.h
+ * \brief  Defines data types for Temporary FS Manager.
+ */
+
+#include <sys/types.h>
+#include <sys/param.h>
+#include <errno.h>
+#include "global_config.h"
+
+#ifdef _LUSTRE
+#include "lustre_extended_types.h"
+#endif
+
+/********************************************************
+ *       Types For temporary filesystem space manager   *
+ ********************************************************/
+
+#if (defined (_LUSTRE) && defined(_HAVE_FID))
+
+#define FID_PK
+typedef lustre_fid entry_id_t;
+
+#define entry_id_equal( _p_id_1, _p_id_2 ) ( ((_p_id_1)->f_seq == (_p_id_2)->f_seq) && ((_p_id_1)->f_oid == (_p_id_2)->f_oid)  )
+
+#else
+
+#define INUM_PK
+typedef struct __entry_id__
+{
+  dev_t device;
+  ino_t inode;
+  int validator;
+} entry_id_t;
+
+#define entry_id_equal( _p_id_1, _p_id_2 ) ( ((_p_id_1)->device == (_p_id_2)->device) && ((_p_id_1)->inode == (_p_id_2)->inode)  )
+
+#endif
+
+/* functions for automatic generation */
+static int lmgr_gen_name( void * tgt, const void * src )
+{
+    char * curr;
+    const char * fullpath = (char*)src;
+    char * name = (char*)tgt;
+
+    if ( fullpath == NULL )
+        return EFAULT;
+
+    curr = strrchr( fullpath, '/' );
+    if ( curr )
+        strcpy( name, curr+1 );
+    else
+        strcpy( name, fullpath );
+    return 0;
+}
+
+static int lmgr_gen_depth( void * tgt, const void * src )
+{
+    const char * fullpath = (char*)src;
+    unsigned int * p_depth = (unsigned int *)tgt;
+
+    const char     *curr;
+    unsigned int   nb1;
+    unsigned int   nb2;
+    /* depth = number of '/' - 1 - depth of root fs.
+     * E.g.: root="/mnt/lustre", path="/mnt/lustre/dir/foo", depth=4-2-1=1
+     */
+
+    nb1 = 0;
+    curr = global_config.fs_path;
+    while ( ( curr = strchr( curr, '/' ) ) )
+    {
+        curr++;
+        nb1++;
+    }
+
+    nb2 = 0;
+    curr = fullpath;
+    while ( ( curr = strchr( curr, '/' ) ) )
+    {
+        curr++;
+        nb2++;
+    }
+
+    (*p_depth) = nb2 - nb1 - 1;
+
+   return 0;
+}
+
+%attrdef
+
+# /!\ Entry attribute type must fit with DB type for working with prepared statements
+# name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
+  stripe_info, 	stripe_info_t, DB_STRIPE_INFO, 0, INIT_ONLY
+  stripe_items, stripe_items_t, DB_STRIPE_ITEMS, 0, INIT_ONLY
+  fullpath,	char, DB_TEXT, 1024, FREQ_ACCESS
+  owner, 	char, DB_TEXT, 128, FREQ_ACCESS
+  gr_name, 	char, DB_TEXT, 128, FREQ_ACCESS
+  size, 	uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
+  blocks, 	uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
+  last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
+  last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
+  type,	    	char,   DB_TEXT, 32, FREQ_ACCESS
+  md_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
+  invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
+  whitelisted, 	int, DB_BOOL, 0, FREQ_ACCESS
+  dircount, 	unsigned int, DB_UINT, 0, ANNEX_INFO
+
+#generated fields
+  name,		char, DB_TEXT, 256, GENERATED, fullpath, lmgr_gen_name
+  depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth

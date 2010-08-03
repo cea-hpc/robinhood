@@ -1,0 +1,277 @@
+#!/bin/bash
+##
+# robinhood.init 1.0 2008/02/07 Ph. Gregoire philippe.gregoire@cea.fr
+##
+# chkconfig:	- 95 5
+# description:	@PURPOSE_SVC@ (filesystem purge and audit) service
+# processname:	/usr/sbin/@PURPOSE_BIN@
+# config:	/etc/robinhood.d/@PURPOSE_EXT@/<filesystem>.conf
+##
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# variables - may be overwritten by /etc/sysconfig/robinhood
+RH_CONF_DIR=/etc/robinhood.d/@PURPOSE_EXT@	# directory containing configuration files
+RH_RUN_DIR=/					# directory where daemon will run
+DAEMON=/usr/sbin/@PURPOSE_BIN@
+
+# Source robinhood configuration.
+[ -f /etc/sysconfig/@PURPOSE_SVC@ ] && . /etc/sysconfig/@PURPOSE_SVC@
+
+VARRUN=/var/run
+RETVAL=0
+
+
+#
+# pidfile_name() build the name of the pid file for a given configuration file
+# pidfile is like /var/run/<fs> if conf file is /etc/robinhood.d/<purpose>/<fs>.conf
+#
+pidfile_name()
+{
+	local conf=$1
+	local pidfile=$VARRUN/${conf##*/}
+	echo ${pidfile%.conf}
+}
+
+#
+# build_fslist() build the list of configurations files
+# configurations files can be given as
+# - a full pathname : 
+#	the script expects that file exists.
+# - a filename : <myconfigfile> 
+#	the script expects to find file /etc/robinhood.d/<purpose>/<myconfigfile>.
+# - a filesystem name <fsname> : 
+#	the scripts expects to find a file /etc/robinhood.d/<purpose>/<fsname>.conf
+# - an empty list :
+#	the script take all files directly under /etc/robinhood.d/<purpose>
+#
+build_fslist()
+{
+	local fs
+	local fs_list=""
+
+	if [[ $# -eq 0 ]]; then
+		# no args, consider all files under the configuration directory
+		for fs in $(ls -1 $RH_CONF_DIR/* 2>&-)
+		do
+			[ -f $fs ] && fs_list="$fs_list $fs"
+		done
+		if [[ -z $fs_list ]] ; then
+			echo "No configuration files under $RH_CONF_DIR" >&2
+			return 1
+		fi
+	else 
+		# several args, each may be a full configuration file pathname
+		# or filename of a filesystem name
+		for fs in $@
+		do
+			if [[ $fs = /* ]] && [[ -f $fs ]] ; then
+				fs_list="$fs_list $fs"
+			elif [ -f $RH_CONF_DIR/$fs ] ; then
+				fs_list="$fs_list $RH_CONF_DIR/$fs"
+			elif [ -f $RH_CONF_DIR/$fs.conf ] ; then
+				fs_list="$fs_list $RH_CONF_DIR/$fs.conf"
+			else
+				echo "Unable to find configuration file for $fs" >&2
+			fi
+		done
+	fi
+	echo ${fs_list% } # remove leading space
+}
+
+#
+# daemon_exist()
+# check if process corresponding to pidfile exist.
+# it must run with the same args.
+#
+daemon_exist()
+{
+	local pidfile=$1
+	local cmdline=$2
+	local pid
+
+	if [ -f $pidfile ] ; then
+		# check if there is still some process
+		pid=$(<$pidfile)
+		if [ -z "${pid//[0-9]/}" -a -d "/proc/$pid" ] ; then
+			local cmd=$(tr '\0' ' ' </proc/$pid/cmdline)
+			if [[ ${cmd% } = $cmdline ]] ; then
+				return 0
+			fi
+		fi
+	fi
+	return 1
+}
+
+#
+# check_or_start_fs()
+# checks if another daemon is not already running for the same purpose,
+# then (optionaly) launchs a new daemon with a specific configuration file and a specific pid file.
+#
+check_or_start_fs()
+{
+	local action=$1
+	local conf=$2
+	local pidfile=$(pidfile_name $conf)
+	local cmdline="$DAEMON -d -f $conf -p $pidfile"
+	local label="Starting Robinhood for $conf "
+
+	# check if there is still some process
+	if daemon_exist $pidfile "$cmdline" ; then
+		if [[ $action = START ]] ; then
+			# According to LSB, running "start" on a service already running
+			# should be successful.
+			echo "RobinHood already started for $conf"
+			echo_passed
+			echo
+			return 1
+		else
+			echo "Robinhood for $conf is running, try: ps -fp $(<$pidfile) m"
+			return 0
+		fi
+	else
+		if [[ $action = START ]] ; then
+			rm -f $pidfile
+			cd ${RH_RUN_DIR}
+			action "$label ..." $cmdline
+			echo -n "Checking process status... "
+			sleep 1
+			if [ -d /proc/$(<$pidfile) ]; then
+				success "$label"
+                        else
+                               	failure "$label"
+                        fi
+			echo 
+			#echo -n "$label ..."
+			#if initlog $INITLOG_ARGS -c "$cmdline" "$label" ; then
+			#	success "$label"
+			#else
+			#	failure "$label"
+			#fi
+			#echo
+		else
+			echo "Robinhood for $conf is not running"
+			return 1
+		fi
+	fi
+
+}
+
+# 
+# stop_fs() stops one daemon instance
+#
+stop_fs()
+{
+	local conf=$1
+	local pidfile=$(pidfile_name $conf)
+	local label="Stopping Robinhood for $conf"
+	local rc=0
+
+	#echo -n "$label ..."
+	if [ -f $pidfile ] ; then
+		local pid=$(<$pidfile)
+		if [ -z "${pid//[0-9]/}" ] ; then
+			# this a pid number
+			#[ -d /proc/$pid ] && initlog $INITLOG_ARGS -c "/bin/kill kill -TERM $pid" "$label"
+			[ -d /proc/$pid ] && action "$label ..." /bin/kill -TERM $pid
+
+			# wait 10 seconds max
+			for i in `seq 1 10`; do
+				if [ ! -d /proc/$pid ]; then
+					break;
+				fi
+
+				sleep 1
+			done
+			#[ -d /proc/$pid ] && initlog $INITLOG_ARGS -c "/bin/kill -9 $pid" "$label"
+			[ -d /proc/$pid ] && action "Force shutdown of Robinhood for $conf ..." /bin/kill -9 $pid
+			echo -n "Checking process status ..."
+			if [ -d /proc/$pid ] ; then
+				echo_failure
+				rc=1
+			else
+				echo_success
+				rm $pidfile
+			fi
+		else
+			echo "$pidfile: bad pid file"
+			echo_failure
+			rc=1
+		fi
+	else
+		# According to LSB, running "stop" on a service already stopped 
+		# or not running # should be considered successful.
+		echo -n "$label ..."
+		echo " already stopped"
+		echo_passed
+	fi
+	echo
+	return $rc
+}
+
+# 
+# start action
+#
+start()
+{
+	local fs
+	for fs in $(build_fslist $@)
+	do
+		check_or_start_fs START $fs
+	done
+}
+
+# 
+# stop action
+#
+stop()
+{
+	local fs
+	for fs in $(build_fslist $@)
+	do
+		stop_fs $fs
+	done
+}
+
+# 
+# status action
+#
+status()
+{
+	local fs
+	for fs in $(build_fslist $@)
+	do
+		check_or_start_fs CHECK $fs
+	done
+}
+
+# See how we were called.
+case "$1" in
+  start)
+	shift
+	start $@
+	RETVAL=$?
+	;;
+  stop)
+	shift
+	stop $@
+	RETVAL=$?
+	;;
+  status)
+	shift
+	status $@
+	RETVAL=$?
+	;;
+  restart)
+	shift
+	stop $@
+	start $@
+	RETVAL=$?
+	;;
+  *)
+	echo "Usage: $0 {start|stop|status|restart}"
+	exit 1
+esac
+
+exit $RETVAL

@@ -1,0 +1,1166 @@
+/* -*- mode: c; c-basic-offset: 4; indent-tabs-mode: nil; -*-
+ * vim:expandtab:shiftwidth=4:tabstop=4:
+ */
+/*
+ * Copyright (C) 2009, 2010 CEA/DAM
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the CeCILL License.
+ *
+ * The fact that you are presently reading this means that you have had
+ * knowledge of the CeCILL license (http://www.cecill.info) and that you
+ * accept its terms.
+ */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "resource_monitor.h"
+#include "resmon_purge.h"
+#include "queue.h"
+#include "list_mgr.h"
+#include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
+#include "Memory.h"
+#include "xplatform_print.h"
+#include "RobinhoodConfig.h"
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <errno.h>
+#include <pthread.h>
+
+#define PURGE_TAG   "Purge"
+#define CHECK_PURGE_INTERVAL    1
+
+/* Module configuration */
+resource_monitor_config_t resmon_config;
+static int resmon_flags = 0;
+
+#define ignore_policies (resmon_flags & FLAG_IGNORE_POL)
+#define dry_run (resmon_flags & FLAG_DRY_RUN)
+
+/* queue of entries to be checked/purged */
+entry_queue_t  purge_queue;
+
+/** 
+ * Purge helpers (depending on purpose)
+ * @return posix error code (from errno)
+ */
+
+#ifdef _LUSTRE_HSM
+/** purge by FID in Lustre-HSM */
+static int PurgeEntry_ByFid( const entry_id_t * p_entry_id )
+{
+    DisplayLog( LVL_EVENT, PURGE_TAG, "Releasing(" DFID_NOBRACE ")", PFID( p_entry_id ) );
+
+    if ( dry_run )
+        return 0;
+
+    return LustreHSM_Action( HUA_RELEASE, p_entry_id, NULL, 0 );
+}
+#else
+/** purge by path for other purpose */
+static int PurgeEntry_ByPath( const char *entry_path )
+{
+    DisplayLog( LVL_FULL, PURGE_TAG, "Unlink(%s)", entry_path );
+    if ( !dry_run )
+    {
+        if ( unlink( entry_path ) != 0 )
+            return errno;
+    }
+    return 0;
+}
+#endif
+
+typedef struct purge_item__
+{
+    entry_id_t     entry_id;
+    attr_set_t     entry_attr;
+    unsigned long  specific_blocks;
+} purge_item_t;
+
+/**
+ *  Alloc a new purge item so it can be pushed to the purge queue.
+ */
+static void   *Entry2PurgeItem( entry_id_t * p_entry_id, attr_set_t * p_attr_set,
+                                unsigned long specific_blocks )
+{
+    purge_item_t  *new_entry;
+
+    new_entry = ( purge_item_t * ) MemAlloc( sizeof( purge_item_t ) );
+    if ( !new_entry )
+        return NULL;
+
+    new_entry->entry_id = *p_entry_id;
+    new_entry->entry_attr = *p_attr_set;
+    new_entry->specific_blocks = specific_blocks;
+
+    return new_entry;
+}
+
+/**
+ * Free a Purge Item (and the resources of entry_attr).
+ */
+static void FreePurgeItem( purge_item_t * item )
+{
+    ListMgr_FreeAttrs( &item->entry_attr );
+    MemFree( item );
+}
+
+
+/**
+ *  Sum the number of acks from a status tab
+ */
+static inline unsigned int ack_count( unsigned int *status_tab )
+{
+    unsigned int   i, sum;
+    sum = 0;
+
+    for ( i = 0; i < PURGE_ST_COUNT; i++ )
+        sum += status_tab[i];
+
+    return sum;
+}
+
+
+/**
+ * build a filter from policies, to optimize DB queries.
+ */
+static int set_purge_optimization_filters(lmgr_filter_t * p_filter)
+{
+    /** @TODO build a filter for getting the union of all filesets/conditions */
+
+    /* If there is a single policy, try to convert its condition
+     * to a simple filter.
+     */
+    if ( policies.purge_policies.policy_count == 1 )
+    {
+        if ( convert_boolexpr_to_simple_filter( &policies.purge_policies.policy_list[0].condition,
+             p_filter ) )
+        {
+            DisplayLog( LVL_FULL, PURGE_TAG, "Could not convert purge policy '%s' to simple filter.",
+                policies.purge_policies.policy_list[0].policy_id );
+        }
+    }
+    
+    return 0;
+}
+
+static int heuristic_end_of_list( time_t last_access_time )
+{
+    entry_id_t     void_id;
+    attr_set_t     void_attr;
+
+    /* HOOK for optimization:
+     * we build a void entry with last_access = last_access_time
+     * and last_restore_time = last_access_time.
+     * If it doesn't match any policy, next entries won't match too
+     * because entries are sorted by last access time,
+     * so it is not necessary to continue.
+     * (Note that we have last_restore_time < last_access_time
+     * (because entries are not purged)).
+     */
+    memset( &void_id, 0, sizeof( entry_id_t ) );
+    memset( &void_attr, 0, sizeof( attr_set_t ) );
+
+    ATTR_MASK_INIT( &void_attr );
+    ATTR_MASK_SET( &void_attr, last_access );
+    ATTR( &void_attr, last_access ) = last_access_time;
+#ifdef ATTR_INDEX_restore
+    ATTR_MASK_SET( &void_attr, last_restore );
+    ATTR( &void_attr, last_restore ) = last_access_time;
+#endif
+
+    if ( PolicyMatchAllConditions( &void_id, &void_attr, PURGE_POLICY ) == POLICY_NO_MATCH )
+    {
+        DisplayLog( LVL_DEBUG, PURGE_TAG,
+                    "Optimization: entries with access time later than %lu"
+                    " cannot match any policy condition. Stop retrieving DB entries.",
+                    last_access_time );
+        return TRUE;
+    }
+    else
+        return FALSE;
+}
+
+
+
+/*
+ *  Return ENOENT if no list is available
+ */
+
+int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param, unsigned long *p_nb_purged,
+                   unsigned long *p_nb_specific )
+{
+    int            rc;
+    struct lmgr_iterator_t *it = NULL;
+
+    lmgr_filter_t  filter;
+    filter_value_t fval;
+    lmgr_sort_type_t sort_type;
+
+    attr_set_t     attr_set;
+    entry_id_t     entry_id;
+
+    unsigned long long feedback_before[PURGE_FDBK_COUNT];
+    unsigned long long feedback_after[PURGE_FDBK_COUNT];
+
+    unsigned int   status_tab1[PURGE_ST_COUNT];
+    unsigned int   status_tab2[PURGE_ST_COUNT];
+
+    unsigned int   nb_submitted, nb_in_queue, nb_purge_pending;
+    unsigned long  submitted_blk, purged_blk, purged_glob;
+
+    int            last_entry_access = 0;
+    time_t         last_request_time = 0;
+    int            attr_mask_sav;
+    int            end_of_list = FALSE;
+    char           timestamp[1024];
+
+    unsigned int   nb_returned, total_returned;
+
+    lmgr_iter_opt_t opt;
+
+    if ( !p_purge_param )
+        return EFAULT;
+
+    resmon_flags = p_purge_param->flags;
+
+    if ( p_nb_purged )
+        *p_nb_purged = 0;
+    if ( p_nb_specific )
+        *p_nb_specific = 0;
+
+    /**
+     * Do nothing if no previous scan was done.
+     */
+    if ( ListMgr_GetVar( lmgr, LAST_SCAN_VAR, timestamp ) != DB_SUCCESS )
+    {
+        DisplayLog( LVL_MAJOR, PURGE_TAG,
+                    "Full FS Scan has never been done. Cannot build a purge list." );
+        return ENOENT;
+    }
+    else
+    {
+        time_t         last_scan = atoi( timestamp );
+        struct tm      date;
+
+
+        localtime_r( &last_scan, &date );
+        DisplayLog( LVL_EVENT, PURGE_TAG,
+#ifdef HAVE_CHANGELOGS
+                    "Building a purge list (last full FS Scan: %.4d/%.2d/%.2d %.2d:%.2d:%.2d)",
+#else
+                    "Building a purge list from last full FS Scan: %.4d/%.2d/%.2d %.2d:%.2d:%.2d",
+#endif
+                    1900 + date.tm_year, date.tm_mon + 1, date.tm_mday, date.tm_hour, date.tm_min,
+                    date.tm_sec );
+    }
+
+    ATTR_MASK_INIT( &attr_set );
+
+    /* Retrieve at least: fullpath, last_access, size, blcks
+     * because they are used for checking if info changed.
+     * Retrieve last_mod and stripe_info for logs and reports.
+     * Also retrieve info needed for blacklist/whitelist rules.
+     */
+    ATTR_MASK_SET( &attr_set, fullpath );
+    ATTR_MASK_SET( &attr_set, last_access );
+    ATTR_MASK_SET( &attr_set, size );
+    ATTR_MASK_SET( &attr_set, blocks );
+    ATTR_MASK_SET( &attr_set, last_mod );
+    ATTR_MASK_SET( &attr_set, stripe_info );
+    ATTR_MASK_SET( &attr_set, stripe_items );
+    attr_set.attr_mask |= policies.purge_policies.global_attr_mask;
+
+    /* sort by last access */
+    sort_type.attr_index = ATTR_INDEX_last_access;
+
+    sort_type.order = SORT_ASC;
+
+    rc = lmgr_simple_filter_init( &filter );
+    if ( rc )
+        return rc;
+
+#ifdef ATTR_INDEX_invalid
+    /* do not retrieve 'invalid' entries */
+    fval.val_bool = FALSE;
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, 0 );
+    if ( rc )
+        return rc;
+#endif
+
+#ifdef ATTR_INDEX_no_purge
+    /* do not retrieve entries with 'no_purge' tag = 1 */
+    fval.val_bool = TRUE;
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_no_purge, NOTEQUAL, fval, 0 );
+    if ( rc )
+        return rc;
+#endif
+
+#if defined(_LUSTRE_HSM) || defined (_SHERPA)
+    /* only get entries with HSM state UP_TO_DATE */
+    fval.val_int = STATUS_UP_TO_DATE;
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
+    if ( rc )
+        return rc;
+#endif
+
+    /* do not consider directories, if they are stored in DB */
+#ifdef ATTR_INDEX_type
+    if ( (field_infos[ATTR_INDEX_type].flags & GENERATED) == 0 )
+    {
+        /* do not retrieve directories */
+        fval.val_str = STR_TYPE_DIR;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fval, 0 );
+        if ( rc )
+            return rc;
+    }
+#endif
+
+    switch ( p_purge_param->type )
+    {
+    case PURGE_FS:
+        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge on global filesystem" );
+
+        /* We must retrieve all files sorted by atime: no extra filter */
+        break;
+
+    case PURGE_BY_OST:
+        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge on OST #%u",
+                    p_purge_param->param_u.ost_index );
+
+        /* retrieve stripe info and stripe items */
+        ATTR_MASK_SET( &attr_set, stripe_info );
+        ATTR_MASK_SET( &attr_set, stripe_items );
+
+        /* We must retrieve files from this OST, sorted by atime */
+
+        fval.val_uint = p_purge_param->param_u.ost_index;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fval, 0 );
+        if ( rc )
+            return rc;
+        break;
+
+    case PURGE_BY_POOL:
+        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of pool '%s'",
+                    p_purge_param->param_u.pool_name );
+
+        /** @TODO must retrieve files stored on current pool definition */
+
+        /* retrieve stripe info and stripe items */
+        ATTR_MASK_SET( &attr_set, stripe_info );
+        ATTR_MASK_SET( &attr_set, stripe_items );
+
+        /* We must retrieve files from these OSTs, sorted by atime */
+
+        fval.val_str = p_purge_param->param_u.pool_name;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_info, EQUAL, fval, 0 );
+
+        if ( rc )
+            return rc;
+        break;
+
+    case PURGE_BY_USER:
+        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of '%s' user files",
+                    p_purge_param->param_u.user_name );
+
+        /* We must retrieve files for this user, sorted by atime */
+
+        fval.val_str = p_purge_param->param_u.user_name;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_owner, EQUAL, fval, 0 );
+
+        if ( rc )
+            return rc;
+        break;
+
+    case PURGE_BY_GROUP:
+        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of '%s' group files",
+                    p_purge_param->param_u.group_name );
+
+        /* We must retrieve files for this group, sorted by atime */
+
+        fval.val_str = p_purge_param->param_u.group_name;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_gr_name, EQUAL, fval, 0 );
+        if ( rc )
+            return rc;
+        break;
+
+    default:
+        DisplayLog( LVL_CRIT, PURGE_TAG, "Unknown purge type %d", p_purge_param->type );
+        return EINVAL;
+    }
+
+    /* Flushing messages before performing DB query */
+    FlushLogs(  );
+
+    /* add optimisation filters based on policies */
+    if ( !ignore_policies )
+        set_purge_optimization_filters(&filter);
+
+    /* start with a limited count of entries, to save memory */
+    opt.list_count_max = resmon_config.db_request_limit;
+    nb_returned = 0;
+    total_returned = 0;
+
+    it = ListMgr_Iterator( lmgr, &filter, &sort_type, &opt );
+
+    if ( it == NULL )
+    {
+        lmgr_simple_filter_free( &filter );
+        DisplayLog( LVL_CRIT, PURGE_TAG,
+                    "Error retrieving list of candidates from database. Purge cancelled." );
+        return -1;
+    }
+
+    attr_mask_sav = attr_set.attr_mask;
+
+    last_request_time = time( NULL );
+
+    purged_blk = 0;
+    purged_glob = 0;
+
+    /* loop on all purge passes */
+    do
+    {
+
+        /* Retrieve stats before starting purge,
+         * for computing a delta later.
+         */
+        RetrieveQueueStats( &purge_queue, NULL, NULL, NULL, NULL, NULL, status_tab1,
+                            feedback_before );
+
+        submitted_blk = 0;
+        nb_submitted = 0;
+
+        /* List entries for purge */
+        do
+        {
+            unsigned long  blk_count;
+
+            /* reset attr_mask, if it was altered by last ListMgr_GetNext() call */
+            attr_set.attr_mask = attr_mask_sav;
+
+            memset( &entry_id, 0, sizeof( entry_id_t ) );
+            rc = ListMgr_GetNext( it, &entry_id, &attr_set );
+
+            if ( rc == DB_END_OF_LIST )
+            {
+
+                total_returned += nb_returned; 
+
+                /* if limit = inifinite => END OF LIST */
+                if ( ( nb_returned == 0 )
+                     || ( ( opt.list_count_max > 0 ) && ( nb_returned < opt.list_count_max ) ) )
+                {
+                    DisplayLog( LVL_FULL, PURGE_TAG, "End of LRU (%u entries returned)", total_returned );
+                    end_of_list = TRUE;
+                    break;
+                }
+
+                /* no new useless request */
+                if ( heuristic_end_of_list( last_entry_access ) )
+                {
+                    end_of_list = TRUE;
+                    break;
+                }
+
+                /* Free previous iterator */
+                ListMgr_CloseIterator( it );
+
+                /* perform a new request with next entries */
+
+                /* /!\ if there is already a filter on last_ccess or md_update
+                 * only replace it, do not add a new filter.
+                 */
+
+                /* don't retrieve just-updated entries (update>=last_request_time) */
+                fval.val_int = last_request_time;
+                rc = lmgr_simple_filter_add_or_replace( &filter, ATTR_INDEX_md_update,
+                                                        MORETHAN, fval, FILTER_FLAG_NOT );
+                if ( rc )
+                    return rc;
+
+                /* filter on access time */
+                fval.val_int = last_entry_access;
+                rc = lmgr_simple_filter_add_or_replace( &filter, ATTR_INDEX_last_access,
+                                                        MORETHAN, fval, 0 );
+                if ( rc )
+                    return rc;
+
+                DisplayLog( LVL_DEBUG, PURGE_TAG,
+                            "Performing new request with a limit of %u entries and access >= %d and not md_update >= %ld ",
+                            opt.list_count_max, last_entry_access, last_request_time );
+
+                nb_returned = 0;
+                it = ListMgr_Iterator( lmgr, &filter, &sort_type, &opt );
+
+                if ( it == NULL )
+                {
+                    lmgr_simple_filter_free( &filter );
+                    DisplayLog( LVL_CRIT, PURGE_TAG,
+                                "Error retrieving list of candidates from database. Purge cancelled." );
+                    return -1;
+                }
+                last_request_time = time( NULL );
+
+                continue;
+            }
+            else if ( rc != 0 )
+            {
+                DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d getting next entry of iterator", rc );
+                break;
+            }
+
+            nb_returned++;
+
+            if ( ATTR_MASK_TEST( &attr_set, last_access ) )
+                last_entry_access = ATTR( &attr_set, last_access );
+
+            if ( p_purge_param->type == PURGE_BY_OST )
+            {
+                unsigned int strp_cnt = ATTR(&attr_set, stripe_info).stripe_count;
+
+                /* if stripe_count is 0, assume that blk count is 0 too */
+                if ( strp_cnt == 0 )
+                    blk_count = 0;
+                else
+                {
+                    blk_count = ATTR(&attr_set, blocks)/strp_cnt;
+                    /* if block count is not multiple of stripe count,
+                     * take round.sup of block/OST
+                     */
+                    if ( (ATTR(&attr_set, blocks) % strp_cnt) != 0 )
+                        blk_count++; 
+                }
+            }
+            else
+                blk_count = ATTR( &attr_set, blocks );
+
+            /* Insert candidate */
+            rc = Queue_Insert( &purge_queue,
+                    Entry2PurgeItem( &entry_id, &attr_set, blk_count ));
+            if ( rc )
+                return rc;
+
+            submitted_blk += blk_count;
+            nb_submitted++;
+
+        }
+        while ( submitted_blk + purged_blk < p_purge_param->nb_blocks );
+
+        /* Wait for end of purge pass */
+        do
+        {
+            RetrieveQueueStats( &purge_queue, NULL, &nb_in_queue, NULL, NULL, NULL, status_tab2,
+                                feedback_after );
+
+            /* nb of purge operation pending = nb_enqueued - ( nb ack after - nb ack before ) */
+            nb_purge_pending = nb_submitted + ack_count( status_tab1 ) - ack_count( status_tab2 );
+
+            if ( ( nb_in_queue != 0 ) || ( nb_purge_pending != 0 ) )
+            {
+                DisplayLog( LVL_DEBUG, PURGE_TAG,
+                            "Waiting for the end of this purge pass: still %u files to be purged (%u in queue, %u beeing processed)",
+                            nb_purge_pending, nb_in_queue, nb_purge_pending - nb_in_queue );
+
+                rh_sleep( CHECK_PURGE_INTERVAL );
+            }
+            else
+                DisplayLog( LVL_DEBUG, PURGE_TAG, "End of this purge pass" );
+
+        }
+        while ( ( nb_in_queue != 0 ) || ( nb_purge_pending != 0 ) );
+
+        /* how much blocks have been purged ? */
+        purged_blk += feedback_after[PURGE_SPECIFIC_COUNT] - feedback_before[PURGE_SPECIFIC_COUNT];
+        purged_glob += feedback_after[PURGE_FDBK_BLOCKS] - feedback_before[PURGE_FDBK_BLOCKS];
+
+        /* if getnext returned an error */
+        if ( rc )
+            break;
+
+    }
+    while ( ( !end_of_list ) && ( purged_blk < p_purge_param->nb_blocks ) );
+
+    lmgr_simple_filter_free( &filter );
+    ListMgr_CloseIterator( it );
+
+    if ( p_nb_purged )
+        *p_nb_purged = purged_glob;
+    if ( p_nb_specific )
+        *p_nb_specific = purged_blk;
+
+    return 0;
+}
+
+#ifndef _HAVE_FID               /* if entries are accessed by FID, we can always get their status */
+inline static int invalidate_entry( lmgr_t * lmgr, entry_id_t * p_entry_id )
+{
+    attr_set_t     new_attr_set;
+    int            rc;
+
+    ATTR_MASK_INIT( &new_attr_set );
+    ATTR_MASK_SET( &new_attr_set, invalid );
+    ATTR( &new_attr_set, invalid ) = TRUE;
+
+    /* update the entry */
+    rc = ListMgr_Update( lmgr, p_entry_id, &new_attr_set );
+    if ( rc )
+        DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d tagging entry as invalid in database.", rc );
+
+    return rc;
+}
+#endif
+
+/* declaration from listmgr_common.c */
+extern int     readonly_attr_set;
+
+inline static int update_entry( lmgr_t * lmgr, entry_id_t * p_entry_id, attr_set_t * p_attr_set )
+{
+    int            rc;
+    attr_set_t     tmp_attrset = *p_attr_set;
+
+    /* /!\ do not update stripe info */
+    /* @TODO actually, the best operation would be to update only attributes that changed */
+    ATTR_MASK_UNSET( &tmp_attrset, stripe_info );
+    ATTR_MASK_UNSET( &tmp_attrset, stripe_items );
+
+    /* also unset read only attrs */
+    tmp_attrset.attr_mask &= ~readonly_attr_set;
+
+    /* update DB and skip the entry */
+    rc = ListMgr_Update( lmgr, p_entry_id, &tmp_attrset );
+    if ( rc )
+        DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d updating entry in database.", rc );
+
+    return rc;
+}
+
+#if defined(_HAVE_FID) && !defined(_SHERPA)
+/**
+ * Check that entry exists
+ * @param fill entry MD if entry is valid
+ */
+static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_attr_set )
+{
+    char           fid_path[MAXPATHLEN];
+    struct stat    entry_md;
+    int            rc;
+
+    DisplayLog( LVL_FULL, PURGE_TAG, "Considering entry " DFID, PFID( &p_item->entry_id ) );
+
+    /* 1) Build fid path */
+    BuildFidPath( &p_item->entry_id, fid_path );
+
+    /* 2) Perform lstat on entry */
+
+    if ( lstat( fid_path, &entry_md ) != 0 )
+    {
+        rc = errno;
+
+        /* If lstat returns an error, invalidate the entry */
+        DisplayLog( LVL_DEBUG, PURGE_TAG, "lstat() failed on %s. Skipping it.", fid_path );
+
+        /* This entry has been processed and has probably removed */
+        if ( rc == ENOENT )
+            /** @TODO remove entry from DB if errno = ENOENT ? */
+            return PURGE_ENTRY_MOVED;
+        else
+            return PURGE_STAT_FAILURE;
+    }
+
+    /* convert posix attributes to attr structure */
+    PosixStat2EntryAttr( &entry_md, new_attr_set, TRUE );
+
+    /* get fullpath or name, if they are needed for applying policy */
+
+    if ( ( policies.purge_policies.global_attr_mask & ATTR_MASK_fullpath )
+         || ( policies.purge_policies.global_attr_mask & ATTR_MASK_name ) )
+    {
+        if ( Lustre_GetFullPath( &p_item->entry_id, ATTR( new_attr_set, fullpath ), 1024 ) == 0 )
+        {
+            char          *curr;
+            ATTR_MASK_SET( new_attr_set, fullpath );
+            curr = strrchr( ATTR( new_attr_set, fullpath ), '/' );
+
+            if ( curr )
+            {
+                curr++;
+                strcpy( ATTR( new_attr_set, name ), curr );
+                ATTR_MASK_SET( new_attr_set, name );
+            }
+        }
+    }
+
+#ifdef _LUSTRE_HSM
+    /* refresh HSM status */
+
+    rc = LustreHSM_GetStatus( fid_path, &ATTR( new_attr_set, status ),
+                              &ATTR( new_attr_set, no_purge ), &ATTR( new_attr_set, no_archive ) );
+    if ( !rc )
+    {
+        ATTR_MASK_SET( new_attr_set, status );
+        ATTR_MASK_SET( new_attr_set, no_purge );
+        ATTR_MASK_SET( new_attr_set, no_archive );
+    }
+#endif
+
+    /* set update time of the stucture */
+    ATTR_MASK_SET( new_attr_set, md_update );
+    ATTR( new_attr_set, md_update ) = time( NULL );
+
+    /* entry is valid */
+    return PURGE_OK;
+}
+#else /* sherpa or no FID */
+/**
+ * Check that entry exists with the good path and its id is consistent.
+ * @param fill entry MD if entry is valid
+ */
+static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_attr_set )
+{
+    struct stat    entry_md;
+    char * stat_path;
+    char fid_path[1024];
+
+#ifndef _HAVE_FID
+    /* 1) Check if fullpath is set (if no fid support) */
+    if ( !ATTR_MASK_TEST( &p_item->entry_attr, fullpath ) )
+    {
+        DisplayLog( LVL_DEBUG, PURGE_TAG, "Warning: entry fullpath is not set. Tagging it invalid." );
+        invalidate_entry( lmgr, &p_item->entry_id );
+
+        /* not enough metadata */
+        return PURGE_PARTIAL_MD;
+    }
+    stat_path = ATTR(  &p_item->entry_attr, fullpath );
+#else
+    BuildFidPath( &p_item->entry_id, fid_path );
+    stat_path = fid_path;
+#endif
+
+if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath ) )
+    DisplayLog( LVL_FULL, PURGE_TAG, "Considering entry %s", ATTR(  &p_item->entry_attr, fullpath ) );
+#ifdef _HAVE_FID
+else
+    DisplayLog( LVL_FULL, PURGE_TAG, "Considering entry with fid="DFID, PFID(&p_item->entry_id) );
+#endif
+
+#ifdef _SHERPA
+
+#ifndef _HAVE_FID
+    /* we must have at least its full path, if we are not using fids */
+    if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath )
+         && !ATTR_MASK_TEST( new_attr_set, fullpath ) )
+    {
+        strcpy( ATTR( new_attr_set, fullpath ), ATTR( &p_item->entry_attr, fullpath ) );
+        ATTR_MASK_SET( new_attr_set, fullpath );
+    }
+#endif
+
+    /* get info about this entry and check policies about the entry. */
+    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set ) )
+    {
+        case do_skip:
+        case do_rm:
+            return PURGE_ENTRY_MOVED;
+        case do_update:
+            /* OK, continue */
+            break; 
+    }
+#else /* no FID */
+
+    /* 2) Perform lstat on entry */
+
+    if ( lstat( stat_path, &entry_md ) != 0 )
+    {
+        /* If lstat returns an error, invalidate the entry */
+        DisplayLog( LVL_DEBUG, PURGE_TAG, "lstat() failed on %s. Tagging it invalid.",
+                    stat_path );
+        invalidate_entry( lmgr, &p_item->entry_id );
+
+        /* This entry has been processed and has probably moved */
+        return PURGE_ENTRY_MOVED;
+    }
+
+    /* 3) check entry id */
+    if ( ( entry_md.st_ino != p_item->entry_id.inode )
+         || ( entry_md.st_dev != p_item->entry_id.device ) )
+    {
+        /* If it has changed, invalidate the entry (fullpath does not match entry_id, it will be updated or removed at next FS scan). */
+        DisplayLog( LVL_DEBUG, PURGE_TAG, "Inode of %s changed: old=<%llu,%llu>, "
+                    "new=<%" PRINT_ST_INO ",%" PRINT_DEV_T ">. Tagging it invalid.",
+                    ATTR(  &p_item->entry_attr, fullpath ),
+                    ( unsigned long long ) p_item->entry_id.inode,
+                    ( unsigned long long ) p_item->entry_id.device, entry_md.st_ino,
+                    entry_md.st_dev );
+
+        invalidate_entry( lmgr, &p_item->entry_id );
+
+        /* This entry has been processed and has probably moved */
+        return PURGE_ENTRY_MOVED;
+    }
+
+    /* convert posix attributes to attr structure */
+    PosixStat2EntryAttr( &entry_md, new_attr_set, TRUE );
+
+#endif
+
+    /* set update time of the stucture */
+    ATTR_MASK_SET( new_attr_set, md_update );
+    ATTR( new_attr_set, md_update ) = time( NULL );
+
+    /* entry is valid */
+    return PURGE_OK;
+}
+#endif
+
+
+/**
+ * Manage an entry by path or by fid, depending on FS
+ */
+static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
+{
+    attr_set_t     new_attr_set;
+    unsigned long long feedback[PURGE_FDBK_COUNT];
+    int            rc;
+
+    policy_match_t match;
+    policy_item_t *policy_case;
+
+/* acknowledging helper */
+#define Acknowledge( _q, _status, _fdbk1, _fdbk2 )  do {                \
+                               feedback[PURGE_FDBK_BLOCKS] = _fdbk1;   \
+                               feedback[PURGE_SPECIFIC_COUNT] = _fdbk2;  \
+                               Queue_Acknowledge( _q, _status, feedback, PURGE_FDBK_COUNT ); \
+                            } while(0)
+
+    DisplayLog( LVL_FULL, PURGE_TAG,
+                "Checking if entry %s can be released", ATTR( &p_item->entry_attr, fullpath ) );
+
+    ATTR_MASK_INIT( &new_attr_set );
+
+    rc = check_entry( lmgr, p_item, &new_attr_set );
+    if ( rc != PURGE_OK )
+    {
+        Acknowledge( &purge_queue, rc, 0, 0 );
+        goto end;
+    }
+
+    /* Merge with missing attrs from database */
+    ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr );
+
+#ifdef ATTR_INDEX_invalid
+    /* From here, assume that entry is valid */
+    ATTR_MASK_SET( &new_attr_set, invalid );
+    ATTR( &new_attr_set, invalid ) = FALSE;
+#endif
+
+#ifdef ATTR_INDEX_no_purge
+    /* check that the entry has the expected status */
+    if ( ATTR_MASK_TEST( &new_attr_set, no_purge ) && ATTR( &new_attr_set, no_purge ) )
+    {
+        /* this entry is now tagged 'no_release' */
+        DisplayLog( LVL_MAJOR, PURGE_TAG,
+                    "Entry " DFID_NOBRACE " is now tagged 'no_release', skipping it.",
+                    PFID( &p_item->entry_id ) );
+
+        /* update DB and skip the entry */
+        update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+
+        /* Notify that this entry is whitelisted */
+        Acknowledge( &purge_queue, PURGE_ENTRY_WHITELISTED, 0, 0 );
+
+        goto end;
+    }
+#endif
+
+#if ATTR_INDEX_status
+    if ( !ATTR_MASK_TEST( &new_attr_set, status ) )
+    {
+        DisplayLog( LVL_MAJOR, PURGE_TAG, "Warning: entry status should be set");
+        Acknowledge( &purge_queue, PURGE_PARTIAL_MD, 0, 0 );
+        goto end;
+    }
+    else if ( ATTR( &new_attr_set, status ) != STATUS_UP_TO_DATE )
+    {
+        /* status changed */
+        DisplayLog( LVL_MAJOR, PURGE_TAG,
+                    "%s: entry status changed, skipping it.",
+                    ATTR(&new_attr_set,fullpath) );
+
+        /* update DB and skip the entry */
+        update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+
+        /* Notify that this entry is whitelisted */
+        Acknowledge( &purge_queue, PURGE_STATUS_CHGD, 0, 0 );
+        goto end;
+    }
+#endif
+
+
+    /* if ignore-policies flag is specified:
+     * - don't check rules
+     * - don't care about recent atime etc...
+     */
+    if ( !ignore_policies )
+    {
+
+        /* 4) check whitelist rules */
+
+        match = IsWhitelisted( &p_item->entry_id, &new_attr_set, PURGE_POLICY );
+
+        if ( match == POLICY_MATCH )
+        {
+    #ifdef ATTR_INDEX_whitelisted
+            /* Entry is whitelisted */
+            ATTR_MASK_SET( &new_attr_set, whitelisted );
+            ATTR( &new_attr_set, whitelisted ) = TRUE;
+    #endif
+
+            /* update DB and skip the entry */
+            update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+
+            /* Notify that this entry is whitelisted */
+            Acknowledge( &purge_queue, PURGE_ENTRY_WHITELISTED, 0, 0 );
+
+            goto end;
+        }
+        else if ( match == POLICY_NO_MATCH )
+        {
+#ifdef ATTR_INDEX_whitelisted
+            /* set whitelisted field as false (for any further update op) */
+            ATTR_MASK_SET( &new_attr_set, whitelisted );
+            ATTR( &new_attr_set, whitelisted ) = FALSE;
+#endif
+        }
+        else
+        {
+            /* Cannot determine if entry is whitelisted: skip it (do nothing in database) */
+            DisplayLog( LVL_MAJOR, PURGE_TAG,
+                        "Warning: cannot determine if entry %s is whitelisted: skipping it.",
+                        ATTR( &p_item->entry_attr, fullpath ) );
+
+            /* Notify error */
+            Acknowledge( &purge_queue, PURGE_PARTIAL_MD, 0, 0 );
+
+            goto end;
+        }
+
+        /* 5) check that entry has not been accessed.
+         *   - If is has been accessed, update its info.
+         *   - Else, perform purge, and remove entry from database /!\ nlink ?.
+         */
+
+        if ( !ATTR_MASK_TEST( &p_item->entry_attr, last_access )
+             || !ATTR_MASK_TEST( &p_item->entry_attr, size ) )
+        {
+            /* cannot determine if entry has been accessed: update and skip it */
+            DisplayLog( LVL_MAJOR, PURGE_TAG,
+                        "Warning: previous value of 'last_access' or 'size' is not available: cannot determine if entry has been accessed. Skipping entry." );
+            update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+
+            /* Notify error */
+            Acknowledge( &purge_queue, PURGE_PARTIAL_MD, 0, 0 );
+
+            goto end;
+        }
+
+        if ( ( ATTR( &p_item->entry_attr, last_access ) < ATTR( &new_attr_set, last_access ) )
+             || ( ATTR( &p_item->entry_attr, size ) != ATTR( &new_attr_set, size ) ) )
+        {
+            DisplayLog( LVL_DEBUG, PURGE_TAG,
+                        "%s has been accessed since it was updated. Skipping entry.",
+                        ATTR( &p_item->entry_attr, fullpath ) );
+            DisplayLog( LVL_FULL, PURGE_TAG,
+                        "atime before=%d, after=%d | size before=%llu, after=%llu",
+                        ( int ) ATTR( &p_item->entry_attr, last_access ),
+                        ( int ) ATTR( &new_attr_set, last_access ),
+                        ( unsigned long long ) ATTR( &p_item->entry_attr, size ),
+                        ( unsigned long long ) ATTR( &new_attr_set, size ) );
+
+            update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+
+            Acknowledge( &purge_queue, PURGE_ENTRY_ACCESSED, 0, 0 );
+
+            goto end;
+        }
+
+    } /* end if 'don't ignore policies' */
+
+    /* check purge policy for the entry */
+
+    policy_case = GetPolicyCase( &p_item->entry_id, &new_attr_set, PURGE_POLICY, NULL );
+
+    if ( !policy_case )
+    {
+        update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+        Acknowledge( &purge_queue, PURGE_NO_POLICY, 0, 0 );
+        goto end;
+    }
+
+    /* don't care about policy condition if 'ignore-policies' flag is specified */
+    if ( !ignore_policies )
+    {
+
+        /* check if the entry matches the policy condition */
+        switch ( EntryMatches( &p_item->entry_id, &new_attr_set, &policy_case->condition ) )
+        {
+        case POLICY_NO_MATCH:
+            /* entry is not eligible now */
+            update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+            Acknowledge( &purge_queue, PURGE_ENTRY_WHITELISTED, 0, 0 );
+            goto end;
+            break;
+        case POLICY_MATCH:
+            /* OK, can be purged */
+            DisplayLog( LVL_DEBUG, PURGE_TAG,
+                        "Entry %s matches the condition for policy '%s'.",
+                        ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id );
+            break;
+        default:
+            /* Cannot determine if entry matches the policy condition */
+            DisplayLog( LVL_MAJOR, PURGE_TAG,
+                        "Warning: cannot determine if entry %s matches the condition for policy '%s': skipping it.",
+                        ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id );
+
+            /* Notify error */
+            Acknowledge( &purge_queue, PURGE_PARTIAL_MD, 0, 0 );
+
+            goto end;
+        }
+    }
+
+    /* Perform purge operation! */
+
+#ifdef _LUSTRE_HSM
+    rc = PurgeEntry_ByFid( &p_item->entry_id );
+#else
+    rc = PurgeEntry_ByPath( ATTR( &p_item->entry_attr, fullpath ) );
+#endif
+    if ( rc )
+    {
+        DisplayLog( LVL_DEBUG, PURGE_TAG, "Error purging entry %s: %s",
+                    ATTR( &p_item->entry_attr, fullpath ), strerror( abs(rc) ) );
+
+        update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+
+        Acknowledge( &purge_queue, PURGE_ERROR, 0, 0 );
+    }
+    else
+    {
+        char           straccess[256];
+        char           strsize[256];
+        char           strstorage[1024];
+
+        /* Entry has been successfully purged */
+
+        /* report messages */
+
+        FormatDurationFloat( straccess, 256, time( NULL ) - ATTR( &new_attr_set, last_access ) );
+        FormatFileSize( strsize, 256, ATTR( &new_attr_set, size ) );
+
+        if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
+            FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ) );
+        else
+            strcpy( strstorage, "(none)" );
+
+#ifdef _LUSTRE_HSM
+#define ACTION_ED "Released"
+#else
+#define ACTION_ED "Purged"
+#endif
+
+        DisplayLog( LVL_DEBUG, PURGE_TAG,
+                    ACTION_ED " '%s' using policy '%s', last access %s ago, size=%s, stored on %s",
+                    ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id, straccess,
+                    strsize, strstorage );
+
+        DisplayReport( ACTION_ED " '%s' using policy '%s', last access %s ago | size=%" PRINT_ST_SIZE
+                       ", last_access=%" PRINT_TIME_T ", last_mod=%" PRINT_TIME_T
+                       ", storage_units=%s", ATTR( &p_item->entry_attr, fullpath ),
+                       policy_case->policy_id, straccess, ATTR( &new_attr_set, size ),
+                       (time_t)ATTR( &new_attr_set, last_access ),
+                       (time_t)ATTR( &new_attr_set, last_mod ),
+                       strstorage );
+
+        /* remove it from database */
+        rc = ListMgr_Remove( lmgr, &p_item->entry_id );
+        if ( rc )
+            DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d removing entry from database.", rc );
+
+        /* ack to queue manager */
+        Acknowledge( &purge_queue, PURGE_OK, ATTR( &new_attr_set, blocks ),
+                     p_item->specific_blocks );
+
+    }
+
+    /* XXX /!\ what to do if (nlink > 1) ??? /!\ */
+
+  end:
+    /* free entry resources */
+    FreePurgeItem( p_item );
+    return;
+}
+
+
+
+
+/**
+ *  Main routine of purge pthread
+ */
+static void   *Thr_Purge( void *arg )
+{
+    int            rc;
+    lmgr_t         lmgr;
+    void          *p_queue_entry;
+
+    rc = ListMgr_InitAccess( &lmgr );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, PURGE_TAG, "Could not connect to database (error %d). Exiting.", rc );
+        exit( rc );
+    }
+
+    while ( Queue_Get( &purge_queue, &p_queue_entry ) == 0 )
+    {
+        ManageEntry( &lmgr, ( purge_item_t * ) p_queue_entry );
+    }
+
+    /* Error occured in purge queue management... */
+    DisplayLog( LVL_CRIT, PURGE_TAG, "An error occured in purge queue management. Exiting." );
+    exit( -1 );
+    return NULL;                /* for avoiding compiler warnings */
+}
+
+/* array of purge threads */
+static pthread_t *thread_ids = NULL;
+
+int start_purge_threads( unsigned int nb_threads )
+{
+    unsigned int   i;
+
+    thread_ids = ( pthread_t * ) MemCalloc( nb_threads, sizeof( pthread_t ) );
+    if ( !thread_ids )
+    {
+        DisplayLog( LVL_CRIT, PURGE_TAG, "Memory error in %s", __FUNCTION__ );
+        return ENOMEM;
+    }
+
+    for ( i = 0; i < nb_threads; i++ )
+    {
+        if ( pthread_create( &thread_ids[i], NULL, Thr_Purge, NULL ) != 0 )
+        {
+            int            rc = errno;
+            DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d creating purge thread in %s: %s", rc,
+                        __FUNCTION__, strerror( rc ) );
+            return rc;
+        }
+    }
+
+    return 0;
+}
