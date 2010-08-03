@@ -169,6 +169,9 @@ install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/@PURPOS
 install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC@
 %endif
 
+mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
+install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/@PURPOSE_SVC@
+
 %clean
 rm -rf $RPM_BUILD_ROOT
 
@@ -205,6 +208,8 @@ fi
 #%{_mandir}/man5/*
 #%{_mandir}/man8/*
 
+%config(noreplace) %{_sysconfdir}/sysconfig/@PURPOSE_SVC@
+
 %dir %{_sysconfdir}/robinhood.d
 %dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@
 %dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/includes
@@ -221,6 +226,29 @@ fi
 %{_initrddir}/@PURPOSE_SVC@
 
 %changelog
+
+* Tue Aug 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0-beta1
+- [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
+- [feature] fileclass union/intersection
+- [feature] alert batching: send a mail summary instead of 1 mail per matching entry
+- [feature] alert improvements: named alerts, tweak changes
+- [feature] quota-based purge triggers fully implemented (on group or user)
+- [feature] triggers on used inode count in filesystem
+- [feature] display last matched fileclass in reporting command
+- [feature] rbh-config helper now supports batch commands
+- [feature] Lustre 2.0 ready
+- [optim.] configurable fileclass periodic matching to reduce calls to filesystem
+- [optim.] configurable attr/path periodic update in DB to reduce calls to filesystem
+- [bugfix] issue when filtering on fields with NULL values in DB
+- [bugfix] check migration timeout on last effective action, not on last queued entry
+- [bugfix] name-based conditions complaining about missing auto-generated fields
+- [bugfix] race condition when appplying policy lead to handle the same entry several times
+- [misc.] added documented file in /etc/sysconfig for robinhood service parameters
+- [misc.] changing source directory layout
+- [misc.] documentation update
+
+* Thu Jul 22 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.5
+- Major bug fix: incomplete database content after scan
 
 * Tue Jun 22 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.4
   - New recursive rmdir policy (for TMP_FS_MGR purpose)
