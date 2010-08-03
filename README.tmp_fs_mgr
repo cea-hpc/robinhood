@@ -1,0 +1,140 @@
+I   - License
+II  - Compiling
+III - Install
+IV  - Database configuration
+V   - RobinHood config file
+VI  - First run
+
+I - License
+===========
+
+Copyright (C) 2009 CEA/DAM
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the CeCILL-C License.
+
+The fact that you are presently reading this means that you have had
+knowledge of the CeCILL-C license (http://www.cecill.info) and that you
+accept its terms.
+
+II - Compiling
+==============
+
+2.1 - From source tarball
+-------------------------
+
+It is advised to build RobinHood on your target system, to ensure the best
+compatibility with your Lustre and MySQL versions. 
+
+Make sure you have the following products installed on your machine:
+* mysql-devel
+
+* If you want to enable Lustre Filesystem support, you need liblustreapi
+  (/usr/include/liblustreapi.h and /usr/lib/liblustreapi.a)
+  It is usually provided by lustre RPM.
+
+Unzip and untar the source distribution:
+> tar zxvf robinhood-2.2.0.tar.gz
+> cd robinhood-2.2.0
+
+Run the 'configure' script with the following options:
+* For tmp filesystem management: --with-purpose=TMP_FS_MGR
+* --prefix=<path> to set the prefix of installation path (default is /usr).
+
+E.g.:
+> ./configure --with-purpose=TMP_FS_MGR 
+
+Then, build the RPM:
+> make rpm
+
+A ready-to-install RPM is generated in the 'rpms/RPMS/<arch>' directory.
+
+2.2 - From svn repository
+-------------------------
+
+svn checkout https://robinhood.svn.sourceforge.net/svnroot/robinhood/trunk robinhood
+cd robinhood
+autoreconf --install
+
+# also make sure flex and bison are installed:
+yum install flex
+yum install bison
+
+Then refer to section 2.1 for next compilation steps.
+
+
+III - Install
+=============
+
+For installing robinhood on your target system, install the previously generated RPM:
+> rpm -ivh rpms/RPMS/x86_64/robinhood.tmp_fs_mgr-2.2.0-1.x86_64.rpm
+
+This installs:
+* robinhood binaries ('robinhood' and 'rbh-report')
+* configuration helper script (rbh-config)
+* configuration templates
+* /etc/init.d/robinhood script (for RobinHood service management)
+
+This also creates the robinhood service (chkconfig --add).
+
+Note: on SLES systems, the default dependency for init scheduling is on "mysql" service.
+However, in many cases, it should be too early for starting robinhood daemon,
+especially if the filesystem it manages is not yet mounted.
+In such case, you have to modify the following lines in "scripts/robinhood.init.sles.in"
+before you run "./configure":
+# Required-Start:    <your filesystem service>
+
+
+IV - Database Configuration
+===========================
+
+MySQL
+-----
+Robinhood needs a MySQL database for storing information about files.
+This database can run on a different node from Robinhood daemon.
+
+* Install MySQL server on the machine (mysql-server and mysql packages).
+* Start the DB engine:
+	service mysqld start
+* Run the configuration helper script as root on the database host:
+	1) check database requirement:
+		> rbh-config precheck_db
+	2) create robinhood's database:
+		> rbh-config create_db
+
+* Write the DB password to a file with read access for root only (600)
+  e.g. to /etc/robinhood.d/.dbpassword
+
+Note: initially, the database schema is empty. Robinhood will create it the first time it is launched.
+
+SQLite
+------
+You can use SQLite instead of MySQL for testing, or small filesystems.
+For this, you need to compile robinhood with the following option:
+	--with-db=SQLITE
+To setup database access, you just need to give a path where robinhood will
+store its sqlite database (in-file), in the ListManager::SQLite block of the
+configuration file:
+
+ListManager {
+    SQLite {
+        db_file = "/var/robinhood/robinhood_sqlite_db" ;
+    }
+}
+
+V - Configuration file
+=======================
+
+You can use the '--template' option to generate a documented configuration file template:
+> robinhood --template=<template_file>
+
+Note: by default, "service robinhood start" looks for configuration files in "/etc/robinhood.d/tmpfs".
+
+For more details, refer to Robinhood Admin Guide (in the doc/admin_guide directory).
+
+VI - First run
+===============
+
+Even if your filesystem is empty, you need to perform an initial scan in order to initialize robinhood database.
+This prevents from having entries in filesystem that it wouldn't know about.
+robinhood --scan --once

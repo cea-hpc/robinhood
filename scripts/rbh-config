@@ -1,0 +1,489 @@
+#!/bin/bash
+# -*- mode: c; c-basic-offset: 4; indent-tabs-mode: nil; -*-
+# vim:expandtab:shiftwidth=4:tabstop=4:
+#
+# Robinhood configuration helper
+#
+
+# check caller
+who=`whoami`
+
+if [[ $who != root ]]; then
+    echo "This script must be executed by root" >&2
+    exit 1
+fi
+
+
+# this function creates the database for robinhood
+# it must be launched by root.
+function db_check
+{
+    if (( $# != 0 )); then
+	echo "WARNING: no argument expected for function precheck_db"
+    fi
+    echo "Checking system configuration..."
+
+    if [[ ! -x `which mysqladmin` ]]; then
+        echo "Command 'mysqladmin' not found."
+        echo "Install 'mysql' and 'mysql-server' packages on your system."
+        exit 2 
+    fi
+    echo "mysqladmin command OK."
+
+    if [[ ! -x `which mysql_config` ]]; then
+        echo "Command 'mysql_config' not found."
+        echo "Install 'mysql' package on your system."
+        exit 2 
+    fi
+    echo "mysql_config command OK."
+
+    version=`mysql_config --version | cut -d . -f 1`
+    if (( $? )); then
+        echo "Error executing 'mysql_config --version'."
+        exit 2 
+    fi
+    echo "MySQL version is $version."
+
+    /sbin/service mysqld status | grep running >/dev/null 2>/dev/null
+    if (( $? )); then
+        running=1
+        pgrep mysqld >/dev/null || running=0
+     
+        if (( $running == 0 )); then
+            echo "Service 'mysqld' is not running."
+            echo "It must be started to run this script."
+            exit 2 
+        else
+            echo "mysqld is running"
+        fi
+    else
+        echo "mysqld service OK."
+    fi
+
+    if [[ ! -x `which mysql` ]]; then
+        echo "Command 'mysql' not found."
+        echo "Install 'mysql' package on your system."
+        exit 2 
+    fi
+    echo "mysql command OK."
+}
+
+
+function db_config
+{
+    interactive=0
+    if (( $# == 0 )); then
+	interactive=1
+    elif (( $# != 3  && $# != 4 )); then
+	echo "ERROR: 0, 3 or 4 arguments expected"
+    	echo "Usage: create_db <db_name> <client_hosts> <user_passwd> [<db_admin_passwd>]"
+	exit 1
+    fi
+
+    if (( $interactive != 0 )); then
+	    echo
+	    echo "Enter a custom identifier for your filesystem. E.g. lustre"
+
+	    while (( 1 )); do
+		read -p "fsname (max 8 chars): " fsname
+		if [[ "$fsname" =~ "^[a-zA-Z][a-zA-Z0-9_]{0,7}$" ]]; then
+		    break
+		else
+		    echo
+		    unmatched=`echo $fsname | sed -e "s/[a-zA-Z0-9_]//g"`
+		    echo "Error: unexpected '" $unmatched "'."
+		    echo "Filesystem name must only contain alpha-num chars with no space."
+		fi
+	    done
+
+	    echo
+	    echo "Enter hosts where robinhood commands will run. E.g. localhost"
+	    echo "You can use '%' as wildcard: \"%\" for all hosts, \"cluster%\" for nodes starting with 'cluster'..."
+
+	    read -p "hosts: " clienthost
+
+	    while (( 1 )); do
+		echo
+		echo "Choose a password for connecting to the database (user 'robinhood'). "
+		read -p "password: " -s pass1
+		echo
+		read -p  "confirm password: " -s pass2
+		echo
+		
+		if [[ "$pass1" = "$pass2" ]]; then
+		    break
+		else
+		    echo "Passwords don't match."
+		    echo "Try again."
+		fi
+	    done
+
+	    echo "Write this password to /etc/robinhood.d/.dbpassword file"
+
+
+	    DB_NAME="robinhood_$fsname"
+    else
+	DB_NAME=$1
+	clienthost=$2
+	pass1=$3
+	pass2=$3
+    fi
+
+    echo
+    echo "Configuration summary:"
+    echo "- Database name: '$DB_NAME'"
+    echo "- Client hosts: '$clienthost'"
+    echo "- Database user name: 'robinhood'"
+
+    if (( $interactive != 0 )); then
+	    echo
+	    echo -n "Do you agree? [y/N]"
+
+	    read -n 1 ok
+	    echo
+	    if [[ $ok != [yY] ]]; then
+		echo "aborting."
+		exit 1
+	    fi
+
+	    echo
+	    echo "Enter password for root's database account (leave blank if none is set):"
+	    read -p "root's DB password: " -s pass_root
+	    echo
+    else
+	pass_root=$4
+    fi
+
+    echo
+    echo "Creating database '$DB_NAME'..."
+
+    mysqladmin --password="$pass_root" create $DB_NAME
+
+    if (( $? )); then
+        echo "Error creating DB."
+        exit 1
+    fi
+    echo "done"
+
+    echo
+    echo "Setting access right for user 'robinhood'@'$clienthost'..."
+
+    echo
+    mysql --password="$pass_root" $DB_NAME << EOF
+GRANT USAGE ON $DB_NAME.* TO 'robinhood'@'localhost' IDENTIFIED BY '$pass1' ;
+GRANT USAGE ON $DB_NAME.* TO 'robinhood'@'$clienthost' IDENTIFIED BY '$pass1' ;
+GRANT ALL PRIVILEGES ON $DB_NAME.* TO 'robinhood'@'localhost' IDENTIFIED BY '$pass1' ;
+GRANT ALL PRIVILEGES ON $DB_NAME.* TO 'robinhood'@'$clienthost' IDENTIFIED BY '$pass1' ;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'robinhood'@'$clienthost';
+EOF
+
+    if (( $? )); then
+        echo "Error setting access rights for 'robinhood'@'$clienthost'"
+        exit 1
+    fi
+
+    echo
+    echo "Testing connection to '$DB_NAME'..."
+    mysql --user=robinhood --password=$pass1 $DB_NAME << EOF
+quit
+EOF
+
+    if (( $? )); then
+        echo "Connection to $DB_NAME@localhost failed"
+        exit 1
+    fi
+
+    echo
+    echo "Database sucessfully created!"
+}
+
+
+
+function enable_changelogs
+{
+    interactive=0
+    if (( $# == 0 )); then
+	interactive=1
+    elif (( $# != 1 )); then
+	echo "ERROR: 0 or 1 argument expected"
+    	echo "Usage: enable_chglogs [<fsname>]"
+	exit 1
+    fi
+
+    if (($interactive != 0 )); then
+	    # check if we are on mdt
+	    echo -n "Checking available MDTs...    "
+	    fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | xargs`
+	    echo $fslist
+
+	    if [[ -z "$fslist" ]]; then
+		echo "No MDT found on this machine. Run the command on MDT."
+		exit 2
+	    fi
+
+	    echo "Select the filesystem you want to activate changelogs for:"
+	    while ((1)); do
+		read -p "$fslist: " fsname
+		if [[ -n "$fsname" ]]; then
+		    if [[ $fslist = *$fsname* ]]; then
+			break
+		    else
+			echo "$fsname: unknown"
+		    fi
+		fi
+	    done
+    else
+	fsname=$1
+        fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | xargs`
+	if [[ $fslist = *$fsname* ]]; then
+		echo "file system '$fsname' exists"
+	else
+		echo "$fsname: unknown"
+		exit 2
+	fi
+    fi
+
+    echo "Checking if \"cl1\" is already registered for $fsname..."
+    is_cl1=`grep cl1 /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT*/changelog_users 2>/dev/null | wc -l`
+
+    if (( $is_cl1 == 0 )); then
+        echo "No client registered yet"
+        lctl --device $fsname-MDT0000 changelog_register || echo "FAILED"
+    else
+        echo "\"cl1\" is already registered. Skipping registration."
+    fi
+
+    echo "Checking event mask..."
+
+    for event in HSM CREAT UNLNK TRUNC SATTR MTIME CTIME; do
+        missing=0
+        lctl get_param mdd.$fsname-MDT*.changelog_mask | grep $event >/dev/null || missing=1
+
+        if (( $missing != 0 )); then
+            echo "event $event not in changelog mask: setting it"
+            lctl set_param mdd.$fsname-MDT*.changelog_mask "+$event" || echo "FAILED"
+        else
+            echo "event $event OK"
+        fi
+    done
+    #lctl set_param mdd.*.changelog_mask "CREAT UNLNK OPEN CLOSE TRUNC TIME HSM"
+}
+
+function select_db
+{
+    pass_root=$1
+    db_list=`mysql -Ns --password="$pass_root" -e "show databases" | grep -v mysql | xargs`
+    
+    if (( $? )); then
+            echo "Failed to get database list"
+            exit 1
+    fi
+    if [[ -z "$db_list" ]]; then
+        echo "No DB found"
+        exit 2
+    fi
+    
+    echo "Available databases are: $db_list"
+
+    while ((1)); do
+        read -p "Select database to clean: " db
+        if [[ -n "$db" ]]; then
+            if [[ $db_list = *$db* ]]; then
+                break
+            else
+                echo "$db: unknown"
+            fi
+        fi
+    done
+
+    echo "Testing connection to '$db'..."
+    mysql $db --password="$pass_root" << EOF
+quit
+EOF
+
+    if (( $? )); then
+        echo "Connection to $db@localhost failed"
+        exit 1
+    else
+        echo "OK"
+        export RBH_DB=$db
+    fi
+}
+
+function empty_db
+{
+    interactive=0
+    if (( $# == 0 )); then
+	interactive=1
+    elif (( $# != 1 && $# != 2 )); then
+	echo "ERROR: 0, 1 or 2 arguments expected"
+    	echo "Usage: empty_db [<db_name> [<db_admin_passwd>]]"
+	exit 1
+    fi
+
+    if (( $interactive != 0 )); then
+	    echo
+	    echo "Enter password for root's database account (leave blank if none is set):"
+	    read -p "root's DB password: " -s pass_root
+	    echo
+
+	    select_db $pass_root || exit 1
+
+	    if [ -z $RBH_DB ]; then
+		echo "ERROR: database not specified"
+		exit 1
+	    fi
+    else
+    	RBH_DB=$1
+    	pass_root=$2
+    fi
+
+    echo "Cleaning tables of database '$RBH_DB'..."
+    mysql -v --password="$pass_root" $RBH_DB << EOF
+BEGIN;
+DROP TABLE IF EXISTS ENTRIES;
+DROP TABLE IF EXISTS STRIPE_INFO;
+DROP TABLE IF EXISTS STRIPE_ITEMS;
+DROP TABLE IF EXISTS VARS;
+DROP TABLE IF EXISTS ANNEX_INFO;
+DROP TABLE IF EXISTS ID_MAPPING;
+DROP TABLE IF EXISTS SOFT_RM;
+COMMIT;
+EOF
+    if (( $? )); then
+        echo "Command failed"
+        exit 1
+    else
+        echo "DONE"
+    fi
+}
+
+
+function reset_fileclasses
+{
+    interactive=0
+    if (( $# == 0 )); then
+	interactive=1
+    elif (( $# != 1 && $# != 2 )); then
+	echo "ERROR: 0, 1 or 2 arguments expected"
+    	echo "Usage: reset_classes [<db_name> [<db_admin_passwd>]]"
+	exit 1
+    fi
+
+    if (( $interactive != 0)); then
+	    echo
+	    echo "Enter password for root's database account (leave blank if none is set):"
+	    read -p "root's DB password: " -s pass_root
+	    echo
+
+	    select_db $pass_root || exit 1
+
+	    if [ -z $RBH_DB ]; then
+		echo "ERROR: database not specified"
+		exit 1
+	    fi
+    else
+	RBH_DB=$1	
+	pass_root=$2
+    fi
+
+    # checking valid fields for this purpose
+    has_arch=0
+    has_rel=0
+
+    echo "Checking schema..."
+    mysql --password="$pass_root" $RBH_DB -e "SELECT arch_cl_update FROM ENTRIES WHERE FALSE" 2>/dev/null && has_arch=1
+    mysql --password="$pass_root" $RBH_DB -e "SELECT rel_cl_update FROM ENTRIES WHERE FALSE" 2>/dev/null && has_rel=1
+
+    expr=""
+    if (( $has_arch )); then
+        expr="arch_cl_update=NULL";
+    fi
+    if (( $has_rel )); then
+        if [ -z $expr ]; then
+            expr="rel_cl_update=NULL"
+        else
+            expr="$expr,rel_cl_update=NULL"
+        fi
+    fi
+
+    if [ -z $expr ]; then
+	echo "Database $RBH_DB is already empty. No fileclass to reset."	
+	exit 0
+    fi
+
+    echo "Resetting fileclasses in '$RBH_DB'..."
+       mysql -v --password="$pass_root" $RBH_DB -e "UPDATE ENTRIES SET $expr ;"
+    if (( $? )); then
+        echo "Database command failed"
+        exit 1
+    else
+        echo "DONE"
+    fi
+}
+
+function test_connect 
+{
+    if (( $# != 2 )); then
+	echo "ERROR: 2 arguments expected"
+    	echo "Usage: test_db <db_name> <robinhood_passwd>"
+	exit 1
+    fi
+
+    DB_NAME=$1
+    pass=$2
+
+    echo
+    echo "Testing connection to '$DB_NAME'..."
+    mysql --user=robinhood --password=$pass $DB_NAME << EOF
+quit
+EOF
+
+    if (( $? )); then
+        echo "Connection to $DB_NAME@localhost failed"
+        exit 1
+    else
+	echo "Connection OK"
+    fi
+}
+
+
+echo "#######################################################"
+echo "#       Configuration script for RobinHood            #"
+echo "#######################################################"
+
+if [[ "$1" = "precheck_db" ]]; then 
+    shift 1
+    db_check $*
+elif [[ "$1" = "create_db" ]]; then
+    shift 1
+    db_check && db_config $*
+elif [[ "$1" = "enable_chglogs" ]]; then
+    shift 1
+    enable_changelogs $*
+elif [[ "$1" = "empty_db" ]]; then
+    shift 1
+    empty_db $*
+elif [[ "$1" = "reset_classes" ]]; then
+    shift 1
+    reset_fileclasses $*
+elif [[ "$1" = "test_db" ]]; then
+    shift 1
+    test_connect $*
+else
+    echo "Usage: $0 <action> [options]"
+    echo "Actions:"
+    echo "    precheck_db:"
+    echo "        check database packages and service"
+    echo "    create_db [<db_name> <client_hosts> <robinhood_passwd> [<db_admin_passwd>]] : "
+    echo "        create robinhood db (interactive if no option is specified)"
+    echo "    enable_chglogs [<fsname>]:"
+    echo "        enable changelogs on MDT (interactive if no option is specified)"
+    echo "    empty_db [<db_name> [<db_admin_passwd>]]:"
+    echo "        delete robinhood database content (interactive if no option is specified)"
+    echo "    reset_classes [<db_name> [<db_admin_passwd>]]:"
+    echo "        reset fileclasses after a change in config file (interactive if no option is specified)"
+    echo "    test_db <db_name> <robinhood_passwd>:"
+    echo "        test connection to the database"
+fi

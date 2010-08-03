@@ -1,0 +1,263 @@
+#####################################
+# define 'with' conditions
+%bcond_with lustre
+%bcond_with hsm
+%bcond_with mysql
+%bcond_with sqlite
+%bcond_with sherpa
+
+# macro for defining dependencies
+
+%define pkg_dependencies \
+%if %{with lustre}	 \
+%if %{defined lpackage}  \
+Requires: %{lpackage} >= %{lversion}	  \
+BuildRequires: %{lpackage} >= %{lversion} \
+%endif \
+%endif \
+%if %{with mysql}  \
+Requires: mysql >= %{dbversion}	  \
+BuildRequires: mysql-devel >= 4.1 \
+%endif \
+%{nil}
+
+###### end of macro definitions #####
+
+Name: @PACKAGE@
+Version: @VERSION@ 
+
+Vendor: CEA/DAM
+Prefix: %{_prefix}
+
+%if %{with lustre}
+%if %{defined lversion}
+%define config_dependant .lustre%{lversion}
+%endif
+%endif
+
+%if %{with sqlite}
+%define db_dependant .sqlite
+%endif
+
+Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
+
+
+Summary: Robinhood - Accounting/purge tool for large filesystems
+License: CeCILL 
+Group: Applications/System
+Url: http://robinhood.sourceforge.net
+Source0: @PACKAGE@-%{version}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+
+%description
+Robinhood is a tool for monitoring and purging file systems. It is designed to 
+process all its tasks in parallel, so it is particulary adapted for managing
+large file systems with millions of entries and petabytes of data.
+
+#summary, description and dependencies of each purpose
+%if %{with hsm}
+
+%package %{purpose}
+Summary: PolicyEngine for Lustre-HSM binding
+Group: Applications/System
+%pkg_dependencies
+
+%description %{purpose}
+Monitor Lustre usage and trigger file migration and purges.
+
+%else
+%if %{with sherpa}
+
+%package %{purpose}
+Summary: PolicyEngine for SHERPA cache manager
+Group: Applications/System
+BuildRequires: sherpa-server >= 4.1-150
+BuildRequires: sherpa-client >= 4.1
+Requires: sherpa-server >= 4.1-150
+Requires: sherpa-client >= 4.1
+%pkg_dependencies
+
+%description %{purpose}
+PolicyEngine for SHERPA cache manager
+
+%else
+# TMP FS MGR
+
+%package %{purpose}
+Summary: Accounting, reporting and purge tool for large filesystems
+Group: Applications/System
+%pkg_dependencies
+
+%description %{purpose}
+Provides disk space fair-share, accounting, reporting facilities for
+any POSIX filesystem, with extra features for Lustre (OST usage management).
+Possibly trigger purge by LRU when free disk space is low.
+
+%endif
+%endif
+
+%prep
+%setup -n @PACKAGE@-%{version}
+
+%build
+./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
+        --sysconfdir=%{_sysconfdir} \
+        --mandir=%{_mandir} \
+        --libdir=%{_libdir} \
+	--prefix=%{_prefix}
+make
+
+%install
+rm -rf $RPM_BUILD_ROOT
+mkdir -p $RPM_BUILD_ROOT
+make install DESTDIR=$RPM_BUILD_ROOT
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/includes
+mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
+
+%if %{with hsm}
+install -m 644 doc/templates/hsm_policy_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+install -m 644 doc/templates/hsm_policy_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+%else
+install -m 644 doc/templates/tmp_fs_mgr_tuto.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+install -m 644 doc/templates/tmp_fs_mgr_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+%endif
+
+%if %{defined suse_version}
+install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC@
+%else
+install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC@
+%endif
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%post %{purpose}
+if [ -x %{_initrddir}/@PURPOSE_SVC@ ]; then
+  if %{_initrddir}/@PURPOSE_SVC@ status | grep running | grep -v "not running"  >/dev/null 2>&1; then
+    %{_initrddir}/@PURPOSE_SVC@ stop
+    WASRUNNING=1
+  fi
+  [ -x /sbin/chkconfig ] && /sbin/chkconfig --del @PURPOSE_SVC@
+  [ -x /sbin/chkconfig ] && /sbin/chkconfig --add @PURPOSE_SVC@
+  if test x$WASRUNNING = x1; then
+    %{_initrddir}/@PURPOSE_SVC@ start
+  fi
+fi
+
+%preun
+if [ "$1" = 0 ]; then
+  if [ -x %{_initrddir}/@PURPOSE_SVC@ ]; then
+     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del @PURPOSE_SVC@
+    if %{_initrddir}/@PURPOSE_SVC@ status | grep running | grep -v "not running" >/dev/null 2>&1; then
+      %{_initrddir}/@PURPOSE_SVC@ stop
+    fi
+  fi
+fi
+
+%files %{purpose}
+%defattr(-,root,root,-)
+#%doc README
+#%doc COPYING 
+#%doc ChangeLog
+
+%{_sbindir}/*
+#%{_mandir}/man5/*
+#%{_mandir}/man8/*
+
+%dir %{_sysconfdir}/robinhood.d
+%dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@
+%dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/includes
+%dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+
+%if %{with hsm}
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_basic.conf
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_detailed.conf
+%else
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_tuto.conf
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_detailed.conf
+%endif
+
+%{_initrddir}/@PURPOSE_SVC@
+
+%changelog
+
+* Tue Jul 13 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.5-rc1
+2.1.5-rc1 is a release candidate for robinhood 2.2.0
+- [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
+- [feature] alert batching: send a mail summary instead of 1 mail per matching entry
+- [feature] alert improvements: named alerts, tweak changes
+- [feature] quota-based purge triggers fully implemented (on group or user)
+- [feature] triggers on used inode count in filesystem
+- [feature] display last matched fileclass in reporting command
+- [optim.] configurable fileclass periodic matching to reduce calls to filesystem
+- [optim.] configurable attr/path periodic update in DB to reduce calls to filesystem
+- [bugfix] issue when filtering on fields with NULL values in DB
+- [bugfix] check migration timeout on last effective action, not on last queued entry
+- [bugfix] name-based conditions complaining about missing auto-generated fields
+- [bugfix] race condition when appplying policy lead to handle the same entry several times
+- [misc.] changing source directory layout
+
+
+* Tue Jun 22 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.4
+- New recursive rmdir policy (for TMP_FS_MGR purpose)
+- changed default value for max_pending_operations
+  (unlimited value could result in excessive memory usage)
+- removing useless fields and redundant information in database
+- rh-* commands renamed to rbh-*, to avoid conflicts and confusions
+  with RedHat commands.
+- check conflicting flags in configure
+
+* Wed Apr 21 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.3
+- Support of relative paths for "path" and "tree" conditions
+- Migration timeout mechanism
+- SQLite support
+- Prompting for database admin password in rh-config script
+
+* Fri Mar 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.2
+- Made RPM relocatable
+- New configuration helper script: "rh-config"
+- New reporting commands: Dump all files (--dump-all) and dump files
+  by status (--dump-status).
+- BUG FIX: wrong scan duration when using volume-based purge triggers
+- Lustre-HSM: Checking previous migrations when restarting
+- Lustre-HSM: CL_TIME record support (bz 19505)
+- Lustre-HSM: multi-archive support (archive_num)
+- Lustre-HSM: new --sync option (immediately archive all modified files)
+- Lustre-HSM: changed --handle-events action switch to --readlog
+
+* Thu Dec 10 2009 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.1
+- new reporting options: --dump-ost, --dump-user, --dump-group
+- new --filter-path option to reporting tool
+- Each purpose has its own service and binary names,
+  to allow installing and running several robinhood with
+  differents purposes on the same machine.
+
+* Thu Sep 17 2009 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.0
+- Includes most features for Lustre-HSM PolicyEngine (as Beta)
+- Note: for testing purpose, this version applies HSM policies to all entries
+whatever their HSM status (given that HSM status flags are not fully implemented
+in Lustre yet).
+
+* Mon Jul 20 2009 Thomas Leibovici <thomas.leibovici@cea.fr> 2.0.1
+- New policy definition semantics, using filesets
+- Multiple fileset/policy associations
+- Several changes in configuration syntax, to avoid confusions
+- Support of OST pool names (on Lustre) for fileset definition and policies
+- Optimizations of policy application
+- Added features for Lustre-HSM
+
+* Mon Mar 23 2009 Thomas Leibovici <thomas.leibovici@cea.fr> 2.0.0-beta2
+- Display warning for unknown parameters in config file
+- Cosmetic fixes in config parsing
+- Clean shutdown on SIGTERM or SIGINT
+- Reloading dynamic parameters on SIGHUP (including numerical values in policy definition) 
+
+* Mon Mar 2 2009 Thomas Leibovici <thomas.leibovici@cea.fr> 2.0.0-beta1
+- Reporting tool
+- Empty directory removal
+- Force purge actions on FS/OST
+- Misc. improvements (stats, config, logs...)
+
+* Mon Jan 26 2009 Thomas Leibovici <thomas.leibovici@cea.fr> 2.0.0-alpha
+- Most Robinhood v1 features are supported
