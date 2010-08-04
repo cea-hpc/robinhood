@@ -774,6 +774,10 @@ void report_fs_info( int csv_format )
     lmgr_filter_t  filter;
     int is_filter = FALSE;
 
+#ifdef _SHERPA
+    filter_value_t fv;
+#endif
+
 #if defined( _LUSTRE_HSM ) || defined( _SHERPA )
 #define FSINFOCOUNT 3
 #else

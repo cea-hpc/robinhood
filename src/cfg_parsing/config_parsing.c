@@ -421,7 +421,7 @@ config_item_type rh_config_ContentType( config_item_t block )
     if ( item->item.block.block_content == NULL )
         return 0;
 
-    return rh_config_ItemType( item->item.block.block_content );
+    return rh_config_ItemType( (config_item_t)item->item.block.block_content );
 }
 
 /* Retrieves a key-value peer from a CONFIG_ITEM_VAR */
