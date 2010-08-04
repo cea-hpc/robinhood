@@ -173,6 +173,7 @@ static struct option option_tab[] = {
 
     /* additional options for topusers etc... */
     {"filter-path", required_argument, NULL, 'P' },
+    {"filter-class", required_argument, NULL, 'C' },
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -191,7 +192,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:Rf:cl:hV"
+#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:C:Rf:cl:hV"
 
 /* special character sequences for displaying help */
 
@@ -213,23 +214,23 @@ static const char *help_string =
     "        Display stats abount daemon's activity.\n"
     "    " _B "--fs-info" B_ ", " _B "-i" B_ "\n"
     "        Display filesystem content statistics.\n"
-    "    " _B "--user-info" B_ " " _U "user" U_ ", " _B "-u" B_ " [" _U "user" U_ "]\n"
+    "    " _B "--user-info" B_ " [=" _U "user" U_ "], " _B "-u" B_ " " _U "user" U_ "\n"
     "        Display user statistics. Use optional parameter " _U "user" U_ " for retrieving stats about a single user.\n"
-    "    " _B "--group-info" B_ " " _U "group" U_ ", " _B "-g" B_ " [" _U "group" U_ "]\n"
+    "    " _B "--group-info" B_ " [=" _U "group" U_ "], " _B "-g" B_ " " _U "group" U_ "\n"
     "        Display group statistics. Use optional parameter " _U "group" U_ " for retrieving stats about a single group.\n"
 #ifndef _LUSTRE_HSM
-    "    " _B "--top-dirs" B_ " [" _U "count" U_ "], " _B "-d" B_ " " _U "count" U_ "\n"
+    "    " _B "--top-dirs" B_ " [=" _U "count" U_ "], " _B "-d" B_ " " _U "count" U_ "\n"
     "        Display largest directories. Optional argument indicates the number of directories to be returned (default: 20).\n"
 #endif
-    "    " _B "--top-size" B_ " [" _U "count" U_ "], " _B "-s" B_ " " _U "count" U_ "\n"
+    "    " _B "--top-size" B_ " [=" _U "count" U_ "], " _B "-s" B_ " " _U "count" U_ "\n"
     "        Display largest files. Optional argument indicates the number of files to be returned (default: 20).\n"
-    "    " _B "--top-purge" B_ " [" _U "count" U_ "], " _B "-p" B_ " " _U "count" U_ "\n"
+    "    " _B "--top-purge" B_ " [=" _U "count" U_ "], " _B "-p" B_ " " _U "count" U_ "\n"
     "        Display oldest entries eligible for purge. Optional argument indicates the number of entries to be returned (default: 20).\n"
 #ifdef HAVE_RMDIR_POLICY
-    "    " _B "--top-rmdir" B_ " [" _U "count" U_ "], " _B "-r" B_ " " _U "count" U_ "\n"
+    "    " _B "--top-rmdir" B_ " [=" _U "count" U_ "], " _B "-r" B_ " " _U "count" U_ "\n"
     "        Display oldest empty directories eligible for rmdir. Optional argument indicates the number of dirs to be returned (default: 20).\n"
 #endif
-    "    "  _B "--top-users" B_ " [" _U "count" U_ "], " _B "-U" B_ " " _U "count" U_ "\n"
+    "    "  _B "--top-users" B_ " [=" _U "count" U_ "], " _B "-U" B_ " " _U "count" U_ "\n"
     "        Display top disk space consumers. Optional argument indicates the number of users to be returned (default: 20).\n"
 #ifdef HAVE_RM_POLICY
     "    " _B "--deferred-rm" B_ ", " _B "-R" B_ "\n"
@@ -330,9 +331,11 @@ static inline void display_version( char *bin_name )
 
 static lmgr_t  lmgr;
 
-/* global filter variable */
+/* global filter variables */
 char path_filter[1024] = "";
 char path_regexp[1024] = "";
+
+char class_filter[1024] = "";
 
 void report_activity( int csv )
 {
@@ -541,6 +544,56 @@ static inline char * release_class( attr_set_t * attrs )
     return ATTR(attrs, release_class);
 }
 
+/*
+ * Append global filters on path, class...
+ * \param do_display [in] display filters?
+ * \param initialized [in/out] indicate if the filter is initialized.
+ */
+static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * initialized )
+{
+    filter_value_t fv;
+
+    /* is a filter on path specified? */
+    if ( !EMPTY_STRING( path_filter ) )
+    {
+        if ( (initialized != NULL) && !(*initialized) )
+        {
+            lmgr_simple_filter_init( filter );
+            *initialized = TRUE;
+        }
+        if ( do_display )
+            printf("filter path: %s\n", path_filter );
+        fv.val_str = path_regexp;
+        lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
+    }
+
+    if ( !EMPTY_STRING( class_filter ) )
+    {
+        if ( (initialized != NULL) && !(*initialized) )
+        {
+            lmgr_simple_filter_init( filter );
+            *initialized = TRUE;
+        }
+        if ( do_display )
+            printf("filter class: %s\n", class_filter );
+
+        fv.val_str = class_filter;
+
+#ifndef ATTR_INDEX_archive_class
+        /* single test */
+        lmgr_simple_filter_add( filter, ATTR_INDEX_release_class, LIKE, fv, 0 );
+#else
+        /* archive class or release class */
+        lmgr_simple_filter_add( filter, ATTR_INDEX_archive_class, LIKE, fv,
+                                FILTER_FLAG_BEGIN );
+        lmgr_simple_filter_add( filter, ATTR_INDEX_release_class, LIKE, fv,
+                                FILTER_FLAG_OR | FILTER_FLAG_END );
+#endif
+    }
+
+    return 0;
+}
+
 
 void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
 {
@@ -554,13 +607,8 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
 
     lmgr_simple_filter_init( &filter );
 
-    /* is a filter on path specified? */
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
-    }
+    /* append global filters */
+    mk_global_filters( &filter, TRUE, NULL );
 
     /* what do we dump? */
     switch( type )
@@ -750,15 +798,9 @@ void report_fs_info( int csv_format )
 #endif
     };
 
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        if ( !is_filter )
-            lmgr_simple_filter_init( &filter );
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
-        is_filter = TRUE;
-    }
+    /* append global filters */
+    mk_global_filters( &filter, TRUE, &is_filter );
+
 #ifdef _SHERPA
     /* only select file status  */
     if ( !is_filter )
@@ -919,14 +961,11 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
     if ( is_group )
         user_info[0].attr_index = ATTR_INDEX_gr_name;
 
-    if ( name || !EMPTY_STRING(path_filter) )
+    if ( name )
     {
         lmgr_simple_filter_init( &filter );
         is_filter = TRUE;
-    }
 
-    if ( name )
-    {
         fv.val_str = name;
 
         if ( WILDCARDS_IN( name ) )
@@ -935,12 +974,8 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
             lmgr_simple_filter_add( &filter, (is_group?ATTR_INDEX_gr_name:ATTR_INDEX_owner), EQUAL, fv, 0 ); 
     }
 
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
-    }
+    /* append global filters */
+    mk_global_filters( &filter, TRUE, &is_filter );
 
     it = ListMgr_Report( &lmgr, user_info, USERINFOCOUNT, ( is_filter ? &filter : NULL ), NULL );
 
@@ -1128,13 +1163,8 @@ void report_topdirs( unsigned int count, int csv_format )
     lmgr_simple_filter_init( &filter );
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
-    /* is a filter on path specified? */
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
-    }
+    /* append global filters */
+    mk_global_filters( &filter, TRUE, NULL );
 
     /* order by dircount desc */
     sorttype.attr_index = ATTR_INDEX_dircount;
@@ -1227,13 +1257,8 @@ void report_topsize( unsigned int count, int csv_format )
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 #endif
 
-    /* is a filter on path specified? */
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
-    }
+    /* append global filters */
+    mk_global_filters( &filter, TRUE, NULL );
 
     /* order by size desc */
     sorttype.attr_index = ATTR_INDEX_size;
@@ -1409,13 +1434,8 @@ void report_toppurge( unsigned int count, int csv_format )
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
 #endif
 
-    /* is a filter on path specified? */
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
-    }
+    /* append global filters */
+    mk_global_filters( &filter, TRUE, NULL );
 
     /* select only non whitelisted */
 #ifndef _LUSTRE_HSM
@@ -1574,13 +1594,7 @@ void report_toprmdir( unsigned int count, int csv_format )
     fv.val_uint = 0;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, EQUAL, fv, 0);
 
-    /* is a filter on path specified? */
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
-    }
+    mk_global_filters( &filter, TRUE, NULL );
 
     /* order by last_mod asc */
     sorttype.attr_index = ATTR_INDEX_last_mod;
@@ -1669,6 +1683,9 @@ void report_topuser( unsigned int count, int csv_format )
     int            rc;
     char           strsize[128] = "";
     unsigned int   rank = 1;
+    lmgr_filter_t  filter;
+    filter_value_t fv;
+    int is_filter = FALSE;
 
 #define TOPUSERCOUNT 6
 
@@ -1692,17 +1709,13 @@ void report_topuser( unsigned int count, int csv_format )
     /* select only the top users */
     opt.list_count_max = count;
 
-    /* is a filter on path specified? */
-    if ( !EMPTY_STRING( path_filter ) )
-    {
-        lmgr_filter_t  filter;
-        filter_value_t fv;
-        printf("%s:\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_init( &filter );
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
+    is_filter = FALSE;
+
+    mk_global_filters( &filter, TRUE, &is_filter );
+
+    /* is a filter specified? */
+    if ( is_filter )
         it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT, &filter, &opt );
-    }
     else
         it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT, NULL, &opt );
 
@@ -1910,6 +1923,18 @@ int main( int argc, char **argv )
                 }
                 path_regexp[len] = '*';
                 path_regexp[len+1] = '\0';
+            }
+            break;
+
+        case 'C':
+            if ( optarg )
+            {
+                if (!strcasecmp( optarg, "default"))
+                    strncpy( class_filter, CLASS_DEFAULT, 1024 );
+                else if ( !strcasecmp( optarg, "ignored"))
+                    strncpy( class_filter, CLASS_IGNORED, 1024 );
+                else
+                    strncpy( class_filter, optarg, 1024 );
             }
             break;
 

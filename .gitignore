@@ -1,5 +1,9 @@
 .deps
+.libs
 Makefile.in
+*.o
+*.lo
+*.la
 
 /autotools/depcomp
 /autotools/install-sh
