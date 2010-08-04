@@ -46,6 +46,7 @@
 #define OPT_DUMP_GROUP  257
 #define OPT_DUMP_OST    258
 #define OPT_DUMP_STATUS 259
+#define OPT_CLASS_INFO  260
 
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
@@ -138,12 +139,18 @@ static struct option option_tab[] = {
 
     /* Stats selectors */
     {"activity", no_argument, NULL, 'a'},
+
     {"fsinfo", no_argument, NULL, 'i'},
     {"fs-info", no_argument, NULL, 'i'},
+
     {"userinfo", optional_argument, NULL, 'u'},
     {"user-info", optional_argument, NULL, 'u'},
+
     {"groupinfo", optional_argument, NULL, 'g'},
     {"group-info", optional_argument, NULL, 'g'},
+
+    {"classinfo", optional_argument, NULL, OPT_CLASS_INFO},
+    {"class-info", optional_argument, NULL, OPT_CLASS_INFO},
 #ifndef _LUSTRE_HSM
     {"topdirs", optional_argument, NULL, 'd'},
     {"top-dirs", optional_argument, NULL, 'd'},
@@ -255,6 +262,8 @@ static const char *help_string =
     "The following filters can be speficied for reports:\n"
     "    " _B "-P" B_ " " _U "path" U_ ", " _B "--filter-path" B_ " " _U "path" U_ "\n"
     "        Display the report only for objects in the given path.\n"
+    "    " _B "-C" B_ " " _U "class" U_ ", " _B "--filter-class" B_ " " _U "class" U_ "\n"
+    "        Report only entries in the given FileClass.\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -516,33 +525,36 @@ void report_activity( int csv )
 
 typedef enum {DUMP_ALL, DUMP_USR, DUMP_GROUP, DUMP_OST, DUMP_STATUS } type_dump;
 
+static inline const char * class_format( const char * class_name )
+{
+    if ( class_name == NULL )
+        return "[n/a]";
+    if ( !strcasecmp(class_name, CLASS_DEFAULT ) )
+        return "[default]";
+    else if ( !strcasecmp(class_name, CLASS_IGNORED ) )
+        return "[ignored]";
+    else
+        return class_name;
+}
+
 #ifdef ATTR_INDEX_archive_class
-static inline char * migr_class( attr_set_t * attrs )
+static inline const char * migr_class( attr_set_t * attrs )
 {
     if (!ATTR_MASK_TEST(attrs, archive_class))
         return "";
-
-    if ( !strcmp( ATTR(attrs, archive_class), CLASS_DEFAULT ))
-        return "[default]";
-    else if ( !strcmp( ATTR(attrs, archive_class), CLASS_IGNORED ))
-        return "[ignored]";
-
-    return ATTR(attrs, archive_class);
+    else
+        return class_format( ATTR(attrs, archive_class) );
 }
 #endif
 
-static inline char * release_class( attr_set_t * attrs )
+static inline const char * release_class( attr_set_t * attrs )
 {
     if (!ATTR_MASK_TEST(attrs, release_class))
         return "";
-
-    if ( !strcmp( ATTR(attrs, release_class), CLASS_DEFAULT ))
-        return "[default]";
-    else if ( !strcmp( ATTR(attrs, release_class), CLASS_IGNORED ))
-        return "[ignored]";
-
-    return ATTR(attrs, release_class);
+    else
+        return class_format( ATTR(attrs, release_class) );
 }
+
 
 /*
  * Append global filters on path, class...
@@ -575,7 +587,7 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
             *initialized = TRUE;
         }
         if ( do_display )
-            printf("filter class: %s\n", class_filter );
+            printf("filter class: %s\n", class_format(class_filter) );
 
         fv.val_str = class_filter;
 
@@ -760,7 +772,6 @@ void report_fs_info( int csv_format )
     int            rc;
 
     lmgr_filter_t  filter;
-    filter_value_t fv;
     int is_filter = FALSE;
 
 #if defined( _LUSTRE_HSM ) || defined( _SHERPA )
@@ -1684,7 +1695,6 @@ void report_topuser( unsigned int count, int csv_format )
     char           strsize[128] = "";
     unsigned int   rank = 1;
     lmgr_filter_t  filter;
-    filter_value_t fv;
     int is_filter = FALSE;
 
 #define TOPUSERCOUNT 6
@@ -1844,6 +1854,271 @@ void report_deferred_rm( int csv_format )
 #endif
 
 
+#ifdef ATTR_INDEX_archive_class
+
+#ifdef _LUSTRE_HSM
+    #define IS_PURGE_CONCERNED( _status ) ( ((_status) == STATUS_UP_TO_DATE)  \
+                                     || ((_status) == STATUS_RELEASED) \
+                                     || ((_status) == STATUS_RELEASE_PENDING) )
+    #define IS_MODIFIED( _status )  ( ((_status) == STATUS_MODIFIED) \
+                                      || ((_status) == STATUS_NO_FLAGS))
+#elif defined(_SHERPA)
+    #define IS_PURGE_CONCERNED( _status ) ( (_status) == STATUS_UP_TO_DATE )
+    #define IS_MODIFIED( _status )  ((_status) == STATUS_MODIFIED)
+#endif
+
+
+/* used for grouping archive/release classes depending on entry status */
+
+struct class_record {
+    char class[1024];
+    unsigned int count;
+    unsigned int nb_modif;
+    unsigned int nb_synchro;
+    unsigned long long spc_used;
+    unsigned long long spc_modif;
+    unsigned long long spc_synchro;
+    unsigned long long size_min;
+    unsigned long long size_max;
+    struct class_record * p_next;
+} * rec_list = NULL;
+
+static inline int class_add( const char * name, db_value_t * res_array )
+{
+   struct class_record * p_curr;
+   int found = FALSE;
+   for ( p_curr = rec_list; p_curr != NULL; p_curr = p_curr->p_next )
+   {
+       if ( !strcmp( p_curr->class, name ) )
+       {
+           /* found it ! */
+           found = TRUE;
+           break;
+       }
+   }
+
+   if ( !found )
+   {
+       p_curr = (struct class_record *)malloc( sizeof(struct class_record) );
+       strcpy( p_curr->class, name );
+       p_curr->count = p_curr->nb_modif = p_curr->nb_synchro = 0;
+       p_curr->spc_used = p_curr->spc_modif
+            = p_curr->spc_synchro = p_curr->size_max = 0;
+       /* initialize min to current value */
+       p_curr->size_min = res_array[5].value_u.val_biguint;
+       p_curr->p_next = rec_list;
+       rec_list = p_curr;
+   }
+
+   /* increment stats */
+   p_curr->count += res_array[3].value_u.val_uint;
+   p_curr->spc_used += (res_array[4].value_u.val_biguint * DEV_BSIZE);
+
+   if IS_MODIFIED(res_array[2].value_u.val_uint)
+   {
+        p_curr->nb_modif += res_array[3].value_u.val_uint;
+        p_curr->spc_modif += (res_array[4].value_u.val_biguint * DEV_BSIZE);
+   }
+   else if ( res_array[2].value_u.val_uint == STATUS_UP_TO_DATE )
+   {
+        p_curr->nb_synchro += res_array[3].value_u.val_uint;
+        p_curr->spc_synchro += (res_array[4].value_u.val_biguint * DEV_BSIZE);
+   }
+
+   /* size min */
+   if ( res_array[5].value_u.val_biguint < p_curr->size_min )
+      p_curr->size_min = res_array[5].value_u.val_biguint;
+   if ( res_array[6].value_u.val_biguint > p_curr->size_max )
+      p_curr->size_max = res_array[6].value_u.val_biguint;
+
+   return 0;
+} /* end of helper defintion */
+
+#endif
+
+static void report_class_info( int csv )
+{
+#ifdef ATTR_INDEX_archive_class
+    #define CLASSINFO_FIELDS 8
+    struct class_record * p_curr;
+#else
+    #define CLASSINFO_FIELDS 6
+#endif
+    db_value_t     result[CLASSINFO_FIELDS];
+
+    struct lmgr_report_t *it;
+    lmgr_filter_t  filter;
+    int            is_filter = FALSE;
+    int            rc;
+    unsigned int   result_count;
+
+#ifndef _LUSTRE_HSM /* no filter on type */
+    filter_value_t fv;
+#endif
+
+    /* To be retrieved for each group:
+     * - class names and status
+     * - NB entries
+     * - SUM(blocks)
+     * - MIN/MAX/AVG file size
+     */
+    report_field_descr_t user_info[CLASSINFO_FIELDS] = {
+        {ATTR_INDEX_release_class, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+#ifdef ATTR_INDEX_archive_class
+        {ATTR_INDEX_archive_class, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+        {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+#endif
+        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
+        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
+        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
+        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
+    };
+
+    is_filter = FALSE;
+
+#ifndef _LUSTRE_HSM /* type is not stored in database: only files are considered */
+    /* select only files */
+    fv.val_str = STR_TYPE_FILE;
+    lmgr_simple_filter_init( &filter );
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
+    is_filter = TRUE;
+#endif
+
+    mk_global_filters( &filter, TRUE, &is_filter );
+
+    result_count = CLASSINFO_FIELDS;
+
+    /* is a filter specified? */
+    if ( is_filter )
+        it = ListMgr_Report( &lmgr, user_info, CLASSINFO_FIELDS, &filter, NULL );
+    else
+        it = ListMgr_Report( &lmgr, user_info, CLASSINFO_FIELDS, NULL, NULL );
+
+    if ( it == NULL )
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR: Could not retrieve class information from database." );
+        return;
+    }
+
+#ifndef ATTR_INDEX_archive_class
+
+    /* a single class column (release), can print as is */
+    if ( csv )
+        printf( "%20s, %10s, %15s, %15s, %15s, %15s\n",
+                "fileclass", "nb_entries", "spc_used", "min_size",
+                "max_size", "avg_size" );
+
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
+            == DB_SUCCESS )
+    {
+        if ( csv )
+            printf( "%20s, %10u, %15Lu, %15Lu, %15Lu, %15Lu\n",
+                    class_format( result[0].value_u.val_str ),
+                    result[1].value_u.val_uint,
+                    result[2].value_u.val_biguint * DEV_BSIZE,
+                    result[3].value_u.val_biguint,
+                    result[4].value_u.val_biguint,
+                    result[5].value_u.val_biguint );
+        else
+        {
+            char           strsize[128] = "";
+
+            printf( "\n" );
+            printf( "Class:   %20s\n",
+                    class_format( result[0].value_u.val_str ) );
+            printf( "Nb entries:   %15u\n", result[1].value_u.val_uint );
+            printf( "Space used:   %15s    (%llu blks)\n",
+                    FormatFileSize( strsize, 128,
+                                    result[2].value_u.val_biguint * DEV_BSIZE ),
+                                    result[2].value_u.val_biguint );
+
+            printf( "Size min:     %15s    (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
+                                    result[3].value_u.val_biguint );
+            printf( "Size max:     %15s    (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
+                                    result[4].value_u.val_biguint );
+            printf( "Size avg:     %15s    (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
+                    result[5].value_u.val_biguint );
+        }
+
+    }
+
+#else
+
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
+            == DB_SUCCESS )
+    {
+        /* what class do we display? */
+        const char * class;
+        if ( result[0].value_u.val_str == NULL )
+            class = result[1].value_u.val_str;
+        else if ( result[1].value_u.val_str == NULL )
+            class = result[0].value_u.val_str;
+        else /* both are defined */
+        {
+            /* up to date, released or release_pending:  take purge class */
+            if ( IS_PURGE_CONCERNED( result[2].value_u.val_uint ) )
+                class = result[0].value_u.val_str;
+            else
+                class = result[1].value_u.val_str;
+        }
+        class = class_format(class);
+
+        class_add( class, result );
+    }
+
+    if (csv)
+        printf( "%20s, %10s, %10s, %10s, %15s, %15s, %15s, %15s, %15s\n",
+                "fileclass", "count", "nb_modif", "nb_synchro",
+                "spc_used", "spc_modif", "spc_synchro","size_min", "size_max" );
+    for ( p_curr = rec_list; p_curr != NULL; p_curr = p_curr->p_next )
+    {
+        if (csv)
+            printf( "%20s, %10u, %10u, %10u, %15Lu, %15Lu, %15Lu, %15Lu, %15Lu\n",
+                    class_format( p_curr->class ),
+                    p_curr->count, p_curr->nb_modif, p_curr->nb_synchro,
+                    p_curr->spc_used, p_curr->spc_modif, p_curr->spc_synchro,
+                    p_curr->size_min, p_curr->size_max );
+        else
+        {
+            char strsize[128] = "";
+            char str2[128] = "";
+            printf( "\n" );
+            printf( "Class:   %20s\n",
+                    class_format( p_curr->class ) );
+            printf( "Nb entries:   %15u", p_curr->count );
+            printf( "    (%u modified, %u synchro)\n", p_curr->nb_modif,
+                    p_curr->nb_synchro );
+            printf( "Space used:   %15s",
+                    FormatFileSize( strsize, 128, p_curr->spc_used ) );
+            printf( "    (%s modified, %s synchro)\n",
+                    FormatFileSize( strsize, 128, p_curr->spc_modif ),
+                    FormatFileSize( str2, 128, p_curr->spc_synchro ) );
+
+            printf( "Size min:     %15s    (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, p_curr->size_min ),
+                    p_curr->size_min );
+
+            printf( "Size max:     %15s    (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, p_curr->size_max ),
+                    p_curr->size_max );
+        }
+    }
+
+    /* todo: free list */
+
+#endif
+
+    ListMgr_CloseReport(it);
+
+
+}
+
+
 
 #define MAX_OPT_LEN 1024
 
@@ -1869,6 +2144,8 @@ int main( int argc, char **argv )
 
     int            group_info = FALSE;
     char           group_name[256] = "";
+
+    int            class_info = FALSE;
 
 #ifndef _LUSTRE_HSM
     int            topdirs = 0;
@@ -1909,7 +2186,12 @@ int main( int argc, char **argv )
             break;
 
         case 'P':
-            if ( optarg )
+            if ( !optarg )
+            {
+                fprintf(stderr, "Missing mandatory argument <path> for --filter-path\n");
+                exit(1);
+            }
+            else
             {
                 int len;
                 strncpy( path_filter, optarg, 1024 );
@@ -1927,6 +2209,33 @@ int main( int argc, char **argv )
             break;
 
         case 'C':
+            if ( !optarg )
+            {
+                fprintf(stderr, "Missing mandatory argument <class> for --filter-class\n");
+                exit(1);
+            }
+            if ( class_info )
+            {
+                fprintf(stderr, "WARNING: --filter-class option conflicts with --class-info report type. ignored.\n");
+                break;
+            }
+            if (!strcasecmp( optarg, "default"))
+                strncpy( class_filter, CLASS_DEFAULT, 1024 );
+            else if ( !strcasecmp( optarg, "ignored"))
+                strncpy( class_filter, CLASS_IGNORED, 1024 );
+            else
+                strncpy( class_filter, optarg, 1024 );
+            break;
+
+        case OPT_CLASS_INFO:
+
+            if ( class_info )
+                fprintf(stderr, "WARNING: --class-info parameter already specified on command line.\n");
+
+            if ( !EMPTY_STRING(class_filter) )
+                fprintf(stderr, "WARNING: --class-info conflicts with --filter-class parameter. overriding filter.\n");
+
+            class_info = TRUE;
             if ( optarg )
             {
                 if (!strcasecmp( optarg, "default"))
@@ -2146,7 +2455,7 @@ int main( int argc, char **argv )
 
     if ( !activity && !fs_info && !user_info && !group_info
          && !topsize && !toppurge && !topuser && !dump_all
-         && !dump_user && !dump_group
+         && !dump_user && !dump_group && !class_info
 #ifdef ATTR_INDEX_status
          && !dump_status
 #endif
@@ -2243,6 +2552,9 @@ int main( int argc, char **argv )
 
     if ( group_info )
         report_usergroup_info( ( EMPTY_STRING( group_name ) ? NULL : group_name ), csv, TRUE );
+
+    if ( class_info )
+        report_class_info(csv);
 
 #ifndef _LUSTRE_HSM
     if ( topdirs )
