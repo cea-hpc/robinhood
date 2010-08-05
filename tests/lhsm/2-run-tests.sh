@@ -6,6 +6,9 @@ CFG_SCRIPT="../../scripts/rbh-config"
 
 function clean_fs
 {
+	echo "Cancelling agent actions..."
+	echo "purge" > /proc/fs/lustre/mdt/*/hsm_control
+
 	echo "Waiting for end of data migration..."
 	while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions > /dev/null ; do sleep 1; done
 
@@ -227,23 +230,20 @@ function purge_test
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
 
-	# fill 10 files and migrate them
+	# fill 10 files and mark them archived+non dirty
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
 		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
+		lfs hsm_set --exists --archived /mnt/lustre/file.$i
+		lfs hsm_clear --dirty /mnt/lustre/file.$i
 	done
 	
-	echo "2-Flushing files (after 2sec)..."
-	sleep 2 # sleep 2 to match migration condition
-	$RH -f ./cfg/$config_file --readlog --migrate -l DEBUG --once -L rh_chglogs.log
-
-	echo "3-Reading changelogs to know migrated files (after 10sec)..."
-	sleep 10 # wait for file migration to complete
-	echo "3bis-reading now"
+	echo "2-Reading changelogs to update file status (after 1sec)..."
+	sleep 1
 	$RH -f ./cfg/$config_file --readlog -l DEBUG --once -L rh_chglogs.log
 
-	echo "4-Applying purge policy ($policy_str)..."
+	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || echo "ERROR"
 
@@ -254,10 +254,10 @@ function purge_test
                 echo "OK: no file released"
         fi
 
-	echo "3-Sleeping $sleep_time seconds..."
+	echo "4-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
-	echo "4-Applying purge policy again ($policy_str)..."
+	echo "5-Applying purge policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || echo "ERROR"
 
         nb_purge=`grep "Releasing" rh_purge.log | wc -l`
@@ -289,7 +289,7 @@ function purge_size_filesets
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
 
-	# fill 3 files of different sizes and migrate them
+	# fill 3 files of different sizes and mark them archived non-dirty
 
 	j=1
 	for size in 0 1 10 200; do
@@ -297,19 +297,16 @@ function purge_size_filesets
 		((j=$j+1))
 		for i in `seq 1 $count`; do
 			dd if=/dev/zero of=/mnt/lustre/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || echo "ERROR writing file.$size.$i"
+			lfs hsm_set --exists --archived /mnt/lustre/file.$size.$i
+			lfs hsm_clear --dirty /mnt/lustre/file.$size.$i
 		done
 	done
 	
-	echo "2-Flushing files (after 2sec)..."
-	sleep 2 # sleep 2 to match migration condition
-	$RH -f ./cfg/$config_file --readlog --migrate -l DEBUG --once -L rh_chglogs.log
-
-	echo "3-Reading changelogs to know migrated files (after 10sec)..."
-	sleep 10 # wait for file migration to complete
-	echo "3bis-reading now"
+	echo "2-Reading changelogs to update file status (after 1sec)..."
+	sleep 1
 	$RH -f ./cfg/$config_file --readlog -l DEBUG --once -L rh_chglogs.log
 
-	echo "3ter-Sleeping $sleep_time seconds..."
+	echo "3-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
 	echo "4-Applying purge policy ($policy_str)..."
@@ -1034,7 +1031,7 @@ run_test 	migration_test test3.conf 10 31 "complex policy with filesets"
 #7
 run_test 	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
 #8
-run_test 	purge_test test_purge.conf 11 31 "last_access > 30s"
+run_test 	purge_test test_purge.conf 11 21 "last_access > 20s"
 #9
 run_test	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
 #10
