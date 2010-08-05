@@ -594,7 +594,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                 fval.val_int = last_request_time;
                 rc = lmgr_simple_filter_add_or_replace( &filter,
                                                         ATTR_INDEX_md_update,
-                                                        MORETHAN, fval,
+                                                        LESSTHAN_STRICT, fval,
                                                         FILTER_FLAG_ALLOW_NULL);
                 if ( rc )
                     return rc;
@@ -903,15 +903,13 @@ else
 
 #ifdef _SHERPA
 
-#ifndef _HAVE_FID
-    /* we must have at least its full path, if we are not using fids */
+    /* sherpa needs to fullpath to map with the reference */
     if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath )
          && !ATTR_MASK_TEST( new_attr_set, fullpath ) )
     {
         strcpy( ATTR( new_attr_set, fullpath ), ATTR( &p_item->entry_attr, fullpath ) );
         ATTR_MASK_SET( new_attr_set, fullpath );
     }
-#endif
 
     /* get info about this entry and check policies about the entry. */
     switch( SherpaManageEntry( &p_item->entry_id, new_attr_set ) )

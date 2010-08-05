@@ -54,6 +54,7 @@ AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DE
 
 # behavior flags
 AX_ENABLE_FLAG( [prep-stmts], [enables prepared statements for accessing the database], [-D_ENABLE_PREP_STMT] )
+AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
 
 
 

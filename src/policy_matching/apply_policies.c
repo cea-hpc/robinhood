@@ -104,13 +104,13 @@ static int TestPathRegexp( const char *regexp, const char *to_be_tested,
     {
 #ifdef _DEBUG_POLICIES
         printf("MATCH regexp='%s', path='%s', tree = %d\n", full_regexp,
-               to_be_tested, is_child_path );
+               to_be_tested, is_child );
 #endif
         return TRUE;
     }
 #ifdef _DEBUG_POLICIES
     printf("NO MATCH regexp='%s', path='%s', tree = %d\n", full_regexp,
-           to_be_tested, is_child_path );
+           to_be_tested, is_child );
 #endif
 
     return FALSE;

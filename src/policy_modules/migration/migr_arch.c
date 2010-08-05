@@ -577,7 +577,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                 fval.val_int = last_request_time;
                 rc = lmgr_simple_filter_add_or_replace(&filter,
                                                        ATTR_INDEX_md_update,
-                                                       MORETHAN, fval,
+                                                       LESSTHAN_STRICT, fval,
                                                        FILTER_FLAG_ALLOW_NULL );
                 if ( rc )
                     return rc;
@@ -855,6 +855,14 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
         DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry %s", ATTR( &p_item->entry_attr, fullpath ) );
     else
         DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry with fid="DFID, PFID(&p_item->entry_id) );
+
+    /* sherpa needs the full path to map with the reference */
+    if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath )
+         && !ATTR_MASK_TEST( new_attr_set, fullpath ) )
+    {
+        strcpy( ATTR( new_attr_set, fullpath ), ATTR( &p_item->entry_attr, fullpath ) );
+        ATTR_MASK_SET( new_attr_set, fullpath );
+    }
 
     /* get info about this entry and check policies about the entry. */
     switch( SherpaManageEntry( &p_item->entry_id, new_attr_set ) )

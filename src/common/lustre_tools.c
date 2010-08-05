@@ -267,9 +267,15 @@ int Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int le
     /* set mountpoint at the beginning of the path */
     strcpy( fullpath, mount_point );
     curr += mount_len;
+
+/* add the slash only if fid2path doesn't */
+#ifndef _FID2PATH_LEADING_SLASH
     /* add slash */
     *curr = '/';
     curr ++;
+#endif
+    /* just in case fid2path returns nothing */
+    *curr = '\0';
 
     /* fid string */
     sprintf( fid, DFID, PFID(p_id) );
