@@ -228,13 +228,15 @@ fi
 %changelog
 
 * Tue Aug 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0-beta1
-- [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
 - [feature] fileclass union/intersection
+- [feature] rbh-report displays last matched fileclass
+- [feature] new reporting command '--class-info' generates fileclass summary
+- [feature] new reporting option '--filter-class' to dump entries per fileclass
 - [feature] alert batching: send a mail summary instead of 1 mail per matching entry
 - [feature] alert improvements: named alerts, tweak changes
-- [feature] quota-based purge triggers fully implemented (on group or user)
+- [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
+- [feature] quota-like purge triggers fully implemented (on group or user)
 - [feature] triggers on used inode count in filesystem
-- [feature] display last matched fileclass in reporting command
 - [feature] rbh-config helper now supports batch commands
 - [feature] Lustre 2.0 ready
 - [optim.] configurable fileclass periodic matching to reduce calls to filesystem

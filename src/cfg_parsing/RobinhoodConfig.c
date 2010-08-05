@@ -1647,7 +1647,7 @@ static int build_set_expr( type_set * p_in_set,
 {
     int i, rc;
 
-    if ( p_in_set->is_singleton )
+    if ( p_in_set->set_type == SET_SINGLETON )
     {
        /* get class from its name */
        for ( i = 0; i < list->fileset_count; i++ )
@@ -1666,44 +1666,69 @@ static int build_set_expr( type_set * p_in_set,
        sprintf( err_msg, "FileClass '%s' is undefined", p_in_set->set_u.name );
        return ENOENT;
     }
-
-    /* not a singleton: Union or Inter */
-
-    p_out_node->node_type = NODE_BINARY_EXPR;
-
-    if ( p_in_set->set_u.op.oper == SET_OP_UNION )
-        /* entry matches one class OR the other */
-        p_out_node->content_u.bool_expr.bool_op = BOOL_OR;
-    else if ( p_in_set->set_u.op.oper == SET_OP_INTER )
-        /* entry matches one class AND the other */
-        p_out_node->content_u.bool_expr.bool_op = BOOL_AND;
-    else
+    else if ( p_in_set->set_type == SET_NEGATION )
     {
-        strcpy( err_msg, "Unexpected set operator in expression" );
-        return EINVAL;
+        p_out_node->node_type = NODE_UNARY_EXPR;
+
+        if ( p_in_set->set_u.op.oper != SET_OP_NOT )
+        {
+            strcpy( err_msg, "Unexpected set operator in unary expression" );
+            return EINVAL;
+        }
+        p_out_node->content_u.bool_expr.bool_op = BOOL_NOT;
+
+        p_out_node->content_u.bool_expr.owner = 1;
+        p_out_node->content_u.bool_expr.expr1
+                = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
+        if ( !p_out_node->content_u.bool_expr.expr1 )
+            goto errmem;
+
+        p_out_node->content_u.bool_expr.expr2 = NULL;
+
+        rc = build_set_expr( p_in_set->set_u.op.set1,
+                             p_out_node->content_u.bool_expr.expr1,
+                             p_attr_mask, list, err_msg );
+        if ( rc )
+            goto free_set1;
     }
+    else /* not a singleton: Union or Inter or Negation */
+    {
+        p_out_node->node_type = NODE_BINARY_EXPR;
 
-    p_out_node->content_u.bool_expr.owner = 1;
-    p_out_node->content_u.bool_expr.expr1
-            = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
-    if ( !p_out_node->content_u.bool_expr.expr1 )
-        goto errmem;
-    rc = build_set_expr( p_in_set->set_u.op.set1,
-                         p_out_node->content_u.bool_expr.expr1,
-                         p_attr_mask, list, err_msg );
+        if ( p_in_set->set_u.op.oper == SET_OP_UNION )
+            /* entry matches one class OR the other */
+            p_out_node->content_u.bool_expr.bool_op = BOOL_OR;
+        else if ( p_in_set->set_u.op.oper == SET_OP_INTER )
+            /* entry matches one class AND the other */
+            p_out_node->content_u.bool_expr.bool_op = BOOL_AND;
+        else
+        {
+            strcpy( err_msg, "Unexpected set operator in expression" );
+            return EINVAL;
+        }
 
-    if ( rc )
-        goto free_set1;
+        p_out_node->content_u.bool_expr.owner = 1;
+        p_out_node->content_u.bool_expr.expr1
+                = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
+        if ( !p_out_node->content_u.bool_expr.expr1 )
+            goto errmem;
+        rc = build_set_expr( p_in_set->set_u.op.set1,
+                             p_out_node->content_u.bool_expr.expr1,
+                             p_attr_mask, list, err_msg );
 
-    p_out_node->content_u.bool_expr.expr2
-            = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
-    if ( !p_out_node->content_u.bool_expr.expr2 )
-        goto errmem;
-    rc = build_set_expr( p_in_set->set_u.op.set2,
-                         p_out_node->content_u.bool_expr.expr2,
-                         p_attr_mask, list, err_msg );
-    if ( rc )
-        goto free_set2;
+        if ( rc )
+            goto free_set1;
+
+        p_out_node->content_u.bool_expr.expr2
+                = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
+        if ( !p_out_node->content_u.bool_expr.expr2 )
+            goto errmem;
+        rc = build_set_expr( p_in_set->set_u.op.set2,
+                             p_out_node->content_u.bool_expr.expr2,
+                             p_attr_mask, list, err_msg );
+        if ( rc )
+            goto free_set2;
+    }
 
     return 0;
 
@@ -1754,7 +1779,7 @@ int GetSetExpr( config_item_t block, const char *block_name,
 
     if ( subitem->type != TYPE_SET )
     {
-        sprintf( err_msg, "Union/intersection of classes expected in block '%s', line %d",
+        sprintf( err_msg, "Union/intersection/negation of classes expected in block '%s', line %d",
                  block_name, rh_config_GetItemLine( ( config_item_t ) subitem ) );
         return EINVAL;
     }

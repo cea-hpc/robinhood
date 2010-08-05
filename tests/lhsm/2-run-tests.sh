@@ -23,6 +23,11 @@ function clean_fs
 
 	echo "Cleaning changelogs..."
 	lfs changelog_clear lustre-MDT0000 cl1 0
+
+	if [ -f rh.pid ]; then
+		echo "killing remaining robinhood process..."
+		kill `cat rh.pid`
+	fi
 }
 
 function migration_test
@@ -931,25 +936,30 @@ function fileclass_test
 
 	# classes are:
 	# 1) even_and_B
-	# 2) odd_or_A
-	# 3) other
+	# 2) even_and_not_B
+	# 3) odd_or_A
+	# 4) other
 
 	echo "data" > /mnt/lustre/dir_A/file.0 #2
-	echo "data" > /mnt/lustre/dir_A/file.1 #2
+	echo "data" > /mnt/lustre/dir_A/file.1 #3
 	echo "data" > /mnt/lustre/dir_A/file.2 #2
-	echo "data" > /mnt/lustre/dir_A/file.3 #2
+	echo "data" > /mnt/lustre/dir_A/file.3 #3
+	echo "data" > /mnt/lustre/dir_A/file.x #3
+	echo "data" > /mnt/lustre/dir_A/file.y #3
 
 	echo "data" > /mnt/lustre/dir_B/file.0 #1
-	echo "data" > /mnt/lustre/dir_B/file.1 #2
+	echo "data" > /mnt/lustre/dir_B/file.1 #3
 	echo "data" > /mnt/lustre/dir_B/file.2 #1
-	echo "data" > /mnt/lustre/dir_B/file.3 #2
+	echo "data" > /mnt/lustre/dir_B/file.3 #3
 
-	echo "data" > /mnt/lustre/dir_C/file.0 #3
-	echo "data" > /mnt/lustre/dir_C/file.1 #2
-	echo "data" > /mnt/lustre/dir_C/file.2 #3
-	echo "data" > /mnt/lustre/dir_C/file.3 #2
+	echo "data" > /mnt/lustre/dir_C/file.0 #2
+	echo "data" > /mnt/lustre/dir_C/file.1 #3
+	echo "data" > /mnt/lustre/dir_C/file.2 #2
+	echo "data" > /mnt/lustre/dir_C/file.3 #3
+	echo "data" > /mnt/lustre/dir_C/file.x #4
+	echo "data" > /mnt/lustre/dir_C/file.y #4
 
-	# => 2x 1), 8x 2), 2x 3)
+	# => 2x 1), 4x 2), 8x 3), 2x 4)
 
 	echo "1bis-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
@@ -964,19 +974,22 @@ function fileclass_test
 
 	# count the number of file for each policy
 	nb_pol1=`grep hints rh_migr.log | grep even_and_B | wc -l`
-	nb_pol2=`grep hints rh_migr.log | grep odd_or_A | wc -l`
-	nb_pol3=`grep hints rh_migr.log | grep unmatched | wc -l`
+	nb_pol2=`grep hints rh_migr.log | grep even_and_not_B | wc -l`
+	nb_pol3=`grep hints rh_migr.log | grep odd_or_A | wc -l`
+	nb_pol4=`grep hints rh_migr.log | grep unmatched | wc -l`
 
-	nb_pol1=`grep "matches the condition for policy 'inter_migr'" rh_migr.log | wc -l`
-	nb_pol2=`grep "matches the condition for policy 'union_migr'" rh_migr.log | wc -l`
-	nb_pol3=`grep "matches the condition for policy 'default'" rh_migr.log | wc -l`
+	#nb_pol1=`grep "matches the condition for policy 'inter_migr'" rh_migr.log | wc -l`
+	#nb_pol2=`grep "matches the condition for policy 'union_migr'" rh_migr.log | wc -l`
+	#nb_pol3=`grep "matches the condition for policy 'not_migr'" rh_migr.log | wc -l`
+	#nb_pol4=`grep "matches the condition for policy 'default'" rh_migr.log | wc -l`
 
-	(( $nb_pol1 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'inter_migr': $nb_pol1"
-	(( $nb_pol2 == 8 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'union_migr': $nb_pol2"
-	(( $nb_pol3 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'default': $nb_pol3"
+	(( $nb_pol1 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_B': $nb_pol1"
+	(( $nb_pol2 == 4 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_not_B': $nb_pol2"
+	(( $nb_pol3 == 8 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'odd_or_A': $nb_pol3"
+	(( $nb_pol4 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'unmatched': $nb_pol4"
 
-	(( $nb_pol1 == 2 )) && (( $nb_pol2 == 8 )) && (( $nb_pol3 == 2 )) \
-		&& echo "OK: test successful"
+	(( $nb_pol1 == 2 )) && (( $nb_pol2 == 4 )) && (( $nb_pol3 == 8 )) \
+		&& (( $nb_pol4 == 2 )) && echo "OK: test successful"
 }
 
 only_test=""
@@ -1037,7 +1050,7 @@ run_test	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-bas
 #10
 run_test 	test_rh_report common.conf 3 1 "reporting tool"
 #11
-run_test 	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+#run_test 	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
 #12
 run_test	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
 #13

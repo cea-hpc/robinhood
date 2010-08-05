@@ -277,6 +277,49 @@ generic_item  *rh_config_CreateSet( char *blockname, char *label,
     return new;
 }
 
+generic_item  *rh_config_CreateSet_Unary( set_operator_t op,
+                                           generic_item  *set )
+{
+    if ( set->type != TYPE_SET )
+    {
+        // sets expected
+        fprintf( stderr, "Set is expected\n" );
+        return NULL;
+    }
+
+    if ( op != SET_OP_NOT )
+    {
+        /* unary operator expected */
+        fprintf( stderr, "Unary set operator expected (not)\n" );
+        return NULL;
+    }
+
+    generic_item  *new = ( generic_item * ) malloc( sizeof( generic_item ) );
+
+    new->type = TYPE_SET;
+    new->line = yylineno;
+    new->next = NULL;
+    new->item.set.set_type = SET_NEGATION;
+
+    new->item.set.set_u.op.oper = op;
+
+    new->item.set.set_u.op.set1 =
+        ( type_set * ) malloc( sizeof( type_set ) );
+    new->item.set.set_u.op.set2 = NULL;
+
+    if (new->item.set.set_u.op.set1 == NULL)
+    {
+        fprintf( stderr, "Missing memory\n" );
+        return NULL;
+    }
+
+    *new->item.set.set_u.op.set1 = set->item.set;
+
+    free( set );
+
+    return new;
+}
+
 generic_item  *rh_config_CreateSet_Binary( set_operator_t op,
                                            generic_item  *set1,
                                            generic_item  *set2)
@@ -300,7 +343,7 @@ generic_item  *rh_config_CreateSet_Binary( set_operator_t op,
     new->type = TYPE_SET;
     new->line = yylineno;
     new->next = NULL;
-    new->item.set.is_singleton = FALSE;
+    new->item.set.set_type = SET_BINARY;
 
     new->item.set.set_u.op.oper = op;
 
@@ -332,7 +375,7 @@ generic_item  *rh_config_CreateSet_Singleton( char* set_name )
     new->type = TYPE_SET;
     new->line = yylineno;
     new->next = NULL;
-    new->item.set.is_singleton = TRUE;
+    new->item.set.set_type = SET_SINGLETON;
     strncpy( new->item.set.set_u.name, set_name, MAXSTRLEN );
 
     return new;
@@ -447,8 +490,14 @@ static void print_bool_expr( FILE * output, type_bool_expr * bool_expr )
 
 static void print_set( FILE * output, type_set * set )
 {
-    if ( set->is_singleton )
+    if ( set->set_type == SET_SINGLETON )
         fprintf( output, "{%s}", set->set_u.name );
+    else if ( set->set_type == SET_NEGATION )
+    {
+        fprintf( output, "NOT (");
+        print_set( output, set->set_u.op.set1 );
+        fprintf( output, ")");
+    }
     else
     {
         fprintf( output, "(" );
@@ -605,7 +654,7 @@ static void free_bool_expr_recurse( type_bool_expr * p_expr )
 
 static void free_set_recurse( type_set * p_set )
 {
-    if ( !p_set->is_singleton )
+    if ( p_set->set_type == SET_BINARY )
     {
         if ( p_set->set_u.op.set1 )
         {
@@ -616,6 +665,14 @@ static void free_set_recurse( type_set * p_set )
         {
             free_set_recurse( p_set->set_u.op.set2 );
             free( p_set->set_u.op.set2 );
+        }
+    }
+    else if (  p_set->set_type == SET_NEGATION )
+    {
+        if ( p_set->set_u.op.set1 )
+        {
+            free_set_recurse( p_set->set_u.op.set1 );
+            free( p_set->set_u.op.set1 );
         }
     }
 }

@@ -104,6 +104,7 @@ typedef enum
 
 typedef enum
 {
+    SET_OP_NOT,
     SET_OP_UNION,
     SET_OP_INTER
 } set_operator_t;
@@ -129,7 +130,7 @@ typedef struct _type_bool_expr_
 /* decribes unions/intersections of classes */
 typedef struct _type_set_
 {
-    int              is_singleton;
+    enum { SET_SINGLETON, SET_NEGATION, SET_BINARY } set_type;
 
     union
     {
@@ -211,6 +212,8 @@ generic_item  *rh_config_CreateBoolExpr_Binary( bool_operator_t op,
 
 generic_item  *rh_config_CreateSet( char *blockname, char *label,
                                     generic_item  * set );
+generic_item  *rh_config_CreateSet_Unary( set_operator_t op,
+                                           generic_item  *set );
 generic_item  *rh_config_CreateSet_Binary( set_operator_t op,
                                            generic_item  *set1,
                                            generic_item  *set2);
