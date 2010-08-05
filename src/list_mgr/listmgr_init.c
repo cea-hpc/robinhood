@@ -778,7 +778,7 @@ int ListMgr_InitAccess( lmgr_t * p_mgr )
     p_mgr->last_commit = 0;
     p_mgr->force_commit = FALSE;
 
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
     /* initialize prepared statement cache */
     init_prep_stmt_cache( p_mgr );
 #endif
@@ -794,7 +794,7 @@ int ListMgr_CloseAccess( lmgr_t * p_mgr )
     /* force to commit queued requests */
     rc = lmgr_flush_commit( p_mgr );
 
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
     /* free prepared requests */
     destroy_statements( p_mgr );
 #endif

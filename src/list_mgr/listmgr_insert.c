@@ -28,7 +28,7 @@
 
 int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info )
 {
-#ifndef _DISABLE_PREP_STMT      /* ---- prepared statements enabled ---- */
+#ifdef _ENABLE_PREP_STMT      /* ---- prepared statements enabled ---- */
     int            rc;
     DEF_PK( pk );
     prep_stmt_t    stmt;

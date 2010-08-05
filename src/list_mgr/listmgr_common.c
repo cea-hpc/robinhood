@@ -375,7 +375,7 @@ int attrset2updatelist( char *str, const attr_set_t * p_set, table_enum table, i
 }
 
 
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
 
 /**
  * Bind prepared statement parameters to an attr_set_t structure.
@@ -452,7 +452,7 @@ int mk_result_bind_list( const attr_set_t * p_set, table_enum table, db_type_t *
 
 }
 
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
 
 int unset_null_results( attr_set_t * p_set, table_enum table, prep_stmt_t stmt, unsigned int shift )
 {
@@ -768,7 +768,7 @@ int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
                  PK_PARG_T p_pk )
 {
 #ifndef FID_PK
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
     unsigned long long id1, id2;
     int            rc;
     db_type_t      input_types[2] = { DB_BIGUINT, DB_BIGUINT };
@@ -914,7 +914,7 @@ int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
 int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
 {
 #ifndef FID_PK
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
     unsigned long long id1, id2;
     int            rc;
 

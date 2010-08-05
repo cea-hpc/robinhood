@@ -18,7 +18,7 @@
 #endif
 
 /* useless functions is prepared statements are disabled */
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
 
 #include "listmgr_prep_stmt.h"
 #include "Memory.h"

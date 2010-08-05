@@ -53,7 +53,7 @@ AX_ENABLE_FLAG([debug-policies], [enables debug traces for entry processor pipel
 AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DEBUG_HASH])
 
 # behavior flags
-AX_DISABLE_FLAG( [prep-stmts], [disables prepared statements for accessing the database], [-D_DISABLE_PREP_STMT] )
+AX_ENABLE_FLAG( [prep-stmts], [enables prepared statements for accessing the database], [-D_ENABLE_PREP_STMT] )
 
 
 

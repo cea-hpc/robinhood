@@ -57,7 +57,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                         int validator, const stripe_info_t * p_stripe,
                         const stripe_items_t * p_items )
 {
-#ifndef _DISABLE_PREP_STMT      /* ---- prepared statements enabled ----- */
+#ifdef _ENABLE_PREP_STMT      /* ---- prepared statements enabled ----- */
     int            rc;
     int            i;
     char           msg[1024];
@@ -300,7 +300,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
 int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
                      stripe_items_t * p_items )
 {
-#ifndef _DISABLE_PREP_STMT      /* ----- prepared statements enabled ----- */
+#ifdef _ENABLE_PREP_STMT      /* ----- prepared statements enabled ----- */
     int            rc;
 
     db_type_t      input_types[1] = { PK_DB_TYPE };
@@ -542,7 +542,7 @@ void free_stripe_items( stripe_items_t * p_stripe_items )
 /* check that validator is matching for a given entry */
 int ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id )
 {
-#ifndef _DISABLE_PREP_STMT      /* prepared statements enabled */
+#ifdef _ENABLE_PREP_STMT      /* prepared statements enabled */
     DEF_PK( pk );
     int            rc;
     unsigned int   validator = 0;

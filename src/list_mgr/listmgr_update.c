@@ -30,7 +30,7 @@
 
 int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * p_update_set )
 {
-#ifndef _DISABLE_PREP_STMT      /* prepared statements enabled */
+#ifdef _ENABLE_PREP_STMT      /* prepared statements enabled */
     int            rc;
     DEF_PK(pk);
     int            nb_tables = 0;

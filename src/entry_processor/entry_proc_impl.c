@@ -889,7 +889,7 @@ void EntryProcessor_DumpCurrentStages(  )
 #endif
     }
 
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
     DisplayLog( LVL_DEBUG, "STATS", "====== Prepared Statement Stats ======" );
 
     for ( i = 0; i < entry_proc_conf.nb_thread; i++ )

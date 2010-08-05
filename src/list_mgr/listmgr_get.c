@@ -30,7 +30,7 @@
 
 int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
 {
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
     int            rc;
     unsigned int   count = 0;
     DEF_PK(pk);
@@ -147,7 +147,7 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
  */
 int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 {
-#ifndef _DISABLE_PREP_STMT
+#ifdef _ENABLE_PREP_STMT
     prep_stmt_t    stmt = NULL;
     int            field_count, rc;
     db_type_t      input_types[1] = { PK_DB_TYPE };
