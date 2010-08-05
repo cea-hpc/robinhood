@@ -512,10 +512,14 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
         }
         else
             p_items->stripe_units = NULL;
+
+        /* last query result must be freed */
+        rc = DB_SUCCESS;
+        goto res_free;
     }
 
-    rc = DB_SUCCESS;
-    goto res_free;
+    /* nothing to free */
+    return DB_SUCCESS;
 
     stripe_free:
     MemFree( p_items->stripe_units );

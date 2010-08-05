@@ -559,7 +559,7 @@ function update_test
 		start=`date "+%s"`
 		# generate a lot of TIME events within 'event_updt_min'
 		# => must only update once
-		while (( `date "+%s"` - $start < $event_updt_min - 1 )); do
+		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
 			touch /mnt/lustre/file
 			usleep 10000
 		done
@@ -594,7 +594,7 @@ function update_test
 		start=`date "+%s"`
 		# generate a lot of TIME events within 'event_updt_min'
 		# => must only update once
-		while (( `date "+%s"` - $start < $event_updt_min - 1 )); do
+		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
 			mv /mnt/lustre/file /mnt/lustre/file.2
 			usleep 10000
 			mv /mnt/lustre/file.2 /mnt/lustre/file
