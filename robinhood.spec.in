@@ -188,7 +188,7 @@ fi
 %changelog
 
 * Tue Aug 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0-beta1
-- [feature] fileclass union/intersection
+- [feature] fileclass union/intersection/negation
 - [feature] rbh-report displays last matched fileclass
 - [feature] new reporting command '--class-info' generates fileclass summary
 - [feature] new reporting option '--filter-class' to dump entries per fileclass

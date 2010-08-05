@@ -1,18 +1,26 @@
 #!/bin/sh
 
-REPORT=../../src/robinhood/rbh-report
+REPORT=../../src/robinhood/rbh-hsm-report
 
-$REPORT --activity || exit 1
-$REPORT --fsinfo || exit 1
-$REPORT --userinfo=root || exit 1
-$REPORT --groupinfo=root || exit 1
-$REPORT --topdirs=2 || exit 1
-$REPORT --topsize=2 || exit 1
-$REPORT --toppurge=2 || exit 1
-$REPORT --toprmdir=2 || exit 1
-$REPORT --topusers=2 || exit 1
-$REPORT --dump-all || exit 1
-$REPORT --dump-user=root || exit 1
-$REPORT --dump-group=root || exit 1
-$REPORT --dump-ost=0 || exit 1
+function test
+{
+	echo "Executing: $*"
+	$* || exit 1
+}
 
+test $REPORT --activity
+test $REPORT --fs-info
+test $REPORT --class-info
+test $REPORT --user-info=root
+test $REPORT --group-info=root
+test $REPORT --top-size=2
+test $REPORT --top-purge=2
+test $REPORT --top-users=2
+test $REPORT --dump-all --filter-path="/mnt/lustre/dir_A"
+test $REPORT --dump-all --filter-class="default"
+test $REPORT --dump-user=root
+test $REPORT --dump-group=root
+test $REPORT --dump-ost=0
+test $REPORT --dump-status=new
+test $REPORT --dump-status=arch
+test $REPORT --deferred-rm
