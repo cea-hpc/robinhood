@@ -99,7 +99,7 @@ static void DEBUG_LEX( char * format, ... ) { return ; }
 
 SPACE        [ \t\r\f]
 NL           [\n]
-VAL_CHAR     [^ \t\r\n\f"'#(),;=<>!]
+VAL_CHAR     [^ \t\r\n\f"'#(),;=<>!{}]
 COMMENT	 #.*$
 COMMENT2 \/\/.*$
 /* lettre posant probleme dans une chaine */
