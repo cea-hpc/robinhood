@@ -1902,6 +1902,18 @@ struct class_record {
     struct class_record * p_next;
 } * rec_list = NULL;
 
+static int classname_cmp( const char *s1, const char *s2 )
+{
+   if ( (s1[0] == '[') && (s2[0] != '[') )
+        /* s2 must be before => s1 is bigger */
+        return 1;
+   else if ( (s1[0] != '[') && (s2[0] == '[') )
+        /* s1 must be before => s1 is smaller */
+        return -1;
+   else
+        return strcmp( s1, s2 );
+}
+
 static inline int class_add( const char * name, db_value_t * res_array )
 {
    struct class_record * p_curr;
@@ -1925,8 +1937,45 @@ static inline int class_add( const char * name, db_value_t * res_array )
             = p_curr->spc_synchro = p_curr->size_max = 0;
        /* initialize min to current value */
        p_curr->size_min = res_array[5].value_u.val_biguint;
-       p_curr->p_next = rec_list;
-       rec_list = p_curr;
+
+       /* add sorted */
+       if ( rec_list == NULL )
+       {
+            p_curr->p_next = NULL;
+            rec_list = p_curr;
+       }
+       else
+       {
+           struct class_record * ptr;
+           struct class_record * prev;
+           prev = NULL;
+           for ( ptr = rec_list; ptr != NULL; prev=ptr, ptr=ptr->p_next )
+           {
+                /* name is before class? */
+                if ( classname_cmp( name, ptr->class) <= 0 )
+                {
+                    /* HEAD insert */
+                    if ( prev==NULL )
+                    {
+                        p_curr->p_next = rec_list;
+                        rec_list = p_curr;
+                    }
+                    else /* in place insert */
+                    {
+                        p_curr->p_next = ptr;
+                        prev->p_next = p_curr;
+                    }
+                    break; /* OK inserted */
+                }
+                else if ( ptr->p_next == NULL )
+                {
+                    /* insert in last position */
+                    p_curr->p_next = NULL;
+                    ptr->p_next = p_curr;
+                    break;
+                }
+           }
+       }
    }
 
    /* increment stats */
