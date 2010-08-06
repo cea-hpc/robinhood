@@ -782,7 +782,7 @@ void report_fs_info( int csv_format )
 #endif
 
 #if defined( _LUSTRE_HSM ) || defined( _SHERPA )
-#define FSINFOCOUNT 3
+#define FSINFOCOUNT 6
 #else
 #define FSINFOCOUNT 8
 #endif
@@ -804,11 +804,10 @@ void report_fs_info( int csv_format )
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
 #if defined( _LUSTRE_HSM ) || defined( _SHERPA )
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
-#else
+#endif
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
-#endif
 #if !defined(_LUSTRE_HSM) && !defined( _SHERPA )
         {ATTR_INDEX_dircount, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_dircount, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
@@ -848,12 +847,13 @@ void report_fs_info( int csv_format )
         printf( "%-10s, %10s, %15s, %15s, %15s\n",
                 "type", "count", "min_size", "max_size", "avg_size" );
 #else
-        printf( "%-10s, %10s, %15s\n", "status", "count", "volume" );
+        printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n", "status",
+                "count", "volume", "min_size", "max_size", "avg_size" );
 #endif
 
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
+              == DB_SUCCESS )
     {
-
 #ifdef _TMP_FS_MGR
         if ( result[0].value_u.val_str == NULL )
             result[0].value_u.val_str = "(?)";
@@ -904,10 +904,13 @@ void report_fs_info( int csv_format )
         }
 #else
         if ( csv_format )
-            printf( "%10s, %10u, %15llu\n",
+            printf( "%10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
                     db_status2str(result[0].value_u.val_uint,1),
                     result[1].value_u.val_uint,
-                    result[2].value_u.val_biguint );
+                    result[2].value_u.val_biguint,
+                    result[3].value_u.val_biguint,
+                    result[4].value_u.val_biguint,
+                    result[5].value_u.val_biguint );
         else
         {
             char           strsize[128];
@@ -917,6 +920,15 @@ void report_fs_info( int csv_format )
             printf( "   Volume:   %10s   (%llu bytes)\n",
                     FormatFileSize( strsize, 128, result[2].value_u.val_biguint ),
                     result[2].value_u.val_biguint );
+            printf( "   Size min: %10s   (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
+                    result[3].value_u.val_biguint );
+            printf( "   Size max: %10s   (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
+                    result[4].value_u.val_biguint );
+            printf( "   Size avg: %10s   (%llu bytes)\n",
+                    FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
+                    result[5].value_u.val_biguint );
         }
 #endif
 
