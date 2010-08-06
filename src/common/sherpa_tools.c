@@ -171,7 +171,8 @@ static const char * cause2str( enum CausePurge why )
 
 
 /* get entry status and perform synchronization operations */
-enum what_to_do SherpaManageEntry(const entry_id_t * p_id, attr_set_t * p_attrs)
+enum what_to_do SherpaManageEntry(const entry_id_t * p_id, attr_set_t * p_attrs,
+                                  int match_classes)
 {
     struct EntreeCache cache_info;
     StatutEntreeCache status_cache;
@@ -537,7 +538,7 @@ recheck:
                 ATTR(p_attrs, status) = STATUS_OUT_OF_DATE;
             }
             break;
-            
+
         case STATUT_CACHE_CHARG_ACTIF:
             ATTR_MASK_SET( p_attrs, status );
             ATTR(p_attrs, status) = STATUS_RESTORE_RUNNING;
@@ -571,8 +572,8 @@ recheck:
     }
 
     /* check if entry is whitelisted */
-    check_policies( p_id, p_attrs );
-    
+    check_policies( p_id, p_attrs, match_classes );
+
     if ( upper_tranfer_unlock )
     {
         if ( config.attitudes.type_cache == CACHE_GLOBAL )
@@ -626,7 +627,7 @@ recheck:
                 /* report messages */
 
                 FormatDurationFloat( straccess, 256, time( NULL ) - ATTR( p_attrs, last_access ));
-                
+
                 DisplayReport( "Removed %s | reason: %s | last access %s ago | size=%" PRINT_ST_SIZE
                        ", last_access=%" PRINT_TIME_T ", last_mod=%" PRINT_TIME_T,
                        ATTR(p_attrs, fullpath), cause2str(why), straccess, ATTR( p_attrs, size ),
@@ -638,7 +639,7 @@ recheck:
         }
         return do_rm;
     }
-    
+
     /* the entry is OK */
     return do_update;
 }

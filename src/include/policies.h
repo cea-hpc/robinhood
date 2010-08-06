@@ -374,7 +374,8 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
                                          policy_type_t policy_type );
 
 #ifdef HAVE_MIGR_POLICY
-char          *build_migration_hints( const policy_item_t * policy, const fileset_item_t * fileset,
+char          *build_migration_hints( const policy_item_t * policy,
+                                      const fileset_item_t * fileset,
                                       const entry_id_t * p_entry_id,
                                       const attr_set_t * p_entry_attr );
 void           free_migration_hints( char *hints );
@@ -393,14 +394,29 @@ int WhitelistedClass( const char * class_id, policy_type_t policy_type );
 policy_match_t EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr,
                              bool_node_t * p_node );
 
-
-#ifdef ATTR_INDEX_whitelisted
 /**
  * check whitelist condition for file or directory entries
+ * optionnally match fileclasses.
  */
-int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs );
-#endif
+int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
+                    int match_all_fc );
 
+/**
+ *  Check if the fileclass needs to be updated
+ */
+int need_fileclass_update( const attr_set_t * p_attrs, policy_type_t policy_type );
+
+/**
+ *  Check if path or metadata needs to be updated
+ *  \param p_allow_event [out] if set to TRUE, the path
+ *         must be updated on related event.
+ */
+typedef enum { UPDT_PATH, UPDT_MD } type_info_t;
+int need_info_update( const attr_set_t * p_attrs, int * update_on_event,
+                      type_info_t type_info );
+
+#define need_path_update( _pa, _pu )    need_info_update( (_pa), (_pu), UPDT_PATH )
+#define need_md_update( _pa, _pu )    need_info_update( (_pa), (_pu), UPDT_MD )
 
 /** 
  * Compare 2 boolean expressions

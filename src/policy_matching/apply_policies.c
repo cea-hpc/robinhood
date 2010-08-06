@@ -169,7 +169,7 @@ static inline int int_compare( int int1, compare_direction_t comp, int int2 )
                                            if ( !ATTR_MASK_TEST( _pset_, _attr_ ) )     \
                                            {                                            \
                                                if (!(_no_trace))                        \
-                                                   DisplayLog( LVL_DEBUG, POLICY_TAG,   \
+                                                   DisplayLog( LVL_MAJOR, POLICY_TAG,   \
                                                        "Missing attribute '%s' for evaluating boolean expression", (#_attr_) ); \
                                                return POLICY_MISSING_ATTR;              \
                                            }                                            \
@@ -1368,20 +1368,22 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
 }
 
 
-#ifdef ATTR_INDEX_whitelisted
 /**
  * check whitelist condition for file or directory entries
+ * optionnally match fileclasses.
  */
-int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs )
+int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
+                    int match_all_fc )
 {
     policy_match_t isok;
 
+#ifndef _LUSTRE_HSM /* Lustre-HSM: non interested in directories */
     if ( ATTR_MASK_TEST( p_attrs, type )
          && !strcmp( ATTR( p_attrs, type ), STR_TYPE_DIR ) )
     {
         /* generate needed fields */
         ListMgr_GenerateFields( p_attrs, policies.rmdir_policy.global_attr_mask );
-        
+
         isok = _IsWhitelisted( p_id, p_attrs, RMDIR_POLICY, TRUE );
 
         if ( isok == POLICY_MATCH )
@@ -1394,29 +1396,273 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs )
             ATTR_MASK_SET( p_attrs, whitelisted );
             ATTR( p_attrs, whitelisted ) = FALSE;
         }
+        return 0;
     }
-    else                    /* non directory object */
+#endif
+
+    /* non-directory object */
+
+    /* generate needed fields */
+    ListMgr_GenerateFields( p_attrs, policies.purge_policies.global_attr_mask );
+
+    isok = _IsWhitelisted( p_id, p_attrs, PURGE_POLICY, TRUE );
+
+#ifdef ATTR_INDEX_whitelisted
+    if ( isok == POLICY_MATCH )
     {
-        /* generate needed fields */
-        ListMgr_GenerateFields( p_attrs, policies.purge_policies.global_attr_mask );
+        ATTR_MASK_SET( p_attrs, whitelisted );
+        ATTR( p_attrs, whitelisted ) = TRUE;
+    }
+    else if ( isok == POLICY_NO_MATCH )
+    {
+        ATTR_MASK_SET( p_attrs, whitelisted );
+        ATTR( p_attrs, whitelisted ) = FALSE;
+    }
+#endif
 
-        isok = _IsWhitelisted( p_id, p_attrs, PURGE_POLICY, TRUE );
+    if ( match_all_fc )
+    {
+        if ( need_fileclass_update( p_attrs, PURGE_POLICY ) == TRUE )
+        {
+            policy_item_t *policy_case = NULL;
+            fileset_item_t *p_fileset = NULL;
 
-        if ( isok == POLICY_MATCH )
-        {
-            ATTR_MASK_SET( p_attrs, whitelisted );
-            ATTR( p_attrs, whitelisted ) = TRUE;
+            policy_case = GetPolicyCase( p_id, p_attrs, PURGE_POLICY,
+                                         &p_fileset );
+            if ( policy_case != NULL )
+            {
+                /* store the matched fileclass */
+                if ( p_fileset )
+                    strcpy( ATTR( p_attrs, release_class ),
+                            p_fileset->fileset_id );
+                else
+                    strcpy( ATTR( p_attrs, release_class ), CLASS_DEFAULT );
+                ATTR_MASK_SET( p_attrs, release_class );
+                ATTR( p_attrs, rel_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs, rel_cl_update );
+            }
         }
-        else if ( isok == POLICY_NO_MATCH )
+
+#ifdef HAVE_MIGR_POLICY
+        ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
+
+        if ( need_fileclass_update( p_attrs, MIGR_POLICY ) == TRUE )
         {
-            ATTR_MASK_SET( p_attrs, whitelisted );
-            ATTR( p_attrs, whitelisted ) = FALSE;
+            policy_item_t *policy_case = NULL;
+            fileset_item_t *p_fileset = NULL;
+
+            policy_case = GetPolicyCase( p_id, p_attrs, MIGR_POLICY,
+                                         &p_fileset );
+            if ( policy_case != NULL )
+            {
+                /* store the matched fileclass */
+                if ( p_fileset )
+                    strcpy( ATTR( p_attrs, archive_class ),
+                            p_fileset->fileset_id );
+                else
+                    strcpy( ATTR( p_attrs, archive_class ), CLASS_DEFAULT );
+                ATTR_MASK_SET( p_attrs, archive_class );
+                ATTR( p_attrs, arch_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs, arch_cl_update );
+            }
         }
+#endif
     }
 
     return 0;
 }
+
+/**
+ *  Check if the fileclass needs to be updated
+ */
+int need_fileclass_update( const attr_set_t * p_attrs, policy_type_t policy_type )
+{
+    int    is_set = FALSE;
+    time_t last = 0;
+    const char * match= "";
+
+    if ( policy_type == PURGE_POLICY )
+    {
+        is_set = ATTR_MASK_TEST(p_attrs, rel_cl_update)
+                 && ATTR_MASK_TEST(p_attrs, release_class);
+        if (is_set)
+        {
+            last = ATTR(p_attrs, rel_cl_update);
+            match = ATTR(p_attrs, release_class);
+        }
+    }
+#ifdef HAVE_MIGR_POLICY
+    else if ( policy_type == MIGR_POLICY )
+    {
+        is_set = ATTR_MASK_TEST(p_attrs, arch_cl_update)
+                 && ATTR_MASK_TEST(p_attrs, archive_class);
+        if (is_set)
+        {
+            last = ATTR(p_attrs, arch_cl_update);
+            match = ATTR(p_attrs, archive_class);
+        }
+    }
 #endif
+    else
+    {
+        DisplayLog( LVL_CRIT, POLICY_TAG, "Unsupported policy type in %s(): %u",
+                    __FUNCTION__, policy_type );
+        return -1;
+    }
+
+    /* check for periodic fileclass matching */
+    if ( !is_set )
+    {
+        DisplayLog( LVL_FULL, POLICY_TAG, "Need to update fileclass (not set)" );
+        return TRUE;
+    }
+    else if ( policies.updt_policy.fileclass.policy == UPDT_ALWAYS )
+    {
+        DisplayLog( LVL_FULL, POLICY_TAG, "Need to update fileclass "
+                    "(policy is 'always update')" );
+        return TRUE;
+    }
+    else if ( policies.updt_policy.fileclass.policy == UPDT_NEVER )
+    {
+        DisplayLog( LVL_FULL, POLICY_TAG, "No fileclass update "
+                    "(policy is 'never update')" );
+        return FALSE;
+    }
+    else if ( policies.updt_policy.fileclass.policy == UPDT_PERIODIC )
+    {
+        if ( time(NULL) - last >= policies.updt_policy.fileclass.period_max )
+        {
+            DisplayLog( LVL_FULL, POLICY_TAG, "Need to update fileclass "
+                        "(out-of-date) (last match=%u)", last );
+            return TRUE;
+        }
+        else
+        {
+            /* retrieve previous fileclass */
+            DisplayLog( LVL_FULL, POLICY_TAG, "Previously matched fileclass '%s'"
+                        " is still valid (last match=%u)", match, last );
+            return FALSE;
+        }
+    }
+    DisplayLog( LVL_CRIT, POLICY_TAG, "ERROR: unexpected case in %s, "
+                "line %s: 'update_fileclass' cannot be determined",
+                __FUNCTION__, __LINE__ );
+    return -1;
+}
+
+/**
+ *  Check if path or md needs to be updated
+ *  \param p_allow_event [out] if set to TRUE, the path
+ *         must be updated on related event.
+ */
+int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
+                      type_info_t type_info )
+{
+    int do_update = FALSE;
+    int is_set = FALSE;
+    time_t last = 0;
+    updt_policy_item_t pol;
+    const char * why ="<unexpected>";
+    const char * what ="";
+
+    if ( update_if_event != NULL )
+        *update_if_event = FALSE;
+
+    if ( type_info == UPDT_MD )
+    {
+       pol = policies.updt_policy.md;
+       what = "metadata";
+       is_set = ATTR_MASK_TEST( p_attrs, md_update );
+       if ( is_set )
+           last = ATTR( p_attrs, md_update );
+    }
+    else if ( type_info == UPDT_PATH )
+    {
+       what = "POSIX path";
+       pol = policies.updt_policy.path;
+       is_set = ( ATTR_MASK_TEST( p_attrs, fullpath )
+                && ATTR_MASK_TEST( p_attrs, path_update ) );
+       if ( is_set )
+           last = ATTR( p_attrs, path_update );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, POLICY_TAG, "Unsupported info type in %s(): %u",
+                    __FUNCTION__, type_info );
+        return -1;
+    }
+
+
+    if ( !is_set )
+    {
+        do_update = TRUE;
+        why = "not in DB/never updated";
+    }
+    else if ( pol.policy == UPDT_ALWAYS )
+    {
+        do_update = TRUE;
+        why = "policy is 'always update'";
+    }
+    else if ( pol.policy == UPDT_NEVER )
+    {
+        do_update = FALSE;
+    }
+    else if ( pol.policy == UPDT_ON_EVENT )
+    {
+        do_update = FALSE;
+        if ( update_if_event != NULL )
+            *update_if_event = TRUE;
+    }
+    else if ( pol.policy == UPDT_PERIODIC )
+    {
+       if ( time( NULL ) - last >= pol.period_max )
+       {
+            do_update = TRUE;
+            why = "expired";
+       }
+       else
+       {
+            do_update = FALSE;
+       }
+    }
+    else if ( pol.policy == UPDT_ON_EVENT_PERIODIC )
+    {
+        /* if the update is too recent, do not update.
+         * if the update is too old, force update.
+         * else, update on path-related event. */
+       if ( time( NULL ) - last < pol.period_min )
+       {
+            do_update = FALSE;
+       }
+       else if ( time( NULL ) - last >= pol.period_max )
+       {
+            do_update = TRUE;
+            why = "path is expired";
+       }
+       else /* allow update on event */
+       {
+            do_update = FALSE;
+            if ( update_if_event != NULL )
+                *update_if_event = TRUE;
+       }
+    }
+    else
+    {
+       DisplayLog( LVL_CRIT, POLICY_TAG, "Unknown path update policy %#x",
+                   policies.updt_policy.path.policy );
+       return -1;
+    }
+
+    if ( do_update )
+        DisplayLog( LVL_FULL, POLICY_TAG, "Update of %s: reason=%s, "
+                    "last_update=%u", what, why, last );
+
+    return do_update;
+}
+
+
+
+
 
 
 #ifdef HAVE_MIGR_POLICY

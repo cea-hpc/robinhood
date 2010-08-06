@@ -225,89 +225,13 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             p_op->extra_info.getstripe_needed =
                 ATTR_MASK_TEST( &p_op->entry_attr, stripe_info )? FALSE : TRUE;
 
-            allow_md_updt = FALSE;
-
             /* Check md_update policy */
-            if ( !ATTR_MASK_TEST(&p_op->entry_attr, md_update)) /* never updated */
-                p_op->extra_info.getattr_needed = TRUE;
-            else if ( policies.updt_policy.md.policy == UPDT_NEVER )
-                p_op->extra_info.getattr_needed = FALSE;
-            else if ( policies.updt_policy.md.policy == UPDT_ALWAYS )
-                p_op->extra_info.getattr_needed = TRUE;
-            else if ( policies.updt_policy.md.policy == UPDT_ON_EVENT )
-            {
-                /* update on metadata event */
-                p_op->extra_info.getattr_needed = FALSE;
-                allow_md_updt = TRUE;
-            }
-            else if ( policies.updt_policy.md.policy == UPDT_PERIODIC )
-            {
-               if ( time( NULL ) - ATTR( &p_op->entry_attr, md_update) >=
-                    policies.updt_policy.md.period_max )
-                    p_op->extra_info.getattr_needed = TRUE;
-               else
-                    p_op->extra_info.getattr_needed = FALSE;
-            }
-            else if ( policies.updt_policy.md.policy == UPDT_ON_EVENT_PERIODIC )
-            {
-                /* if the update is too recent, do not update.
-                 * if the update is too old, force update.
-                 * else, update on md-related event. */
-               if ( time( NULL ) - ATTR( &p_op->entry_attr, md_update) < 
-                    policies.updt_policy.md.period_min )
-                    p_op->extra_info.getattr_needed = FALSE;
-               else if ( time( NULL ) - ATTR( &p_op->entry_attr, md_update) >=
-                    policies.updt_policy.md.period_max )
-                    p_op->extra_info.getattr_needed = TRUE;
-               else
-               {
-                    p_op->extra_info.getattr_needed = FALSE;
-                    allow_md_updt = TRUE;
-               }
-            }
+            p_op->extra_info.getattr_needed
+                = need_md_update( &p_op->entry_attr, &allow_md_updt );
 
-            /* same thing for path */
-            allow_path_updt = FALSE;
-
-            /* Check path_update policy */
-            if ( !ATTR_MASK_TEST(&p_op->entry_attr, path_update)) /* never updated */
-                p_op->extra_info.getpath_needed = TRUE;
-            else if ( policies.updt_policy.path.policy == UPDT_NEVER )
-                p_op->extra_info.getpath_needed = FALSE;
-            else if ( policies.updt_policy.path.policy == UPDT_ALWAYS )
-                p_op->extra_info.getpath_needed = TRUE;
-            else if ( policies.updt_policy.path.policy == UPDT_ON_EVENT )
-            {
-                /* update on metadata event */
-                p_op->extra_info.getpath_needed = FALSE;
-                allow_path_updt = TRUE;
-            }
-            else if ( policies.updt_policy.path.policy == UPDT_PERIODIC )
-            {
-               if ( time( NULL ) - ATTR( &p_op->entry_attr, path_update) >=
-                    policies.updt_policy.path.period_max )
-                    p_op->extra_info.getpath_needed = TRUE;
-               else
-                    p_op->extra_info.getpath_needed = FALSE;
-            }
-            else if ( policies.updt_policy.path.policy == UPDT_ON_EVENT_PERIODIC )
-            {
-                /* if the update is too recent, do not update.
-                 * if the update is too old, force update.
-                 * else, update on path-related event. */
-               if ( time( NULL ) - ATTR( &p_op->entry_attr, path_update) < 
-                    policies.updt_policy.path.period_min )
-                    p_op->extra_info.getpath_needed = FALSE;
-               else if ( time( NULL ) - ATTR( &p_op->entry_attr, path_update) >=
-                    policies.updt_policy.path.period_max )
-                    p_op->extra_info.getpath_needed = TRUE;
-               else
-               {
-                    p_op->extra_info.getpath_needed = FALSE;
-                    allow_path_updt = TRUE;
-               }
-            }
-            /* end of update policy check */
+            /* check if path update is needed */
+            p_op->extra_info.getpath_needed
+                = need_path_update( &p_op->entry_attr, &allow_path_updt );
         }
     }
 
@@ -413,6 +337,14 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR_MASK_SET( &p_op->entry_attr, stripe_info );
         ATTR_MASK_SET( &p_op->entry_attr, md_update );
         ATTR_MASK_SET( &p_op->entry_attr, path_update );
+
+        if ( entry_proc_conf.match_classes )
+        {
+            /* get fileclass update info to know if we must check it */
+            ATTR_MASK_SET( &p_op->entry_attr, rel_cl_update );
+            ATTR_MASK_SET( &p_op->entry_attr, release_class );
+            p_op->entry_attr.attr_mask |= policies.purge_policies.global_attr_mask;
+        }
 
         rc = ListMgr_Get( lmgr, &p_op->entry_id, &p_op->entry_attr );
 
@@ -705,7 +637,8 @@ int EntryProc_infer_attrs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
     if ( p_op->entry_attr_is_set )
-        check_policies( &p_op->entry_id, &p_op->entry_attr );
+        check_policies( &p_op->entry_id, &p_op->entry_attr,
+                        entry_proc_conf.match_classes );
 
     /* acknowledge the stage and go to the next */
     rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );

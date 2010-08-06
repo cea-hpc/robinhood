@@ -43,6 +43,7 @@ typedef struct entry_proc_config_t
 {
     unsigned int   nb_thread;
     unsigned int   max_pending_operations;
+    int   match_classes;
 
     alert_item_t  *alert_list;
     unsigned int   alert_count;

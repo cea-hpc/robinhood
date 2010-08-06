@@ -187,7 +187,7 @@ fi
 
 %changelog
 
-* Tue Aug 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0-beta1
+* Tue Aug 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0-beta2
 - [feature] fileclass union/intersection/negation
 - [feature] rbh-report displays last matched fileclass
 - [feature] new reporting command '--class-info' generates fileclass summary

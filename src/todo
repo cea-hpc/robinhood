@@ -2,10 +2,17 @@ Pusher dans la repo oracle
 
 Doc:
 ====
-* config sqlite et disclaimer
+(* config sqlite et disclaimer)
+* fileclasses are matched in the order they are targetted
+ /!\ target =  A_inter_B
+     target = A
+	=> OK
+	inverse => NOK
 
 Features:
 =========
+* prise en compte des classes pour les repertoires
+
 * Daily report (migr, purge, ...)
 * possibilite de n'appliquer un trigger qu'a un sous-repertoire, un fileset ou autre...
 * 'Heriter' des parametres d'un parent
@@ -21,6 +28,9 @@ Fixes:
 * Passage a git
 
 Optim:
+* ajout d'un masque des attributs modifies, pour savoir ce qu'on met a jour
+
+
 * filter les ignore_fileclass dans les applications de policy.
 
 * bench perf DB.

@@ -315,6 +315,7 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
 
     conf->nb_thread = 8;
     conf->max_pending_operations = 10000;
+    conf->match_classes = TRUE;
 
     conf->alert_list = NULL;
     conf->alert_count = 0;
@@ -328,6 +329,7 @@ int Write_EntryProc_ConfigDefault( FILE * output )
     print_begin_block( output, 0, ENTRYPROC_CONFIG_BLOCK, NULL );
     print_line( output, 1, "nb_threads             :  8" );
     print_line( output, 1, "max_pending_operations :  10000" );
+    print_line( output, 1, "match_classes          :  TRUE" );
     print_line( output, 1, "alert                  :  NONE" );
     print_end_block( output, 0 );
     return 0;
@@ -348,13 +350,14 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
     entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
 
     char           pipeline_names[PIPELINE_STAGE_COUNT][256];
-    char          *entry_proc_allowed[PIPELINE_STAGE_COUNT + 4];
+    char          *entry_proc_allowed[PIPELINE_STAGE_COUNT + 5];
 
     entry_proc_allowed[0] = "nb_threads";
     entry_proc_allowed[1] = "max_pending_operations";
-    entry_proc_allowed[2] = ALERT_BLOCK;
+    entry_proc_allowed[2] = "match_classes";
+    entry_proc_allowed[3] = ALERT_BLOCK;
 
-    entry_proc_allowed[PIPELINE_STAGE_COUNT + 3] = NULL;        /* PIPELINE_STAGE_COUNT+3 = last slot */
+    entry_proc_allowed[PIPELINE_STAGE_COUNT + 4] = NULL;        /* PIPELINE_STAGE_COUNT+4 = last slot */
 
     /* get EntryProcessor block */
 
@@ -387,6 +390,12 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
+    rc = GetBoolParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "match_classes",
+                       0, &conf->match_classes, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+
     /* look for '<stage>_thread_max' parameters */
     for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
     {
@@ -395,11 +404,7 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
         snprintf( varname, 256, "%s_threads_max", entry_proc_pipeline[i].stage_name );
 
         strncpy( pipeline_names[i], varname, 256 );
-#ifdef HAVE_CHANGELOGS
         entry_proc_allowed[i + 4] = pipeline_names[i];
-#else
-        entry_proc_allowed[i + 3] = pipeline_names[i];
-#endif
 
         rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, varname,
                           INT_PARAM_POSITIVE, &tmpval, NULL, NULL, msg_out );
@@ -553,6 +558,14 @@ int Reload_EntryProc_Config( void *module_config )
                     ENTRYPROC_CONFIG_BLOCK
                     "::max_pending_operations changed in config file, but cannot be modified dynamically" );
 
+    if ( conf->match_classes != entry_proc_conf.match_classes )
+    {
+        DisplayLog( LVL_MAJOR, "EntryProc_Config",
+                    ENTRYPROC_CONFIG_BLOCK"::match_classes updated: '%s'->'%s'",
+                    bool2str(entry_proc_conf.match_classes), bool2str(conf->match_classes) );
+        entry_proc_conf.match_classes = conf->match_classes;
+    }
+
     /* Check alert rules  */
     update_alerts( entry_proc_conf.alert_list, entry_proc_conf.alert_count,
                    conf->alert_list, conf->alert_count, ENTRYPROC_CONFIG_BLOCK );
@@ -568,6 +581,25 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     int            i;
 
     print_begin_block( output, 0, ENTRYPROC_CONFIG_BLOCK, NULL );
+
+#ifndef _LUSTRE_HSM
+    print_line( output, 1, "# Raise alerts for directories with too many entries" );
+    print_begin_block( output, 1, ALERT_BLOCK, "Too_many_entries_in_directory" );
+    print_line( output, 2, "type == directory" );
+    print_line( output, 2, "and" );
+    print_line( output, 2, "dircount > 10000" );
+    print_end_block( output, 1 );
+    fprintf( output, "\n" );
+#endif
+    print_line( output, 1, "# Raise alerts for large files" );
+    print_begin_block( output, 1, ALERT_BLOCK, "Large_file" );
+#ifndef _LUSTRE_HSM
+    print_line( output, 2, "type == file" );
+    print_line( output, 2, "and" );
+#endif
+    print_line( output, 2, "size > 100GB" );
+    print_end_block( output, 1 );
+    fprintf( output, "\n" );
 
     print_line( output, 1, "# nbr of worker threads for processing pipeline tasks" );
     print_line( output, 1, "nb_threads = 8 ;" );
@@ -595,24 +627,9 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     }
     fprintf( output, "\n" );
 
-#ifndef _LUSTRE_HSM
-    print_line( output, 1, "# Raise alerts for directories with too many entries" );
-    print_begin_block( output, 1, ALERT_BLOCK, "Too_many_entries_in_directory" );
-    print_line( output, 2, "type == directory" );
-    print_line( output, 2, "and" );
-    print_line( output, 2, "dircount > 10000" );
-    print_end_block( output, 1 );
-    fprintf( output, "\n" );
-#endif
-    print_line( output, 1, "# Raise alerts for large files" );
-    print_begin_block( output, 1, ALERT_BLOCK, "Large_file" );
-#ifndef _LUSTRE_HSM
-    print_line( output, 2, "type == file" );
-    print_line( output, 2, "and" );
-#endif
-    print_line( output, 2, "size > 100GB" );
-    print_end_block( output, 1 );
-
+    print_line( output, 1, "# if set to FALSE, classes will only be matched");
+    print_line( output, 1, "# at policy application time (not during a scan or reading changelog)" );
+    print_line( output, 1, "match_classes = TRUE;");
 
     print_end_block( output, 0 );
     return 0;

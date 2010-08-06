@@ -180,7 +180,8 @@ int Sherpa_GetEntryDescription( char * cache_path, /* in */
                                 struct EntreeCache * cache_info ); /* out */
 
 enum what_to_do { do_update, do_skip, do_rm };
-enum what_to_do SherpaManageEntry( const entry_id_t * p_id, attr_set_t * p_attrs);
+enum what_to_do SherpaManageEntry( const entry_id_t * p_id, attr_set_t * p_attrs,
+                                   int match_classes);
 #endif
 
 /**

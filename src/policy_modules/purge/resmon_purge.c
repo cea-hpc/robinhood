@@ -790,40 +790,8 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
     if ( ( policies.purge_policies.global_attr_mask & ATTR_MASK_fullpath )
          || ( policies.purge_policies.global_attr_mask & ATTR_MASK_name ) )
     {
-        int get_path = FALSE;
-        const char * why ="";
-
-        if ( !ATTR_MASK_TEST( &p_item->entry_attr, fullpath ) )
+        if ( need_path_update(&p_item->entry_attr, NULL) )
         {
-            get_path = TRUE;
-            why = "path is not in DB";
-        }
-        else if ( policies.updt_policy.path.policy == UPDT_ALWAYS )
-        {
-            get_path = TRUE;
-            why = "policy is 'always update'";
-        }
-        else if ( (policies.updt_policy.path.policy == UPDT_PERIODIC )
-                || (policies.updt_policy.path.policy == UPDT_ON_EVENT_PERIODIC))
-        {
-           if ( !ATTR_MASK_TEST( &p_item->entry_attr, path_update ) )
-           {
-                get_path = TRUE;
-                why = "path never updated";
-           }
-           else if ( time( NULL ) - ATTR( &p_item->entry_attr, path_update) >=
-                          policies.updt_policy.path.period_max )
-           {
-                get_path = TRUE;
-                why = "path is expired";
-           }
-        }
-
-        if ( get_path )
-        {
-            DisplayLog( LVL_FULL, PURGE_TAG, "Update of POSIX path: reason=%s, "
-                        "last_update=%u", why,
-                        ATTR( &p_item->entry_attr, path_update ) );
             if ( Lustre_GetFullPath( &p_item->entry_id,
                                     ATTR( new_attr_set, fullpath ),
                                     1024 ) == 0 )
@@ -911,8 +879,9 @@ else
         ATTR_MASK_SET( new_attr_set, fullpath );
     }
 
-    /* get info about this entry and check policies about the entry. */
-    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set ) )
+    /* get info about this entry and check policies about the entry.
+     * don't check policies now, it will be done later */
+    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set, FALSE ) )
     {
         case do_skip:
         case do_rm:
@@ -1054,50 +1023,9 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     }
 #endif
 
-    /* check for periodic fileclass matching */
-    if ( !ATTR_MASK_TEST(&new_attr_set, rel_cl_update)
-         || !ATTR_MASK_TEST(&new_attr_set, release_class) )
-    {
-        DisplayLog( LVL_FULL, PURGE_TAG, "Need to update fileclass (not set)" );
-        update_fileclass = TRUE;
-    }
-    else if ( policies.updt_policy.fileclass.policy == UPDT_ALWAYS )
-    {
-        DisplayLog( LVL_FULL, PURGE_TAG, "Need to update fileclass "
-                    "(policy is 'always update')" );
-        update_fileclass = TRUE;
-    }
-    else if ( policies.updt_policy.fileclass.policy == UPDT_NEVER )
-    {
-        DisplayLog( LVL_FULL, PURGE_TAG, "No fileclass update "
-                    "(policy is 'never update')" );
-        update_fileclass = FALSE;
-    }
-    else if ( policies.updt_policy.fileclass.policy == UPDT_PERIODIC )
-    {
-        if ( time(NULL) - ATTR(&new_attr_set, rel_cl_update) >=
-                 policies.updt_policy.fileclass.period_max )
-        {
-            DisplayLog( LVL_FULL, PURGE_TAG, "Need to update fileclass "
-                        "(out-of-date) (last match=%u)",
-                        ATTR(&new_attr_set, rel_cl_update) );
-            update_fileclass = TRUE;
-        }
-        else
-        {
-            /* retrieve previous fileclass */
-            DisplayLog( LVL_FULL, PURGE_TAG, "Previously matched fileclass '%s'"
-                        " is still valid (last match=%u)",
-                        ATTR(&new_attr_set, release_class),
-                        ATTR(&new_attr_set, rel_cl_update) );
-            update_fileclass = FALSE;
-        }
-    }
+    update_fileclass = need_fileclass_update( &new_attr_set, PURGE_POLICY );
     if ( update_fileclass == -1 )
     {
-        DisplayLog( LVL_CRIT, PURGE_TAG, "ERROR: unexpected case in %s, "
-                    "line %s: 'update_fileclass' cannot be determined",
-                    __FUNCTION__, __LINE__ );
         Acknowledge( &purge_queue, PURGE_ERROR, 0, 0 );
         goto end;
     }

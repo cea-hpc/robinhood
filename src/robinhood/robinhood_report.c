@@ -691,9 +691,9 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
 #endif
             "%*s, %10s, %10s, "
 #ifdef ATTR_INDEX_archive_class
-            "%15s, "
+            "%20s, "
 #endif
-            "%15s, %s\n",
+            "%20s, %s\n",
             "type",
 #ifdef ATTR_INDEX_status
             "status",
@@ -717,9 +717,9 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
     #endif
                     "%15llu, %10s, %10s, "
     #ifdef ATTR_INDEX_archive_class
-                    "%15s, "
+                    "%20s, "
     #endif
-                    "%15s, %s\n",
+                    "%20s, %s\n",
                     ATTR( &attrs, type ),
     #ifdef ATTR_INDEX_status
                     db_status2str( ATTR(&attrs, status), TRUE ),
@@ -742,9 +742,9 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
 #endif
                     "%10s, %10s, %10s, "
 #ifdef ATTR_INDEX_archive_class
-                    "%15s, "
+                    "%20s, "
 #endif
-                    "%15s, %s\n",
+                    "%20s, %s\n",
                     ATTR( &attrs, type ),
 #ifdef ATTR_INDEX_status
                     db_status2str( ATTR(&attrs, status), TRUE ),
