@@ -998,7 +998,9 @@ quiet=0
 
 if [[ "$1" == "-q" ]]; then
 	quiet=1
-elif [[ -n "$1" ]]; then
+	shift
+fi
+if [[ -n "$1" ]]; then
 	only_test=$1
 fi
 
