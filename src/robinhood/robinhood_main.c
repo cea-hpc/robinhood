@@ -93,6 +93,7 @@ static struct option option_tab[] = {
     {"scan", no_argument, NULL, 'S'},
     {"purge", no_argument, NULL, 'P'},
     {"release", no_argument, NULL, 'P'},
+    {"check-triggers", no_argument, NULL, 'C'},
 #ifdef HAVE_MIGR_POLICY
     {"migrate", no_argument, NULL, 'M'},
     {"archive", no_argument, NULL, 'M'},
@@ -168,7 +169,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "SPMsRUrOdf:T:DF:t:L:l:hVp:i"
+#define SHORT_OPT_STRING    "CSPMsRUrOdf:T:DF:t:L:l:hVp:i"
 
 /* special character sequences for displaying help */
 
@@ -190,6 +191,8 @@ static const char *help_string =
     "        Scan filesystem namespace.\n"
     "    " _B "-P" B_ ", " _B "--purge" B_ "\n"
     "        Purge non-directory entries according to policy.\n"
+    "    " _B "-C" B_ ", " _B "--check-triggers" B_ "\n"
+    "        Only check purge triggers without purging.\n"
 #ifdef HAVE_RMDIR_POLICY
     "    " _B "-R" B_ ", " _B "--rmdir" B_ "\n"
     "        Remove empty directories according to policy.\n"
@@ -199,7 +202,7 @@ static const char *help_string =
     "        Copy \"dirty\" entries to HSM.\n"
 #endif
 #ifdef HAVE_CHANGELOGS
-    "    " _B "-r" B_ ", " _B "--readlog" B_ "\n"
+    "    " _B "-r" B_ ", " _B "--read-log" B_ "\n"
     "        Read events from MDT ChangeLog.\n"
 #endif
 #ifdef HAVE_RM_POLICY
@@ -208,7 +211,7 @@ static const char *help_string =
 #endif
 
 #ifdef _LUSTRE_HSM
-    "\n" "    Default is: --readlog --purge --migrate --hsm-remove\n"
+    "\n" "    Default is: --read-log --purge --migrate --hsm-remove\n"
 #elif defined(_TMP_FS_MGR)
     "\n" "    Default is: --scan --purge --rmdir\n"
 #elif defined(_SHERPA)
@@ -630,6 +633,10 @@ int main( int argc, char **argv )
         case 'S':
             SET_ACTION_FLAG( ACTION_MASK_SCAN );
             break;
+        case 'C':
+            SET_ACTION_FLAG( ACTION_MASK_PURGE );
+            flags |= FLAG_CHECK_ONLY;
+            break;
         case 'P':
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
             break;
@@ -665,7 +672,7 @@ int main( int argc, char **argv )
         case 'r':
 #ifndef HAVE_CHANGELOGS
             fprintf( stderr,
-                     "-r | --readlog option is only supported in Lustre v2.x versions.\n" );
+                     "-r | --read-log option is only supported in Lustre v2.x versions.\n" );
             exit( 1 );
 #else
             SET_ACTION_FLAG( ACTION_MASK_HANDLE_EVENTS );

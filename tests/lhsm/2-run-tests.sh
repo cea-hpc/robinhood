@@ -914,6 +914,95 @@ function test_ost_trigger
 	fi
 }
 
+function test_trigger_check
+{
+	config_file=$1
+	max_count=$2
+	max_vol_mb=$3
+	policy_str="$4"
+	target_count=$5
+	target_fs_vol=$6
+	target_user_vol=$7
+
+	CLEAN="rh_chglogs.log rh_purge.log"
+
+	for f in $CLEAN; do
+		if [ -f $f ]; then
+			cp /dev/null $f
+		fi
+	done
+
+	# triggers to be checked
+	# - inode count > max_count
+	# - fs volume	> max_vol
+	# - root quota  > user_quota
+
+	# initial inode count
+	empty_count=`df -i /mnt/lustre/ | grep "/mnt/lustre" | awk '{print $(NF-3)}'`
+	((file_count=$max_count-$empty_count))
+
+	# compute file size to exceed max vol and user quota
+	empty_vol=`df -k /mnt/lustre  | grep "/mnt/lustre" | awk '{print $(NF-3)}'`
+	((empty_vol=$empty_vol/1024))
+
+	if (( $empty_vol < $max_vol_mb )); then
+		((missing_mb=$max_vol_mb-$empty_vol))
+	else
+		missing_mb=0
+	fi
+
+	# file_size = missing_mb/file_count + 1
+	((file_size=$missing_mb/$file_count + 1 ))
+
+	echo "$file_count files missing, $file_size MB each"
+
+	#create test tree of archived files (file_size MB each)
+	for i in `seq 1 $file_count`; do
+		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=$file_size
+		lfs hsm_set --exists --archived /mnt/lustre/file.$i
+	done
+
+	# wait for df sync
+	sync; sleep 1
+
+	# scan
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+
+	# check purge triggers
+	$RH -f ./cfg/$config_file --check-triggers --once -l FULL -L rh_purge.log
+
+	((expect_count=$empty_count+$file_count-$target_count))
+	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
+	((expect_vol_user=$file_count*$file_size-$target_user_vol))
+	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root"
+
+	nb_release=`grep "Released" rh_purge.log | wc -l`
+
+	count_trig=`grep " entries must be purged in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+
+	vol_fs_trig=`grep " blocks (x512) must be purged on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	((vol_fs_trig_mb=$vol_fs_trig/2048)) # /2048 == *512/1024/1024
+
+	vol_user_trig=`grep " blocks (x512) must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	((vol_user_trig_mb=$vol_user_trig/2048)) # /2048 == *512/1024/1024
+	
+	echo "triggers reported: $count_trig entries, $vol_fs_trig_mb MB, $vol_user_trig_mb MB"
+
+	# check then was no actual purge
+	if (($nb_release > 0)); then
+		echo "ERROR: $nb_release files released, no purge expected"
+	elif (( $count_trig != $expect_count )); then
+		echo "ERROR: trigger reported $count_trig files over watermark, $expect_count expected"
+	elif (( $vol_fs_trig_mb != $expect_vol_fs )); then
+		echo "ERROR: trigger reported $vol_fs_trig_mb MB over watermark, $expect_vol_fs expected"
+	elif (( $vol_user_trig_mb != $expect_vol_user )); then
+		echo "ERROR: trigger reported $vol_user_trig_mb MB over watermark, $expect_vol_user expected"
+	else
+		echo "OK: all checks successful"
+	fi
+}
+
+
 function fileclass_test
 {
 	config_file=$1
@@ -1023,9 +1112,9 @@ function run_test
 		echo "TEST #$index: $1 ($args)"
 
 		if (( $quiet == 1 )); then
-			$* 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail"
+			"$@" 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail"
 		else
-			$*
+			"$@"
 		fi
 	fi
 	((index=$index+1))
@@ -1052,14 +1141,17 @@ run_test	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-bas
 #10
 run_test 	test_rh_report common.conf 3 1 "reporting tool"
 #11
-#run_test 	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
-#12
 run_test	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
-#13
+#12
 run_test	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
-#14
+#13
 run_test	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
-#15
+#14
 run_test	test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
-#16
+#15
 run_test 	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
+#16
+run_test 	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
+
+#17
+#run_test 	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"

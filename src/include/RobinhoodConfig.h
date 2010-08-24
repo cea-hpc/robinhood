@@ -133,6 +133,7 @@ typedef struct robinhood_config_t
 #define FLAG_IGNORE_POL 0x00000002
 #define FLAG_ONCE       0x00000004
 #define FLAG_NO_LIMIT   0x00000008
+#define FLAG_CHECK_ONLY 0x00000010 /* only check triggers, don't purge */
 
 /* Config module masks:
  * Global, Log, and List Manager are always initialized.

@@ -401,6 +401,24 @@ static int check_global_trigger( unsigned trigger_index )
     purge_param.type = PURGE_FS;
     purge_param.flags = module_args.flags;
 
+    /* only purge if check_only is not set */
+    if ( module_args.flags & FLAG_CHECK_ONLY )
+    {
+        if ( IS_COUNT_TRIGGER( trigger_index ) )
+            snprintf(status_str, 1024, "High watermark exceeded on inode count: "
+                     "%Lu inodes used",
+                     trigger_status_list[trigger_index].last_count );
+        else
+            snprintf(status_str, 1024, "High watermark exceeded on filesystem usage: "
+                     "%.2f%% used", trigger_status_list[trigger_index].last_usage );
+
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+        update_trigger_status( trigger_index, TRIG_OK );
+
+        /* @TODO alert */
+        return 0;
+    }
+
     update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
 
     /* perform the purge */
@@ -599,6 +617,18 @@ static int check_ost_trigger( unsigned trigger_index )
         purge_param.param_u.ost_index = ost_index;
         purge_param.flags = module_args.flags;
 
+        /* only purge if check_only is not set */
+        if ( module_args.flags & FLAG_CHECK_ONLY )
+        {
+            snprintf(status_str, 1024, "High watermark exceeded on %s: "
+                     "%.2f%% used", ostname, ost_usage );
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            update_trigger_status( trigger_index, TRIG_OK );
+
+            /* @TODO alert */
+            continue; /* handle next OSTs */
+        }
+
         update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
 
         rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
@@ -607,7 +637,6 @@ static int check_ost_trigger( unsigned trigger_index )
         sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
         ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
         ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, ostname );
-
 
         if ( rc == 0 )
             DisplayLog( LVL_MAJOR, RESMON_TAG,
@@ -764,6 +793,18 @@ static int check_pool_trigger( unsigned trigger_index )
         purge_param.type = PURGE_BY_POOL;
         purge_param.param_u.pool_name = pool_list[i];
         purge_param.flags = module_args.flags;
+
+        /* only purge if check_only is not set */
+        if ( module_args.flags & FLAG_CHECK_ONLY )
+        {
+            snprintf(status_str, 1024, "High watermark exceeded on %s: "
+                     "%.2f%% used", pool_string, pool_usage );
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            update_trigger_status( trigger_index, TRIG_OK );
+
+            /* @TODO alert */
+            continue; /* handle next pools */
+        }
 
         update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
 
@@ -991,6 +1032,19 @@ static int check_user_trigger( unsigned trigger_index )
                     "%lu blocks (x%u) must be purged for user '%s' (used=%Lu, target=%Lu)",
                     purge_param.nb_blocks, DEV_BSIZE, result[0].value_u.val_str,
                     result[1].value_u.val_biguint, low_blk512 );
+
+        /* only purge if check_only is not set */
+        if ( module_args.flags & FLAG_CHECK_ONLY )
+        {
+            snprintf(status_str, 1024, "Quota exceeded for user '%s': "
+                     "%Lu kB used", result[0].value_u.val_str,
+                     (result[1].value_u.val_biguint*DEV_BSIZE)/1024 );
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            update_trigger_status( trigger_index, TRIG_OK );
+
+            /* @TODO alert */
+            continue; /* handle next users */
+        }
 
         update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
 
@@ -1221,6 +1275,19 @@ static int check_group_trigger( unsigned trigger_index )
                     purge_param.nb_blocks, DEV_BSIZE, result[0].value_u.val_str,
                     result[1].value_u.val_biguint, low_blk512 );
 
+        /* only purge if check_only is not set */
+        if ( module_args.flags & FLAG_CHECK_ONLY )
+        {
+            snprintf(status_str, 1024, "Quota exceeded for group '%s': "
+                     "%Lu kB used", result[0].value_u.val_str,
+                     (result[1].value_u.val_biguint*DEV_BSIZE)/1024 );
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            update_trigger_status( trigger_index, TRIG_OK );
+
+            /* @TODO alert */
+            continue; /* handle next groups */
+        }
+
         update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
 
         /* perform the purge */
@@ -1386,6 +1453,17 @@ static void   *force_ost_trigger_thr( void *arg )
     purge_param.flags = module_args.flags;
     purge_param.param_u.ost_index = module_args.ost_index;
 
+    /* only purge if check_only is not set */
+    if ( module_args.flags & FLAG_CHECK_ONLY )
+    {
+        snprintf(status_str, 1024, "%s usage is over the specified limit: "
+                 "%.2f%% used", ostname, ost_usage );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+
+        /* @TODO alert */
+        goto disconnect;
+    }
+
     rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
 
     /* update last purge time and target */
@@ -1518,6 +1596,17 @@ static void   *force_fs_trigger_thr( void *arg )
 
     purge_param.type = PURGE_FS;
     purge_param.flags = module_args.flags;
+
+    /* only purge if check_only is not set */
+    if ( module_args.flags & FLAG_CHECK_ONLY )
+    {
+        snprintf(status_str, 1024, "Filesystem usage is over the specified limit: "
+                 "%.2f%% used", curr_usage );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+
+        /* @TODO alert */
+        goto disconnect;
+    }
 
     /* perform the purge */
     rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
