@@ -8,16 +8,16 @@
 
 # macro for defining dependencies
 
-%define pkg_dependencies \
-%if %{with lustre}	 \
-%if %{defined lpackage}  \
-Requires: %{lpackage} >= %{lversion}	  \
-BuildRequires: %{lpackage} >= %{lversion} \
+%define pkg_dependencies       \
+%if %{with lustre}             \
+%if %{defined lpackage}        \
+Requires: %{lpackage} >= %{lversion}         \
+BuildRequires: %{lpackage} >= %{lversion}    \
 %endif \
 %endif \
-%if %{with mysql}  \
-Requires: mysql >= %{dbversion}	  \
-BuildRequires: mysql-devel >= 4.1 \
+%if %{with mysql}                    \
+Requires: mysql >= %{dbversion}      \
+BuildRequires: mysql-devel >= 4.1    \
 %endif \
 %{nil}
 
@@ -97,14 +97,14 @@ Possibly trigger purge by LRU when free disk space is low.
 %endif
 
 %prep
-%setup -n @PACKAGE@-%{version}
+%setup -q -n @PACKAGE@-%{version}
 
 %build
 ./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
         --sysconfdir=%{_sysconfdir} \
         --mandir=%{_mandir} \
         --libdir=%{_libdir} \
-	--prefix=%{_prefix}
+        --prefix=%{_prefix}
 make
 
 %install

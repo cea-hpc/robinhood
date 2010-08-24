@@ -1,12 +1,15 @@
 Important avant la 2.2 finale:
 
-[done] * Trace lorsque le readdir echoue.
-
-[done]  CREATE record on already existing entry: afficher le chemin si on l'a
-
+[done] Trace lorsque le readdir echoue.
+[done] CREATE record on already existing entry: afficher le chemin si on l'a
 [done] Event Handler => Changelog Reader
 
 Pusher dans la repo oracle
+
+> rpmlint
+> non reg complet
+> mise a jour doc
+
 
 Doc:
 ====
@@ -31,7 +34,7 @@ Features:
 
 Fixes:
 ======
-* supprimer fichier de la base lors du rmdir.
+[done]* supprimer fichier de la base lors du rmdir.
 * verifier utilisation de TerminateThread
 (* trigger sur nbr  d'inodes: pas de sens pour Lustre-HSM)
 

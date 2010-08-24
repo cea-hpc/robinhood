@@ -69,6 +69,9 @@ static pthread_t *thread_ids = NULL;
 
 static time_t  last_rmdir = 0;
 
+/* fs device */
+static dev_t fsdev = 0;
+
 #define CHECK_QUEUE_INTERVAL    1
 
 /* ---- Internal functions ---- */
@@ -95,7 +98,8 @@ static int Rmdir_ByPath( const char *dir_path )
  */
 static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
                                    unsigned long long * p_blocks,
-                                   unsigned int * p_count )
+                                   unsigned int * p_count,
+                                   const entry_id_t * dir_id )
 {
     DIR *dirp;
     int rc;
@@ -103,6 +107,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
     struct dirent * cookie;
     char tmp_path[MAXPATHLEN];
     int err = 0;
+    entry_id_t id;
 
     if ((dirp = opendir(dir_path)) == NULL)
     {
@@ -137,11 +142,34 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
             continue;
        }
 
+       if ( global_config.stay_in_fs && ( fsdev != stat_buf.st_dev ) )
+       {
+            DisplayLog( LVL_CRIT, RMDIR_TAG, "%s is not in the same filesystem as %s, skipping it",
+                        tmp_path, global_config.fs_path );
+            err = EXDEV;
+            continue;
+       }
+
+#ifdef _HAVE_FID
+       /* get id for this entry */
+       rc = Lustre_GetFidFromPath( tmp_path, &id );
+       if (rc)
+       {
+            DisplayLog( LVL_CRIT, RMDIR_TAG, "Failed to retrieve id for %s, skipping entry: %s",
+                        tmp_path, strerror(-rc) );
+            continue;
+       }
+#else
+       id.device = stat_buf.dev;
+       id.inode  = stat_buf.ino;
+       id.validator = stat_buf.st_ctime;
+#endif
+
        if (S_ISDIR(stat_buf.st_mode))
        {
-           rc = Recursive_Rmdir_ByPath( lmgr,tmp_path, p_blocks, p_count );
+           rc = Recursive_Rmdir_ByPath( lmgr,tmp_path, p_blocks, p_count, &id );
            if (rc)
-           { 
+           {
                 DisplayLog( LVL_CRIT, RMDIR_TAG,
                             "recursive rmdir failed on %s (skipped): %s",
                             tmp_path, strerror(rc) );
@@ -165,13 +193,18 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
 
            *p_blocks += stat_buf.st_blocks;
            (*p_count) += 1;
+       }
 
-           /* TODO remove entry in database */
-           /*rc = ListMgr_Remove( lmgr, &p_item->entry_id );*/
+       /* remove entry from database */
+       rc = ListMgr_Remove( lmgr, &id );
+       if (rc)
+       {
+            DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
+                        rc, tmp_path );
        }
 
     } while( 1 );
- 
+
    closedir(dirp);
 
    /* finally delete the directory itself */
@@ -188,7 +221,17 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
    else
    {
        /* TODO remove entry in database */
-       /*rc = ListMgr_Remove( lmgr, &p_item->entry_id );*/
+
+       if ( dir_id != NULL )
+       {
+           rc = ListMgr_Remove( lmgr, dir_id );
+           if (rc)
+           {
+                DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
+                            rc, dir_path );
+           }
+       }
+
        (*p_count) += 1;
    }
 
@@ -622,7 +665,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
       }
     /* do not retrieve 'invalid' entries */
     fval.val_bool = FALSE;
-    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, 0 );
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
       {
           ListMgr_CloseAccess( &lmgr );
@@ -1099,7 +1142,7 @@ static void   *Thr_Rmdir( void *arg )
                     /* Recursive rmdir (needs lmgr for removing entries) */
                     rc = Recursive_Rmdir_ByPath( &lmgr,
                                                 ATTR( &p_item->entry_attr, fullpath ),
-                                                &blocks, &nb_entries );
+                                                &blocks, &nb_entries, &p_item->entry_id );
 
                     if ( rc )
                     {
@@ -1264,6 +1307,11 @@ int Start_Rmdir( rmdir_config_t * p_config, int flags )
     /* store configuration */
     rmdir_config = *p_config;
     rmdir_flags = flags;
+
+    /* Check mount point and FS type.  */
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev );
+    if ( rc != 0 )
+        return rc;
 
     /* initialize rmdir queue */
     rc = CreateQueue( &rmdir_queue, rmdir_config.rmdir_queue_size, RMDIR_STATUS_COUNT - 1, RMDIR_FDBK_COUNT );
