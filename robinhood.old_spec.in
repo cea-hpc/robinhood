@@ -237,10 +237,13 @@ fi
 - [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
 - [feature] quota-like purge triggers fully implemented (on group or user)
 - [feature] triggers on used inode count in filesystem
+- [feature] '--check-triggers' option to check triggers without purging files 
+- [feature] notification can be sent when a high watermark is reached (for triggers)
 - [feature] rbh-config helper now supports batch commands
 - [feature] Lustre 2.0 ready
 - [optim.] configurable fileclass periodic matching to reduce calls to filesystem
 - [optim.] configurable attr/path periodic update in DB to reduce calls to filesystem
+- [bugfix] explicit trace when readdir fails
 - [bugfix] issue when filtering on fields with NULL values in DB
 - [bugfix] check migration timeout on last effective action, not on last queued entry
 - [bugfix] name-based conditions complaining about missing auto-generated fields

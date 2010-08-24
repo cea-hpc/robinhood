@@ -765,10 +765,16 @@ static void   *Thr_scan( void *arg_thread )
 
             rc = readdir_r( dirp, &entree_rep, &cookie_rep );
 
-            if ( rc != 0 || ( rc == 0 && cookie_rep == NULL ) )
+            if ( rc == 0 && cookie_rep == NULL )
                 /* end of directory */
-                /* @TODO: add trace */
                 break;
+            else if ( rc != 0 )
+            {
+                DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR %d reading directory '%s': %s",
+                            rc, p_task->path, strerror(rc) );
+                nb_errors++;
+                break;
+            }
 
             /* ignore . and .. */
 
@@ -790,7 +796,8 @@ static void   *Thr_scan( void *arg_thread )
 
         } /* end of dir */
 
-        closedir( dirp );
+        if ( rc != EBADF )
+            closedir( dirp );
 
 /* No directory management for Lustre HSM */
 #ifndef _LUSTRE_HSM
