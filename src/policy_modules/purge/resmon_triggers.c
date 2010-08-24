@@ -156,6 +156,8 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
     char           tmp1[128];
     char           tmp2[128];
     double         used_pct;
+    unsigned long long used_vol;
+    char           buff[1024];
 
     *to_be_purged_512 = 0;
 
@@ -183,6 +185,8 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                          - (double) p_statfs->f_bfree )
                / ( (double) total_user_blocks );
 
+    used_vol = ( p_statfs->f_blocks - p_statfs->f_bfree ) * p_statfs->f_bsize;
+
     /* return last usage */
     if ( p_used_pct )
         *p_used_pct = used_pct;
@@ -190,13 +194,10 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
     /* is this a condition on volume or percentage ? */
     if ( p_trigger->hw_type == VOL_THRESHOLD )
     {
-        /* compute used volume and compare it to threshold */
-        unsigned long long used_vol =
-            ( p_statfs->f_blocks - p_statfs->f_bfree ) * p_statfs->f_bsize;
-
         FormatFileSize( tmp1, 128, used_vol );
         FormatFileSize( tmp2, 128, p_trigger->hw_volume );
 
+        /* compare used volume to threshold */
         DisplayLog( LVL_EVENT, RESMON_TAG, "%s usage: %s / high watermark: %s", storage_descr,
                     tmp1, tmp2 );
 
@@ -205,6 +206,13 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
             DisplayLog( LVL_VERB, RESMON_TAG,
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
+        }
+        else if ( p_trigger->notify )
+        {
+           snprintf( buff, 1024, "High watermark reached on %s (%s)",
+                     storage_descr, global_config.fs_path );
+           RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high watermark: %s",
+                       buff, tmp1, used_pct, tmp2 );
         }
     }
     else if ( p_trigger->hw_type == PCT_THRESHOLD )
@@ -223,9 +231,18 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
         }
-
+        else if ( p_trigger->notify )
+        {
+           FormatFileSize( tmp1, 128, used_vol );
+           snprintf( buff, 1024, "High watermark reached on %s (%s)",
+                     storage_descr, global_config.fs_path );
+           RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high watermark: %.2f%%",
+                       buff, tmp1, used_pct, p_trigger->hw_percent );
+        }
     }
-    /* if we reach this point, high watermark is exceeded compute the amount of data for reaching low watermark */
+
+    /* if we reach this point, high watermark is exceeded.
+     * compute the amount of data for reaching low watermark */
 
     if ( p_trigger->lw_type == VOL_THRESHOLD )
     {
@@ -318,6 +335,14 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
                     "%s inode count is under high watermark: nothing to do.",
                     storage_descr );
         return 0;
+    }
+    else if ( p_trigger->notify )
+    {
+       char buff[1024];
+       snprintf( buff, 1024, "High watermark reached on %s (%s)",
+                 storage_descr, global_config.fs_path );
+       RaiseAlert( buff, "%s\nentry count: %Lu, high watermark: %Lu",
+                   buff, inode_used, p_trigger->hw_count );
     }
 
     /* if we reach this point, high watermark is exceeded compute the amount of data for reaching low watermark */
@@ -415,7 +440,6 @@ static int check_global_trigger( unsigned trigger_index )
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
         update_trigger_status( trigger_index, TRIG_OK );
 
-        /* @TODO alert */
         return 0;
     }
 
@@ -625,7 +649,6 @@ static int check_ost_trigger( unsigned trigger_index )
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             update_trigger_status( trigger_index, TRIG_OK );
 
-            /* @TODO alert */
             continue; /* handle next OSTs */
         }
 
@@ -802,7 +825,6 @@ static int check_pool_trigger( unsigned trigger_index )
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             update_trigger_status( trigger_index, TRIG_OK );
 
-            /* @TODO alert */
             continue; /* handle next pools */
         }
 
@@ -891,6 +913,7 @@ static int check_user_trigger( unsigned trigger_index )
     purge_param_t  purge_param;
     struct statfs  statfs_glob;
     unsigned long  total_user_blocks = 0;
+    char           hw_str[128];
     char           status_str[1024];
     char           buff[1024];
 
@@ -921,11 +944,15 @@ static int check_user_trigger( unsigned trigger_index )
     /* compute high watermark, in number of blocks */
 
     if ( p_trigger->hw_type == VOL_THRESHOLD )
+    {
         max_blk512 = p_trigger->hw_volume / DEV_BSIZE;
+        FormatFileSize( hw_str, 128, p_trigger->hw_volume );
+    }
     else
     {
         unsigned long  used_hw =
             ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
+        snprintf( hw_str, 128, "%.2f", p_trigger->hw_percent );
 
         max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
     }
@@ -1021,6 +1048,15 @@ static int check_user_trigger( unsigned trigger_index )
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 
+        if ( p_trigger->notify )
+        {
+            char usage_str[128];
+            FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
+            snprintf(buff, 1024, "User quota exceeded (in %s)", global_config.fs_path );
+            RaiseAlert(buff, "%s\nuser:       %s\nquota:      %s\nspace used: %s",
+                       buff, result[0].value_u.val_str, hw_str, usage_str);
+        }
+
         purge_param.type = PURGE_BY_USER;
         purge_param.flags = module_args.flags;
         purge_param.param_u.user_name = result[0].value_u.val_str;
@@ -1042,7 +1078,6 @@ static int check_user_trigger( unsigned trigger_index )
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             update_trigger_status( trigger_index, TRIG_OK );
 
-            /* @TODO alert */
             continue; /* handle next users */
         }
 
@@ -1133,6 +1168,7 @@ static int check_group_trigger( unsigned trigger_index )
     purge_param_t  purge_param;
     struct statfs  statfs_glob;
     unsigned long  total_user_blocks = 0;
+    char           hw_str[128];
     char           status_str[1024];
     char           buff[1024];
 
@@ -1163,11 +1199,15 @@ static int check_group_trigger( unsigned trigger_index )
     /* compute high watermark, in number of blocks */
 
     if ( p_trigger->hw_type == VOL_THRESHOLD )
+    {
         max_blk512 = p_trigger->hw_volume / DEV_BSIZE;
+        FormatFileSize( hw_str, 128, p_trigger->hw_volume );
+    }
     else
     {
         unsigned long  used_hw =
             ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
+        snprintf( hw_str, 128, "%.2f", p_trigger->hw_percent );
 
         max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
     }
@@ -1263,6 +1303,15 @@ static int check_group_trigger( unsigned trigger_index )
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 
+        if ( p_trigger->notify )
+        {
+            char usage_str[128];
+            FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
+            snprintf(buff, 1024, "Group quota exceeded (in %s)", global_config.fs_path );
+            RaiseAlert(buff, "%s\ngroup:      %s\nquota:      %s\nspace used: %s",
+                       buff, result[0].value_u.val_str, hw_str, usage_str);
+        }
+
         purge_param.type = PURGE_BY_GROUP;
         purge_param.flags = module_args.flags;
         purge_param.param_u.group_name = result[0].value_u.val_str;
@@ -1284,7 +1333,6 @@ static int check_group_trigger( unsigned trigger_index )
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             update_trigger_status( trigger_index, TRIG_OK );
 
-            /* @TODO alert */
             continue; /* handle next groups */
         }
 
@@ -1460,7 +1508,6 @@ static void   *force_ost_trigger_thr( void *arg )
                  "%.2f%% used", ostname, ost_usage );
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
 
-        /* @TODO alert */
         goto disconnect;
     }
 
@@ -1604,7 +1651,6 @@ static void   *force_fs_trigger_thr( void *arg )
                  "%.2f%% used", curr_usage );
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
 
-        /* @TODO alert */
         goto disconnect;
     }
 

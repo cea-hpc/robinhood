@@ -78,6 +78,9 @@ typedef struct trigger_item_t
 #define lw_percent   lw_u.percent
 #define lw_count     lw_u.count
 
+    /* raise alert when it is reached */
+    int notify;
+
 } trigger_item_t;
 
 

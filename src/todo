@@ -1,11 +1,10 @@
 Important avant la 2.2 finale:
 
 [done] Verifier si les connections a la base sont bien fermées lors de l'arret de robinhood
-
-* option --check-watermarks pour verifier uniquement les triggers sans purger.
+[done] option --check-watermarks pour verifier uniquement les triggers sans purger.
 	=> DOC
-
-* option "notify" dans les triggers pour envoyer un mail lorsque ça matche.
+[done] option "notify" dans les triggers pour envoyer un mail lorsque ça matche.
+	=> DOC
 
 * Trace lorsque le readdir echoue.
 

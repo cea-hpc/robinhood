@@ -19,6 +19,7 @@
 #include "RobinhoodConfig.h"
 #include "resource_monitor.h"
 #include "resmon_purge.h"
+#include "RobinhoodMisc.h"
 #include <errno.h>
 
 #define PURGE_PARAM_BLOCK   "Purge_Parameters"
@@ -33,7 +34,8 @@ static const trigger_item_t default_trigger_fs = {
     .hw_type = PCT_THRESHOLD,
     .hw_percent = 80.0,
     .lw_type = PCT_THRESHOLD,
-    .lw_percent = 75.0
+    .lw_percent = 75.0,
+    .notify = FALSE
 };
 
 #ifdef _LUSTRE
@@ -44,7 +46,8 @@ static const trigger_item_t default_trigger_ost = {
     .hw_type = PCT_THRESHOLD,
     .hw_percent = 85.0,
     .lw_type = PCT_THRESHOLD,
-    .lw_percent = 80.0
+    .lw_percent = 80.0,
+    .notify = FALSE
 };
 
 static trigger_item_t default_triggers[2];
@@ -91,6 +94,7 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
     print_line( output, 1, "high_watermark_pct : %.2f%%", default_trigger_ost.hw_percent );
     print_line( output, 1, "low_watermark_pct  : %.2f%%", default_trigger_ost.lw_percent );
     print_line( output, 1, "check_interval     : %u", default_trigger_ost.check_interval );
+    print_line( output, 1, "notify             : %s", bool2str(default_trigger_ost.notify));
     print_end_block( output, 0 );
 #endif
 
@@ -99,6 +103,7 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
     print_line( output, 1, "high_watermark_pct : %.2f%%", default_trigger_fs.hw_percent );
     print_line( output, 1, "low_watermark_pct  : %.2f%%", default_trigger_fs.lw_percent );
     print_line( output, 1, "check_interval     : %u", default_trigger_fs.check_interval );
+    print_line( output, 1, "notify             : %s", bool2str(default_trigger_fs.notify));
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -146,6 +151,8 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "high_watermark_pct = 90%% ;" );
     print_line( output, 1, "low_watermark_pct  = 85%% ;" );
     print_line( output, 1, "check_interval     = 5min ;" );
+    print_line( output, 1, "# raise an alert when the high watermark is reached" );
+    print_line( output, 1, "notify             = TRUE ;" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -202,6 +209,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         "high_watermark_pct", "low_watermark_pct",
         "high_watermark_vol", "low_watermark_vol",
         "high_watermark_cnt", "low_watermark_cnt",
+        "notify",
         NULL
     };
 
@@ -471,6 +479,10 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         return rc;
     p_trigger_item->check_interval = tmpval;
 
+    rc = GetBoolParam( config_blk, block_name, "notify", 0,
+                       &p_trigger_item->notify, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
 
     //fprintf(stderr, "trigger_type=%d, hw_type=%d, lw_type=%d\n", p_trigger_item->type, p_trigger_item->hw_type, p_trigger_item->lw_type );
 
@@ -656,6 +668,15 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             resmon_config.trigger_list[i].check_interval = trigger_list[i].check_interval;
             check_interval_chgd = TRUE;
         }
+
+        if ( trigger_list[i].notify != resmon_config.trigger_list[i].notify )
+        {
+            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "notify updated for trigger #%u: %s->%s",
+                        i, bool2str(resmon_config.trigger_list[i].notify),
+                        bool2str(trigger_list[i].notify) );
+            resmon_config.trigger_list[i].notify = trigger_list[i].notify;
+        }
+
 
         /* no watermarks for custom cmd */
         if ( trigger_list[i].type == TRIGGER_CUSTOM_CMD )
