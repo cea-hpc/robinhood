@@ -248,6 +248,7 @@ fi
 - [bugfix] check migration timeout on last effective action, not on last queued entry
 - [bugfix] name-based conditions complaining about missing auto-generated fields
 - [bugfix] race condition when appplying policy lead to handle the same entry several times
+- [bugfix] removing removed directories from database for recursive rmdir policies
 - [misc.] added documented file in /etc/sysconfig for robinhood service parameters
 - [misc.] changing source directory layout
 - [misc.] documentation update

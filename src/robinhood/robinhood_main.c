@@ -93,7 +93,7 @@ static struct option option_tab[] = {
     {"scan", no_argument, NULL, 'S'},
     {"purge", no_argument, NULL, 'P'},
     {"release", no_argument, NULL, 'P'},
-    {"check-triggers", no_argument, NULL, 'C'},
+    {"check-watermarks", no_argument, NULL, 'C'},
 #ifdef HAVE_MIGR_POLICY
     {"migrate", no_argument, NULL, 'M'},
     {"archive", no_argument, NULL, 'M'},
@@ -191,8 +191,8 @@ static const char *help_string =
     "        Scan filesystem namespace.\n"
     "    " _B "-P" B_ ", " _B "--purge" B_ "\n"
     "        Purge non-directory entries according to policy.\n"
-    "    " _B "-C" B_ ", " _B "--check-triggers" B_ "\n"
-    "        Only check purge triggers without purging.\n"
+    "    " _B "-C" B_ ", " _B "--check-watermarks" B_ "\n"
+    "        Only check watermarks of purge triggers without purging.\n"
 #ifdef HAVE_RMDIR_POLICY
     "    " _B "-R" B_ ", " _B "--rmdir" B_ "\n"
     "        Remove empty directories according to policy.\n"

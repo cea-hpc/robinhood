@@ -969,7 +969,7 @@ function test_trigger_check
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 
 	# check purge triggers
-	$RH -f ./cfg/$config_file --check-triggers --once -l FULL -L rh_purge.log
+	$RH -f ./cfg/$config_file --check-watermarks --once -l FULL -L rh_purge.log
 
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))

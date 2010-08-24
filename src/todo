@@ -1,15 +1,6 @@
 Important avant la 2.2 finale:
 
-[done] Trace lorsque le readdir echoue.
-[done] CREATE record on already existing entry: afficher le chemin si on l'a
-[done] Event Handler => Changelog Reader
-
 Pusher dans la repo oracle
-
-> rpmlint
-> non reg complet
-> mise a jour doc
-
 
 Doc:
 ====
@@ -20,13 +11,9 @@ Doc:
 	=> OK
 	inverse => NOK
 
-* option --check-watermarks pour verifier uniquement les triggers sans purger.
-* option "notify" dans les triggers pour envoyer un mail lorsque ça matche.
-
 Features:
 =========
 * prise en compte des classes pour les repertoires
-
 * Daily report (migr, purge, ...)
 * possibilite de n'appliquer un trigger qu'a un sous-repertoire, un fileset ou autre...
 * 'Heriter' des parametres d'un parent
@@ -34,7 +21,6 @@ Features:
 
 Fixes:
 ======
-[done]* supprimer fichier de la base lors du rmdir.
 * verifier utilisation de TerminateThread
 (* trigger sur nbr  d'inodes: pas de sens pour Lustre-HSM)
 
@@ -42,8 +28,8 @@ Fixes:
 [done] Passage a git
 
 Optim:
+======
 * ajout d'un masque des attributs modifies, pour savoir ce qu'on met a jour
-
 
 * filter les ignore_fileclass dans les applications de policy.
 
