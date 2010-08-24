@@ -2,9 +2,9 @@ Important avant la 2.2 finale:
 
 [done] * Trace lorsque le readdir echoue.
 
-* CREATE record on already existing entry: afficher le chemin si on l'a
+[done]  CREATE record on already existing entry: afficher le chemin si on l'a
 
-* Event Handler => Changelog Reader
+[done] Event Handler => Changelog Reader
 
 Pusher dans la repo oracle
 
@@ -36,7 +36,7 @@ Fixes:
 (* trigger sur nbr  d'inodes: pas de sens pour Lustre-HSM)
 
 * evenement leves par un import??
-* Passage a git
+[done] Passage a git
 
 Optim:
 * ajout d'un masque des attributs modifies, pour savoir ce qu'on met a jour

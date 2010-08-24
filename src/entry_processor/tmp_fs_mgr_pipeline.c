@@ -244,9 +244,16 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
          */
         if ( logrec->cr_type == CL_CREATE )
         {
-            DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                        "WARNING: CREATE record on already existing entry "
-                        DFID" ?!", PFID(&p_op->entry_id) );
+            if ( p_op->entry_attr_is_set
+                 && ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
+                DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
+                            "WARNING: CREATE record on already existing entry fid="
+                            DFID", path=%s", PFID(&p_op->entry_id),
+                            ATTR( &p_op->entry_attr, fullpath ) );
+            else
+                DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
+                            "WARNING: CREATE record on already existing entry fid="
+                            DFID, PFID(&p_op->entry_id) );
 
             p_op->extra_info_is_set = TRUE;
             p_op->extra_info.getattr_needed = TRUE;

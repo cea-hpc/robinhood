@@ -1089,11 +1089,11 @@ int main( int argc, char **argv )
         rc = ChgLogRdr_Start( &rh_config.chglog_reader_config, flags );
         if ( rc )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing Event Handler", rc );
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing ChangeLog Reader", rc );
             exit( rc );
         }
         else
-            DisplayLog( LVL_EVENT, MAIN_TAG, "Event Handler successfully initialized" );
+            DisplayLog( LVL_EVENT, MAIN_TAG, "ChangeLog Reader successfully initialized" );
 
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
