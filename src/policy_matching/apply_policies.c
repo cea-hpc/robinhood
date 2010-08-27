@@ -1576,6 +1576,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
        if ( is_set )
            last = ATTR( p_attrs, md_update );
     }
+#ifdef _HAVE_FID
     else if ( type_info == UPDT_PATH )
     {
        what = "POSIX path";
@@ -1585,6 +1586,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
        if ( is_set )
            last = ATTR( p_attrs, path_update );
     }
+#endif
     else
     {
         DisplayLog( LVL_CRIT, POLICY_TAG, "Unsupported info type in %s(): %u",
@@ -1637,7 +1639,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
        else if ( time( NULL ) - last >= pol.period_max )
        {
             do_update = TRUE;
-            why = "path is expired";
+            why = "expired";
        }
        else /* allow update on event */
        {
@@ -1648,8 +1650,8 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
     }
     else
     {
-       DisplayLog( LVL_CRIT, POLICY_TAG, "Unknown path update policy %#x",
-                   policies.updt_policy.path.policy );
+       DisplayLog( LVL_CRIT, POLICY_TAG, "Unknown update policy %#x",
+                   pol.policy );
        return -1;
     }
 
