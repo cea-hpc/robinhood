@@ -59,7 +59,7 @@ done
 if [[ -n $ERRORS ]]; then
 	echo "$ERRORS"
 	exit 1
-f
+fi
 
 echo "Now testing advanced compilation switches"
 
@@ -68,10 +68,10 @@ echo "Now testing advanced compilation switches"
 
 for purp in $purp_list; do
 for db in MYSQL SQLITE; do 
-for prep in "--disable-prep-stmts" "--enable-prep-stmts"; do
 for lustre in "--disable-lustre" "--enable-lustre"; do 
 for fid in "--disable-fid-support" "--enable-fid-support"; do 
 for chglog in "--disable-changelogs" "--enable-changelogs"; do 
+for prep in "--disable-prep-stmts" "--enable-prep-stmts"; do
 for mdsstat in "--disable-mds-stat" "--enable-mds-stat"; do
 
 config_cmd="./configure --with-db=$db --with-purpose=$purp $prep $lustre $fid $chglog $mdsstat"

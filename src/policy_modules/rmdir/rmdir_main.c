@@ -160,8 +160,8 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
             continue;
        }
 #else
-       id.device = stat_buf.dev;
-       id.inode  = stat_buf.ino;
+       id.device = stat_buf.st_dev;
+       id.inode  = stat_buf.st_ino;
        id.validator = stat_buf.st_ctime;
 #endif
 
