@@ -1,0 +1,125 @@
+Changes between version 2.1.5 and 2.2.0:
+
+- [feature] fileclass union/intersection/negation
+- [feature] rbh-report displays last matched fileclass
+- [feature] new reporting command '--class-info' generates fileclass summary
+- [feature] new reporting option '--filter-class' to dump entries per fileclass
+- [feature] alert batching: send a mail summary instead of 1 mail per matching entry
+- [feature] alert improvements: named alerts, tweak changes
+- [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
+- [feature] quota-like purge triggers fully implemented (on group or user)
+- [feature] triggers on used inode count in filesystem
+- [feature] '--check-triggers' option to check triggers without purging files 
+- [feature] notification can be sent when a high watermark is reached (for triggers)
+- [feature] rbh-config helper now supports batch commands
+- [feature] Lustre 2.0 ready
+- [optim.] configurable fileclass periodic matching to reduce calls to filesystem
+- [optim.] configurable attr/path periodic update in DB to reduce calls to filesystem
+- [bugfix] explicit trace when readdir fails
+- [bugfix] issue when filtering on fields with NULL values in DB
+- [bugfix] check migration timeout on last effective action, not on last queued entry
+- [bugfix] name-based conditions complaining about missing auto-generated fields
+- [bugfix] race condition when appplying policy lead to handle the same entry several times
+- [bugfix] removing removed directories from database for recursive rmdir policies
+- [misc.] added documented file in /etc/sysconfig for robinhood service parameters
+- [misc.] changing source directory layout
+- [misc.] documentation update
+
+Changes between version 2.1.4 and 2.1.5:
+
+- Major bug fix: incomplete database content after scan
+
+Changes between version 2.1.3 and 2.1.4:
+
+- New recursive rmdir policy (for TMP_FS_MGR purpose)
+- changed default value for max_pending_operations
+  (unlimited value could result in excessive memory usage)
+- removing useless fields and redundant information in database
+- rh-* commands renamed to rbh-*, to avoid conflicts and confusions
+  with RedHat commands.
+- check conflicting flags in configure
+
+Changes between version 2.1.2 and 2.1.3:
+
+- SQLite support (should only be used for testing purpose or small filesystems)
+- Support of relative paths in 'path' and 'tree' conditions
+- Migration timeout mechanism
+- Prompting for database admin password in rh-config script
+
+Changes between version 2.1.1 and 2.1.2:
+
+- New reporting commands: Dump all files (--dump-all) and dump files
+  by status (--dump-status).
+- New configuration helper script: "rh-config"
+- Made RPM relocatable
+- BUG FIX: wrong scan duration when using volume-based purge triggers
+- Lustre-HSM: Checking previous migrations status when restarting
+- Lustre-HSM: CL_TIME record support (bz 19505)
+- Lustre-HSM: multi-archive support (archive_num)
+- Lustre-HSM: new --sync option (immediately archive all modified files)
+- Lustre-HSM: changed --handle-events action switch to --readlog
+- Fixed SLES portability issues
+
+Changes between version 2.1.0.beta2 and 2.1.1:
+
+- Added new report options: --dump-ost, --dump-user, --dump-group
+- Added --filter-path option to reporting tool.
+- TMP FS MGR purpose ported to Lustre 2.0-alpha5 (including changelog
+  support).
+- documentation updates (in doc/admin_guides)
+- Each purpose has its own service and binary names,
+  to make it possible to install and run several robinhood with
+  differents purposes on the same machine.
+- Added '--disable-lustre' compilation switch for disabling Lustre specific
+  features
+- Added '--disable-fid-support' compilation switch, to force addressing
+  entries by path, not by their Lustre fid.
+- Integration of new purpose "SHERPA" (software suite for cache management)
+- Generated RPM name includes lustre version it was built for.
+- report command displays help if is started without option.
+
+Changes between 2.1.0.beta1 and 2.1.0.beta2:
+
+- Extended attributes support in policy definition
+- 32 bits plateforms compatibility fixes
+- Fixed bug when using mysql4
+- Added parameter to force changelog polling
+- Fixed minor compilation warning
+- commands now search for config file in /etc/robinhood.d if no config file is
+  given on command line
+
+Changes from v2.0.1 to 2.1.0.beta1:
+
+- added '--dry-run' option instead of "simulation_mode" parameter in config file
+- added '--once' option, to perform an single pass of a given policy or action
+  and exit (same as '--one-shot' option).
+- Compatibility fixes for MySQL 4 and 5
+- Fixed dependencies on lustre include files.
+- Compatibility fixes for 32 bits platforms
+
+Lustre-HSM specific features:
+- Porting to the new changelog interface (handling changelog records as
+  structures instead of text, and using CHANGELOG_FLAG_FOLLOW
+  and CHANGELOG_FLAG_BLOCK options)
+- Adapting to changes in changelog timestamp (secs+nano instead of jiffies)
+- Use fid as primary key in database schema (for better performance)
+- Added calls to llapi_hsm_request() to trigger migration, release, removal
+  in HSM.
+- Customizable migration hints to be passed to the copytool
+- Command line options to trigger manual migrations (by user, by OST...)
+- Deferred removal in HSM
+- Taking HSM file status into account (dirty, released, ...)
+- HSM event support
+- Changelog flag support (for UNLINK and HSM event)
+- Added '--ignore-policies' option to perform migration/purge to all eligible
+  files without checking policy conditions.
+
+Changes between v2.0-beta2 and v2.0.1:
+
+- New policy definition semantics, using filesets
+- Multiple fileset/policy associations
+- Several changes in configuration syntax, to avoid confusions
+- Support of OST pool names (on Lustre) for fileset definition and policies
+- Optimizations of policy application
+- Added features for Lustre-HSM
+

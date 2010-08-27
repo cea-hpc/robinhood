@@ -54,6 +54,8 @@ Robinhood is a tool for monitoring and purging file systems. It is designed to
 process all its tasks in parallel, so it is particulary adapted for managing
 large file systems with millions of entries and petabytes of data.
 
+Generated using options: @ac_configure_args@
+
 #summary, description and dependencies of each purpose
 %if %{with hsm}
 
@@ -65,6 +67,7 @@ Group: Applications/System
 %description %{purpose}
 Monitor Lustre usage and trigger file migration and purges.
 
+Generated using options: @ac_configure_args@
 %else
 %if %{with sherpa}
 
@@ -80,6 +83,8 @@ Requires: sherpa-client >= 4.1
 %description %{purpose}
 PolicyEngine for SHERPA cache manager
 
+Generated using options: @ac_configure_args@
+
 %else
 # TMP FS MGR
 
@@ -92,6 +97,8 @@ Group: Applications/System
 Provides disk space fair-share, accounting, reporting facilities for
 any POSIX filesystem, with extra features for Lustre (OST usage management).
 Possibly trigger purge by LRU when free disk space is low.
+
+Generated using options: @ac_configure_args@
 
 %endif
 %endif
@@ -119,7 +126,7 @@ mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 install -m 644 doc/templates/hsm_policy_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/hsm_policy_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 %else
-install -m 644 doc/templates/tmp_fs_mgr_tuto.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+install -m 644 doc/templates/tmp_fs_mgr_basic.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/tmp_fs_mgr_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 %endif
 
@@ -179,7 +186,7 @@ fi
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_detailed.conf
 %else
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_tuto.conf
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_detailed.conf
 %endif
 
@@ -187,7 +194,7 @@ fi
 
 %changelog
 
-* Tue Aug 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0-beta2
+* Tue Aug 27 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0
 - [feature] fileclass union/intersection/negation
 - [feature] rbh-report displays last matched fileclass
 - [feature] new reporting command '--class-info' generates fileclass summary

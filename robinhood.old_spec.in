@@ -12,28 +12,28 @@
 %define bcond_with()           %{expand:%%{?_with_%{1}:%%global with_%{1} 1}}
 %define bcond_without()        %{expand:%%{!?_without_%{1}:%%global with_%{1} 1}}
 
-
-
 #####################################
 # define 'with' conditions
 %bcond_with lustre
 %bcond_with hsm
 %bcond_with mysql
+%bcond_with sqlite
 %bcond_with sherpa
 
 # macro for defining dependencies
 
-%if %{with lustre}
-%if %{defined lpackage}
-Requires: %{lpackage} >= %{lversion}
-BuildRequires: %{lpackage} >= %{lversion}
-%endif
-%endif
-%if %{with mysql}
-Requires: mysql >= %{dbversion}
-BuildRequires: mysql-devel >= 4.1
-%endif
-
+%define pkg_dependencies       \
+%if %{with lustre}             \
+%if %{defined lpackage}        \
+Requires: %{lpackage} >= %{lversion}         \
+BuildRequires: %{lpackage} >= %{lversion}    \
+%endif \
+%endif \
+%if %{with mysql}                    \
+Requires: mysql >= %{dbversion}      \
+BuildRequires: mysql-devel >= 4.1    \
+%endif \
+%{nil}
 
 ###### end of macro definitions #####
 
@@ -49,7 +49,11 @@ Prefix: %{_prefix}
 %endif
 %endif
 
-Release: @RELEASE@%{?config_dependant}%{?dist}
+%if %{with sqlite}
+%define db_dependant .sqlite
+%endif
+
+Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
 Summary: Robinhood - Accounting/purge tool for large filesystems
@@ -64,51 +68,36 @@ Robinhood is a tool for monitoring and purging file systems. It is designed to
 process all its tasks in parallel, so it is particulary adapted for managing
 large file systems with millions of entries and petabytes of data.
 
+Generated using options: @ac_configure_args@
+
 #summary, description and dependencies of each purpose
 %if %{with hsm}
 
 %package %{purpose}
 Summary: PolicyEngine for Lustre-HSM binding
 Group: Applications/System
-%if %{with lustre}
-%if %{defined lpackage}
-Requires: %{lpackage} >= %{lversion}
-BuildRequires: %{lpackage} >= %{lversion}
-%endif
-%endif
-%if %{with mysql}
-Requires: mysql >= %{dbversion}
-BuildRequires: mysql-devel >= 4.1
-%endif
-
+%pkg_dependencies
 
 %description %{purpose}
 Monitor Lustre usage and trigger file migration and purges.
 
+Generated using options: @ac_configure_args@
 %else
 %if %{with sherpa}
 
 %package %{purpose}
 Summary: PolicyEngine for SHERPA cache manager
 Group: Applications/System
-BuildRequires: sherpa-server >= 4.1
+BuildRequires: sherpa-server >= 4.1-150
 BuildRequires: sherpa-client >= 4.1
-Requires: sherpa-server >= 4.1
+Requires: sherpa-server >= 4.1-150
 Requires: sherpa-client >= 4.1
-%if %{with lustre}
-%if %{defined lpackage}
-Requires: %{lpackage} >= %{lversion}
-BuildRequires: %{lpackage} >= %{lversion}
-%endif
-%endif
-%if %{with mysql}
-Requires: mysql >= %{dbversion}
-BuildRequires: mysql-devel >= 4.1
-%endif
-
+%pkg_dependencies
 
 %description %{purpose}
 PolicyEngine for SHERPA cache manager
+
+Generated using options: @ac_configure_args@
 
 %else
 # TMP FS MGR
@@ -116,35 +105,27 @@ PolicyEngine for SHERPA cache manager
 %package %{purpose}
 Summary: Accounting, reporting and purge tool for large filesystems
 Group: Applications/System
-%if %{with lustre}
-%if %{defined lpackage}
-Requires: %{lpackage} >= %{lversion}
-BuildRequires: %{lpackage} >= %{lversion}
-%endif
-%endif
-%if %{with mysql}
-Requires: mysql >= %{dbversion}
-BuildRequires: mysql-devel >= 4.1
-%endif
-
+%pkg_dependencies
 
 %description %{purpose}
 Provides disk space fair-share, accounting, reporting facilities for
 any POSIX filesystem, with extra features for Lustre (OST usage management).
 Possibly trigger purge by LRU when free disk space is low.
 
+Generated using options: @ac_configure_args@
+
 %endif
 %endif
 
 %prep
-%setup -n @PACKAGE@-%{version}
+%setup -q -n @PACKAGE@-%{version}
 
 %build
 ./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
         --sysconfdir=%{_sysconfdir} \
         --mandir=%{_mandir} \
         --libdir=%{_libdir} \
-	--prefix=%{_prefix}
+        --prefix=%{_prefix}
 make
 
 %install
@@ -159,7 +140,7 @@ mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 install -m 644 doc/templates/hsm_policy_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/hsm_policy_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 %else
-install -m 644 doc/templates/tmp_fs_mgr_tuto.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+install -m 644 doc/templates/tmp_fs_mgr_basic.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/tmp_fs_mgr_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 %endif
 
@@ -219,7 +200,7 @@ fi
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_detailed.conf
 %else
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_tuto.conf
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_detailed.conf
 %endif
 
@@ -227,8 +208,8 @@ fi
 
 %changelog
 
-* Tue Aug 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0-beta1
-- [feature] fileclass union/intersection
+* Tue Aug 27 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0
+- [feature] fileclass union/intersection/negation
 - [feature] rbh-report displays last matched fileclass
 - [feature] new reporting command '--class-info' generates fileclass summary
 - [feature] new reporting option '--filter-class' to dump entries per fileclass
@@ -257,18 +238,19 @@ fi
 - Major bug fix: incomplete database content after scan
 
 * Tue Jun 22 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.4
-  - New recursive rmdir policy (for TMP_FS_MGR purpose)
-  - changed default value for max_pending_operations
-    (unlimited value could result in excessive memory usage)
-  - removing useless fields and redundant information in database
-  - rh-* commands renamed to rbh-*, to avoid conflicts and confusions               with RedHat commands.
-  - check conflicting flags in configure
+- New recursive rmdir policy (for TMP_FS_MGR purpose)
+- changed default value for max_pending_operations
+  (unlimited value could result in excessive memory usage)
+- removing useless fields and redundant information in database
+- rh-* commands renamed to rbh-*, to avoid conflicts and confusions
+  with RedHat commands.
+- check conflicting flags in configure
 
 * Wed Apr 21 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.3
-  - Support of relative paths for "path" and "tree" conditions
-  - Migration timeout mechanism
-  - SQLite support
-  - Prompting for database admin password in rh-config script
+- Support of relative paths for "path" and "tree" conditions
+- Migration timeout mechanism
+- SQLite support
+- Prompting for database admin password in rh-config script
 
 * Fri Mar 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.2
 - Made RPM relocatable

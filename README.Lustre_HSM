@@ -28,6 +28,8 @@ It is advised to build RobinHood on your target system, to ensure the best
 compatibility with your Lustre and MySQL versions. 
 
 Make sure you have the following products installed on your machine:
+* bison
+* flex
 * mysql-devel
 * liblustreapi (/usr/include/liblustreapi.h and /usr/lib/liblustreapi.a)
   It is usually provided by lustre RPM.
@@ -48,16 +50,21 @@ Then, build the RPM:
 
 A ready-to-install RPM is generated in the 'rpms/RPMS/<arch>' directory.
 
-2.2 - From svn repository
+2.2 - From git repository
 -------------------------
 
-svn checkout https://robinhood.svn.sourceforge.net/svnroot/robinhood/trunk robinhood
-cd robinhood
-autoreconf --install
-
-# also make sure flex and bison are installed:
+# make sure flex, bison, libtool, mysql-devel are installed:
+# E.g.
 yum install flex
 yum install bison
+yum install libtool
+yum install mysql-devel
+
+# retrieve robinhood sources
+
+git clone git://robinhood.git.sourceforge.net/gitroot/robinhood/robinhood
+cd robinhood
+sh autogen.sh
 
 Then refer to section 2.1 for next compilation steps.
 

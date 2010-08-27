@@ -70,7 +70,7 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	robinhood.old_spec.in				\
         doc/templates/hsm_policy_basic.conf     	\
         doc/templates/hsm_policy_detailed.conf  	\
-        doc/templates/tmp_fs_mgr_tuto.conf  		\
+        doc/templates/tmp_fs_mgr_basic.conf  		\
         doc/templates/tmp_fs_mgr_detailed.conf  	\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
 	doc/admin_guides/robinhood_v220_admin_guide-tmp_fs_mgr.pdf \

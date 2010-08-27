@@ -1,5 +1,7 @@
 Important avant la 2.2 finale:
 
+- wrapper repair table dans rbh-config?
+
 Pusher dans la repo oracle
 
 Doc:
@@ -21,11 +23,11 @@ Features:
 
 Fixes:
 ======
+* verifier l'existence de CLF_UNLINK_LAST pour TMP_FS_MGR sur Lustre2
 * verifier utilisation de TerminateThread
-(* trigger sur nbr  d'inodes: pas de sens pour Lustre-HSM)
+(* trigger sur nbr d'inodes: pas de sens pour Lustre-HSM)
 
 * evenement leves par un import??
-[done] Passage a git
 
 Optim:
 ======
