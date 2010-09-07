@@ -465,6 +465,7 @@ static void   *signal_handler_thr( void *arg )
             {
                 /* stop FS scan */
                 FSScan_Terminate(  );
+                FlushLogs(  );
             }
 
 #ifdef HAVE_CHANGELOGS
@@ -472,6 +473,7 @@ static void   *signal_handler_thr( void *arg )
             {
                 /* stop changelog processing */
                 ChgLogRdr_Terminate(  );
+                FlushLogs(  );
             }
 #endif
 
@@ -479,6 +481,7 @@ static void   *signal_handler_thr( void *arg )
             {
                 /* flush processor pipeline and terminate threads */
                 EntryProcessor_Terminate(  );
+                FlushLogs(  );
             }
 
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
@@ -491,6 +494,7 @@ static void   *signal_handler_thr( void *arg )
         {
             ReloadRobinhoodConfig(  );
             reload_sig = FALSE;
+            FlushLogs(  );
         }
     }
 }

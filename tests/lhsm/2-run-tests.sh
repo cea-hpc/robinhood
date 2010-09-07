@@ -1081,6 +1081,64 @@ function fileclass_test
 		&& (( $nb_pol4 == 2 )) && echo "OK: test successful"
 }
 
+function test_info_collect
+{
+	config_file=$1
+	sleep_time1=$2
+	sleep_time2=$3
+	policy_str="$4"
+
+	cp /dev/null rh_chglogs.log
+
+	# test reading changelogs or scanning with strange names, etc...
+	mkdir '/mnt/lustre/dir with blanks'
+	mkdir '/mnt/lustre/dir with "quotes"'
+	mkdir "/mnt/lustre/dir with 'quotes'"
+
+	touch '/mnt/lustre/dir with blanks/file 1'
+	touch '/mnt/lustre/dir with blanks/file with "double" quotes'
+	touch '/mnt/lustre/dir with "quotes"/file with blanks'
+	touch "/mnt/lustre/dir with 'quotes'/file with 1 quote: '"
+
+	sleep $sleep_time1
+
+	echo "1-Reading changelogs..."
+	# read changelogs
+	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+
+	sleep $sleep_time2
+
+	grep "DB query failed" rh_chglogs.log && echo "ERROR: a DB query failed when reading changelogs"
+
+	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
+	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
+
+	# 4 files have been created, 4 db operations expected
+	if (( $nb_create == 4 && $nb_db_apply == 4 )); then
+		echo "OK: 4 files created, 4 database operations"
+	else
+		echo "ERROR: unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
+	fi
+
+	cp /dev/null rh_chglogs.log
+
+	echo "2-Scanning..."
+	
+	# read changelogs
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+ 
+	grep "DB query failed" rh_chglogs.log && echo "ERROR: a DB query failed when scanning"
+	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
+
+	# 4 db operations expected (1 for each file)
+	if (( $nb_db_apply == 4 )); then
+		echo "OK: 4 database operations"
+	else
+		echo "ERROR: unexpected number of operations: $nb_db_apply database operations"
+	fi
+}
+
+
 only_test=""
 index=1
 quiet=0
@@ -1152,6 +1210,8 @@ run_test	test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
 run_test 	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 #16
 run_test 	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
-
 #17
+run_test	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
+
+#18
 #run_test 	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
