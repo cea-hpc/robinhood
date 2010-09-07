@@ -500,12 +500,22 @@ int Get_OST_usage( char *fs_path, unsigned int ost_index, struct statfs *ost_sta
     memset( &stat_buf, 0, sizeof( struct obd_statfs ) );
     memset( &uuid_buf, 0, sizeof( struct obd_uuid ) );
 
-    rc = llapi_obd_statfs( fs_path, LL_STATFS_LOV, ost_index, &stat_buf, &uuid_buf );
+    rc = llapi_obd_statfs( fs_path, LL_STATFS_LOV, ost_index, &stat_buf,
+                           &uuid_buf );
 
     if ( rc == -ENODEV )
+        /* end of list */
         return -rc;
+    else if ( rc == -EAGAIN )
+    {
+       /* gap in OST indexes? */
+       DisplayLog( LVL_EVENT, TAG_OSTDF, "OST #%u does not exist in filesystem %s",
+                   ost_index, fs_path );
+       return -rc;
+    }
     else if ( rc != 0 )
     {
+       /* other error */
         DisplayLog( LVL_CRIT, TAG_OSTDF,
                     "Error %d in llapi_obd_statfs(). Cannot retrieve info"
                     " about OST #%u", -rc, ost_index );

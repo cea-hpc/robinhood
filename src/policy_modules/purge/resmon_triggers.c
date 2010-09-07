@@ -1465,7 +1465,9 @@ static void   *force_ost_trigger_thr( void *arg )
     else if ( rc != 0 )
     {
         DisplayLog( LVL_CRIT, RESMON_TAG,
-                    "Cannot retrieve usage for OST #%u: error %d", module_args.ost_index, rc );
+                    "Cannot retrieve usage for OST #%u: error %d: %s",
+                    module_args.ost_index, rc,
+                    strerror(abs(rc)) );
         goto disconnect;
     }
 
