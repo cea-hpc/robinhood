@@ -205,7 +205,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 
         if ( report_desc_array[i].filter )
         {
-            printdbtype( attrstring, p_report->result_type_array[i],
+            printdbtype( p_mgr, attrstring, p_report->result_type_array[i],
                          &report_desc_array[i].filter_value );
 
             if ( report_desc_array[i].report_type != REPORT_GROUP_BY )
@@ -233,7 +233,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 
     if ( p_filter )
     {
-        filter_main = filter2str( curr_where, p_filter, T_MAIN, ( where != curr_where ), TRUE );
+        filter_main = filter2str( p_mgr, curr_where, p_filter, T_MAIN,
+                                  ( where != curr_where ), TRUE );
         curr_where += strlen( curr_where );
 
         if ( filter_main )
@@ -241,7 +242,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 
         if ( annex_table )
         {
-            filter_annex = filter2str( curr_where, p_filter, T_ANNEX, ( filter_main > 0 ), TRUE );
+            filter_annex = filter2str( p_mgr, curr_where, p_filter, T_ANNEX,
+                                       ( filter_main > 0 ), TRUE );
             curr_where += strlen( curr_where );
 
             if ( filter_annex )

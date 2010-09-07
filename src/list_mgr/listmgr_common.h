@@ -103,7 +103,7 @@ void           init_attrset_masks(  );
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) )
 
-int            printdbtype( char *str, db_type_t type, db_type_u * value_ptr );
+int            printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr );
 
 int            parsedbtype( char *instr, db_type_t type, db_type_u * value_out );
 
@@ -121,9 +121,11 @@ void           generate_fields( attr_set_t * p_set );
 
 int            attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_coma,
                                    int for_update );
-int            attrset2valuelist( char *str, const attr_set_t * p_set, table_enum table,
+int            attrset2valuelist( lmgr_t * p_mgr, char *str,
+                                  const attr_set_t * p_set, table_enum table,
                                   int leading_coma, int prep_stmt );
-int            attrset2updatelist( char *str, const attr_set_t * p_set, table_enum table,
+int            attrset2updatelist( lmgr_t * p_mgr, char *str,
+                                   const attr_set_t * p_set, table_enum table,
                                    int leading_coma );
 
 int            prep_stmt_bind_attrs( prep_stmt_t prep, const attr_set_t * p_set, table_enum table,
@@ -136,7 +138,7 @@ int            unset_null_results( attr_set_t * p_set, table_enum table, prep_st
                                    unsigned int shift );
 
 char          *compar2str( filter_comparator_t compar );
-int            filter2str( char *str, const lmgr_filter_t * p_filter,
+int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                            table_enum table, int leading_and, int prefix_table );
 
 int            result2attrset( table_enum table, char **result_tab,

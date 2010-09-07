@@ -97,19 +97,21 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
     if ( p_filter )
     {
-        filter_main = filter2str( filter_str_main, p_filter, T_MAIN, FALSE, TRUE );
+        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
+                                  FALSE, TRUE );
 
         if ( annex_table )
-            filter_annex = filter2str( filter_str_annex, p_filter, T_ANNEX, ( filter_main > 0 ), TRUE );
+            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
+                                       T_ANNEX, ( filter_main > 0 ), TRUE );
         else
             filter_annex = 0;
 
         filter_stripe_info =
-            filter2str( filter_str_stripe_info, p_filter, T_STRIPE_INFO,
+            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
                         ( filter_main > 0 ) || ( filter_annex > 0 ), TRUE );
 
         filter_stripe_items =
-            filter2str( filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
+            filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
                         ( filter_main > 0 ) || ( filter_annex > 0 )
                         || ( filter_stripe_info > 0 ), TRUE );
 

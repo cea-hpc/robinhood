@@ -244,7 +244,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     /* check how many tables are to be updated */
     if ( main_fields( p_update_set->attr_mask ) )
     {
-        main_count = attrset2updatelist( fields, p_update_set, T_MAIN, FALSE );
+        main_count = attrset2updatelist( p_mgr, fields, p_update_set, T_MAIN, FALSE );
         if ( main_count < 0 )
             return -main_count;
         if ( main_count > 0 )
@@ -255,7 +255,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
 
     if ( annex_table && annex_fields( p_update_set->attr_mask ) )
     {
-        annex_count = attrset2updatelist( annex_fields, p_update_set, T_ANNEX, FALSE );
+        annex_count = attrset2updatelist( p_mgr, annex_fields, p_update_set, T_ANNEX, FALSE );
         if ( annex_count < 0 )
             return -annex_count;
         if ( annex_count > 0 )
@@ -357,18 +357,22 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
 
     if ( p_filter )
     {
-        filter_main = filter2str( filter_str_main, p_filter, T_MAIN, FALSE, FALSE );
+        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
+                                  FALSE, FALSE );
 
         if ( annex_table )
-            filter_annex = filter2str( filter_str_annex, p_filter, T_ANNEX, FALSE, FALSE );
+            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
+                                       T_ANNEX, FALSE, FALSE );
         else
             filter_annex = 0;
 
         filter_stripe_info =
-            filter2str( filter_str_stripe_info, p_filter, T_STRIPE_INFO, FALSE, FALSE );
+            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
+                        FALSE, FALSE );
 
         filter_stripe_units =
-            filter2str( filter_str_stripe_units, p_filter, T_STRIPE_ITEMS, FALSE, FALSE );
+            filter2str( p_mgr, filter_str_stripe_units, p_filter,
+                        T_STRIPE_ITEMS,FALSE, FALSE );
 
         if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_units == 0 )
         {
@@ -418,7 +422,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
         return rc;
 
     /* perform updates on MAIN TABLE */
-    count = attrset2updatelist( fields, p_attr_set, T_MAIN, FALSE );
+    count = attrset2updatelist( p_mgr, fields, p_attr_set, T_MAIN, FALSE );
     if ( count < 0 )
         return -count;
     if ( count > 0 )
@@ -533,7 +537,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
     /* update on annex table ? */
     if ( annex_table )
     {
-        count = attrset2updatelist( fields, p_attr_set, T_ANNEX, FALSE );
+        count = attrset2updatelist( p_mgr, fields, p_attr_set, T_ANNEX, FALSE );
         if ( count < 0 )
             return -count;
         if ( count > 0 )

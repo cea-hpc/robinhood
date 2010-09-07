@@ -24,13 +24,25 @@
 #include "listmgr_stripe.h"
 #include <stdio.h>
 
-int printdbtype( char *str, db_type_t type, db_type_u * value_ptr )
+int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr )
 {
+    char escaped[4096];
+    int rc;
 
     switch ( type )
     {
     case DB_TEXT:
-        return sprintf( str, "'%s'", value_ptr->val_str );
+#ifdef _MYSQL
+        /* escape special characters in value */
+        mysql_real_escape_string( &p_mgr->conn, escaped, value_ptr->val_str,
+                                  strlen( value_ptr->val_str ) );
+#elif defined( _SQLITE )
+        /* using slqite3_snprintf with "%q" format, to escape strings */
+        sqlite3_snprintf( 4096, escaped,"%q", value_ptr->val_str );
+#else
+#error "printdbtype() not yet implemented for this database engine"
+#endif
+        return sprintf( str, "'%s'", escaped );
     case DB_INT:
         return sprintf( str, "%d", value_ptr->val_int );
     case DB_UINT:
@@ -283,8 +295,8 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
  * @param table T_MAIN, T_ANNEX
  * @return nbr of fields
  */
-int attrset2valuelist( char *str, const attr_set_t * p_set, table_enum table, int leading_coma,
-                       int prep_stmt )
+int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
+                       table_enum table, int leading_coma, int prep_stmt )
 {
     int            i;
     char          *values_curr = str;
@@ -317,7 +329,8 @@ int attrset2valuelist( char *str, const attr_set_t * p_set, table_enum table, in
                     ASSIGN_UNION( typeu, field_infos[i].db_type,
                                   ( ( char * ) &p_set->attr_values + field_infos[i].offset ) );
 
-                    values_curr += printdbtype( values_curr, field_infos[i].db_type, &typeu );
+                    values_curr += printdbtype( p_mgr, values_curr,
+                                                field_infos[i].db_type, &typeu );
                 }
 
                 nbfields++;
@@ -333,7 +346,8 @@ int attrset2valuelist( char *str, const attr_set_t * p_set, table_enum table, in
  * @param table T_MAIN, T_ANNEX
  * @return nbr of fields
  */
-int attrset2updatelist( char *str, const attr_set_t * p_set, table_enum table, int leading_coma )
+int attrset2updatelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
+                        table_enum table, int leading_coma )
 {
     int            i;
     char          *values_curr = str;
@@ -366,7 +380,8 @@ int attrset2updatelist( char *str, const attr_set_t * p_set, table_enum table, i
             ASSIGN_UNION( typeu, field_infos[i].db_type,
                           ( ( char * ) &p_set->attr_values + field_infos[i].offset ) );
 
-            values_curr += printdbtype( values_curr, field_infos[i].db_type, &typeu );
+            values_curr += printdbtype( p_mgr, values_curr,
+                                field_infos[i].db_type, &typeu );
 
             nbfields++;
         }
@@ -607,8 +622,8 @@ char          *compar2str( filter_comparator_t compar )
 }
 
 
-int filter2str( char *str, const lmgr_filter_t * p_filter, table_enum table,
-                int leading_and, int prefix_table )
+int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
+                table_enum table, int leading_and, int prefix_table )
 {
     int            i;
     unsigned int   nbfields = 0;
@@ -688,7 +703,8 @@ int filter2str( char *str, const lmgr_filter_t * p_filter, table_enum table,
 
                 typeu = p_filter->filter_simple.filter_value[i];
 
-                values_curr += printdbtype( values_curr, field_infos[index].db_type, &typeu );
+                values_curr += printdbtype( p_mgr, values_curr,
+                                            field_infos[index].db_type, &typeu );
 
                 nbfields++;
             }

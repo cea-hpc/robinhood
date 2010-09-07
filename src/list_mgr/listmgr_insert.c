@@ -92,7 +92,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         /* Create field and values lists.
          */
         if ( attrmask2fieldlist( fields_curr, p_info->attr_mask, T_MAIN, TRUE, FALSE ) > 0 )
-            attrset2valuelist( values_curr, p_info, T_MAIN, TRUE, TRUE );
+            attrset2valuelist( p_mgr, values_curr, p_info, T_MAIN, TRUE, TRUE );
 
         snprintf( query, 4096, "INSERT INTO " MAIN_TABLE "(%s) VALUES (%s)", fields, values );
 
@@ -190,7 +190,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
             {
                 /* create statement and put it to the cache */
 
-                attrset2valuelist( values_curr, p_info, T_ANNEX, TRUE, TRUE );
+                attrset2valuelist( p_mgr, values_curr, p_info, T_ANNEX, TRUE, TRUE );
 
                 snprintf( query, 4096, "INSERT INTO " ANNEX_TABLE "(%s) VALUES (%s)", fields,
                           values );
@@ -326,7 +326,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
 
     /* create field and values lists */
     attrmask2fieldlist( fields_curr, p_info->attr_mask, T_MAIN, TRUE, FALSE );
-    attrset2valuelist( values_curr, p_info, T_MAIN, TRUE, FALSE );
+    attrset2valuelist( p_mgr, values_curr, p_info, T_MAIN, TRUE, FALSE );
 
     sprintf( query, "INSERT INTO " MAIN_TABLE "(%s) VALUES (%s)", fields, values );
 
@@ -357,7 +357,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         if ( attrmask2fieldlist( fields_curr, p_info->attr_mask, T_ANNEX, TRUE, FALSE ) > 0 )
         {
 
-            attrset2valuelist( values_curr, p_info, T_ANNEX, TRUE, FALSE );
+            attrset2valuelist( p_mgr, values_curr, p_info, T_ANNEX, TRUE, FALSE );
 
             sprintf( query, "INSERT INTO " ANNEX_TABLE "(%s) VALUES (%s)", fields, values );
 

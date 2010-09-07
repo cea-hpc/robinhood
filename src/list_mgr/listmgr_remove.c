@@ -157,17 +157,17 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
     }
 
     /* on which table is the filter ? */
-    filter_main = filter2str( filter_str_main, p_filter, T_MAIN, FALSE, FALSE );
+    filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, FALSE );
 
     if ( annex_table )
-        filter_annex = filter2str( filter_str_annex, p_filter, T_ANNEX, FALSE, FALSE );
+        filter_annex = filter2str( p_mgr, filter_str_annex, p_filter, T_ANNEX, FALSE, FALSE );
     else
         filter_annex = 0;
 
     filter_stripe_info =
-        filter2str( filter_str_stripe_info, p_filter, T_STRIPE_INFO, FALSE, FALSE );
+        filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO, FALSE, FALSE );
     filter_stripe_items =
-        filter2str( filter_str_stripe_items, p_filter, T_STRIPE_ITEMS, FALSE, FALSE );
+        filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS, FALSE, FALSE );
 
     if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0 )
     {
