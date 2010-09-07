@@ -162,7 +162,7 @@ check_or_start_fs()
 	local action=$1
 	local conf=$2
 	local pidfile=$(pidfile_name $conf)
-	if [ -z $RBH_OPT ]; then
+	if [ -z "$RBH_OPT" ]; then
 		local cmdline="$DAEMON -d -f $conf -p $pidfile"
 	else
 		local cmdline="$DAEMON $RBH_OPT -d -f $conf -p $pidfile"

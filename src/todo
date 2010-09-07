@@ -20,6 +20,7 @@ Features:
 * possibilite de n'appliquer un trigger qu'a un sous-repertoire, un fileset ou autre...
 * 'Heriter' des parametres d'un parent
 * modules dynamiques
+* Scan antivirus parallelise sur plusieurs clients!
 
 Fixes:
 ======
