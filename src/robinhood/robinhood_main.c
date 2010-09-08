@@ -55,12 +55,15 @@ static time_t  boot_time;
 /* values over max char index */
 #define FORCE_OST_PURGE   260
 #define FORCE_FS_PURGE    261
+
 #define FORCE_OST_MIGR    270
 #define FORCE_USER_MIGR   271
 #define FORCE_GROUP_MIGR  272
-#define DRY_RUN           273
-#define NO_LIMIT          274
-#define TEST_SYNTAX       275
+#define FORCE_CLASS_MIGR  273
+
+#define DRY_RUN           280
+#define NO_LIMIT          281
+#define TEST_SYNTAX       282
 
 #define ACTION_MASK_SCAN                0x00000001
 #define ACTION_MASK_PURGE               0x00000002
@@ -106,7 +109,7 @@ static struct option option_tab[] = {
 #endif
 
     /* XXX we use the same letter 'R' for the 2 purposes
-     * bacause there are never used together */
+     * because there are never used together */
 #ifdef HAVE_RM_POLICY
     {"hsm-remove", no_argument, NULL, 'R'},
     {"hsm-rm", no_argument, NULL, 'R'},
@@ -133,6 +136,8 @@ static struct option option_tab[] = {
     {"archive-user", required_argument, NULL, FORCE_USER_MIGR},
     {"migrate-group", required_argument, NULL, FORCE_GROUP_MIGR},
     {"archive-group", required_argument, NULL, FORCE_GROUP_MIGR},
+    {"migrate-class", required_argument, NULL, FORCE_CLASS_MIGR},
+    {"archive-class", required_argument, NULL, FORCE_CLASS_MIGR},
 #endif
 
     /* For purge and migration actions,
@@ -240,6 +245,8 @@ static const char *help_string =
     "        Apply migration policies to files owned by " _U "user_name" U_ ".\n"
     "    " _B "--migrate-group=" B_ _U "grp_name" U_ "\n"
     "        Apply migration policies to files of group " _U "grp_name" U_ ".\n\n"
+    "    " _B "--migrate-class=" B_ _U "fileclass" U_ "\n"
+    "        Apply migration policy on files in the given " _U "fileclass" U_ ".\n\n"
 #endif
     _B "Behavior options:" B_ "\n"
     "    " _B "--dry-run"B_"\n"
@@ -253,15 +260,19 @@ static const char *help_string =
     "        Daemonize the process (detach from parent process).\n"
     "    " _B "--no-limit"B_"\n"
     "        Don't limit the maximum number of migrations (per pass).\n"
-    "\n" _B "Config file options:" B_ "\n"
+    "\n"
+    _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U
     "file" U_ "\n" "        Specifies path to configuration file.\n"
     "    " _B "-T" B_ " " _U "file"
     U_ ", " _B "--template=" B_ _U "file" U_ "\n"
     "        Write a configuration file template to the specified file.\n"
     "    " _B "-D" B_ ", " _B "--defaults" B_ "\n"
-    "        Display default configuration values.\n" "\n" _B
-    "Filesystem options:" B_ "\n"
+    "        Display default configuration values.\n"
+    "    " _B "--test-syntax" B_ "\n"
+    "        Check configuration file and exit.\n"
+    "\n"
+    _B "Filesystem options:" B_ "\n"
     "    " _B "-F" B_ " " _U "path" U_ ", " _B "--fs-path=" B_ _U
     "path" U_ "\n"
     "        Force the path of the filesystem to be managed (overrides configuration value).\n"
@@ -617,8 +628,10 @@ int main( int argc, char **argv )
 #endif
     int            migrate_user = FALSE;
     int            migrate_group = FALSE;
+    int            migrate_class = FALSE;
     char           migr_target_user[128] = "";
     char           migr_target_group[128] = "";
+    char           migr_target_class[128] = "";
 #endif
 
     int            rc;
@@ -761,6 +774,14 @@ int main( int argc, char **argv )
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
             migrate_group = TRUE;
             strncpy( migr_target_group, optarg, 128 );
+            break;
+
+        case FORCE_CLASS_MIGR:
+            /* this mode is always 'one-shot' */
+            flags |= FLAG_ONCE;
+            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
+            migrate_class = TRUE;
+            strncpy( migr_target_class, optarg, 128 );
             break;
 #endif
 
@@ -1143,6 +1164,12 @@ int main( int argc, char **argv )
             /* purge on FS (one-shot) */
             migr_opt.mode = MIGR_GROUP;
             migr_opt.optarg_u.name = migr_target_group;
+        }
+        else if ( migrate_class )
+        {
+            /* purge on FS (one-shot) */
+            migr_opt.mode = MIGR_CLASS;
+            migr_opt.optarg_u.name = migr_target_class;
         }
         else if ( once )
         {

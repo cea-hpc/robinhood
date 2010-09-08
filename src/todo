@@ -1,5 +1,8 @@
 Important avant la 2.2 finale:
 
+@TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
+      check that the entry still matches
+
 - wrapper repair table dans rbh-config?
 
 Pusher dans la repo oracle

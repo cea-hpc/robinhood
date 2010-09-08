@@ -441,6 +441,17 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
             return rc;
         break;
 
+    case MIGR_BY_CLASS:
+        DisplayLog( LVL_EVENT, MIGR_TAG, "Starting migration on fileclass '%s'",
+                    p_migr_param->param_u.class_name );
+
+        fval.val_str = p_migr_param->param_u.class_name;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_archive_class, LIKE,
+                                     fval, FILTER_FLAG_ALLOW_NULL );
+        if ( rc )
+            return rc;
+        break;
+
     default:
         DisplayLog( LVL_CRIT, MIGR_TAG, "Unknown/unsupported migration type %d",
                     p_migr_param->type );
@@ -1107,6 +1118,9 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
         ATTR( &new_attr_set, arch_cl_update ) = time(NULL);
         ATTR_MASK_SET( &new_attr_set, arch_cl_update );
     }
+
+    /* @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
+     * check that the entry still matches */
 
     if ( !ignore_policies )
     {

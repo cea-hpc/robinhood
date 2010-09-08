@@ -71,7 +71,8 @@ typedef enum
     MIGR_FS = 1,
     MIGR_BY_OST,
     MIGR_BY_USER,
-    MIGR_BY_GROUP
+    MIGR_BY_GROUP,
+    MIGR_BY_CLASS,
 } migr_type_t;
 
 typedef struct migr_param__
@@ -83,6 +84,7 @@ typedef struct migr_param__
         unsigned int   ost_index;
         const char    *user_name;
         const char    *group_name;
+        const char    *class_name;
     } param_u;
 } migr_param_t;
 

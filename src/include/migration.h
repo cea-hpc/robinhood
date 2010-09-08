@@ -55,6 +55,7 @@ typedef enum
     MIGR_OST,       /**< perform a migration pass for files on a given OST and terminate (one-shot mode) */
     MIGR_USER,      /**< perform a migration pass for files of a given user and terminate (one-shot mode) */
     MIGR_GROUP,     /**< perform a migration pass for files of a given group and terminate (one-shot) */
+    MIGR_CLASS,     /**< perform a migration pass for files in the given fileclass and terminate (one-shot) */
 } migr_mode_t;
 
 

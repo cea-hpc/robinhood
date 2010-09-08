@@ -15,3 +15,11 @@ Cause:
 	In first Lustre 2.0 releases < 2.1, liblustreapi forks a process each time the changelog is reopened.
 Workaround:
 	Apply the patch from Lustre bugzilla ticket #23120, at least on the Lustre client where Robinhood runs.
+
+Description:
+       rpmbuild complains about empty macro 'pkg_dependencies'
+Cause:
+       rpm or rpmbuild are too old (el4 distrib or earlier).
+Workaround:
+       Replace robinhood.spec.in with robinhood.old_spec.in.
+       Then re-run "configure" and "make rpm".

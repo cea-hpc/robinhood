@@ -129,6 +129,17 @@ static int start_migration_pass(  )
         param.param_u.group_name = module_args.optarg_u.name;
         snprintf(tmpstr, 128, "migrate group '%s' files", param.param_u.group_name );
         break;
+    case MIGR_CLASS:
+        param.type = MIGR_BY_CLASS;
+
+        if (!strcasecmp( module_args.optarg_u.name, "default"))
+            param.param_u.class_name = CLASS_DEFAULT;
+        else if ( !strcasecmp( module_args.optarg_u.name, "ignored"))
+            param.param_u.class_name = CLASS_IGNORED;
+        else
+            param.param_u.class_name = module_args.optarg_u.name;
+        snprintf(tmpstr, 128, "migrate fileclass '%s'", param.param_u.class_name );
+        break;
     default:
         DisplayLog( LVL_CRIT, MIGR_TAG, "ERROR: unknown migration mode %d", module_args.mode );
         return EINVAL;
