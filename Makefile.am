@@ -67,7 +67,6 @@ install-exec-local:
 
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
-	robinhood.old_spec.in				\
         doc/templates/hsm_policy_basic.conf     	\
         doc/templates/hsm_policy_detailed.conf  	\
         doc/templates/tmp_fs_mgr_basic.conf  		\

@@ -1,7 +1,8 @@
 #!/bin/bash
 ##
 # robinhood.init 1.0 2008/02/07 Ph. Gregoire philippe.gregoire@cea.fr
-# SLES port 2009/09/29 I Hailperin hailperin@zib.de
+# SLES port 	     2009/09/29 I Hailperin  hailperin@zib.de
+# add reload action  2010/09/29 ThL 	     thomas.leibovici@cea.fr
 ##
 # chkconfig:	- 95 5
 # description:	robinhood (filesystem purge and audit) service
@@ -101,7 +102,7 @@ build_fslist()
 
 	if [[ $# -eq 0 ]]; then
 		# no args, consider all files under the configuration directory
-		for fs in $(ls -1 $RH_CONF_DIR/* 2>&-)
+		for fs in $(ls -1 $RH_CONF_DIR/*.conf $RH_CONF_DIR/*.cfg 2>&-)
 		do
 			[ -f $fs ] && fs_list="$fs_list $fs"
 		done
@@ -250,6 +251,38 @@ stop_fs()
 	return $rc
 }
 
+#
+# reload_fs
+# reload the configuration for the given filesystem
+#
+reload_fs()
+{
+	local conf=$1
+	local pidfile=$(pidfile_name $conf)
+	if [ -z "$RBH_OPT" ]; then
+		local cmdline="$DAEMON -d -f $conf -p $pidfile"
+	else
+		local cmdline="$DAEMON $RBH_OPT -d -f $conf -p $pidfile"
+	fi
+
+	# check if there is still some process
+	if daemon_exist $pidfile "$cmdline" ; then
+		local pid=$(<$pidfile)
+
+		echo "Robinhood for $conf is running: process pid $pid"
+		if [ -d /proc/$pid ]; then
+	                echo -n "Reloading configuration for process $pid..."
+                        killproc -p $pidfile -HUP $DAEMON
+                        rc_status -v
+		fi
+		return 0
+	else
+		echo "Robinhood for $conf is not running"
+	fi
+
+}
+
+
 # 
 # start action
 #
@@ -286,6 +319,18 @@ status()
 	done
 }
 
+# 
+# reload action
+#
+reload()
+{
+	local fs
+	for fs in $(build_fslist $@)
+	do
+		reload_fs $fs
+	done
+}
+
 # See how we were called.
 case "$1" in
   start)
@@ -301,6 +346,11 @@ case "$1" in
   status)
 	shift
 	status $@
+	RETVAL=$?
+	;;
+  reload)
+	shift
+	reload $@
 	RETVAL=$?
 	;;
   restart)

@@ -22,9 +22,6 @@ AC_GNU_SOURCE
 # disable shared libraries generation
 AC_ENABLE_SHARED(no)
 
-##### XXX TMP HOOK FOR TESTING #####
-#AC_DEFINE(HAVE_LUSTRE_JOIN_TYPE, [1], [Bull distrib])
-
 # Checks for programs.
 AC_PROG_CC
 AC_C_INLINE
@@ -42,6 +39,9 @@ AC_CHECK_SIZEOF([dev_t])
 AC_CHECK_SIZEOF([time_t])
 AC_CHECK_SIZEOF([size_t])
 AC_CHECK_SIZEOF([pthread_t])
+
+# Flag for Lustre 1.4 with join() support
+AX_ENABLE_FLAG([lustre14_bull], [Bull distribution of Lustre 1.4], [-DHAVE_LUSTRE_JOIN_TYPE])
 
 # debug flags
 AX_ENABLE_FLAG([debug-db], [enables debug traces for database operations], [-D_DEBUG_DB])

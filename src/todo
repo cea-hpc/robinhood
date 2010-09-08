@@ -4,6 +4,10 @@ Important avant la 2.2 finale:
 
 Pusher dans la repo oracle
 
+* gestion el4 a partir du meme spec.in
+* gestion clean des specificite el4 et lustre 1.4 Bull
+
+
 Doc:
 ====
 (* config sqlite et disclaimer)

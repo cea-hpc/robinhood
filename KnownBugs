@@ -12,17 +12,6 @@ Workaround:
 Description:
 	There are a lot of <defunc> process when reading Lustre's Changelogs.
 Cause:
-	In early Lustre 2.0 releases (before alpha8) , liblustreapi forks a process each time the changelog is reopened.
+	In first Lustre 2.0 releases < 2.1, liblustreapi forks a process each time the changelog is reopened.
 Workaround:
-	Make Robihood trap SIGCHLD, by specifiying specifying the following option to configure: "--enable-llapi-fork-support".
-Side effect:
-	Trapping events causes some internal calls to be interrupted by signals.
-
-Description:
-	"with" or "bcond_with" macros are unknown when building the RPM.
-Cause:
-	rpm or rpmbuild are too old.
-Workaround:
-	Replace robinhood.spec.in with robinhood.old_spec.in.
-	Then re-run "configure" and "make rpm".
-
+	Apply the patch from Lustre bugzilla ticket #23120, at least on the Lustre client where Robinhood runs.
