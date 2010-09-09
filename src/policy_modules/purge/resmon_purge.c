@@ -154,6 +154,10 @@ static int heuristic_end_of_list( time_t last_access_time )
     entry_id_t     void_id;
     attr_set_t     void_attr;
 
+    /* list all files if policies are ignored */
+    if ( ignore_policies )
+        return FALSE;
+
     /* HOOK for optimization:
      * we build a void entry with last_access = last_access_time
      * and last_restore_time = last_access_time.
@@ -268,7 +272,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     unsigned int   nb_submitted;
     unsigned long long submitted_amount, purged_amount, purged_vol, target;
 
-    enum { TGT_BLOCK, TGT_COUNT } target_type;
+    enum { TGT_BLOCK, TGT_COUNT, TGT_ALL } target_type;
 
     int            last_entry_access = 0;
     time_t         last_request_time = 0;
@@ -295,10 +299,22 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         target_type = TGT_BLOCK;
         target = p_purge_param->nb_blocks;
     }
-    else
+    else if ( p_purge_param->nb_inodes != 0 )
     {
         target_type = TGT_COUNT;
         target = p_purge_param->nb_inodes;
+    }
+    else if ( p_purge_param->type == PURGE_BY_CLASS )
+    {
+        target_type = TGT_ALL;
+        target = 0;
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, PURGE_TAG,
+                    "Unexpected purge parameter in %s(): nb_blocks=%Lu, nb_inodes=%Lu, purge type=%u",
+                    __FUNCTION__, p_purge_param->nb_blocks, p_purge_param->nb_inodes, p_purge_param->type );
+        return EINVAL;
     }
 
     /**
@@ -459,6 +475,25 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
         fval.val_str = p_purge_param->param_u.group_name;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_gr_name, EQUAL, fval, 0 );
+        if ( rc )
+            return rc;
+        break;
+
+    case PURGE_BY_CLASS:
+        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of fileclass(es) '%s'",
+                    p_purge_param->param_u.class_name );
+
+        if (!strcasecmp( p_purge_param->param_u.class_name, "default"))
+            fval.val_str = CLASS_DEFAULT;
+        else if ( !strcasecmp( p_purge_param->param_u.class_name, "ignored"))
+            fval.val_str = CLASS_IGNORED;
+        else
+            fval.val_str = p_purge_param->param_u.class_name;
+
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, LIKE,
+                                     fval, 0 );
+        /* @TODO add FILTER_FLAG_ALLOW_NULL when we will post-check entry attributes */
+
         if ( rc )
             return rc;
         break;
@@ -675,7 +710,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
             nb_submitted++;
 
         }
-        while ( submitted_amount + purged_amount < target );
+        while ( (submitted_amount + purged_amount < target) || (target_type == TGT_ALL) );
 
         /* Wait for end of purge pass */
         wait_queue_empty( nb_submitted, feedback_before, status_tab,
@@ -689,7 +724,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
             break;
 
     }
-    while ( ( !end_of_list ) && ( purged_amount < target ) );
+    while ( ( !end_of_list ) &&
+            ( (purged_amount < target) || (target_type == TGT_ALL) ));
 
     lmgr_simple_filter_free( &filter );
     ListMgr_CloseIterator( it );

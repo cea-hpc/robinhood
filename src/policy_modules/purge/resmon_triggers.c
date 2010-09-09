@@ -1718,9 +1718,112 @@ static void   *force_fs_trigger_thr( void *arg )
                     resmon_config.post_purge_df_latency );
     }
 
-  disconnect:
+disconnect:
     ListMgr_CloseAccess( &lmgr );
-  end_of_thread:
+end_of_thread:
+    pthread_exit( NULL );
+    return NULL;
+}
+
+
+/**
+ * This thread performs a manual purge on the entire filesystem
+ */
+static void * force_purge_class_thr( void *arg )
+{
+    int rc;
+    purge_param_t  purge_param;
+    unsigned long long blocks_purged = 0;
+    unsigned long long nbr_purged = 0;
+    char timestamp[128];
+    char descr[256];
+    char status_str[1024];
+    char buff[1024];
+
+    rc = ListMgr_InitAccess( &lmgr );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Could not connect to database (error %d). Purge cannot be perfomed.", rc );
+        goto end_of_thread;
+    }
+
+    if ( !CheckFSDevice(  ) )
+        goto disconnect;
+
+    purge_param.type = PURGE_BY_CLASS;
+    purge_param.flags = module_args.flags;
+    purge_param.param_u.class_name = module_args.fileclass;
+    purge_param.nb_blocks = 0; /* unused, apply to all eligible files */
+    purge_param.nb_inodes = 0; /* unused, apply to all eligible files */
+
+    if ( WILDCARDS_IN(module_args.fileclass) )
+        snprintf( descr, 256, "fileclass(es) '%s'", module_args.fileclass );
+    else
+        snprintf( descr, 256, "fileclass '%s'", module_args.fileclass );
+
+    DisplayLog( LVL_EVENT, RESMON_TAG,
+                "Applying purge policy to eligible files in %s", descr );
+
+    /* perform the purge */
+    rc = perform_purge( &lmgr, &purge_param, &blocks_purged, &nbr_purged );
+
+    /* update last purge time and target */
+    sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, descr );
+
+    if ( rc == 0 )
+    {
+        DisplayLog( LVL_MAJOR, RESMON_TAG,
+                    "%s purge summary: %Lu entries, %Lu blocks purged",
+                    descr, nbr_purged, blocks_purged );
+
+        snprintf(status_str, 1024, "Success (%Lu entries, %Lu blocks released)",
+                 nbr_purged, blocks_purged );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+    else if ( rc == ENOENT )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "Could not perform purge %s, %s: no list is available.",
+                    global_config.fs_path, descr );
+
+        snprintf(status_str, 1024, "No list available (admin requested to release files in %s, %s)",
+                 global_config.fs_path, descr );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Error %d performing purge in %s, %s (%s). "
+                    "%Lu entries purged, %Lu blocks.", rc,
+                    global_config.fs_path, descr, strerror(rc),
+                    nbr_purged, blocks_purged );
+
+        sprintf(buff, "Error releasing data in %s, %s", global_config.fs_path,
+                descr );
+        RaiseAlert( buff, "Error %d performing purge in %s, %s (%s).\n"
+                    "%Lu entries purged, %Lu blocks.", rc,
+                    global_config.fs_path, descr, strerror(rc),
+                    nbr_purged, blocks_purged );
+
+        snprintf(status_str, 1024, "Error %d after releasing %Lu entries, %Lu blocks released in %s",
+                 rc, nbr_purged, blocks_purged, global_config.fs_path );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+
+    if ( ( blocks_purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "It is advised waiting %lus before performing purge on other storage units.",
+                    resmon_config.post_purge_df_latency );
+    }
+
+disconnect:
+    ListMgr_CloseAccess( &lmgr );
+end_of_thread:
+    FlushLogs(  );
     pthread_exit( NULL );
     return NULL;
 }
@@ -1920,7 +2023,9 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
     }
 
     /* alloc and initialize trigger status array (except for FORCE_PURGE modes) */
-    if ( ( module_args.mode != RESMON_PURGE_OST ) && ( module_args.mode != RESMON_PURGE_FS ) )
+    if ( ( module_args.mode != RESMON_PURGE_OST )
+          && ( module_args.mode != RESMON_PURGE_FS )
+          && ( module_args.mode != RESMON_PURGE_CLASS ) )
     {
         trigger_status_list =
             ( trigger_info_t * ) MemCalloc( resmon_config.trigger_count, sizeof( trigger_info_t ) );
@@ -1961,6 +2066,10 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
     else if ( module_args.mode == RESMON_PURGE_FS )
     {
         rc = pthread_create( &trigger_check_thread_id, NULL, force_fs_trigger_thr, NULL );
+    }
+    else if ( module_args.mode == RESMON_PURGE_CLASS )
+    {
+        rc = pthread_create( &trigger_check_thread_id, NULL, force_purge_class_thr, NULL );
     }
     else
     {

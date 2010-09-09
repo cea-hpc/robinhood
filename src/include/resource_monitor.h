@@ -109,7 +109,8 @@ typedef enum
     RESMON_DAEMON,        /**< run as a daemon */
     RESMON_ALL_TRIGGERS,  /**< check all triggers and terminate (one-shot mode) */
     RESMON_PURGE_OST,     /**< purge the specified OST and terminate (one-shot mode) */
-    RESMON_PURGE_FS       /**< purge the filesystem to the target level and terminate (one-shot mode) */
+    RESMON_PURGE_FS,      /**< purge the filesystem to the target level and terminate (one-shot mode) */
+    RESMON_PURGE_CLASS,   /**< purge eligible files of the given fileclass and terminate (one-shot mode) */
 } resmon_mode_t;
 
 typedef struct resmon_opt_t
@@ -117,7 +118,8 @@ typedef struct resmon_opt_t
     resmon_mode_t  mode;
     int            flags;
     unsigned int   ost_index;  /**< targetted OST for RESMON_PURGE_OST mode */
-    double         target_usage;  /**< target usage for RESMON_PURGE_OST and RESMON_PURGE_FS */
+    double         target_usage; /**< target usage for RESMON_PURGE_OST and RESMON_PURGE_FS */
+    char *         fileclass;    /**< target fileclass for  RESMON_PURGE_CLASS */
 } resmon_opt_t;
 
 

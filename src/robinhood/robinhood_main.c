@@ -55,6 +55,7 @@ static time_t  boot_time;
 /* values over max char index */
 #define FORCE_OST_PURGE   260
 #define FORCE_FS_PURGE    261
+#define FORCE_CLASS_PURGE 262
 
 #define FORCE_OST_MIGR    270
 #define FORCE_USER_MIGR   271
@@ -125,6 +126,9 @@ static struct option option_tab[] = {
 #endif
     {"purge-fs", required_argument, NULL, FORCE_FS_PURGE},
     {"release-fs", required_argument, NULL, FORCE_FS_PURGE},
+
+    {"purge-class", required_argument, NULL, FORCE_CLASS_PURGE},
+    {"release-class", required_argument, NULL, FORCE_CLASS_PURGE},
 
 #ifdef HAVE_MIGR_POLICY
     /* migration by ... */
@@ -231,7 +235,10 @@ static const char *help_string =
     "        Apply purge policy on OST " _U "ost_index" U_ " until its usage reaches the specified value.\n"
 #endif
     "    " _B "--purge-fs=" B_ _U "target_usage_pct" U_ "\n"
-    "        Apply purge policy until the filesystem usage reaches the specified value.\n" "\n" _B "\n"
+    "        Apply purge policy until the filesystem usage reaches the specified value.\n"
+    "    " _B "--purge-class=" B_ _U "fileclass" U_ "\n"
+    "        Purge all eligible files in the given fileclass.\n"
+    "\n"
 #ifdef HAVE_MIGR_POLICY
     _B "Manual migration actions:" B_ "\n"
     "    " _B "-s" B_ ", " _B "--sync" B_ "\n"
@@ -244,7 +251,7 @@ static const char *help_string =
     "    " _B "--migrate-user=" B_ _U "user_name" U_ "\n"
     "        Apply migration policies to files owned by " _U "user_name" U_ ".\n"
     "    " _B "--migrate-group=" B_ _U "grp_name" U_ "\n"
-    "        Apply migration policies to files of group " _U "grp_name" U_ ".\n\n"
+    "        Apply migration policies to files of group " _U "grp_name" U_ ".\n"
     "    " _B "--migrate-class=" B_ _U "fileclass" U_ "\n"
     "        Apply migration policy on files in the given " _U "fileclass" U_ ".\n\n"
 #endif
@@ -620,6 +627,8 @@ int main( int argc, char **argv )
     int            fs_trigger = FALSE;
     int            purge_target_ost = -1;
     double         usage_target = 0.0;
+    int            purge_class = FALSE;
+    char           purge_target_class[128] = "";
 
 #ifdef HAVE_MIGR_POLICY
 #ifdef _LUSTRE
@@ -740,6 +749,15 @@ int main( int argc, char **argv )
             }
 
             break;
+
+        case FORCE_CLASS_PURGE:
+            /* this mode is always 'one-shot' */
+            flags |= FLAG_ONCE;
+            SET_ACTION_FLAG( ACTION_MASK_PURGE );
+            purge_class = TRUE;
+            strncpy( purge_target_class, optarg, 128 );
+            break;
+
 
 #ifdef HAVE_MIGR_POLICY
 
@@ -1219,6 +1237,12 @@ int main( int argc, char **argv )
             /* purge on FS (one-shot) */
             resmon_opt.mode = RESMON_PURGE_FS;
             resmon_opt.target_usage = usage_target;
+        }
+        else if ( purge_class )
+        {
+            /* purge on FS (one-shot) */
+            resmon_opt.mode = RESMON_PURGE_CLASS;
+            resmon_opt.fileclass = purge_target_class;
         }
         else if ( once )
         {

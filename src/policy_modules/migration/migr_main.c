@@ -131,13 +131,7 @@ static int start_migration_pass(  )
         break;
     case MIGR_CLASS:
         param.type = MIGR_BY_CLASS;
-
-        if (!strcasecmp( module_args.optarg_u.name, "default"))
-            param.param_u.class_name = CLASS_DEFAULT;
-        else if ( !strcasecmp( module_args.optarg_u.name, "ignored"))
-            param.param_u.class_name = CLASS_IGNORED;
-        else
-            param.param_u.class_name = module_args.optarg_u.name;
+        param.param_u.class_name = module_args.optarg_u.name;
         snprintf(tmpstr, 128, "migrate fileclass '%s'", param.param_u.class_name );
         break;
     default:

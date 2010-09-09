@@ -77,7 +77,8 @@ typedef enum
     PURGE_BY_OST,
     PURGE_BY_POOL,
     PURGE_BY_USER,
-    PURGE_BY_GROUP
+    PURGE_BY_GROUP,
+    PURGE_BY_CLASS
 } purge_type_t;
 
 typedef struct purge_param__
@@ -90,6 +91,7 @@ typedef struct purge_param__
         const char    *user_name;
         const char    *group_name;
         const char    *pool_name;
+        const char    *class_name;
     } param_u;
     unsigned long  nb_blocks;
     unsigned long long nb_inodes;

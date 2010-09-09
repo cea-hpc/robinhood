@@ -131,6 +131,10 @@ static int heuristic_end_of_list( time_t last_mod_time )
     entry_id_t     void_id;
     attr_set_t     void_attr;
 
+    /* list all files if policies are ignored */
+    if ( ignore_policies )
+        return FALSE;
+
     /* HOOK for optimization:
      * we build a void entry with last_mod = last_mod_time
      * and last_archive_time = last_mod_time.
@@ -445,9 +449,16 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         DisplayLog( LVL_EVENT, MIGR_TAG, "Starting migration on fileclass '%s'",
                     p_migr_param->param_u.class_name );
 
-        fval.val_str = p_migr_param->param_u.class_name;
+        if (!strcasecmp( p_migr_param->param_u.class_name, "default"))
+            fval.val_str = CLASS_DEFAULT;
+        else if ( !strcasecmp( p_migr_param->param_u.class_name, "ignored"))
+            fval.val_str = CLASS_IGNORED;
+        else
+            fval.val_str = p_migr_param->param_u.class_name;
+
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_archive_class, LIKE,
-                                     fval, FILTER_FLAG_ALLOW_NULL );
+                                     fval, 0 );
+        /* @TODO add FILTER_FLAG_ALLOW_NULL when we will post-check entry attributes */
         if ( rc )
             return rc;
         break;

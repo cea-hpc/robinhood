@@ -1,14 +1,11 @@
-Important avant la 2.2 finale:
-
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
       check that the entry still matches
 
+test migrate-class, purge-class
+
 - wrapper repair table dans rbh-config?
 
-Pusher dans la repo oracle
-
-* gestion el4 a partir du meme spec.in
-* gestion clean des specificite el4 et lustre 1.4 Bull
+Pusher 220p1 dans la repo oracle
 
 
 Doc:
