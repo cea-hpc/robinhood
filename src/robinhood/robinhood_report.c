@@ -48,6 +48,16 @@
 #define OPT_DUMP_STATUS 259
 #define OPT_CLASS_INFO  260
 
+/* options flags */
+#define OPT_FLAG_CSV        0x0001
+#define OPT_FLAG_NOHEADER   0x0002
+#define OPT_FLAG_GROUP      0x0004
+
+#define CSV(_x) ((_x)&OPT_FLAG_CSV)
+#define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
+#define ISGROUP(_x) ((_x)&OPT_FLAG_GROUP)
+
+
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
 
@@ -65,7 +75,7 @@ status_array[] =
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_UP_TO_DATE, "synchro", "synchronized (can be purged)" },
+    { STATUS_UP_TO_DATE, "synchro", "synchronized (eligible for purge)" },
     { STATUS_RELEASED, "released", "released" },
     { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
 
@@ -81,7 +91,7 @@ status_array[] =
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_UP_TO_DATE, "synchro", "synchronized (can be purged)" },
+    { STATUS_UP_TO_DATE, "synchro", "synchronized (eligible for purge)" },
     { STATUS_OUT_OF_DATE, "obsolete", "obsolete (older than reference)" },
 
     /* alternative names */
@@ -95,7 +105,7 @@ status_array[] =
     { (file_status_t)-1, NULL, NULL }
 };
 
-static const char * db_status2str( file_status_t status, int csv )
+static const char * db_status2str( file_status_t status, int flags )
 {
     struct status_descr * curr;
 
@@ -103,7 +113,7 @@ static const char * db_status2str( file_status_t status, int csv )
     {
        if ( status == curr->db_status )
        {
-            if ( csv )
+            if ( CSV(flags) )
                 return curr->short_descr;
             else
                 return curr->long_descr;
@@ -187,6 +197,7 @@ static struct option option_tab[] = {
 
     /* output format option */
     {"csv", no_argument, NULL, 'c'},
+    {"no-header", no_argument, NULL, 'q'},
 
     /* verbosity level */
     {"log-level", required_argument, NULL, 'l'},
@@ -199,7 +210,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:C:Rf:cl:hV"
+#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:C:Rf:cql:hV"
 
 /* special character sequences for displaying help */
 
@@ -275,6 +286,8 @@ static const char *help_string =
     _B "Output format options:" B_ "\n"
     "    " _B "-c" B_ " , " _B "--csv" B_ "\n"
     "        Output stats in a csv-like format for parsing\n"
+    "    " _B "-q" B_ " , " _B "--no-header" B_ "\n"
+    "        Don't display column headers/footers\n"
     "\n"
     _B "Miscellaneous options:" B_ "\n"
     "    " _B "-l" B_ " " _U "level" U_ ", " _B "--log-level=" B_ _U "level" U_ "\n"
@@ -346,10 +359,9 @@ static lmgr_t  lmgr;
 /* global filter variables */
 char path_filter[1024] = "";
 char path_regexp[1024] = "";
-
 char class_filter[1024] = "";
 
-void report_activity( int csv )
+void report_activity( int flags )
 {
     char           value[1024];
     time_t         timestamp;
@@ -357,7 +369,7 @@ void report_activity( int csv )
     struct tm      t;
     int            rc;
 
-    if ( !csv )
+    if ( !CSV(flags) )
         printf( "\n" );
 
     /* Last FS scan */
@@ -366,14 +378,14 @@ void report_activity( int csv )
     {
         timestamp = atoi( value );
         strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_scan, %s\n", date );
         else
             printf( "Last Filesystem scan:     %s\n", date );
     }
     else if ( rc == DB_NOT_EXISTS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_scan, none\n" );
         else
             printf( "Filesystem has never been scanned\n" );
@@ -391,7 +403,7 @@ void report_activity( int csv )
     {
         timestamp = atoi( value );
         FormatDurationFloat( date, 128, timestamp );
-        if ( csv )
+        if ( CSV(flags) )
             printf( "current_scan_interval, %s\n", date );
         else
             printf( "Current scan interval:    %s\n", date );
@@ -403,21 +415,21 @@ void report_activity( int csv )
     }
 #endif
 
-    if ( !csv )
+    if ( !CSV(flags) )
         printf( "\n" );
 
     /* max usage */
     rc = ListMgr_GetVar( &lmgr, USAGE_MAX_VAR, value );
     if ( rc == DB_SUCCESS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "usage_max, %s\n", value );
         else
             printf( "Storage unit usage max:   %s%%\n", value );
     }
     else if ( rc == DB_NOT_EXISTS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "usage_max, not checked\n" );
         else
             printf( "Storage usage has never been checked\n" );
@@ -429,7 +441,7 @@ void report_activity( int csv )
     }
 
 #ifdef HAVE_MIGR_POLICY
-    if ( !csv )
+    if ( ! CSV(flags) )
         printf( "\n" );
 
     /* Last migration */
@@ -438,14 +450,14 @@ void report_activity( int csv )
     {
         timestamp = atoi( value );
         strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( csv )
+        if (  CSV(flags) )
             printf( "last_migration_time, %s\n", date );
         else
             printf( "Last migration:           %s\n", date );
     }
     else if ( rc == DB_NOT_EXISTS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_migration_time, none\n" );
         else
             printf( "No migration was performed on this filesystem\n" );
@@ -460,7 +472,7 @@ void report_activity( int csv )
 
     if ( ListMgr_GetVar( &lmgr, LAST_MIGR_STATUS, value ) == DB_SUCCESS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_migration_status, %s\n", value );
         else
             printf( "    Status:               %s\n", value );
@@ -468,7 +480,7 @@ void report_activity( int csv )
 
     if ( ListMgr_GetVar( &lmgr, LAST_MIGR_INFO, value ) == DB_SUCCESS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_migration_info, %s\n", value );
         else
             printf( "    Migration info:       %s\n", value );
@@ -476,7 +488,7 @@ void report_activity( int csv )
 
 #endif
 
-    if ( !csv )
+    if ( ! CSV(flags) )
         printf( "\n" );
 
     /* Last purge */
@@ -485,14 +497,14 @@ void report_activity( int csv )
     {
         timestamp = atoi( value );
         strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_purge_time, %s\n", date );
         else
             printf( "Last purge:               %s\n", date );
     }
     else if ( rc == DB_NOT_EXISTS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_purge_time, none\n" );
         else
             printf( "No purge was performed on this filesystem\n" );
@@ -507,7 +519,7 @@ void report_activity( int csv )
 
     if ( ListMgr_GetVar( &lmgr, LAST_PURGE_TARGET, value ) == DB_SUCCESS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_purge_target, %s\n", value );
         else
             printf( "    Target:               %s\n", value );
@@ -515,12 +527,12 @@ void report_activity( int csv )
 
     if ( ListMgr_GetVar( &lmgr, LAST_PURGE_STATUS, value ) == DB_SUCCESS )
     {
-        if ( csv )
+        if ( CSV(flags) )
             printf( "last_purge_status, %s\n", value );
         else
             printf( "    Status:               %s\n", value );
     }
-    if ( !csv )
+    if ( !CSV(flags) )
         printf( "\n" );
 
 }
@@ -610,7 +622,7 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
 }
 
 
-void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
+void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 {
     /* get basic information */
     int            mask_sav, rc;
@@ -620,10 +632,13 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
     attr_set_t     attrs;
     entry_id_t     id;
 
+    unsigned long long total_size, total_count;
+    total_size = total_count = 0;
+
     lmgr_simple_filter_init( &filter );
 
     /* append global filters */
-    mk_global_filters( &filter, TRUE, NULL );
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* what do we dump? */
     switch( type )
@@ -685,31 +700,35 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
     }
 
     /* print header */
-    printf( "%7s, "
+    if (!NOHEADER(flags) )
+        printf( "%7s, "
 #ifdef ATTR_INDEX_status
-            "%10s, "
+                "%10s, "
 #endif
-            "%*s, %10s, %10s, "
+                "%*s, %10s, %10s, "
 #ifdef ATTR_INDEX_archive_class
-            "%20s, "
+                "%20s, "
 #endif
-            "%20s, %s\n",
-            "type",
+                "%20s, %s\n",
+                "type",
 #ifdef ATTR_INDEX_status
-            "status",
+                "status",
 #endif
-            (csv?15:10),
-            "size", "owner", "group",
+                (CSV(flags)?15:10),
+                "size", "owner", "group",
 #ifdef ATTR_INDEX_archive_class
-            "migr. class",
+                "migr. class",
 #endif
-            "purge class",
-            "path" );
+                "purge class",
+                "path" );
 
 
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        if ( csv )
+        total_count ++ ;
+        total_size += ATTR( &attrs, size );
+
+        if ( CSV(flags) )
         {
             printf( "%7s, "
     #ifdef ATTR_INDEX_status
@@ -765,10 +784,18 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int csv )
 
     ListMgr_CloseIterator( it );
 
+    /* display summary */
+    if ( !NOHEADER(flags) )
+    {
+        char strsz[128];
+        FormatFileSize( strsz, 128, total_size );
+        printf( "\nTotal: %Lu entries, %Lu bytes (%s)\n",
+                total_count, total_size, strsz );
+    }
 }
 
 
-void report_fs_info( int csv_format )
+void report_fs_info( int flags )
 {
     unsigned int   result_count;
     struct lmgr_report_t *it;
@@ -815,8 +842,11 @@ void report_fs_info( int csv_format )
 #endif
     };
 
+    unsigned long long total_size, total_count;
+    total_size = total_count = 0;
+
     /* append global filters */
-    mk_global_filters( &filter, TRUE, &is_filter );
+    mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
 #ifdef _SHERPA
     /* only select file status  */
@@ -842,7 +872,7 @@ void report_fs_info( int csv_format )
 
     result_count = FSINFOCOUNT;
 
-    if ( csv_format )
+    if ( CSV(flags) && !NOHEADER(flags) )
 #ifdef _TMP_FS_MGR
         printf( "%-10s, %10s, %15s, %15s, %15s\n",
                 "type", "count", "min_size", "max_size", "avg_size" );
@@ -855,12 +885,15 @@ void report_fs_info( int csv_format )
               == DB_SUCCESS )
     {
 #ifdef _TMP_FS_MGR
+
+        total_count += result[1].value_u.val_uint;
+
         if ( result[0].value_u.val_str == NULL )
             result[0].value_u.val_str = "(?)";
 
         if ( !strcmp( result[0].value_u.val_str, STR_TYPE_DIR ) )
         {
-            if ( csv_format )
+            if ( CSV(flags) )
                 printf( "%-10s, %10u, %15u, %15u, %15u\n",
                         result[0].value_u.val_str,
                         result[1].value_u.val_uint,
@@ -878,7 +911,9 @@ void report_fs_info( int csv_format )
         }
         else
         {
-            if ( csv_format )
+            total_size += result[1].value_u.val_uint * result[4].value_u.val_biguint;
+
+            if ( CSV(flags) )
                 printf( "%-10s, %10u, %15llu, %15llu, %15llu\n",
                         result[0].value_u.val_str,
                         result[1].value_u.val_uint,
@@ -903,7 +938,10 @@ void report_fs_info( int csv_format )
 
         }
 #else
-        if ( csv_format )
+        total_count += result[1].value_u.val_uint;
+        total_size += result[2].value_u.val_biguint;
+
+        if ( CSV(flags) )
             printf( "%10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
                     db_status2str(result[0].value_u.val_uint,1),
                     result[1].value_u.val_uint,
@@ -936,14 +974,21 @@ void report_fs_info( int csv_format )
         result_count = FSINFOCOUNT;
 
     }
-    if ( !csv_format)
-        printf("\n");
 
     ListMgr_CloseReport( it );
 
+    /* display summary */
+    if ( !NOHEADER(flags) )
+    {
+        char strsz[128];
+        FormatFileSize( strsz, 128, total_size );
+        printf( "\nTotal: %Lu entries, %Lu bytes (%s)\n",
+                total_count, total_size, strsz );
+    }
+
 }
 
-void report_usergroup_info( char *name, int csv_format, int is_group )
+void report_usergroup_info( char *name, int flags )
 {
     unsigned int   result_count;
     struct lmgr_report_t *it;
@@ -954,6 +999,9 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
     char           prevuser[256] = "";
     char           strsize[128] = "";
     int is_filter = FALSE;
+
+    unsigned long long total_size, total_count;
+    total_size = total_count = 0;
 
 #ifndef _LUSTRE_HSM
 #define USERINFOCOUNT 10
@@ -988,7 +1036,7 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
     };
 
     /* modify user_info tab if function is for group stats */
-    if ( is_group )
+    if ( ISGROUP(flags) )
         user_info[0].attr_index = ATTR_INDEX_gr_name;
 
     if ( name )
@@ -999,13 +1047,13 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
         fv.val_str = name;
 
         if ( WILDCARDS_IN( name ) )
-            lmgr_simple_filter_add( &filter, (is_group?ATTR_INDEX_gr_name:ATTR_INDEX_owner), LIKE, fv, 0 ); 
+            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), LIKE, fv, 0 ); 
         else
-            lmgr_simple_filter_add( &filter, (is_group?ATTR_INDEX_gr_name:ATTR_INDEX_owner), EQUAL, fv, 0 ); 
+            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), EQUAL, fv, 0 ); 
     }
 
     /* append global filters */
-    mk_global_filters( &filter, TRUE, &is_filter );
+    mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
     it = ListMgr_Report( &lmgr, user_info, USERINFOCOUNT, ( is_filter ? &filter : NULL ), NULL );
 
@@ -1021,14 +1069,14 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
 
     result_count = USERINFOCOUNT;
 
-    if ( csv_format )
-#ifdef ATTR_INDEX_type
+    if ( CSV(flags) && !NOHEADER(flags) )
+#ifndef _LUSTRE_HSM
         printf( "%-10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
-                ( is_group ? "group" : "user" ), "type", "count", "spc_used", "min_size",
+                ( ISGROUP(flags) ? "group" : "user" ), "type", "count", "spc_used", "min_size",
                 "max_size", "avg_size" );
 #else
         printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n",
-                ( is_group ? "group" : "user" ), "count", "spc_used", "min_size", "max_size",
+                ( ISGROUP(flags) ? "group" : "user" ), "count", "spc_used", "min_size", "max_size",
                 "avg_size" );
 #endif
 
@@ -1039,12 +1087,15 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
             result[0].value_u.val_str = "(?)";
 
 #ifndef _LUSTRE_HSM
+        total_count += result[2].value_u.val_uint;
+        total_size += (result[3].value_u.val_biguint * DEV_BSIZE);
+
         if ( result[1].value_u.val_str == NULL )
             result[1].value_u.val_str = "(unknown)";
 
         if ( !strcmp( result[1].value_u.val_str, STR_TYPE_DIR ) )
         {
-            if ( csv_format )
+            if ( CSV(flags) )
                 printf( "%-10s, %10s, %10u, %15llu, %15u, %15u, %15u\n",
                         result[0].value_u.val_str,
                         result[1].value_u.val_str,
@@ -1056,7 +1107,7 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
             {
                 if ( strcmp( prevuser, result[0].value_u.val_str ) )
                 {
-                    if ( !is_group )
+                    if ( !ISGROUP(flags) )
                         printf( "\nUser:         %15s\n", result[0].value_u.val_str );
                     else
                         printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
@@ -1078,7 +1129,7 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
         }
         else
         {
-            if ( csv_format )
+            if ( CSV(flags) )
                 printf( "%-10s, %10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
                         result[0].value_u.val_str,
                         result[1].value_u.val_str,
@@ -1090,7 +1141,7 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
             {
                 if ( strcmp( prevuser, result[0].value_u.val_str ) )
                 {
-                    if ( !is_group )
+                    if ( !ISGROUP(flags) )
                         printf( "\nUser:         %15s\n", result[0].value_u.val_str );
                     else
                         printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
@@ -1121,7 +1172,11 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
         }
 
 #else /* Lustre HSM */
-        if ( csv_format )
+
+        total_count += result[1].value_u.val_uint;
+        total_size += (result[2].value_u.val_biguint * DEV_BSIZE);
+
+        if ( CSV(flags) )
             printf( "%-10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
                     result[0].value_u.val_str,
                     result[1].value_u.val_uint,
@@ -1132,7 +1187,7 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
         {
             if ( strcmp( prevuser, result[0].value_u.val_str ) )
             {
-                if ( !is_group )
+                if ( !ISGROUP(flags) )
                     printf( "\nUser:         %15s\n", result[0].value_u.val_str );
                 else
                     printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
@@ -1167,11 +1222,19 @@ void report_usergroup_info( char *name, int csv_format, int is_group )
 
     ListMgr_CloseReport( it );
 
+    /* display summary */
+    if ( !NOHEADER(flags) )
+    {
+        char strsz[128];
+        FormatFileSize( strsz, 128, total_size );
+        printf( "\nTotal: %Lu entries, %Lu bytes used (%s)\n",
+                total_count, total_size, strsz );
+    }
 
 }
 
 #ifndef _LUSTRE_HSM             /* dirs are not considered for LUSTRE_HSM */
-void report_topdirs( unsigned int count, int csv_format )
+void report_topdirs( unsigned int count, int flags )
 {
     /* To be retrieved for dirs:
      * fullpath, owner, dircount, last_mod
@@ -1194,7 +1257,7 @@ void report_topdirs( unsigned int count, int csv_format )
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
     /* append global filters */
-    mk_global_filters( &filter, TRUE, NULL );
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* order by dircount desc */
     sorttype.attr_index = ATTR_INDEX_dircount;
@@ -1223,7 +1286,7 @@ void report_topdirs( unsigned int count, int csv_format )
         return;
     }
 
-    if ( csv_format )
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-40s, %6s, %10s, %10s, %s\n", "rank", "path", "dircount", "owner", "group",
                 "last_mod" );
 
@@ -1231,11 +1294,12 @@ void report_topdirs( unsigned int count, int csv_format )
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
         time_t         mod = ATTR( &attrs, last_mod );
+
         index++;
         /* format last mod */
         strftime( date, 128, "%Y/%m/%d %T", localtime_r( &mod, &t ) );
 
-        if ( csv_format )
+        if ( CSV(flags) )
             printf( "%3u, %-40s, %6u, %10s, %10s, %s\n", index, ATTR( &attrs, fullpath ),
                     ATTR( &attrs, dircount ), ATTR( &attrs, owner ), ATTR( &attrs, gr_name ),
                     date );
@@ -1260,7 +1324,7 @@ void report_topdirs( unsigned int count, int csv_format )
 }
 #endif
 
-void report_topsize( unsigned int count, int csv_format )
+void report_topsize( unsigned int count, int flags )
 {
     /* To be retrieved for files
      * fullpath, owner, size, stripe_info, last_access, last_mod
@@ -1288,7 +1352,7 @@ void report_topsize( unsigned int count, int csv_format )
 #endif
 
     /* append global filters */
-    mk_global_filters( &filter, TRUE, NULL );
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* order by size desc */
     sorttype.attr_index = ATTR_INDEX_size;
@@ -1329,7 +1393,7 @@ void report_topsize( unsigned int count, int csv_format )
         return;
     }
 
-    if ( csv_format )
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-40s, "
 #ifdef ATTR_INDEX_status
                 "%15s,"
@@ -1360,7 +1424,7 @@ void report_topsize( unsigned int count, int csv_format )
         strftime( acc, 128, "%Y/%m/%d %T", localtime_r( &access, &t ) );
         strftime( mod, 128, "%Y/%m/%d %T", localtime_r( &modif, &t ) );
 
-        if ( csv_format )
+        if ( CSV(flags) )
             printf( "%3u, %-40s, "
 #ifdef ATTR_INDEX_status
                     "%15s ,"
@@ -1436,7 +1500,7 @@ void report_topsize( unsigned int count, int csv_format )
 }
 
 
-void report_toppurge( unsigned int count, int csv_format )
+void report_toppurge( unsigned int count, int flags )
 {
     /* To be retrieved: non whitelisted, non directories, non invalid
      * fullpath, type, last_access, last_mod, size, stripe_info
@@ -1465,7 +1529,7 @@ void report_toppurge( unsigned int count, int csv_format )
 #endif
 
     /* append global filters */
-    mk_global_filters( &filter, TRUE, NULL );
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* select only non whitelisted */
 #ifndef _LUSTRE_HSM
@@ -1516,7 +1580,7 @@ void report_toppurge( unsigned int count, int csv_format )
         return;
     }
 
-    if ( csv_format )
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-40s, %8s, %20s, %20s, %15s, %10s, %5s, %7s, %8s, %s\n", "rank",
                 "path", "type", "last_access", "last_mod", "size", "blks",
                 "stripe_count", "stripe_size", "pool", "storage_units" );
@@ -1532,7 +1596,7 @@ void report_toppurge( unsigned int count, int csv_format )
         strftime( acc, 128, "%Y/%m/%d %T", localtime_r( &access, &t ) );
         strftime( mod, 128, "%Y/%m/%d %T", localtime_r( &modif, &t ) );
 
-        if ( csv_format )
+        if ( CSV(flags) )
             printf( "%3u, %-40s, %8s, %20s, %20s, %15" PRINT_SIZE_T ", %10llu, %5u, %7"
                     PRINT_SIZE_T ", %8s, %s\n", index, ATTR( &attrs, fullpath ),
                     ATTR( &attrs, type ), acc, mod,
@@ -1586,7 +1650,7 @@ void report_toppurge( unsigned int count, int csv_format )
 }
 
 #ifndef _LUSTRE_HSM             /* dirs are not considered for LUSTRE_HSM */
-void report_toprmdir( unsigned int count, int csv_format )
+void report_toprmdir( unsigned int count, int flags )
 {
     /* To be retrieved for dirs:
      * fullpath, owner, last_mod
@@ -1624,7 +1688,7 @@ void report_toprmdir( unsigned int count, int csv_format )
     fv.val_uint = 0;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, EQUAL, fv, 0);
 
-    mk_global_filters( &filter, TRUE, NULL );
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* order by last_mod asc */
     sorttype.attr_index = ATTR_INDEX_last_mod;
@@ -1652,7 +1716,7 @@ void report_toprmdir( unsigned int count, int csv_format )
         return;
     }
 
-    if ( csv_format )
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-40s, %10s, %10s, %20s, %s\n", "rank", "path", "owner", "group",
                 "last_mod", "deadline" );
 
@@ -1670,7 +1734,7 @@ void report_toprmdir( unsigned int count, int csv_format )
         else if ( ATTR( &attrs, last_mod ) <
                   time( NULL ) - policies.rmdir_policy.age_rm_empty_dirs )
             strcpy( dur, "expired" );
-        else if ( csv_format )
+        else if ( CSV(flags) )
             sprintf( dur, "%u",
                      ( unsigned int ) ( ATTR( &attrs, last_mod ) - time( NULL ) +
                                         policies.rmdir_policy.age_rm_empty_dirs ) );
@@ -1681,7 +1745,7 @@ void report_toprmdir( unsigned int count, int csv_format )
                                  policies.rmdir_policy.age_rm_empty_dirs );
 
 
-        if ( csv_format )
+        if ( CSV(flags) )
             printf( "%3u, %-40s, %10s, %10s, %20s, %s\n", index, ATTR( &attrs, fullpath ),
                     ATTR( &attrs, owner ), ATTR( &attrs, gr_name ), date, dur );
         else
@@ -1705,7 +1769,7 @@ void report_toprmdir( unsigned int count, int csv_format )
 }
 #endif
 
-void report_topuser( unsigned int count, int csv_format )
+void report_topuser( unsigned int count, int flags )
 {
     unsigned int   result_count;
     struct lmgr_report_t *it;
@@ -1740,7 +1804,7 @@ void report_topuser( unsigned int count, int csv_format )
 
     is_filter = FALSE;
 
-    mk_global_filters( &filter, TRUE, &is_filter );
+    mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
     /* is a filter specified? */
     if ( is_filter )
@@ -1758,7 +1822,7 @@ void report_topuser( unsigned int count, int csv_format )
 
     result_count = TOPUSERCOUNT;
 
-    if ( csv_format )
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-10s, %15s, %10s, %15s, %15s, %15s\n", "rank",
                 "user", "spc_used", "nb_entries", "min_size", "max_size", "avg_size" );
 
@@ -1768,7 +1832,7 @@ void report_topuser( unsigned int count, int csv_format )
         if ( result[0].value_u.val_str == NULL )
             result[0].value_u.val_str = "(?)";
 
-        if ( csv_format )
+        if ( CSV(flags) )
             printf( "%3u, %-10s, %15llu, %10u, %15llu, %15llu, %15llu\n",
                     rank,
                     result[0].value_u.val_str,
@@ -1811,7 +1875,7 @@ void report_topuser( unsigned int count, int csv_format )
 }
 
 #ifdef _LUSTRE_HSM
-void report_deferred_rm( int csv_format )
+void report_deferred_rm( int flags )
 {
     int            rc, index;
     struct lmgr_rm_list_t * list;
@@ -1823,6 +1887,8 @@ void report_deferred_rm( int csv_format )
     char           date_exp[128];
     struct tm      t;
 
+    unsigned long long total_count = 0;
+
     /* list all deferred rm, even if non expired */
     list = ListMgr_RmList( &lmgr, FALSE );
 
@@ -1833,19 +1899,21 @@ void report_deferred_rm( int csv_format )
         return;
     }
 
-    if ( csv_format )
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %21s, %-40s, %19s, %19s\n", "rank", "fid", "last_known_path", "lustre_rm", "hsm_rm" );
 
     index = 0;
     while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
                         &soft_rm_time, &expiration_time )) == DB_SUCCESS )
     {
+        total_count++;
+
         index++;
         /* format last mod */
         strftime( date_rm, 128, "%Y/%m/%d %T", localtime_r( &soft_rm_time, &t ) );
         strftime( date_exp, 128, "%Y/%m/%d %T", localtime_r( &expiration_time, &t ) );
 
-        if ( csv_format )
+        if ( CSV(flags) )
             printf( "%3u, "DFID", %-40s, %19s, %19s\n", index, PFID(&id),
                     last_known_path, date_rm, date_exp );
         else
@@ -1869,6 +1937,11 @@ void report_deferred_rm( int csv_format )
     }
 
     ListMgr_CloseRmList(list);
+
+    /* display summary */
+    if ( !NOHEADER(flags) )
+        printf( "\nTotal: %Lu entries\n", total_count );
+
 }
 #endif
 
@@ -2004,7 +2077,7 @@ static inline int class_add( const char * name, db_value_t * res_array )
 
 #endif
 
-static void report_class_info( int csv )
+static void report_class_info( int flags )
 {
 #ifdef ATTR_INDEX_archive_class
     #define CLASSINFO_FIELDS 8
@@ -2019,6 +2092,9 @@ static void report_class_info( int csv )
     int            is_filter = FALSE;
     int            rc;
     unsigned int   result_count;
+
+    unsigned long long total_size, total_count;
+    total_size = total_count = 0;
 
 #ifndef _LUSTRE_HSM /* no filter on type */
     filter_value_t fv;
@@ -2053,7 +2129,7 @@ static void report_class_info( int csv )
     is_filter = TRUE;
 #endif
 
-    mk_global_filters( &filter, TRUE, &is_filter );
+    mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
     result_count = CLASSINFO_FIELDS;
 
@@ -2073,7 +2149,7 @@ static void report_class_info( int csv )
 #ifndef ATTR_INDEX_archive_class
 
     /* a single class column (release), can print as is */
-    if ( csv )
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%20s, %10s, %15s, %15s, %15s, %15s\n",
                 "fileclass", "nb_entries", "spc_used", "min_size",
                 "max_size", "avg_size" );
@@ -2081,7 +2157,10 @@ static void report_class_info( int csv )
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
             == DB_SUCCESS )
     {
-        if ( csv )
+        total_count += result[1].value_u.val_uint;
+        total_size += result[2].value_u.val_biguint * DEV_BSIZE;
+
+        if ( CSV(flags) )
             printf( "%20s, %10u, %15Lu, %15Lu, %15Lu, %15Lu\n",
                     class_format( result[0].value_u.val_str ),
                     result[1].value_u.val_uint,
@@ -2139,13 +2218,16 @@ static void report_class_info( int csv )
         class_add( class, result );
     }
 
-    if (csv)
+    if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%20s, %10s, %10s, %10s, %15s, %15s, %15s, %15s, %15s\n",
                 "fileclass", "count", "nb_modif", "nb_synchro",
                 "spc_used", "spc_modif", "spc_synchro","size_min", "size_max" );
     for ( p_curr = rec_list; p_curr != NULL; p_curr = p_curr->p_next )
     {
-        if (csv)
+        total_count += p_curr->count;
+        total_size +=  p_curr->spc_used;
+
+        if (CSV(flags))
             printf( "%20s, %10u, %10u, %10u, %15Lu, %15Lu, %15Lu, %15Lu, %15Lu\n",
                     class_format( p_curr->class ),
                     p_curr->count, p_curr->nb_modif, p_curr->nb_synchro,
@@ -2183,6 +2265,15 @@ static void report_class_info( int csv )
 
     ListMgr_CloseReport(it);
 
+    /* display summary */
+    if ( !NOHEADER(flags) )
+    {
+        char strsz[128];
+        FormatFileSize( strsz, 128, total_size );
+        printf( "\nTotal: %Lu entries, %Lu bytes used (%s)\n",
+                total_count, total_size, strsz );
+    }
+
 
 }
 
@@ -2197,7 +2288,6 @@ int main( int argc, char **argv )
 {
     int            c, option_index = 0;
     char          *bin = basename( argv[0] );
-    char          *tmpstr;
 
     char           config_file[MAX_OPT_LEN] = "";
 
@@ -2238,7 +2328,7 @@ int main( int argc, char **argv )
     file_status_t  status_to_dump = -1;
 #endif
 
-    int            csv = FALSE;
+    int            flags = 0;
 
     int            rc;
     char           err_msg[4096];
@@ -2495,7 +2585,10 @@ int main( int argc, char **argv )
             break;
 
         case 'c':
-            csv = TRUE;
+            flags |= OPT_FLAG_CSV;
+            break;
+        case 'q':
+            flags |= OPT_FLAG_NOHEADER;
             break;
         case 'h':
             display_help( bin );
@@ -2610,61 +2703,63 @@ int main( int argc, char **argv )
 
     /* retrieve and display info */
     if ( activity )
-        report_activity( csv );
+        report_activity( flags );
 
     if ( fs_info )
-        report_fs_info( csv );
+        report_fs_info( flags );
 
     if ( user_info )
-        report_usergroup_info( ( EMPTY_STRING( user_name ) ? NULL : user_name ), csv, FALSE );
+        report_usergroup_info( ( EMPTY_STRING( user_name ) ? NULL : user_name ),
+                               flags );
 
     if ( group_info )
-        report_usergroup_info( ( EMPTY_STRING( group_name ) ? NULL : group_name ), csv, TRUE );
+        report_usergroup_info( ( EMPTY_STRING( group_name ) ? NULL : group_name ),
+                               flags | OPT_FLAG_GROUP );
 
     if ( class_info )
-        report_class_info(csv);
+        report_class_info(flags);
 
 #ifndef _LUSTRE_HSM
     if ( topdirs )
-        report_topdirs( topdirs, csv );
+        report_topdirs( topdirs, flags );
 #endif
 
     if ( topsize )
-        report_topsize( topsize, csv );
+        report_topsize( topsize, flags );
 
     if ( toppurge )
-        report_toppurge( toppurge, csv );
+        report_toppurge( toppurge, flags );
 
 #ifndef _LUSTRE_HSM
     if ( toprmdir )
-        report_toprmdir( toprmdir, csv );
+        report_toprmdir( toprmdir, flags );
 #endif
 
     if ( topuser )
-        report_topuser( topuser, csv );
+        report_topuser( topuser, flags );
 
 #ifdef _LUSTRE_HSM
     if ( deferred_rm )
-        report_deferred_rm( csv );
+        report_deferred_rm( flags );
 #endif
 
     if ( dump_all )
-        dump_entries( DUMP_ALL, 0, NULL, csv );
+        dump_entries( DUMP_ALL, 0, NULL, flags );
 
     if ( dump_user )
-        dump_entries( DUMP_USR, 0, dump_user_name, csv );
+        dump_entries( DUMP_USR, 0, dump_user_name, flags );
 
     if ( dump_group )
-        dump_entries( DUMP_GROUP, 0, dump_group_name, csv );
-    
+        dump_entries( DUMP_GROUP, 0, dump_group_name, flags );
+
 #ifdef _LUSTRE
     if ( dump_ost )
-        dump_entries( DUMP_OST, dump_ost_index, NULL, csv );
+        dump_entries( DUMP_OST, dump_ost_index, NULL, flags );
 #endif
 
 #ifdef ATTR_INDEX_status
     if ( dump_status )
-        dump_entries( DUMP_STATUS, status_to_dump, NULL, csv );
+        dump_entries( DUMP_STATUS, status_to_dump, NULL, flags );
 #endif
 
     ListMgr_CloseAccess( &lmgr );
