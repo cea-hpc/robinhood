@@ -1,7 +1,7 @@
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
       check that the entry still matches
 
-test migrate-class, purge-class
+nonreg migrate-class, purge-class
 
 - wrapper repair table dans rbh-config?
 
@@ -16,6 +16,9 @@ Doc:
      target = A
 	=> OK
 	inverse => NOK
+
+--migrate-class
+--purge-class
 
 Features:
 =========
@@ -43,7 +46,7 @@ Optim:
 * bench perf DB.
 * separer les adherences a chaque 'purpose' dans un module separe
 * statut special pour les fichiers avec erreur de migration?
-* se rappeler des alertes deja envoyees.
+(* se rappeler des alertes deja envoyees.)
 
 * BUG FIX: considerer tous les chemins renvoyés par fid2path pour matcher les filesets et conditions
 

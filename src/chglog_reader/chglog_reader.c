@@ -278,7 +278,9 @@ static int process_log_rec( reader_thr_info_t * p_info, struct changelog_rec * p
         case CL_MKNOD:
         case CL_IOCTL:
         case CL_XATTR:
+#ifdef CL_SPLITTED_TIME
         case CL_ATIME:
+#endif
             DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", optype );
             /* free the record */
             llapi_changelog_free( &p_rec );

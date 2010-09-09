@@ -208,6 +208,10 @@ fi
 
 %changelog
 
+* Thu Sep 09 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.1-0.rc1
+- [feature] new purge command: --purge-class to apply purge policy on files in a given class
+- [feature] new migration command: --migrate-class to apply migration policy on files in a given class
+
 * Wed Sep 08 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p1
 - [bugfix] unescaped SQL strings caused error on filenames with single quotes
 - [bugfix] error in init script when RBH_OPT contains several options
