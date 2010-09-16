@@ -1,7 +1,11 @@
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
       check that the entry still matches
 
-nonreg migrate-class, purge-class
+- nonreg migrate-class, purge-class
+- test summary line ds le mode tmp fs mgr
+
+- alert si le parcours est bloqué
+- exit si trop de blocage?
 
 - wrapper repair table dans rbh-config?
 

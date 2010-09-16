@@ -460,13 +460,11 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
     if ( hints != NULL )
     {
         req->hur_data_len = data_len;
-        req->hur_data_off = (ptrdiff_t)&req->hur_user_item[1] - (ptrdiff_t)req;
-        strcpy( (char*)((ptrdiff_t)req + (ptrdiff_t)req->hur_data_off), hints );
+        memcpy(hur_data(req), hints, data_len);
     }
     else
     {
         req->hur_data_len = 0;
-        req->hur_data_off = 0;
     }
 
     rc = llapi_hsm_request( mount_point, req );
