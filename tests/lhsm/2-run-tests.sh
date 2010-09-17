@@ -3,6 +3,17 @@
 RH=../../src/robinhood/rbh-hsm
 CFG_SCRIPT="../../scripts/rbh-config"
 
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out"
+
+function clean_logs
+{
+	for f in $CLEAN; do
+		if [ -s $f ]; then
+			cp /dev/null $f
+		fi
+	done
+}
+
 
 function clean_fs
 {
@@ -14,9 +25,18 @@ function clean_fs
 
 	echo "Cleaning filesystem..."
 	rm  -rf /mnt/lustre/*
+
+	echo "Destroying any running instance of robinhood..."
+	pkill -f rbh-hsm
+	pkill -f robinhood
+
+	if [ -f rh.pid ]; then
+		echo "killing remaining robinhood process..."
+		kill `cat rh.pid`
+	fi
 	
 	sleep 1
-	echo "Impacting rm in HSM..."
+#	echo "Impacting rm in HSM..."
 #	$RH -f ./cfg/immediate_rm.conf --readlog --hsm-remove -l DEBUG -L rh_rm.log --once || echo "ERROR"
 	echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db robinhood_lustre
@@ -24,10 +44,24 @@ function clean_fs
 	echo "Cleaning changelogs..."
 	lfs changelog_clear lustre-MDT0000 cl1 0
 
-	if [ -f rh.pid ]; then
-		echo "killing remaining robinhood process..."
-		kill `cat rh.pid`
-	fi
+}
+
+POOL1=ost0
+POOL2=ost1
+POOL_CREATED=0
+
+function create_pools
+{
+  (($POOL_CREATED != 0 )) && return
+  lfs pool_list lustre | grep lustre.$POOL1 && POOL_CREATED=1
+  lfs pool_list lustre | grep lustre.$POOL2 && ((POOL_CREATED=$POOL_CREATED+1))
+  (($POOL_CREATED == 2 )) && return
+
+  lctl pool_new lustre.$POOL1 || echo "ERROR creating pool $POOL1"
+  lctl pool_add lustre.$POOL1 lustre-OST0000 || echo "ERROR adding OST0000 to pool $POOL1"
+  lctl pool_new lustre.$POOL2 || echo "ERROR creating pool $POOL2"
+  lctl pool_add lustre.$POOL2 lustre-OST0001 || echo "ERROR adding OST0001 to pool $POOL2"
+  POOL_CREATED=1
 }
 
 function migration_test
@@ -37,13 +71,7 @@ function migration_test
 	sleep_time=$3
 	policy_str="$4"
 
-	CLEAN="rh_chglogs.log rh_migr.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# create and fill 10 files
 
@@ -87,13 +115,7 @@ function xattr_test
 	sleep_time=$2
 	policy_str="$3"
 
-	CLEAN="rh_chglogs.log rh_migr.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# create and fill 10 files
 
@@ -156,14 +178,7 @@ function link_unlink_remove_test
 	sleep_time=$3
 	policy_str="$4"
 
-	# read changelogs
-	CLEAN="rh_chglogs.log rh_rm.log rh.pid"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	echo "1-Start reading changelogs in background..."
 	# read changelogs
@@ -224,13 +239,7 @@ function purge_test
 	sleep_time=$3
 	policy_str="$4"
 
-	CLEAN="rh_chglogs.log rh_purge.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
@@ -283,13 +292,7 @@ function purge_size_filesets
 	count=$3
 	policy_str="$4"
 
-	CLEAN="rh_chglogs.log rh_purge.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
@@ -340,13 +343,7 @@ function test_rh_report
 	sleep_time=$3
 	descr_str="$4"
 
-	CLEAN="rh_chglogs.log rh_report.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	for i in `seq 1 $dircount`; do
 		mkdir /mnt/lustre/dir.$i
@@ -384,13 +381,7 @@ function path_test
 	sleep_time=$2
 	policy_str="$3"
 
-	CLEAN="rh_chglogs.log rh_migr.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# create test tree
 
@@ -547,13 +538,11 @@ function update_test
 	update_period=$3
 	policy_str="$4"
 
-	LOG="rh_chglogs.log"
-
 	init=`date "+%s"`
 
 	for i in `seq 1 3`; do
 		echo "loop 1.$i: many 'touch' within $event_updt_min sec"
-		cp /dev/null $LOG
+		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || echo "ERROR"
@@ -588,7 +577,7 @@ function update_test
 
 	for i in `seq 1 3`; do
 		echo "loop 2.$i: many 'rename' within $event_updt_min sec"
-		cp /dev/null $LOG
+		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || echo "ERROR"
@@ -622,7 +611,7 @@ function update_test
 	done
 
 	echo "Waiting $update_period seconds..."
-	cp /dev/null $LOG
+	clean_logs
 
 	# check that getattr+getpath are performed after update_period, even if the event is not related:
 	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || echo "ERROR"
@@ -657,13 +646,7 @@ function periodic_class_match_migr
 	update_period=$2
 	policy_str="$3"
 
-	CLEAN="rh_chglogs.log rh_migr.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	#create test tree
 	touch /mnt/lustre/ignore1
@@ -690,7 +673,7 @@ function periodic_class_match_migr
 		&& echo "OK: initial fileclass matching successful"
 
 	# rematch entries: should not update fileclasses
-	cp /dev/null rh_migr.log
+	clean_logs
 	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || echo "ERROR"
 
 	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_migr.log | wc -l`
@@ -708,7 +691,7 @@ function periodic_class_match_migr
 	sleep $update_period
 
 	# rematch entries: should update all fileclasses
-	cp /dev/null rh_migr.log
+	clean_logs
 	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || echo "ERROR"
 
 	nb_valid=`grep "is still valid" rh_migr.log | wc -l`
@@ -727,13 +710,7 @@ function periodic_class_match_purge
 	update_period=$2
 	policy_str="$3"
 
-	CLEAN="rh_chglogs.log rh_purge.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	#create test tree of archived files
 	for file in ignore1 whitelist1 purge1 default1 ; do
@@ -760,7 +737,7 @@ function periodic_class_match_purge
 		&& echo "OK: initial fileclass matching successful"
 
 	# update db content and rematch entries: should not update fileclasses
-	cp /dev/null rh_purge.log
+	clean_logs
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
 
@@ -779,7 +756,7 @@ function periodic_class_match_purge
 	sleep $update_period
 
 	# update db content and rematch entries: should update all fileclasses
-	cp /dev/null rh_purge.log
+	clean_logs
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
 
@@ -800,13 +777,7 @@ function test_cnt_trigger
 	exp_purge_count=$3
 	policy_str="$4"
 
-	CLEAN="rh_chglogs.log rh_purge.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# initial inode count
 	empty_count=`df -i /mnt/lustre/ | grep "/mnt/lustre" | awk '{print $(NF-3)}'`
@@ -843,13 +814,7 @@ function test_ost_trigger
 	mb_l_watermark=$3
 	policy_str="$4"
 
-	CLEAN="rh_chglogs.log rh_purge.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	empty_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
@@ -924,13 +889,7 @@ function test_trigger_check
 	target_fs_vol=$6
 	target_user_vol=$7
 
-	CLEAN="rh_chglogs.log rh_purge.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# triggers to be checked
 	# - inode count > max_count
@@ -1009,13 +968,7 @@ function fileclass_test
 	sleep_time=$2
 	policy_str="$3"
 
-	CLEAN="rh_chglogs.log rh_migr.log"
-
-	for f in $CLEAN; do
-		if [ -f $f ]; then
-			cp /dev/null $f
-		fi
-	done
+	clean_logs
 
 	# create test tree
 
@@ -1088,7 +1041,7 @@ function test_info_collect
 	sleep_time2=$3
 	policy_str="$4"
 
-	cp /dev/null rh_chglogs.log
+	clean_logs
 
 	# test reading changelogs or scanning with strange names, etc...
 	mkdir '/mnt/lustre/dir with blanks'
@@ -1120,7 +1073,7 @@ function test_info_collect
 		echo "ERROR: unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
 	fi
 
-	cp /dev/null rh_chglogs.log
+	clean_logs
 
 	echo "2-Scanning..."
 	
@@ -1136,6 +1089,86 @@ function test_info_collect
 	else
 		echo "ERROR: unexpected number of operations: $nb_db_apply database operations"
 	fi
+}
+
+function test_pools
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str="$3"
+
+	create_pools
+
+	clean_logs
+
+	# create files in different pools (or not)
+	touch /mnt/lustre/no_pool.1 || echo "ERROR creating file"
+	touch /mnt/lustre/no_pool.2 || echo "ERROR creating file"
+	lfs setstripe -p lustre.$POOL1 /mnt/lustre/in_pool_1.a || echo "ERROR creating file in $POOL1"
+	lfs setstripe -p lustre.$POOL1 /mnt/lustre/in_pool_1.b || echo "ERROR creating file in $POOL1"
+	lfs setstripe -p lustre.$POOL2 /mnt/lustre/in_pool_2.a || echo "ERROR creating file in $POOL2"
+	lfs setstripe -p lustre.$POOL2 /mnt/lustre/in_pool_2.b || echo "ERROR creating file in $POOL2"
+
+	sleep $sleep_time
+
+	echo "1.1-read changelog and match..."
+	# read changelogs
+	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+
+	echo "1.2-checking report output..."
+	# check classes in report output
+	$RH-report -f ./cfg/$config_file --dump-all -c > report.out || echo "ERROR"
+	cat report.out
+
+	echo "1.3-checking robinhood log..."
+	grep "Missing attribute" rh_chglogs.log && echo "ERROR missing attribute when matching classes"
+
+
+	# no_pool files must match default
+	for i in 1 2; do
+		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i"
+		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
+	done
+
+	for i in a b; do
+		# in_pool_1 files must match pool_1
+		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i"
+		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
+
+		# in_pool_2 files must match pool_2
+		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i"
+		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 7 | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
+	done
+
+	# rematch and recheck
+	echo "2.1-scan and match..."
+	# read changelogs
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+
+	echo "2.2-checking report output..."
+	# check classes in report output
+	$RH-report -f ./cfg/$config_file --dump-all -c  > report.out || echo "ERROR"
+	cat report.out
+
+	# no_pool files must match default
+	for i in 1 2; do
+		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i"
+		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
+	done
+
+	for i in a b; do
+		# in_pool_1 files must match pool_1
+		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i"
+		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
+
+		# in_pool_2 files must match pool_2
+		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i"
+		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 7 | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
+	done
+
+	echo "2.3-checking robinhood log..."
+	grep "Missing attribute" rh_chglogs.log && echo "ERROR missing attribute when matching classes"
+
 }
 
 
@@ -1212,6 +1245,8 @@ run_test 	fileclass_test test_fileclass.conf 2 "complex policies with unions and
 run_test 	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
 #17
 run_test	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
-
 #18
+run_test	test_pools test_pools.conf 1 "class matching with condition on pools"
+
+#19
 #run_test 	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
