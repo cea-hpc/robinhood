@@ -352,6 +352,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             ATTR_MASK_SET( &p_op->entry_attr, release_class );
             p_op->entry_attr.attr_mask |= policies.purge_policies.global_attr_mask;
         }
+        p_op->entry_attr.attr_mask |= entry_proc_conf.alert_attr_mask;
 
         rc = ListMgr_Get( lmgr, &p_op->entry_id, &p_op->entry_attr );
 
@@ -445,7 +446,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                             PFID(&p_op->entry_id) );
 #else
 
-               splayLog( LVL_CRIT, ENTRYPROC_TAG,
+               DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                          "Error %d retrieving entry [i=%llu, d=%llu] from DB", rc,
                          ( unsigned long long ) p_op->entry_id.inode,
                          ( unsigned long long ) p_op->entry_id.device );

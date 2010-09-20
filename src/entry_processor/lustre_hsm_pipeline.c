@@ -510,6 +510,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             p_op->entry_attr.attr_mask |= policies.purge_policies.global_attr_mask;
             p_op->entry_attr.attr_mask |= policies.migr_policies.global_attr_mask;
         }
+        p_op->entry_attr.attr_mask |= entry_proc_conf.alert_attr_mask;
 
         rc = ListMgr_Get( lmgr, &p_op->entry_id, &p_op->entry_attr );
 
