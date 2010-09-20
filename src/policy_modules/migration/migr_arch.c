@@ -909,7 +909,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item,
     }
 
     /* get info about this entry and check policies about the entry. */
-    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set ) )
+    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set, FALSE ) )
     {
         case do_skip:
         case do_rm:

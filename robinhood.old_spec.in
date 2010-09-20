@@ -223,9 +223,15 @@ fi
 
 %changelog
 
-* Sep 31 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.1-0.rc1
+* Thu Sep 30 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.1
 - [feature] new purge command: --purge-class to apply purge policy on files in a given class
 - [feature] new migration command: --migrate-class to apply migration policy on files in a given class
+- [report cmd] Added summary line to all reports, with total nbr entries and volume.
+- [report cmd] Added '-q' option to hide headers and footers in reports.
+
+* Mon Sep 20 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p2
+- [bugfix] retrieving Lustre pool fails with error "Unsupported Lustre magic number"
+- [bugfix] wrong class matching on OST pools when scanning
 
 * Wed Sep 08 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p1
 - [bugfix] unescaped SQL strings caused error on filenames with single quotes
