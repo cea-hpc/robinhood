@@ -1,4 +1,16 @@
-Important avant la 2.2 finale:
+- return value of robinhood when it is killed...
+
+- selection des tests de non reg suivant le purpose
+
+@TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
+      check that the entry still matches
+
+- nonreg migrate-class, purge-class
+- test summary line ds le mode tmp fs mgr
+
+- alert si le parcours est bloqué
+- exit si trop de blocage?
+>>>>>>> b151bc8... Fixed: wrong class matching on OST pools when scanning:src/todo
 
 - wrapper repair table dans rbh-config?
 

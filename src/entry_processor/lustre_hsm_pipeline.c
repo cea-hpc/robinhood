@@ -561,8 +561,53 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             goto next_step;
         }
 
-        /* do the entry exists in DB? */
-        p_op->db_exists = ListMgr_Exists( lmgr, &p_op->entry_id );
+        /* retrieve missing attrs, if needed */
+        if ( entry_proc_conf.match_classes ||
+            (entry_proc_conf.alert_attr_mask & ~p_op->entry_attr.attr_mask) )
+        {
+            attr_set_t tmp_attr;
+
+            ATTR_MASK_INIT( &tmp_attr );
+
+            if ( entry_proc_conf.match_classes )
+            {
+                /* get fileclass update info to know if we must check it */
+                ATTR_MASK_SET( &tmp_attr, rel_cl_update );
+                ATTR_MASK_SET( &tmp_attr, release_class );
+
+                tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
+                                       & ~p_op->entry_attr.attr_mask);
+            }
+            tmp_attr.attr_mask |= (entry_proc_conf.alert_attr_mask
+                                   & ~p_op->entry_attr.attr_mask);
+
+            rc = ListMgr_Get( lmgr, &p_op->entry_id, &tmp_attr );
+
+            if (rc == DB_SUCCESS )
+            {
+                p_op->db_exists = TRUE;
+                p_op->entry_attr_is_set = TRUE;
+                /* merge with main attr set */
+                ListMgr_MergeAttrSets( &p_op->entry_attr, &tmp_attr );
+            }
+            else if (rc == DB_NOT_EXISTS )
+            {
+                p_op->db_exists = FALSE;
+            }
+            else
+            {
+                /* ERROR */
+                DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
+                            "Error %d retrieving entry "DFID" from DB", rc,
+                            PFID(&p_op->entry_id) );
+                p_op->db_exists = FALSE;
+            }
+        }
+        else
+        {
+            /* only check if the entry exists in DB? */
+            p_op->db_exists = ListMgr_Exists( lmgr, &p_op->entry_id );
+        }
 
         if ( !p_op->db_exists )
         {

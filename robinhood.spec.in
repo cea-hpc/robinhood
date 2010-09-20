@@ -208,6 +208,10 @@ fi
 
 %changelog
 
+* Mon Sep 20 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p2
+- [bugfix] retrieving Lustre pool fails with error "Unsupported Lustre magic number"
+- [bugfix] wrong class matching on OST pools when scanning
+
 * Wed Sep 08 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p1
 - [bugfix] unescaped SQL strings caused error on filenames with single quotes
 - [bugfix] error in init script when RBH_OPT contains several options
