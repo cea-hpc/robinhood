@@ -33,6 +33,7 @@ function clean_fs
 	if [ -f rh.pid ]; then
 		echo "killing remaining robinhood process..."
 		kill `cat rh.pid`
+		rm -f rh.pid
 	fi
 	
 	sleep 1
@@ -539,6 +540,8 @@ function update_test
 	policy_str="$4"
 
 	init=`date "+%s"`
+
+	LOG=rh_chglogs.log
 
 	for i in `seq 1 3`; do
 		echo "loop 1.$i: many 'touch' within $event_updt_min sec"
