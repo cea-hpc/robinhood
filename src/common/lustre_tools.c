@@ -59,7 +59,7 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
     int            rc;
     char           lum_buffer[4096];
     struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;
-#ifdef LOV_MAGIC_V3
+#ifdef LOV_USER_MAGIC_V3
     struct lov_user_md_v3 *p_lum3;
 #endif
 
@@ -119,7 +119,7 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
         return 0;
 
     }
-#ifdef LOV_MAGIC_V3
+#ifdef LOV_USER_MAGIC_V3
     else if ( p_lum->lmm_magic == LOV_USER_MAGIC_V3 )
     {
         p_lum3 = ( struct lov_user_md_v3 * ) p_lum;
