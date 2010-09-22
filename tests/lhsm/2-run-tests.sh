@@ -1,6 +1,17 @@
 #/bin/sh
 
-RH=../../src/robinhood/rbh-hsm
+if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
+	is_hsm=1
+	RH=../../src/robinhood/rbh-hsm
+	REPORT=$RH-report
+else
+	is_hsm=0
+	RH=../../src/robinhood/robinhood
+	REPORT=../../src/robinhood/rbh-report
+fi
+
+PROC=`basename $RH`
+
 CFG_SCRIPT="../../scripts/rbh-config"
 
 CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out"
@@ -27,8 +38,8 @@ function clean_fs
 	rm  -rf /mnt/lustre/*
 
 	echo "Destroying any running instance of robinhood..."
-	pkill -f rbh-hsm
 	pkill -f robinhood
+	pkill -f rbh-hsm
 
 	if [ -f rh.pid ]; then
 		echo "killing remaining robinhood process..."
@@ -40,7 +51,7 @@ function clean_fs
 #	echo "Impacting rm in HSM..."
 #	$RH -f ./cfg/immediate_rm.conf --readlog --hsm-remove -l DEBUG -L rh_rm.log --once || echo "ERROR"
 	echo "Cleaning robinhood's DB..."
-	$CFG_SCRIPT empty_db robinhood_lustre
+	$CFG_SCRIPT empty_db robinhood_lustre > /dev/null
 
 	echo "Cleaning changelogs..."
 	lfs changelog_clear lustre-MDT0000 cl1 0
@@ -71,6 +82,11 @@ function migration_test
 	expected_migr=$2
 	sleep_time=$3
 	policy_str="$4"
+
+	if (( $is_hsm == 0 )); then
+		echo "HSM test only: skipped"
+		return 1
+	fi
 
 	clean_logs
 
@@ -115,6 +131,11 @@ function xattr_test
 	config_file=$1
 	sleep_time=$2
 	policy_str="$3"
+
+	if (( $is_hsm == 0 )); then
+		echo "HSM test only: skipped"
+		return 1
+	fi
 
 	clean_logs
 
@@ -179,6 +200,11 @@ function link_unlink_remove_test
 	sleep_time=$3
 	policy_str="$4"
 
+	if (( $is_hsm == 0 )); then
+		echo "HSM test only: skipped"
+		return 1
+	fi
+
 	clean_logs
 
 	echo "1-Start reading changelogs in background..."
@@ -229,7 +255,7 @@ function link_unlink_remove_test
 	fi
 
 	# kill event handler
-	pkill -9 -f rbh-hsm
+	pkill -9 -f $PROC
 
 }
 
@@ -250,8 +276,11 @@ function purge_test
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
 		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
-		lfs hsm_set --exists --archived /mnt/lustre/file.$i
-		lfs hsm_clear --dirty /mnt/lustre/file.$i
+
+		if (( $is_hsm != 0 )); then
+			lfs hsm_set --exists --archived /mnt/lustre/file.$i
+			lfs hsm_clear --dirty /mnt/lustre/file.$i
+		fi
 	done
 	
 	echo "2-Reading changelogs to update file status (after 1sec)..."
@@ -262,7 +291,12 @@ function purge_test
 	# no purge expected here
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || echo "ERROR"
 
-        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
+	if (( $is_hsm != 0 )); then
+	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
+	else
+	        nb_purge=`grep "Purged" rh_purge.log | wc -l`
+	fi
+
         if (($nb_purge != 0)); then
                 echo "********** TEST FAILED: No release actions expected, $nb_purge done"
         else
@@ -275,7 +309,12 @@ function purge_test
 	echo "5-Applying purge policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || echo "ERROR"
 
-        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
+	if (( $is_hsm != 0 )); then
+	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
+	else
+	        nb_purge=`grep "Purged" rh_purge.log | wc -l`
+	fi
+
         if (($nb_purge != $expected_purge)); then
                 echo "********** TEST FAILED: $expected_purge release actions expected, $nb_purge done"
         else
@@ -306,8 +345,11 @@ function purge_size_filesets
 		((j=$j+1))
 		for i in `seq 1 $count`; do
 			dd if=/dev/zero of=/mnt/lustre/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || echo "ERROR writing file.$size.$i"
-			lfs hsm_set --exists --archived /mnt/lustre/file.$size.$i
-			lfs hsm_clear --dirty /mnt/lustre/file.$size.$i
+
+			if (( $is_hsm != 0 )); then
+				lfs hsm_set --exists --archived /mnt/lustre/file.$size.$i
+				lfs hsm_clear --dirty /mnt/lustre/file.$size.$i
+			fi
 		done
 	done
 	
@@ -363,7 +405,7 @@ function test_rh_report
 
 	echo "3.Checking reports..."
 	for i in `seq 1 $dircount`; do
-		$RH-report -f ./cfg/$config_file -l MAJOR --csv -U 1 -P /mnt/lustre/dir.$i > rh_report.log
+		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P /mnt/lustre/dir.$i > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $i*1024*1024 )); then
 			echo "ERROR: $used != " $(($i*1024*1024))
@@ -381,6 +423,11 @@ function path_test
 	config_file=$1
 	sleep_time=$2
 	policy_str="$3"
+
+	if (( $is_hsm == 0 )); then
+		echo "HSM test only: skipped"
+		return 1
+	fi
 
 	clean_logs
 
@@ -560,7 +607,7 @@ function update_test
 
 		# force flushing log
 		sleep 1
-		pkill -f rbh-hsm
+		pkill -f $PROC
 		sleep 1
 
 		nb_getattr=`grep getattr=1 $LOG | wc -l`
@@ -597,7 +644,7 @@ function update_test
 
 		# force flushing log
 		sleep 1
-		pkill -f rbh-hsm
+		pkill -f $PROC
 		sleep 1
 
 		nb_getpath=`grep getpath=1 $LOG | wc -l`
@@ -619,11 +666,17 @@ function update_test
 	# check that getattr+getpath are performed after update_period, even if the event is not related:
 	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || echo "ERROR"
 	sleep $update_period
-	lfs hsm_set --exists /mnt/lustre/file
+
+	if (( $is_hsm != 0 )); then
+		# chg something different that path or POSIX attributes
+		lfs hsm_set --exists /mnt/lustre/file
+	else
+		touch /mnt/lustre/file
+	fi
 
 	# force flushing log
 	sleep 1
-	pkill -f rbh-hsm
+	pkill -f $PROC
 	sleep 1
 
 	nb_getattr=`grep getattr=1 $LOG | wc -l`
@@ -633,14 +686,16 @@ function update_test
 	echo "nb path update: $nb_getpath"
 	(( $nb_getpath == 1 )) || echo "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
-	# also check that the status is to be retrieved
-	nb_getstatus=`grep getstatus=1 $LOG | wc -l`
-	echo "nb status update: $nb_getstatus"
-	(( $nb_getstatus == 1 )) || echo "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
+	if (( $is_hsm != 0 )); then
+		# also check that the status is to be retrieved
+		nb_getstatus=`grep getstatus=1 $LOG | wc -l`
+		echo "nb status update: $nb_getstatus"
+		(( $nb_getstatus == 1 )) || echo "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
+	fi
 
 	# kill remaning event handler
 	sleep 1
-	pkill -9 -f rbh-hsm
+	pkill -9 -f $PROC
 }
 
 function periodic_class_match_migr
@@ -648,6 +703,11 @@ function periodic_class_match_migr
 	config_file=$1
 	update_period=$2
 	policy_str="$3"
+
+	if (( $is_hsm == 0 )); then
+		echo "HSM test only: skipped"
+		return 1
+	fi
 
 	clean_logs
 
@@ -718,7 +778,10 @@ function periodic_class_match_purge
 	#create test tree of archived files
 	for file in ignore1 whitelist1 purge1 default1 ; do
 		touch /mnt/lustre/$file
-		lfs hsm_set --exists --archived /mnt/lustre/$file
+
+		if (( $is_hsm != 0 )); then
+			lfs hsm_set --exists --archived /mnt/lustre/$file
+		fi
 	done
 
 	# scan
@@ -789,7 +852,10 @@ function test_cnt_trigger
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
 		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=1
-		lfs hsm_set --exists --archived /mnt/lustre/file.$i
+
+		if (( $is_hsm != 0 )); then
+			lfs hsm_set --exists --archived /mnt/lustre/file.$i
+		fi
 	done
 
 	# wait for df sync
@@ -801,7 +867,12 @@ function test_cnt_trigger
 	# apply purge trigger
 	$RH -f ./cfg/$config_file --purge --once -l FULL -L rh_purge.log
 
-	nb_release=`grep "Released" rh_purge.log | wc -l`
+	if (($is_hsm != 0 )); then
+		nb_release=`grep "Released" rh_purge.log | wc -l`
+	else
+		nb_release=`grep "Purged" rh_purge.log | wc -l`
+	fi
+
 	if (($nb_release == $exp_purge_count)); then
 		echo "OK: $nb_release files released"
 	else
@@ -827,7 +898,10 @@ function test_ost_trigger
 	#create test tree of archived files (2M each=1MB/ost) until we reach high watermark
 	for i in `seq $empty_vol $mb_h_watermark`; do
 		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=2
-		lfs hsm_set --exists --archived /mnt/lustre/file.$i
+
+		if (( $is_hsm != 0 )); then
+			lfs hsm_set --exists --archived /mnt/lustre/file.$i
+		fi
 	done
 
 	# wait for df sync
@@ -921,7 +995,10 @@ function test_trigger_check
 	#create test tree of archived files (file_size MB each)
 	for i in `seq 1 $file_count`; do
 		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=$file_size
-		lfs hsm_set --exists --archived /mnt/lustre/file.$i
+
+		if (( $is_hsm != 0 )); then
+			lfs hsm_set --exists --archived /mnt/lustre/file.$i
+		fi
 	done
 
 	# wait for df sync
@@ -938,7 +1015,11 @@ function test_trigger_check
 	((expect_vol_user=$file_count*$file_size-$target_user_vol))
 	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root"
 
-	nb_release=`grep "Released" rh_purge.log | wc -l`
+	if (($is_hsm != 0 )); then
+		nb_release=`grep "Released" rh_purge.log | wc -l`
+	else
+		nb_release=`grep "Purged" rh_purge.log | wc -l`
+	fi
 
 	count_trig=`grep " entries must be purged in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 
@@ -970,6 +1051,11 @@ function fileclass_test
 	config_file=$1
 	sleep_time=$2
 	policy_str="$3"
+
+	if (( $is_hsm == 0 )); then
+		echo "HSM test only: skipped"
+		return 1
+	fi
 
 	clean_logs
 
@@ -1120,7 +1206,7 @@ function test_pools
 
 	echo "1.2-checking report output..."
 	# check classes in report output
-	$RH-report -f ./cfg/$config_file --dump-all -c > report.out || echo "ERROR"
+	$REPORT -f ./cfg/$config_file --dump-all -c > report.out || echo "ERROR"
 	cat report.out
 
 	echo "1.3-checking robinhood log..."
@@ -1150,7 +1236,7 @@ function test_pools
 
 	echo "2.2-checking report output..."
 	# check classes in report output
-	$RH-report -f ./cfg/$config_file --dump-all -c  > report.out || echo "ERROR"
+	$REPORT -f ./cfg/$config_file --dump-all -c  > report.out || echo "ERROR"
 	cat report.out
 
 	# no_pool files must match default
@@ -1191,7 +1277,7 @@ function cleanup
 {
 	echo "cleanup..."
         if (( $quiet == 1 )); then
-                clean_fs | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail"
+                clean_fs | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
         else
                 clean_fs
         fi
@@ -1206,7 +1292,7 @@ function run_test
 		echo "TEST #$index: $1 ($args)"
 
 		if (( $quiet == 1 )); then
-			"$@" 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail"
+			"$@" 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
 		else
 			"$@"
 		fi
