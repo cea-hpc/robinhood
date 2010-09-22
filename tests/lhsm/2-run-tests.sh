@@ -1212,21 +1212,28 @@ function test_pools
 	echo "1.3-checking robinhood log..."
 	grep "Missing attribute" rh_chglogs.log && echo "ERROR missing attribute when matching classes"
 
+	# purge field index
+	if (( $is_hsm != 0 )); then
+		pf=7
+	else
+		pf=5
+	fi	
 
 	# no_pool files must match default
 	for i in 1 2; do
-		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i"
-		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
+		(( $is_hsm != 0 )) &&  \
+			( [ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
+		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i"
-		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
+		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
 
 		# in_pool_2 files must match pool_2
-		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i"
-		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 7 | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
+		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
 	done
 
 	# rematch and recheck
@@ -1241,18 +1248,18 @@ function test_pools
 
 	# no_pool files must match default
 	for i in 1 2; do
-		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i"
-		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
+		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
+		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i"
-		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 7 | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
+		(( $is_hsm != 0 )) &&  ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
 
 		# in_pool_2 files must match pool_2
-		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i"
-		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 7 | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
+		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
 	done
 
 	echo "2.3-checking robinhood log..."
