@@ -1,5 +1,9 @@
-- return value of robinhood when it is killed...
+- limit de taille de groupe/user dynamique
 
+- usage in db when there is no trigger on OST usage...
+
+- voir ce qui ne va pas dans le test #3, #8, #9, #14
+- return value of robinhood when it is killed...
 - selection des tests de non reg suivant le purpose
 
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
@@ -12,21 +16,10 @@
 - exit si trop de blocage?
 
 - return value of robinhood when it is killed...
-
-- selection des tests de non reg suivant le purpose
-
-@TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
-      check that the entry still matches
-
-- nonreg migrate-class, purge-class
-- test summary line ds le mode tmp fs mgr
-
-- alert si le parcours est bloqué
-- exit si trop de blocage?
 
 - wrapper repair table dans rbh-config?
 
-Pusher 220p1 dans la repo oracle
+Pusher 220p2 dans la repo oracle
 
 
 Doc:
