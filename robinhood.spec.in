@@ -208,6 +208,9 @@ fi
 
 %changelog
 
+* Fri Oct 01 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p3
+- [bugfix] handling large UNIX groups (>4k) and long lists of alt groups.
+
 * Mon Sep 20 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p2
 - [bugfix] retrieving Lustre pool fails with error "Unsupported Lustre magic number"
 - [bugfix] wrong class matching on OST pools when scanning
