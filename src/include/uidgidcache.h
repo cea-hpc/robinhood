@@ -32,15 +32,6 @@
 #include <grp.h>
 #include <pwd.h>
 
-/* statistics */
-extern unsigned int pw_nb_set;                   /* miss pw */
-extern unsigned int pw_nb_get;                   /* hit pw  */
-extern unsigned int gr_nb_set;                   /* miss gr */
-extern unsigned int gr_nb_get;                   /* hit gr  */
-extern mem_stat_t stat_mem_pw;
-extern mem_stat_t stat_mem_gr;
-
-
 int            InitUidGid_Cache(  );
 
 struct passwd *GetPwUid( uid_t owner );
