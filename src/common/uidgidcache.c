@@ -54,6 +54,13 @@
 #define ALPHABET_LEN  10
 #define SHIFT         229
 
+/* init buffer size for storing alt groups for a user */
+#define ALT_GROUPS_SZ   1024
+/* init buffer size for group members for a group */
+#define GROUP_MEMB_SZ   4096
+
+#define LOGTAG  "UidGidCache"
+
 /* -------------- cache and hashtables management ------------ */
 
 typedef struct pw_cacheent__
@@ -61,9 +68,10 @@ typedef struct pw_cacheent__
     struct passwd  pw;
 
     /* this buffer is used by getpwnam_r for storing strings.
-     * 512 chars for all group names the user owns to.
+     * it contains all group names the user owns to.
      */
-    char           buffer[512];
+    char           *buffer;
+    int            buf_size;
 
     /* for chaining entries */
     struct pw_cacheent__ *p_next;
@@ -75,10 +83,10 @@ typedef struct gr_cacheent__
 {
     struct group   gr;
 
-    /* this buffer is used by getgr_gid_r for storing
-     * group members (assume about 16*256 members).
+    /* this buffer is used by getgr_gid_r for storing group members.
      */
-    char           buffer[16 * 256];
+    char           *buffer;
+    int            buf_size;
 
     /* for chaining entries */
     struct gr_cacheent__ *p_next;
@@ -86,21 +94,7 @@ typedef struct gr_cacheent__
 } gr_cacheent_t;
 
 
-/* to manage pool of pw entries */
-static size_t  nb_pw_prealloc = 128;
-static pthread_mutex_t mutex_pool_pw = PTHREAD_MUTEX_INITIALIZER;
-static pw_cacheent_t *pool_pw = NULL;
-mem_stat_t     stat_mem_pw = { 0, 0 };
-
-/* to manage pool of gr entries */
-static size_t  nb_gr_prealloc = 64;
-static pthread_mutex_t mutex_pool_gr = PTHREAD_MUTEX_INITIALIZER;
-static gr_cacheent_t *pool_gr = NULL;
-mem_stat_t     stat_mem_gr = { 0, 0 };
-
-
 /* cache of PW entries */
-
 static struct pw_hash_head__
 {
     rw_lock_t      list_lock;
@@ -276,7 +270,7 @@ int InitUidGid_Cache(  )
 struct passwd *GetPwUid( uid_t owner )
 {
     struct passwd *result;
-    pw_cacheent_t *p_pwcacheent;
+    pw_cacheent_t *p_pwcacheent = NULL;
     int            rc;
 
     /* is the entry in the cache? */
@@ -286,34 +280,60 @@ struct passwd *GetPwUid( uid_t owner )
      * and ask the system to fill it */
     if ( result == NULL )
     {
-        /* entry (pool) allocation */
-        GET_PREALLOC( p_pwcacheent, pool_pw, nb_pw_prealloc,
-                      pw_cacheent_t, p_next, mutex_pool_pw, stat_mem_pw );
-
+        /* entry allocation */
+        p_pwcacheent = malloc(sizeof(pw_cacheent_t));
+        if ( p_pwcacheent == NULL )
+            return NULL;
         memset( p_pwcacheent, 0, sizeof( pw_cacheent_t ) );
 
+        p_pwcacheent->buf_size = ALT_GROUPS_SZ;
+        p_pwcacheent->buffer = malloc(p_pwcacheent->buf_size);
+        if ( p_pwcacheent->buffer == NULL )
+            goto out_free;
+
+retry:
         if ( ( ( rc = getpwuid_r( owner, &p_pwcacheent->pw,
                                   p_pwcacheent->buffer,
-                                  sizeof( p_pwcacheent->buffer ),
+                                  p_pwcacheent->buf_size,
                                   &result ) ) != 0 ) || ( result == NULL ) )
         {
+            /* try with larger buff */
+            if (rc == ERANGE)
+            {
+                p_pwcacheent->buf_size *= 2;
+                DisplayLog( LVL_FULL, LOGTAG, "got ERANGE error from getpwuid_r: trying with buf_size=%u",
+                            p_pwcacheent->buf_size );
+                p_pwcacheent->buffer = realloc(p_pwcacheent->buffer,
+                                               p_pwcacheent->buf_size);
+                if ( p_pwcacheent->buffer == NULL )
+                    goto out_free;
+                else
+                    goto retry;
+            }
             if ( ( rc != 0 ) && ( rc != ENOENT ) &&
                  ( rc != ESRCH ) && ( rc != EBADF ) && ( rc != EPERM ) )
-                printf( "ERROR %d in getpwuid_r: %s\n", rc, strerror( rc ) );
-            /* uid not found */
-            RELEASE_PREALLOC( p_pwcacheent, pool_pw, p_next, mutex_pool_pw, stat_mem_pw );
-            return NULL;
+                DisplayLog( LVL_CRIT, LOGTAG, "ERROR %d in getpwuid_r: %s",
+                            rc, strerror( rc ) );
+            goto out_free;
         }
 
         /* insert it to hash table */
         HashInsertPwent( p_pwcacheent );
 
         result = &p_pwcacheent->pw;
-
     }
 
     return result;
 
+out_free:
+    if ( p_pwcacheent != NULL )
+    {
+        if ( p_pwcacheent->buffer != NULL )
+            free(p_pwcacheent->buffer);
+
+        free( p_pwcacheent );
+    }
+    return NULL;
 }
 
 
@@ -332,25 +352,44 @@ struct group  *GetGrGid( gid_t grid )
      * and ask the system to fill it */
     if ( result == NULL )
     {
-        /* entry (pool) allocation */
-        GET_PREALLOC( p_grcacheent, pool_gr, nb_gr_prealloc,
-                      gr_cacheent_t, p_next, mutex_pool_gr, stat_mem_gr );
-
+        /* entry  allocation */
+        p_grcacheent = malloc(sizeof(gr_cacheent_t));
+        if ( p_grcacheent == NULL )
+            return NULL;
         memset( p_grcacheent, 0, sizeof( gr_cacheent_t ) );
 
+        p_grcacheent->buf_size = GROUP_MEMB_SZ;
+        p_grcacheent->buffer = malloc(p_grcacheent->buf_size);
+        if ( p_grcacheent->buffer == NULL )
+            goto out_free;
+
+retry:
         if ( ( ( rc = getgrgid_r( grid, &p_grcacheent->gr,
                                   p_grcacheent->buffer,
-                                  sizeof( p_grcacheent->buffer ),
+                                  p_grcacheent->buf_size,
                                   &result ) ) != 0 ) || ( result == NULL ) )
         {
+            /* try with larger buff */
+            if (rc == ERANGE)
+            {
+                p_grcacheent->buf_size *= 2;
+                DisplayLog( LVL_FULL, LOGTAG, "got ERANGE error from getgrgid_r: trying with buf_size=%u",
+                            p_grcacheent->buf_size );
+                p_grcacheent->buffer = realloc(p_grcacheent->buffer,
+                                               p_grcacheent->buf_size);
+                if ( p_grcacheent->buffer == NULL )
+                    goto out_free;
+                else
+                    goto retry;
+            }
+
             if ( ( rc != 0 ) && ( rc != ENOENT ) &&
                  ( rc != ESRCH ) && ( rc != EBADF ) && ( rc != EPERM ) )
-                DisplayLog( LVL_CRIT, "UidGidCache", "ERROR %d in getgrgid_r : %s", rc,
-                            strerror( rc ) );
+                DisplayLog( LVL_CRIT, LOGTAG, "ERROR %d in getgrgid_r : %s",
+                            rc, strerror( rc ) );
 
             /* gid not found */
-            RELEASE_PREALLOC( p_grcacheent, pool_gr, p_next, mutex_pool_gr, stat_mem_gr );
-            return NULL;
+            goto out_free;
         }
 
         /* insert it to hash table */
@@ -362,4 +401,13 @@ struct group  *GetGrGid( gid_t grid )
 
     return result;
 
+out_free:
+    if ( p_grcacheent != NULL )
+    {
+        if ( p_grcacheent->buffer != NULL )
+            free(p_grcacheent->buffer);
+
+        free( p_grcacheent );
+    }
+    return NULL;
 }

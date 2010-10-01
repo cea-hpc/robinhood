@@ -578,6 +578,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
                 tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
                                        & ~p_op->entry_attr.attr_mask);
+
+                ATTR_MASK_SET( &tmp_attr, arch_cl_update );
+                ATTR_MASK_SET( &tmp_attr, archive_class );
+
+                tmp_attr.attr_mask |= (policies.migr_policies.global_attr_mask
+                                       & ~p_op->entry_attr.attr_mask);
             }
             tmp_attr.attr_mask |= (entry_proc_conf.alert_attr_mask
                                    & ~p_op->entry_attr.attr_mask);
@@ -824,7 +830,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
 
         } /* get_status needed */
-
     }
 
     /* match fileclasses if specified in config */

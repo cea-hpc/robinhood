@@ -71,14 +71,7 @@ int main( int argc, char **argv )
         u = i % 2000 + 2000;
         ppw = GetPwUid( u );
 
-        if ( i % 100 )
-            printf( "cache miss: %u, cache hit: %u\n", pw_nb_set, pw_nb_get );
-
     }
-
-    printf( "pw entry | preallocated: %u, used: %u, size: %lu\n", stat_mem_pw.nb_prealloc,
-            stat_mem_pw.nb_used, stat_mem_pw.nb_prealloc * sizeof( pw_cacheent_t ) );
-
 
     for ( i = 0; i <= 5000; i++ )
     {
@@ -88,14 +81,7 @@ int main( int argc, char **argv )
         g = i % 1000 + 5000;
         pgr = GetGrGid( g );
 
-        if ( i % 100 )
-            printf( "cache miss: %u, cache hit: %u\n", gr_nb_set, gr_nb_get );
-
     }
-
-    printf( "gr entry | preallocated: %u, used: %u, size: %lu\n", stat_mem_gr.nb_prealloc,
-            stat_mem_gr.nb_used, stat_mem_gr.nb_prealloc * sizeof( gr_cacheent_t ) );
-
 
     return 0;
 }

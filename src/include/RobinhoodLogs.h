@@ -76,7 +76,7 @@ void           FlushLogs(  );
 /* Displays a log message */
 void           DisplayLog_( int debug_level, const char *tag, const char *format, ... );
 
-#ifdef _CHECK_LOCK_ARGS
+#ifdef _CHECK_LOG_ARGS
 #define DisplayLog( _l, _t, _fo, ... )	fprintf( stderr, _fo, ## __VA_ARGS__ )
 #else
 #define DisplayLog DisplayLog_

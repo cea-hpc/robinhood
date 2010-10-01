@@ -18,7 +18,6 @@ all_libs=	../logs/liblogs.la \
                 ../policy_modules/purge/libresmonitor.la \
                 ../list_mgr/liblistmgr.la
 
-
 if CHANGELOGS
 all_libs += ../chglog_reader/libchglog_rd.la
 endif
