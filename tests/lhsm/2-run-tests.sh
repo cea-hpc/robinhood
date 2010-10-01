@@ -1069,9 +1069,15 @@ function test_info_collect
 	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-	# 4 files have been created, 4 db operations expected
-	if (( $nb_create == 4 && $nb_db_apply == 4 )); then
-		echo "OK: 4 files created, 4 database operations"
+	if (( $is_hsm != 0 )); then
+		db_expect=4
+	else
+		db_expect=7
+	fi
+	# 4 files have been created, 4 db operations expected (files)
+	# tmp_fs_mgr purpose: +3 for mkdir operations
+	if (( $nb_create == 4 && $nb_db_apply == $db_expect )); then
+		echo "OK: 4 files created, $db_expect database operations"
 	else
 		echo "ERROR: unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
 	fi
@@ -1087,8 +1093,8 @@ function test_info_collect
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
 	# 4 db operations expected (1 for each file)
-	if (( $nb_db_apply == 4 )); then
-		echo "OK: 4 database operations"
+	if (( $nb_db_apply == $db_expect )); then
+		echo "OK: $db_expect database operations"
 	else
 		echo "ERROR: unexpected number of operations: $nb_db_apply database operations"
 	fi
