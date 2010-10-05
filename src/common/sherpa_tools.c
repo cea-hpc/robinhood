@@ -385,8 +385,8 @@ recheck:
                        {
                            if ( st_glob.st_size != stat_cache.st_size )
                            {
-                               DisplayLog( LVL_MAJOR, SHERPA_TAG, "WARNING! size in local cache (%"PRINT_ST_SIZE")"
-                                          " is different from global cache (%"PRINT_ST_SIZE") with the same mtime! (file %s)",
+                               DisplayLog( LVL_MAJOR, SHERPA_TAG, "WARNING! size in local cache (%"PRI_STSZ")"
+                                          " is different from global cache (%"PRI_STSZ") with the same mtime! (file %s)",
                                           stat_cache.st_size, st_glob.st_size, ATTR(p_attrs, fullpath) );
 
                                 if ( st_glob.st_size > stat_cache.st_size )
@@ -452,8 +452,8 @@ recheck:
                     /* sanity check on size */
                     else if ( stat_ref.st_size != stat_cache.st_size )
                     {
-                        DisplayLog( LVL_MAJOR, SHERPA_TAG, "WARNING! size in cache (%"PRINT_ST_SIZE")"
-                                  " is different from reference (%"PRINT_ST_SIZE") with the same mtime! (file %s)",
+                        DisplayLog( LVL_MAJOR, SHERPA_TAG, "WARNING! size in cache (%"PRI_STSZ")"
+                                  " is different from reference (%"PRI_STSZ") with the same mtime! (file %s)",
                                   stat_cache.st_size, stat_ref.st_size, ATTR(p_attrs, fullpath) );
 
                         if ( stat_cache.st_size > stat_ref.st_size )
@@ -628,10 +628,10 @@ recheck:
 
                 FormatDurationFloat( straccess, 256, time( NULL ) - ATTR( p_attrs, last_access ));
 
-                DisplayReport( "Removed %s | reason: %s | last access %s ago | size=%" PRINT_ST_SIZE
-                       ", last_access=%" PRINT_TIME_T ", last_mod=%" PRINT_TIME_T,
+                DisplayReport( "Removed %s | reason: %s | last access %s ago | size=%" PRI_SZ
+                       ", last_access=%" PRI_TT ", last_mod=%" PRI_TT,
                        ATTR(p_attrs, fullpath), cause2str(why), straccess, ATTR( p_attrs, size ),
-                       ATTR( p_attrs , last_access ), ATTR( p_attrs, last_mod ) );
+                       (time_t)ATTR( p_attrs , last_access ), (time_t)ATTR( p_attrs, last_mod ) );
                 break;
             default:
                 DisplayLog(LVL_CRIT, SHERPA_TAG, "Unknown type for entry %s: skipping", ATTR(p_attrs, fullpath));

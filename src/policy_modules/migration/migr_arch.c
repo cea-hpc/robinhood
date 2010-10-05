@@ -1313,7 +1313,7 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
                        ( is_stor ? strstorage : "" ) );
 #else
    DisplayReport( MSG_PREFIX" '%s' using policy '%s', last mod %s ago | size=%"
-                       PRINT_ST_SIZE ", last_mod=%" PRINT_TIME_T "%s%s",
+                       PRI_SZ ", last_mod=%" PRI_TT "%s%s",
                        ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_mod ),

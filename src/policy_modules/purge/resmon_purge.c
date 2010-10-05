@@ -878,7 +878,9 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
  */
 static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_attr_set )
 {
+#ifndef _SHERPA
     struct stat    entry_md;
+#endif
     char * stat_path;
     char fid_path[1024];
 
