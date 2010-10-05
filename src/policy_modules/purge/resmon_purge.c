@@ -1306,7 +1306,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
                     ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id, straccess,
                     strsize, strstorage );
 
-        DisplayReport( ACTION_ED " '%s' using policy '%s', last access %s ago | size=%" PRI_STSZ
+        DisplayReport( ACTION_ED " '%s' using policy '%s', last access %s ago | size=%"PRIu64
                        ", last_access=%" PRI_TT ", last_mod=%" PRI_TT
                        ", storage_units=%s", ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, straccess, ATTR( &new_attr_set, size ),

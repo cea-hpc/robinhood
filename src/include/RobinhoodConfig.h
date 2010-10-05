@@ -332,17 +332,17 @@ int            GetIntParam( config_item_t block,
                             char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
 
 /**
- *  Retrieve a long integer parameter and check its format. 
+ *  Retrieve a 64 bits integer parameter and check its format. 
  *  (a suffix can be used in config file).
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetLongIntParam( config_item_t block,
-                    const char *block_name, char *var_name, int flags,
-                    unsigned long long *target,
-                    char ***extra_args_tab, unsigned int *nb_extra_args,
-                    char *err_msg );
+int GetInt64Param( config_item_t block,
+                   const char *block_name, char *var_name, int flags,
+                   uint64_t *target,
+                   char ***extra_args_tab, unsigned int *nb_extra_args,
+                   char *err_msg );
 
 /**
  *  Retrieve a float parameter and check its format 

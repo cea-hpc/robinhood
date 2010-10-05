@@ -21,6 +21,7 @@
 #include "RobinhoodConfig.h"
 #include "RobinhoodMisc.h"
 #include "analyze.h"
+#include "xplatform_print.h"
 #include <errno.h>
 #include <stdarg.h>
 
@@ -685,15 +686,15 @@ int GetIntParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetLongIntParam( config_item_t block,
-                    const char *block_name, char *var_name, int flags,
-                    unsigned long long *target,
-                    char ***extra_args_tab, unsigned int *nb_extra_args,
-                    char *err_msg )
+int GetInt64Param( config_item_t block,
+                   const char *block_name, char *var_name, int flags,
+                   uint64_t *target,
+                   char ***extra_args_tab, unsigned int *nb_extra_args,
+                   char *err_msg )
 {
     config_item_t  curr_item;
     int            rc, extra, nb_read;
-    unsigned long long intval;
+    uint64_t	   intval;
     char          *name;
     char          *value;
     char           tmpbuf[256];
@@ -723,7 +724,7 @@ int GetLongIntParam( config_item_t block,
         return rc;
     }
 
-    nb_read = sscanf( value, "%llu%256s", &intval, tmpbuf );
+    nb_read = sscanf( value, "%"SCNu64"%256s", &intval, tmpbuf );
     if ( nb_read < 1 )
     {
         sprintf( err_msg, "Invalid value for '%s::%s', line %d: integer expected.", block_name,
@@ -734,13 +735,13 @@ int GetLongIntParam( config_item_t block,
     {
         /* check suffix */
         if ( !strcasecmp( tmpbuf, "k" ) )
-            intval *= 1000; /* thousand */
+            intval *= 1000ULL; /* thousand */
         else if ( !strcasecmp( tmpbuf, "M" ) )
-            intval *= 1000000; /* million */
+            intval *= 1000000ULL; /* million */
         else if ( !strcasecmp( tmpbuf, "G" ) )
-            intval *= 1000000000; /* billion */
+            intval *= 1000000000ULL; /* billion */
         else if ( !strcasecmp( tmpbuf, "T" ) )
-            intval *= 1000000000000; /* trillion */
+            intval *= 1000000000000ULL; /* trillion */
         else
         {
             sprintf( err_msg, "Invalid suffix for '%s::%s', line %d: '%s'. "

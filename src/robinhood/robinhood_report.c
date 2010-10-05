@@ -1429,11 +1429,11 @@ void report_topsize( unsigned int count, int flags )
 #ifdef ATTR_INDEX_status
                     "%15s ,"
 #endif
-                    "%15" PRI_SZ ", %10s, %10s, %20s, %20s, "
+                    "%15" PRIu64 ", %10s, %10s, %20s, %20s, "
 #ifdef ATTR_INDEX_archive_class
                     "%15s, "
 #endif
-                    "%15s, %5u, %7"PRI_SZ ", %8s, %s\n",
+                    "%15s, %5u, %7"PRIu64 ", %8s, %s\n",
                     index, ATTR( &attrs, fullpath ),
 #ifdef ATTR_INDEX_status
                     db_status2str( ATTR( &attrs, status), TRUE ),
@@ -1462,7 +1462,7 @@ void report_topsize( unsigned int count, int flags )
             printf( "Status:            %s\n", db_status2str( ATTR( &attrs, status), FALSE ) );
 #endif
 
-            printf( "Size:              %s   (%" PRI_SZ " bytes)\n", sz,
+            printf( "Size:              %s   (%" PRIu64 " bytes)\n", sz,
                     ATTR( &attrs, size ) );
             printf( "Last access:       %s\n", acc );
             printf( "Last modification: %s\n", mod );
@@ -1479,7 +1479,7 @@ void report_topsize( unsigned int count, int flags )
                  && ( ATTR( &attrs, stripe_info ).stripe_count > 0 ) )
             {
                 printf( "Stripe count:      %u\n", ATTR( &attrs, stripe_info ).stripe_count );
-                printf( "Stripe size:       %s   (%" PRI_SZ " bytes)\n",
+                printf( "Stripe size:       %s   (%" PRIu64 " bytes)\n",
                         FormatFileSize( sz, 128, ATTR( &attrs, stripe_info ).stripe_size ),
                         ATTR( &attrs, stripe_info ).stripe_size );
                 if ( !EMPTY_STRING( ATTR( &attrs, stripe_info ).pool_name ) )
@@ -1597,8 +1597,8 @@ void report_toppurge( unsigned int count, int flags )
         strftime( mod, 128, "%Y/%m/%d %T", localtime_r( &modif, &t ) );
 
         if ( CSV(flags) )
-            printf( "%3u, %-40s, %8s, %20s, %20s, %15" PRI_SZ ", %10llu, %5u, %7"
-                    PRI_SZ ", %8s, %s\n", index, ATTR( &attrs, fullpath ),
+            printf( "%3u, %-40s, %8s, %20s, %20s, %15" PRIu64 ", %10llu, %5u, %7"
+                    PRIu64 ", %8s, %s\n", index, ATTR( &attrs, fullpath ),
                     ATTR( &attrs, type ), acc, mod,
                     ATTR( &attrs, size ),
                     (unsigned long long)ATTR( &attrs, blocks ),
@@ -1617,7 +1617,7 @@ void report_toppurge( unsigned int count, int flags )
             printf( "Type:              %s\n", ATTR( &attrs, type ) );
             printf( "Last access:       %s\n", acc );
             printf( "Last modification: %s\n", mod );
-            printf( "Size:              %s   (%" PRI_SZ " bytes)\n",
+            printf( "Size:              %s   (%" PRIu64 " bytes)\n",
                     FormatFileSize( sz, 128, ATTR( &attrs, size ) ),
                     ATTR( &attrs, size ) );
             printf( "Space used:        %s   (%llu blocks)\n",
@@ -1628,7 +1628,7 @@ void report_toppurge( unsigned int count, int flags )
                  && ( ATTR( &attrs, stripe_info ).stripe_count > 0 ) )
             {
                 printf( "Stripe count:      %u\n", ATTR( &attrs, stripe_info ).stripe_count );
-                printf( "Stripe size:       %s   (%" PRI_SZ " bytes)\n",
+                printf( "Stripe size:       %s   (%" PRIu64 " bytes)\n",
                         FormatFileSize( sz, 128, ATTR( &attrs, stripe_info ).stripe_size ),
                         ATTR( &attrs, stripe_info ).stripe_size );
                 if ( !EMPTY_STRING( ATTR( &attrs, stripe_info ).pool_name ) )

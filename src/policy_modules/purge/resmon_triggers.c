@@ -171,7 +171,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                     "ERROR: statfs on %s returned inconsistent values!!!",
                     storage_descr );
         DisplayLog( LVL_CRIT, RESMON_TAG,
-                    "Detail: blks=%" PRI_STSZ " avail=%" PRI_STSZ " free=%" PRI_STSZ,
+                    "Detail: blks=%" PRIu64 " avail=%" PRIu64 " free=%" PRIu64,
                     p_statfs->f_blocks, p_statfs->f_bavail, p_statfs->f_bfree );
         return -EIO;
     }
@@ -220,7 +220,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
             ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
 
         DisplayLog( LVL_EVENT, RESMON_TAG,
-                    "%s usage: %.2f%% (%lu blocks) / high watermark: %.2f%% (%lu blocks)",
+                    "%s usage: %.2f%% (%"PRIu64" blocks) / high watermark: %.2f%% (%lu blocks)",
                     storage_descr, used_pct, p_statfs->f_blocks - p_statfs->f_bfree,
                     p_trigger->hw_percent, used_hw );
 
@@ -277,7 +277,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                          p_statfs->f_bsize );
 
     DisplayLog( LVL_EVENT, RESMON_TAG,
-                "%lu blocks (x%u) must be purged on %s (used=%lu, target=%lu, block size=%lu)",
+                "%lu blocks (x%u) must be purged on %s (used=%"PRIu64", target=%lu, block size=%zu)",
                 *to_be_purged_512, DEV_BSIZE, storage_descr, p_statfs->f_blocks - p_statfs->f_bfree,
                 block_target, p_statfs->f_bsize );
 
@@ -305,7 +305,7 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
         DisplayLog( LVL_CRIT, RESMON_TAG,
                     "ERROR: statfs on %s returned inconsistent values!!!",
                     storage_descr );
-        DisplayLog( LVL_CRIT, RESMON_TAG, "Detail: total=%lu, free=%lu",
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Detail: total=%"PRIu64", free=%"PRIu64,
                     p_statfs->f_files , p_statfs->f_ffree );
         return -EIO;
     }

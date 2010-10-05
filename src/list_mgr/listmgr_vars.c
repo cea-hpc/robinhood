@@ -81,10 +81,11 @@ int ListMgr_GetVar( lmgr_t * p_mgr, const char *varname, char *value )
 int ListMgr_SetVar( lmgr_t * p_mgr, const char *varname, const char *value )
 {
     char           query[4096];
-    char           escaped[1024];
     int            rc;
 
 #ifdef _MYSQL
+    char           escaped[1024];
+
     /* escape special characters in value */
     mysql_real_escape_string( &p_mgr->conn, escaped, value, strlen( value ) );
 

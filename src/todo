@@ -1,5 +1,3 @@
-- limit de taille de groupe/user dynamique
-
 - usage in db when there is no trigger on OST usage...
 
 - voir ce qui ne va pas dans le test #3, #8, #9, #14

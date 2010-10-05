@@ -196,7 +196,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     unsigned int low_count = 0;
     double         h_pct, l_pct;
     unsigned long long h_vol, l_vol;
-    unsigned long long h_cnt, l_cnt;
+    uint64_t       h_cnt, l_cnt;
     int            tmpval;
     int            i;
     char           tmpstr[1024];
@@ -346,8 +346,8 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     else if ( rc_hv != ENOENT )
         high_count++;
 
-    rc_hc = GetLongIntParam( config_blk, block_name, "high_watermark_cnt",
-                             INT_PARAM_POSITIVE, &h_cnt, NULL, NULL, msg_out );
+    rc_hc = GetInt64Param( config_blk, block_name, "high_watermark_cnt",
+                           INT_PARAM_POSITIVE, &h_cnt, NULL, NULL, msg_out );
     if ( ( rc_hc != 0 ) && ( rc_hc != ENOENT ) )
         return rc_hc;
     else if ( rc_hc != ENOENT )
@@ -368,8 +368,8 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     else if ( rc_lv != ENOENT )
         low_count++;
 
-    rc_lc = GetLongIntParam( config_blk, block_name, "low_watermark_cnt",
-                             INT_PARAM_POSITIVE, &l_cnt, NULL, NULL, msg_out );
+    rc_lc = GetInt64Param( config_blk, block_name, "low_watermark_cnt",
+                           INT_PARAM_POSITIVE, &l_cnt, NULL, NULL, msg_out );
     if ( ( rc_lc != 0 ) && ( rc_lc != ENOENT ) )
         return rc_lc;
     else if ( rc_lc != ENOENT )
