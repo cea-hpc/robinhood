@@ -24,6 +24,7 @@
 #include "RobinhoodConfig.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
+#include "xplatform_print.h"
 
 #include <stdio.h>
 #include <pthread.h>
@@ -1056,7 +1057,8 @@ int ReloadLogConfig( void *module_config )
     if ( conf->stats_interval != log_config.stats_interval )
     {
         DisplayLog_( LVL_MAJOR, "LogConfig",
-                    LOG_CONFIG_BLOCK "::stats_interval modified: '%u'->'%u'",
+                    LOG_CONFIG_BLOCK "::stats_interval modified: "
+                    "'%"PRI_TT"'->'%"PRI_TT"'",
                     log_config.stats_interval, conf->stats_interval );
         log_config.stats_interval = conf->stats_interval;
     }

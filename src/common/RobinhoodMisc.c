@@ -412,8 +412,8 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev )
     if ( ( pathstat.st_dev == parentmntstat.st_dev ) && global_config.check_mounted )
     {
         DisplayLog( LVL_CRIT, "CheckFS",
-                    "/!\\ ERROR /!\\ Filesystem '%s' is not mounted ! dev(%s)=dev(%s)=%"
-                    PRINT_DEV_T, mntdir, parentmntdir, rpath, parentmntstat.st_dev );
+                    "/!\\ ERROR /!\\ Filesystem '%s' is not mounted ! dev(%s)=dev(%s)=%#"
+                    PRIx64, mntdir, parentmntdir, rpath, parentmntstat.st_dev );
         endmntent( fp );
         return ENOENT;
     }

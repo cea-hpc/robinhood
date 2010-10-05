@@ -106,13 +106,13 @@ static int CheckFSDevice(  )
     {
         char buff[1024];
         DisplayLog( LVL_CRIT, RESMON_TAG,
-                    "ERROR: Device number of '%s' has changed !!! (%" PRINT_DEV_T " <> %"
-                    PRINT_DEV_T "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
+                    "ERROR: Device number of '%s' has changed !!! (%" PRI_DT " <> %"
+                    PRI_DT "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
 
         sprintf(buff, "Filesystem changed (%s)", global_config.fs_path );
         RaiseAlert( buff,
-                    "Device number of '%s' has changed !!! (%" PRINT_DEV_T " <> %"
-                    PRINT_DEV_T "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
+                    "Device number of '%s' has changed !!! (%"PRI_DT" <> %"PRI_DT"). Exiting",
+                    global_config.fs_path, fsdev, fsstat.st_dev );
 
         return FALSE;
     }
@@ -171,8 +171,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                     "ERROR: statfs on %s returned inconsistent values!!!",
                     storage_descr );
         DisplayLog( LVL_CRIT, RESMON_TAG,
-                    "Detail: blks=%" PRINT_ST_SIZE " avail=%" PRINT_ST_SIZE
-                    " free=%" PRINT_ST_SIZE,
+                    "Detail: blks=%" PRI_STSZ " avail=%" PRI_STSZ " free=%" PRI_STSZ,
                     p_statfs->f_blocks, p_statfs->f_bavail, p_statfs->f_bfree );
         return -EIO;
     }
@@ -221,7 +220,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
             ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
 
         DisplayLog( LVL_EVENT, RESMON_TAG,
-                    "%s usage: %.2f%% (%Lu blocks) / high watermark: %.2f%% (%lu blocks)",
+                    "%s usage: %.2f%% (%lu blocks) / high watermark: %.2f%% (%lu blocks)",
                     storage_descr, used_pct, p_statfs->f_blocks - p_statfs->f_bfree,
                     p_trigger->hw_percent, used_hw );
 
@@ -278,7 +277,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                          p_statfs->f_bsize );
 
     DisplayLog( LVL_EVENT, RESMON_TAG,
-                "%lu blocks (x%u) must be purged on %s (used=%Lu, target=%lu, block size=%u)",
+                "%lu blocks (x%u) must be purged on %s (used=%lu, target=%lu, block size=%lu)",
                 *to_be_purged_512, DEV_BSIZE, storage_descr, p_statfs->f_blocks - p_statfs->f_bfree,
                 block_target, p_statfs->f_bsize );
 
@@ -307,7 +306,7 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
                     "ERROR: statfs on %s returned inconsistent values!!!",
                     storage_descr );
         DisplayLog( LVL_CRIT, RESMON_TAG, "Detail: total=%lu, free=%lu",
-                    p_statfs->f_files > p_statfs->f_ffree );
+                    p_statfs->f_files , p_statfs->f_ffree );
         return -EIO;
     }
 
@@ -458,7 +457,7 @@ static int check_global_trigger( unsigned trigger_index )
         if ( rc == 0 )
         {
             DisplayLog( LVL_MAJOR, RESMON_TAG, "Global filesystem purge summary: "
-                        "%Lu entries purged (%Lu blocks)/%lu needed in %s",
+                        "%Lu entries purged (%Lu blocks)/%Lu needed in %s",
                         spec, purged, purge_param.nb_inodes, global_config.fs_path );
         }
 
@@ -474,7 +473,7 @@ static int check_global_trigger( unsigned trigger_index )
                 sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
                 RaiseAlert( buff, "Could not purge %Lu entries in filesystem %s: "
                               "not enough eligible files. Only %Lu entries freed.",
-                              global_config.fs_path, purge_param.nb_inodes, purged );
+                              purge_param.nb_inodes, global_config.fs_path, purged );
 
                 snprintf(status_str, 1024, "Not enough eligible files: %Lu/%Lu entries released",
                          purged, purge_param.nb_inodes );
@@ -523,7 +522,7 @@ static int check_global_trigger( unsigned trigger_index )
                 sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
                 RaiseAlert( buff, "Could not purge %lu blocks in filesystem %s: "
                             "not enough eligible files. Only %Lu blocks freed.",
-                            global_config.fs_path, purge_param.nb_blocks, purged );
+                            purge_param.nb_blocks, global_config.fs_path, purged );
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released)",
                          purged, purge_param.nb_blocks );
@@ -672,13 +671,13 @@ static int check_ost_trigger( unsigned trigger_index )
             {
                 update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
-                            "Could not purge %lu blocks in OST #%u: not enough eligible files. Only %lu blocks freed.",
+                            "Could not purge %lu blocks in OST #%u: not enough eligible files. Only %Lu blocks freed.",
                             purge_param.nb_blocks, ost_index, spec );
 
                 sprintf(buff, "cannot purge OST#%u (%s)", ost_index,
                         global_config.fs_path );
                 RaiseAlert( buff, "Could not purge %lu blocks in OST #%u (filesystem %s):\n"
-                            "not enough eligible files. Only %lu blocks freed.",
+                            "not enough eligible files. Only %Lu blocks freed.",
                             purge_param.nb_blocks, ost_index,
                             global_config.fs_path, spec );
 
@@ -1532,13 +1531,13 @@ static void   *force_ost_trigger_thr( void *arg )
         {
             DisplayLog( LVL_CRIT, RESMON_TAG,
                         "Could not purge %lu blocks in OST #%u: not enough eligible files. "
-                        "Only %lu blocks freed.",
+                        "Only %Lu blocks freed.",
                         purge_param.nb_blocks, module_args.ost_index, spec );
 
             sprintf(buff, "cannot purge OST#%u (%s)", module_args.ost_index,
                     global_config.fs_path );
             RaiseAlert( buff, "Could not purge %lu blocks in OST #%u (%s): not enough eligible files. "
-                        "Only %lu blocks freed.",
+                        "Only %Lu blocks freed.",
                         purge_param.nb_blocks, module_args.ost_index,
                         global_config.fs_path, spec );
 

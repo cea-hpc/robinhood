@@ -18,6 +18,7 @@
 
 #include "RobinhoodConfig.h"
 #include "rmdir.h"
+#include "xplatform_print.h"
 #include <errno.h>
 
 #define RMDIR_PARAM_BLOCK   "Rmdir_Parameters"
@@ -147,7 +148,7 @@ int Reload_Rmdir_Config( void *module_config )
     if (rmdir_config.runtime_interval != conf->runtime_interval )
     {
         DisplayLog( LVL_EVENT, "RmdirConfig", RMDIR_PARAM_BLOCK
-                    "::runtime_interval updated: %u->%u",
+                    "::runtime_interval updated: %"PRI_TT"->%"PRI_TT,
                     rmdir_config.runtime_interval, conf->runtime_interval );
         rmdir_config.runtime_interval = conf->runtime_interval;
     }

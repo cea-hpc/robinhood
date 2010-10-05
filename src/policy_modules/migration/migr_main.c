@@ -77,12 +77,12 @@ static int CheckFSDevice(  )
     if ( global_config.stay_in_fs && ( fsdev != fsstat.st_dev ) )
     {
         DisplayLog( LVL_CRIT, MIGR_TAG,
-                    "ERROR: Device id of '%s' has changed !!! (%" PRINT_DEV_T " <> %"
-                    PRINT_DEV_T "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
+                    "ERROR: Device id of '%s' has changed !!! (%" PRI_DT " <> %"
+                    PRI_DT "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
 
         RaiseAlert( "Filesystem changed",
-                     "Device number of '%s' has changed !!! (%" PRINT_DEV_T " <> %"
-                     PRINT_DEV_T "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
+                     "Device number of '%s' has changed !!! (%" PRI_DT " <> %"
+                     PRI_DT "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
 
         return FALSE;
     }

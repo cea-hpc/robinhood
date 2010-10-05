@@ -312,7 +312,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     else
     {
         DisplayLog( LVL_CRIT, PURGE_TAG,
-                    "Unexpected purge parameter in %s(): nb_blocks=%Lu, nb_inodes=%Lu, purge type=%u",
+                    "Unexpected purge parameter in %s(): nb_blocks=%lu, nb_inodes=%Lu, purge type=%u",
                     __FUNCTION__, p_purge_param->nb_blocks, p_purge_param->nb_inodes, p_purge_param->type );
         return EINVAL;
     }
@@ -1304,8 +1304,8 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
                     ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id, straccess,
                     strsize, strstorage );
 
-        DisplayReport( ACTION_ED " '%s' using policy '%s', last access %s ago | size=%" PRINT_ST_SIZE
-                       ", last_access=%" PRINT_TIME_T ", last_mod=%" PRINT_TIME_T
+        DisplayReport( ACTION_ED " '%s' using policy '%s', last access %s ago | size=%" PRI_STSZ
+                       ", last_access=%" PRI_TT ", last_mod=%" PRI_TT
                        ", storage_units=%s", ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, straccess, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_access ),

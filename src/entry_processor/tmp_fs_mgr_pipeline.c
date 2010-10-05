@@ -585,8 +585,8 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         goto rm_record;
                 }
                 else
-                    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "lstat() failed on %s: %s", path,
-                                rc, strerror( rc ) );
+                    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "lstat() failed on %s: %s",
+                                path, strerror( rc ) );
                 /* If lstat returns an error, drop the log record */
                 goto skip_record;
             }

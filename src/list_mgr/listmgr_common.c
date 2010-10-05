@@ -27,7 +27,6 @@
 int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr )
 {
     char escaped[4096];
-    int rc;
 
     switch ( type )
     {
@@ -178,8 +177,11 @@ void           generate_fields( attr_set_t * p_set )
                 /* is source set? */
                 if ( (p_set->attr_mask & src_mask) == 0 )
                 {
-                    DisplayLog( LVL_FULL, LISTMGR_TAG, "Source info '%s' of generated field '%s' is not set "
-                                "in the database" );
+                    DisplayLog( LVL_FULL, LISTMGR_TAG,
+                                "Source info '%s' of generated field '%s' is not set "
+                                "in the database",
+                                field_infos[field_infos[i].gen_index].field_name,
+                                field_infos[i].field_name );
                     p_set->attr_mask &= ~mask;
                     continue;
                 }

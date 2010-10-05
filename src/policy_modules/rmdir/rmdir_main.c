@@ -1094,9 +1094,9 @@ static void   *Thr_Rmdir( void *arg )
                                 ATTR( &p_item->entry_attr, fullpath ), strmod );
 
                     DisplayReport( "Removed empty dir %s unused for %s | "
-                                   "last_mod=%" PRINT_TIME_T,
+                                   "last_mod=%" PRI_TT,
                                    ATTR( &p_item->entry_attr, fullpath ),
-                                   strmod, ATTR( &new_attr_set, last_mod ) );
+                                   strmod, (time_t)ATTR( &new_attr_set, last_mod ) );
 
                     /* remove it from database */
                     rc = ListMgr_Remove( &lmgr, &p_item->entry_id );
@@ -1334,7 +1334,7 @@ int Start_Rmdir( rmdir_config_t * p_config, int flags )
       {
           rc = errno;
           DisplayLog( LVL_CRIT, RMDIR_TAG,
-                      "Error %d starting main thread of Empty Dir Remover: %d: %s", rc,
+                      "Error %d starting main thread of Empty Dir Remover: %s", rc,
                       strerror( rc ) );
           return rc;
       }

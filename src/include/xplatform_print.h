@@ -20,43 +20,37 @@
 #define XPLATFORM_PRINT_H
 
 #include "config.h"
+#include <inttypes.h>
 
 #if SIZEOF_DEV_T == 8
-#	define PRINT_DEV_T "LX"
+#	define PRI_DT PRIX64
 #else
-#	define PRINT_DEV_T "X"
+#	define PRI_DT PRIX32
 #endif
 
-#if SIZEOF_TIME_T == 8
-#	define PRINT_TIME_T "Lu"
-#else
-#	define PRINT_TIME_T "u"
-#endif
+#define PRI_TT "lu"
 
-#define PRINT_SIZE_T "Lu"
+#define PRI_SZ "zu"
 
 #if SIZEOF_PTHREAD_T == 8
-#	define PRINT_PTHREAD_T "Lx"
+#	define PRI_PTH "Lx"
 #else
-#	define PRINT_PTHREAD_T "x"
+#	define PRI_PTH "x"
 #endif
 
 #if SIZEOF_NLINK_T == 8
-#	define PRINT_ST_NLINK "Lu"
+#	define PRI_STNL "Lu"
 #else
-#	define PRINT_ST_NLINK "u"
+#	define PRI_STNL "u"
 #endif
 
-#if SIZEOF_OFF_T == 8
-#       define PRINT_ST_SIZE "Lu"
-#else
-#       define PRINT_ST_SIZE "u"
-#endif
+#define PRI_STSZ "zu"
+
 
 #if SIZEOF_INO_T == 8
-#       define PRINT_ST_INO "Lu"
+#       define PRI_STI "Lu"
 #else
-#       define PRINT_ST_INO "u"
+#       define PRI_STI "u"
 #endif
 
 #endif /* XPLATFORM_PRINT_H */

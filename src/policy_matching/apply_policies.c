@@ -23,6 +23,7 @@
 #include "RobinhoodMisc.h"
 #include "RobinhoodConfig.h"
 #include "uidgidcache.h"
+#include "xplatform_print.h"
 
 #include <string.h>
 #include <libgen.h>
@@ -1092,7 +1093,6 @@ policy_item_t * GetPolicyCaseByClass( const char * class_id,
                                       fileset_item_t ** pp_fileset )
 {
     int            count, i, j;
-    int            default_index = -1;
     policy_item_t *pol_list;
 
     switch ( policy_type )
@@ -1533,19 +1533,19 @@ int need_fileclass_update( const attr_set_t * p_attrs, policy_type_t policy_type
         if ( time(NULL) - last >= policies.updt_policy.fileclass.period_max )
         {
             DisplayLog( LVL_FULL, POLICY_TAG, "Need to update fileclass "
-                        "(out-of-date) (last match=%u)", last );
+                        "(out-of-date) (last match=%"PRI_TT")", last );
             return TRUE;
         }
         else
         {
             /* retrieve previous fileclass */
             DisplayLog( LVL_FULL, POLICY_TAG, "Previously matched fileclass '%s'"
-                        " is still valid (last match=%u)", match, last );
+                        " is still valid (last match=%"PRI_TT")", match, last );
             return FALSE;
         }
     }
     DisplayLog( LVL_CRIT, POLICY_TAG, "ERROR: unexpected case in %s, "
-                "line %s: 'update_fileclass' cannot be determined",
+                "line %u: 'update_fileclass' cannot be determined",
                 __FUNCTION__, __LINE__ );
     return -1;
 }
@@ -1657,7 +1657,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
 
     if ( do_update )
         DisplayLog( LVL_FULL, POLICY_TAG, "Update of %s: reason=%s, "
-                    "last_update=%u", what, why, last );
+                    "last_update=%"PRI_TT, what, why, last );
 
     return do_update;
 }

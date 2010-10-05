@@ -949,6 +949,8 @@ static int read_rmdir_policy( config_file_t config,  rmdir_policy_t *policy, cha
     return 0;
 }
 
+/* USED FOR NOW */
+__attribute__((unused))
 static int reload_rmdir_policy( rmdir_policy_t *policy )
 {
     /** @TODO prevent from concurrent access when rmdir policy is beeing checked */
@@ -2341,7 +2343,7 @@ int SetDefault_Policies( void *module_config, char *msg_out )
         return rc;
 #endif
 
-#ifdef HAVE_UNLINK_POLICY
+#ifdef HAVE_RM_POLICY
     rc = set_default_unlink_policy( &policy->unlink_policy, msg_out );
     if ( rc )
         return rc;

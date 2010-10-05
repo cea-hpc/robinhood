@@ -271,7 +271,7 @@ static int wait_queue_empty( unsigned int nb_submitted,
                         "Waiting for the end of this migr pass: "
                         "still %u files to be archived "
                         "(%u in queue, %u being processed). "
-                        "Last action: %us ago.",
+                        "Last action: %"PRI_TT"s ago.",
                         nb_migr_pending, nb_in_queue,
                         nb_migr_pending - nb_in_queue,
                         time(NULL) - last_activity );
@@ -1304,7 +1304,7 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
 
 #ifdef ATTR_INDEX_last_archive
         DisplayReport( MSG_PREFIX" '%s' using policy '%s', last mod %s ago | size=%"
-                       PRINT_ST_SIZE ", last_mod=%" PRINT_TIME_T ", last_archive=%" PRINT_TIME_T
+                       PRI_STSZ ", last_mod=%" PRI_TT ", last_archive=%" PRI_TT
                        "%s%s", ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_mod ),

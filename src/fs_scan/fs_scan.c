@@ -515,9 +515,8 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         if ( inode.st_dev != fsdev )
         {
             DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                        "%s (0x%.8" PRINT_DEV_T
-                        ") is in a filesystem different from root (0x%.8"
-                        PRINT_DEV_T "), entry ignored", entry_path, inode.st_dev, fsdev );
+                        "%s (0x%.8"PRI_DT") is in a filesystem different from root (0x%.8"
+                        PRI_DT "), entry ignored", entry_path, inode.st_dev, fsdev );
             return -1;
         }
     }

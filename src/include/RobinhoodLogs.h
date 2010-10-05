@@ -74,7 +74,8 @@ void           FlushLogs(  );
 
 
 /* Displays a log message */
-void           DisplayLog_( int debug_level, const char *tag, const char *format, ... );
+void           DisplayLog_( int debug_level, const char *tag, const char *format, ... )
+                    __attribute__((format(printf, 3, 4))); /* 3=format 4=params */
 
 #ifdef _CHECK_LOG_ARGS
 #define DisplayLog( _l, _t, _fo, ... )	fprintf( stderr, _fo, ## __VA_ARGS__ )
@@ -83,10 +84,12 @@ void           DisplayLog_( int debug_level, const char *tag, const char *format
 #endif
 
 /* Displays a line in the report file */
-void           DisplayReport( const char *format, ... );
+void           DisplayReport( const char *format, ... )
+                    __attribute__((format(printf, 1, 2))); /* 1=format 2=params */
 
 /* Displays a line in the alert file / send a mail */
-void           RaiseAlert( const char *title, const char *format, ... );
+void           RaiseAlert( const char *title, const char *format, ... )
+                    __attribute__((format(printf, 2, 3))); /* 2=format 3=params */
 
 void RaiseEntryAlert( const char *alert_name, /* alert name (if set) */
                       const char *alert_string, /* alert description */
