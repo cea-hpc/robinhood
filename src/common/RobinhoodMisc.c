@@ -267,7 +267,24 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
 #endif
 }
 
+#ifndef HAVE_GETMNTENT_R
 
+/* if getmntent_r() does not exists, define it as a wrapper of getmntent().
+ * use a lock to ensure thread-safety.
+ */
+static pthread_mutex_t mntent_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
+                           char *buf, int buflen)
+{
+    struct mntent * pmntent;
+    /* struct mntent *getmntent(FILE *fp); */
+    P(mntent_lock);
+    pmntent = getmntent(fp);
+    V(mntent_lock);
+    return pmntent;
+}
+#endif
 
 /* Check mount point and FS type.
  * Also return the associated device number.
