@@ -872,8 +872,9 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
     struct changelog_rec * logrec = p_op->extra_info.log_record.p_log_rec;
 
-    DisplayLog( LVL_FULL, ENTRYPROC_TAG, "stage %s - record #%llu - id="DFID"\n",
-                stage_info->stage_name, logrec->cr_index, PFID(&p_op->entry_id) );
+    if ( p_op->extra_info.is_changelog_record )
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "stage %s - record #%llu - id="DFID"\n",
+                    stage_info->stage_name, logrec->cr_index, PFID(&p_op->entry_id) );
 
     if ( p_op->callback_func )
     {
