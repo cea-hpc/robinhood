@@ -267,6 +267,12 @@ AC_C_CONST
 AC_TYPE_UID_T
 AC_TYPE_SIZE_T
 
+# Check if getmntent_r exists
+AC_CHECK_FUNC([getmntent_r],[getmntent_r=yes],[getmntent_r=no])
+test "$getmntent_r" = "yes" && AC_DEFINE(HAVE_GETMNTENT_R, 1, [Reentrant version of getmntent exists])
+AM_CONDITIONAL(MNTENTCOMPAT, test "$getmntent_r" = "no" )
+
+
 # for exporting to spec file
 AC_SUBST(ac_configure_args)
 
