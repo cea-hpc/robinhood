@@ -10,7 +10,7 @@ PURPOSE_SRC=sherpa_tools.c
 endif
 if MNTENTCOMPAT
 COMPAT_SRC=mntent_compat.c mntent.h
-fi
+endif
 
 libcommontools_la_SOURCES= RW_Lock.c SemN.c uidgidcache.c RobinhoodMisc.c global_config.c queue.c StringAlloc.c $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
 

@@ -277,11 +277,11 @@ static pthread_mutex_t mntent_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
                            char *buf, int buflen)
 {
-    mntent * pmntent;
+    struct mntent * pmntent;
     /* struct mntent *getmntent(FILE *fp); */
-    P(&mntent_lock);
+    P(mntent_lock);
     pmntent = getmntent(fp);
-    V(&mntent_lock);
+    V(mntent_lock);
     return pmntent;
 }
 #endif
