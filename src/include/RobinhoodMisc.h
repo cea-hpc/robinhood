@@ -25,7 +25,9 @@
 #endif
 
 #include <sys/stat.h>
+#ifndef __FreeBSD__
 #include <sys/vfs.h>
+#endif
 #include <dirent.h>
 #include <stdint.h>
 

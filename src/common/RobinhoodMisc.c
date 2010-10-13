@@ -30,6 +30,10 @@
 #include <mntent.h>             /* for handling mntent */
 #include <libgen.h>             /* for dirname */
 
+#ifndef HAVE_GETMNTENT_R
+#include "mntent_compat.h"
+#endif
+
 
 /* Exa-scale definitions ;-) */
 #define KILO_BYTE  (1024LL)
@@ -107,8 +111,8 @@ int SearchConfig( char * cfg_out )
    DIR * dir;
    struct dirent * ent;
    struct stat stbuf;
-   
-   
+
+
    for ( i = 0, current_path = default_cfg_paths[0];
          current_path != NULL;
          i++, current_path = default_cfg_paths[i] )
@@ -274,6 +278,43 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
  */
 static pthread_mutex_t mntent_lock = PTHREAD_MUTEX_INITIALIZER;
 
+/* copy a mntent structure to caller's buffer */
+static int copy_mntent( struct mntent *mntout, char *buf, int buflen,
+                        const struct mntent * mntin )
+{
+    char * curr = buf;
+
+    if (!buf || !mntout)
+        return EFAULT;
+
+    if (strlen(mntin->mnt_fsname)+1
+        +strlen(mntin->mnt_dir)+1
+        +strlen(mntin->mnt_type)+1
+        +strlen(mntin->mnt_opts)+1 > buflen )
+        return ENOMEM;
+
+    strcpy(curr, mntin->mnt_fsname );
+    mntout->mnt_fsname = curr;
+    curr += strlen(mntin->mnt_fsname)+1;
+
+    strcpy(curr, mntin->mnt_dir );
+    mntout->mnt_dir = curr;
+    curr += strlen(mntin->mnt_dir)+1;
+
+    strcpy(curr, mntin->mnt_type );
+    mntout->mnt_type = curr;
+    curr += strlen(mntin->mnt_type)+1;
+
+    strcpy(curr, mntin->mnt_opts );
+    mntout->mnt_opts = curr;
+    curr += strlen(mntin->mnt_opts)+1;
+
+    mntout->mnt_freq   = mntin->mnt_freq;
+    mntout->mnt_passno = mntin->mnt_passno;
+
+    return 0;
+}
+
 static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
                            char *buf, int buflen)
 {
@@ -281,6 +322,12 @@ static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
     /* struct mntent *getmntent(FILE *fp); */
     P(mntent_lock);
     pmntent = getmntent(fp);
+    /* copy mntent structure to caller buffer */
+    if (pmntent)
+    {
+        if ( copy_mntent(mntbuf, buf, buflen, pmntent) != 0 )
+            pmntent = NULL; /* causes an error */
+    }
     V(mntent_lock);
     return pmntent;
 }

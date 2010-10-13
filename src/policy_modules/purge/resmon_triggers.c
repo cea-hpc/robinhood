@@ -28,7 +28,13 @@
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
+
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#include <sys/mount.h>
+#else /* Linux */
 #include <sys/vfs.h>
+#endif
 
 /* ------------ Types and global variables ------------ */
 

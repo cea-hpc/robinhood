@@ -8,8 +8,11 @@ endif
 if SHERPA
 PURPOSE_SRC=sherpa_tools.c
 endif
+if MNTENTCOMPAT
+COMPAT_SRC=mntent_compat.c mntent_compat.h
+endif
 
-libcommontools_la_SOURCES= RW_Lock.c SemN.c RobinhoodMisc.c global_config.c queue.c StringAlloc.c uidgidcache.c $(FS_SRC) $(PURPOSE_SRC)
+libcommontools_la_SOURCES= RW_Lock.c SemN.c uidgidcache.c RobinhoodMisc.c global_config.c queue.c StringAlloc.c $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
 
 indent:
 	$(top_srcdir)/scripts/indent.sh

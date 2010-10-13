@@ -35,6 +35,7 @@
 #include <dirent.h>
 #include <sys/time.h>           /* for gettimeofday */
 #include <sys/utsname.h>
+#include <libgen.h>
 
 
 fs_scan_config_t fs_scan_config;
