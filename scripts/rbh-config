@@ -428,6 +428,51 @@ function reset_fileclasses
     fi
 }
 
+function repair_db
+{
+    interactive=0
+    if (( $# == 0 )); then
+	interactive=1
+    elif (( $# != 1 && $# != 2 )); then
+	echo "ERROR: 0, 1 or 2 arguments expected"
+    	echo "Usage: repair_db [<db_name> [<db_admin_passwd>]]"
+	exit 1
+    fi
+
+    if (( $interactive != 0)); then
+	    echo
+	    echo "Enter password for root's database account (leave blank if none is set):"
+	    read -p "root's DB password: " -s pass_root
+	    echo
+
+	    select_db $pass_root || exit 1
+
+	    if [ -z $RBH_DB ]; then
+		echo "ERROR: database not specified"
+		exit 1
+	    fi
+    else
+	RBH_DB=$1	
+	pass_root=$2
+    fi
+
+    # get table list
+    echo "Retrieving table list..."
+    tables=`mysql --password="$pass_root" $RBH_DB --batch --skip-column-names -e "SHOW TABLES" | xargs | sed -e 's/ /,/g'`
+
+    echo "Checking/fixing tables..."
+    mysql --password="$pass_root" $RBH_DB -e "REPAIR TABLE $tables"
+
+    if (( $? )); then
+        echo "Command failed"
+        exit 1
+    else
+        echo "DONE"
+    fi
+
+}
+
+
 function test_connect 
 {
     if (( $# != 2 )); then
@@ -473,6 +518,9 @@ elif [[ "$1" = "empty_db" ]]; then
 elif [[ "$1" = "reset_classes" ]]; then
     shift 1
     reset_fileclasses $*
+elif [[ "$1" = "repair_db" ]]; then
+    shift 1
+    repair_db $*
 elif [[ "$1" = "test_db" ]]; then
     shift 1
     test_connect $*
@@ -491,4 +539,6 @@ else
     echo "        reset fileclasses after a change in config file (interactive if no option is specified)"
     echo "    test_db <db_name> <robinhood_passwd>:"
     echo "        test connection to the database"
+    echo "    repair_db [<db_name> [<db_admin_passwd>]]:"
+    echo "        check tables and fix them after a mysql server crash"
 fi

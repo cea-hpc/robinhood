@@ -9,10 +9,7 @@
 - nonreg migrate-class, purge-class
 - test summary line ds le mode tmp fs mgr
 
-- alert si le parcours est bloqué
 - exit si trop de blocage?
-
-- return value of robinhood when it is killed...
 
 - wrapper repair table dans rbh-config?
 

@@ -37,6 +37,10 @@
 #include <sys/utsname.h>
 #include <libgen.h>
 
+// TESTING ONLY: TO BE REMOVED
+#define SIMUL_HANGS
+#include <unistd.h>
+
 
 fs_scan_config_t fs_scan_config;
 int              fsscan_flags = 0;
@@ -1307,7 +1311,7 @@ int Robinhood_CheckScanDeadlines(  )
                  && ( time( NULL ) - thread_list[i].last_action > fs_scan_config.scan_op_timeout ) )
             {
                 DisplayLog( LVL_VERB, FSSCAN_TAG,
-                            "Scan thread #%d seems to be stuck (in %s)",
+                            "Scan thread #%d looks stuck in %s",
                             i, thread_list[i].current_task->path );
 
                 /* check if the task is waiting for a lock */
@@ -1320,10 +1324,18 @@ int Robinhood_CheckScanDeadlines(  )
                 }
                 else
                 {
+                    char tmpbuf[1024];
                     DisplayLog( LVL_MAJOR, FSSCAN_TAG,
                                 "Hang of thread #%d while it was scanning %s (inactive for %ld sec)",
                                 i, thread_list[i].current_task->path,
                                 time( NULL ) - thread_list[i].last_action );
+
+                    snprintf( tmpbuf, 1024, "FS scan is blocked (%s)",
+                              global_config.fs_path );
+                    RaiseAlert( tmpbuf, "A thread has been inactive for %ld sec\n"
+                                "while scanning directory %s",
+                                time( NULL ) - thread_list[i].last_action,
+                                thread_list[i].current_task->path );
 
                     /* restart a thread */
                     if ( TerminateThread( thread_list[i].thread_scan ) == 0 )
@@ -1331,6 +1343,9 @@ int Robinhood_CheckScanDeadlines(  )
                         int            rc;
 
                         nb_hang_total++;
+
+                        /* increment the error counter */
+                        thread_list[i].entries_errors ++;
 
                         /* the monitoring thread does not terminate the task itself,
                          * to avoid blocking it too. We start a recovery thread for
