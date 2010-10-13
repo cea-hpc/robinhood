@@ -90,7 +90,7 @@ if [[ $db = "SQLITE" && $prep = "--enable-prep-stmts" ]]; then echo "skipping co
 
 echo "TEST: $config_cmd"
 
-(CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | | grep -v Werror | egrep -i 'error|warning' \
+(CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | grep -v Werror | egrep -i 'error|warning' \
 		&& ( echo FAILED; ERRORS="$ERRORS Error using compilation switches:$config_cmd\n" )
 
 make clean 2>&1 >/dev/null

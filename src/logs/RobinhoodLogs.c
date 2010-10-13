@@ -447,8 +447,8 @@ void DisplayLog_( int debug_level, const char *tag, const char *format, ... )
         }
 
 
-        /* test if its time to flush */
-        if ( now - last_time_flush_log > TIME_FLUSH_LOG )
+        /* test if its time to flush. Also flush major errors, to display it immediately. */
+        if ( (now - last_time_flush_log > TIME_FLUSH_LOG) || (debug_level >= LVL_MAJOR) )
         {
             fflush( f_log );
             last_time_flush_log = now;

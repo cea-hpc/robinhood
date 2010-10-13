@@ -1307,7 +1307,7 @@ int Robinhood_CheckScanDeadlines(  )
                  && ( time( NULL ) - thread_list[i].last_action > fs_scan_config.scan_op_timeout ) )
             {
                 DisplayLog( LVL_VERB, FSSCAN_TAG,
-                            "Scan thread #%d seems to be stick (in %s)",
+                            "Scan thread #%d seems to be stuck (in %s)",
                             i, thread_list[i].current_task->path );
 
                 /* check if the task is waiting for a lock */
