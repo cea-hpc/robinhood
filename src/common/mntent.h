@@ -1,3 +1,6 @@
+/**
+ * This file has been extracted from FreeBSD fam package. 
+ */
 #ifdef HAVE_MNTENT_H
 #include <mntent.h>
 #else
@@ -15,8 +18,6 @@
 #define MOUNTED "mounted"
 #define MNTTYPE_NFS "nfs"
 
-//#define MOPTSLEN (256 - (MNAMELEN * 2 + MFSNAMELEN + 2 * sizeof(int)))
-
 struct mntent {
 	char *mnt_fsname;   /* file system name */
 	char *mnt_dir; /* file system path prefix */
@@ -28,7 +29,6 @@ struct mntent {
 
 FILE * setmntent(char * filep, char * type);
 struct mntent *getmntent(FILE * filep);
-//char * hasmntopt(struct mntent * mnt, char * opt);
 int endmntent(FILE * filep);
 
 #endif /* mntent_h_ */

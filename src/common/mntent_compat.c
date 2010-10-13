@@ -1,6 +1,8 @@
+/**
+ * This file has been extracted from FreeBSD fam package.
+ */
 #include "mntent.h"
 #include <sys/param.h>
-//#include <sys/ucred.h>
 #include <sys/mount.h>
 #include <fstab.h>
 
