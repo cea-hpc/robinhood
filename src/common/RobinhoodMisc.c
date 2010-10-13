@@ -27,11 +27,12 @@
 #include <errno.h>
 #include <stdio.h>
 #include <pthread.h>
-#include <mntent.h>             /* for handling mntent */
 #include <libgen.h>             /* for dirname */
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
+#else
+#include <mntent.h>             /* for handling mntent */
 #endif
 
 
@@ -477,7 +478,7 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev )
     {
         DisplayLog( LVL_CRIT, "CheckFS",
                     "/!\\ ERROR /!\\ Filesystem '%s' is not mounted ! dev(%s)=dev(%s)=%#"
-                    PRIx64, mntdir, parentmntdir, rpath, parentmntstat.st_dev );
+                    PRIx64, mntdir, parentmntdir, rpath, (uint64_t)parentmntstat.st_dev );
         endmntent( fp );
         return ENOENT;
     }

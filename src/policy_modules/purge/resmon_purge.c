@@ -949,7 +949,7 @@ else
     {
         /* If it has changed, invalidate the entry (fullpath does not match entry_id, it will be updated or removed at next FS scan). */
         DisplayLog( LVL_DEBUG, PURGE_TAG, "Inode of %s changed: old=<%llu,%llu>, "
-                    "new=<%" PRINT_ST_INO ",%" PRINT_DEV_T ">. Tagging it invalid.",
+                    "new=<%" PRI_STI ",%" PRI_DT ">. Tagging it invalid.",
                     ATTR(  &p_item->entry_attr, fullpath ),
                     ( unsigned long long ) p_item->entry_id.inode,
                     ( unsigned long long ) p_item->entry_id.device, entry_md.st_ino,
