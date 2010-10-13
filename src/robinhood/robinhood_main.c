@@ -408,7 +408,7 @@ void          *DumpStats( void *arg )
 }
 
 
-static int     terminate_sig = FALSE;
+static int     terminate_sig = 0;
 static int     reload_sig = FALSE;
 static pthread_t sig_thr;
 
@@ -421,7 +421,7 @@ static void terminate_handler( int sig )
     else if ( sig == SIGINT )
         DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
 
-    terminate_sig = TRUE;
+    terminate_sig = sig;
     FlushLogs(  );
 }
 
@@ -475,7 +475,7 @@ static void   *signal_handler_thr( void *arg )
         /* check for signal every second */
         rh_sleep( 1 );
 
-        if ( terminate_sig )
+        if ( terminate_sig != 0 )
         {
             /** @TODO clean shutdown of other layers */
 
@@ -505,7 +505,8 @@ static void   *signal_handler_thr( void *arg )
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
             FlushLogs(  );
 
-            exit( 0 );
+            /* indicate the process terminated due to a signal */
+            exit( 128 + terminate_sig );
 
         }
         else if ( reload_sig )

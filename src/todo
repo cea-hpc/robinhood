@@ -1,7 +1,6 @@
 - usage in db when there is no trigger on OST usage...
 
 - voir ce qui ne va pas dans le test #3, #8, #9, #14
-- return value of robinhood when it is killed...
 - selection des tests de non reg suivant le purpose
 
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
