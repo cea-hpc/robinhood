@@ -1,20 +1,23 @@
-- usage in db when there is no trigger on OST usage...
+- Error if a fileclass is defined like this (without 'definition' block)
+FileClass { xxx == yyy }
 
-- voir ce qui ne va pas dans le test #3, #8, #9, #14
-- selection des tests de non reg suivant le purpose
+- syslog support
+
+- 
+
+- usage in db when there is no trigger on OST usage...
+- additional info in var table
+
+- verify HSM tests #3, #8, #9, #14
+- switch regression tests depending on the compilation flavor
 
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
       check that the entry still matches
 
 - nonreg migrate-class, purge-class
-- test summary line ds le mode tmp fs mgr
+- test summary line in reports for tmp_fs_mgr flavor
 
-- exit si trop de blocage?
-
-- wrapper repair table dans rbh-config?
-
-Pusher 220p2 dans la repo oracle
-
+Push 220p2 to oracle repository
 
 Doc:
 ====
@@ -30,7 +33,7 @@ Doc:
 
 Features:
 =========
-* prise en compte des classes pour les repertoires
+* take classes into account for directories
 * Daily report (migr, purge, ...)
 * possibilite de n'appliquer un trigger qu'a un sous-repertoire, un fileset ou autre...
 * 'Heriter' des parametres d'un parent
