@@ -178,7 +178,8 @@ static struct option option_tab[] = {
 #ifdef HAVE_RM_POLICY
     {"deferred-rm", no_argument, NULL, 'R' },
 #endif
-    {"dump-all", no_argument, NULL, 'D' },
+    {"dump", no_argument, NULL, 'D' },
+    {"dump-all", no_argument, NULL, 'D' }, /* for backward compatibility */
     {"dump-user", required_argument, NULL, OPT_DUMP_USER },
     {"dump-group", required_argument, NULL, OPT_DUMP_GROUP },
 #ifdef _LUSTRE
@@ -257,7 +258,7 @@ static const char *help_string =
     "    " _B "--deferred-rm" B_ ", " _B "-R" B_ "\n"
     "        Display files to be removed from HSM.\n"
 #endif
-    "    "  _B "--dump-all" B_ ", " _B "-D" B_ "\n"
+    "    "  _B "--dump" B_ ", " _B "-D" B_ "\n"
     "        Dump all filesystem entries.\n"
     "    "  _B "--dump-user" B_ " " _U "user" U_ "\n"
     "        Dump all entries for the given user.\n"

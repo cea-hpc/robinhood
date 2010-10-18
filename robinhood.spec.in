@@ -208,7 +208,7 @@ fi
 
 %changelog
 
-* Thu Sep 30 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.1
+* Tue Oct 19 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.1
 - [feature] new purge command: --purge-class to apply purge policy on files in a given class
 - [feature] new migration command: --migrate-class to apply migration policy on files in a given class
 - [report cmd] Added summary line to all reports, with total nbr entries and volume.

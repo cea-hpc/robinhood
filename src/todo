@@ -1,6 +1,3 @@
-- Error if a fileclass is defined like this (without 'definition' block)
-FileClass { xxx == yyy }
-
 - syslog support
 - criteria on stripe_count
 
