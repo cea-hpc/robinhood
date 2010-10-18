@@ -5,7 +5,7 @@
 AC_PREREQ(2.59)
 
 AC_INIT( [robinhood], [2.2.1], [robinhood-support@lists.sourceforge.net])
-AC_SUBST( [RELEASE], [0.rc1] )
+AC_SUBST( [RELEASE], [0.rc2] )
 
 AC_CONFIG_AUX_DIR([autotools])
 AC_CONFIG_MACRO_DIR([autotools/m4])
@@ -156,8 +156,8 @@ AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="
 
 # Purpose ?
 
-AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=LUSTRE_HSM|TMP_FS_MGR|SHERPA],[specify the purpose of the daemon] ),
-             PURPOSE="$withval", PURPOSE="LUSTRE_HSM")
+AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|SHERPA],[specify the purpose of the daemon] ),
+             PURPOSE="$withval", PURPOSE="TMP_FS_MGR")
 
 AM_CONDITIONAL(LUSTRE_HSM,     test "$PURPOSE" = "LUSTRE_HSM")
 AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR")
