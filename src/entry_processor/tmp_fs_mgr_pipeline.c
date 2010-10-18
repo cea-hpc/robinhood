@@ -149,10 +149,16 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     if ( logrec->cr_type == CL_UNLINK )
     {
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+#ifdef CLF_UNLINK_LAST
                     "UNLINK on %s entry "DFID": last=%s",
                     p_op->db_exists?"known":"unknown", PFID(&p_op->entry_id),
                     bool2str( logrec->cr_flags & CLF_UNLINK_LAST ) );
+#else
+                    "UNLINK on %s entry "DFID,
+                    p_op->db_exists?"known":"unknown", PFID(&p_op->entry_id));
+#endif
 
+#ifdef CLF_UNLINK_LAST
         /* it it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
         {
@@ -165,7 +171,9 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             else
                 return STAGE_CHGLOG_CLR;
         }
-        else if ( p_op->db_exists ) /* entry still exists and is known in DB */
+        else
+#endif
+        if ( p_op->db_exists ) /* entry still exists and is known in DB */
         {
             /* Force updating the path, because the path we have may be
              * the removed one. */
@@ -261,6 +269,17 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             p_op->extra_info.getstripe_needed = TRUE;
             return STAGE_GET_INFO_FS;
         }
+#ifndef CLF_UNLINK_LAST
+        /* if the log record does not indicate if the entry still exists,
+         * force performing "lstat()" on UNLINK, to verify if the entry
+         * still exists */
+        else if (logrec->cr_type == CL_UNLINK )
+        {
+            p_op->extra_info_is_set = TRUE;
+            p_op->extra_info.getattr_needed = TRUE;
+            return STAGE_GET_INFO_FS;
+        }
+#endif
 
         /* compare to the name in changelog */
         if ( allow_path_updt && (logrec->cr_namelen > 0) )

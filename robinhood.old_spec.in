@@ -229,6 +229,7 @@ fi
 - [report cmd] Added summary line to all reports, with total nbr entries and volume.
 - [report cmd] Added '-q' option to hide headers and footers in reports.
 - [misc.] new command 'repair_db' in rbh-config, to fix tables after a MySQL server crash.
+- [compat.] Support for Lustre MDT changelogs on Lustre v2.0 final
 - [compat.] port to FreeBSD
 
 * Mon Sep 20 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0p2
