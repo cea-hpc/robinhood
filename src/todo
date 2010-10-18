@@ -2,8 +2,9 @@
 FileClass { xxx == yyy }
 
 - syslog support
+- criteria on stripe_count
 
-- 
+- check error "filed still missing 0x8"
 
 - usage in db when there is no trigger on OST usage...
 - additional info in var table

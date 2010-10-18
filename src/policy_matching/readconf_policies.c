@@ -1471,6 +1471,7 @@ static int read_filesets( config_file_t config, fileset_list_t * fileset_list,
                 goto clean_filesets;
             }
 
+
             /* check that class name is not already used */
             for ( j = 0; j < i; j++ )
             {
@@ -1492,178 +1493,189 @@ static int read_filesets( config_file_t config, fileset_list_t * fileset_list,
                 critical_err_check_goto( sub_item, FILESET_BLOCK, clean_filesets );
                 char          *subitem_name;
 
-                if ( rh_config_ItemType( sub_item ) == CONFIG_ITEM_BLOCK )
+                switch ( rh_config_ItemType( sub_item ) )
                 {
-                    subitem_name = rh_config_GetBlockName( sub_item );
-                    critical_err_check_goto( subitem_name, FILESET_BLOCK, clean_filesets );
-
-                    if ( strcasecmp( subitem_name, DEFINITION_BLOCK ) != 0 )
+                    case CONFIG_ITEM_BLOCK:
                     {
-                        sprintf( msg_out,
-                                 "'%s' sub-block unexpected in " FILESET_BLOCK " block, line %d.",
-                                 subitem_name, rh_config_GetItemLine( sub_item ) );
-                        rc = EINVAL;
-                        goto clean_filesets;
-                    }
+                        subitem_name = rh_config_GetBlockName( sub_item );
+                        critical_err_check_goto( subitem_name, FILESET_BLOCK, clean_filesets );
 
-                    /* check double definition */
-                    if ( definition_done )
-                    {
-                        sprintf( msg_out, "Double fileclass definition in "
-                                 FILESET_BLOCK " block, line %d.",
-                                 rh_config_GetItemLine( sub_item ) );
-                        rc = EINVAL;
-                        goto clean_filesets;
-                    }
+                        if ( strcasecmp( subitem_name, DEFINITION_BLOCK ) != 0 )
+                        {
+                            sprintf( msg_out,
+                                     "'%s' sub-block unexpected in " FILESET_BLOCK " block, line %d.",
+                                     subitem_name, rh_config_GetItemLine( sub_item ) );
+                            rc = EINVAL;
+                            goto clean_filesets;
+                        }
 
-                    /* 2 possible definition types expected: boolean expression
-                     * or fileset union and/or intersection */
-                    switch ( rh_config_ContentType( sub_item ) )
-                    {
-                        case CONFIG_ITEM_BOOL_EXPR:
-                            /* analyze boolean expression */
-                            rc = GetBoolExpr( sub_item, DEFINITION_BLOCK,
-                                              &fileset_list->fileset_list[i].definition,
-                                              &fileset_list->fileset_list[i].attr_mask, msg_out );
-                            if ( rc )
-                                goto clean_filesets;
-                            break;
+                        /* check double definition */
+                        if ( definition_done )
+                        {
+                            sprintf( msg_out, "Double fileclass definition in "
+                                     FILESET_BLOCK " block, line %d.",
+                                     rh_config_GetItemLine( sub_item ) );
+                            rc = EINVAL;
+                            goto clean_filesets;
+                        }
 
-                        case CONFIG_ITEM_SET:
-                            /* Build a policy boolean expression from a
-                             * union/intersection or fileclasses */
-                            rc = GetSetExpr( sub_item, DEFINITION_BLOCK,
-                                             &fileset_list->fileset_list[i].definition,
-                                             &fileset_list->fileset_list[i].attr_mask,
-                                             fileset_list, msg_out );
-                            if ( rc )
-                                goto clean_filesets;
-                            break;
+                        /* 2 possible definition types expected: boolean expression
+                         * or fileset union and/or intersection */
+                        switch ( rh_config_ContentType( sub_item ) )
+                        {
+                            case CONFIG_ITEM_BOOL_EXPR:
+                                /* analyze boolean expression */
+                                rc = GetBoolExpr( sub_item, DEFINITION_BLOCK,
+                                                  &fileset_list->fileset_list[i].definition,
+                                                  &fileset_list->fileset_list[i].attr_mask, msg_out );
+                                if ( rc )
+                                    goto clean_filesets;
+                                break;
 
-                        default:
-                            sprintf( msg_out, "Boolean expression or set-based definition expected in block '%s', "
-                                     "line %d", subitem_name,
-                                     rh_config_GetItemLine( ( config_item_t ) sub_item ) );
-                            return EINVAL;
-                    }
+                            case CONFIG_ITEM_SET:
+                                /* Build a policy boolean expression from a
+                                 * union/intersection or fileclasses */
+                                rc = GetSetExpr( sub_item, DEFINITION_BLOCK,
+                                                 &fileset_list->fileset_list[i].definition,
+                                                 &fileset_list->fileset_list[i].attr_mask,
+                                                 fileset_list, msg_out );
+                                if ( rc )
+                                    goto clean_filesets;
+                                break;
 
-                    fileset_list->global_attr_mask |= fileset_list->fileset_list[i].attr_mask;
-                    definition_done = TRUE;
+                            default:
+                                sprintf( msg_out, "Boolean expression or set-based definition expected in block '%s', "
+                                         "line %d", subitem_name,
+                                         rh_config_GetItemLine( ( config_item_t ) sub_item ) );
+                                return EINVAL;
+                        }
+
+                        fileset_list->global_attr_mask |= fileset_list->fileset_list[i].attr_mask;
+                        definition_done = TRUE;
 
 
-                    if (  fileset_list->fileset_list[i].attr_mask & (
+                        if (  fileset_list->fileset_list[i].attr_mask & (
 #ifdef _LUSTRE_HSM
-                        ATTR_MASK_last_archive | ATTR_MASK_last_restore |
+                            ATTR_MASK_last_archive | ATTR_MASK_last_restore |
 #endif
-                        ATTR_MASK_last_access | ATTR_MASK_last_mod ) )
-                    {
-                       DisplayLog( LVL_MAJOR, CHK_TAG, "WARNING: in FileClass '%s', line %d: "
-                                   "time-based conditions should be specified in policy condition instead of file class definition",
-                                   fileset_list->fileset_list[i].fileset_id, rh_config_GetItemLine( sub_item ));
+                            ATTR_MASK_last_access | ATTR_MASK_last_mod ) )
+                        {
+                           DisplayLog( LVL_MAJOR, CHK_TAG, "WARNING: in FileClass '%s', line %d: "
+                                       "time-based conditions should be specified in policy condition instead of file class definition",
+                                       fileset_list->fileset_list[i].fileset_id, rh_config_GetItemLine( sub_item ));
+                        }
+                        break;
                     }
+                    case CONFIG_ITEM_VAR:
+                    {
+                        char          *value = NULL;
+                        int            extra_args = FALSE;
 
-
-                }
-                else            /* not a block */
-                {
-                    char          *value = NULL;
-                    int            extra_args = FALSE;
-
-                    rc = rh_config_GetKeyValue( sub_item, &subitem_name, &value, &extra_args );
-                    if ( rc )
-                        goto clean_filesets;
+                        rc = rh_config_GetKeyValue( sub_item, &subitem_name, &value, &extra_args );
+                        if ( rc )
+                            goto clean_filesets;
 
 #ifdef HAVE_MIGR_POLICY
-                    /* handle migration hints (if supported) */
-                    if ( strcasecmp( subitem_name, "migration_hints" ) == 0 )
-                    {
-                        if ( extra_args )
+                        /* handle migration hints (if supported) */
+                        if ( strcasecmp( subitem_name, "migration_hints" ) == 0 )
                         {
-                            sprintf( msg_out,
-                                     "Unexpected arguments for migration_hints parameter, line %d.",
-                                     rh_config_GetItemLine( sub_item ) );
-                            rc = EINVAL;
-                            goto clean_filesets;
-                        }
-
-                        /* get attribute mask for this hint */
-                        rc = hints_mask( value );
-                        if ( rc < 0 )
-                            goto clean_filesets;
-                        fileset_list->fileset_list[i].attr_mask |= rc;
-                        fileset_list->global_attr_mask |= rc;
-
-                        /* append migration hints */
-                        if ( EMPTY_STRING( fileset_list->fileset_list[i].migration_hints ) )
-                        {
-                            if ( strlen( value ) > HINTS_LEN )
+                            if ( extra_args )
                             {
                                 sprintf( msg_out,
-                                         "Value to large for migration_hints line %d (max: %d).",
-                                         rh_config_GetItemLine( sub_item ), HINTS_LEN );
-                                rc = EOVERFLOW;
+                                         "Unexpected arguments for migration_hints parameter, line %d.",
+                                         rh_config_GetItemLine( sub_item ) );
+                                rc = EINVAL;
                                 goto clean_filesets;
                             }
 
-                            strcpy( fileset_list->fileset_list[i].migration_hints, value );
-                        }
-                        else        /* append with ',' */
-                        {
-                            int            prev_len =
-                                strlen( fileset_list->fileset_list[i].migration_hints );
-                            if ( prev_len + strlen( value ) + 1 > HINTS_LEN )
-                            {
-                                sprintf( msg_out,
-                                         "Value to large for migration_hints line %d (max: %d).",
-                                         rh_config_GetItemLine( sub_item ), HINTS_LEN );
-                                rc = EOVERFLOW;
+                            /* get attribute mask for this hint */
+                            rc = hints_mask( value );
+                            if ( rc < 0 )
                                 goto clean_filesets;
-                            }
+                            fileset_list->fileset_list[i].attr_mask |= rc;
+                            fileset_list->global_attr_mask |= rc;
 
-                            fileset_list->fileset_list[i].migration_hints[prev_len] = ',';
-                            strcpy( fileset_list->fileset_list[i].migration_hints + prev_len + 1,
-                                    value );
+                            /* append migration hints */
+                            if ( EMPTY_STRING( fileset_list->fileset_list[i].migration_hints ) )
+                            {
+                                if ( strlen( value ) > HINTS_LEN )
+                                {
+                                    sprintf( msg_out,
+                                             "Value to large for migration_hints line %d (max: %d).",
+                                             rh_config_GetItemLine( sub_item ), HINTS_LEN );
+                                    rc = EOVERFLOW;
+                                    goto clean_filesets;
+                                }
+
+                                strcpy( fileset_list->fileset_list[i].migration_hints, value );
+                            }
+                            else        /* append with ',' */
+                            {
+                                int            prev_len =
+                                    strlen( fileset_list->fileset_list[i].migration_hints );
+                                if ( prev_len + strlen( value ) + 1 > HINTS_LEN )
+                                {
+                                    sprintf( msg_out,
+                                             "Value to large for migration_hints line %d (max: %d).",
+                                             rh_config_GetItemLine( sub_item ), HINTS_LEN );
+                                    rc = EOVERFLOW;
+                                    goto clean_filesets;
+                                }
+
+                                fileset_list->fileset_list[i].migration_hints[prev_len] = ',';
+                                strcpy( fileset_list->fileset_list[i].migration_hints + prev_len + 1,
+                                        value );
+                            }
                         }
-                    }
-                    /* only migration hints expected */
-                    else
+                        /* only migration hints expected */
+                        else
 #endif
 #ifdef _LUSTRE_HSM
-                    /* manage archive_num */
-                    if ( strcasecmp( subitem_name, "archive_num" ) == 0 )
-                    {
-                        int tmp;
+                        /* manage archive_num */
+                        if ( strcasecmp( subitem_name, "archive_num" ) == 0 )
+                        {
+                            int tmp;
 
-                        if ( extra_args )
-                        {
-                            sprintf( msg_out,
-                                     "Unexpected arguments for archive_num parameter, line %d.",
-                                     rh_config_GetItemLine( sub_item ) );
-                            rc = EINVAL;
-                            goto clean_filesets;
+                            if ( extra_args )
+                            {
+                                sprintf( msg_out,
+                                         "Unexpected arguments for archive_num parameter, line %d.",
+                                         rh_config_GetItemLine( sub_item ) );
+                                rc = EINVAL;
+                                goto clean_filesets;
+                            }
+                            tmp = str2int( value );
+                            if ( tmp <= 0 )
+                            {
+                                sprintf( msg_out,
+                                         "Positive integer expected for archive_num parameter, line %d.",
+                                         rh_config_GetItemLine( sub_item ) );
+                                rc = EINVAL;
+                                goto clean_filesets;
+                            }
+                            fileset_list->fileset_list[i].archive_num = tmp;
                         }
-                        tmp = str2int( value );
-                        if ( tmp <= 0 )
-                        {
-                            sprintf( msg_out,
-                                     "Positive integer expected for archive_num parameter, line %d.",
-                                     rh_config_GetItemLine( sub_item ) );
-                            rc = EINVAL;
-                            goto clean_filesets;
-                        }
-                        fileset_list->fileset_list[i].archive_num = tmp;
-                    }
-                    else
+                        else
 #endif
-                    {
-                        sprintf( msg_out,
-                                 "'%s' parameter unexpected in " FILESET_BLOCK " block, line %d.",
-                                 subitem_name, rh_config_GetItemLine( sub_item ) );
-                        rc = EINVAL;
-                        goto clean_filesets;
+                        {
+                            sprintf( msg_out,
+                                     "'%s' parameter unexpected in " FILESET_BLOCK " block, line %d.",
+                                     subitem_name, rh_config_GetItemLine( sub_item ) );
+                            rc = EINVAL;
+                            goto clean_filesets;
+                        }
+                        break;
                     }
-                }
-            }                   /* loop on "fileclass" block content */
+                    default :
+                        /* unexpected content */
+                            sprintf( msg_out,
+                                     "Unexpected item in "FILESET_BLOCK" block, line %d.",
+                                     rh_config_GetItemLine( sub_item ) );
+                            rc = EINVAL;
+                            goto clean_filesets;
+                } /* switch on item type */
+
+            } /* loop on "fileclass" block content */
 
             if (!definition_done)
             {
