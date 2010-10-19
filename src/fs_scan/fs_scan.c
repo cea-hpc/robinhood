@@ -1334,7 +1334,15 @@ int Robinhood_CheckScanDeadlines(  )
                                 time( NULL ) - thread_list[i].last_action,
                                 thread_list[i].current_task->path );
 
-                    /* restart a thread */
+                    /* if the config says to exit on timeout => do it */
+                    if ( fs_scan_config.exit_on_timeout )
+                    {
+                            DisplayLog( LVL_CRIT, FSSCAN_TAG,
+                                        "exit_on_timeout is set in config file => EXITING" );
+                            Exit( ETIMEDOUT );
+                    }
+
+                    /* else restart the hung thread */
                     if ( TerminateThread( thread_list[i].thread_scan ) == 0 )
                     {
                         int            rc;

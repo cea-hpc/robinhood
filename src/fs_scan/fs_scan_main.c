@@ -211,6 +211,7 @@ int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
     conf->scan_retry_delay = HOUR;
     conf->nb_threads_scan = 2;
     conf->scan_op_timeout = HOUR;
+    conf->exit_on_timeout = FALSE;
     conf->spooler_check_interval = MINUTE;
     conf->nb_prealloc_tasks = 256;
 
@@ -233,6 +234,7 @@ int FSScan_WriteDefaultConfig( FILE * output )
     print_line( output, 1, "scan_retry_delay       :    1h" );
     print_line( output, 1, "nb_threads_scan        :     2" );
     print_line( output, 1, "scan_op_timeout        :    1h" );
+    print_line( output, 1, "exit_on_timeout        : FALSE" );
     print_line( output, 1, "spooler_check_interval :  1min" );
     print_line( output, 1, "nb_prealloc_tasks      :   256" );
     print_line( output, 1, "ignore                 :   NONE" );
@@ -257,8 +259,8 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
     static const char * fsscan_allowed[] =
     {
         "min_scan_interval", "max_scan_interval", "scan_retry_delay",
-        "nb_threads_scan", "scan_op_timeout", "spooler_check_interval",
-        "nb_prealloc_tasks", IGNORE_BLOCK,
+        "nb_threads_scan", "scan_op_timeout", "exit_on_timeout",
+        "spooler_check_interval", "nb_prealloc_tasks", IGNORE_BLOCK,
         NULL
     };
 
@@ -309,8 +311,14 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "scan_op_timeout", INT_PARAM_POSITIVE,    /* 0 is authorized : no timeout */
+    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "scan_op_timeout",
+                            INT_PARAM_POSITIVE,    /* 0 is authorized => no timeout */
                            ( int * ) &conf->scan_op_timeout, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetBoolParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "exit_on_timeout", 0,
+                       (int*)&conf->exit_on_timeout, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
@@ -463,6 +471,15 @@ int FSScan_ReloadConfig( void *module_config )
         fs_scan_config.scan_op_timeout = conf->scan_op_timeout;
     }
 
+    if ( conf->exit_on_timeout != fs_scan_config.exit_on_timeout )
+    {
+        DisplayLog( LVL_EVENT, "FS_Scan_Config",
+                    FSSCAN_CONFIG_BLOCK "::exit_on_timeout updated: %s->%s",
+                    bool2str(fs_scan_config.exit_on_timeout),
+                    bool2str(conf->exit_on_timeout) );
+        fs_scan_config.exit_on_timeout = conf->exit_on_timeout;
+    }
+
     if ( conf->spooler_check_interval != fs_scan_config.spooler_check_interval )
     {
         DisplayLog( LVL_EVENT, "FS_Scan_Config",
@@ -519,6 +536,8 @@ int FSScan_WriteConfigTemplate( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "# timeout for operations on the filesystem" );
     print_line( output, 1, "scan_op_timeout        =    1h ;" );
+    print_line( output, 1, "# exit if operation timeout is reached?" );
+    print_line( output, 1, "exit_on_timeout        =    TRUE ;" );
     fprintf( output, "\n" );
 
     print_line( output, 1,

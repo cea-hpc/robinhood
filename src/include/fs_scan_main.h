@@ -45,6 +45,7 @@ typedef struct fs_scan_config_t
     unsigned int   scan_retry_delay;
     unsigned int   nb_threads_scan;
     unsigned int   scan_op_timeout;
+    unsigned int   exit_on_timeout;
 
     /**
      * interval of the spooler (checks for audits to be launched,
