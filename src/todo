@@ -1,4 +1,3 @@
-- syslog support
 - criteria on stripe_count
 
 - check error "filed still missing 0x8"

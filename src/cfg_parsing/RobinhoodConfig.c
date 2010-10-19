@@ -328,7 +328,8 @@ int GetStringParam( config_item_t block,
     /* are stdio names allowed ? */
     if ( flags & STDIO_ALLOWED )
     {
-        if ( !strcasecmp( target, "stdout" ) || !strcasecmp( target, "stderr" ) )
+        if ( !strcasecmp( target, "stdout" ) || !strcasecmp( target, "stderr" )
+             || !strcasecmp( target, "syslog") )
             return 0;
     }
 

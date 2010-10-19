@@ -36,9 +36,6 @@
 #include <sys/time.h>           /* for gettimeofday */
 #include <sys/utsname.h>
 #include <libgen.h>
-
-// TESTING ONLY: TO BE REMOVED
-#define SIMUL_HANGS
 #include <unistd.h>
 
 

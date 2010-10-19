@@ -37,6 +37,9 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#define SYSLOG_NAMES /* to get the array of syslog facilities */
+#include <syslog.h>
+
 /* test that log file exists every 5min (compliency with log rotation) */
 #define TIME_TEST_FILE     300
 
@@ -59,15 +62,37 @@
 
 static int     log_initialized = FALSE;
 
-static log_config_t log_config;
+static log_config_t log_config = {
+    .debug_level = LVL_EVENT, /* used for non-itilialized logging */
+    .syslog_facility = LOG_LOCAL1,
+    .syslog_priority = LOG_INFO
+};
 
-static FILE   *f_log = NULL;
-static FILE   *f_rapport = NULL;
-static FILE   *f_alert = NULL;
+/* type for log descriptors */
+typedef struct _log_stream_
+{
+    enum  {
+            RBH_LOG_DEFAULT,
+            RBH_LOG_REGFILE,
+            RBH_LOG_STDIO,
+            RBH_LOG_SYSLOG
+    } log_type;
 
-static ino_t   log_inode = 0;
-static ino_t   rapport_inode = 0;
-static ino_t   alert_inode = 0;
+    FILE * f_log; /* for regfile and stdio */
+    ino_t  f_ino; /* for regfile */
+} log_stream_t;
+
+#define RBH_LOG_INITIALIZER { .log_type = RBH_LOG_DEFAULT, \
+                          .f_log    = NULL,        \
+                          .f_ino    = -1, }
+/* log descriptors for each purpose (log, reports, alerts) */
+
+static log_stream_t log     = RBH_LOG_INITIALIZER;
+static log_stream_t report  = RBH_LOG_INITIALIZER;
+static log_stream_t alert   = RBH_LOG_INITIALIZER;
+
+/* syslog info */
+static int syslog_opened = FALSE;
 
 /* Check if the log file has been rotated
  * after a given delay.
@@ -160,78 +185,111 @@ static unsigned int GetThreadIndex(  )
 #endif
 }
 
+/* initialize a single log descriptor */
+static int init_log_descr( const char * logname, log_stream_t * p_log )
+{
+    struct stat    filestat;
+
+    p_log->f_ino  = -1;
+
+    if ( !strcasecmp( logname, "stdout" ) )
+    {
+        p_log->log_type = RBH_LOG_STDIO;
+        p_log->f_log  = stdout;
+    }
+    else if ( !strcasecmp( logname, "stderr" ) )
+    {
+        p_log->log_type = RBH_LOG_STDIO;
+        p_log->f_log  = stderr;
+    }
+    else if ( !strcasecmp( logname, "syslog" ) )
+    {
+        p_log->log_type = RBH_LOG_SYSLOG;
+        p_log->f_log  = NULL;
+
+        /* open syslog once */
+        if ( !syslog_opened )
+        {
+            openlog(prog_name, LOG_PID, log_config.syslog_facility );
+            syslog_opened = TRUE;
+        }
+    }
+    else /* log to regular file */
+    {
+        p_log->log_type = RBH_LOG_REGFILE;
+        p_log->f_log = fopen( logname, "a" );
+
+        if ( p_log->f_log == NULL )
+            return -1;
+
+        if ( fstat( fileno( p_log->f_log ), &filestat ) != -1 )
+            p_log->f_ino = filestat.st_ino;
+    }
+    return 0;
+}
+
+/* check syslog facility name.
+ * keep p_level unchanged if not specified.
+ */
+static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_level )
+{
+    char descr_cp[256];
+    char * curr;
+    int i;
+    int match;
+
+    strncpy(descr_cp, descriptor, 256 );
+    curr = strchr(descr_cp, '.');
+    if ( curr != NULL )
+    {
+        curr[0]='\0';
+        curr++; /* location of syslog level */
+    }
+
+    match = FALSE;
+    for ( i = 0; facilitynames[i].c_name != NULL; i++ )
+    {
+        if ( !strcasecmp(facilitynames[i].c_name, descr_cp) )
+        {
+            if ( p_fac ) *p_fac = facilitynames[i].c_val;
+            match = TRUE;
+            break;
+        }
+    }
+    if ( !match )
+        return ENOENT;
+
+    if ( curr != NULL )
+    {
+        /* now doing the same for priority */
+        match = FALSE;
+        for ( i = 0; prioritynames[i].c_name != NULL; i++ )
+        {
+            if ( !strcasecmp(prioritynames[i].c_name, curr) )
+            {
+                if ( p_level ) *p_fac = prioritynames[i].c_val;
+                match = TRUE;
+                break;
+            }
+        }
+        if ( !match )
+            return ENOENT;
+    }
+
+    return 0;
+}
 
 
 /* Open log files */
 
 int InitializeLogs( char *program_name, const log_config_t * config )
 {
-    struct stat    filestat;
     struct utsname uts;
     char          *tmp;
+    int            rc;
 
     /* store module configuration */
     log_config = *config;
-
-    /* open log files */
-
-    if ( !strcasecmp( log_config.log_file, "stdout" ) )
-        f_log = stdout;
-    else if ( !strcasecmp( log_config.log_file, "stderr" ) )
-        f_log = stderr;
-    else
-    {
-        f_log = fopen( log_config.log_file, "a" );
-
-        if ( f_log == NULL )
-            return -1;
-
-        if ( fstat( fileno( f_log ), &filestat ) != -1 )
-            log_inode = filestat.st_ino;
-    }
-
-    if ( !strcasecmp( log_config.report_file, "stdout" ) )
-        f_rapport = stdout;
-    else if ( !strcasecmp( log_config.report_file, "stderr" ) )
-        f_rapport = stderr;
-    else
-    {
-        f_rapport = fopen( log_config.report_file, "a" );
-
-        if ( f_rapport == NULL )
-        {
-            fclose( f_log );
-            return -1;
-        }
-
-        if ( fstat( fileno( f_rapport ), &filestat ) != -1 )
-            rapport_inode = filestat.st_ino;
-    }
-
-
-    if ( !EMPTY_STRING( log_config.alert_file ) )
-    {
-        if ( !strcasecmp( log_config.alert_file, "stdout" ) )
-            f_alert = stdout;
-        else if ( !strcasecmp( log_config.alert_file, "stderr" ) )
-            f_alert = stderr;
-        else
-        {
-
-            f_alert = fopen( log_config.alert_file, "a" );
-            if ( f_alert == NULL )
-            {
-                fclose( f_log );
-                fclose( f_rapport );
-                return -1;
-            }
-
-            if ( fstat( fileno( f_alert ), &filestat ) != -1 )
-                alert_inode = filestat.st_ino;
-        }
-    }
-
-    last_time_test = time( NULL );
 
     /* get node name */
 
@@ -250,11 +308,38 @@ int InitializeLogs( char *program_name, const log_config_t * config )
     else
         strncpy( prog_name, program_name, MAXPATHLEN );
 
+    /* open log files */
+    rc = init_log_descr( log_config.log_file, &log );
+    if (rc) return rc;
+
+    rc = init_log_descr( log_config.report_file, &report );
+    if (rc) return rc;
+
+    if ( !EMPTY_STRING( log_config.alert_file ) )
+    {
+        rc = init_log_descr( log_config.alert_file, &alert );
+        if (rc) return rc;
+    }
+
+    last_time_test = time( NULL );
+
+
     log_initialized = TRUE;
 
     return 0;
 
-}                               /* InitializeLogs */
+}   /* InitializeLogs */
+
+
+/* flush a single log descriptor */
+static void flush_log_descr( log_stream_t * p_log )
+{
+    if ( (p_log->log_type == RBH_LOG_STDIO) || (p_log->log_type == RBH_LOG_REGFILE) )
+    {
+        if ( p_log->f_log != NULL )
+            fflush(p_log->f_log);
+    }
+}
 
 
 /* Flush logs (for example, at the end of a purge pass or after dumping stats) */
@@ -262,24 +347,48 @@ void FlushLogs(  )
 {
     log_init_check(  );
 
-    if ( f_log )
-        fflush( f_log );
-
-    if ( f_rapport )
-        fflush( f_rapport );
-
-    if ( f_alert )
-        fflush( f_alert );
+    flush_log_descr( &log );
+    flush_log_descr( &report );
+    flush_log_descr( &alert );
 }
 
+
+static void test_log_descr( const char * logname, log_stream_t * p_log )
+{
+    struct stat    filestat;
+
+    /* test log rotation only for regular files */
+    if ( p_log-> log_type != RBH_LOG_REGFILE )
+        return;
+
+    if ( stat( logname, &filestat ) == -1 )
+    {
+        if ( errno == ENOENT )
+        {
+            /* the file disapeared, or has been renamed: opening a new one */
+            fclose( p_log->f_log );
+            p_log->f_log = fopen( logname, "a" );
+
+            if ( fstat( fileno( p_log->f_log ), &filestat ) != -1 )
+                p_log->f_ino = filestat.st_ino;
+        }
+    }
+    else if ( p_log->f_ino != filestat.st_ino )
+    {
+        /* the old log file was renamed, and a new one has been created:
+         * opening it.
+         */
+        fclose( p_log->f_log );
+        p_log->f_log = fopen( logname, "a" );
+        p_log->f_ino = filestat.st_ino;
+    }
+}
 
 
 /* check if log file have been renamed */
 
 static void test_file_names(  )
 {
-    struct stat    filestat;
-
     log_init_check(  );
 
     /* if the lock is taken, return immediately
@@ -288,90 +397,11 @@ static void test_file_names(  )
     if ( pthread_mutex_trylock( &mutex_reopen ) != 0 )
         return;
 
-    /* test log files (except for std outputs) */
-    if ( ( f_log != stdout ) && ( f_log != stderr ) )
-    {
+    test_log_descr( log_config.log_file, &log );
+    test_log_descr( log_config.report_file, &report );
 
-        if ( stat( log_config.log_file, &filestat ) == -1 )
-        {
-            if ( errno == ENOENT )
-            {
-                /* the file disapeared, or has been renamed: opening a new one */
-                fclose( f_log );
-                f_log = fopen( log_config.log_file, "a" );
-
-                if ( fstat( fileno( f_log ), &filestat ) != -1 )
-                    log_inode = filestat.st_ino;
-            }
-        }
-        else if ( log_inode != filestat.st_ino )
-        {
-            /* the old log file was renamed, and a new one has been created:
-             * opening it.
-             */
-            fclose( f_log );
-            f_log = fopen( log_config.log_file, "a" );
-            log_inode = filestat.st_ino;
-        }
-    }
-
-
-    /* test report file */
-    if ( ( f_rapport != stdout ) && ( f_rapport != stderr ) )
-    {
-
-        if ( stat( log_config.report_file, &filestat ) == -1 )
-        {
-            if ( errno == ENOENT )
-            {
-                /* the file disapeared, or has been renamed: opening a new one */
-                fclose( f_rapport );
-                f_rapport = fopen( log_config.report_file, "a" );
-
-                if ( fstat( fileno( f_rapport ), &filestat ) != -1 )
-                    rapport_inode = filestat.st_ino;
-            }
-        }
-        else if ( rapport_inode != filestat.st_ino )
-        {
-            /* the old report file was renamed, and a new one has been created:
-             * opening it.
-             */
-            fclose( f_rapport );
-            f_rapport = fopen( log_config.report_file, "a" );
-            rapport_inode = filestat.st_ino;
-        }
-    }
-
-    /* test alert file */
     if ( !EMPTY_STRING( log_config.alert_file ) )
-    {
-
-        if ( ( f_alert != stdout ) && ( f_alert != stderr ) )
-        {
-            if ( stat( log_config.alert_file, &filestat ) == -1 )
-            {
-                if ( errno == ENOENT )
-                {
-                    /* the file disapeared, or has been renamed: opening a new one */
-                    fclose( f_alert );
-                    f_alert = fopen( log_config.alert_file, "a" );
-
-                    if ( fstat( fileno( f_alert ), &filestat ) != -1 )
-                        alert_inode = filestat.st_ino;
-                }
-            }
-            else if ( alert_inode != filestat.st_ino )
-            {
-                /* the old report file was renamed, and a new one has been created:
-                 * opening it.
-                 */
-                fclose( f_alert );
-                f_alert = fopen( log_config.alert_file, "a" );
-                alert_inode = filestat.st_ino;
-            }
-        }
-    }
+        test_log_descr( log_config.alert_file, &alert );
 
     pthread_mutex_unlock( &mutex_reopen );
 
@@ -400,81 +430,121 @@ int str2debuglevel( char *str )
     return -1;
 }
 
-
-/** Display a message in the log.
- *  If logs are not initialized, write to stderr.
- */
-
-void DisplayLog_( int debug_level, const char *tag, const char *format, ... )
+void display_line_log( log_stream_t * p_log, const char * tag,
+                       const char *format, va_list arglist )
 {
-    va_list        args;
     char           line_log[MAX_LINE_LEN];
-    int            ecrit;
+    int            written;
     time_t         now = time( NULL );
     unsigned int   th = GetThreadIndex(  );
     struct tm      date;
 
-
     if ( log_initialized )
     {
-        log_init_check(  );
-
-        /* periodically check in log files have been renamed */
+        /* periodically check if log files have been renamed */
         if ( now - last_time_test > TIME_TEST_FILE )
         {
             test_file_names(  );
             last_time_test = now;
         }
+    }
 
+    /* if logs are not initalized or the log is a NULL FILE*,
+     * default logging to stderr */
+    if ((!log_initialized) ||
+        ((p_log->log_type != RBH_LOG_SYSLOG) && (p_log->f_log == NULL)))
+    {
+        localtime_r( &now, &date );
+        if (tag)
+            written =
+                snprintf( line_log, MAX_LINE_LEN,
+                          "%.4d/%.2d/%.2d %.2d:%.2d:%.2d robinhood[%lu/%u]: %s | ",
+                          1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                          date.tm_hour, date.tm_min, date.tm_sec,
+                          ( unsigned long ) getpid(  ), th, tag );
+        else
+            written =
+                snprintf( line_log, MAX_LINE_LEN,
+                          "%.4d/%.2d/%.2d %.2d:%.2d:%.2d robinhood[%lu/%u]: ",
+                          1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                          date.tm_hour, date.tm_min, date.tm_sec,
+                          ( unsigned long ) getpid(  ), th );
 
-        if ( ( log_config.debug_level >= debug_level ) && ( f_log != NULL ) )
-        {
-            localtime_r( &now, &date );
-            ecrit =
+        vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
+        fprintf( stderr, "%s\n", line_log );
+    }
+    else if ( p_log->log_type == RBH_LOG_SYSLOG )
+    {
+        /* add tag to syslog line */
+        char new_format[MAX_LINE_LEN];
+        if ( tag )
+            snprintf(new_format, MAX_LINE_LEN, "%s | %s", tag, format );
+        else
+            strcpy( new_format, format );
+
+        vsyslog(log_config.syslog_priority, new_format, arglist );
+    }
+    else /* log to a file */
+    {
+        localtime_r( &now, &date );
+
+        if (tag)
+            written =
                 snprintf( line_log, MAX_LINE_LEN,
                           "%.4d/%.2d/%.2d %.2d:%.2d:%.2d %s@%s[%lu/%u]: %s | ",
                           1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
                           date.tm_hour, date.tm_min, date.tm_sec,
-                          prog_name, machine_name, ( unsigned long ) getpid(  ), th, tag );
+                          prog_name, machine_name, ( unsigned long ) getpid(),
+                          th, tag );
+        else
+            written =
+                snprintf( line_log, MAX_LINE_LEN,
+                          "%.4d/%.2d/%.2d %.2d:%.2d:%.2d %s@%s[%lu/%u]: ",
+                          1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                          date.tm_hour, date.tm_min, date.tm_sec, prog_name,
+                          machine_name, ( unsigned long ) getpid(), th );
+
+        vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
+
+        if ( p_log->f_log != NULL )
+            fprintf( p_log->f_log, "%s\n", line_log );
+    }
+}
 
 
-            va_start( args, format );
-            vsnprintf( line_log + ecrit, MAX_LINE_LEN - ecrit, format, args );
-            va_end( args );
+static void display_line_log_( log_stream_t * p_log, const char * tag,
+                       const char *format, ... )
+{
+        va_list args;
+        va_start( args, format );
+        display_line_log( p_log, tag, format, args );
+        va_end( args );
+}
 
-            fprintf( f_log, "%s\n", line_log );
+/** Display a message in the log.
+ *  If logs are not initialized, write to stderr.
+ */
 
-        }
+void DisplayLog( int debug_level, const char *tag, const char *format, ... )
+{
+    time_t         now = time( NULL );
+    va_list        args;
 
+    if ( log_config.debug_level >= debug_level )
+    {
+        va_start( args, format );
+        display_line_log( &log, tag, format, args );
+        va_end( args );
 
         /* test if its time to flush. Also flush major errors, to display it immediately. */
-        if ( (now - last_time_flush_log > TIME_FLUSH_LOG) || (debug_level >= LVL_MAJOR) )
+        if ( (now - last_time_flush_log > TIME_FLUSH_LOG)
+             || (debug_level >= LVL_MAJOR) )
         {
-            fflush( f_log );
+            flush_log_descr( &log );
             last_time_flush_log = now;
         }
     }
-    else                        /* not initialized */
-    {
-        localtime_r( &now, &date );
-        ecrit =
-            snprintf( line_log, MAX_LINE_LEN,
-                      "%.4d/%.2d/%.2d %.2d:%.2d:%.2d robinhood[%lu/%u]: %s | ",
-                      1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                      date.tm_hour, date.tm_min, date.tm_sec,
-                      ( unsigned long ) getpid(  ), th, tag );
-
-
-        va_start( args, format );
-        vsnprintf( line_log + ecrit, MAX_LINE_LEN - ecrit, format, args );
-        va_end( args );
-
-        fprintf( stderr, "%s\n", line_log );
-    }
-
-
 }                               /* DisplayLog */
-
 
 
 
@@ -483,41 +553,16 @@ void DisplayLog_( int debug_level, const char *tag, const char *format, ... )
 void DisplayReport( const char *format, ... )
 {
     va_list        args;
-    char           line_log[MAX_LINE_LEN];
-    int            ecrit;
-    time_t         now = time( NULL );
-    unsigned int   th = GetThreadIndex(  );
-    struct tm      date;
-
-    log_init_check(  );
-
-    /* test if log file has been renamed */
-    if ( now - last_time_test > TIME_TEST_FILE )
-    {
-        test_file_names(  );
-        last_time_test = now;
-    }
-
-    localtime_r( &now, &date );
-    ecrit =
-        snprintf( line_log, MAX_LINE_LEN,
-                  "%.4d/%.2d/%.2d %.2d:%.2d:%.2d %s@%s[%lu/%u]: ",
-                  1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                  date.tm_hour, date.tm_min, date.tm_sec, prog_name,
-                  machine_name, ( unsigned long ) getpid(  ), th );
-
 
     va_start( args, format );
-    vsnprintf( line_log + ecrit, MAX_LINE_LEN - ecrit, format, args );
+    display_line_log( &report, NULL, format, args );
     va_end( args );
 
-    fprintf( f_rapport, "%s\n", line_log );
-
     /* always flush reports, because we don't want to loose events */
-    fflush( f_rapport );
+    flush_log_descr( &report );
 
+} /* DisplayReport */
 
-}                               /* DisplayReport */
 
 void Alert_StartBatching()
 {
@@ -631,21 +676,32 @@ static void FlushAlerts(int release_mutex_asap)
 
         if ( !EMPTY_STRING( log_config.alert_file ) )
         {
-            /* test if log file has been renamed */
-            if ( now - last_time_test > TIME_TEST_FILE )
+            if ( alert.log_type == RBH_LOG_SYSLOG )
             {
-                test_file_names(  );
-                last_time_test = now;
+                /* we need to split the content after each '\n' */
+                char * curr = content;
+                char * next = NULL;
+                display_line_log_( &alert, "ALERT", "=== ALERT REPORT ===" );
+                do {
+                    next = strchr(curr, '\n');
+                    if ( next != NULL )
+                    {
+                        next[0] = '\0';
+                        next++;
+                    }
+                    display_line_log_( &alert, "ALERT", curr );
+                    curr = next;
+                } while (curr != NULL);
+                display_line_log_( &alert, "ALERT", "=== END OF ALERT REPORT ===");
+            }
+            else
+            {
+                display_line_log_( &alert, "ALERT", "=== ALERT REPORT ===\n%s", content );
+                display_line_log_( &alert, "ALERT", "=== END OF ALERT REPORT ===");
             }
 
-            fprintf( f_alert, "\n==== ALERT REPORT - %.4d/%.2d/%.2d %.2d:%.2d:%.2d ====\n", 
-                               1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                               date.tm_hour, date.tm_min, date.tm_sec );
-            fprintf( f_alert, "%s\n", content );
-            fprintf( f_alert, "==== END OF REPORT ====\n");
-
             /* always flush alerts, because we don't want to loose events */
-            fflush( f_alert );
+            flush_log_descr( &alert );
         }
 
         free(content);
@@ -792,9 +848,8 @@ void RaiseEntryAlert( const char *alert_name, /* alert name (if set) */
 void RaiseAlert( const char *title, const char *format, ... )
 {
     va_list        args;
-    char           line_log[MAX_LINE_LEN];
     char           mail[MAX_MAIL_LEN];
-    int            ecrit;
+    int            written;
     time_t         now = time( NULL );
     struct tm      date;
 
@@ -804,7 +859,7 @@ void RaiseAlert( const char *title, const char *format, ... )
     if ( !EMPTY_STRING( log_config.alert_mail ) )
     {
         localtime_r( &now, &date );
-        ecrit = snprintf( mail, MAX_MAIL_LEN,
+        written = snprintf( mail, MAX_MAIL_LEN,
                           "===== %s =====\n"
                           "Date: %.4d/%.2d/%.2d %.2d:%.2d:%.2d\n"
                           "Program: %s (pid %lu)\n"
@@ -816,41 +871,21 @@ void RaiseAlert( const char *title, const char *format, ... )
                           global_config.fs_path );
 
         va_start( args, format );
-        vsnprintf( mail + ecrit, MAX_MAIL_LEN - ecrit, format, args );
+        vsnprintf( mail + written, MAX_MAIL_LEN - written, format, args );
         va_end( args );
         SendMail( log_config.alert_mail, title, mail );
     }
 
     if ( !EMPTY_STRING( log_config.alert_file ) )
     {
-        /* test if log file has been renamed */
-        if ( now - last_time_test > TIME_TEST_FILE )
-        {
-            test_file_names(  );
-            last_time_test = now;
-        }
-
-        localtime_r( &now, &date );
-
-        ecrit = snprintf( line_log, MAX_LINE_LEN,
-                          "===== %s =====\n"
-                          "Date: %.4d/%.2d/%.2d %.2d:%.2d:%.2d\n"
-                          "Program: %s (pid %lu)\n"
-                          "Host: %s\n"
-                          "Filesystem: %s\n",
-                          title, 1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                          date.tm_hour, date.tm_min, date.tm_sec, prog_name,
-                          ( unsigned long ) getpid(  ), machine_name,
-                          global_config.fs_path );
-
+        display_line_log_( &alert, "ALERT", "%s | filesystem: %s",
+                           title, global_config.fs_path );
         va_start( args, format );
-        vsnprintf( line_log + ecrit, MAX_LINE_LEN - ecrit, format, args );
+        display_line_log( &alert, "ALERT", format, args );
         va_end( args );
 
-        fprintf( f_alert, "%s\n", line_log );
-
         /* always flush alerts, because we don't want to loose events */
-        fflush( f_alert );
+        flush_log_descr( &alert );
     }
 
 }                               /* DisplayAlert */
@@ -864,12 +899,13 @@ void WaitStatsInterval(  )
 
 /* ---------------- Config management routines -------------------- */
 
-#define LOG_CONFIG_BLOCK "Log"
+#define RBH_LOG_CONFIG_BLOCK "Log"
 
 int SetDefaultLogConfig( void *module_config, char *msg_out )
 {
     log_config_t  *conf = ( log_config_t * ) module_config;
     msg_out[0] = '\0';
+
 
     conf->debug_level = LVL_EVENT;
     strncpy( conf->log_file, "/var/log/robinhood.log", MAXPATHLEN );
@@ -877,6 +913,9 @@ int SetDefaultLogConfig( void *module_config, char *msg_out )
 
     strncpy( conf->alert_file, "/var/log/robinhood_alerts.log", 1024 );
     conf->alert_mail[0] = '\0';
+
+    conf->syslog_facility = LOG_LOCAL1;
+    conf->syslog_priority = LOG_INFO;
 
     conf->batch_alert_max = 1; /* no batching */
     conf->alert_show_attrs = FALSE;
@@ -888,11 +927,12 @@ int SetDefaultLogConfig( void *module_config, char *msg_out )
 
 int WriteLogConfigDefault( FILE * output )
 {
-    print_begin_block( output, 0, LOG_CONFIG_BLOCK, NULL );
+    print_begin_block( output, 0, RBH_LOG_CONFIG_BLOCK, NULL );
     print_line( output, 1, "debug_level    :   EVENT" );
     print_line( output, 1, "log_file       :   \"/var/log/robinhood.log\"" );
     print_line( output, 1, "report_file    :   \"/var/log/robinhood_reports.log\"" );
     print_line( output, 1, "alert_file     :   \"/var/log/robinhood_alerts.log\"" );
+    print_line( output, 1, "syslog_facility:   local1.info" );
     print_line( output, 1, "stats_interval :   15min" );
     print_line( output, 1, "batch_alert_max:   1 (no batching)" );
     print_line( output, 1, "alert_show_attrs: FALSE" );
@@ -908,31 +948,31 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
 
     static const char *allowed_params[] = { "debug_level", "log_file", "report_file",
         "alert_file", "alert_mail", "stats_interval", "batch_alert_max",
-        "alert_show_attrs",
+        "alert_show_attrs", "syslog_facility",
         NULL
     };
 
     /* get Log block */
 
-    config_item_t  log_block = rh_config_FindItemByName( config, LOG_CONFIG_BLOCK );
+    config_item_t  log_block = rh_config_FindItemByName( config, RBH_LOG_CONFIG_BLOCK );
 
     if ( log_block == NULL )
     {
-        strcpy( msg_out, "Missing configuration block '" LOG_CONFIG_BLOCK "'" );
+        strcpy( msg_out, "Missing configuration block '" RBH_LOG_CONFIG_BLOCK "'" );
         /* no parameter is mandatory => Not an error */
         return 0;
     }
 
     if ( rh_config_ItemType( log_block ) != CONFIG_ITEM_BLOCK )
     {
-        sprintf( msg_out, "A block is expected for '" LOG_CONFIG_BLOCK "' item, line %d",
+        sprintf( msg_out, "A block is expected for '" RBH_LOG_CONFIG_BLOCK "' item, line %d",
                  rh_config_GetItemLine( log_block ) );
         return EINVAL;
     }
 
     /* retrieve parameters */
 
-    rc = GetStringParam( log_block, LOG_CONFIG_BLOCK, "debug_level",
+    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "debug_level",
                          STR_PARAM_NO_WILDCARDS, tmpstr, 1024, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
@@ -943,7 +983,7 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
         if ( tmpval < 0 )
         {
             sprintf( msg_out,
-                     "Invalid value for " LOG_CONFIG_BLOCK
+                     "Invalid value for " RBH_LOG_CONFIG_BLOCK
                      "::debug_level: '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected",
                      tmpstr );
             return EINVAL;
@@ -952,19 +992,19 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
             conf->debug_level = tmpval;
     }
 
-    rc = GetStringParam( log_block, LOG_CONFIG_BLOCK, "log_file",
+    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "log_file",
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
                          conf->log_file, MAXPATHLEN, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetStringParam( log_block, LOG_CONFIG_BLOCK, "report_file",
+    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "report_file",
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
                          conf->report_file, MAXPATHLEN, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetStringParam( log_block, LOG_CONFIG_BLOCK, "alert_file",
+    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "alert_file",
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
                          conf->alert_file, 1024, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
@@ -972,33 +1012,50 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
     else if ( rc == ENOENT )
         conf->alert_file[0] = '\0';
 
-    rc = GetStringParam( log_block, LOG_CONFIG_BLOCK, "alert_mail",
+    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "syslog_facility",
+                         STR_PARAM_NO_WILDCARDS,
+                         tmpstr, 1024, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc == 0 )
+    {
+        rc = check_syslog_facility( tmpstr, &conf->syslog_facility,
+                                    &conf->syslog_priority );
+        if (rc)
+        {
+            sprintf( msg_out, "Invalid syslog channel '%s': expected syntax: <facility>[.<priority>]",
+                     tmpstr );
+            return rc;
+        }
+    }
+
+    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "alert_mail",
                          STR_PARAM_MAIL, conf->alert_mail, 256, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if ( rc == ENOENT )
         conf->alert_mail[0] = '\0';
 
-    rc = GetDurationParam( log_block, LOG_CONFIG_BLOCK, "stats_interval",
+    rc = GetDurationParam( log_block, RBH_LOG_CONFIG_BLOCK, "stats_interval",
                            INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, &tmpval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if ( rc != ENOENT )
         conf->stats_interval = tmpval;
 
-    rc = GetIntParam( log_block, LOG_CONFIG_BLOCK, "batch_alert_max",
+    rc = GetIntParam( log_block, RBH_LOG_CONFIG_BLOCK, "batch_alert_max",
                       INT_PARAM_POSITIVE, (int *)&conf->batch_alert_max,
                       NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetBoolParam( log_block, LOG_CONFIG_BLOCK, "alert_show_attrs",
+    rc = GetBoolParam( log_block, RBH_LOG_CONFIG_BLOCK, "alert_show_attrs",
                       INT_PARAM_POSITIVE, &conf->alert_show_attrs,
                       NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    CheckUnknownParameters( log_block, LOG_CONFIG_BLOCK, allowed_params );
+    CheckUnknownParameters( log_block, RBH_LOG_CONFIG_BLOCK, allowed_params );
 
     return 0;
 }
@@ -1009,7 +1066,7 @@ int ReloadLogConfig( void *module_config )
 
     if ( conf->debug_level != log_config.debug_level )
     {
-        DisplayLog( LVL_MAJOR, "LogConfig", LOG_CONFIG_BLOCK "::debug_level modified: '%d'->'%d'",
+        DisplayLog( LVL_MAJOR, "LogConfig", RBH_LOG_CONFIG_BLOCK "::debug_level modified: '%d'->'%d'",
                     log_config.debug_level, conf->debug_level );
         log_config.debug_level = conf->debug_level;
     }
@@ -1018,7 +1075,7 @@ int ReloadLogConfig( void *module_config )
 
     if ( strcmp( conf->log_file, log_config.log_file ) )
     {
-        DisplayLog( LVL_MAJOR, "LogConfig", LOG_CONFIG_BLOCK "::log_file modified: '%s'->'%s'",
+        DisplayLog( LVL_MAJOR, "LogConfig", RBH_LOG_CONFIG_BLOCK "::log_file modified: '%s'->'%s'",
                     log_config.log_file, conf->log_file );
 
         /* lock file name to avoid reading inconsistent filenames */
@@ -1029,7 +1086,7 @@ int ReloadLogConfig( void *module_config )
 
     if ( strcmp( conf->report_file, log_config.report_file ) )
     {
-        DisplayLog( LVL_MAJOR, "LogConfig", LOG_CONFIG_BLOCK "::report_file modified: '%s'->'%s'",
+        DisplayLog( LVL_MAJOR, "LogConfig", RBH_LOG_CONFIG_BLOCK "::report_file modified: '%s'->'%s'",
                     log_config.report_file, conf->report_file );
 
         /* lock file name to avoid reading inconsistent filenames */
@@ -1040,7 +1097,7 @@ int ReloadLogConfig( void *module_config )
 
     if ( strcmp( conf->alert_file, log_config.alert_file ) )
     {
-        DisplayLog( LVL_MAJOR, "LogConfig", LOG_CONFIG_BLOCK "::alert_file modified: '%s'->'%s'",
+        DisplayLog( LVL_MAJOR, "LogConfig", RBH_LOG_CONFIG_BLOCK "::alert_file modified: '%s'->'%s'",
                     log_config.alert_file, conf->alert_file );
 
         /* lock file name to avoid reading inconsistent filenames */
@@ -1050,14 +1107,14 @@ int ReloadLogConfig( void *module_config )
     }
 
     if ( strcmp( conf->alert_mail, log_config.alert_mail ) )
-        DisplayLog_( LVL_MAJOR, "LogConfig",
-                    LOG_CONFIG_BLOCK
+        DisplayLog( LVL_MAJOR, "LogConfig",
+                    RBH_LOG_CONFIG_BLOCK
                     "::alert_mail changed in config file, but cannot be modified dynamically" );
 
     if ( conf->stats_interval != log_config.stats_interval )
     {
-        DisplayLog_( LVL_MAJOR, "LogConfig",
-                    LOG_CONFIG_BLOCK "::stats_interval modified: "
+        DisplayLog( LVL_MAJOR, "LogConfig",
+                    RBH_LOG_CONFIG_BLOCK "::stats_interval modified: "
                     "'%"PRI_TT"'->'%"PRI_TT"'",
                     log_config.stats_interval, conf->stats_interval );
         log_config.stats_interval = conf->stats_interval;
@@ -1065,8 +1122,8 @@ int ReloadLogConfig( void *module_config )
 
     if ( conf->batch_alert_max != log_config.batch_alert_max )
     {
-        DisplayLog_( LVL_MAJOR, "LogConfig",
-                    LOG_CONFIG_BLOCK "::batch_alert_max modified: '%u'->'%u'",
+        DisplayLog( LVL_MAJOR, "LogConfig",
+                    RBH_LOG_CONFIG_BLOCK "::batch_alert_max modified: '%u'->'%u'",
                     log_config.batch_alert_max, conf->batch_alert_max );
 
         /* flush batched alerts first */
@@ -1082,8 +1139,8 @@ int ReloadLogConfig( void *module_config )
 
     if ( conf->alert_show_attrs != log_config.alert_show_attrs )
     {
-        DisplayLog_( LVL_MAJOR, "LogConfig",
-                    LOG_CONFIG_BLOCK "::alert_show_attrs modified: '%s'->'%s'",
+        DisplayLog( LVL_MAJOR, "LogConfig",
+                    RBH_LOG_CONFIG_BLOCK "::alert_show_attrs modified: '%s'->'%s'",
                     bool2str(log_config.alert_show_attrs),
                     bool2str(conf->alert_show_attrs) );
         log_config.alert_show_attrs = conf->alert_show_attrs;
@@ -1097,7 +1154,7 @@ int ReloadLogConfig( void *module_config )
 
 int WriteLogConfigTemplate( FILE * output )
 {
-    print_begin_block( output, 0, LOG_CONFIG_BLOCK, NULL );
+    print_begin_block( output, 0, RBH_LOG_CONFIG_BLOCK, NULL );
 
     print_line( output, 1, "# Log verbosity level" );
     print_line( output, 1, "# Possible values are: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL" );

@@ -40,6 +40,9 @@ typedef struct log_config__
     char           alert_mail[256];
     char           alert_file[1024];
 
+    int            syslog_facility;
+    int            syslog_priority;
+
     /* batching of alerts:
      * 0=unlimited, 1=no batching, >1 maximum number of reported alerts per summary
      */
@@ -74,14 +77,8 @@ void           FlushLogs(  );
 
 
 /* Displays a log message */
-void           DisplayLog_( int debug_level, const char *tag, const char *format, ... )
+void           DisplayLog( int debug_level, const char *tag, const char *format, ... )
                     __attribute__((format(printf, 3, 4))); /* 3=format 4=params */
-
-#ifdef _CHECK_LOG_ARGS
-#define DisplayLog( _l, _t, _fo, ... )	fprintf( stderr, _fo, ## __VA_ARGS__ )
-#else
-#define DisplayLog DisplayLog_
-#endif
 
 /* Displays a line in the report file */
 void           DisplayReport( const char *format, ... )
