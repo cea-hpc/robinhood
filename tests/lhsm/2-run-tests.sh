@@ -28,11 +28,13 @@ function clean_logs
 
 function clean_fs
 {
-	echo "Cancelling agent actions..."
-	echo "purge" > /proc/fs/lustre/mdt/*/hsm_control
+	if (( $is_hsm != 0 )); then
+		echo "Cancelling agent actions..."
+		echo "purge" > /proc/fs/lustre/mdt/*/hsm_control
 
-	echo "Waiting for end of data migration..."
-	while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions > /dev/null ; do sleep 1; done
+		echo "Waiting for end of data migration..."
+		while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions > /dev/null ; do sleep 1; done
+	fi
 
 	echo "Cleaning filesystem..."
 	rm  -rf /mnt/lustre/*
@@ -413,8 +415,6 @@ function test_rh_report
 			echo "OK: $i MB in /mnt/lustre/dir.$i"
 		fi
 	done
-
-	exit 1
 	
 }
 
@@ -790,16 +790,24 @@ function periodic_class_match_purge
 	# now apply policies
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
 
-	#we must have 4 lines like this: "Need to update fileclass (not set)"
+	# HSM: we must have 4 lines like this: "Need to update fileclass (not set)"
+	# TMP_FS_MGR:  whitelisted status is always checked at scan time
+	# 	so 2 entries have already been matched (ignore1 and whitelist1)
+	if (( $is_hsm == 0 )); then
+		already=2
+	else
+		already=0
+	fi
+
 	nb_updt=`grep "Need to update fileclass (not set)" rh_purge.log | wc -l`
 	nb_purge_match=`grep "matches the condition for policy 'purge_match'" rh_purge.log | wc -l`
 	nb_default=`grep "matches the condition for policy 'default'" rh_purge.log | wc -l`
 
-	(( $nb_updt == 4 )) || echo "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
+	(( $nb_updt == 4 - $already )) || echo "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
 	(( $nb_purge_match == 1 )) || echo "********** TEST FAILED: wrong count of files matching 'purge_match': $nb_purge_match"
 	(( $nb_default == 1 )) || echo "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
 
-        (( $nb_updt == 4 )) && (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
+        (( $nb_updt == 4 - $already )) && (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
 		&& echo "OK: initial fileclass matching successful"
 
 	# update db content and rematch entries: should not update fileclasses
@@ -807,33 +815,51 @@ function periodic_class_match_purge
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
 
-	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_purge.log | wc -l`
-	nb_purge_valid=`grep "fileclass 'to_be_released' is still valid" rh_purge.log | wc -l`
+	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_purge.log | wc -l` # impossible: it should have been removed from DB during the last purge!
+	nb_purge_valid=`grep "fileclass 'to_be_released' is still valid" rh_purge.log | wc -l` # impossible: it should have been removed from DB during the last purge!
 	nb_updt=`grep "Need to update fileclass" rh_purge.log | wc -l`
 
-	(( $nb_default_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
-	(( $nb_purge_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
-	(( $nb_updt == 0 )) || echo "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
+#	(( $nb_default_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
+#	(( $nb_purge_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
+#	(( $nb_updt == 0 )) || echo "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
 
-        (( $nb_updt == 0 )) && (( $nb_default_valid == 1 )) && (( $nb_purge_valid == 1 )) \
+	(( $nb_default_valid == 0 )) || echo "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
+	(( $nb_purge_valid == 0 )) || echo "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
+	(( $nb_updt == 2 )) || echo "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
+
+        #(( $nb_updt == 0 )) && (( $nb_default_valid == 1 )) && (( $nb_purge_valid == 1 )) \
+        (( $nb_updt == 2 )) && (( $nb_default_valid == 0 )) && (( $nb_purge_valid == 0 )) \
 		&& echo "OK: fileclasses do not need update"
 	
-	echo "Waiting $update_period sec..."
-	sleep $update_period
-
 	# update db content and rematch entries: should update all fileclasses
 	clean_logs
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+
+	echo "Waiting $update_period sec..."
+	sleep $update_period
+
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
+
+	# TMP_FS_MGR:  whitelisted status is always checked at scan time
+	# 	2 entries are new (default and to_be_released)
+	if (( $is_hsm == 0 )); then
+		already=0
+		new=2
+	else
+		already=0
+		new=0
+	fi
 
 	nb_valid=`grep "is still valid" rh_purge.log | wc -l`
 	nb_updt=`grep "Need to update fileclass (out-of-date)" rh_purge.log | wc -l`
+	nb_not_set=`grep "Need to update fileclass (not set)" rh_purge.log | wc -l`
 
-	(( $nb_valid == 0 )) || echo "********** TEST FAILED: fileclass should need update : $nb_valid still valid"
-	(( $nb_updt == 4 )) || echo "********** TEST FAILED: all fileclasses should be updated : $nb_updt/4"
+	(( $nb_valid == $already )) || echo "********** TEST FAILED: fileclass should need update : $nb_valid still valid"
+	(( $nb_updt == 4 - $already - $new )) || echo "********** TEST FAILED: wrong number of fileclasses should be updated : $nb_updt"
+	(( $nb_not_set == $new )) || echo "********** TEST FAILED:  wrong number of fileclasse fileclasses should be matched : $nb_not_set"
 
-        (( $nb_valid == 0 )) && (( $nb_updt == 4 )) \
-		&& echo "OK: all fileclasses updated"
+        (( $nb_valid == $already )) && (( $nb_updt == 4 - $already - $new )) \
+		&& echo "OK: fileclasses correctly updated"
 }
 
 function test_cnt_trigger
@@ -1273,9 +1299,201 @@ function test_pools
 
 }
 
+function test_logs
+{
+	config_file=$1
+	flavor=$2
+	policy_str="$3"
+
+	sleep_time=430 # log rotation time (300) + scan interval (100) + scan duration (30)
+
+	clean_logs
+	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
+
+	# test flavors:
+	# x	file_nobatch
+	# 	file_batch
+	# x	syslog_nobatch
+	# 	syslog_batch
+	# x	stdio_nobatch
+	# 	stdio_batch
+	# 	mix
+	files=0
+	syslog=0
+	batch=0
+	stdio=0
+	echo $flavor | grep nobatch > /dev/null || batch=1
+	echo $flavor | grep syslog_ > /dev/null && syslog=1
+	echo $flavor | grep file_ > /dev/null && files=1
+	echo $flavor | grep stdio_ > /dev/null && stdio=1
+	echo "Test parameters: files=$files, syslog=$syslog, stdio=$stdio, batch=$batch"
+
+	# create files
+	touch /mnt/lustre/file.1 || echo "ERROR creating file"
+	touch /mnt/lustre/file.2 || echo "ERROR creating file"
+	touch /mnt/lustre/file.3 || echo "ERROR creating file"
+	touch /mnt/lustre/file.4 || echo "ERROR creating file"
+
+	if (( $syslog )); then
+		init_msg_idx=`wc -l /var/log/messages | awk '{print $1}'`
+	fi
+
+	# run a scan
+	if (( $stdio )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || echo "ERROR"
+	else
+		$RH -f ./cfg/$config_file --scan -l DEBUG --once || echo "ERROR"
+	fi
+
+	if (( $files )); then
+		log="/tmp/test_log.1"
+		alert="/tmp/test_alert.1"
+		report="/tmp/test_report.1"
+	elif (( $stdio )); then
+                log="/tmp/rbh.stderr"
+		grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
+		grep -v ALERT /tmp/rbh.stdout | grep robinhood > /tmp/extract_report
+		alert="/tmp/extract_alert"
+		report="/tmp/extract_report"
+	elif (( $syslog )); then
+		tail -n +"$init_msg_idx" /var/log/messages | grep robinhood > /tmp/extract_all
+		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
+		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
+		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
+
+		log="/tmp/extract_log"
+		alert="/tmp/extract_alert"
+		report="/tmp/extract_report"
+	else
+		echo "ERROR: unsupported test option"
+		return 1
+	fi
+	
+	# check if there is something written in the log
+	if (( `wc -l $log | awk '{print $1}'` > 0 )); then
+		echo "OK: log file is not empty"
+	else
+		echo "ERROR: empty log file"
+	fi
+
+	# check alerts about file.1 and file.2
+	a1=`grep alert_file1 $alert | wc -l`
+	a2=`grep alert_file2 $alert | wc -l`
+	e1=`grep 'Entry: /mnt/lustre/file\.1' $alert | wc -l`
+	e2=`grep 'Entry: /mnt/lustre/file\.2' $alert | wc -l`
+	all=`grep "Robinhood alert" $alert | wc -l`
+	if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
+		echo "OK: 2 alerts"
+	else
+		echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+	fi
+
+	# no purge for now
+	if (( `wc -l $report | awk '{print $1}'` == 0 )); then
+                echo "OK: no action reported"
+        else
+                echo "ERROR: there are reported actions after a scan"
+                echo "Details:"
+		cat $report
+        fi
+	
+	# reinit msg idx
+	if (( $syslog )); then
+		init_msg_idx=`wc -l /var/log/messages | awk '{print $1}'`
+	fi
+
+	# run a purge
+	rm -f $log $report $alert
+
+	if (( $stdio )); then
+		$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || echo "ERROR"
+	else
+		$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run || echo "ERROR"
+	fi
+
+	# extract new syslog messages
+	if (( $syslog )); then
+		tail -n +"$init_msg_idx" /var/log/messages | grep robinhood > /tmp/extract_all
+		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
+		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
+		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
+	elif (( $stdio )); then
+		grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
+		grep -v ALERT /tmp/rbh.stdout | grep robinhood > /tmp/extract_report
+	fi
+
+	# check that there is something written in the log
+	if (( `wc -l $log | awk '{print $1}'` > 0 )); then
+		echo "OK: log file is not empty"
+	else
+		echo "ERROR: empty log file"
+	fi
+
+	# check alerts (should be impossible to purge at 0%)
+	grep "Could not purge" $alert > /dev/null
+	if (($?)); then
+		echo "ERROR: alert show have been raised for impossible purge"
+	else
+		echo "OK: alert raised"
+	fi
+
+	# all files must have been purged
+	if (( `wc -l $report | awk '{print $1}'` == 4 )); then
+                echo "OK: 4 actions reported"
+        else
+                echo "ERROR: unexpected count of actions"
+        fi
+	
+	(($files==1)) || return 0
+
+	if [[ "x$SLOW" != "x1" ]]; then
+		echo "Quick tests only: skipping log rotation test (use SLOW=1 to enable this test)"
+		return 1
+	fi
+
+	# start a FS scanner with FS_Scan period = 100
+	$RH -f ./cfg/$config_file --scan -l DEBUG &
+
+	# rotate the logs
+	for l in /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1; do
+		mv $l $l.old
+	done
+
+	sleep $sleep_time
+
+	# check that there is something written in the log
+	if (( `wc -l /tmp/test_log.1 | awk '{print $1}'` > 0 )); then
+		echo "OK: log file is not empty"
+	else
+		echo "ERROR: empty log file"
+	fi
+
+	# check alerts about file.1 and file.2
+	a1=`grep alert_file1 /tmp/test_alert.1 | wc -l`
+	a2=`grep alert_file2 /tmp/test_alert.1 | wc -l`
+	e1=`grep 'Entry: /mnt/lustre/file\.1' /tmp/test_alert.1 | wc -l`
+	e2=`grep 'Entry: /mnt/lustre/file\.2' /tmp/test_alert.1 | wc -l`
+	all=`grep "Robinhood alert" /tmp/test_alert.1 | wc -l`
+	if (( $a1 > 0 && $a2 > 0 && $e1 > 0 && $e2 > 0 && $all >= 2)); then
+		echo "OK: $all alerts"
+	else
+		echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+	fi
+
+	# no purge during scan 
+	if (( `wc -l /tmp/test_report.1 | awk '{print $1}'` == 0 )); then
+                echo "OK: no action reported"
+        else
+                echo "ERROR: there are reported actions after a scan"
+        fi
+
+	pkill -9 -f $PROC
+	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
+	rm -f /tmp/test_log.1.old /tmp/test_report.1.old /tmp/test_alert.1.old
+}
+
 
 only_test=""
-index=1
 quiet=0
 
 if [[ "$1" == "-q" ]]; then
@@ -1298,11 +1516,16 @@ function cleanup
 
 function run_test
 {
-	if [[ -n $5 ]]; then args=$5; else args=$4 ; fi
+	if [[ -n $6 ]]; then args=$6; else args=$5 ; fi
 
-	if [[ -z $only_test || "$only_test" = "$index" ]]; then
+	index=$1
+	shift
+
+	index_clean=`echo $index | sed -e 's/[a-z]//'`
+
+	if [[ -z $only_test || "$only_test" = "$index" || "$only_test" = "$index_clean" ]]; then
 		cleanup
-		echo "TEST #$index: $1 ($args)"
+		echo "TEST #$index $2 ($args)"
 
 		if (( $quiet == 1 )); then
 			"$@" 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
@@ -1310,45 +1533,29 @@ function run_test
 			"$@"
 		fi
 	fi
-	((index=$index+1))
 }
 
 #1
-run_test 	path_test test_path.conf 2 "path matching policies"
-#2
-run_test 	update_test test_updt.conf 5 30 "db update policy"
-#3
-run_test 	migration_test test1.conf 11 31 "last_mod>30s"
-#4
-run_test 	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
-#5
-run_test 	migration_test test3.conf 5  16 "complex policy with filesets"
-#6
-run_test 	migration_test test3.conf 10 31 "complex policy with filesets"
-#7
-run_test 	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-#8
-run_test 	purge_test test_purge.conf 11 21 "last_access > 20s"
-#9
-run_test	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
-#10
-run_test 	test_rh_report common.conf 3 1 "reporting tool"
-#11
-run_test	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
-#12
-run_test	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
-#13
-run_test	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
-#14
-run_test	test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
-#15
-run_test 	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
-#16
-run_test 	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
-#17
-run_test	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
-#18
-run_test	test_pools test_pools.conf 1 "class matching with condition on pools"
+run_test 1	path_test test_path.conf 2 "path matching policies"
+run_test 2	update_test test_updt.conf 5 30 "db update policy"
+run_test 3	migration_test test1.conf 11 31 "last_mod>30s"
+run_test 4	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
+run_test 5	migration_test test3.conf 5  16 "complex policy with filesets"
+run_test 6	migration_test test3.conf 10 31 "complex policy with filesets"
+run_test 7	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
+run_test 8	purge_test test_purge.conf 11 21 "last_access > 20s"
+run_test 9	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
+run_test 10	test_rh_report common.conf 3 1 "reporting tool"
+run_test 11	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
+run_test 12	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
+run_test 13	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
+run_test 14	test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
+run_test 15	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
+run_test 16	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
+run_test 17	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
+run_test 18	test_pools test_pools.conf 1 "class matching with condition on pools"
+#run_test 19	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
 
-#19
-#run_test 	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+run_test 20a	test_logs log1.conf file_nobatch "file logging without alert batching"
+run_test 20b	test_logs log2.conf syslog_nobatch "syslog without alert batching"
+run_test 20c	test_logs log3.conf stdio_nobatch "stdout and stderr without alert batching"

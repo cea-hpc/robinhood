@@ -18,6 +18,9 @@ Push 220p2 to oracle repository
 
 Doc:
 ====
+* adding doc about syslog logging
+* adding doc about exit_on_timeout
+
 (* config sqlite et disclaimer)
 * fileclasses are matched in the order they are targetted
  /!\ target =  A_inter_B
