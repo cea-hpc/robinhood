@@ -1351,8 +1351,23 @@ function test_logs
 		report="/tmp/test_report.1"
 	elif (( $stdio )); then
                 log="/tmp/rbh.stderr"
-		grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
-		grep -v ALERT /tmp/rbh.stdout | grep robinhood > /tmp/extract_report
+		if (( $batch )); then
+			# batch output to file has no ALERT header on each line
+			# we must extract between "ALERT REPORT" and "END OF ALERT REPORT"
+        		local old_ifs="$IFS"
+        		IFS=$'\t\n :'
+			alert_lines=(`grep -n ALERT /var/tmp/rbh.stdout | cut -d ':' -f 1 | xargs`)
+			IFS="$old_ifs"
+		#	echo ${alert_lines[0]}
+		#	echo ${alert_lines[1]}
+			((nbl=${alert_lines[1]}-${alert_lines[0]}+1))
+			# extract nbl lines stating from line alert_lines[0]:
+			tail -n +${alert_lines[0]} /var/tmp/rbh.stdout | head -n $nbl > /tmp/extract_alert
+		else
+			grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
+		fi
+		# grep 'robinhood\[' => don't select lines with no headers
+		grep -v ALERT /tmp/rbh.stdout | grep 'robinhood[^ ]*\[' > /tmp/extract_report
 		alert="/tmp/extract_alert"
 		report="/tmp/extract_report"
 	elif (( $syslog )); then
@@ -1376,16 +1391,41 @@ function test_logs
 		echo "ERROR: empty log file"
 	fi
 
-	# check alerts about file.1 and file.2
-	a1=`grep alert_file1 $alert | wc -l`
-	a2=`grep alert_file2 $alert | wc -l`
-	e1=`grep 'Entry: /mnt/lustre/file\.1' $alert | wc -l`
-	e2=`grep 'Entry: /mnt/lustre/file\.2' $alert | wc -l`
-	all=`grep "Robinhood alert" $alert | wc -l`
-	if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
-		echo "OK: 2 alerts"
+	if (( $batch )); then
+		#check summary
+		sum=`grep "alert summary" $alert | wc -l`
+		(($sum==1)) || (echo "ERROR: no summary found" ; cat $alert)
+		# check alerts about file.1 and file.2
+		# search for line ' * 1 alert_file1', ' * 1 alert_file2'
+		a1=`egrep -e "[0-9]* alert_file1" $alert | sed -e 's/.* \([0-9]*\) alert_file1/\1/' | xargs`
+		a2=`egrep -e "[0-9]* alert_file2" $alert | sed -e 's/.* \([0-9]*\) alert_file2/\1/' | xargs`
+		e1=`grep '/mnt/lustre/file\.1' $alert | wc -l`
+		e2=`grep '/mnt/lustre/file\.2' $alert | wc -l`
+		# search for alert count: "2 alerts:"
+		if (($syslog)); then
+			all=`egrep -e "\| [0-9]* alerts:" $alert | sed -e 's/.*| \([0-9]*\) alerts:/\1/' | xargs`
+		else
+			all=`egrep -e "^[0-9]* alerts:" $alert | sed -e 's/^\([0-9]*\) alerts:/\1/' | xargs`
+		fi
+		if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
+			echo "OK: 2 alerts"
+		else
+			echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+			cat $alert
+		fi
 	else
-		echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+		# check alerts about file.1 and file.2
+		a1=`grep alert_file1 $alert | wc -l`
+		a2=`grep alert_file2 $alert | wc -l`
+		e1=`grep 'Entry: /mnt/lustre/file\.1' $alert | wc -l`
+		e2=`grep 'Entry: /mnt/lustre/file\.2' $alert | wc -l`
+		all=`grep "Robinhood alert" $alert | wc -l`
+		if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
+			echo "OK: 2 alerts"
+		else
+			echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+			cat $alert
+		fi
 	fi
 
 	# no purge for now
@@ -1393,7 +1433,6 @@ function test_logs
                 echo "OK: no action reported"
         else
                 echo "ERROR: there are reported actions after a scan"
-                echo "Details:"
 		cat $report
         fi
 	
@@ -1419,7 +1458,8 @@ function test_logs
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
 	elif (( $stdio )); then
 		grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
-		grep -v ALERT /tmp/rbh.stdout | grep robinhood > /tmp/extract_report
+		# grep 'robinhood\[' => don't select lines with no headers
+		grep -v ALERT /tmp/rbh.stdout | grep 'robinhood[^ ]*\[' > /tmp/extract_report
 	fi
 
 	# check that there is something written in the log
@@ -1442,6 +1482,7 @@ function test_logs
                 echo "OK: 4 actions reported"
         else
                 echo "ERROR: unexpected count of actions"
+		cat $report
         fi
 	
 	(($files==1)) || return 0
@@ -1478,6 +1519,7 @@ function test_logs
 		echo "OK: $all alerts"
 	else
 		echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+		cat /tmp/test_alert.1
 	fi
 
 	# no purge during scan 
@@ -1485,6 +1527,7 @@ function test_logs
                 echo "OK: no action reported"
         else
                 echo "ERROR: there are reported actions after a scan"
+		cat /tmp/test_report.1
         fi
 
 	pkill -9 -f $PROC
@@ -1525,7 +1568,8 @@ function run_test
 
 	if [[ -z $only_test || "$only_test" = "$index" || "$only_test" = "$index_clean" ]]; then
 		cleanup
-		echo "TEST #$index $2 ($args)"
+		echo
+		echo "==== TEST #$index $2 ($args) ===="
 
 		if (( $quiet == 1 )); then
 			"$@" 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
@@ -1556,6 +1600,9 @@ run_test 17	test_info_collect info_collect.conf 1 1 "escape string in SQL reques
 run_test 18	test_pools test_pools.conf 1 "class matching with condition on pools"
 #run_test 19	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
 
-run_test 20a	test_logs log1.conf file_nobatch "file logging without alert batching"
-run_test 20b	test_logs log2.conf syslog_nobatch "syslog without alert batching"
-run_test 20c	test_logs log3.conf stdio_nobatch "stdout and stderr without alert batching"
+run_test 20a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
+run_test 20b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
+run_test 20c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
+run_test 20d	test_logs log1b.conf file_batch 	"file logging with alert batching"
+run_test 20e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
+run_test 20f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
