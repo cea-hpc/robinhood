@@ -350,7 +350,9 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev )
     char           tmp_buff[MAXPATHLEN];
     char          *parentmntdir;
     char           fs_spec[MAXPATHLEN];
+#ifdef _HAVE_FID
     char          *ptr;
+#endif
 
     char           type[256];
 

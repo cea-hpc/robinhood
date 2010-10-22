@@ -907,12 +907,13 @@ static void   *Thr_Rmdir( void *arg )
                  *  or removed at next FS scan). */
                 DisplayLog( LVL_DEBUG, RMDIR_TAG,
                             "Inode of %s changed: old=<%llu,%llu>, "
-                            "new=<%" PRI_STI ",%" PRI_DT ">. "
+                            "new=<%llu,%llu>. "
                             "Tagging it invalid.",
                             ATTR( &p_item->entry_attr, fullpath ),
                             ( unsigned long long ) p_item->entry_id.inode,
                             ( unsigned long long ) p_item->entry_id.device,
-                            entry_md.st_ino, entry_md.st_dev );
+                            ( unsigned long long ) entry_md.st_ino,
+                            ( unsigned long long ) entry_md.st_dev );
 
                 invalidate_dir( &lmgr, &p_item->entry_id );
 

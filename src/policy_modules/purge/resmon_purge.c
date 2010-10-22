@@ -882,7 +882,9 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
     struct stat    entry_md;
 #endif
     char * stat_path;
+#ifdef _HAVE_FID
     char fid_path[1024];
+#endif
 
 #ifndef _HAVE_FID
     /* 1) Check if fullpath is set (if no fid support) */
@@ -949,11 +951,12 @@ else
     {
         /* If it has changed, invalidate the entry (fullpath does not match entry_id, it will be updated or removed at next FS scan). */
         DisplayLog( LVL_DEBUG, PURGE_TAG, "Inode of %s changed: old=<%llu,%llu>, "
-                    "new=<%" PRI_STI ",%" PRI_DT ">. Tagging it invalid.",
+                    "new=<%llu,%llu>. Tagging it invalid.",
                     ATTR(  &p_item->entry_attr, fullpath ),
                     ( unsigned long long ) p_item->entry_id.inode,
-                    ( unsigned long long ) p_item->entry_id.device, entry_md.st_ino,
-                    entry_md.st_dev );
+                    ( unsigned long long ) p_item->entry_id.device,
+                    ( unsigned long long ) entry_md.st_ino,
+                    ( unsigned long long ) entry_md.st_dev );
 
         invalidate_entry( lmgr, &p_item->entry_id );
 
