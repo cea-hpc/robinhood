@@ -40,11 +40,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
 #ifdef FID_PK
 #   define PK_TYPE   "VARCHAR(" TOSTRING(FID_LEN) ")"
 #else
-#   ifndef _SQLITE
-#       define PK_TYPE   "BIGINT UNSIGNED"
-#   else
-#       define PK_TYPE   "INTEGER"
-#   endif
+#   define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
 #endif
 
     /* store the configuration */
@@ -120,86 +116,6 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
                     "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
         return rc;
     }
-
-    /*
-     * ====== CHECKING ID mapping table =======
-     */
-#ifndef FID_PK
-    rc = db_list_table_fields( &conn, MAPPING_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-    if ( rc == DB_SUCCESS )
-    {
-
-        /* check primary key */
-        if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid primary key (%s) for table "
-                        MAPPING_TABLE, ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
-            return -1;
-        }
-
-        if ( ( fieldtab[1] == NULL ) || ( fieldtab[2] == NULL )
-             || strcmp( fieldtab[1], "inum" ) || strcmp( fieldtab[2], "dev" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid fields (%s, %s) for table "
-                        MAPPING_TABLE,
-                        ( fieldtab[1] ? fieldtab[1] : "(null)" ),
-                        ( fieldtab[2] ? fieldtab[2] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Fields (%s, %s) OK", fieldtab[1], fieldtab[2] );
-        }
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        DisplayLog( LVL_EVENT, LISTMGR_TAG, MAPPING_TABLE " does not exist: creating it." );
-
-        /* table does not exist */
-        strcpy( strbuf, "CREATE TABLE " MAPPING_TABLE " ( "
-#ifndef _SQLITE
-                "id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, "
-#else
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-#endif
-                /* INUM_PK */
-                "inum BIGINT UNSIGNED, dev BIGINT UNSIGNED)"
-             );
-        DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-        rc = db_exec_sql( &conn, strbuf, NULL );
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-            return rc;
-        }
-
-        DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " MAPPING_TABLE " created sucessfully" );
-
-        strcpy( strbuf, "CREATE INDEX idmapping ON " MAPPING_TABLE "(inum, dev)" );
-        DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-        rc = db_exec_sql( &conn, strbuf, NULL );
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-            return rc;
-        }
-        DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " MAPPING_TABLE " created sucessfully" );
-
-    }
-    else
-    {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
-    }
-#endif
 
     /*
      * ====== CHECKING MAIN TABLE ==========

@@ -22,6 +22,7 @@
 #include "database.h"
 #include "RobinhoodLogs.h"
 #include "listmgr_stripe.h"
+#include "xplatform_print.h"
 #include <stdio.h>
 
 int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr )
@@ -777,7 +778,7 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
 }                               /* filter2str */
 
 
-/* special masks values for MAPPING TABLE */
+/* special masks values for id2pk and pk2id */
 #define MASK_ID2PK  0
 #define MASK_PK2ID  1
 
@@ -786,244 +787,27 @@ int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
                  PK_PARG_T p_pk )
 {
 #ifndef FID_PK
-#ifdef _ENABLE_PREP_STMT
-    unsigned long long id1, id2;
-    int            rc;
-    db_type_t      input_types[2] = { DB_BIGUINT, DB_BIGUINT };
-    void          *input_buffs[2] = { ( void * ) &id1, ( void * ) &id2 };
-
-    db_type_t      output_types[1] = { DB_BIGUINT };
-    void          *output_buffs[1] = { ( void * ) p_pk };
-
-    prep_stmt_t    stmt = prep_stmt_build_or_get( p_mgr, OP_SELECT, TAB_IDMAP, MASK_ID2PK,
-                                                  "SELECT id FROM " MAPPING_TABLE
-                                                  " WHERE inum=? AND dev=?" );
-    if ( !stmt )
-        return DB_REQUEST_FAILED;
-
-    /* bind arguments */
-
-    id1 = p_id->inode;
-    id2 = p_id->device;
-
-    rc = db_bind_params( stmt, input_types, input_buffs, NULL, 2, TRUE );
-
-    if ( rc == DB_CONNECT_FAILED )
-        /* This error is due to a disconnection, we must invalidate all statements */
-        invalidate_statements( p_mgr );
-
-    if ( rc )
-        return rc;
-
-    /* execute statement */
-    rc = db_exec_prepared( stmt, TRUE );
-
-    if ( rc == DB_CONNECT_FAILED )
-        /* This error is due to a disconnection, we must invalidate all statements */
-        invalidate_statements( p_mgr );
-
-    if ( rc )
-        return rc;
-
-    /* retrieve pk */
-    rc = db_next_prepared_record( stmt, output_types, output_buffs, NULL, 1, TRUE );
-
-    db_clean_prepared( stmt );
-
-    if ( rc == DB_END_OF_LIST )
-    {
-        if ( add_if_not_exists )
-        {
-            prep_stmt_t    stmt_ins;
-            stmt_ins =
-                prep_stmt_build_or_get( p_mgr, OP_INSERT, TAB_IDMAP, 0,
-                                        "INSERT INTO " MAPPING_TABLE " (inum,dev) VALUES (?,?)" );
-            if ( !stmt )
-                return DB_REQUEST_FAILED;
-
-            rc = db_bind_params( stmt_ins, input_types, input_buffs, NULL, 2, TRUE );
-            if ( rc )
-                return rc;
-
-            /* execute statement */
-            rc = db_exec_prepared( stmt_ins, FALSE );
-            if (rc)
-                return rc;
-
-            db_clean_prepared( stmt_ins );
-
-            *p_pk =  db_last_id( &p_mgr->conn );
-            return DB_SUCCESS;
-        }
-        else
-            return DB_NOT_EXISTS;
-    }
-    else if ( rc )
-    {
-        if ( rc == DB_CONNECT_FAILED )
-            /* This error is due to a disconnection, we must invalidate all statements */
-            invalidate_statements( p_mgr );
-
-        return rc;
-    }
-
-    return DB_SUCCESS;
-
-#else /* No prepared statements */
-
-    char           request[1024];
-    char           test[256];
-    char           pkval[256];
-    char           pkfield[256];
-    result_handle_t result;
-    char          *result_val;
-    int            rc;
-
-    sprintf( request, "SELECT id FROM " MAPPING_TABLE " WHERE %s", pkfilter( test, p_id ) );
-
-    rc = db_exec_sql( &p_mgr->conn, request, &result );
-    if ( rc )
-        return rc;
-
-    rc = db_next_record( &p_mgr->conn, &result, &result_val, 1 );
-    if ( rc == DB_END_OF_LIST )
-    {
-        if ( add_if_not_exists )
-        {
-            db_result_free( &p_mgr->conn, &result );
-
-            pkvalues( pkval, p_id, FALSE );
-            pkfields( pkfield, FALSE );
-
-            /* create it ! */
-            sprintf( request, "INSERT INTO " MAPPING_TABLE " (%s) VALUES (%s)", pkfield, pkval );
-
-            rc = db_exec_sql( &p_mgr->conn, request, NULL );
-            if ( rc )
-                return rc;
-
-            *p_pk = db_last_id( &p_mgr->conn );
-            return DB_SUCCESS;
-        }
-        else
-            goto free_res;
-    }
-    else if ( rc )
-        return rc;
-
-    if ( !sscanf( result_val, "%llu", p_pk ) )
-        goto free_res;
-
-    db_result_free( &p_mgr->conn, &result );
-    return DB_SUCCESS;
-
-  free_res:
-    db_result_free( &p_mgr->conn, &result );
-    return DB_NOT_EXISTS;
-
-#endif
+    snprintf( p_pk, PK_LEN, "%"PRI_DT":%LX", p_id->device,
+              (unsigned long long)p_id->inode );
 #else /* FID_PK */
     snprintf( p_pk, FID_LEN, DFID_NOBRACE, PFID(p_id) );
-    return DB_SUCCESS;
 #endif
+    return DB_SUCCESS;
 }
 
 
 int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
 {
 #ifndef FID_PK
-#ifdef _ENABLE_PREP_STMT
-    unsigned long long id1, id2;
-    int            rc;
+    unsigned long long tmp_ino;
 
-    db_type_t      input_types[1] = { DB_BIGUINT };
-    void          *input_buffs[1] = { ( void * ) &pk };
-
-    db_type_t      output_types[2] = { DB_BIGUINT, DB_BIGUINT };
-    void          *output_buffs[2] = { ( void * ) &id1, ( void * ) &id2 };
-
-    prep_stmt_t    stmt = prep_stmt_build_or_get( p_mgr, OP_SELECT, TAB_IDMAP, MASK_PK2ID,
-                                                  "SELECT inum,dev FROM " MAPPING_TABLE
-                                                  " WHERE id=?" );
-    if ( !stmt )
-        return DB_REQUEST_FAILED;
-
-    /* bind arguments */
-    rc = db_bind_params( stmt, input_types, input_buffs, NULL, 1, TRUE );
-    if ( rc )
-        return rc;
-
-    /* execute statement */
-    rc = db_exec_prepared( stmt, TRUE );
-
-    if ( rc == DB_CONNECT_FAILED )
-        /* This error is due to a disconnection, we must invalidate all statements */
-        invalidate_statements( p_mgr );
-
-    if ( rc )
-        return rc;
-
-    /* retrieve id */
-    rc = db_next_prepared_record( stmt, output_types, output_buffs, NULL, 2, TRUE );
-
-    db_clean_prepared( stmt );
-
-    if ( rc == DB_END_OF_LIST )
-        return DB_NOT_EXISTS;
-
-    if ( rc == DB_CONNECT_FAILED )
-        /* This error is due to a disconnection, we must invalidate all statements */
-        invalidate_statements( p_mgr );
-
-    if ( rc )
-        return rc;
-
-    p_id->inode = id1;
-    p_id->device = id2;
-
-    return DB_SUCCESS;
-
-#else /* No prepared statements */
-
-    char           fields[256];
-    char           query[1024];
-    result_handle_t result;
-    char          *result_val[2];
-    int            rc;
-    unsigned long long tmpval;
-
-    pkfields( fields, FALSE );
-
-    sprintf( query, "SELECT %s FROM " MAPPING_TABLE " WHERE id=%llu", fields, pk );
-
-    rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if ( rc )
-        return rc;
-
-    rc = db_next_record( &p_mgr->conn, &result, result_val, 2 );
-
-    if ( rc == DB_END_OF_LIST )
-        rc = DB_NOT_EXISTS;
-    if ( rc )
-        goto free_res;
-
-    p_id->validator = 0;
-
-    rc = sscanf( result_val[0], "%llu", &tmpval );
-    p_id->inode = ( ino_t ) tmpval;
-
-    rc += sscanf( result_val[1], "%llu", &tmpval );
-    p_id->device = ( ino_t ) tmpval;
-
-    if ( rc == 2 )
-        rc = DB_SUCCESS;
+    if ( sscanf( pk, "%"PRI_DT":%LX", &p_id->device, &tmp_ino ) != 2 )
+        return DB_INVALID_ARG;
     else
-        rc = DB_REQUEST_FAILED;
-
-  free_res:
-    db_result_free( &p_mgr->conn, &result );
-    return rc;
-#endif
+    {
+        p_id->inode = tmp_ino;
+        return DB_SUCCESS;
+    }
 #else /* FID_PK */
     if ( sscanf( pk, SFID, RFID(p_id) ) != 3 )
         return DB_INVALID_ARG;

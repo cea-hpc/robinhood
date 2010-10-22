@@ -63,11 +63,6 @@ static int ListMgr_Remove_NoTransaction( lmgr_t * p_mgr, const entry_id_t * p_id
             return rc;
     }
 
-#ifndef FID_PK
-    sprintf( request, "DELETE FROM " MAPPING_TABLE " WHERE id="DPK, pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-#endif
-
     return rc;
 }
 
@@ -146,10 +141,6 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
         }
 
         rc = db_exec_sql( &p_mgr->conn, "DELETE FROM " MAIN_TABLE, NULL );
-        if ( rc )
-            goto rollback;
-
-        rc = db_exec_sql( &p_mgr->conn, "DELETE FROM " MAPPING_TABLE, NULL );
         if ( rc )
             goto rollback;
 
@@ -313,14 +304,6 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
             if ( rc )
                 goto free_res;
         }
-
-#ifndef FID_PK
-        /* delete in mapping table */
-        sprintf( query, "DELETE FROM " MAPPING_TABLE " WHERE id="DPK, pk );
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
-            goto free_res;
-#endif
 
         rmcount++;
 

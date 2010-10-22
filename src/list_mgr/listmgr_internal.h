@@ -27,14 +27,14 @@
 /* primary key utils */
 #ifndef FID_PK
 
-#define PK_LEN 0
-#define PK_ARG_T unsigned long long
-#define PK_PARG_T unsigned long long *
-#define PTR_PK(_p) &(_p)
-#define DEF_PK(_p) unsigned long long _p
-#define PK_DB_TYPE DB_BIGUINT 
-#define DPK      "%llu"
-#define SPK      "%llu"
+#define PK_LEN 128
+#define PK_ARG_T  char *
+#define PK_PARG_T char *
+#define PTR_PK(_p) (_p)
+#define DEF_PK(_p) char _p[PK_LEN]
+#define PK_DB_TYPE DB_TEXT
+#define DPK      "'%s'"
+#define SPK      "%s"
 #define VALID( _p ) ((_p)->validator)
 
 #else

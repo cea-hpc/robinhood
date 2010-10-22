@@ -16,7 +16,6 @@
 
 #include "list_mgr.h"
 
-#define MAPPING_TABLE	    "ID_MAPPING"
 #define MAIN_TABLE	        "ENTRIES"
 #define ANNEX_TABLE	        "ANNEX_INFO"
 #define STRIPE_INFO_TABLE	"STRIPE_INFO"
