@@ -5,7 +5,7 @@
 AC_PREREQ(2.59)
 
 AC_INIT( [robinhood], [2.2.1], [robinhood-support@lists.sourceforge.net])
-AC_SUBST( [RELEASE], [0.rc2] )
+AC_SUBST( [RELEASE], [0.rc3] )
 
 AC_CONFIG_AUX_DIR([autotools])
 AC_CONFIG_MACRO_DIR([autotools/m4])

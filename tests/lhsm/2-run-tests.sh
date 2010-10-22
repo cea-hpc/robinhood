@@ -10,6 +10,12 @@ else
 	REPORT=../../src/robinhood/rbh-report
 fi
 
+if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
+	no_log=0
+else
+	no_log=1
+fi
+
 PROC=`basename $RH`
 
 CFG_SCRIPT="../../scripts/rbh-config"
@@ -101,7 +107,11 @@ function migration_test
 
 	echo "2-Reading changelogs..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	if (( $no_log )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -155,9 +165,14 @@ function xattr_test
 	setfattr -n user.bar -v 1 /mnt/lustre/file.2
 	echo "/mnt/lustre/file.3: none"
 
-	echo "2-Reading changelogs..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	if (( $no_log )); then
+		echo "2-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		echo "2-Reading changelogs..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -204,6 +219,10 @@ function link_unlink_remove_test
 
 	if (( $is_hsm == 0 )); then
 		echo "HSM test only: skipped"
+		return 1
+	fi
+	if (( $no_log )); then
+		echo "changelog disabled: skipped"
 		return 1
 	fi
 
@@ -287,7 +306,13 @@ function purge_test
 	
 	echo "2-Reading changelogs to update file status (after 1sec)..."
 	sleep 1
-	$RH -f ./cfg/$config_file --readlog -l DEBUG --once -L rh_chglogs.log
+	if (( $no_log )); then
+		echo "2-Scanning the FS again to update file status (after 1sec)..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		echo "2-Reading changelogs to update file status (after 1sec)..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
@@ -355,9 +380,15 @@ function purge_size_filesets
 		done
 	done
 	
-	echo "2-Reading changelogs to update file status (after 1sec)..."
 	sleep 1
-	$RH -f ./cfg/$config_file --readlog -l DEBUG --once -L rh_chglogs.log
+	if (( $no_log )); then
+		echo "2-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		echo "2-Reading changelogs to update file status (after 1sec)..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
+
 
 	echo "3-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
@@ -402,8 +433,13 @@ function test_rh_report
 	echo "1bis. Wait for IO completion..."
 	sync
 
-	echo "2.Reading ChangeLogs..."
-	$RH -f ./cfg/$config_file --readlog -l DEBUG --once -L rh_chglogs.log
+	if (( $no_log )); then
+		echo "2-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		echo "2-Reading changelogs..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
 
 	echo "3.Checking reports..."
 	for i in `seq 1 $dircount`; do
@@ -425,7 +461,7 @@ function path_test
 	policy_str="$3"
 
 	if (( $is_hsm == 0 )); then
-		echo "HSM test only: skipped"
+		echo "hsm test only: skipped"
 		return 1
 	fi
 
@@ -536,9 +572,15 @@ function path_test
 	echo "1bis-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
-	echo "2-Reading changelogs..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	if (( $no_log )); then
+		echo "2-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		echo "2-Reading changelogs..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
+
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -589,6 +631,11 @@ function update_test
 	init=`date "+%s"`
 
 	LOG=rh_chglogs.log
+
+	if (( $no_log )); then
+		echo "changelog disabled: skipped"
+		return 1
+	fi
 
 	for i in `seq 1 3`; do
 		echo "loop 1.$i: many 'touch' within $event_updt_min sec"
@@ -1121,9 +1168,14 @@ function fileclass_test
 	echo "1bis-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
-	echo "2-Reading changelogs..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	if (( $no_log )); then
+		echo "2-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		echo "2-Reading changelogs..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -1170,9 +1222,16 @@ function test_info_collect
 
 	sleep $sleep_time1
 
-	echo "1-Reading changelogs..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	if (( $no_log )); then
+		echo "1-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		nb_cr=0
+	else
+		echo "1-Reading changelogs..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		nb_cr=4
+	fi
 
 	sleep $sleep_time2
 
@@ -1188,8 +1247,8 @@ function test_info_collect
 	fi
 	# 4 files have been created, 4 db operations expected (files)
 	# tmp_fs_mgr purpose: +3 for mkdir operations
-	if (( $nb_create == 4 && $nb_db_apply == $db_expect )); then
-		echo "OK: 4 files created, $db_expect database operations"
+	if (( $nb_create == $nb_cr && $nb_db_apply == $db_expect )); then
+		echo "OK: $nb_cr files created, $db_expect database operations"
 	else
 		echo "ERROR: unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
 	fi
@@ -1197,8 +1256,6 @@ function test_info_collect
 	clean_logs
 
 	echo "2-Scanning..."
-	
-	# read changelogs
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
  
 	grep "DB query failed" rh_chglogs.log && echo "ERROR: a DB query failed when scanning"
@@ -1232,9 +1289,15 @@ function test_pools
 
 	sleep $sleep_time
 
-	echo "1.1-read changelog and match..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	if (( $no_log )); then
+		echo "1.1-scan and match..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	else
+		echo "1.1-read changelog and match..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	fi
+
 
 	echo "1.2-checking report output..."
 	# check classes in report output
