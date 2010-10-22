@@ -576,6 +576,12 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         break;
 #endif
     case CRITERIA_POOL:
+        /* /!\ objects != file or dir don't have stripe info (never match) */
+        if ( ATTR_MASK_TEST( p_entry_attr, type ) &&
+             strcmp( ATTR( p_entry_attr, type ), STR_TYPE_DIR ) &&
+             strcmp( ATTR( p_entry_attr, type ), STR_TYPE_FILE ) )
+            return POLICY_NO_MATCH;
+
         /* pool name is required */
         CHECK_ATTR( p_entry_attr, stripe_info, no_warning );
 
@@ -601,6 +607,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 #if (!defined (_LUSTRE) || !defined(_HAVE_FID))
          /* fullpath needed to get xattr, except if fids are supported */
         CHECK_ATTR( p_entry_attr, fullpath, no_warning );
+        entry_path = ATTR(p_entry_attr, fullpath);
 #else
         if (p_entry_id)
         {
