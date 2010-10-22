@@ -4,10 +4,12 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_hsm=1
 	RH=../../src/robinhood/rbh-hsm
 	REPORT=$RH-report
+	CMD=rbh-hsm
 else
 	is_hsm=0
 	RH=../../src/robinhood/robinhood
 	REPORT=../../src/robinhood/rbh-report
+	CMD=robinhood
 fi
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
@@ -1373,13 +1375,13 @@ function test_logs
 	clean_logs
 	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
 
-	# test flavors:
+	# test flavors (x=supported):
 	# x	file_nobatch
-	# 	file_batch
+	# x 	file_batch
 	# x	syslog_nobatch
-	# 	syslog_batch
+	# x	syslog_batch
 	# x	stdio_nobatch
-	# 	stdio_batch
+	# x	stdio_batch
 	# 	mix
 	files=0
 	syslog=0
@@ -1434,7 +1436,7 @@ function test_logs
 		alert="/tmp/extract_alert"
 		report="/tmp/extract_report"
 	elif (( $syslog )); then
-		tail -n +"$init_msg_idx" /var/log/messages | grep robinhood > /tmp/extract_all
+		tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
 		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
@@ -1515,7 +1517,7 @@ function test_logs
 
 	# extract new syslog messages
 	if (( $syslog )); then
-		tail -n +"$init_msg_idx" /var/log/messages | grep robinhood > /tmp/extract_all
+		tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
 		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
@@ -1535,7 +1537,7 @@ function test_logs
 	# check alerts (should be impossible to purge at 0%)
 	grep "Could not purge" $alert > /dev/null
 	if (($?)); then
-		echo "ERROR: alert show have been raised for impossible purge"
+		echo "ERROR: alert should have been raised for impossible purge"
 	else
 		echo "OK: alert raised"
 	fi

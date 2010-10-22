@@ -845,9 +845,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR( &p_op->entry_attr, last_op_index ) = p_op->extra_info.log_record.p_log_rec->cr_index;
     }
 
-    /* XXX for now, directly apply to the db (no reporting step) */
 
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+    rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
+    /* XXX for now, directly apply to the db (no reporting step) */
+//    rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
@@ -865,7 +866,75 @@ skip_record:
 
 int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
-    /* TODO to be implemented */
+    int            rc, i;
+    const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
+    int            is_alert = FALSE;
+    char           stralert[2048];
+    char           strvalues[2048];
+    char           strid[1024];
+    char         * title = NULL;
+
+    /* generate missing fields */
+    ListMgr_GenerateFields( &p_op->entry_attr,
+                            entry_proc_conf.alert_attr_mask );
+
+    /* check alert criterias (synchronously) */
+    for ( i = 0; i < entry_proc_conf.alert_count; i++ )
+    {
+        /* check entry attr mask (else, skip it) */
+        if ( !p_op->entry_attr_is_set || !p_op->entry_id_is_set
+             || ( ( p_op->entry_attr.attr_mask & entry_proc_conf.alert_list[i].attr_mask ) !=
+                  entry_proc_conf.alert_list[i].attr_mask ) )
+            continue;
+
+        if ( EntryMatches( &p_op->entry_id, &p_op->entry_attr,
+               &entry_proc_conf.alert_list[i].boolexpr ) == POLICY_MATCH )
+        {
+            /* build alert string and break */
+            if ( ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
+                snprintf( strid, 1024, "%s", ATTR( &p_op->entry_attr, fullpath ) );
+            else
+                snprintf( strid, 1024, "fid[seq, oid]=[%llu, %u]", p_op->entry_id.f_seq,
+                          p_op->entry_id.f_oid );
+
+            rc = BoolExpr2str( &entry_proc_conf.alert_list[i].boolexpr, stralert, 2048 );
+            if ( rc < 0 )
+                strcpy( stralert, "Error building alert string" );
+
+            PrintAttrs( strvalues, 2048, &p_op->entry_attr,
+                        entry_proc_conf.alert_list[i].attr_mask );
+
+            if ( EMPTY_STRING(entry_proc_conf.alert_list[i].title) )
+                title = NULL;
+            else
+                title = entry_proc_conf.alert_list[i].title;
+
+            is_alert = TRUE;
+            break;
+        }
+    }
+
+    /* acknoledge now if the stage is asynchronous */
+    if ( stage_info->stage_flags & STAGE_FLAG_ASYNC )
+    {
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
+                        stage_info->stage_name );
+    }
+
+    if ( is_alert )
+        RaiseEntryAlert(title, stralert, strid, strvalues );
+
+    /* acknoledge now if the stage was synchronous */
+    if ( !( stage_info->stage_flags & STAGE_FLAG_ASYNC ) )
+    {
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
+                        stage_info->stage_name );
+    }
+
     return 0;
 }
 

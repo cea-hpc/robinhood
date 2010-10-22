@@ -225,44 +225,40 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
 #endif
 
 #ifdef ATTR_INDEX_type
-    if ( (field_infos[ATTR_INDEX_type].flags & GENERATED) == 0 )
+    if ( S_ISREG( p_inode->st_mode ) )
     {
-        /* only if type is not generated */
-        if ( S_ISREG( p_inode->st_mode ) )
-        {
-            ATTR_MASK_SET( p_attr_set, type );
-            strcpy( ATTR( p_attr_set, type ), STR_TYPE_FILE );
-        }
-        else if ( S_ISDIR( p_inode->st_mode ) )
-        {
-            ATTR_MASK_SET( p_attr_set, type );
-            strcpy( ATTR( p_attr_set, type ), STR_TYPE_DIR );
-        }
-        else if ( S_ISCHR( p_inode->st_mode ) )
-        {
-            ATTR_MASK_SET( p_attr_set, type );
-            strcpy( ATTR( p_attr_set, type ), STR_TYPE_CHR );
-        }
-        else if ( S_ISBLK( p_inode->st_mode ) )
-        {
-            ATTR_MASK_SET( p_attr_set, type );
-            strcpy( ATTR( p_attr_set, type ), STR_TYPE_BLK );
-        }
-        else if ( S_ISFIFO( p_inode->st_mode ) )
-        {
-            ATTR_MASK_SET( p_attr_set, type );
-            strcpy( ATTR( p_attr_set, type ), STR_TYPE_FIFO );
-        }
-        else if ( S_ISLNK( p_inode->st_mode ) )
-        {
-            ATTR_MASK_SET( p_attr_set, type );
-            strcpy( ATTR( p_attr_set, type ), STR_TYPE_LINK );
-        }
-        else if ( S_ISSOCK( p_inode->st_mode ) )
-        {
-            ATTR_MASK_SET( p_attr_set, type );
-            strcpy( ATTR( p_attr_set, type ), STR_TYPE_SOCK );
-        }
+        ATTR_MASK_SET( p_attr_set, type );
+        strcpy( ATTR( p_attr_set, type ), STR_TYPE_FILE );
+    }
+    else if ( S_ISDIR( p_inode->st_mode ) )
+    {
+        ATTR_MASK_SET( p_attr_set, type );
+        strcpy( ATTR( p_attr_set, type ), STR_TYPE_DIR );
+    }
+    else if ( S_ISCHR( p_inode->st_mode ) )
+    {
+        ATTR_MASK_SET( p_attr_set, type );
+        strcpy( ATTR( p_attr_set, type ), STR_TYPE_CHR );
+    }
+    else if ( S_ISBLK( p_inode->st_mode ) )
+    {
+        ATTR_MASK_SET( p_attr_set, type );
+        strcpy( ATTR( p_attr_set, type ), STR_TYPE_BLK );
+    }
+    else if ( S_ISFIFO( p_inode->st_mode ) )
+    {
+        ATTR_MASK_SET( p_attr_set, type );
+        strcpy( ATTR( p_attr_set, type ), STR_TYPE_FIFO );
+    }
+    else if ( S_ISLNK( p_inode->st_mode ) )
+    {
+        ATTR_MASK_SET( p_attr_set, type );
+        strcpy( ATTR( p_attr_set, type ), STR_TYPE_LINK );
+    }
+    else if ( S_ISSOCK( p_inode->st_mode ) )
+    {
+        ATTR_MASK_SET( p_attr_set, type );
+        strcpy( ATTR( p_attr_set, type ), STR_TYPE_SOCK );
     }
 #endif
 
