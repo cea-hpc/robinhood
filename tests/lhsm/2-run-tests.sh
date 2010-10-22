@@ -1399,6 +1399,11 @@ function test_logs
 	touch /mnt/lustre/file.3 || echo "ERROR creating file"
 	touch /mnt/lustre/file.4 || echo "ERROR creating file"
 
+	if (( $is_hsm != 0 )); then
+		lfs hsm_set --exists --archived /mnt/lustre/file.*
+		lfs hsm_clear --dirty /mnt/lustre/file.*
+	fi
+
 	if (( $syslog )); then
 		init_msg_idx=`wc -l /var/log/messages | awk '{print $1}'`
 	fi
@@ -1432,7 +1437,7 @@ function test_logs
 			grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
 		fi
 		# grep 'robinhood\[' => don't select lines with no headers
-		grep -v ALERT /tmp/rbh.stdout | grep 'robinhood[^ ]*\[' > /tmp/extract_report
+		grep -v ALERT /tmp/rbh.stdout | grep "$CMD[^ ]*\[" > /tmp/extract_report
 		alert="/tmp/extract_alert"
 		report="/tmp/extract_report"
 	elif (( $syslog )); then
@@ -1524,7 +1529,7 @@ function test_logs
 	elif (( $stdio )); then
 		grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
 		# grep 'robinhood\[' => don't select lines with no headers
-		grep -v ALERT /tmp/rbh.stdout | grep 'robinhood[^ ]*\[' > /tmp/extract_report
+		grep -v ALERT /tmp/rbh.stdout | grep "$CMD[^ ]*\[" > /tmp/extract_report
 	fi
 
 	# check that there is something written in the log
