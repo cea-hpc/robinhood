@@ -32,7 +32,6 @@
 int            EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
 int            EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
 int            EntryProc_get_info_fs( struct entry_proc_op_t *, lmgr_t * );
-int            EntryProc_infer_attrs( struct entry_proc_op_t *, lmgr_t * );
 int            EntryProc_reporting( struct entry_proc_op_t *, lmgr_t * );
 int            EntryProc_db_apply( struct entry_proc_op_t *, lmgr_t * );
 #ifdef HAVE_CHANGELOGS
@@ -47,8 +46,6 @@ pipeline_stage_t entry_proc_pipeline[] = {
     {STAGE_GET_INFO_DB, "STAGE_GET_INFO_DB", EntryProc_get_info_db,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC | STAGE_FLAG_ID_CONSTRAINT, 0},
     {STAGE_GET_INFO_FS, "STAGE_GET_INFO_FS", EntryProc_get_info_fs,
-     STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
-    {STAGE_INFER_ATTRS, "STAGE_INFER_ATTRS", EntryProc_infer_attrs,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
     {STAGE_REPORTING, "STAGE_REPORTING", EntryProc_reporting,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_ASYNC, 0},
@@ -85,7 +82,8 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int            rc;
     entry_id_t     tmp_id;
 
-    if ( !p_op->entry_attr_is_set || !ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
+    if ( !p_op->entry_attr_is_set
+         || !ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
     {
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                     "Error: entry full path is expected to be set in STAGE_GET_FID stage" );
@@ -95,22 +93,21 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* perform path2fid */
     rc = Lustre_GetFidFromPath( ATTR( &p_op->entry_attr, fullpath ), &tmp_id ); 
-
     if ( rc )
     {
         /* remove the operation from pipeline */
         rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
         if ( rc )
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage STAGE_GET_FID.",
-                        rc );
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
+                        "Error %d acknowledging stage STAGE_GET_FID.", rc );
     }
     else
     {
         rc = EntryProcessor_SetEntryId( p_op, &tmp_id );
-
         if ( rc )
         {
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d setting entry id", rc );
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d setting entry id",
+                        rc );
             /* remove entry from pipeline */
             EntryProcessor_Acknowledge( p_op, 0, TRUE );
             return rc;
@@ -682,8 +679,12 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
     }
 
+    if ( p_op->entry_attr_is_set )
+        check_policies( &p_op->entry_id, &p_op->entry_attr,
+                        entry_proc_conf.match_classes );
+
     /* acknowledge the stage and go to the next */
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_INFER_ATTRS, FALSE );
+    rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
                     stage_info->stage_name );
@@ -706,30 +707,6 @@ rm_record:
     return rc;
 #endif
 }
-
-/**
- * Add extra information generated using current attributes
- * (whitelisted status...) 
- */
-int EntryProc_infer_attrs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
-{
-    int            rc;
-    const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-
-    if ( p_op->entry_attr_is_set )
-        check_policies( &p_op->entry_id, &p_op->entry_attr,
-                        entry_proc_conf.match_classes );
-
-    /* acknowledge the stage and go to the next */
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
-    if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
-                    stage_info->stage_name );
-
-    return rc;
-}
-
-
 
 /**
  *  Raise alert if the entry exceeds an admministrator defined limit.

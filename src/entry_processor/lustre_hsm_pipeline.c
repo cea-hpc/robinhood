@@ -24,6 +24,8 @@
 #include <errno.h>
 #include <time.h>
 
+#define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
+
 /* declaration of EntryProc functions of pipeline */
 int            EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
 int            EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
@@ -699,7 +701,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* get entry attributes */
             if ( rc != 0 )
             {
-                if ( (rc == ENOENT) ||  (rc == ESTALE)  )
+                if ( ERR_MISSING(rc) )
                 {
                     DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore", path );
                     /* in this case, an UNLINK event will be raised, so we ignore current record */
@@ -741,7 +743,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 rc = Lustre_GetFullPath( &p_op->entry_id,
                                          ATTR( &p_op->entry_attr, fullpath ), 1024 );
 
-                if ( ( abs( rc ) == ENOENT ) || ( abs( rc ) == ESTALE ) )
+                if ( ERR_MISSING( abs( rc )) )
                 {
                     DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry "DFID" does not exist anymore", PFID(&p_op->entry_id) );
                     /* in this case, an UNLINK event will be raised, so we ignore current record */
@@ -770,9 +772,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                                        &ATTR( &p_op->entry_attr, stripe_info ),
                                        &ATTR( &p_op->entry_attr, stripe_items ) );
 
-            if ( ( abs( rc ) == ENOENT ) || ( abs( rc ) == ESTALE ) )
+            if ( ERR_MISSING(abs(rc)) )
             {
-                DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry "DFID" does not exist anymore", PFID(&p_op->entry_id) );
+                DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry "DFID" does not exist anymore",
+                            PFID(&p_op->entry_id) );
                 /* in this case, an UNLINK event will be raised, so we ignore current record */
                 goto skip_record;
             }
@@ -790,9 +793,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             rc = LustreHSM_GetStatus( path, &ATTR( &p_op->entry_attr, status ),
                                       &ATTR( &p_op->entry_attr, no_release ),
                                       &ATTR( &p_op->entry_attr, no_archive ) );
-            if ( ( abs( rc ) == ENOENT ) || ( abs( rc ) == ESTALE ) )
+            if ( ERR_MISSING( abs( rc )) )
             {
-                DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry "DFID" does not exist anymore", PFID(&p_op->entry_id) );
+                DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry "DFID" does not exist anymore",
+                            PFID(&p_op->entry_id) );
                 /* in this case, an UNLINK event will be raised, so we ignore current record */
                 goto skip_record;
             }
@@ -847,8 +851,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 
     rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
-    /* XXX for now, directly apply to the db (no reporting step) */
-//    rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;

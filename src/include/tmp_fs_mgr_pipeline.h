@@ -61,14 +61,13 @@ static void inline extra_info_init( op_extra_info_t * p_extra_info )
 #define STAGE_GET_FID         0
 #define STAGE_GET_INFO_DB     1
 #define STAGE_GET_INFO_FS     2
-#define STAGE_INFER_ATTRS     3
-#define STAGE_REPORTING       4
-#define STAGE_DB_APPLY        5
+#define STAGE_REPORTING       3
+#define STAGE_DB_APPLY        4
 #ifdef HAVE_CHANGELOGS
-#define STAGE_CHGLOG_CLR      6 
-#define STAGE_RM_OLD_ENTRIES  7 /* special stage at the end of FS scan */
-#else
+#define STAGE_CHGLOG_CLR      5
 #define STAGE_RM_OLD_ENTRIES  6 /* special stage at the end of FS scan */
+#else
+#define STAGE_RM_OLD_ENTRIES  5 /* special stage at the end of FS scan */
 #endif
 
 #define PIPELINE_STAGE_COUNT (STAGE_RM_OLD_ENTRIES+1)
