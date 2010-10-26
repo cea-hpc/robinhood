@@ -1,5 +1,10 @@
 - criteria on stripe_count
 
+- live summaries:
+	- enabled from config
+	- examples: user_usage (count, type, usage, size...), group_usage,
+		stats_by_type(count, size, usage...), stats_by_class (count, size, usage...)
+
 - check error "filed still missing 0x8"
 
 - usage in db when there is no trigger on OST usage...
