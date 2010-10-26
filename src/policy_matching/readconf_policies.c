@@ -47,7 +47,9 @@
 #define CHK_TAG "PolicyCheck"
 
 policies_t     policies = {
+#ifdef HAVE_PURGE_POLICY
     .purge_policies = {NULL, 0, NULL, 0, 0},
+#endif
 #ifdef HAVE_MIGR_POLICY
     .migr_policies = {NULL, 0, 0},
 #endif
@@ -1789,10 +1791,15 @@ static int parse_policy_block( config_item_t config_item,
     critical_err_check( polname, block_name );
 
     /* check that this policy name is not already used for this type of policy */
+#ifdef HAVE_PURGE_POLICY
     if ( policy_type == PURGE_POLICY )
         this_list = &all_policies->purge_policies;
+#endif
+#if defined(HAVE_PURGE_POLICY) && defined(HAVE_MIGR_POLICY)
+    else
+#endif
 #ifdef HAVE_MIGR_POLICY
-    else if ( policy_type == MIGR_POLICY )
+    if ( policy_type == MIGR_POLICY )
         this_list = &all_policies->migr_policies;
 #endif
     else
@@ -1894,8 +1901,10 @@ static int parse_policy_block( config_item_t config_item,
                              rh_config_GetItemLine( sub_item ) );
                     return EINVAL;
                 }
+#ifdef HAVE_PURGE_POLICY
                 else if ( policy_type == PURGE_POLICY )
                     fs->has_purge_policy = TRUE;
+#endif
 #ifdef HAVE_MIGR_POLICY
                 else if ( policy_type == MIGR_POLICY )
                     fs->has_migration_policy = TRUE;
@@ -2095,13 +2104,18 @@ static int read_policy( config_file_t config, policies_t * policies, char *msg_o
 #define curr_ign_fc     policy_list->ignore_count
 #define curr_pol        policy_list->policy_count
 
+#ifdef HAVE_PURGE_POLICY
     if ( policy_type == PURGE_POLICY )
     {
         policy_list = &policies->purge_policies;
         section_name = PURGEPOLICY_BLOCK;
     }
+#endif
+#if defined(HAVE_MIGR_POLICY) && defined(HAVE_PURGE_POLICY)
+    else
+#endif
 #ifdef HAVE_MIGR_POLICY
-    else if ( policy_type == MIGR_POLICY )
+    if ( policy_type == MIGR_POLICY )
     {
         policy_list = &policies->migr_policies;
         section_name = MIGRPOLICY_BLOCK;
@@ -2247,8 +2261,10 @@ static int read_policy( config_file_t config, policies_t * policies, char *msg_o
                 rc = EINVAL;
                 goto free_policy;
             }
+#ifdef HAVE_PURGE_POLICY
             else if ( policy_type == PURGE_POLICY )
                 policy_list->ignore_list[curr_ign_fc]->has_purge_policy = TRUE;
+#endif
 #ifdef HAVE_MIGR_POLICY
             else if ( policy_type == MIGR_POLICY )
                 policy_list->ignore_list[curr_ign_fc]->has_migration_policy = TRUE;
@@ -2346,15 +2362,16 @@ int SetDefault_Policies( void *module_config, char *msg_out )
     rc = set_default_filesets( &policy->filesets, msg_out );
     if ( rc )
         return rc;
+#ifdef HAVE_PURGE_POLICY
     rc = set_default_policy( &policy->purge_policies, msg_out, PURGE_POLICY );
     if ( rc )
         return rc;
+#endif
 #ifdef HAVE_MIGR_POLICY
     rc = set_default_policy( &policy->migr_policies, msg_out, MIGR_POLICY );
     if ( rc )
         return rc;
 #endif
-
 #ifdef HAVE_RM_POLICY
     rc = set_default_unlink_policy( &policy->unlink_policy, msg_out );
     if ( rc )
@@ -2382,15 +2399,16 @@ int Read_Policies( config_file_t config, void *module_config, char *msg_out, int
     rc = read_filesets( config, &policy->filesets, msg_out, for_reload );
     if ( rc )
         return rc;
+#ifdef HAVE_PURGE_POLICY
     rc = read_policy( config, policy, msg_out, for_reload, PURGE_POLICY );
     if ( rc )
         return rc;
+#endif
 #ifdef HAVE_MIGR_POLICY
     rc = read_policy( config, policy, msg_out, for_reload, MIGR_POLICY );
     if ( rc )
         return rc;
 #endif
-
 #ifdef HAVE_RM_POLICY
     rc = read_unlink_policy( config, &policy->unlink_policy, msg_out, for_reload );
     if ( rc )
@@ -2442,9 +2460,11 @@ int Write_Policy_Template( FILE * output )
         return rc;
 #endif
 
+#ifdef HAVE_PURGE_POLICY
     rc = write_purge_policy_template( output );
     if ( rc )
         return rc;
+#endif
 
 #ifdef HAVE_RMDIR_POLICY
     rc = write_rmdir_policy_template( output );
@@ -2484,9 +2504,11 @@ int Write_Policy_Default( FILE * output )
         return rc;
 #endif
 
+#ifdef HAVE_PURGE_POLICY
     rc = write_default_policy( output, PURGE_POLICY );
     if ( rc )
         return rc;
+#endif
 
     rc = write_default_update_policy( output );
     if ( rc )

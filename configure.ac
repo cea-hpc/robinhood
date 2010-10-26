@@ -181,6 +181,7 @@ case $PURPOSE in
         PURPOSE_SVC="robinhood-hsm"
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for Lustre-HSM purpose])
         AC_DEFINE([HAVE_RM_POLICY], [1], [HSM removal policy for Lustre-HSM purpose])
+        AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for Lustre-HSM purpose])
         ;;
     TMP_FS_MGR)
         PURPOSE_CFLAGS="-D_TMP_FS_MGR"
@@ -188,6 +189,7 @@ case $PURPOSE in
         PURPOSE_EXT="tmpfs"
         PURPOSE_SVC="robinhood"
         AC_DEFINE([HAVE_RMDIR_POLICY], [1], [Dir removal policy for TMP_FS_MGR purpose])
+        AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for TMP_FS_MGR purpose])
         ;;
     SHERPA)
         PURPOSE_CFLAGS="-D_SHERPA"
@@ -198,6 +200,7 @@ case $PURPOSE in
 
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for SHERPA purpose])
         AC_DEFINE([HAVE_RMDIR_POLICY], [1], [Dir removal policy for SHERPA purpose])
+        AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for SHERPA purpose])
         ;;
 
     BACKUP)
@@ -207,6 +210,7 @@ case $PURPOSE in
         PURPOSE_SVC="robinhood-backup"
 
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for backup purpose])
+        AC_DEFINE([HAVE_RM_POLICY], [1], [Backend removal policy for backup purpose])
         ;;
 
     *)

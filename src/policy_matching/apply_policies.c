@@ -764,10 +764,12 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
 
     switch ( policy_type )
     {
+#ifdef HAVE_PURGE_POLICY
     case PURGE_POLICY:
         count = policies.purge_policies.whitelist_count;
         list = policies.purge_policies.whitelist_rules;
         break;
+#endif
 #ifdef HAVE_MIGR_POLICY
     case MIGR_POLICY:
         count = policies.migr_policies.whitelist_count;
@@ -790,6 +792,7 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
         switch ( _EntryMatches( p_entry_id, p_entry_attr, &list[i].bool_expr, no_warning ) )
         {
         case POLICY_MATCH:
+#ifdef HAVE_PURGE_POLICY
             /* remember the matched fileset */
             if ( policy_type == PURGE_POLICY )
             {
@@ -798,8 +801,9 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
                 ATTR( p_entry_attr, rel_cl_update ) = time(NULL);
                 ATTR_MASK_SET( p_entry_attr, rel_cl_update );
             }
+#endif
 #ifdef HAVE_MIGR_POLICY
-            else if ( policy_type == MIGR_POLICY )
+            if ( policy_type == MIGR_POLICY )
             {
                 strcpy( ATTR( p_entry_attr, archive_class ), CLASS_IGNORED );
                 ATTR_MASK_SET( p_entry_attr, archive_class );
@@ -841,10 +845,12 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
 
     switch ( policy_type )
     {
+#ifdef HAVE_PURGE_POLICY
     case PURGE_POLICY:
         count = policies.purge_policies.ignore_count;
         fs_list = policies.purge_policies.ignore_list;
         break;
+#endif
 #ifdef HAVE_MIGR_POLICY
     case MIGR_POLICY:
         count = policies.migr_policies.ignore_count;
@@ -862,6 +868,7 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
         {
         case POLICY_MATCH:
         {
+#ifdef HAVE_PURGE_POLICY
             /* remember the matched fileset */
             if ( policy_type == PURGE_POLICY )
             {
@@ -870,8 +877,9 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
                 ATTR( p_entry_attr, rel_cl_update ) = time(NULL);
                 ATTR_MASK_SET( p_entry_attr, rel_cl_update );
             }
+#endif
 #ifdef HAVE_MIGR_POLICY
-            else if ( policy_type == MIGR_POLICY )
+            if ( policy_type == MIGR_POLICY )
             {
                 strcpy( ATTR( p_entry_attr, archive_class ), fs_list[i]->fileset_id );
                 ATTR_MASK_SET( p_entry_attr, archive_class );
@@ -917,10 +925,12 @@ int WhitelistedClass( const char * class_id, policy_type_t policy_type )
 
     switch ( policy_type )
     {
+#ifdef HAVE_PURGE_POLICY
     case PURGE_POLICY:
         count = policies.purge_policies.ignore_count;
         fs_list = policies.purge_policies.ignore_list;
         break;
+#endif
 #ifdef HAVE_MIGR_POLICY
     case MIGR_POLICY:
         count = policies.migr_policies.ignore_count;
@@ -1002,10 +1012,12 @@ policy_item_t *GetPolicyCase( const entry_id_t * p_entry_id,
 
     switch ( policy_type )
     {
+#ifdef HAVE_PURGE_POLICY
     case PURGE_POLICY:
         pol_list = policies.purge_policies.policy_list;
         count = policies.purge_policies.policy_count;
         break;
+#endif
 #ifdef HAVE_MIGR_POLICY
     case MIGR_POLICY:
         pol_list = policies.migr_policies.policy_list;
@@ -1104,10 +1116,12 @@ policy_item_t * GetPolicyCaseByClass( const char * class_id,
 
     switch ( policy_type )
     {
+#ifdef HAVE_PURGE_POLICY
     case PURGE_POLICY:
         pol_list = policies.purge_policies.policy_list;
         count = policies.purge_policies.policy_count;
         break;
+#endif
 #ifdef HAVE_MIGR_POLICY
     case MIGR_POLICY:
         pol_list = policies.migr_policies.policy_list;
@@ -1191,10 +1205,12 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
 
     switch ( policy_type )
     {
+#ifdef HAVE_PURGE_POLICY
     case PURGE_POLICY:
         pol_list = policies.purge_policies.policy_list;
         count = policies.purge_policies.policy_count;
         break;
+#endif
 #ifdef HAVE_MIGR_POLICY
     case MIGR_POLICY:
         pol_list = policies.migr_policies.policy_list;
@@ -1384,7 +1400,7 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 {
     policy_match_t isok;
 
-#ifndef _LUSTRE_HSM /* Lustre-HSM: non interested in directories */
+#ifdef HAVE_RMDIR_POLICY
     if ( ATTR_MASK_TEST( p_attrs, type )
          && !strcmp( ATTR( p_attrs, type ), STR_TYPE_DIR ) )
     {
@@ -1410,6 +1426,7 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
     /* non-directory object */
 
     /* generate needed fields */
+#ifdef HAVE_PURGE_POLICY
     ListMgr_GenerateFields( p_attrs, policies.purge_policies.global_attr_mask );
 
     isok = _IsWhitelisted( p_id, p_attrs, PURGE_POLICY, TRUE );
@@ -1426,9 +1443,12 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
         ATTR( p_attrs, whitelisted ) = FALSE;
     }
 #endif
+#endif
 
     if ( match_all_fc )
     {
+
+#ifdef HAVE_PURGE_POLICY
         if ( need_fileclass_update( p_attrs, PURGE_POLICY ) == TRUE )
         {
             policy_item_t *policy_case = NULL;
@@ -1449,6 +1469,7 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
                 ATTR_MASK_SET( p_attrs, rel_cl_update );
             }
         }
+#endif
 
 #ifdef HAVE_MIGR_POLICY
         ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
@@ -1488,6 +1509,7 @@ int need_fileclass_update( const attr_set_t * p_attrs, policy_type_t policy_type
     time_t last = 0;
     const char * match= "";
 
+#ifdef HAVE_PURGE_POLICY
     if ( policy_type == PURGE_POLICY )
     {
         is_set = ATTR_MASK_TEST(p_attrs, rel_cl_update)
@@ -1498,8 +1520,9 @@ int need_fileclass_update( const attr_set_t * p_attrs, policy_type_t policy_type
             match = ATTR(p_attrs, release_class);
         }
     }
+#endif
 #ifdef HAVE_MIGR_POLICY
-    else if ( policy_type == MIGR_POLICY )
+    if ( policy_type == MIGR_POLICY )
     {
         is_set = ATTR_MASK_TEST(p_attrs, arch_cl_update)
                  && ATTR_MASK_TEST(p_attrs, archive_class);
@@ -1510,12 +1533,6 @@ int need_fileclass_update( const attr_set_t * p_attrs, policy_type_t policy_type
         }
     }
 #endif
-    else
-    {
-        DisplayLog( LVL_CRIT, POLICY_TAG, "Unsupported policy type in %s(): %u",
-                    __FUNCTION__, policy_type );
-        return -1;
-    }
 
     /* check for periodic fileclass matching */
     if ( !is_set )

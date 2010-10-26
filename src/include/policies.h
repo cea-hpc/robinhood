@@ -190,8 +190,10 @@ typedef struct fileset_item_t
     /** summary of attributes involved in boolean expression */
     int            attr_mask;
 
+#ifdef HAVE_PURGE_POLICY
     /* flags for internal management */
     unsigned int   has_purge_policy:1;           /* is the fileset referenced in a purge policy? */
+#endif
 #ifdef HAVE_MIGR_POLICY
     unsigned int   has_migration_policy:1;       /* is the fileset referenced in a migration policy? */
 
@@ -311,7 +313,9 @@ int            Write_Policy_Default( FILE * output );
 
 typedef struct policies_t
 {
+#ifdef HAVE_PURGE_POLICY
     policy_list_t  purge_policies;
+#endif
 #ifdef HAVE_MIGR_POLICY
     policy_list_t  migr_policies;
 #endif

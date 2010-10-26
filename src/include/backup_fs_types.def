@@ -109,7 +109,8 @@ typedef enum
   STATUS_NEW,                   /* file does not exists in the backend */
   STATUS_MODIFIED,              /* file has been modified since it was stored in the backend */
   STATUS_ARCHIVE_RUNNING,       /* file is being archived to the backend */
-  STATUS_SYNCRO                 /* file is synchronized in the backend */
+  STATUS_SYNCRO,                /* file is synchronized in the backend */
+  STATUS_REMOVED                /* file has been removed from lustre and still exists in the backend */
 } file_status_t;
 
 
@@ -133,6 +134,7 @@ gr_name, 	char, 		DB_TEXT,   128,  ANNEX_INFO
 # important attributes for building LRUs
 last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
+type,	    	char,   DB_TEXT, 32, FREQ_ACCESS
 
 #backend relative info
 backendpath,	char, DB_TEXT, 1024,     ANNEX_INFO

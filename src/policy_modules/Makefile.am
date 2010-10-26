@@ -1,13 +1,14 @@
-SUBDIRS=purge
-
 if TMP_FS_MGR
-SUBDIRS += rmdir
+SUBDIRS = purge rmdir
 endif
 if LUSTRE_HSM
-SUBDIRS += migration hsm_remove
+SUBDIRS = purge migration hsm_remove
 endif
 if SHERPA
-SUBDIRS += migration rmdir
+SUBDIRS = purge migration rmdir
+endif
+if BACKUP_FS
+SUBDIRS = migration hsm_remove
 endif
 
 indent:
