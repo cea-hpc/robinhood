@@ -29,8 +29,14 @@ noinst_HEADERS+=tmp_fs_mgr_pipeline.h tmp_fs_mgr_types.def
 tmp_fs_mgr_types.h: tmp_fs_mgr_types.def $(TYPEGEN)
 all: tmp_fs_mgr_types.h
 endif
+if BACKUP_FS
+noinst_HEADERS+=backup_fs_types.h backup_fs_types.def
+backup_fs_types.h: backup_fs_types.def $(TYPEGEN)
+all: backup_fs_types.h
 
-CLEANFILES = lustre_hsm_types.h tmp_fs_mgr_types.h sherpa_types.h
+endif
+
+CLEANFILES = lustre_hsm_types.h tmp_fs_mgr_types.h sherpa_types.h backup_fs_types.h
 
 indent:
 	$(top_srcdir)/scripts/indent.sh

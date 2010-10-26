@@ -153,6 +153,8 @@ typedef struct field_info_t
 #include "tmp_fs_mgr_types.h"
 #elif defined(_SHERPA)
 #include "sherpa_types.h"
+#elif defined(_BACKUP_FS)
+#include "backup_fs_types.h"
 #else
 #error "No application was specified"
 #endif

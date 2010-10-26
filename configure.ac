@@ -156,11 +156,12 @@ AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="
 
 # Purpose ?
 
-AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|SHERPA],[specify the purpose of the daemon] ),
+AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|BACKUP|SHERPA],[specify the purpose of the daemon] ),
              PURPOSE="$withval", PURPOSE="TMP_FS_MGR")
 
 AM_CONDITIONAL(LUSTRE_HSM,     test "$PURPOSE" = "LUSTRE_HSM")
 AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR")
+AM_CONDITIONAL(BACKUP_FS, test "$PURPOSE" = "BACKUP")
 AM_CONDITIONAL(SHERPA, test "$PURPOSE" = "SHERPA")
 
 # purpose dependent flags
@@ -197,6 +198,15 @@ case $PURPOSE in
 
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for SHERPA purpose])
         AC_DEFINE([HAVE_RMDIR_POLICY], [1], [Dir removal policy for SHERPA purpose])
+        ;;
+
+    BACKUP)
+        PURPOSE_CFLAGS="-D_BACKUP_FS"
+        PURPOSE_BIN="rbh-backup"
+        PURPOSE_EXT="backup"
+        PURPOSE_SVC="robinhood-backup"
+
+        AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for backup purpose])
         ;;
 
     *)

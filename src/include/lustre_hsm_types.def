@@ -141,7 +141,7 @@ last_access, 		unsigned int, 	DB_UINT,   0, 	 FREQ_ACCESS
 last_mod, 		    unsigned int, 	DB_UINT,   0, 	 FREQ_ACCESS
 last_archive,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
 last_restore,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
-last_op_index,		unsigned long long, DB_BIGUINT, 0, FREQ_ACCESS
+last_op_index,		uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
 md_update,          unsigned int, DB_UINT, 0, FREQ_ACCESS
 
 # file classes and last update
