@@ -101,6 +101,19 @@ status_array[] =
 
 #define ALLOWED_STATUS "unknown, ref_missing|missing_ref, modified|dirty, retrieving|restoring, archiving, synchro, obsolete"
 
+#elif defined(_BACKUP_FS)
+    { STATUS_UNKNOWN, "unknown", "unknown" },
+    { STATUS_NEW, "new", "new file (not in backend)" },
+    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
+    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
+    { STATUS_UP_TO_DATE, "synchro", "synchronized (eligible for purge)" },
+    { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
+
+    /* alternative names */
+    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
+
+#define ALLOWED_STATUS "unknown, new, modified|dirty, archiving, synchro, removed"
+
 #endif
     { (file_status_t)-1, NULL, NULL }
 };

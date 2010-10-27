@@ -334,7 +334,7 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
 }
 
 
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
 /**
  * Remove an entry from the main database, and insert it to secondary table
  * for delayed removal.
@@ -425,7 +425,7 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only )
         return NULL;
 
     p_list->p_mgr = p_mgr;
-    
+
     if ( expired_only )
         snprintf( query, 1024, "SELECT fid, last_known_path, soft_rm_time, real_rm_time "
                 "FROM "SOFT_RM_TABLE" "
@@ -449,7 +449,7 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only )
         MemFree(p_list);
         return NULL;
     }
-    
+
     return p_list;
 }
 

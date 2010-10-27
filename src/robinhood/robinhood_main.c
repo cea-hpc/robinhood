@@ -28,7 +28,10 @@
 #include "migration.h"
 #endif
 
+#ifdef HAVE_PURGE_POLICY
 #include "resource_monitor.h"
+#endif
+
 #include "uidgidcache.h"
 #include "list_mgr.h"
 #include "RobinhoodConfig.h"
@@ -74,15 +77,41 @@ static time_t  boot_time;
 #define ACTION_MASK_RMDIR               0x00000020
 
 #ifdef _LUSTRE_HSM
+
 #define DEFAULT_ACTION_MASK     (ACTION_MASK_PURGE | ACTION_MASK_MIGRATE | ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK )
+#define DEFAULT_ACTION_HELP   "--read-log --purge --migrate --hsm-remove"
+
+
 #elif defined (_TMP_FS_MGR )
+
 #   ifdef HAVE_CHANGELOGS
 #       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_PURGE | ACTION_MASK_RMDIR)
+#       define DEFAULT_ACTION_HELP   "--read-log --purge --rmdir"
 #   else
 #       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_PURGE | ACTION_MASK_RMDIR)
+#       define DEFAULT_ACTION_HELP   "--scan --purge --rmdir"
 #   endif
+
 #elif defined (_SHERPA)
-#define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_PURGE | ACTION_MASK_RMDIR | ACTION_MASK_MIGRATE)
+
+#   ifdef HAVE_CHANGELOGS
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_PURGE | ACTION_MASK_RMDIR | ACTION_MASK_MIGRATE)
+#       define DEFAULT_ACTION_HELP   "--read-log --purge --rmdir --migrate"
+#   else
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_PURGE | ACTION_MASK_RMDIR | ACTION_MASK_MIGRATE)
+#       define DEFAULT_ACTION_HELP   "--scan --purge --rmdir --migrate"
+#   endif
+
+#elif defined (_BACKUP_FS )
+
+#   ifdef HAVE_CHANGELOGS
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
+#       define DEFAULT_ACTION_HELP   "--read-log --migrate --hsm-remove"
+#   else
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK__UNLINK | ACTION_MASK_MIGRATE)
+#       define DEFAULT_ACTION_HELP   "--scan --migrate --hsm-remove"
+#   endif
+
 #endif
 
 static int     action_mask = DEFAULT_ACTION_MASK;
@@ -95,9 +124,11 @@ static struct option option_tab[] = {
 
     /* Actions selectors */
     {"scan", no_argument, NULL, 'S'},
+#ifdef HAVE_PURGE_POLICY
     {"purge", no_argument, NULL, 'P'},
     {"release", no_argument, NULL, 'P'},
     {"check-watermarks", no_argument, NULL, 'C'},
+#endif
 #ifdef HAVE_MIGR_POLICY
     {"migrate", no_argument, NULL, 'M'},
     {"archive", no_argument, NULL, 'M'},
@@ -120,6 +151,7 @@ static struct option option_tab[] = {
 #endif
 
     /* purge by ... */
+#ifdef HAVE_PURGE_POLICY
 #ifdef _LUSTRE
     {"purge-ost", required_argument, NULL, FORCE_OST_PURGE},
     {"release-ost", required_argument, NULL, FORCE_OST_PURGE},
@@ -129,6 +161,7 @@ static struct option option_tab[] = {
 
     {"purge-class", required_argument, NULL, FORCE_CLASS_PURGE},
     {"release-class", required_argument, NULL, FORCE_CLASS_PURGE},
+#endif
 
 #ifdef HAVE_MIGR_POLICY
     /* migration by ... */
@@ -198,10 +231,12 @@ static const char *help_string =
     _B "Action switches:" B_ "\n"
     "    " _B "-S" B_ ", " _B "--scan" B_ "\n"
     "        Scan filesystem namespace.\n"
+#ifdef HAVE_PURGE_POLICY
     "    " _B "-P" B_ ", " _B "--purge" B_ "\n"
     "        Purge non-directory entries according to policy.\n"
     "    " _B "-C" B_ ", " _B "--check-watermarks" B_ "\n"
     "        Only check watermarks of purge triggers without purging.\n"
+#endif
 #ifdef HAVE_RMDIR_POLICY
     "    " _B "-R" B_ ", " _B "--rmdir" B_ "\n"
     "        Remove empty directories according to policy.\n"
@@ -218,18 +253,11 @@ static const char *help_string =
     "    " _B "-R" B_ ", " _B "--hsm-remove" B_ "\n"
     "        Perform deferred removal in HSM.\n"
 #endif
-
-#ifdef _LUSTRE_HSM
-    "\n" "    Default is: --read-log --purge --migrate --hsm-remove\n"
-#elif defined(_TMP_FS_MGR)
-    "\n" "    Default is: --scan --purge --rmdir\n"
-#elif defined(_SHERPA)
-    "\n" "    Default is: --scan --purge --rmdir --migrate\n"
-#else
-#error "No valid purpose was specified"
-#endif
-
-    "\n" _B "Manual purge actions:" B_ "\n"
+    "\n"
+    "    Default is: "DEFAULT_ACTION_HELP"\n"
+    "\n"
+#ifdef HAVE_PURGE_POLICY
+    _B "Manual purge actions:" B_ "\n"
 #ifdef _LUSTRE
     "    " _B "--purge-ost=" B_ _U "ost_index" U_ "," _U "target_usage_pct" U_ "\n"
     "        Apply purge policy on OST " _U "ost_index" U_ " until its usage reaches the specified value.\n"
@@ -239,6 +267,7 @@ static const char *help_string =
     "    " _B "--purge-class=" B_ _U "fileclass" U_ "\n"
     "        Purge all eligible files in the given fileclass.\n"
     "\n"
+#endif
 #ifdef HAVE_MIGR_POLICY
     _B "Manual migration actions:" B_ "\n"
     "    " _B "-s" B_ ", " _B "--sync" B_ "\n"
@@ -321,6 +350,8 @@ static inline void display_version( char *bin_name )
     printf( "    Temporary filesystem manager\n" );
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
+#elif defined(_BACKUP_FS)
+    printf( "    Backup filesystem to external storage\n" );
 #else
 #error "No purpose was specified"
 #endif
@@ -1222,6 +1253,7 @@ int main( int argc, char **argv )
     }
 #endif
 
+#ifdef HAVE_PURGE_POLICY
     if ( action_mask & ACTION_MASK_PURGE )
     {
         resmon_opt_t   resmon_opt = {0,0,0.0};
@@ -1275,6 +1307,7 @@ int main( int argc, char **argv )
             DisplayLog( LVL_MAJOR, MAIN_TAG, "ResourceMonitor terminated its task" );
         }
     }
+#endif
 
 #ifdef HAVE_RMDIR_POLICY
     if ( action_mask & ACTION_MASK_RMDIR )

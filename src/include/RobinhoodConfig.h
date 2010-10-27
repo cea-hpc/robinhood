@@ -108,8 +108,10 @@ typedef struct robinhood_config_t
     /** policies (migration, purge, rmdir, unlink...) */
     policies_t     policies;
 
+#ifdef HAVE_PURGE_POLICY
     /** resource monitor parameters (purge parameters) */
     resource_monitor_config_t res_mon_config;
+#endif
 
 #ifdef HAVE_RMDIR_POLICY
     /** rmdir parameters */
@@ -185,10 +187,12 @@ static const module_config_def_t robinhood_module_conf[] = {
                                      policies ),
      MODULE_MASK_ALWAYS},
 
+#ifdef HAVE_PURGE_POLICY
     {"Resource Monitor", SetDefault_ResourceMon_Config, Read_ResourceMon_Config,
      Reload_ResourceMon_Config, Write_ResourceMon_ConfigTemplate,
      Write_ResourceMon_ConfigDefault, offsetof( robinhood_config_t, res_mon_config ),
      MODULE_MASK_RES_MONITOR},
+#endif
 
 #ifdef HAVE_RMDIR_POLICY
     {"Empty Dir Remover", SetDefault_Rmdir_Config, Read_Rmdir_Config,

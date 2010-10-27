@@ -22,7 +22,7 @@
 #define STRIPE_ITEMS_TABLE	"STRIPE_ITEMS"
 #define VAR_TABLE           "VARS"
 
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
 #   define SOFT_RM_TABLE    "SOFT_RM"
 #endif
 
