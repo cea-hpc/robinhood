@@ -570,7 +570,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         else
         {
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                        "Entry path is needed for retrieving stripe info" );
+                        "Entry path is needed for retrieving file info" );
             return EINVAL;
         }
 #endif

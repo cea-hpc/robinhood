@@ -89,7 +89,9 @@ typedef enum
 #define STR_TYPE_FIFO   "fifo"
 #define STR_TYPE_SOCK   "sock"
 
-
+/* type conversion functions */
+const char * Policy2ListMgrType( obj_type_t type );
+obj_type_t ListMgr2PolicyType( const char * str_type );
 
 typedef union
 {

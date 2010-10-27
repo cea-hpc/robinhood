@@ -37,7 +37,7 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
     conf->db_request_limit = 10000;
     conf->max_migr_nbr = 0;
     conf->max_migr_vol = 0;
-#ifdef _LUSTRE_HSM
+#if defined(_LUSTRE_HSM) || defined(_BACKUP_FS)
     conf->backup_new_files = TRUE;
 #endif
     conf->check_copy_status_on_startup = TRUE;
@@ -54,7 +54,7 @@ int Write_Migration_ConfigDefault( FILE * output )
     print_line( output, 1, "max_migration_count   : unlimited (0)" );
     print_line( output, 1, "max_migration_volume  : unlimited (0)" );
     print_line( output, 1, "migration_timeout     : 2h" );
-#ifdef _LUSTRE_HSM
+#if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
     print_line( output, 1, "backup_new_files      : TRUE" );
 #endif
     print_line( output, 1, "check_copy_status_on_startup : TRUE" );
@@ -90,7 +90,7 @@ int Write_Migration_ConfigTemplate( FILE * output )
     print_line( output, 1, "# cancel migration pass after 2h of inactivity" );
     print_line( output, 1, "migration_timeout     = 2h ;" );
     fprintf( output, "\n" );
-#ifdef _LUSTRE_HSM
+#if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
     print_line( output, 1, "# don't archive files that have never been archived before" );
     print_line( output, 1, "backup_new_files      = FALSE ;" );
     fprintf( output, "\n" );
@@ -129,7 +129,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
 
     static const char *migr_allowed[] = {
         "runtime_interval", "max_migration_count", "max_migration_volume",
-#ifdef _LUSTRE_HSM
+#if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
         "backup_new_files",
 #endif
         "check_copy_status_on_startup", "check_copy_status_delay", "migration_timeout",
@@ -179,7 +179,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
     else
         conf->migration_timeout = intval;
 
-#ifdef _LUSTRE_HSM
+#if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
     rc = GetBoolParam( param_block, MIGR_PARAM_BLOCK, "backup_new_files",
                        0, &intval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
@@ -289,7 +289,7 @@ int Reload_Migration_Config( void *module_config )
     }
 
 
-#ifdef _LUSTRE_HSM
+#if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
     if ( migr_config.backup_new_files != conf->backup_new_files )
     {
         DisplayLog( LVL_EVENT, MIGRCFG_TAG, MIGR_PARAM_BLOCK

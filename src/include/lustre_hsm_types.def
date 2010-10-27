@@ -95,7 +95,7 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 
 typedef enum
 {
-  STATUS_NO_FLAGS,              /* file has no HSM flags (just created) */
+  STATUS_NEW,                   /* file has no HSM flags (just created) */
   STATUS_MODIFIED,              /* file must be archived */
   STATUS_RESTORE_RUNNING,       /* file is being retrieved */
   STATUS_ARCHIVE_RUNNING,       /* file is being archived */

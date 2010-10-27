@@ -30,6 +30,10 @@
 #include <SHERPA_CacheAcces.h>
 #include <SHERPA_CacheAccesP.h>
 #endif
+#ifdef _BACKUP_FS
+#include "backend_mgr.h"
+#include "backend_ext.h"
+#endif
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -90,6 +94,44 @@ static migr_status_t MigrateEntry_ByPath( const char * path, char *hints )
         return MIGR_OK;
 
     return sherpa_maj_reference_entree(path, NULL, tmp, SHERPA_FLAG_ZAPPER);
+}
+#elif defined(_BACKUP_FS)
+
+static migr_status_t MigrateEntry( const entry_id_t * p_id,
+                                   attr_set_t * p_attrs,
+                                   const char * hints )
+{
+    char fid_str[128];
+    const char * entry = "?";
+    if ( ATTR_MASK_TEST(p_attrs, fullpath) )
+        entry = ATTR( p_attrs, fullpath );
+#ifdef _HAVE_FID
+    else
+    {
+        sprintf(fid_str, "fid="DFID, PFID(p_id) );
+        entry = fid_str;
+    }
+#else
+    else
+    {
+        sprintf(fid_str, "[dev=%llu, ino=%llu]", (unsigned long long)p_id->device,
+                (unsigned long long)p_id->inode );
+        entry = fid_str;
+    }
+#endif
+
+    if ( hints )
+        DisplayLog( LVL_EVENT, MIGR_TAG,
+            "Start archiving(%s, hints='%s')", entry, hints );
+    else
+        DisplayLog( LVL_EVENT, MIGR_TAG,
+            "Start archiving(%s, <no_hints>)", entry );
+
+    if (dry_run)
+        return MIGR_OK;
+
+    return rbhext_archive( (backend.async_archive ? RBHEXT_ASYNC:RBHEXT_SYNC),
+                         p_id, p_attrs, hints );
 }
 #endif
 
@@ -368,10 +410,10 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         return rc;
 #endif
 
-#ifdef _LUSTRE_HSM
+#if defined(_LUSTRE_HSM) || defined(_BACKUP_FS)
     if ( migr_config.backup_new_files )
     {
-        /* retrieve entries with status MODIFIED or NO_FLAGS or NULL */
+        /* retrieve entries with status MODIFIED or NEW or NULL */
 
         fval.val_int = STATUS_MODIFIED;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
@@ -379,7 +421,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         if ( rc )
             return rc;
 
-        fval.val_int = STATUS_NO_FLAGS;
+        fval.val_int = STATUS_NEW;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
                                      FILTER_FLAG_OR | FILTER_FLAG_END );
         if ( rc )
@@ -393,7 +435,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
         if ( rc )
             return rc;
-#ifdef _LUSTRE_HSM
+#if defined(_LUSTRE_HSM) || defined(_BACKUP_FS)
     }
 #endif
 
@@ -870,6 +912,53 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
     return MIGR_OK;
 }
 
+#elif defined(_BACKUP_FS) /* backup with fid support */
+
+static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_attr_set )
+{
+    int rc;
+    unsigned int allow_cached_attrs = 0;
+    unsigned int need_fresh_attrs = 0;
+
+    if ( ATTR_MASK_TEST(&p_item->entry_attr, fullpath) )
+        DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry %s", ATTR( &p_item->entry_attr, fullpath ) );
+    else
+        DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry with fid="DFID, PFID(&p_item->entry_id) );
+
+    /* what up-to-date information the backend needs? */
+    if ( ATTR_MASK_TEST(&p_item->entry_attr, type) )
+        rc = rbhext_status_needs( TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs );
+    else
+        rc = rbhext_status_needs( ListMgr2PolicyType(ATTR(&p_item->entry_attr, type)),
+                                  &allow_cached_attrs, &need_fresh_attrs );
+    if (rc == -ENOTSUP)
+    {
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "This type of entry is not supported" );
+        return MIGR_BAD_TYPE;
+    }
+    else if (rc != 0)
+    {
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
+                   __FUNCTION__, __LINE__, rc );
+        return MIGR_ERROR;
+    }
+    else
+    {
+    }
+
+
+#if 0
+    /* what information needs the backend? */
+    if ( ATTR_MASK_TEST(&p_item->entry_attr, type) )
+       rc = rbhext_status_needs( 
+    else
+        rc = rbhext_status_needs(
+#endif
+
+    /* entry is valid */
+    return MIGR_OK;
+}
+
 #endif /* switch Lustre_HSM/SHERPA */
 
 #else  /* no fid support (SHERPA ONLY) */
@@ -968,7 +1057,7 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
     }
 
     /* Merge with missing attrs from database */
-    ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr );
+    ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr, FALSE );
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */
@@ -1003,10 +1092,10 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
     }
     else
     {
-#ifdef _LUSTRE_HSM
+#if defined( _LUSTRE_HSM ) || defined( _BACKUP_FS )
         if ( (ATTR( &new_attr_set, status ) != STATUS_MODIFIED)
              && ( !migr_config.backup_new_files
-                  || ( ATTR( &new_attr_set, status ) != STATUS_NO_FLAGS )) )
+                  || ( ATTR( &new_attr_set, status ) != STATUS_NEW )) )
 #else /* sherpa */
         if ( ATTR( &new_attr_set, status ) != STATUS_MODIFIED )
 #endif
@@ -1203,6 +1292,19 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
             ATTR_MASK_SET( &new_attr_set, no_archive );
         }
     }
+#elif defined( _BACKUP_FS )
+
+    /* if archive is synchronous, set status=archive running before */
+    if ( backend.async_archive )
+    {
+        ATTR_MASK_SET( &new_attr_set, status );
+        ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
+        update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+    }
+
+    rc = MigrateEntry( &p_item->entry_id, &new_attr_set, hints );
+
+    /* status has been updated by MigrateEntry call, even on failure */
 
 #elif defined(_SHERPA)
     if ( !ATTR_MASK_TEST( &new_attr_set, refpath) )
@@ -1237,21 +1339,28 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
 
     if ( rc != 0 )
     {
+        const char * action_str;
         const char * err_str;
 #ifdef _LUSTRE_HSM
         /* copy is asynchronous */
-        #define MSG_VERB "starting"
+        action_str = "starting archive";
         err_str = strerror(-rc);
 #elif defined(_SHERPA)
         char buff[1024];
         /* copy is synchronous */
-        #define MSG_VERB "performing"
+        action_str = "performing migration";
         err_str =  sherpa_cache_message_r(rc, buff, 1024 );
+#elif defined(_BACKUP_FS)
+        if (backend.async_archive)
+            action_str = "starting archive";
+        else
+            action_str = "performing archive";
+        err_str = strerror(-rc);
 #else
         #error "Unexpected flavor"
 #endif
 
-        DisplayLog( LVL_MAJOR, MIGR_TAG, "Error "MSG_VERB" migration of '%s': %s",
+        DisplayLog( LVL_MAJOR, MIGR_TAG, "Error %s of '%s': %s", action_str,
                     ATTR( &p_item->entry_attr, fullpath ), err_str );
 
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
@@ -1268,16 +1377,22 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
         int            is_copy = TRUE;
         int            is_stor = TRUE;
 
+        const char * action_str;
+
 #ifdef _LUSTRE_HSM
         /* Entry migration has been successfully started */
-        #define MSG_PREFIX "Start archiving"
-#else
-        /* For other modes, migration is synchronous */
-        #define MSG_PREFIX "Archived"
+        action_str = "Start archiving";
+#elif defined(_SHERPA)
+        /* For SHERPA, migration is synchronous */
+        action_str = "Archived";
+#elif defined(_BACKUP_FS)
+        if (backend.async_archive)
+            action_str = "Start archiving";
+        else
+            action_str = "Archived";
 #endif
 
         /* report messages */
-
         FormatDurationFloat( strmod, 256, time( NULL ) - ATTR( &new_attr_set, last_mod ) );
 
 #ifdef ATTR_INDEX_last_archive
@@ -1296,25 +1411,26 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
             is_stor = FALSE;
 
         DisplayLog( LVL_DEBUG, MIGR_TAG,
-                    MSG_PREFIX" '%s' using policy '%s', last modified %s ago,"
-                    " last archived %s%s,  size=%s%s%s", ATTR( &p_item->entry_attr, fullpath ),
+                    "%s '%s' using policy '%s', last modified %s ago,"
+                    " last archived %s%s,  size=%s%s%s",
+                    action_str, ATTR( &p_item->entry_attr, fullpath ),
                     policy_case->policy_id, strmod,
                     ( is_copy ? strarchive : "(unknown)" ), ( is_copy ? " ago" : "" ),
                     strsize, ( is_stor ? "stored on" : "" ), ( is_stor ? strstorage : "" ) );
 
 #ifdef ATTR_INDEX_last_archive
-        DisplayReport( MSG_PREFIX" '%s' using policy '%s', last mod %s ago | size=%"
+        DisplayReport( "%s '%s' using policy '%s', last mod %s ago | size=%"
                        PRI_STSZ ", last_mod=%" PRI_TT ", last_archive=%" PRI_TT
-                       "%s%s", ATTR( &p_item->entry_attr, fullpath ),
+                       "%s%s", action_str, ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_mod ),
                        is_copy ? (time_t)ATTR( &new_attr_set, last_archive ) : 0,
                        ( is_stor ? ", storage_units=" : "" ), 
                        ( is_stor ? strstorage : "" ) );
 #else
-   DisplayReport( MSG_PREFIX" '%s' using policy '%s', last mod %s ago | size=%"
+   DisplayReport( "%s '%s' using policy '%s', last mod %s ago | size=%"
                        PRI_SZ ", last_mod=%" PRI_TT "%s%s",
-                       ATTR( &p_item->entry_attr, fullpath ),
+                       action_str, ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_mod ),
                        ( is_stor ? ", storage_units=" : "" ),
@@ -1389,7 +1505,6 @@ int start_migration_threads( unsigned int nb_threads )
     return 0;
 }
 
-
 /**
  * Update the status of all current migrations.
  * \param lmgr          [IN] connexion to database
@@ -1411,12 +1526,30 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
     unsigned int nb_returned = 0;
     unsigned int nb_aborted = 0;
     int          attr_mask_sav = 0;
+#ifdef _BACKUP_FS
+    unsigned int allow_cached_attrs = 0;
+    unsigned int need_fresh_attrs = 0;
+#endif
 
     /* attributes to be retrieved */
-    ATTR_MASK_INIT( &migr_item.entry_attr ); 
+    ATTR_MASK_INIT( &migr_item.entry_attr );
     ATTR_MASK_SET( &migr_item.entry_attr, fullpath );
     ATTR_MASK_SET( &migr_item.entry_attr, path_update );
     /* /!\ don't retrieve status, to force getting it from the filesystem */
+
+#ifdef _BACKUP_FS
+    ATTR_MASK_SET( &migr_item.entry_attr, type );
+
+    /* what information the backend needs from DB? */
+    rc = rbhext_status_needs( TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs );
+    if (rc != 0)
+    {
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
+                   __FUNCTION__, __LINE__, rc );
+        return rc;
+    }
+    migr_item.entry_attr.attr_mask |= allow_cached_attrs;
+#endif
 
     attr_mask_sav = migr_item.entry_attr.attr_mask;
 

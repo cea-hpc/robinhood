@@ -30,7 +30,7 @@ tmp_fs_mgr_types.h: tmp_fs_mgr_types.def $(TYPEGEN)
 all: tmp_fs_mgr_types.h
 endif
 if BACKUP_FS
-noinst_HEADERS+=backup_fs_types.h backup_fs_types.def
+noinst_HEADERS+=backup_fs_types.h backup_fs_types.def backend_ext.h backend_mgr.h  backup_fs_pipeline.h
 backup_fs_types.h: backup_fs_types.def $(TYPEGEN)
 all: backup_fs_types.h
 

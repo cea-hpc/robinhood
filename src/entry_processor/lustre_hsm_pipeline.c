@@ -157,11 +157,11 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->extra_info.getstripe_needed = TRUE;
             p_op->extra_info.getstatus_needed = TRUE;
         }
-        else /* new entry, its status is NO_FLAGS */
+        else /* new entry, its status is NEW */
         {
             p_op->entry_attr_is_set = TRUE;
             ATTR_MASK_SET( &p_op->entry_attr, status );
-            ATTR( &p_op->entry_attr, status ) = STATUS_NO_FLAGS;
+            ATTR( &p_op->entry_attr, status ) = STATUS_NEW;
 
             /* no flag is set for now */
             ATTR_MASK_SET( &p_op->entry_attr, no_archive );
@@ -807,7 +807,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 ATTR_MASK_SET( &p_op->entry_attr, no_archive );
 
                 /* if the entry has no flags, the entry has never been archived or restored */
-                if ( ATTR( &p_op->entry_attr, status ) == STATUS_NO_FLAGS )
+                if ( ATTR( &p_op->entry_attr, status ) == STATUS_NEW )
                 {
                     ATTR_MASK_SET( &p_op->entry_attr, last_archive );
                     ATTR( &p_op->entry_attr, last_archive ) = 0;

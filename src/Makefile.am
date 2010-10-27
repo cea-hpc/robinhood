@@ -4,6 +4,10 @@ if CHANGELOGS
 SUBDIRS+=chglog_reader
 endif
 
+if BACKUP_FS
+SUBDIRS+=backend_ext
+endif
+
 SUBDIRS += robinhood tests
 
 indent:

@@ -211,6 +211,8 @@ case $PURPOSE in
 
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for backup purpose])
         AC_DEFINE([HAVE_RM_POLICY], [1], [Backend removal policy for backup purpose])
+        # possibly add purge policy for this flavor
+        #AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for backup purpose])
         ;;
 
     *)
@@ -306,6 +308,7 @@ AC_CONFIG_FILES([Makefile
          src/policy_modules/migration/Makefile
          src/policy_modules/hsm_remove/Makefile
          src/policy_modules/rmdir/Makefile
+         src/backend_ext/Makefile
          src/robinhood/Makefile
          src/tests/Makefile
          scripts/Makefile

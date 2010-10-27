@@ -920,7 +920,7 @@ int lmgr_flush_commit( lmgr_t * p_mgr )
  * If p_target_attrset attributes are unset,
  * retrieve them from p_source_attrset.
  */
-void ListMgr_MergeAttrSets( attr_set_t * p_target_attrset, attr_set_t * p_source_attrset )
+void ListMgr_MergeAttrSets( attr_set_t * p_target_attrset, attr_set_t * p_source_attrset, int update )
 {
     int            i;
     int            mask = 1;
@@ -928,7 +928,8 @@ void ListMgr_MergeAttrSets( attr_set_t * p_target_attrset, attr_set_t * p_source
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
-        if ( !( p_target_attrset->attr_mask & mask ) && ( p_source_attrset->attr_mask & mask ) )
+        if ( (update || !( p_target_attrset->attr_mask & mask ))
+             && ( p_source_attrset->attr_mask & mask ) )
         {
             if ( !is_stripe_field( i ) )
             {
@@ -952,7 +953,6 @@ void ListMgr_MergeAttrSets( attr_set_t * p_target_attrset, attr_set_t * p_source
                         ( char * ) &p_source_attrset->attr_values + field_infos[i].offset,
                         sizeof( stripe_info_t ) );
             }
-
 
             p_target_attrset->attr_mask |= mask;
         }

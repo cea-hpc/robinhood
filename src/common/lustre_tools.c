@@ -321,7 +321,7 @@ int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
     struct hsm_user_state file_status;
 
     /* initialize outputs */
-    *p_status = STATUS_NO_FLAGS;
+    *p_status = STATUS_NEW;
     *no_release = FALSE;
     *no_archive = FALSE;
 
@@ -368,7 +368,7 @@ int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
     /* status flags */
     if ( ( file_status.hus_states & HSM_FLAGS_MASK ) == 0 )
     {
-        *p_status = STATUS_NO_FLAGS;
+        *p_status = STATUS_NEW;
     }
     else if ( file_status.hus_states & HS_DIRTY )
     {

@@ -34,6 +34,7 @@ typedef enum
     MIGR_ALREADY,               /* entry migration is already running */
     MIGR_PARTIAL_MD,            /* entry metadata is incomplete */
     MIGR_STAT_FAILURE,          /* stat failure */
+    MIGR_BAD_TYPE,              /* migration policy does not apply to this type of entry */
     MIGR_ERROR,                 /* migration call failed */
 
     MIGR_ST_COUNT               /* last status index */
@@ -54,6 +55,7 @@ static const char __attribute__(( __unused__ )) *migr_status_descr[MIGR_ST_COUNT
     "migration already running",
     "incomplete metadata",
     "stat failure",
+    "bad type for migration",
     "migration error"
 };
 

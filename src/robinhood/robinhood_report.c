@@ -71,7 +71,7 @@ struct status_descr
 status_array[] =
 {
 #ifdef _LUSTRE_HSM
-    { STATUS_NO_FLAGS, "new", "new file (no HSM status)" },
+    { STATUS_NEW, "new", "new file (no HSM status)" },
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
@@ -1875,7 +1875,7 @@ void report_topuser( unsigned int count, int flags )
 
 }
 
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
 void report_deferred_rm( int flags )
 {
     int            rc, index;
@@ -1954,7 +1954,7 @@ void report_deferred_rm( int flags )
                                      || ((_status) == STATUS_RELEASED) \
                                      || ((_status) == STATUS_RELEASE_PENDING) )
     #define IS_MODIFIED( _status )  ( ((_status) == STATUS_MODIFIED) \
-                                      || ((_status) == STATUS_NO_FLAGS))
+                                      || ((_status) == STATUS_NEW))
 #elif defined(_SHERPA)
     #define IS_PURGE_CONCERNED( _status ) ( (_status) == STATUS_UP_TO_DATE )
     #define IS_MODIFIED( _status )  ((_status) == STATUS_MODIFIED)

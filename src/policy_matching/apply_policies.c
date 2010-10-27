@@ -221,7 +221,7 @@ static compare_direction_t oppose_compare( compare_direction_t comp )
     }
 }
 
-static const char * Policy2ListMgrType( obj_type_t type )
+const char * Policy2ListMgrType( obj_type_t type )
 {
      switch ( type )
         {
@@ -234,6 +234,26 @@ static const char * Policy2ListMgrType( obj_type_t type )
         case TYPE_SOCK: return STR_TYPE_SOCK;
         default: return NULL;
         }
+}
+
+obj_type_t ListMgr2PolicyType( const char * str_type )
+{
+    if (!strcasecmp( str_type, STR_TYPE_LINK ))
+        return TYPE_LINK;
+    else if (!strcasecmp( str_type, STR_TYPE_DIR))
+        return TYPE_DIR;
+    else if (!strcasecmp( str_type, STR_TYPE_FILE))
+        return TYPE_FILE;
+    else if (!strcasecmp( str_type, STR_TYPE_CHR))
+        return TYPE_CHR;
+    else if (!strcasecmp( str_type, STR_TYPE_BLK))
+        return TYPE_BLK;
+    else if (!strcasecmp( str_type, STR_TYPE_FIFO))
+        return TYPE_FIFO;
+    else if (!strcasecmp( str_type, STR_TYPE_SOCK))
+        return TYPE_SOCK;
+    else
+        return TYPE_NONE;
 }
 
 /**

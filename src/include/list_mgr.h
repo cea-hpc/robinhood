@@ -412,7 +412,7 @@ int            ListMgr_MassUpdate( lmgr_t * p_mgr, const lmgr_filter_t * p_filte
  */
 int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id );
 
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
 /**
  * Soft Rm functions.
  * \addtogroup SOFT_RM_FUNCTIONS
@@ -639,9 +639,12 @@ int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool
 /**
  * If p_target_attrset attributes are unset,
  * retrieve them from p_source_attrset.
+ * \param update if the attribute is set in both src and tgt,
+ *        this boolean indicates if it must be updated in the target.
  */
 void           ListMgr_MergeAttrSets( attr_set_t * p_target_attrset,
-                                      attr_set_t * p_source_attrset );
+                                      attr_set_t * p_source_attrset,
+                                      int update );
 
 
 /**

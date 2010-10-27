@@ -17,6 +17,10 @@ if SHERPA
 PIPELINE_SRC=sherpa_pipeline.c
 endif
 
+if BACKUP_FS
+PIPELINE_SRC=backup_fs_pipeline.c
+endif
+
 libentryproc_la_SOURCES=entry_proc_impl.c entry_proc_tools.c entry_proc_tools.h $(PIPELINE_SRC)
 
 indent:

@@ -33,7 +33,7 @@ typedef struct migration_config_t
 
     time_t         check_copy_status_delay;
     time_t         migration_timeout;
-#ifdef _LUSTRE_HSM
+#if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
     unsigned int   backup_new_files:1;
 #endif
     unsigned int   check_copy_status_on_startup:1;

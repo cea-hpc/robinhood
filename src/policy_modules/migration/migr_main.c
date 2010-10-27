@@ -30,6 +30,11 @@
 #include <unistd.h>
 #include <sys/vfs.h>
 
+#ifdef _BACKUP_FS
+#include "backend_mgr.h"
+#include "backend_ext.h"
+#endif
+
 /* ------------ Types and global variables ------------ */
 
 /* Running mode (default is daemon) */
@@ -99,6 +104,7 @@ static int start_migration_pass(  )
     migr_param_t   param;
     unsigned int   nb_files = 0;
     unsigned long long vol = 0;
+    const char * action_str;
 
     /* check if filesystem is still mounted */
     if ( !CheckFSDevice(  ) )
@@ -149,9 +155,14 @@ static int start_migration_pass(  )
     rc = perform_migration( &lmgr, &param, &nb_files, &vol );
 
 #ifdef _LUSTRE_HSM
-    #define MSG_ACTION "started"
-#else
-    #define MSG_ACTION "done"
+    action_str = "started";
+#elif defined(_SHERPA)
+    action_str = "done";
+#elif defined(_BACKUP_FS)
+    if ( backend.async_archive )
+        action_str = "started";
+    else
+        action_str = "done";
 #endif
 
     if ( rc == 0 )
@@ -159,10 +170,11 @@ static int start_migration_pass(  )
         FormatFileSize( tmpstr, 128, vol );
 
         DisplayLog( LVL_MAJOR, MIGR_TAG,
-                    "Migration summary: %u file migrations "MSG_ACTION" (total volume: %s)",
-                    nb_files, tmpstr );
+                    "Migration summary: %u file migrations %s (total volume: %s)",
+                    nb_files, action_str, tmpstr );
 
-        snprintf( varstr, 512, "nbr migration "MSG_ACTION": %u, total volume: %s", nb_files, tmpstr );
+        snprintf( varstr, 512, "nbr migration %s: %u, total volume: %s",
+                  action_str, nb_files, tmpstr );
 
         ListMgr_SetVar( &lmgr, LAST_MIGR_STATUS, "OK" );
         ListMgr_SetVar( &lmgr, LAST_MIGR_INFO, varstr );
@@ -179,12 +191,13 @@ static int start_migration_pass(  )
         FormatFileSize( tmpstr, 128, vol );
 
         DisplayLog( LVL_MAJOR, MIGR_TAG,
-                    "Migration terminated with error %d: %u file migrations "MSG_ACTION" (total volume: %s)",
-                    rc, nb_files, tmpstr );
+                    "Migration terminated with error %d: %u file migrations %s (total volume: %s)",
+                    rc, nb_files, action_str, tmpstr );
 
         snprintf( varstr, 512, "Error %d", rc );
         ListMgr_SetVar( &lmgr, LAST_MIGR_STATUS, varstr );
-        snprintf( varstr, 512, "nbr migration "MSG_ACTION": %u, total volume: %s", nb_files, tmpstr );
+        snprintf( varstr, 512, "nbr migration %s: %u, total volume: %s",
+                  action_str, nb_files, tmpstr );
         ListMgr_SetVar( &lmgr, LAST_MIGR_INFO, varstr );
     }
 
