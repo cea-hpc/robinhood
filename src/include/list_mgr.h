@@ -36,8 +36,7 @@
 /* database specific types */
 #include "db_types.h"
 #include "config_parsing.h"
-
-#define MAX_POOL_LEN    16
+#include "rbh_const.h"
 
 /* error codes */
 #define DB_SUCCESS              0

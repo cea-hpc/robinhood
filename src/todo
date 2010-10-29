@@ -1,3 +1,5 @@
+- warning si nlink d'un fichier > 1
+
 - criteria on stripe_count
 
 - live summaries:

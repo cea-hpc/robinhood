@@ -51,6 +51,10 @@
 #include <lustre/liblustreapi.h>
 #endif
 
+#ifdef _BACKUP_FS
+#include "backend_mgr.h"
+#endif
+
 #define MAIN_TAG    "Main"
 
 static time_t  boot_time;
@@ -419,8 +423,10 @@ void          *DumpStats( void *arg )
 #endif
         if ( *module_mask & MODULE_MASK_ENTRY_PROCESSOR )
             EntryProcessor_DumpCurrentStages(  );
+#ifdef HAVE_PURGE_POLICY
         if ( *module_mask & MODULE_MASK_RES_MONITOR )
             Dump_ResourceMonitor_Stats(  );
+#endif
 #ifdef HAVE_RMDIR_POLICY
         if ( *module_mask & MODULE_MASK_RMDIR )
             Dump_Rmdir_Stats(  );
@@ -532,6 +538,10 @@ static void   *signal_handler_thr( void *arg )
                 EntryProcessor_Terminate(  );
                 FlushLogs(  );
             }
+
+#ifdef _BACKUP_FS
+            Backend_Stop();
+#endif
 
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
             FlushLogs(  );
@@ -1083,6 +1093,15 @@ int main( int argc, char **argv )
 
     if ( pid_file )
         create_pid_file( pid_filepath );
+
+#ifdef _BACKUP_FS
+    rc = Backend_Start( &config.backend_config, flags );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, MAIN_TAG, "Error initializing backend" );
+        exit( 1 );
+    }
+#endif
 
     /* create signal handling thread */
     rc = pthread_create( &sig_thr, NULL, signal_handler_thr, NULL );

@@ -68,6 +68,9 @@ typedef int    ( *write_config_func_t ) ( FILE * output );
 #include "BuddyMalloc.h"
 #endif
 
+#ifdef _BACKUP_FS
+#include "backend_mgr.h"
+#endif
 
 typedef struct module_config_def_t
 {
@@ -128,6 +131,10 @@ typedef struct robinhood_config_t
     hsm_rm_config_t hsm_rm_config;
 #endif
 
+#ifdef _BACKUP_FS
+    backend_config_t backend_config;
+#endif
+
 } robinhood_config_t;
 
 /* behavior flags for all modules */
@@ -163,6 +170,14 @@ static const module_config_def_t robinhood_module_conf[] = {
     {"Log", SetDefaultLogConfig, ReadLogConfig, ReloadLogConfig,
      WriteLogConfigTemplate, WriteLogConfigDefault,
      offsetof( robinhood_config_t, log_config ), MODULE_MASK_ALWAYS},
+#ifdef _BACKUP_FS
+    {"Backend", SetDefault_Backend_Config, Read_Backend_Config,
+        Reload_Backend_Config, Write_Backend_ConfigTemplate,
+        Write_Backend_ConfigDefault,
+        offsetof( robinhood_config_t, backend_config ),
+        MODULE_MASK_ALWAYS
+    },
+#endif
     {"List Manager", SetDefaultLmgrConfig, ReadLmgrConfig, ReloadLmgrConfig,
      WriteLmgrConfigTemplate, WriteLmgrConfigDefault,
      offsetof( robinhood_config_t, lmgr_config ), MODULE_MASK_ALWAYS},

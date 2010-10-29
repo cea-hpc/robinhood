@@ -23,6 +23,8 @@ for lustre in "--enable-lustre" "--disable-lustre"; do
 # default per purpose and DB
 config_cmd="./configure --with-purpose=$purp $lustre"
 
+if [[ $purp = "LUSTRE_HSM" && $lustre = "--disable-lustre" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
+
 echo "TEST: $config_cmd"
  
 (CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | grep -v Werror | grep -v "unused variable" | grep -v "not used" | egrep -i 'error|warning' \
@@ -47,6 +49,8 @@ for lustre in "--enable-lustre" "--disable-lustre"; do
 
 # default per purpose and DB
 config_cmd="./configure --with-purpose=$purp $lustre"
+
+if [[ $purp = "LUSTRE_HSM" && $lustre = "--disable-lustre" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 
 echo "TEST: $config_cmd"
  

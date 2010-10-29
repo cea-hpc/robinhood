@@ -218,10 +218,10 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
 
     ATTR_MASK_SET( p_attr_set, last_mod );
     /* @TODO is this really what we want? */
-#ifndef _SHERPA
-    ATTR( p_attr_set, last_mod ) = MAX2( p_inode->st_mtime, p_inode->st_ctime );
-#else
+#if defined(_SHERPA) || defined(_BACKUP_FS)
     ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
+#else
+    ATTR( p_attr_set, last_mod ) = MAX2( p_inode->st_mtime, p_inode->st_ctime );
 #endif
 
 #ifdef ATTR_INDEX_type
@@ -975,4 +975,37 @@ int str_replace( char * str_in_out, const char * to_be_replaced,
     return 0;
 }
 
+
+
+/**
+ * extract relative path from full path
+ */
+int relative_path( const char * fullpath, const char * root, char * rel_path )
+{
+    size_t len;
+    char rootcopy[1024];
+
+    /* copy root path */
+    strcpy(rootcopy, root);
+
+    len = strlen(rootcopy);
+    /* add '/' if needed */
+    if ( (len > 1) && (rootcopy[len-1] != '/') )
+    {
+        rootcopy[len] = '/';
+        rootcopy[len+1] = '\0';
+        len++;
+    }
+
+    /* test if the full path starts with the same dirs */
+    if (strncmp(rootcopy, fullpath,len))
+    {
+        DisplayLog( LVL_MAJOR, "RelPath", "ERROR: file path '%s' is not under filesystem root '%s'",
+                    fullpath, rootcopy );
+        return -EINVAL;
+    }
+
+    strcpy( rel_path, fullpath+len );
+    return 0;
+}
 

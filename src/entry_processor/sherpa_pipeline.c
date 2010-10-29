@@ -485,7 +485,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->db_exists = TRUE;
                 p_op->entry_attr_is_set = TRUE;
                 /* merge with main attr set */
-                ListMgr_MergeAttrSets( &p_op->entry_attr, &tmp_attr );
+                ListMgr_MergeAttrSets( &p_op->entry_attr, &tmp_attr, FALSE );
             }
             else if (rc == DB_NOT_EXISTS )
             {

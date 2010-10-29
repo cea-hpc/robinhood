@@ -1013,7 +1013,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     }
 
     /* Merge with missing attrs from database */
-    ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr );
+    ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr, FALSE );
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */

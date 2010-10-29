@@ -935,7 +935,7 @@ static void   *Thr_Rmdir( void *arg )
           ATTR( &new_attr_set, md_update ) = time(NULL);
 
           /* Merge missing attrs from database */
-          ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr );
+          ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr, FALSE );
 
           /* From here, assume that entry is valid */
           ATTR_MASK_SET( &new_attr_set, invalid );

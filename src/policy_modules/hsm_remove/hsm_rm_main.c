@@ -68,9 +68,12 @@ static time_t  last_rm = 0;
 
 static inline int HSM_rm( const entry_id_t * p_id )
 {
+#ifdef _LUSTRE_HSM
     DisplayLog( LVL_FULL, HSMRM_TAG, "HSM_remove("DFID")", PFID(p_id) );
     if ( !dry_run )
           return LustreHSM_Action( HUA_REMOVE, p_id, NULL, 0 );
+#else
+#endif
     return 0;
 }
 

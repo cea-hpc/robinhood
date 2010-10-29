@@ -24,6 +24,8 @@
 #ifndef _DB_TYPES_H
 #define _DB_TYPES_H
 
+#include "rbh_const.h"
+
 #ifdef _MYSQL
 
 #define DB_ENGINE_NAME    "MySQL"
@@ -82,7 +84,7 @@ typedef struct result_handle_t
 
 typedef struct db_config_t
 {
-    char           filepath[1024];
+    char           filepath[RBH_PATH_MAX];
     unsigned int   retry_delay_microsec;         /* retry time when busy */
 } db_config_t;
 

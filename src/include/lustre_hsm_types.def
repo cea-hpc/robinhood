@@ -115,7 +115,7 @@ stripe_info, 		stripe_info_t, 	DB_STRIPE_INFO,   0, 	 INIT_ONLY
 stripe_items, 		stripe_items_t, DB_STRIPE_ITEMS,  0, 	 INIT_ONLY
 
 # information that is not used for sorting or filtering
-fullpath,		char,		DB_TEXT,   1024, ANNEX_INFO
+fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
 path_update,    unsigned int, DB_UINT, 0,    ANNEX_INFO
 size,        	uint64_t,	DB_BIGUINT, 0,    ANNEX_INFO
 blocks, 	    uint64_t,   DB_BIGUINT, 0, ANNEX_INFO

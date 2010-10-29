@@ -36,6 +36,7 @@ endif
 if BACKUP_FS
 all_libs += ../policy_modules/migration/libmigration.la
 all_libs += ../policy_modules/hsm_remove/libhsmrm.la
+all_libs += ../backend_ext/libbackend_ext.la
 endif
 
 all_libs += ../list_mgr/liblistmgr.la

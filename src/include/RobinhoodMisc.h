@@ -107,6 +107,11 @@ int            CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev );
  */
 int            CheckLastFS(  );
 
+/**
+ * extract relative path from full path
+ */
+int relative_path( const char * fullpath, const char * root, char * rel_path );
+
 #ifdef _LUSTRE
 
 /** initialize access to lustre */

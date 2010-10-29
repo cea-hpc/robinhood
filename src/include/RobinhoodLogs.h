@@ -20,6 +20,7 @@
 #define _ROBINHOOD_LOGS_H
 
 #include "config_parsing.h"
+#include "rbh_const.h"
 #include <stdarg.h>
 #include <stdio.h>              /* for FILE */
 #include <sys/param.h>          /* for MAXPATHLEN */
@@ -38,7 +39,7 @@ typedef struct log_config__
     char           report_file[MAXPATHLEN];
 
     char           alert_mail[256];
-    char           alert_file[1024];
+    char           alert_file[RBH_PATH_MAX];
 
     int            syslog_facility;
     int            syslog_priority;
