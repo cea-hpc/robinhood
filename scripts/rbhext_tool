@@ -1,0 +1,23 @@
+#!/bin/sh
+
+VERB=$1
+SRC=$2
+DEST=$3
+
+BIN=`basename $0`
+
+if [[ -z "$VERB" || -z "$SRC" || -z "$DEST" ]]; then
+	echo "Usage:"
+	echo "	$BIN ARCHIVE <src> <dest>"
+	exit 22
+fi
+
+if [[ $VERB == "ARCHIVE" ]]; then
+
+	dir=`dirname "$DEST"`
+	if [[ ! -d "$dir" ]]; then
+		mkdir -p "$dir"
+	fi
+	cp -p "$SRC" "$DEST"
+	exit $?
+fi

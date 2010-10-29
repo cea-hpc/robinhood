@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <libgen.h>             /* for dirname */
+#include <stdarg.h>
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
@@ -1008,4 +1009,92 @@ int relative_path( const char * fullpath, const char * root, char * rel_path )
     strcpy( rel_path, fullpath+len );
     return 0;
 }
+
+/**
+ * Put a string into double quotes and escape double quotes
+ */
+static char * escape_shell_arg( const char * in, char * out )
+{
+    char * curr_out = out;
+    const char * curr_in = in;
+    curr_out[0] = '"';
+    curr_out++;
+
+    while (*curr_in)
+    {
+        if (*curr_in != '"')
+        {
+            *curr_out = *curr_in;
+            curr_out++;
+        }
+        else
+        {
+            curr_out[0] = '\\';
+            curr_out[1] = '"';
+            curr_out+=2;
+        }
+        curr_in++;
+    }
+    curr_out[0]='"';
+    curr_out[1]='\0';
+
+    return out;
+}
+
+int execute_shell_command( const char * cmd, int argc, ... )
+{
+#define SHCMD "ShCmd"
+    va_list arglist;
+    char cmdline[4096];
+    char argbuf[1024];
+    char * curr = cmdline;
+    int rc, i;
+    int exrc;
+
+    curr += sprintf( cmdline, "%s", escape_shell_arg( cmd, argbuf ) );
+
+    va_start(arglist, argc);
+    for (i = 0; i < argc; i++)
+        curr += sprintf( curr, " %s",
+                         escape_shell_arg( va_arg(arglist, char *), argbuf ));
+    va_end(arglist);
+    curr += sprintf( curr, " %s", " >/dev/null 2>/dev/null");
+
+    DisplayLog(LVL_DEBUG, SHCMD, "Executing command: %s", cmdline);
+    rc = system(cmdline);
+
+    if ( WIFEXITED(rc) )
+    {
+        const char * str_error;
+        exrc = WEXITSTATUS(rc);
+        if (exrc == 0)
+        {
+            DisplayLog(LVL_DEBUG, SHCMD, "Command successful");
+            return 0;
+        }
+
+        /* shell special return values */
+        if (exrc == 126)
+            str_error = "permission problem or command is not an executable";
+        else if (exrc == 127)
+            str_error = "command not found";
+        else if (exrc == 128)
+            str_error = "invalid argument to exit";
+        else
+            str_error = "external command exited";
+
+        DisplayLog( LVL_MAJOR, SHCMD,
+                    "ERROR: %s, error %d (cmdline=%s)",
+                    str_error, exrc, cmdline );
+    }
+    else if (WIFSIGNALED(rc))
+    {
+            DisplayLog( LVL_MAJOR, SHCMD,
+                        "ERROR: command terminated by signal %d. cmdline=%s",
+                        WTERMSIG(rc), cmdline );
+    }
+
+    return rc;
+}
+
 

@@ -465,6 +465,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
 {
     int rc;
     char bkpath[RBH_PATH_MAX];
+    char lustre_path[RBH_PATH_MAX];
 
     if ( arch_meth != RBHEXT_SYNC )
         return -ENOTSUP;
@@ -502,10 +503,35 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         return rc;
     }
 
-    ATTR_MASK_SET( p_attrs, status );
-    ATTR( p_attrs, status ) = STATUS_SYNCHRO;
-    ATTR_MASK_SET( p_attrs, backendpath );
-    strcpy( ATTR( p_attrs, backendpath ), bkpath );
+#ifdef _HAVE_FID
+    /* for Lustre 2, use fid path so the operation is not disturbed by renames... */
+    BuildFidPath( p_id, lustre_path );
+#else
+    /* we need the posix path */
+    if ( !ATTR_MASK_TEST(p_attrs, fullpath) )
+    {
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error in %s(): path argument is mandatory for archive command",
+                    __FUNCTION__ );
+        return -EINVAL;
+    }
+    strcpy(lustre_path, ATTR(p_attrs, fullpath));
+#endif
+
+    /* execute the archive command */
+    rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", lustre_path, bkpath );
+    if (rc)
+    {
+        /* the transfer failed. still needs to be archived */
+        ATTR_MASK_SET( p_attrs, status );
+        ATTR( p_attrs, status ) = STATUS_MODIFIED;
+    }
+    else
+    {
+        ATTR_MASK_SET( p_attrs, status );
+        ATTR( p_attrs, status ) = STATUS_SYNCHRO;
+        ATTR_MASK_SET( p_attrs, backendpath );
+        strcpy( ATTR( p_attrs, backendpath ), bkpath );
+    }
 
     /* TODO must check final mtime to know if the file changed */
 

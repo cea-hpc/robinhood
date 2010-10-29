@@ -262,4 +262,9 @@ void rh_sleep( unsigned int seconds );
 int str_replace( char * str_in_out, const char * to_be_replaced,
                  const char * replacement );
 
+/**
+ * Execute a shell command and analyze the return code
+ */
+int execute_shell_command( const char * cmd, int argc, ... );
+
 #endif

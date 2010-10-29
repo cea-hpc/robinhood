@@ -75,7 +75,7 @@ status_array[] =
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
+    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for release)" },
     { STATUS_RELEASED, "released", "released" },
     { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
 
@@ -106,7 +106,7 @@ status_array[] =
     { STATUS_NEW, "new", "new file (not in backend)" },
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
+    { STATUS_SYNCHRO, "synchro", "synchronized in backend" },
     { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
 
     /* alternative names */
