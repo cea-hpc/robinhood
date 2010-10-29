@@ -177,7 +177,8 @@ int db_exec_sql( db_conn_t * conn, const char *query, result_handle_t * p_result
 
     if ( rc )
     {
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error executing query '%s'", query );
+        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error %d executing query '%s': %s",
+                    rc, query, mysql_error(conn) );
         return mysql_error_convert( mysql_errno( conn ) );
     }
     else

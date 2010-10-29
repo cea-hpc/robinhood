@@ -390,8 +390,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 #endif
 
 #if defined(_LUSTRE_HSM) || defined (_SHERPA)
-    /* only get entries with HSM state UP_TO_DATE */
-    fval.val_int = STATUS_UP_TO_DATE;
+    /* only get entries with HSM state SYNCHRO */
+    fval.val_int = STATUS_SYNCHRO;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
     if ( rc )
         return rc;
@@ -1047,7 +1047,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         Acknowledge( &purge_queue, PURGE_PARTIAL_MD, 0, 0 );
         goto end;
     }
-    else if ( ATTR( &new_attr_set, status ) != STATUS_UP_TO_DATE )
+    else if ( ATTR( &new_attr_set, status ) != STATUS_SYNCHRO )
     {
         /* status changed */
         DisplayLog( LVL_MAJOR, PURGE_TAG,

@@ -1095,7 +1095,7 @@ int main( int argc, char **argv )
         create_pid_file( pid_filepath );
 
 #ifdef _BACKUP_FS
-    rc = Backend_Start( &config.backend_config, flags );
+    rc = Backend_Start( &rh_config.backend_config, flags );
     if ( rc )
     {
         DisplayLog( LVL_CRIT, MAIN_TAG, "Error initializing backend" );

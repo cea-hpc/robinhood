@@ -115,7 +115,7 @@ typedef enum
   STATUS_RESTORE_RUNNING,        /* file is being retrieved */
   STATUS_ARCHIVE_RUNNING,       /* file is being archived */
   STATUS_OUT_OF_DATE,           /* file is older than reference */
-  STATUS_UP_TO_DATE             /* file is up to date in reference, file can be purged */
+  STATUS_SYNCHRO                /* file has been synchronized in reference, file can be purged */
 } file_status_t;
 
 

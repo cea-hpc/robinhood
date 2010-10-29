@@ -1330,7 +1330,7 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
     else
     {
         ATTR_MASK_SET( &new_attr_set, status );
-        ATTR( &new_attr_set, status ) = STATUS_UP_TO_DATE;
+        ATTR( &new_attr_set, status ) = STATUS_SYNCHRO;
     }
 
 #endif

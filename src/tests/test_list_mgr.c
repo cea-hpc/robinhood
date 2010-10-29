@@ -273,7 +273,7 @@ int main( int argc, char **argv )
 
     lmgr_simple_filter_init( &filter );
 #ifdef ATTR_INDEX_status
-    fv.val_uint = ( int ) STATUS_UP_TO_DATE;
+    fv.val_uint = ( int ) STATUS_SYNCHRO;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, NOTEQUAL, fv, 0 );
 #endif
 

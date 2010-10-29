@@ -99,7 +99,7 @@ typedef enum
   STATUS_MODIFIED,              /* file must be archived */
   STATUS_RESTORE_RUNNING,       /* file is being retrieved */
   STATUS_ARCHIVE_RUNNING,       /* file is being archived */
-  STATUS_UP_TO_DATE,            /* file is up to date in HSM, file can be purged */
+  STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
   STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
   STATUS_RELEASE_PENDING    	/* file is being released */
 } file_status_t;

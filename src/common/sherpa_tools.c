@@ -428,7 +428,7 @@ recheck:
                                 /* eventually backport atime to global cache */
                                 MiseaJourAtimeReguliere( cglob_path, st_glob, stat_cache );
                                 ATTR_MASK_SET( p_attrs, status );
-                                ATTR(p_attrs, status) = STATUS_UP_TO_DATE;
+                                ATTR(p_attrs, status) = STATUS_SYNCHRO;
                            }
                        }
                     }
@@ -507,14 +507,14 @@ recheck:
                         /* eventually backport atime to reference */
                         MiseaJourAtimeReguliere( ref_path, stat_ref, stat_cache );
                         ATTR_MASK_SET( p_attrs, status );
-                        ATTR(p_attrs, status) = STATUS_UP_TO_DATE;
+                        ATTR(p_attrs, status) = STATUS_SYNCHRO;
                     }
                 }
             }
             else
             {
                 ATTR_MASK_SET( p_attrs, status );
-                ATTR(p_attrs, status) = STATUS_UP_TO_DATE;
+                ATTR(p_attrs, status) = STATUS_SYNCHRO;
             }
             break;
 

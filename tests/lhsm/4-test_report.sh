@@ -1,6 +1,6 @@
 #!/bin/sh
 
-REPORT=../../src/robinhood/rbh-hsm-report
+REPORT=../../src/robinhood/rbh-backup-report
 
 function test
 {

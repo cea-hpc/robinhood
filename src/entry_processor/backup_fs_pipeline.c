@@ -604,8 +604,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             p_op->extra_info.getpath_needed = FALSE;
 
             /* Does file has stripe info ? */
-            if ( ListMgr_CheckStripe( lmgr, &p_op->entry_id ) != DB_SUCCESS )
+            rc = ListMgr_CheckStripe( lmgr, &p_op->entry_id );
+            if ( rc != DB_SUCCESS )
+            {
+                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is out-of-date, needs update" );
                 p_op->extra_info.getstripe_needed = TRUE;
+            }
 
             next_stage = STAGE_GET_INFO_FS;
         }
@@ -665,12 +669,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 #endif
 
-#ifdef _DEBUG_ENTRYPROC
-        printf( "Getattr=%d, Getpath=%d, GetStatus=%d, Getstripe=%d\n",
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Getattr=%d, Getpath=%d, GetStatus=%d, Getstripe=%d",
                 p_op->extra_info.getattr_needed,
                 p_op->extra_info.getpath_needed,
                 p_op->extra_info.getstatus_needed, p_op->extra_info.getstripe_needed );
-#endif
 
 #ifdef HAVE_CHANGELOGS /* never needed for scans */
         if ( p_op->extra_info.getattr_needed )

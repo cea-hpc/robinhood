@@ -385,7 +385,7 @@ int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
         else
         {
             /* file is up-to-date in HSM, and not released in Lustre */
-            *p_status = STATUS_UP_TO_DATE;
+            *p_status = STATUS_SYNCHRO;
         }
     }
     else if ( file_status.hus_states & HS_EXISTS )

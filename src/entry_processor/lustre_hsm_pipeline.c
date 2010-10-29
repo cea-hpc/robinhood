@@ -196,7 +196,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                    ATTR_MASK_SET( &p_op->entry_attr, status );
                    ATTR( &p_op->entry_attr, status ) =
                         (hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY) ?
-                        STATUS_MODIFIED : STATUS_UP_TO_DATE ;
+                        STATUS_MODIFIED : STATUS_SYNCHRO;
                    p_op->extra_info.getstatus_needed = FALSE;
                }
                else /* archive failed */
@@ -226,7 +226,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
 
                     /* status is 'up-to-date' after a successful restore */
                     ATTR_MASK_SET( &p_op->entry_attr, status );
-                    ATTR( &p_op->entry_attr, status ) = STATUS_UP_TO_DATE;
+                    ATTR( &p_op->entry_attr, status ) = STATUS_SYNCHRO;
                     p_op->extra_info.getstatus_needed = FALSE;
                 }
                 else if ( p_op->db_exists )

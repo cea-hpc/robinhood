@@ -75,7 +75,7 @@ status_array[] =
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_UP_TO_DATE, "synchro", "synchronized (eligible for purge)" },
+    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
     { STATUS_RELEASED, "released", "released" },
     { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
 
@@ -91,7 +91,7 @@ status_array[] =
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_UP_TO_DATE, "synchro", "synchronized (eligible for purge)" },
+    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
     { STATUS_OUT_OF_DATE, "obsolete", "obsolete (older than reference)" },
 
     /* alternative names */
@@ -106,7 +106,7 @@ status_array[] =
     { STATUS_NEW, "new", "new file (not in backend)" },
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_UP_TO_DATE, "synchro", "synchronized (eligible for purge)" },
+    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
     { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
 
     /* alternative names */
@@ -333,6 +333,8 @@ static inline void display_version( char *bin_name )
     printf( "    Temporary filesystem manager\n" );
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
+#elif defined(_BACKUP_FS)
+    printf( "    Backup filesystem to external storage\n" );
 #else
 #error "No purpose was specified"
 #endif
@@ -576,6 +578,7 @@ static inline const char * migr_class( attr_set_t * attrs )
 }
 #endif
 
+#ifdef ATTR_INDEX_release_class
 static inline const char * release_class( attr_set_t * attrs )
 {
     if (!ATTR_MASK_TEST(attrs, release_class))
@@ -583,6 +586,7 @@ static inline const char * release_class( attr_set_t * attrs )
     else
         return class_format( ATTR(attrs, release_class) );
 }
+#endif
 
 
 /*
@@ -623,7 +627,9 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
 #ifndef ATTR_INDEX_archive_class
         /* single test */
         lmgr_simple_filter_add( filter, ATTR_INDEX_release_class, LIKE, fv, 0 );
-#else
+#elif !defined(ATTR_INDEX_release_class)
+        lmgr_simple_filter_add( filter, ATTR_INDEX_archive_class, LIKE, fv, 0 );
+#else /* both */
         /* archive class or release class */
         lmgr_simple_filter_add( filter, ATTR_INDEX_archive_class, LIKE, fv,
                                 FILTER_FLAG_BEGIN );
@@ -694,7 +700,9 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 #ifdef ATTR_INDEX_archive_class
     ATTR_MASK_SET( &attrs, archive_class );
 #endif
+#ifdef ATTR_INDEX_release_class
     ATTR_MASK_SET( &attrs, release_class );
+#endif
 
 #ifdef ATTR_INDEX_status
     ATTR_MASK_SET( &attrs, status );
@@ -723,7 +731,10 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 #ifdef ATTR_INDEX_archive_class
                 "%20s, "
 #endif
-                "%20s, %s\n",
+#ifdef ATTR_INDEX_release_class
+                "%20s, "
+#endif
+                "%s\n",
                 "type",
 #ifdef ATTR_INDEX_status
                 "status",
@@ -733,7 +744,9 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 #ifdef ATTR_INDEX_archive_class
                 "migr. class",
 #endif
+#ifdef ATTR_INDEX_release_class
                 "purge class",
+#endif
                 "path" );
 
 
@@ -752,7 +765,10 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
     #ifdef ATTR_INDEX_archive_class
                     "%20s, "
     #endif
-                    "%20s, %s\n",
+    #ifdef ATTR_INDEX_release_class
+                    "%20s, "
+    #endif
+                    " %s\n",
                     ATTR( &attrs, type ),
     #ifdef ATTR_INDEX_status
                     db_status2str( ATTR(&attrs, status), TRUE ),
@@ -762,7 +778,9 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
      #ifdef ATTR_INDEX_archive_class
                     migr_class(&attrs),
      #endif
+     #ifdef ATTR_INDEX_release_class
                     release_class(&attrs),
+     #endif
                     ATTR( &attrs, fullpath ) );
         }
         else
@@ -777,7 +795,10 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 #ifdef ATTR_INDEX_archive_class
                     "%20s, "
 #endif
-                    "%20s, %s\n",
+#ifdef ATTR_INDEX_release_class
+                    "%20s, "
+#endif
+                    "%s\n",
                     ATTR( &attrs, type ),
 #ifdef ATTR_INDEX_status
                     db_status2str( ATTR(&attrs, status), TRUE ),
@@ -787,7 +808,9 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 #ifdef ATTR_INDEX_archive_class
                     migr_class(&attrs),
 #endif
+#ifdef ATTR_INDEX_release_class
                     release_class(&attrs),
+#endif
                     ATTR( &attrs, fullpath ) );
         }
 
@@ -822,7 +845,7 @@ void report_fs_info( int flags )
     filter_value_t fv;
 #endif
 
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA )
+#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_BACKUP_FS)
 #define FSINFOCOUNT 6
 #else
 #define FSINFOCOUNT 8
@@ -837,19 +860,19 @@ void report_fs_info( int flags )
      * - MIN/MAX/SUM dircount
      */
     report_field_descr_t fs_info[FSINFOCOUNT] = {
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA )
+#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_BACKUP_FS)
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #else
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA )
+#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_BACKUP_FS)
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
 #endif
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
-#if !defined(_LUSTRE_HSM) && !defined( _SHERPA )
+#if !defined(_LUSTRE_HSM) && !defined( _SHERPA ) && !defined(_BACKUP_FS)
         {ATTR_INDEX_dircount, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_dircount, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_dircount, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}}
@@ -1392,7 +1415,9 @@ void report_topsize( unsigned int count, int flags )
 #ifdef ATTR_INDEX_archive_class
     ATTR_MASK_SET( &attrs, archive_class );
 #endif
+#ifdef ATTR_INDEX_release_class
     ATTR_MASK_SET( &attrs, release_class );
+#endif
 
     mask_sav = attrs.attr_mask;
 
@@ -1416,7 +1441,10 @@ void report_topsize( unsigned int count, int flags )
 #ifdef ATTR_INDEX_archive_class
                 "%15s, "
 #endif
-                "%15s, %5s, %7s, %8s, %s\n", "rank", "path",
+#ifdef ATTR_INDEX_release_class
+                "%15s, "
+#endif
+                "%5s, %7s, %8s, %s\n", "rank", "path",
 #ifdef ATTR_INDEX_status
                 "status",
 #endif
@@ -1424,7 +1452,9 @@ void report_topsize( unsigned int count, int flags )
 #ifdef ATTR_INDEX_archive_class
                 "migr_class",
 #endif
+#ifdef ATTR_INDEX_release_class
                 "purge_class",
+#endif
                 "stripe_count", "stripe_size", "pool", "storage_units" );
 
     index = 0;
@@ -1447,7 +1477,10 @@ void report_topsize( unsigned int count, int flags )
 #ifdef ATTR_INDEX_archive_class
                     "%15s, "
 #endif
-                    "%15s, %5u, %7"PRIu64 ", %8s, %s\n",
+#ifdef ATTR_INDEX_release_class
+                    "%15s, "
+#endif
+                    "%5u, %7"PRIu64 ", %8s, %s\n",
                     index, ATTR( &attrs, fullpath ),
 #ifdef ATTR_INDEX_status
                     db_status2str( ATTR( &attrs, status), TRUE ),
@@ -1457,7 +1490,9 @@ void report_topsize( unsigned int count, int flags )
 #ifdef ATTR_INDEX_archive_class
                     migr_class(&attrs),
 #endif
+#ifdef ATTR_INDEX_release_class
                     release_class(&attrs),
+#endif
                     ATTR( &attrs, stripe_info ).stripe_count,
                     ATTR( &attrs, stripe_info ).stripe_size,
                     ATTR( &attrs, stripe_info ).pool_name,
@@ -1486,8 +1521,10 @@ void report_topsize( unsigned int count, int flags )
             if ( ATTR_MASK_TEST( &attrs, archive_class ) )
                 printf( "Migration class:   %s\n", migr_class(&attrs) );
 #endif
+#ifdef ATTR_INDEX_release_class
             if ( ATTR_MASK_TEST( &attrs, release_class ) )
                 printf( "Purge class:       %s\n", release_class(&attrs) );
+#endif
 
             if ( ATTR_MASK_TEST( &attrs, stripe_info )
                  && ( ATTR( &attrs, stripe_info ).stripe_count > 0 ) )
@@ -1546,16 +1583,16 @@ void report_toppurge( unsigned int count, int flags )
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* select only non whitelisted */
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_whitelisted
     fv.val_bool = TRUE;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0);
-#else
+#elif defined(ATTR_INDEX_no_release)
     fv.val_bool = TRUE;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_no_release, NOTEQUAL, fv, 0);
 #endif
 
 #ifdef ATTR_INDEX_status
-    fv.val_int = STATUS_UP_TO_DATE;
+    fv.val_int = STATUS_SYNCHRO;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, 0);
 #endif
 
@@ -1663,7 +1700,7 @@ void report_toppurge( unsigned int count, int flags )
 
 }
 
-#ifndef _LUSTRE_HSM             /* dirs are not considered for LUSTRE_HSM */
+#ifdef HAVE_RMDIR_POLICY
 void report_toprmdir( unsigned int count, int flags )
 {
     /* To be retrieved for dirs:
@@ -1963,14 +2000,17 @@ void report_deferred_rm( int flags )
 #ifdef ATTR_INDEX_archive_class
 
 #ifdef _LUSTRE_HSM
-    #define IS_PURGE_CONCERNED( _status ) ( ((_status) == STATUS_UP_TO_DATE)  \
+    #define IS_PURGE_CONCERNED( _status ) ( ((_status) == STATUS_SYNCHRO)  \
                                      || ((_status) == STATUS_RELEASED) \
                                      || ((_status) == STATUS_RELEASE_PENDING) )
     #define IS_MODIFIED( _status )  ( ((_status) == STATUS_MODIFIED) \
                                       || ((_status) == STATUS_NEW))
 #elif defined(_SHERPA)
-    #define IS_PURGE_CONCERNED( _status ) ( (_status) == STATUS_UP_TO_DATE )
+    #define IS_PURGE_CONCERNED( _status ) ( (_status) == STATUS_SYNCHRO )
     #define IS_MODIFIED( _status )  ((_status) == STATUS_MODIFIED)
+#elif defined(_BACKUP_FS)
+    #define IS_MODIFIED( _status )  (((_status) == STATUS_MODIFIED)|| \
+                                     ((_status) == STATUS_NEW))
 #endif
 
 
@@ -2001,7 +2041,7 @@ static int classname_cmp( const char *s1, const char *s2 )
         return strcmp( s1, s2 );
 }
 
-static inline int class_add( const char * name, db_value_t * res_array )
+static inline int class_add( const char * name, db_value_t * res_array, int shift )
 {
    struct class_record * p_curr;
    int found = FALSE;
@@ -2066,25 +2106,25 @@ static inline int class_add( const char * name, db_value_t * res_array )
    }
 
    /* increment stats */
-   p_curr->count += res_array[3].value_u.val_uint;
-   p_curr->spc_used += (res_array[4].value_u.val_biguint * DEV_BSIZE);
+   p_curr->count += res_array[shift+1].value_u.val_uint;
+   p_curr->spc_used += (res_array[shift+2].value_u.val_biguint * DEV_BSIZE);
 
-   if IS_MODIFIED(res_array[2].value_u.val_uint)
+   if IS_MODIFIED(res_array[shift].value_u.val_uint)
    {
-        p_curr->nb_modif += res_array[3].value_u.val_uint;
-        p_curr->spc_modif += (res_array[4].value_u.val_biguint * DEV_BSIZE);
+        p_curr->nb_modif += res_array[shift+1].value_u.val_uint;
+        p_curr->spc_modif += (res_array[shift+2].value_u.val_biguint * DEV_BSIZE);
    }
-   else if ( res_array[2].value_u.val_uint == STATUS_UP_TO_DATE )
+   else if ( res_array[shift].value_u.val_uint == STATUS_SYNCHRO )
    {
-        p_curr->nb_synchro += res_array[3].value_u.val_uint;
-        p_curr->spc_synchro += (res_array[4].value_u.val_biguint * DEV_BSIZE);
+        p_curr->nb_synchro += res_array[shift+1].value_u.val_uint;
+        p_curr->spc_synchro += (res_array[shift+2].value_u.val_biguint * DEV_BSIZE);
    }
 
    /* size min */
-   if ( res_array[5].value_u.val_biguint < p_curr->size_min )
-      p_curr->size_min = res_array[5].value_u.val_biguint;
-   if ( res_array[6].value_u.val_biguint > p_curr->size_max )
-      p_curr->size_max = res_array[6].value_u.val_biguint;
+   if ( res_array[shift+3].value_u.val_biguint < p_curr->size_min )
+      p_curr->size_min = res_array[shift+3].value_u.val_biguint;
+   if ( res_array[shift+4].value_u.val_biguint > p_curr->size_max )
+      p_curr->size_max = res_array[shift+4].value_u.val_biguint;
 
    return 0;
 } /* end of helper defintion */
@@ -2093,8 +2133,11 @@ static inline int class_add( const char * name, db_value_t * res_array )
 
 static void report_class_info( int flags )
 {
-#ifdef ATTR_INDEX_archive_class
+#if defined(ATTR_INDEX_archive_class) && defined(ATTR_INDEX_release_class)
     #define CLASSINFO_FIELDS 8
+    struct class_record * p_curr;
+#elif defined(ATTR_INDEX_archive_class)
+    #define CLASSINFO_FIELDS 7
     struct class_record * p_curr;
 #else
     #define CLASSINFO_FIELDS 6
@@ -2121,7 +2164,9 @@ static void report_class_info( int flags )
      * - MIN/MAX/AVG file size
      */
     report_field_descr_t user_info[CLASSINFO_FIELDS] = {
+#ifdef ATTR_INDEX_release_class
         {ATTR_INDEX_release_class, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+#endif
 #ifdef ATTR_INDEX_archive_class
         {ATTR_INDEX_archive_class, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
@@ -2213,8 +2258,12 @@ static void report_class_info( int flags )
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
             == DB_SUCCESS )
     {
+
         /* what class do we display? */
         const char * class;
+        int shift;
+        #if defined( ATTR_INDEX_archive_class ) && defined( ATTR_INDEX_release_class )
+        shift = 2;
         if ( result[0].value_u.val_str == NULL )
             class = result[1].value_u.val_str;
         else if ( result[1].value_u.val_str == NULL )
@@ -2227,9 +2276,14 @@ static void report_class_info( int flags )
             else
                 class = result[1].value_u.val_str;
         }
+        #elif defined(ATTR_INDEX_archive_class)
+        /* archive class only */
+        shift = 1;
+        class = result[0].value_u.val_str;
+        #endif
         class = class_format(class);
 
-        class_add( class, result );
+        class_add( class, result, shift );
     }
 
     if ( CSV(flags) && !NOHEADER(flags) )
@@ -2746,7 +2800,7 @@ int main( int argc, char **argv )
     if ( toppurge )
         report_toppurge( toppurge, flags );
 
-#ifndef _LUSTRE_HSM
+#ifdef HAVE_RMDIR_POLICY
     if ( toprmdir )
         report_toprmdir( toprmdir, flags );
 #endif

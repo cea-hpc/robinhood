@@ -32,7 +32,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#define RBHEXT_TAG "Ext"
+#define RBHEXT_TAG "Backend"
 
 /**
  * Get compatibility information,
@@ -54,7 +54,7 @@ int rbhext_compat_flags()
 /* options for getsubopt */
 enum
 {
-    OPT_BACKEND_ROOT,
+    OPT_BACKEND_ROOT = 0,
     OPT_COPYTOOL,
     OPT_XATTRS,
     OPT_COPY_TIMEOUT,
@@ -103,7 +103,7 @@ int rbhext_init( const char * config_string,
 
     /* the config string is in the getsubopt format: opt1=xxx,opt2,opt3=yyy */
     curr = subopts;
-    while (curr != '\0')
+    while (*curr != '\0')
     {
         switch( getsubopt(&curr, opts, &value) )
         {
@@ -200,24 +200,24 @@ int rbhext_status_needs( obj_type_t   entry_type,
 
     /* type is useful in any case (does not change during entry lifetime,
      * so we can use a cached value). */
-    (*p_attr_allow_cached) |= ATTR_INDEX_type;
+    (*p_attr_allow_cached) |= ATTR_MASK_type;
 
     /* Previous backup path is also needed.
      * it is only from DB (so it is a cached information). */
-    (*p_attr_allow_cached) |= ATTR_INDEX_backendpath;
-    (*p_attr_allow_cached) |= ATTR_INDEX_last_archive;
+    (*p_attr_allow_cached) |= ATTR_MASK_backendpath;
+    (*p_attr_allow_cached) |= ATTR_MASK_last_archive;
 
     /* needs fresh mtime/size information from lustre
      * to determine if the entry changed */
-    (*p_attr_need_fresh) |= ATTR_INDEX_last_mod;
-    (*p_attr_need_fresh) |= ATTR_INDEX_size;
+    (*p_attr_need_fresh) |= ATTR_MASK_last_mod;
+    (*p_attr_need_fresh) |= ATTR_MASK_size;
 
 #ifndef _HAVE_FID
     /* for lustre<2.0, need fresh entry path */
-    (*p_attr_need_fresh) |= ATTR_INDEX_fullpath;
+    (*p_attr_need_fresh) |= ATTR_MASK_fullpath;
 #else
     /* just needed to have human readable backend path */
-    (*p_attr_allow_cached) |= ATTR_INDEX_fullpath;
+    (*p_attr_allow_cached) |= ATTR_MASK_fullpath;
 #endif
     return 0;
 }
@@ -255,7 +255,7 @@ static int entry2backend_path( const entry_id_t * p_id,
         char rel_path[RBH_PATH_MAX];
 
         /* if the fullpath is available, build human readable path */
-        if ( ATTR_MASK_TEST(p_attrs_in, fullpath) &&  
+        if ( ATTR_MASK_TEST(p_attrs_in, fullpath) &&
              relative_path( ATTR(p_attrs_in, fullpath), global_config.fs_path,
                             rel_path ) == 0 )
         {
@@ -373,7 +373,6 @@ int rbhext_get_status( const entry_id_t * p_id,
         }
         else if ( rc > 0 )
         {
-
             if ( config.copy_timeout && ( time(NULL) - rc > config.copy_timeout ))
             {
                 DisplayLog( LVL_EVENT, RBHEXT_TAG, "Copy timed out for %s (inactive for %us)",
@@ -407,7 +406,7 @@ int rbhext_get_status( const entry_id_t * p_id,
         else
         {
             DisplayLog( LVL_DEBUG, RBHEXT_TAG,
-                        "'%s' does not exist in backend (new entry): %s",
+                        "'%s' does not exist in the backend (new entry): %s",
                         bkpath, strerror(-rc) );
             /* no entry in the backend: new entry */
             ATTR_MASK_SET( p_attrs_changed, status );
@@ -420,7 +419,7 @@ int rbhext_get_status( const entry_id_t * p_id,
     {
         if ( !S_ISREG(bkmd.st_mode))
         {
-            /* entry of invalid type */
+            /* TODO entry of invalid type */
         }
         /* compare mtime and size to check if the entry changed */
         if ( (ATTR( p_attrs_in, last_mod ) > bkmd.st_mtime )
@@ -433,7 +432,7 @@ int rbhext_get_status( const entry_id_t * p_id,
         else
         {
                 ATTR_MASK_SET( p_attrs_changed, status );
-                ATTR( p_attrs_changed, status ) = STATUS_SYNCRO;
+                ATTR( p_attrs_changed, status ) = STATUS_SYNCHRO;
                 return 0;
         }
     }
@@ -441,7 +440,7 @@ int rbhext_get_status( const entry_id_t * p_id,
     {
         if ( !S_ISLNK(bkmd.st_mode))
         {
-            /* entry of invalid type: new entry of different type (move the old one) */
+            /* TODO entry of invalid type: new entry of different type (move the old one) */
         }
 
         /* TODO compare symlink content */
@@ -473,18 +472,24 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     /* if status is not determined, check it */
     if ( !ATTR_MASK_TEST(p_attrs, status) )
     {
+        /* TODO */
     }
 
     /* check the status */
     if ( ATTR(p_attrs, status) == STATUS_NEW )
     {
+        /* TODO */
         /* no previous path */
     }
     else if ( ATTR(p_attrs, status) == STATUS_MODIFIED )
     {
+        /* TODO */
         /* check previous path */
     }
     else /* invalid status */
+    {
+        /* TODO */
+    }
 
     /* is it the good type? */
 
@@ -498,7 +503,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     }
 
     ATTR_MASK_SET( p_attrs, status );
-    ATTR( p_attrs, status ) = STATUS_SYNCRO;
+    ATTR( p_attrs, status ) = STATUS_SYNCHRO;
     ATTR_MASK_SET( p_attrs, backendpath );
     strcpy( ATTR( p_attrs, backendpath ), bkpath );
 
