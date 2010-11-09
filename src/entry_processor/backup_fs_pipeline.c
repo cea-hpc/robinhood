@@ -1042,6 +1042,8 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* remove entries listed in previous scans */
     rc = ListMgr_MassRemove( lmgr, &filter );
 
+    /* /!\ TODO : entries must be removed from backend too */
+
     lmgr_simple_filter_free( &filter );
 
     if ( rc )

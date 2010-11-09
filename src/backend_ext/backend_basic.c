@@ -231,9 +231,11 @@ typedef enum {
 #define UNK_PATH    "__unknown_path"
 /* name for entry we don't known the name in Lustre */
 #define UNK_NAME    "__unknown_name"
-
 /* extension for temporary copy file */
 #define COPY_EXT    "xfer"
+/* trash directory for orphan files */
+#define TRASH_DIR   ".orphans"
+
 
 /**
  * Build the path of a given entry in the backend.
@@ -320,6 +322,67 @@ static int entry_is_archiving(const char * backend_path )
     return MAX3( cp_md.st_mtime, cp_md.st_ctime, cp_md.st_atime );
 }
 
+/**
+ * Cleans a timed-out transfer
+ */
+static int transfer_cleanup(const char * backend_path)
+{
+    char xfer_path[RBH_PATH_MAX];
+    int rc;
+    sprintf(xfer_path, "%s.%s", backend_path, COPY_EXT );
+
+    if ( unlink(xfer_path) != 0 )
+    {
+        rc = -errno;
+        return rc;
+    }
+    return 0;
+}
+
+/**
+ * Move an orphan file to orphan directory
+ */
+static int move_orphan(const char * path)
+{
+    char dest[RBH_PATH_MAX];
+    char tmp[RBH_PATH_MAX];
+    char * fname;
+    int rc;
+
+    /* does the trash directory exist? */
+    sprintf( dest, "%s/%s", config.root, TRASH_DIR );
+    if ( (mkdir(dest, 0750) != 0) && (errno != EEXIST) )
+    {
+        rc = -errno;
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error creating directory %s: %s",
+                    dest, strerror(-rc) );
+        return rc;
+    }
+
+    strcpy(tmp, path);
+    fname = basename(tmp);
+    if ( fname == NULL || (strcmp(fname, "/") == 0) || EMPTY_STRING(fname) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Invalid path '%s'",
+                    path );
+        return -EINVAL;
+    }
+    /* move the orphan to the directory */
+    sprintf( dest, "%s/%s/%s", config.root, TRASH_DIR, fname );
+
+    if ( rename(path, dest) != 0 )
+    {
+        rc = -errno;
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error moving '%s' to '%s'",
+                    path, dest );
+        return rc;
+    }
+
+    DisplayLog( LVL_EVENT, RBHEXT_TAG, "'%s' moved to '%s'",
+                path, dest );
+    return 0;
+}
+
 
 /**
  * Get the status for an entry.
@@ -378,8 +441,7 @@ int rbhext_get_status( const entry_id_t * p_id,
                 DisplayLog( LVL_EVENT, RBHEXT_TAG, "Copy timed out for %s (inactive for %us)",
                             bkpath, (unsigned int)(time(NULL) - rc) );
                 /* previous copy timed out: clean it */
-                /* @TODO */
-                /*...*/
+                transfer_cleanup( bkpath );
             }
             else
             {
@@ -419,7 +481,16 @@ int rbhext_get_status( const entry_id_t * p_id,
     {
         if ( !S_ISREG(bkmd.st_mode))
         {
-            /* TODO entry of invalid type */
+            /* entry of invalid type */
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG,
+                        "Different type in backend for entry %s. Moving it to orphan dir.",
+                        bkpath );
+            rc = move_orphan( bkpath );
+            if (rc)
+                return rc;
+            ATTR_MASK_SET( p_attrs_changed, status );
+            ATTR( p_attrs_changed, status ) = STATUS_NEW;
+            return 0;
         }
         /* compare mtime and size to check if the entry changed */
         if ( (ATTR( p_attrs_in, last_mod ) > bkmd.st_mtime )
@@ -438,16 +509,78 @@ int rbhext_get_status( const entry_id_t * p_id,
     }
     else if ( entry_type == TYPE_LINK )
     {
+        char lnk1[RBH_PATH_MAX];
+        char lnk2[RBH_PATH_MAX];
+        char fspath[RBH_PATH_MAX];
+
         if ( !S_ISLNK(bkmd.st_mode))
         {
-            /* TODO entry of invalid type: new entry of different type (move the old one) */
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG,
+                        "Different type in backend for entry %s. Moving it to orphan dir.",
+                        bkpath );
+            rc = move_orphan( bkpath );
+            if (rc)
+                return rc;
+            ATTR_MASK_SET( p_attrs_changed, status );
+            ATTR( p_attrs_changed, status ) = STATUS_NEW;
+            return 0;
         }
 
-        /* TODO compare symlink content */
+#ifdef _HAVE_FID
+        /* for Lustre 2, use fid path so the operation is not disturbed by renames... */
+        BuildFidPath( p_id, fspath );
+#else
+        /* we need the posix path */
+        if ( !ATTR_MASK_TEST(p_attrs, fullpath) )
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error in %s(): path argument is mandatory for archive command",
+                        __FUNCTION__ );
+            return -EINVAL;
+        }
+        strcpy(fspath, ATTR(p_attrs, fullpath));
+#endif
+
+        /* compare symlink content */
+        if ( readlink(bkpath, lnk1, RBH_PATH_MAX ) < 0 )
+        {
+            rc = -errno;
+            if ( rc == ENOENT )
+            {
+                /* entry disapeared */
+                ATTR_MASK_SET( p_attrs_changed, status );
+                ATTR( p_attrs_changed, status ) = STATUS_NEW;
+                return 0;
+            }
+            else
+                return rc;
+        }
+        if ( readlink(fspath, lnk2, RBH_PATH_MAX ) < 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing readlink(%s): %s",
+                        fspath, strerror(-rc) );
+            return rc;
+        }
+        if ( strcmp(lnk1, lnk2) )
+        {
+            /* symlink content is different */
+            ATTR_MASK_SET( p_attrs_changed, status );
+            ATTR( p_attrs_changed, status ) = STATUS_MODIFIED;
+            return 0;
+        }
+        else /* same content */
+        {
+            ATTR_MASK_SET( p_attrs_changed, status );
+            ATTR( p_attrs_changed, status ) = STATUS_SYNCHRO;
+            return 0;
+        }
+    }
+    else
+    {
+        return -ENOTSUP;
     }
 
     /* TODO What about STATUS_REMOVED? */
-
 }
 
 /**
@@ -465,7 +598,8 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
 {
     int rc;
     char bkpath[RBH_PATH_MAX];
-    char lustre_path[RBH_PATH_MAX];
+    char fspath[RBH_PATH_MAX];
+    char tmp[RBH_PATH_MAX];
 
     if ( arch_meth != RBHEXT_SYNC )
         return -ENOTSUP;
@@ -505,7 +639,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
 
 #ifdef _HAVE_FID
     /* for Lustre 2, use fid path so the operation is not disturbed by renames... */
-    BuildFidPath( p_id, lustre_path );
+    BuildFidPath( p_id, fspath );
 #else
     /* we need the posix path */
     if ( !ATTR_MASK_TEST(p_attrs, fullpath) )
@@ -514,19 +648,37 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
                     __FUNCTION__ );
         return -EINVAL;
     }
-    strcpy(lustre_path, ATTR(p_attrs, fullpath));
+    strcpy(fspath, ATTR(p_attrs, fullpath));
 #endif
 
+    /* temporary copy path */
+    sprintf( tmp, "%s.%s", bkpath, COPY_EXT );
+
     /* execute the archive command */
-    rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", lustre_path, bkpath );
+    rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", fspath, tmp );
     if (rc)
     {
+        /* cleanup tmp copy */
+        unlink(tmp);
         /* the transfer failed. still needs to be archived */
         ATTR_MASK_SET( p_attrs, status );
         ATTR( p_attrs, status ) = STATUS_MODIFIED;
+        return rc;
     }
     else
     {
+        /* finalize tranfer */
+        if (rename(tmp, bkpath) != 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error renaming tmp copy file '%s' to final name '%s': %s",
+                        tmp, bkpath, strerror(-rc) );
+
+            /* the transfer failed. still needs to be archived */
+            ATTR_MASK_SET( p_attrs, status );
+            ATTR( p_attrs, status ) = STATUS_MODIFIED;
+            return rc;
+        }
         ATTR_MASK_SET( p_attrs, status );
         ATTR( p_attrs, status ) = STATUS_SYNCHRO;
         ATTR_MASK_SET( p_attrs, backendpath );

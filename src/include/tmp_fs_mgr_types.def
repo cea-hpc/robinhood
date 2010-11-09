@@ -127,5 +127,5 @@ release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
 rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
 #generated fields
-name,		char, DB_TEXT, 256, GENERATED, fullpath, lmgr_gen_name
+name,		char, DB_TEXT, RBH_NAME_MAX, GENERATED, fullpath, lmgr_gen_name
 depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
