@@ -740,7 +740,18 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
  * \param[in,out] p_attrs pointer to entry attributes
  *                        must be updated even on failure
  */
-int rbhext_remove( const entry_id_t * p_id, attr_set_t * p_attrs )
+int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
 {
+    int rc;
+    if ( backend_path && !EMPTY_STRING(backend_path) )
+    {
+        if ( unlink(backend_path) != 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error removing '%s' from backend: %s",
+                        backend_path, strerror(-rc) );
+            return -rc;
+        }
+    }
     return 0;
 }

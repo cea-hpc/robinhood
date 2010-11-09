@@ -98,6 +98,6 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
  * \param[in,out] p_attrs pointer to entry attributes
  *                        must be updated even on failure
  */
-int rbhext_remove( const entry_id_t * p_id, attr_set_t * p_attrs );
+int rbhext_remove( const entry_id_t * p_id, const char * backend_path );
 
 #endif

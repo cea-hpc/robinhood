@@ -1932,6 +1932,10 @@ void report_deferred_rm( int flags )
     struct lmgr_rm_list_t * list;
     entry_id_t     id;
     char   last_known_path[MAXPATHLEN] = "";
+#ifdef _BACKUP_FS
+    char   bkpath[MAXPATHLEN] = "";
+#endif
+
     time_t soft_rm_time = 0;
     time_t expiration_time = 0;
     char           date_rm[128];
@@ -1951,10 +1955,18 @@ void report_deferred_rm( int flags )
     }
 
     if ( CSV(flags) && !NOHEADER(flags) )
+#ifdef _BACKUP_FS
+        printf( "%3s, %21s, %-40s, %19s, %19s, %s\n", "rank", "fid",
+                "last_known_path", "lustre_rm", "hsm_rm", "backend_path" );
+#else
         printf( "%3s, %21s, %-40s, %19s, %19s\n", "rank", "fid", "last_known_path", "lustre_rm", "hsm_rm" );
+#endif
 
     index = 0;
     while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
+#ifdef _BACKUP_FS
+                        bkpath,
+#endif
                         &soft_rm_time, &expiration_time )) == DB_SUCCESS )
     {
         total_count++;
@@ -1965,8 +1977,13 @@ void report_deferred_rm( int flags )
         strftime( date_exp, 128, "%Y/%m/%d %T", localtime_r( &expiration_time, &t ) );
 
         if ( CSV(flags) )
+#ifdef _BACKUP_FS
+            printf( "%3u, "DFID", %-40s, %19s, %19s, %s\n", index, PFID(&id),
+                    last_known_path, date_rm, date_exp, bkpath );
+#else
             printf( "%3u, "DFID", %-40s, %19s, %19s\n", index, PFID(&id),
                     last_known_path, date_rm, date_exp );
+#endif
         else
         {
             printf( "\n" );
@@ -1974,6 +1991,10 @@ void report_deferred_rm( int flags )
             printf( "Fid:               "DFID"\n", PFID(&id) );
             if ( !EMPTY_STRING(last_known_path) )
                 printf( "Last known path:   %s\n", last_known_path );
+#ifdef _BACKUP_FS
+            if ( !EMPTY_STRING(bkpath) )
+                printf( "Backend path:      %s\n", bkpath );
+#endif
             printf( "Lustre rm time:    %s\n", date_rm );
             if ( expiration_time <= time(NULL) )
                 printf( "HSM rm time:       %s (expired)\n", date_exp );
@@ -1983,6 +2004,9 @@ void report_deferred_rm( int flags )
 
         /* prepare next call */
         last_known_path[0] = '\0';
+#ifdef _BACKUP_FS
+        bkpath[0] = '\0';
+#endif
         soft_rm_time = 0;
         expiration_time = 0;
     }
@@ -2380,7 +2404,7 @@ int main( int argc, char **argv )
     int            toppurge = 0;
     int            toprmdir = 0;
     int            topuser = 0;
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
     int            deferred_rm = 0;
 #endif
 
@@ -2634,7 +2658,7 @@ int main( int argc, char **argv )
                 topuser = DEFAULT_TOP_SIZE;
             break;
 
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
         case 'R':
             deferred_rm = TRUE;
             break;
@@ -2690,7 +2714,7 @@ int main( int argc, char **argv )
 #ifdef ATTR_INDEX_status
          && !dump_status
 #endif
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
         && !deferred_rm
 #else
         && !topdirs && !toprmdir
@@ -2808,7 +2832,7 @@ int main( int argc, char **argv )
     if ( topuser )
         report_topuser( topuser, flags );
 
-#ifdef _LUSTRE_HSM
+#ifdef HAVE_RM_POLICY
     if ( deferred_rm )
         report_deferred_rm( flags );
 #endif

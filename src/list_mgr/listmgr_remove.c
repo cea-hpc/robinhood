@@ -463,13 +463,21 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only )
     p_list->p_mgr = p_mgr;
 
     if ( expired_only )
+#ifdef _BACKUP_FS
+        snprintf( query, 1024, "SELECT fid, last_known_path, bkpath, soft_rm_time, real_rm_time "
+#else
         snprintf( query, 1024, "SELECT fid, last_known_path, soft_rm_time, real_rm_time "
+#endif
                 "FROM "SOFT_RM_TABLE" "
                 "WHERE real_rm_time <= %u "
                 "ORDER BY real_rm_time ASC",
                 (unsigned int)time(NULL) );
     else
+#ifdef _BACKUP_FS
+        strcpy( query, "SELECT fid, last_known_path, bkpath, soft_rm_time, real_rm_time "
+#else
         strcpy( query, "SELECT fid, last_known_path, soft_rm_time, real_rm_time "
+#endif
                 "FROM "SOFT_RM_TABLE" "
                 "ORDER BY real_rm_time ASC" );
 
@@ -492,23 +500,32 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only )
 int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
                                        entry_id_t * p_id,
                                        char * last_known_path,
+#ifdef _BACKUP_FS
+                                       char * bkpath,
+#endif
                                        time_t * soft_rm_time,
                                        time_t * expiration_time )
 {
     int            rc = 0;
     int i;
 
+#ifdef _BACKUP_FS
+    #define SHIFT 1
+#else
+    #define SHIFT 0
+#endif
+
     /* 0=fid, 1=path, 2=soft_rm_time, 3=real_rm_time */
-    char          * record[4];
+    char          * record[4+SHIFT];
 
     if ( !p_id )
         return DB_INVALID_ARG;
 
-    for ( i=0; i < 4; i++)
+    for ( i=0; i < 4+SHIFT; i++)
         record[i] = NULL;
 
-    rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result, record, 4 );
-        
+    rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result, record, 4+SHIFT);
+
     if ( rc )
         return rc;
     if ( record[0] == NULL )
@@ -525,15 +542,25 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
             last_known_path[0] = '\0';
     }
 
+#ifdef _BACKUP_FS
+    if ( bkpath )
+    {
+        if (record[2])
+            strcpy( bkpath, record[2] );
+        else
+            bkpath[0] = '\0';
+    }
+#endif
+
     if ( soft_rm_time )
     {
-        if ( sscanf( record[2], "%lu", soft_rm_time ) <= 0 )
+        if ( sscanf( record[2+SHIFT], "%lu", soft_rm_time ) <= 0 )
             return DB_REQUEST_FAILED;
     }
 
     if ( expiration_time )
     {
-        if ( sscanf( record[3], "%lu", expiration_time ) <= 0 )
+        if ( sscanf( record[3+SHIFT], "%lu", expiration_time ) <= 0 )
             return DB_REQUEST_FAILED;
     }
 

@@ -448,6 +448,9 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only );
 int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
                                        entry_id_t * p_id,
                                        char * last_known_path,
+#ifdef _BACKUP_FS
+                                       char * bkpath,
+#endif
                                        time_t * soft_rm_time,
                                        time_t * expiration_time );
 

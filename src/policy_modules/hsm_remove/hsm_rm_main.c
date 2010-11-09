@@ -24,6 +24,9 @@
 #include "queue.h"
 #include "Memory.h"
 #include "xplatform_print.h"
+#ifdef _BACKUP_FS
+#include "backend_ext.h"
+#endif
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -66,26 +69,41 @@ static time_t  last_rm = 0;
  * @return posix error code (from errno)
  */
 
+#ifdef _LUSTRE_HSM
 static inline int HSM_rm( const entry_id_t * p_id )
 {
-#ifdef _LUSTRE_HSM
     DisplayLog( LVL_FULL, HSMRM_TAG, "HSM_remove("DFID")", PFID(p_id) );
     if ( !dry_run )
           return LustreHSM_Action( HUA_REMOVE, p_id, NULL, 0 );
-#else
-#endif
     return 0;
 }
+#elif defined(_BACKUP_FS)
+static inline int HSM_rm( const entry_id_t * p_id, const char * bkpath )
+{
+    DisplayLog( LVL_FULL, HSMRM_TAG, "HSM_remove("DFID", %s)", PFID(p_id),
+                bkpath );
+    if ( !dry_run )
+          return rbhext_remove( p_id, bkpath );
+    return 0;
+}
+#endif
 
 typedef struct hsm_rm_item__
 {
     entry_id_t     entry_id;
+#ifdef _BACKUP_FS
+    char           backendpath[RBH_PATH_MAX];
+#endif
 } hsm_rm_item_t;
 
 /**
  *  Alloc a new rm item so it can be pushes to the rm queue.
  */
+#ifdef _BACKUP_FS
+static void   *MkRmItem( entry_id_t * p_entry_id, char * bkpath )
+#elif defined(_LUSTRE_HSM)
 static void   *MkRmItem( entry_id_t * p_entry_id )
+#endif
 {
     hsm_rm_item_t  *new_entry;
 
@@ -94,6 +112,10 @@ static void   *MkRmItem( entry_id_t * p_entry_id )
         return NULL;
 
     new_entry->entry_id = *p_entry_id;
+
+#ifdef _BACKUP_FS
+    strncpy(new_entry->backendpath, bkpath, RBH_PATH_MAX);
+#endif
 
     return new_entry;
 }
@@ -136,8 +158,10 @@ static int perform_hsm_rm( unsigned int *p_nb_removed )
     unsigned int   status_tab2[HSMRM_STATUS_COUNT];
 
     unsigned int   submitted_files, nb_in_queue, nb_hsm_rm_pending;
-
     int            end_of_list = FALSE;
+#ifdef _BACKUP_FS
+    char           bkpath[RBH_PATH_MAX];
+#endif
 
     if ( p_nb_removed )
         *p_nb_removed = 0;
@@ -176,7 +200,12 @@ static int perform_hsm_rm( unsigned int *p_nb_removed )
           memset( &entry_id, 0, sizeof( entry_id_t ) );
 
           /* @TODO retrieve path and dates for traces */
+#ifdef _BACKUP_FS
+          bkpath[0] = '\0';
+          rc = ListMgr_GetNextRmEntry( it, &entry_id, NULL, bkpath, NULL, NULL );
+#else
           rc = ListMgr_GetNextRmEntry( it, &entry_id, NULL, NULL, NULL );
+#endif
 
           if ( rc == DB_END_OF_LIST )
             {
@@ -190,7 +219,11 @@ static int perform_hsm_rm( unsigned int *p_nb_removed )
             }
 
           /* submit entry for removal */
+#ifdef _BACKUP_FS
+          rc = Queue_Insert( &hsm_rm_queue, MkRmItem( &entry_id, bkpath ) );
+#elif defined(_LUSTRE_HSM)
           rc = Queue_Insert( &hsm_rm_queue, MkRmItem( &entry_id ) );
+#endif
           if ( rc )
               return rc;
 
@@ -258,7 +291,11 @@ static void   *Thr_Rm( void *arg )
                       PFID( &p_item->entry_id) );
 
           /* 7) rm and remove entry from database */
+#ifdef _BACKUP_FS
+          rc = HSM_rm( &p_item->entry_id, p_item->backendpath );
+#elif defined(_LUSTRE_HSM)
           rc = HSM_rm( &p_item->entry_id );
+#endif
 
           if ( rc )
             {

@@ -1,8 +1,10 @@
+- 
+
 - warning si nlink d'un fichier > 1
 
 - criteria on stripe_count
 
-- live summaries:
+- live summaries: (stage?)
 	- enabled from config
 	- examples: user_usage (count, type, usage, size...), group_usage,
 		stats_by_type(count, size, usage...), stats_by_class (count, size, usage...)
