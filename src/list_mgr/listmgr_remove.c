@@ -344,11 +344,18 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    const char * last_known_path,
+#ifdef _BACKUP_FS
+                                   const char * bkpath,
+#endif
                                    time_t real_remove_time )
 {
     int rc;
-    char query[1024];
+    char query[4096];
+    char * curr = query;
     const char * entry_path = NULL;
+#ifdef _BACKUP_FS
+    const char * backendpath = NULL;
+#endif
     attr_set_t attrs;
 
     /* check if the previous entry had a path */
@@ -358,33 +365,62 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     {
         ATTR_MASK_INIT( &attrs );
         ATTR_MASK_SET( &attrs, fullpath );
-        
+
         if ( (ListMgr_Get( p_mgr, p_id, &attrs ) == DB_SUCCESS )
             && ATTR_MASK_TEST( &attrs, fullpath ) )
+        {
             entry_path = ATTR(&attrs, fullpath);
+        }
     }
+
+#ifdef _BACKUP_FS
+    /* check if the previous entry had a path in backend */
+    if ( bkpath )
+        backendpath = bkpath;
+    else
+    {
+        ATTR_MASK_INIT( &attrs );
+        ATTR_MASK_SET( &attrs, backendpath );
+
+        if ( (ListMgr_Get( p_mgr, p_id, &attrs ) == DB_SUCCESS )
+            && ATTR_MASK_TEST( &attrs, fullpath ) )
+        {
+            backendpath = ATTR(&attrs, backendpath);
+        }
+    }
+#endif
 
     /* We want the removal sequence to be atomic */
     rc = lmgr_begin( p_mgr );
     if ( rc )
         return rc;
 
-    /* insert this ID to Soft_Unlink table */
+    curr += sprintf( query,
+                     "INSERT IGNORE INTO " SOFT_RM_TABLE
+                     "(fid, " );
+
     if ( entry_path )
-        snprintf( query, 1024,
-                  "INSERT IGNORE INTO " SOFT_RM_TABLE
-                  "(fid, last_known_path, soft_rm_time, real_rm_time) "
-                  "VALUES ('"DFID_NOBRACE"', '%s', %u, %u ) ",
-                  PFID(p_id),
-                  entry_path,
-                  (unsigned int)time(NULL),
-                  (unsigned int)real_remove_time );
-    else
-        snprintf( query, 1024,
-                  "INSERT IGNORE INTO " SOFT_RM_TABLE "(fid, soft_rm_time, real_rm_time) "
-                  "VALUES ('"DFID_NOBRACE"', %u, %u )", PFID(p_id),
-                  (unsigned int)time(NULL),
-                  (unsigned int)real_remove_time );
+        curr += sprintf(curr, "last_known_path, " );
+#ifdef _BACKUP_FS
+    if ( backendpath )
+        curr += sprintf(curr, "bkpath, " );
+#endif
+
+    curr += sprintf(curr, "soft_rm_time, real_rm_time) "
+                  "VALUES ('"DFID_NOBRACE"', ", PFID(p_id) );
+
+    /* @TODO escape strings in these requests */
+
+    if ( entry_path )
+        curr += sprintf(curr, "'%s', ", entry_path );
+#ifdef _BACKUP_FS
+    if ( backendpath )
+        curr += sprintf(curr, "'%s', ", backendpath );
+#endif
+
+    curr += sprintf( curr, " %u, %u ) ",
+                    (unsigned int)time(NULL),
+                    (unsigned int)real_remove_time );
 
     rc = db_exec_sql( &p_mgr->conn, query, NULL );
 

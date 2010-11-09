@@ -425,6 +425,9 @@ int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id );
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    const char * last_known_path,
+#ifdef _BACKUP_FS
+                                   const char * bkpath,
+#endif
                                    time_t real_remove_time );
 
 /**

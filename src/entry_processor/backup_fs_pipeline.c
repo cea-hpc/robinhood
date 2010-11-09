@@ -433,8 +433,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
         p_op->entry_attr.attr_mask |= entry_proc_conf.alert_attr_mask;
 
-        if ( p_op->extra_info.getstatus_needed )
-        {
+//        if ( p_op->extra_info.getstatus_needed ) /* how could this be set??? */
+//        {
             /* what info is needed to check backend status? */
             rc = rbhext_status_needs( TYPE_NONE,
                                     &attr_allow_cached,
@@ -456,7 +456,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 /* query needed (cached) info from the DB */
                 p_op->entry_attr.attr_mask |= attr_allow_cached ;
             }
-        }
+ //       }
+        /* in case of unlink, we need the backend path */
+        if ( p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK )
+             ATTR_MASK_SET( &p_op->entry_attr, backendpath );
 
         rc = ListMgr_Get( lmgr, &p_op->entry_id, &p_op->entry_attr );
 
@@ -733,8 +736,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* get entry path (only for log records) */
             if ( p_op->extra_info.is_changelog_record )
             {
-                rc = Lustre_GetFullPath( &p_op->entry_id,
-                                         ATTR( &p_op->entry_attr, fullpath ), 1024 );
+                char pathnew[RBH_PATH_MAX];
+                /* /!\ Lustre_GetFullPath modifies fullpath even on failure,
+                 * so, first write to a tmp buffer */
+                rc = Lustre_GetFullPath( &p_op->entry_id, pathnew, RBH_PATH_MAX );
 
                 if ( ERR_MISSING( abs( rc )) )
                 {
@@ -749,6 +754,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 }
                 else if ( rc == 0 )
                 {
+                    strcpy( ATTR( &p_op->entry_attr, fullpath ), pathnew );
                     ATTR_MASK_SET( &p_op->entry_attr, fullpath );
                     ATTR_MASK_SET( &p_op->entry_attr, path_update );
                     ATTR( &p_op->entry_attr, path_update ) = time( NULL );
@@ -968,9 +974,12 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = ListMgr_Remove( lmgr, &p_op->entry_id );
         break;
     case OP_TYPE_SOFT_REMOVE:
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "SoftRemove("DFID")", PFID(&p_op->entry_id) );
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "SoftRemove("DFID", path=%x, bkpath=%x)",
+                    PFID(&p_op->entry_id), ATTR_MASK_TEST( &p_op->entry_attr, fullpath ),
+                    ATTR_MASK_TEST( &p_op->entry_attr, backendpath ) );
         rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id,
                 ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?ATTR(&p_op->entry_attr, fullpath ):NULL,
+                ATTR_MASK_TEST( &p_op->entry_attr, backendpath )?ATTR(&p_op->entry_attr, backendpath ):NULL,
                 time(NULL) + policies.unlink_policy.deferred_remove_delay ) ;
         break;
     default:

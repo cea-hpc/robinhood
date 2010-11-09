@@ -26,6 +26,7 @@
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
 #include "global_config.h"
+#include "xplatform_print.h"
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -498,12 +499,20 @@ int rbhext_get_status( const entry_id_t * p_id,
         {
                 ATTR_MASK_SET( p_attrs_changed, status );
                 ATTR( p_attrs_changed, status ) = STATUS_MODIFIED;
+
+                /* update path in the backend */
+                ATTR_MASK_SET( p_attrs_changed, backendpath );
+                strcpy( ATTR( p_attrs_changed, backendpath ), bkpath) ;
                 return 0;
         }
         else
         {
                 ATTR_MASK_SET( p_attrs_changed, status );
                 ATTR( p_attrs_changed, status ) = STATUS_SYNCHRO;
+
+                /* update path in the backend */
+                ATTR_MASK_SET( p_attrs_changed, backendpath );
+                strcpy( ATTR( p_attrs_changed, backendpath ), bkpath) ;
                 return 0;
         }
     }
@@ -566,12 +575,20 @@ int rbhext_get_status( const entry_id_t * p_id,
             /* symlink content is different */
             ATTR_MASK_SET( p_attrs_changed, status );
             ATTR( p_attrs_changed, status ) = STATUS_MODIFIED;
+
+            /* update path in the backend */
+            ATTR_MASK_SET( p_attrs_changed, backendpath );
+            strcpy( ATTR( p_attrs_changed, backendpath ), bkpath ) ;
             return 0;
         }
         else /* same content */
         {
             ATTR_MASK_SET( p_attrs_changed, status );
             ATTR( p_attrs_changed, status ) = STATUS_SYNCHRO;
+
+            /* update path in the backend */
+            ATTR_MASK_SET( p_attrs_changed, backendpath );
+            strcpy( ATTR( p_attrs_changed, backendpath ), bkpath ) ;
             return 0;
         }
     }
@@ -600,14 +617,17 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     char bkpath[RBH_PATH_MAX];
     char fspath[RBH_PATH_MAX];
     char tmp[RBH_PATH_MAX];
+    struct stat info;
 
     if ( arch_meth != RBHEXT_SYNC )
         return -ENOTSUP;
 
-    /* if status is not determined, check it */
+    /* if status is not determined, retrieve it */
     if ( !ATTR_MASK_TEST(p_attrs, status) )
     {
-        /* TODO */
+        rc = rbhext_get_status( p_id, p_attrs, p_attrs );
+        if (rc)
+            return rc;
     }
 
     /* check the status */
@@ -685,7 +705,31 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         strcpy( ATTR( p_attrs, backendpath ), bkpath );
     }
 
-    /* TODO must check final mtime to know if the file changed */
+    if ( lstat(fspath, &info) != 0 )
+    {
+        rc = -errno;
+        DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing final lstat(%s): %s",
+                    fspath, strerror(-rc) );
+        ATTR_MASK_SET( p_attrs, status );
+        ATTR( p_attrs, status ) = STATUS_UNKNOWN;
+    }
+    else
+    {
+        if ( (info.st_mtime != ATTR( p_attrs, last_mod ))
+             || (info.st_size != ATTR( p_attrs, size )) )
+        {
+            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Entry %s has been modified during transfer: "
+                        "size before/after: %"PRI_SZ"/%"PRI_SZ", "
+                        "mtime before/after: %u/%"PRI_TT,
+                        fspath, ATTR( p_attrs, size ), info.st_size,
+                        ATTR( p_attrs, last_mod ), info.st_mtime );
+            ATTR_MASK_SET( p_attrs, status );
+            ATTR( p_attrs, status ) = STATUS_MODIFIED;
+        }
+
+        /* update entry attributes */
+        PosixStat2EntryAttr( &info, p_attrs, TRUE );
+    }
 
     return 0;
 }
