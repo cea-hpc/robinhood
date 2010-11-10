@@ -422,7 +422,7 @@ int rbhext_get_status( const entry_id_t * p_id,
     {
         DisplayLog( LVL_EVENT, RBHEXT_TAG, "Unsupported type %s for this backend",
                     ATTR(p_attrs_in, type) );
-        return -EINVAL;
+        return -ENOTSUP;
     }
 
     if ( entry_type == TYPE_FILE )

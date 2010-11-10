@@ -194,6 +194,13 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             ATTR_MASK_SET( &p_op->entry_attr, last_archive );
         }
     }
+    else if ((logrec->cr_type == CL_MKDIR )
+            || (logrec->cr_type == CL_RMDIR ))
+    {
+        /* entry is a directory */
+        ATTR_MASK_SET( &p_op->entry_attr, type );
+        strcpy( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR );
+    }
     else if (logrec->cr_type == CL_UNLINK )
     {
         /* in any case, update the path because the stored path
@@ -433,30 +440,28 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
         p_op->entry_attr.attr_mask |= entry_proc_conf.alert_attr_mask;
 
-//        if ( p_op->extra_info.getstatus_needed ) /* how could this be set??? */
-//        {
-            /* what info is needed to check backend status? */
-            rc = rbhext_status_needs( TYPE_NONE,
-                                    &attr_allow_cached,
-                                    &attr_need_fresh );
-            if ( rc != 0 )
+        /* what info is needed to check backend status? */
+        rc = rbhext_status_needs( TYPE_NONE,
+                                &attr_allow_cached,
+                                &attr_need_fresh );
+        if ( rc != 0 )
+        {
+            if ( rc == -ENOTSUP )
             {
-                if ( rc == -ENOTSUP )
-                {
-                    /* no type of can be backup'ed: skip the record */
-                    next_stage = STAGE_CHGLOG_CLR;
-                    goto next_step;
-                }
-                else
-                    DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                                "rbhext_status_needs() returned error %d", rc );
+                /* no type of can be backup'ed: skip the record */
+                next_stage = STAGE_CHGLOG_CLR;
+                goto next_step;
             }
             else
-            {
-                /* query needed (cached) info from the DB */
-                p_op->entry_attr.attr_mask |= attr_allow_cached ;
-            }
- //       }
+                DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
+                            "rbhext_status_needs() returned error %d", rc );
+        }
+        else
+        {
+            /* query needed (cached) info from the DB */
+            p_op->entry_attr.attr_mask |= attr_allow_cached ;
+        }
+
         /* in case of unlink, we need the backend path */
         if ( p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK )
              ATTR_MASK_SET( &p_op->entry_attr, backendpath );
@@ -798,7 +803,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* get entry status */
             rc = rbhext_get_status( &p_op->entry_id, &p_op->entry_attr,
                                     &new_attrs );
-
             if ( ERR_MISSING( abs( rc )) )
             {
                 DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore",
