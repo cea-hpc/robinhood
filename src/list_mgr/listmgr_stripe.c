@@ -242,7 +242,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
         else if ( rc == DB_ALREADY_EXISTS )
         {
             /* remove previous stripe info */
-            DisplayLog( LVL_FULL, LISTMGR_TAG,
+            DisplayLog( LVL_EVENT, LISTMGR_TAG,
                         "A stripe info already exists with this identifier, removing it" );
             rc = delete_stipe_info( p_mgr, pk );
         }

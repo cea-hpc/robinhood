@@ -919,11 +919,22 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
     int rc;
     unsigned int allow_cached_attrs = 0;
     unsigned int need_fresh_attrs = 0;
+    /* path for handling the entry */
+    char     fspath[RBH_PATH_MAX] = "";
 
+#ifdef _HAVE_FID
+    BuildFidPath( &p_item->entry_id, fspath );
+#else
     if ( ATTR_MASK_TEST(&p_item->entry_attr, fullpath) )
-        DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry %s", ATTR( &p_item->entry_attr, fullpath ) );
+        strcpy( fspath, ATTR( &p_item->entry_attr, fullpath ) );
     else
-        DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry with fid="DFID, PFID(&p_item->entry_id) );
+    {
+        DisplayLog( LVL_MAJOR, MIGR_TAG, "Missing fullpath info for addressing the entry" );
+        invalidate_entry( lmgr, &p_item->entry_id );
+        return MIGR_PARTIAL_MD;
+    }
+#endif
+    DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry '%s'", fspath );
 
     /* what up-to-date information the backend needs? */
     if ( ATTR_MASK_TEST(&p_item->entry_attr, type) )
@@ -942,21 +953,101 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
                    __FUNCTION__, __LINE__, rc );
         return MIGR_ERROR;
     }
-    else
+
+    /* check what cached attributes are missing and what fresh are needed */
+    need_fresh_attrs |= (allow_cached_attrs & ~(p_item->entry_attr.attr_mask) );
+
+    if ( need_fresh_attrs & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ) )
     {
+        /* need stripe */
+        rc = File_GetStripeByPath( fspath,
+                                   &ATTR( new_attr_set, stripe_info ),
+                                   &ATTR( new_attr_set, stripe_items ) );
+        if ( rc == 0 )
+        {
+            ATTR_MASK_SET( new_attr_set, stripe_info );
+            ATTR_MASK_SET( new_attr_set, stripe_items );
+        }
     }
 
+    if ( (need_fresh_attrs & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth ))
+         || need_path_update(&p_item->entry_attr, NULL) )
+    {
+#ifdef _HAVE_FID
+        char pathnew[RBH_PATH_MAX];
+        /* /!\ Lustre_GetFullPath modifies fullpath even on failure,
+         * so, first write to a tmp buffer */
+        rc = Lustre_GetFullPath( &p_item->entry_id, pathnew, RBH_PATH_MAX );
 
-#if 0
-    /* what information needs the backend? */
-    if ( ATTR_MASK_TEST(&p_item->entry_attr, type) )
-       rc = rbhext_status_needs( 
-    else
-        rc = rbhext_status_needs(
+        if ( rc == 0 )
+        {
+            strcpy( ATTR( &p_item->entry_attr, fullpath ), pathnew );
+            ATTR_MASK_SET( &p_item->entry_attr, fullpath );
+            ATTR_MASK_SET( &p_item->entry_attr, path_update );
+            ATTR( &p_item->entry_attr, path_update ) = time( NULL );
+        }
+#else
+        DisplayLog( LVL_MAJOR, MIGR_TAG, "Missing path info for addressing the entry" );
+        return MIGR_PARTIAL_MD;
 #endif
+    }
 
-    /* entry is valid */
-    return MIGR_OK;
+    if ( (need_fresh_attrs & POSIX_ATTR_MASK)
+         || need_md_update( &p_item->entry_attr, NULL ) )
+    {
+        struct stat entry_md;
+        /* need lstat */
+        if ( lstat( fspath, &entry_md ) != 0 )
+          rc = errno;
+
+        /* get entry attributes */
+        if ( rc == 0 )
+        {
+#if defined( _LUSTRE ) && defined( _HAVE_FID ) && defined( _MDS_STAT_SUPPORT )
+            PosixStat2EntryAttr( &entry_md, &p_item->entry_attr, !global_config.direct_mds_stat );
+#else
+            PosixStat2EntryAttr( &entry_md, &p_item->entry_attr, TRUE );
+#endif
+            /* set update time of the stucture */
+            ATTR_MASK_SET( new_attr_set, md_update );
+            ATTR( new_attr_set, md_update ) = time( NULL );
+        }
+    }
+
+    /* Merge with missing attrs from database */
+    ListMgr_MergeAttrSets( new_attr_set, &p_item->entry_attr, FALSE );
+    /* autogen fields */
+    ListMgr_GenerateFields( new_attr_set, need_fresh_attrs | allow_cached_attrs );
+
+    /* check the status */
+    rc = rbhext_get_status( &p_item->entry_id, new_attr_set, new_attr_set );
+
+    if ( rc == -ENOENT || rc == -ESTALE )
+    {
+        DisplayLog( LVL_FULL, MIGR_TAG, "Entry %s does not exist anymore",
+                    fspath );
+        return MIGR_ENTRY_MOVED;
+    }
+    else if ( rc == 0 )
+    {
+        if ( !ATTR_MASK_TEST( new_attr_set, status ) )
+        {
+            DisplayLog( LVL_MAJOR, MIGR_TAG,
+                        "ERROR: rbhext_get_status() reported success without setting status (entry %s)",
+                        fspath );
+            return MIGR_ERROR;
+        }
+        /* success. New status will be checked by caller. */
+        return MIGR_OK;
+    }
+    else if ( rc == -ENOTSUP )
+    {
+        /* this type of entry is not managed: ignored */
+        DisplayLog( LVL_FULL, MIGR_TAG, "Entry %s is not archivable", fspath );
+        return MIGR_BAD_TYPE;
+    }
+    else /* misc error */
+            return MIGR_ERROR;
 }
 
 #endif /* switch Lustre_HSM/SHERPA */
@@ -1045,7 +1136,8 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
                             } while(0)
 
     DisplayLog( LVL_FULL, MIGR_TAG,
-                "Checking if entry %s can be archived", ATTR( &p_item->entry_attr, fullpath ) );
+                "Checking if entry %s can be archived",
+                ATTR( &p_item->entry_attr, fullpath ) );
 
     ATTR_MASK_INIT( &new_attr_set );
 
@@ -1067,7 +1159,8 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
 
 #ifdef ATTR_INDEX_no_archive
     /* check that the entry has the expected status */
-    if ( ATTR_MASK_TEST( &new_attr_set, no_archive ) && ATTR( &new_attr_set, no_archive ) )
+    if ( ATTR_MASK_TEST( &new_attr_set, no_archive )
+         && ATTR( &new_attr_set, no_archive ) )
     {
         /* this entry is now tagged 'no_archive' */
         DisplayLog( LVL_MAJOR, MIGR_TAG,

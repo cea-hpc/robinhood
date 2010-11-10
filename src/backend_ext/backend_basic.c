@@ -633,17 +633,15 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     /* check the status */
     if ( ATTR(p_attrs, status) == STATUS_NEW )
     {
-        /* TODO */
-        /* no previous path */
+        /* TODO no previous path */
     }
     else if ( ATTR(p_attrs, status) == STATUS_MODIFIED )
     {
-        /* TODO */
-        /* check previous path */
+        /* TODO check previous path */
     }
     else /* invalid status */
     {
-        /* TODO */
+        /* TODO  invalid status for calling archive() */
     }
 
     /* is it the good type? */
@@ -748,9 +746,18 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
         if ( unlink(backend_path) != 0 )
         {
             rc = -errno;
-            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error removing '%s' from backend: %s",
-                        backend_path, strerror(-rc) );
-            return -rc;
+            if ( rc == -ENOENT )
+            {
+                DisplayLog( LVL_EVENT, RBHEXT_TAG, "'%s' not found in backend: assuming backend removal is successfull",
+                            backend_path );
+                return 0;
+            }
+            else
+            {
+                DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error removing '%s' from backend: %s",
+                            backend_path, strerror(-rc) );
+                return -rc;
+            }
         }
     }
     return 0;

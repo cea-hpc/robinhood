@@ -2,14 +2,22 @@
 
 if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_hsm=1
+	is_backup=0
 	RH=../../src/robinhood/rbh-hsm
 	REPORT=$RH-report
 	CMD=rbh-hsm
-else
+elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsm=0
+	is_backup=0
 	RH=../../src/robinhood/robinhood
 	REPORT=../../src/robinhood/rbh-report
 	CMD=robinhood
+elif [[ $PURPOSE = "BACKUP" ]]; then
+	is_hsm=0
+	is_backup=1
+	RH=../../src/robinhood/rbh-backup
+	REPORT=../../src/robinhood/rbh-backup-report
+	CMD=rbh-backup
 fi
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
@@ -93,7 +101,7 @@ function migration_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_hsm == 0 )); then
+	if (( $is_hsm + $is_backup == 0 )); then
 		echo "HSM test only: skipped"
 		return 1
 	fi
@@ -219,7 +227,7 @@ function link_unlink_remove_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_hsm == 0 )); then
+	if (( $is_hsm + $is_backup == 0 )); then
 		echo "HSM test only: skipped"
 		return 1
 	fi
@@ -238,11 +246,15 @@ function link_unlink_remove_test
 	echo "2-Writing data to file.1..."
 	dd if=/dev/zero of=/mnt/lustre/file.1 bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.1"
 
-	echo "3-Archiving file....1"
-	lfs hsm_archive /mnt/lustre/file.1 || echo "ERROR"
+	if (( $is_hsm != 0 )); then
+		echo "3-Archiving file....1"
+		lfs hsm_archive /mnt/lustre/file.1 || echo "ERROR"
 
-	echo "3bis-Waiting for end of data migration..."
-	while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions ; do sleep 1; done
+		echo "3bis-Waiting for end of data migration..."
+		while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions ; do sleep 1; done
+	elif (( $is_backup != 0 )); then
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || echo "ERROR"
+	fi
 
 	# create links on file.1 files
 	echo "4-Creating hard links to /mnt/lustre/file.1..."
@@ -462,7 +474,7 @@ function path_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm == 0 )); then
+	if (( $is_hsm + $is_backup == 0 )); then
 		echo "hsm test only: skipped"
 		return 1
 	fi
@@ -1668,7 +1680,7 @@ run_test 15	fileclass_test test_fileclass.conf 2 "complex policies with unions a
 run_test 16	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
 run_test 17	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
 run_test 18	test_pools test_pools.conf 1 "class matching with condition on pools"
-#run_test 19	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+run_test 19	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
 
 run_test 20a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
 run_test 20b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"

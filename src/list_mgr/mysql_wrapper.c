@@ -177,8 +177,13 @@ int db_exec_sql( db_conn_t * conn, const char *query, result_handle_t * p_result
 
     if ( rc )
     {
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error %d executing query '%s': %s",
-                    rc, query, mysql_error(conn) );
+        if (mysql_errno( conn ) == ER_DUP_ENTRY)
+            DisplayLog( LVL_EVENT, LISTMGR_TAG, "A database record already exists for this entry: '%s' (%s)",
+                         query, mysql_error(conn) );
+        else
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error %d executing query '%s': %s",
+                        rc, query, mysql_error(conn) );
+
         return mysql_error_convert( mysql_errno( conn ) );
     }
     else

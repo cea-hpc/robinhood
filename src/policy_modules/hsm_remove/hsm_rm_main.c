@@ -297,7 +297,7 @@ static void   *Thr_Rm( void *arg )
           rc = HSM_rm( &p_item->entry_id );
 #endif
 
-          if ( rc )
+          if ( rc != 0 )
             {
                 DisplayLog( LVL_DEBUG, HSMRM_TAG, "Error removing entry "DFID": %s",
                             PFID( &p_item->entry_id), strerror( abs(rc) ) );

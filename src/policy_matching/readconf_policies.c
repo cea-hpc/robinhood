@@ -1660,11 +1660,14 @@ static int read_filesets( config_file_t config, fileset_list_t * fileset_list,
                         else
 #endif
                         {
-                            sprintf( msg_out,
+                            DisplayLog( LVL_CRIT, "Config Check",
+                                        "WARNING: unknown parameter '%s' in block '%s' line %d",
+                                        subitem_name, FILESET_BLOCK, rh_config_GetItemLine( sub_item ) );
+/*                            sprintf( msg_out,
                                      "'%s' parameter unexpected in " FILESET_BLOCK " block, line %d.",
                                      subitem_name, rh_config_GetItemLine( sub_item ) );
                             rc = EINVAL;
-                            goto clean_filesets;
+                            goto clean_filesets; */
                         }
                         break;
                     }
@@ -2038,9 +2041,12 @@ static int parse_policy_block( config_item_t config_item,
 #endif
             else
             {
-                sprintf( msg_out, "'%s' parameter unexpected in %s block, line %d.",
+                DisplayLog( LVL_CRIT, "Config Check",
+                            "WARNING: unknown parameter '%s' in block '%s' line %d",
+                            subitem_name, block_name, rh_config_GetItemLine( sub_item ) );
+                /*sprintf( msg_out, "'%s' parameter unexpected in %s block, line %d.",
                          subitem_name, block_name, rh_config_GetItemLine( sub_item ) );
-                return EINVAL;
+                return EINVAL;*/
             }
 
 

@@ -1,4 +1,5 @@
-- 
+- non reg sur backup fs
+- test de non reg: scan suivi de readlog
 
 - warning si nlink d'un fichier > 1
 
