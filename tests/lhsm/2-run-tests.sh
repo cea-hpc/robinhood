@@ -1,12 +1,7 @@
 #/bin/sh
 
-if [[ "$FS" == "LUSTRE" || "$PURPOSE" = "LUSTRE_HSM" ]]; then
-	ROOT="/mnt/lustre"
-	RBH_OPT=""
-else
-	ROOT="/tmp/rbh_test_root"
-	RBH_OPT="--fs-path=$ROOT --fs-type=ext3"
-fi
+ROOT="/mnt/lustre"
+RBH_OPT=""
 
 if [[ ! -d $ROOT ]]; then
 	echo "Creating directory $ROOT"
@@ -25,13 +20,13 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsm=0
 	is_backup=0
 	RH="../../src/robinhood/robinhood $RBH_OPT"
-	REPORT=../../src/robinhood/rbh-report
+	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
 	CMD=robinhood
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_hsm=0
 	is_backup=1
 	RH="../../src/robinhood/rbh-backup $RBH_OPT"
-	REPORT=../../src/robinhood/rbh-backup-report
+	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
 	CMD=rbh-backup
 fi
 
