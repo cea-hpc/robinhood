@@ -1,21 +1,36 @@
 #/bin/sh
 
+if [[ "$FS" == "LUSTRE" || "$PURPOSE" = "LUSTRE_HSM" ]]; then
+	ROOT="/mnt/lustre"
+	RBH_OPT=""
+else
+	ROOT="/tmp/rbh_test_root"
+	RBH_OPT="--fs-path=$ROOT --fs-type=ext3"
+fi
+
+if [[ ! -d $ROOT ]]; then
+	echo "Creating directory $ROOT"
+	mkdir -p "$ROOT"
+else
+	echo "Creating directory $ROOT"
+fi
+
 if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_hsm=1
 	is_backup=0
-	RH=../../src/robinhood/rbh-hsm
-	REPORT=$RH-report
+	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
+	REPORT=../../src/robinhood/rbh-hsm-report
 	CMD=rbh-hsm
 elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsm=0
 	is_backup=0
-	RH=../../src/robinhood/robinhood
+	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT=../../src/robinhood/rbh-report
 	CMD=robinhood
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_hsm=0
 	is_backup=1
-	RH=../../src/robinhood/rbh-backup
+	RH="../../src/robinhood/rbh-backup $RBH_OPT"
 	REPORT=../../src/robinhood/rbh-backup-report
 	CMD=rbh-backup
 fi
@@ -26,7 +41,7 @@ else
 	no_log=1
 fi
 
-PROC=`basename $RH`
+PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
 CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out"
 
@@ -73,7 +88,7 @@ function clean_fs
 	fi
 
 	echo "Cleaning filesystem..."
-	rm  -rf /mnt/lustre/*
+	rm  -rf $ROOT/*
 
 	echo "Destroying any running instance of robinhood..."
 	pkill -f robinhood
@@ -133,7 +148,7 @@ function migration_test
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
 	done
 
 	echo "2-Reading changelogs..."
@@ -187,15 +202,15 @@ function xattr_test
 
 	echo "1-Modifing files..."
 	for i in `seq 1 3`; do
-		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
 	done
 
 	echo "2-Setting xattrs..."
-	echo "/mnt/lustre/file.1: xattr.user.foo=1"
-	setfattr -n user.foo -v 1 /mnt/lustre/file.1
-	echo "/mnt/lustre/file.2: xattr.user.bar=1"
-	setfattr -n user.bar -v 1 /mnt/lustre/file.2
-	echo "/mnt/lustre/file.3: none"
+	echo "$ROOT/file.1: xattr.user.foo=1"
+	setfattr -n user.foo -v 1 $ROOT/file.1
+	echo "$ROOT/file.2: xattr.user.bar=1"
+	setfattr -n user.bar -v 1 $ROOT/file.2
+	echo "$ROOT/file.3: none"
 
 	# read changelogs
 	if (( $no_log )); then
@@ -280,11 +295,11 @@ function link_unlink_remove_test
 
 	# write file.1 and force immediate migration
 	echo "2-Writing data to file.1..."
-	dd if=/dev/zero of=/mnt/lustre/file.1 bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.1"
+	dd if=/dev/zero of=$ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.1"
 
 	if (( $is_hsm != 0 )); then
 		echo "3-Archiving file....1"
-		lfs hsm_archive /mnt/lustre/file.1 || echo "ERROR"
+		lfs hsm_archive $ROOT/file.1 || echo "ERROR"
 
 		echo "3bis-Waiting for end of data migration..."
 		while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions ; do sleep 1; done
@@ -293,13 +308,13 @@ function link_unlink_remove_test
 	fi
 
 	# create links on file.1 files
-	echo "4-Creating hard links to /mnt/lustre/file.1..."
-	ln /mnt/lustre/file.1 /mnt/lustre/link.1 || echo "ERROR"
-	ln /mnt/lustre/file.1 /mnt/lustre/link.2 || echo "ERROR"
+	echo "4-Creating hard links to $ROOT/file.1..."
+	ln $ROOT/file.1 $ROOT/link.1 || echo "ERROR"
+	ln $ROOT/file.1 $ROOT/link.2 || echo "ERROR"
 
 	# removing all files
         echo "5-Removing all links to file.1..."
-	rm -f /mnt/lustre/link.* /mnt/lustre/file.1 
+	rm -f $ROOT/link.* $ROOT/file.1 
 
 	# deferred remove delay is not reached: nothing should be removed
 	echo "6-Performing HSM remove requests (before delay expiration)..."
@@ -352,11 +367,11 @@ function purge_test
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived /mnt/lustre/file.$i
-			lfs hsm_clear --dirty /mnt/lustre/file.$i
+			lfs hsm_set --exists --archived $ROOT/file.$i
+			lfs hsm_clear --dirty $ROOT/file.$i
 		fi
 	done
 	
@@ -433,11 +448,11 @@ function purge_size_filesets
 		echo "1.$j-Writing files of size " $(( $size*10 )) "kB..."
 		((j=$j+1))
 		for i in `seq 1 $count`; do
-			dd if=/dev/zero of=/mnt/lustre/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || echo "ERROR writing file.$size.$i"
+			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || echo "ERROR writing file.$size.$i"
 
 			if (( $is_hsm != 0 )); then
-				lfs hsm_set --exists --archived /mnt/lustre/file.$size.$i
-				lfs hsm_clear --dirty /mnt/lustre/file.$size.$i
+				lfs hsm_set --exists --archived $ROOT/file.$size.$i
+				lfs hsm_clear --dirty $ROOT/file.$size.$i
 			fi
 		done
 	done
@@ -484,11 +499,11 @@ function test_rh_report
 	clean_logs
 
 	for i in `seq 1 $dircount`; do
-		mkdir /mnt/lustre/dir.$i
-		echo "1.$i-Writing files to /mnt/lustre/dir.$i..."
+		mkdir $ROOT/dir.$i
+		echo "1.$i-Writing files to $ROOT/dir.$i..."
 		# write i MB to each directory
 		for j in `seq 1 $i`; do
-			dd if=/dev/zero of=/mnt/lustre/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || echo "ERROR writing /mnt/lustre/dir.$i/file.$j"
+			dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || echo "ERROR writing $ROOT/dir.$i/file.$j"
 		done
 	done
 
@@ -505,12 +520,12 @@ function test_rh_report
 
 	echo "3.Checking reports..."
 	for i in `seq 1 $dircount`; do
-		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P /mnt/lustre/dir.$i > rh_report.log
+		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P $ROOT/dir.$i > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $i*1024*1024 )); then
 			echo "ERROR: $used != " $(($i*1024*1024))
 		else
-			echo "OK: $i MB in /mnt/lustre/dir.$i"
+			echo "OK: $i MB in $ROOT/dir.$i"
 		fi
 	done
 	
@@ -532,104 +547,104 @@ function path_test
 
 	# create test tree
 
-	mkdir -p /mnt/lustre/dir1
-	mkdir -p /mnt/lustre/dir1/subdir1
-	mkdir -p /mnt/lustre/dir1/subdir2
-	mkdir -p /mnt/lustre/dir1/subdir3/subdir4
+	mkdir -p $ROOT/dir1
+	mkdir -p $ROOT/dir1/subdir1
+	mkdir -p $ROOT/dir1/subdir2
+	mkdir -p $ROOT/dir1/subdir3/subdir4
 	# 2 matching files for fileclass absolute_path
-	echo "data" > /mnt/lustre/dir1/subdir1/A
-	echo "data" > /mnt/lustre/dir1/subdir2/A
+	echo "data" > $ROOT/dir1/subdir1/A
+	echo "data" > $ROOT/dir1/subdir2/A
 	# 2 unmatching
-	echo "data" > /mnt/lustre/dir1/A
-	echo "data" > /mnt/lustre/dir1/subdir3/subdir4/A
+	echo "data" > $ROOT/dir1/A
+	echo "data" > $ROOT/dir1/subdir3/subdir4/A
 
-	mkdir -p /mnt/lustre/dir2
-	mkdir -p /mnt/lustre/dir2/subdir1
+	mkdir -p $ROOT/dir2
+	mkdir -p $ROOT/dir2/subdir1
 	# 2 matching files for fileclass absolute_tree
-	echo "data" > /mnt/lustre/dir2/X
-	echo "data" > /mnt/lustre/dir2/subdir1/X
+	echo "data" > $ROOT/dir2/X
+	echo "data" > $ROOT/dir2/subdir1/X
 
-	mkdir -p /mnt/lustre/one_dir/dir3
-	mkdir -p /mnt/lustre/other_dir/dir3
-	mkdir -p /mnt/lustre/dir3
-	mkdir -p /mnt/lustre/one_dir/one_dir/dir3
+	mkdir -p $ROOT/one_dir/dir3
+	mkdir -p $ROOT/other_dir/dir3
+	mkdir -p $ROOT/dir3
+	mkdir -p $ROOT/one_dir/one_dir/dir3
 	# 2 matching files for fileclass path_depth2
-	echo "data" > /mnt/lustre/one_dir/dir3/X
-	echo "data" > /mnt/lustre/other_dir/dir3/Y
+	echo "data" > $ROOT/one_dir/dir3/X
+	echo "data" > $ROOT/other_dir/dir3/Y
 	# 2 unmatching files for fileclass path_depth2
-	echo "data" > /mnt/lustre/dir3/X
-	echo "data" > /mnt/lustre/one_dir/one_dir/dir3/X
+	echo "data" > $ROOT/dir3/X
+	echo "data" > $ROOT/one_dir/one_dir/dir3/X
 
-	mkdir -p /mnt/lustre/one_dir/dir4/subdir1
-	mkdir -p /mnt/lustre/other_dir/dir4/subdir1
-	mkdir -p /mnt/lustre/dir4
-	mkdir -p /mnt/lustre/one_dir/one_dir/dir4
+	mkdir -p $ROOT/one_dir/dir4/subdir1
+	mkdir -p $ROOT/other_dir/dir4/subdir1
+	mkdir -p $ROOT/dir4
+	mkdir -p $ROOT/one_dir/one_dir/dir4
 	# 2 matching files for fileclass tree_depth2
-	echo "data" > /mnt/lustre/one_dir/dir4/subdir1/X
-	echo "data" > /mnt/lustre/other_dir/dir4/subdir1/X
+	echo "data" > $ROOT/one_dir/dir4/subdir1/X
+	echo "data" > $ROOT/other_dir/dir4/subdir1/X
 	# unmatching files for fileclass tree_depth2
-	echo "data" > /mnt/lustre/dir4/X
-	echo "data" > /mnt/lustre/one_dir/one_dir/dir4/X
+	echo "data" > $ROOT/dir4/X
+	echo "data" > $ROOT/one_dir/one_dir/dir4/X
 	
-	mkdir -p /mnt/lustre/dir5
-	mkdir -p /mnt/lustre/subdir/dir5
+	mkdir -p $ROOT/dir5
+	mkdir -p $ROOT/subdir/dir5
 	# 2 matching files for fileclass relative_path
-	echo "data" > /mnt/lustre/dir5/A
-	echo "data" > /mnt/lustre/dir5/B
+	echo "data" > $ROOT/dir5/A
+	echo "data" > $ROOT/dir5/B
 	# 2 unmatching files for fileclass relative_path
-	echo "data" > /mnt/lustre/subdir/dir5/A
-	echo "data" > /mnt/lustre/subdir/dir5/B
+	echo "data" > $ROOT/subdir/dir5/A
+	echo "data" > $ROOT/subdir/dir5/B
 
-	mkdir -p /mnt/lustre/dir6/subdir
-	mkdir -p /mnt/lustre/subdir/dir6
+	mkdir -p $ROOT/dir6/subdir
+	mkdir -p $ROOT/subdir/dir6
 	# 2 matching files for fileclass relative_tree
-	echo "data" > /mnt/lustre/dir6/A
-	echo "data" > /mnt/lustre/dir6/subdir/A
+	echo "data" > $ROOT/dir6/A
+	echo "data" > $ROOT/dir6/subdir/A
 	# 2 unmatching files for fileclass relative_tree
-	echo "data" > /mnt/lustre/subdir/dir6/A
-	echo "data" > /mnt/lustre/subdir/dir6/B
+	echo "data" > $ROOT/subdir/dir6/A
+	echo "data" > $ROOT/subdir/dir6/B
 
 
-	mkdir -p /mnt/lustre/dir7/subdir
-	mkdir -p /mnt/lustre/dir71/subdir
-	mkdir -p /mnt/lustre/subdir/subdir/dir7
-	mkdir -p /mnt/lustre/subdir/subdir/dir72
+	mkdir -p $ROOT/dir7/subdir
+	mkdir -p $ROOT/dir71/subdir
+	mkdir -p $ROOT/subdir/subdir/dir7
+	mkdir -p $ROOT/subdir/subdir/dir72
 	# 2 matching files for fileclass any_root_tree
-	echo "data" > /mnt/lustre/dir7/subdir/file
-	echo "data" > /mnt/lustre/subdir/subdir/dir7/file
+	echo "data" > $ROOT/dir7/subdir/file
+	echo "data" > $ROOT/subdir/subdir/dir7/file
 	# 2 unmatching files for fileclass any_root_tree
-	echo "data" > /mnt/lustre/dir71/subdir/file
-	echo "data" > /mnt/lustre/subdir/subdir/dir72/file
+	echo "data" > $ROOT/dir71/subdir/file
+	echo "data" > $ROOT/subdir/subdir/dir72/file
 
-	mkdir -p /mnt/lustre/dir8
-	mkdir -p /mnt/lustre/dir81/subdir
-	mkdir -p /mnt/lustre/subdir/subdir/dir8
+	mkdir -p $ROOT/dir8
+	mkdir -p $ROOT/dir81/subdir
+	mkdir -p $ROOT/subdir/subdir/dir8
 	# 2 matching files for fileclass any_root_path
-	echo "data" > /mnt/lustre/dir8/file.1
-	echo "data" > /mnt/lustre/subdir/subdir/dir8/file.1
+	echo "data" > $ROOT/dir8/file.1
+	echo "data" > $ROOT/subdir/subdir/dir8/file.1
 	# 3 unmatching files for fileclass any_root_path
-	echo "data" > /mnt/lustre/dir8/file.2
-	echo "data" > /mnt/lustre/dir81/file.1
-	echo "data" > /mnt/lustre/subdir/subdir/dir8/file.2
+	echo "data" > $ROOT/dir8/file.2
+	echo "data" > $ROOT/dir81/file.1
+	echo "data" > $ROOT/subdir/subdir/dir8/file.2
 
-	mkdir -p /mnt/lustre/dir9/subdir/dir10/subdir
-	mkdir -p /mnt/lustre/dir9/subdir/dir10x/subdir
-	mkdir -p /mnt/lustre/dir91/subdir/dir10
+	mkdir -p $ROOT/dir9/subdir/dir10/subdir
+	mkdir -p $ROOT/dir9/subdir/dir10x/subdir
+	mkdir -p $ROOT/dir91/subdir/dir10
 	# 2 matching files for fileclass any_level_tree
-	echo "data" > /mnt/lustre/dir9/subdir/dir10/file
-	echo "data" > /mnt/lustre/dir9/subdir/dir10/subdir/file
+	echo "data" > $ROOT/dir9/subdir/dir10/file
+	echo "data" > $ROOT/dir9/subdir/dir10/subdir/file
 	# 2 unmatching files for fileclass any_level_tree
-	echo "data" > /mnt/lustre/dir9/subdir/dir10x/subdir/file
-	echo "data" > /mnt/lustre/dir91/subdir/dir10/file
+	echo "data" > $ROOT/dir9/subdir/dir10x/subdir/file
+	echo "data" > $ROOT/dir91/subdir/dir10/file
 
-	mkdir -p /mnt/lustre/dir11/subdir/subdir
-	mkdir -p /mnt/lustre/dir11x/subdir
+	mkdir -p $ROOT/dir11/subdir/subdir
+	mkdir -p $ROOT/dir11x/subdir
 	# 2 matching files for fileclass any_level_path
-	echo "data" > /mnt/lustre/dir11/subdir/file
-	echo "data" > /mnt/lustre/dir11/subdir/subdir/file
+	echo "data" > $ROOT/dir11/subdir/file
+	echo "data" > $ROOT/dir11/subdir/subdir/file
 	# 2 unmatching files for fileclass any_level_path
-	echo "data" > /mnt/lustre/dir11/subdir/file.x
-	echo "data" > /mnt/lustre/dir11x/subdir/file
+	echo "data" > $ROOT/dir11/subdir/file.x
+	echo "data" > $ROOT/dir11x/subdir/file
 
 
 	echo "1bis-Sleeping $sleep_time seconds..."
@@ -712,7 +727,7 @@ function update_test
 		# generate a lot of TIME events within 'event_updt_min'
 		# => must only update once
 		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
-			touch /mnt/lustre/file
+			touch $ROOT/file
 			usleep 10000
 		done
 
@@ -747,9 +762,9 @@ function update_test
 		# generate a lot of TIME events within 'event_updt_min'
 		# => must only update once
 		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
-			mv /mnt/lustre/file /mnt/lustre/file.2
+			mv $ROOT/file $ROOT/file.2
 			usleep 10000
-			mv /mnt/lustre/file.2 /mnt/lustre/file
+			mv $ROOT/file.2 $ROOT/file
 			usleep 10000
 		done
 
@@ -780,9 +795,9 @@ function update_test
 
 	if (( $is_hsm != 0 )); then
 		# chg something different that path or POSIX attributes
-		lfs hsm_set --exists /mnt/lustre/file
+		lfs hsm_set --exists $ROOT/file
 	else
-		touch /mnt/lustre/file
+		touch $ROOT/file
 	fi
 
 	# force flushing log
@@ -824,10 +839,10 @@ function periodic_class_match_migr
 	clean_logs
 
 	#create test tree
-	touch /mnt/lustre/ignore1
-	touch /mnt/lustre/whitelist1
-	touch /mnt/lustre/migrate1
-	touch /mnt/lustre/default1
+	touch $ROOT/ignore1
+	touch $ROOT/whitelist1
+	touch $ROOT/migrate1
+	touch $ROOT/default1
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
@@ -894,10 +909,10 @@ function periodic_class_match_purge
 
 	#create test tree of archived files
 	for file in ignore1 whitelist1 purge1 default1 ; do
-		touch /mnt/lustre/$file
+		touch $ROOT/$file
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived /mnt/lustre/$file
+			lfs hsm_set --exists --archived $ROOT/$file
 		fi
 	done
 
@@ -994,15 +1009,15 @@ function test_cnt_trigger
 	clean_logs
 
 	# initial inode count
-	empty_count=`df -i /mnt/lustre/ | grep "/mnt/lustre" | awk '{print $(NF-3)}'`
+	empty_count=`df -i $ROOT/ | grep "$ROOT" | awk '{print $(NF-3)}'`
 	(( file_count=$file_count - $empty_count ))
 
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=1
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived /mnt/lustre/file.$i
+			lfs hsm_set --exists --archived $ROOT/file.$i
 		fi
 	done
 
@@ -1046,14 +1061,14 @@ function test_ost_trigger
 	empty_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
-	lfs setstripe --count 2 --offset 0 /mnt/lustre || echo "ERROR setting stripe_count=2"
+	lfs setstripe --count 2 --offset 0 $ROOT || echo "ERROR setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high watermark
 	for i in `seq $empty_vol $mb_h_watermark`; do
-		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=2
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived /mnt/lustre/file.$i
+			lfs hsm_set --exists --archived $ROOT/file.$i
 		fi
 	done
 
@@ -1132,11 +1147,11 @@ function test_trigger_check
 	# - root quota  > user_quota
 
 	# initial inode count
-	empty_count=`df -i /mnt/lustre/ | grep "/mnt/lustre" | awk '{print $(NF-3)}'`
+	empty_count=`df -i $ROOT/ | grep "$ROOT" | awk '{print $(NF-3)}'`
 	((file_count=$max_count-$empty_count))
 
 	# compute file size to exceed max vol and user quota
-	empty_vol=`df -k /mnt/lustre  | grep "/mnt/lustre" | awk '{print $(NF-3)}'`
+	empty_vol=`df -k $ROOT  | grep "$ROOT" | awk '{print $(NF-3)}'`
 	((empty_vol=$empty_vol/1024))
 
 	if (( $empty_vol < $max_vol_mb )); then
@@ -1152,10 +1167,10 @@ function test_trigger_check
 
 	#create test tree of archived files (file_size MB each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=$file_size
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived /mnt/lustre/file.$i
+			lfs hsm_set --exists --archived $ROOT/file.$i
 		fi
 	done
 
@@ -1220,9 +1235,9 @@ function fileclass_test
 
 	# create test tree
 
-	mkdir -p /mnt/lustre/dir_A
-	mkdir -p /mnt/lustre/dir_B
-	mkdir -p /mnt/lustre/dir_C
+	mkdir -p $ROOT/dir_A
+	mkdir -p $ROOT/dir_B
+	mkdir -p $ROOT/dir_C
 
 	# classes are:
 	# 1) even_and_B
@@ -1230,24 +1245,24 @@ function fileclass_test
 	# 3) odd_or_A
 	# 4) other
 
-	echo "data" > /mnt/lustre/dir_A/file.0 #2
-	echo "data" > /mnt/lustre/dir_A/file.1 #3
-	echo "data" > /mnt/lustre/dir_A/file.2 #2
-	echo "data" > /mnt/lustre/dir_A/file.3 #3
-	echo "data" > /mnt/lustre/dir_A/file.x #3
-	echo "data" > /mnt/lustre/dir_A/file.y #3
+	echo "data" > $ROOT/dir_A/file.0 #2
+	echo "data" > $ROOT/dir_A/file.1 #3
+	echo "data" > $ROOT/dir_A/file.2 #2
+	echo "data" > $ROOT/dir_A/file.3 #3
+	echo "data" > $ROOT/dir_A/file.x #3
+	echo "data" > $ROOT/dir_A/file.y #3
 
-	echo "data" > /mnt/lustre/dir_B/file.0 #1
-	echo "data" > /mnt/lustre/dir_B/file.1 #3
-	echo "data" > /mnt/lustre/dir_B/file.2 #1
-	echo "data" > /mnt/lustre/dir_B/file.3 #3
+	echo "data" > $ROOT/dir_B/file.0 #1
+	echo "data" > $ROOT/dir_B/file.1 #3
+	echo "data" > $ROOT/dir_B/file.2 #1
+	echo "data" > $ROOT/dir_B/file.3 #3
 
-	echo "data" > /mnt/lustre/dir_C/file.0 #2
-	echo "data" > /mnt/lustre/dir_C/file.1 #3
-	echo "data" > /mnt/lustre/dir_C/file.2 #2
-	echo "data" > /mnt/lustre/dir_C/file.3 #3
-	echo "data" > /mnt/lustre/dir_C/file.x #4
-	echo "data" > /mnt/lustre/dir_C/file.y #4
+	echo "data" > $ROOT/dir_C/file.0 #2
+	echo "data" > $ROOT/dir_C/file.1 #3
+	echo "data" > $ROOT/dir_C/file.2 #2
+	echo "data" > $ROOT/dir_C/file.3 #3
+	echo "data" > $ROOT/dir_C/file.x #4
+	echo "data" > $ROOT/dir_C/file.y #4
 
 	# => 2x 1), 4x 2), 8x 3), 2x 4)
 
@@ -1297,14 +1312,14 @@ function test_info_collect
 	clean_logs
 
 	# test reading changelogs or scanning with strange names, etc...
-	mkdir '/mnt/lustre/dir with blanks'
-	mkdir '/mnt/lustre/dir with "quotes"'
-	mkdir "/mnt/lustre/dir with 'quotes'"
+	mkdir $ROOT'/dir with blanks'
+	mkdir $ROOT'/dir with "quotes"'
+	mkdir "$ROOT/dir with 'quotes'"
 
-	touch '/mnt/lustre/dir with blanks/file 1'
-	touch '/mnt/lustre/dir with blanks/file with "double" quotes'
-	touch '/mnt/lustre/dir with "quotes"/file with blanks'
-	touch "/mnt/lustre/dir with 'quotes'/file with 1 quote: '"
+	touch $ROOT'/dir with blanks/file 1'
+	touch $ROOT'/dir with blanks/file with "double" quotes'
+	touch $ROOT'/dir with "quotes"/file with blanks'
+	touch "$ROOT/dir with 'quotes'/file with 1 quote: '"
 
 	sleep $sleep_time1
 
@@ -1368,12 +1383,12 @@ function test_pools
 	clean_logs
 
 	# create files in different pools (or not)
-	touch /mnt/lustre/no_pool.1 || echo "ERROR creating file"
-	touch /mnt/lustre/no_pool.2 || echo "ERROR creating file"
-	lfs setstripe -p lustre.$POOL1 /mnt/lustre/in_pool_1.a || echo "ERROR creating file in $POOL1"
-	lfs setstripe -p lustre.$POOL1 /mnt/lustre/in_pool_1.b || echo "ERROR creating file in $POOL1"
-	lfs setstripe -p lustre.$POOL2 /mnt/lustre/in_pool_2.a || echo "ERROR creating file in $POOL2"
-	lfs setstripe -p lustre.$POOL2 /mnt/lustre/in_pool_2.b || echo "ERROR creating file in $POOL2"
+	touch $ROOT/no_pool.1 || echo "ERROR creating file"
+	touch $ROOT/no_pool.2 || echo "ERROR creating file"
+	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.a || echo "ERROR creating file in $POOL1"
+	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.b || echo "ERROR creating file in $POOL1"
+	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.a || echo "ERROR creating file in $POOL2"
+	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.b || echo "ERROR creating file in $POOL2"
 
 	sleep $sleep_time
 
@@ -1405,22 +1420,22 @@ function test_pools
 	# no_pool files must match default
 	for i in 1 2; do
 		(( $is_hsm + $is_backup != 0 )) &&  \
-			( [ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
+			( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
 		 (( $is_backup == 0 )) && \
-			([ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
+			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
 		(( $is_hsm  + $is_backup != 0 )) && \
-			 ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+			 ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
+			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
+			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
 	done
 
 	# rematch and recheck
@@ -1435,21 +1450,21 @@ function test_pools
 
 	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
+			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		(( $is_hsm + $is_backup != 0 )) &&  ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+		(( $is_hsm + $is_backup != 0 )) &&  ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
+			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
+			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
 	done
 
 	echo "2.3-checking robinhood log..."
@@ -1487,14 +1502,14 @@ function test_logs
 	echo "Test parameters: files=$files, syslog=$syslog, stdio=$stdio, batch=$batch"
 
 	# create files
-	touch /mnt/lustre/file.1 || echo "ERROR creating file"
-	touch /mnt/lustre/file.2 || echo "ERROR creating file"
-	touch /mnt/lustre/file.3 || echo "ERROR creating file"
-	touch /mnt/lustre/file.4 || echo "ERROR creating file"
+	touch $ROOT/file.1 || echo "ERROR creating file"
+	touch $ROOT/file.2 || echo "ERROR creating file"
+	touch $ROOT/file.3 || echo "ERROR creating file"
+	touch $ROOT/file.4 || echo "ERROR creating file"
 
 	if (( $is_hsm != 0 )); then
-		lfs hsm_set --exists --archived /mnt/lustre/file.*
-		lfs hsm_clear --dirty /mnt/lustre/file.*
+		lfs hsm_set --exists --archived $ROOT/file.*
+		lfs hsm_clear --dirty $ROOT/file.*
 	fi
 
 	if (( $syslog )); then
@@ -1562,8 +1577,8 @@ function test_logs
 		# search for line ' * 1 alert_file1', ' * 1 alert_file2'
 		a1=`egrep -e "[0-9]* alert_file1" $alert | sed -e 's/.* \([0-9]*\) alert_file1/\1/' | xargs`
 		a2=`egrep -e "[0-9]* alert_file2" $alert | sed -e 's/.* \([0-9]*\) alert_file2/\1/' | xargs`
-		e1=`grep '/mnt/lustre/file\.1' $alert | wc -l`
-		e2=`grep '/mnt/lustre/file\.2' $alert | wc -l`
+		e1=`grep ${ROOT}'/file\.1' $alert | wc -l`
+		e2=`grep ${ROOT}'/file\.2' $alert | wc -l`
 		# search for alert count: "2 alerts:"
 		if (($syslog)); then
 			all=`egrep -e "\| [0-9]* alerts:" $alert | sed -e 's/.*| \([0-9]*\) alerts:/\1/' | xargs`
@@ -1580,8 +1595,8 @@ function test_logs
 		# check alerts about file.1 and file.2
 		a1=`grep alert_file1 $alert | wc -l`
 		a2=`grep alert_file2 $alert | wc -l`
-		e1=`grep 'Entry: /mnt/lustre/file\.1' $alert | wc -l`
-		e2=`grep 'Entry: /mnt/lustre/file\.2' $alert | wc -l`
+		e1=`grep 'Entry: '${ROOT}'/file\.1' $alert | wc -l`
+		e2=`grep 'Entry: '${ROOT}'/file\.2' $alert | wc -l`
 		all=`grep "Robinhood alert" $alert | wc -l`
 		if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
 			echo "OK: 2 alerts"
@@ -1678,8 +1693,8 @@ function test_logs
 	# check alerts about file.1 and file.2
 	a1=`grep alert_file1 /tmp/test_alert.1 | wc -l`
 	a2=`grep alert_file2 /tmp/test_alert.1 | wc -l`
-	e1=`grep 'Entry: /mnt/lustre/file\.1' /tmp/test_alert.1 | wc -l`
-	e2=`grep 'Entry: /mnt/lustre/file\.2' /tmp/test_alert.1 | wc -l`
+	e1=`grep 'Entry: '${ROOT}'/file\.1' /tmp/test_alert.1 | wc -l`
+	e2=`grep 'Entry: '${ROOT}'/file\.2' /tmp/test_alert.1 | wc -l`
 	all=`grep "Robinhood alert" /tmp/test_alert.1 | wc -l`
 	if (( $a1 > 0 && $a2 > 0 && $e1 > 0 && $e2 > 0 && $all >= 2)); then
 		echo "OK: $all alerts"
