@@ -47,5 +47,6 @@ Makefile.in
 /src/policy_modules/rmdir/Makefile
 /src/robinhood/Makefile
 /src/tests/Makefile
+/src/backend_ext/Makefile
 /tests/Makefile
 

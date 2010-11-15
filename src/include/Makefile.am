@@ -7,7 +7,7 @@ TYPEGEN=$(top_srcdir)/scripts/type_gen.pl
 	$(TYPEGEN) $< $*.h
 
 noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h SemN.h \
-		uidgidcache.h Memory.h RobinhoodLogs.h \
+		uidgidcache.h Memory.h rbh_const.h RobinhoodLogs.h \
 		RobinhoodConfig.h RobinhoodMisc.h config_parsing.h \
 		global_config.h entry_processor.h      \
 		fs_scan_main.h chglog_reader.h resource_monitor.h \

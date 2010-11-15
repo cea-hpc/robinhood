@@ -27,10 +27,30 @@ else
 fi
 
 PROC=`basename $RH`
-
 CFG_SCRIPT="../../scripts/rbh-config"
-
 CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out"
+
+SUMMARY="/tmp/test_$PROC_summary.$$"
+
+ERROR=0
+RC=0
+
+function error_reset
+{
+	ERROR=0
+}
+
+function error
+{
+	echo "ERROR: $@"
+	((ERROR=$ERROR+1))
+	((RC=$RC+1))
+}
+
+function set_skipped
+{
+	ERROR="skip"
+}
 
 function clean_logs
 {
@@ -103,6 +123,7 @@ function migration_test
 
 	if (( $is_hsm + $is_backup == 0 )); then
 		echo "HSM test only: skipped"
+		set_skipped
 		return 1
 	fi
 
@@ -154,8 +175,9 @@ function xattr_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm == 0 )); then
+	if (( $is_hsm + $is_backup == 0 )); then
 		echo "HSM test only: skipped"
+		set_skipped
 		return 1
 	fi
 
@@ -207,14 +229,26 @@ function xattr_test
 	else
 		echo "OK: $nb_migr files migrated"
 
-		# checking archive nums
-		nb_migr_arch1=`grep "archive_num=1" rh_migr.log | wc -l`
-		nb_migr_arch2=`grep "archive_num=2" rh_migr.log | wc -l`
-		nb_migr_arch3=`grep "archive_num=3" rh_migr.log | wc -l`
-		if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
-			echo "********** ERROR: wrong archive_nums: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+		if (( $is_backup != 0 )); then
+			# checking policy
+			nb_migr_arch1=`grep "fileclass=xattr_bar" rh_migr.log | wc -l`
+			nb_migr_arch2=`grep "fileclass=xattr_foo" rh_migr.log | wc -l`
+			nb_migr_arch3=`grep "using policy 'default'" rh_migr.log | wc -l`
+			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
+				echo "********** ERROR: wrong policy cases: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+			else
+				echo "OK: 1 file for each policy case"
+			fi
 		else
-			echo "OK: 1 file to each archive_num"
+			# checking archive nums
+			nb_migr_arch1=`grep "archive_num=1" rh_migr.log | wc -l`
+			nb_migr_arch2=`grep "archive_num=2" rh_migr.log | wc -l`
+			nb_migr_arch3=`grep "archive_num=3" rh_migr.log | wc -l`
+			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
+				echo "********** ERROR: wrong archive_nums: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+			else
+				echo "OK: 1 file to each archive_num"
+			fi
 		fi
 	fi
 	
@@ -229,10 +263,12 @@ function link_unlink_remove_test
 
 	if (( $is_hsm + $is_backup == 0 )); then
 		echo "HSM test only: skipped"
+		set_skipped
 		return 1
 	fi
 	if (( $no_log )); then
 		echo "changelog disabled: skipped"
+		set_skipped
 		return 1
 	fi
 
@@ -300,6 +336,12 @@ function purge_test
 	expected_purge=$2
 	sleep_time=$3
 	policy_str="$4"
+
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
 
 	clean_logs
 
@@ -372,6 +414,12 @@ function purge_size_filesets
 	sleep_time=$2
 	count=$3
 	policy_str="$4"
+
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
 
 	clean_logs
 
@@ -476,6 +524,7 @@ function path_test
 
 	if (( $is_hsm + $is_backup == 0 )); then
 		echo "hsm test only: skipped"
+		set_skipped
 		return 1
 	fi
 
@@ -648,6 +697,7 @@ function update_test
 
 	if (( $no_log )); then
 		echo "changelog disabled: skipped"
+		set_skipped
 		return 1
 	fi
 
@@ -765,8 +815,9 @@ function periodic_class_match_migr
 	update_period=$2
 	policy_str="$3"
 
-	if (( $is_hsm == 0 )); then
+	if (( $is_hsm + $is_backup == 0 )); then
 		echo "HSM test only: skipped"
+		set_skipped
 		return 1
 	fi
 
@@ -834,6 +885,11 @@ function periodic_class_match_purge
 	update_period=$2
 	policy_str="$3"
 
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
 	clean_logs
 
 	#create test tree of archived files
@@ -930,6 +986,11 @@ function test_cnt_trigger
 	exp_purge_count=$3
 	policy_str="$4"
 
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
 	clean_logs
 
 	# initial inode count
@@ -975,6 +1036,11 @@ function test_ost_trigger
 	mb_l_watermark=$3
 	policy_str="$4"
 
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
 	clean_logs
 
 	empty_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
@@ -1053,6 +1119,11 @@ function test_trigger_check
 	target_fs_vol=$6
 	target_user_vol=$7
 
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
 	clean_logs
 
 	# triggers to be checked
@@ -1139,8 +1210,9 @@ function fileclass_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm == 0 )); then
+	if (( $is_hsm + $is_backup == 0 )); then
 		echo "HSM test only: skipped"
+		set_skipped
 		return 1
 	fi
 
@@ -1243,7 +1315,8 @@ function test_info_collect
 		nb_cr=0
 	else
 		echo "1-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		#$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || echo "ERROR"
 		nb_cr=4
 	fi
 
@@ -1254,7 +1327,7 @@ function test_info_collect
 	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_hsm + $is_backup != 0 )); then
 		db_expect=4
 	else
 		db_expect=7
@@ -1265,6 +1338,7 @@ function test_info_collect
 		echo "OK: $nb_cr files created, $db_expect database operations"
 	else
 		echo "ERROR: unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
+		exit 1
 	fi
 
 	clean_logs
@@ -1330,19 +1404,23 @@ function test_pools
 
 	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_hsm != 0 )) &&  \
+		(( $is_hsm + $is_backup != 0 )) &&  \
 			( [ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
-		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
+		 (( $is_backup == 0 )) && \
+			([ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
-		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
+		(( $is_hsm  + $is_backup != 0 )) && \
+			 ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+		(( $is_backup == 0 )) && \
+			([ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
-		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		(( $is_backup == 0 )) && \
+			([ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
 	done
 
 	# rematch and recheck
@@ -1357,18 +1435,21 @@ function test_pools
 
 	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
-		[ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i"
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
+		(( $is_backup == 0 )) && \
+			([ `grep "/mnt/lustre/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		(( $is_hsm != 0 )) &&  ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
-		[ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i"
+		(( $is_hsm + $is_backup != 0 )) &&  ( [ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+		(( $is_backup == 0 )) && \
+			([ `grep "/mnt/lustre/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
-		[ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i"
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		(( $is_backup == 0 )) && \
+			([ `grep "/mnt/lustre/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
 	done
 
 	echo "2.3-checking robinhood log..."
@@ -1518,55 +1599,58 @@ function test_logs
 		cat $report
         fi
 	
-	# reinit msg idx
-	if (( $syslog )); then
-		init_msg_idx=`wc -l /var/log/messages | awk '{print $1}'`
+	if (( $is_backup == 0 )); then
+
+		# reinit msg idx
+		if (( $syslog )); then
+			init_msg_idx=`wc -l /var/log/messages | awk '{print $1}'`
+		fi
+
+		# run a purge
+		rm -f $log $report $alert
+
+		if (( $stdio )); then
+			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || echo "ERROR"
+		else
+			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run || echo "ERROR"
+		fi
+
+		# extract new syslog messages
+		if (( $syslog )); then
+			tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
+			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
+			egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
+			grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
+		elif (( $stdio )); then
+			grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
+			# grep 'robinhood\[' => don't select lines with no headers
+			grep -v ALERT /tmp/rbh.stdout | grep "$CMD[^ ]*\[" > /tmp/extract_report
+		fi
+
+		# check that there is something written in the log
+		if (( `wc -l $log | awk '{print $1}'` > 0 )); then
+			echo "OK: log file is not empty"
+		else
+			echo "ERROR: empty log file"
+		fi
+
+		# check alerts (should be impossible to purge at 0%)
+		grep "Could not purge" $alert > /dev/null
+		if (($?)); then
+			echo "ERROR: alert should have been raised for impossible purge"
+		else
+			echo "OK: alert raised"
+		fi
+
+		# all files must have been purged
+		if (( `wc -l $report | awk '{print $1}'` == 4 )); then
+			echo "OK: 4 actions reported"
+		else
+			echo "ERROR: unexpected count of actions"
+			cat $report
+		fi
+		
 	fi
-
-	# run a purge
-	rm -f $log $report $alert
-
-	if (( $stdio )); then
-		$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || echo "ERROR"
-	else
-		$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run || echo "ERROR"
-	fi
-
-	# extract new syslog messages
-	if (( $syslog )); then
-		tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
-		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
-		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
-		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
-	elif (( $stdio )); then
-		grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
-		# grep 'robinhood\[' => don't select lines with no headers
-		grep -v ALERT /tmp/rbh.stdout | grep "$CMD[^ ]*\[" > /tmp/extract_report
-	fi
-
-	# check that there is something written in the log
-	if (( `wc -l $log | awk '{print $1}'` > 0 )); then
-		echo "OK: log file is not empty"
-	else
-		echo "ERROR: empty log file"
-	fi
-
-	# check alerts (should be impossible to purge at 0%)
-	grep "Could not purge" $alert > /dev/null
-	if (($?)); then
-		echo "ERROR: alert should have been raised for impossible purge"
-	else
-		echo "OK: alert raised"
-	fi
-
-	# all files must have been purged
-	if (( `wc -l $report | awk '{print $1}'` == 4 )); then
-                echo "OK: 4 actions reported"
-        else
-                echo "ERROR: unexpected count of actions"
-		cat $report
-        fi
-	
 	(($files==1)) || return 0
 
 	if [[ "x$SLOW" != "x1" ]]; then
@@ -1653,13 +1737,26 @@ function run_test
 		echo
 		echo "==== TEST #$index $2 ($args) ===="
 
+		error_reset
+
 		if (( $quiet == 1 )); then
 			"$@" 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
 		else
 			"$@"
 		fi
+
+		if [[ $ERROR = "skip" ]]; then
+			echo "(TEST #$index : skipped)" >> $SUMMARY
+		elif (( $ERROR > 0 )); then
+			echo "TEST #$index : FAILED" >> $SUMMARY
+		else
+			echo "TEST #$index : OK" >> $SUMMARY
+		fi
 	fi
 }
+
+# clear summary
+cp /dev/null $SUMMARY
 
 #1
 run_test 1	path_test test_path.conf 2 "path matching policies"
@@ -1688,3 +1785,15 @@ run_test 20c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert
 run_test 20d	test_logs log1b.conf file_batch 	"file logging with alert batching"
 run_test 20e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
 run_test 20f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+
+echo
+echo "========== TEST SUMMARY =========="
+cat $SUMMARY
+echo "=================================="
+rm -f $SUMMARY
+if (( $RC > 0 )); then
+	echo "$RC tests failed"
+else
+	echo "All tests passed"
+fi
+exit $RC
