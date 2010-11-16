@@ -363,6 +363,11 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
     unsigned int   nb_returned, total_returned;
 
+#ifdef _BACKUP_FS
+    unsigned int allow_cached_attrs = 0;
+    unsigned int need_fresh_attrs = 0;
+#endif
+
     lmgr_iter_opt_t opt;
 
     if ( !p_migr_param )
@@ -390,6 +395,20 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     ATTR_MASK_SET( &attr_set, archive_class );
     ATTR_MASK_SET( &attr_set, arch_cl_update );
     attr_set.attr_mask |= policies.migr_policies.global_attr_mask;
+
+#ifdef _BACKUP_FS
+    ATTR_MASK_SET( &attr_set, type );
+
+    /* what information the backend needs from DB? */
+    rc = rbhext_status_needs( TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs );
+    if (rc != 0)
+    {
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
+                   __FUNCTION__, __LINE__, rc );
+        return rc;
+    }
+    attr_set.attr_mask |= allow_cached_attrs;
+#endif
 
     /* sort by last modification time */
     sort_type.attr_index = ATTR_INDEX_last_mod;

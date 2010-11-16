@@ -1,6 +1,7 @@
 #/bin/sh
 
 ROOT="/mnt/lustre"
+BKROOT="/tmp/backend"
 RBH_OPT=""
 
 if [[ ! -d $ROOT ]]; then
@@ -83,7 +84,15 @@ function clean_fs
 	fi
 
 	echo "Cleaning filesystem..."
-	rm  -rf $ROOT/*
+	if [[ -n "$ROOT" ]]; then
+		rm  -rf $ROOT/*
+	fi
+
+#	if (( $is_backup != 0 )); then
+#		if [[ -n "$BKROOT" ]]; then
+#			rm -rf $BKROOT/*
+#		fi
+#	fi
 
 	echo "Destroying any running instance of robinhood..."
 	pkill -f robinhood

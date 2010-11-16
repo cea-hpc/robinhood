@@ -1086,12 +1086,14 @@ int execute_shell_command( const char * cmd, int argc, ... )
         DisplayLog( LVL_MAJOR, SHCMD,
                     "ERROR: %s, error %d (cmdline=%s)",
                     str_error, exrc, cmdline );
+        rc = -exrc;
     }
     else if (WIFSIGNALED(rc))
     {
             DisplayLog( LVL_MAJOR, SHCMD,
                         "ERROR: command terminated by signal %d. cmdline=%s",
                         WTERMSIG(rc), cmdline );
+            rc = -EINTR;
     }
 
     return rc;

@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
+#include <utime.h>
 
 #define RBHEXT_TAG "Backend"
 
@@ -247,6 +248,11 @@ static int entry2backend_path( const entry_id_t * p_id,
                                char * backend_path )
 {
     int pathlen;
+
+    if ( ATTR_MASK_TEST(p_attrs_in, backendpath) )
+       DisplayLog( LVL_DEBUG, RBHEXT_TAG, "%s: previous backend_path: %s",
+                   (what_for == FOR_LOOKUP)?"LOOKUP":"NEW_COPY",
+                   ATTR(p_attrs_in, backendpath) );
 
     if ( (what_for == FOR_LOOKUP) && ATTR_MASK_TEST(p_attrs_in, backendpath) )
     {
@@ -618,6 +624,8 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     char fspath[RBH_PATH_MAX];
     char tmp[RBH_PATH_MAX];
     struct stat info;
+    int check_moved = FALSE;
+    obj_type_t entry_type;
 
     if ( arch_meth != RBHEXT_SYNC )
         return -ENOTSUP;
@@ -625,34 +633,71 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     /* if status is not determined, retrieve it */
     if ( !ATTR_MASK_TEST(p_attrs, status) )
     {
+        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Status not provided to rbhext_archive()" );
         rc = rbhext_get_status( p_id, p_attrs, p_attrs );
         if (rc)
             return rc;
     }
 
-    /* check the status */
-    if ( ATTR(p_attrs, status) == STATUS_NEW )
-    {
-        /* TODO no previous path */
-    }
-    else if ( ATTR(p_attrs, status) == STATUS_MODIFIED )
-    {
-        /* TODO check previous path */
-    }
-    else /* invalid status */
-    {
-        /* TODO  invalid status for calling archive() */
-    }
-
     /* is it the good type? */
+    if ( !ATTR_MASK_TEST(p_attrs, type) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'type' in %s()",
+                    __FUNCTION__ );
+        return -EINVAL;
+    }
 
-    /* compute need path for target file */
+    entry_type = ListMgr2PolicyType(ATTR(p_attrs, type));
+    if ( (entry_type != TYPE_FILE) && (entry_type != TYPE_LINK) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unsupported type for archive operation: %s",
+                    ATTR(p_attrs, type) );
+        return -ENOTSUP;
+    }
+
+    /* compute path for target file */
     rc = entry2backend_path( p_id, p_attrs, FOR_NEW_COPY, bkpath );
     if (rc)
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error %d building backend path: %s",
                     rc, strerror(-rc) );
         return rc;
+    }
+
+    /* check the status */
+    if ( ATTR(p_attrs, status) == STATUS_NEW )
+    {
+        /* check the entry does not already exist */
+        if ( (access(bkpath, F_OK) == 0) || (errno != ENOENT) )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: new entry %s already exist. errno=%d, %s",
+                        bkpath, -rc, strerror(-rc) );
+            return rc;
+        }
+    }
+    else if ( ATTR(p_attrs, status) == STATUS_MODIFIED )
+    {
+       /* check that previous path exists */
+        if ( ATTR_MASK_TEST(p_attrs, backendpath) )
+        {
+            /* need to check if the entry was renamed */
+            check_moved = TRUE;
+            if ( access(ATTR(p_attrs,backendpath), F_OK) != 0 )
+            {
+                rc = -errno;
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in backend. errno=%d, %s",
+                            ATTR(p_attrs,backendpath) , -rc, strerror(-rc) );
+                return rc;
+            }
+        }
+    }
+    else /* invalid status */
+    {
+        /* invalid status for performing archive() */
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unexpected status %d for calling %s()",
+                     ATTR(p_attrs, status), __FUNCTION__ );
+        return -EINVAL;
     }
 
 #ifdef _HAVE_FID
@@ -669,64 +714,124 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     strcpy(fspath, ATTR(p_attrs, fullpath));
 #endif
 
-    /* temporary copy path */
-    sprintf( tmp, "%s.%s", bkpath, COPY_EXT );
+    if ( entry_type == TYPE_FILE )
+    {
+        /* temporary copy path */
+        sprintf( tmp, "%s.%s", bkpath, COPY_EXT );
 
-    /* execute the archive command */
-    rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", fspath, tmp );
-    if (rc)
-    {
-        /* cleanup tmp copy */
-        unlink(tmp);
-        /* the transfer failed. still needs to be archived */
-        ATTR_MASK_SET( p_attrs, status );
-        ATTR( p_attrs, status ) = STATUS_MODIFIED;
-        return rc;
-    }
-    else
-    {
-        /* finalize tranfer */
-        if (rename(tmp, bkpath) != 0 )
+        /* execute the archive command */
+        rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", fspath, tmp );
+        if (rc)
         {
-            rc = -errno;
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error renaming tmp copy file '%s' to final name '%s': %s",
-                        tmp, bkpath, strerror(-rc) );
-
+            /* cleanup tmp copy */
+            unlink(tmp);
             /* the transfer failed. still needs to be archived */
             ATTR_MASK_SET( p_attrs, status );
             ATTR( p_attrs, status ) = STATUS_MODIFIED;
             return rc;
         }
-        ATTR_MASK_SET( p_attrs, status );
-        ATTR( p_attrs, status ) = STATUS_SYNCHRO;
-        ATTR_MASK_SET( p_attrs, backendpath );
-        strcpy( ATTR( p_attrs, backendpath ), bkpath );
-    }
-
-    if ( lstat(fspath, &info) != 0 )
-    {
-        rc = -errno;
-        DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing final lstat(%s): %s",
-                    fspath, strerror(-rc) );
-        ATTR_MASK_SET( p_attrs, status );
-        ATTR( p_attrs, status ) = STATUS_UNKNOWN;
-    }
-    else
-    {
-        if ( (info.st_mtime != ATTR( p_attrs, last_mod ))
-             || (info.st_size != ATTR( p_attrs, size )) )
+        else
         {
-            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Entry %s has been modified during transfer: "
-                        "size before/after: %"PRI_SZ"/%"PRI_SZ", "
-                        "mtime before/after: %u/%"PRI_TT,
-                        fspath, ATTR( p_attrs, size ), info.st_size,
-                        ATTR( p_attrs, last_mod ), info.st_mtime );
+            /* finalize tranfer */
+
+            /* reset initial mtime */
+            if ( ATTR_MASK_TEST( p_attrs, last_mod ) )
+            {
+                  struct utimbuf tbuf;
+                  tbuf.actime = time(NULL);
+                  tbuf.modtime = ATTR( p_attrs, last_mod );
+
+                if (utime(tmp, &tbuf) != 0)
+                {
+                    rc = -errno;
+                    DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error setting mtime for file %s: %s",
+                                tmp, strerror(-rc) );
+                    /* ignore the error */
+                    rc = 0;
+                }
+            }
+
+            /* move entry to final path */
+            if (rename(tmp, bkpath) != 0 )
+            {
+                rc = -errno;
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error renaming tmp copy file '%s' to final name '%s': %s",
+                            tmp, bkpath, strerror(-rc) );
+
+                /* the transfer failed. still needs to be archived */
+                ATTR_MASK_SET( p_attrs, status );
+                ATTR( p_attrs, status ) = STATUS_MODIFIED;
+                return rc;
+            }
+
+            /* did the file been renamed since last copy? */
+            if ( check_moved && strcmp( bkpath, ATTR( p_attrs, backendpath ) ))
+            {
+                DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Removing previous copy %s",
+                             ATTR( p_attrs, backendpath ) );
+                if ( unlink( ATTR( p_attrs, backendpath ) ))
+                {
+                    rc = -errno;
+                    DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Error removing previous copy %s: %s",
+                                ATTR( p_attrs, backendpath ), strerror(-rc) );
+                    /* ignore */
+                    rc = 0;
+                }
+            }
+
             ATTR_MASK_SET( p_attrs, status );
-            ATTR( p_attrs, status ) = STATUS_MODIFIED;
+            ATTR( p_attrs, status ) = STATUS_SYNCHRO;
+
+            ATTR_MASK_SET( p_attrs, backendpath );
+            strcpy( ATTR( p_attrs, backendpath ), bkpath );
         }
 
-        /* update entry attributes */
-        PosixStat2EntryAttr( &info, p_attrs, TRUE );
+        if ( lstat(fspath, &info) != 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing final lstat(%s): %s",
+                        fspath, strerror(-rc) );
+            ATTR_MASK_SET( p_attrs, status );
+            ATTR( p_attrs, status ) = STATUS_UNKNOWN;
+        }
+        else
+        {
+            if ( (info.st_mtime != ATTR( p_attrs, last_mod ))
+                 || (info.st_size != ATTR( p_attrs, size )) )
+            {
+                DisplayLog( LVL_EVENT, RBHEXT_TAG, "Entry %s has been modified during transfer: "
+                            "size before/after: %"PRI_SZ"/%"PRI_SZ", "
+                            "mtime before/after: %u/%"PRI_TT,
+                            fspath, ATTR( p_attrs, size ), info.st_size,
+                            ATTR( p_attrs, last_mod ), info.st_mtime );
+                ATTR_MASK_SET( p_attrs, status );
+                ATTR( p_attrs, status ) = STATUS_MODIFIED;
+            }
+
+            /* update entry attributes */
+            PosixStat2EntryAttr( &info, p_attrs, TRUE );
+        }
+    }
+    else if ( entry_type == TYPE_LINK )
+    {
+        char link[RBH_PATH_MAX] = "";
+
+        /* read link content from filesystem */
+        if ( readlink(fspath, link, RBH_PATH_MAX) < 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink content (%s): %s",
+                        fspath, strerror(-rc) );
+            return rc;
+        }
+        /* link content is not supposed to change during its lifetime */
+        if ( symlink(link, bkpath) != 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in backend: %s",
+                        bkpath, link, strerror(-rc) );
+            return rc;
+        }
     }
 
     return 0;

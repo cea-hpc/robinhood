@@ -218,6 +218,12 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->extra_info.getstatus_needed = TRUE;
 #endif
     }
+    else if ( (logrec->cr_type == CL_MTIME) || (logrec->cr_type == CL_TRUNC) )
+    {
+        /* if file is modified or truncated, need to check its status
+         * (probably modified) */
+         p_op->extra_info.getstatus_needed = TRUE;
+    }
 
     /* if the entry is already in DB, try to determine if something changed */
     if ( p_op->db_exists )
