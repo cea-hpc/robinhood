@@ -12,6 +12,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
 	CMD=robinhood
+	PURPOSE="TMP_FS_MGR"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_backup=1
 	RH="../../src/robinhood/rbh-backup $RBH_OPT"
@@ -21,7 +22,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out"
+CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log"
 
 SUMMARY="/tmp/test_$PROC_summary.$$"
 
@@ -788,82 +789,6 @@ function test_cnt_trigger
 }
 
 
-function test_ost_trigger
-{
-	config_file=$1
-	mb_h_watermark=$2
-	mb_l_watermark=$3
-	policy_str="$4"
-
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
-	clean_logs
-
-	empty_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
-	empty_vol=$(($empty_vol/1024))
-
-	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
-
-	#create test tree of archived files (2M each=1MB/ost) until we reach high watermark
-	for i in `seq $empty_vol $mb_h_watermark`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2
-	done
-
-	# wait for df sync
-	sync; sleep 1
-
-	full_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
-	full_vol=$(($full_vol/1024))
-	delta=$(($full_vol-$empty_vol))
-	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
-	((need_purge=$full_vol-$mb_l_watermark))
-	echo "Need to purge $need_purge MB on OST#0"
-
-	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
-
-	# apply purge trigger
-	$RH -f ./cfg/$config_file --purge --once -l DEBUG -L rh_purge.log
-
-	grep summary rh_purge.log
-	stat_purge=`grep summary rh_purge.log | grep "OST #0" | awk '{print $(NF-9)" "$(NF-3)" "$(NF-2)}' | sed -e "s/[^0-9 ]//g"`
-
-	purged_ost=`echo $stat_purge | awk '{print $1}'`
-	purged_total=`echo $stat_purge | awk '{print $2}'`
-	needed_ost=`echo $stat_purge | awk '{print $3}'`
-
-	# change blocks to MB (*512/1024/1024 == /2048)
-	((purged_ost=$purged_ost/2048))
-	((purged_total=$purged_total/2048))
-	((needed_ost=$needed_ost/2048))
-
-	# checks
-	# - needed_ost must be equal to the amount we computed (need_purge)
-	# - purged_ost must be over the amount we computed and under need_purge+1MB
-	# - purged_total must be twice purged_ost
-	(( $needed_ost == $need_purge )) || error ": invalid amount of data computed"
-	(( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) || error ": invalid amount of data purged"
-	(( $purged_total == 2*$purged_ost )) || error ": invalid total volume purged"
-
-	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
-		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
-
-	full_vol1=`lfs df  | grep OST0001 | awk '{print $3}'`
-	full_vol1=$(($full_vol1/1024))
-	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
-
-	if (($full_vol1 > $mb_h_watermark )); then
-		error ": OST#1 is not expected to exceed high watermark!"
-	elif (($purge_ost1 != 0)); then
-		error ": no purge expected on OST#1"
-	else
-		echo "OK: no purge on OST#1 (usage=$full_vol1 MB)"
-	fi
-}
-
 function test_trigger_check
 {
 	config_file=$1
@@ -1372,7 +1297,11 @@ function test_cfg_parsing
 	fi
 
 	# test parsing
-	$RH --test-syntax -f "$TEMPLATE" || error " reading config file \"$TEMPLATE\""
+	$RH --test-syntax -f "$TEMPLATE" 2>rh_syntax.log >rh_syntax.log || error " reading config file \"$TEMPLATE\""
+
+	cat rh_syntax.log
+	grep "unknown parameter" rh_syntax.log > /dev/null && error "unexpected parameter"
+	grep "read successfully" rh_syntax.log > /dev/null && echo "OK: parsing succeeded"
 }
 
 
@@ -1434,7 +1363,7 @@ cp /dev/null $SUMMARY
 
 #1
 run_test 1	path_test test_path.conf 2 "path matching policies"
-run_test 2	update_test test_updt.conf 5 30 "db update policy"
+#TODO run_test 2	update_test test_updt.conf 5 30 "db update policy"
 run_test 3	migration_test test1.conf 11 31 "last_mod>30s"
 run_test 4	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
 run_test 5	migration_test test3.conf 5  16 "complex policy with filesets"
@@ -1446,7 +1375,7 @@ run_test 10	test_rh_report common.conf 3 1 "reporting tool"
 run_test 11	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
 run_test 12	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
 run_test 13	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
-run_test 14	test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
+# test 14 is about OST: not for POSIX FS
 run_test 15	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 run_test 16	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
 run_test 17	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"

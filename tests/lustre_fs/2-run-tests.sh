@@ -42,7 +42,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log"
 
 SUMMARY="/tmp/test_$PROC_summary.$$"
 
@@ -1768,7 +1768,12 @@ function test_cfg_parsing
 	fi
 
 	# test parsing
-	$RH --test-syntax -f "$TEMPLATE" || error " reading config file \"$TEMPLATE\""
+	$RH --test-syntax -f "$TEMPLATE" 2>rh_syntax.log >rh_syntax.log || error " reading config file \"$TEMPLATE\""
+
+	cat rh_syntax.log
+	grep "unknown parameter" rh_syntax.log > /dev/null && error "unexpected parameter"
+	grep "read successfully" rh_syntax.log > /dev/null && echo "OK: parsing succeeded"
+
 }
 
 
