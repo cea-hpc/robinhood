@@ -55,8 +55,6 @@ elif [[ "$1" == "umount" ]]; then
 		./llmountcleanup.sh
 		umount /mnt/lustre
 	fi
-
-	mount | grep lustre
 else
 	echo "Usage: $0 mount|umount"
 fi
