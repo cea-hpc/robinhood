@@ -218,7 +218,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->extra_info.getstatus_needed = TRUE;
 #endif
     }
-    else if ( (logrec->cr_type == CL_MTIME) || (logrec->cr_type == CL_TRUNC) )
+    else if ( CL_TIME_NOACCESS(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) )
     {
         /* if file is modified or truncated, need to check its status
          * (probably modified) */
