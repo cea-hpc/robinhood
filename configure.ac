@@ -76,6 +76,15 @@ if test "x$support_lustre" = "xyes" ; then
 
         AC_DEFINE(_LUSTRE, 1, [liblustreapi is available])
 
+        lversion=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
+        lpackage=`rpm -qa "lustre[-_]*modules*" --qf "%{Name}\n"  2>/dev/null | tail -1`
+        if test "$lversion" = ""; then
+            LDEFINES=""
+        else
+            LDEFINES="--define=\"lversion $(lversion)\" --define=\"lpackage $(lpackage)\""
+        fi
+        AC_SUBST(LDEFINES)
+
         FS_LDFLAGS="-llustreapi"
         AC_SUBST(FS_LDFLAGS)
 
@@ -204,6 +213,14 @@ case $PURPOSE in
         ;;
 
     BACKUP)
+        # check pre-requisites
+        if test "x$have_liblustre_api" != "xyes" ; then
+            AC_MSG_ERROR([For now, backup purpose is only supported on Lustre v2 filesystem])
+        fi
+        if test "x$have_fid" != "xyes" ; then
+            AC_MSG_ERROR([For now, backup purpose is only supported on Lustre v2 filesystem])
+        fi
+
         PURPOSE_CFLAGS="-D_BACKUP_FS"
         PURPOSE_BIN="rbh-backup"
         PURPOSE_EXT="backup"

@@ -4,6 +4,8 @@ ROOT="/mnt/lustre"
 BKROOT="/tmp/backend"
 RBH_OPT=""
 
+TEMPLATE_DIR='../../doc/templates'
+
 if [[ ! -d $ROOT ]]; then
 	echo "Creating directory $ROOT"
 	mkdir -p "$ROOT"
@@ -53,7 +55,7 @@ function error_reset
 
 function error
 {
-	echo "ERROR: $@"
+	echo "ERROR $@"
 	((ERROR=$ERROR+1))
 	((RC=$RC+1))
 }
@@ -106,7 +108,7 @@ function clean_fs
 	
 	sleep 1
 #	echo "Impacting rm in HSM..."
-#	$RH -f ./cfg/immediate_rm.conf --readlog --hsm-remove -l DEBUG -L rh_rm.log --once || echo "ERROR"
+#	$RH -f ./cfg/immediate_rm.conf --readlog --hsm-remove -l DEBUG -L rh_rm.log --once || error ""
 	echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db robinhood_lustre > /dev/null
 
@@ -126,10 +128,10 @@ function create_pools
   lfs pool_list lustre | grep lustre.$POOL2 && ((POOL_CREATED=$POOL_CREATED+1))
   (($POOL_CREATED == 2 )) && return
 
-  lctl pool_new lustre.$POOL1 || echo "ERROR creating pool $POOL1"
-  lctl pool_add lustre.$POOL1 lustre-OST0000 || echo "ERROR adding OST0000 to pool $POOL1"
-  lctl pool_new lustre.$POOL2 || echo "ERROR creating pool $POOL2"
-  lctl pool_add lustre.$POOL2 lustre-OST0001 || echo "ERROR adding OST0001 to pool $POOL2"
+  lctl pool_new lustre.$POOL1 || error "creating pool $POOL1"
+  lctl pool_add lustre.$POOL1 lustre-OST0000 || error "adding OST0000 to pool $POOL1"
+  lctl pool_new lustre.$POOL2 || error "creating pool $POOL2"
+  lctl pool_add lustre.$POOL2 lustre-OST0001 || error "adding OST0001 to pool $POOL2"
   POOL_CREATED=1
 }
 
@@ -152,24 +154,24 @@ function migration_test
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
 	echo "2-Reading changelogs..."
 	# read changelogs
 	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
 
 	nb_migr=`grep "Start archiving" rh_migr.log | grep hints | wc -l`
 	if (($nb_migr != 0)); then
-		echo "********** TEST FAILED: No migration expected, $nb_migr started"
+		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
 		echo "OK: no files migrated"
 	fi
@@ -182,7 +184,7 @@ function migration_test
 
 	nb_migr=`grep "Start archiving" rh_migr.log | grep hints | wc -l`
 	if (($nb_migr != $expected_migr)); then
-		echo "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
+		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
 	else
 		echo "OK: $nb_migr files migrated"
 	fi
@@ -206,7 +208,7 @@ function xattr_test
 
 	echo "1-Modifing files..."
 	for i in `seq 1 3`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
 	echo "2-Setting xattrs..."
@@ -219,19 +221,19 @@ function xattr_test
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
 
 	nb_migr=`grep "Start archiving" rh_migr.log | grep hints | wc -l`
 	if (($nb_migr != 0)); then
-		echo "********** TEST FAILED: No migration expected, $nb_migr started"
+		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
 		echo "OK: no files migrated"
 	fi
@@ -244,7 +246,7 @@ function xattr_test
 
 	nb_migr=`grep "Start archiving" rh_migr.log | grep hints |  wc -l`
 	if (($nb_migr != 3)); then
-		echo "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
+		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
 	else
 		echo "OK: $nb_migr files migrated"
 
@@ -295,26 +297,26 @@ function link_unlink_remove_test
 
 	echo "1-Start reading changelogs in background..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --detach --pid-file=rh.pid || echo "ERROR"
+	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --detach --pid-file=rh.pid || error ""
 
 	# write file.1 and force immediate migration
 	echo "2-Writing data to file.1..."
-	dd if=/dev/zero of=$ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.1"
+	dd if=/dev/zero of=$ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.1"
 
 	if (( $is_hsm != 0 )); then
 		echo "3-Archiving file....1"
-		lfs hsm_archive $ROOT/file.1 || echo "ERROR"
+		lfs hsm_archive $ROOT/file.1 || error ""
 
 		echo "3bis-Waiting for end of data migration..."
 		while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions ; do sleep 1; done
 	elif (( $is_backup != 0 )); then
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || echo "ERROR"
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error ""
 	fi
 
 	# create links on file.1 files
 	echo "4-Creating hard links to $ROOT/file.1..."
-	ln $ROOT/file.1 $ROOT/link.1 || echo "ERROR"
-	ln $ROOT/file.1 $ROOT/link.2 || echo "ERROR"
+	ln $ROOT/file.1 $ROOT/link.1 || error ""
+	ln $ROOT/file.1 $ROOT/link.2 || error ""
 
 	# removing all files
         echo "5-Removing all links to file.1..."
@@ -322,7 +324,7 @@ function link_unlink_remove_test
 
 	# deferred remove delay is not reached: nothing should be removed
 	echo "6-Performing HSM remove requests (before delay expiration)..."
-	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_rm.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_rm.log --once || error ""
 
 	nb_rm=`grep "Remove request successful" rh_rm.log | wc -l`
 	if (($nb_rm != 0)); then
@@ -335,11 +337,11 @@ function link_unlink_remove_test
 	sleep $sleep_time
 
 	echo "8-Performing HSM remove requests (after delay expiration)..."
-	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_rm.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_rm.log --once || error ""
 
 	nb_rm=`grep "Remove request successful" rh_rm.log | wc -l`
 	if (($nb_rm != $expected_rm)); then
-		echo "********** TEST FAILED: $expected_rm removals expected, $nb_rm done"
+		error "********** TEST FAILED: $expected_rm removals expected, $nb_rm done"
 	else
 		echo "OK: $nb_rm files removed from archive"
 	fi
@@ -371,7 +373,7 @@ function purge_test
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || echo "ERROR writing file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 
 		if (( $is_hsm != 0 )); then
 			lfs hsm_set --exists --archived $ROOT/file.$i
@@ -383,15 +385,15 @@ function purge_test
 	sleep 1
 	if (( $no_log )); then
 		echo "2-Scanning the FS again to update file status (after 1sec)..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs to update file status (after 1sec)..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
 
 	if (( $is_hsm != 0 )); then
 	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
@@ -400,7 +402,7 @@ function purge_test
 	fi
 
         if (($nb_purge != 0)); then
-                echo "********** TEST FAILED: No release actions expected, $nb_purge done"
+                error "********** TEST FAILED: No release actions expected, $nb_purge done"
         else
                 echo "OK: no file released"
         fi
@@ -409,7 +411,7 @@ function purge_test
 	sleep $sleep_time
 
 	echo "5-Applying purge policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
 
 	if (( $is_hsm != 0 )); then
 	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
@@ -418,7 +420,7 @@ function purge_test
 	fi
 
         if (($nb_purge != $expected_purge)); then
-                echo "********** TEST FAILED: $expected_purge release actions expected, $nb_purge done"
+                error "********** TEST FAILED: $expected_purge release actions expected, $nb_purge done"
         else
                 echo "OK: $nb_purge files released"
         fi
@@ -452,7 +454,7 @@ function purge_size_filesets
 		echo "1.$j-Writing files of size " $(( $size*10 )) "kB..."
 		((j=$j+1))
 		for i in `seq 1 $count`; do
-			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || echo "ERROR writing file.$size.$i"
+			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || error "writing file.$size.$i"
 
 			if (( $is_hsm != 0 )); then
 				lfs hsm_set --exists --archived $ROOT/file.$size.$i
@@ -464,10 +466,10 @@ function purge_size_filesets
 	sleep 1
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs to update file status (after 1sec)..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 
@@ -476,13 +478,13 @@ function purge_size_filesets
 
 	echo "4-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
 
 	# counting each matching policy $count of each
 	for policy in very_small mid_file default; do
 	        nb_purge=`grep 'using policy' rh_purge.log | grep $policy | wc -l`
 		if (($nb_purge != $count)); then
-			echo "********** TEST FAILED: $count release actions expected using policy $policy, $nb_purge done"
+			error "********** TEST FAILED: $count release actions expected using policy $policy, $nb_purge done"
 		else
 			echo "OK: $nb_purge files released using policy $policy"
 		fi
@@ -507,7 +509,7 @@ function test_rh_report
 		echo "1.$i-Writing files to $ROOT/dir.$i..."
 		# write i MB to each directory
 		for j in `seq 1 $i`; do
-			dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || echo "ERROR writing $ROOT/dir.$i/file.$j"
+			dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
 		done
 	done
 
@@ -516,10 +518,10 @@ function test_rh_report
 
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	echo "3.Checking reports..."
@@ -527,7 +529,7 @@ function test_rh_report
 		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P $ROOT/dir.$i > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $i*1024*1024 )); then
-			echo "ERROR: $used != " $(($i*1024*1024))
+			error ": $used != " $(($i*1024*1024))
 		else
 			echo "OK: $i MB in $ROOT/dir.$i"
 		fi
@@ -657,16 +659,16 @@ function path_test
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
 
 	# count the number of file for each policy
 	nb_pol1=`grep hints rh_migr.log | grep absolute_path | wc -l`
@@ -683,18 +685,18 @@ function path_test
 
 	nb_unmatch=`grep hints rh_migr.log | grep unmatch | wc -l`
 
-	(( $nb_pol1 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'absolute_path': $nb_pol1"
-	(( $nb_pol2 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'absolute_tree': $nb_pol2"
-	(( $nb_pol3 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'path_depth2': $nb_pol3"
-	(( $nb_pol4 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'tree_depth2': $nb_pol4"
-	(( $nb_pol5 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'relative_path': $nb_pol5"
-	(( $nb_pol6 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'relative_tree': $nb_pol6"
+	(( $nb_pol1 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'absolute_path': $nb_pol1"
+	(( $nb_pol2 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'absolute_tree': $nb_pol2"
+	(( $nb_pol3 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'path_depth2': $nb_pol3"
+	(( $nb_pol4 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'tree_depth2': $nb_pol4"
+	(( $nb_pol5 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'relative_path': $nb_pol5"
+	(( $nb_pol6 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'relative_tree': $nb_pol6"
 
-	(( $nb_pol7 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'any_root_tree': $nb_pol7"
-	(( $nb_pol8 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'any_root_path': $nb_pol8"
-	(( $nb_pol9 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'any_level_tree': $nb_pol9"
-	(( $nb_pol10 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for policy 'any_level_tree': $nb_pol10"
-	(( $nb_unmatch == 19 )) || echo "********** TEST FAILED: wrong count of unmatching files: $nb_unmatch"
+	(( $nb_pol7 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_root_tree': $nb_pol7"
+	(( $nb_pol8 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_root_path': $nb_pol8"
+	(( $nb_pol9 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_level_tree': $nb_pol9"
+	(( $nb_pol10 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_level_tree': $nb_pol10"
+	(( $nb_unmatch == 19 )) || error "********** TEST FAILED: wrong count of unmatching files: $nb_unmatch"
 
 	(( $nb_pol1 == 2 )) && (( $nb_pol2 == 2 )) && (( $nb_pol3 == 2 )) && (( $nb_pol4 == 2 )) \
         	&& (( $nb_pol5 == 2 )) && (( $nb_pol6 == 2 )) && (( $nb_pol7 == 2 )) \
@@ -725,7 +727,7 @@ function update_test
 		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 
 		start=`date "+%s"`
 		# generate a lot of TIME events within 'event_updt_min'
@@ -742,14 +744,14 @@ function update_test
 
 		nb_getattr=`grep getattr=1 $LOG | wc -l`
 		echo "nb attr update: $nb_getattr"
-		(( $nb_getattr == 1 )) || echo "********** TEST FAILED: wrong count of getattr: $nb_getattr"
+		(( $nb_getattr == 1 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
 
 		# the path may be retrieved at the first loop (at creation)
 		# but not during the next loop (as long as enlapsed time < update_period)
 		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
 			nb_getpath=`grep getpath=1 $LOG | wc -l`
 			echo "nb path update: $nb_getpath"
-			(( $nb_getpath == 0 )) || echo "********** TEST FAILED: wrong count of getpath: $nb_getpath"
+			(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 		fi
 	done
 
@@ -760,7 +762,7 @@ function update_test
 		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 
 		start=`date "+%s"`
 		# generate a lot of TIME events within 'event_updt_min'
@@ -779,14 +781,14 @@ function update_test
 
 		nb_getpath=`grep getpath=1 $LOG | wc -l`
 		echo "nb path update: $nb_getpath"
-		(( $nb_getpath == 1 )) || echo "********** TEST FAILED: wrong count of getpath: $nb_getpath"
+		(( $nb_getpath == 1 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
 		# attributes may be retrieved at the first loop (at creation)
 		# but not during the next loop (as long as enlapsed time < update_period)
 		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
 			nb_getattr=`grep getattr=1 $LOG | wc -l`
 			echo "nb attr update: $nb_getattr"
-			(( $nb_getattr == 0 )) || echo "********** TEST FAILED: wrong count of getattr: $nb_getattr"
+			(( $nb_getattr == 0 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
 		fi
 	done
 
@@ -794,7 +796,7 @@ function update_test
 	clean_logs
 
 	# check that getattr+getpath are performed after update_period, even if the event is not related:
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || echo "ERROR"
+	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 	sleep $update_period
 
 	if (( $is_hsm != 0 )); then
@@ -811,16 +813,16 @@ function update_test
 
 	nb_getattr=`grep getattr=1 $LOG | wc -l`
 	echo "nb attr update: $nb_getattr"
-	(( $nb_getattr == 1 )) || echo "********** TEST FAILED: wrong count of getattr: $nb_getattr"
+	(( $nb_getattr == 1 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
 	nb_getpath=`grep getpath=1 $LOG | wc -l`
 	echo "nb path update: $nb_getpath"
-	(( $nb_getpath == 1 )) || echo "********** TEST FAILED: wrong count of getpath: $nb_getpath"
+	(( $nb_getpath == 1 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
 	if (( $is_hsm != 0 )); then
 		# also check that the status is to be retrieved
 		nb_getstatus=`grep getstatus=1 $LOG | wc -l`
 		echo "nb status update: $nb_getstatus"
-		(( $nb_getstatus == 1 )) || echo "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
+		(( $nb_getstatus == 1 )) || error "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
 	fi
 
 	# kill remaning event handler
@@ -852,31 +854,31 @@ function periodic_class_match_migr
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	#we must have 4 lines like this: "Need to update fileclass (not set)"
 	nb_updt=`grep "Need to update fileclass (not set)" rh_migr.log | wc -l`
 	nb_migr_match=`grep "matches the condition for policy 'migr_match'" rh_migr.log | wc -l`
 	nb_default=`grep "matches the condition for policy 'default'" rh_migr.log | wc -l`
 
-	(( $nb_updt == 4 )) || echo "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
-	(( $nb_migr_match == 1 )) || echo "********** TEST FAILED: wrong count of files matching 'migr_match': $nb_migr_match"
-	(( $nb_default == 1 )) || echo "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
+	(( $nb_updt == 4 )) || error "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
+	(( $nb_migr_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'migr_match': $nb_migr_match"
+	(( $nb_default == 1 )) || error "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
 
         (( $nb_updt == 4 )) && (( $nb_migr_match == 1 )) && (( $nb_default == 1 )) \
 		&& echo "OK: initial fileclass matching successful"
 
 	# rematch entries: should not update fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_migr.log | wc -l`
 	nb_migr_valid=`grep "fileclass 'to_be_migr' is still valid" rh_migr.log | wc -l`
 	nb_updt=`grep "Need to update fileclass" rh_migr.log | wc -l`
 
-	(( $nb_default_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
-	(( $nb_migr_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for 'migr_match' : $nb_migr_valid"
-	(( $nb_updt == 0 )) || echo "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
+	(( $nb_default_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
+	(( $nb_migr_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for 'migr_match' : $nb_migr_valid"
+	(( $nb_updt == 0 )) || error "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
 
         (( $nb_updt == 0 )) && (( $nb_default_valid == 1 )) && (( $nb_migr_valid == 1 )) \
 		&& echo "OK: fileclasses do not need update"
@@ -886,13 +888,13 @@ function periodic_class_match_migr
 
 	# rematch entries: should update all fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	nb_valid=`grep "is still valid" rh_migr.log | wc -l`
 	nb_updt=`grep "Need to update fileclass (out-of-date)" rh_migr.log | wc -l`
 
-	(( $nb_valid == 0 )) || echo "********** TEST FAILED: fileclass should need update : $nb_valid still valid"
-	(( $nb_updt == 4 )) || echo "********** TEST FAILED: all fileclasses should be updated : $nb_updt/4"
+	(( $nb_valid == 0 )) || error "********** TEST FAILED: fileclass should need update : $nb_valid still valid"
+	(( $nb_updt == 4 )) || error "********** TEST FAILED: all fileclasses should be updated : $nb_updt/4"
 
         (( $nb_valid == 0 )) && (( $nb_updt == 4 )) \
 		&& echo "OK: all fileclasses updated"
@@ -924,7 +926,7 @@ function periodic_class_match_purge
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
 
 	# HSM: we must have 4 lines like this: "Need to update fileclass (not set)"
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
@@ -939,9 +941,9 @@ function periodic_class_match_purge
 	nb_purge_match=`grep "matches the condition for policy 'purge_match'" rh_purge.log | wc -l`
 	nb_default=`grep "matches the condition for policy 'default'" rh_purge.log | wc -l`
 
-	(( $nb_updt == 4 - $already )) || echo "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
-	(( $nb_purge_match == 1 )) || echo "********** TEST FAILED: wrong count of files matching 'purge_match': $nb_purge_match"
-	(( $nb_default == 1 )) || echo "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
+	(( $nb_updt == 4 - $already )) || error "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
+	(( $nb_purge_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'purge_match': $nb_purge_match"
+	(( $nb_default == 1 )) || error "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
 
         (( $nb_updt == 4 - $already )) && (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
 		&& echo "OK: initial fileclass matching successful"
@@ -949,19 +951,19 @@ function periodic_class_match_purge
 	# update db content and rematch entries: should not update fileclasses
 	clean_logs
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
 
 	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_purge.log | wc -l` # impossible: it should have been removed from DB during the last purge!
 	nb_purge_valid=`grep "fileclass 'to_be_released' is still valid" rh_purge.log | wc -l` # impossible: it should have been removed from DB during the last purge!
 	nb_updt=`grep "Need to update fileclass" rh_purge.log | wc -l`
 
-#	(( $nb_default_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
-#	(( $nb_purge_valid == 1 )) || echo "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
-#	(( $nb_updt == 0 )) || echo "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
+#	(( $nb_default_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
+#	(( $nb_purge_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
+#	(( $nb_updt == 0 )) || error "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
 
-	(( $nb_default_valid == 0 )) || echo "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
-	(( $nb_purge_valid == 0 )) || echo "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
-	(( $nb_updt == 2 )) || echo "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
+	(( $nb_default_valid == 0 )) || error "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
+	(( $nb_purge_valid == 0 )) || error "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
+	(( $nb_updt == 2 )) || error "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
 
         #(( $nb_updt == 0 )) && (( $nb_default_valid == 1 )) && (( $nb_purge_valid == 1 )) \
         (( $nb_updt == 2 )) && (( $nb_default_valid == 0 )) && (( $nb_purge_valid == 0 )) \
@@ -974,7 +976,7 @@ function periodic_class_match_purge
 	echo "Waiting $update_period sec..."
 	sleep $update_period
 
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
 
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
 	# 	2 entries are new (default and to_be_released)
@@ -990,9 +992,9 @@ function periodic_class_match_purge
 	nb_updt=`grep "Need to update fileclass (out-of-date)" rh_purge.log | wc -l`
 	nb_not_set=`grep "Need to update fileclass (not set)" rh_purge.log | wc -l`
 
-	(( $nb_valid == $already )) || echo "********** TEST FAILED: fileclass should need update : $nb_valid still valid"
-	(( $nb_updt == 4 - $already - $new )) || echo "********** TEST FAILED: wrong number of fileclasses should be updated : $nb_updt"
-	(( $nb_not_set == $new )) || echo "********** TEST FAILED:  wrong number of fileclasse fileclasses should be matched : $nb_not_set"
+	(( $nb_valid == $already )) || error "********** TEST FAILED: fileclass should need update : $nb_valid still valid"
+	(( $nb_updt == 4 - $already - $new )) || error "********** TEST FAILED: wrong number of fileclasses should be updated : $nb_updt"
+	(( $nb_not_set == $new )) || error "********** TEST FAILED:  wrong number of fileclasse fileclasses should be matched : $nb_not_set"
 
         (( $nb_valid == $already )) && (( $nb_updt == 4 - $already - $new )) \
 		&& echo "OK: fileclasses correctly updated"
@@ -1043,7 +1045,7 @@ function test_cnt_trigger
 	if (($nb_release == $exp_purge_count)); then
 		echo "OK: $nb_release files released"
 	else
-		echo "ERROR: $nb_release files released, $exp_purge_count expected"
+		error ": $nb_release files released, $exp_purge_count expected"
 	fi
 }
 
@@ -1065,7 +1067,7 @@ function test_ost_trigger
 	empty_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
-	lfs setstripe --count 2 --offset 0 $ROOT || echo "ERROR setting stripe_count=2"
+	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high watermark
 	for i in `seq $empty_vol $mb_h_watermark`; do
@@ -1108,9 +1110,9 @@ function test_ost_trigger
 	# - needed_ost must be equal to the amount we computed (need_purge)
 	# - purged_ost must be over the amount we computed and under need_purge+1MB
 	# - purged_total must be twice purged_ost
-	(( $needed_ost == $need_purge )) || echo "ERROR: invalid amount of data computed"
-	(( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) || echo "ERROR: invalid amount of data purged"
-	(( $purged_total == 2*$purged_ost )) || echo "ERROR: invalid total volume purged"
+	(( $needed_ost == $need_purge )) || error ": invalid amount of data computed"
+	(( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) || error ": invalid amount of data purged"
+	(( $purged_total == 2*$purged_ost )) || error ": invalid total volume purged"
 
 	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
 		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
@@ -1120,9 +1122,9 @@ function test_ost_trigger
 	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
 
 	if (($full_vol1 > $mb_h_watermark )); then
-		echo "ERROR: OST#1 is not expected to exceed high watermark!"
+		error ": OST#1 is not expected to exceed high watermark!"
 	elif (($purge_ost1 != 0)); then
-		echo "ERROR: no purge expected on OST#1"
+		error ": no purge expected on OST#1"
 	else
 		echo "OK: no purge on OST#1 (usage=$full_vol1 MB)"
 	fi
@@ -1210,13 +1212,13 @@ function test_trigger_check
 
 	# check then was no actual purge
 	if (($nb_release > 0)); then
-		echo "ERROR: $nb_release files released, no purge expected"
+		error ": $nb_release files released, no purge expected"
 	elif (( $count_trig != $expect_count )); then
-		echo "ERROR: trigger reported $count_trig files over watermark, $expect_count expected"
+		error ": trigger reported $count_trig files over watermark, $expect_count expected"
 	elif (( $vol_fs_trig_mb != $expect_vol_fs )); then
-		echo "ERROR: trigger reported $vol_fs_trig_mb MB over watermark, $expect_vol_fs expected"
+		error ": trigger reported $vol_fs_trig_mb MB over watermark, $expect_vol_fs expected"
 	elif (( $vol_user_trig_mb != $expect_vol_user )); then
-		echo "ERROR: trigger reported $vol_user_trig_mb MB over watermark, $expect_vol_user expected"
+		error ": trigger reported $vol_user_trig_mb MB over watermark, $expect_vol_user expected"
 	else
 		echo "OK: all checks successful"
 	fi
@@ -1276,15 +1278,15 @@ function fileclass_test
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
 
 	# count the number of file for each policy
 	nb_pol1=`grep hints rh_migr.log | grep even_and_B | wc -l`
@@ -1297,10 +1299,10 @@ function fileclass_test
 	#nb_pol3=`grep "matches the condition for policy 'not_migr'" rh_migr.log | wc -l`
 	#nb_pol4=`grep "matches the condition for policy 'default'" rh_migr.log | wc -l`
 
-	(( $nb_pol1 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_B': $nb_pol1"
-	(( $nb_pol2 == 4 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_not_B': $nb_pol2"
-	(( $nb_pol3 == 8 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'odd_or_A': $nb_pol3"
-	(( $nb_pol4 == 2 )) || echo "********** TEST FAILED: wrong count of matching files for fileclass 'unmatched': $nb_pol4"
+	(( $nb_pol1 == 2 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_B': $nb_pol1"
+	(( $nb_pol2 == 4 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_not_B': $nb_pol2"
+	(( $nb_pol3 == 8 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'odd_or_A': $nb_pol3"
+	(( $nb_pol4 == 2 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'unmatched': $nb_pol4"
 
 	(( $nb_pol1 == 2 )) && (( $nb_pol2 == 4 )) && (( $nb_pol3 == 8 )) \
 		&& (( $nb_pol4 == 2 )) && echo "OK: test successful"
@@ -1330,18 +1332,18 @@ function test_info_collect
 	# read changelogs
 	if (( $no_log )); then
 		echo "1-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 		nb_cr=0
 	else
 		echo "1-Reading changelogs..."
-		#$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
-		$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || echo "ERROR"
+		#$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error ""
 		nb_cr=4
 	fi
 
 	sleep $sleep_time2
 
-	grep "DB query failed" rh_chglogs.log && echo "ERROR: a DB query failed when reading changelogs"
+	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when reading changelogs"
 
 	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
@@ -1356,23 +1358,23 @@ function test_info_collect
 	if (( $nb_create == $nb_cr && $nb_db_apply == $db_expect )); then
 		echo "OK: $nb_cr files created, $db_expect database operations"
 	else
-		echo "ERROR: unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
+		error ": unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
 		exit 1
 	fi
 
 	clean_logs
 
 	echo "2-Scanning..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
  
-	grep "DB query failed" rh_chglogs.log && echo "ERROR: a DB query failed when scanning"
+	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
 	# 4 db operations expected (1 for each file)
 	if (( $nb_db_apply == $db_expect )); then
 		echo "OK: $db_expect database operations"
 	else
-		echo "ERROR: unexpected number of operations: $nb_db_apply database operations"
+		error ": unexpected number of operations: $nb_db_apply database operations"
 	fi
 }
 
@@ -1387,32 +1389,32 @@ function test_pools
 	clean_logs
 
 	# create files in different pools (or not)
-	touch $ROOT/no_pool.1 || echo "ERROR creating file"
-	touch $ROOT/no_pool.2 || echo "ERROR creating file"
-	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.a || echo "ERROR creating file in $POOL1"
-	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.b || echo "ERROR creating file in $POOL1"
-	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.a || echo "ERROR creating file in $POOL2"
-	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.b || echo "ERROR creating file in $POOL2"
+	touch $ROOT/no_pool.1 || error "creating file"
+	touch $ROOT/no_pool.2 || error "creating file"
+	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.a || error "creating file in $POOL1"
+	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.b || error "creating file in $POOL1"
+	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.a || error "creating file in $POOL2"
+	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.b || error "creating file in $POOL2"
 
 	sleep $sleep_time
 
 	# read changelogs
 	if (( $no_log )); then
 		echo "1.1-scan and match..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "1.1-read changelog and match..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 
 	echo "1.2-checking report output..."
 	# check classes in report output
-	$REPORT -f ./cfg/$config_file --dump-all -c > report.out || echo "ERROR"
+	$REPORT -f ./cfg/$config_file --dump-all -c > report.out || error ""
 	cat report.out
 
 	echo "1.3-checking robinhood log..."
-	grep "Missing attribute" rh_chglogs.log && echo "ERROR missing attribute when matching classes"
+	grep "Missing attribute" rh_chglogs.log && error "missing attribute when matching classes"
 
 	# purge field index
 	if (( $is_hsm != 0 )); then
@@ -1424,55 +1426,55 @@ function test_pools
 	# no_pool files must match default
 	for i in 1 2; do
 		(( $is_hsm + $is_backup != 0 )) &&  \
-			( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
+			( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || error "bad migr class for no_pool.$i" )
 		 (( $is_backup == 0 )) && \
-			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
+			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || error "bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
 		(( $is_hsm  + $is_backup != 0 )) && \
-			 ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+			 ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || error "bad migr class for in_pool_1.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
+			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || error "bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
+			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || error "bad purg class for in_pool_2.$i")
 	done
 
 	# rematch and recheck
 	echo "2.1-scan and match..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || echo "ERROR"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 
 	echo "2.2-checking report output..."
 	# check classes in report output
-	$REPORT -f ./cfg/$config_file --dump-all -c  > report.out || echo "ERROR"
+	$REPORT -f ./cfg/$config_file --dump-all -c  > report.out || error ""
 	cat report.out
 
 	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || echo "ERROR bad migr class for no_pool.$i" )
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || error "bad migr class for no_pool.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || echo "ERROR bad purg class for no_pool.$i")
+			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || error "bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		(( $is_hsm + $is_backup != 0 )) &&  ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || echo "ERROR bad migr class for in_pool_1.$i" )
+		(( $is_hsm + $is_backup != 0 )) &&  ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || error "bad migr class for in_pool_1.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || echo "ERROR bad purg class for in_pool_1.$i")
+			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || error "bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || echo "ERROR bad migr class for in_pool_2.$i" )
+		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
 		(( $is_backup == 0 )) && \
-			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || echo "ERROR bad purg class for in_pool_2.$i")
+			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || error "bad purg class for in_pool_2.$i")
 	done
 
 	echo "2.3-checking robinhood log..."
-	grep "Missing attribute" rh_chglogs.log && echo "ERROR missing attribute when matching classes"
+	grep "Missing attribute" rh_chglogs.log && error "missing attribute when matching classes"
 
 }
 
@@ -1506,10 +1508,10 @@ function test_logs
 	echo "Test parameters: files=$files, syslog=$syslog, stdio=$stdio, batch=$batch"
 
 	# create files
-	touch $ROOT/file.1 || echo "ERROR creating file"
-	touch $ROOT/file.2 || echo "ERROR creating file"
-	touch $ROOT/file.3 || echo "ERROR creating file"
-	touch $ROOT/file.4 || echo "ERROR creating file"
+	touch $ROOT/file.1 || error "creating file"
+	touch $ROOT/file.2 || error "creating file"
+	touch $ROOT/file.3 || error "creating file"
+	touch $ROOT/file.4 || error "creating file"
 
 	if (( $is_hsm != 0 )); then
 		lfs hsm_set --exists --archived $ROOT/file.*
@@ -1522,9 +1524,9 @@ function test_logs
 
 	# run a scan
 	if (( $stdio )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
 	else
-		$RH -f ./cfg/$config_file --scan -l DEBUG --once || echo "ERROR"
+		$RH -f ./cfg/$config_file --scan -l DEBUG --once || error ""
 	fi
 
 	if (( $files )); then
@@ -1562,7 +1564,7 @@ function test_logs
 		alert="/tmp/extract_alert"
 		report="/tmp/extract_report"
 	else
-		echo "ERROR: unsupported test option"
+		error ": unsupported test option"
 		return 1
 	fi
 	
@@ -1570,13 +1572,13 @@ function test_logs
 	if (( `wc -l $log | awk '{print $1}'` > 0 )); then
 		echo "OK: log file is not empty"
 	else
-		echo "ERROR: empty log file"
+		error ": empty log file"
 	fi
 
 	if (( $batch )); then
 		#check summary
 		sum=`grep "alert summary" $alert | wc -l`
-		(($sum==1)) || (echo "ERROR: no summary found" ; cat $alert)
+		(($sum==1)) || (error ": no summary found" ; cat $alert)
 		# check alerts about file.1 and file.2
 		# search for line ' * 1 alert_file1', ' * 1 alert_file2'
 		a1=`egrep -e "[0-9]* alert_file1" $alert | sed -e 's/.* \([0-9]*\) alert_file1/\1/' | xargs`
@@ -1592,7 +1594,7 @@ function test_logs
 		if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
 			echo "OK: 2 alerts"
 		else
-			echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+			error ": invalid alert counts: $a1,$a2,$e1,$e2,$all"
 			cat $alert
 		fi
 	else
@@ -1605,7 +1607,7 @@ function test_logs
 		if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
 			echo "OK: 2 alerts"
 		else
-			echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+			error ": invalid alert counts: $a1,$a2,$e1,$e2,$all"
 			cat $alert
 		fi
 	fi
@@ -1614,7 +1616,7 @@ function test_logs
 	if (( `wc -l $report | awk '{print $1}'` == 0 )); then
                 echo "OK: no action reported"
         else
-                echo "ERROR: there are reported actions after a scan"
+                error ": there are reported actions after a scan"
 		cat $report
         fi
 	
@@ -1629,9 +1631,9 @@ function test_logs
 		rm -f $log $report $alert
 
 		if (( $stdio )); then
-			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || echo "ERROR"
+			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
 		else
-			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run || echo "ERROR"
+			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run || error ""
 		fi
 
 		# extract new syslog messages
@@ -1650,13 +1652,13 @@ function test_logs
 		if (( `wc -l $log | awk '{print $1}'` > 0 )); then
 			echo "OK: log file is not empty"
 		else
-			echo "ERROR: empty log file"
+			error ": empty log file"
 		fi
 
 		# check alerts (should be impossible to purge at 0%)
 		grep "Could not purge" $alert > /dev/null
 		if (($?)); then
-			echo "ERROR: alert should have been raised for impossible purge"
+			error ": alert should have been raised for impossible purge"
 		else
 			echo "OK: alert raised"
 		fi
@@ -1665,7 +1667,7 @@ function test_logs
 		if (( `wc -l $report | awk '{print $1}'` == 4 )); then
 			echo "OK: 4 actions reported"
 		else
-			echo "ERROR: unexpected count of actions"
+			error ": unexpected count of actions"
 			cat $report
 		fi
 		
@@ -1691,7 +1693,7 @@ function test_logs
 	if (( `wc -l /tmp/test_log.1 | awk '{print $1}'` > 0 )); then
 		echo "OK: log file is not empty"
 	else
-		echo "ERROR: empty log file"
+		error ": empty log file"
 	fi
 
 	# check alerts about file.1 and file.2
@@ -1703,7 +1705,7 @@ function test_logs
 	if (( $a1 > 0 && $a2 > 0 && $e1 > 0 && $e2 > 0 && $all >= 2)); then
 		echo "OK: $all alerts"
 	else
-		echo "ERROR: invalid alert counts: $a1,$a2,$e1,$e2,$all"
+		error ": invalid alert counts: $a1,$a2,$e1,$e2,$all"
 		cat /tmp/test_alert.1
 	fi
 
@@ -1711,13 +1713,61 @@ function test_logs
 	if (( `wc -l /tmp/test_report.1 | awk '{print $1}'` == 0 )); then
                 echo "OK: no action reported"
         else
-                echo "ERROR: there are reported actions after a scan"
+                error ": there are reported actions after a scan"
 		cat /tmp/test_report.1
         fi
 
 	pkill -9 -f $PROC
 	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
 	rm -f /tmp/test_log.1.old /tmp/test_report.1.old /tmp/test_alert.1.old
+}
+
+function test_cfg_parsing
+{
+	flavor=$1
+	dummy=$2
+	policy_str="$3"
+
+	# needed for reading password file
+	if [[ ! -f /etc/robinhood.d/.dbpassword ]]; then
+		if [[ ! -d /etc/robinhood.d ]]; then
+			mkdir /etc/robinhood.d
+		fi
+		echo robinhood > /etc/robinhood.d/.dbpassword
+	fi
+
+	if [[ $flavor == "basic" ]]; then
+
+		if (($is_backup)) ; then
+			TEMPLATE=$TEMPLATE_DIR"/backup_basic.conf"
+		elif (($is_hsm)); then
+			TEMPLATE=$TEMPLATE_DIR"/hsm_policy_basic.conf"
+		else
+			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_basic.conf"
+		fi
+
+	elif [[ $flavor == "detailed" ]]; then
+
+		if (($is_backup)) ; then
+			TEMPLATE=$TEMPLATE_DIR"/backup_detailed.conf"
+		elif (($is_hsm)); then
+			TEMPLATE=$TEMPLATE_DIR"/hsm_policy_detailed.conf"
+		else
+			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_detailed.conf"
+		fi
+
+	elif [[ $flavor == "generated" ]]; then
+
+		GEN_TEMPLATE="/tmp/template.$CMD"
+		TEMPLATE=$GEN_TEMPLATE
+		$RH --template=$TEMPLATE || error "generating config template"
+	else
+		error "invalid test flavor"
+		return 1
+	fi
+
+	# test parsing
+	$RH --test-syntax -f "$TEMPLATE" || error " reading config file \"$TEMPLATE\""
 }
 
 
@@ -1804,6 +1854,10 @@ run_test 20c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert
 run_test 20d	test_logs log1b.conf file_batch 	"file logging with alert batching"
 run_test 20e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
 run_test 20f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+
+run_test 21a 	test_cfg_parsing basic none		"parsing of basic template"
+run_test 21b 	test_cfg_parsing detailed none	"parsing of detailed template"
+run_test 21c 	test_cfg_parsing generated none	"parsing of generated template"
 
 echo
 echo "========== TEST SUMMARY =========="

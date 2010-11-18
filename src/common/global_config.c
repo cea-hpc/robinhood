@@ -33,7 +33,7 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
     msg_out[0] = '\0';
 
     strncpy( conf->fs_path, "", MAXPATHLEN );
-#ifdef _LUSTRE_HSM
+#ifdef _HAVE_FID
     strncpy( conf->fs_type, "lustre", FILENAME_MAX );
 #else
     strncpy( conf->fs_type, "", FILENAME_MAX );
@@ -57,7 +57,7 @@ int WriteGlobalConfigDefault( FILE * output )
 {
     print_begin_block( output, 0, GLOBAL_CONFIG_BLOCK, NULL );
     print_line( output, 1, "fs_path       :  [MANDATORY]" );
-#ifdef _LUSTRE_HSM
+#ifdef _HAVE_FID
     print_line( output, 1, "fs_type       :  lustre" );
 #else
     print_line( output, 1, "fs_type       :  [MANDATORY]" );
@@ -116,12 +116,16 @@ NULL
     if ( rc )
         return rc;
 
-#ifdef _LUSTRE_HSM
+#ifdef _HAVE_FID
     rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_type",
                          PARAM_MANDATORY, conf->fs_type, FILENAME_MAX, NULL, NULL, msg_out );
     if ( ( rc != ENOENT ) && strcmp( conf->fs_type, "lustre" ) )
     {
+#ifdef _LUSTRE_HSM
         strcpy( msg_out, "Only \"lustre\" filesystem type is allowed for Lustre-HSM purpose" );
+#else
+        strcpy( msg_out, "Robinhood is compiled for Lustre filesystem support only" );
+#endif
         return EINVAL;
     }
 #else
@@ -230,7 +234,7 @@ int WriteGlobalConfigTemplate( FILE * output )
 {
     print_begin_block( output, 0, GLOBAL_CONFIG_BLOCK, NULL );
 
-#ifdef _LUSTRE_HSM
+#ifdef _HAVE_FID
     print_line( output, 1, "# filesystem to be monitored" );
     print_line( output, 1, "fs_path = \"/mnt/lustre\" ;" );
     fprintf( output, "\n" );

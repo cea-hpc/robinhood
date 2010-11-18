@@ -378,7 +378,7 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         p_value->val_uint = p_comp->val.integer;
         break;
 
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
         *p_attr_index = ATTR_INDEX_dircount;
         *p_compar = Policy2FilterComparator( p_comp->op );
@@ -401,13 +401,15 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         p_value->val_uint = time(NULL) - p_comp->val.duration;
         break;
 
-#ifdef _LUSTRE_HSM
+#ifdef ATTR_INDEX_last_archive
     case CRITERIA_LAST_ARCHIVE:
         *p_attr_index = ATTR_INDEX_last_archive;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
         p_value->val_uint = time(NULL) - p_comp->val.duration;
         break;
+#endif
 
+#ifdef ATTR_INDEX_last_restore
     case CRITERIA_LAST_RESTORE:
         *p_attr_index = ATTR_INDEX_last_restore;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
@@ -548,7 +550,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         rc = int_compare( ATTR( p_entry_attr, depth ), p_triplet->op, p_triplet->val.integer );
         return BOOL2POLICY( rc );
 
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
         /* dircount is required */
         CHECK_ATTR( p_entry_attr, dircount, no_warning );
@@ -574,7 +576,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
                           p_triplet->val.duration );
         return BOOL2POLICY( rc );
 
-#ifdef _LUSTRE_HSM
+#ifdef ATTR_INDEX_last_archive
     case CRITERIA_LAST_ARCHIVE:
         /* last_archive is required */
         CHECK_ATTR( p_entry_attr, last_archive, no_warning );
@@ -584,7 +586,9 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         return BOOL2POLICY( rc );
 
         break;
+#endif
 
+#ifdef ATTR_INDEX_last_restore
     case CRITERIA_LAST_RESTORE:
         /* restore time is required */
         CHECK_ATTR( p_entry_attr, last_restore, no_warning );

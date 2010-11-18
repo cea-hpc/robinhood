@@ -57,6 +57,8 @@ typedef enum
 #endif
 #ifdef _LUSTRE_HSM
     CRITERIA_LAST_RESTORE,
+#endif
+#ifdef ATTR_INDEX_last_archive
     CRITERIA_LAST_ARCHIVE,
 #endif
     CRITERIA_POOL,

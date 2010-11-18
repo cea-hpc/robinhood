@@ -1256,7 +1256,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
     }
-#ifndef _LUSTRE_HSM             /* no directory management for Lustre HSM */
+#ifdef ATTR_INDEX_dircount
     else if ( TEST_CRIT( key_value->varname, CRITERIA_DIRCOUNT ) )
     {
         p_triplet->crit = CRITERIA_DIRCOUNT;
@@ -1315,7 +1315,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
 
 
     }
-#ifdef _LUSTRE_HSM
+#ifdef ATTR_INDEX_last_archive
     else if ( TEST_CRIT( key_value->varname, CRITERIA_LAST_ARCHIVE ) )
     {
         p_triplet->crit = CRITERIA_LAST_ARCHIVE;
@@ -1335,6 +1335,8 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
     }
+#endif
+#ifdef ATTR_INDEX_last_restore
     else if ( TEST_CRIT( key_value->varname, CRITERIA_LAST_RESTORE ) )
     {
         p_triplet->crit = CRITERIA_LAST_RESTORE;
@@ -1875,7 +1877,7 @@ const char    *criteria2str( compare_criteria_t crit )
         return "size";
     case CRITERIA_DEPTH:
         return "depth";
-#ifndef _LUSTRE_HSM             /* only files are handled in lustre-HSM */
+#ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
         return "dircount";
 #endif
@@ -1883,9 +1885,11 @@ const char    *criteria2str( compare_criteria_t crit )
         return "last_access";
     case CRITERIA_LAST_MOD:
         return "last_mod";
-#ifdef _LUSTRE_HSM
+#ifdef ATTR_INDEX_last_archive
     case CRITERIA_LAST_ARCHIVE:
         return "last_archive";
+#endif
+#ifdef ATTR_INDEX_last_restore
     case CRITERIA_LAST_RESTORE:
         return "last_restore";
 #endif
@@ -1940,8 +1944,10 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 
     case CRITERIA_LAST_ACCESS:
     case CRITERIA_LAST_MOD:
-#ifdef _LUSTRE_HSM
+#ifdef ATTR_INDEX_last_archive
     case CRITERIA_LAST_ARCHIVE:
+#endif
+#ifdef ATTR_INDEX_last_restore
     case CRITERIA_LAST_RESTORE:
 #endif
         FormatDurationFloat( tmp_buff, 256, p_triplet->val.duration );

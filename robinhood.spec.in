@@ -47,6 +47,8 @@ Prefix: %{_prefix}
 %if %{with lustre}
 %if %{defined lversion}
 %define config_dependant .lustre%{lversion}
+%else
+%define config_dependant .lustre
 %endif
 %endif
 

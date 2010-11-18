@@ -6,10 +6,12 @@ SUBDIRS=src scripts tests
 rpm_dir=`pwd`/rpms
 
 if LUSTRE
-  rpmbuild_opt=--with lustre
-  lversion=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
-  lpackage=`rpm -qa "lustre[-_]*modules*" --qf "%{Name}\n"  2>/dev/null | tail -1`
-  rpmbuild_opt+=--define="lversion $(lversion)" --define="lpackage $(lpackage)"
+  rpmbuild_opt=--with lustre @LDEFINES@
+#  lversion=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
+#  lpackage=`rpm -qa "lustre[-_]*modules*" --qf "%{Name}\n"  2>/dev/null | tail -1`
+#ifeq ($(lversion), )
+#  rpmbuild_opt+=--define="lversion $(lversion)" --define="lpackage $(lpackage)"
+#endif
 else
   rpmbuild_opt=--without lustre
 endif
@@ -71,6 +73,8 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
         doc/templates/hsm_policy_detailed.conf  	\
         doc/templates/tmp_fs_mgr_basic.conf  		\
         doc/templates/tmp_fs_mgr_detailed.conf  	\
+        doc/templates/backup_basic.conf  		\
+        doc/templates/backup_detailed.conf  		\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
 	doc/admin_guides/robinhood_v220_admin_guide-tmp_fs_mgr.pdf \
 	doc/admin_guides/robinhood_v220_tutorial-tmp_fs_mgr.pdf

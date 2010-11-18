@@ -177,7 +177,7 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src )
             /* integer conditions */
         case CRITERIA_DEPTH:
 
-#ifndef _LUSTRE_HSM             /* only files are handled in lustre-HSM */
+#ifdef ATTR_INDEX_dircount
         case CRITERIA_DIRCOUNT:
 #endif
             if ( p_triplet1->val.integer != p_triplet2->val.integer )
@@ -196,8 +196,10 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src )
             /* duration conditions */
         case CRITERIA_LAST_ACCESS:
         case CRITERIA_LAST_MOD:
-#ifdef _LUSTRE_HSM
+#ifdef ATTR_INDEX_last_archive
         case CRITERIA_LAST_ARCHIVE:
+#endif
+#ifdef ATTR_INDEX_last_restore
         case CRITERIA_LAST_RESTORE:
 #endif
             if ( p_triplet1->val.duration != p_triplet2->val.duration )
@@ -1148,7 +1150,7 @@ static int write_migration_policy_template( FILE * output )
     print_begin_block( output, 2, CONDITION_BLOCK, NULL );
     print_line( output, 3, "last_mod > 6h" );
     print_line( output, 3, "or" );
-    print_line( output, 3, "last_acrhive > 5d" );
+    print_line( output, 3, "last_archive > 5d" );
     print_end_block( output, 2 );
 
 #ifdef _LUSTRE_HSM
@@ -1275,7 +1277,7 @@ static int write_purge_policy_template( FILE * output )
     return 0;
 }
 
-#else
+#elif defined(HAVE_PURGE_POLICY)
 
 static int write_purge_policy_template( FILE * output )
 {
@@ -1557,8 +1559,11 @@ static int read_filesets( config_file_t config, fileset_list_t * fileset_list,
 
 
                         if (  fileset_list->fileset_list[i].attr_mask & (
-#ifdef _LUSTRE_HSM
-                            ATTR_MASK_last_archive | ATTR_MASK_last_restore |
+#ifdef ATTR_INDEX_last_archive
+                            ATTR_MASK_last_archive |
+#endif
+#ifdef ATTR_INDEX_last_restore
+                            ATTR_MASK_last_restore |
 #endif
                             ATTR_MASK_last_access | ATTR_MASK_last_mod ) )
                         {
