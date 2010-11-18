@@ -3,13 +3,15 @@
 HUDSON_DIR=$HUDSON_HOME
 NODE_LABEL=lustre
 
-LUSTRE_ROOT_DIR=$HUDSON_DIR/Lustre/label/$NODE_LABEL
+if [[ -z "$LUSTRE_SRC_DIR" ]]; then
+	LUSTRE_SRC_DIR=$HUDSON_DIR/workspace/Lustre-2.0/label/$NODE_LABEL
+fi
 
 # moving to lustre test dir
-if [[ -d $LUSTRE_ROOT_DIR ]]; then
-	cd $LUSTRE_ROOT_DIR/lustre/tests
+if [[ -d $LUSTRE_SRC_DIR ]]; then
+	cd $LUSTRE_SRC_DIR/lustre/tests
 else
-	echo "$LUSTRE_ROOT_DIR: no such directory"
+	echo "$LUSTRE_SRC_DIR: no such directory"
 	exit 1
 fi
 
