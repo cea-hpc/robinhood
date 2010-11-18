@@ -18,6 +18,6 @@ if [[ $VERB == "ARCHIVE" ]]; then
 	if [[ ! -d "$dir" ]]; then
 		mkdir -p "$dir"
 	fi
-	cp -p "$SRC" "$DEST"
+	cp -a "$SRC" "$DEST"
 	exit $?
 fi

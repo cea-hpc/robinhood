@@ -19,6 +19,7 @@
 %bcond_with mysql
 %bcond_with sqlite
 %bcond_with sherpa
+%bcond_with backup
 
 # macro for defining dependencies
 
@@ -56,7 +57,7 @@ Prefix: %{_prefix}
 Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
-Summary: Robinhood - Accounting/purge tool for large filesystems
+Summary: Robinhood - Policy engine and monitoring tool for large filesystems
 License: CeCILL 
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
@@ -100,6 +101,19 @@ PolicyEngine for SHERPA cache manager
 Generated using options: @ac_configure_args@
 
 %else
+%if %{with backup}
+
+%package %{purpose}
+Summary: PolicyEngine for filesystem backup
+Group: Applications/System
+%pkg_dependencies
+
+%description %{purpose}
+Backup modified files to an external backend.
+
+Generated using options: @ac_configure_args@
+%else
+
 # TMP FS MGR
 
 %package %{purpose}
@@ -114,6 +128,7 @@ Possibly trigger purge by LRU when free disk space is low.
 
 Generated using options: @ac_configure_args@
 
+%endif
 %endif
 %endif
 
@@ -140,8 +155,13 @@ mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 install -m 644 doc/templates/hsm_policy_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/hsm_policy_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 %else
+%if %{with backup}
+install -m 644 doc/templates/backup_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+install -m 644 doc/templates/backup_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+%else
 install -m 644 doc/templates/tmp_fs_mgr_basic.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/tmp_fs_mgr_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+%endif
 %endif
 
 %if %{defined suse_version}
@@ -200,8 +220,13 @@ fi
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_detailed.conf
 %else
+%if %{with backup}
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_basic.conf
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_detailed.conf
+%else
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_detailed.conf
+%endif
 %endif
 
 %{_initrddir}/@PURPOSE_SVC@

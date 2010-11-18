@@ -1,3 +1,8 @@
+mail a P. emmanuel pour dimensionnement db2
+
+- backup:
+	tout flusher même si synchro
+
 - non reg sur backup fs
 - test de non reg: scan suivi de readlog
 

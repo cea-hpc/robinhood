@@ -35,6 +35,10 @@ if SHERPA
   purpose=sherpa
   rpmbuild_opt += --with sherpa
 endif
+if BACKUP_FS
+  purpose=backup
+  rpmbuild_opt += --with backup
+endif
 
 
 
@@ -60,11 +64,6 @@ srpm: robinhood.spec dist
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
 		-ts $(distdir).tar.gz \
 	&& echo "SRPM successfully generated in $(rpm_dir)/SRPMS"
-
-install-exec-local:
-	install -m 750 scripts/rbh-config $(DESTDIR)/$(sbindir)/rbh-config
-
-
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	robinhood.old_spec.in				\
