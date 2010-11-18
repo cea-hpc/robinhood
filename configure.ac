@@ -76,12 +76,13 @@ if test "x$support_lustre" = "xyes" ; then
 
         AC_DEFINE(_LUSTRE, 1, [liblustreapi is available])
 
-        lversion=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
-        lpackage=`rpm -qa "lustre[-_]*modules*" --qf "%{Name}\n"  2>/dev/null | tail -1`
-        if test "$lversion" = ""; then
+        # this defines LVERSION and LPACKAGE variables
+        AX_LUSTRE_VERSION
+
+        if test -z "$LVERSION"; then
             LDEFINES=""
         else
-            LDEFINES="--define=\"lversion $(lversion)\" --define=\"lpackage $(lpackage)\""
+            LDEFINES="--define=\"lversion $LVERSION\" --define=\"lpackage $LPACKAGE\""
         fi
         AC_SUBST(LDEFINES)
 
