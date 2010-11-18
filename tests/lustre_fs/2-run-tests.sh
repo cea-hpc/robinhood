@@ -19,6 +19,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
 	REPORT=../../src/robinhood/rbh-hsm-report
 	CMD=rbh-hsm
+	PURPOSE="LUSTRE_HSM"
 elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsm=0
 	is_backup=0
@@ -1817,7 +1818,7 @@ function run_test
 		if [[ $ERROR = "skip" ]]; then
 			echo "(TEST #$index : skipped)" >> $SUMMARY
 		elif (( $ERROR > 0 )); then
-			echo "TEST #$index : FAILED" >> $SUMMARY
+			echo "TEST #$index : *FAILED*" >> $SUMMARY
 		else
 			echo "TEST #$index : OK" >> $SUMMARY
 		fi
@@ -1860,12 +1861,12 @@ run_test 21b 	test_cfg_parsing detailed none	"parsing of detailed template"
 run_test 21c 	test_cfg_parsing generated none	"parsing of generated template"
 
 echo
-echo "========== TEST SUMMARY =========="
+echo "========== TEST SUMMARY ($PURPOSE) =========="
 cat $SUMMARY
-echo "=================================="
+echo "============================================="
 rm -f $SUMMARY
 if (( $RC > 0 )); then
-	echo "$RC tests failed"
+	echo "$RC failures"
 else
 	echo "All tests passed"
 fi
