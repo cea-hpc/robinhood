@@ -3,29 +3,60 @@
 HUDSON_DIR=$HUDSON_HOME
 NODE_LABEL=lustre
 
-if [[ -z "$LUSTRE_SRC_DIR" ]]; then
-	LUSTRE_SRC_DIR=$HUDSON_DIR/workspace/Lustre-2.0/label/$NODE_LABEL
-fi
+if [[ "$1" == "mount" || -z "$1" ]]; then
 
-# moving to lustre test dir
-if [[ -d $LUSTRE_SRC_DIR ]]; then
-	cd $LUSTRE_SRC_DIR/lustre/tests
+	if [[ -z "$LUSTRE_SRC_DIR" ]]; then
+		LUSTRE_SRC_DIR=$HUDSON_DIR/workspace/Lustre-2.0/label/$NODE_LABEL
+	fi
+
+	# moving to lustre test dir
+	if [[ -d $LUSTRE_SRC_DIR ]]; then
+		cd $LUSTRE_SRC_DIR/lustre/tests
+	else
+		echo "$LUSTRE_SRC_DIR: no such directory"
+		exit 1
+	fi
+
+	# first check if lustre is already mounted
+	mounted=`mount | grep /mnt/lustre | wc -l`
+	if (( $mounted > 0 )); then
+		echo "Lustre is already mounted:"
+		mount | grep /mnt/lustre
+		echo "Unmounting previous instance:"
+		./llmountcleanup.sh
+		umount /mnt/lustre
+	fi
+
+	echo "Mounting lustre..."
+	./llmount.sh || exit 1
+
+	mount | grep lustre
+
+elif [[ "$1" == "umount" ]]; then
+
+	if [[ -z "$LUSTRE_SRC_DIR" ]]; then
+		LUSTRE_SRC_DIR=$HUDSON_DIR/workspace/Lustre-2.0/label/$NODE_LABEL
+	fi
+
+	# moving to lustre test dir
+	if [[ -d $LUSTRE_SRC_DIR ]]; then
+		cd $LUSTRE_SRC_DIR/lustre/tests
+	else
+		echo "$LUSTRE_SRC_DIR: no such directory"
+		exit 1
+	fi
+
+	# first check if lustre is already mounted
+	mounted=`mount | grep /mnt/lustre | wc -l`
+	if (( $mounted > 0 )); then
+		echo "Lustre is already mounted:"
+		mount | grep /mnt/lustre
+		echo "Unmounting previous instance:"
+		./llmountcleanup.sh
+		umount /mnt/lustre
+	fi
+
+	mount | grep lustre
 else
-	echo "$LUSTRE_SRC_DIR: no such directory"
-	exit 1
+	echo "Usage: $0 mount|umount"
 fi
-
-# first check if lustre is already mounted
-mounted=`mount | grep /mnt/lustre | wc -l`
-if (( $mounted > 0 )); then
-	echo "Lustre is already mounted:"
-	mount | grep /mnt/lustre
-	echo "Unmounting previous instance:"
-	./llmountcleanup.sh
-	umount /mnt/lustre
-fi
-
-echo "Mounting lustre..."
-./llmount.sh || exit 1
-
-mount | grep lustre
