@@ -4,7 +4,7 @@ CFG_SCRIPT="../../scripts/rbh-config"
 
 service mysqld start
 
-$CFG_SCRIPT create_db robinhood_test localhost robinhood
+$CFG_SCRIPT test_db  robinhood_test robinhood || $CFG_SCRIPT create_db robinhood_test localhost robinhood
 $CFG_SCRIPT empty_db robinhood_test
 
 LOOP_FILE=/tmp/rbh.loop.cont

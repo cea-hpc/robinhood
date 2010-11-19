@@ -68,7 +68,7 @@ function error
 	echo "ERROR $@"
 	NB_ERROR=$(($NB_ERROR+1))
 
-	echo "$@" >> $TMPERR_FILE
+	echo "ERROR $@" >> $TMPERR_FILE
 }
 
 function set_skipped

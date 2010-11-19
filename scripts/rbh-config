@@ -257,9 +257,9 @@ function enable_changelogs
     echo "Checking event mask..."
 
     if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
-	EVENT_LIST="HSM CREAT UNLNK TRUNC SATTR MTIME CTIME"
+	EVENT_LIST="HSM CREAT UNLNK TRUNC SATTR MTIME CTIME TIME"
     else
-	EVENT_LIST="CREAT UNLNK TRUNC SATTR MTIME CTIME"
+	EVENT_LIST="CREAT UNLNK TRUNC SATTR MTIME CTIME TIME"
     fi
     for event in $EVENT_LIST; do
         missing=0
@@ -460,14 +460,18 @@ function repair_db
     echo "Retrieving table list..."
     tables=`mysql --password="$pass_root" $RBH_DB --batch --skip-column-names -e "SHOW TABLES" | xargs | sed -e 's/ /,/g'`
 
-    echo "Checking/fixing tables..."
-    mysql --password="$pass_root" $RBH_DB -e "REPAIR TABLE $tables"
+    if [[ -n "$tables" ]]; then
+	    echo "Checking/fixing tables ($tables)..."
+	    mysql --password="$pass_root" $RBH_DB -e "REPAIR TABLE $tables"
 
-    if (( $? )); then
-        echo "Command failed"
-        exit 1
+	    if (( $? )); then
+		echo "Command failed"
+		exit 1
+	    else
+		echo "DONE"
+	    fi
     else
-        echo "DONE"
+	echo "No table in database"
     fi
 
 }
@@ -484,7 +488,6 @@ function test_connect
     DB_NAME=$1
     pass=$2
 
-    echo
     echo "Testing connection to '$DB_NAME'..."
     mysql --user=robinhood --password=$pass $DB_NAME << EOF
 quit
@@ -498,10 +501,6 @@ EOF
     fi
 }
 
-
-echo "#######################################################"
-echo "#       Configuration script for RobinHood            #"
-echo "#######################################################"
 
 if [[ "$1" = "precheck_db" ]]; then 
     shift 1

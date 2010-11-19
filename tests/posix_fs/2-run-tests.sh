@@ -48,7 +48,7 @@ function error
 	echo "ERROR $@"
 	((ERROR=$ERROR+1))
 
-	echo "$@" >> $TMPERR_FILE
+	echo "ERROR $@" >> $TMPERR_FILE
 }
 
 function set_skipped

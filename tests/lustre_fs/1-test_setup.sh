@@ -4,7 +4,7 @@ CFG_SCRIPT="../../scripts/rbh-config"
 
 service mysqld start
 
-$CFG_SCRIPT create_db robinhood_lustre localhost robinhood
+$CFG_SCRIPT test_db  robinhood_lustre robinhood || $CFG_SCRIPT create_db robinhood_lustre localhost robinhood
 $CFG_SCRIPT empty_db robinhood_lustre
 $CFG_SCRIPT enable_chglogs lustre
 
