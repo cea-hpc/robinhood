@@ -49,13 +49,13 @@ elif [[ "$1" == "umount" ]]; then
 	# first check if lustre is already mounted
 	mounted=`mount | grep /mnt/lustre | wc -l`
 	if (( $mounted > 0 )); then
-		echo "Lustre is already mounted:"
+		echo "Lustre is mounted:"
 		mount | grep /mnt/lustre
-		echo "Unmounting previous instance:"
+		echo "Unmounting Lustre filesystem:"
 		./llmountcleanup.sh
 		umount /mnt/lustre
 	fi
-        mount | grep "/mnt/lustre" || exit 1
+        mount | grep "/mnt/lustre" && ( echo "Filesystem is still mounted"; exit 1 )
         exit 0
 else
 	echo "Usage: $0 mount|umount"
