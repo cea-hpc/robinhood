@@ -1,0 +1,12 @@
+cd tests/posix_fs
+
+On a scratch test system, run:
+./1-test-setup.sh
+* creates and configure robinhood database
+* create a loopback ext3 filesystem
+
+tests:
+	for brief output:
+		./2-run-tests.sh -q
+	for full output:
+		./2-run-tests.sh
