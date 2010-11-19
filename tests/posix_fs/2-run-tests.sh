@@ -1347,6 +1347,10 @@ function junit_report_success # (class, test_name, time)
 	class="$1"
 	name="$2"
 	time="$3"
+
+	# remove quotes in name
+	name=`echo "$name" | sed -e 's/"//g'`
+
 	echo "<testcase classname=\"$class\" name=\"$name\" time=\"$time\" />" >> $TMPXML_PREFIX.tc
 }
 
@@ -1357,6 +1361,10 @@ function junit_report_failure # (class, test_name, time, err_type)
 	name="$2"
 	time="$3"
 	err_type="$4"
+
+	# remove quotes in name
+	name=`echo "$name" | sed -e 's/"//g'`
+
 	echo "<testcase classname=\"$class\" name=\"$name\" time=\"$time\">" >> $TMPXML_PREFIX.tc
 	echo -n "<failure type=\"$err_type\"><![CDATA[" >> $TMPXML_PREFIX.tc
 	cat $TMPERR_FILE	>> $TMPXML_PREFIX.tc
