@@ -5,6 +5,10 @@ BKROOT="/tmp/backend"
 RBH_OPT=""
 DB=robinhood_test
 
+XML="test_report.xml"
+TMPXML_PREFIX="/tmp/report.xml.$$"
+TMPERR_FILE="/tmp/err_str.$$"
+
 TEMPLATE_DIR='../../doc/templates'
 
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
@@ -24,26 +28,32 @@ PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
 CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log"
 
-SUMMARY="/tmp/test_$PROC_summary.$$"
+SUMMARY="/tmp/test_${PROC}_summary.$$"
 
 ERROR=0
 RC=0
+SKIP=0
+SUCCES=0
+DO_SKIP=0
 
 function error_reset
 {
 	ERROR=0
+	DO_SKIP=0
+	cp /dev/null $TMPERR_FILE
 }
 
 function error
 {
 	echo "ERROR $@"
 	((ERROR=$ERROR+1))
-	((RC=$RC+1))
+
+	echo "$@" >> $TMPERR_FILE
 }
 
 function set_skipped
 {
-	ERROR="skip"
+	DO_SKIP=1
 }
 
 function clean_logs
@@ -197,7 +207,7 @@ function xattr_test
 			nb_migr_arch2=`grep "fileclass=xattr_foo" rh_migr.log | wc -l`
 			nb_migr_arch3=`grep "using policy 'default'" rh_migr.log | wc -l`
 			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
-				echo "********** ERROR: wrong policy cases: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+				error "********** wrong policy cases: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
 			else
 				echo "OK: 1 file for each policy case"
 			fi
@@ -207,7 +217,7 @@ function xattr_test
 			nb_migr_arch2=`grep "archive_num=2" rh_migr.log | wc -l`
 			nb_migr_arch3=`grep "archive_num=3" rh_migr.log | wc -l`
 			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
-				echo "********** ERROR: wrong archive_nums: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+				error "********** wrong archive_nums: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
 			else
 				echo "OK: 1 file to each archive_num"
 			fi
@@ -767,7 +777,7 @@ function test_cnt_trigger
 
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 	done
 
 	# wait for df sync
@@ -832,7 +842,8 @@ function test_trigger_check
 
 	#create test tree of archived files (file_size MB each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
+
 	done
 
 	# wait for df sync
@@ -1074,13 +1085,13 @@ function test_logs
 			# we must extract between "ALERT REPORT" and "END OF ALERT REPORT"
         		local old_ifs="$IFS"
         		IFS=$'\t\n :'
-			alert_lines=(`grep -n ALERT /var/tmp/rbh.stdout | cut -d ':' -f 1 | xargs`)
+			alert_lines=(`grep -n ALERT /tmp/rbh.stdout | cut -d ':' -f 1 | xargs`)
 			IFS="$old_ifs"
 		#	echo ${alert_lines[0]}
 		#	echo ${alert_lines[1]}
 			((nbl=${alert_lines[1]}-${alert_lines[0]}+1))
 			# extract nbl lines stating from line alert_lines[0]:
-			tail -n +${alert_lines[0]} /var/tmp/rbh.stdout | head -n $nbl > /tmp/extract_alert
+			tail -n +${alert_lines[0]} /tmp/rbh.stdout | head -n $nbl > /tmp/extract_alert
 		else
 			grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
 		fi
@@ -1304,17 +1315,74 @@ function test_cfg_parsing
 	grep "read successfully" rh_syntax.log > /dev/null && echo "OK: parsing succeeded"
 }
 
-
 only_test=""
 quiet=0
+junit=0
 
-if [[ "$1" == "-q" ]]; then
-	quiet=1
-	shift
-fi
+while getopts qj o
+do	case "$o" in
+	q)	quiet=1;;
+	j)	junit=1;;
+	[?])	print >&2 "Usage: $0 [-q] [-j] test_nbr ..."
+		exit 1;;
+	esac
+done
+shift $(($OPTIND-1))
+
 if [[ -n "$1" ]]; then
 	only_test=$1
 fi
+
+# initialize tmp files for XML report
+function junit_init
+{
+	cp /dev/null $TMPXML_PREFIX.stderr
+	cp /dev/null $TMPXML_PREFIX.stdout
+	cp /dev/null $TMPXML_PREFIX.tc
+}
+
+# report a success for a test
+function junit_report_success # (class, test_name, time)
+{
+	class="$1"
+	name="$2"
+	time="$3"
+	echo "<testcase classname=\"$class\" name=\"$name\" time=\"$time\" />" >> $TMPXML_PREFIX.tc
+}
+
+# report a failure for a test
+function junit_report_failure # (class, test_name, time, err_type)
+{
+	class="$1"
+	name="$2"
+	time="$3"
+	err_type="$4"
+	echo "<testcase classname=\"$class\" name=\"$name\" time=\"$time\">" >> $TMPXML_PREFIX.tc
+	echo -n "<failure type=\"$err_type\"><![CDATA[" >> $TMPXML_PREFIX.tc
+	cat $TMPERR_FILE	>> $TMPXML_PREFIX.tc
+	echo "]]></failure>" 	>> $TMPXML_PREFIX.tc
+	echo "</testcase>" 	>> $TMPXML_PREFIX.tc
+}
+
+function junit_write_xml # (time, nb_failure, tests)
+{
+	time=$1
+	failure=$2
+	tests=$3
+	
+	cp /dev/null $XML
+	echo "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" > $XML
+	echo "<testsuite name=\"robinhood.PosixTests\" errors=\"0\" failures=\"$failure\" tests=\"$tests\" time=\"$time\">" >> $XML
+	cat $TMPXML_PREFIX.tc 		>> $XML
+	echo -n "<system-out><![CDATA[" >> $XML
+	cat $TMPXML_PREFIX.stdout 	>> $XML
+	echo "]]></system-out>"		>> $XML
+	echo -n "<system-err><![CDATA[" >> $XML
+	cat $TMPXML_PREFIX.stderr 	>> $XML
+	echo "]]></system-err>" 	>> $XML
+	echo "</testsuite>"		>> $XML
+}
+
 
 function cleanup
 {
@@ -1342,24 +1410,53 @@ function run_test
 
 		error_reset
 
-		if (( $quiet == 1 )); then
-			"$@" 2>&1 | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
+		t0=`date "+%s.%N"`
+
+		if (($junit == 1)); then
+			# markup in log
+			echo "==== TEST #$index $2 ($args) ====" >> $TMPXML_PREFIX.stdout
+			echo "==== TEST #$index $2 ($args) ====" >> $TMPXML_PREFIX.stderr
+			"$@" 2>> $TMPXML_PREFIX.stderr >> $TMPXML_PREFIX.stdout
+		elif (( $quiet == 1 )); then
+			"$@" 2>&1 > rh_test.log
+			egrep -i -e "OK|ERR|Fail|skip|pass" rh_test.log
 		else
 			"$@"
 		fi
 
-		if [[ $ERROR = "skip" ]]; then
+		t1=`date "+%s.%N"`
+		dur=`echo "($t1-$t0)" | bc -l`
+		echo "duration: $dur sec"
+
+		if (( $DO_SKIP )); then
 			echo "(TEST #$index : skipped)" >> $SUMMARY
+			SKIP=$(($SKIP+1))
 		elif (( $ERROR > 0 )); then
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
+			RC=$(($RC+1))
+			if (( $junit )); then
+				junit_report_failure "robinhood.$PURPOSE.Posix.Test$index" "Test #$index: $args" "$dur" "ERROR" 
+			fi
 		else
 			echo "TEST #$index : OK" >> $SUMMARY
+			SUCCES=$(($SUCCES+1))
+			if (( $junit )); then
+				junit_report_success "robinhood.$PURPOSE.Posix.Test$index" "Test #$index: $args" "$dur"
+			fi
+
 		fi
 	fi
 }
 
 # clear summary
 cp /dev/null $SUMMARY
+
+#init xml report
+if (( $junit )); then
+	junit_init
+	tinit=`date "+%s.%N"`
+fi
+
 
 #1
 run_test 1	path_test test_path.conf 2 "path matching policies"
@@ -1397,10 +1494,19 @@ echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
 cat $SUMMARY
 echo "============================================="
+
+#init xml report
+if (( $junit )); then
+	tfinal=`date "+%s.%N"`
+	dur=`echo "($tfinal-$tinit)" | bc -l`
+	echo "total test duration: $dur sec"
+	junit_write_xml "$dur" $RC $(( $RC + $SUCCES ))
+	rm -f $TMPXML_PREFIX.stderr $TMPXML_PREFIX.stdout $TMPXML_PREFIX.tc
+fi
+
 rm -f $SUMMARY
 if (( $RC > 0 )); then
-	echo "$RC failures"
+	echo "$RC tests FAILED, $SUCCES successful, $SKIP skipped"
 else
-	echo "All tests passed"
-fi
+	echo "All tests passed ($SUCCES successful, $SKIP skipped)"
 exit $RC
