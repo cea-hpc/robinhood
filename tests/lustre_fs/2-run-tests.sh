@@ -1907,13 +1907,13 @@ function run_test
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
 			RC=$(($RC+1))
 			if (( $junit )); then
-				junit_report_failure "robinhood.$PURPOSE.Lustre.Test$index" "Test #$index: $args" "$dur" "ERROR" 
+				junit_report_failure "robinhood.$PURPOSE.Lustre" "Test #$index: $args" "$dur" "ERROR" 
 			fi
 		else
 			echo "TEST #$index : OK" >> $SUMMARY
 			SUCCES=$(($SUCCES+1))
 			if (( $junit )); then
-				junit_report_success "robinhood.$PURPOSE.Lustre.Test$index" "Test #$index: $args" "$dur"
+				junit_report_success "robinhood.$PURPOSE.Lustre" "Test #$index: $args" "$dur"
 			fi
 		fi
 	fi
