@@ -426,13 +426,17 @@ function test_rh_report
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
 
 	echo "3.Checking reports..."
+	# posix FS do some block preallocation, so we don't know the exact space used:
+	# compare with 'du' return instead.
 	for i in `seq 1 $dircount`; do
+		real=`du -B 512 -c $ROOT/dir.$i/* | grep total | awk '{print $1}'`
+		real=`echo "$real*512" | bc -l`
 		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P $ROOT/dir.$i > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
-		if (( $used != $i*1024*1024 )); then
-			error ": $used != " $(($i*1024*1024))
+		if (( $used != $real )); then
+			error ": $used != $real"
 		else
-			echo "OK: $i MB in $ROOT/dir.$i"
+			echo "OK: space used by files in $ROOT/dir.$i is $real bytes"
 		fi
 	done
 	
@@ -1100,6 +1104,8 @@ function test_logs
 		alert="/tmp/extract_alert"
 		report="/tmp/extract_report"
 	elif (( $syslog )); then
+        # wait for syslog to flush logs to disk
+        sync; sleep 2
 		tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
 		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
@@ -1183,6 +1189,8 @@ function test_logs
 
 		# extract new syslog messages
 		if (( $syslog )); then
+            # wait for syslog to flush logs to disk
+            sync; sleep 2
 			tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
 			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 			egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
@@ -1517,4 +1525,5 @@ if (( $RC > 0 )); then
 	echo "$RC tests FAILED, $SUCCES successful, $SKIP skipped"
 else
 	echo "All tests passed ($SUCCES successful, $SKIP skipped)"
+fi
 exit $RC

@@ -1566,6 +1566,8 @@ function test_logs
 		alert="/tmp/extract_alert"
 		report="/tmp/extract_report"
 	elif (( $syslog )); then
+        # wait for syslog to flush logs to disk
+        sync; sleep 2
 		tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
 		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
@@ -1649,6 +1651,8 @@ function test_logs
 
 		# extract new syslog messages
 		if (( $syslog )); then
+            # wait for syslog to flush logs to disk
+            sync; sleep 2
 			tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
 			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 			egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
