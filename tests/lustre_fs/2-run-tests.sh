@@ -316,12 +316,12 @@ function link_unlink_remove_test
 
 	if (( $is_hsm != 0 )); then
 		echo "3-Archiving file....1"
-		lfs hsm_archive $ROOT/file.1 || error ""
+		lfs hsm_archive $ROOT/file.1 || error "executing lfs hsm_archive"
 
 		echo "3bis-Waiting for end of data migration..."
 		while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions ; do sleep 1; done
 	elif (( $is_backup != 0 )); then
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error ""
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 	fi
 
 	# create links on file.1 files
@@ -1370,7 +1370,7 @@ function test_info_collect
 		echo "OK: $nb_cr files created, $db_expect database operations"
 	else
 		error ": unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
-		exit 1
+		return 1
 	fi
 
 	clean_logs

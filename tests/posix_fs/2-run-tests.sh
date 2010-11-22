@@ -1013,7 +1013,7 @@ function test_info_collect
 		echo "OK: $nb_cr files created, $db_expect database operations"
 	else
 		error ": unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
-		exit 1
+		return 1
 	fi
 
 	clean_logs
