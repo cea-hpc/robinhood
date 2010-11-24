@@ -459,7 +459,8 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
 #endif
 
     /* check that the FS is mounted and has the good type */
-    if ( CheckFSInfo( global_config.fs_path, "lustre", NULL ) )
+    if ( CheckFSInfo( global_config.fs_path, "lustre", NULL,
+                      global_config.check_mounted ) )
     {
         DisplayLog(LVL_CRIT, CHGLOG_TAG, "ERROR checking filesystem %s",
             global_config.fs_path );

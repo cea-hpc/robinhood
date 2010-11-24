@@ -1,8 +1,8 @@
 - backup:
-	ajouter un backend check (pour verifier la presence du montage)
-	support des migration_hints
-	format de config classique pour le backend
 	tout flusher même si synchro
+
+- remplacer MAXPATHLEN par RBH_PATH_MAX
+- voir si les 1024 peuvent etre remplaces par RBH_PATH_MAX
 
 - non reg sur backup fs
 - test de non reg: scan suivi de readlog
@@ -34,6 +34,7 @@ Push 220p2 to oracle repository
 
 Doc:
 ====
+* doc backend ext/backup
 * adding doc about syslog logging
 * adding doc about exit_on_timeout
 

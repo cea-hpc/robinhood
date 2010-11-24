@@ -112,13 +112,14 @@ NULL
     rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_path",
                          PARAM_MANDATORY | STR_PARAM_ABSOLUTE_PATH |
                          STR_PARAM_REMOVE_FINAL_SLASH |
-                         STR_PARAM_NO_WILDCARDS, conf->fs_path, MAXPATHLEN, NULL, NULL, msg_out );
+                         STR_PARAM_NO_WILDCARDS, conf->fs_path, RBH_PATH_MAX,
+                         NULL, NULL, msg_out );
     if ( rc )
         return rc;
 
 #ifdef _HAVE_FID
     rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_type",
-                         PARAM_MANDATORY, conf->fs_type, FILENAME_MAX, NULL, NULL, msg_out );
+                         PARAM_MANDATORY, conf->fs_type, RBH_NAME_MAX, NULL, NULL, msg_out );
     if ( ( rc != ENOENT ) && strcmp( conf->fs_type, "lustre" ) )
     {
 #ifdef _LUSTRE_HSM
@@ -130,7 +131,7 @@ NULL
     }
 #else
     rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_type",
-                         PARAM_MANDATORY, conf->fs_type, FILENAME_MAX, NULL, NULL, msg_out );
+                         PARAM_MANDATORY, conf->fs_type, RBH_NAME_MAX, NULL, NULL, msg_out );
     if ( rc )
         return rc;
 #endif

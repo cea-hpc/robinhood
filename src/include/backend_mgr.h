@@ -1,8 +1,6 @@
 #ifndef _BACKEND_MGR_H
 #define _BACKEND_MGR_H
 
-#define OPT_STRING_MAX 1024
-
 typedef struct backend_t
 {
 	/* are archive asynchronous? */
@@ -14,8 +12,12 @@ typedef struct backend_t
 
 typedef struct backend_config_t
 {
-	/* backend option string */
-	char opt_string[OPT_STRING_MAX];
+    char root[MAXPATHLEN];
+    char mnt_type[RBH_NAME_MAX];
+    char action_cmd[MAXPATHLEN];
+    unsigned int copy_timeout; /* 0=disabled */
+    unsigned int xattr_support:1;
+    unsigned int check_mounted:1;
 } backend_config_t;
 
 int            SetDefault_Backend_Config( void *module_config, char *msg_out );

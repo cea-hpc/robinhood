@@ -52,152 +52,26 @@ int rbhext_compat_flags()
     return compat_flags;
 }
 
-
-/* options for getsubopt */
-enum
-{
-    OPT_BACKEND_ROOT = 0,
-    OPT_MNT_TYPE,
-    OPT_COPYTOOL,
-    OPT_XATTRS,
-    OPT_COPY_TIMEOUT,
-};
-
-char * const opts[] =
-{
-    [OPT_BACKEND_ROOT]  = "root",
-    [OPT_MNT_TYPE]      = "mnt_type",
-    [OPT_COPYTOOL]      = "action_cmd",
-    [OPT_XATTRS]        = "xattrs",
-    [OPT_COPY_TIMEOUT]  = "timeout",
-    NULL
-};
-
-static struct backend_config
-{
-    char root[MAXPATHLEN];
-    char mnt_type[RBH_NAME_MAX];
-    char action_cmd[MAXPATHLEN];
-    unsigned int copy_timeout; /* 0=disabled */
-    unsigned int xattr_support:1;
-} config = {
-    .root = "/backend",
-    .mnt_type = "nfs",
-    .action_cmd = "/usr/sbin/rbhext_tool",
-    .copy_timeout = 60*15, /* timeout 15min after last file operation */
-    .xattr_support = 0
-};
-
+static backend_config_t config;
 static dev_t backend_dev = 0;
-
 
 /**
  * Initialize the extension module.
  * \param[in] config_string specific config string (e.g path to config file...)
  * \param[out] p_behaviors_flags pointer to output mask that describes extension behavior
  */
-int rbhext_init( const char * config_string,
+int rbhext_init( const backend_config_t * conf,
                  unsigned int * p_behaviors_flags )
 {
-    char subopts[OPT_STRING_MAX];
-    char * curr;
-    char * value;
-    int tmpval;
-    int len;
     int rc;
 
-    if ( strlen( config_string ) >= OPT_STRING_MAX )
-        return -E2BIG;
-    strcpy(subopts, config_string);
-
-    /* the config string is in the getsubopt format: opt1=xxx,opt2,opt3=yyy */
-    curr = subopts;
-    while (*curr != '\0')
-    {
-        switch( getsubopt(&curr, opts, &value) )
-        {
-            case OPT_BACKEND_ROOT:
-                if (value == NULL)
-                {
-                    DisplayLog(LVL_CRIT, RBHEXT_TAG, "Expected value for suboption '%s'",
-                    opts[OPT_BACKEND_ROOT] );
-                    return -EINVAL;
-                }
-                strcpy(config.root, value);
-
-                /* remove final slash */
-                len = strlen(config.root);
-                if ( (len > 1) && (config.root[len-1] == '/' ))
-                    config.root[len-1] = '\0';
-                break;
-
-           case OPT_MNT_TYPE:
-                if (value == NULL)
-                {
-                    DisplayLog(LVL_CRIT, RBHEXT_TAG, "Expected value for suboption '%s'",
-                    opts[OPT_MNT_TYPE] );
-                    return -EINVAL;
-                }
-                strcpy(config.mnt_type, value);
-
-
-            case OPT_COPYTOOL:
-                if (value == NULL)
-                {
-                    DisplayLog(LVL_CRIT, RBHEXT_TAG, "Expected value for suboption '%s'",
-                    opts[OPT_COPYTOOL] );
-                    return -EINVAL;
-                }
-                strcpy(config.action_cmd, value);
-                break;
-
-            case OPT_COPY_TIMEOUT:
-                if (value == NULL)
-                {
-                    DisplayLog(LVL_CRIT, RBHEXT_TAG, "Expected value for suboption '%s'",
-                    opts[OPT_COPY_TIMEOUT] );
-                    return -EINVAL;
-                }
-                tmpval = str2int(value);
-                if ( tmpval < 0 )
-                {
-                    DisplayLog(LVL_CRIT, RBHEXT_TAG, "integer expected for suboption '%s'",
-                    opts[OPT_COPY_TIMEOUT] );
-                    return -EINVAL;
-                }
-                config.copy_timeout = tmpval;
-                break;
-
-            case OPT_XATTRS:
-#ifdef HAVE_ATTR_XATTR_H
-                config.xattr_support = 1;
-#else
-                DisplayLog(LVL_CRIT, RBHEXT_TAG, "Unsupported option %s: recompile robinhood with xattr support",
-                           opts[OPT_XATTRS]);
-                config.xattr_support = 0;
-#endif
-                break;
-
-            default:
-                /* Unknown suboption. */
-                DisplayLog(LVL_CRIT, RBHEXT_TAG, "Unknown suboption '%s'", value);
-                return -EINVAL;
-        }
-    }
-
-    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Backend extension config:");
-    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = '%s'", opts[OPT_BACKEND_ROOT], config.root );
-    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = '%s'", opts[OPT_MNT_TYPE], config.mnt_type );
-    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = '%s'", opts[OPT_COPYTOOL], config.action_cmd );
-    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = %u", opts[OPT_COPY_TIMEOUT], config.copy_timeout );
-    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = %s", opts[OPT_XATTRS], bool2str(config.xattr_support));
+    config = *conf;
 
     /* synchronous archiving and rm support */
     *p_behaviors_flags = RBHEXT_SYNC_ARCHIVE | RBHEXT_RM_SUPPORT;
 
-
     /* check that backend filesystem is mounted */
-    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev );
+    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev, config.check_mounted );
     if ( rc )
         return -rc;
 
@@ -748,7 +622,11 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         sprintf( tmp, "%s.%s", bkpath, COPY_EXT );
 
         /* execute the archive command */
-        rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", fspath, tmp );
+        if ( hints )
+            rc = execute_shell_command( config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
+        else
+            rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", fspath, tmp );
+
         if (rc)
         {
             /* cleanup tmp copy */

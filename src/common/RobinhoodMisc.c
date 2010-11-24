@@ -335,7 +335,7 @@ static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
  * Also return the associated device number.
  * (for STAY_IN_FS security option).
  */
-int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev )
+int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mounted )
 {
     FILE          *fp;
     struct mntent *p_mnt;

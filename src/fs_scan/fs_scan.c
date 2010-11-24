@@ -954,7 +954,8 @@ int Robinhood_InitScanModule(  )
     pthread_mutex_init( &lock_scan, NULL );
 
     /* check device, filesystem type, ... */
-    if ( ( rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev ) ) != 0 )
+    if ( ( rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
+                             global_config.check_mounted ) ) != 0 )
         return ( rc );
 
     if ( !strcmp( global_config.fs_type, "lustre" ) )
@@ -1304,7 +1305,7 @@ int Robinhood_CheckScanDeadlines(  )
             if ( thread_list[i].current_task != NULL )
                 nb_assigned++;
 
-            if ( ( thread_list[i].current_task != NULL )
+            if ( ( thread_list[i].current_task != NULL ) && (fs_scan_config.scan_op_timeout != 0)
                  && ( time( NULL ) - thread_list[i].last_action > fs_scan_config.scan_op_timeout ) )
             {
                 DisplayLog( LVL_VERB, FSSCAN_TAG,
@@ -1380,7 +1381,7 @@ int Robinhood_CheckScanDeadlines(  )
         /* if no thread has a task assigned, and an scan is running for a while,
          * there is something anormal: so, terminate the daemon.
          */
-        if ( ( nb_assigned == 0 )
+        if ( ( nb_assigned == 0 ) && (fs_scan_config.scan_op_timeout != 0)
              && ( now - loc_last_action > fs_scan_config.scan_op_timeout )
              && ( now - loc_start_time > fs_scan_config.scan_op_timeout ) )
         {

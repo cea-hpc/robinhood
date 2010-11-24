@@ -1207,6 +1207,7 @@ static int write_migration_policy_template( FILE * output )
 }
 #endif
 
+#ifdef HAVE_PURGE_POLICY
 #ifndef _LUSTRE_HSM
 /* Template for NON-lustre-HSM purposes */
 static int write_purge_policy_template( FILE * output )
@@ -1277,7 +1278,7 @@ static int write_purge_policy_template( FILE * output )
     return 0;
 }
 
-#elif defined(HAVE_PURGE_POLICY)
+#else
 
 static int write_purge_policy_template( FILE * output )
 {
@@ -1353,8 +1354,8 @@ static int write_purge_policy_template( FILE * output )
 
     return 0;
 }
-
-#endif /* LUSTRE_HSM */
+#endif /* HSM switch */
+#endif /* purge policy */
 
 /* get attribute mask for hints */
 static int hints_mask(  char * hints )

@@ -24,6 +24,7 @@
 #include "backend_ext.h"
 #include "backend_mgr.h"
 #include "RobinhoodConfig.h"
+#include "RobinhoodMisc.h"
 
 backend_t	backend;
 
@@ -34,25 +35,37 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
 {
     backend_config_t *conf = ( backend_config_t * ) module_config;
     msg_out[0] = '\0';
-    conf->opt_string[0] = '\0';
 
+    strcpy( conf->root, "/backend" );
+    strcpy( conf->mnt_type, "nfs" );
+    strcpy( conf->action_cmd, "/usr/sbin/rbhext_tool" );
+    conf->copy_timeout = 21600; /* =6h (0=disabled) */
+    conf->xattr_support = FALSE;
+    conf->check_mounted = TRUE;
     return 0;
 }
 
 int Write_Backend_ConfigDefault( FILE * output )
 {
     print_begin_block( output, 0, BACKEND_BLOCK, NULL );
-    print_line( output, 1, "opt_string    : \"\"" );
+    print_line( output, 1, "root          : \"/backend\"" );
+    print_line( output, 1, "mnt_type      : nfs ");
+    print_line( output, 1, "action_cmd    : \"/usr/sbin/rbhext_tool\"" );
+    print_line( output, 1, "copy_timeout  : 6h" );
+    print_line( output, 1, "xattr_support : FALSE");
+    print_line( output, 1, "check_mounted : TRUE" );
     print_end_block( output, 0 );
     return 0;
 }
 
 int Read_Backend_Config( config_file_t config, void *module_config, char *msg_out, int for_reload )
 {
-    int            rc;
+    int            rc, tmpval;
     backend_config_t *conf = ( backend_config_t * ) module_config;
 
-    static const char *allowed_params[] = { "opt_string" };
+    static const char *allowed_params[] = {
+        "root", "mnt_type", "action_cmd", "copy_timeout",
+        "xattr_support", "check_mounted", NULL };
 
     /* get Backend block */
 
@@ -69,10 +82,58 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
 
     /* retrieve parameters */
 
-    rc = GetStringParam( block, BACKEND_BLOCK, "opt_string",0,
-                         conf->opt_string, OPT_STRING_MAX, NULL, NULL, msg_out );
+    rc = GetStringParam( block, BACKEND_BLOCK, "root",
+                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_REMOVE_FINAL_SLASH |
+                         STR_PARAM_NO_WILDCARDS, conf->root, RBH_PATH_MAX,
+                         NULL, NULL, msg_out );
     if ( rc )
         return rc;
+
+    rc = GetStringParam( block, BACKEND_BLOCK, "mnt_type", 0,
+                         conf->mnt_type, RBH_NAME_MAX, NULL, NULL, msg_out );
+    if ( rc )
+        return rc;
+
+    rc = GetStringParam( block, BACKEND_BLOCK, "action_cmd", 0,
+                         conf->action_cmd, RBH_PATH_MAX,
+                         NULL, NULL, msg_out );
+    if ( rc )
+        return rc;
+
+    rc = GetStringParam( block, BACKEND_BLOCK, "mnt_type", 0,
+                         conf->mnt_type, RBH_NAME_MAX, NULL, NULL, msg_out );
+    if ( rc )
+        return rc;
+
+    rc = GetDurationParam( block, BACKEND_BLOCK, "copy_timeout",
+                           INT_PARAM_POSITIVE,    /* 0 is authorized => no timeout */
+                           ( int * ) &conf->copy_timeout, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    /* /!\ xattr_support is part of a bit field, it should not be passed directly: using tmpval instead */
+    rc = GetBoolParam( block, BACKEND_BLOCK, "xattr_support",
+                       0, &tmpval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc != ENOENT )
+        conf->xattr_support = tmpval;
+
+#ifndef HAVE_ATTR_XATTR_H
+    if ( config.xattr_support )
+    {
+                DisplayLog(LVL_CRIT, BKL_TAG, "xattr_support option cannot be activated: you need recompile robinhood with xattr support");
+                config.xattr_support = 0;
+    }
+#endif
+
+    /* /!\ check_mounted is part of a bit field, it should not be passed directly: using tmpval instead */
+    rc = GetBoolParam( block, BACKEND_BLOCK, "check_mounted",
+                       0, &tmpval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc != ENOENT )
+        conf->check_mounted = tmpval;
 
     CheckUnknownParameters( block, BACKEND_BLOCK, allowed_params );
 
@@ -85,12 +146,16 @@ int Reload_Backend_Config( void *module_config )
 
 int Write_Backend_ConfigTemplate( FILE * output )
 {
-
     print_begin_block( output, 0, BACKEND_BLOCK, NULL );
-    print_line( output, 1, "# opt_string has the same syntax as opts in mount -o <opts>");
-    print_line( output, 1, "# for basic backend, possible options are:" );
-    print_line( output, 1, "# root=<root_path>,mnt_type=<mount_type>,action_cmd=<cmd_path>,xattrs,timeout=<sec>");
-    print_line( output, 1, "opt_string = \"root=/backend,mnt_type=nfs\"; " );
+    print_line( output, 1, "# backend path and type" );
+    print_line( output, 1, "root          = \"/backend\";" );
+    print_line( output, 1, "mnt_type      = nfs;");
+    print_line( output, 1, "# copy wrapper script" );
+    print_line( output, 1, "action_cmd    = \"/usr/sbin/rbhext_tool\";" );
+    print_line( output, 1, "copy_timeout  = 6h;" );
+    print_line( output, 1, "xattr_support = FALSE;");
+    print_line( output, 1, "# check if the backend is mounted on startup" );
+    print_line( output, 1, "check_mounted = TRUE; " );
     print_end_block( output, 0 );
     return 0;
 }
@@ -100,6 +165,14 @@ int Backend_Start( backend_config_t * config, int flags )
 {
     int rc;
 	unsigned int behav_flags, compat_flags;
+
+    DisplayLog(LVL_DEBUG, BKL_TAG, "Backend extension config:");
+    DisplayLog(LVL_DEBUG, BKL_TAG, "root            =   \"%s\"", config->root );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "mnt_type        =   %s", config->mnt_type );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "check_mounted   =   %s", bool2str(config->check_mounted));
+    DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd      =   \"%s\"", config->action_cmd );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "copy_timeout    =   %us", config->copy_timeout );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support   =   %s",  bool2str(config->xattr_support) );
 
     /* first check compatibility flags */
     compat_flags = rbhext_compat_flags();
@@ -112,7 +185,7 @@ int Backend_Start( backend_config_t * config, int flags )
         }
     }
 
-	rc = rbhext_init( config->opt_string, &behav_flags );
+	rc = rbhext_init( config, &behav_flags );
 	if (rc)
 	{
 		DisplayLog( LVL_CRIT, BKL_TAG, "Error %d initializing backend: %s",

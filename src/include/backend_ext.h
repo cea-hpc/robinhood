@@ -22,6 +22,7 @@
 
 /* includes all types definitions */
 #include "list_mgr.h"
+#include "backend_mgr.h"
 /**
  * \addtogroup EXTENSIONS
  * @{
@@ -46,7 +47,7 @@ int rbhext_compat_flags();
  * \param[in] config_string specific config string (e.g path to config file...)
  * \param[out] p_behaviors_flags pointer to output mask that describes extension behavior
  */
-int rbhext_init( const char * config_string,
+int rbhext_init( const backend_config_t * conf,
                  unsigned int * p_behaviors_flags );
 
 /**
