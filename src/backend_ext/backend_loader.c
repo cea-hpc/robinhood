@@ -86,23 +86,23 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_REMOVE_FINAL_SLASH |
                          STR_PARAM_NO_WILDCARDS, conf->root, RBH_PATH_MAX,
                          NULL, NULL, msg_out );
-    if ( rc )
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
     rc = GetStringParam( block, BACKEND_BLOCK, "mnt_type", 0,
                          conf->mnt_type, RBH_NAME_MAX, NULL, NULL, msg_out );
-    if ( rc )
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
     rc = GetStringParam( block, BACKEND_BLOCK, "action_cmd", 0,
                          conf->action_cmd, RBH_PATH_MAX,
                          NULL, NULL, msg_out );
-    if ( rc )
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
     rc = GetStringParam( block, BACKEND_BLOCK, "mnt_type", 0,
                          conf->mnt_type, RBH_NAME_MAX, NULL, NULL, msg_out );
-    if ( rc )
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
     rc = GetDurationParam( block, BACKEND_BLOCK, "copy_timeout",

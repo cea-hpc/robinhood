@@ -394,8 +394,8 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
 
             pathlen = strlen( p_mnt->mnt_dir );
 
-            /* if global_config.check_mounted is FALSE, root filesystem is allowed */
-            if ( !global_config.check_mounted && ( pathlen > outlen )
+            /* if check_mounted is FALSE, root filesystem is allowed */
+            if ( !check_mounted && ( pathlen > outlen )
                  && !strcmp( p_mnt->mnt_dir, "/" ) )
             {
                 DisplayLog( LVL_DEBUG, "CheckFS",
@@ -427,7 +427,7 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
     {
         DisplayLog( LVL_CRIT, "CheckFS", "No mount entry matches '%s' in %s", rpath, MOUNTED );
         DisplayLog( LVL_CRIT, "CheckFS",
-                    "Set 'check_mounted = FALSE' in general configuration section to force using root filesystem" );
+                    "Set 'check_mounted = FALSE' in configuration to force using root filesystem" );
         endmntent( fp );
         return ENOENT;
     }
@@ -473,7 +473,7 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
     }
 
     /* check that filesystem device is different from root (except if check_mounted is disabled) */
-    if ( ( pathstat.st_dev == parentmntstat.st_dev ) && global_config.check_mounted )
+    if ( ( pathstat.st_dev == parentmntstat.st_dev ) && check_mounted )
     {
         DisplayLog( LVL_CRIT, "CheckFS",
                     "/!\\ ERROR /!\\ Filesystem '%s' is not mounted ! dev(%s)=dev(%s)=%#"
