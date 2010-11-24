@@ -101,7 +101,7 @@ char          *gid2str( gid_t gid, char *groupname );
  * (for STAY_IN_FS security option).
  */
 int            CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev,
-                            int check_mounted );
+                            int check_mounted, int save_fs );
 
 /**
  *  Check that FS path is the same as the last time.

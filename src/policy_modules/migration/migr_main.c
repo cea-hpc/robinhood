@@ -282,7 +282,7 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
 
     /* Check mount point and FS type.  */
     rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
-                      global_config.check_mounted );
+                      global_config.check_mounted, TRUE );
     if ( rc != 0 )
         return rc;
 

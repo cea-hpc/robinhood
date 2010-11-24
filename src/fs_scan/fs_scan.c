@@ -955,7 +955,7 @@ int Robinhood_InitScanModule(  )
 
     /* check device, filesystem type, ... */
     if ( ( rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
-                             global_config.check_mounted ) ) != 0 )
+                             global_config.check_mounted, TRUE ) ) != 0 )
         return ( rc );
 
     if ( !strcmp( global_config.fs_type, "lustre" ) )

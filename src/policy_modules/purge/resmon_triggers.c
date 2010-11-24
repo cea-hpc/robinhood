@@ -1997,7 +1997,8 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
     int            rc;
 
     /* Check mount point and FS type.  */
-    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev );
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
+                      global_config.check_mounted, TRUE );
     if ( rc != 0 )
         return rc;
 

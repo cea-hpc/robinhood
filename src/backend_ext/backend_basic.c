@@ -71,7 +71,8 @@ int rbhext_init( const backend_config_t * conf,
     *p_behaviors_flags = RBHEXT_SYNC_ARCHIVE | RBHEXT_RM_SUPPORT;
 
     /* check that backend filesystem is mounted */
-    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev, config.check_mounted );
+    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev,
+                      config.check_mounted, FALSE );
     if ( rc )
         return -rc;
 

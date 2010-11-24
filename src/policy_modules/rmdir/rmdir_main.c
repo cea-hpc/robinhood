@@ -1310,7 +1310,8 @@ int Start_Rmdir( rmdir_config_t * p_config, int flags )
     rmdir_flags = flags;
 
     /* Check mount point and FS type.  */
-    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev );
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
+                      global_config.check_mounted, TRUE );
     if ( rc != 0 )
         return rc;
 

@@ -263,8 +263,8 @@ function xattr_test
 
 		if (( $is_backup != 0 )); then
 			# checking policy
-			nb_migr_arch1=`grep "fileclass=xattr_bar" rh_migr.log | wc -l`
-			nb_migr_arch2=`grep "fileclass=xattr_foo" rh_migr.log | wc -l`
+			nb_migr_arch1=`grep "hints='fileclass=xattr_bar'" rh_migr.log | wc -l`
+			nb_migr_arch2=`grep "hints='fileclass=xattr_foo'" rh_migr.log | wc -l`
 			nb_migr_arch3=`grep "using policy 'default'" rh_migr.log | wc -l`
 			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
 				error "********** wrong policy cases: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
