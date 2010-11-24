@@ -57,6 +57,7 @@ int rbhext_compat_flags()
 enum
 {
     OPT_BACKEND_ROOT = 0,
+    OPT_MNT_TYPE,
     OPT_COPYTOOL,
     OPT_XATTRS,
     OPT_COPY_TIMEOUT,
@@ -65,6 +66,7 @@ enum
 char * const opts[] =
 {
     [OPT_BACKEND_ROOT]  = "root",
+    [OPT_MNT_TYPE]      = "mnt_type",
     [OPT_COPYTOOL]      = "action_cmd",
     [OPT_XATTRS]        = "xattrs",
     [OPT_COPY_TIMEOUT]  = "timeout",
@@ -74,15 +76,19 @@ char * const opts[] =
 static struct backend_config
 {
     char root[MAXPATHLEN];
+    char mnt_type[RBH_NAME_MAX];
     char action_cmd[MAXPATHLEN];
     unsigned int copy_timeout; /* 0=disabled */
     unsigned int xattr_support:1;
 } config = {
     .root = "/backend",
+    .mnt_type = "nfs",
     .action_cmd = "/usr/sbin/rbhext_tool",
     .copy_timeout = 60*15, /* timeout 15min after last file operation */
     .xattr_support = 0
 };
+
+static dev_t backend_dev = 0;
 
 
 /**
@@ -98,6 +104,7 @@ int rbhext_init( const char * config_string,
     char * value;
     int tmpval;
     int len;
+    int rc;
 
     if ( strlen( config_string ) >= OPT_STRING_MAX )
         return -E2BIG;
@@ -123,6 +130,17 @@ int rbhext_init( const char * config_string,
                 if ( (len > 1) && (config.root[len-1] == '/' ))
                     config.root[len-1] = '\0';
                 break;
+
+           case OPT_MNT_TYPE:
+                if (value == NULL)
+                {
+                    DisplayLog(LVL_CRIT, RBHEXT_TAG, "Expected value for suboption '%s'",
+                    opts[OPT_MNT_TYPE] );
+                    return -EINVAL;
+                }
+                strcpy(config.mnt_type, value);
+
+
             case OPT_COPYTOOL:
                 if (value == NULL)
                 {
@@ -132,6 +150,7 @@ int rbhext_init( const char * config_string,
                 }
                 strcpy(config.action_cmd, value);
                 break;
+
             case OPT_COPY_TIMEOUT:
                 if (value == NULL)
                 {
@@ -158,6 +177,7 @@ int rbhext_init( const char * config_string,
                 config.xattr_support = 0;
 #endif
                 break;
+
             default:
                 /* Unknown suboption. */
                 DisplayLog(LVL_CRIT, RBHEXT_TAG, "Unknown suboption '%s'", value);
@@ -167,12 +187,20 @@ int rbhext_init( const char * config_string,
 
     DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Backend extension config:");
     DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = '%s'", opts[OPT_BACKEND_ROOT], config.root );
+    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = '%s'", opts[OPT_MNT_TYPE], config.mnt_type );
     DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = '%s'", opts[OPT_COPYTOOL], config.action_cmd );
     DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = %u", opts[OPT_COPY_TIMEOUT], config.copy_timeout );
     DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s = %s", opts[OPT_XATTRS], bool2str(config.xattr_support));
 
     /* synchronous archiving and rm support */
     *p_behaviors_flags = RBHEXT_SYNC_ARCHIVE | RBHEXT_RM_SUPPORT;
+
+
+    /* check that backend filesystem is mounted */
+    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev );
+    if ( rc )
+        return -rc;
+
     return 0;
 }
 

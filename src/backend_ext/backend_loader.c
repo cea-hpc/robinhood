@@ -89,8 +89,8 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_begin_block( output, 0, BACKEND_BLOCK, NULL );
     print_line( output, 1, "# opt_string has the same syntax as opts in mount -o <opts>");
     print_line( output, 1, "# for basic backend, possible options are:" );
-    print_line( output, 1, "# root=<root_path>,action_cmd=<cmd_path>,xattrs,timeout=<sec>");
-    print_line( output, 1, "opt_string = \"root=/backend\"; " );
+    print_line( output, 1, "# root=<root_path>,mnt_type=<mount_type>,action_cmd=<cmd_path>,xattrs,timeout=<sec>");
+    print_line( output, 1, "opt_string = \"root=/backend,mnt_type=nfs\"; " );
     print_end_block( output, 0 );
     return 0;
 }

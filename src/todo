@@ -1,4 +1,7 @@
 - backup:
+	ajouter un backend check (pour verifier la presence du montage)
+	support des migration_hints
+	format de config classique pour le backend
 	tout flusher même si synchro
 
 - non reg sur backup fs
