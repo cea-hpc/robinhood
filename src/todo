@@ -1,3 +1,16 @@
+- fixer le bug du test 22 pour les prepared statements
+
+- backup:
+	tout flusher même si synchro
+
+- remplacer MAXPATHLEN par RBH_PATH_MAX
+- voir si les 1024 peuvent etre remplaces par RBH_PATH_MAX
+
+- non reg sur backup fs
+- test de non reg: scan suivi de readlog
+
+- warning si nlink d'un fichier > 1
+
 - criteria on stripe_count
 
 - live summaries:
