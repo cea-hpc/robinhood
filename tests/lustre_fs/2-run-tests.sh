@@ -36,6 +36,9 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	RH="../../src/robinhood/rbh-backup $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
 	CMD=rbh-backup
+	if [ ! -d $BKROOT ]; then
+		mkdir -p $BKROOT
+	fi
 fi
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
@@ -1389,6 +1392,79 @@ function test_info_collect
 	fi
 }
 
+function readlog_chk
+{
+	config_file=$1
+
+	echo "Reading changelogs..."
+	$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error "reading logs"
+	grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
+	clean_logs
+}
+
+function scan_chk
+{
+	config_file=$1
+
+	echo "Scanning..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
+	grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
+	clean_logs
+}
+
+function test_info_collect2
+{
+	config_file=$1
+	flavor=$2
+	policy_str="$3"
+
+	clean_logs
+
+	if (($no_log != 0 && $flavor != 1 )); then
+		echo "Changelogs not supported on this config: skipped"
+		set_skipped
+		return 1
+	fi
+
+	# create 10k entries
+	../fill_fs.sh $ROOT 10000 >/dev/null
+
+	# flavor 1: scan only x3
+	# flavor 2: mixed (readlog/scan/readlog/scan)
+	# flavor 3: mixed (readlog/readlog/scan/scan)
+	# flavor 4: mixed (scan/scan/readlog/readlog)
+
+	if (( $flavor == 1 )); then
+		scan_chk $config_file
+		scan_chk $config_file
+		scan_chk $config_file
+	elif (( $flavor == 2 )); then
+		readlog_chk $config_file
+		scan_chk    $config_file
+		# touch entries before reading log
+		../fill_fs.sh $ROOT 10000 >/dev/null
+		readlog_chk $config_file
+		scan_chk    $config_file
+	elif (( $flavor == 3 )); then
+		readlog_chk $config_file
+		# touch entries before reading log again
+		../fill_fs.sh $ROOT 10000 >/dev/null
+		readlog_chk $config_file
+		scan_chk    $config_file
+		scan_chk    $config_file
+	elif (( $flavor == 4 )); then
+		scan_chk    $config_file
+		scan_chk    $config_file
+		readlog_chk $config_file
+		# touch entries before reading log again
+		../fill_fs.sh $ROOT 10000 >/dev/null
+		readlog_chk $config_file
+	else
+		error "Unexpexted test flavor '$flavor'"
+	fi
+}
+
+
 function test_pools
 {
 	config_file=$1
@@ -1971,6 +2047,11 @@ run_test 20f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert bat
 run_test 21a 	test_cfg_parsing basic none		"parsing of basic template"
 run_test 21b 	test_cfg_parsing detailed none	"parsing of detailed template"
 run_test 21c 	test_cfg_parsing generated none	"parsing of generated template"
+
+run_test 22a 	test_info_collect2  info_collect2.conf	1 "scan x3"
+run_test 22b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
+run_test 22c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
+run_test 22d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="

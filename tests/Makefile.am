@@ -20,6 +20,7 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
 	lustre_fs/cfg/test_trig.conf	\
 	lustre_fs/cfg/test_trig2.conf   \
     lustre_fs/cfg/info_collect.conf \
+    lustre_fs/cfg/info_collect2.conf \
     lustre_fs/cfg/log1.conf         \
     lustre_fs/cfg/log1b.conf        \
     lustre_fs/cfg/log2.conf         \
@@ -37,6 +38,7 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     posix_fs/cfg/common.conf    \
     posix_fs/cfg/immediate_rm.conf  \
     posix_fs/cfg/info_collect.conf  \
+    posix_fs/cfg/info_collect2.conf  \
     posix_fs/cfg/log1.conf  \
     posix_fs/cfg/log1b.conf \
     posix_fs/cfg/log2.conf  \
@@ -58,4 +60,5 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     posix_fs/cfg/test_updt.conf     \
     posix_fs/cfg/test_xattr.conf    \
     posix_fs/cleanup.sh             \
-	test_compil_switches.sh
+	test_compil_switches.sh	    \
+	fill_fs.sh

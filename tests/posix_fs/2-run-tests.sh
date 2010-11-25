@@ -1032,6 +1032,35 @@ function test_info_collect
 	fi
 }
 
+function scan_chk
+{
+       config_file=$1
+
+       echo "Scanning..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+       grep "DB query failed" rh_scan.log && error ": a DB query failed: `grep 'DB query failed' rh_scan.log | tail -1`"
+       clean_logs
+}
+
+function test_info_collect2
+{
+       config_file=$1
+       dummy=$2
+       policy_str="$3"
+
+       clean_logs
+
+       # create 10k entries
+       ../fill_fs.sh $ROOT 10000 >/dev/null
+
+       scan_chk $config_file
+       scan_chk $config_file
+       scan_chk $config_file
+}
+
+
+
+
 function test_logs
 {
 	config_file=$1
@@ -1505,6 +1534,9 @@ run_test 20f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert bat
 run_test 21a 	test_cfg_parsing basic none		"parsing of basic template"
 run_test 21b 	test_cfg_parsing detailed none	"parsing of detailed template"
 run_test 21c 	test_cfg_parsing generated none	"parsing of generated template"
+
+run_test 22a   test_info_collect2  info_collect2.conf  1 "scan x3"
+
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
