@@ -572,7 +572,7 @@ int result2attrset( table_enum table, char **result_tab,
                 return DB_BUFFER_TOO_SMALL;
             }
 
-            if ( result_tab[nbfields] == NULL )
+            if ( (result_tab == NULL) || (result_tab[nbfields] == NULL) )
             {
                 p_set->attr_mask &= ~( 1 << i );
                 nbfields++;

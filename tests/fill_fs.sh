@@ -30,7 +30,7 @@ elif (( $COUNT <= 10000 )); then
 	fpd=$(( $COUNT/100 ))
 	for d in `seq 1 100`; do
 		echo  "$ROOT/dir.$d"
-		mkdir "$ROOT/dir.$d" || exit 1
+		mkdir -p "$ROOT/dir.$d" || exit 1
 		for f in `seq 1 $fpd`; do
 			touch "$ROOT/dir.$d/file.$f" || exit 1
 		done
