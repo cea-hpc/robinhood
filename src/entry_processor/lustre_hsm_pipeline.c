@@ -369,6 +369,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     int md_allow_event_updt = TRUE;
     int path_allow_event_updt = TRUE;
 
+    /* TODO : mkdir/rmdir => directory */
+
     if ( logrec->cr_type == CL_UNLINK )
     {
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
@@ -564,59 +566,73 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             goto next_step;
         }
 
-        /* retrieve missing attrs, if needed */
-        if ( entry_proc_conf.match_classes ||
-            (entry_proc_conf.alert_attr_mask & ~p_op->entry_attr.attr_mask) )
+        /* skip directories */
+        if ( ATTR_MASK_TEST( &p_op->entry_attr, type )
+             && !strcmp( ATTR(&p_op->entry_attr, type), STR_TYPE_DIR ) )
         {
-            attr_set_t tmp_attr;
+            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                        "Skipping entry (directory): %s",
+                        ATTR( &p_op->entry_attr, fullpath ) );
+            /* skip the entry */
+            next_stage = -1;
+            goto next_step;
+        }
 
-            ATTR_MASK_INIT( &tmp_attr );
+        /* check if the entry exists in DB */
+        p_op->db_exists = ListMgr_Exists( lmgr, &p_op->entry_id );
 
-            if ( entry_proc_conf.match_classes )
+        if ( p_op->db_exists )
+        {
+            /* retrieve missing attrs, if needed */
+            if ( entry_proc_conf.match_classes ||
+                (entry_proc_conf.alert_attr_mask & ~p_op->entry_attr.attr_mask) )
             {
-                /* get fileclass update info to know if we must check it */
-                ATTR_MASK_SET( &tmp_attr, rel_cl_update );
-                ATTR_MASK_SET( &tmp_attr, release_class );
+                attr_set_t tmp_attr;
 
-                tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
+                ATTR_MASK_INIT( &tmp_attr );
+
+                tmp_attr.attr_mask |= (entry_proc_conf.alert_attr_mask
                                        & ~p_op->entry_attr.attr_mask);
 
-                ATTR_MASK_SET( &tmp_attr, arch_cl_update );
-                ATTR_MASK_SET( &tmp_attr, archive_class );
+                if ( entry_proc_conf.match_classes )
+                {
+                    /* get fileclass update info to know if we must check it */
+                    ATTR_MASK_SET( &tmp_attr, rel_cl_update );
+                    ATTR_MASK_SET( &tmp_attr, release_class );
 
-                tmp_attr.attr_mask |= (policies.migr_policies.global_attr_mask
-                                       & ~p_op->entry_attr.attr_mask);
-            }
-            tmp_attr.attr_mask |= (entry_proc_conf.alert_attr_mask
-                                   & ~p_op->entry_attr.attr_mask);
+                    tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
+                                           & ~p_op->entry_attr.attr_mask);
 
-            rc = ListMgr_Get( lmgr, &p_op->entry_id, &tmp_attr );
+                    ATTR_MASK_SET( &tmp_attr, arch_cl_update );
+                    ATTR_MASK_SET( &tmp_attr, archive_class );
 
-            if (rc == DB_SUCCESS )
-            {
-                p_op->db_exists = TRUE;
-                p_op->entry_attr_is_set = TRUE;
-                /* merge with main attr set */
-                ListMgr_MergeAttrSets( &p_op->entry_attr, &tmp_attr, FALSE );
+                    tmp_attr.attr_mask |= (policies.migr_policies.global_attr_mask
+                                           & ~p_op->entry_attr.attr_mask);
+                }
+
+                rc = ListMgr_Get( lmgr, &p_op->entry_id, &tmp_attr );
+
+                if (rc == DB_SUCCESS )
+                {
+                    p_op->entry_attr_is_set = TRUE;
+                    /* merge with main attr set */
+                    ListMgr_MergeAttrSets( &p_op->entry_attr, &tmp_attr, FALSE );
+                }
+                else if (rc == DB_NOT_EXISTS )
+                {
+                    /* this kind of attributes do not apply to this type of entry */
+                    DisplayLog( LVL_FULL, ENTRYPROC_TAG, "No such attribute found for this entry: type=%s, attr_mask=%#x",
+                                ATTR(&p_op->entry_attr, type), tmp_attr.attr_mask );
+                }
+                else
+                {
+                    /* ERROR */
+                    DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
+                                "Error %d retrieving entry "DFID" from DB", rc,
+                                PFID(&p_op->entry_id) );
+                }
             }
-            else if (rc == DB_NOT_EXISTS )
-            {
-                p_op->db_exists = FALSE;
-            }
-            else
-            {
-                /* ERROR */
-                DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                            "Error %d retrieving entry "DFID" from DB", rc,
-                            PFID(&p_op->entry_id) );
-                p_op->db_exists = FALSE;
-            }
-        }
-        else
-        {
-            /* only check if the entry exists in DB? */
-            p_op->db_exists = ListMgr_Exists( lmgr, &p_op->entry_id );
-        }
+        } /* end if exist in db */
 
         if ( !p_op->db_exists )
         {
