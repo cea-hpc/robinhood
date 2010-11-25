@@ -468,7 +468,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     else if (rc == DB_NOT_EXISTS )
                     {
                         /* this kind of attributes do not apply to this type of entry */
-                        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "No such attribute found for this entry: type=%s, attr_mask=%#x",
+                        DisplayLog( LVL_FULL, ENTRYPROC_TAG,
+                                    "No such attribute found for this entry: type=%s, attr_mask=%#x",
                                     ATTR(&p_op->entry_attr, type), tmp_attr.attr_mask );
                     }
                     else
