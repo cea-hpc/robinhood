@@ -69,9 +69,13 @@ function error_reset
 function error
 {
 	echo "ERROR $@"
+ 	grep -i error *.log
 	NB_ERROR=$(($NB_ERROR+1))
 
-	echo "ERROR $@" >> $TMPERR_FILE
+	if (($junit)); then
+	 	grep -i error *.log >> $TMPERR_FILE
+		echo "ERROR $@" >> $TMPERR_FILE
+	fi
 }
 
 function set_skipped

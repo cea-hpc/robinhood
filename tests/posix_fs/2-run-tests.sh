@@ -48,7 +48,10 @@ function error
 	echo "ERROR $@"
 	((ERROR=$ERROR+1))
 
-	echo "ERROR $@" >> $TMPERR_FILE
+	if (($junit)); then
+	 	grep -i error *.log >> $TMPERR_FILE
+		echo "ERROR $@" >> $TMPERR_FILE
+	fi
 }
 
 function set_skipped
