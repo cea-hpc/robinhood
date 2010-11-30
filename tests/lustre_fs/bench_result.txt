@@ -1,0 +1,63 @@
+Chglog OFF, no PE:
+
+snapshot_time = 86.383548
+req = 73001
+mds_getattr = 46000
+mds_close = 3000
+
+Pe, no optimizations:
+
+snapshot_time = 90.439364s
+req = 120943
+mds_getattr = 62230
+mds_close = 9002
+mds_set_info = 6002
+mds_get_info = 6002
+ldlm_cancel = 3514
+
+llog_origin_handle_create = 178
+llog_origin_handle_next_block = 273
+llog_origin_handle_read_header = 178
+
+batch chglog records (100):
+
+snapshot_time = 114.920741
+req = 107811
+mds_getattr = 56342
+mds_close = 9004
+mds_set_info = 92
+mds_get_info = 6004
+ldlm_cancel = 2777
+
+llog_origin_handle_create = 228
+llog_origin_handle_next_block = 325
+llog_origin_handle_read_header = 228
+
+event driven update + chglog batch:
+
+snapshot_time = 140.665450
+req = 91096
+mds_getattr = 50443
+mds_close = 7206
+mds_set_info = 94
+mds_get_info = 4206
+ldlm_cancel = 2
+
+llog_origin_handle_create = 280
+llog_origin_handle_next_block = 375 
+llog_origin_handle_read_header = 280
+
+event driven update w/ min update interval + periodic update:
+
+snapshot_time = 139.469781
+req = 74267
+mds_getattr = 46235
+mds_close = 3003
+mds_set_info = 91
+mds_get_info = 3
+ldlm_cancel = 2
+
+llog_origin_handle_create = 276
+llog_origin_handle_next_block = 374
+llog_origin_handle_read_header = 276
+
