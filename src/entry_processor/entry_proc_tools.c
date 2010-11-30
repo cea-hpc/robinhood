@@ -55,6 +55,9 @@ typedef struct id_constraint_slot__
 /* hash table for storing references to ids */
 static id_constraint_slot_t id_hash[ID_HASH_SIZE];
 
+/**
+ * @TODO use better hash functions (see http://burtleburtle.net/bob/c/lookup3.c)
+ */
 static inline unsigned int hash_id( entry_id_t * p_id, unsigned int modulo )
 {
 #ifdef FID_PK
@@ -171,20 +174,15 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
     }
 #ifdef _DEBUG_ID_CONSTRAINT
     if ( p_op )
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG,
-                    "first op on id [%llu, %u] is record %u at stage %u (list %u)",
-                    p_op->entry_id.f_seq, p_op->entry_id.f_oid,
-                    p_op->entry_id.f_ver, p_op->pipeline_stage, hash_index );
+       printf( "first op on id "DFID" at stage %u (list %u)\n",
+               PFID(&p_op->entry_id), p_op->pipeline_stage, hash_index );
     else
     {
 
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG,
-                    "no registered operation on id [%llu, %u]?", p_id->f_seq, p_id->f_oid );
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "etat de la file %u:", hash_index );
+        printf( "no registered operation on "DFID"?\n", PFID(p_id));
+        printf( "etat de la file %u:\n", hash_index );
         for ( p_curr = id_hash[hash_index].id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
-            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "record #%u id [%llu, %u]",
-                        p_curr->op_ptr->entry_id.f_ver,
-                        p_curr->op_ptr->entry_id.f_seq, p_curr->op_ptr->entry_id.f_oid );
+            printf( DFID"\n", PFID(&p_curr->op_ptr->entry_id) );
     }
 #endif
     V( id_hash[hash_index].lock );

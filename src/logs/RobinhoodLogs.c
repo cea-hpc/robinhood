@@ -330,6 +330,11 @@ int InitializeLogs( char *program_name, const log_config_t * config )
 
 }   /* InitializeLogs */
 
+int            TestDisplayLevel( int level )
+{
+    return ( log_config.debug_level >= level );
+}
+
 
 /* flush a single log descriptor */
 static void flush_log_descr( log_stream_t * p_log )

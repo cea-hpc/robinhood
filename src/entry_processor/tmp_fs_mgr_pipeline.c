@@ -87,16 +87,17 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     {
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                     "Error: entry full path is expected to be set in STAGE_GET_FID stage" );
-        EntryProcessor_Acknowledge( p_op, 0, TRUE );
+        EntryProcessor_Acknowledge( p_op, -1, TRUE );
         return EINVAL;
     }
 
     /* perform path2fid */
-    rc = Lustre_GetFidFromPath( ATTR( &p_op->entry_attr, fullpath ), &tmp_id ); 
+    rc = Lustre_GetFidFromPath( ATTR( &p_op->entry_attr, fullpath ), &tmp_id );
+    printf( "rc=%d, path=%s, fid="DFID"\n", rc, ATTR( &p_op->entry_attr, fullpath ), PFID(&tmp_id) );
     if ( rc )
     {
         /* remove the operation from pipeline */
-        rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
+        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                         "Error %d acknowledging stage STAGE_GET_FID.", rc );
@@ -109,7 +110,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d setting entry id",
                         rc );
             /* remove entry from pipeline */
-            EntryProcessor_Acknowledge( p_op, 0, TRUE );
+            EntryProcessor_Acknowledge( p_op, -1, TRUE );
             return rc;
         }
 
@@ -122,7 +123,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     return rc;
 #else
     DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error: unexpected stage in a filesystem with no fid: STAGE_GET_FID.");
-    EntryProcessor_Acknowledge( p_op, 0, TRUE );
+    EntryProcessor_Acknowledge( p_op, -1, TRUE );
     return EINVAL;
 #endif
 }
@@ -548,7 +549,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 next_step:
     if ( next_stage == -1 )
         /* drop the entry */
-        rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
+        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
     else
         /* go to next pipeline step */
         rc = EntryProcessor_Acknowledge( p_op, next_stage, FALSE );
@@ -864,7 +865,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
     else /* if rc != 0, we must remove it from pipeline */
 #endif
-        rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
+        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
 
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknoledging stage %s.", rc,
@@ -895,7 +896,7 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
     }
 
     /* Acknoledge the operation and remove it from pipeline */
-    rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
+    rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknoledging stage %s.", rc,
                     stage_info->stage_name );
@@ -945,7 +946,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* unset force commit flag */
     ListMgr_ForceCommitFlag( lmgr, FALSE );
 
-    rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
+    rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
 
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknoledging stage %s.", rc,
