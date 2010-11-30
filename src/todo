@@ -1,8 +1,5 @@
 - fixer le bug du test 22 pour les prepared statements
 
-- verifier/cleaner le patch dans l'entry processor
-- mettre stage=-1 pour tous les acknowledge (TRUE)
-
 - backup:
 	tout flusher même si synchro
 
