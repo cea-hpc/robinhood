@@ -27,7 +27,7 @@
 
 #define RESMONCFG_TAG       "ResMonConfig"
 
-static const trigger_item_t default_trigger_fs = {
+static trigger_item_t default_trigger_fs = {
     .type = TRIGGER_GLOBAL_USAGE,
     .list = NULL,
     .check_interval = 300,
@@ -39,7 +39,7 @@ static const trigger_item_t default_trigger_fs = {
 };
 
 #ifdef _LUSTRE
-static const trigger_item_t default_trigger_ost = {
+static trigger_item_t default_trigger_ost = {
     .type = TRIGGER_OST_USAGE,
     .list = NULL,
     .check_interval = 300,
