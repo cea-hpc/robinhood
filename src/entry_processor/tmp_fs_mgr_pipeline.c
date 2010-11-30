@@ -93,7 +93,6 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* perform path2fid */
     rc = Lustre_GetFidFromPath( ATTR( &p_op->entry_attr, fullpath ), &tmp_id );
-    printf( "rc=%d, path=%s, fid="DFID"\n", rc, ATTR( &p_op->entry_attr, fullpath ), PFID(&tmp_id) );
     if ( rc )
     {
         /* remove the operation from pipeline */
