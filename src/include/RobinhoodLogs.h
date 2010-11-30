@@ -67,6 +67,11 @@ int            WriteLogConfigDefault( FILE * output );
  */
 int            str2debuglevel( char *str );
 
+/**
+ * Indicates if traces of the given level are to be displayed.
+ */
+int            TestDisplayLevel( int level );
+
 /* Open log and report files,
  * Returns -1 and sets error in case of an error.
  */

@@ -210,6 +210,7 @@ fi
 
 * Thu Nov 25 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.2
 - [bugfix] fixed major issue of "duplicate key" errors
+- [bugfix] FS scan sometimes blocks on Lustre 2
 
 * Fri Oct 22 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.1
 - [feature] new purge command: --purge-class to apply purge policy on files in a given class

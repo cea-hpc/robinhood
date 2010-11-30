@@ -73,6 +73,26 @@ typedef struct worker_info__
 
 static worker_info_t *worker_params = NULL;
 
+#ifdef _DEBUG_ENTRYPROC
+static void dump_entry_op( entry_proc_op_t * p_op )
+{
+#ifdef _HAVE_FID
+    if ( p_op->entry_id_is_set )
+        printf( "id="DFID"\n", PFID(&p_op->entry_id) );
+#endif
+    if ( p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
+        printf("path=%s\n", ATTR( &p_op->entry_attr, fullpath ) );
+
+    printf("stage=%u, being processed=%u, db_exists=%u, id is referenced=%u, db_op_type=%u\n",
+            p_op->pipeline_stage, p_op->being_processed, p_op->db_exists,
+            p_op->id_is_referenced, p_op->db_op_type );
+    printf("start proc time=%u.%06u\n", (unsigned int)p_op->start_processing_time.tv_sec,
+            (unsigned int)p_op->start_processing_time.tv_usec );
+    printf("next=%p, prev=%p\n", p_op->p_next, p_op->p_prev );
+}
+#endif
+
+
 /* worker thread for pipeline */
 static void   *entry_proc_worker_thr( void *arg )
 {
@@ -369,6 +389,9 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
 
     pipeline[source_stage_index].first_in_ptr = p_last->p_next;
 
+    /* cut the list of entries to be moved */
+    p_last->p_next = NULL;
+
     /* 2) update last_in_ptr if the last entry is last_in */
     if ( pipeline[source_stage_index].last_in_ptr == p_last )
         pipeline[source_stage_index].last_in_ptr = NULL;
@@ -416,6 +439,14 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     {
         for ( p_curr = p_first; p_curr != NULL; p_curr = p_curr->p_next )
         {
+#ifdef _DEBUG_ENTRYPROC
+            if ( p_curr->id_is_referenced || (!p_curr->entry_id_is_set && p_curr->pipeline_stage != 6) )
+            {
+                printf( "moving entry %p "DFID" from stage %u to %u, id is ref? %u, id_is_set? %u\n", p_curr,
+                        PFID(&p_curr->entry_id),
+                        source_stage_index, insert_stage, p_curr->id_is_referenced?0:1, p_curr->entry_id_is_set?0:1 );
+            }
+#endif
             if ( !p_curr->id_is_referenced && p_curr->entry_id_is_set )
             {
                 id_constraint_register( p_curr );
@@ -488,19 +519,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
     /* check every stage from the last to the first */
     for ( i = PIPELINE_STAGE_COUNT - 1; i >= 0; i-- )
     {
-        /* unprotected pre-check before protected check */
-        if ( pipeline[i].nb_unprocessed_entries == 0 )
-        {
-#ifdef _DEBUG_ENTRYPROC
-            printf( "Stage[%u] - thread %#lx - no waiting entries (unsafe check)\n", i,
-                    pthread_self(  ) );
-#endif
-            continue;
-        }
-
-        /* it seams that some entries have not been processed at this stage.
-         * check them safely, now.
-         */
+        /* entries have not been processed at this stage. */
         P( pipeline[i].stage_mutex );
 
         if ( pipeline[i].nb_unprocessed_entries == 0 )
@@ -515,7 +534,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
         if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_SEQUENTIAL )
         {
             /*
-             * If there is already an operation beeing processed,
+             * If there is already an operation being processed,
              * nothing can be done at this stage. 
              */
             if ( pipeline[i].nb_threads != 0 )
@@ -627,7 +646,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
                         V( p_curr->entry_lock );
 #ifdef _DEBUG_ENTRYPROC
                         printf
-                            ( "Stage[%u] - thread %#lx - entry at higher stage (%u) or is beeing processed (%s) \n",
+                            ( "Stage[%u] - thread %#lx - entry at higher stage (%u) or is being processed (%s) \n",
                               i, pthread_self(  ), p_curr->pipeline_stage,
                               p_curr->being_processed ? "TRUE" : "FALSE" );
 #endif
@@ -637,10 +656,23 @@ entry_proc_op_t *next_work_avail( int *p_empty )
                     /* is this the first operation for this id ? */
                     if ( p_curr != id_constraint_get_first_op( &p_curr->entry_id ) )
                     {
+#ifdef _DEBUG_ENTRYPROC
+                        entry_proc_op_t * other_op = id_constraint_get_first_op( &p_curr->entry_id );
+#endif
                         V( p_curr->entry_lock );
 #ifdef _DEBUG_ENTRYPROC
-                        printf( "Stage[%u] - thread %#lx - not the first operation with this id\n",
-                                i, pthread_self(  ) );
+                        printf( "Stage[%u] - thread %#lx - not the first operation with this id ("DFID")\n",
+                                i, pthread_self(  ), PFID(&p_curr->entry_id) );
+                        if ( other_op == NULL )
+                        {
+                            fprintf(stderr, "ERROR!!! OPERATION NOT REGISTERED FOR THIS STEP!!!\n" );
+                            abort();
+                        }
+                        else
+                        {
+                            printf( "The first operation for this id is (%p):\n", other_op);
+                            dump_entry_op( other_op );
+                        }
 #endif
                         continue;
                     }
@@ -651,7 +683,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
                     V( p_curr->entry_lock );
                     /* check next entry */
 #ifdef _DEBUG_ENTRYPROC
-                    printf( "Stage[%u] - thread %#lx - entry beeing processed or at higher stage\n",
+                    printf( "Stage[%u] - thread %#lx - entry being processed or at higher stage\n",
                             i, pthread_self(  ) );
 #endif
                     continue;
@@ -764,6 +796,13 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     /* lock entry */
     P( p_op->entry_lock );
 
+    if ( (!remove) && (p_op->pipeline_stage >= next_stage) )
+    {
+        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "CRITICAL: entry is already at a higher pipeline stage %u >= %u !!!",
+                    p_op->pipeline_stage, next_stage );
+        return -EINVAL;
+    }
+
     /* update its satus (even if its going to be removed) */
     p_op->being_processed = FALSE;
     p_op->pipeline_stage = next_stage;
@@ -841,7 +880,20 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     }
 
     return 0;
+}
 
+static const char * entry_status_str( entry_proc_op_t * p_op, unsigned int stage )
+{
+    if ( p_op->being_processed )
+        return "processing";
+    else if ( p_op->pipeline_stage < stage )
+        return "ERROR: entry at previous stage!!!";
+    else if ( p_op->pipeline_stage == stage )
+        return "waiting";
+    else if ( p_op->pipeline_stage > stage )
+        return "done";
+    else
+        return "ERROR: uncovered case /!\\";
 }
 
 
@@ -850,51 +902,121 @@ void EntryProcessor_DumpCurrentStages(  )
 {
     unsigned int   i;
     double         tpe = 0.0;
+    int            is_pending_op = FALSE;
 
     /* no locks here, because its just for information */
 
-    DisplayLog( LVL_MAJOR, "STATS", "==== EntryProcessor Pipeline Stats ===" );
-    DisplayLog( LVL_MAJOR, "STATS", "Threads waiting: %u", nb_waiting_threads );
-
-    id_constraint_dump(  );
-
-    for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+    if ( TestDisplayLevel( LVL_MAJOR ) )
     {
-        if ( pipeline[i].total_processed )
-            tpe =
-                ( ( 1000.0 * pipeline[i].total_processing_time.tv_sec ) +
-                  ( 1E-3 * pipeline[i].total_processing_time.tv_usec ) ) /
-                ( double ) ( pipeline[i].total_processed );
-        else
-            tpe = 0.0;
-#ifdef _LUSTRE_HSM
-        DisplayLog( LVL_MAJOR, "STATS",
-                    "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu | ms/op: %.2f | first: %Lu, last: %Lu",
-                    i, entry_proc_pipeline[i].stage_name,
-                    pipeline[i].nb_unprocessed_entries,
-                    pipeline[i].nb_threads,
-                    pipeline[i].nb_processed_entries,
-                    pipeline[i].total_processed, tpe,
-                    ( pipeline[i].first_in_ptr && pipeline[i].first_in_ptr->extra_info.log_record.p_log_rec ?
-                        pipeline[i].first_in_ptr->extra_info.log_record.p_log_rec->cr_index : 0 ),
-                    ( pipeline[i].last_in_ptr && pipeline[i].first_in_ptr->extra_info.log_record.p_log_rec ?
-                        pipeline[i].last_in_ptr->extra_info.log_record.p_log_rec->cr_index : 0 ) );
-#else
-        DisplayLog( LVL_MAJOR, "STATS",
-                    "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu | ms/op: %.2f",
-                    i, entry_proc_pipeline[i].stage_name,
-                    pipeline[i].nb_unprocessed_entries,
-                    pipeline[i].nb_threads,
-                    pipeline[i].nb_processed_entries, pipeline[i].total_processed, tpe );
-#endif
+
+        DisplayLog( LVL_MAJOR, "STATS", "==== EntryProcessor Pipeline Stats ===" );
+        DisplayLog( LVL_MAJOR, "STATS", "Threads waiting: %u", nb_waiting_threads );
+
+        id_constraint_dump(  );
+
+        for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+        {
+            P( pipeline[i].stage_mutex );
+            if ( pipeline[i].total_processed )
+                tpe =
+                    ( ( 1000.0 * pipeline[i].total_processing_time.tv_sec ) +
+                      ( 1E-3 * pipeline[i].total_processing_time.tv_usec ) ) /
+                    ( double ) ( pipeline[i].total_processed );
+            else
+                tpe = 0.0;
+
+            DisplayLog( LVL_MAJOR, "STATS",
+                        "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu | ms/op: %.2f",
+                        i, entry_proc_pipeline[i].stage_name,
+                        pipeline[i].nb_unprocessed_entries,
+                        pipeline[i].nb_threads,
+                        pipeline[i].nb_processed_entries, pipeline[i].total_processed, tpe );
+            V( pipeline[i].stage_mutex );
+
+            if ( pipeline[i].first_in_ptr || pipeline[i].last_in_ptr )
+                is_pending_op = TRUE;
+        }
+    }
+
+    if ( TestDisplayLevel( LVL_EVENT ) )
+    {
+        if ( is_pending_op )
+        {
+            DisplayLog( LVL_EVENT, "STATS", "--- Pipeline stage details ---" );
+            /* pipeline stage details */
+            for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+            {
+                P( pipeline[i].stage_mutex );
+                if ( pipeline[i].first_in_ptr )
+                {
+    #ifdef HAVE_CHANGELOGS
+                    if ( pipeline[i].first_in_ptr->extra_info.is_changelog_record )
+                    {
+                        DisplayLog( LVL_EVENT, "STATS", "%-20s: first: changelog record #%Lu, fid="DFID", status=%s",
+                                    entry_proc_pipeline[i].stage_name,
+                                    pipeline[i].first_in_ptr->extra_info.log_record.p_log_rec->cr_index,
+                                    PFID(&pipeline[i].first_in_ptr->extra_info.log_record.p_log_rec->cr_tfid),
+                                    entry_status_str( pipeline[i].first_in_ptr, i) );
+                    }
+                    else
+    #endif
+                    if ( ATTR_MASK_TEST( &pipeline[i].first_in_ptr->entry_attr, fullpath) )
+                    {
+                        DisplayLog( LVL_EVENT, "STATS", "%-20s: first: %s, status=%s",
+                                    entry_proc_pipeline[i].stage_name,
+                                    ATTR( &pipeline[i].first_in_ptr->entry_attr, fullpath ),
+                                    entry_status_str( pipeline[i].first_in_ptr, i) );
+                    }
+                    else
+                    {
+                        DisplayLog( LVL_EVENT, "STATS", "%-20s: first: special op %s",
+                                    entry_proc_pipeline[i].stage_name,
+                                    entry_proc_pipeline[pipeline[i].first_in_ptr->pipeline_stage].stage_name );
+                    }
+                }
+                if ( pipeline[i].last_in_ptr )
+                {
+    #ifdef HAVE_CHANGELOGS
+                    if ( pipeline[i].last_in_ptr->extra_info.is_changelog_record )
+                    {
+                        DisplayLog( LVL_EVENT, "STATS", "%-20s: last: changelog record #%Lu, fid="DFID", status=%s",
+                                    entry_proc_pipeline[i].stage_name,
+                                    pipeline[i].last_in_ptr->extra_info.log_record.p_log_rec->cr_index,
+                                    PFID(&pipeline[i].last_in_ptr->extra_info.log_record.p_log_rec->cr_tfid),
+                                    entry_status_str( pipeline[i].last_in_ptr, i) );
+                    }
+                    else
+    #endif
+                    if ( ATTR_MASK_TEST( &pipeline[i].last_in_ptr->entry_attr, fullpath) )
+                    {
+                        DisplayLog( LVL_EVENT, "STATS", "%-20s: last: %s, status=%s",
+                                    entry_proc_pipeline[i].stage_name,
+                                    ATTR_MASK_TEST( &pipeline[i].last_in_ptr->entry_attr, fullpath) ?
+                                        ATTR( &pipeline[i].last_in_ptr->entry_attr, fullpath ): "(path not set)",
+                                    entry_status_str( pipeline[i].last_in_ptr, i) );
+                    }
+                    else
+                    {
+                        DisplayLog( LVL_EVENT, "STATS", "%-20s: last: special op %s",
+                                    entry_proc_pipeline[i].stage_name,
+                                    entry_proc_pipeline[pipeline[i].last_in_ptr->pipeline_stage].stage_name );
+                    }
+                }
+                V( pipeline[i].stage_mutex );
+
+            } /* end for */
+        } /* end if pending op */
     }
 
 #ifdef _ENABLE_PREP_STMT
-    DisplayLog( LVL_DEBUG, "STATS", "====== Prepared Statement Stats ======" );
-
-    for ( i = 0; i < entry_proc_conf.nb_thread; i++ )
+    if ( TestDisplayLevel( LVL_DEBUG ) )
     {
-        dump_prep_stmt_stats( i, &worker_params[i].lmgr );
+        DisplayLog( LVL_DEBUG, "STATS", "====== Prepared Statement Stats ======" );
+
+        for ( i = 0; i < entry_proc_conf.nb_thread; i++ )
+        {
+            dump_prep_stmt_stats( i, &worker_params[i].lmgr );
+        }
     }
 #endif
 }
