@@ -2,7 +2,7 @@
 
 purp_list=$*
 
-CFLAGS_OPT="-I/home/leibovi/export_rh_1101814/sherpa_cache/src/include -Werror"
+CFLAGS_OPT="-I/home/leibovi/export_rh_1101814/sherpa_cache/src/include"
 
 if [[ -z $purp_list ]]; then
 	echo "Usage: $0 <purpose list>"
@@ -18,14 +18,16 @@ echo "Compilation using $NB_PROC processors"
 ERRORS=""
 
 for purp in $purp_list; do
-for db in MYSQL SQLITE; do 
+for lustre in "--enable-lustre" "--disable-lustre"; do 
 
 # default per purpose and DB
-config_cmd="./configure --with-db=$db --with-purpose=$purp"
+config_cmd="./configure --with-purpose=$purp $lustre"
+
+if [[ $purp = "LUSTRE_HSM" && $lustre = "--disable-lustre" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 
 echo "TEST: $config_cmd"
  
-(CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | grep -v Werror | egrep -i 'error|warning' \
+(CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | grep -v Werror | grep -v "unused variable" | grep -v "not used" | egrep -i 'error|warning' \
 		&& ( echo FAILED; ERRORS="$ERRORS Error using compilation switches:$config_cmd\n" )
 
 make clean 2>&1 >/dev/null
@@ -43,14 +45,16 @@ echo "Building rpms"
 ERRORS=""
 
 for purp in $purp_list; do
-for db in MYSQL SQLITE; do 
+for lustre in "--enable-lustre" "--disable-lustre"; do 
 
 # default per purpose and DB
-config_cmd="./configure --with-db=$db --with-purpose=$purp"
+config_cmd="./configure --with-purpose=$purp $lustre"
+
+if [[ $purp = "LUSTRE_HSM" && $lustre = "--disable-lustre" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 
 echo "TEST: $config_cmd"
  
-(CFLAGS="$CFLAGS_OPT" $config_cmd && make rpm ) 2>&1 | grep -v Werror | egrep -i 'error|warning' \
+(CFLAGS="$CFLAGS_OPT" $config_cmd && make rpm ) 2>&1 | grep -v Werror | grep -v "unused variable" |  grep -v "not used" | egrep -i 'error|warning' \
 		&& ( echo FAILED; ERRORS="$ERRORS Error using compilation switches:$config_cmd\n" )
 
 make clean 2>&1 >/dev/null
@@ -69,7 +73,7 @@ echo "Now testing advanced compilation switches"
 # advanced switches
 
 for purp in $purp_list; do
-for lustre in "--disable-lustre" "--enable-lustre"; do 
+for lustre in "--enable-lustre" "--disable-lustre"; do 
 for fid in "--disable-fid-support" "--enable-fid-support"; do 
 for chglog in "--disable-changelogs" "--enable-changelogs"; do 
 for prep in "--disable-prep-stmts" "--enable-prep-stmts"; do
@@ -90,7 +94,7 @@ if [[ $db = "SQLITE" && $prep = "--enable-prep-stmts" ]]; then echo "skipping co
 
 echo "TEST: $config_cmd"
 
-(CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | grep -v Werror | egrep -i 'error|warning' \
+(CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | grep -v Werror | grep -v "unused variable" | grep -v "not used" | egrep -i 'error|warning' \
 		&& ( echo FAILED; ERRORS="$ERRORS Error using compilation switches:$config_cmd\n" )
 
 make clean 2>&1 >/dev/null

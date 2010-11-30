@@ -46,6 +46,8 @@ Prefix: %{_prefix}
 %if %{with lustre}
 %if %{defined lversion}
 %define config_dependant .lustre%{lversion}
+%else
+%define config_dependant .lustre
 %endif
 %endif
 
@@ -56,7 +58,7 @@ Prefix: %{_prefix}
 Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
-Summary: Robinhood - Accounting/purge tool for large filesystems
+Summary: Robinhood - Policy engine and monitoring tool for large filesystems
 License: CeCILL 
 Group: Applications/System
 Url: http://robinhood.sourceforge.net

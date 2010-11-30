@@ -76,6 +76,16 @@ if test "x$support_lustre" = "xyes" ; then
 
         AC_DEFINE(_LUSTRE, 1, [liblustreapi is available])
 
+        # this defines LVERSION and LPACKAGE variables
+        AX_LUSTRE_VERSION
+
+        if test -z "$LVERSION"; then
+            LDEFINES=""
+        else
+            LDEFINES="--define=\"lversion $LVERSION\" --define=\"lpackage $LPACKAGE\""
+        fi
+        AC_SUBST(LDEFINES)
+
         FS_LDFLAGS="-llustreapi"
         AC_SUBST(FS_LDFLAGS)
 

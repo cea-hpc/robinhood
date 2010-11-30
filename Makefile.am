@@ -6,10 +6,7 @@ SUBDIRS=src scripts tests
 rpm_dir=`pwd`/rpms
 
 if LUSTRE
-  rpmbuild_opt=--with lustre
-  lversion=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
-  lpackage=`rpm -qa "lustre[-_]*modules*" --qf "%{Name}\n"  2>/dev/null | tail -1`
-  rpmbuild_opt+=--define="lversion $(lversion)" --define="lpackage $(lpackage)"
+  rpmbuild_opt=--with lustre @LDEFINES@
 else
   rpmbuild_opt=--without lustre
 endif
@@ -61,8 +58,6 @@ srpm: robinhood.spec dist
 		-ts $(distdir).tar.gz \
 	&& echo "SRPM successfully generated in $(rpm_dir)/SRPMS"
 
-install-exec-local:
-	install -m 750 scripts/rbh-config $(DESTDIR)/$(sbindir)/rbh-config
 
 
 
