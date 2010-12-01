@@ -275,6 +275,8 @@ function xattr_test
 			nb_migr_arch3=`grep "using policy 'default'" rh_migr.log | wc -l`
 			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
 				error "********** wrong policy cases: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+				cp rh_migr.log /tmp/xattr_test.$$
+				echo "Log saved as /tmp/xattr_test.$$"
 			else
 				echo "OK: 1 file for each policy case"
 			fi
@@ -316,6 +318,8 @@ function link_unlink_remove_test
 	echo "1-Start reading changelogs in background..."
 	# read changelogs
 	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --detach --pid-file=rh.pid || error ""
+
+	sleep 1
 
 	# write file.1 and force immediate migration
 	echo "2-Writing data to file.1..."

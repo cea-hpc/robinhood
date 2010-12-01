@@ -1,3 +1,9 @@
+Changes between version 2.2.1 and 2.2.2:
+
+- [bugfix] (major) fixed "duplicate key" errors
+- [bugfix] (major) FS scan sometimes blocks on Lustre 2
+- [misc.] integration to automatic testing suite (Hudson)
+
 Changes between version 2.1.5 and 2.2.0:
 
 - [feature] fileclass union/intersection/negation

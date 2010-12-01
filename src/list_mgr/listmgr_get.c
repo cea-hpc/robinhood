@@ -338,16 +338,17 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         db_clean_prepared( stmt );
 
         if ( rc == DB_END_OF_LIST )
-            return DB_END_OF_LIST;
-
-        if ( rc == DB_CONNECT_FAILED )
+        {
+                /* clear missing fields */
+                rc = result2attrset( T_ANNEX, NULL, field_count, p_info );
+                if ( rc )
+                    return rc;
+        }
+        else if ( rc == DB_CONNECT_FAILED )
             /* This error is due to a disconnection, we must invalidate all statements */
             invalidate_statements( p_mgr );
-
-        if ( rc )
+        else if ( rc )
             return rc;
-
-
     }                           /* end of request on annex table */
 
     /* get stripe info if asked */

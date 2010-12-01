@@ -1,5 +1,3 @@
-- fixer le bug du test 22 pour les prepared statements
-
 - backup:
 	tout flusher même si synchro
 
