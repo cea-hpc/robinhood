@@ -745,7 +745,8 @@ function update_test
 	fi
 
 	for i in `seq 1 3`; do
-		echo "loop 1.$i: many 'touch' within $event_updt_min sec"
+		t=$(( `date "+%s"` - $init ))
+		echo "loop 1.$i: many 'touch' within $event_updt_min sec (t=$t)"
 		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
@@ -763,18 +764,25 @@ function update_test
 		sleep 1
 		pkill -f $PROC
 		sleep 1
+		t=$(( `date "+%s"` - $init ))
 
 		nb_getattr=`grep getattr=1 $LOG | wc -l`
+		egrep -e "getattr=1|needed because" $LOG
 		echo "nb attr update: $nb_getattr"
-		(( $nb_getattr == 1 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
-
+		(( $nb_getattr == 1 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t)"
 		# the path may be retrieved at the first loop (at creation)
 		# but not during the next loop (as long as enlapsed time < update_period)
 		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
 			nb_getpath=`grep getpath=1 $LOG | wc -l`
+			grep "getpath=1" $LOG
 			echo "nb path update: $nb_getpath"
-			(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
+			(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath (t=$t)"
 		fi
+
+		# wait for 5s to be fully enlapsed
+		while (( `date "+%s"` - $start <= $event_updt_min )); do
+			usleep 100000
+		done
 	done
 
 	init=`date "+%s"`

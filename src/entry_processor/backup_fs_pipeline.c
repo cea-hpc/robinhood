@@ -221,8 +221,19 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
     else if ( CL_TIME_NOACCESS(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) )
     {
         /* if file is modified or truncated, need to check its status
-         * (probably modified) */
-         p_op->extra_info.getstatus_needed = TRUE;
+         * (probably modified) EXCEPT if its status is already 'modified' */
+        if ( !ATTR_MASK_TEST( &p_op->entry_attr, status )
+             || ((ATTR(&p_op->entry_attr, status) != STATUS_MODIFIED) &&
+                 (ATTR(&p_op->entry_attr, status) != STATUS_NEW)) )
+        {
+            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                        "Getstatus needed because this is a TIME or TRUNC event "
+                        "and status is not already 'modified' or 'new': event=%s, status=%d",
+                        changelog_type2str(logrec->cr_type),
+                        ATTR_MASK_TEST( &p_op->entry_attr, status )?
+                            ATTR(&p_op->entry_attr, status):-1 );
+            p_op->extra_info.getstatus_needed = TRUE;
+        }
     }
 
     /* if the entry is already in DB, try to determine if something changed */
@@ -269,15 +280,21 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             /* file was renamed */
             DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Getpath needed because it's "
                         "a rename operation" );
+
             p_op->extra_info.getpath_needed = TRUE;
         }
 
-        /* get the new attributes, in case of a SATTR, xTIME, HSM... */
+        /* get the new attributes, in case of a SATTR, HSM... */
         if ( allow_md_updt && (CL_TIME_NOACCESS(logrec->cr_type)
                                || ( logrec->cr_type == CL_TRUNC )
                                || ( logrec->cr_type == CL_HSM )
                                || ( logrec->cr_type == CL_SETATTR )) )
         {
+            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                        "Getattr needed because this is a TIME, TRUNC, HSM or SETATTR event, and "
+                         "metadata has not been recently updated. event=%s",
+                         changelog_type2str(logrec->cr_type) );
+
             p_op->extra_info.getattr_needed = TRUE;
         }
     }
