@@ -52,10 +52,12 @@
 #define OPT_FLAG_CSV        0x0001
 #define OPT_FLAG_NOHEADER   0x0002
 #define OPT_FLAG_GROUP      0x0004
+#define OPT_FLAG_MATCH_NULL_STATUS 0x0008
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
 #define ISGROUP(_x) ((_x)&OPT_FLAG_GROUP)
+#define MATCH_NULL_STATUS(_x) ((_x)&OPT_FLAG_MATCH_NULL_STATUS)
 
 
 #ifdef ATTR_INDEX_status
@@ -681,7 +683,11 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 #ifdef ATTR_INDEX_status
        case DUMP_STATUS:
                 fv.val_int = int_arg;
-                lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, 0 );
+                if ( MATCH_NULL_STATUS( flags ) )
+                    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL,
+                                            fv, FILTER_FLAG_ALLOW_NULL );
+                else
+                    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, 0 );
                 break;
 #endif
         default:
@@ -2573,6 +2579,11 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Unknown status '%s'. Allowed status: "ALLOWED_STATUS".\n", optarg );
                 exit(1);
             }
+#ifdef _HAVE_UNKNOWN_STATUS
+            /* match NULL value for unknown status */
+            if ( status_to_dump == STATUS_UNKNOWN )
+                flags |= OPT_FLAG_MATCH_NULL_STATUS;
+#endif
             break;
 #endif
 
