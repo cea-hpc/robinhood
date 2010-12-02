@@ -330,6 +330,11 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                                || ( logrec->cr_type == CL_HSM )
                                || ( logrec->cr_type == CL_SETATTR )) )
         {
+            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                        "Getattr needed because this is a TIME, TRUNC, HSM or SETATTR event, and "
+                         "metadata has not been recently updated. event=%s",
+                         changelog_type2str(logrec->cr_type) );
+
             p_op->extra_info.getattr_needed = TRUE;
         }
     }
