@@ -265,7 +265,7 @@ case $DB in
 
         AC_CHECK_HEADERS([mysql/mysql.h])
         AC_CHECK_HEADER([mysql/mysql.h], HAVE_MYSQLCLNT="true",
-                        AC_MSG_ERROR([MySQL client package not installed]) )
+                        AC_MSG_ERROR([MySQL devel. package not installed]) )
 
         DB_CFLAGS="-D_MYSQL `$MYSQL_CONFIG --include`"
         DB_LDFLAGS=`mysql_config --libs_r`
