@@ -343,11 +343,11 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
     struct mntent  mnt_ent;
     char           mnt_buff[4096];
 
-    char           rpath[MAXPATHLEN];
-    char           mntdir[MAXPATHLEN];
-    char           tmp_buff[MAXPATHLEN];
+    char           rpath[RBH_PATH_MAX];
+    char           mntdir[RBH_PATH_MAX];
+    char           tmp_buff[RBH_PATH_MAX];
     char          *parentmntdir;
-    char           fs_spec[MAXPATHLEN];
+    char           fs_spec[RBH_PATH_MAX];
 #ifdef _HAVE_FID
     char          *ptr;
 #endif
@@ -403,9 +403,9 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
                             "Root mountpoint is allowed for matching %s, type=%s, fs=%s",
                             rpath, p_mnt->mnt_type, p_mnt->mnt_fsname );
                 outlen = pathlen;
-                strncpy( mntdir, p_mnt->mnt_dir, MAXPATHLEN );
+                strncpy( mntdir, p_mnt->mnt_dir, RBH_PATH_MAX );
                 strncpy( type, p_mnt->mnt_type, 256 );
-                strncpy( fs_spec, p_mnt->mnt_fsname, MAXPATHLEN );
+                strncpy( fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX );
             }
             /* in other cases, the filesystem must be <mountpoint>/<smthg> or <mountpoint>\0 */
             else if ( ( pathlen > outlen ) &&
@@ -417,9 +417,9 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
                             rpath, p_mnt->mnt_dir, p_mnt->mnt_type, p_mnt->mnt_fsname );
 
                 outlen = pathlen;
-                strncpy( mntdir, p_mnt->mnt_dir, MAXPATHLEN );
+                strncpy( mntdir, p_mnt->mnt_dir, RBH_PATH_MAX );
                 strncpy( type, p_mnt->mnt_type, 256 );
-                strncpy( fs_spec, p_mnt->mnt_fsname, MAXPATHLEN );
+                strncpy( fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX );
             }
         }
     }

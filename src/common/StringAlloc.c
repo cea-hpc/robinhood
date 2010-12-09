@@ -19,6 +19,7 @@
 #include "config.h"
 #endif
 
+#include "rbh_const.h"
 #include <sys/param.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -57,7 +58,7 @@ typedef struct string_desc__
 #define TAB_INDEX_2_BUFF_LEN( _index )     ( (_index+1)*8 )
 
 
-#define INDEX_MAX  (MAXPATHLEN/8)
+#define INDEX_MAX  (RBH_PATH_MAX/8)
 
 static string_desc_t *free_strings_tab[INDEX_MAX];
 
@@ -151,7 +152,7 @@ char          *GiveMeBufferFor( unsigned int strlength )
     /* we try taking the first fit */
 
 
-    /* WARNING ! if we don't want to converge to MAXPATHLEN,
+    /* WARNING ! if we don't want to converge to RBH_PATH_MAX,
      * we should not allocate a too large buffer for a small one
      * thus, we stop at twice the wanted index + 16.
      */

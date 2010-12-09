@@ -476,12 +476,12 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
 /* process a filesystem entry */
 static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task, char *entry_name, DIR * parent )
 {
-    char           entry_path[1024];
+    char           entry_path[RBH_PATH_MAX];
     struct stat    inode;
     int            st;
 
     /* build absolute path */
-    snprintf( entry_path, 1024, "%s/%s", p_task->path, entry_name );
+    snprintf( entry_path, RBH_PATH_MAX, "%s/%s", p_task->path, entry_name );
 
     /* retrieve information about the entry (to know if it's a directory or something else) */
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
@@ -616,7 +616,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         }
 
         p_scan_task->parent_task = p_task;
-        strncpy( p_scan_task->path, entry_path, MAXPATHLEN );
+        strncpy( p_scan_task->path, entry_path, RBH_PATH_MAX );
         p_scan_task->directory_md = inode;
         p_scan_task->depth = p_task->depth + 1;
         p_scan_task->task_finished = FALSE;

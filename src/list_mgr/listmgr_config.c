@@ -293,7 +293,7 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
     rc = GetStringParam( db_block, SQLITE_CONFIG_BLOCK, "db_file",
                          STR_PARAM_ABSOLUTE_PATH |
                          STR_PARAM_NO_WILDCARDS,
-                         conf->db_config.filepath, 1024, NULL, NULL, msg_out );
+                         conf->db_config.filepath, RBH_PATH_MAX, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 

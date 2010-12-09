@@ -15,6 +15,7 @@
 #define _FSSCAN_TYPES_H
 
 #include "SemN.h"
+#include "rbh_const.h"
 
 #include <sys/types.h>
 #include <pthread.h>
@@ -35,7 +36,7 @@
 typedef struct robinhood_task__
 {
     /* absolute path of the directory to be read */
-    char           path[MAXPATHLEN];
+    char           path[RBH_PATH_MAX];
 
     /* the relative depth of the directory to be read */
     unsigned int   depth;

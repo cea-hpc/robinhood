@@ -53,10 +53,10 @@
 static char   *ExtractParentDir( const char *file_path, char *out_buff )
 {
 
-    char           buff[MAXPATHLEN];
+    char           buff[RBH_PATH_MAX];
     char          *dir;
 
-    strncpy( buff, file_path, MAXPATHLEN );
+    strncpy( buff, file_path, RBH_PATH_MAX );
 
     dir = dirname( buff );
 
@@ -78,7 +78,7 @@ static int TestRegexp( const char *regexp, const char *to_be_tested )
 static int TestPathRegexp( const char *regexp, const char *to_be_tested,
                            int flags )
 {
-    char full_path[MAXPATHLEN];
+    char full_path[RBH_PATH_MAX];
     const char * full_regexp = regexp;
 
     int any_level = (flags & PATHREGEXP_ANY_LEVEL)?1:0;
@@ -439,7 +439,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
                                       const compare_triplet_t * p_triplet,
                                       int no_warning )
 {
-    char           tmpbuff[MAXPATHLEN];
+    char           tmpbuff[RBH_PATH_MAX];
     char          *rep;
     const char * typedb;
     int            rc;

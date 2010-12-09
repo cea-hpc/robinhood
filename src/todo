@@ -1,3 +1,6 @@
+- list_mgr/listmgr_remove.c
+	escape string in softrm function
+
 - backup:
 	tout flusher même si synchro
 

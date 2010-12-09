@@ -342,7 +342,7 @@ static inline void display_version( char *bin_name )
 {
     printf( "\n" );
     printf( "Product:         " PACKAGE_NAME "\n" );
-    printf( "Version:         " PACKAGE_VERSION "\n" );
+    printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
     printf( "Build:           " COMPIL_DATE "\n" );
     printf( "\n" );
     printf( "Compilation switches:\n" );
@@ -366,11 +366,19 @@ static inline void display_version( char *bin_name )
 #else
     printf( "    Address entries by path\n" );
 #endif
+#ifdef _ENABLE_PREP_STMT
+    printf( "    Prepared statements enabled\n" );
+#else
+    printf( "    Prepared statements disabled\n" );
+#endif
+
 
     printf( "\n" );
 #ifdef _LUSTRE
 #ifdef LUSTRE_VERSION
     printf( "Lustre Version: " LUSTRE_VERSION "\n" );
+#else
+    printf( "Lustre FS support\n" );
 #endif
 #else
     printf( "No Lustre support\n" );
