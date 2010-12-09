@@ -690,7 +690,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     if ( p_op->extra_info_is_set )
     {
-        char           path[MAXPATHLEN];
+        char           path[RBH_PATH_MAX];
 
         BuildFidPath( &p_op->entry_id, path );
 
@@ -757,7 +757,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             if ( p_op->extra_info.is_changelog_record )
             {
                 rc = Lustre_GetFullPath( &p_op->entry_id,
-                                         ATTR( &p_op->entry_attr, fullpath ), 1024 );
+                                         ATTR( &p_op->entry_attr, fullpath ), RBH_PATH_MAX );
 
                 if ( ERR_MISSING( abs( rc )) )
                 {
@@ -887,9 +887,9 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int            rc, i;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
     int            is_alert = FALSE;
-    char           stralert[2048];
-    char           strvalues[2048];
-    char           strid[1024];
+    char           stralert[2*RBH_PATH_MAX];
+    char           strvalues[2*RBH_PATH_MAX];
+    char           strid[RBH_PATH_MAX];
     char         * title = NULL;
 
     /* generate missing fields */
@@ -910,16 +910,16 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             /* build alert string and break */
             if ( ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
-                snprintf( strid, 1024, "%s", ATTR( &p_op->entry_attr, fullpath ) );
+                snprintf( strid, RBH_PATH_MAX, "%s", ATTR( &p_op->entry_attr, fullpath ) );
             else
-                snprintf( strid, 1024, "fid[seq, oid]=[%llu, %u]", p_op->entry_id.f_seq,
+                snprintf( strid, RBH_PATH_MAX, "fid[seq, oid]=[%llu, %u]", p_op->entry_id.f_seq,
                           p_op->entry_id.f_oid );
 
-            rc = BoolExpr2str( &entry_proc_conf.alert_list[i].boolexpr, stralert, 2048 );
+            rc = BoolExpr2str( &entry_proc_conf.alert_list[i].boolexpr, stralert, 2*RBH_PATH_MAX );
             if ( rc < 0 )
                 strcpy( stralert, "Error building alert string" );
 
-            PrintAttrs( strvalues, 2048, &p_op->entry_attr,
+            PrintAttrs( strvalues, 2*RBH_PATH_MAX, &p_op->entry_attr,
                         entry_proc_conf.alert_list[i].attr_mask );
 
             if ( EMPTY_STRING(entry_proc_conf.alert_list[i].title) )

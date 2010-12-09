@@ -19,8 +19,9 @@
 #ifndef _GENERAL_H
 #define _GENERAL_H
 
+#include "rbh_const.h"
 #include "config_parsing.h"
-#include <sys/param.h>          /* for MAXPATHLEN */
+#include <sys/param.h>          /* for RBH_PATH_MAX */
 #include <stdio.h>
 
 /**
@@ -30,14 +31,14 @@ typedef struct global_config_t
 {
     /* filesystem description */
 
-    char           fs_path[MAXPATHLEN];
+    char           fs_path[RBH_PATH_MAX];
     char           fs_type[FILENAME_MAX];
 
     /* lock file */
-    char           lock_file[MAXPATHLEN];
+    char           lock_file[RBH_PATH_MAX];
 
 #ifdef _SHERPA
-    char          sherpa_config[MAXPATHLEN];
+    char          sherpa_config[RBH_PATH_MAX];
 #endif
 
     /* behavior flags */

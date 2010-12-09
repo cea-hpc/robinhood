@@ -105,7 +105,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
     int rc;
     struct dirent entry;
     struct dirent * cookie;
-    char tmp_path[MAXPATHLEN];
+    char tmp_path[RBH_PATH_MAX];
     int err = 0;
     entry_id_t id;
 

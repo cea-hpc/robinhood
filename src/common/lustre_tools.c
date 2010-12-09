@@ -671,7 +671,7 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
         P( mount_point_lock );
         if ( fid_dir_fd == NULL )
         {
-            char path[MAXPATHLEN];
+            char path[RBH_PATH_MAX];
             char *curr = path;
 
             /* filesystem root */

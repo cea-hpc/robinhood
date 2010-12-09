@@ -323,7 +323,7 @@ static inline void display_version( char *bin_name )
 {
     printf( "\n" );
     printf( "Product:         " PACKAGE_NAME " reporting tool\n" );
-    printf( "Version:         " PACKAGE_VERSION "\n" );
+    printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
     printf( "Build:           " COMPIL_DATE "\n" );
     printf( "\n" );
     printf( "Compilation switches:\n" );
@@ -348,10 +348,18 @@ static inline void display_version( char *bin_name )
     printf( "    Address entries by path\n" );
 #endif
 
+#ifdef _ENABLE_PREP_STMT
+    printf( "    Prepared statements enabled\n" );
+#else
+    printf( "    Prepared statements disabled\n" );
+#endif
+
     printf( "\n" );
 #ifdef _LUSTRE
 #ifdef LUSTRE_VERSION
     printf( "Lustre Version: " LUSTRE_VERSION "\n" );
+#else
+    printf( "Lustre FS support\n" );
 #endif
 #else
     printf( "No Lustre support\n" );
@@ -1937,9 +1945,9 @@ void report_deferred_rm( int flags )
     int            rc, index;
     struct lmgr_rm_list_t * list;
     entry_id_t     id;
-    char   last_known_path[MAXPATHLEN] = "";
+    char   last_known_path[RBH_PATH_MAX] = "";
 #ifdef _BACKUP_FS
-    char   bkpath[MAXPATHLEN] = "";
+    char   bkpath[RBH_PATH_MAX] = "";
 #endif
 
     time_t soft_rm_time = 0;

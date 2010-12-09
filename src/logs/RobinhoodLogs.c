@@ -127,8 +127,8 @@ unsigned int alert_count = 0;
 
 
 /* log line headers */
-static char    prog_name[MAXPATHLEN];
-static char    machine_name[MAXPATHLEN];
+static char    prog_name[RBH_PATH_MAX];
+static char    machine_name[RBH_PATH_MAX];
 
 
 /* assign an index to each thread (displayed as [pid/thread_nbr] in the log) */
@@ -296,7 +296,7 @@ int InitializeLogs( char *program_name, const log_config_t * config )
     if ( uname( &uts ) == -1 )
         strcpy( machine_name, "???" );
     else
-        strncpy( machine_name, uts.nodename, MAXPATHLEN );
+        strncpy( machine_name, uts.nodename, RBH_PATH_MAX );
 
     /* if the name is the full machine name (node.subnet.domain.ext),
      * only kief the brief name */
@@ -306,7 +306,7 @@ int InitializeLogs( char *program_name, const log_config_t * config )
     if ( program_name == NULL )
         strcpy( prog_name, "???" );
     else
-        strncpy( prog_name, program_name, MAXPATHLEN );
+        strncpy( prog_name, program_name, RBH_PATH_MAX );
 
     /* open log files */
     rc = init_log_descr( log_config.log_file, &log );
@@ -913,8 +913,8 @@ int SetDefaultLogConfig( void *module_config, char *msg_out )
 
 
     conf->debug_level = LVL_EVENT;
-    strncpy( conf->log_file, "/var/log/robinhood.log", MAXPATHLEN );
-    strncpy( conf->report_file, "/var/log/robinhood_reports.log", MAXPATHLEN );
+    strncpy( conf->log_file, "/var/log/robinhood.log", RBH_PATH_MAX );
+    strncpy( conf->report_file, "/var/log/robinhood_reports.log", RBH_PATH_MAX );
 
     strncpy( conf->alert_file, "/var/log/robinhood_alerts.log", 1024 );
     conf->alert_mail[0] = '\0';
@@ -999,13 +999,13 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
 
     rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "log_file",
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
-                         conf->log_file, MAXPATHLEN, NULL, NULL, msg_out );
+                         conf->log_file, RBH_PATH_MAX, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
     rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "report_file",
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
-                         conf->report_file, MAXPATHLEN, NULL, NULL, msg_out );
+                         conf->report_file, RBH_PATH_MAX, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 

@@ -179,10 +179,10 @@ enum what_to_do SherpaManageEntry(const entry_id_t * p_id, attr_set_t * p_attrs,
     StatutEntreeRef  status_ref;
     struct stat stat_ref, stat_cache, st_glob;
     TypeEntree type_ref, type_cache;
-    char ref_path[1024];
-    char cglob_path[1024];
-    char relative_path[1024];
-    char link_content[1024];
+    char ref_path[RBH_PATH_MAX];
+    char cglob_path[RBH_PATH_MAX];
+    char relative_path[RBH_PATH_MAX];
+    char link_content[RBH_PATH_MAX];
 
     int remove = FALSE;
     int upper_tranfer_unlock = FALSE;
@@ -194,7 +194,7 @@ enum what_to_do SherpaManageEntry(const entry_id_t * p_id, attr_set_t * p_attrs,
     /* if the full path is not set, get it */ 
     if ( !ATTR_MASK_TEST( p_attrs, fullpath ) || EMPTY_STRING(ATTR( p_attrs, fullpath )) )
     {
-        rc = Lustre_GetFullPath( p_id, ATTR(p_attrs, fullpath), 1024 );
+        rc = Lustre_GetFullPath( p_id, ATTR(p_attrs, fullpath), RBH_PATH_MAX );
         if ( (-rc == ENOENT) || (-rc == ESTALE) )
         {
            DisplayLog( LVL_DEBUG, SHERPA_TAG, "Fid "DFID" does not exist anymore (%s): removing entry from database.",
@@ -578,7 +578,7 @@ recheck:
     {
         if ( config.attitudes.type_cache == CACHE_GLOBAL )
         {
-            char lock_file[MAXPATHLEN];
+            char lock_file[RBH_PATH_MAX];
             CheminTransfert( ATTR(p_attrs, fullpath), &stat_cache, lock_file, cible_cache_global );
             rc = TermineFlushCacheGlob( FALSE, ATTR(p_attrs, fullpath), lock_file, &stat_cache );
             if ( rc != SUCCES )

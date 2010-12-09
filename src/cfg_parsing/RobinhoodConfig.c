@@ -28,7 +28,7 @@
 #define XATTR_PREFIX    "xattr"
 
 /* last config file loaded (used for reload operation) */
-static char    config_file_path[MAXPATHLEN];
+static char    config_file_path[RBH_PATH_MAX];
 /* module mask used */
 static int     config_mask;
 
@@ -46,7 +46,7 @@ int ReadRobinhoodConfig( int module_mask, char *file_path, char *err_msg_out,
     const module_config_def_t *p_curr;
 
     /* saving config file path for reload operations */
-    strncpy( config_file_path, file_path, MAXPATHLEN );
+    strncpy( config_file_path, file_path, RBH_PATH_MAX );
     config_mask = module_mask;
 
     /* First, Parse the configuration file */

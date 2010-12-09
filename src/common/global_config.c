@@ -32,15 +32,15 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
     global_config_t *conf = ( global_config_t * ) module_config;
     msg_out[0] = '\0';
 
-    strncpy( conf->fs_path, "", MAXPATHLEN );
+    strncpy( conf->fs_path, "", RBH_PATH_MAX );
 #ifdef _HAVE_FID
     strncpy( conf->fs_type, "lustre", FILENAME_MAX );
 #else
     strncpy( conf->fs_type, "", FILENAME_MAX );
 #endif
-    strncpy( conf->lock_file, "/var/locks/robinhood.lock", MAXPATHLEN );
+    strncpy( conf->lock_file, "/var/locks/robinhood.lock", RBH_PATH_MAX );
 #ifdef _SHERPA
-    strncpy( conf->sherpa_config, "/etc/sherpa/sherpa.conf", MAXPATHLEN );
+    strncpy( conf->sherpa_config, "/etc/sherpa/sherpa.conf", RBH_PATH_MAX );
 #endif
     conf->stay_in_fs = TRUE;
     conf->check_mounted = TRUE;
@@ -138,14 +138,14 @@ NULL
 
     rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "lock_file",
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
-                         conf->lock_file, MAXPATHLEN, NULL, NULL, msg_out );
+                         conf->lock_file, RBH_PATH_MAX, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
 #ifdef _SHERPA
     rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "sherpa_config",
                          STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
-                         conf->sherpa_config, MAXPATHLEN, NULL, NULL, msg_out );
+                         conf->sherpa_config, RBH_PATH_MAX, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 #endif

@@ -97,7 +97,7 @@ obj_type_t ListMgr2PolicyType( const char * str_type );
 
 typedef union
 {
-    char           str[1024];                    /* for all conditions based on a string */
+    char           str[RBH_PATH_MAX];                    /* for all conditions based on a string */
     unsigned long long size;                     /* for size-based conditions */
     unsigned int   integer;                      /* for int base conditions */
     time_t         duration;                     /* for last access and last mod condition */
@@ -116,7 +116,7 @@ typedef struct compare_triplet_t
 {
     int flags;
     compare_criteria_t crit;
-    char               xattr_name[1024]; /* for xattrs */
+    char               xattr_name[RBH_NAME_MAX]; /* for xattrs */
     compare_direction_t op;
     compare_value_t val;
 } compare_triplet_t;

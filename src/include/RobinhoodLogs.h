@@ -23,7 +23,7 @@
 #include "rbh_const.h"
 #include <stdarg.h>
 #include <stdio.h>              /* for FILE */
-#include <sys/param.h>          /* for MAXPATHLEN */
+#include <sys/param.h>          /* for RBH_PATH_MAX */
 
 #define LVL_CRIT          0
 #define LVL_MAJOR         2
@@ -35,8 +35,8 @@
 typedef struct log_config__
 {
     int            debug_level;
-    char           log_file[MAXPATHLEN];
-    char           report_file[MAXPATHLEN];
+    char           log_file[RBH_PATH_MAX];
+    char           report_file[RBH_PATH_MAX];
 
     char           alert_mail[256];
     char           alert_file[RBH_PATH_MAX];

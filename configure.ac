@@ -5,7 +5,9 @@
 AC_PREREQ(2.59)
 
 AC_INIT( [robinhood], [2.3.0], [robinhood-support@lists.sourceforge.net])
-AC_SUBST( [RELEASE], [0.beta2] )
+RELEASE="0.beta3"
+AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info] )
+AC_SUBST(RELEASE)
 
 AC_CONFIG_AUX_DIR([autotools])
 AC_CONFIG_MACRO_DIR([autotools/m4])
@@ -83,6 +85,7 @@ if test "x$support_lustre" = "xyes" ; then
             LDEFINES=""
         else
             LDEFINES="--define=\"lversion $LVERSION\" --define=\"lpackage $LPACKAGE\""
+            AC_DEFINE_UNQUOTED(LUSTRE_VERSION, "$LVERSION",  [Lustre version])
         fi
         AC_SUBST(LDEFINES)
 

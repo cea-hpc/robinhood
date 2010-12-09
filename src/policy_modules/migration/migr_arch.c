@@ -808,7 +808,7 @@ inline static int update_entry( lmgr_t * lmgr, entry_id_t * p_entry_id, attr_set
  */
 static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_attr_set )
 {
-    char           fid_path[MAXPATHLEN];
+    char           fid_path[RBH_PATH_MAX];
     struct stat    entry_md;
     int            rc;
 
@@ -1389,7 +1389,7 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
     }
     else
     {
-        char fid_path[MAXPATHLEN];
+        char fid_path[RBH_PATH_MAX];
         BuildFidPath( &p_item->entry_id, fid_path );
 
         /* we probably have a wrong status for this entry: refresh it */

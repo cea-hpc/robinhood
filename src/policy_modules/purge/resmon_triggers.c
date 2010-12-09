@@ -375,7 +375,7 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
 static int check_global_trigger( unsigned trigger_index )
 {
     struct statfs  statfs_glob;
-    char           traverse_path[MAXPATHLEN];
+    char           traverse_path[RBH_PATH_MAX];
     purge_param_t  purge_param;
     int            rc;
     unsigned long long  purged, spec;
@@ -383,7 +383,7 @@ static int check_global_trigger( unsigned trigger_index )
     char           status_str[1024];
     char           buff[1024];
 
-    snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+    snprintf( traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path );
 
     if ( !CheckFSDevice(  ) )
         return ENXIO;
@@ -929,8 +929,8 @@ static int check_user_trigger( unsigned trigger_index )
     /* if PCT_THRESHOLD is used, statfs is needed */
     if ( ( p_trigger->hw_type == PCT_THRESHOLD ) || ( p_trigger->lw_type == PCT_THRESHOLD ) )
     {
-        char           traverse_path[MAXPATHLEN];
-        snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+        char           traverse_path[RBH_PATH_MAX];
+        snprintf( traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path );
 
         if ( statfs( traverse_path, &statfs_glob ) != 0 )
         {
@@ -1184,8 +1184,8 @@ static int check_group_trigger( unsigned trigger_index )
     /* if PCT_THRESHOLD is used, statfs is needed */
     if ( ( p_trigger->hw_type == PCT_THRESHOLD ) || ( p_trigger->lw_type == PCT_THRESHOLD ) )
     {
-        char           traverse_path[MAXPATHLEN];
-        snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+        char           traverse_path[RBH_PATH_MAX];
+        snprintf( traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path );
 
         if ( statfs( traverse_path, &statfs_glob ) != 0 )
         {
@@ -1592,7 +1592,7 @@ static void   *force_ost_trigger_thr( void *arg )
 static void   *force_fs_trigger_thr( void *arg )
 {
     struct statfs  statfs_glob;
-    char           traverse_path[MAXPATHLEN];
+    char           traverse_path[RBH_PATH_MAX];
     purge_param_t  purge_param;
     int            rc;
     unsigned long long purged, spec;
@@ -1602,7 +1602,7 @@ static void   *force_fs_trigger_thr( void *arg )
     char           status_str[1024];
     char           buff[1024];
 
-    snprintf( traverse_path, MAXPATHLEN, "%s/.", global_config.fs_path );
+    snprintf( traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path );
 
     rc = ListMgr_InitAccess( &lmgr );
     if ( rc )
