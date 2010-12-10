@@ -34,6 +34,7 @@ typedef enum
     TRIGGER_POOL_USAGE,                          /**< trigger purge on OST pool usage */
     TRIGGER_USER_USAGE,                          /**< trigger purge on the space used by a user */
     TRIGGER_GROUP_USAGE,                         /**< trigger purge on the space used by a group */
+    TRIGGER_ALWAYS,                              /**< always trigger purge at scheduled interval */
     TRIGGER_CUSTOM_CMD                           /**< trigger purge on a custom command */
 } trigger_type_t;
 
@@ -78,8 +79,12 @@ typedef struct trigger_item_t
 #define lw_percent   lw_u.percent
 #define lw_count     lw_u.count
 
-    /* raise alert when it is reached */
-    int notify;
+    /* trigger options: */
+    /* raise alert when it is triggered */
+    unsigned int alert_hw:1;
+
+    /* raise alert when it cannot reach low watermark */
+    unsigned int alert_lw:1;
 
 } trigger_item_t;
 
