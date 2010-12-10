@@ -74,6 +74,7 @@ typedef struct trigger_status__
 } trigger_info_t;
 
 #define IS_COUNT_TRIGGER( _index_ ) (resmon_config.trigger_list[(_index_)].hw_type == COUNT_THRESHOLD)
+#define ALERT_LW( _index_ ) (resmon_config.trigger_list[(_index_)].alert_lw)
 
 static trigger_info_t *trigger_status_list = NULL;
 static time_t  trigger_check_interval = 1;
@@ -570,10 +571,13 @@ static int check_global_trigger( unsigned trigger_index )
                             "Could not purge %Lu entries in %s: not enough eligible files. Only %Lu entries released.",
                             purge_param.nb_inodes, global_config.fs_path, purged );
 
-                sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %Lu entries in filesystem %s: "
-                              "not enough eligible files. Only %Lu entries freed.",
-                              purge_param.nb_inodes, global_config.fs_path, purged );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %Lu entries in filesystem %s: "
+                                "not enough eligible files. Only %Lu entries freed.",
+                                purge_param.nb_inodes, global_config.fs_path, purged );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files: %Lu/%Lu entries released",
                          purged, purge_param.nb_inodes );
@@ -619,10 +623,13 @@ static int check_global_trigger( unsigned trigger_index )
                             "Could not purge %lu blocks in %s: not enough eligible files. Only %Lu blocks released.",
                             purge_param.nb_blocks, global_config.fs_path, purged );
 
-                sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %lu blocks in filesystem %s: "
-                            "not enough eligible files. Only %Lu blocks freed.",
-                            purge_param.nb_blocks, global_config.fs_path, purged );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %lu blocks in filesystem %s: "
+                                "not enough eligible files. Only %Lu blocks freed.",
+                                purge_param.nb_blocks, global_config.fs_path, purged );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released)",
                          purged, purge_param.nb_blocks );
@@ -774,12 +781,15 @@ static int check_ost_trigger( unsigned trigger_index )
                             "Could not purge %lu blocks in OST #%u: not enough eligible files. Only %Lu blocks freed.",
                             purge_param.nb_blocks, ost_index, spec );
 
-                sprintf(buff, "cannot purge OST#%u (%s)", ost_index,
-                        global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %lu blocks in OST #%u (filesystem %s):\n"
-                            "not enough eligible files. Only %Lu blocks freed.",
-                            purge_param.nb_blocks, ost_index,
-                            global_config.fs_path, spec );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge OST#%u (%s)", ost_index,
+                            global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %lu blocks in OST #%u (filesystem %s):\n"
+                                "not enough eligible files. Only %Lu blocks freed.",
+                                purge_param.nb_blocks, ost_index,
+                                global_config.fs_path, spec );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released) in OST #%u",
                          spec, purge_param.nb_blocks, ost_index );
@@ -950,10 +960,14 @@ static int check_pool_trigger( unsigned trigger_index )
                             "Could not purge %lu blocks in %s: not enough eligible files. Only %Lu blocks freed.",
                             purge_param.nb_blocks, pool_string, spec );
 
-                sprintf(buff, "cannot purge %s (%s)", pool_string,
-                        global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %lu blocks in %s (%s): not enough eligible files. Only %Lu blocks freed.",
-                              purge_param.nb_blocks, pool_string, global_config.fs_path, spec );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge %s (%s)", pool_string,
+                            global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %lu blocks in %s (%s): not enough eligible files."
+                                " Only %Lu blocks freed.",
+                                purge_param.nb_blocks, pool_string, global_config.fs_path, spec );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released in %s)",
                          spec, purge_param.nb_blocks, pool_string );
