@@ -2,32 +2,24 @@ Non reg:
 - mise a jour notify_hw, alert_lw
 - 'periodic' trigger
 - checkonly sur un periodic trigger
+- tester alert_lw
+- migrate-class, purge-class
+- test summary line in reports for tmp_fs_mgr flavor
+- non reg sur backup fs
 
--> implementer alert_lw
--> implementer trigger periodic
-
-
+E-fix:
 - fixer le bug du test 22 pour les prepared statements
+- check error "filed still missing 0x8"
 
-- backup:
-	tout flusher même si synchro
-
+Finitions:
 - remplacer MAXPATHLEN par RBH_PATH_MAX
 - voir si les 1024 peuvent etre remplaces par RBH_PATH_MAX
 
-- non reg sur backup fs
-- test de non reg: scan suivi de readlog
-
+Gestion multi-chemin:
 - warning si nlink d'un fichier > 1
 
+Quick-feature:
 - criteria on stripe_count
-
-- live summaries:
-	- enabled from config
-	- examples: user_usage (count, type, usage, size...), group_usage,
-		stats_by_type(count, size, usage...), stats_by_class (count, size, usage...)
-
-- check error "filed still missing 0x8"
 
 - usage in db when there is no trigger on OST usage...
 - additional info in var table
@@ -37,9 +29,6 @@ Non reg:
 
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
       check that the entry still matches
-
-- nonreg migrate-class, purge-class
-- test summary line in reports for tmp_fs_mgr flavor
 
 Push 220p2 to oracle repository
 
@@ -58,11 +47,19 @@ Doc:
 	=> OK
 	inverse => NOK
 
---migrate-class
---purge-class
+Commandes :
+* --migrate-class
+* --purge-class
 
 Features:
 =========
+- backup:
+	tout flusher même si synchro
+- live summaries:
+	- enabled from config
+	- examples: user_usage (count, type, usage, size...), group_usage,
+		stats_by_type(count, size, usage...), stats_by_class (count, size, usage...)
+
 * take classes into account for directories
 * Daily report (migr, purge, ...)
 * possibilite de n'appliquer un trigger qu'a un sous-repertoire, un fileset ou autre...
