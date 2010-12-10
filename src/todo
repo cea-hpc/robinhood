@@ -4,15 +4,21 @@
 - backup:
 	tout flusher même si synchro
 
-- remplacer MAXPATHLEN par RBH_PATH_MAX
+x- continuer a implementer critere sur l'OST
+- tests de non reg: verifier le CriteriaToFilter sur les OST
+
+- criteria on stripe_count
+
 - voir si les 1024 peuvent etre remplaces par RBH_PATH_MAX
+
+- type de trigger toujours vrai (always)
+- option "no_alarm" qui ne leve pas d'alerte s'il n'arrive pas a attendre la low_watermark
+
 
 - non reg sur backup fs
 - test de non reg: scan suivi de readlog
 
 - warning si nlink d'un fichier > 1
-
-- criteria on stripe_count
 
 - live summaries: (stage?)
 	- enabled from config
