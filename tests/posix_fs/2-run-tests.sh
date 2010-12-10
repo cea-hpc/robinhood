@@ -1506,40 +1506,57 @@ if (( $junit )); then
 fi
 
 
-#1
-run_test 1	path_test test_path.conf 2 "path matching policies"
-#TODO run_test 2	update_test test_updt.conf 5 30 "db update policy"
-run_test 3	migration_test test1.conf 11 31 "last_mod>30s"
-run_test 4	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
-run_test 5	migration_test test3.conf 5  16 "complex policy with filesets"
-run_test 6	migration_test test3.conf 10 31 "complex policy with filesets"
-run_test 7	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-run_test 8	purge_test test_purge.conf 11 21 "last_access > 20s"
-run_test 9	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
-run_test 10	test_rh_report common.conf 3 1 "reporting tool"
-run_test 11	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
-run_test 12	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
-run_test 13	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
-# test 14 is about OST: not for POSIX FS
-run_test 15	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
-run_test 16	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
-run_test 17	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
-run_test 18	test_pools test_pools.conf 1 "class matching with condition on pools"
-run_test 19	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+######### TEST FAMILIES ########
+# 1xx - collecting info and database
+# 2xx - policy matching
+# 3xx - triggers
+# 4xx - reporting
+# 5xx - internals, misc.
+################################
 
-run_test 20a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
-run_test 20b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
-run_test 20c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
-run_test 20d	test_logs log1b.conf file_batch 	"file logging with alert batching"
-run_test 20e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
-run_test 20f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+##### info collect. + DB tests #####
 
-run_test 21a 	test_cfg_parsing basic none		"parsing of basic template"
-run_test 21b 	test_cfg_parsing detailed none	"parsing of detailed template"
-run_test 21c 	test_cfg_parsing generated none	"parsing of generated template"
+run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
+run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
+#TODO run_test 102	update_test test_updt.conf 5 30 "db update policy"
 
-run_test 22a   test_info_collect2  info_collect2.conf  1 "scan x3"
+#### policy matching tests  ####
 
+run_test 200	path_test test_path.conf 2 "path matching policies"
+run_test 201	migration_test test1.conf 11 31 "last_mod>30s"
+run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
+run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
+run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
+run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
+run_test 206	purge_test test_purge.conf 11 21 "last_access > 20s"
+run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
+run_test 208	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
+run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
+run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
+#test 211 is on Lustre pools (not for POSIX FS)
+run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+
+#### triggers ####
+
+run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
+# test 301 is about OST: not for POSIX FS
+run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
+#run_test 303    test_periodic_trigger
+
+#### reporting ####
+run_test 400	test_rh_report common.conf 3 1 "reporting tool"
+
+#### misc, internals #####
+run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
+run_test 500b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
+run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
+run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
+run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
+run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+
+run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
+run_test 501b 	test_cfg_parsing detailed none	"parsing of detailed template"
+run_test 501c 	test_cfg_parsing generated none	"parsing of generated template"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
