@@ -1,6 +1,10 @@
 Non reg:
 - mise a jour notify_hw, alert_lw
-- trigger 'always'
+- 'periodic' trigger
+- checkonly sur un periodic trigger
+
+-> implementer alert_lw
+-> implementer trigger periodic
 
 
 - fixer le bug du test 22 pour les prepared statements
@@ -41,8 +45,11 @@ Push 220p2 to oracle repository
 
 Doc:
 ====
-* adding doc about syslog logging
-* adding doc about exit_on_timeout
+* add doc about syslog logging
+* add doc about exit_on_timeout
+* add doc about ost_index criteria
+* new purge trigger 'periodic'
+* notify_hw, alert_lw
 
 (* config sqlite et disclaimer)
 * fileclasses are matched in the order they are targetted
