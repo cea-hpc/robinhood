@@ -1254,6 +1254,77 @@ function test_trigger_check
 	fi
 }
 
+function test_periodic_trigger
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str=$3
+
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
+	clean_logs
+
+	# create 3 files of each type
+	# (*.1, *.2, *.3, *.4)
+	for i in `seq 1 4`; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/foo.$i"
+		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/bar.$i"
+	done
+
+	# scan
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+
+	# make sure files are old enough
+	sleep 2
+
+	# start periodic trigger in background
+	$RH -f ./cfg/$config_file --purge -l DEBUG -L rh_purge.log &
+	sleep 2
+	
+	# it first must have purged *.1 files (not others)
+	[ -f $ROOT/file.1 ] && error "$ROOT/file.1 should have been removed"
+	[ -f $ROOT/foo.1 ] && error "$ROOT/foo.1 should have been removed"
+	[ -f $ROOT/bar.1 ] && error "$ROOT/bar.1 should have been removed"
+	[ -f $ROOT/file.2 ] || error "$ROOT/file.2 shouldn't have been removed"
+	[ -f $ROOT/foo.2 ] || error "$ROOT/foo.2 shouldn't have been removed"
+	[ -f $ROOT/bar.2 ] || error "$ROOT/bar.2 shouldn't have been removed"
+
+	sleep $(( $sleep_time + 2 ))
+	# now, *.2 must have been purged
+
+	[ -f $ROOT/file.2 ] && error "$ROOT/file.2 should have been removed"
+	[ -f $ROOT/foo.2 ] && error "$ROOT/foo.2 should have been removed"
+	[ -f $ROOT/bar.2 ] && error "$ROOT/bar.2 should have been removed"
+	[ -f $ROOT/file.3 ] || error "$ROOT/file.3 shouldn't have been removed"
+	[ -f $ROOT/foo.3 ] || error "$ROOT/foo.3 shouldn't have been removed"
+	[ -f $ROOT/bar.3 ] || error "$ROOT/bar.3 shouldn't have been removed"
+
+	sleep $(( $sleep_time + 2 ))
+	# now, it's *.3
+	# *.4 must be preserved
+
+	[ -f $ROOT/file.3 ] && error "$ROOT/file.3 should have been removed"
+	[ -f $ROOT/foo.3 ] && error "$ROOT/foo.3 should have been removed"
+	[ -f $ROOT/bar.3 ] && error "$ROOT/bar.3 should have been removed"
+	[ -f $ROOT/file.4 ] || error "$ROOT/file.4 shouldn't have been removed"
+	[ -f $ROOT/foo.4 ] || error "$ROOT/foo.4 shouldn't have been removed"
+	[ -f $ROOT/bar.4 ] || error "$ROOT/bar.4 shouldn't have been removed"
+
+	# final check: 3x "Purge summary: 3 entries"
+	nb_pass=`grep "Purge summary: 3 entries" rh_purge.log | wc -l`
+	if (( $nb_pass == 3 )); then
+		echo "OK: triggered 3 times"
+	else
+		error "unexpected trigger count $nb_pass"
+	fi
+
+	# terminate
+	pkill -9 -f $PROC
+}
 
 function fileclass_test
 {
@@ -2071,7 +2142,7 @@ run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30
 run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
-#run_test 303    test_periodic_trigger
+run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
