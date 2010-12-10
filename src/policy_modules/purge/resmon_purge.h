@@ -74,6 +74,7 @@ typedef enum
 typedef enum
 {
     PURGE_FS = 1,
+    PURGE_ALL,
     PURGE_BY_OST,
     PURGE_BY_POOL,
     PURGE_BY_USER,

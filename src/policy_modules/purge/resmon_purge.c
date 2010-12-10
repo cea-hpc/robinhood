@@ -304,7 +304,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         target_type = TGT_COUNT;
         target = p_purge_param->nb_inodes;
     }
-    else if ( p_purge_param->type == PURGE_BY_CLASS )
+    else if ( (p_purge_param->type == PURGE_BY_CLASS)
+             || (p_purge_param->type == PURGE_ALL) )
     {
         target_type = TGT_ALL;
         target = 0;
@@ -412,7 +413,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     switch ( p_purge_param->type )
     {
     case PURGE_FS:
-        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge on global filesystem" );
+    case PURGE_ALL:
+        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge" );
 
         /* We must retrieve all files sorted by atime: no extra filter */
         break;

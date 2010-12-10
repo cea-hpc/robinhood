@@ -235,7 +235,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     p_trigger_item->list_size = 0;
 
     /* analyze trigger_on parameter */
-    if ( !strcasecmp( tmpstr, "always" ) )
+    if ( !strcasecmp( tmpstr, "periodic" ) )
     {
         p_trigger_item->type = TRIGGER_ALWAYS;
 
@@ -417,11 +417,11 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
 
     if ( p_trigger_item->type == TRIGGER_ALWAYS )
     {
-        /* no high watermark is expected */
-        if ( high_count > 0 )
+        /* in case of 'periodic' trigger, no watermarks are expected */
+        if ( (high_count > 0) || (low_count > 0) )
         {
             strcpy( msg_out,
-                    "No high watermark expected for trigger type 'always'" );
+                    "No high/low watermark expected for trigger type 'periodic'" );
             return EINVAL;
         }
     }
@@ -483,7 +483,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
          && ( (rc_hc == 0) || (rc_lc == 0) ) )
     {
         strcpy( msg_out, "Watermark on entry count is only supported "
-                         "for 'global_usage' and 'always' triggers" );
+                         "for 'global_usage' and 'periodic' triggers" );
         return EINVAL;
     }
 
@@ -710,8 +710,9 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
                         trigger_list[i].hw_type, resmon_config.trigger_list[i].hw_type );
             return;
         }
-        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD )
-                  && ( trigger_list[i].lw_type != resmon_config.trigger_list[i].lw_type ) )
+        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD ) &&
+                  ( trigger_list[i].type != TRIGGER_ALWAYS ) &&
+                  ( trigger_list[i].lw_type != resmon_config.trigger_list[i].lw_type ) )
         {
             DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
                         "Low watermark type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
@@ -759,43 +760,41 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             }
             /* do nothing in all cases */
             continue;
-        }
+        } else if ( trigger_list[i].type == TRIGGER_ALWAYS )
+            /* no watermark for 'periodic' triggers */
+            continue;
 
-        /* no high watermark for 'always' triggers */
-        if ( trigger_list[i].type != TRIGGER_ALWAYS ) 
+        switch ( trigger_list[i].hw_type )
         {
-            switch ( trigger_list[i].hw_type )
+        case PCT_THRESHOLD:
+            if ( trigger_list[i].hw_percent != resmon_config.trigger_list[i].hw_percent )
             {
-            case PCT_THRESHOLD:
-                if ( trigger_list[i].hw_percent != resmon_config.trigger_list[i].hw_percent )
-                {
-                    DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                                "High watermark updated for trigger #%u: %.2f%%->%.2f%%", i,
-                                resmon_config.trigger_list[i].hw_percent, trigger_list[i].hw_percent );
-                    resmon_config.trigger_list[i].hw_percent = trigger_list[i].hw_percent;
-                }
-                break;
-
-            case VOL_THRESHOLD:
-                if ( trigger_list[i].hw_volume != resmon_config.trigger_list[i].hw_volume )
-                {
-                    DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                                "High watermark updated for trigger #%u: %llu bytes->%llu bytes", i,
-                                resmon_config.trigger_list[i].hw_volume, trigger_list[i].hw_volume );
-                    resmon_config.trigger_list[i].hw_volume = trigger_list[i].hw_volume;
-                }
-                break;
-
-            case COUNT_THRESHOLD:
-                if ( trigger_list[i].hw_count != resmon_config.trigger_list[i].hw_count )
-                {
-                    DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                                "High watermark updated for trigger #%u: %llu files->%llu files", i,
-                                resmon_config.trigger_list[i].hw_count, trigger_list[i].hw_count );
-                    resmon_config.trigger_list[i].hw_count = trigger_list[i].hw_count;
-                }
-                break;
+                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
+                            "High watermark updated for trigger #%u: %.2f%%->%.2f%%", i,
+                            resmon_config.trigger_list[i].hw_percent, trigger_list[i].hw_percent );
+                resmon_config.trigger_list[i].hw_percent = trigger_list[i].hw_percent;
             }
+            break;
+
+        case VOL_THRESHOLD:
+            if ( trigger_list[i].hw_volume != resmon_config.trigger_list[i].hw_volume )
+            {
+                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
+                            "High watermark updated for trigger #%u: %llu bytes->%llu bytes", i,
+                            resmon_config.trigger_list[i].hw_volume, trigger_list[i].hw_volume );
+                resmon_config.trigger_list[i].hw_volume = trigger_list[i].hw_volume;
+            }
+            break;
+
+        case COUNT_THRESHOLD:
+            if ( trigger_list[i].hw_count != resmon_config.trigger_list[i].hw_count )
+            {
+                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
+                            "High watermark updated for trigger #%u: %llu files->%llu files", i,
+                            resmon_config.trigger_list[i].hw_count, trigger_list[i].hw_count );
+                resmon_config.trigger_list[i].hw_count = trigger_list[i].hw_count;
+            }
+            break;
         }
 
         switch ( trigger_list[i].lw_type )

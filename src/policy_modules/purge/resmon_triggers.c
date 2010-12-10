@@ -371,6 +371,100 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
 
 
 
+/** Periodic trigger */
+static int check_periodic_trigger( unsigned trigger_index )
+{
+    purge_param_t  purge_param;
+    int            rc;
+    unsigned long long  blocks_purged, nbr_purged;
+    char           timestamp[128];
+    char           status_str[1024];
+    char           buff[1024];
+
+    if ( !CheckFSDevice(  ) )
+        return ENXIO;
+
+    purge_param.type = PURGE_ALL;
+    purge_param.flags = module_args.flags;
+    purge_param.nb_blocks = 0; /* unused, apply to all eligible files */
+    purge_param.nb_inodes = 0; /* unused, apply to all eligible files */
+
+    /* only purge if check_only is not set */
+    if ( module_args.flags & FLAG_CHECK_ONLY )
+    {
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "only checked, no purge performed" );
+        update_trigger_status( trigger_index, TRIG_OK );
+        return 0;
+    }
+    DisplayLog( LVL_EVENT, RESMON_TAG,
+                "Applying purge policy to eligible files in filesystem" );
+
+    update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
+
+    /* perform the purge */
+    blocks_purged = nbr_purged = 0;
+    rc = perform_purge( &lmgr, &purge_param, &blocks_purged, &nbr_purged );
+
+    /* update last purge time and target */
+    sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
+
+    if ( rc == 0 )
+    {
+        update_trigger_status( trigger_index, TRIG_OK );
+        DisplayLog( LVL_MAJOR, RESMON_TAG,
+                    "Purge summary: %Lu entries, %Lu blocks purged",
+                    nbr_purged, blocks_purged );
+
+        snprintf(status_str, 1024, "Success (%Lu entries, %Lu blocks released)",
+                 nbr_purged, blocks_purged );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+    else if ( rc == ENOENT )
+    {
+        update_trigger_status( trigger_index, TRIG_NO_LIST );
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "Could not perform purge on %s: no list is available.",
+                    global_config.fs_path );
+
+        snprintf(status_str, 1024, "No list available" );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+    else
+    {
+        update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Error %d performing purge on %s (%s). "
+                    "%Lu entries purged, %Lu blocks.", rc,
+                    global_config.fs_path, strerror(rc),
+                    nbr_purged, blocks_purged );
+
+        sprintf(buff, "Error releasing data in %s", global_config.fs_path );
+        RaiseAlert( buff, "Error %d performing purge in %s (%s).\n"
+                    "%Lu entries purged, %Lu blocks.", rc,
+                    global_config.fs_path, strerror(rc),
+                    nbr_purged, blocks_purged );
+
+        snprintf(status_str, 1024, "Error %d after releasing %Lu entries, %Lu blocks released in %s",
+                 rc, nbr_purged, blocks_purged, global_config.fs_path );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+
+    FlushLogs(  );
+
+    if ( ( blocks_purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "Waiting %lus before performing 'df' on other storage units.",
+                    resmon_config.post_purge_df_latency );
+        rh_sleep( resmon_config.post_purge_df_latency );
+    }
+
+    return rc;
+}
+
+
 /** Check triggers on global filesystem usage */
 static int check_global_trigger( unsigned trigger_index )
 {
@@ -456,13 +550,13 @@ static int check_global_trigger( unsigned trigger_index )
     /* update last purge time and target */
     sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
     ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
-    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Global Filesystem" );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
 
     if ( IS_COUNT_TRIGGER(trigger_index) )
     {
         if ( rc == 0 )
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "Global filesystem purge summary: "
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
                         "%Lu entries purged (%Lu blocks)/%Lu needed in %s",
                         spec, purged, purge_param.nb_inodes, global_config.fs_path );
         }
@@ -511,7 +605,7 @@ static int check_global_trigger( unsigned trigger_index )
     {
         if ( rc == 0 )
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "Global filesystem purge summary: "
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
                         "%Lu blocks purged (initial estimation %Lu)/%lu blocks needed in %s",
                         purged, spec, purge_param.nb_blocks, global_config.fs_path );
         }
@@ -1667,12 +1761,12 @@ static void   *force_fs_trigger_thr( void *arg )
     /* update last purge time and target */
     sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
     ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
-    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Global Filesystem" );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
 
     if ( rc == 0 )
     {
         DisplayLog( LVL_MAJOR, RESMON_TAG,
-                    "Global filesystem purge summary: %Lu blocks purged "
+                    "Filesystem purge summary: %Lu blocks purged "
                     "(initial estimation %Lu)/%lu blocks needed in %s",
                     purged, spec, purge_param.nb_blocks, global_config.fs_path );
     }
@@ -1840,6 +1934,8 @@ static inline char *trigger2str( trigger_type_t type )
     {
     case TRIGGER_GLOBAL_USAGE:
         return "global_usage";
+    case TRIGGER_ALWAYS:
+        return "periodic";
     case TRIGGER_OST_USAGE:
         return "OST_usage";
     case TRIGGER_POOL_USAGE:
@@ -1897,6 +1993,9 @@ static void   *trigger_check_thr( void *thr_arg )
                 {
                 case TRIGGER_GLOBAL_USAGE:
                     rc = check_global_trigger( i );
+                    break;
+                case TRIGGER_ALWAYS:
+                    rc = check_periodic_trigger( i );
                     break;
                 case TRIGGER_OST_USAGE:
                     rc = check_ost_trigger( i );
