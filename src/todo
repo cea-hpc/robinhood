@@ -1,3 +1,8 @@
+Non reg:
+- mise a jour notify_hw, alert_lw
+- trigger 'always'
+
+
 - fixer le bug du test 22 pour les prepared statements
 
 - backup:

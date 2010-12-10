@@ -212,7 +212,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
         }
-        else if ( p_trigger->notify )
+        else if ( p_trigger->alert_hw )
         {
            snprintf( buff, 1024, "High watermark reached on %s (%s)",
                      storage_descr, global_config.fs_path );
@@ -236,7 +236,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
         }
-        else if ( p_trigger->notify )
+        else if ( p_trigger->alert_hw )
         {
            FormatFileSize( tmp1, 128, used_vol );
            snprintf( buff, 1024, "High watermark reached on %s (%s)",
@@ -341,7 +341,7 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
                     storage_descr );
         return 0;
     }
-    else if ( p_trigger->notify )
+    else if ( p_trigger->alert_hw )
     {
        char buff[1024];
        snprintf( buff, 1024, "High watermark reached on %s (%s)",
@@ -1053,7 +1053,7 @@ static int check_user_trigger( unsigned trigger_index )
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 
-        if ( p_trigger->notify )
+        if ( p_trigger->alert_hw )
         {
             char usage_str[128];
             FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
@@ -1308,7 +1308,7 @@ static int check_group_trigger( unsigned trigger_index )
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 
-        if ( p_trigger->notify )
+        if ( p_trigger->alert_hw )
         {
             char usage_str[128];
             FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
