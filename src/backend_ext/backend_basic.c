@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <utime.h>
+#include <libgen.h>
 
 #define RBHEXT_TAG "Backend"
 
@@ -510,6 +511,92 @@ int rbhext_get_status( const entry_id_t * p_id,
 }
 
 /**
+ *  Ensure POSIX directory exists
+ */
+int mkdir_recurse( const char * full_path, mode_t mode )
+{
+    char path_copy[MAXPATHLEN];
+    const char * curr;
+    struct stat st;
+    int rc;
+
+    /* skip backend root */
+    if ( strncmp(config.root,full_path, strlen(config.root)) != 0 )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under backend root '%s'",
+                    full_path, config.root );
+        return -EINVAL;
+    }
+
+    curr = full_path + strlen(config.root);
+
+    if ( *curr == '\0' ) /* full_path is root dir */
+        return 0;
+    else if ( *curr != '/' ) /* slash expected */
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under backend root '%s'",
+                    full_path, config.root );
+        return -EINVAL;
+    }
+
+    /* skip first slash */
+    curr ++;
+
+    while( (curr = strchr( curr, '/' )) != NULL )
+    {
+         /* if fullpath = '/a/b',
+         * curr = &(fullpath[2]);
+         * so, copy 2 chars to get '/a'.
+         * and set fullpath[2] = '\0'
+         */
+
+        int path_len = curr - full_path;
+
+        /* extract directory name */
+        strncpy( path_copy, full_path, path_len );
+        path_copy[path_len]='\0';
+
+        /* stat dir */
+        if ( lstat( path_copy, &st ) != 0 )
+        {
+            rc = -errno; 
+            if (rc != -ENOENT)
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "Cannot stat() '%s': %s", path_copy, strerror(-rc) );
+                return rc;
+            }
+
+            DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)\n", path_copy );
+            if ( mkdir( path_copy, mode ) != 0 )
+            {
+                rc = -errno;
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s", path_copy, strerror(-rc) );
+                return rc;
+            }
+        }
+        else if ( !S_ISDIR( st.st_mode ) )
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Cannot create directory '%s': existing non-directory", path_copy );
+            return -ENOTDIR;
+        }
+
+        curr++;
+    }
+
+    /* finaly create this dir */
+    DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)\n", full_path );
+    if ( mkdir( full_path, mode ) != 0 )
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s", full_path, strerror(-rc) );
+        return rc;
+    }
+
+    return 0;
+}
+
+
+/**
  * Performs an archiving operation.
  * \param[in] arch_meth archiving method (sync or async)
  * \param[in] p_id pointer to id of entry to be archived
@@ -526,6 +613,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     char bkpath[RBH_PATH_MAX];
     char fspath[RBH_PATH_MAX];
     char tmp[RBH_PATH_MAX];
+    char * destdir;
     struct stat info;
     int check_moved = FALSE;
     obj_type_t entry_type;
@@ -616,6 +704,20 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     }
     strcpy(fspath, ATTR(p_attrs, fullpath));
 #endif
+
+    /* 1) extract dir path */
+    strcpy( tmp, bkpath );
+    destdir = dirname( tmp );
+    if ( destdir == NULL )
+    {
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+                    bkpath );
+        return -EINVAL; 
+    }
+    /* 2) create it recursively */
+    rc = mkdir_recurse( destdir, 750 );
+    if ( rc )
+        return rc;
 
     if ( entry_type == TYPE_FILE )
     {

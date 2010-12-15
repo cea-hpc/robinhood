@@ -14,10 +14,6 @@ fi
 
 if [[ $VERB == "ARCHIVE" ]]; then
 
-	dir=`dirname "$DEST"`
-	if [[ ! -d "$dir" ]]; then
-		mkdir -p "$dir"
-	fi
 	cp -a "$SRC" "$DEST"
 	exit $?
 fi

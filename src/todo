@@ -1,3 +1,16 @@
+BACKUP:
+ - backup quotidien de la base robinhood
+ x CREATE du repertoire parent avant
+ - CREATE du fichier dans le sbin?
+ x prise de utime avant transfert?
+ x verif apres transfert ?
+ - commandes unitaires
+ - affichage de la cos choisie dans les logs
+ (- mapping chemin_montage/commande copie)
+ - mise a jour du delai de suppression dans le backend
+ - commande de resync que des md
+
+
 - list_mgr/listmgr_remove.c
 	escape string in softrm function
 
