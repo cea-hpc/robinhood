@@ -318,6 +318,27 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
     return 0;
 }
 
+/**
+ * Only migrate one file and exit
+ */
+int MigrateSingle( migration_config_t * p_config, const char * file )
+{
+    int            rc;
+
+    /* Check mount point and FS type.  */
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
+                      global_config.check_mounted, TRUE );
+    if ( rc != 0 )
+        return rc;
+
+    /* store configuration */
+    migr_config = *p_config;
+
+    return migrate_one_file( file );
+
+}
+
+
 
 int Wait_Migration(  )
 {

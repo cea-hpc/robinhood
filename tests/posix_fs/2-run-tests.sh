@@ -1607,6 +1607,7 @@ run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass ma
 run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 #test 211 is on Lustre pools (not for POSIX FS)
 run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+#test 213 is about migration
 
 #### triggers ####
 

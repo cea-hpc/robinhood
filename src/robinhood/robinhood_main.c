@@ -68,6 +68,7 @@ static time_t  boot_time;
 #define FORCE_USER_MIGR   271
 #define FORCE_GROUP_MIGR  272
 #define FORCE_CLASS_MIGR  273
+#define MIGR_ONE_FILE     274
 
 #define DRY_RUN           280
 #define NO_LIMIT          281
@@ -179,6 +180,9 @@ static struct option option_tab[] = {
     {"archive-group", required_argument, NULL, FORCE_GROUP_MIGR},
     {"migrate-class", required_argument, NULL, FORCE_CLASS_MIGR},
     {"archive-class", required_argument, NULL, FORCE_CLASS_MIGR},
+
+    {"migrate-file", required_argument, NULL, MIGR_ONE_FILE},
+    {"archive-file", required_argument, NULL, MIGR_ONE_FILE},
 #endif
 
     /* For purge and migration actions,
@@ -688,9 +692,11 @@ int main( int argc, char **argv )
     int            migrate_user = FALSE;
     int            migrate_group = FALSE;
     int            migrate_class = FALSE;
+    int            migrate_file = FALSE;
     char           migr_target_user[128] = "";
     char           migr_target_group[128] = "";
     char           migr_target_class[128] = "";
+    char           migr_target_file[RBH_PATH_MAX] = "";
 #endif
 
     int            rc;
@@ -850,6 +856,14 @@ int main( int argc, char **argv )
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
             migrate_class = TRUE;
             strncpy( migr_target_class, optarg, 128 );
+            break;
+
+        case MIGR_ONE_FILE:
+            /* this mode is always 'one-shot' */
+            flags |= FLAG_ONCE;
+            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
+            migrate_file = TRUE;
+            strncpy( migr_target_file, optarg, RBH_PATH_MAX );
             break;
 #endif
 
@@ -1216,7 +1230,12 @@ int main( int argc, char **argv )
     }
 
 #ifdef HAVE_MIGR_POLICY
-    if ( action_mask & ACTION_MASK_MIGRATE )
+    if ( migrate_file )
+    {
+        rc = MigrateSingle( &rh_config.migr_config, migr_target_file );
+        DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration completed with status %d", rc );
+    }
+    else if ( action_mask & ACTION_MASK_MIGRATE )
     {
         migr_opt_t     migr_opt;
         migr_opt.flags = flags;

@@ -24,6 +24,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	REPORT=../../src/robinhood/rbh-hsm-report
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
+	ARCH_STR="Start archiving"
 elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsm=0
 	is_backup=0
@@ -36,6 +37,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	RH="../../src/robinhood/rbh-backup $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
 	CMD=rbh-backup
+	ARCH_STR="Starting backup"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
 	fi
@@ -187,7 +189,7 @@ function migration_test
 	# start a migration files should notbe migrated this time
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
 
-	nb_migr=`grep "Start archiving" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
 	if (($nb_migr != 0)); then
 		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
@@ -200,13 +202,108 @@ function migration_test
 	echo "3-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once
 
-	nb_migr=`grep "Start archiving" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
 	if (($nb_migr != $expected_migr)); then
 		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
 	else
 		echo "OK: $nb_migr files migrated"
 	fi
 }
+
+# migrate a single file
+function migration_test_single
+{
+	config_file=$1
+	expected_migr=$2
+	sleep_time=$3
+	policy_str="$4"
+
+	if (( $is_hsm + $is_backup == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# create and fill 10 files
+
+	echo "1-Modifing files..."
+	for i in a `seq 1 10`; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+
+	count=0
+	echo "2-Trying to migrate files before we know them..."
+	for i in a `seq 1 10`; do
+		$RH -f ./cfg/$config_file --migrate-file $ROOT/file.$i -L rh_migr.log -l EVENT 2>/dev/null
+		grep "$ROOT/file.$i" rh_migr.log | grep "not known in database" && count=$(($count+1))
+	done
+
+	if (( $count == 11 )); then
+		echo "OK: all 11 files are not known in database"
+	else
+		error "$count files are not known in database, 11 expected"
+	fi
+
+	cp /dev/null rh_migr.log
+	sleep 1
+
+	echo "3-Reading changelogs..."
+	# read changelogs
+	if (( $no_log )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error ""
+	else
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error ""
+	fi
+
+	count=0
+	cp /dev/null rh_migr.log
+	echo "4-Applying migration policy ($policy_str)..."
+	# files should not be migrated this time: do not match policy
+	for i in a `seq 1 10`; do
+		$RH -f ./cfg/$config_file --migrate-file $ROOT/file.$i -l EVENT -L rh_migr.log 2>/dev/null
+		grep "$ROOT/file.$i" rh_migr.log | grep "whitelisted" && count=$(($count+1))
+	done
+
+	if (( $count == 11 )); then
+		echo "OK: all 11 files are not eligible for migration"
+	else
+		error "$count files are not eligible, 11 expected"
+	fi
+
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	if (($nb_migr != 0)); then
+		error "********** TEST FAILED: No migration expected, $nb_migr started"
+	else
+		echo "OK: no files migrated"
+	fi
+
+	cp /dev/null rh_migr.log
+	echo "4-Sleeping $sleep_time seconds..."
+	sleep $sleep_time
+
+	count=0
+	echo "5-Applying migration policy again ($policy_str)..."
+	for i in a `seq 1 10`; do
+		$RH -f ./cfg/$config_file --migrate-file $ROOT/file.$i -l EVENT -L rh_migr.log 2>/dev/null
+		grep "$ROOT/file.$i" rh_migr.log | grep "successful" && count=$(($count+1))
+	done
+
+	if (( $count == 11 )); then
+		echo "OK: all 11 files have been migrated successfully"
+	else
+		error "$count files migrated, 11 expected"
+	fi
+
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	if (($nb_migr != $expected_migr)); then
+		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
+	else
+		echo "OK: $nb_migr files migrated"
+	fi
+}
+
 
 function xattr_test
 {
@@ -249,7 +346,7 @@ function xattr_test
 	# start a migration files should notbe migrated this time
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
 
-	nb_migr=`grep "Start archiving" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
 	if (($nb_migr != 0)); then
 		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
@@ -262,7 +359,7 @@ function xattr_test
 	echo "3-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once
 
-	nb_migr=`grep "Start archiving" rh_migr.log | grep hints |  wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints |  wc -l`
 	if (($nb_migr != 3)); then
 		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
 	else
@@ -2103,7 +2200,6 @@ if (( $junit )); then
 	tinit=`date "+%s.%N"`
 fi
 
-
 ######### TEST FAMILIES ########
 # 1xx - collecting info and database
 # 2xx - policy matching
@@ -2136,6 +2232,7 @@ run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass ma
 run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
 run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+run_test 213	migration_test_single test1.conf 11 31 "last_mod>30s"
 
 #### triggers ####
 

@@ -122,10 +122,10 @@ static migr_status_t MigrateEntry( const entry_id_t * p_id,
 
     if ( hints )
         DisplayLog( LVL_EVENT, MIGR_TAG,
-            "Start archiving(%s, hints='%s')", entry, hints );
+            "Starting backup(%s, hints='%s')", entry, hints );
     else
         DisplayLog( LVL_EVENT, MIGR_TAG,
-            "Start archiving(%s, <no_hints>)", entry );
+            "Starting backup(%s, <no_hints>)", entry );
 
     if (dry_run)
         return MIGR_OK;
@@ -332,6 +332,46 @@ static int wait_queue_empty( unsigned int nb_submitted,
     return 0;
 }
 
+/* indicates attributes to be retrieved from db */
+static int init_db_attr_mask( attr_set_t * p_attr_set )
+{
+#ifdef _BACKUP_FS
+    int rc;
+    unsigned int allow_cached_attrs = 0;
+    unsigned int need_fresh_attrs = 0;
+#endif
+
+    ATTR_MASK_INIT( p_attr_set );
+
+    /* Retrieve at least: fullpath, last_mod, last_archive, size
+     * for logging or computing statistics */
+    ATTR_MASK_SET( p_attr_set, fullpath );
+    ATTR_MASK_SET( p_attr_set, path_update );
+    ATTR_MASK_SET( p_attr_set, last_mod );
+    ATTR_MASK_SET( p_attr_set, size );
+#ifdef ATTR_INDEX_last_archive
+    ATTR_MASK_SET( p_attr_set, last_archive );
+#endif
+    ATTR_MASK_SET( p_attr_set, status );
+    ATTR_MASK_SET( p_attr_set, archive_class );
+    ATTR_MASK_SET( p_attr_set, arch_cl_update );
+    p_attr_set->attr_mask |= policies.migr_policies.global_attr_mask;
+
+#ifdef _BACKUP_FS
+    ATTR_MASK_SET( p_attr_set, type );
+
+    /* what information the backend needs from DB? */
+    rc = rbhext_status_needs( TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs );
+    if (rc != 0)
+    {
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
+                   __FUNCTION__, __LINE__, rc );
+        return rc;
+    }
+    p_attr_set->attr_mask |= allow_cached_attrs;
+#endif
+    return 0;
+}
 
 
 int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
@@ -363,11 +403,6 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
     unsigned int   nb_returned, total_returned;
 
-#ifdef _BACKUP_FS
-    unsigned int allow_cached_attrs = 0;
-    unsigned int need_fresh_attrs = 0;
-#endif
-
     lmgr_iter_opt_t opt;
 
     if ( !p_migr_param )
@@ -380,35 +415,9 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     if ( p_migr_vol )
         *p_migr_vol = 0;
 
-    ATTR_MASK_INIT( &attr_set );
-
-    /* Retrieve at least: fullpath, last_mod, last_archive, size
-     * for logging or computing statistics */
-    ATTR_MASK_SET( &attr_set, fullpath );
-    ATTR_MASK_SET( &attr_set, path_update );
-    ATTR_MASK_SET( &attr_set, last_mod );
-    ATTR_MASK_SET( &attr_set, size );
-#ifdef ATTR_INDEX_last_archive
-    ATTR_MASK_SET( &attr_set, last_archive );
-#endif
-    ATTR_MASK_SET( &attr_set, status );
-    ATTR_MASK_SET( &attr_set, archive_class );
-    ATTR_MASK_SET( &attr_set, arch_cl_update );
-    attr_set.attr_mask |= policies.migr_policies.global_attr_mask;
-
-#ifdef _BACKUP_FS
-    ATTR_MASK_SET( &attr_set, type );
-
-    /* what information the backend needs from DB? */
-    rc = rbhext_status_needs( TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs );
-    if (rc != 0)
-    {
-        DisplayLog(LVL_MAJOR, MIGR_TAG, "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
-                   __FUNCTION__, __LINE__, rc );
+    rc = init_db_attr_mask( &attr_set );
+    if (rc)
         return rc;
-    }
-    attr_set.attr_mask |= allow_cached_attrs;
-#endif
 
     /* sort by last modification time */
     sort_type.attr_index = ATTR_INDEX_last_mod;
@@ -1129,7 +1138,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item,
 /**
  * Manage an entry by path or by fid, depending on FS
  */
-static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
+static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 {
     attr_set_t     new_attr_set;
     unsigned long long feedback[MIGR_FDBK_COUNT];
@@ -1148,10 +1157,14 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
 #endif
 
 /* acknowledging helper */
-#define Acknowledge( _q, _status, _fdbk1, _fdbk2 )  do {                \
-                               feedback[MIGR_FDBK_NBR] = _fdbk1;   \
-                               feedback[MIGR_FDBK_VOL] = _fdbk2;  \
-                               Queue_Acknowledge( _q, _status, feedback, MIGR_FDBK_COUNT ); \
+#define Acknowledge( _q, _status, _fdbk1, _fdbk2 )  do {            \
+                               if (no_queue)                        \
+                                 rc = (_status);                    \
+                               else {                               \
+                                    feedback[MIGR_FDBK_NBR] = _fdbk1;  \
+                                    feedback[MIGR_FDBK_VOL] = _fdbk2;  \
+                                    Queue_Acknowledge( _q, _status, feedback, MIGR_FDBK_COUNT ); \
+                               }                                       \
                             } while(0)
 
     DisplayLog( LVL_FULL, MIGR_TAG,
@@ -1214,7 +1227,7 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
         {
             /* status changed */
             DisplayLog( LVL_MAJOR, MIGR_TAG,
-                        "%s: entry status recently changed (%#x): skipping entry.",
+                        "%s: entry status is not 'new' or 'modified' (%#x): skipping entry.",
                         ATTR(&new_attr_set,fullpath),
                         ATTR( &new_attr_set, status ));
 
@@ -1559,7 +1572,7 @@ static void ManageEntry( lmgr_t * lmgr, migr_item_t * p_item )
   end:
     /* free entry resources */
     FreeMigrItem( p_item );
-    return;
+    return rc;
 }
 
 /**
@@ -1580,13 +1593,84 @@ static void   *Thr_Migr( void *arg )
 
     while ( Queue_Get( &migr_queue, &p_queue_entry ) == 0 )
     {
-        ManageEntry( &lmgr, ( migr_item_t * ) p_queue_entry );
+        ManageEntry( &lmgr, ( migr_item_t * ) p_queue_entry, FALSE );
     }
 
     /* Error occured in migr queue management... */
     DisplayLog( LVL_CRIT, MIGR_TAG, "An error occured in migration queue management. Exiting." );
     exit( -1 );
     return NULL;                /* for avoiding compiler warnings */
+}
+
+/**
+ *  Migrate a single file
+ */
+int migrate_one_file( const char * file )
+{
+    int            rc;
+    lmgr_t         lmgr;
+    entry_id_t     id;
+    attr_set_t     attr_set;
+#ifndef _HAVE_FID
+    struct stat    st;
+#endif
+
+    rc = ListMgr_InitAccess( &lmgr );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, MIGR_TAG, "Could not connect to database (error %d). Exiting.", rc );
+        exit( rc );
+    }
+
+    /* get entry id */
+#ifdef _HAVE_FID
+    rc = Lustre_GetFidFromPath( file, &id );
+    if (rc != 0)
+    {
+        DisplayLog( LVL_CRIT, MIGR_TAG, "%s: %s", file, strerror(-rc) );
+        return rc;
+    }
+#else
+    /* get dev/inode */
+    if ( lstat( file, &st ) )
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, MIGR_TAG, "Cannot stat %s: %s",
+                    file, strerror(-rc) );
+        return rc;
+    }
+
+    id.inode = st.st_ino;
+    id.device = st.st_dev;
+    id.validator = st.st_ctime;
+#endif
+
+    /* needed info from DB */
+    rc = init_db_attr_mask( &attr_set );
+    if (rc)
+        return rc;
+
+    rc = ListMgr_Get( &lmgr, &id, &attr_set );
+    if (rc)
+    {
+        if ( rc == DB_NOT_EXISTS )
+            DisplayLog( LVL_MAJOR, MIGR_TAG, "%s: this entry is not known in database", file );
+        return rc;
+    }
+
+#ifndef _HAVE_FID
+    /* overrides it with posix info */
+    PosixStat2EntryAttr( &st, &attr_set, TRUE );
+
+    /* set update time of the stucture */
+    ATTR_MASK_SET( &attr_set, md_update );
+    ATTR( &attr_set, md_update ) = time( NULL );
+#endif
+
+    rc = ManageEntry( &lmgr, Entry2MigrItem( &id, &attr_set ) , TRUE );
+    if ( rc >= 0 && rc < MIGR_ST_COUNT )
+        DisplayLog( LVL_MAJOR, MIGR_TAG, "%s: %s", file, migr_status_descr[rc] );
+    return rc;
 }
 
 /* array of migr threads */

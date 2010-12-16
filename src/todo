@@ -4,12 +4,12 @@ BACKUP:
  - CREATE du fichier dans le sbin?
  x prise de utime avant transfert?
  x verif apres transfert ?
- - commandes unitaires
- - affichage de la cos choisie dans les logs
+ x commande de migration unitaire
+	-> non reg
+ (- affichage de la cos choisie dans les logs)
  (- mapping chemin_montage/commande copie)
  - mise a jour du delai de suppression dans le backend
  - commande de resync que des md
-
 
 - list_mgr/listmgr_remove.c
 	escape string in softrm function
