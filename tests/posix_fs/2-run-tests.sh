@@ -893,6 +893,78 @@ function test_trigger_check
 	fi
 }
 
+function test_periodic_trigger
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str=$3
+
+	if (( $is_backup != 0 )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
+	clean_logs
+
+	# create 3 files of each type
+	# (*.1, *.2, *.3, *.4)
+	for i in `seq 1 4`; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/foo.$i"
+		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/bar.$i"
+	done
+
+	# scan
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+
+	# make sure files are old enough
+	sleep 2
+
+	# start periodic trigger in background
+	$RH -f ./cfg/$config_file --purge -l DEBUG -L rh_purge.log &
+	sleep 2
+	
+	# it first must have purged *.1 files (not others)
+	[ -f $ROOT/file.1 ] && error "$ROOT/file.1 should have been removed"
+	[ -f $ROOT/foo.1 ] && error "$ROOT/foo.1 should have been removed"
+	[ -f $ROOT/bar.1 ] && error "$ROOT/bar.1 should have been removed"
+	[ -f $ROOT/file.2 ] || error "$ROOT/file.2 shouldn't have been removed"
+	[ -f $ROOT/foo.2 ] || error "$ROOT/foo.2 shouldn't have been removed"
+	[ -f $ROOT/bar.2 ] || error "$ROOT/bar.2 shouldn't have been removed"
+
+	sleep $(( $sleep_time + 2 ))
+	# now, *.2 must have been purged
+
+	[ -f $ROOT/file.2 ] && error "$ROOT/file.2 should have been removed"
+	[ -f $ROOT/foo.2 ] && error "$ROOT/foo.2 should have been removed"
+	[ -f $ROOT/bar.2 ] && error "$ROOT/bar.2 should have been removed"
+	[ -f $ROOT/file.3 ] || error "$ROOT/file.3 shouldn't have been removed"
+	[ -f $ROOT/foo.3 ] || error "$ROOT/foo.3 shouldn't have been removed"
+	[ -f $ROOT/bar.3 ] || error "$ROOT/bar.3 shouldn't have been removed"
+
+	sleep $(( $sleep_time + 2 ))
+	# now, it's *.3
+	# *.4 must be preserved
+
+	[ -f $ROOT/file.3 ] && error "$ROOT/file.3 should have been removed"
+	[ -f $ROOT/foo.3 ] && error "$ROOT/foo.3 should have been removed"
+	[ -f $ROOT/bar.3 ] && error "$ROOT/bar.3 should have been removed"
+	[ -f $ROOT/file.4 ] || error "$ROOT/file.4 shouldn't have been removed"
+	[ -f $ROOT/foo.4 ] || error "$ROOT/foo.4 shouldn't have been removed"
+	[ -f $ROOT/bar.4 ] || error "$ROOT/bar.4 shouldn't have been removed"
+
+	# final check: 3x "Purge summary: 3 entries"
+	nb_pass=`grep "Purge summary: 3 entries" rh_purge.log | wc -l`
+	if (( $nb_pass == 3 )); then
+		echo "OK: triggered 3 times"
+	else
+		error "unexpected trigger count $nb_pass"
+	fi
+
+	# terminate
+	pkill -9 -f $PROC
+}
+
 
 function fileclass_test
 {
@@ -1506,40 +1578,57 @@ if (( $junit )); then
 fi
 
 
-#1
-run_test 1	path_test test_path.conf 2 "path matching policies"
-#TODO run_test 2	update_test test_updt.conf 5 30 "db update policy"
-run_test 3	migration_test test1.conf 11 31 "last_mod>30s"
-run_test 4	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
-run_test 5	migration_test test3.conf 5  16 "complex policy with filesets"
-run_test 6	migration_test test3.conf 10 31 "complex policy with filesets"
-run_test 7	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-run_test 8	purge_test test_purge.conf 11 21 "last_access > 20s"
-run_test 9	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
-run_test 10	test_rh_report common.conf 3 1 "reporting tool"
-run_test 11	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
-run_test 12	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
-run_test 13	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
-# test 14 is about OST: not for POSIX FS
-run_test 15	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
-run_test 16	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
-run_test 17	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
-run_test 18	test_pools test_pools.conf 1 "class matching with condition on pools"
-run_test 19	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+######### TEST FAMILIES ########
+# 1xx - collecting info and database
+# 2xx - policy matching
+# 3xx - triggers
+# 4xx - reporting
+# 5xx - internals, misc.
+################################
 
-run_test 20a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
-run_test 20b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
-run_test 20c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
-run_test 20d	test_logs log1b.conf file_batch 	"file logging with alert batching"
-run_test 20e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
-run_test 20f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+##### info collect. + DB tests #####
 
-run_test 21a 	test_cfg_parsing basic none		"parsing of basic template"
-run_test 21b 	test_cfg_parsing detailed none	"parsing of detailed template"
-run_test 21c 	test_cfg_parsing generated none	"parsing of generated template"
+run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
+run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
+#TODO run_test 102	update_test test_updt.conf 5 30 "db update policy"
 
-run_test 22a   test_info_collect2  info_collect2.conf  1 "scan x3"
+#### policy matching tests  ####
 
+run_test 200	path_test test_path.conf 2 "path matching policies"
+run_test 201	migration_test test1.conf 11 31 "last_mod>30s"
+run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
+run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
+run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
+run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
+run_test 206	purge_test test_purge.conf 11 21 "last_access > 20s"
+run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
+run_test 208	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
+run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
+run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
+#test 211 is on Lustre pools (not for POSIX FS)
+run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+
+#### triggers ####
+
+run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
+# test 301 is about OST: not for POSIX FS
+run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
+run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
+
+#### reporting ####
+run_test 400	test_rh_report common.conf 3 1 "reporting tool"
+
+#### misc, internals #####
+run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
+run_test 500b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
+run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
+run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
+run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
+run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+
+run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
+run_test 501b 	test_cfg_parsing detailed none	"parsing of detailed template"
+run_test 501c 	test_cfg_parsing generated none	"parsing of generated template"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="

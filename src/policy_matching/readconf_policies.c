@@ -176,6 +176,7 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src )
 
             /* integer conditions */
         case CRITERIA_DEPTH:
+        case CRITERIA_OST:
 
 #ifdef ATTR_INDEX_dircount
         case CRITERIA_DIRCOUNT:
@@ -1107,6 +1108,23 @@ static int write_template_filesets( FILE * output )
 
     print_begin_block( output, 2, DEFINITION_BLOCK, NULL );
     print_line( output, 3, "ost_pool == \"ssd*\"" );
+    print_end_block( output, 2 );
+    print_end_block( output, 1 );
+    fprintf( output, "\n" );
+    print_begin_block( output, 1, FILESET_BLOCK, "ost_set" );
+    print_begin_block( output, 2, DEFINITION_BLOCK, NULL );
+    print_line( output, 3, "# condition on ost_index is true");
+    print_line( output, 3, "# if one of the storage objects of the file");
+    print_line( output, 3, "# matches each condition:" );
+    print_line( output, 3, "# ost_index == 15 or ost_index == 20");
+    print_line( output, 3, "# => a part of the file must be on OST 15 or 20" );
+    print_line( output, 3, "# ost_index == 15 and ost_index == 20");
+    print_line( output, 3, "# => the file must have objects at least on OST 15 and 20" );
+    print_line( output, 3, "# ost_index != 12 and ost_index != 13");
+    print_line( output, 3, "# => the file must not have objects on OSTs 12 and 13" );
+    print_line( output, 3, "ost_index == 1 or ost_index == 2 or");
+    print_line( output, 3, "ost_index == 1 or ost_index == 2 or");
+    print_line( output, 3, "ost_index == 3 or ost_index == 4");
     print_end_block( output, 2 );
     print_end_block( output, 1 );
     fprintf( output, "\n" );

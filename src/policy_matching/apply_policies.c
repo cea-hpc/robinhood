@@ -422,6 +422,12 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         p_value->val_str = p_comp->val.str;
         break;
 
+    case CRITERIA_OST:
+        *p_attr_index = ATTR_INDEX_stripe_items;
+        *p_compar = Policy2FilterComparator( p_comp->op );
+        p_value->val_uint = p_comp->val.integer;
+        break;
+
     case CRITERIA_XATTR:
     case CRITERIA_CUSTOM_CMD:
     default:
@@ -622,7 +628,39 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         else
             return BOOL2POLICY( !rc );
 
+    case CRITERIA_OST:
+    {
+        int i;
 
+        /* /!\ objects != file don't have stripe items (never match) */
+        if ( ATTR_MASK_TEST( p_entry_attr, type ) &&
+             strcmp( ATTR( p_entry_attr, type ), STR_TYPE_FILE ) )
+            return POLICY_NO_MATCH;
+
+        /* stripe items are needed */
+        CHECK_ATTR( p_entry_attr, stripe_items, no_warning );
+
+        for ( i = 0; i < ATTR(p_entry_attr, stripe_items).count; i++ )
+        {
+            if ( ATTR(p_entry_attr, stripe_items).stripe_units[i] == p_triplet->val.integer )
+            {
+                /* if comparator is ==, at least 1 OST must match,
+                 * if the cmp is !=, none must match */
+                if ( p_triplet->op == COMP_DIFF )
+                    return POLICY_NO_MATCH;
+                else if ( p_triplet->op == COMP_EQUAL )
+                    return POLICY_MATCH;
+            }
+        }
+        /* no matching OST:
+         * - if the operator is !=, the entry matches
+         * - else, the entry doesn't match */
+        if ( p_triplet->op == COMP_DIFF )
+            return POLICY_MATCH;
+        else if ( p_triplet->op == COMP_EQUAL )
+            return POLICY_NO_MATCH;
+        break;
+    }
     case CRITERIA_XATTR:
 #ifdef HAVE_ATTR_XATTR_H
     {

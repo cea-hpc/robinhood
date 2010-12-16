@@ -52,16 +52,17 @@ typedef enum
     CRITERIA_LAST_ACCESS,
     CRITERIA_LAST_MOD,
     CRITERIA_DEPTH,
-#ifndef _LUSTRE_HSM                              /* only files are handled in Lustre-HSM */
+#ifdef ATTR_INDEX_dircount
     CRITERIA_DIRCOUNT,
 #endif
-#ifdef _LUSTRE_HSM
+#ifdef ATTR_INDEX_last_restore
     CRITERIA_LAST_RESTORE,
 #endif
 #ifdef ATTR_INDEX_last_archive
     CRITERIA_LAST_ARCHIVE,
 #endif
     CRITERIA_POOL,
+    CRITERIA_OST,
     CRITERIA_XATTR,
     CRITERIA_CUSTOM_CMD
 } compare_criteria_t;

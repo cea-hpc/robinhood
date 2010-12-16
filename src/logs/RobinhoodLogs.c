@@ -610,7 +610,8 @@ static void FlushAlerts(int release_mutex_asap)
         struct tm      date;
         localtime_r( &now, &date );
 
-        sprintf(title, "robinhood alert summary: %u alerts", alert_count);
+        snprintf(title, MAIL_TITLE_MAX, "robinhood alert summary (%s on %s): %u alerts",
+                 global_config.fs_path, machine_name, alert_count);
         /* allocate and write the mail content */
         /* header: 1024 + summary: 1024*nb_types + estim_size*2 */
         content = (char*)malloc(1024 + 1024*alert_types + 2*mail_size);
@@ -833,9 +834,11 @@ void RaiseEntryAlert( const char *alert_name, /* alert name (if set) */
    else
    {
         if ( alert_name && !EMPTY_STRING(alert_name) )
-            sprintf(title,"Robinhood alert: %s", alert_name );
+            snprintf(title, 1024, "Robinhood alert (%s on %s): %s", global_config.fs_path,
+                    machine_name, alert_name );
         else
-            strcpy(title,"Robinhood alert: entry matches alert rule" );
+            snprintf(title, 1024, "Robinhood alert (%s on %s): entry matches alert rule",
+                    global_config.fs_path, machine_name );
 
         if ( log_config.alert_show_attrs )
             RaiseAlert( title, "Entry: %s\nAlert condition: %s\n"
@@ -883,8 +886,7 @@ void RaiseAlert( const char *title, const char *format, ... )
 
     if ( !EMPTY_STRING( log_config.alert_file ) )
     {
-        display_line_log_( &alert, "ALERT", "%s | filesystem: %s",
-                           title, global_config.fs_path );
+        display_line_log_( &alert, "ALERT", "%s", title );
         va_start( args, format );
         display_line_log( &alert, "ALERT", format, args );
         va_end( args );

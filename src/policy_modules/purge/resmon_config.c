@@ -35,7 +35,8 @@ static trigger_item_t default_trigger_fs = {
     .hw_percent = 80.0,
     .lw_type = PCT_THRESHOLD,
     .lw_percent = 75.0,
-    .notify = FALSE
+    .alert_hw = FALSE,
+    .alert_lw = TRUE
 };
 
 #ifdef _LUSTRE
@@ -47,7 +48,8 @@ static trigger_item_t default_trigger_ost = {
     .hw_percent = 85.0,
     .lw_type = PCT_THRESHOLD,
     .lw_percent = 80.0,
-    .notify = FALSE
+    .alert_hw = FALSE,
+    .alert_lw = TRUE
 };
 
 static trigger_item_t default_triggers[2];
@@ -94,7 +96,8 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
     print_line( output, 1, "high_watermark_pct : %.2f%%", default_trigger_ost.hw_percent );
     print_line( output, 1, "low_watermark_pct  : %.2f%%", default_trigger_ost.lw_percent );
     print_line( output, 1, "check_interval     : %u", default_trigger_ost.check_interval );
-    print_line( output, 1, "notify             : %s", bool2str(default_trigger_ost.notify));
+    print_line( output, 1, "notify_hw          : %s", bool2str(default_trigger_ost.alert_hw));
+    print_line( output, 1, "alert_lw           : %s", bool2str(default_trigger_ost.alert_lw));
     print_end_block( output, 0 );
 #endif
 
@@ -103,7 +106,8 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
     print_line( output, 1, "high_watermark_pct : %.2f%%", default_trigger_fs.hw_percent );
     print_line( output, 1, "low_watermark_pct  : %.2f%%", default_trigger_fs.lw_percent );
     print_line( output, 1, "check_interval     : %u", default_trigger_fs.check_interval );
-    print_line( output, 1, "notify             : %s", bool2str(default_trigger_fs.notify));
+    print_line( output, 1, "notify_hw          : %s", bool2str(default_trigger_fs.alert_hw));
+    print_line( output, 1, "alert_lw           : %s", bool2str(default_trigger_fs.alert_lw));
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -152,7 +156,10 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "low_watermark_pct  = 85%% ;" );
     print_line( output, 1, "check_interval     = 5min ;" );
     print_line( output, 1, "# raise an alert when the high watermark is reached" );
-    print_line( output, 1, "notify             = TRUE ;" );
+    print_line( output, 1, "notify_hw          = TRUE ;" );
+    print_line( output, 1, "# raise an alert if not enough data can be purged");
+    print_line( output, 1, "# to reach the low watermark");
+    print_line( output, 1, "alert_lw           = TRUE ;" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -209,7 +216,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         "high_watermark_pct", "low_watermark_pct",
         "high_watermark_vol", "low_watermark_vol",
         "high_watermark_cnt", "low_watermark_cnt",
-        "notify",
+        "notify", "notify_hw", "alert_lw",
         NULL
     };
 
@@ -228,10 +235,28 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     p_trigger_item->list_size = 0;
 
     /* analyze trigger_on parameter */
+    if ( !strcasecmp( tmpstr, "periodic" ) )
+    {
+        p_trigger_item->type = TRIGGER_ALWAYS;
 
-    if ( !strcasecmp( tmpstr, "global_usage" ) )
+        /* default: alert enabled if LW cannot be reached */
+        p_trigger_item->alert_lw = FALSE;
+
+        /* no arg expected */
+        if ( arg_count > 0 )
+        {
+            sprintf( msg_out,
+                     "No extra argument expected for trigger type '%s': %u argument(s) found.",
+                     tmpstr, arg_count );
+            return EINVAL;
+        }
+    }
+    else if ( !strcasecmp( tmpstr, "global_usage" ) )
     {
         p_trigger_item->type = TRIGGER_GLOBAL_USAGE;
+
+        /* default: alert enabled if LW cannot be reached */
+        p_trigger_item->alert_lw = TRUE;
 
         /* no arg expected */
         if ( arg_count > 0 )
@@ -246,6 +271,9 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     {
         p_trigger_item->type = TRIGGER_OST_USAGE;
 
+        /* default: alert enabled if LW cannot be reached */
+        p_trigger_item->alert_lw = TRUE;
+
         /* no arg expected */
         if ( arg_count > 0 )
         {
@@ -258,6 +286,9 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     else if ( !strcasecmp( tmpstr, "user_usage" ) )
     {
         p_trigger_item->type = TRIGGER_USER_USAGE;
+
+        /* default: alert enabled if LW cannot be reached */
+        p_trigger_item->alert_lw = TRUE;
 
         /* optional arguments: user list */
         if ( arg_count > 0 )
@@ -275,6 +306,9 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     {
         p_trigger_item->type = TRIGGER_GROUP_USAGE;
 
+        /* default: alert enabled if LW cannot be reached */
+        p_trigger_item->alert_lw = TRUE;
+
         /* optional argument: group list */
         if ( arg_count > 0 )
         {
@@ -291,6 +325,9 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     {
         p_trigger_item->type = TRIGGER_POOL_USAGE;
 
+        /* default: alert enabled if LW cannot be reached */
+        p_trigger_item->alert_lw = TRUE;
+
         /* optional arguments: user list */
         if ( arg_count > 0 )
         {
@@ -306,6 +343,9 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     else if ( !strcasecmp( tmpstr, "external_command" ) )
     {
         p_trigger_item->type = TRIGGER_CUSTOM_CMD;
+
+        /* default: alert enabled if LW cannot be reached */
+        p_trigger_item->alert_lw = TRUE;
 
         /* single mandatory argument: command */
         if ( arg_count != 1 )
@@ -375,7 +415,17 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     else if ( rc_lc != ENOENT )
         low_count++;
 
-    if ( p_trigger_item->type == TRIGGER_CUSTOM_CMD )
+    if ( p_trigger_item->type == TRIGGER_ALWAYS )
+    {
+        /* in case of 'periodic' trigger, no watermarks are expected */
+        if ( (high_count > 0) || (low_count > 0) )
+        {
+            strcpy( msg_out,
+                    "No high/low watermark expected for trigger type 'periodic'" );
+            return EINVAL;
+        }
+    }
+    else if ( p_trigger_item->type == TRIGGER_CUSTOM_CMD )
     {
         /* in case of an external command, no watermarks are expected */
         if ( (high_count > 0) || (low_count > 0) )
@@ -429,10 +479,11 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
 
     /* count threshold is only on global usage */
     if ( (p_trigger_item->type != TRIGGER_GLOBAL_USAGE)
+         && (p_trigger_item->type != TRIGGER_ALWAYS)
          && ( (rc_hc == 0) || (rc_lc == 0) ) )
     {
         strcpy( msg_out, "Watermark on entry count is only supported "
-                         "for global_usage triggers" );
+                         "for 'global_usage' and 'periodic' triggers" );
         return EINVAL;
     }
 
@@ -451,7 +502,6 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         p_trigger_item->hw_type = COUNT_THRESHOLD;
         p_trigger_item->hw_count = h_cnt;
     }
-
 
     if ( rc_lp == 0 )
     {
@@ -479,12 +529,24 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         return rc;
     p_trigger_item->check_interval = tmpval;
 
-    rc = GetBoolParam( config_blk, block_name, "notify", 0,
-                       &p_trigger_item->notify, NULL, NULL, msg_out );
+    rc = GetBoolParam( config_blk, block_name, "notify_hw", 0,
+                       &tmpval, NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc == ENOENT )
+        rc = GetBoolParam( config_blk, block_name, "notify", 0,
+                           &tmpval, NULL, NULL, msg_out );
+
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
+    else if ( rc == 0 )
+        p_trigger_item->alert_hw = tmpval;
 
-    //fprintf(stderr, "trigger_type=%d, hw_type=%d, lw_type=%d\n", p_trigger_item->type, p_trigger_item->hw_type, p_trigger_item->lw_type );
+    rc = GetBoolParam( config_blk, block_name, "alert_lw", 0,
+                       &tmpval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc == 0 )
+        p_trigger_item->alert_lw = tmpval;
 
     CheckUnknownParameters( config_blk, block_name, trigger_expect );
 
@@ -639,16 +701,18 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
                         trigger_list[i].type, resmon_config.trigger_list[i].type );
             return;
         }
-        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD )
-                  && ( trigger_list[i].hw_type != resmon_config.trigger_list[i].hw_type ) )
+        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD ) &&
+                  ( trigger_list[i].type != TRIGGER_ALWAYS ) &&
+                  ( trigger_list[i].hw_type != resmon_config.trigger_list[i].hw_type ) )
         {
             DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
                         "High watermark type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
                         trigger_list[i].hw_type, resmon_config.trigger_list[i].hw_type );
             return;
         }
-        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD )
-                  && ( trigger_list[i].lw_type != resmon_config.trigger_list[i].lw_type ) )
+        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD ) &&
+                  ( trigger_list[i].type != TRIGGER_ALWAYS ) &&
+                  ( trigger_list[i].lw_type != resmon_config.trigger_list[i].lw_type ) )
         {
             DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
                         "Low watermark type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
@@ -669,14 +733,21 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             check_interval_chgd = TRUE;
         }
 
-        if ( trigger_list[i].notify != resmon_config.trigger_list[i].notify )
+        if ( trigger_list[i].alert_hw != resmon_config.trigger_list[i].alert_hw )
         {
-            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "notify updated for trigger #%u: %s->%s",
-                        i, bool2str(resmon_config.trigger_list[i].notify),
-                        bool2str(trigger_list[i].notify) );
-            resmon_config.trigger_list[i].notify = trigger_list[i].notify;
+            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "notify_hw updated for trigger #%u: %s->%s",
+                        i, bool2str(resmon_config.trigger_list[i].alert_hw),
+                        bool2str(trigger_list[i].alert_hw) );
+            resmon_config.trigger_list[i].alert_hw = trigger_list[i].alert_hw;
         }
 
+        if ( trigger_list[i].alert_lw != resmon_config.trigger_list[i].alert_lw )
+        {
+            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "alert_lw updated for trigger #%u: %s->%s",
+                        i, bool2str(resmon_config.trigger_list[i].alert_lw),
+                        bool2str(trigger_list[i].alert_lw) );
+            resmon_config.trigger_list[i].alert_lw = trigger_list[i].alert_lw;
+        }
 
         /* no watermarks for custom cmd */
         if ( trigger_list[i].type == TRIGGER_CUSTOM_CMD )
@@ -689,7 +760,9 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             }
             /* do nothing in all cases */
             continue;
-        }
+        } else if ( trigger_list[i].type == TRIGGER_ALWAYS )
+            /* no watermark for 'periodic' triggers */
+            continue;
 
         switch ( trigger_list[i].hw_type )
         {

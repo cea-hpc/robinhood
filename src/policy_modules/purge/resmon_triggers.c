@@ -74,6 +74,7 @@ typedef struct trigger_status__
 } trigger_info_t;
 
 #define IS_COUNT_TRIGGER( _index_ ) (resmon_config.trigger_list[(_index_)].hw_type == COUNT_THRESHOLD)
+#define ALERT_LW( _index_ ) (resmon_config.trigger_list[(_index_)].alert_lw)
 
 static trigger_info_t *trigger_status_list = NULL;
 static time_t  trigger_check_interval = 1;
@@ -212,7 +213,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
         }
-        else if ( p_trigger->notify )
+        else if ( p_trigger->alert_hw )
         {
            snprintf( buff, 1024, "High watermark reached on %s (%s)",
                      storage_descr, global_config.fs_path );
@@ -236,7 +237,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
         }
-        else if ( p_trigger->notify )
+        else if ( p_trigger->alert_hw )
         {
            FormatFileSize( tmp1, 128, used_vol );
            snprintf( buff, 1024, "High watermark reached on %s (%s)",
@@ -341,7 +342,7 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
                     storage_descr );
         return 0;
     }
-    else if ( p_trigger->notify )
+    else if ( p_trigger->alert_hw )
     {
        char buff[1024];
        snprintf( buff, 1024, "High watermark reached on %s (%s)",
@@ -369,6 +370,100 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
     return 0;
 }
 
+
+
+/** Periodic trigger */
+static int check_periodic_trigger( unsigned trigger_index )
+{
+    purge_param_t  purge_param;
+    int            rc;
+    unsigned long long  blocks_purged, nbr_purged;
+    char           timestamp[128];
+    char           status_str[1024];
+    char           buff[1024];
+
+    if ( !CheckFSDevice(  ) )
+        return ENXIO;
+
+    purge_param.type = PURGE_ALL;
+    purge_param.flags = module_args.flags;
+    purge_param.nb_blocks = 0; /* unused, apply to all eligible files */
+    purge_param.nb_inodes = 0; /* unused, apply to all eligible files */
+
+    /* only purge if check_only is not set */
+    if ( module_args.flags & FLAG_CHECK_ONLY )
+    {
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, "only checked, no purge performed" );
+        update_trigger_status( trigger_index, TRIG_OK );
+        return 0;
+    }
+    DisplayLog( LVL_EVENT, RESMON_TAG,
+                "Applying purge policy to eligible files in filesystem" );
+
+    update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
+
+    /* perform the purge */
+    blocks_purged = nbr_purged = 0;
+    rc = perform_purge( &lmgr, &purge_param, &blocks_purged, &nbr_purged );
+
+    /* update last purge time and target */
+    sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
+
+    if ( rc == 0 )
+    {
+        update_trigger_status( trigger_index, TRIG_OK );
+        DisplayLog( LVL_MAJOR, RESMON_TAG,
+                    "Purge summary: %Lu entries, %Lu blocks purged",
+                    nbr_purged, blocks_purged );
+
+        snprintf(status_str, 1024, "Success (%Lu entries, %Lu blocks released)",
+                 nbr_purged, blocks_purged );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+    else if ( rc == ENOENT )
+    {
+        update_trigger_status( trigger_index, TRIG_NO_LIST );
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "Could not perform purge on %s: no list is available.",
+                    global_config.fs_path );
+
+        snprintf(status_str, 1024, "No list available" );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+    else
+    {
+        update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Error %d performing purge on %s (%s). "
+                    "%Lu entries purged, %Lu blocks.", rc,
+                    global_config.fs_path, strerror(rc),
+                    nbr_purged, blocks_purged );
+
+        sprintf(buff, "Error releasing data in %s", global_config.fs_path );
+        RaiseAlert( buff, "Error %d performing purge in %s (%s).\n"
+                    "%Lu entries purged, %Lu blocks.", rc,
+                    global_config.fs_path, strerror(rc),
+                    nbr_purged, blocks_purged );
+
+        snprintf(status_str, 1024, "Error %d after releasing %Lu entries, %Lu blocks released in %s",
+                 rc, nbr_purged, blocks_purged, global_config.fs_path );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+
+    FlushLogs(  );
+
+    if ( ( blocks_purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG,
+                    "Waiting %lus before performing 'df' on other storage units.",
+                    resmon_config.post_purge_df_latency );
+        rh_sleep( resmon_config.post_purge_df_latency );
+    }
+
+    return rc;
+}
 
 
 /** Check triggers on global filesystem usage */
@@ -456,13 +551,13 @@ static int check_global_trigger( unsigned trigger_index )
     /* update last purge time and target */
     sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
     ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
-    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Global Filesystem" );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
 
     if ( IS_COUNT_TRIGGER(trigger_index) )
     {
         if ( rc == 0 )
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "Global filesystem purge summary: "
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
                         "%Lu entries purged (%Lu blocks)/%Lu needed in %s",
                         spec, purged, purge_param.nb_inodes, global_config.fs_path );
         }
@@ -476,10 +571,13 @@ static int check_global_trigger( unsigned trigger_index )
                             "Could not purge %Lu entries in %s: not enough eligible files. Only %Lu entries released.",
                             purge_param.nb_inodes, global_config.fs_path, purged );
 
-                sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %Lu entries in filesystem %s: "
-                              "not enough eligible files. Only %Lu entries freed.",
-                              purge_param.nb_inodes, global_config.fs_path, purged );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %Lu entries in filesystem %s: "
+                                "not enough eligible files. Only %Lu entries freed.",
+                                purge_param.nb_inodes, global_config.fs_path, purged );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files: %Lu/%Lu entries released",
                          purged, purge_param.nb_inodes );
@@ -511,7 +609,7 @@ static int check_global_trigger( unsigned trigger_index )
     {
         if ( rc == 0 )
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "Global filesystem purge summary: "
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
                         "%Lu blocks purged (initial estimation %Lu)/%lu blocks needed in %s",
                         purged, spec, purge_param.nb_blocks, global_config.fs_path );
         }
@@ -525,10 +623,13 @@ static int check_global_trigger( unsigned trigger_index )
                             "Could not purge %lu blocks in %s: not enough eligible files. Only %Lu blocks released.",
                             purge_param.nb_blocks, global_config.fs_path, purged );
 
-                sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %lu blocks in filesystem %s: "
-                            "not enough eligible files. Only %Lu blocks freed.",
-                            purge_param.nb_blocks, global_config.fs_path, purged );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %lu blocks in filesystem %s: "
+                                "not enough eligible files. Only %Lu blocks freed.",
+                                purge_param.nb_blocks, global_config.fs_path, purged );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released)",
                          purged, purge_param.nb_blocks );
@@ -680,12 +781,15 @@ static int check_ost_trigger( unsigned trigger_index )
                             "Could not purge %lu blocks in OST #%u: not enough eligible files. Only %Lu blocks freed.",
                             purge_param.nb_blocks, ost_index, spec );
 
-                sprintf(buff, "cannot purge OST#%u (%s)", ost_index,
-                        global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %lu blocks in OST #%u (filesystem %s):\n"
-                            "not enough eligible files. Only %Lu blocks freed.",
-                            purge_param.nb_blocks, ost_index,
-                            global_config.fs_path, spec );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge OST#%u (%s)", ost_index,
+                            global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %lu blocks in OST #%u (filesystem %s):\n"
+                                "not enough eligible files. Only %Lu blocks freed.",
+                                purge_param.nb_blocks, ost_index,
+                                global_config.fs_path, spec );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released) in OST #%u",
                          spec, purge_param.nb_blocks, ost_index );
@@ -856,10 +960,14 @@ static int check_pool_trigger( unsigned trigger_index )
                             "Could not purge %lu blocks in %s: not enough eligible files. Only %Lu blocks freed.",
                             purge_param.nb_blocks, pool_string, spec );
 
-                sprintf(buff, "cannot purge %s (%s)", pool_string,
-                        global_config.fs_path );
-                RaiseAlert( buff, "Could not purge %lu blocks in %s (%s): not enough eligible files. Only %Lu blocks freed.",
-                              purge_param.nb_blocks, pool_string, global_config.fs_path, spec );
+                if ( ALERT_LW( trigger_index ) )
+                {
+                    sprintf(buff, "cannot purge %s (%s)", pool_string,
+                            global_config.fs_path );
+                    RaiseAlert( buff, "Could not purge %lu blocks in %s (%s): not enough eligible files."
+                                " Only %Lu blocks freed.",
+                                purge_param.nb_blocks, pool_string, global_config.fs_path, spec );
+                }
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released in %s)",
                          spec, purge_param.nb_blocks, pool_string );
@@ -1053,7 +1161,7 @@ static int check_user_trigger( unsigned trigger_index )
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 
-        if ( p_trigger->notify )
+        if ( p_trigger->alert_hw )
         {
             char usage_str[128];
             FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
@@ -1308,7 +1416,7 @@ static int check_group_trigger( unsigned trigger_index )
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 
-        if ( p_trigger->notify )
+        if ( p_trigger->alert_hw )
         {
             char usage_str[128];
             FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
@@ -1667,12 +1775,12 @@ static void   *force_fs_trigger_thr( void *arg )
     /* update last purge time and target */
     sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
     ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
-    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Global Filesystem" );
+    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
 
     if ( rc == 0 )
     {
         DisplayLog( LVL_MAJOR, RESMON_TAG,
-                    "Global filesystem purge summary: %Lu blocks purged "
+                    "Filesystem purge summary: %Lu blocks purged "
                     "(initial estimation %Lu)/%lu blocks needed in %s",
                     purged, spec, purge_param.nb_blocks, global_config.fs_path );
     }
@@ -1840,6 +1948,8 @@ static inline char *trigger2str( trigger_type_t type )
     {
     case TRIGGER_GLOBAL_USAGE:
         return "global_usage";
+    case TRIGGER_ALWAYS:
+        return "periodic";
     case TRIGGER_OST_USAGE:
         return "OST_usage";
     case TRIGGER_POOL_USAGE:
@@ -1897,6 +2007,9 @@ static void   *trigger_check_thr( void *thr_arg )
                 {
                 case TRIGGER_GLOBAL_USAGE:
                     rc = check_global_trigger( i );
+                    break;
+                case TRIGGER_ALWAYS:
+                    rc = check_periodic_trigger( i );
                     break;
                 case TRIGGER_OST_USAGE:
                     rc = check_ost_trigger( i );

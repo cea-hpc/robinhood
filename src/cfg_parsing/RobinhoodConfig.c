@@ -1010,7 +1010,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         /* 3 possible values: aboslute path, relative path,
          * path with special wildcard '**' that match any number
          * of directory levels */
-        strncpy( p_triplet->val.str, key_value->varvalue, 1024 );
+        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
 
         if ( ANY_LEVEL_MATCH(p_triplet->val.str) )
         {
@@ -1057,7 +1057,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         /* 3 possible values: aboslute path, relative path,
          * path with special wildcard '**' that match any number
          * of directory levels */
-        strncpy( p_triplet->val.str, key_value->varvalue, 1024 );
+        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
 
         if ( ANY_LEVEL_MATCH(p_triplet->val.str) )
         {
@@ -1108,7 +1108,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
             return EINVAL;
         }
 
-        strncpy( p_triplet->val.str, key_value->varvalue, 1024 );
+        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
 
         /* allowed comparators are = and != */
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
@@ -1175,7 +1175,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->crit = CRITERIA_OWNER;
         *p_attr_mask |= ATTR_MASK_owner;
 
-        strncpy( p_triplet->val.str, key_value->varvalue, 1024 );
+        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
@@ -1201,7 +1201,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->crit = CRITERIA_GROUP;
         *p_attr_mask |= ATTR_MASK_gr_name;
 
-        strncpy( p_triplet->val.str, key_value->varvalue, 1024 );
+        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
@@ -1267,7 +1267,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
 
         if ( p_triplet->val.integer == -1 )
         {
-            sprintf( err_msg, "Invalid format for depth: '%s'", key_value->varvalue );
+            sprintf( err_msg, "Invalid format for dircount: '%s'", key_value->varvalue );
             return EINVAL;
         }
 
@@ -1363,7 +1363,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->crit = CRITERIA_POOL;
         *p_attr_mask |= ATTR_MASK_stripe_info;
 
-        strncpy( p_triplet->val.str, key_value->varvalue, 1024 );
+        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
@@ -1379,6 +1379,29 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
                 p_triplet->op = COMP_LIKE;
             else if ( p_triplet->op == COMP_DIFF )
                 p_triplet->op = COMP_UNLIKE;
+        }
+    }
+    else if ( TEST_CRIT( key_value->varname, CRITERIA_OST ) )
+    {
+        p_triplet->crit = CRITERIA_OST;
+        *p_attr_mask |= ATTR_MASK_stripe_items;
+
+        /* a index is expected */
+        p_triplet->val.integer = str2int( key_value->varvalue );
+
+        if ( p_triplet->val.integer == -1 )
+        {
+            sprintf( err_msg, "Invalid format for ost index: '%s'", key_value->varvalue );
+            return EINVAL;
+        }
+
+        /* any comparator is allowed */
+        p_triplet->op = syntax2conf_comparator( key_value->op_type );
+
+        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
+        {
+            strcpy( err_msg, "Illegal comparator for 'ost_index' criteria: == or != expected" );
+            return EINVAL;
         }
     }
     else if ( TEST_CRIT( key_value->varname, CRITERIA_CUSTOM_CMD ) )
@@ -1417,8 +1440,8 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         *p_attr_mask |= ATTR_MASK_fullpath;
 #endif
 
-        strncpy( p_triplet->val.str, key_value->varvalue, 1024 );
-        strncpy( p_triplet->xattr_name, p_xattr, 1024 );
+        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
+        strncpy( p_triplet->xattr_name, p_xattr, RBH_NAME_MAX );
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
@@ -1895,6 +1918,8 @@ const char    *criteria2str( compare_criteria_t crit )
 #endif
     case CRITERIA_POOL:
         return "ost_pool";
+    case CRITERIA_OST:
+        return "ost_index";
     case CRITERIA_CUSTOM_CMD:
         return "external_cmd";
     case CRITERIA_XATTR:
@@ -1928,8 +1953,8 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 
         /* int values */
     case CRITERIA_DEPTH:
-
-#ifndef _LUSTRE_HSM             /* only files are handled in lustre-HSM */
+    case CRITERIA_OST:
+#ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
 #endif
         return snprintf( out_str, str_size, "%s %s %d", criteria2str( p_triplet->crit ),
