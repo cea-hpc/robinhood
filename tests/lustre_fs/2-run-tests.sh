@@ -2115,7 +2115,8 @@ function junit_write_xml # (time, nb_failure, tests)
 	tests=$3
 	
 	cp /dev/null $XML
-	echo "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" > $XML
+#	echo "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" > $XML
+	echo "<?xml version=\"1.0\" encoding=\"ISO8859-2\" ?>" > $XML
 	echo "<testsuite name=\"robinhood.LustreTests\" errors=\"0\" failures=\"$failure\" tests=\"$tests\" time=\"$time\">" >> $XML
 	cat $TMPXML_PREFIX.tc 		>> $XML
 	echo -n "<system-out><![CDATA[" >> $XML

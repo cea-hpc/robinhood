@@ -511,14 +511,41 @@ int rbhext_get_status( const entry_id_t * p_id,
 }
 
 /**
+ * get metadata of original directory in Lustre
+ */
+static int get_orig_dir_md( const char * backend_dir, struct stat * st )
+{
+    char rel_path[RBH_PATH_MAX];
+    char orig_path[RBH_PATH_MAX];
+    int rc;
+
+    rc =  relative_path( backend_dir, config.root, rel_path );
+    if (rc)
+        return rc;
+
+    /* orig path is '<fs_root>/<rel_path>' */
+    sprintf(orig_path, "%s/%s", global_config.fs_path, rel_path);
+
+    DisplayLog( LVL_FULL, RBHEXT_TAG, "Backend directory: %s, source directory: %s",
+                backend_dir, orig_path );
+
+    if ( lstat(orig_path, st) )
+        return -errno;
+    else
+        return 0;
+}
+
+/**
  *  Ensure POSIX directory exists
  */
-int mkdir_recurse( const char * full_path, mode_t mode )
+static int mkdir_recurse( const char * full_path, mode_t default_mode )
 {
     char path_copy[MAXPATHLEN];
     const char * curr;
     struct stat st;
+    mode_t mode;
     int rc;
+    int setattrs = FALSE;
 
     /* skip backend root */
     if ( strncmp(config.root,full_path, strlen(config.root)) != 0 )
@@ -566,12 +593,31 @@ int mkdir_recurse( const char * full_path, mode_t mode )
                 return rc;
             }
 
-            DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)\n", path_copy );
+            if (get_orig_dir_md(path_copy, &st) != 0)
+            {
+                mode = default_mode;
+                setattrs = FALSE;
+            }
+            else
+            {
+                mode = st.st_mode & 07777;
+                setattrs = TRUE;
+            }
+
+            DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", path_copy );
             if ( mkdir( path_copy, mode ) != 0 )
             {
                 rc = -errno;
                 DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s", path_copy, strerror(-rc) );
                 return rc;
+            }
+
+            if ( setattrs )
+            {
+                /* set owner and group */
+                if ( lchown( path_copy, st.st_uid, st.st_gid ) )
+                    DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error setting owner/group for '%s': %s",
+                                path_copy, strerror(errno) );
             }
         }
         else if ( !S_ISDIR( st.st_mode ) )
@@ -583,13 +629,29 @@ int mkdir_recurse( const char * full_path, mode_t mode )
         curr++;
     }
 
+    if (get_orig_dir_md(full_path, &st) != 0)
+    {
+        mode = default_mode;
+        setattrs = FALSE;
+    }
+    else
+    {
+        mode = st.st_mode & 07777;
+        setattrs = TRUE;
+    }
+
     /* finaly create this dir */
-    DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)\n", full_path );
+    DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", full_path );
     if ( mkdir( full_path, mode ) != 0 )
     {
         rc = -errno;
         DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s", full_path, strerror(-rc) );
         return rc;
+    } else if (setattrs) {
+        /* set owner and group */
+        if ( lchown( full_path, st.st_uid, st.st_gid ) )
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error setting owner/group for '%s': %s",
+                        full_path, strerror(errno) );
     }
 
     return 0;

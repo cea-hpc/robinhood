@@ -471,7 +471,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             if ( rc == -ENOTSUP )
             {
-                /* no type of can be backup'ed: skip the record */
+                /* this type can't be backup'ed: skip the record */
                 next_stage = STAGE_CHGLOG_CLR;
                 goto next_step;
             }
@@ -578,7 +578,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 tmp_attr.attr_mask |= (attr_allow_cached
                                        & ~p_op->entry_attr.attr_mask);
 
-                /* no release class for directories */
+                /* no class for directories */
                 if ( strcmp( ATTR(&p_op->entry_attr, type), STR_TYPE_DIR ) != 0 )
                 {
                     if ( entry_proc_conf.match_classes )
@@ -862,6 +862,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             else if ( rc == -ENOTSUP )
             {
                 /* this type of entry is not managed: ignored */
+                /* TODO: backup md in database anyhow */
                 goto skip_record;
             }
 
