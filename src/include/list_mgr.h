@@ -459,8 +459,78 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
  */
 void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter );
 
+/** @} */
 
+#endif
 
+#ifdef _BACKUP_FS
+
+#define RECOV_ATTR_MASK ( ATTR_MASK_last_mod | ATTR_MASK_status  | ATTR_MASK_fullpath | \
+                          ATTR_MASK_owner | ATTR_MASK_gr_name | ATTR_MASK_backendpath | \
+                          ATTR_MASK_stripe_info )
+
+/**
+ * Filesystem recovery from backup.
+ * \addtogroup RECOVERY_FUNCTIONS
+ * @{
+ */
+
+typedef enum {
+    RS_OK          = 0,
+    RS_DELTA       = 1,
+    RS_NOBACKUP    = 2,
+    RS_ERROR       = 3,
+    RS_COUNT
+} recov_status_t;
+
+typedef struct _lmgr_recov_stat
+{
+    unsigned int total;
+
+    /* recovery status count */
+    unsigned int status_count[RS_COUNT];
+    uint64_t     status_size[RS_COUNT];
+} lmgr_recov_stat_t;
+
+/* Filesystem recovery functions  */
+
+/**
+ *  Initialize a recovery process.
+ *  \retval DB_SUCCESS the recovery process successfully started;
+ *          the stats indicate the recovery states we can expect.
+ *  \retval DB_ALREADY_EXISTS a recovery process already started
+ *          and was not properly completed.
+ *  \retval error   another error occured.
+ */
+int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
+
+/**
+ * Clear the recovery table.
+ * /!\ all previously unrecovered entry will be lost
+ */
+int ListMgr_RecovReset( lmgr_t * p_mgr );
+
+/**
+ *  Continue a recovery process (returns an iterator on entry list),
+ *  possibly using the specified filter.
+ *  \retval iterator must be release using ListMgr_CloseIterator()
+ */
+struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
+                                              const char * path_filter,
+                                              const lmgr_iter_opt_t * p_opt );
+
+int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
+                          entry_id_t * p_id,
+                          attr_set_t * p_info );
+
+int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
+
+int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
+
+int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
+                           recov_status_t status );
+
+/** @} */
 
 #endif
 

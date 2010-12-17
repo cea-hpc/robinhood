@@ -180,6 +180,9 @@ int db_exec_sql( db_conn_t * conn, const char *query, result_handle_t * p_result
         if (mysql_errno( conn ) == ER_DUP_ENTRY)
             DisplayLog( LVL_EVENT, LISTMGR_TAG, "A database record already exists for this entry: '%s' (%s)",
                          query, mysql_error(conn) );
+        else if (mysql_errno( conn ) == ER_NO_SUCH_TABLE)
+            DisplayLog( LVL_EVENT, LISTMGR_TAG, "Table does not exist: '%s' (%s)",
+                         query, mysql_error(conn) );
         else
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error %d executing query '%s': %s",
                         rc, query, mysql_error(conn) );

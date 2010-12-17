@@ -76,11 +76,12 @@ rbh_hsm_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE
 endif
 
 if BACKUP_FS
-sbin_PROGRAMS=rbh-backup rbh-backup-report
+sbin_PROGRAMS=rbh-backup rbh-backup-report rbh-backup-recov
 
 # dependencies:
 rbh_backup_DEPENDENCIES=$(all_libs)
 rbh_backup_report_DEPENDENCIES=$(all_libs)
+rbh_backup_recov_DEPENDENCIES=$(all_libs)
 
 rbh_backup_SOURCES=robinhood_main.c
 rbh_backup_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
@@ -89,6 +90,10 @@ rbh_backup_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 rbh_backup_report_SOURCES=robinhood_report.c
 rbh_backup_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+
+rbh_backup_recov_SOURCES=robinhood_recov.c
+rbh_backup_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_backup_recov_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
 

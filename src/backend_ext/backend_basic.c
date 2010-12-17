@@ -938,3 +938,17 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
     }
     return 0;
 }
+
+/* recover a file from the backend after formatting FS */
+int rbhext_recover( const attr_set_t * p_attrs_old,
+                    attr_set_t * p_attrs_new,
+                    entry_id_t * p_new_id )
+{
+    /* if the entry was new, there is nothing to be retrieved from the backend
+     * (no backend path is expected in this case :-?)
+     */
+
+    /* use path, owner, group saved in the DB (more up-to-date) */
+    /* use mode from the backend (not in DB) */
+    /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
+}

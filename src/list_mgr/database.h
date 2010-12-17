@@ -26,6 +26,10 @@
 #   define SOFT_RM_TABLE    "SOFT_RM"
 #endif
 
+#ifdef _BACKUP_FS
+#   define  RECOV_TABLE     "RECOVERY"
+#endif
+
 extern lmgr_config_t lmgr_config;
 extern int     annex_table;                      /* are we using an annex table */
 
