@@ -292,7 +292,7 @@ function select_db
     echo "Available databases are: $db_list"
 
     while ((1)); do
-        read -p "Select database to clean: " db
+        read -p "Select database: " db
         if [[ -n "$db" ]]; then
             if [[ $db_list = *$db* ]]; then
                 break
@@ -476,6 +476,71 @@ function repair_db
 
 }
 
+function backup_db
+{
+    interactive=0
+    if (( $# == 0 )); then
+	interactive=1
+    elif (( $# != 2 && $# != 3 )); then
+	echo "ERROR: 2 or 3 arguments expected"
+    	echo "Usage: repair_db [<db_name> <dest_dir> [<db_admin_passwd>]]"
+	exit 1
+    fi
+
+    if (( $interactive != 0)); then
+	    echo
+	    echo "Enter password for root's database account (leave blank if none is set):"
+	    read -p "root's DB password: " -s pass_root
+	    echo
+
+	    select_db $pass_root || exit 1
+
+	    if [ -z $RBH_DB ]; then
+		echo "ERROR: database not specified"
+		exit 1
+	    fi
+
+        while (( 1 )); do
+		read -p "destination directory: " DEST_DIR
+		if [[ -d "$DEST_DIR" ]]; then
+		    break
+		else
+		    echo
+		    echo "Error: the specified directory does not exist"
+		fi
+	    done
+    else
+	RBH_DB=$1
+	DEST_DIR=$2
+	pass_root=$3
+    fi
+
+    if [[ ! -d "$DEST_DIR" ]]; then
+        echo "$DEST_DIR: directory does not exist"
+        exit 1
+    fi
+
+    # backup format: <dir>/<dbname>.backup.<date>.<time>.sql
+    timestamp=`date "+%Y%m%d-%H%M%S"`
+    bkfile="$DEST_DIR/$RBH_DB.backup.$timestamp.sql"
+
+    mysqldump --password="$pass_root" $RBH_DB > "$bkfile"
+    if (( $? != 0 )); then
+        echo "Backup failed"
+        exit 1
+    else
+        sz=`stat --format="%s" "$bkfile"`
+        if (( $? != 0 )); then
+            echo "ERROR: backup file not found"
+            exit 1
+        fi
+        echo "Backup successful. file: $bkfile, size: $sz bytes"
+        echo "DONE"
+        exit 0
+    fi
+}
+
+
 
 function test_connect 
 {
@@ -520,6 +585,9 @@ elif [[ "$1" = "reset_classes" ]]; then
 elif [[ "$1" = "repair_db" ]]; then
     shift 1
     repair_db $*
+elif [[ "$1" = "backup_db" ]]; then
+    shift 1
+    backup_db $*
 elif [[ "$1" = "test_db" ]]; then
     shift 1
     test_connect $*
@@ -540,4 +608,6 @@ else
     echo "        test connection to the database"
     echo "    repair_db [<db_name> [<db_admin_passwd>]]:"
     echo "        check tables and fix them after a mysql server crash"
+    echo "    backup_db [<db_name> <dest_dir> [<db_admin_passwd>]]:"
+    echo "        backup robinhood database to dest dir"
 fi

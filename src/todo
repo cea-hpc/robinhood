@@ -10,6 +10,9 @@ BACKUP:
  (- mapping chemin_montage/commande copie)
  - mise a jour du delai de suppression dans le backend
  - commande de resync que des md
+ - backup des md des repertoires
+ - commande de recovery
+ - rbh-config backup_db
 
 - list_mgr/listmgr_remove.c
 	escape string in softrm function
