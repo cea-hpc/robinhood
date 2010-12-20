@@ -949,7 +949,7 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
 }
 
 /** recover a file from the backend after formatting FS
- * \retval
+ * \retval recovery status
  */
 int rbhext_recover( const entry_id_t * p_old_id,
                     const attr_set_t * p_attrs_old,
@@ -962,11 +962,12 @@ int rbhext_recover( const entry_id_t * p_old_id,
     int rc;
     struct stat st_bk;
     struct stat st_dest;
+    int delta = FALSE;
 
     if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'fullpath' for restoring entry "DFID, PFID(p_old_id) );
-        return -EINVAL;
+        return RS_ERROR;
     }
     fspath = ATTR( p_attrs_old, fullpath );
 
@@ -986,7 +987,7 @@ int rbhext_recover( const entry_id_t * p_old_id,
             DisplayLog( LVL_MAJOR, RBHEXT_TAG,
                         "Cannot determine backend path for '%s'",
                         fspath );
-            return rc;
+            return RS_ERROR;
         }
     }
     else
@@ -998,7 +999,10 @@ int rbhext_recover( const entry_id_t * p_old_id,
         rc = -errno;
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
                     backend_path, strerror(-rc) );
-        return rc;
+        if (rc == -ENOENT )
+            return RS_NOBACKUP;
+        else
+            return RS_ERROR;
     }
 
     /* test if the target does not already exist */
@@ -1007,13 +1011,13 @@ int rbhext_recover( const entry_id_t * p_old_id,
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: cannot recover '%s': already exists",
                     fspath );
-        return -EEXIST;
+        return RS_ERROR;
     }
     else if ( (rc = -errno) != -ENOENT )
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unexpected error performing lstat(%s): %s",
                     fspath, strerror(-rc) );
-        return rc;
+        return RS_ERROR;
     }
 
     /* TODO recursively create the parent directory */
@@ -1032,7 +1036,8 @@ int rbhext_recover( const entry_id_t * p_old_id,
         rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
                                     backend_path, fspath );
         if (rc)
-            return rc;
+            return RS_ERROR;
+        /* TODO: remove partial copy */
 
         /* set the same mode as in the backend */
         DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
@@ -1103,8 +1108,30 @@ int rbhext_recover( const entry_id_t * p_old_id,
         rc = -errno;
         DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: lstat() failed on restored entry '%s': %s",
                     fspath, strerror(-rc) );
-        return rc;
+        return RS_ERROR;
     }
 
-    /* TODO compare restored size and mtime with the one saved in the DB (for warning purpose) */
+    /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
+    if ( st_dest.st_size != ATTR(p_attrs_old, size) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%llu) is "
+                    "different from the last known size in filesystem (%"PRIu64"): "
+                    "it should have been modified in filesystem after the last backup.",
+                    fspath, st_dest.st_size, ATTR(p_attrs_old, size) );
+        delta = TRUE;
+    }
+    if ( st_dest.st_mtime != ATTR(p_attrs_old, last_mod) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored mtime (%lu) is "
+                    "different from the last time in filesystem (%u): "
+                    "it may have been modified in filesystem after the last backup.",
+                    fspath, st_dest.st_mtime, ATTR(p_attrs_old, last_mod) );
+        delta = TRUE;
+    }
+
+    if (delta)
+        return RS_DELTA;
+    else
+        return RS_OK;
+
 }
