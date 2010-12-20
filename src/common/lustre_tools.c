@@ -33,6 +33,7 @@
 
 /* for logs */
 #define TAG_STRIPE "GetStripe"
+#define TAG_CR_STRIPE "CreateStriped"
 #define TAG_OSTDF "OST_df"
 #define TAG_POOLDF "pool_df"
 #define TAG_MDSSTAT "mds_stat"
@@ -162,6 +163,35 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                     entry_path, p_lum->lmm_magic );
         return EINVAL;
     }
+}
+
+int File_CreateSetStripe( const char * path, const stripe_info_t * old_stripe )
+{
+    int rc;
+
+    /* try to restripe using previous pool name */
+    if ( !EMPTY_STRING( old_stripe->pool_name ) )
+    {
+        rc = llapi_file_create_pool( path, old_stripe->stripe_size,
+                                     -1, old_stripe->stripe_count, 0,
+                                     (char *)old_stripe->pool_name );
+        if ( rc == 0 || rc == -EEXIST )
+            return rc;
+        else
+        {
+            DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Error %d creating '%s' in pool '%s': %s",
+                        rc, path, old_stripe->pool_name, strerror(-rc) );
+            DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Trying to create it without pool information..." );
+        }
+    }
+
+    rc = llapi_file_create( path, old_stripe->stripe_size,
+                            -1, old_stripe->stripe_count, 0 );
+    if ( rc != 0 || rc == -EEXIST )
+        DisplayLog( LVL_MAJOR, TAG_CR_STRIPE,
+                    "Error %d creating '%s' with stripe. Trying to create it without specific stripe...",
+                    rc, path );
+    return rc;
 }
 
 /* global info about the filesystem to be managed */

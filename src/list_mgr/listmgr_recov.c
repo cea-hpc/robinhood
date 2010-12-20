@@ -224,6 +224,8 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     /* count entries of each status */
     expected_recov_status( p_mgr, p_stats );
 
+    /* delete all entries from tables (double check entry count) */
+
     return 0;
 }
 

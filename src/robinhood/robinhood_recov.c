@@ -25,6 +25,7 @@
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
 #include "xplatform_print.h"
+#include "backend_ext.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -298,8 +299,9 @@ int recov_resume( int retry_errors )
 {
     struct lmgr_iterator_t * it;
     int rc;
-    entry_id_t  id;
-    attr_set_t  attrs;
+    entry_id_t  id, new_id;
+    attr_set_t  attrs, new_attrs;
+    char buff[128];
 
     /* TODO take path filter into account + iter opt */
     it = ListMgr_RecovResume( &lmgr, NULL, retry_errors,
@@ -322,13 +324,25 @@ int recov_resume( int retry_errors )
             return rc;
         }
 
-        printf("-------------------------\n");
-        printf("path: %s\n", ATTR( &attrs, fullpath));
-        printf("backend path: %s\n", ATTR( &attrs, backendpath));
-        printf("size: %"PRIu64"\n", ATTR( &attrs, size));
-        printf("last_mod: %u\n", ATTR( &attrs, last_mod));
-        printf("stripe count: %u\n", ATTR( &attrs, stripe_info).stripe_count );
-        printf("stripe size: %"PRIu64"\n",  ATTR( &attrs, stripe_info).stripe_size );
+        FormatFileSize( buff, 128, ATTR( &attrs, size ) );
+
+        if ( ATTR_MASK_TEST( &attrs, fullpath) )
+            printf("Restoring %s (%s)...", ATTR( &attrs, fullpath), buff);
+        else
+            printf("Restoring "DFID" (%s)...", PFID(&id), buff);
+
+        if ( ATTR_MASK_TEST( &attrs, status ) && (ATTR(&attrs, status ) == STATUS_NEW)
+             && !ATTR_MASK_TEST( &attrs, backendpath ) )
+        {
+            printf("\nThis entry is new and is probably not saved in backend. Trying anyway...");
+        }
+
+        /* TODO process entries asynchronously, in parallel, in separate threads*/
+        rc = rbhext_recover( &id, &attrs, &new_id, &new_attrs );
+        if (rc)
+            printf(" status %d: %s\n", rc, strerror(-rc));
+        else
+            printf(" OK\n");
 
         /* reset mask */
         attrs.attr_mask = RECOV_ATTR_MASK;
@@ -361,7 +375,7 @@ int main( int argc, char **argv )
     int            force_log_level = FALSE;
 
     int            log_level = 0;
-    int            flags = 0;
+    int            local_flags = 0;
 
     int            rc;
     char           err_msg[4096];
@@ -382,10 +396,10 @@ int main( int argc, char **argv )
             do_resume = TRUE;
             break;
         case 'e':
-            flags |= RETRY_ERRORS;
+            local_flags |= RETRY_ERRORS;
             break;
         case 'y':
-            flags |= NO_CONFIRM;
+            local_flags |= NO_CONFIRM;
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
@@ -491,12 +505,21 @@ int main( int argc, char **argv )
         exit( rc );
     }
 
+#ifdef _BACKUP_FS
+    rc = Backend_Start( &config.backend_config, 0 );
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, RECOV_TAG, "Error initializing backend" );
+        exit( 1 );
+    }
+#endif
+
     if (do_start)
         recov_start();
     else if (do_reset)
-        recov_reset( flags & NO_CONFIRM );
+        recov_reset( local_flags & NO_CONFIRM );
     else if (do_resume)
-        recov_resume( flags & RETRY_ERRORS );
+        recov_resume( local_flags & RETRY_ERRORS );
 
 
     ListMgr_CloseAccess( &lmgr );

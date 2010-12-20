@@ -34,6 +34,8 @@
 #include <time.h>
 #include <utime.h>
 #include <libgen.h>
+#include <pwd.h>
+#include <grp.h>
 
 #define RBHEXT_TAG "Backend"
 
@@ -608,7 +610,8 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
             if ( mkdir( path_copy, mode ) != 0 )
             {
                 rc = -errno;
-                DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s", path_copy, strerror(-rc) );
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s",
+                            path_copy, strerror(-rc) );
                 return rc;
             }
 
@@ -616,13 +619,16 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
             {
                 /* set owner and group */
                 if ( lchown( path_copy, st.st_uid, st.st_gid ) )
-                    DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error setting owner/group for '%s': %s",
+                    DisplayLog( LVL_MAJOR, RBHEXT_TAG,
+                                "Error setting owner/group for '%s': %s",
                                 path_copy, strerror(errno) );
             }
         }
         else if ( !S_ISDIR( st.st_mode ) )
         {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Cannot create directory '%s': existing non-directory", path_copy );
+            DisplayLog( LVL_CRIT, RBHEXT_TAG,
+                        "Cannot create directory '%s': existing non-directory",
+                        path_copy );
             return -ENOTDIR;
         }
 
@@ -805,6 +811,8 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         {
             /* finalize tranfer */
 
+            /* owner/group is saved by the copy command */
+
             /* reset initial mtime */
             if ( ATTR_MASK_TEST( p_attrs, last_mod ) )
             {
@@ -924,7 +932,8 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
             rc = -errno;
             if ( rc == -ENOENT )
             {
-                DisplayLog( LVL_EVENT, RBHEXT_TAG, "'%s' not found in backend: assuming backend removal is successfull",
+                DisplayLog( LVL_EVENT, RBHEXT_TAG, "'%s' not found in backend: "
+                            "assuming backend removal is successfull",
                             backend_path );
                 return 0;
             }
@@ -939,16 +948,163 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
     return 0;
 }
 
-/* recover a file from the backend after formatting FS */
-int rbhext_recover( const attr_set_t * p_attrs_old,
-                    attr_set_t * p_attrs_new,
-                    entry_id_t * p_new_id )
+/** recover a file from the backend after formatting FS
+ * \retval
+ */
+int rbhext_recover( const entry_id_t * p_old_id,
+                    const attr_set_t * p_attrs_old,
+                    entry_id_t * p_new_id,
+                    attr_set_t * p_attrs_new )
 {
-    /* if the entry was new, there is nothing to be retrieved from the backend
-     * (no backend path is expected in this case :-?)
-     */
+    char bkpath[RBH_PATH_MAX];
+    const char * backend_path;
+    const char * fspath;
+    int rc;
+    struct stat st_bk;
+    struct stat st_dest;
 
-    /* use path, owner, group saved in the DB (more up-to-date) */
-    /* use mode from the backend (not in DB) */
-    /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
+    if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'fullpath' for restoring entry "DFID, PFID(p_old_id) );
+        return -EINVAL;
+    }
+    fspath = ATTR( p_attrs_old, fullpath );
+
+    /* if there is no backend path, try to guess */
+    if ( !ATTR_MASK_TEST( p_attrs_old, backendpath) )
+    {
+        rc = entry2backend_path( p_old_id, p_attrs_old, FOR_LOOKUP, bkpath );
+        if ( rc == 0 )
+        {
+            DisplayLog( LVL_EVENT, RBHEXT_TAG,
+                        "No backend path is set for '%s', guess it could be '%s'",
+                        fspath, bkpath );
+            backend_path = bkpath;
+        }
+        else
+        {
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG,
+                        "Cannot determine backend path for '%s'",
+                        fspath );
+            return rc;
+        }
+    }
+    else
+        backend_path = ATTR( p_attrs_old, backendpath );
+
+    /* test if this copy exists */
+    if ( lstat( backend_path, &st_bk ) != 0 )
+    {
+        rc = -errno;
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
+                    backend_path, strerror(-rc) );
+        return rc;
+    }
+
+    /* test if the target does not already exist */
+    rc = lstat( ATTR(p_attrs_old, fullpath), &st_dest );
+    if ( rc == 0 )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: cannot recover '%s': already exists",
+                    fspath );
+        return -EEXIST;
+    }
+    else if ( (rc = -errno) != -ENOENT )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unexpected error performing lstat(%s): %s",
+                    fspath, strerror(-rc) );
+        return rc;
+    }
+
+    /* TODO recursively create the parent directory */
+
+#ifdef _LUSTRE
+    /* restripe the file in Lustre */
+    if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
+        File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
+#endif
+
+    /* restore entry */
+    if ( S_ISREG( st_bk.st_mode ) )
+    {
+        struct utimbuf utb;
+
+        rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
+                                    backend_path, fspath );
+        if (rc)
+            return rc;
+
+        /* set the same mode as in the backend */
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
+                    fspath, st_bk.st_mode & 07777 );
+        if ( chmod( fspath, st_bk.st_mode & 07777 ) )
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore mode for '%s': %s",
+                        fspath, strerror(errno) );
+
+        /* set the same mtime as in the backend */
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring times for '%s': atime=%lu, mtime=%lu",
+                    fspath, st_bk.st_atime, st_bk.st_mtime );
+        utb.actime = st_bk.st_atime;
+        utb.modtime = st_bk.st_mtime;
+        if ( utime( fspath, &utb ) )
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
+                        fspath, strerror(errno) );
+    }
+
+    /* set owner, group */
+    if ( ATTR_MASK_TEST( p_attrs_old, owner ) || ATTR_MASK_TEST( p_attrs_old, gr_name ) )
+    {
+        uid_t uid = -1;
+        gid_t gid = -1;
+        char buff[4096];
+
+        if ( ATTR_MASK_TEST( p_attrs_old, owner ) )
+        {
+            struct passwd pw;
+            struct passwd * p_pw;
+
+            if ( getpwnam_r( ATTR(p_attrs_old, owner ), &pw, buff, 4096, &p_pw ) != 0 )
+            {
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't resolve uid for user '%s'",
+                            ATTR(p_attrs_old, owner ));
+                uid = -1;
+            }
+            else
+                uid = p_pw->pw_uid;
+        }
+
+        if ( ATTR_MASK_TEST( p_attrs_old, gr_name ) )
+        {
+            struct group gr;
+            struct group * p_gr;
+            if ( getgrnam_r( ATTR(p_attrs_old, gr_name ), &gr, buff, 4096, &p_gr ) != 0 )
+            {
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't resolve gid for group '%s'",
+                            ATTR(p_attrs_old, gr_name ) );
+                gid = -1;
+            }
+            else
+                gid = p_gr->gr_gid;
+        }
+
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring owner/group for '%s': uid=%u, gid=%u",
+                    fspath, uid, gid );
+
+        if ( lchown( fspath, uid, gid ) )
+        {
+            rc = errno;
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: cannot set owner/group for '%s': %s",
+                        fspath, strerror(-rc) );
+        }
+    }
+
+    if ( lstat( fspath, &st_dest ) )
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: lstat() failed on restored entry '%s': %s",
+                    fspath, strerror(-rc) );
+        return rc;
+    }
+
+    /* TODO compare restored size and mtime with the one saved in the DB (for warning purpose) */
 }

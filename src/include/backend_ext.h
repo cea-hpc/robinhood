@@ -103,8 +103,9 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path );
 
 
 /* recover a file from the backend after formatting FS */
-int rbhext_recover( const attr_set_t * p_attrs_old,
-                    attr_set_t * p_attrs_new,
-                    entry_id_t * p_new_id );
+int rbhext_recover( const entry_id_t * p_old_id,
+                    const attr_set_t * p_attrs_old,
+                    entry_id_t * p_new_id,
+                    attr_set_t * p_attrs_new );
 
 #endif

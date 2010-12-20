@@ -9,10 +9,11 @@ BIN=`basename $0`
 if [[ -z "$VERB" || -z "$SRC" || -z "$DEST" ]]; then
 	echo "Usage:"
 	echo "	$BIN ARCHIVE <src> <dest>"
+	echo "	$BIN RESTORE <src> <dest>"
 	exit 22
 fi
 
-if [[ $VERB == "ARCHIVE" ]]; then
+if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
 
 	cp -a "$SRC" "$DEST"
 	exit $?
