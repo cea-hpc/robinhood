@@ -101,4 +101,10 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
  */
 int rbhext_remove( const entry_id_t * p_id, const char * backend_path );
 
+
+/* recover a file from the backend after formatting FS */
+int rbhext_recover( const attr_set_t * p_attrs_old,
+                    attr_set_t * p_attrs_new,
+                    entry_id_t * p_new_id );
+
 #endif

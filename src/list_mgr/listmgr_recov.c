@@ -34,6 +34,7 @@
                           ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
                           ATTR_MASK_status | ATTR_MASK_stripe_info )
 /* table: id+... */
+/* TODO: generate this list automatically */
 #define RECOV_LIST_FIELDS "fullpath,size,owner,gr_name,last_mod,backendpath,status,stripe_count,stripe_size,pool_name"
 #define RECOV_FIELD_COUNT 10
 
@@ -197,7 +198,8 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     /* create the recovery table */
     rc = db_exec_sql( &p_mgr->conn, "CREATE TABLE "RECOV_TABLE
         " SELECT ENTRIES.id," RECOV_LIST_FIELDS
-        " FROM ENTRIES LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON ( ENTRIES.id = ANNEX_INFO.id AND ENTRIES.id = STRIPE_INFO.id )",
+        " FROM ENTRIES LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON "
+        "( ENTRIES.id = ANNEX_INFO.id AND ENTRIES.id = STRIPE_INFO.id )",
                       NULL );
     if ( rc )
         return rc;
@@ -315,23 +317,6 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
 
     return result2attrset( T_RECOV, result_tab + 1, RECOV_FIELD_COUNT, p_info );
 }
-
-#if 0
-    /* ENTRIES.id,last_mod,status,fullpath,size,owner,gr_name,backendpath,stripe_count,stripe_size */
-    char * result_tab[10];
-
-    rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result,
-                         result_tab, 10 );
-    if ( rc == DB_END_OF_LIST )
-    {
-        rc = DB_END_OF_LIST;
-        goto free_res;
-    }
-
-free_res:
-    db_result_free( &p_iter->p_mgr->conn, &p_iter->select_result );
-    return rc;
-#endif
 
 int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
 

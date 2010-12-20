@@ -47,6 +47,7 @@ static struct option option_tab[] =
 
     {"dir", required_argument, NULL, 'D'},
     {"retry", no_argument, NULL, 'e'},
+    {"yes", no_argument, NULL, 'y'},
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -63,7 +64,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "SrcZsDef:l:o:hV"
+#define SHORT_OPT_STRING    "SrcZsDeyf:l:o:hV"
 
 /* global variables */
 
@@ -102,6 +103,8 @@ static const char *help_string =
     "        (used with --resume action) only recover files in the given directory.\n"
     "    " _B "--retry" B_ ", " _B "-e" B_ "\n"
     "        (used with --resume action) recover entries even if previous recovery failed on them.\n"
+    "    " _B "--yes" B_ ", " _B "-y" B_ "\n"
+    "        (used with --reset action) do not prompt for confirmation.\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -183,12 +186,40 @@ static inline void display_version( char *bin_name )
     printf( "\n" );
 }
 
+static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
+{
+    char buff[128];
+    int diff;
+
+    FormatFileSize( buff, 128, p_stat->status_size[RS_OK] );
+    if (forecast)
+        printf( "   - full recovery:   %10u entries (%s)\n", p_stat->status_count[RS_OK], buff );
+    else
+        printf( "   - successfully recovered: %3u entries (%s)\n", p_stat->status_count[RS_OK], buff );
+
+    FormatFileSize( buff, 128, p_stat->status_size[RS_DELTA] );
+    printf( "   - old version:     %10u entries (%s)\n", p_stat->status_count[RS_DELTA], buff );
+    FormatFileSize( buff, 128, p_stat->status_size[RS_NOBACKUP] );
+    printf( "   - not recoverable: %10u entries (%s)\n", p_stat->status_count[RS_NOBACKUP], buff );
+
+    diff = p_stat->total - p_stat->status_count[RS_OK] - p_stat->status_count[RS_DELTA]
+           - p_stat->status_count[RS_NOBACKUP] - p_stat->status_count[RS_ERROR];
+
+    FormatFileSize( buff, 128, p_stat->status_size[RS_ERROR] );
+
+    if ( forecast )
+        printf( "   - other/errors:    %10u/%u (%s)\n", diff, p_stat->status_count[RS_ERROR], buff );
+    else {
+        printf( "   - errors:          %10u entries (%s)\n", p_stat->status_count[RS_ERROR], buff ); 
+        printf( "   - still to be recovered: %4u entries\n", diff );
+    }
+}
+
 
 int recov_start()
 {
     lmgr_recov_stat_t stats;
-    int rc, diff;
-    char buff[128];
+    int rc;
 
     rc = ListMgr_RecovInit( &lmgr, &stats );
 
@@ -196,39 +227,18 @@ int recov_start()
     {
         printf( "\nRecovery successfully initialized.\n\n" );
         printf( "It should result in the following state:\n" );
-        FormatFileSize( buff, 128, stats.status_size[RS_OK] );
-        printf( "   - fully recovered: %10u entries (%s)\n", stats.status_count[RS_OK], buff );
-        FormatFileSize( buff, 128, stats.status_size[RS_DELTA] );
-        printf( "   - old version:     %10u entries (%s)\n", stats.status_count[RS_DELTA], buff );
-        FormatFileSize( buff, 128, stats.status_size[RS_NOBACKUP] );
-        printf( "   - not recoverable: %10u entries (%s)\n", stats.status_count[RS_NOBACKUP], buff );
-        diff = stats.total - stats.status_count[RS_OK] - stats.status_count[RS_DELTA]
-               - stats.status_count[RS_NOBACKUP] - stats.status_count[RS_ERROR];
-        FormatFileSize( buff, 128, stats.status_size[RS_ERROR] );
-        printf( "   - other/errors:    %10u/%u (%s)\n", diff, stats.status_count[RS_ERROR], buff );
+        print_recov_stats( TRUE, &stats );
         return 0;
     }
     else if ( rc == DB_ALREADY_EXISTS )
     {
-        printf( "\nA recovery is already in progress, or a previous recovery\n"
+        printf( "\nERROR: a recovery is already in progress, or a previous recovery\n"
                 "was not completed properly (see --resume, --complete or --reset option).\n\n" );
 
         unsigned int total = stats.status_count[RS_OK] + stats.status_count[RS_DELTA]
                            + stats.status_count[RS_NOBACKUP] + stats.status_count[RS_ERROR];
         printf( "The progress of this recovery is %u/%u entries\n", total, stats.total );
-
-        FormatFileSize( buff, 128, stats.status_size[RS_OK] );
-        printf( "   - successfully recovered:              %10u entries (%s)\n",
-                stats.status_count[RS_OK], buff );
-        FormatFileSize( buff, 128, stats.status_size[RS_DELTA] );
-        printf( "   - old version successfully recovered:  %10u entries (%s)\n",
-                stats.status_count[RS_DELTA], buff );
-        FormatFileSize( buff, 128, stats.status_size[RS_NOBACKUP] );
-        printf( "   - not recoverable:                     %10u entries (%s)\n",
-                stats.status_count[RS_NOBACKUP], buff );
-        FormatFileSize( buff, 128, stats.status_size[RS_ERROR] );
-        printf( "   - errors:                              %10u entries (%s)\n",
-                stats.status_count[RS_ERROR], buff );
+        print_recov_stats( FALSE, &stats );
 
         return -EALREADY;
     }
@@ -239,9 +249,48 @@ int recov_start()
     }
 }
 
-int recov_reset()
+int recov_reset(int force)
 {
-    /* TODO ask confirmation */
+    int rc;
+
+    /* ask confirmation */
+    if ( !force )
+    {
+        lmgr_recov_stat_t stats;
+        char * buff = malloc(1024);
+        size_t sz = 1024;
+
+        rc = ListMgr_RecovStatus( &lmgr, &stats );
+        if (rc)
+        {
+            if ( rc == DB_NOT_EXISTS )
+                fprintf( stderr, "No pending recovery\n" );
+            return rc;
+        }
+
+        printf( "\nWARNING: you are about to abort the current recovery.\n" );
+        printf( "All entries not yet recovered will be definitely lost!\n\n");
+
+        printf( "Current recovery status:\n");
+        print_recov_stats( FALSE, &stats );
+        printf("\n");
+
+        do {
+            printf( "Do you really want to proceed [y/n]: " );
+            if ( getline( &buff, &sz, stdin ) > 0 )
+            {
+                if ( !strcasecmp(buff, "y\n") || !strcasecmp(buff, "yes\n") )
+                    break;
+                else
+                {
+                    printf("Aborted\n");
+                    free(buff);
+                    return -ECANCELED;
+                }
+            }
+        } while(1);
+        free(buff);
+    }
     return ListMgr_RecovReset( &lmgr );
 }
 
@@ -273,17 +322,24 @@ int recov_resume( int retry_errors )
             return rc;
         }
 
+        printf("-------------------------\n");
         printf("path: %s\n", ATTR( &attrs, fullpath));
+        printf("backend path: %s\n", ATTR( &attrs, backendpath));
+        printf("size: %"PRIu64"\n", ATTR( &attrs, size));
+        printf("last_mod: %u\n", ATTR( &attrs, last_mod));
+        printf("stripe count: %u\n", ATTR( &attrs, stripe_info).stripe_count );
+        printf("stripe size: %"PRIu64"\n",  ATTR( &attrs, stripe_info).stripe_size );
 
         /* reset mask */
         attrs.attr_mask = RECOV_ATTR_MASK;
     }
 
-
+    return 0;
 }
 
 
 #define RETRY_ERRORS 0x00000001
+#define NO_CONFIRM   0x00000002
 
 
 
@@ -327,6 +383,9 @@ int main( int argc, char **argv )
             break;
         case 'e':
             flags |= RETRY_ERRORS;
+            break;
+        case 'y':
+            flags |= NO_CONFIRM;
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
@@ -435,7 +494,7 @@ int main( int argc, char **argv )
     if (do_start)
         recov_start();
     else if (do_reset)
-        recov_reset();
+        recov_reset( flags & NO_CONFIRM );
     else if (do_resume)
         recov_resume( flags & RETRY_ERRORS );
 
