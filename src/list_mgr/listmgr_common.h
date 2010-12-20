@@ -103,6 +103,11 @@ void           init_attrset_masks(  );
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) )
 
+#ifdef _BACKUP_FS
+#define is_recov_field( _attr_index ) \
+                ( (1 << _attr_index) & RECOV_ATTR_MASK )
+#endif
+
 int            printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr );
 
 int            parsedbtype( char *instr, db_type_t type, db_type_u * value_out );
@@ -113,7 +118,10 @@ typedef enum
     T_MAIN,                                      /* fields in main table */
     T_ANNEX,                                     /* fiels in annex table */
     T_STRIPE_INFO,                               /* field in stripe info table */
-    T_STRIPE_ITEMS                               /* field in stripe items table */
+    T_STRIPE_ITEMS,                              /* field in stripe items table */
+#ifdef _BACKUP_FS
+    T_RECOV,                                     /* fields in recov table */
+#endif
 } table_enum;
 
 void           add_source_fields_for_gen( int * attr_mask );

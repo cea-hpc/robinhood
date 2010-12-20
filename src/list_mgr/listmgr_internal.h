@@ -54,4 +54,11 @@
 
 int            listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info );
 
+typedef struct lmgr_iterator_t
+{
+    lmgr_t        *p_mgr;
+    result_handle_t select_result;
+} lmgr_iterator_t;
+
+
 #endif

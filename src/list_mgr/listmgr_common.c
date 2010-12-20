@@ -90,7 +90,13 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
     }
 }
 
+#ifdef _BACKUP_FS
+#define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
+                                ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
+                                ( ( _t == T_RECOV ) && is_recov_field( _i ) ) ) 
+#else
 #define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) )
+#endif
 
 /* precomputed masks for testing attr sets efficiently */
 int            main_attr_set = 0;
@@ -579,7 +585,25 @@ int result2attrset( table_enum table, char **result_tab,
                 continue;
             }
 
-            if ( !parsedbtype( result_tab[nbfields], field_infos[i].db_type, &typeu ) )
+            if ( field_infos[i].db_type == DB_STRIPE_INFO )
+            {
+                if ( result_tab[nbfields] == NULL
+                     || result_tab[nbfields+1] == NULL
+                     || result_tab[nbfields+2] == NULL )
+                {
+                    p_set->attr_mask &= ~( 1 << i );
+                    nbfields+=3;
+                    continue;
+                }
+                ATTR(p_set, stripe_info).stripe_count = atoi( result_tab[nbfields]  );
+                ATTR(p_set, stripe_info).stripe_size = atoi( result_tab[nbfields+1]  );
+                strncpy( ATTR(p_set, stripe_info).pool_name, result_tab[nbfields+2] , MAX_POOL_LEN );
+
+                /* stripe count, stripe size and pool_name */
+                nbfields += 3;
+                continue;
+            }
+            else if ( !parsedbtype( result_tab[nbfields], field_infos[i].db_type, &typeu ) )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Error: cannot parse field value '%s'", result_tab[nbfields] );

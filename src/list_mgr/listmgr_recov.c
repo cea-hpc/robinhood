@@ -30,6 +30,14 @@
 
 #define MAX_DB_FIELDS 64
 
+#define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
+                          ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
+                          ATTR_MASK_status | ATTR_MASK_stripe_info )
+/* table: id+... */
+#define RECOV_LIST_FIELDS "fullpath,size,owner,gr_name,last_mod,backendpath,status,stripe_count,stripe_size,pool_name"
+#define RECOV_FIELD_COUNT 10
+
+
 /**
  * \retval DB_NOT_EXISTS if the recovery table does not exist
  */
@@ -188,7 +196,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     DisplayLog( LVL_EVENT, LISTMGR_TAG, "Populating "RECOV_TABLE" table (this can take a few minutes)..." );
     /* create the recovery table */
     rc = db_exec_sql( &p_mgr->conn, "CREATE TABLE "RECOV_TABLE
-        " SELECT ENTRIES.id,last_mod,status,fullpath,size,owner,gr_name,backendpath,stripe_count,stripe_size"
+        " SELECT ENTRIES.id," RECOV_LIST_FIELDS
         " FROM ENTRIES LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON ( ENTRIES.id = ANNEX_INFO.id AND ENTRIES.id = STRIPE_INFO.id )",
                       NULL );
     if ( rc )
@@ -217,22 +225,6 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     return 0;
 }
 
-/*
-1) test si une table RECOVERY existe deja et est non vide:
-   => si oui, sort en erreur: une precedente recovery n'a pas ete finalisee
-	- reset (forget any previous entry that was to be recovered /!\)
-	- resume (recover entries in this table)
-
-2) CREATE TABLE IF NOT EXISTS RECOVERY
-
-* sauvegarde du contenu de la base dans une table temporaire (chemin_lustre, chemin_backend)
-
-select ENTRIES.id,last_mod,status,fullpath,size,owner,gr_name,backendpath,stripe_count,stripe_size
-FROM ENTRIES LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON ( ENTRIES.id = ANNEX_INFO.id AND ENTRIES.id = STRIPE_INFO.id );
-
-ajout du champ recov_status
-*/
-
 /**
  * Clear the recovery table.
  * /!\ all previously unrecovered entry will be lost
@@ -249,16 +241,99 @@ int ListMgr_RecovReset( lmgr_t * p_mgr )
  *  \retval iterator must be release using ListMgr_CloseIterator()
  */
 struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
-                                              const char * path_filter,
-                                              const lmgr_iter_opt_t * p_opt );
+                                              const char * dir_path,
+                                              int retry, /* also retry previously errorneous entries */
+                                              const lmgr_iter_opt_t * p_opt )
+{
+    char query[4096];
+    char * curr;
+    lmgr_iterator_t * it;
+    int rc;
+
+    strcpy( query, "SELECT id,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
+    curr = query + strlen(query);
+    if ( retry )
+        curr += sprintf( curr, "(recov_status IS NULL OR recov_status == %u)",
+                         RS_ERROR );
+    else
+        curr += sprintf( curr, "recov_status IS NULL" );
+
+    if ( dir_path )
+        curr += sprintf( curr, " AND fullpath LIKE '%s/%%'", dir_path );
+
+    /* allocate a new iterator */
+    it = ( lmgr_iterator_t * ) MemAlloc( sizeof( lmgr_iterator_t ) );
+    it->p_mgr = p_mgr;
+
+    /* execute request */
+    rc = db_exec_sql( &p_mgr->conn, query, &it->select_result );
+
+    if ( rc )
+    {
+        MemFree( it );
+        return NULL;
+    }
+    else
+        return it;
+}
 
 int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
                           entry_id_t * p_id,
-                          attr_set_t * p_info );
+                          attr_set_t * p_info )
+{
+    int            rc = 0;
+    char          *result_tab[1+RECOV_FIELD_COUNT]; /* +1 for id */
+    DEF_PK(pk);
+    int entry_disappeared = FALSE;
+
+    do
+    {
+        entry_disappeared = FALSE;
+
+        rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result,
+                             result_tab, RECOV_FIELD_COUNT+1 );
+
+        if ( rc )
+            return rc;
+        if ( result_tab[0] == NULL ) /* no id? */
+            return DB_REQUEST_FAILED;
+
+        if ( sscanf( result_tab[0], SPK, PTR_PK(pk) ) != 1 )
+            return DB_REQUEST_FAILED;
+
+        /* retrieve entry id (except validator) */
+        rc = pk2entry_id( p_iter->p_mgr, pk, p_id );
+
+        /* /!\ If the entry disappeared from DB, we must go to next record */
+        if ( rc == DB_NOT_EXISTS )
+            entry_disappeared = TRUE;
+        else if ( rc )
+            return rc;
+
+    }
+    while ( entry_disappeared );        /* goto next record if entry desappered */
+
+    return result2attrset( T_RECOV, result_tab + 1, RECOV_FIELD_COUNT, p_info );
+}
+
+#if 0
+    /* ENTRIES.id,last_mod,status,fullpath,size,owner,gr_name,backendpath,stripe_count,stripe_size */
+    char * result_tab[10];
+
+    rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result,
+                         result_tab, 10 );
+    if ( rc == DB_END_OF_LIST )
+    {
+        rc = DB_END_OF_LIST;
+        goto free_res;
+    }
+
+free_res:
+    db_result_free( &p_iter->p_mgr->conn, &p_iter->select_result );
+    return rc;
+#endif
 
 int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
-
-int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
 
 int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
                            recov_status_t status );

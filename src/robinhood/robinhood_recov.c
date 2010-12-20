@@ -46,6 +46,7 @@ static struct option option_tab[] =
     {"reset", no_argument, NULL, 'Z'},
 
     {"dir", required_argument, NULL, 'D'},
+    {"retry", no_argument, NULL, 'e'},
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -62,11 +63,12 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "SrcZsDf:l:o:hV"
+#define SHORT_OPT_STRING    "SrcZsDef:l:o:hV"
 
 /* global variables */
 
 static lmgr_t  lmgr;
+static int terminate = FALSE; /* abort signal received */
 
 /* special character sequences for displaying help */
 
@@ -97,7 +99,9 @@ static const char *help_string =
     "\n"
     _B "Recovery options:" B_ "\n"
     "    " _B "--dir" B_ "=" _U "path" U_ ", " _B "-D" B_ " " _U "path" U_ "\n"
-    "        (used with --resume action) bla.\n"
+    "        (used with --resume action) only recover files in the given directory.\n"
+    "    " _B "--retry" B_ ", " _B "-e" B_ "\n"
+    "        (used with --resume action) recover entries even if previous recovery failed on them.\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -230,7 +234,7 @@ int recov_start()
     }
     else /* other error */
     {
-        printf( "An error occured while initializing recovery: db error %d\n", rc );
+        fprintf( stderr, "ERROR initializing recovery: db error %d\n", rc );
         return rc;
     }
 }
@@ -241,7 +245,45 @@ int recov_reset()
     return ListMgr_RecovReset( &lmgr );
 }
 
+int recov_resume( int retry_errors )
+{
+    struct lmgr_iterator_t * it;
+    int rc;
+    entry_id_t  id;
+    attr_set_t  attrs;
 
+    /* TODO take path filter into account + iter opt */
+    it = ListMgr_RecovResume( &lmgr, NULL, retry_errors,
+                              NULL );
+    if ( it == NULL )
+    {
+        fprintf( stderr, "ERROR: cannot get the list of entries to be recovered\n");
+        return -1;
+    }
+
+    attrs.attr_mask = RECOV_ATTR_MASK;
+
+    while ( !terminate &&
+            ((rc = ListMgr_RecovGetNext( it, &id, &attrs )) != DB_END_OF_LIST) )
+    {
+        if (rc)
+        {
+            fprintf( stderr, "ERROR %d getting entry from recovery table\n", rc );
+            ListMgr_CloseIterator( it );
+            return rc;
+        }
+
+        printf("path: %s\n", ATTR( &attrs, fullpath));
+
+        /* reset mask */
+        attrs.attr_mask = RECOV_ATTR_MASK;
+    }
+
+
+}
+
+
+#define RETRY_ERRORS 0x00000001
 
 
 
@@ -259,6 +301,7 @@ int main( int argc, char **argv )
 
     int            do_start = FALSE;
     int            do_reset = FALSE;
+    int            do_resume = FALSE;
     int            force_log_level = FALSE;
 
     int            log_level = 0;
@@ -278,6 +321,12 @@ int main( int argc, char **argv )
             break;
         case 'Z':
             do_reset = TRUE;
+            break;
+        case 'r':
+            do_resume = TRUE;
+            break;
+        case 'e':
+            flags |= RETRY_ERRORS;
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
@@ -387,6 +436,8 @@ int main( int argc, char **argv )
         recov_start();
     else if (do_reset)
         recov_reset();
+    else if (do_resume)
+        recov_resume( flags & RETRY_ERRORS );
 
 
     ListMgr_CloseAccess( &lmgr );

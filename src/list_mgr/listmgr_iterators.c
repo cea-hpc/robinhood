@@ -27,12 +27,6 @@
 #include <stdlib.h>
 
 
-typedef struct lmgr_iterator_t
-{
-    lmgr_t        *p_mgr;
-    result_handle_t select_result;
-} lmgr_iterator_t;
-
 struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                                           const lmgr_filter_t * p_filter,
                                           const lmgr_sort_type_t *

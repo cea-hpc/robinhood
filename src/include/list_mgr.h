@@ -465,9 +465,9 @@ void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter );
 
 #ifdef _BACKUP_FS
 
-#define RECOV_ATTR_MASK ( ATTR_MASK_last_mod | ATTR_MASK_status  | ATTR_MASK_fullpath | \
-                          ATTR_MASK_owner | ATTR_MASK_gr_name | ATTR_MASK_backendpath | \
-                          ATTR_MASK_stripe_info )
+#define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
+                          ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
+                          ATTR_MASK_status | ATTR_MASK_stripe_info )
 
 /**
  * Filesystem recovery from backup.
@@ -516,8 +516,10 @@ int ListMgr_RecovReset( lmgr_t * p_mgr );
  *  \retval iterator must be release using ListMgr_CloseIterator()
  */
 struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
-                                              const char * path_filter,
+                                              const char * dir_path,
+                                              int retry, /* also retry previously errorneous entries */
                                               const lmgr_iter_opt_t * p_opt );
+
 
 int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
                           entry_id_t * p_id,
