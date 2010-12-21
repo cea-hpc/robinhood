@@ -154,7 +154,7 @@ int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
             if ((idx >= RS_COUNT) || (idx == -1) )
                 return DB_REQUEST_FAILED;
             p_stats->status_count[idx] = cnt;
-            p_stats->status_count[idx] = sz;
+            p_stats->status_size[idx] = sz;
         }
     }
 
@@ -257,7 +257,7 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
     strcpy( query, "SELECT id,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
     curr = query + strlen(query);
     if ( retry )
-        curr += sprintf( curr, "(recov_status IS NULL OR recov_status == %u)",
+        curr += sprintf( curr, "(recov_status IS NULL OR recov_status=%u)",
                          RS_ERROR );
     else
         curr += sprintf( curr, "recov_status IS NULL" );
@@ -320,9 +320,44 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
     return result2attrset( T_RECOV, result_tab + 1, RECOV_FIELD_COUNT, p_info );
 }
 
-int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
+int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
+{
+    int diff;
+    int rc;
+
+    /* Check there is no more unprocessed entries */
+    rc = ListMgr_RecovStatus( p_mgr, p_stats );
+    if (rc)
+        return rc;
+
+    diff = p_stats->total - p_stats->status_count[RS_OK] - p_stats->status_count[RS_DELTA]
+           - p_stats->status_count[RS_NOBACKUP] - p_stats->status_count[RS_ERROR];
+    if (diff > 0)
+    {
+        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Cannot complete recovery: there are still %d unprocessed files",
+                    diff );
+        return DB_NOT_ALLOWED;
+    }
+    /* clear all */
+    return ListMgr_RecovReset( p_mgr );
+}
 
 int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
-                           recov_status_t status );
+                           recov_status_t status )
+{
+    char query[4096];
+    int rc;
+    DEF_PK(pk);
+
+    rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
+    if (rc)
+        return rc;
+
+    sprintf( query, "UPDATE "RECOV_TABLE" SET recov_status=%u WHERE id="DPK,
+             status, pk );
+
+    /* execute request */
+    return db_exec_sql( &p_mgr->conn, query, NULL );
+}
 
 

@@ -53,6 +53,7 @@
 #define DB_NOT_SUPPORTED       11
 #define DB_INVALID_ARG         12
 #define DB_READ_ONLY_ATTR      13
+#define DB_NOT_ALLOWED         14
 
 
 /* Tag in logfile */

@@ -265,7 +265,7 @@ int recov_reset(int force)
         if (rc)
         {
             if ( rc == DB_NOT_EXISTS )
-                fprintf( stderr, "No pending recovery\n" );
+                fprintf( stderr, "ERROR: There is no pending recovery\n" );
             return rc;
         }
 
@@ -339,16 +339,67 @@ int recov_resume( int retry_errors )
 
         /* TODO process entries asynchronously, in parallel, in separate threads*/
         rc = rbhext_recover( &id, &attrs, &new_id, &new_attrs );
-        if (rc)
-            printf(" status %d: %s\n", rc, strerror(-rc));
-        else
-            printf(" OK\n");
+
+        if ( (rc == RS_OK) || (rc == RS_DELTA) )
+        {
+            /* insert the entry in the database, and update recovery status */
+            rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs );
+            if (rc)
+            {
+                fprintf(stderr, "DB insert failure for '%s'\n", ATTR(&new_attrs, fullpath));
+                rc = RS_ERROR;
+            }
+        }
+
+        /* old id must be used for impacting recovery table */
+        if ( ListMgr_RecovSetState( &lmgr, &id, rc ) )
+            rc = RS_ERROR;
+
+        switch (rc)
+        {
+            case RS_OK: printf(" OK\n"); break;
+            case RS_DELTA: printf(" OK (old version)\n"); break;
+            case RS_NOBACKUP: printf(" No backup available\n"); break;
+            case RS_ERROR: printf(" FAILED\n"); break;
+            default: printf(" ERROR %d\n", rc ); break;
+        }
 
         /* reset mask */
         attrs.attr_mask = RECOV_ATTR_MASK;
     }
 
     return 0;
+}
+
+int recov_complete()
+{
+    int rc;
+    lmgr_recov_stat_t stats;
+
+    rc = ListMgr_RecovComplete( &lmgr, &stats );
+    if ( rc == DB_NOT_ALLOWED )
+    {
+        printf("\nCannot complete recovery\n\n");
+        printf("Current status:\n");
+        print_recov_stats( FALSE, &stats );
+        return rc;
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        printf("\nERROR: There is no pending recovery.\n" );
+        return rc;
+    }
+    else if ( rc != DB_SUCCESS )
+    {
+        printf("\nERROR %d finalizing recovery\n", rc );
+        return rc;
+    }
+    else
+    {
+        printf("\nRecovery successfully completed:\n");
+        print_recov_stats( FALSE, &stats );
+        return 0;
+    }
 }
 
 
@@ -372,6 +423,7 @@ int main( int argc, char **argv )
     int            do_start = FALSE;
     int            do_reset = FALSE;
     int            do_resume = FALSE;
+    int            do_complete = FALSE;
     int            force_log_level = FALSE;
 
     int            log_level = 0;
@@ -391,6 +443,9 @@ int main( int argc, char **argv )
             break;
         case 'Z':
             do_reset = TRUE;
+            break;
+        case 'c':
+            do_complete = TRUE;
             break;
         case 'r':
             do_resume = TRUE;
@@ -520,6 +575,8 @@ int main( int argc, char **argv )
         recov_reset( local_flags & NO_CONFIRM );
     else if (do_resume)
         recov_resume( local_flags & RETRY_ERRORS );
+    else if (do_complete)
+        recov_complete();
 
 
     ListMgr_CloseAccess( &lmgr );

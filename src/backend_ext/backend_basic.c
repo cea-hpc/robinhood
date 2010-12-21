@@ -591,7 +591,7 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
             rc = -errno; 
             if (rc != -ENOENT)
             {
-                DisplayLog( LVL_CRIT, RBHEXT_TAG, "Cannot stat() '%s': %s", path_copy, strerror(-rc) );
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "Cannot lstat() '%s': %s", path_copy, strerror(-rc) );
                 return rc;
             }
 
@@ -951,10 +951,10 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
 /** recover a file from the backend after formatting FS
  * \retval recovery status
  */
-int rbhext_recover( const entry_id_t * p_old_id,
-                    const attr_set_t * p_attrs_old,
-                    entry_id_t * p_new_id,
-                    attr_set_t * p_attrs_new )
+recov_status_t rbhext_recover( const entry_id_t * p_old_id,
+                               const attr_set_t * p_attrs_old,
+                               entry_id_t * p_new_id,
+                               attr_set_t * p_attrs_new )
 {
     char bkpath[RBH_PATH_MAX];
     const char * backend_path;
@@ -1114,7 +1114,7 @@ int rbhext_recover( const entry_id_t * p_old_id,
     /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
     if ( st_dest.st_size != ATTR(p_attrs_old, size) )
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%llu) is "
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%zu) is "
                     "different from the last known size in filesystem (%"PRIu64"): "
                     "it should have been modified in filesystem after the last backup.",
                     fspath, st_dest.st_size, ATTR(p_attrs_old, size) );
@@ -1127,6 +1127,63 @@ int rbhext_recover( const entry_id_t * p_old_id,
                     "it may have been modified in filesystem after the last backup.",
                     fspath, st_dest.st_mtime, ATTR(p_attrs_old, last_mod) );
         delta = TRUE;
+    }
+
+    /* set the new attributes */
+    ATTR_MASK_INIT( p_attrs_new );
+    PosixStat2EntryAttr( &st_dest, p_attrs_new, TRUE );
+    strcpy( ATTR( p_attrs_new, fullpath ), fspath );
+    ATTR_MASK_SET( p_attrs_new, fullpath );
+    /* status is always synchro after a recovery */
+    ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
+    ATTR_MASK_SET( p_attrs_new, status );
+
+#ifdef _HAVE_FID
+    /* get the new fid */
+    rc = Lustre_GetFidFromPath( fspath, p_new_id );
+    if (rc)
+        return RS_ERROR;
+#else
+    /* build id from dev/inode*/
+    p_new_id->inode =  st_dest.st_ino;
+    p_new_id->device =  st_dest.st_dev;
+    p_new_id->validator =  st_dest.st_ctime;
+#endif
+
+#ifdef _LUSTRE
+    /* get the new stripe info */
+    if ( File_GetStripeByPath( fspath,
+                               &ATTR( p_attrs_new, stripe_info ),
+                               &ATTR( p_attrs_new, stripe_items ) ) == 0 )
+    {
+        ATTR_MASK_SET( p_attrs_new, stripe_info );
+        ATTR_MASK_SET( p_attrs_new, stripe_items );
+    }
+#endif
+
+    /* set the new entry path in backend, according to the new fid */
+    rc = entry2backend_path( p_new_id, p_attrs_new,
+                             FOR_NEW_COPY,
+                             ATTR(p_attrs_new, backendpath ) );
+    if (rc)
+        return RS_ERROR;
+    ATTR_MASK_SET( p_attrs_new, backendpath );
+
+    /* TODO create parent directory in backend */
+
+    /* rename the entry in backend */
+    if ( strcmp( ATTR(p_attrs_new, backendpath), backend_path ) != 0 )
+    {
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "Moving the entry in backend: '%s'->'%s'",
+                    backend_path, ATTR(p_attrs_new, backendpath) );
+        if ( rename( backend_path, ATTR(p_attrs_new, backendpath) ) )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not move entry in backend ('%s'->'%s'): %s",
+                        backend_path, ATTR(p_attrs_new, backendpath), strerror(-rc) );
+            /* keep the old path */
+            strcpy( ATTR(p_attrs_new, backendpath), backend_path );
+        }
     }
 
     if (delta)
