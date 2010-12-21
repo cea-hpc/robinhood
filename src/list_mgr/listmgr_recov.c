@@ -175,6 +175,8 @@ int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
 int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
 {
     int  rc;
+    result_handle_t result;
+    char * str_count = NULL;
 
     rc = ListMgr_RecovStatus( p_mgr, p_stats );
     if (rc == 0)
@@ -197,10 +199,11 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     DisplayLog( LVL_EVENT, LISTMGR_TAG, "Populating "RECOV_TABLE" table (this can take a few minutes)..." );
     /* create the recovery table */
     rc = db_exec_sql( &p_mgr->conn, "CREATE TABLE "RECOV_TABLE
-        " SELECT ENTRIES.id," RECOV_LIST_FIELDS
-        " FROM ENTRIES LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON "
-        "( ENTRIES.id = ANNEX_INFO.id AND ENTRIES.id = STRIPE_INFO.id )",
-                      NULL );
+        " SELECT "MAIN_TABLE".id," RECOV_LIST_FIELDS
+        " FROM "MAIN_TABLE" LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON "
+        "( "MAIN_TABLE".id = "ANNEX_TABLE".id AND "
+            MAIN_TABLE".id = "STRIPE_INFO_TABLE".id )",
+        NULL );
     if ( rc )
         return rc;
 
@@ -217,16 +220,35 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
         return rc;
 
     /* add index on status */
-    rc = db_exec_sql( &p_mgr->conn,  "CREATE INDEX recov_st_index ON "RECOV_TABLE"(recov_status)", NULL );
+    rc = db_exec_sql( &p_mgr->conn,
+                      "CREATE INDEX recov_st_index ON "RECOV_TABLE"(recov_status)",
+                      NULL );
     if ( rc )
         return rc;
 
     /* count entries of each status */
     expected_recov_status( p_mgr, p_stats );
 
-    /* delete all entries from tables (double check entry count) */
+    /* double check entry count before deleting entries */
+    rc = db_exec_sql( &p_mgr->conn,  "SELECT COUNT(*) FROM "MAIN_TABLE, &result );
+    if (rc)
+        return rc;
+    rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
+    if ( rc )
+        return rc;
+    if ( str_count == NULL )
+        return -1;
+    /* result */
+    if ( atoi( str_count ) != p_stats->total )
+    {
+        DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: recovery count (%u) is different from entry count in main table (%u): preserving entries",
+                    p_stats->total,  atoi( str_count ) );
+        return DB_REQUEST_FAILED;
+    }
 
-    return 0;
+    /* clean provious DB content */
+
+    return ListMgr_MassRemove( p_mgr, NULL );
 }
 
 /**
