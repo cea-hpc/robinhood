@@ -1,5 +1,3 @@
-migrate one file: support flags
-
 BACKUP:
  - backup quotidien de la base robinhood
  - CREATE du fichier dans le sbin?
@@ -7,7 +5,7 @@ BACKUP:
  (- mapping chemin_montage/commande copie)
  - mise a jour du delai de suppression dans le backend
  x commande de recovery
- - nonreg recovery
+ - new nonreg tests for recovery
  - commande de resync que des md
 
 lustre-HSM:

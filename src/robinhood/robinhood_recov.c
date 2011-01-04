@@ -305,7 +305,7 @@ int recov_resume( int retry_errors )
     attr_set_t  attrs, new_attrs;
     char buff[128];
 
-    /* TODO take path filter into account + iter opt */
+    /* TODO iter opt */
     it = ListMgr_RecovResume( &lmgr, path_filter, retry_errors,
                               NULL );
     if ( it == NULL )

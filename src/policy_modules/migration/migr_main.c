@@ -321,7 +321,7 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
 /**
  * Only migrate one file and exit
  */
-int MigrateSingle( migration_config_t * p_config, const char * file )
+int MigrateSingle( migration_config_t * p_config, const char * file, int flags )
 {
     int            rc;
 
@@ -334,7 +334,7 @@ int MigrateSingle( migration_config_t * p_config, const char * file )
     /* store configuration */
     migr_config = *p_config;
 
-    return migrate_one_file( file );
+    return migrate_one_file( file, flags );
 
 }
 

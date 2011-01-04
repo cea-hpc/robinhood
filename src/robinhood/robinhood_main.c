@@ -1232,7 +1232,7 @@ int main( int argc, char **argv )
 #ifdef HAVE_MIGR_POLICY
     if ( migrate_file )
     {
-        rc = MigrateSingle( &rh_config.migr_config, migr_target_file );
+        rc = MigrateSingle( &rh_config.migr_config, migr_target_file, flags );
         DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration completed with status %d", rc );
     }
     else if ( action_mask & ACTION_MASK_MIGRATE )

@@ -1605,7 +1605,7 @@ static void   *Thr_Migr( void *arg )
 /**
  *  Migrate a single file
  */
-int migrate_one_file( const char * file )
+int migrate_one_file( const char * file, int flags )
 {
     int            rc;
     lmgr_t         lmgr;
@@ -1614,6 +1614,8 @@ int migrate_one_file( const char * file )
 #ifndef _HAVE_FID
     struct stat    st;
 #endif
+
+    migr_flags = flags;
 
     rc = ListMgr_InitAccess( &lmgr );
     if ( rc )
