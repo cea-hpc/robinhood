@@ -2069,6 +2069,7 @@ function recovery_test
 	# delta: all entries recovered but some with deltas
 	# rename: some entries have been renamed since they have been saved
 	# partial: some entries can't be recovered
+	# mixed: all of them
 	if [[ $flavor == "full" ]]; then
 		nb_full=20
 		nb_rename=0
@@ -2089,6 +2090,11 @@ function recovery_test
 		nb_rename=0
                 nb_delta=0
                 nb_nobkp=10
+	elif [[ $flavor == "mixed" ]]; then
+                nb_full=5
+		nb_rename=5
+                nb_delta=5
+                nb_nobkp=5
 	else
 		error "Invalid arg in recovery_test"
 		return 1
@@ -2124,7 +2130,9 @@ function recovery_test
 	sleep 2
 
 	# all files are new
-	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i
+	new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep new | cut -d ',' -f 2`
+	echo "$new_cnt files are new"
+	(( $new_cnt == $total )) || error "20 new files expected"
 
 	echo "2.1-archiving files..."
 	# archive and modify files
@@ -2155,7 +2163,18 @@ function recovery_test
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
 	fi
 
-	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i > /tmp/report.$$
+	new_cnt=`grep "new" /tmp/report.$$ | cut -d ',' -f 2`
+	mod_cnt=`grep "modified" /tmp/report.$$ | cut -d ',' -f 2`
+	sync_cnt=`grep "synchro" /tmp/report.$$ | cut -d ',' -f 2`
+	[[ -z $new_cnt ]] && new_cnt=0
+	[[ -z $mod_cnt ]] && mod_cnt=0
+	[[ -z $sync_cnt ]] && sync_cnt=0
+
+	echo "new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
+	(( $sync_cnt == $nb_full+$nb_rename )) || error "Nbr of synchro files doesn't match: $sync_cnt != $nb_full + $nb_rename"
+	(( $mod_cnt == $nb_delta )) || error "Nbr of modified files doesn't match: $mod_cnt != $nb_delta"
+	(( $new_cnt == $nb_nobkp )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp"
 
 	# shots before disaster (time is only significant for files)
 	find $ROOT -type f -printf "%n %m %A@ %T@ %g %u %s %p %l\n" > /tmp/before.$$
@@ -2169,18 +2188,39 @@ function recovery_test
 	fi
 
 	# perform the recovery
-	$RECOV -f ./cfg/$config_file --start -l DEBUG || error "Error starting recovery"
+	echo "4-Performing recovery..."
+	cp /dev/null recov.log
+	$RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
 
-	$RECOV -f ./cfg/$config_file --resume -l DEBUG || error "Error performing recovery"
+	$RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
 
-	$RECOV -f ./cfg/$config_file --complete -l DEBUG || error "Error completing recovery"
+	$RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
 	find $ROOT -type f -printf "%n %m %A@ %T@ %g %u %s %p %l\n" > /tmp/after.$$
 	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 
-	diff  /tmp/before.$$ /tmp/after.$$
-	rm -f /tmp/before.$$ /tmp/after.$$
+	diff  /tmp/before.$$ /tmp/after.$$ > /tmp/diff.$$
+
+	# checking status and diff result
+	for i in `seq 1 $total`; do
+		if (( $i <= $nb_full )); then
+			grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i not expected to differ"
+		elif (( $i <= $(($nb_full+$nb_rename)) )); then
+			grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log	| egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+			grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i not expected to differ"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
+			grep "Restoring $ROOT/dir.$i/file.$i" recov.log	| grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
+			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
+			grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
+			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+		fi
+
+	done
+
+	rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
 }
 
 
@@ -2395,6 +2435,7 @@ run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
 run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
 run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
 run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
+run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="

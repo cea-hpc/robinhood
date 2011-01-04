@@ -298,7 +298,7 @@ int recov_reset(int force)
 int recov_resume( int retry_errors )
 {
     struct lmgr_iterator_t * it;
-    int rc;
+    int rc, st;
     entry_id_t  id, new_id;
     attr_set_t  attrs, new_attrs;
     char buff[128];
@@ -338,30 +338,30 @@ int recov_resume( int retry_errors )
         }
 
         /* TODO process entries asynchronously, in parallel, in separate threads*/
-        rc = rbhext_recover( &id, &attrs, &new_id, &new_attrs );
+        st = rbhext_recover( &id, &attrs, &new_id, &new_attrs );
 
-        if ( (rc == RS_OK) || (rc == RS_DELTA) )
+        if ( (st == RS_OK) || (st == RS_DELTA) )
         {
             /* insert the entry in the database, and update recovery status */
             rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs );
             if (rc)
             {
                 fprintf(stderr, "DB insert failure for '%s'\n", ATTR(&new_attrs, fullpath));
-                rc = RS_ERROR;
+                st = RS_ERROR;
             }
         }
 
         /* old id must be used for impacting recovery table */
-        if ( ListMgr_RecovSetState( &lmgr, &id, rc ) )
-            rc = RS_ERROR;
+        if ( ListMgr_RecovSetState( &lmgr, &id, st ) )
+            st = RS_ERROR;
 
-        switch (rc)
+        switch (st)
         {
             case RS_OK: printf(" OK\n"); break;
             case RS_DELTA: printf(" OK (old version)\n"); break;
             case RS_NOBACKUP: printf(" No backup available\n"); break;
             case RS_ERROR: printf(" FAILED\n"); break;
-            default: printf(" ERROR %d\n", rc ); break;
+            default: printf(" ERROR st=%d, rc=%d\n", st, rc ); break;
         }
 
         /* reset mask */
