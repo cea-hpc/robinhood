@@ -65,12 +65,14 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "SrcZsDeyf:l:o:hV"
+#define SHORT_OPT_STRING    "SrcZsD:eyf:l:o:hV"
 
 /* global variables */
 
 static lmgr_t  lmgr;
 static int terminate = FALSE; /* abort signal received */
+static char * path_filter = NULL;
+static char path_buff[RBH_PATH_MAX];
 
 /* special character sequences for displaying help */
 
@@ -304,7 +306,7 @@ int recov_resume( int retry_errors )
     char buff[128];
 
     /* TODO take path filter into account + iter opt */
-    it = ListMgr_RecovResume( &lmgr, NULL, retry_errors,
+    it = ListMgr_RecovResume( &lmgr, path_filter, retry_errors,
                               NULL );
     if ( it == NULL )
     {
@@ -458,6 +460,18 @@ int main( int argc, char **argv )
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
+            break;
+        case 'D':
+            if ( !optarg )
+            {
+                fprintf(stderr, "Missing mandatory argument <path> for --dir\n");
+                exit(1);
+            }
+            else
+            {
+                strncpy( path_buff, optarg, MAX_OPT_LEN );
+                path_filter = path_buff;
+            }
             break;
         case 'l':
             force_log_level = TRUE;
