@@ -2064,6 +2064,8 @@ function recovery_test
 		return 1
 	fi
 
+	clean_logs
+
 	# flavors:
 	# full: all entries fully recovered
 	# delta: all entries recovered but some with deltas
@@ -2206,10 +2208,10 @@ function recovery_test
 	for i in `seq 1 $total`; do
 		if (( $i <= $nb_full )); then
 			grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
-			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i not expected to differ"
+			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
 		elif (( $i <= $(($nb_full+$nb_rename)) )); then
 			grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log	| egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
-			grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i not expected to differ"
+			grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i NOT expected to differ"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
 			grep "Restoring $ROOT/dir.$i/file.$i" recov.log	| grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
 			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
@@ -2217,7 +2219,6 @@ function recovery_test
 			grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
 			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
 		fi
-
 	done
 
 	rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
