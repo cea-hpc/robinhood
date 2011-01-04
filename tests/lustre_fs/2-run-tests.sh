@@ -111,11 +111,12 @@ function clean_fs
 		rm  -rf $ROOT/*
 	fi
 
-#	if (( $is_backup != 0 )); then
-#		if [[ -n "$BKROOT" ]]; then
-#			rm -rf $BKROOT/*
-#		fi
-#	fi
+	if (( $is_backup != 0 )); then
+		if [[ -n "$BKROOT" ]]; then
+			echo "Cleaning backend content..."
+			rm -rf $BKROOT/*
+		fi
+	fi
 
 	echo "Destroying any running instance of robinhood..."
 	pkill -f robinhood
@@ -2100,6 +2101,14 @@ function recovery_test
 	echo "1.1-creating files..."
 	for i in `seq 1 $total`; do
 		mkdir "$ROOT/dir.$i" || error "$? creating directory $ROOT/dir.$i"
+		if (( $i % 3 == 0 )); then
+			chmod 755 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+		elif (( $i % 3 == 1 )); then
+			chmod 750 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+		elif (( $i % 3 == 2 )); then
+			chmod 700 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+		fi
+
 		dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
 	done
 
@@ -2127,6 +2136,7 @@ function recovery_test
 			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
 			mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
+			mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
 			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
@@ -2147,8 +2157,10 @@ function recovery_test
 
 	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i
 
-	# shot before disaster
-	find $ROOT -ls > /tmp/before.$$
+	# shots before disaster (time is only significant for files)
+	find $ROOT -type f -printf "%n %m %A@ %T@ %g %u %s %p %l\n" > /tmp/before.$$
+	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
 
 	# FS disaster
 	if [[ -n "$ROOT" ]]; then
@@ -2157,13 +2169,15 @@ function recovery_test
 	fi
 
 	# perform the recovery
-	$RECOV -f ./cfg/$config_file --start || error "Error starting recovery"
+	$RECOV -f ./cfg/$config_file --start -l DEBUG || error "Error starting recovery"
 
-	$RECOV -f ./cfg/$config_file --resume || error "Error performing recovery"
+	$RECOV -f ./cfg/$config_file --resume -l DEBUG || error "Error performing recovery"
 
-	$RECOV -f ./cfg/$config_file --complete || error "Error completing recovery"
+	$RECOV -f ./cfg/$config_file --complete -l DEBUG || error "Error completing recovery"
 
-	find $ROOT -ls > /tmp/after.$$
+	find $ROOT -type f -printf "%n %m %A@ %T@ %g %u %s %p %l\n" > /tmp/after.$$
+	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 
 	diff  /tmp/before.$$ /tmp/after.$$
 	rm -f /tmp/before.$$ /tmp/after.$$

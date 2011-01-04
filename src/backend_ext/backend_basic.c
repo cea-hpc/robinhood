@@ -512,27 +512,49 @@ int rbhext_get_status( const entry_id_t * p_id,
     /* TODO What about STATUS_REMOVED? */
 }
 
+typedef enum { TO_FS, TO_BACKEND } target_e;
+
 /**
- * get metadata of original directory in Lustre
+ * get metadata of a directory in filesystem or in backend
+ * by target path
  */
-static int get_orig_dir_md( const char * backend_dir, struct stat * st )
+static int get_orig_dir_md( const char * target_dir, struct stat * st,
+                            target_e target )
 {
     char rel_path[RBH_PATH_MAX];
     char orig_path[RBH_PATH_MAX];
     int rc;
+    const char * dest_root;
+    const char * src_root;
 
-    rc =  relative_path( backend_dir, config.root, rel_path );
+    if ( target == TO_BACKEND )
+    {
+        dest_root = config.root;
+        src_root = global_config.fs_path;
+    }
+    else
+    {
+        dest_root = global_config.fs_path;
+        src_root = config.root;
+    }
+
+    rc =  relative_path( target_dir, dest_root, rel_path );
     if (rc)
         return rc;
 
     /* orig path is '<fs_root>/<rel_path>' */
-    sprintf(orig_path, "%s/%s", global_config.fs_path, rel_path);
+    sprintf(orig_path, "%s/%s", src_root, rel_path);
 
-    DisplayLog( LVL_FULL, RBHEXT_TAG, "Backend directory: %s, source directory: %s",
-                backend_dir, orig_path );
+    DisplayLog( LVL_FULL, RBHEXT_TAG, "Target directory: %s, source directory: %s",
+                target_dir, orig_path );
 
     if ( lstat(orig_path, st) )
-        return -errno;
+    {
+        rc = -errno;
+        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Cannot stat %s: %s",
+                    orig_path, strerror(-rc) );
+        return rc;
+    }
     else
         return 0;
 }
@@ -540,7 +562,8 @@ static int get_orig_dir_md( const char * backend_dir, struct stat * st )
 /**
  *  Ensure POSIX directory exists
  */
-static int mkdir_recurse( const char * full_path, mode_t default_mode )
+static int mkdir_recurse( const char * full_path, mode_t default_mode,
+                          target_e target )
 {
     char path_copy[MAXPATHLEN];
     const char * curr;
@@ -549,22 +572,36 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
     int rc;
     int setattrs = FALSE;
 
-    /* skip backend root */
-    if ( strncmp(config.root,full_path, strlen(config.root)) != 0 )
+    /* to backend or the other way? */
+    if ( target == TO_BACKEND )
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under backend root '%s'",
-                    full_path, config.root );
-        return -EINVAL;
+        if ( strncmp(config.root,full_path, strlen(config.root)) != 0 )
+        {
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under backend root '%s'",
+                        full_path, config.root );
+            return -EINVAL;
+        }
+        /* skip backend root */
+        curr = full_path + strlen(config.root);
     }
-
-    curr = full_path + strlen(config.root);
+    else
+    {
+        if ( strncmp(global_config.fs_path,full_path, strlen(global_config.fs_path)) != 0 )
+        {
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under filesystem root '%s'",
+                        full_path, global_config.fs_path );
+            return -EINVAL;
+        }
+        /* skip fs root */
+        curr = full_path + strlen(global_config.fs_path);
+    }
 
     if ( *curr == '\0' ) /* full_path is root dir */
         return 0;
     else if ( *curr != '/' ) /* slash expected */
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under backend root '%s'",
-                    full_path, config.root );
+                    full_path, (target == TO_BACKEND)?config.root:global_config.fs_path );
         return -EINVAL;
     }
 
@@ -578,7 +615,6 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
          * so, copy 2 chars to get '/a'.
          * and set fullpath[2] = '\0'
          */
-
         int path_len = curr - full_path;
 
         /* extract directory name */
@@ -588,22 +624,22 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
         /* stat dir */
         if ( lstat( path_copy, &st ) != 0 )
         {
-            rc = -errno; 
+            rc = -errno;
             if (rc != -ENOENT)
             {
                 DisplayLog( LVL_CRIT, RBHEXT_TAG, "Cannot lstat() '%s': %s", path_copy, strerror(-rc) );
                 return rc;
             }
 
-            if (get_orig_dir_md(path_copy, &st) != 0)
-            {
-                mode = default_mode;
-                setattrs = FALSE;
-            }
-            else
+            if (get_orig_dir_md(path_copy, &st, target) == 0)
             {
                 mode = st.st_mode & 07777;
                 setattrs = TRUE;
+            }
+            else
+            {
+                mode = default_mode;
+                setattrs = FALSE;
             }
 
             DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", path_copy );
@@ -635,15 +671,15 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
         curr++;
     }
 
-    if (get_orig_dir_md(full_path, &st) != 0)
-    {
-        mode = default_mode;
-        setattrs = FALSE;
-    }
-    else
+    if (get_orig_dir_md(full_path, &st, target) == 0)
     {
         mode = st.st_mode & 07777;
         setattrs = TRUE;
+    }
+    else
+    {
+        mode = default_mode;
+        setattrs = FALSE;
     }
 
     /* finaly create this dir */
@@ -783,7 +819,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         return -EINVAL; 
     }
     /* 2) create it recursively */
-    rc = mkdir_recurse( destdir, 750 );
+    rc = mkdir_recurse( destdir, 0750, TO_BACKEND );
     if ( rc )
         return rc;
 
@@ -959,6 +995,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     char bkpath[RBH_PATH_MAX];
     const char * backend_path;
     const char * fspath;
+    char tmp[RBH_PATH_MAX];
+    char * destdir;
     int rc;
     struct stat st_bk;
     struct stat st_dest;
@@ -1020,7 +1058,20 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         return RS_ERROR;
     }
 
-    /* TODO recursively create the parent directory */
+    /* recursively create the parent directory */
+    /* extract dir path */
+    strcpy( tmp, fspath );
+    destdir = dirname( tmp );
+    if ( destdir == NULL )
+    {
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+                    fspath );
+        return -EINVAL;
+    }
+
+    rc = mkdir_recurse( destdir, 0750, TO_FS );
+    if (rc)
+        return RS_ERROR;
 
 #ifdef _LUSTRE
     /* restripe the file in Lustre */
@@ -1169,7 +1220,20 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         return RS_ERROR;
     ATTR_MASK_SET( p_attrs_new, backendpath );
 
-    /* TODO create parent directory in backend */
+    /* recursively create the parent directory */
+    /* extract dir path */
+    strcpy( tmp, ATTR(p_attrs_new, backendpath) );
+    destdir = dirname( tmp );
+    if ( destdir == NULL )
+    {
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+                    ATTR(p_attrs_new, backendpath) );
+        return -EINVAL;
+    }
+
+    rc = mkdir_recurse( destdir, 0750, TO_BACKEND );
+    if (rc)
+        return RS_ERROR;
 
     /* rename the entry in backend */
     if ( strcmp( ATTR(p_attrs_new, backendpath), backend_path ) != 0 )
