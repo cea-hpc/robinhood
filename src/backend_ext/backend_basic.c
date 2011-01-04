@@ -607,7 +607,7 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
             }
 
             DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", path_copy );
-            if ( mkdir( path_copy, mode ) != 0 )
+            if ( (mkdir( path_copy, mode ) != 0) && (errno != EEXIST) )
             {
                 rc = -errno;
                 DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s",
@@ -648,7 +648,7 @@ static int mkdir_recurse( const char * full_path, mode_t default_mode )
 
     /* finaly create this dir */
     DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", full_path );
-    if ( mkdir( full_path, mode ) != 0 )
+    if ( (mkdir( full_path, mode ) != 0) && (errno != EEXIST) )
     {
         rc = -errno;
         DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s", full_path, strerror(-rc) );

@@ -36,6 +36,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_backup=1
 	RH="../../src/robinhood/rbh-backup $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
+	RECOV="../../src/robinhood/rbh-backup-recov $RBH_OPT"
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
 	if [ ! -d $BKROOT ]; then
@@ -240,10 +241,10 @@ function migration_test_single
 		grep "$ROOT/file.$i" rh_migr.log | grep "not known in database" && count=$(($count+1))
 	done
 
-	if (( $count == 11 )); then
-		echo "OK: all 11 files are not known in database"
+	if (( $count == $expected_migr )); then
+		echo "OK: all $expected_migr files are not known in database"
 	else
-		error "$count files are not known in database, 11 expected"
+		error "$count files are not known in database, $expected_migr expected"
 	fi
 
 	cp /dev/null rh_migr.log
@@ -266,10 +267,10 @@ function migration_test_single
 		grep "$ROOT/file.$i" rh_migr.log | grep "whitelisted" && count=$(($count+1))
 	done
 
-	if (( $count == 11 )); then
-		echo "OK: all 11 files are not eligible for migration"
+	if (( $count == $expected_migr )); then
+		echo "OK: all $expected_migr files are not eligible for migration"
 	else
-		error "$count files are not eligible, 11 expected"
+		error "$count files are not eligible, $expected_migr expected"
 	fi
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
@@ -290,10 +291,10 @@ function migration_test_single
 		grep "$ROOT/file.$i" rh_migr.log | grep "successful" && count=$(($count+1))
 	done
 
-	if (( $count == 11 )); then
-		echo "OK: all 11 files have been migrated successfully"
+	if (( $count == $expected_migr )); then
+		echo "OK: all $expected_migr files have been migrated successfully"
 	else
-		error "$count files migrated, 11 expected"
+		error "$count files migrated, $expected_migr expected"
 	fi
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
@@ -2050,6 +2051,125 @@ function test_cfg_parsing
 
 }
 
+function recovery_test
+{
+	config_file=$1
+	flavor=$2
+	policy_str="$3"
+
+	if (( $is_backup == 0 )); then
+		echo "Backup test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	# flavors:
+	# full: all entries fully recovered
+	# delta: all entries recovered but some with deltas
+	# rename: some entries have been renamed since they have been saved
+	# partial: some entries can't be recovered
+	if [[ $flavor == "full" ]]; then
+		nb_full=20
+		nb_rename=0
+		nb_delta=0
+		nb_nobkp=0
+	elif [[ $flavor == "delta" ]]; then
+		nb_full=10
+		nb_rename=0
+		nb_delta=10
+		nb_nobkp=0
+	elif [[ $flavor == "rename" ]]; then
+		nb_full=10
+		nb_rename=10
+		nb_delta=0
+		nb_nobkp=0
+	elif [[ $flavor == "partial" ]]; then
+                nb_full=10
+		nb_rename=0
+                nb_delta=0
+                nb_nobkp=10
+	else
+		error "Invalid arg in recovery_test"
+		return 1
+	fi
+	# read logs
+	
+
+	# create files
+	((total=$nb_full + $nb_rename + $nb_delta + $nb_nobkp))
+	echo "1.1-creating files..."
+	for i in `seq 1 $total`; do
+		mkdir "$ROOT/dir.$i" || error "$? creating directory $ROOT/dir.$i"
+		dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
+	done
+
+	# read changelogs
+	if (( $no_log )); then
+		echo "1.2-scan..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+	else
+		echo "1.2-read changelog..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+	fi
+
+	sleep 2
+
+	# all files are new
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i
+
+	echo "2.1-archiving files..."
+	# archive and modify files
+	for i in `seq 1 $total`; do
+		if (( $i <= $nb_full )); then
+			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $ROOT/dir.$i/file.$i"
+		elif (( $i <= $(($nb_full+$nb_rename)) )); then
+			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $ROOT/dir.$i/file.$i"
+			mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
+			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $ROOT/dir.$i/file.$i"
+			touch "$ROOT/dir.$i/file.$i"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
+			# no backup
+			:
+		fi
+	done
+
+	if (( $no_log )); then
+		echo "2.2-scan..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+	else
+		echo "2.2-read changelog..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+	fi
+
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i
+
+	# shot before disaster
+	find $ROOT -ls > /tmp/before.$$
+
+	# FS disaster
+	if [[ -n "$ROOT" ]]; then
+		echo "3-Disaster: all FS content is lost"
+		rm  -rf $ROOT/*
+	fi
+
+	# perform the recovery
+	$RECOV -f ./cfg/$config_file --start || error "Error starting recovery"
+
+	$RECOV -f ./cfg/$config_file --resume || error "Error performing recovery"
+
+	$RECOV -f ./cfg/$config_file --complete || error "Error completing recovery"
+
+	find $ROOT -ls > /tmp/after.$$
+
+	diff  /tmp/before.$$ /tmp/after.$$
+	rm -f /tmp/before.$$ /tmp/after.$$
+}
+
+
 
 only_test=""
 quiet=0
@@ -2256,6 +2376,11 @@ run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert ba
 run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
 run_test 501b 	test_cfg_parsing detailed none		"parsing of detailed template"
 run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
+
+run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
+run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
+run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
+run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
