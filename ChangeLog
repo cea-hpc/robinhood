@@ -1,8 +1,34 @@
+Changes between version 2.2.2 and 2.2.3:
+
+- [feature] periodic purge trigger
+- [feature] options for controlling trigger notifications
+- [doc] pdf documentation updated
+
 Changes between version 2.2.1 and 2.2.2:
 
 - [bugfix] (major) fixed "duplicate key" errors
 - [bugfix] (major) FS scan sometimes blocks on Lustre 2
 - [misc.] integration to automatic testing suite (Hudson)
+
+Changes between version 2.2.0 and 2.2.1:
+
+- [feature] new purge command: --purge-class to apply purge policy on files in a given class
+- [feature] new migration command: --migrate-class to apply migration policy on files in a given class
+- [feature] support of syslog for logging
+- [report cmd] Added summary line to all reports, with total nbr entries and volume.
+- [report cmd] Added '-q' option to hide headers and footers in reports.
+- [optim.] changed primary key format to reduce DB requests
+- [misc.] new command 'repair_db' in rbh-config, to fix tables after a MySQL server crash.
+- [compat.] Support for Lustre MDT changelogs on Lustre v2.0 final
+- [compat.] port to FreeBSD
+- [admin] added 'reload' action to init.d script
+- [misc.] a gap in OST index list should displays a warning, not an error
+- [pkg] common spec file for both el4, el5 and el6
+- [bugfix] handling large UNIX groups (>4k) and long lists of alt groups.
+- [bugfix] retrieving Lustre pool fails with error "Unsupported Lustre magic number"
+- [bugfix] wrong class matching on OST pools when scanning
+- [bugfix] unescaped SQL strings caused error for filenames with single quotes
+- [bugfix] error in init script when RBH_OPT contains several options
 
 Changes between version 2.1.5 and 2.2.0:
 

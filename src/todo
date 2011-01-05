@@ -43,25 +43,12 @@ Gestion multi-chemin:
 Push 220p2 to oracle repository
 
 Doc:
-====
 * doc backend ext/backup
-* add doc about syslog logging
-* add doc about exit_on_timeout
-* add doc about syslog logging
-* add doc about exit_on_timeout
-* add doc about ost_index criteria
-* new purge trigger 'periodic'
-* notify_hw, alert_lw
-
-(* config sqlite et disclaimer)
-* fileclasses are matched in the order they are targetted
- /!\ target =  A_inter_B
-     target = A
-	=> OK
-	inverse => NOK
+x add doc about ost_index criteria => 2.3
 
 Commandes :
 * --migrate-class
+* --migrate-file
 * --purge-class
 
 Features:

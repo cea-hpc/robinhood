@@ -223,6 +223,16 @@ fi
 
 %changelog
 
+* Wed Jan 05 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.3
+- [feature] periodic purge trigger
+- [feature] options for controlling trigger notifications
+- [doc] pdf documentation updated
+
+* Thu Nov 25 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.2
+- [bugfix] fixed major issue of "duplicate key" errors
+- [bugfix] FS scan sometimes blocks on Lustre 2
+- [misc.] integration to automatic testing suite (Hudson)
+
 * Fri Oct 22 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.1
 - [feature] new purge command: --purge-class to apply purge policy on files in a given class
 - [feature] new migration command: --migrate-class to apply migration policy on files in a given class
