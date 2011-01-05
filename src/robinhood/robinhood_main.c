@@ -291,6 +291,8 @@ static const char *help_string =
     "        Apply migration policies to files of group " _U "grp_name" U_ ".\n"
     "    " _B "--migrate-class=" B_ _U "fileclass" U_ "\n"
     "        Apply migration policy on files in the given " _U "fileclass" U_ ".\n\n"
+    "    " _B "--migrate-file=" B_ _U "filepath" U_ "\n"
+    "        Apply migration policy to a single file " _U "filepath" U_ ".\n\n"
 #endif
     _B "Behavior options:" B_ "\n"
     "    " _B "--dry-run"B_"\n"

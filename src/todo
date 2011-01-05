@@ -1,3 +1,6 @@
+Configuration template for different uses (stat and monitoring only,
+purge when fs usage reaches a threashold, purge at scheduled interval...)
+
 BACKUP:
  - backup quotidien de la base robinhood
  - CREATE du fichier dans le sbin?
