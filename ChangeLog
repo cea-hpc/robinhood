@@ -1,3 +1,9 @@
+Changes between version 2.2.2 and 2.2.3:
+
+- [feature] periodic purge trigger
+- [feature] options for controlling trigger notifications
+- [doc] pdf documentation updated
+
 Changes between version 2.2.1 and 2.2.2:
 
 - [bugfix] (major) fixed "duplicate key" errors

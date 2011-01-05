@@ -9,8 +9,10 @@
 who=`whoami`
 
 if [[ $who != root ]]; then
-    echo "This script must be executed by root" >&2
-    exit 1
+    echo
+    echo "WARNING: this script should be executed by root" >&2
+    echo "         else, it could not work correctly." >&2
+    echo
 fi
 
 
