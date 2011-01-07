@@ -1,7 +1,14 @@
-Configuration template for different uses (stat and monitoring only,
+- implementer undo-rm
+- support filter for softrm list
+- add signal handler to recovery function
+- command for retrieving softely removed entry
+- Put pdf doc in /usr/share/doc/robinhood
+- Configuration template for different uses (stat and monitoring only,
 purge when fs usage reaches a threashold, purge at scheduled interval...)
 
 BACKUP:
+ - si recov appele sans option: aide
+ - implementer recov status
  - backup quotidien de la base robinhood
  - CREATE du fichier dans le sbin?
  (- affichage de la cos choisie dans les logs)

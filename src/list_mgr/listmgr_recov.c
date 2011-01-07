@@ -30,9 +30,6 @@
 
 #define MAX_DB_FIELDS 64
 
-#define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
-                          ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
-                          ATTR_MASK_status | ATTR_MASK_stripe_info )
 /* table: id+... */
 /* TODO: generate this list automatically */
 #define RECOV_LIST_FIELDS "fullpath,size,owner,gr_name,last_mod,backendpath,status,stripe_count,stripe_size,pool_name"

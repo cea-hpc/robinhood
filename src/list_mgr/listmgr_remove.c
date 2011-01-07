@@ -400,10 +400,10 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
                      "(fid, " );
 
     if ( entry_path )
-        curr += sprintf(curr, "last_known_path, " );
+        curr += sprintf(curr, "fullpath, " );
 #ifdef _BACKUP_FS
     if ( backendpath )
-        curr += sprintf(curr, "bkpath, " );
+        curr += sprintf(curr, "backendpath, " );
 #endif
 
     curr += sprintf(curr, "soft_rm_time, real_rm_time) "
@@ -451,35 +451,61 @@ typedef struct lmgr_rm_list_t
     result_handle_t select_result;
 } lmgr_rm_list_t;
 
-struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only )
+struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_filter_t * p_filter )
 {
     int rc;
     lmgr_rm_list_t * p_list = MemAlloc( sizeof(lmgr_rm_list_t) );
-    char query[1024];
+    char query[4096];
+    char filter_str[1024] = "WHERE ";
+    char * curr_filter = filter_str + strlen(filter_str);
 
     if ( !p_list )
         return NULL;
 
+    if ( expired_only )
+    {
+        curr_filter += sprintf( curr_filter, "real_rm_time <= %u ",
+                                (unsigned int)time(NULL) );
+    }
+
+    if ( p_filter )
+    {
+        if (p_filter->filter_type != FILTER_SIMPLE )
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                       "Unsupported filter in %s(): simple filter expected",
+                       __FUNCTION__ );
+            return NULL;
+        }
+        /* are there unsuported fields in this filter? */
+#ifdef _BACKUP_FS
+        if ( lmgr_check_filter_fields( p_filter, ATTR_MASK_fullpath | ATTR_MASK_backendpath ) )
+#else
+        if ( lmgr_check_filter_fields( p_filter, ATTR_MASK_fullpath ) )
+#endif
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unsupported field in filter (in %s())",
+                         __FUNCTION__);
+            return NULL;
+        }
+        if ( filter2str( p_mgr, curr_filter, p_filter, T_SOFTRM, expired_only, FALSE ) < 0)
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error converting filter to SQL request" );
+            return NULL;
+        }
+    }
+
     p_list->p_mgr = p_mgr;
 
-    if ( expired_only )
 #ifdef _BACKUP_FS
-        snprintf( query, 1024, "SELECT fid, last_known_path, bkpath, soft_rm_time, real_rm_time "
+    snprintf( query, 4096, "SELECT fid, fullpath, backendpath, soft_rm_time, real_rm_time "
 #else
-        snprintf( query, 1024, "SELECT fid, last_known_path, soft_rm_time, real_rm_time "
+    snprintf( query, 4096, "SELECT fid, fullpath, soft_rm_time, real_rm_time "
 #endif
                 "FROM "SOFT_RM_TABLE" "
-                "WHERE real_rm_time <= %u "
+                "%s "
                 "ORDER BY real_rm_time ASC",
-                (unsigned int)time(NULL) );
-    else
-#ifdef _BACKUP_FS
-        strcpy( query, "SELECT fid, last_known_path, bkpath, soft_rm_time, real_rm_time "
-#else
-        strcpy( query, "SELECT fid, last_known_path, soft_rm_time, real_rm_time "
-#endif
-                "FROM "SOFT_RM_TABLE" "
-                "ORDER BY real_rm_time ASC" );
+                (expired_only || p_filter) ? filter_str:"" );
 
     /* execute request */
     rc = db_exec_sql( &p_mgr->conn, query, &p_list->select_result );

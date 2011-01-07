@@ -180,7 +180,7 @@ static int perform_hsm_rm( unsigned int *p_nb_removed )
 
     DisplayLog( LVL_EVENT, HSMRM_TAG, "Start removing files in HSM" );
 
-    it = ListMgr_RmList( &lmgr, TRUE );
+    it = ListMgr_RmList( &lmgr, TRUE, NULL );
 
     if ( it == NULL )
       {

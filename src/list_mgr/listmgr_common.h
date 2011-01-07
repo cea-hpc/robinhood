@@ -119,6 +119,9 @@ typedef enum
     T_ANNEX,                                     /* fiels in annex table */
     T_STRIPE_INFO,                               /* field in stripe info table */
     T_STRIPE_ITEMS,                              /* field in stripe items table */
+#ifdef HAVE_RM_POLICY
+    T_SOFTRM,                                    /* fields in softrm table */
+#endif
 #ifdef _BACKUP_FS
     T_RECOV,                                     /* fields in recov table */
 #endif

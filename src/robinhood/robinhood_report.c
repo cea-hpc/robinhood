@@ -384,7 +384,6 @@ static lmgr_t  lmgr;
 
 /* global filter variables */
 char path_filter[1024] = "";
-char path_regexp[1024] = "";
 char class_filter[1024] = "";
 
 void report_activity( int flags )
@@ -607,6 +606,8 @@ static inline const char * release_class( attr_set_t * attrs )
 static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * initialized )
 {
     filter_value_t fv;
+    char path_regexp[1024] = "";
+    size_t  len;
 
     /* is a filter on path specified? */
     if ( !EMPTY_STRING( path_filter ) )
@@ -618,8 +619,35 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
         }
         if ( do_display )
             printf("filter path: %s\n", path_filter );
-        fv.val_str = path_regexp;
-        lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv, 0 ); 
+
+        len = strlen(path_filter);
+        if ( path_filter[len-1] != '/' )
+        {
+            /* ( fullpath LIKE 'path' OR fullpath LIKE 'path/%' ) */
+            fv.val_str = path_filter;
+            lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
+                                    FILTER_FLAG_BEGIN );
+
+            snprintf( path_regexp, 1024, "%s/*", path_filter );
+            fv.val_str = path_regexp;
+            lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
+                                    FILTER_FLAG_OR | FILTER_FLAG_END ); 
+        }
+        else /* ends with slash */
+        {
+            snprintf( path_regexp, 1024, "%s*", path_filter );
+            /* directory or directory/% */
+
+            fv.val_str = path_regexp;
+            lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
+                                    FILTER_FLAG_BEGIN );
+            /* remove last slash */
+            path_filter[len-1] = '\0';
+            fv.val_str = path_filter;
+            lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
+                                    FILTER_FLAG_OR | FILTER_FLAG_END );
+        }
+
     }
 
     if ( !EMPTY_STRING( class_filter ) )
@@ -1957,9 +1985,15 @@ void report_deferred_rm( int flags )
     struct tm      t;
 
     unsigned long long total_count = 0;
+    lmgr_filter_t  filter;
+
+    lmgr_simple_filter_init( &filter );
+
+    /* append global filters */
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* list all deferred rm, even if non expired */
-    list = ListMgr_RmList( &lmgr, FALSE );
+    list = ListMgr_RmList( &lmgr, FALSE, &filter );
 
     if ( list == NULL )
     {
@@ -2459,18 +2493,7 @@ int main( int argc, char **argv )
             }
             else
             {
-                int len;
                 strncpy( path_filter, optarg, 1024 );
-                strncpy( path_regexp, optarg, 1024 );
-                len = strlen(path_regexp);
-
-                if ( path_regexp[len-1] != '/' )
-                {
-                    path_regexp[len] = '/';
-                    len++;
-                }
-                path_regexp[len] = '*';
-                path_regexp[len+1] = '\0';
             }
             break;
 

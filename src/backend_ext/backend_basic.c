@@ -1163,7 +1163,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     }
 
     /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
-    if ( st_dest.st_size != ATTR(p_attrs_old, size) )
+    if ( ATTR_MASK_TEST(p_attrs_old, size) && ( st_dest.st_size != ATTR(p_attrs_old, size)) )
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%zu) is "
                     "different from the last known size in filesystem (%"PRIu64"): "
@@ -1171,7 +1171,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                     fspath, st_dest.st_size, ATTR(p_attrs_old, size) );
         delta = TRUE;
     }
-    if ( st_dest.st_mtime != ATTR(p_attrs_old, last_mod) )
+    if ( ATTR_MASK_TEST( p_attrs_old, last_mod) && (st_dest.st_mtime != ATTR(p_attrs_old, last_mod)) )
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored mtime (%lu) is "
                     "different from the last time in filesystem (%u): "

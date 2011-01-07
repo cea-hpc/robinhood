@@ -607,7 +607,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         if ( ( fieldtab[0] == NULL ) || ( fieldtab[1] == NULL ) ||
              ( fieldtab[2] == NULL ) || ( fieldtab[3] == NULL ) ||
                 strcmp( fieldtab[0], "fid" ) ||
-                strcmp( fieldtab[1], "last_known_path" ) ||
+                strcmp( fieldtab[1], "fullpath" ) ||
                 strcmp( fieldtab[2], "soft_rm_time" ) ||
                 strcmp( fieldtab[3], "real_rm_time" ) )
         {
@@ -633,7 +633,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         /* table does not exist */
         strcpy( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
                 "fid VARCHAR(" TOSTRING(FID_LEN) ") PRIMARY KEY, "
-                "last_known_path VARCHAR(1023), "
+                "fullpath VARCHAR(1023), "
                 "soft_rm_time INT UNSIGNED, "
                 "real_rm_time INT UNSIGNED  )" );
 
@@ -682,8 +682,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
              ( fieldtab[2] == NULL ) || ( fieldtab[3] == NULL ) ||
              ( fieldtab[4] == NULL ) ||
                 strcmp( fieldtab[0], "fid" ) ||
-                strcmp( fieldtab[1], "last_known_path" ) ||
-                strcmp( fieldtab[2], "bkpath" ) ||
+                strcmp( fieldtab[1], "fullpath" ) ||
+                strcmp( fieldtab[2], "backendpath" ) ||
                 strcmp( fieldtab[3], "soft_rm_time" ) ||
                 strcmp( fieldtab[4], "real_rm_time" ) )
         {
@@ -710,8 +710,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         /* table does not exist */
         strcpy( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
                 "fid VARCHAR(" TOSTRING(FID_LEN) ") PRIMARY KEY, "
-                "last_known_path VARCHAR(1023), "
-                "bkpath VARCHAR(1023), "
+                "fullpath VARCHAR(1023), "
+                "backendpath VARCHAR(1023), "
                 "soft_rm_time INT UNSIGNED, "
                 "real_rm_time INT UNSIGNED  )" );
 

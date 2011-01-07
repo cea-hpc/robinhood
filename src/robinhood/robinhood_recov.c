@@ -87,9 +87,9 @@ static char path_buff[RBH_PATH_MAX];
 #define U_ "[0m"
 
 static const char *help_string =
-    _B "Usage:" B_ " %s [options]\n"
+    _B "Usage:" B_ " %s <action> [options]\n"
     "\n"
-    _B "Recovery actions:" B_ "\n"
+    _B "Disaster recovery actions:" B_ "\n"
     "    " _B "--start" B_ ", " _B "-S" B_ "\n"
     "        bla.\n"
     "    " _B "--resume" B_ ", " _B "-r" B_ "\n"
@@ -134,7 +134,7 @@ static inline void display_help( char *bin_name )
 static inline void display_version( char *bin_name )
 {
     printf( "\n" );
-    printf( "Product:         " PACKAGE_NAME " reporting tool\n" );
+    printf( "Product:         " PACKAGE_NAME " disaster recovery tool\n" );
     printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
     printf( "Build:           " COMPIL_DATE "\n" );
     printf( "\n" );
@@ -584,17 +584,17 @@ int main( int argc, char **argv )
 #endif
 
     if (do_start)
-        recov_start();
+        rc = recov_start();
     else if (do_reset)
-        recov_reset( local_flags & NO_CONFIRM );
+        rc = recov_reset( local_flags & NO_CONFIRM );
     else if (do_resume)
-        recov_resume( local_flags & RETRY_ERRORS );
+        rc = recov_resume( local_flags & RETRY_ERRORS );
     else if (do_complete)
-        recov_complete();
+        rc = recov_complete();
 
 
     ListMgr_CloseAccess( &lmgr );
 
-    return 0;                   /* for compiler */
+    return rc;
 
 }

@@ -393,3 +393,20 @@ int lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *bo
     return 0;
 
 }
+
+int lmgr_check_filter_fields( lmgr_filter_t * p_filter, unsigned int attr_mask )
+{
+    int i;
+    if ( p_filter->filter_type != FILTER_SIMPLE )
+        return DB_INVALID_ARG;
+
+    for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
+    {
+        unsigned int fmask = ( 1 << p_filter->filter_simple.filter_index[i] );
+        if ( fmask & ~attr_mask )
+            return DB_NOT_SUPPORTED;
+    }
+
+    return DB_SUCCESS;
+ 
+}

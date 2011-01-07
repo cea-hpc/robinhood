@@ -440,7 +440,7 @@ int ListMgr_SoftRemove_Discard( lmgr_t * p_mgr, const entry_id_t * p_id );
  * Initialize a list of items removed 'softly', sorted by expiration time.
  * \param expired_only if TRUE, return only items whose real removal time is expired.
  */
-struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only );
+struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_filter_t * filter );
 
 
 /**
@@ -469,6 +469,8 @@ void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter );
 #define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
                           ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
                           ATTR_MASK_status | ATTR_MASK_stripe_info )
+
+#define SOFTRM_MASK ( ATTR_MASK_fullpath | ATTR_MASK_backendpath )
 
 /**
  * Filesystem recovery from backup.
@@ -535,6 +537,9 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 
 /** @} */
 
+#elif defined( HAVE_RM_POLICY )
+/* only keep fullpath by default */
+#define SOFTRM_MASK ( ATTR_MASK_fullpath )
 #endif
 
 
@@ -710,6 +715,9 @@ int convert_boolexpr_to_simple_filter( struct bool_node_t * boolexpr, lmgr_filte
 
 /** Set a complex filter structure */
 int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *boolexpr );
+
+/** Check that all fields in filter are in the given mask of supported attributes */
+int lmgr_check_filter_fields( lmgr_filter_t * p_filter, unsigned int attr_mask );
 
 
 /** @} */
