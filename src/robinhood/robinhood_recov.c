@@ -591,6 +591,7 @@ int main( int argc, char **argv )
         rc = recov_resume( local_flags & RETRY_ERRORS );
     else if (do_complete)
         rc = recov_complete();
+    /* TODO status */
 
 
     ListMgr_CloseAccess( &lmgr );

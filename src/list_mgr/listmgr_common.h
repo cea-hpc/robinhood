@@ -107,6 +107,10 @@ void           init_attrset_masks(  );
 #define is_recov_field( _attr_index ) \
                 ( (1 << _attr_index) & RECOV_ATTR_MASK )
 #endif
+#ifdef HAVE_RM_POLICY
+#define is_softrm_field( _attr_index ) \
+                ( (1 << _attr_index) & SOFTRM_MASK )
+#endif
 
 int            printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr );
 

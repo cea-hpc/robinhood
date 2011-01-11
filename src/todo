@@ -1,4 +1,3 @@
-- implementer undo-rm
 - support filter for softrm list
 - add signal handler to recovery function
 - command for retrieving softely removed entry
