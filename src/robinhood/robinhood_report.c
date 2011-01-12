@@ -1986,14 +1986,15 @@ void report_deferred_rm( int flags )
 
     unsigned long long total_count = 0;
     lmgr_filter_t  filter;
+    int is_filter = FALSE;
 
     lmgr_simple_filter_init( &filter );
 
     /* append global filters */
-    mk_global_filters( &filter, !NOHEADER(flags), NULL );
+    mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
     /* list all deferred rm, even if non expired */
-    list = ListMgr_RmList( &lmgr, FALSE, &filter );
+    list = ListMgr_RmList( &lmgr, FALSE, is_filter? &filter : NULL );
 
     if ( list == NULL )
     {

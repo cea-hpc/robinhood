@@ -1055,7 +1055,7 @@ int execute_shell_command( const char * cmd, int argc, ... )
     int rc, i;
     int exrc;
 
-    curr += sprintf( cmdline, "%s", escape_shell_arg( cmd, argbuf ) );
+    curr += sprintf( cmdline, "%s", cmd );
 
     va_start(arglist, argc);
     for (i = 0; i < argc; i++)

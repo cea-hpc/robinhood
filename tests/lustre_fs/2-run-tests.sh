@@ -52,7 +52,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -436,16 +436,26 @@ function link_unlink_remove_test
 
 	# create links on file.1 files
 	echo "4-Creating hard links to $ROOT/file.1..."
-	ln $ROOT/file.1 $ROOT/link.1 || error ""
-	ln $ROOT/file.1 $ROOT/link.2 || error ""
+	ln $ROOT/file.1 $ROOT/link.1 || error "ln"
+	ln $ROOT/file.1 $ROOT/link.2 || error "ln"
 
 	# removing all files
         echo "5-Removing all links to file.1..."
 	rm -f $ROOT/link.* $ROOT/file.1 
 
+	sleep 1
+	
+	echo "Checking report..."
+	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+	nb_ent=`wc -l rh_report.log | awk '{print $1}'`
+	if (( $nb_ent != $expected_rm )); then
+		error "Wrong number of deferred rm reported: $nb_ent"
+	fi
+	grep "$ROOT/file.1" rh_report.log > /dev/null || error "$ROOT/file.1 not found in deferred rm list"
+
 	# deferred remove delay is not reached: nothing should be removed
 	echo "6-Performing HSM remove requests (before delay expiration)..."
-	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_rm.log --once || error ""
+	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_rm.log --once || error "hsm-remove"
 
 	nb_rm=`grep "Remove request successful" rh_rm.log | wc -l`
 	if (($nb_rm != 0)); then
@@ -647,7 +657,7 @@ function test_rh_report
 
 	echo "3.Checking reports..."
 	for i in `seq 1 $dircount`; do
-		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P $ROOT/dir.$i > rh_report.log
+		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $i*1024*1024 )); then
 			error ": $used != " $(($i*1024*1024))

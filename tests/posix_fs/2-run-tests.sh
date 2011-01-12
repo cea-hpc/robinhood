@@ -434,7 +434,7 @@ function test_rh_report
 	for i in `seq 1 $dircount`; do
 		real=`du -B 512 -c $ROOT/dir.$i/* | grep total | awk '{print $1}'`
 		real=`echo "$real*512" | bc -l`
-		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P $ROOT/dir.$i > rh_report.log
+		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $real )); then
 			error ": $used != $real"
