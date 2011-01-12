@@ -93,6 +93,7 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
         {
             p_stripe_info->stripe_size = p_lum->lmm_stripe_size;
             p_stripe_info->stripe_count = p_lum->lmm_stripe_count;
+            p_stripe_info->pool_name[0] = '\0';
         }
 
         if ( p_stripe_items )
