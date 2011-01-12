@@ -29,12 +29,12 @@ RETVAL=0
 
 #
 # pidfile_name() build the name of the pid file for a given configuration file
-# pidfile is like /var/run/<fs> if conf file is /etc/robinhood.d/<purpose>/<fs>.conf
+# pidfile is like /var/run/robinhood.<fs> if conf file is /etc/robinhood.d/<purpose>/<fs>.conf
 #
 pidfile_name()
 {
 	local conf=$1
-	local pidfile=$VARRUN/${conf##*/}
+	local pidfile=$VARRUN/rbh.${conf##*/}
 	echo ${pidfile%.conf}
 }
 
@@ -135,7 +135,8 @@ check_or_start_fs()
 			echo
 			return 1
 		else
-			echo "Robinhood for $conf is running, try: ps -fp $(<$pidfile) m"
+			echo "Robinhood for $conf is running:"
+			ps -fp $(<$pidfile)
 			return 0
 		fi
 	else

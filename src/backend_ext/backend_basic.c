@@ -988,7 +988,7 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
  * \retval recovery status
  */
 recov_status_t rbhext_recover( const entry_id_t * p_old_id,
-                               const attr_set_t * p_attrs_old,
+                               attr_set_t * p_attrs_old,
                                entry_id_t * p_new_id,
                                attr_set_t * p_attrs_new )
 {
@@ -1001,6 +1001,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     struct stat st_bk;
     struct stat st_dest;
     int delta = FALSE;
+    attr_set_t attr_bk;
 
     if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
     {
@@ -1042,6 +1043,11 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         else
             return RS_ERROR;
     }
+
+    /* merge missing posix attrs to p_attrs_old */
+    PosixStat2EntryAttr( &st_bk, &attr_bk, TRUE );
+    /* leave attrs unchanged if they are already set in p_attrs_old */
+    ListMgr_MergeAttrSets( p_attrs_old, &attr_bk, FALSE );
 
     /* test if the target does not already exist */
     rc = lstat( ATTR(p_attrs_old, fullpath), &st_dest );

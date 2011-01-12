@@ -1,3 +1,23 @@
+Replace:
+    --dump-user user
+        Dump all entries for the given user.
+    --dump-group group
+        Dump all entries for the given group.
+    --dump-ost ost_index
+        Dump all entries on the given OST.
+par
+--dump --user=
+--dump --group=
+--dump --ost=
+
+repl.
+--filter-path=
+par
+--path=
+
+
+remplacer /var/run/fsname par /var/run/robinhood.fsname
+
 Release notes: attention "-P /mnt/dir" match the directory itself
 			 "-P /mnt/dir/*" match the subentries
 
