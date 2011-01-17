@@ -15,9 +15,6 @@ repl.
 par
 --path=
 
-
-remplacer /var/run/fsname par /var/run/robinhood.fsname
-
 Release notes: attention "-P /mnt/dir" match the directory itself
 			 "-P /mnt/dir/*" match the subentries
 

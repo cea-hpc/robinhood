@@ -478,24 +478,24 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
         return rc;
     }
 
-    req->hur_action = action;
-    req->hur_archive_num = archive_num;
+    req->hur_request.hr_action = action;
+    req->hur_request.hr_archive_num = archive_num;
 
     req->hur_user_item[0].hui_fid = *p_id;
     req->hur_user_item[0].hui_extent.offset = 0 ;
     /* XXX for now, always transfer entire file */
     req->hur_user_item[0].hui_extent.length = -1LL;
 
-    req->hur_itemcount = 1;
+    req->hur_request.hr_itemcount = 1;
 
     if ( hints != NULL )
     {
-        req->hur_data_len = data_len;
+        req->hur_request.hr_data_len = data_len;
         memcpy(hur_data(req), hints, data_len);
     }
     else
     {
-        req->hur_data_len = 0;
+        req->hur_request.hr_data_len = 0;
     }
 
     rc = llapi_hsm_request( mount_point, req );
