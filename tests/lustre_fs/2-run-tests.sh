@@ -96,6 +96,18 @@ function clean_logs
 }
 
 
+function wait_done
+{
+	max_sec=$1
+	sec=0
+	while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions > /dev/null ; do
+		sleep 1;
+		((sec=$sec+1))
+		(( $sec > $max_sec )) && return 1
+	done
+	return 0
+}
+
 function clean_fs
 {
 	if (( $is_hsm != 0 )); then
@@ -103,7 +115,7 @@ function clean_fs
 		echo "purge" > /proc/fs/lustre/mdt/*/hsm_control
 
 		echo "Waiting for end of data migration..."
-		while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions > /dev/null ; do sleep 1; done
+		wait_done 60
 	fi
 
 	echo "Cleaning filesystem..."
@@ -429,7 +441,7 @@ function link_unlink_remove_test
 		lfs hsm_archive $ROOT/file.1 || error "executing lfs hsm_archive"
 
 		echo "3bis-Waiting for end of data migration..."
-		while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions ; do sleep 1; done
+		wait_done 60 || error "Migration timeout"
 	elif (( $is_backup != 0 )); then
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 	fi
@@ -507,12 +519,11 @@ function purge_test
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived $ROOT/file.$i
-			lfs hsm_clear --dirty $ROOT/file.$i
+			lfs hsm_archive $ROOT/file.$i || error "lfs hsm_archive"
+			wait_done 60 || error "Copy timeout"
 		fi
 	done
 	
-	echo "2-Reading changelogs to update file status (after 1sec)..."
 	sleep 1
 	if (( $no_log )); then
 		echo "2-Scanning the FS again to update file status (after 1sec)..."
@@ -588,8 +599,8 @@ function purge_size_filesets
 			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || error "writing file.$size.$i"
 
 			if (( $is_hsm != 0 )); then
-				lfs hsm_set --exists --archived $ROOT/file.$size.$i
-				lfs hsm_clear --dirty $ROOT/file.$size.$i
+				lfs hsm_archive $ROOT/file.$size.$i || error "lfs hsm_archive"
+				wait_done 60 || error "Copy timeout"
 			fi
 		done
 	done
@@ -1797,8 +1808,8 @@ function test_logs
 	touch $ROOT/file.4 || error "creating file"
 
 	if (( $is_hsm != 0 )); then
-		lfs hsm_set --exists --archived $ROOT/file.*
-		lfs hsm_clear --dirty $ROOT/file.*
+		lfs hsm_archive $ROOT/file.*
+		wait_done 60 || error "Copy timeout"
 	fi
 
 	if (( $syslog )); then
