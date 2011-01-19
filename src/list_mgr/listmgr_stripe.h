@@ -21,7 +21,8 @@
 int            delete_stipe_info( lmgr_t * p_mgr, PK_ARG_T pk );
 int            insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                                    int validator, const stripe_info_t * p_stripe,
-                                   const stripe_items_t * p_items );
+                                   const stripe_items_t * p_items,
+                                   int update_if_exists );
 int            get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe,
                                 stripe_items_t * p_items );
 void           free_stripe_items( stripe_items_t * p_stripe_items );

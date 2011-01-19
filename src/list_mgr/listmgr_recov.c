@@ -46,8 +46,8 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     char * status[3];
 
     /* test if a RECOVERY table already exist, and contains entries */
-    rc = db_exec_sql( &p_mgr->conn, "SELECT status,COUNT(*),SUM(size) FROM "RECOV_TABLE
-                      " GROUP BY status", &result );
+    rc = db_exec_sql_quiet( &p_mgr->conn, "SELECT status,COUNT(*),SUM(size) FROM "RECOV_TABLE
+                            " GROUP BY status", &result );
     if (rc)
         return rc;
 
@@ -114,8 +114,8 @@ int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     char * status[3];
 
     /* test if a RECOVERY table already exist, and contains entries */
-    rc = db_exec_sql( &p_mgr->conn, "SELECT recov_status,COUNT(*),SUM(size) FROM "RECOV_TABLE
-                      " GROUP BY recov_status", &result );
+    rc = db_exec_sql_quiet( &p_mgr->conn, "SELECT recov_status,COUNT(*),SUM(size) FROM "RECOV_TABLE
+                            " GROUP BY recov_status", &result );
     if (rc)
         return rc;
 

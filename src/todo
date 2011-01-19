@@ -1,3 +1,5 @@
+Voir pourquoi un update des stripe_info renvoie une duplicate entry error.
+
 Replace:
     --dump-user user
         Dump all entries for the given user.

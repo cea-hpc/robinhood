@@ -301,9 +301,8 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     if ( ATTR_MASK_TEST( p_update_set, stripe_info ) )
     {
         rc = insert_stripe_info( p_mgr, pk, VALID(p_id), &ATTR( p_update_set, stripe_info ),
-                                 ATTR_MASK_TEST( p_update_set, stripe_items ) ? &ATTR( p_update_set,
-                                                                                       stripe_items )
-                                 : NULL );
+                                 ATTR_MASK_TEST( p_update_set, stripe_items ) ?
+                                    &ATTR( p_update_set, stripe_items ) : NULL, TRUE );
         if ( rc )
             goto rollback;
     }

@@ -974,7 +974,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     case OP_TYPE_INSERT:
         p_op->entry_attr.attr_mask &= ~readonly_attr_set;
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Insert("DFID")", PFID(&p_op->entry_id) );
-        rc = ListMgr_Insert( lmgr, &p_op->entry_id, &p_op->entry_attr );
+        rc = ListMgr_Insert( lmgr, &p_op->entry_id, &p_op->entry_attr, FALSE );
         break;
     case OP_TYPE_UPDATE:
         p_op->entry_attr.attr_mask &= ~readonly_attr_set;

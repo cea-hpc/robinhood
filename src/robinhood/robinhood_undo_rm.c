@@ -355,12 +355,7 @@ int undo_rm()
             if ( ListMgr_SoftRemove_Discard(&lmgr, &id) != 0 )
                 fprintf(stderr, "Error: could not remove previous id "DFID" from database\n", PFID(&id) );
             /* insert or update it in the db */
-            rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs );
-            if ( rc == DB_ALREADY_EXISTS )
-            {
-                /* try to update */
-                rc = ListMgr_Update( &lmgr, &new_id, &new_attrs );
-            }
+            rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
             if ( rc == 0 )
                 printf("Entry successfully updated in the dabatase\n");
             else

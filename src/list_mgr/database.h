@@ -48,6 +48,10 @@ int            db_close_conn( db_conn_t * conn );
 /* execute sql directive (optionnaly with returned result) */
 int            db_exec_sql( db_conn_t * conn, const char *query, result_handle_t * p_result );
 
+/* like db_exec_sql, but expects duplicate key or no such table errors */
+int            db_exec_sql_quiet( db_conn_t * conn, const char *query,
+                                  result_handle_t * p_result );
+
 /* get the next record from result */
 int            db_next_record( db_conn_t * conn,
                                result_handle_t * p_result,

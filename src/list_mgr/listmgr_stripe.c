@@ -55,7 +55,8 @@ int delete_stipe_info( lmgr_t * p_mgr, PK_ARG_T pk )
 
 int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, 
                         int validator, const stripe_info_t * p_stripe,
-                        const stripe_items_t * p_items )
+                        const stripe_items_t * p_items,
+                        int update_if_exists )
 {
 #ifdef _ENABLE_PREP_STMT      /* ---- prepared statements enabled ----- */
     int            rc;
@@ -222,7 +223,6 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
 
     do
     {
-
         /* First insert info into STRIPE_INFO_TABLE,
          * so if a file is already present with the same id,
          * we will remove its previous stripe info */
@@ -233,13 +233,16 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                  p_stripe->stripe_count, ( unsigned int ) p_stripe->stripe_size,
                  p_stripe->pool_name );
 
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( update_if_exists )
+            rc = db_exec_sql_quiet( &p_mgr->conn, query, NULL );
+        else
+            rc = db_exec_sql( &p_mgr->conn, query, NULL );
 
         if ( rc == 0 )
         {
             created = TRUE;
         }
-        else if ( rc == DB_ALREADY_EXISTS )
+        else if ( (rc == DB_ALREADY_EXISTS) && update_if_exists )
         {
             /* remove previous stripe info */
             DisplayLog( LVL_EVENT, LISTMGR_TAG,
@@ -667,5 +670,6 @@ int ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
     if (rc)
         return rc;
 
-    return insert_stripe_info( p_mgr, pk, VALID(p_id), p_stripe_info, p_stripe_items );
+    return insert_stripe_info( p_mgr, pk, VALID(p_id), p_stripe_info, p_stripe_items,
+                               TRUE );
 }

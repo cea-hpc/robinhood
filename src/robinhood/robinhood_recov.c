@@ -345,7 +345,7 @@ int recov_resume( int retry_errors )
         if ( (st == RS_OK) || (st == RS_DELTA) )
         {
             /* insert the entry in the database, and update recovery status */
-            rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs );
+            rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
             if (rc)
             {
                 fprintf(stderr, "DB insert failure for '%s'\n", ATTR(&new_attrs, fullpath));
@@ -404,6 +404,24 @@ int recov_complete()
     }
 }
 
+int recov_status()
+{
+    int rc;
+    lmgr_recov_stat_t stats;
+
+    rc = ListMgr_RecovStatus( &lmgr, &stats );
+    if (rc)
+    {
+        if ( rc == DB_NOT_EXISTS )
+            fprintf( stderr, "ERROR: There is no pending recovery\n" );
+        return rc;
+    }
+
+    printf( "Current recovery status:\n");
+    print_recov_stats( FALSE, &stats );
+    printf("\n");
+    return 0;
+}
 
 #define RETRY_ERRORS 0x00000001
 #define NO_CONFIRM   0x00000002
@@ -426,6 +444,7 @@ int main( int argc, char **argv )
     int            do_reset = FALSE;
     int            do_resume = FALSE;
     int            do_complete = FALSE;
+    int            do_status = FALSE;
     int            force_log_level = FALSE;
 
     int            log_level = 0;
@@ -442,6 +461,9 @@ int main( int argc, char **argv )
         {
         case 'S':
             do_start = TRUE;
+            break;
+        case 's':
+            do_status = TRUE;
             break;
         case 'Z':
             do_reset = TRUE;
@@ -583,7 +605,9 @@ int main( int argc, char **argv )
     }
 #endif
 
-    if (do_start)
+    if (do_status)
+        rc = recov_status();
+    else if (do_start)
         rc = recov_start();
     else if (do_reset)
         rc = recov_reset( local_flags & NO_CONFIRM );
@@ -591,8 +615,6 @@ int main( int argc, char **argv )
         rc = recov_resume( local_flags & RETRY_ERRORS );
     else if (do_complete)
         rc = recov_complete();
-    /* TODO status */
-
 
     ListMgr_CloseAccess( &lmgr );
 

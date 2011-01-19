@@ -175,6 +175,11 @@ int db_exec_sql( db_conn_t * conn, const char *query, result_handle_t * p_result
     return DB_SUCCESS;
 }
 
+int db_exec_sql_quiet( db_conn_t * conn, const char *query, result_handle_t * p_result )
+{
+    return db_exec_sql( conn, query, p_result);
+}
+
 /* get the next record from result */
 int db_next_record( db_conn_t * conn,
                     result_handle_t * p_result, char *outtab[], unsigned int outtabsize )

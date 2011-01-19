@@ -26,7 +26,8 @@
 
 
 
-int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info )
+int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info,
+                    int update_if_exists )
 {
 #ifdef _ENABLE_PREP_STMT      /* ---- prepared statements enabled ---- */
     int            rc;
@@ -308,7 +309,11 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
     if ( ATTR_MASK_TEST( p_info, stripe_info ) && ATTR_MASK_TEST( p_info, stripe_items ) )
     {
         rc = insert_stripe_info( p_mgr, pk, VALID(p_id), &ATTR( p_info, stripe_info ),
-                                 &ATTR( p_info, stripe_items ) );
+                                 &ATTR( p_info, stripe_items ), update_if_exists );
+
+        if ( (rc == DB_ALREADY_EXISTS) && update_if_exists )
+            return ListMgr_Update( p_mgr, p_id, p_info );
+
         if ( rc )
         {
             lmgr_rollback( p_mgr );
@@ -330,7 +335,15 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
 
     sprintf( query, "INSERT INTO " MAIN_TABLE "(%s) VALUES (%s)", fields, values );
 
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
+    if ( update_if_exists )
+    {
+        /* no warning if we allow update */
+        rc = db_exec_sql_quiet( &p_mgr->conn, query, NULL );
+        if ( rc == DB_ALREADY_EXISTS )
+            return ListMgr_Update( p_mgr, p_id, p_info );
+    }
+    else
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
 
     if ( rc )
     {
@@ -361,7 +374,16 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
 
             sprintf( query, "INSERT INTO " ANNEX_TABLE "(%s) VALUES (%s)", fields, values );
 
-            rc = db_exec_sql( &p_mgr->conn, query, NULL );
+            if ( update_if_exists )
+            {
+                /* no warning if we allow update */
+                rc = db_exec_sql_quiet( &p_mgr->conn, query, NULL );
+                if ( rc == DB_ALREADY_EXISTS )
+                    return ListMgr_Update( p_mgr, p_id, p_info );
+            }
+            else
+                rc = db_exec_sql( &p_mgr->conn, query, NULL );
+
             if ( rc )
             {
                 lmgr_rollback( p_mgr );
