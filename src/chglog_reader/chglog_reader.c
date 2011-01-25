@@ -186,6 +186,14 @@ int log_record_callback( struct entry_proc_op_t * pop, void * param )
 
 }
 
+#ifdef _LUSTRE_HSM
+
+static const char * event_name[] = {
+    "archive", "restore", "cancel", "release", "remove", "state"
+};
+#define CL_EVENT_MAX 5
+#endif
+
 
 /**
  * This handles a single log record.
@@ -196,30 +204,48 @@ static int process_log_rec( reader_thr_info_t * p_info, struct changelog_rec * p
     int            st;
 
     int            opnum;
-    const char           *optype;
+    const char     *optype;
+    char flag_buff[256] = "";
+
+#ifdef _LUSTRE_HSM
+    if ( p_rec->cr_type == CL_HSM )
+    {
+        const char * event = NULL;
+        if ( hsm_get_cl_event( p_rec->cr_flags ) > CL_EVENT_MAX )
+            event = "unknown";
+        else
+            event = event_name[hsm_get_cl_event( p_rec->cr_flags )];
+
+        snprintf(flag_buff, 256, "(%s%s,rc=%d)", event,
+                 hsm_get_cl_flags( p_rec->cr_flags ) & CLF_HSM_DIRTY? ",dirty":"",
+                 hsm_get_cl_error( p_rec->cr_flags ));
+    }
+#endif
 
     /* display the log record in debug mode */
     if (p_rec->cr_namelen)
     {
         /* this record has a 'name' field. */
-        DisplayLog( LVL_DEBUG, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x t="DFID" p="DFID" %.*s",
+        DisplayLog( LVL_DEBUG, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID" p="DFID" %.*s",
                     p_rec->cr_index, p_rec->cr_type,
                     changelog_type2str(p_rec->cr_type),
                     (uint32_t)cltime2sec(p_rec->cr_time),
                     cltime2nsec(p_rec->cr_time),
-                    p_rec->cr_flags & CLF_FLAGMASK, PFID(&p_rec->cr_tfid),
+                    p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
+                    PFID(&p_rec->cr_tfid),
                     PFID(&p_rec->cr_pfid),
                     p_rec->cr_namelen, p_rec->cr_name);
     }
     else
     {
         /* no 'name' field. */
-        DisplayLog( LVL_DEBUG, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x t="DFID,
+        DisplayLog( LVL_DEBUG, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID,
                     p_rec->cr_index, p_rec->cr_type,
                     changelog_type2str(p_rec->cr_type), 
                     (uint32_t)cltime2sec(p_rec->cr_time),
                     cltime2nsec(p_rec->cr_time),
-                    p_rec->cr_flags & CLF_FLAGMASK, PFID(&p_rec->cr_tfid) );
+                    p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
+                    PFID(&p_rec->cr_tfid) );
     }
 
     opnum = p_rec->cr_type ;

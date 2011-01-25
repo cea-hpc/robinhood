@@ -44,6 +44,16 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	fi
 fi
 
+function flush_data
+{
+	if [[ -n "$SYNC" ]]; then
+	  # if the agent is on the same node as the writter, we are not sure
+	  # data has been flushed to OSTs
+	  echo "Flushing data to OSTs"
+	  sync
+	fi
+}
+
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 	no_log=0
 else
@@ -438,6 +448,7 @@ function link_unlink_remove_test
 
 	if (( $is_hsm != 0 )); then
 		echo "3-Archiving file....1"
+		flush_data
 		lfs hsm_archive $ROOT/file.1 || error "executing lfs hsm_archive"
 
 		echo "3bis-Waiting for end of data migration..."
@@ -519,6 +530,7 @@ function purge_test
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 
 		if (( $is_hsm != 0 )); then
+			flush_data
 			lfs hsm_archive $ROOT/file.$i || error "lfs hsm_archive"
 			wait_done 60 || error "Copy timeout"
 		fi
@@ -599,6 +611,7 @@ function purge_size_filesets
 			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || error "writing file.$size.$i"
 
 			if (( $is_hsm != 0 )); then
+				flush_data
 				lfs hsm_archive $ROOT/file.$size.$i || error "lfs hsm_archive"
 				wait_done 60 || error "Copy timeout"
 			fi
@@ -1808,6 +1821,7 @@ function test_logs
 	touch $ROOT/file.4 || error "creating file"
 
 	if (( $is_hsm != 0 )); then
+		flush_data
 		lfs hsm_archive $ROOT/file.*
 		wait_done 60 || error "Copy timeout"
 	fi
