@@ -610,26 +610,29 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                                            & ~p_op->entry_attr.attr_mask);
                 }
 
-                rc = ListMgr_Get( lmgr, &p_op->entry_id, &tmp_attr );
+                if( tmp_attr.attr_mask )
+                {
+                    rc = ListMgr_Get( lmgr, &p_op->entry_id, &tmp_attr );
 
-                if (rc == DB_SUCCESS )
-                {
-                    p_op->entry_attr_is_set = TRUE;
-                    /* merge with main attr set */
-                    ListMgr_MergeAttrSets( &p_op->entry_attr, &tmp_attr, FALSE );
-                }
-                else if (rc == DB_NOT_EXISTS )
-                {
-                    /* this kind of attributes do not apply to this type of entry */
-                    DisplayLog( LVL_FULL, ENTRYPROC_TAG, "No such attribute found for this entry: type=%s, attr_mask=%#x",
-                                ATTR(&p_op->entry_attr, type), tmp_attr.attr_mask );
-                }
-                else
-                {
-                    /* ERROR */
-                    DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                                "Error %d retrieving entry "DFID" from DB", rc,
-                                PFID(&p_op->entry_id) );
+                    if (rc == DB_SUCCESS )
+                    {
+                        p_op->entry_attr_is_set = TRUE;
+                        /* merge with main attr set */
+                        ListMgr_MergeAttrSets( &p_op->entry_attr, &tmp_attr, FALSE );
+                    }
+                    else if (rc == DB_NOT_EXISTS )
+                    {
+                        /* this kind of attributes do not apply to this type of entry */
+                        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "No such attribute found for this entry: type=%s, attr_mask=%#x",
+                                    ATTR(&p_op->entry_attr, type), tmp_attr.attr_mask );
+                    }
+                    else
+                    {
+                        /* ERROR */
+                        DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
+                                    "Error %d retrieving entry "DFID" from DB", rc,
+                                    PFID(&p_op->entry_id) );
+                    }
                 }
             }
         } /* end if exist in db */

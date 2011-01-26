@@ -1136,37 +1136,6 @@ function periodic_class_match_purge
         (( $nb_updt == 4 - $already )) && (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
 		&& echo "OK: initial fileclass matching successful"
 
-	echo "New FS Scan..."
-	# update db content and rematch entries: should not update fileclasses
-	clean_logs
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
-
-	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_purge.log | wc -l` # impossible: it should have been removed from DB during the last purge!
-	nb_purge_valid=`grep "fileclass 'to_be_released' is still valid" rh_purge.log | wc -l` # impossible: it should have been removed from DB during the last purge!
-	nb_updt=`grep "Need to update fileclass" rh_purge.log | wc -l`
-
-#	(( $nb_default_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
-#	(( $nb_purge_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
-#	(( $nb_updt == 0 )) || error "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
-
-	(( $nb_default_valid == 0 )) || error "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
-	(( $nb_purge_valid == 0 )) || error "********** TEST FAILED: wrong count of cached fileclass for 'purge_match' : $nb_purge_valid"
-	(( $nb_updt == 2 )) || error "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
-
-        #(( $nb_updt == 0 )) && (( $nb_default_valid == 1 )) && (( $nb_purge_valid == 1 )) \
-        (( $nb_updt == 2 )) && (( $nb_default_valid == 0 )) && (( $nb_purge_valid == 0 )) \
-		&& echo "OK: fileclasses do not need update"
-	
-	# update db content and rematch entries: should update all fileclasses
-	clean_logs
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-
-	echo "Waiting $update_period sec..."
-	sleep $update_period
-
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
-
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
 	# 	2 entries are new (default and to_be_released)
 	if (( $is_hsm == 0 )); then
@@ -1176,6 +1145,15 @@ function periodic_class_match_purge
 		already=0
 		new=0
 	fi
+
+	# update db content and rematch entries: should update all fileclasses
+	clean_logs
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+
+	echo "Waiting $update_period sec..."
+	sleep $update_period
+
+	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
 
 	nb_valid=`grep "is still valid" rh_purge.log | wc -l`
 	nb_updt=`grep "Need to update fileclass (out-of-date)" rh_purge.log | wc -l`
