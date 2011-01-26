@@ -62,7 +62,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -110,7 +110,12 @@ function wait_done
 {
 	max_sec=$1
 	sec=0
-	while egrep "WAITING|RUNNING|STARTED" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions > /dev/null ; do
+	if [[ -n "$MDS" ]]; then
+		cmd="ssh $MDS egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+	else
+		cmd="egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+	fi
+	while $cmd > /dev/null ; do
 		sleep 1;
 		((sec=$sec+1))
 		(( $sec > $max_sec )) && return 1
@@ -122,7 +127,11 @@ function clean_fs
 {
 	if (( $is_hsm != 0 )); then
 		echo "Cancelling agent actions..."
-		echo "purge" > /proc/fs/lustre/mdt/*/hsm_control
+		if [[ -n "$MDS" ]]; then
+			ssh $MDS "echo purge > /proc/fs/lustre/mdt/*/hsm_control"
+		else
+			echo "purge" > /proc/fs/lustre/mdt/*/hsm_control
+		fi
 
 		echo "Waiting for end of data migration..."
 		wait_done 60
@@ -167,15 +176,21 @@ POOL_CREATED=0
 
 function create_pools
 {
+  if [[ -n "$MDS" ]]; then
+	do_mds="ssh $MDS"
+  else
+	do_mds=""
+  fi
+
   (($POOL_CREATED != 0 )) && return
-  lfs pool_list lustre | grep lustre.$POOL1 && POOL_CREATED=1
-  lfs pool_list lustre | grep lustre.$POOL2 && ((POOL_CREATED=$POOL_CREATED+1))
+  $do_mds lfs pool_list lustre | grep lustre.$POOL1 && POOL_CREATED=1
+  $do_mds lfs pool_list lustre | grep lustre.$POOL2 && ((POOL_CREATED=$POOL_CREATED+1))
   (($POOL_CREATED == 2 )) && return
 
-  lctl pool_new lustre.$POOL1 || error "creating pool $POOL1"
-  lctl pool_add lustre.$POOL1 lustre-OST0000 || error "adding OST0000 to pool $POOL1"
-  lctl pool_new lustre.$POOL2 || error "creating pool $POOL2"
-  lctl pool_add lustre.$POOL2 lustre-OST0001 || error "adding OST0001 to pool $POOL2"
+  $do_mds lctl pool_new lustre.$POOL1 || error "creating pool $POOL1"
+  $do_mds lctl pool_add lustre.$POOL1 lustre-OST0000 || error "adding OST0000 to pool $POOL1"
+  $do_mds lctl pool_new lustre.$POOL2 || error "creating pool $POOL2"
+  $do_mds lctl pool_add lustre.$POOL2 lustre-OST0001 || error "adding OST0001 to pool $POOL2"
   POOL_CREATED=1
 }
 
@@ -523,7 +538,7 @@ function purge_test
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
 
-	# fill 10 files and mark them archived+non dirty
+	# fill 10 files and archive them
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
@@ -532,9 +547,11 @@ function purge_test
 		if (( $is_hsm != 0 )); then
 			flush_data
 			lfs hsm_archive $ROOT/file.$i || error "lfs hsm_archive"
-			wait_done 60 || error "Copy timeout"
 		fi
 	done
+	if (( $is_hsm != 0 )); then
+		wait_done 60 || error "Copy timeout"
+	fi
 	
 	sleep 1
 	if (( $no_log )); then
@@ -543,6 +560,8 @@ function purge_test
 	else
 		echo "2-Reading changelogs to update file status (after 1sec)..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+
+		((`grep "archive,rc=0" rh_chglogs.log | wc -l` == 11)) || error "Not enough archive events in changelog!"
 	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
@@ -964,7 +983,7 @@ function update_test
 
 	if (( $is_hsm != 0 )); then
 		# chg something different that path or POSIX attributes
-		lfs hsm_set --exists $ROOT/file
+		lfs hsm_set --noarchive $ROOT/file
 	else
 		touch $ROOT/file
 	fi
@@ -1076,15 +1095,21 @@ function periodic_class_match_purge
 	fi
 	clean_logs
 
+	echo "Writing and archiving files..."
 	#create test tree of archived files
 	for file in ignore1 whitelist1 purge1 default1 ; do
 		touch $ROOT/$file
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived $ROOT/$file
+			flush_data
+			lfs hsm_archive $ROOT/$file
 		fi
 	done
+	if (( $is_hsm != 0 )); then
+		wait_done 60 || error "Copy timeout"
+	fi
 
+	echo "FS Scan..."
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 
@@ -1111,6 +1136,7 @@ function periodic_class_match_purge
         (( $nb_updt == 4 - $already )) && (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
 		&& echo "OK: initial fileclass matching successful"
 
+	echo "New FS Scan..."
 	# update db content and rematch entries: should not update fileclasses
 	clean_logs
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
@@ -1186,9 +1212,13 @@ function test_cnt_trigger
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived $ROOT/file.$i
+			lfs hsm_archive $ROOT/file.$i
 		fi
 	done
+
+	if (( $is_hsm != 0 )); then
+		wait_done 60 || error "Copy timeout"
+	fi
 
 	# wait for df sync
 	sync; sleep 1
@@ -1237,9 +1267,13 @@ function test_ost_trigger
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived $ROOT/file.$i
+			flush_data
+			lfs hsm_archive $ROOT/file.$i
 		fi
 	done
+	if (( $is_hsm != 0 )); then
+		wait_done 60 || error "Copy timeout"
+	fi
 
 	# wait for df sync
 	sync; sleep 1
@@ -1339,9 +1373,14 @@ function test_trigger_check
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
 		if (( $is_hsm != 0 )); then
-			lfs hsm_set --exists --archived $ROOT/file.$i
+			flush_data
+			lfs hsm_archive $ROOT/file.$i
 		fi
 	done
+
+	if (( $is_hsm != 0 )); then
+		wait_done 60 || error "Copy timeout"
+	fi
 
 	# wait for df sync
 	sync; sleep 1
