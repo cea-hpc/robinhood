@@ -110,18 +110,28 @@ function wait_done
 {
 	max_sec=$1
 	sec=0
+	echo -n "Waiting for copy requests to end."
 	if [[ -n "$MDS" ]]; then
-		cmd="ssh $MDS egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+#		cmd="ssh $MDS egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="ssh $MDS grep -v SUCCEED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	else
-		cmd="egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+#		cmd="egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="grep -v SUCCEED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	fi
+
 	while $cmd > /dev/null ; do
+		echo -n "."
 		sleep 1;
 		((sec=$sec+1))
 		(( $sec > $max_sec )) && return 1
 	done
+	$cmd
+	echo " Done ($sec sec)"
+
 	return 0
 }
+
+
 
 function clean_fs
 {
@@ -1241,6 +1251,7 @@ function test_ost_trigger
 	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high watermark
+	((count=$mb_h_watermark - $empty_vol + 1))
 	for i in `seq $empty_vol $mb_h_watermark`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
@@ -1256,6 +1267,11 @@ function test_ost_trigger
 	# wait for df sync
 	sync; sleep 1
 
+	if (( $is_hsm != 0 )); then
+		arch_count=`lfs hsm_state $ROOT/file.* | grep "exists archived" | wc -l`
+		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
+	fi
+
 	full_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
@@ -1265,6 +1281,8 @@ function test_ost_trigger
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+
+	$REPORT -f ./cfg/$config_file -i
 
 	# apply purge trigger
 	$RH -f ./cfg/$config_file --purge --once -l DEBUG -L rh_purge.log
@@ -1285,9 +1303,9 @@ function test_ost_trigger
 	# - needed_ost must be equal to the amount we computed (need_purge)
 	# - purged_ost must be over the amount we computed and under need_purge+1MB
 	# - purged_total must be twice purged_ost
-	(( $needed_ost == $need_purge )) || error ": invalid amount of data computed"
-	(( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) || error ": invalid amount of data purged"
-	(( $purged_total == 2*$purged_ost )) || error ": invalid total volume purged"
+	(( $needed_ost == $need_purge )) || error ": invalid amount of data computed ($needed_ost != $need_purge)"
+	(( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) || error ": invalid amount of data purged ($purged_ost < $need_purge)"
+	(( $purged_total == 2*$purged_ost )) || error ": invalid total volume purged ($purged_total != 2*$purged_ost)"
 
 	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
 		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
@@ -1314,6 +1332,7 @@ function test_trigger_check
 	target_count=$5
 	target_fs_vol=$6
 	target_user_vol=$7
+	max_user_vol=$8
 
 	if (( $is_backup != 0 )); then
 		echo "No purge for backup purpose: skipped"
@@ -1340,6 +1359,10 @@ function test_trigger_check
 	else
 		missing_mb=0
 	fi
+	
+	if (($missing_mb < $max_user_vol )); then
+		missing_mb=$max_user_vol
+	fi
 
 	# file_size = missing_mb/file_count + 1
 	((file_size=$missing_mb/$file_count + 1 ))
@@ -1365,6 +1388,8 @@ function test_trigger_check
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+
+	$REPORT -f ./cfg/$config_file -i
 
 	# check purge triggers
 	$RH -f ./cfg/$config_file --check-watermarks --once -l FULL -L rh_purge.log
@@ -1404,6 +1429,16 @@ function test_trigger_check
 	fi
 }
 
+function check_released
+{
+	if (($is_hsm != 0)); then
+		lfs hsm_state $1 | grep released || return 1
+	else
+		[ -f $1 ] && return 1
+	fi
+	return 0
+}
+
 function test_periodic_trigger
 {
 	config_file=$1
@@ -1417,52 +1452,67 @@ function test_periodic_trigger
 	fi
 	clean_logs
 
+	echo "1-Populating filesystem..."
 	# create 3 files of each type
 	# (*.1, *.2, *.3, *.4)
 	for i in `seq 1 4`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
 		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/foo.$i"
 		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/bar.$i"
+
+		if (( $is_hsm != 0 )); then
+			flush_data
+			lfs hsm_archive $ROOT/file.$i $ROOT/foo.$i $ROOT/bar.$i
+		fi
 	done
 
+	if (( $is_hsm != 0 )); then
+		wait_done 60 || error "Copy timeout"
+	fi
+
+
 	# scan
+	echo "2-Populating robinhood database (scan)..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
 
 	# make sure files are old enough
 	sleep 2
 
 	# start periodic trigger in background
+	echo "3.1-checking trigger for first policy..."
 	$RH -f ./cfg/$config_file --purge -l DEBUG -L rh_purge.log &
 	sleep 2
 	
 	# it first must have purged *.1 files (not others)
-	[ -f $ROOT/file.1 ] && error "$ROOT/file.1 should have been removed"
-	[ -f $ROOT/foo.1 ] && error "$ROOT/foo.1 should have been removed"
-	[ -f $ROOT/bar.1 ] && error "$ROOT/bar.1 should have been removed"
-	[ -f $ROOT/file.2 ] || error "$ROOT/file.2 shouldn't have been removed"
-	[ -f $ROOT/foo.2 ] || error "$ROOT/foo.2 shouldn't have been removed"
-	[ -f $ROOT/bar.2 ] || error "$ROOT/bar.2 shouldn't have been removed"
+	check_released "$ROOT/file.1" || error "$ROOT/file.1 should have been released"
+	check_released "$ROOT/foo.1"  || error "$ROOT/foo.1 should have been released"
+	check_released "$ROOT/bar.1"  || error "$ROOT/bar.1 should have been released"
+	check_released "$ROOT/file.2" && error "$ROOT/file.2 shouldn't have been released"
+	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released"
+	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released"
 
 	sleep $(( $sleep_time + 2 ))
 	# now, *.2 must have been purged
+	echo "3.2-checking trigger for second policy..."
 
-	[ -f $ROOT/file.2 ] && error "$ROOT/file.2 should have been removed"
-	[ -f $ROOT/foo.2 ] && error "$ROOT/foo.2 should have been removed"
-	[ -f $ROOT/bar.2 ] && error "$ROOT/bar.2 should have been removed"
-	[ -f $ROOT/file.3 ] || error "$ROOT/file.3 shouldn't have been removed"
-	[ -f $ROOT/foo.3 ] || error "$ROOT/foo.3 shouldn't have been removed"
-	[ -f $ROOT/bar.3 ] || error "$ROOT/bar.3 shouldn't have been removed"
+	check_released "$ROOT/file.2" || error "$ROOT/file.2 should have been released"
+	check_released "$ROOT/foo.2" || error "$ROOT/foo.2 should have been released"
+	check_released "$ROOT/bar.2" || error "$ROOT/bar.2 should have been released"
+	check_released "$ROOT/file.3" && error "$ROOT/file.3 shouldn't have been released"
+	check_released "$ROOT/foo.3"  && error "$ROOT/foo.3 shouldn't have been released"
+	check_released "$ROOT/bar.3" && error "$ROOT/bar.3 shouldn't have been released"
 
 	sleep $(( $sleep_time + 2 ))
 	# now, it's *.3
 	# *.4 must be preserved
+	echo "3.3-checking trigger for third policy..."
 
-	[ -f $ROOT/file.3 ] && error "$ROOT/file.3 should have been removed"
-	[ -f $ROOT/foo.3 ] && error "$ROOT/foo.3 should have been removed"
-	[ -f $ROOT/bar.3 ] && error "$ROOT/bar.3 should have been removed"
-	[ -f $ROOT/file.4 ] || error "$ROOT/file.4 shouldn't have been removed"
-	[ -f $ROOT/foo.4 ] || error "$ROOT/foo.4 shouldn't have been removed"
-	[ -f $ROOT/bar.4 ] || error "$ROOT/bar.4 shouldn't have been removed"
+	check_released "$ROOT/file.3" || error "$ROOT/file.3 should have been released"
+	check_released "$ROOT/foo.3"  || error "$ROOT/foo.3 should have been released"
+	check_released "$ROOT/bar.3"  || error "$ROOT/bar.3 should have been released"
+	check_released "$ROOT/file.4" && error "$ROOT/file.4 shouldn't have been released"
+	check_released "$ROOT/foo.4"  && error "$ROOT/foo.4 shouldn't have been released"
+	check_released "$ROOT/bar.4"  && error "$ROOT/bar.4 shouldn't have been released"
 
 	# final check: 3x "Purge summary: 3 entries"
 	nb_pass=`grep "Purge summary: 3 entries" rh_purge.log | wc -l`
@@ -2466,7 +2516,7 @@ run_test 213	migration_test_single test1.conf 11 31 "last_mod>30s"
 
 run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
-run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5
+run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10
 run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####

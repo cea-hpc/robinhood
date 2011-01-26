@@ -1,0 +1,9 @@
+2011/01/19: 102, 209, 301, 303
+
+2011/01/25: test 101: matches no migr/purge policy??? => OK fixed
+test 102: need to activate RENAME events => OK
+test 205: need to use '-o user_xattr' option => OK
+test 209: fileclass refresh depends on purpose...
+test 301: agent actions are not really completed
+test 302: user quota was under current usage (test error)
+test 303: checking release state instead of existence + need to archive first
