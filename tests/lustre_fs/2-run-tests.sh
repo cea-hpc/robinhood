@@ -571,7 +571,9 @@ function purge_test
 		echo "2-Reading changelogs to update file status (after 1sec)..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 
-		((`grep "archive,rc=0" rh_chglogs.log | wc -l` == 11)) || error "Not enough archive events in changelog!"
+		if (($is_hsm != 0)); then
+			((`grep "archive,rc=0" rh_chglogs.log | wc -l` == 11)) || error "Not enough archive events in changelog!"
+		fi
 	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
