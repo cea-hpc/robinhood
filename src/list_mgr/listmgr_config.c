@@ -48,6 +48,10 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
 #endif
 
+    /* XXXXXXX EN ettendant de le lire dans la config */
+     conf->user_acct = TRUE;
+     conf->group_acct = TRUE;
+
     return 0;
 }
 

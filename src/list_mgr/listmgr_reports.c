@@ -210,6 +210,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 
             if ( report_desc_array[i].report_type != REPORT_GROUP_BY )
             {
+                /* sum, min, max, etc. are addressed by attr#n */
                 if ( having != curr_having )
                     curr_having += sprintf( curr_having, " AND " );
                 curr_having +=
@@ -218,6 +219,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
             }
             else
             {
+                /* this is a real db field, can be filtered in a 'where' clause */
                 if ( where != curr_where )
                     curr_where += sprintf( curr_where, " AND " );
                 curr_where +=
