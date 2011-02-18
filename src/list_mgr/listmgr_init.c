@@ -51,7 +51,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
     for ( i = 0; i < ATTR_COUNT; i++ )
     {
         if ( field_infos[i].flags & ANNEX_INFO )
+        {
             annex_table = TRUE;
+            break;
+        }
     }
 
     /* initilize attr masks for each table */
