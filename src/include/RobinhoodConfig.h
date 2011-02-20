@@ -181,6 +181,12 @@ static const module_config_def_t robinhood_module_conf[] = {
     {"List Manager", SetDefaultLmgrConfig, ReadLmgrConfig, ReloadLmgrConfig,
      WriteLmgrConfigTemplate, WriteLmgrConfigDefault,
      offsetof( robinhood_config_t, lmgr_config ), MODULE_MASK_ALWAYS},
+    {"Policies", SetDefault_Policies, Read_Policies,
+     Reload_Policies, Write_Policy_Template,
+     Write_Policy_Default, offsetof( robinhood_config_t,
+                                     policies ),
+     MODULE_MASK_ALWAYS},
+
     {"Entry Processor", SetDefault_EntryProc_Config, Read_EntryProc_Config,
      Reload_EntryProc_Config, Write_EntryProc_ConfigTemplate,
      Write_EntryProc_ConfigDefault, offsetof( robinhood_config_t,
@@ -210,7 +216,7 @@ static const module_config_def_t robinhood_module_conf[] = {
 #endif
 
 #ifdef HAVE_RMDIR_POLICY
-    {"Empty Dir Remover", SetDefault_Rmdir_Config, Read_Rmdir_Config,
+    {"Directory Remover", SetDefault_Rmdir_Config, Read_Rmdir_Config,
      Reload_Rmdir_Config, Write_Rmdir_ConfigTemplate,
      Write_Rmdir_ConfigDefault, offsetof( robinhood_config_t, rmdir_config ),
      MODULE_MASK_RMDIR},

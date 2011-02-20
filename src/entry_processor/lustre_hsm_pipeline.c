@@ -382,7 +382,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         /* it it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
         {
-            if ( policies.unlink_policy.no_hsm_remove ||
+            if ( !policies.unlink_policy.hsm_remove ||
                  !(logrec->cr_flags & CLF_UNLINK_HSM_EXISTS) )
             {
                 /*  hsm_remove is disabled or file doesn't exist in the HSM:

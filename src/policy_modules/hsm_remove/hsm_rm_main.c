@@ -379,7 +379,7 @@ static void   *remove_thr( void *thr_arg )
 
     do
       {
-          if ( !policies.unlink_policy.no_hsm_remove )
+          if ( policies.unlink_policy.hsm_remove )
             {
                 rc = perform_hsm_rm( &nb_removed );
 
@@ -394,7 +394,7 @@ static void   *remove_thr( void *thr_arg )
           else
             {
                 DisplayLog( LVL_EVENT, HSMRM_TAG,
-                            "HSM entry removal is disabled (hsm_remove_policy::no_hsm_remove = 1)." );
+                            "HSM entry removal is disabled (hsm_remove_policy::hsm_remove = off)." );
             }
 
           last_rm = time( NULL );
@@ -433,6 +433,13 @@ int Start_HSMRm( hsm_rm_config_t * p_config, int flags )
                       global_config.check_mounted, TRUE );
     if ( rc != 0 )
         return rc;
+
+    if ( !policies.unlink_policy.hsm_remove )
+    {
+            DisplayLog( LVL_CRIT, RMDIR_TAG,
+                "HSM removal is disabled in configuration file. Skipping module initialization..." );
+            return ENOENT;
+    }
 
     /* initialize rm queue */
     rc = CreateQueue( &hsm_rm_queue, hsm_rm_config.rm_queue_size, HSMRM_STATUS_COUNT - 1, 0 );

@@ -262,10 +262,12 @@ typedef struct policy_list_t
 
 } policy_list_t;
 
+#define NO_POLICY( p_list ) ( ((p_list)->whitelist_count + (p_list)->ignore_count + (p_list)->policy_count) == 0 )
+
 #ifdef HAVE_RM_POLICY
 typedef struct unlink_policy
 {
-    int     no_hsm_remove; /* feature disabled? */
+    int     hsm_remove; /* feature enabled? */
     time_t  deferred_remove_delay; /* 0=ASAP */
 } unlink_policy_t;
 #endif
@@ -340,6 +342,20 @@ extern policies_t policies;
 /* ==============================================
  *  Functions for applying policies to entries
  * ==============================================*/
+
+static inline int is_class_defined()
+{
+#ifdef HAVE_PURGE_POLICY
+    if ( !NO_POLICY( &policies.purge_policies ) )
+        return TRUE;
+#endif
+#ifdef HAVE_MIGR_POLICY
+   if ( !NO_POLICY( &policies.migr_policies ) )
+        return TRUE;
+#endif
+
+    return FALSE;
+}
 
 /* return values for matching */
 typedef enum

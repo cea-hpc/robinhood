@@ -27,34 +27,6 @@
 
 #define RESMONCFG_TAG       "ResMonConfig"
 
-static trigger_item_t default_trigger_fs = {
-    .type = TRIGGER_GLOBAL_USAGE,
-    .list = NULL,
-    .check_interval = 300,
-    .hw_type = PCT_THRESHOLD,
-    .hw_percent = 80.0,
-    .lw_type = PCT_THRESHOLD,
-    .lw_percent = 75.0,
-    .alert_hw = FALSE,
-    .alert_lw = TRUE
-};
-
-#ifdef _LUSTRE
-static trigger_item_t default_trigger_ost = {
-    .type = TRIGGER_OST_USAGE,
-    .list = NULL,
-    .check_interval = 300,
-    .hw_type = PCT_THRESHOLD,
-    .hw_percent = 85.0,
-    .lw_type = PCT_THRESHOLD,
-    .lw_percent = 80.0,
-    .alert_hw = FALSE,
-    .alert_lw = TRUE
-};
-
-static trigger_item_t default_triggers[2];
-#endif
-
 int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
 {
     resource_monitor_config_t *conf = ( resource_monitor_config_t * ) module_config;
@@ -65,16 +37,8 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
     conf->purge_queue_size = 4096;
     conf->db_request_limit = 10000;
 
-#ifdef _LUSTRE
-    default_triggers[0] = default_trigger_fs;
-    default_triggers[1] = default_trigger_ost;
-
-    conf->trigger_list = default_triggers;
-    conf->trigger_count = 2;
-#else
-    conf->trigger_list = &default_trigger_fs;
-    conf->trigger_count = 1;
-#endif
+    conf->trigger_list = NULL;
+    conf->trigger_count = 0;
 
     return 0;
 }
@@ -86,28 +50,6 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
     print_line( output, 1, "post_purge_df_latency : 1min" );
     print_line( output, 1, "purge_queue_size      : 4096" );
     print_line( output, 1, "db_result_size_max    : 10000" );
-    print_end_block( output, 0 );
-
-    fprintf( output, "\n" );
-
-#ifdef _LUSTRE
-    print_begin_block( output, 0, TRIGGER_BLOCK, NULL );
-    print_line( output, 1, "trigger_on         : OST_usage" );
-    print_line( output, 1, "high_watermark_pct : %.2f%%", default_trigger_ost.hw_percent );
-    print_line( output, 1, "low_watermark_pct  : %.2f%%", default_trigger_ost.lw_percent );
-    print_line( output, 1, "check_interval     : %u", default_trigger_ost.check_interval );
-    print_line( output, 1, "notify_hw          : %s", bool2str(default_trigger_ost.alert_hw));
-    print_line( output, 1, "alert_lw           : %s", bool2str(default_trigger_ost.alert_lw));
-    print_end_block( output, 0 );
-#endif
-
-    print_begin_block( output, 0, TRIGGER_BLOCK, NULL );
-    print_line( output, 1, "trigger_on         : global_usage" );
-    print_line( output, 1, "high_watermark_pct : %.2f%%", default_trigger_fs.hw_percent );
-    print_line( output, 1, "low_watermark_pct  : %.2f%%", default_trigger_fs.lw_percent );
-    print_line( output, 1, "check_interval     : %u", default_trigger_fs.check_interval );
-    print_line( output, 1, "notify_hw          : %s", bool2str(default_trigger_fs.alert_hw));
-    print_line( output, 1, "alert_lw           : %s", bool2str(default_trigger_fs.alert_lw));
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -178,6 +120,7 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     fprintf( output, "\n" );
 #endif
 
+#endif
 
     print_line( output, 0, "# Trigger purge of charlie's or foo's files" );
     print_line( output, 0, "# if they use more than a TB (check twice a day)" );
@@ -186,10 +129,11 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "high_watermark_vol = 1TB ;" );
     print_line( output, 1, "low_watermark_vol  = 950GB ;" );
     print_line( output, 1, "check_interval     = 12h ;" );
+    print_line( output, 1, "# send an alert when the quota is reached" );
+    print_line( output, 1, "notify_hw          = TRUE ;" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
-#endif
 
     return 0;
 }
@@ -568,7 +512,6 @@ int Read_ResourceMon_Config( config_file_t config,
     resource_monitor_config_t *conf = ( resource_monitor_config_t * ) module_config;
 
     unsigned int   blc_index;
-    int            is_default_triggers = TRUE;
 
     static const char *purge_allowed[] = {
         "nb_threads_purge", "post_purge_df_latency",
@@ -643,14 +586,6 @@ int Read_ResourceMon_Config( config_file_t config,
 
         if ( !strcasecmp( block_name, TRIGGER_BLOCK ) )
         {
-            /* if it was default trigger, reset it */
-            if ( is_default_triggers )
-            {
-                conf->trigger_list = NULL;
-                conf->trigger_count = 0;
-                is_default_triggers = FALSE;
-            }
-
             if ( conf->trigger_count == 0 )
                 conf->trigger_list = ( trigger_item_t * ) malloc( sizeof( trigger_item_t ) );
             else
@@ -667,13 +602,10 @@ int Read_ResourceMon_Config( config_file_t config,
 
             if ( rc )
                 return rc;
-
         }
     }
 
-
     return 0;
-
 }
 
 

@@ -79,7 +79,7 @@ typedef struct trigger_status__
 static trigger_info_t *trigger_status_list = NULL;
 static time_t  trigger_check_interval = 1;
 
-static pthread_t trigger_check_thread_id;
+static pthread_t trigger_check_thread_id = -1;
 static lmgr_t  lmgr;
 
 static dev_t   fsdev = 0;
@@ -2077,10 +2077,10 @@ void ResMon_UpdateCheckInterval(  )
 {
     unsigned int   i;
 
+    trigger_check_interval = 1;
+
     if ( resmon_config.trigger_count == 0 )
         return;
-
-    trigger_check_interval = 1;
 
     /* compute GCD of trigger check intervals */
 
@@ -2119,27 +2119,21 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
     resmon_config = *p_config;
     module_args = options;
 
-    /* intervals must only be computed for daemon mode */
-    if ( options.mode == RESMON_DAEMON )
+    if ( (options.mode == RESMON_DAEMON) || (options.mode == RESMON_ALL_TRIGGERS) )
     {
         if ( resmon_config.trigger_count == 0 )
         {
             DisplayLog( LVL_CRIT, RESMON_TAG,
-                        "No purge trigger defined in configuration file... Exiting." );
+                        "No purge trigger defined in configuration file... Disabling automatic purges." );
             return ENOENT;
         }
-
-        trigger_check_interval = 1;
-
-        if ( resmon_config.trigger_count == 0 )
-        {
-            DisplayLog( LVL_CRIT, RESMON_TAG,
-                        "No purge trigger defined in configuration file... Exiting." );
-            return ENOENT;
-        }
-
-        ResMon_UpdateCheckInterval(  );
     }
+
+    /* intervals must only be computed for daemon mode */
+    if ( options.mode == RESMON_DAEMON )
+        ResMon_UpdateCheckInterval(  );
+    else
+       trigger_check_interval = 1; 
 
     /* alloc and initialize trigger status array (except for FORCE_PURGE modes) */
     if ( ( module_args.mode != RESMON_PURGE_OST )
@@ -2211,7 +2205,8 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
 int Wait_ResourceMonitor(  )
 {
     void          *returned;
-    pthread_join( trigger_check_thread_id, &returned );
+    if ( trigger_check_thread_id != -1 )
+        pthread_join( trigger_check_thread_id, &returned );
     return 0;
 }
 

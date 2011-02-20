@@ -149,6 +149,12 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, int flags )
     entry_proc_conf = *p_conf;
     pipeline_flags = flags;
 
+    if ( entry_proc_conf.match_classes && !is_class_defined() )
+    {
+        DisplayLog( LVL_EVENT, ENTRYPROC_TAG, "No class defined in policies, disabling class matching." );
+        entry_proc_conf.match_classes = FALSE;
+    }
+
     /* If a limit of pending operations is specified, initialize a token */
     if ( entry_proc_conf.max_pending_operations > 0 )
         semaphore_init( &pipeline_token, entry_proc_conf.max_pending_operations );

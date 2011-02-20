@@ -571,6 +571,12 @@ int Reload_EntryProc_Config( void *module_config )
 
     free_alert( conf->alert_list, conf->alert_count );
 
+    if ( entry_proc_conf.match_classes && !is_class_defined() )
+    {
+        DisplayLog( LVL_EVENT, "EntryProc_Config" , "No class defined in policies, disabling class matching." );
+        entry_proc_conf.match_classes = FALSE;
+    }
+
     return 0;
 }
 

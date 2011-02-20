@@ -1337,22 +1337,30 @@ int main( int argc, char **argv )
         }
 
         rc = Start_ResourceMonitor( &rh_config.res_mon_config, resmon_opt );
-        if ( rc )
+        if ( rc == ENOENT )
+        {
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." ); 
+            /* unset it in parsing mask to avoid dumping stats */
+            parsing_mask &= ~MODULE_MASK_RES_MONITOR;
+        }
+        else if ( rc )
         {
             fprintf( stderr, "Error %d initializing Resource Monitor\n", rc );
             exit( rc );
         }
         else
+        {
             DisplayLog( LVL_EVENT, MAIN_TAG, "Resource Monitor successfully initialized" );
 
-        /* Flush logs now, to have a trace in the logs */
-        FlushLogs(  );
+            /* Flush logs now, to have a trace in the logs */
+            FlushLogs(  );
 
-        if ( once )
-        {
-            currently_running_mask = MODULE_MASK_RES_MONITOR;
-            Wait_ResourceMonitor(  );
-            DisplayLog( LVL_MAJOR, MAIN_TAG, "ResourceMonitor terminated its task" );
+            if ( once )
+            {
+                currently_running_mask = MODULE_MASK_RES_MONITOR;
+                Wait_ResourceMonitor(  );
+                DisplayLog( LVL_MAJOR, MAIN_TAG, "ResourceMonitor terminated its task" );
+            }
         }
     }
 #endif
@@ -1361,22 +1369,30 @@ int main( int argc, char **argv )
     if ( action_mask & ACTION_MASK_RMDIR )
     {
         rc = Start_Rmdir( &rh_config.rmdir_config, flags );
-        if ( rc )
+        if ( rc == ENOENT )
         {
-            fprintf( stderr, "Error %d initializing Empty Dir Remover\n", rc );
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Direcory removal is disabled." ); 
+            /* unset it in parsing mask to avoid dumping stats */
+            parsing_mask &= ~MODULE_MASK_RMDIR;
+        }
+        else if ( rc )
+        {
+            fprintf( stderr, "Error %d initializing Directory Remover\n", rc );
             exit( rc );
         }
         else
-            DisplayLog( LVL_EVENT, MAIN_TAG, "Empty Dir Remover successfully initialized" );
-
-        /* Flush logs now, to have a trace in the logs */
-        FlushLogs(  );
-
-        if ( once )
         {
-            currently_running_mask = MODULE_MASK_RMDIR;
-            Wait_Rmdir(  );
-            DisplayLog( LVL_MAJOR, MAIN_TAG, "Directory Remover terminated its task" );
+            DisplayLog( LVL_EVENT, MAIN_TAG, "Directory Remover successfully initialized" );
+
+            /* Flush logs now, to have a trace in the logs */
+            FlushLogs(  );
+
+            if ( once )
+            {
+                currently_running_mask = MODULE_MASK_RMDIR;
+                Wait_Rmdir(  );
+                DisplayLog( LVL_MAJOR, MAIN_TAG, "Directory Remover terminated its task" );
+            }
         }
     }
 #endif
@@ -1385,26 +1401,33 @@ int main( int argc, char **argv )
     if ( action_mask & ACTION_MASK_UNLINK )
     {
         rc = Start_HSMRm( &rh_config.hsm_rm_config, flags );
-        if ( rc )
+        if ( rc == ENOENT )
+        {
+            DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." ); 
+            /* unset it in parsing mask to avoid dumping stats */
+            parsing_mask &= ~MODULE_MASK_UNLINK;
+        }
+        else if ( rc )
         {
             fprintf( stderr, "Error %d initializing HSM Removal\n", rc );
             exit( rc );
         }
         else
+        {
             DisplayLog( LVL_EVENT, MAIN_TAG, "HSM removal successfully initialized" );
 
-        /* Flush logs now, to have a trace in the logs */
-        FlushLogs(  );
+            /* Flush logs now, to have a trace in the logs */
+            FlushLogs(  );
 
-        if ( once )
-        {
-            currently_running_mask = MODULE_MASK_UNLINK;
-            Wait_HSMRm(  );
-            DisplayLog( LVL_MAJOR, MAIN_TAG, "HSM removal terminated" );
+            if ( once )
+            {
+                currently_running_mask = MODULE_MASK_UNLINK;
+                Wait_HSMRm(  );
+                DisplayLog( LVL_MAJOR, MAIN_TAG, "HSM removal terminated" );
+            }
         }
     }
 #endif
-
 
     if ( !once )
     {

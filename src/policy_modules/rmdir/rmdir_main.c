@@ -1315,6 +1315,15 @@ int Start_Rmdir( rmdir_config_t * p_config, int flags )
     if ( rc != 0 )
         return rc;
 
+    /* does not start rmdir module if nothing is defined in configuration */
+    if ( (policies.rmdir_policy.age_rm_empty_dirs == 0)
+        && (policies.rmdir_policy.recursive_rmdir_count == 0 ) )
+    {
+            DisplayLog( LVL_CRIT, RMDIR_TAG,
+                        "No rmdir policy defined in configuration file... Disabling." );
+            return ENOENT;
+    }
+
     /* initialize rmdir queue */
     rc = CreateQueue( &rmdir_queue, rmdir_config.rmdir_queue_size, RMDIR_STATUS_COUNT - 1, RMDIR_FDBK_COUNT );
     if ( rc )
