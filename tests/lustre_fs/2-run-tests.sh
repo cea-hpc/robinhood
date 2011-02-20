@@ -2386,10 +2386,15 @@ function check_disabled
                        return 1 ;;
        esac
 
-       echo "1. Performing action $cmd (daemon mode)..."
+       echo "1.1. Performing action $cmd (daemon mode)..."
         $RH -f ./cfg/$config_file $cmd -l DEBUG -L rh_scan.log -p rh.pid &
 
        sleep 2
+       echo "1.2. Checking that kill -HUP does not terminate the process..."
+       kill -HUP $(cat rh.pid)
+       sleep 2
+       [[ -f /proc/$(cat rh.pid)/status ]] || error "process terminated on kill -HUP"
+
        kill $(cat rh.pid)
        sleep 2
        rm -f rh.pid
