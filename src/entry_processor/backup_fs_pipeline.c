@@ -214,7 +214,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
          * orphan entry in the backend.
          */
         p_op->extra_info.getattr_needed = TRUE;
-        if ( !policies.unlink_policy.no_hsm_remove )
+        if ( policies.unlink_policy.hsm_remove )
             p_op->extra_info.getstatus_needed = TRUE;
 #endif
     }
@@ -337,7 +337,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         /* it it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
         {
-            if ( policies.unlink_policy.no_hsm_remove )
+            if ( !policies.unlink_policy.hsm_remove )
             {
                 /*  hsm_remove is disabled or file doesn't exist in the backend:
                  * If the file was in DB: remove it, else skip the record. */
@@ -740,7 +740,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 {
                     DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore", path );
                     /* schedule rm in the backend, if enabled */
-                    if ( policies.unlink_policy.no_hsm_remove )
+                    if ( !policies.unlink_policy.hsm_remove )
                         goto skip_record;
                     else /* else, remove it from db */
                         goto rm_record;
@@ -789,7 +789,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                                 "Entry "DFID" does not exist anymore",
                                 PFID(&p_op->entry_id) );
                      /* schedule rm in the backend, if enabled */
-                    if ( policies.unlink_policy.no_hsm_remove )
+                    if ( !policies.unlink_policy.hsm_remove )
                         goto skip_record;
                     else
                         goto rm_record;
@@ -818,7 +818,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore",
                             path );
                  /* schedule rm in the backend, if enabled */
-                if ( policies.unlink_policy.no_hsm_remove )
+                if ( !policies.unlink_policy.hsm_remove )
                     goto skip_record;
                 else
                     goto rm_record;

@@ -275,7 +275,7 @@ int db_list_table_fields( db_conn_t * conn, const char *table,
     char          *curr_ptr = inbuffer;
 
     sprintf( request, "SHOW COLUMNS FROM %s", table );
-    rc = db_exec_sql( conn, request, &result );
+    rc = db_exec_sql_quiet( conn, request, &result );
 
     if ( rc )
         return rc;

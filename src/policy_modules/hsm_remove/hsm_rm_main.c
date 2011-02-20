@@ -436,7 +436,7 @@ int Start_HSMRm( hsm_rm_config_t * p_config, int flags )
 
     if ( !policies.unlink_policy.hsm_remove )
     {
-            DisplayLog( LVL_CRIT, RMDIR_TAG,
+            DisplayLog( LVL_CRIT, HSMRM_TAG,
                 "HSM removal is disabled in configuration file. Skipping module initialization..." );
             return ENOENT;
     }
