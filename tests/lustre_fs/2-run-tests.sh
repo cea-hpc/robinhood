@@ -2109,6 +2109,8 @@ function test_cfg_parsing
 	dummy=$2
 	policy_str="$3"
 
+	clean_logs
+
 	# needed for reading password file
 	if [[ ! -f /etc/robinhood.d/.dbpassword ]]; then
 		if [[ ! -d /etc/robinhood.d ]]; then
@@ -2330,6 +2332,80 @@ function recovery_test
 
 
 
+function check_disabled
+{
+       config_file=$1
+       flavor=$2
+       policy_str="$3"
+
+       clean_logs
+
+       case "$flavor" in
+               purge)
+                       if (( $is_backup != 0 )); then
+                               echo "No purge for backup purpose: skipped"
+                               set_skipped
+                               return 1
+                       fi
+                       cmd='--purge'
+                       match='Resource Monitor is disabled'
+                       ;;
+               migration)
+                       if (( $is_backup + $is_hsm == 0 )); then
+                               echo "backup or HSM test only: skipped"
+                               set_skipped
+                               return 1
+                       fi
+                       cmd='--migrate'
+                       match='Migration module is disabled'
+                       ;;
+               hsm_remove) 
+                       if (( $is_backup + $is_hsm == 0 )); then
+                               echo "backup or HSM test only: skipped"
+                               set_skipped
+                               return 1
+                       fi
+                       cmd='--hsm-remove'
+                       match='HSM removal successfully initialized' # enabled by default
+                       ;;
+               rmdir) 
+                       if (( $is_backup + $is_hsm != 0 )); then
+                               echo "No rmdir policy for backup or HSM purpose: skipped"
+                               set_skipped
+                               return 1
+                       fi
+                       cmd='--rmdir'
+                       match='Directory removal is disabled'
+                       ;;
+               class)
+                       cmd='--scan'
+                       match='disabling class matching'
+                       ;;
+               *)
+                       error "unexpected flavor $flavor"
+                       return 1 ;;
+       esac
+
+       echo "1. Performing action $cmd (daemon mode)..."
+        $RH -f ./cfg/$config_file $cmd -l DEBUG -L rh_scan.log -p rh.pid &
+
+       sleep 2
+       kill $(cat rh.pid)
+       sleep 2
+       rm -f rh.pid
+
+       grep "$match" rh_scan.log || error "log should contain \"$match\""
+
+       cp /dev/null rh_scan.log
+       echo "2. Performing action $cmd (one shot)..."
+        $RH -f ./cfg/$config_file $cmd --once -l DEBUG -L rh_scan.log
+
+       grep "$match" rh_scan.log || error "log should contain \"$match\""
+               
+}
+
+
+
 only_test=""
 quiet=0
 junit=0
@@ -2513,6 +2589,11 @@ run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions 
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
 run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
 run_test 213	migration_test_single test1.conf 11 31 "last_mod>30s"
+run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
+run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
+run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
+run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
+run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
 
 #### triggers ####
 

@@ -1281,22 +1281,30 @@ int main( int argc, char **argv )
         }
 
         rc = Start_Migration( &rh_config.migr_config, migr_opt );
-        if ( rc )
+        if ( rc == ENOENT )
+        {
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." ); 
+            /* unset it in parsing mask to avoid dumping stats */
+            parsing_mask &= ~MODULE_MASK_MIGRATION;
+        }
+        else if ( rc )
         {
             fprintf( stderr, "Error %d initializing Migration module\n", rc );
             exit( rc );
         }
         else
+        {
             DisplayLog( LVL_EVENT, MAIN_TAG, "Migration module successfully initialized" );
 
-        /* Flush logs now, to have a trace in the logs */
-        FlushLogs(  );
+            /* Flush logs now, to have a trace in the logs */
+            FlushLogs(  );
 
-        if ( once )
-        {
-            currently_running_mask = MODULE_MASK_MIGRATION;
-            Wait_Migration(  );
-            DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration pass terminated" );
+            if ( once )
+            {
+                currently_running_mask = MODULE_MASK_MIGRATION;
+                Wait_Migration(  );
+                DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration pass terminated" );
+            }
         }
     }
 #endif
@@ -1371,7 +1379,7 @@ int main( int argc, char **argv )
         rc = Start_Rmdir( &rh_config.rmdir_config, flags );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Direcory removal is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." ); 
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_RMDIR;
         }

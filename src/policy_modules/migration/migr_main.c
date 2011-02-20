@@ -290,6 +290,14 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
     migr_config = *p_config;
     module_args = options;
 
+    if ( NO_POLICY( &policies.migr_policies ) && 
+        !(module_args.flags & FLAG_IGNORE_POL) )
+    {
+        DisplayLog( LVL_CRIT, MIGR_TAG,
+            "No migration policy defined in configuration file... Disabling migrations." );
+        return ENOENT;
+    }
+
     /* initialize migration queue */
     rc = CreateQueue( &migr_queue, migr_config.migr_queue_size, MIGR_ST_COUNT - 1,
                       MIGR_FDBK_COUNT );
