@@ -119,7 +119,29 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
                     "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
         return rc;
     }
+#if 0
+    /*
+     * ====== CHECKING STAT TABLE ==========
+     */
+    rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
 
+    if ( rc == DB_SUCCESS )
+    {
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        DisplayLog( LVL_EVENT, LISTMGR_TAG, ACCT_TABLE " does not exist: creating it." );
+       
+         /* table does not exist */ 
+        strcpy( strbuf, "CREATE TABLE " ACCT_TABLE );
+        next = strbuf + strlen( strbuf );
+        
+        for ( i = 0; i < ATTR_COUNT; i++ )
+        {
+            
+        }
+    }
+#endif
     /*
      * ====== CHECKING MAIN TABLE ==========
      */
