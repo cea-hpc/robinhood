@@ -21,6 +21,7 @@
 #define STRIPE_INFO_TABLE	"STRIPE_INFO"
 #define STRIPE_ITEMS_TABLE	"STRIPE_ITEMS"
 #define VAR_TABLE           "VARS"
+#define ACCT_TABLE          "ACCT_STAT"
 
 #ifdef HAVE_RM_POLICY
 #   define SOFT_RM_TABLE    "SOFT_RM"
