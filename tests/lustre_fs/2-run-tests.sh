@@ -2285,7 +2285,7 @@ function recovery_test
 	(( $new_cnt == $nb_nobkp )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp"
 
 	# shots before disaster (time is only significant for files)
-	find $ROOT -type f -printf "%n %m %A@ %T@ %g %u %s %p %l\n" > /tmp/before.$$
+	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
 	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
 	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
 
@@ -2304,7 +2304,7 @@ function recovery_test
 
 	$RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
-	find $ROOT -type f -printf "%n %m %A@ %T@ %g %u %s %p %l\n" > /tmp/after.$$
+	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
 	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 

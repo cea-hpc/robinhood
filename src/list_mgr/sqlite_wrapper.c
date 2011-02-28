@@ -289,3 +289,10 @@ unsigned long long db_last_id( db_conn_t * conn )
 {
     return sqlite3_last_insert_rowid( *conn );;
 }
+
+/* escape a string in a SQL request */
+void db_escape_string( db_conn_t * conn, char * str_out, size_t out_size, const char * str_in )
+{
+    /* using slqite3_snprintf with "%q" format, to escape strings */
+    sqlite3_snprintf( str_out, out_size, str_in );
+}

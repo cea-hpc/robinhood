@@ -32,16 +32,8 @@ int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_pt
     switch ( type )
     {
     case DB_TEXT:
-#ifdef _MYSQL
         /* escape special characters in value */
-        mysql_real_escape_string( &p_mgr->conn, escaped, value_ptr->val_str,
-                                  strlen( value_ptr->val_str ) );
-#elif defined( _SQLITE )
-        /* using slqite3_snprintf with "%q" format, to escape strings */
-        sqlite3_snprintf( 4096, escaped,"%q", value_ptr->val_str );
-#else
-#error "printdbtype() not yet implemented for this database engine"
-#endif
+        db_escape_string( &p_mgr->conn, escaped, 4096, value_ptr->val_str );
         return sprintf( str, "'%s'", escaped );
     case DB_INT:
         return sprintf( str, "%d", value_ptr->val_int );

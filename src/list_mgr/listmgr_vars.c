@@ -87,7 +87,7 @@ int ListMgr_SetVar( lmgr_t * p_mgr, const char *varname, const char *value )
     char           escaped[1024];
 
     /* escape special characters in value */
-    mysql_real_escape_string( &p_mgr->conn, escaped, value, strlen( value ) );
+    db_escape_string( &p_mgr->conn, escaped, 1024, value );
 
     sprintf( query,
              "INSERT INTO " VAR_TABLE " (varname, value) VALUES ('%s', '%s') "

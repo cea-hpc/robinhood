@@ -351,6 +351,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
 {
     int rc;
     char query[4096];
+    char escaped[1024];
     char * curr = query;
     const char * entry_path = NULL;
 #ifdef _BACKUP_FS
@@ -409,13 +410,17 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     curr += sprintf(curr, "soft_rm_time, real_rm_time) "
                   "VALUES ('"DFID_NOBRACE"', ", PFID(p_id) );
 
-    /* @TODO escape strings in these requests */
-
     if ( entry_path )
-        curr += sprintf(curr, "'%s', ", entry_path );
+    {
+        db_escape_string( &p_mgr->conn, escaped, 1024, entry_path );
+        curr += sprintf(curr, "'%s', ", escaped );
+    }
 #ifdef _BACKUP_FS
     if ( backendpath )
-        curr += sprintf(curr, "'%s', ", backendpath );
+    {
+        db_escape_string( &p_mgr->conn, escaped, 1024, backendpath );
+        curr += sprintf(curr, "'%s', ", escaped );
+    }
 #endif
 
     curr += sprintf( curr, " %u, %u ) ",

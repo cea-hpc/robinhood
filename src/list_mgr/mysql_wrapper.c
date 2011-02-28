@@ -747,3 +747,11 @@ void db_destroy_prepared( prep_stmt_t prep )
         MemFree( prep );
     }
 }
+
+
+/* escape a string in a SQL request */
+void db_escape_string( db_conn_t * conn, char * str_out, size_t out_size, const char * str_in )
+{
+        /* escape special characters in value */
+        mysql_real_escape_string( conn, str_out, str_in, strlen( str_in ) );
+}
