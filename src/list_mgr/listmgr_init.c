@@ -26,6 +26,84 @@
 
 #define MAX_DB_FIELDS 64
 
+static inline int append_field_def( int i, char *next, int is_first )
+{
+    switch ( field_infos[i].db_type )
+    {
+    case DB_STRIPE_INFO:   /* never in main table (ignored) */
+    case DB_STRIPE_ITEMS:
+        break;
+    case DB_TEXT:
+        if ( field_infos[i].db_type_size < 256 )
+            return sprintf( next, "%s %s VARCHAR(%u)",is_first ? "" : ",",
+                field_infos[i].field_name, field_infos[i].db_type_size );
+        else
+            return sprintf( next, "%s %s TEXT", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    case DB_INT:
+        return sprintf( next, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    case DB_UINT:
+        return sprintf( next, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    case DB_BIGINT:
+        return sprintf( next, "%s %s BIGINT", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    case DB_BIGUINT:
+        return sprintf( next, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    case DB_BOOL:
+        return sprintf( next, "%s %s BOOLEAN", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    }
+    return 0;
+}
+
+/*Return -1 if there is a field error, else return the new curr_field_index*/
+static inline int check_field( int i, int curr_field_index, char *table, char **fieldtab )
+{
+    if ( ( curr_field_index >= MAX_DB_FIELDS )
+        || ( fieldtab[curr_field_index] == NULL ) )
+    {
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Incompatible database schema (missing field '%s' in table %s):" 
+                    " you should drop the database and start a new FS scan.",
+                    field_infos[i].field_name, table );
+        return -1;
+    }
+    /* check that this is the expected field */
+    if ( !strcmp( field_infos[i].field_name, fieldtab[curr_field_index] ) )
+    {
+        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s OK", field_infos[i].field_name );
+        return curr_field_index+1;
+    }
+    else
+    {
+        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s != %s",
+                    field_infos[i].field_name, fieldtab[curr_field_index] );
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Incompatible database schema (unexpected field '%s' in table %s):"
+                    " you should drop the database and start a new FS scan.",
+                    fieldtab[curr_field_index], table );
+        return -1;
+    }
+}
+
+/* Return 0 if there is no extra field else return 1 */
+static inline int has_extra_field( int curr_field_index, char *table, char **fieldtab )
+{
+        if ( ( curr_field_index < MAX_DB_FIELDS ) && ( fieldtab[curr_field_index] != NULL ) )
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Incompatible database schema (unexpected field '%s' in table %s):"
+                        " you should drop the database and start a new FS scan.",
+                        fieldtab[curr_field_index], table );
+            return 1;
+        }
+        else
+            return 0; 
+}
+
 int            annex_table = FALSE;              /* indicates if an annex table is used */
 
 int ListMgr_Init( const lmgr_config_t * p_conf )
@@ -119,29 +197,110 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
                     "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
         return rc;
     }
-#if 0
+
     /*
      * ====== CHECKING STAT TABLE ==========
      */
-    rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
+    if ( lmgr_config.user_acct || lmgr_config.group_acct )
+    {
+        rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
 
-    if ( rc == DB_SUCCESS )
-    {
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        DisplayLog( LVL_EVENT, LISTMGR_TAG, ACCT_TABLE " does not exist: creating it." );
-       
-         /* table does not exist */ 
-        strcpy( strbuf, "CREATE TABLE " ACCT_TABLE );
-        next = strbuf + strlen( strbuf );
-        
-        for ( i = 0; i < ATTR_COUNT; i++ )
+        if ( rc == DB_SUCCESS )
         {
-            
+            int curr_field_index = 0;
+
+            for ( i = 0; i < ATTR_COUNT; i++ )
+            {
+                if ( is_acct_field( i, lmgr_config ) )
+                {
+                    curr_field_index = check_field( i, curr_field_index, ACCT_TABLE, fieldtab );
+                    if ( curr_field_index == -1 )
+                        return -1;
+                }
+            }
+            /* Check count field*/
+            if ( ( fieldtab[curr_field_index] == NULL ) || strcmp( fieldtab[curr_field_index], "count" ) )
+            { 
+                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                            "Incompatible database schema (missing field 'count' in table "
+                            ACCT_TABLE
+                            "): you should drop the database and start a new FS scan." );
+                return -1;
+            }
+            else
+            {
+                DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s OK", fieldtab[curr_field_index] );
+                curr_field_index += 1;
+            }
+
+            if ( has_extra_field( curr_field_index, ACCT_TABLE, fieldtab ) )
+                return -1;
+
+        }
+        else if ( rc == DB_NOT_EXISTS )
+        {
+            DisplayLog( LVL_EVENT, LISTMGR_TAG, ACCT_TABLE " does not exist: creating it." );
+
+            /* table does not exist */
+            strcpy( strbuf, "CREATE TABLE " ACCT_TABLE "(" );
+            next = strbuf + strlen( strbuf );
+
+            int is_first_acct_field = 1;
+
+            for ( i = 0; i < ATTR_COUNT; i++ )
+            {
+                if ( is_acct_field( i, lmgr_config ) )
+                {    
+                    next += append_field_def( i, next, is_first_acct_field);
+                    is_first_acct_field = 0;
+                }                
+            }
+
+            strcpy ( next, ", count BIGINT UNSIGNED, PRIMARY KEY ( " );
+            next = next + strlen( next );
+
+            int first_acct_pk = 1; 
+
+            for (i = 0; i < ATTR_COUNT; i++ )
+            {
+                if ( is_acct_pk( i, lmgr_config ) && !first_acct_pk )
+                {
+                    next += sprintf( next, ", %s", field_infos[i].field_name );
+                }
+
+                if ( is_acct_pk( i, lmgr_config ) && first_acct_pk )
+                {
+                    next += sprintf( next, "%s", field_infos[i].field_name );
+                    first_acct_pk = 0;
+                }
+            } 
+
+            strcpy( next, " ) )" );
+
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
+
+            rc = db_exec_sql( &conn, strbuf, NULL );
+            if ( rc )
+            {
+                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                            "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                return rc;
+            }
+
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " created sucessfully" );
+
         }
     }
-#endif
+    else
+    {
+        rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
+        if ( rc == DB_NOT_EXISTS )
+        {
+            /* /##\ Deactivate triggers /##\ */
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " will not be up to date" );
+        }
+    }
+
     /*
      * ====== CHECKING MAIN TABLE ==========
      */
@@ -169,46 +328,15 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         {
             if ( is_main_field( i ) )
             {
-                if ( ( curr_field_index >= MAX_DB_FIELDS )
-                     || ( fieldtab[curr_field_index] == NULL ) )
-                {
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Incompatible database schema (missing field '%s' in table "
-                                MAIN_TABLE
-                                "): you should drop the database and start a new FS scan.",
-                                field_infos[i].field_name );
+                curr_field_index = check_field( i, curr_field_index, MAIN_TABLE, fieldtab );
+                if ( curr_field_index == -1 )
                     return -1;
-                }
-                /* check that this is the expected field */
-                if ( !strcmp( field_infos[i].field_name, fieldtab[curr_field_index] ) )
-                {
-                    DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s OK", field_infos[i].field_name );
-                    curr_field_index++;
-                }
-                else
-                {
-                    DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s != %s",
-                                field_infos[i].field_name, fieldtab[curr_field_index] );
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Incompatible database schema (unexpected field '%s' in table "
-                                MAIN_TABLE
-                                "): you should drop the database and start a new FS scan.",
-                                fieldtab[curr_field_index] );
-                    return -1;
-                }
             }
         }
 
-        /* is there any extra field ? */
-        if ( ( curr_field_index < MAX_DB_FIELDS ) && ( fieldtab[curr_field_index] != NULL ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (unexpected field '%s' in table "
-                        MAIN_TABLE
-                        "): you should drop the database and start a new FS scan.",
-                        fieldtab[curr_field_index] );
+        /* is there any extra field ? */ 
+        if ( has_extra_field( curr_field_index, MAIN_TABLE, fieldtab ) )
             return -1;
-        }
 
     }
     else if ( rc == DB_NOT_EXISTS )
@@ -223,36 +351,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         {
             if ( is_main_field( i ) )
             {
-                switch ( field_infos[i].db_type )
-                {
-                case DB_STRIPE_INFO:   /* never in main table (ignored) */
-                case DB_STRIPE_ITEMS:
-                    break;
-                case DB_TEXT:
-                    if ( field_infos[i].db_type_size < 256 )
-                        sprintf( next, ", %s VARCHAR(%u)",
-                                 field_infos[i].field_name, field_infos[i].db_type_size );
-                    else
-                        sprintf( next, ", %s TEXT", field_infos[i].field_name );
-                    break;
-                case DB_INT:
-                    sprintf( next, ", %s INT", field_infos[i].field_name );
-                    break;
-                case DB_UINT:
-                    sprintf( next, ", %s INT UNSIGNED", field_infos[i].field_name );
-                    break;
-                case DB_BIGINT:
-                    sprintf( next, ", %s BIGINT", field_infos[i].field_name );
-                    break;
-                case DB_BIGUINT:
-                    sprintf( next, ", %s BIGINT UNSIGNED", field_infos[i].field_name );
-                    break;
-                case DB_BOOL:
-                    sprintf( next, ", %s BOOLEAN", field_infos[i].field_name );
-                    break;
-                }
-
-                next = next + strlen( next );
+                next += append_field_def( i, next, 0);
             }
         }
 
@@ -357,15 +456,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         curr_field_index++;
 
         /* is there any extra field ? */
-        if ( ( curr_field_index < MAX_DB_FIELDS ) && ( fieldtab[curr_field_index] != NULL ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (unexpected field '%s' in table "
-                        STRIPE_INFO_TABLE
-                        "): you should drop the database and start a new FS scan.",
-                        fieldtab[curr_field_index] );
+        if ( has_extra_field( curr_field_index, STRIPE_INFO_TABLE, fieldtab ) )
             return -1;
-        }
 
     }
     else if ( rc == DB_NOT_EXISTS )
@@ -507,47 +599,15 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
             {
                 if ( is_annex_field( i ) )
                 {
-                    if ( ( curr_field_index >= MAX_DB_FIELDS )
-                         || ( fieldtab[curr_field_index] == NULL ) )
-                    {
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                    "Incompatible database schema (missing field '%s' in table "
-                                    ANNEX_TABLE
-                                    "): you should drop the database and start a new FS scan.",
-                                    field_infos[i].field_name );
+                    curr_field_index = check_field( i, curr_field_index, ANNEX_TABLE, fieldtab );
+                    if ( curr_field_index == -1 )
                         return -1;
-                    }
-                    /* check that this is the expected field */
-                    if ( !strcmp( field_infos[i].field_name, fieldtab[curr_field_index] ) )
-                    {
-                        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s OK", field_infos[i].field_name );
-                        curr_field_index++;
-                    }
-                    else
-                    {
-                        DisplayLog( LVL_DEBUG, LISTMGR_TAG,
-                                    "%s != %s",
-                                    field_infos[i].field_name, fieldtab[curr_field_index] );
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                    "Incompatible database schema (unexpected field '%s' in table "
-                                    ANNEX_TABLE
-                                    "): you should drop the database and start a new FS scan.",
-                                    fieldtab[curr_field_index] );
-                        return -1;
-                    }
                 }
             }
 
             /* is there any extra field ? */
-            if ( ( curr_field_index < MAX_DB_FIELDS ) && ( fieldtab[curr_field_index] != NULL ) )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Incompatible database schema (unexpected field '%s' in table "
-                            ANNEX_TABLE
-                            "): you should drop the database and start a new FS scan.",
-                            fieldtab[curr_field_index] );
+            if ( has_extra_field( curr_field_index, ANNEX_TABLE, fieldtab ) )
                 return -1;
-            }
 
         }
         else if ( rc == DB_NOT_EXISTS )
@@ -562,36 +622,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
             {
                 if ( is_annex_field( i ) )
                 {
-                    switch ( field_infos[i].db_type )
-                    {
-                    case DB_STRIPE_INFO:       /* never in main table (ignored) */
-                    case DB_STRIPE_ITEMS:
-                        break;
-                    case DB_TEXT:
-                        if ( field_infos[i].db_type_size < 256 )
-                            sprintf( next, ", %s VARCHAR(%u)",
-                                     field_infos[i].field_name, field_infos[i].db_type_size );
-                        else
-                            sprintf( next, ", %s TEXT", field_infos[i].field_name );
-                        break;
-                    case DB_INT:
-                        sprintf( next, ", %s INT", field_infos[i].field_name );
-                        break;
-                    case DB_UINT:
-                        sprintf( next, ", %s INT UNSIGNED", field_infos[i].field_name );
-                        break;
-                    case DB_BIGINT:
-                        sprintf( next, ", %s BIGINT", field_infos[i].field_name );
-                        break;
-                    case DB_BIGUINT:
-                        sprintf( next, ", %s BIGINT UNSIGNED", field_infos[i].field_name );
-                        break;
-                    case DB_BOOL:
-                        sprintf( next, ", %s BOOLEAN", field_infos[i].field_name );
-                        break;
-                    }
-
-                    next = next + strlen( next );
+                    next += append_field_def( i, next, 0);
                 }
             }
             strcpy( next, " )" );

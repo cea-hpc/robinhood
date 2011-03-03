@@ -95,6 +95,13 @@ void           init_attrset_masks(  );
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) )
 
+#define is_acct_pk( _attr_index, _conf )\
+                ( ( _attr_index == ATTR_INDEX_owner && _conf.user_acct ) || ( _attr_index == ATTR_INDEX_gr_name && _conf.group_acct ) ) 
+
+#define is_acct_field( _attr_index, _conf )\
+                ( is_acct_pk( _attr_index, _conf ) || \
+                  ( _attr_index == ATTR_INDEX_size ) || ( _attr_index == ATTR_INDEX_blocks ) )
+
 #define is_gen_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & GENERATED )
 
