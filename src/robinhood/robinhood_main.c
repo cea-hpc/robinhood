@@ -467,20 +467,12 @@ static pthread_t sig_thr;
 
 static void terminate_handler( int sig )
 {
-    if ( sig == SIGTERM )
-        DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGTERM received: performing clean daemon shutdown" );
-    else if ( sig == SIGINT )
-        DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
-
     terminate_sig = sig;
-    FlushLogs(  );
 }
 
 static void reload_handler( int sig )
 {
-    DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration" );
     reload_sig = TRUE;
-    FlushLogs(  );
 }
 
 
@@ -528,7 +520,12 @@ static void   *signal_handler_thr( void *arg )
 
         if ( terminate_sig != 0 )
         {
-            /** @TODO clean shutdown of other layers */
+
+            if ( terminate_sig == SIGTERM )
+                DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGTERM received: performing clean daemon shutdown" );
+            else if ( terminate_sig == SIGINT )
+                DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
+            FlushLogs(  );
 
             if ( action_mask & ACTION_MASK_SCAN )
             {
@@ -575,6 +572,7 @@ static void   *signal_handler_thr( void *arg )
         }
         else if ( reload_sig )
         {
+            DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration" );
             ReloadRobinhoodConfig(  );
             reload_sig = FALSE;
             FlushLogs(  );

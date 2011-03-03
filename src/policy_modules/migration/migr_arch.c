@@ -48,6 +48,7 @@
 migration_config_t migr_config;
 
 static int migr_flags = 0;
+static int migr_abort = FALSE;
 
 #define ignore_policies ( migr_flags & FLAG_IGNORE_POL )
 #define dry_run (migr_flags & FLAG_DRY_RUN)
@@ -55,6 +56,11 @@ static int migr_flags = 0;
 
 /* queue of entries to be checked/migrated */
 entry_queue_t  migr_queue;
+
+void abort_migration()
+{
+    migr_abort = TRUE;
+}
 
 /** 
  * Migration helpers (depending on purpose)
@@ -625,6 +631,14 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
             memset( &entry_id, 0, sizeof( entry_id_t ) );
             rc = ListMgr_GetNext( it, &entry_id, &attr_set );
 
+            if ( migr_abort )
+            {
+                DisplayLog( LVL_MAJOR, MIGR_TAG, "Migration aborted, stop submitting "
+                            "file migration requests." );
+                end_of_list = TRUE;
+                break;
+            }
+
             if ( rc == DB_END_OF_LIST )
             {
                 total_returned += nb_returned; 
@@ -1166,6 +1180,15 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                                     Queue_Acknowledge( _q, _status, feedback, MIGR_FDBK_COUNT ); \
                                }                                       \
                             } while(0)
+
+    if ( migr_abort )
+    {
+       /* migration aborted by a signal, doesn't submit new migrations */
+       DisplayLog( LVL_FULL, MIGR_TAG, "Migration aborted: migration thread skipping migration requests" );
+       Acknowledge( &migr_queue, MIGR_ABORT, 0, 0 );
+       rc = MIGR_ABORT;
+       goto end;
+    }
 
     DisplayLog( LVL_FULL, MIGR_TAG,
                 "Checking if entry %s can be archived",

@@ -36,6 +36,7 @@ typedef enum
     MIGR_STAT_FAILURE,          /* stat failure */
     MIGR_BAD_TYPE,              /* migration policy does not apply to this type of entry */
     MIGR_ERROR,                 /* migration call failed */
+    MIGR_ABORT,                 /* migration aborted by signal */
 
     MIGR_ST_COUNT               /* last status index */
 } migr_status_t;
@@ -56,7 +57,8 @@ static const char __attribute__(( __unused__ )) *migr_status_descr[MIGR_ST_COUNT
     "incomplete metadata",
     "stat failure",
     "bad type for migration",
-    "migration error"
+    "migration error",
+    "migration aborted"
 };
 
 /* feedback from migration queue */
@@ -100,6 +102,8 @@ int            start_migration_threads( unsigned int nb_threads );
 int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
                                unsigned int * p_nb_total,
                                time_t timeout );
+
+void abort_migration();
 
 int            migrate_one_file( const char * file, int flags );
 
