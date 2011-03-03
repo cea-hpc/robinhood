@@ -553,6 +553,15 @@ static void   *signal_handler_thr( void *arg )
                 FlushLogs(  );
             }
 
+#ifdef HAVE_MIGR_POLICY
+            if ( action_mask & ACTION_MASK_MIGRATE )
+            {
+                /* stop FS scan */
+                Wait_Migration( TRUE );
+                FlushLogs(  );
+            }
+#endif
+
 #ifdef _BACKUP_FS
             Backend_Stop();
 #endif
@@ -1302,7 +1311,7 @@ int main( int argc, char **argv )
             if ( once )
             {
                 currently_running_mask = MODULE_MASK_MIGRATION;
-                Wait_Migration(  );
+                Wait_Migration( FALSE );
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration pass terminated" );
             }
         }

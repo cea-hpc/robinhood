@@ -769,6 +769,11 @@ static void   *Thr_scan( void *arg_thread )
             if ( rc == 0 && cookie_rep == NULL )
                 /* end of directory */
                 break;
+            else if ( p_info->force_stop )
+            {
+                DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation" );
+                goto end_task;
+            }
             else if ( rc != 0 )
             {
                 DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR %d reading directory '%s': %s",
@@ -904,6 +909,7 @@ static void   *Thr_scan( void *arg_thread )
 
     }
 
+end_task:
     p_info->current_task = NULL;
 
     /* check scan termination status */

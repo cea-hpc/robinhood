@@ -1,5 +1,4 @@
 - completer TRAC
-- Fix segfault when reloading config without purge triggers
 
 Voir pourquoi un update des stripe_info renvoie une duplicate entry error.
 

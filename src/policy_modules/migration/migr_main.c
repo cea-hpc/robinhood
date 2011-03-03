@@ -348,9 +348,12 @@ int MigrateSingle( migration_config_t * p_config, const char * file, int flags )
 
 
 
-int Wait_Migration(  )
+int Wait_Migration( int abort )
 {
     void          *returned;
+    if ( abort )
+        terminate = TRUE;
+
     pthread_join( main_thread_id, &returned );
     return 0;
 }
