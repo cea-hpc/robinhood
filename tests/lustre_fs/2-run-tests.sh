@@ -530,6 +530,82 @@ function link_unlink_remove_test
 
 }
 
+function mass_softrm
+{
+	config_file=$1
+	sleep_time=$2
+	entries=$3
+	policy_str="$4"
+
+	if (( $is_hsm + $is_backup == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# populate filesystem
+	echo "1-Populating filesystem..."
+	for i in `seq 1 $entries`; do
+		((dir_c=$i % 10))
+		((subdir_c=$i % 100))
+		dir=$ROOT/dir.$dir_c/subdir.$subdir_c
+		mkdir -p $dir || error "creating directory $dir"
+		echo "file.$i" > $dir/file.$i || error "creating file $dir/file.$i"
+	done
+
+	echo "2-Initial scan..."
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
+
+	sleep 1
+
+	# archiving files
+	echo "3-Archiving files..."
+
+	if (( $is_hsm != 0 )); then
+		flush_data
+		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+
+		echo "3bis-Waiting for end of data migration..."
+		wait_done 120 || error "Migration timeout"
+	elif (( $is_backup != 0 )); then
+		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+	fi
+
+	echo "Checking stats after 1st scan..."
+	$REPORT -f ./cfg/$config_file --fs-info --csv -q > fsinfo.1
+	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.1
+	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
+	status=`cat fsinfo.1 | cut -d "," -f 1 | tr -d ' '`
+	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 2 | tr -d ' '`
+	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
+	(( $nb == $entries )) || error "$entries entries expected, got $nb"
+	(( `wc -l deferred.1 | awk '{print $1}'`==0 )) || error "no deferred rm expected after first scan"
+	rm -f fsinfo.1 deferred.1
+
+	# removing some files
+        echo "4-Removing files in $ROOT/dir.1..."
+	rm -rf "$ROOT/dir.1" || error "removing files in $ROOT/dir.1"
+
+	echo "5-Update DB with a new scan..."
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
+	
+	echo "Checking stats after 2nd scan..."
+	$REPORT -f ./cfg/$config_file --fs-info --csv -q > fsinfo.2
+	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.2
+	# 100 files were in the removed directory
+	(( `wc -l fsinfo.2 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
+	status=`cat fsinfo.2 | cut -d "," -f 1 | tr -d ' '`
+	nb=`cat fsinfo.2 | grep synchro | cut -d "," -f 2 | tr -d ' '`
+	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
+	(( $nb == $entries - 100 )) || error "$entries - 100 entries expected, got $nb"
+	nb=`wc -l deferred.2 | awk '{print $1}'`
+	(( $nb == 100 )) || error "100 deferred rm expected after first scan, got $nb"
+	rm -f fsinfo.2 deferred.2
+
+}
+
 function purge_test
 {
 	config_file=$1
@@ -2599,6 +2675,7 @@ run_test 214b  check_disabled  common.conf  migration  "no migration if not defi
 run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
 run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
+run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
 
 #### triggers ####
 

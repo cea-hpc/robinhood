@@ -167,7 +167,7 @@ int main( int argc, char **argv )
 
     if ( !exist )
     {
-        rc = ListMgr_Insert( &lmgr, &id, &set );
+        rc = ListMgr_Insert( &lmgr, &id, &set, FALSE );
         test_rc( rc );
     }
     else
@@ -215,17 +215,20 @@ int main( int argc, char **argv )
         rc = ListMgr_SetStripe( &lmgr, &id, &strinfo, &stritems );
     printf( "set stripe = %d\n", rc );
 
-
     /* remove */
     rc = ListMgr_Remove( &lmgr, &id );
     test_rc( rc );
 
     /* reinsert again */
-    rc = ListMgr_Insert( &lmgr, &id, &set );
+    rc = ListMgr_Insert( &lmgr, &id, &set, FALSE );
     test_rc( rc );
     
     /* soft remove */
-    rc = ListMgr_SoftRemove( &lmgr, &id, time(NULL)+3600 );
+    rc = ListMgr_SoftRemove( &lmgr, &id, NULL,
+#ifdef _BACKUP_FS
+    NULL,
+#endif
+        time(NULL)+3600 );
     test_rc( rc );
 
     printf( "starting test in 3s...\n" );
@@ -253,7 +256,7 @@ int main( int argc, char **argv )
 
         if ( !ListMgr_Exists( &lmgr, &id ) )
         {
-            rc = ListMgr_Insert( &lmgr, &id, &set );
+            rc = ListMgr_Insert( &lmgr, &id, &set, FALSE );
             test_rc( rc );
         }
 
@@ -299,7 +302,7 @@ int main( int argc, char **argv )
     printf( "ListMgr_Iterator: %us, it=%p\n", ( unsigned int ) ( t2 - t1 ), it );
 
     i = 0;
-#ifdef _LUSTRE_HSM
+#if defined(_LUSTRE_HSM) || defined(_BACKUP_FS)
     set.attr_mask =
         ATTR_MASK_fullpath | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_creation_time | ATTR_MASK_size | ATTR_MASK_stripe_info |
@@ -308,7 +311,7 @@ int main( int argc, char **argv )
 #else
     set.attr_mask =
         ATTR_MASK_fullpath | ATTR_MASK_depth | ATTR_MASK_owner | ATTR_MASK_gr_name |
-        ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_blksize | ATTR_MASK_stripe_info |
+        ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_stripe_info |
         ATTR_MASK_last_access | ATTR_MASK_last_mod |
         ATTR_MASK_whitelisted | ATTR_MASK_penalty | ATTR_MASK_penalized_access;
 #endif
@@ -318,7 +321,7 @@ int main( int argc, char **argv )
         while ( ( rc = ListMgr_GetNext( it, &id, &set ) ) == DB_SUCCESS )
         {
             i++;
-#ifdef _LUSTRE_HSM
+#ifdef _HAVE_FID
             printf( "seq=%llu, last_access=%u, pool_name=%s\n", id.f_seq,
                     ( unsigned int ) ATTR( &set, last_access ),
                     ATTR( &set, stripe_info ).pool_name );
@@ -341,6 +344,23 @@ int main( int argc, char **argv )
 
         ListMgr_CloseIterator( it );
     }
+
+    printf( "resuming test in 3s...\n" );
+    sleep( 3 );
+
+    /* soft remove of a given set of entries */
+    lmgr_simple_filter_init( &filter );
+    fv.val_uint = time( NULL ) - 40000;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_last_mod, MORETHAN, fv, 0 );
+
+    rc = ListMgr_MassSoftRemove( &lmgr, &filter, time(NULL)+3600 );
+    test_rc( rc );
+
+    lmgr_simple_filter_free( &filter );
+
+    /* soft remove all */
+    rc = ListMgr_MassSoftRemove( &lmgr, NULL, time(NULL)+3600 );
+    test_rc( rc );
 
 #if 0
     /* Test ListMgr_Report */

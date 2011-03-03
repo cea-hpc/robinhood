@@ -1091,7 +1091,10 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     ListMgr_ForceCommitFlag( lmgr, TRUE );
 
     /* remove entries listed in previous scans */
-    rc = ListMgr_MassRemove( lmgr, &filter );
+    if (policies.unlink_policy.hsm_remove)
+        rc = ListMgr_MassSoftRemove( lmgr, &filter, time(NULL) + policies.unlink_policy.deferred_remove_delay );
+    else
+        rc = ListMgr_MassRemove( lmgr, &filter );
 
     /* /!\ TODO : entries must be removed from backend too */
 

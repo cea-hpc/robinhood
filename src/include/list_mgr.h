@@ -434,6 +434,12 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    time_t real_remove_time );
 
 /**
+ * Soft remove a set of entries according to a filter.
+ */
+int            ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                                       time_t real_remove_time );
+
+/**
  * Definitly remove an entry from the delayed removal table.
  */
 int ListMgr_SoftRemove_Discard( lmgr_t * p_mgr, const entry_id_t * p_id );

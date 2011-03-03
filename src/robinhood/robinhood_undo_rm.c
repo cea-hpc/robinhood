@@ -352,6 +352,7 @@ int undo_rm()
         if ( (st == RS_OK) || (st == RS_DELTA) )
         {
             printf("Success\n");
+            /* discard entry from remove list */
             if ( ListMgr_SoftRemove_Discard(&lmgr, &id) != 0 )
                 fprintf(stderr, "Error: could not remove previous id "DFID" from database\n", PFID(&id) );
             /* insert or update it in the db */
@@ -365,10 +366,10 @@ int undo_rm()
         {
             printf("ERROR\n");
         }
-
     }
 
-    /* discard entry from remove list */
+    ListMgr_CloseRmList(list);
+    return 0;
 }
 
 

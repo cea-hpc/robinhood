@@ -17,18 +17,29 @@ if CHANGELOGS
 all_libs += ../chglog_reader/libchglog_rd.la
 endif
 if TMP_FS_MGR
+all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/rmdir/librmdir.la
 endif
 if SHERPA
+all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/rmdir/librmdir.la
 all_libs += ../policy_modules/migration/libmigration.la
 endif
 if LUSTRE_HSM
+all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/migration/libmigration.la
 all_libs += ../policy_modules/hsm_remove/libhsmrm.la
 endif
+if BACKUP_FS
+all_libs += ../policy_modules/migration/libmigration.la
+all_libs += ../policy_modules/hsm_remove/libhsmrm.la
+all_libs += ../backend_ext/libbackend_ext.la
+endif
 
+all_libs += ../list_mgr/liblistmgr.la
 all_libs += ../common/libcommontools.la
+
+
 
 test_list_mgr_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
 

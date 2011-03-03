@@ -28,7 +28,7 @@
 #include <pthread.h>
 
 
-static int ListMgr_Remove_NoTransaction( lmgr_t * p_mgr, const entry_id_t * p_id )
+static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id )
 {
     char           request[4096];
     int            rc;
@@ -76,7 +76,7 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
     if ( rc )
         return rc;
 
-    rc = ListMgr_Remove_NoTransaction( p_mgr, p_id );
+    rc = listmgr_remove_no_transaction( p_mgr, p_id );
     if (rc)
     {
         lmgr_rollback( p_mgr );
@@ -86,11 +86,108 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
     return lmgr_commit( p_mgr );
 }
 
+/* macro for clarifying the code */
+#ifdef HAVE_RM_POLICY
+#ifdef _BACKUP_FS
+#define SOFTRM_SAVED_FIELDS "fullpath, backendpath"
+#else
+#define SOFTRM_SAVED_FIELDS "fullpath"
+#endif
+
+/**
+ * Insert all entries to soft rm table.
+ * @TODO check if it works with millions/billion entries
+ */
+static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
+{
+    char query[2048];
+    /* insert those entries to soft rm table */
+
+    if ( annex_table )
+    {
+        sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
+                 SOFTRM_SAVED_FIELDS ", soft_rm_time, real_rm_time) "
+                "(SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS", "
+                 "%u, %u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
+                 " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
+                 (unsigned int)time(NULL),
+                 (unsigned int)due_time );
+    }
+    else
+    {
+       sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
+                 SOFTRM_SAVED_FIELDS ", soft_rm_time, real_rm_time) "
+                 "(SELECT id, "SOFTRM_SAVED_FIELDS", %u, %u FROM "MAIN_TABLE")",
+                 (unsigned int)time(NULL),
+                 (unsigned int)due_time );
+    }
+
+    return db_exec_sql( &p_mgr->conn, query, NULL );
+}
+
+/**
+ * Insert a single entry to soft rm table.
+ */
+static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
+                                   const char * entry_path,
+#ifdef _BACKUP_FS
+                                   const char * backend_path,
+#endif
+                                   time_t due_time )
+{
+    char query[4096];
+    char escaped[1024];
+    char * curr = query;
+    int rc;
+ 
+    curr += sprintf( query,
+                     "INSERT IGNORE INTO " SOFT_RM_TABLE
+                     "(fid, " );
+
+    if ( entry_path )
+        curr += sprintf(curr, "fullpath, " );
+#ifdef _BACKUP_FS
+    if ( backend_path )
+        curr += sprintf(curr, "backendpath, " );
+#endif
+
+    curr += sprintf(curr, "soft_rm_time, real_rm_time) "
+                  "VALUES ('"DFID_NOBRACE"', ", PFID(p_id) );
+
+    if ( entry_path )
+    {
+        db_escape_string( &p_mgr->conn, escaped, 1024, entry_path );
+        curr += sprintf(curr, "'%s', ", escaped );
+    }
+#ifdef _BACKUP_FS
+    if ( backend_path )
+    {
+        db_escape_string( &p_mgr->conn, escaped, 1024, backend_path );
+        curr += sprintf(curr, "'%s', ", escaped );
+    }
+#endif
+
+    curr += sprintf( curr, " %u, %u ) ",
+                    (unsigned int)time(NULL),
+                    (unsigned int)due_time );
+
+    rc = db_exec_sql( &p_mgr->conn, query, NULL );
+
+    if (rc)
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "DB query failed in %s line %d: query=\"%s\", code=%d: %s",
+                    __FUNCTION__, __LINE__, query, rc, db_errmsg( &p_mgr->conn, query, 1024 ) );
+    return rc;
+}
+
+#endif
+
 
 /* /!\ cross table conditions cannot be used */
 /* /!\ the table on which the filter apply must be removed at last */
 
-int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
+static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, int soft_rm,
+                                time_t real_remove_time )
 {
     int            rc;
     char           query[2048];
@@ -106,7 +203,7 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
     int            indirect_del_main = FALSE;
     int            indirect_del_annex = FALSE;
     result_handle_t result;
-    char          *idstr;
+    char          *field_tab[3]; /* 3 max: id, fullpath, backendpath */
     DEF_PK(pk);
     unsigned int   rmcount;
 
@@ -121,9 +218,19 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
          || ( ( p_filter->filter_type == FILTER_BOOLEXPR )
               && ( p_filter->filter_boolexpr == NULL ) ) )
     {
+
+#ifdef HAVE_RM_POLICY
+        if (soft_rm)
+        {
+            rc = listmgr_softrm_all( p_mgr, real_remove_time );
+            if ( rc )
+                goto rollback;
+        }
+#endif
+
         /* Remove all !!! */
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                    "No filter is specified: remove entries from all tables !!!" );
+        DisplayLog( LVL_EVENT, LISTMGR_TAG,
+                    "No filter is specified: removing entries from all tables." );
 
         rc = db_exec_sql( &p_mgr->conn, "DELETE FROM " STRIPE_ITEMS_TABLE, NULL );
         if ( rc )
@@ -147,8 +254,10 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
         return lmgr_commit( p_mgr );
     }
 
-    /* on which table is the filter ? */
-    filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, FALSE );
+    /* on which table is the filter ?
+     * for soft rm, need to prefix table for joining with annex table
+     */
+    filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, soft_rm && annex_table );
 
     if ( annex_table )
         filter_annex = filter2str( p_mgr, filter_str_annex, p_filter, T_ANNEX, FALSE, FALSE );
@@ -163,7 +272,7 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
     if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0 )
     {
         /* should have been detected in the beginning of this function ! */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "How come empty filter has not been detected ?" );
+        DisplayLog( LVL_CRIT, LISTMGR_TAG, "How come empty filter has not been detected" );
         rc = DB_REQUEST_FAILED;
         goto rollback;
     }
@@ -175,20 +284,50 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
     {
         sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
                  ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-        sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT id FROM " MAIN_TABLE
-                 " WHERE %s", tmp_table_name, filter_str_main );
+#ifdef HAVE_RM_POLICY
+        if ( soft_rm )
+        {
+            if ( annex_table )
+                sprintf( query,
+                         "CREATE TEMPORARY TABLE %s AS SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS" FROM " MAIN_TABLE
+                         " LEFT JOIN "ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id"
+                         " WHERE %s", tmp_table_name, filter_str_main );
+            else
+                sprintf( query,
+                         "CREATE TEMPORARY TABLE %s AS SELECT id, "SOFTRM_SAVED_FIELDS" FROM " MAIN_TABLE
+                         " WHERE %s", tmp_table_name, filter_str_main );
+        }
+        else
+#endif
+            sprintf( query,
+                     "CREATE TEMPORARY TABLE %s AS SELECT id FROM " MAIN_TABLE
+                     " WHERE %s", tmp_table_name, filter_str_main );
     }
     else if ( filter_annex && !( filter_main || filter_stripe_info || filter_stripe_items ) )
     {
         sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
                  ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-        sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT id FROM " ANNEX_TABLE
-                 " WHERE %s", tmp_table_name, filter_str_annex );
+#ifdef HAVE_RM_POLICY
+        if ( soft_rm )
+            sprintf( query,
+                     "CREATE TEMPORARY TABLE %s AS SELECT id, "SOFTRM_SAVED_FIELDS
+                     " FROM " ANNEX_TABLE " WHERE %s", tmp_table_name, filter_str_annex );
+        else
+#endif
+            sprintf( query,
+                     "CREATE TEMPORARY TABLE %s AS SELECT id FROM " ANNEX_TABLE
+                     " WHERE %s", tmp_table_name, filter_str_annex );
     }
     else if ( filter_stripe_items && !( filter_main || filter_annex || filter_stripe_info ) )
     {
+#ifdef HAVE_RM_POLICY
+        if (soft_rm)
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Mass SoftRemove is not supported with stripe item filter" );
+            rc = DB_NOT_SUPPORTED;
+            goto rollback;
+        }
+#endif
         sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
                  ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
         sprintf( query,
@@ -197,6 +336,15 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
     }
     else if ( filter_stripe_info && !( filter_main || filter_annex || filter_stripe_items ) )
     {
+#ifdef HAVE_RM_POLICY
+        if (soft_rm)
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Mass SoftRemove is not supported with stripe item filter" );
+            rc = DB_NOT_SUPPORTED;
+            goto rollback;
+        }
+#endif
+
         sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
                  ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
         sprintf( query,
@@ -221,7 +369,6 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
         goto rollback;
 
     /* delete what can be directly deleted */
-
     if ( annex_table )
     {
         if ( filter_annex )
@@ -257,9 +404,15 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
 
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal" );
 
-    /* Now, make indirect deletion */
+    /* Now, make indirect deletion (and softrm insertion) */
 
-    sprintf( query, "SELECT id FROM %s", tmp_table_name );
+#ifdef HAVE_RM_POLICY
+    if ( soft_rm )
+        sprintf( query, "SELECT id, "SOFTRM_SAVED_FIELDS" FROM %s", tmp_table_name );
+    else
+#endif
+        sprintf( query, "SELECT id FROM %s", tmp_table_name );
+
     rc = db_exec_sql( &p_mgr->conn, query, &result );
     if ( rc )
         goto rollback;
@@ -270,12 +423,32 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
 
     rmcount = 0;
 
-    while ( ( rc =
-              db_next_record( &p_mgr->conn, &result, &idstr,
-                              1 ) ) == DB_SUCCESS && ( idstr != NULL ) )
+    while ((rc = db_next_record( &p_mgr->conn, &result, field_tab, 3 ))
+                == DB_SUCCESS
+            && ( field_tab[0] != NULL ) )
     {
-        if ( sscanf( idstr, SPK, PTR_PK(pk) ) != 1 )
+        if ( sscanf( field_tab[0], SPK, PTR_PK(pk) ) != 1 )
             goto free_res;
+
+#ifdef HAVE_RM_POLICY
+        if ( soft_rm )
+        {
+            entry_id_t id;
+            rc = pk2entry_id( p_mgr, pk, &id );
+            if (rc)
+                goto free_res;
+
+            /* insert into softrm table */
+            rc = listmgr_softrm_single( p_mgr, &id,
+                                        field_tab[1],
+#ifdef _BACKUP_FS
+                                        field_tab[2],
+#endif
+                                        real_remove_time );
+            if (rc)
+                goto free_res;
+        }
+#endif
 
         /* delete all entries related to this id */
 
@@ -333,6 +506,19 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
     return rc;
 }
 
+int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
+{
+    /* not a soft rm */
+    return listmgr_mass_remove( p_mgr, p_filter, FALSE, 0 );
+}
+
+int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                            time_t real_remove_time )
+{
+    /* soft rm */
+    return listmgr_mass_remove( p_mgr, p_filter, TRUE, real_remove_time );
+}
+
 
 #ifdef HAVE_RM_POLICY
 /**
@@ -350,96 +536,58 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    time_t real_remove_time )
 {
     int rc;
-    char query[4096];
-    char escaped[1024];
-    char * curr = query;
     const char * entry_path = NULL;
 #ifdef _BACKUP_FS
     const char * backendpath = NULL;
 #endif
-    attr_set_t attrs;
+    attr_set_t missing_attrs;
+    ATTR_MASK_INIT( &missing_attrs );
 
-    /* check if the previous entry had a path */
     if ( last_known_path )
         entry_path = last_known_path;
     else
-    {
-        ATTR_MASK_INIT( &attrs );
-        ATTR_MASK_SET( &attrs, fullpath );
-
-        if ( (ListMgr_Get( p_mgr, p_id, &attrs ) == DB_SUCCESS )
-            && ATTR_MASK_TEST( &attrs, fullpath ) )
-        {
-            entry_path = ATTR(&attrs, fullpath);
-        }
-    }
+        /* check if the previous entry had a path */
+        ATTR_MASK_SET( &missing_attrs, fullpath );
 
 #ifdef _BACKUP_FS
-    /* check if the previous entry had a path in backend */
     if ( bkpath )
         backendpath = bkpath;
     else
-    {
-        ATTR_MASK_INIT( &attrs );
-        ATTR_MASK_SET( &attrs, backendpath );
-
-        if ( (ListMgr_Get( p_mgr, p_id, &attrs ) == DB_SUCCESS )
-            && ATTR_MASK_TEST( &attrs, fullpath ) )
-        {
-            backendpath = ATTR(&attrs, backendpath);
-        }
-    }
+        /* check if the previous entry had a path in backend */
+        ATTR_MASK_SET( &missing_attrs, backendpath );
 #endif
 
+    if ( missing_attrs.attr_mask )
+    {
+        if ( ListMgr_Get( p_mgr, p_id, &missing_attrs ) == DB_SUCCESS )
+        {
+            if ( ATTR_MASK_TEST( &missing_attrs, fullpath ) )
+                entry_path = ATTR(&missing_attrs, fullpath);
+#ifdef _BACKUP_FS
+            if ( ATTR_MASK_TEST( &missing_attrs, backendpath ) )
+                backendpath = ATTR(&missing_attrs, backendpath);
+#endif
+        }
+    }
+        
     /* We want the removal sequence to be atomic */
     rc = lmgr_begin( p_mgr );
     if ( rc )
         return rc;
 
-    curr += sprintf( query,
-                     "INSERT IGNORE INTO " SOFT_RM_TABLE
-                     "(fid, " );
-
-    if ( entry_path )
-        curr += sprintf(curr, "fullpath, " );
+    rc = listmgr_softrm_single( p_mgr, p_id, entry_path,
 #ifdef _BACKUP_FS
-    if ( backendpath )
-        curr += sprintf(curr, "backendpath, " );
+    backendpath,
 #endif
-
-    curr += sprintf(curr, "soft_rm_time, real_rm_time) "
-                  "VALUES ('"DFID_NOBRACE"', ", PFID(p_id) );
-
-    if ( entry_path )
-    {
-        db_escape_string( &p_mgr->conn, escaped, 1024, entry_path );
-        curr += sprintf(curr, "'%s', ", escaped );
-    }
-#ifdef _BACKUP_FS
-    if ( backendpath )
-    {
-        db_escape_string( &p_mgr->conn, escaped, 1024, backendpath );
-        curr += sprintf(curr, "'%s', ", escaped );
-    }
-#endif
-
-    curr += sprintf( curr, " %u, %u ) ",
-                    (unsigned int)time(NULL),
-                    (unsigned int)real_remove_time );
-
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
-
+                                real_remove_time );
     if ( rc )
     {
         lmgr_rollback( p_mgr );
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "DB query failed in %s line %d: query=\"%s\", code=%d: %s",
-                    __FUNCTION__, __LINE__, query, rc, db_errmsg( &p_mgr->conn, query, 1024 ) );
         return rc;
     }
 
     /* remove the entry from main tables, if it exists */
-    rc = ListMgr_Remove_NoTransaction( p_mgr, p_id );
+    rc = listmgr_remove_no_transaction( p_mgr, p_id );
     if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
     {
         lmgr_rollback( p_mgr );

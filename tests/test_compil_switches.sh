@@ -2,7 +2,7 @@
 
 purp_list=$*
 
-CFLAGS_OPT="-I/home/leibovi/export_rh_1101814/sherpa_cache/src/include"
+CFLAGS_OPT="-I$HOME/export_rh_1101814/sherpa_cache/src/include"
 
 if [[ -z $purp_list ]]; then
 	echo "Usage: $0 <purpose list>"
