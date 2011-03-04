@@ -267,6 +267,9 @@ static void   *migration_thr( void *thr_arg )
 
     ListMgr_CloseAccess( &lmgr );
     migr_state = MS_TERMINATED;
+
+    DisplayLog( LVL_FULL, MIGR_TAG, "Main migration thread terminating" );
+
     pthread_exit( NULL );
     return NULL;
 }
@@ -322,6 +325,8 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
                     strerror( rc ) );
         return rc;
     }
+    else
+        DisplayLog( LVL_FULL, MIGR_TAG, "Migration thread %#lx started", main_thread_id );
 
     return 0;
 }
@@ -346,13 +351,42 @@ int MigrateSingle( migration_config_t * p_config, const char * file, int flags )
 
 }
 
+static int volatile waiting = 0;
 
-
-int Wait_Migration(  )
+int Wait_Migration( int abort )
 {
     void          *returned;
-    pthread_join( main_thread_id, &returned );
-    return 0;
+    int rc;
+
+    if ( abort )
+    {
+        terminate = TRUE;
+        abort_migration();
+    }
+
+    /* /!\ pb: 2 threads cannot join the same other thread.
+     * In one shot mode, the main thread is already waiting
+     * for migration to end. Thus, the signal manager thread
+     * gets an error when trying to join it after abort.
+     */
+    if (!waiting )
+    {
+        /* no lock here, we consider the sigterm is not simultaneous with module start */
+        waiting = 1;
+        rc = pthread_join( main_thread_id, &returned );
+        if ( rc != 0 )
+            DisplayLog( LVL_MAJOR, MIGR_TAG, "pthread_join() returned error %d", rc );
+        else
+            waiting = 0;
+    }
+    else
+    {
+        /* the second thread that needs to join polls the 'waiting' variable */
+        while (waiting)
+            rh_sleep(1);
+        rc = 0;
+    }
+    return rc;
 }
 
 

@@ -34,7 +34,9 @@
 #include <errno.h>
 #include <libgen.h>
 #include <pthread.h>
+#include <signal.h>
 
+#define RECOV_TAG "Recov"
 #define RECOV_TAG "Recov"
 
 static struct option option_tab[] =
@@ -187,6 +189,16 @@ static inline void display_version( char *bin_name )
     printf( "\n" );
     printf( "Report bugs to: <" PACKAGE_BUGREPORT ">\n" );
     printf( "\n" );
+}
+
+static void terminate_handler( int sig )
+{
+    if ( sig == SIGTERM )
+        fprintf( stderr, "SIGTERM received: performing clean shutdown\n" );
+    else if ( sig == SIGINT )
+        fprintf( stderr, "SIGINT received: performing clean shutdown\n" );
+
+    terminate = TRUE;
 }
 
 static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
@@ -453,6 +465,9 @@ int main( int argc, char **argv )
     int            rc;
     char           err_msg[4096];
     robinhood_config_t config;
+    struct sigaction act_sigterm;
+
+
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab, &option_index ) ) != -1 )
@@ -604,6 +619,22 @@ int main( int argc, char **argv )
         exit( 1 );
     }
 #endif
+
+    /* create signal handlers */
+    memset( &act_sigterm, 0, sizeof( act_sigterm ) );
+    act_sigterm.sa_flags = 0;
+    act_sigterm.sa_handler = terminate_handler;
+    if ( sigaction( SIGTERM, &act_sigterm, NULL ) == -1
+         || sigaction( SIGINT, &act_sigterm, NULL ) == -1 )
+    {
+        DisplayLog( LVL_CRIT, RECOV_TAG,
+                    "Error while setting signal handlers for SIGTERM and SIGINT: %s",
+                    strerror( errno ) );
+        exit( 1 );
+    }
+    else
+        DisplayLog( LVL_VERB, RECOV_TAG,
+                    "Signals SIGTERM and SIGINT (abort command) are ready to be used" );
 
     if (do_status)
         rc = recov_status();
