@@ -435,6 +435,17 @@ static int check_periodic_trigger( unsigned trigger_index )
         snprintf(status_str, 1024, "No list available" );
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
     }
+    else if ( rc == ECANCELED )
+    {
+        update_trigger_status( trigger_index, TRIG_ABORTED );
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Purge aborted after releasing %Lu entries, %Lu blocks in %s.",
+                    nbr_purged, blocks_purged, global_config.fs_path );
+                    
+        snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
+                 global_config.fs_path, nbr_purged, blocks_purged);
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
     else
     {
         update_trigger_status( trigger_index, TRIG_CHECK_ERROR );
@@ -567,7 +578,29 @@ static int check_global_trigger( unsigned trigger_index )
 
         if ( spec < purge_param.nb_inodes )
         {
-            if ( rc != ENOENT )
+            if ( rc == ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %Lu entries in %s: no list is available.",
+                            purge_param.nb_inodes, global_config.fs_path );
+
+                snprintf(status_str, 1024, "No list available (%Lu entries need to be purged)",
+                         purge_param.nb_inodes );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else if ( rc == ECANCELED )
+            {
+                update_trigger_status( trigger_index, TRIG_ABORTED );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Purge aborted after releasing %Lu entries (%Lu blocks) in %s.",
+                            spec, purged, global_config.fs_path );
+                            
+                snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
+                         global_config.fs_path, spec, purged);
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else
             {
                 update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
@@ -584,17 +617,6 @@ static int check_global_trigger( unsigned trigger_index )
 
                 snprintf(status_str, 1024, "Not enough eligible files: %Lu/%Lu entries released",
                          purged, purge_param.nb_inodes );
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            }
-            else
-            {
-                update_trigger_status( trigger_index, TRIG_NO_LIST );
-                DisplayLog( LVL_EVENT, RESMON_TAG,
-                            "Could not purge %Lu entries in %s: no list is available.",
-                            purge_param.nb_inodes, global_config.fs_path );
-
-                snprintf(status_str, 1024, "No list available (%Lu entries need to be purged)",
-                         purge_param.nb_inodes );
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
 
@@ -619,7 +641,29 @@ static int check_global_trigger( unsigned trigger_index )
 
         if ( purged < purge_param.nb_blocks )
         {
-            if ( rc != ENOENT )
+            if ( rc == ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks in %s: no list is available.",
+                            purge_param.nb_blocks, global_config.fs_path );
+
+                snprintf(status_str, 1024, "No list available (%lu blocks need to be released)",
+                         purge_param.nb_blocks );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else if ( rc == ECANCELED )
+            {
+                update_trigger_status( trigger_index, TRIG_ABORTED );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Purge aborted after releasing %Lu blocks in %s.",
+                            purged, global_config.fs_path );
+                            
+                snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu blocks)",
+                         global_config.fs_path, purged);
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else
             {
                 update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
@@ -636,17 +680,6 @@ static int check_global_trigger( unsigned trigger_index )
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released)",
                          purged, purge_param.nb_blocks );
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            }
-            else
-            {
-                update_trigger_status( trigger_index, TRIG_NO_LIST );
-                DisplayLog( LVL_EVENT, RESMON_TAG,
-                            "Could not purge %lu blocks in %s: no list is available.",
-                            purge_param.nb_blocks, global_config.fs_path );
-
-                snprintf(status_str, 1024, "No list available (%lu blocks need to be released)",
-                         purge_param.nb_blocks );
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
 
@@ -777,7 +810,6 @@ static int check_ost_trigger( unsigned trigger_index )
 
         if ( spec < purge_param.nb_blocks )
         {
-
             if ( rc == ENOENT )
             {
                 update_trigger_status( trigger_index, TRIG_NO_LIST );
@@ -789,13 +821,12 @@ static int check_ost_trigger( unsigned trigger_index )
                          purge_param.nb_blocks, ost_index );
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
-            else if ( rc == ECANCELED ) /* @TODO: handle this for other trigger cases */
+            else if ( rc == ECANCELED )
             {
                 update_trigger_status( trigger_index, TRIG_ABORTED );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
                             "Purge aborted after releasing %Lu blocks in OST #%u.",
                             spec, ost_index );
-
                 snprintf(status_str, 1024, "Purge on OST#%u aborted by admin (after releasing %Lu blocks)",
                          ost_index, spec );
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -968,7 +999,28 @@ static int check_pool_trigger( unsigned trigger_index )
 
         if ( spec < purge_param.nb_blocks )
         {
-            if ( rc != ENOENT )
+            if ( rc == ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks in %s: no list is available.",
+                            purge_param.nb_blocks, pool_string );
+
+                snprintf(status_str, 1024, "No list available (%lu blocks need to be released in %s)",
+                         purge_param.nb_blocks, pool_string );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else if ( rc == ECANCELED )
+            {
+                update_trigger_status( trigger_index, TRIG_ABORTED );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Purge aborted after releasing %Lu blocks in %s.",
+                            spec, pool_string );
+                snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu blocks)",
+                         pool_string, spec );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else /* other error */
             {
                 update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
@@ -988,18 +1040,6 @@ static int check_pool_trigger( unsigned trigger_index )
                          spec, purge_param.nb_blocks, pool_string );
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
-            else
-            {
-                update_trigger_status( trigger_index, TRIG_NO_LIST );
-                DisplayLog( LVL_EVENT, RESMON_TAG,
-                            "Could not purge %lu blocks in %s: no list is available.",
-                            purge_param.nb_blocks, pool_string );
-
-                snprintf(status_str, 1024, "No list available (%lu blocks need to be released in %s)",
-                         purge_param.nb_blocks, pool_string );
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            }
-
         }
         else
         {
@@ -1165,7 +1205,7 @@ static int check_user_trigger( unsigned trigger_index )
     }
 
     result_count = 2;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    while ( (( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS) && !terminate )
     {
         unsigned long long blocks_purged;
         char           user_desc[128];
@@ -1230,7 +1270,28 @@ static int check_user_trigger( unsigned trigger_index )
 
         if ( blocks_purged < purge_param.nb_blocks )
         {
-            if ( rc != ENOENT )
+            if (rc == ENOENT)
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks for user '%s': no list is available.",
+                            purge_param.nb_blocks, result[0].value_u.val_str );
+
+                snprintf(status_str, 1024, "No list available (%lu blocks need to be released for user '%s')",
+                         purge_param.nb_blocks, result[0].value_u.val_str);
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else if ( rc == ECANCELED )
+            {
+                update_trigger_status( trigger_index, TRIG_ABORTED );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Purge aborted after releasing %Lu blocks for user %s.",
+                            blocks_purged, result[0].value_u.val_str );
+                snprintf(status_str, 1024, "Purge on user %s aborted by admin (after releasing %Lu blocks)",
+                         result[0].value_u.val_str, blocks_purged);
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else
             {
                 update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
@@ -1247,17 +1308,6 @@ static int check_user_trigger( unsigned trigger_index )
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released for user '%s')",
                          blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str);
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            }
-            else
-            {
-                update_trigger_status( trigger_index, TRIG_NO_LIST );
-                DisplayLog( LVL_EVENT, RESMON_TAG,
-                            "Could not purge %lu blocks for user '%s': no list is available.",
-                            purge_param.nb_blocks, result[0].value_u.val_str );
-
-                snprintf(status_str, 1024, "No list available (%lu blocks need to be released for user '%s')",
-                         purge_param.nb_blocks, result[0].value_u.val_str);
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
 
@@ -1420,7 +1470,7 @@ static int check_group_trigger( unsigned trigger_index )
     }
 
     result_count = 2;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    while ( (( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS) && !terminate )
     {
         unsigned long long blocks_purged;
         char           timestamp[128];
@@ -1484,7 +1534,28 @@ static int check_group_trigger( unsigned trigger_index )
 
         if ( blocks_purged < purge_param.nb_blocks )
         {
-            if ( rc != ENOENT )
+            if ( rc == ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks for group '%s': no list is available.",
+                            purge_param.nb_blocks, result[0].value_u.val_str );
+
+                snprintf(status_str, 1024, "No list available (%lu blocks need to be released for group '%s')",
+                         purge_param.nb_blocks, result[0].value_u.val_str);
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else if ( rc == ECANCELED )
+            {
+                update_trigger_status( trigger_index, TRIG_ABORTED );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Purge aborted after releasing %Lu blocks for group %s.",
+                            blocks_purged, result[0].value_u.val_str );
+                snprintf(status_str, 1024, "Purge on group %s aborted by admin (after releasing %Lu blocks)",
+                         result[0].value_u.val_str, blocks_purged);
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else
             {
                 update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
@@ -1502,18 +1573,6 @@ static int check_group_trigger( unsigned trigger_index )
                          blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str);
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
-            else
-            {
-                update_trigger_status( trigger_index, TRIG_NO_LIST );
-                DisplayLog( LVL_EVENT, RESMON_TAG,
-                            "Could not purge %lu blocks for group '%s': no list is available.",
-                            purge_param.nb_blocks, result[0].value_u.val_str );
-
-                snprintf(status_str, 1024, "No list available (%lu blocks need to be released for group '%s')",
-                         purge_param.nb_blocks, result[0].value_u.val_str);
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            }
-
         }
         else
         {
@@ -1656,7 +1715,26 @@ static void   *force_ost_trigger_thr( void *arg )
 
     if ( spec < purge_param.nb_blocks )
     {
-        if ( rc != ENOENT )
+        if (rc == ENOENT)
+        {
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "Could not purge %lu blocks in OST #%u: no list is available.",
+                        purge_param.nb_blocks, module_args.ost_index );
+
+            snprintf(status_str, 1024, "No list available (admin requested to release %lu blocks in OST #%u)",
+                     purge_param.nb_blocks, module_args.ost_index );
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+        }
+        else if ( rc == ECANCELED )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "Purge aborted after releasing %Lu blocks in OST #%u.",
+                        spec, module_args.ost_index );
+            snprintf(status_str, 1024, "Purge on OST#%u aborted by admin (after releasing %Lu blocks)",
+                     module_args.ost_index, spec );
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+        }
+        else
         {
             DisplayLog( LVL_CRIT, RESMON_TAG,
                         "Could not purge %lu blocks in OST #%u: not enough eligible files. "
@@ -1674,17 +1752,6 @@ static void   *force_ost_trigger_thr( void *arg )
                      spec, purge_param.nb_blocks, module_args.ost_index );
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
         }
-        else
-        {
-            DisplayLog( LVL_EVENT, RESMON_TAG,
-                        "Could not purge %lu blocks in OST #%u: no list is available.",
-                        purge_param.nb_blocks, module_args.ost_index );
-
-            snprintf(status_str, 1024, "No list available (admin requested to release %lu blocks in OST #%u)",
-                     purge_param.nb_blocks, module_args.ost_index );
-            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-        }
-
     }
     else
     {
@@ -1802,7 +1869,27 @@ static void   *force_fs_trigger_thr( void *arg )
 
     if ( purged < purge_param.nb_blocks )
     {
-        if ( rc != ENOENT )
+        if ( rc == ENOENT )
+        {
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "Could not purge %lu blocks in %s: no list is available.",
+                        purge_param.nb_blocks, global_config.fs_path );
+
+            snprintf(status_str, 1024, "No list available (admin requested to release %lu blocks in %s)",
+                     purge_param.nb_blocks, global_config.fs_path );
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+        }
+        else if ( rc == ECANCELED )
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG,
+                        "Purge aborted after releasing %Lu blocks in %s.",
+                        purged, global_config.fs_path );
+                        
+            snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu blocks)",
+                     global_config.fs_path, purged);
+            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+        }
+        else
         {
             DisplayLog( LVL_CRIT, RESMON_TAG,
                         "Could not purge %lu blocks in %s: "
@@ -1818,17 +1905,6 @@ static void   *force_fs_trigger_thr( void *arg )
                      purged, purge_param.nb_blocks, global_config.fs_path );
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
         }
-        else
-        {
-            DisplayLog( LVL_EVENT, RESMON_TAG,
-                        "Could not purge %lu blocks in %s: no list is available.",
-                        purge_param.nb_blocks, global_config.fs_path );
-
-            snprintf(status_str, 1024, "No list available (admin requested to release %lu blocks in %s)",
-                     purge_param.nb_blocks, global_config.fs_path );
-            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-        }
-
     }
     else
     {
@@ -1919,6 +1995,16 @@ static void * force_purge_class_thr( void *arg )
 
         snprintf(status_str, 1024, "No list available (admin requested to release files in %s, %s)",
                  global_config.fs_path, descr );
+        ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+    }
+    else if ( rc == ECANCELED )
+    {
+        DisplayLog( LVL_CRIT, RESMON_TAG,
+                    "Purge aborted after releasing %Lu entries, %Lu blocks in %s.",
+                    nbr_purged, blocks_purged, descr );
+                    
+        snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
+                 descr, nbr_purged, blocks_purged );
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
     }
     else

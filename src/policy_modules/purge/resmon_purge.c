@@ -595,10 +595,10 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
             {
                 DisplayLog( LVL_MAJOR, PURGE_TAG, "Purge aborted, stop enqueuing "
                             "purge requests." );
-                return ECANCELED;
+                rc = DB_END_OF_LIST;
+                break;
             }
-
-            if ( rc == DB_END_OF_LIST )
+            else if ( rc == DB_END_OF_LIST )
             {
                 total_returned += nb_returned; 
 
@@ -733,7 +733,6 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         /* if getnext returned an error */
         if ( rc )
             break;
-
     }
     while ( ( !end_of_list ) &&
             ( (purged_amount < target) || (target_type == TGT_ALL) ));
@@ -746,7 +745,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     if ( p_nb_specific )
         *p_nb_specific = purged_amount;
 
-    return 0;
+    return (purge_abort?ECANCELED:0);
 }
 
 #ifndef _HAVE_FID               /* if entries are accessed by FID, we can always get their status */
