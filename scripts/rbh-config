@@ -170,15 +170,21 @@ function db_config
     echo
     echo "Setting access right for user 'robinhood'@'$clienthost'..."
 
-    echo
+    echo "(notice: user robinhood must have SUPER privilege to create triggers)"
     mysql --password="$pass_root" $DB_NAME << EOF
 GRANT USAGE ON $DB_NAME.* TO 'robinhood'@'localhost' IDENTIFIED BY '$pass1' ;
 GRANT USAGE ON $DB_NAME.* TO 'robinhood'@'$clienthost' IDENTIFIED BY '$pass1' ;
 GRANT ALL PRIVILEGES ON $DB_NAME.* TO 'robinhood'@'localhost' IDENTIFIED BY '$pass1' ;
 GRANT ALL PRIVILEGES ON $DB_NAME.* TO 'robinhood'@'$clienthost' IDENTIFIED BY '$pass1' ;
+GRANT SUPER ON *.* TO 'robinhood'@'localhost' IDENTIFIED BY '$pass1' ;
+GRANT SUPER ON *.* TO 'robinhood'@'$clienthost' IDENTIFIED BY '$pass1' ;
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR 'robinhood'@'$clienthost';
 EOF
+
+    # About SUPER privilege on *.* (needed for creating triggers)
+    # Before MySQL 5.1, it must be granted for all databases
+    # (cannot distinguish the database to grant permission on).
 
     if (( $? )); then
         echo "Error setting access rights for 'robinhood'@'$clienthost'"
