@@ -56,6 +56,7 @@ typedef enum
     TRIG_NO_LIST,                                /* no list available */
     TRIG_NOT_ENOUGH,                             /* not enough candidates */
     TRIG_CHECK_ERROR,                            /* Misc Error */
+    TRIG_ABORTED,                                /* aborted purge */
     TRIG_UNSUPPORTED                             /* Trigger not supported in this mode */
 } trigger_status_t;
 
@@ -81,6 +82,8 @@ static time_t  trigger_check_interval = 1;
 
 static pthread_t trigger_check_thread_id = -1;
 static lmgr_t  lmgr;
+
+static int terminate = FALSE;
 
 static dev_t   fsdev = 0;
 
@@ -774,7 +777,30 @@ static int check_ost_trigger( unsigned trigger_index )
 
         if ( spec < purge_param.nb_blocks )
         {
-            if ( rc != ENOENT )
+
+            if ( rc == ENOENT )
+            {
+                update_trigger_status( trigger_index, TRIG_NO_LIST );
+                DisplayLog( LVL_EVENT, RESMON_TAG,
+                            "Could not purge %lu blocks in OST #%u: no list is available.",
+                            purge_param.nb_blocks, ost_index );
+
+                snprintf(status_str, 1024, "No list available (%lu blocks need to be released in OST #%u)",
+                         purge_param.nb_blocks, ost_index );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else if ( rc == ECANCELED ) /* @TODO: handle this for other trigger cases */
+            {
+                update_trigger_status( trigger_index, TRIG_ABORTED );
+                DisplayLog( LVL_CRIT, RESMON_TAG,
+                            "Purge aborted after releasing %Lu blocks in OST #%u.",
+                            spec, ost_index );
+
+                snprintf(status_str, 1024, "Purge on OST#%u aborted by admin (after releasing %Lu blocks)",
+                         ost_index, spec );
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+            }
+            else /* other error */
             {
                 update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
                 DisplayLog( LVL_CRIT, RESMON_TAG,
@@ -793,17 +819,6 @@ static int check_ost_trigger( unsigned trigger_index )
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released) in OST #%u",
                          spec, purge_param.nb_blocks, ost_index );
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            }
-            else
-            {
-                update_trigger_status( trigger_index, TRIG_NO_LIST );
-                DisplayLog( LVL_EVENT, RESMON_TAG,
-                            "Could not purge %lu blocks in OST #%u: no list is available.",
-                            purge_param.nb_blocks, ost_index );
-
-                snprintf(status_str, 1024, "No list available (%lu blocks need to be released in OST #%u)",
-                         purge_param.nb_blocks, ost_index );
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
 
@@ -1992,6 +2007,12 @@ static void   *trigger_check_thr( void *thr_arg )
         /* check every trigger */
         for ( i = 0; i < resmon_config.trigger_count; i++ )
         {
+            if (terminate)
+            {
+                DisplayLog( LVL_MAJOR, RESMON_TAG, "Stop requested: aborting trigger check" );
+                break;
+            }
+
             if ( time( NULL ) - trigger_status_list[i].last_check >=
                  resmon_config.trigger_list[i].check_interval )
             {
@@ -2054,7 +2075,7 @@ static void   *trigger_check_thr( void *thr_arg )
             DisplayLog( LVL_CRIT, RESMON_TAG,
                         "Error updating value of " USAGE_MAX_VAR " variable (value = %s)", tmpstr );
 
-        if ( module_args.mode == RESMON_DAEMON )
+        if ( (module_args.mode == RESMON_DAEMON) && !terminate )
             rh_sleep( trigger_check_interval );
         else
         {
@@ -2063,8 +2084,7 @@ static void   *trigger_check_thr( void *thr_arg )
             return NULL;
         }
 
-    }
-    while ( 1 );
+    } while ( 1 );
 
     return NULL;
 
@@ -2202,12 +2222,44 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
 }
 
 
-int Wait_ResourceMonitor(  )
+static int volatile waiting = 0;
+
+int Wait_ResourceMonitor( int abort )
 {
     void          *returned;
-    if ( trigger_check_thread_id != -1 )
-        pthread_join( trigger_check_thread_id, &returned );
-    return 0;
+    int rc = 0;
+
+    if ( abort )
+    {
+        terminate = TRUE;
+        abort_purge();
+    }
+
+    /* /!\ pb: 2 threads cannot join the same other thread.
+     * In one shot mode, the main thread is already waiting
+     * for purge to end. Thus, the signal manager thread
+     * gets an error when trying to join it after abort.
+     */
+    if (!waiting )
+    {
+        /* no lock here, we consider the sigterm is not simultaneous with module start */
+        if ( trigger_check_thread_id != -1 )
+        {
+            waiting = 1;
+            rc = pthread_join( trigger_check_thread_id, &returned );
+            if ( rc != 0 )
+                DisplayLog( LVL_MAJOR, RESMON_TAG, "pthread_join() returned error %d", rc );
+            else
+                waiting = 0;
+        }
+    }
+    else
+    {
+        /* the second thread that needs to join polls the 'waiting' variable */
+        while (waiting)
+            rh_sleep(1);
+    }
+    return rc;
 }
 
 
@@ -2274,6 +2326,13 @@ void Dump_ResourceMonitor_Stats(  )
                           localtime_r( &trigger_status_list[i].last_check, &paramtm ) );
                 DisplayLog( LVL_MAJOR, "STATS", "%-30s: an error occured at last check (%s).",
                             trigstr, tmp_buff );
+                break;
+
+            case TRIG_ABORTED:     /*  */
+                strftime( tmp_buff, 256, "%Y/%m/%d %T",
+                          localtime_r( &trigger_status_list[i].last_check, &paramtm ) );
+                DisplayLog( LVL_MAJOR, "STATS", "%-30s: aborted during last check (%s)", trigstr,
+                            tmp_buff );
                 break;
 
             case TRIG_UNSUPPORTED:     /* Trigger not supported in this mode */

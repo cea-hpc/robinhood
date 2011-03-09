@@ -520,7 +520,6 @@ static void   *signal_handler_thr( void *arg )
 
         if ( terminate_sig != 0 )
         {
-
             if ( terminate_sig == SIGTERM )
                 DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGTERM received: performing clean daemon shutdown" );
             else if ( terminate_sig == SIGINT )
@@ -553,11 +552,21 @@ static void   *signal_handler_thr( void *arg )
 #ifdef HAVE_MIGR_POLICY
             if ( action_mask & ACTION_MASK_MIGRATE )
             {
-                /* stop FS scan */
+                /* abort migration */
                 Wait_Migration( TRUE );
                 FlushLogs(  );
             }
 #endif
+
+#ifdef HAVE_PURGE_POLICY
+            if ( action_mask & ACTION_MASK_PURGE )
+            {
+                /* abort purge */
+                Wait_ResourceMonitor( TRUE );
+                FlushLogs(  );
+            }
+#endif
+
 
 #ifdef _BACKUP_FS
             Backend_Stop();
@@ -1373,7 +1382,7 @@ int main( int argc, char **argv )
             if ( once )
             {
                 currently_running_mask = MODULE_MASK_RES_MONITOR;
-                Wait_ResourceMonitor(  );
+                Wait_ResourceMonitor( FALSE );
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "ResourceMonitor terminated its task" );
             }
         }

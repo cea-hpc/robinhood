@@ -633,7 +633,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
             if ( migr_abort )
             {
-                DisplayLog( LVL_MAJOR, MIGR_TAG, "Migration aborted, stop submitting "
+                DisplayLog( LVL_MAJOR, MIGR_TAG, "Migration aborted, stop enqueuing "
                             "file migration requests." );
                 end_of_list = TRUE;
                 break;
