@@ -38,6 +38,7 @@ typedef enum
     PURGE_PARTIAL_MD,           /* entry metadata was incomplete */
     PURGE_STAT_FAILURE,         /* stat failure */
     PURGE_ERROR,                /* unlink failed */
+    PURGE_ABORT,                /* purge aborted by termination signal */
 
     PURGE_ST_COUNT              /* last status index */
 } purge_status_t;
@@ -56,7 +57,8 @@ static const char __attribute__(( __unused__ )) *purge_status_descr[PURGE_ST_COU
     "no matching policy",
     "incomplete metadata",
     "stat failure",
-    "purge error"
+    "purge error",
+    "purge aborted"
 };
 
 
@@ -99,11 +101,13 @@ typedef struct purge_param__
 } purge_param_t;
 
 
-int            perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
+int  perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                               unsigned long long *p_nb_purged,
                               unsigned long long *p_nb_specific );
 
+void abort_purge();
 
-int            start_purge_threads( unsigned int nb_threads );
+
+int  start_purge_threads( unsigned int nb_threads );
 
 #endif

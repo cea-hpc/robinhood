@@ -49,7 +49,7 @@ static migr_opt_t module_args = {
 static int     terminate = FALSE;
 
 static time_t  last_migration_check = 0;
-static pthread_t main_thread_id;
+static pthread_t main_thread_id = -1;
 static lmgr_t  lmgr;
 static dev_t   fsdev = 0;
 
@@ -356,7 +356,7 @@ static int volatile waiting = 0;
 int Wait_Migration( int abort )
 {
     void          *returned;
-    int rc;
+    int rc = 0;
 
     if ( abort )
     {
@@ -372,19 +372,21 @@ int Wait_Migration( int abort )
     if (!waiting )
     {
         /* no lock here, we consider the sigterm is not simultaneous with module start */
-        waiting = 1;
-        rc = pthread_join( main_thread_id, &returned );
-        if ( rc != 0 )
-            DisplayLog( LVL_MAJOR, MIGR_TAG, "pthread_join() returned error %d", rc );
-        else
-            waiting = 0;
+        if ( main_thread_id != -1 )
+        {
+            waiting = 1;
+            rc = pthread_join( main_thread_id, &returned );
+            if ( rc != 0 )
+                DisplayLog( LVL_MAJOR, MIGR_TAG, "pthread_join() returned error %d", rc );
+            else
+                waiting = 0;
+        }
     }
     else
     {
         /* the second thread that needs to join polls the 'waiting' variable */
         while (waiting)
             rh_sleep(1);
-        rc = 0;
     }
     return rc;
 }
