@@ -80,7 +80,7 @@ typedef struct trigger_status__
 static trigger_info_t *trigger_status_list = NULL;
 static time_t  trigger_check_interval = 1;
 
-static pthread_t trigger_check_thread_id = -1;
+static pthread_t trigger_check_thread_id = (pthread_t)-1;
 static lmgr_t  lmgr;
 
 static int terminate = FALSE;
@@ -2329,7 +2329,7 @@ int Wait_ResourceMonitor( int abort )
     if (!waiting )
     {
         /* no lock here, we consider the sigterm is not simultaneous with module start */
-        if ( trigger_check_thread_id != -1 )
+        if ( trigger_check_thread_id != ((pthread_t)-1) )
         {
             waiting = 1;
             rc = pthread_join( trigger_check_thread_id, &returned );

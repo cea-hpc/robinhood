@@ -49,7 +49,7 @@ static migr_opt_t module_args = {
 static int     terminate = FALSE;
 
 static time_t  last_migration_check = 0;
-static pthread_t main_thread_id = -1;
+static pthread_t main_thread_id = (pthread_t)-1;
 static lmgr_t  lmgr;
 static dev_t   fsdev = 0;
 
@@ -372,7 +372,7 @@ int Wait_Migration( int abort )
     if (!waiting )
     {
         /* no lock here, we consider the sigterm is not simultaneous with module start */
-        if ( main_thread_id != -1 )
+        if ( main_thread_id != ((pthread_t)-1) )
         {
             waiting = 1;
             rc = pthread_join( main_thread_id, &returned );
