@@ -121,7 +121,7 @@ typedef enum operation_type_t
  * @param struct entry_proc_op_t * : the structure associated to the entry
  * @param void * : InfoCollector specific parameter
  */
-typedef int    ( *callback_func_t ) ( struct entry_proc_op_t *, void * );
+typedef int    ( *callback_func_t ) ( lmgr_t *, struct entry_proc_op_t *, void * );
 
 /**
  * function prototype for freeing  extra_info

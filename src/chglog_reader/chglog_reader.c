@@ -126,7 +126,7 @@ void free_extra_info( void * ptr )
  * DB callback function: this is called when a given ChangeLog record
  * has been successfully applied to the database.
  */
-int log_record_callback( struct entry_proc_op_t * pop, void * param )
+int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void * param )
 {
     int rc;
     const char * mount_point = get_mount_point();

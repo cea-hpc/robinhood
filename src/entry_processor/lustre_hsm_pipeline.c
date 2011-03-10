@@ -1028,7 +1028,7 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
     if ( p_op->callback_func )
     {
         /* if operation was commited, Perform callback to info collector */
-        rc = p_op->callback_func( p_op, p_op->callback_param );
+        rc = p_op->callback_func( lmgr, p_op, p_op->callback_param );
 
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing callback at stage %s.", rc,
@@ -1074,7 +1074,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     else if ( p_op->callback_func )
     {
         /* Perform callback to info collector */
-        p_op->callback_func( p_op, p_op->callback_param );
+        p_op->callback_func( lmgr, p_op, p_op->callback_param );
     }
 
     /* also update the LastScan variable */

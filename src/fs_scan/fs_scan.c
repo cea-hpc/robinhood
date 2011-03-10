@@ -134,7 +134,7 @@ static void wait_for_db_callback(  )
     V( special_db_op_lock );
 }
 
-static int db_special_op_callback( struct entry_proc_op_t *p_op, void *arg )
+static int db_special_op_callback( lmgr_t *lmgr, struct entry_proc_op_t *p_op, void *arg )
 {
     DisplayLog( LVL_VERB, FSSCAN_TAG, "Callback from database for operation '%s'", ( char * ) arg );
 
