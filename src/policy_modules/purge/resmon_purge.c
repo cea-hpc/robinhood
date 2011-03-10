@@ -39,6 +39,8 @@
 resource_monitor_config_t resmon_config;
 static int resmon_flags = 0;
 
+static int purge_abort = FALSE;
+
 #define ignore_policies (resmon_flags & FLAG_IGNORE_POL)
 #define dry_run (resmon_flags & FLAG_DRY_RUN)
 
@@ -589,7 +591,14 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
             memset( &entry_id, 0, sizeof( entry_id_t ) );
             rc = ListMgr_GetNext( it, &entry_id, &attr_set );
 
-            if ( rc == DB_END_OF_LIST )
+            if ( purge_abort )
+            {
+                DisplayLog( LVL_MAJOR, PURGE_TAG, "Purge aborted, stop enqueuing "
+                            "purge requests." );
+                rc = DB_END_OF_LIST;
+                break;
+            }
+            else if ( rc == DB_END_OF_LIST )
             {
                 total_returned += nb_returned; 
 
@@ -724,7 +733,6 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         /* if getnext returned an error */
         if ( rc )
             break;
-
     }
     while ( ( !end_of_list ) &&
             ( (purged_amount < target) || (target_type == TGT_ALL) ));
@@ -737,7 +745,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     if ( p_nb_specific )
         *p_nb_specific = purged_amount;
 
-    return 0;
+    return (purge_abort?ECANCELED:0);
 }
 
 #ifndef _HAVE_FID               /* if entries are accessed by FID, we can always get their status */
@@ -1001,6 +1009,15 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
                                feedback[PURGE_SPECIFIC_COUNT] = _fdbk2;  \
                                Queue_Acknowledge( _q, _status, feedback, PURGE_FDBK_COUNT ); \
                             } while(0)
+
+    if ( purge_abort )
+    {
+       /* migration aborted by a signal, doesn't submit new migrations */
+       DisplayLog( LVL_FULL, PURGE_TAG, "Purge aborted: threads skipping purge requests" );
+       Acknowledge( &purge_queue, PURGE_ABORT, 0, 0 );
+       rc = PURGE_ABORT;
+       goto end;
+    }
 
     DisplayLog( LVL_FULL, PURGE_TAG,
                 "Checking if entry %s can be released", ATTR( &p_item->entry_attr, fullpath ) );
@@ -1399,6 +1416,11 @@ int start_purge_threads( unsigned int nb_threads )
             return rc;
         }
     }
-
     return 0;
 }
+
+void abort_purge()
+{
+    purge_abort = TRUE;
+}
+
