@@ -249,6 +249,8 @@ AC_SUBST(PURPOSE_SVC)
 AC_DEFINE_UNQUOTED([PURPOSE_EXT],"$PURPOSE_EXT", [Directory extension for the given usage])
 
 
+CFLAGS="$CFLAGS -I\$(top_srcdir)/src/include"
+
 # Db ?
 
 AC_ARG_WITH( [db], AS_HELP_STRING([--with-db=MYSQL|SQLITE (default=MYSQL)],[type of database engine] ),

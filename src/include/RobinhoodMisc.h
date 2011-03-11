@@ -257,6 +257,13 @@ unsigned int   gcd( unsigned int x, unsigned int y );
  */
 void rh_sleep( unsigned int seconds );
 
+/**
+ * Interuptible sleep.
+ * returns when _v != 0.
+ */
+#define rh_intr_sleep( _s, _v ) do { unsigned int _i; for (_i=0; (_i<_s) && !(_v); _i++) rh_sleep(1); } while(0)
+
+
 #define rh_usleep(_usec) usleep(_usec)
 
 /** replace a pattern in a string with another sub-string
