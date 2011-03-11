@@ -80,7 +80,7 @@ typedef struct trigger_status__
 static trigger_info_t *trigger_status_list = NULL;
 static time_t  trigger_check_interval = 1;
 
-static pthread_t trigger_check_thread_id = -1;
+static pthread_t trigger_check_thread_id = (pthread_t)-1;
 static lmgr_t  lmgr;
 
 static int terminate = FALSE;
@@ -207,12 +207,12 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
         FormatFileSize( tmp2, 128, p_trigger->hw_volume );
 
         /* compare used volume to threshold */
-        DisplayLog( LVL_EVENT, RESMON_TAG, "%s usage: %s / high watermark: %s", storage_descr,
+        DisplayLog( LVL_VERB, RESMON_TAG, "%s usage: %s / high watermark: %s", storage_descr,
                     tmp1, tmp2 );
 
         if ( used_vol < p_trigger->hw_volume )
         {
-            DisplayLog( LVL_VERB, RESMON_TAG,
+            DisplayLog( LVL_DEBUG, RESMON_TAG,
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
         }
@@ -223,20 +223,26 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
            RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high watermark: %s",
                        buff, tmp1, used_pct, tmp2 );
         }
+        else
+        {
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "High watermark reached on %s (%s): "
+                        "spaced used: %s (%.2f%%), high watermark: %s",
+                        storage_descr, global_config.fs_path, tmp1, used_pct, tmp2 );
+        }
     }
     else if ( p_trigger->hw_type == PCT_THRESHOLD )
     {
         unsigned long  used_hw =
             ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
 
-        DisplayLog( LVL_EVENT, RESMON_TAG,
+        DisplayLog( LVL_VERB, RESMON_TAG,
                     "%s usage: %.2f%% (%"PRIu64" blocks) / high watermark: %.2f%% (%lu blocks)",
                     storage_descr, used_pct, p_statfs->f_blocks - p_statfs->f_bfree,
                     p_trigger->hw_percent, used_hw );
 
         if ( used_pct < p_trigger->hw_percent )
         {
-            DisplayLog( LVL_VERB, RESMON_TAG,
+            DisplayLog( LVL_DEBUG, RESMON_TAG,
                         "%s usage is under high watermark: nothing to do.", storage_descr );
             return 0;
         }
@@ -247,6 +253,12 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
                      storage_descr, global_config.fs_path );
            RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high watermark: %.2f%%",
                        buff, tmp1, used_pct, p_trigger->hw_percent );
+        }
+        else
+        {
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "High watermark reached on %s (%s): "
+                        "spaced used: %s (%.2f%%), high watermark: %.2f%%",
+                        storage_descr, global_config.fs_path,  tmp1, used_pct, p_trigger->hw_percent );
         }
     }
 
@@ -2161,17 +2173,22 @@ static void   *trigger_check_thr( void *thr_arg )
             DisplayLog( LVL_CRIT, RESMON_TAG,
                         "Error updating value of " USAGE_MAX_VAR " variable (value = %s)", tmpstr );
 
+        DisplayLog( LVL_EVENT, RESMON_TAG, "Current usage max is %.2f%%", max_usage );
+
         if ( (module_args.mode == RESMON_DAEMON) && !terminate )
-            rh_sleep( trigger_check_interval );
-        else
         {
-            ListMgr_CloseAccess( &lmgr );
-            pthread_exit( NULL );
-            return NULL;
+            rh_intr_sleep( trigger_check_interval, terminate );
+            if (terminate)
+                goto out;
         }
+        else
+            goto out;
 
     } while ( 1 );
 
+out:
+    ListMgr_CloseAccess( &lmgr );
+    pthread_exit( NULL );
     return NULL;
 
 }
@@ -2329,7 +2346,7 @@ int Wait_ResourceMonitor( int abort )
     if (!waiting )
     {
         /* no lock here, we consider the sigterm is not simultaneous with module start */
-        if ( trigger_check_thread_id != -1 )
+        if ( trigger_check_thread_id != ((pthread_t)-1) )
         {
             waiting = 1;
             rc = pthread_join( trigger_check_thread_id, &returned );

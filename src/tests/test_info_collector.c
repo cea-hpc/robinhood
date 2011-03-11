@@ -169,7 +169,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
     if ( p_op->callback_func )
-        p_op->callback_func( p_op, p_op->callback_param );
+        p_op->callback_func( lmgr, p_op, p_op->callback_param );
 
     /* acknoledge */
     rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
@@ -218,7 +218,7 @@ int EntryProc_db_flag_op( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         printf( "ERROR: ListMgr mass operation returned %d\n", rc );
 
     if ( p_op->callback_func )
-        p_op->callback_func( p_op, p_op->callback_param );
+        p_op->callback_func( lmgr, p_op, p_op->callback_param );
 
     rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
 
