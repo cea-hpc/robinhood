@@ -250,7 +250,9 @@ static void   *migration_thr( void *thr_arg )
         if ( !terminate && ( module_args.mode == MIGR_DAEMON ) )
         {
             migr_state = MS_SLEEPING;
-            rh_sleep( migr_config.runtime_interval );
+            rh_intr_sleep( migr_config.runtime_interval, terminate );
+            if (terminate)
+                break;
 
             /* cancel old migrations */
             DisplayLog( LVL_EVENT, MIGR_TAG, "Checking migration timeouts..." );
