@@ -275,6 +275,8 @@ case $DB in
 
         if test "$MYSQL_VERSION" = "5" ; then
             DB_CFLAGS="$DB_CFLAGS -D_MYSQL5"
+        else
+            AC_MSG_WARN([MySQL version is too old (<5), optimized accounting won't be supported.])
         fi
         ;;
 

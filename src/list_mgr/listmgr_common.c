@@ -86,14 +86,23 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 #define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
                                 ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
                                 ( ( _t == T_RECOV ) && is_recov_field( _i ) ) || \
-                                ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ))
+                                ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ) || \
+                                ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
+                                ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
 
 #elif defined( HAVE_RM_POLICY ) 
 #define MATCH_TABLE( _t, _i )   ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
                                 ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
-                                ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ))
+                                ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ) || \
+                                ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
+                                ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
+
 #else
-#define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) )
+#define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
+                                ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
+                                ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
+                                ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
+
 #endif
 
 /* precomputed masks for testing attr sets efficiently */
@@ -102,8 +111,10 @@ int            annex_attr_set = 0;
 int            stripe_attr_set = 0;
 int            readonly_attr_set = 0;
 int            gen_attr_set = 0;
+int            acct_attr_set = 0;
+int            acct_pk_attr_set = 0;
 
-void init_attrset_masks(  )
+void init_attrset_masks( const lmgr_config_t *lmgr_config )
 {
     int            i;
     int            mask = 1;
@@ -113,6 +124,14 @@ void init_attrset_masks(  )
     gen_attr_set = 0;
     stripe_attr_set = 0;
     readonly_attr_set = 0;
+    acct_pk_attr_set = 0;
+    acct_attr_set = 0;
+
+    if ( lmgr_config->user_acct )
+        acct_pk_attr_set |= ATTR_MASK_owner;
+    if ( lmgr_config->group_acct )
+        acct_pk_attr_set |= ATTR_MASK_gr_name;
+    acct_attr_set = ATTR_MASK_size | ATTR_MASK_blocks ;
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
@@ -249,11 +268,14 @@ int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask )
 
 
 /**
- * @param table T_MAIN, T_ANNEX
+ * @param table T_MAIN, T_ANNEX, T_ACCT
+ * @param prefif
+ * @param postfix
+ * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_coma,
-                        int for_update )
+int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_comma,
+                        int for_update, char *prefix, char *postfix )
 {
     int            i;
     char          *fields_curr = str;
@@ -278,15 +300,15 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
                             __FILE__, __FUNCTION__, field_infos[i].field_name );
                 return -DB_READ_ONLY_ATTR;
             }
- 
+
             if ( MATCH_TABLE( table, i ) )
             {
-                if ( !leading_coma && ( nbfields == 0 ) )
+                if ( !leading_comma && ( nbfields == 0 ) )
                     fields_curr +=
-                        sprintf( fields_curr, "%s%s", field_infos[i].field_name, for_update_str );
+                        sprintf( fields_curr, "%s%s%s%s", prefix, field_infos[i].field_name, for_update_str, postfix );
                 else
                     fields_curr +=
-                        sprintf( fields_curr, ",%s%s", field_infos[i].field_name, for_update_str );
+                        sprintf( fields_curr, ", %s%s%s%s", prefix, field_infos[i].field_name, for_update_str, postfix );
                 nbfields++;
             }
         }
@@ -295,6 +317,50 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
 
 }
 
+/**
+ * Generate operation like incrementation or decrementation on fields.
+ * @param str 
+ * @param attr_mask
+ * @param table T_MAIN, T_ANNEX, T_ACCT
+ * @param prefix
+ * @param myoperator
+ * @return nbr of fields
+ */
+int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix, operation_type operation )
+{
+    int i;
+    int mask = 1;
+    unsigned int  nbfields = 0;
+    char *fields_curr = str;
+    char operator;
+
+    if ( operation == ADD )
+        operator = '+';
+    else if ( operation == SUBSTRACT )
+        operator = '-';
+    else
+        operator = ' ';
+
+    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+    {
+        if ( attr_mask & mask )
+        {
+            if ( MATCH_TABLE( table, i ) )
+            {
+                if ( nbfields == 0 )
+                    fields_curr += 
+                        sprintf( fields_curr, "%s=%s%c%s%s ", field_infos[i].field_name,
+                                ( operation == COMPARE ) ? "" : field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
+                else
+                    fields_curr += 
+                        sprintf( fields_curr, "%s %s=%s%c%s%s ", ( operation == COMPARE) ? " AND" : ",", field_infos[i].field_name,
+                                ( operation == COMPARE ) ? "" : field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
+                nbfields++;
+            }
+        }
+    }
+    return nbfields;
+}
 
 
 

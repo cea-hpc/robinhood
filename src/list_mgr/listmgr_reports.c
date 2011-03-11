@@ -228,7 +228,6 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
                              compar2str( report_desc_array[i].filter_compar ), attrstring );
             }
         }
-
     }
 
     /* filter */

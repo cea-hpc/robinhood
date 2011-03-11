@@ -177,7 +177,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
             /* build the request */
             field_count =
                 attrmask2fieldlist( fields, main_fields( p_info->attr_mask ), T_MAIN, FALSE,
-                                    FALSE );
+                                    FALSE, "", "" );
             if ( field_count < 0 )
                 return -field_count;
 
@@ -274,7 +274,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
             /* build the request */
             field_count =
                 attrmask2fieldlist( fields, annex_fields( p_info->attr_mask ), T_ANNEX, FALSE,
-                                    FALSE );
+                                    FALSE, "", "" );
             if ( field_count < 0 )
                 return -field_count;
 
@@ -396,7 +396,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     add_source_fields_for_gen( &p_info->attr_mask );
 
     /* get info from main table (if asked) */
-    count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_MAIN, FALSE, FALSE );
+    count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_MAIN, FALSE, FALSE, "", "" );
     if ( count < 0 )
         return -count;
 
@@ -426,7 +426,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     if ( annex_table )
     {
         /* get annex info (if asked) */
-        count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_ANNEX, FALSE, FALSE );
+        count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_ANNEX, FALSE, FALSE, "", "" );
         if ( count < 0 )
             return -count;
 

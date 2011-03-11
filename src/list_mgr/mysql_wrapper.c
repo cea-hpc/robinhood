@@ -762,7 +762,7 @@ int db_drop_trigger( db_conn_t * conn, const char *name )
 #ifdef _MYSQL5
     
     char query[1024];
-    sprintf( query, "DROP TRIGGER IF EXISTS %s; ", name );
+    sprintf( query, "DROP TRIGGER IF EXISTS %s ", name );
     return _db_exec_sql( conn, query, NULL, FALSE );
 
 #else
@@ -780,8 +780,8 @@ int db_create_trigger( db_conn_t * conn, const char *name, const char *event,
 {
 #ifdef _MYSQL5
 
-    char query[1024];
-    sprintf( query, "CREATE TRIGGER %s %s ON %s FOR EACH ROW"
+    char query[4096];
+    sprintf( query, "CREATE TRIGGER %s %s ON %s FOR EACH ROW "
                     "BEGIN %s END", name, event, table, body );
     return _db_exec_sql( conn, query, NULL, FALSE );
 

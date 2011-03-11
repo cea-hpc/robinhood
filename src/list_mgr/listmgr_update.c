@@ -82,7 +82,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
             /* build the request */
             field_count =
                 attrmask2fieldlist( fields, main_fields( p_update_set->attr_mask ), T_MAIN, FALSE,
-                                    TRUE );
+                                    TRUE, "", "" );
             sprintf( query, "UPDATE " MAIN_TABLE " SET %s WHERE id=?", fields );
 
 #ifdef _DEBUG_DB
@@ -149,7 +149,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
             /* build the request */
             field_count =
                 attrmask2fieldlist( fields, annex_fields( p_update_set->attr_mask ), T_ANNEX, FALSE,
-                                    TRUE );
+                                    TRUE, "", "" );
             sprintf( query, "UPDATE " ANNEX_TABLE " SET %s WHERE id=?", fields );
 
 #ifdef _DEBUG_DB
