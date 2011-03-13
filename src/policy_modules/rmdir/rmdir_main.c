@@ -1126,7 +1126,7 @@ static void   *Thr_Rmdir( void *arg )
                       i++ )
                 {
                     if ( EntryMatches( &p_item->entry_id, &new_attr_set,
-                                       &policies.rmdir_policy.recursive_rmdir_rules[i].bool_expr )
+                            &policies.rmdir_policy.recursive_rmdir_rules[i].bool_expr, NULL )
                             == POLICY_MATCH )
                     {
                          match = TRUE;

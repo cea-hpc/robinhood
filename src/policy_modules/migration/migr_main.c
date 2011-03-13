@@ -95,6 +95,60 @@ static int CheckFSDevice(  )
     return TRUE;
 }
 
+/**
+ * @return boolean to indicate if we are in a maintenance window.
+ */
+static int check_maintenance_mode(policy_modifier_t * p_mod)
+{
+    struct tm dt;
+    time_t  next_maint, now;
+    char    varstr[128];
+    char    datestr[128];
+    char    leftstr[128];
+
+    if (migr_config.pre_maintenance_window == 0)
+        return FALSE;
+
+    /* check maintenance mod */
+    if ( (ListMgr_GetVar( &lmgr, NEXT_MAINT_VAR, varstr ) != DB_SUCCESS)
+         || EMPTY_STRING(varstr) )
+        return FALSE;
+
+    next_maint = str2int(varstr);
+    if (next_maint <= 0) /* invalid value, or disabled */
+        return FALSE;
+
+    /* build maintenance date */
+    strftime( datestr, 128, "%Y/%m/%d %T", localtime_r( &next_maint, &dt ) );
+
+    now = time(NULL);
+    if (next_maint < now)
+    {
+        DisplayLog( LVL_DEBUG, MIGR_TAG, "Maintenance time is in the past (%s): no policy modifier", datestr);
+        return FALSE;
+    }
+    else if (now < next_maint - migr_config.pre_maintenance_window)
+    {
+        FormatDuration( leftstr, 128, next_maint - migr_config.pre_maintenance_window - now );
+
+        DisplayLog( LVL_VERB, MIGR_TAG, "Maintenance time is set (%s): maintenance window will start in %s",
+                    datestr, leftstr );
+        return FALSE;
+    }
+    else /* this is the pre maintenance window! */
+    {
+        /* linear function to compute time modifier */
+        p_mod->time_factor = ((double)(next_maint - now)) / (double) migr_config.pre_maintenance_window;
+        p_mod->time_min = migr_config.maint_min_migr_delay;
+
+        FormatDuration( leftstr, 128, next_maint - now );
+
+        DisplayLog( LVL_MAJOR, MIGR_TAG, "Currently in maintenance mode (maintenance is in %s): time modifier = %.2f%%",
+                    leftstr, 100.0 * p_mod->time_factor );
+        return TRUE;
+    }
+}
+
 
 static int start_migration_pass(  )
 {
@@ -102,6 +156,7 @@ static int start_migration_pass(  )
     char           tmpstr[128];
     char           varstr[512];
     migr_param_t   param;
+    policy_modifier_t pol_mod;
     unsigned int   nb_files = 0;
     unsigned long long vol = 0;
     const char * action_str;
@@ -111,6 +166,11 @@ static int start_migration_pass(  )
         return ENXIO;
 
     param.flags = module_args.flags;
+
+    if (check_maintenance_mode(&pol_mod))
+        param.policy_mod = &pol_mod;
+    else
+        param.policy_mod = NULL;
 
     /* build migration param from module args */
     switch ( module_args.mode )

@@ -41,11 +41,11 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
     conf->backup_new_files = TRUE;
 #endif
     conf->check_copy_status_on_startup = TRUE;
-    conf->check_copy_status_delay = 30*60; /* 30 min */
-    conf->migration_timeout = 2*3600; /* cancel migration pass after 2h of inactivity */
+    conf->check_copy_status_delay = 30 * 60; /* 30 min */
+    conf->migration_timeout = 2 * 3600; /* cancel migration pass after 2h of inactivity */
 
-    conf->pre_maintenance_window = 24*3600; /* 24h */
-    conf->min_migr_delay = 30*60; /* 30 min */
+    conf->pre_maintenance_window = 24 * 3600; /* 24h */
+    conf->maint_min_migr_delay = 30 * 60; /* 30 min */
 
     return 0;
 }
@@ -58,7 +58,7 @@ int Write_Migration_ConfigDefault( FILE * output )
     print_line( output, 1, "max_migration_volume  : unlimited (0)" );
     print_line( output, 1, "migration_timeout     : 2h" );
     print_line( output, 1, "pre_maintenance_window: 24h" );
-    print_line( output, 1, "migration_delay_min   : 30min" );
+    print_line( output, 1, "maint_migr_delay_min  : 30min" );
 
 #if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
     print_line( output, 1, "backup_new_files      : TRUE" );
@@ -108,15 +108,15 @@ int Write_Migration_ConfigTemplate( FILE * output )
     print_line( output, 1, "check_copy_status_delay = 1h ;" );
     fprintf( output, "\n" );
     print_line( output, 1, "# number of threads for issuing migration requests" );
-    print_line( output, 1, "nb_threads_migration  = 4 ;" );
+    print_line( output, 1, "nb_threads_migration   = 4 ;" );
     fprintf( output, "\n" );
     print_line( output, 1, "# pre-maintenance mode parameters" );
-    print_line( output, 1, "pre_maintenance_window: 24h" );
-    print_line( output, 1, "migration_delay_min   : 30min" );
+    print_line( output, 1, "pre_maintenance_window = 24h ;" );
+    print_line( output, 1, "maint_migr_delay_min   = 30min ;" );
     fprintf( output, "\n" );
     print_line( output, 1, "# internal/tuning parameters" );
-    print_line( output, 1, "migration_queue_size  = 4096 ;" );
-    print_line( output, 1, "db_result_size_max    = 10000 ;" );
+    print_line( output, 1, "migration_queue_size   = 4096 ;" );
+    print_line( output, 1, "db_result_size_max     = 10000 ;" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -144,7 +144,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
 #endif
         "check_copy_status_on_startup", "check_copy_status_delay", "migration_timeout",
         "nb_threads_migration", "migration_queue_size", "db_result_size_max",
-        "pre_maintenance_window", "migration_delay_min",
+        "pre_maintenance_window", "maint_migr_delay_min",
         NULL
     };
 
@@ -170,7 +170,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
                            INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, &intval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
-    else
+    else if ( rc != ENOENT )
         conf->runtime_interval = intval;
 
     rc = GetIntParam( param_block, MIGR_PARAM_BLOCK, "max_migration_count",
@@ -187,7 +187,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
                            INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, &intval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
-    else
+    else if ( rc != ENOENT)
         conf->migration_timeout = intval;
 
 #if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
@@ -210,7 +210,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
                            INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, &intval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
-    else
+    else if ( rc != ENOENT )
         conf->check_copy_status_delay = intval;
 
     rc = GetBoolParam( param_block, MIGR_PARAM_BLOCK, "simulation_mode",
@@ -239,15 +239,15 @@ int Read_Migration_Config( config_file_t config, void *module_config,
                            INT_PARAM_POSITIVE, &intval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
-    else
+    else if ( rc != ENOENT )
         conf->pre_maintenance_window = intval;
 
-    rc = GetDurationParam( param_block, MIGR_PARAM_BLOCK, "migration_delay_min",
+    rc = GetDurationParam( param_block, MIGR_PARAM_BLOCK, "maint_migr_delay_min",
                            INT_PARAM_POSITIVE, &intval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
-    else
-        conf->min_migr_delay = intval;
+    else  if ( rc != ENOENT )
+        conf->maint_min_migr_delay = intval;
 
     CheckUnknownParameters( param_block, MIGR_PARAM_BLOCK, migr_allowed );
 
@@ -350,13 +350,13 @@ int Reload_Migration_Config( void *module_config )
         migr_config.pre_maintenance_window = conf->pre_maintenance_window;
     }
 
-    if ( migr_config.min_migr_delay != conf->min_migr_delay )
+    if ( migr_config.maint_min_migr_delay != conf->maint_min_migr_delay )
     {
         DisplayLog( LVL_EVENT, MIGRCFG_TAG, MIGR_PARAM_BLOCK
-                    "::migration_delay_min updated: %u->%u",
-                    ( unsigned int ) migr_config.min_migr_delay,
-                    ( unsigned int ) conf->min_migr_delay );
-        migr_config.min_migr_delay = conf->min_migr_delay;
+                    "::maint_migr_delay_min updated: %u->%u",
+                    ( unsigned int ) migr_config.maint_min_migr_delay,
+                    ( unsigned int ) conf->maint_min_migr_delay );
+        migr_config.maint_min_migr_delay = conf->maint_min_migr_delay;
     }
 
 

@@ -439,10 +439,30 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
 }
 
 
+static inline time_t time_modify( time_t orig, const policy_modifier_t *p_pol_mod )
+{
+    time_t newtime;
+    if (!p_pol_mod) /* no modifier */
+        return orig;
+
+    /* if orig is already under time_min, keep it */
+    if (orig <= p_pol_mod->time_min)
+        return orig; 
+
+    newtime = orig * p_pol_mod->time_factor;
+    if (newtime < p_pol_mod->time_min)
+        newtime =  p_pol_mod->time_min;
+
+    DisplayLog( LVL_FULL, POLICY_TAG, "Policy modifier enabled: time condition changed: %u -> %u",
+                (unsigned int)orig, (unsigned int)newtime );
+    return newtime;
+}
+
 
 static policy_match_t eval_condition( const entry_id_t * p_entry_id,
                                       const attr_set_t * p_entry_attr,
                                       const compare_triplet_t * p_triplet,
+                                      const policy_modifier_t *p_pol_mod,
                                       int no_warning )
 {
     char           tmpbuff[RBH_PATH_MAX];
@@ -570,7 +590,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         CHECK_ATTR( p_entry_attr, last_access, no_warning );
 
         rc = int_compare( time( NULL ) - ATTR( p_entry_attr, last_access ), p_triplet->op,
-                          p_triplet->val.duration );
+                          time_modify(p_triplet->val.duration, p_pol_mod) );
         return BOOL2POLICY( rc );
 
     case CRITERIA_LAST_MOD:
@@ -579,7 +599,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         CHECK_ATTR( p_entry_attr, last_mod, no_warning );
 
         rc = int_compare( time( NULL ) - ATTR( p_entry_attr, last_mod ), p_triplet->op,
-                          p_triplet->val.duration );
+                          time_modify(p_triplet->val.duration, p_pol_mod) );
         return BOOL2POLICY( rc );
 
 #ifdef ATTR_INDEX_last_archive
@@ -588,7 +608,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         CHECK_ATTR( p_entry_attr, last_archive, no_warning );
 
         rc = int_compare( time( NULL ) - ATTR( p_entry_attr, last_archive ), p_triplet->op,
-                          p_triplet->val.duration );
+                          time_modify(p_triplet->val.duration, p_pol_mod) );
         return BOOL2POLICY( rc );
 
         break;
@@ -600,7 +620,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         CHECK_ATTR( p_entry_attr, last_restore, no_warning );
 
         rc = int_compare( time( NULL ) - ATTR( p_entry_attr, last_restore ), p_triplet->op,
-                          p_triplet->val.duration );
+                          time_modify(p_triplet->val.duration, p_pol_mod) );
         return BOOL2POLICY( rc );
 
         break;
@@ -752,7 +772,8 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 
 /* function for testing a boolean expression on a given entry */
 static policy_match_t _EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr,
-                                     bool_node_t * p_node, int no_warning ) 
+                                     bool_node_t * p_node, const policy_modifier_t * p_pol_mod,
+                                     int no_warning ) 
 {
     policy_match_t rc;
 
@@ -767,7 +788,9 @@ static policy_match_t _EntryMatches( const entry_id_t * p_entry_id, const attr_s
         if ( p_node->content_u.bool_expr.bool_op != BOOL_NOT )
             return POLICY_ERR;
 
-        rc = _EntryMatches( p_entry_id, p_entry_attr, p_node->content_u.bool_expr.expr1, no_warning );
+        rc = _EntryMatches( p_entry_id, p_entry_attr,
+                            p_node->content_u.bool_expr.expr1, p_pol_mod,
+                            no_warning );
 
         if ( rc == POLICY_MATCH )
             return POLICY_NO_MATCH;
@@ -780,7 +803,9 @@ static policy_match_t _EntryMatches( const entry_id_t * p_entry_id, const attr_s
 
     case NODE_BINARY_EXPR:
         /* always test the first expression */
-        rc = _EntryMatches( p_entry_id, p_entry_attr, p_node->content_u.bool_expr.expr1, no_warning );
+        rc = _EntryMatches( p_entry_id, p_entry_attr,
+                            p_node->content_u.bool_expr.expr1, p_pol_mod,
+                            no_warning );
 
         /* in some cases, we can stop here */
         if ( ( p_node->content_u.bool_expr.bool_op == BOOL_OR ) && ( rc == POLICY_MATCH ) )
@@ -791,13 +816,15 @@ static policy_match_t _EntryMatches( const entry_id_t * p_entry_id, const attr_s
             return rc;
 
         /* compute the second expression */
-        return _EntryMatches( p_entry_id, p_entry_attr, p_node->content_u.bool_expr.expr2, no_warning );
+        return _EntryMatches( p_entry_id, p_entry_attr,
+                              p_node->content_u.bool_expr.expr2,
+                              p_pol_mod, no_warning );
 
         break;
 
     case NODE_CONDITION:
         /* It's now time to test the value ! */
-        return eval_condition( p_entry_id, p_entry_attr, p_node->content_u.condition, no_warning );
+        return eval_condition( p_entry_id, p_entry_attr, p_node->content_u.condition, p_pol_mod, no_warning );
 
         break;
     }
@@ -807,9 +834,9 @@ static policy_match_t _EntryMatches( const entry_id_t * p_entry_id, const attr_s
 }
 
 policy_match_t EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr,
-                             bool_node_t * p_node )
+                             bool_node_t * p_node, const policy_modifier_t * p_pol_mod )
 {
-    return _EntryMatches( p_entry_id, p_entry_attr, p_node, FALSE );
+    return _EntryMatches( p_entry_id, p_entry_attr, p_node, p_pol_mod, FALSE );
 }
 
 static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t * p_entry_attr,
@@ -851,7 +878,7 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
 
     for ( i = 0; i < count; i++ )
     {
-        switch ( _EntryMatches( p_entry_id, p_entry_attr, &list[i].bool_expr, no_warning ) )
+        switch ( _EntryMatches( p_entry_id, p_entry_attr, &list[i].bool_expr, NULL, no_warning ) )
         {
         case POLICY_MATCH:
 #ifdef HAVE_PURGE_POLICY
@@ -926,7 +953,7 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
 
     for ( i = 0; i < count; i++ )
     {
-        switch ( _EntryMatches( p_entry_id, p_entry_attr, &fs_list[i]->definition, no_warning ) )
+        switch ( _EntryMatches( p_entry_id, p_entry_attr, &fs_list[i]->definition, NULL, no_warning ) )
         {
         case POLICY_MATCH:
         {
@@ -1119,8 +1146,9 @@ policy_item_t *GetPolicyCase( const entry_id_t * p_entry_id,
             printf( "    Checking file class %s\n", pol_list[i].target_list[j]->fileset_id );
 #endif
 
-            switch ( EntryMatches
-                     ( p_entry_id, p_entry_attr, &pol_list[i].target_list[j]->definition ) )
+            switch ( EntryMatches( p_entry_id, p_entry_attr,
+                                   &pol_list[i].target_list[j]->definition,
+                                   NULL ) )
             {
             case POLICY_MATCH:
                 DisplayLog( LVL_FULL, POLICY_TAG,
@@ -1241,7 +1269,8 @@ policy_item_t * GetPolicyCaseByClass( const char * class_id,
  */
 policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
                                          attr_set_t * p_entry_attr,
-                                         policy_type_t policy_type )
+                                         policy_type_t policy_type,
+                                         const policy_modifier_t * p_pol_mod )
 {
     int            could_not_match = FALSE;
 
@@ -1323,8 +1352,9 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
             printf( "    Checking file class %s\n", pol_list[i].target_list[j]->fileset_id );
 #endif
 
-            switch ( _EntryMatches
-                     ( p_entry_id, p_entry_attr, &pol_list[i].target_list[j]->definition, TRUE ) )
+            switch ( _EntryMatches( p_entry_id, p_entry_attr,
+                                    &pol_list[i].target_list[j]->definition,
+                                    p_pol_mod, TRUE ) )
             {
             case POLICY_MATCH:
                 DisplayLog( LVL_FULL, POLICY_TAG,
@@ -1379,7 +1409,8 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
          * - if we get NO_MATCH for the condition, this policy cannot be matched.
          * - if we get MISSING_ATTR for the condition, return MISSING_ATTR.
          */
-        switch ( _EntryMatches( p_entry_id, p_entry_attr, &pol_list[i].condition, TRUE ) )
+        switch ( _EntryMatches( p_entry_id, p_entry_attr,
+                                &pol_list[i].condition, p_pol_mod, TRUE ) )
         {
         case POLICY_NO_MATCH:
             /* the entry cannot match this item */
@@ -1422,7 +1453,9 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
          * - if we get NO_MATCH for the condition, no policy is matched.
          * - if we get MISSING_ATTR for the condition, return MISSING_ATTR.
          */
-        switch ( _EntryMatches( p_entry_id, p_entry_attr, &pol_list[default_index].condition, TRUE ) )
+        switch ( _EntryMatches( p_entry_id, p_entry_attr,
+                                &pol_list[default_index].condition,
+                                p_pol_mod, TRUE ) )
         {
         case POLICY_NO_MATCH:
             return POLICY_NO_MATCH;

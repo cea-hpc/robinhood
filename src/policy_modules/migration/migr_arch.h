@@ -90,6 +90,7 @@ typedef struct migr_param__
         const char    *group_name;
         const char    *class_name;
     } param_u;
+    policy_modifier_t * policy_mod;
 } migr_param_t;
 
 

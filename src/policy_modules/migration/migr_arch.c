@@ -50,6 +50,8 @@ migration_config_t migr_config;
 static int migr_flags = 0;
 static int migr_abort = FALSE;
 
+static const policy_modifier_t * migr_pol_mod = NULL;
+
 #define ignore_policies ( migr_flags & FLAG_IGNORE_POL )
 #define dry_run (migr_flags & FLAG_DRY_RUN)
 #define no_limit (migr_flags & FLAG_NO_LIMIT)
@@ -202,7 +204,8 @@ static int heuristic_end_of_list( time_t last_mod_time )
     ATTR( &void_attr, last_archive ) = last_mod_time;
 #endif
 
-    if ( PolicyMatchAllConditions( &void_id, &void_attr, MIGR_POLICY ) == POLICY_NO_MATCH )
+    if ( PolicyMatchAllConditions( &void_id, &void_attr, MIGR_POLICY,
+                                   migr_pol_mod ) == POLICY_NO_MATCH )
     {
         DisplayLog( LVL_DEBUG, MIGR_TAG,
                     "Optimization: entries with modification time later than %lu"
@@ -415,6 +418,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         return EFAULT;
 
     migr_flags = p_migr_param->flags;
+    migr_pol_mod = p_migr_param->policy_mod;
 
     if ( p_nb_migr )
         *p_nb_migr = 0;
@@ -1373,7 +1377,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     if ( !ignore_policies )
     {
         /* check if the entry matches the policy condition */
-        switch ( EntryMatches( &p_item->entry_id, &new_attr_set, &policy_case->condition ) )
+        switch ( EntryMatches( &p_item->entry_id, &new_attr_set, &policy_case->condition, migr_pol_mod ) )
         {
         case POLICY_NO_MATCH:
             /* entry is not eligible now */
@@ -1639,6 +1643,7 @@ int migrate_one_file( const char * file, int flags )
 #endif
 
     migr_flags = flags;
+    migr_pol_mod = NULL;
 
     rc = ListMgr_InitAccess( &lmgr );
     if ( rc )

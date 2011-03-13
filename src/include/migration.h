@@ -35,7 +35,7 @@ typedef struct migration_config_t
     time_t         migration_timeout;
 
     time_t         pre_maintenance_window;
-    time_t         min_migr_delay;
+    time_t         maint_min_migr_delay;
 
 #if defined( _LUSTRE_HSM) || defined(_BACKUP_FS)
     unsigned int   backup_new_files:1;
