@@ -183,7 +183,7 @@ static int heuristic_end_of_list( time_t last_mod_time )
     if ( ignore_policies )
         return FALSE;
 
-    /* HOOK for optimization:
+    /* XXX Tip for optimization:
      * we build a void entry with last_mod = last_mod_time
      * and last_archive_time = last_mod_time.
      * If it doesn't match any policy, next entries won't match too

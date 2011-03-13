@@ -48,6 +48,9 @@
 #define OPT_DUMP_STATUS 259
 #define OPT_CLASS_INFO  260
 
+#define SET_NEXT_MAINT    261
+#define CLEAR_NEXT_MAINT  262
+
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
 #define OPT_FLAG_NOHEADER   0x0002
@@ -208,6 +211,11 @@ static struct option option_tab[] = {
     {"filter-path", required_argument, NULL, 'P' },
     {"filter-class", required_argument, NULL, 'C' },
 
+#ifdef HAVE_MIGR_POLICY
+    {"next-maintenance", optional_argument, NULL, SET_NEXT_MAINT},
+    {"cancel-maintenance", no_argument, NULL, CLEAR_NEXT_MAINT},
+#endif
+
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
 
@@ -295,6 +303,14 @@ static const char *help_string =
     "    " _B "-C" B_ " " _U "class" U_ ", " _B "--filter-class" B_ " " _U "class" U_ "\n"
     "        Report only entries in the given FileClass.\n"
     "\n"
+#ifdef HAVE_MIGR_POLICY
+    _B "Pre-maintenance commands:" B_ "\n"
+    "    " _B "--next-maintenance[="B_ _U"date_time"U_"]\n"
+    "        Set/display time of next maintenance.\n"
+    "        Expected "_U"date_time"U_" format is yyyymmddHHMM[SS].\n"
+    "    " _B "--cancel-maintenance"B_"\n"
+    "        Cancel next maintenance.\n\n"
+#endif
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Specifies path to configuration file.\n"
@@ -2414,11 +2430,71 @@ static void report_class_info( int flags )
         printf( "\nTotal: %Lu entries, %Lu bytes used (%s)\n",
                 total_count, total_size, strsz );
     }
-
-
 }
 
+void maintenance_get( int flags )
+{
+    char           value[1024];
+    time_t         timestamp;
+    char           date[128];
+    struct tm      t;
+    int            rc;
 
+    rc = ListMgr_GetVar( &lmgr, NEXT_MAINT_VAR, value );
+    if ( rc == DB_SUCCESS )
+    {
+        timestamp = atoi( value );
+        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
+        if ( CSV(flags) )
+            printf( "next_maintenance, %s\n", date );
+        else
+            printf( "Next maintenance: %s\n", date );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "next_maintenance, none\n" );
+        else
+            printf( "No maintenance is planned\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " NEXT_MAINT_VAR " from database" );
+    }
+}
+
+void maintenance_set( int flags, time_t when )
+{
+    char           value[1024];
+    int            rc;
+
+    if (when == 0)
+    {
+        rc = ListMgr_SetVar( &lmgr, NEXT_MAINT_VAR, NULL );
+
+        if (rc)
+            DisplayLog( LVL_CRIT, REPORT_TAG,
+                        "ERROR deleting variable " NEXT_MAINT_VAR " in database" );
+        else
+            DisplayLog( LVL_EVENT, REPORT_TAG, "Next maintenance time has been cleared successfully" );
+
+        return;
+    }
+
+    sprintf( value, "%u", (unsigned int)when );
+
+    rc = ListMgr_SetVar( &lmgr, NEXT_MAINT_VAR, value );
+    if ( rc == DB_SUCCESS )
+    {
+        DisplayLog( LVL_EVENT, REPORT_TAG, "Next maintenance time has been set successfully" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR setting variable " NEXT_MAINT_VAR " in database" );
+    }
+}
 
 #define MAX_OPT_LEN 1024
 
@@ -2469,6 +2545,12 @@ int main( int argc, char **argv )
 #ifdef ATTR_INDEX_status
     int            dump_status = FALSE;
     file_status_t  status_to_dump = -1;
+#endif
+
+#ifdef HAVE_MIGR_POLICY
+    time_t         next_maint = 0;
+    int            get_next_maint = FALSE;
+    int            cancel_next_maint = FALSE;
 #endif
 
     int            flags = 0;
@@ -2706,6 +2788,28 @@ int main( int argc, char **argv )
             deferred_rm = TRUE;
             break;
 #endif
+
+#ifdef HAVE_MIGR_POLICY
+        case CLEAR_NEXT_MAINT:
+            cancel_next_maint = TRUE;
+            get_next_maint = TRUE;
+            break;
+        case SET_NEXT_MAINT:
+            if ( optarg )       /* optional argument */
+            {
+                /* parse date/time yyyymmddHHMM[SS] */
+                next_maint = str2date(optarg);
+                if (next_maint == (time_t)-1) {
+                    fprintf( stderr,
+                             "Invalid date format: yyyymmdd[HH[MM[SS]]] expected\n" );
+                    exit(1);
+                }
+            }
+            /* in all cases, display next maintenance time */
+            get_next_maint = TRUE;
+            break;
+#endif
+
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
             break;
@@ -2765,6 +2869,9 @@ int main( int argc, char **argv )
 #ifdef _LUSTRE
         && !dump_ost
 #endif
+#ifdef HAVE_MIGR_POLICY
+        && !next_maint && !get_next_maint && !cancel_next_maint
+#endif
         )
     {
         display_help( bin );
@@ -2781,7 +2888,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            fprintf(stderr, "No config file specified, using '%s'.\n", config_file );
+            fprintf(stderr, "Using config file '%s'.\n", config_file );
         }
     }
 
@@ -2897,6 +3004,17 @@ int main( int argc, char **argv )
 #ifdef ATTR_INDEX_status
     if ( dump_status )
         dump_entries( DUMP_STATUS, status_to_dump, NULL, flags );
+#endif
+
+#ifdef HAVE_MIGR_POLICY
+    if ( cancel_next_maint )
+        maintenance_set( flags, 0 );
+
+    if ( next_maint != 0 )
+        maintenance_set( flags, next_maint );
+
+    if ( get_next_maint )
+        maintenance_get(flags);
 #endif
 
     ListMgr_CloseAccess( &lmgr );

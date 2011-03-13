@@ -817,6 +817,118 @@ uint64_t str2size( char *str )
 }
 
 /**
+ * extracts up to count digits from src string,
+ * and copy them to dest string. dest is completed
+ * with '\0'.
+ * @return the number of digits copied to dest.
+ */
+static inline int extract_digits( const char * src, char * dest, unsigned int count )
+{
+    unsigned int i;
+    unsigned int cpd = 0;
+    for ( i = 0; (i < count) && (src[i] != '\0'); i++ )
+    {
+        dest[i] = src[i];
+        cpd ++;
+    }
+    dest[cpd] = '\0';
+    return cpd;
+}
+
+/** parse date/time yyyymmdd[HH[MM[SS]]] */
+time_t str2date( char *str )
+{
+    struct tm datetime = {
+        .tm_sec = 0,
+        .tm_min = 0,
+        .tm_hour = 0,
+        .tm_mday = 0,
+        .tm_mon = 0,
+        .tm_year = 0,
+        .tm_wday = 0,
+        .tm_yday = 0,
+        .tm_isdst = -1
+    };
+    char tmpstr[16];
+    int  tmpint;
+    char * curr = str;
+    
+    /* extract year */
+    if (extract_digits(curr, tmpstr, 4) < 4)
+        return (time_t)-1;
+    curr += 4;
+    if ((tmpint = str2int(tmpstr)) == -1)
+        return (time_t)-1;
+    datetime.tm_year = tmpint - 1900; /* 1900 => 0 */
+
+    /* extract month */
+    if (extract_digits(curr, tmpstr, 2) < 2)
+        return (time_t)-1;
+    curr += 2;
+    if ((tmpint = str2int(tmpstr)) <= 0)
+        return (time_t)-1;
+    else if (tmpint > 12)
+        return (time_t)-1; 
+    datetime.tm_mon = tmpint - 1; /* January => 0 */
+
+    /* extract day */
+    if (extract_digits(curr, tmpstr, 2) < 2)
+        return (time_t)-1;
+    curr += 2;
+    if ((tmpint = str2int(tmpstr)) <= 0)
+        return (time_t)-1;
+    else if (tmpint > 31)
+        return (time_t)-1; 
+    datetime.tm_mday = tmpint; /* 1st => 1 */
+
+    /* extract hours */
+    tmpint = extract_digits(curr, tmpstr, 2);
+    if (tmpint == 0) /* not specified */
+        goto convert;
+    else if (tmpint < 2) /* invalid */
+        return (time_t)-1;
+    curr += 2;
+    if ((tmpint = str2int(tmpstr)) == -1)
+        return (time_t)-1;
+    else if (tmpint > 23)
+        return (time_t)-1; 
+    datetime.tm_hour = tmpint;
+
+    /* extract minutes */
+    tmpint = extract_digits(curr, tmpstr, 2);
+    if (tmpint == 0) /* not specified */
+        goto convert;
+    else if (tmpint < 2) /* invalid */
+        return (time_t)-1;
+    curr += 2;
+    if ((tmpint = str2int(tmpstr)) == -1)
+        return (time_t)-1;
+    else if (tmpint > 59)
+        return (time_t)-1; 
+    datetime.tm_min = tmpint;
+
+    /* extract seconds */
+    tmpint = extract_digits(curr, tmpstr, 2);
+    if (tmpint == 0) /* not specified */
+        goto convert;
+    else if (tmpint < 2) /* invalid */
+        return (time_t)-1;
+    curr += 2;
+    if ((tmpint = str2int(tmpstr)) == -1)
+        return (time_t)-1;
+    else if (tmpint > 59)
+        return (time_t)-1; 
+    datetime.tm_sec = tmpint;
+
+    if (*curr != '\0')
+        return (time_t)-1;
+
+convert:
+     return mktime(&datetime);
+}
+
+
+/**
  *  Print attributes to a string
  */
 int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, int overide_mask )

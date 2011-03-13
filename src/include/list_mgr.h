@@ -657,6 +657,7 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 #define FS_PATH_VAR         "FS_Path"
 #define USAGE_MAX_VAR       "MaxUsage"
 #define SCAN_INTERVAL_VAR   "ScanInterval"
+#define NEXT_MAINT_VAR      "NextMaintenance"
 
 
 #define MAX_VAR_LEN     1024

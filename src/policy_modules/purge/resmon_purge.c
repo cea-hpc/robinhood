@@ -160,7 +160,7 @@ static int heuristic_end_of_list( time_t last_access_time )
     if ( ignore_policies )
         return FALSE;
 
-    /* HOOK for optimization:
+    /* XXX Tip for optimization:
      * we build a void entry with last_access = last_access_time
      * and last_restore_time = last_access_time.
      * If it doesn't match any policy, next entries won't match too
