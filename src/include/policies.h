@@ -369,6 +369,13 @@ typedef enum
     RMDIR_POLICY                                 /* not for lustre HSM */
 } policy_type_t;
 
+/** policy modifier */
+typedef struct policy_modifier
+{
+   double time_factor;
+   time_t time_min;
+} policy_modifier_t;
+
 /** retrieve fileset structure from its name */
 fileset_item_t *GetFilesetByName( fileset_list_t * filesets, const char *name );
 
@@ -396,7 +403,8 @@ policy_item_t * GetPolicyCaseByClass( const char * class_id,
  */
 policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
                                          attr_set_t * p_entry_attr,
-                                         policy_type_t policy_type );
+                                         policy_type_t policy_type,
+                                         const policy_modifier_t * p_pol_mod );
 
 #ifdef HAVE_MIGR_POLICY
 char          *build_migration_hints( const policy_item_t * policy,
@@ -417,7 +425,7 @@ int WhitelistedClass( const char * class_id, policy_type_t policy_type );
 
 /* check if entry matches a boolean expression */
 policy_match_t EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr,
-                             bool_node_t * p_node );
+                             bool_node_t * p_node, const policy_modifier_t * p_pol_mod );
 
 /**
  * check whitelist condition for file or directory entries

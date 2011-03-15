@@ -753,7 +753,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             continue;
 
         if ( EntryMatches( &p_op->entry_id, &p_op->entry_attr,
-               &entry_proc_conf.alert_list[i].boolexpr ) == POLICY_MATCH )
+               &entry_proc_conf.alert_list[i].boolexpr, NULL ) == POLICY_MATCH )
         {
             /* build alert string and break */
             if ( ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )

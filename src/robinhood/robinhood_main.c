@@ -113,7 +113,7 @@ static time_t  boot_time;
 #       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
 #       define DEFAULT_ACTION_HELP   "--read-log --migrate --hsm-remove"
 #   else
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK__UNLINK | ACTION_MASK_MIGRATE)
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
 #       define DEFAULT_ACTION_HELP   "--scan --migrate --hsm-remove"
 #   endif
 
@@ -290,7 +290,7 @@ static const char *help_string =
     "    " _B "--migrate-group=" B_ _U "grp_name" U_ "\n"
     "        Apply migration policies to files of group " _U "grp_name" U_ ".\n"
     "    " _B "--migrate-class=" B_ _U "fileclass" U_ "\n"
-    "        Apply migration policy on files in the given " _U "fileclass" U_ ".\n\n"
+    "        Apply migration policy on files in the given " _U "fileclass" U_ ".\n"
     "    " _B "--migrate-file=" B_ _U "filepath" U_ "\n"
     "        Apply migration policy to a single file " _U "filepath" U_ ".\n\n"
 #endif
@@ -651,8 +651,6 @@ static void create_pid_file( const char *pid_file )
 
 }
 
-
-
 #define SET_ACTION_FLAG( _f_ )  do {                                    \
                                     if ( is_default_actions )           \
                                     {                                   \
@@ -940,7 +938,7 @@ int main( int argc, char **argv )
         case ':':
         case '?':
         default:
-            display_help( bin );
+            fprintf(stderr,"Run '%s --help' for more details.\n", bin);
             exit( 1 );
             break;
         }
@@ -1042,7 +1040,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            fprintf(stderr, "No config file specified, using '%s'.\n", config_file );
+            fprintf(stderr, "Using config file '%s'.\n", config_file );
         }
     }
 

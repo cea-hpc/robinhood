@@ -243,6 +243,10 @@ int            str2duration( const char *str );
  */
 uint64_t str2size( char *str );
 
+
+/** parse date/time yyyymmdd[HH[MM[SS]]] */
+time_t str2date( char *str ); 
+
 /**
  *  Print attributes to a string
  */

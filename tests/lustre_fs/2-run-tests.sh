@@ -113,10 +113,10 @@ function wait_done
 	echo -n "Waiting for copy requests to end."
 	if [[ -n "$MDS" ]]; then
 #		cmd="ssh $MDS egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="ssh $MDS grep -v SUCCEED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="ssh $MDS egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	else
 #		cmd="egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="grep -v SUCCEED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	fi
 
 	while $cmd > /dev/null ; do
@@ -754,6 +754,87 @@ function purge_size_filesets
 
 	# stop RH in background
 #	kill %1
+}
+
+function test_maint_mode
+{
+	config_file=$1
+	window=$2 		# in seconds
+	migr_policy_delay=$3  	# in seconds
+	policy_str="$4"
+	delay_min=$5  		# in seconds
+
+	if (( $is_hsm + $is_backup == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# writing data
+	echo "1-Writing files..."
+	for i in `seq 1 4`; do
+		echo "file.$i" > $ROOT/file.$i || error "creating file $ROOT/file.$i"
+	done
+	t0=`date +%s`
+
+	# read changelogs
+	if (( $no_log )); then
+		echo "2-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
+	else
+		echo "2-Reading changelogs..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+	fi
+
+    	# migrate (nothing must be migrated, no maint mode reported)
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error "executing --migrate action"
+	grep "Maintenance time" rh_migr.log && error "No maintenance mode expected"
+	grep "Currently in maintenance mode" rh_migr.log && error "No maintenance mode expected"
+
+	# set maintenance mode (due is window +10s)
+	maint_time=`perl -e "use POSIX; print strftime(\"%Y%m%d%H%M%S\" ,localtime($t0 + $window + 10))"`
+	$REPORT -f ./cfg/$config_file --next-maintenance=$maint_time || error "setting maintenance time"
+
+	# right now, migration window is in the future
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error "executing --migrate action"
+	grep "maintenance window will start in" rh_migr.log || errot "Future maintenance not report in the log"
+
+	# sleep enough to be in the maintenance window
+	sleep 11
+
+	# split maintenance window in 4
+	((delta=$window / 4))
+	(( $delta == 0 )) && delta=1
+
+	arch_done=0
+
+	# start migrations while we do not reach maintenance time
+	while (( `date +%s` < $t0 + $window + 10 )); do
+		cp /dev/null rh_migr.log
+		$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error "executing --migrate action"
+		grep "Currently in maintenance mode" rh_migr.log || error "Should be in maintenance window now"
+
+		# check that files are migrated after min_delay and before the policy delay
+		if grep "$ARCH_STR" rh_migr.log ; then
+			arch_done=1
+			now=`date +%s`
+			# delay_min must be enlapsed
+			(( $now >= $t0 + $delay_min )) || error "file migrated before dealy min"
+			# migr_policy_delay must not been reached
+			(( $now < $t0 + $migr_policy_delay )) || error "file already reached policy delay"
+		fi
+		sleep $delta
+	done
+	cp /dev/null rh_migr.log
+
+	(($arch_done == 1)) || error "Files have not been migrated during maintenance window"
+
+	(( `date +%s` > $t0 + $window + 15 )) || sleep $(( $t0 + $window + 15 - `date +%s` ))
+	# shouldn't be in maintenance now
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error "executing --migrate action"
+	grep "Maintenance time is in the past" rh_migr.log || error "Maintenance window should be in the past now"
 }
 
 # test reporting function with path filter
@@ -2676,7 +2757,9 @@ run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined 
 run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
 run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
+run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
 
+	
 #### triggers ####
 
 run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"

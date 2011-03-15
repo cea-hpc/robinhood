@@ -160,7 +160,7 @@ static int heuristic_end_of_list( time_t last_access_time )
     if ( ignore_policies )
         return FALSE;
 
-    /* HOOK for optimization:
+    /* XXX Tip for optimization:
      * we build a void entry with last_access = last_access_time
      * and last_restore_time = last_access_time.
      * If it doesn't match any policy, next entries won't match too
@@ -180,7 +180,7 @@ static int heuristic_end_of_list( time_t last_access_time )
     ATTR( &void_attr, last_restore ) = last_access_time;
 #endif
 
-    if ( PolicyMatchAllConditions( &void_id, &void_attr, PURGE_POLICY ) == POLICY_NO_MATCH )
+    if ( PolicyMatchAllConditions( &void_id, &void_attr, PURGE_POLICY, NULL ) == POLICY_NO_MATCH )
     {
         DisplayLog( LVL_DEBUG, PURGE_TAG,
                     "Optimization: entries with access time later than %lu"
@@ -1232,7 +1232,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     {
 
         /* check if the entry matches the policy condition */
-        switch ( EntryMatches( &p_item->entry_id, &new_attr_set, &policy_case->condition ) )
+        switch ( EntryMatches( &p_item->entry_id, &new_attr_set, &policy_case->condition, NULL ) )
         {
         case POLICY_NO_MATCH:
             /* entry is not eligible now */

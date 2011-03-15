@@ -555,7 +555,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            fprintf(stderr, "No config file specified, using '%s'.\n", config_file );
+            fprintf(stderr, "Using config file '%s'.\n", config_file );
         }
     }
 

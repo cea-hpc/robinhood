@@ -86,6 +86,14 @@ int ListMgr_SetVar( lmgr_t * p_mgr, const char *varname, const char *value )
 #ifdef _MYSQL
     char           escaped[1024];
 
+    /* delete var if value is NULL */
+    if (value == NULL)
+    {
+        sprintf( query, "DELETE FROM "VAR_TABLE" WHERE varname = '%s'",
+                 varname );
+        return db_exec_sql( &p_mgr->conn, query, NULL );
+    }
+
     /* escape special characters in value */
     db_escape_string( &p_mgr->conn, escaped, 1024, value );
 
