@@ -155,17 +155,19 @@ typedef enum
 
 typedef enum {
     ADD,
-    SUBSTRACT,
-    COMPARE
+    SUBTRACT
 } operation_type;
-
 
 void           add_source_fields_for_gen( int * attr_mask );
 void           generate_fields( attr_set_t * p_set );
 
 int            attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_comma,
                                    int for_update, char *prefix, char *postfix );
-int            attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix, 
+
+int            attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix, 
+                                   const char *right_prefix, const char *comparator, const char *separator );
+
+int            attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix,
                                    operation_type operation );
 
 int            attrset2valuelist( lmgr_t * p_mgr, char *str,

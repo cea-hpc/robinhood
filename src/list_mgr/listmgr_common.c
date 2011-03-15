@@ -323,7 +323,7 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
  * @param attr_mask
  * @param table T_MAIN, T_ANNEX, T_ACCT
  * @param prefix
- * @param myoperator
+ * @param operation
  * @return nbr of fields
  */
 int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix, operation_type operation )
@@ -334,12 +334,10 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
     char *fields_curr = str;
     char operator;
 
-    if ( operation == ADD )
-        operator = '+';
-    else if ( operation == SUBSTRACT )
+    if ( operation == SUBTRACT )
         operator = '-';
     else
-        operator = ' ';
+        operator = '+';
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
@@ -350,11 +348,11 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
                 if ( nbfields == 0 )
                     fields_curr += 
                         sprintf( fields_curr, "%s=%s%c%s%s ", field_infos[i].field_name,
-                                ( operation == COMPARE ) ? "" : field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
+                                field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
                 else
                     fields_curr += 
-                        sprintf( fields_curr, "%s %s=%s%c%s%s ", ( operation == COMPARE) ? " AND" : ",", field_infos[i].field_name,
-                                ( operation == COMPARE ) ? "" : field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
+                        sprintf( fields_curr, ", %s=%s%c%s%s ", field_infos[i].field_name,
+                                field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
                 nbfields++;
             }
         }
@@ -362,6 +360,45 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
     return nbfields;
 }
 
+/**
+ * Generate comparaison on fields.
+ * @param str 
+ * @param attr_mask
+ * @param table T_MAIN, T_ANNEX, T_ACCT
+ * @param left_prefix
+ * @param right_prefix
+ * @param comparator
+ * @param separator
+ * @return nbr of fields
+ */
+int attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix, const char *right_prefix,
+                            const char *comparator, const char * separator )
+{
+    int i;
+    int mask = 1;
+    unsigned int  nbfields = 0;
+    char *fields_curr = str;
+
+    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+    {
+        if ( attr_mask & mask )
+        {
+            if ( MATCH_TABLE( table, i ) )
+            {
+                if ( nbfields == 0 )
+                    fields_curr +=
+                        sprintf( fields_curr, "%s%s%s%s%s ", left_prefix,  field_infos[i].field_name,
+                                comparator, right_prefix, field_infos[i].field_name );
+                else
+                    fields_curr +=
+                        sprintf( fields_curr, "%s %s%s%s%s%s ", separator, left_prefix, field_infos[i].field_name,
+                                comparator, right_prefix, field_infos[i].field_name );
+                nbfields++;
+            }
+        }
+    }
+    return nbfields;
+}
 
 
 /**
