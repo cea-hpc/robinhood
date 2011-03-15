@@ -64,6 +64,8 @@ typedef struct db_config_t
     char           db[256];
     char           user[256];
     char           password[256];
+    int            port;
+    char           socket[RBH_PATH_MAX];
 } db_config_t;
 
 #elif defined(_SQLITE)
