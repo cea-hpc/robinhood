@@ -43,8 +43,8 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     conf->db_config.db[0] = '\0';
     strcpy( conf->db_config.user, "robinhood" );
     conf->db_config.password[0] = '\0';
-    conf->db_config.port = 3306;
-    strcpy( conf->db_config.socket, "/tmp/mysql.sock" );
+    conf->db_config.port = 0;
+    conf->db_config.socket[0] = '\0';
 #elif defined (_SQLITE)
     strcpy( conf->db_config.filepath, "/var/robinhood/robinhood_sqlite_db" );
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
@@ -67,8 +67,8 @@ int WriteLmgrConfigDefault( FILE * output )
     print_line( output, 2, "db      :   [MANDATORY]" );
     print_line( output, 2, "user    :   robinhood" );
     print_line( output, 2, "password|password_file : [MANDATORY]" );
-    print_line( output, 2, "port    :   3306" );
-    print_line( output, 2, "socket  :   /tmp/mysql.sock" );
+    print_line( output, 2, "port    :   (MySQL default)" );
+    print_line( output, 2, "socket  :   none" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)
     print_begin_block( output, 1, SQLITE_CONFIG_BLOCK, NULL );
