@@ -440,6 +440,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     const pipeline_stage_t *stage_info =
         &entry_proc_pipeline[p_op->pipeline_stage];
 
+#ifdef HAVE_CHANGELOGS
     /* is this a changelog record? */
     if ( p_op->extra_info.is_changelog_record )
     {
@@ -532,6 +533,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
     else /* entry from FS scan */
     {
+#endif
         /* scan is expected to provide full path and attributes. */
         if ( !p_op->entry_attr_is_set
              || !ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
@@ -671,8 +673,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                        attr_need_fresh );
             mask2needed_op( attr_need_fresh, &p_op->extra_info );
         }
-
+#ifdef HAVE_CHANGELOGS
     } /* end if entry from FS scan */
+#endif
 
 next_step:
     if ( next_stage == -1 )

@@ -113,7 +113,7 @@ static time_t  boot_time;
 #       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
 #       define DEFAULT_ACTION_HELP   "--read-log --migrate --hsm-remove"
 #   else
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK__UNLINK | ACTION_MASK_MIGRATE)
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
 #       define DEFAULT_ACTION_HELP   "--scan --migrate --hsm-remove"
 #   endif
 

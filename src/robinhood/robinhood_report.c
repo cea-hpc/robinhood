@@ -2445,10 +2445,20 @@ void maintenance_get( int flags )
     {
         timestamp = atoi( value );
         strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( CSV(flags) )
-            printf( "next_maintenance, %s\n", date );
+        if ( time(NULL) >= timestamp )
+        {
+            if ( CSV(flags) )
+                printf( "next_maintenance, %s (in the past: no effect)\n", date );
+            else
+                printf( "Next maintenance: %s (in the past: no effect)\n", date );
+        }
         else
-            printf( "Next maintenance: %s\n", date );
+        {
+            if ( CSV(flags) )
+                printf( "next_maintenance, %s\n", date );
+            else
+                printf( "Next maintenance: %s\n", date );
+        }
     }
     else if ( rc == DB_NOT_EXISTS )
     {
