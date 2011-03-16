@@ -103,7 +103,11 @@ int db_connect( db_conn_t * conn )
     /* connect to server */
     if ( !mysql_real_connect
          ( conn, lmgr_config.db_config.server, lmgr_config.db_config.user,
-           lmgr_config.db_config.password, lmgr_config.db_config.db, 0, NULL, 0 ) )
+           lmgr_config.db_config.password, lmgr_config.db_config.db, 
+           lmgr_config.db_config.port,
+           EMPTY_STRING(lmgr_config.db_config.socket)?
+                        NULL:lmgr_config.db_config.socket,
+           0 ) )
     {
         DisplayLog( LVL_CRIT, LISTMGR_TAG,
                     "Failed to connect to MySQL: Error: %s", mysql_error( conn ) );
