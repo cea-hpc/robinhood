@@ -237,7 +237,7 @@ int FSScan_WriteDefaultConfig( FILE * output )
     print_line( output, 1, "exit_on_timeout        : FALSE" );
     print_line( output, 1, "spooler_check_interval :  1min" );
     print_line( output, 1, "nb_prealloc_tasks      :   256" );
-    print_line( output, 1, "ignore                 :   NONE" );
+    print_line( output, 1, "ignore                 :  NONE" );
     print_end_block( output, 0 );
     return 0;
 }
