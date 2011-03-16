@@ -26,6 +26,9 @@
 
 #define MAX_DB_FIELDS 64
 
+#define APPEND_TXT( _n, _str ) do { strcpy( _n, _str );  _n = _n + strlen( _n ); } while (0)
+#define INCR_NEXT( _n ) do { _n = _n + strlen( _n ); } while (0)
+
 static inline int append_field_def( int i, char *next, int is_first )
 {
     switch ( field_infos[i].db_type )
@@ -840,98 +843,99 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
                 return rc;
             }
         }
+        else
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+            return rc;
+        }
 
         /*
          * ====== CREATE TRIGGERS ==========
          */
 
         //Trigger on insert
-        strcpy( strbuf, "INSERT INTO " ACCT_TABLE "( " );
-        next = strbuf + strlen( strbuf );
+        next = strbuf;
+        APPEND_TXT( next, "INSERT INTO " ACCT_TABLE "( " );
         attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
-        next = next + strlen( next );
+        INCR_NEXT( next );
         attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
-        next = next + strlen( next );
-        strcpy( next, ", count ) VALUES ( " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, ", count ) VALUES ( " );
         attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
-        next = next + strlen( next );
+        INCR_NEXT( next );
         attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "" );
-        next = next + strlen( next );
-        strcpy( next, ", 1 ) ON DUPLICATE KEY UPDATE " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, ", 1 ) ON DUPLICATE KEY UPDATE " );
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
-        next = next + strlen( next );
-        strcpy( next,", count=count+1;" );
-        next = next + strlen( next );
-        
-        rc = db_drop_trigger( &conn, "ACCT_ENTRY_INSERT" );
+        INCR_NEXT( next );
+        APPEND_TXT( next,", count=count+1;" );
+
+        rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to drop trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
             return rc;
         }
-        
-        rc = db_create_trigger( &conn, "ACCT_ENTRY_INSERT", "AFTER INSERT", MAIN_TABLE, strbuf );
+ 
+        rc = db_create_trigger( &conn, ACCT_TRIGGER_INSERT, "AFTER INSERT", MAIN_TABLE, strbuf );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to create trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        "Failed to create " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
             return rc;
         }
-      
+        DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_INSERT " created sucessfully" );
+
+ 
         //Trigger on delete
-        strcpy( strbuf, "UPDATE " ACCT_TABLE " SET " );
-        next = strbuf + strlen( strbuf );
+        next = strbuf;
+        APPEND_TXT( next, "UPDATE " ACCT_TABLE " SET " );
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBTRACT );
-        next = next + strlen( next );
-        strcpy( next,", count=count-1 WHERE " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next,", count=count-1 WHERE " );
         attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" ); 
-        next = next + strlen( next );
-        strcpy( next,";" );
+        INCR_NEXT( next );
+        APPEND_TXT( next, ";" );
 
-        rc = db_drop_trigger( &conn, "ACCT_ENTRY_DELETE" );
+        rc = db_drop_trigger( &conn, ACCT_TRIGGER_DELETE );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to drop trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
             return rc;
         }
 
-        rc = db_create_trigger( &conn, "ACCT_ENTRY_DELETE", "BEFORE DELETE", MAIN_TABLE, strbuf );
+        rc = db_create_trigger( &conn, ACCT_TRIGGER_DELETE, "BEFORE DELETE", MAIN_TABLE, strbuf );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to create trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        "Failed to create " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
             return rc;
         }
+        DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_DELETE " created sucessfully" );
 
         //Trigger on update
         /* if it is the same owner and group: */
-#define APPEND_TXT( _n, _str ) do { strcpy( _n, _str );  _n = _n + strlen( _n ); } while (0)
-#define INCR_NEXT( _n ) do { _n = _n + strlen( _n ); } while (0)
         next = strbuf;
-
-        APPEND_TXT( next, "IF ");
-        /* comment */
+        APPEND_TXT( next, "\nIF " );
+        /* generate comparison like NEW.owner=OLD.owner AND NEW.gr_name=OLD.gr_name */
         attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND" );
         INCR_NEXT( next );
-        strcpy( next, "THEN IF " );
-        /* if one of the attribute value has changed: update the acct table */
-        next = next + strlen( next );
+        APPEND_TXT( next, "THEN \n\t IF " );
+        /********* if one of the attribute value has changed: update the acct table *********/
+        /* generate comparison like NEW.size<>=OLD.size OR NEW.blocks<>OLD.blocks */
         attrmask2fieldcomparison( next, acct_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR" );
-        next = next + strlen( next );
-        strcpy( next, "THEN UPDATE " ACCT_TABLE " SET " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, "THEN \n\t\t UPDATE " ACCT_TABLE " SET " );
         is_first_field = 1;
         for ( i = 0; i < ATTR_COUNT; i++ )
         {
             if ( is_acct_field( i ) )
             {
                 if ( !is_first_field )
-                    next += sprintf( next, ", %s=%s+(NEW.%s-OLD.%s) ", field_infos[i].field_name, field_infos[i].field_name, 
+                    next += sprintf( next, ", %s=%s+(NEW.%s-OLD.%s) ", field_infos[i].field_name, field_infos[i].field_name,
                     field_infos[i].field_name, field_infos[i].field_name );
                 else
                 {
@@ -941,95 +945,88 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
                 }
             }
         }
-        strcpy( next, " WHERE " );
-        next = next + strlen( next );
+        APPEND_TXT( next, " WHERE " );
+        /* generate comparison as follows: owner=NEW.owner AND gr_name=NEW.gr_name */
         attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "NEW.", "=", "AND" );
-        next = next + strlen( next );
-        strcpy( next, "; END IF; ELSEIF " );
-        /* else if the owner or group is different: add values to the new user or group and substract from the old one */
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, "; \n\t END IF; \nELSEIF " );
+        /********* else if the owner or group is different: add values to the new user or group and substract from the old one *********/
         attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR" );
-        next = next + strlen( next );
-
-        strcpy( next, "THEN INSERT INTO " ACCT_TABLE "( " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next,  "THEN \n\tINSERT INTO " ACCT_TABLE "( " );
+        /* generate fields as follows: owner, gr_name */
         attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        /* generate fields as follows: , size, blocks */
         attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
-        next = next + strlen( next );
-        strcpy( next, ", count ) VALUES ( " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, ", count ) VALUES ( " );
+        /* generate fields as follows: NEW.owner, NEW.gr_name */
         attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
-        next = next + strlen( next );
+        INCR_NEXT( next );
         attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "" );
-        next = next + strlen( next );
-        strcpy( next, ", 1 ) ON DUPLICATE KEY UPDATE " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next,  ", 1 ) \n\tON DUPLICATE KEY UPDATE " );
+        /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
-        next = next + strlen( next );
-        strcpy( next,", count=count+1;" );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, ", count=count+1;" );
 
-        strcpy( next, "UPDATE " ACCT_TABLE " SET " );
-        next = next + strlen( next );
+        APPEND_TXT( next, "\n\tUPDATE " ACCT_TABLE " SET " );
+        /* generate operations as follows: size=size-New.size, blocks=blocks-NEW.blocks */
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", SUBTRACT );
-        next = next + strlen( next );
-        strcpy( next, ", count=count-1 " );
-        next = next + strlen( next );
-        strcpy( next, "WHERE " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, ", count=count-1 WHERE " );
         attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
-        next = next + strlen( next );
-        strcpy( next, "; END IF; " );
-        next = next + strlen( next );
+        INCR_NEXT( next );
+        APPEND_TXT( next, ";\nEND IF;\n" );
 
-        rc = db_drop_trigger( &conn, "ACCT_ENTRY_UPDATE" );
+        rc = db_drop_trigger( &conn, ACCT_TRIGGER_UPDATE );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to drop trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        "Failed to drop " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
             return rc;
         }
 
-        rc = db_create_trigger( &conn, "ACCT_ENTRY_UPDATE", "AFTER UPDATE", MAIN_TABLE, strbuf );
+        rc = db_create_trigger( &conn, ACCT_TRIGGER_UPDATE, "AFTER UPDATE", MAIN_TABLE, strbuf );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to create trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        "Failed to create " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
             return rc;
         }
+        DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_UPDATE " created sucessfully" );
 
     }
+    //If accounting is disable
     else
     {
         rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
         if ( rc == DB_SUCCESS )
         {
-            rc = db_drop_trigger( &conn, "ACCT_ENTRY_INSERT" );
+            rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
             if ( rc )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                            "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-
-            rc = db_drop_trigger( &conn, "ACCT_ENTRY_DELETE" );
+            rc = db_drop_trigger( &conn, ACCT_TRIGGER_DELETE );
             if ( rc )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                            "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-
-            rc = db_drop_trigger( &conn, "ACCT_ENTRY_UPDATE" );
+            rc = db_drop_trigger( &conn, ACCT_TRIGGER_UPDATE );
             if ( rc )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                            "Failed to drop " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
 
- 
             strcpy( strbuf, "DROP TABLE " ACCT_TABLE );
             rc = db_exec_sql( &conn, strbuf, NULL );
             if ( rc )
@@ -1039,8 +1036,18 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
                 return rc;
             }
             DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " dropped sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Accounting stat not activated" );
 
         }
+        else if ( rc == DB_NOT_EXISTS )
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Accounting stat not activated" );
+        else
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+            return rc;
+        }
+
     }
 
     /* database is not ready, we can close db_connection */
