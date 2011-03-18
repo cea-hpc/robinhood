@@ -83,8 +83,8 @@ function clean_fs
 #	fi
 
 	echo "Destroying any running instance of robinhood..."
-	pkill -f robinhood
-	pkill -f rbh-backup
+	pkill robinhood
+	pkill rbh-backup
 
 	if [ -f rh.pid ]; then
 		echo "killing remaining robinhood process..."
@@ -286,7 +286,7 @@ function link_unlink_remove_test
 	fi
 
 	# kill event handler
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 
 }
 
@@ -941,7 +941,7 @@ function test_periodic_trigger
 	fi
 
 	# terminate
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 }
 
 
@@ -1353,7 +1353,7 @@ function test_logs
 		cat /tmp/test_report.1
         fi
 
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
 	rm -f /tmp/test_log.1.old /tmp/test_report.1.old /tmp/test_alert.1.old
 }
