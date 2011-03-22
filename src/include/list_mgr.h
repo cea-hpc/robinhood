@@ -112,6 +112,8 @@ typedef struct db_value_t
     db_type_u      value_u;
 } db_value_t;
 
+#define DB_IS_NULL( _p_v ) ( ((_p_v)->type == DB_TEXT) && ((_p_v)->value_u.val_str == NULL) )
+
 /** generic function from generating fields: 1rst parameter points to the field
  * to be generated. 2nd parameter is the source field.
  */
