@@ -1,0 +1,40 @@
+#!/bin/bash
+#
+# Server script to handle remotely initiated file copy operations
+#
+# 20110325 <kilian.cavalotti@cea.fr>
+#
+
+# Get arguments from remote
+read args
+set -- $args
+
+VERB=$1
+SRC=$2
+DEST=$3
+HINTS=$4
+
+DIR=`dirname "$DEST"`
+
+if [[ -z "$VERB" || -z "$SRC" || -z "$DEST" || $# -gt 4 ]]; then
+    # send an exit code back to the client
+    echo 22
+    exit 22
+fi
+
+#CMD="$COPY_CMD -H $HINTS -c $SRC $DEST"
+CMD="cp -a $SRC $DEST"
+
+if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
+    [ -d "$DIR" ] || mkdir -p "$DIR" || exit 1
+    # create file if it doesn't exist
+    [ -e "$DEST" ] || touch "$DEST" || exit 1
+    # FIXME really execute command
+    # $CMD
+    $CMD >> /var/log/rbhext_tool.log
+    # capture $CMD return code and send it back to the client
+    ret=$?
+    echo $ret
+    exit $ret
+fi
+
