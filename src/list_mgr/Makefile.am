@@ -10,7 +10,7 @@ if USE_SQLITE_DB
 DB_WRAPPER_SRC=sqlite_wrapper.c
 endif
 
-if BACKUP_FS
+if HSM_LITE
 DB_PURPOSE_SRC=listmgr_recov.c
 endif
 

@@ -7,7 +7,7 @@ endif
 if SHERPA
 SUBDIRS = purge migration rmdir
 endif
-if BACKUP_FS
+if HSM_LITE
 SUBDIRS = migration hsm_remove
 endif
 

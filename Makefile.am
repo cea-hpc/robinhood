@@ -37,9 +37,9 @@ if SHERPA
   purpose=sherpa
   rpmbuild_opt += --with sherpa
 endif
-if BACKUP_FS
-  purpose=backup
-  rpmbuild_opt += --with backup
+if HSM_LITE
+  purpose=hsmlite
+  rpmbuild_opt += --with hsmlite
 endif
 
 
@@ -73,8 +73,8 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
         doc/templates/hsm_policy_detailed.conf  	\
         doc/templates/tmp_fs_mgr_basic.conf  		\
         doc/templates/tmp_fs_mgr_detailed.conf  	\
-        doc/templates/backup_basic.conf  		\
-        doc/templates/backup_detailed.conf  		\
+        doc/templates/hsmlite_basic.conf  		\
+        doc/templates/hsmlite_detailed.conf  		\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
 	doc/admin_guides/robinhood_v223_tmp_fs_mgr-admin_guide.pdf \
 	doc/admin_guides/robinhood_v223_tmp_fs_mgr-tutorial.pdf	  \

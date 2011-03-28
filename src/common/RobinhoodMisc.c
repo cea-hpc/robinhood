@@ -219,7 +219,7 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
 
     ATTR_MASK_SET( p_attr_set, last_mod );
     /* @TODO is this really what we want? */
-#if defined(_SHERPA) || defined(_BACKUP_FS)
+#if defined(_SHERPA) || defined(_HSM_LITE)
     ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
 #else
     ATTR( p_attr_set, last_mod ) = MAX2( p_inode->st_mtime, p_inode->st_ctime );

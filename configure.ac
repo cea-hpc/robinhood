@@ -169,12 +169,12 @@ AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="
 
 # Purpose ?
 
-AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|BACKUP|SHERPA],[specify the purpose of the daemon] ),
+AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|HSM_LITE|SHERPA],[specify the purpose of the daemon] ),
              PURPOSE="$withval", PURPOSE="TMP_FS_MGR")
 
 AM_CONDITIONAL(LUSTRE_HSM,     test "$PURPOSE" = "LUSTRE_HSM")
 AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR")
-AM_CONDITIONAL(BACKUP_FS, test "$PURPOSE" = "BACKUP")
+AM_CONDITIONAL(HSM_LITE, test "$PURPOSE" = "HSM_LITE")
 AM_CONDITIONAL(SHERPA, test "$PURPOSE" = "SHERPA")
 
 # purpose dependent flags
@@ -216,24 +216,32 @@ case $PURPOSE in
         AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for SHERPA purpose])
         ;;
 
-    BACKUP)
+    HSM_LITE)
         # check pre-requisites
         if test "x$have_liblustre_api" != "xyes" ; then
-            AC_MSG_ERROR([For now, backup purpose is only supported on Lustre v2 filesystem])
+            AC_MSG_ERROR([For now, HSM-lite purpose is only supported on Lustre v2 filesystem])
         fi
         if test "x$have_fid" != "xyes" ; then
-            AC_MSG_ERROR([For now, backup purpose is only supported on Lustre v2 filesystem])
+            AC_MSG_ERROR([For now, HSM-lite purpose is only supported on Lustre v2 filesystem])
         fi
 
-        PURPOSE_CFLAGS="-D_BACKUP_FS"
-        PURPOSE_BIN="rbh-backup"
-        PURPOSE_EXT="backup"
-        PURPOSE_SVC="robinhood-backup"
+        PURPOSE_CFLAGS="-D_HSM_LITE"
+        PURPOSE_BIN="rbh-hsmlite"
+        PURPOSE_EXT="hsmlite"
+        PURPOSE_SVC="robinhood-hsmlite"
 
-        AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for backup purpose])
-        AC_DEFINE([HAVE_RM_POLICY], [1], [Backend removal policy for backup purpose])
-        # possibly add purge policy for this flavor
-        #AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for backup purpose])
+        AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for HSM-lite purpose])
+        AC_DEFINE([HAVE_RM_POLICY], [1], [Backend removal policy for HSM-lite purpose])
+
+        AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
+        AM_CONDITIONAL( SHOOK, test  "x$have_shook" = "xyes" )
+        if test "x$have_shook" != "xyes" ; then
+            AC_MSG_WARN([libshooksvr not found, backup mode only])
+        else
+            AC_MSG_NOTICE([libshooksvr is installed, full HSM-lite support is enabled]) 
+            PURPOSE_LDFLAGS="-lshooksvr"
+            AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for HSM-lite purpose])
+        fi
         ;;
 
     *)

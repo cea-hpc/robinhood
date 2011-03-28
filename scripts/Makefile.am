@@ -13,6 +13,6 @@ EXTRA_DIST= robinhood.init			\
 	demo/write_data.sh
 
 dist_sbin_SCRIPTS=rbh-config
-if BACKUP_FS
+if HSM_LITE
 dist_sbin_SCRIPTS+=rbhext_tool rbhext_tool_svr rbhext_tool_clnt
 endif
