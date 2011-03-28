@@ -38,6 +38,8 @@ typedef struct lmgr_report_t
     char         **str_tab;
 } lmgr_report_t;
 
+void optimizedstat( lmgr_report_t *p_report, unsigned int report_descr_count, report_field_descr_t *report_desc_array,
+                    char *fields, char *curr_field,char * group_by, char *curr_group_by );
 
 /* Return field string */
 static inline const char *field_str( unsigned int index )
@@ -98,8 +100,10 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 
     int            main_table_flag = FALSE;
     int            annex_table_flag = FALSE;
+    int            acct_table_flag = FALSE;
     int            filter_main = 0;
     int            filter_annex = 0;
+    int            full_acct = TRUE;
 
     /* allocate a new report structure */
     p_report = ( lmgr_report_t * ) MemAlloc( sizeof( lmgr_report_t ) );
@@ -118,74 +122,93 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     /* initialy, no char * tab allocated */
     p_report->str_tab = NULL;
 
-    /* expected result content */
 
     for ( i = 0; i < report_descr_count; i++ )
     {
-        if ( report_desc_array[i].report_type != REPORT_COUNT ) /* no field for count */
+        if ( !is_acct_field( report_desc_array[i].attr_index ) && 
+                !is_acct_pk( report_desc_array[i].attr_index ) && 
+                report_desc_array[i].attr_index != 0 )
+            full_acct = FALSE;
+    }
+
+    if ( full_acct )
+    {
+        optimizedstat( p_report, report_descr_count, report_desc_array, 
+                        fields, curr_field, group_by, curr_group_by );
+        acct_table_flag = TRUE;
+    }
+    else
+    {
+
+        /* expected result content */
+
+        for ( i = 0; i < report_descr_count; i++ )
         {
-            /* in what table is this field ? */
-            if ( is_main_field( report_desc_array[i].attr_index ) )
-                main_table_flag = TRUE;
-            else if ( is_annex_field( report_desc_array[i].attr_index ) )
-                annex_table_flag = TRUE;
-            else
+            if ( report_desc_array[i].report_type != REPORT_COUNT ) /* no field for count */
             {
-                /* Not supported yet */
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Error: report on attribute #%u is not supported (report item #%u).",
-                            report_desc_array[i].attr_index, i );
-                goto free_field_tab;
+                /* in what table is this field ? */
+                if ( is_main_field( report_desc_array[i].attr_index ) )
+                    main_table_flag = TRUE;
+                else if ( is_annex_field( report_desc_array[i].attr_index ) )
+                    annex_table_flag = TRUE;
+                else
+                {
+                    /* Not supported yet */
+                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                "Error: report on attribute #%u is not supported (report item #%u).",
+                                report_desc_array[i].attr_index, i );
+                    goto free_field_tab;
+                }
             }
-        }
 
-        sprintf( attrname, "attr%u", i );
+            sprintf( attrname, "attr%u", i );
 
-        /* what kind of stat on this field ? */
-        switch ( report_desc_array[i].report_type )
-        {
-        case REPORT_MIN:
-            sprintf( attrstring, "MIN( %s ) as %s",
-                     field_str( report_desc_array[i].attr_index ), attrname );
-            add_string( fields, curr_field, attrstring );
-            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
-            break;
-        case REPORT_MAX:
-            sprintf( attrstring, "MAX( %s ) as %s",
-                     field_str( report_desc_array[i].attr_index ), attrname );
-            add_string( fields, curr_field, attrstring );
-            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
-            break;
-        case REPORT_AVG:
-            sprintf( attrstring, "ROUND(AVG( %s )) as %s",
-                     field_str( report_desc_array[i].attr_index ), attrname );
-            add_string( fields, curr_field, attrstring );
-            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
-            break;
-        case REPORT_SUM:
-            sprintf( attrstring, "SUM( %s ) as %s",
-                     field_str( report_desc_array[i].attr_index ), attrname );
-            add_string( fields, curr_field, attrstring );
-            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
-            break;
-        case REPORT_COUNT:
-            sprintf( attrstring, "COUNT(*) as %s", attrname );
-            add_string( fields, curr_field, attrstring );
-            p_report->result_type_array[i] = DB_UINT;
-            break;
-        case REPORT_COUNT_DISTINCT:
-            sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
-                     field_str( report_desc_array[i].attr_index ), attrname );
-            add_string( fields, curr_field, attrstring );
-            p_report->result_type_array[i] = DB_UINT;
-            break;
-        case REPORT_GROUP_BY:
-            sprintf( attrstring, "%s as %s", field_str( report_desc_array[i].attr_index ),
-                     attrname );
-            add_string( fields, curr_field, attrstring );
-            add_string( group_by, curr_group_by, attrname );
-            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
-            break;
+            /* what kind of stat on this field ? */
+            switch ( report_desc_array[i].report_type )
+            {
+            case REPORT_MIN:
+                sprintf( attrstring, "MIN( %s ) as %s",
+                         field_str( report_desc_array[i].attr_index ), attrname );
+                add_string( fields, curr_field, attrstring );
+                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                break;
+            case REPORT_MAX:
+                sprintf( attrstring, "MAX( %s ) as %s",
+                         field_str( report_desc_array[i].attr_index ), attrname );
+                add_string( fields, curr_field, attrstring );
+                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                break;
+            case REPORT_AVG:
+                sprintf( attrstring, "ROUND(AVG( %s )) as %s",
+                         field_str( report_desc_array[i].attr_index ), attrname );
+                add_string( fields, curr_field, attrstring );
+                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                break;
+            case REPORT_SUM:
+                sprintf( attrstring, "SUM( %s ) as %s",
+                         field_str( report_desc_array[i].attr_index ), attrname );
+                add_string( fields, curr_field, attrstring );
+                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                break;
+            case REPORT_COUNT:
+                sprintf( attrstring, "COUNT(*) as %s", attrname );
+                add_string( fields, curr_field, attrstring );
+                p_report->result_type_array[i] = DB_UINT;
+                break;
+            case REPORT_COUNT_DISTINCT:
+                sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
+                         field_str( report_desc_array[i].attr_index ), attrname );
+                add_string( fields, curr_field, attrstring );
+                p_report->result_type_array[i] = DB_UINT;
+                break;
+            case REPORT_GROUP_BY:
+                sprintf( attrstring, "%s as %s", field_str( report_desc_array[i].attr_index ),
+                         attrname );
+                add_string( fields, curr_field, attrstring );
+                add_string( group_by, curr_group_by, attrname );
+                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                break;
+            }
         }
 
         /* is this field sorted ? */
@@ -264,6 +287,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
         strcpy( from, MAIN_TABLE );
     else if ( annex_table_flag )
         strcpy( from, ANNEX_TABLE );
+    else if ( acct_table_flag )
+        strcpy( from, ACCT_TABLE );
 
 
     /* Build the request */
@@ -382,4 +407,61 @@ void ListMgr_CloseReport( struct lmgr_report_t *p_iter )
 
     MemFree( p_iter->result_type_array );
     MemFree( p_iter );
+}
+
+
+void optimizedstat( lmgr_report_t *p_report, unsigned int report_descr_count, report_field_descr_t *report_desc_array,
+                    char *fields, char *curr_field,char * group_by, char *curr_group_by )
+{
+    char           attrstring[1024];
+    int            i;
+    char           attrname[128];
+         
+    for ( i = 0; i < report_descr_count; i++ )
+    {
+        sprintf( attrname, "attr%u", i );
+        switch ( report_desc_array[i].report_type )
+        {
+        case REPORT_MIN:
+            sprintf( attrstring, "NULL as %s", attrname );
+            add_string( fields, curr_field, attrstring );
+            p_report->result_type_array[i] = DB_TEXT;
+            break;
+        case REPORT_MAX:
+            sprintf( attrstring, "NULL as %s", attrname );
+            add_string( fields, curr_field, attrstring );
+            p_report->result_type_array[i] = DB_TEXT;
+            break;
+        case REPORT_AVG:
+            sprintf( attrstring, "ROUND( SUM(%s) / SUM(count) ) as %s",
+                     field_str( report_desc_array[i].attr_index ), attrname );
+            add_string( fields, curr_field, attrstring );
+            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+            break;
+        case REPORT_SUM:
+            sprintf( attrstring, "SUM(%s) as %s",
+                     field_str( report_desc_array[i].attr_index ), attrname );
+            add_string( fields, curr_field, attrstring );
+            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+            break;
+        case REPORT_COUNT:
+            sprintf( attrstring, "SUM(count) as %s", attrname );
+            add_string( fields, curr_field, attrstring );
+            p_report->result_type_array[i] = DB_UINT;
+            break;
+        case REPORT_COUNT_DISTINCT:
+            sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
+                     field_str( report_desc_array[i].attr_index ), attrname );
+            add_string( fields, curr_field, attrstring );
+            p_report->result_type_array[i] = DB_UINT;
+            break;
+        case REPORT_GROUP_BY:
+            sprintf( attrstring, "%s as %s", field_str( report_desc_array[i].attr_index ),
+                     attrname );
+            add_string( fields, curr_field, attrstring );
+            add_string( group_by, curr_group_by, attrname );
+            p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+            break;
+        }
+    }
 }
