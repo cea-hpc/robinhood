@@ -8,7 +8,11 @@ if SHERPA
 SUBDIRS = purge migration rmdir
 endif
 if HSM_LITE
+if SHOOK
+SUBDIRS = purge migration hsm_remove
+else
 SUBDIRS = migration hsm_remove
+endif
 endif
 
 indent:

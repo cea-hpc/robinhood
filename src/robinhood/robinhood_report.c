@@ -110,14 +110,18 @@ status_array[] =
     { STATUS_UNKNOWN, "unknown", "unknown" },
     { STATUS_NEW, "new", "new file (not in backend)" },
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
+    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
     { STATUS_SYNCHRO, "synchro", "synchronized in backend" },
+    { STATUS_RELEASED, "released", "released" },
+    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
     { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
 
     /* alternative names */
     { STATUS_MODIFIED, "dirty", "dirty (modified)" },
+    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
 
-#define ALLOWED_STATUS "unknown, new, modified|dirty, archiving, synchro, removed"
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
 
 #endif
     { (file_status_t)-1, NULL, NULL }
@@ -352,7 +356,7 @@ static inline void display_version( char *bin_name )
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
 #elif defined(_HSM_LITE)
-    printf( "    Backup filesystem to external storage\n" );
+    printf( "    Basic HSM binding\n" );
 #else
 #error "No purpose was specified"
 #endif
@@ -2098,6 +2102,13 @@ void report_deferred_rm( int flags )
     #define IS_PURGE_CONCERNED( _status ) ( (_status) == STATUS_SYNCHRO )
     #define IS_MODIFIED( _status )  ((_status) == STATUS_MODIFIED)
 #elif defined(_HSM_LITE)
+    #ifdef HAVE_PURGE_POLICY
+    #define IS_PURGE_CONCERNED( _status ) ( ((_status) == STATUS_SYNCHRO)  \
+                                     || ((_status) == STATUS_RELEASED) \
+                                     || ((_status) == STATUS_RELEASE_PENDING) )
+    #else
+    #define IS_PURGE_CONCERNED( _status ) FALSE
+    #endif
     #define IS_MODIFIED( _status )  (((_status) == STATUS_MODIFIED)|| \
                                      ((_status) == STATUS_NEW))
 #endif

@@ -8,6 +8,9 @@ typedef struct backend_t
 
 	/* does the backend supports remove operation */
 	unsigned int rm_support:1;
+
+	/* does the whole system supports release/copyback operations */
+	unsigned int release_support:1;
 } backend_t;
 
 typedef struct backend_config_t

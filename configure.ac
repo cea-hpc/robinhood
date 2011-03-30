@@ -233,14 +233,21 @@ case $PURPOSE in
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for HSM-lite purpose])
         AC_DEFINE([HAVE_RM_POLICY], [1], [Backend removal policy for HSM-lite purpose])
 
-        AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
-        AM_CONDITIONAL( SHOOK, test  "x$have_shook" = "xyes" )
-        if test "x$have_shook" != "xyes" ; then
-            AC_MSG_WARN([libshooksvr not found, backup mode only])
-        else
-            AC_MSG_NOTICE([libshooksvr is installed, full HSM-lite support is enabled]) 
-            PURPOSE_LDFLAGS="-lshooksvr"
-            AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for HSM-lite purpose])
+        AC_ARG_ENABLE( [shook], AS_HELP_STRING([--disable-shook],
+                       [Disable usage of shook library]),
+                       [use_shook="$enableval"],[use_shook="yes"] )
+
+        if test "x$use_shook" = "xyes" ; then
+            AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
+
+            if test "x$have_shook" != "xyes" ; then
+                AC_MSG_WARN([libshooksvr not found, backup mode only])
+            else
+                AC_MSG_NOTICE([libshooksvr is installed, full HSM-lite support is enabled]) 
+                PURPOSE_LDFLAGS="-lshooksvr"
+                AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for HSM-lite purpose])
+                AC_DEFINE([HAVE_SHOOK], [1], [libshook based HSM binding])
+            fi
         fi
         ;;
 
@@ -248,6 +255,8 @@ case $PURPOSE in
         AC_MSG_ERROR([This purpose is not supported yet])
         ;;
 esac
+
+AM_CONDITIONAL( SHOOK, test  "x$have_shook" = "xyes" )
 
 AC_SUBST(PURPOSE_CFLAGS)
 AC_SUBST(PURPOSE_LDFLAGS)

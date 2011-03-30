@@ -38,7 +38,7 @@ elif [[ $PURPOSE = "HSM_LITE" ]]; then
 	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
 	RECOV="../../src/robinhood/rbh-hsmlite-recov $RBH_OPT"
 	CMD=rbh-hsmlite
-	ARCH_STR="Starting hsmlite"
+	ARCH_STR="Starting backup"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
 	fi
@@ -2415,7 +2415,7 @@ function recovery_test
 				|| error "archiving $ROOT/dir.$i/file.$i"
 			touch "$ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-			# no hsmlite
+			# no backup
 			:
 		fi
 	done
@@ -2479,7 +2479,7 @@ function recovery_test
 			grep "Restoring $ROOT/dir.$i/file.$i" recov.log	| grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
 			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-			grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No hsmlite" >/dev/null || error "Bad status (no hsmlite expected)"
+			grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
 			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
 		fi
 	done

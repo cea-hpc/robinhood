@@ -361,7 +361,7 @@ static inline void display_version( char *bin_name )
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
 #elif defined(_HSM_LITE)
-    printf( "    Backup filesystem to external storage\n" );
+    printf( "    Basic HSM binding\n" );
 #else
 #error "No purpose was specified"
 #endif

@@ -13,8 +13,8 @@
  * accept its terms.
  */
 /**
- * \file   tmp_fs_mgr_types.h
- * \brief  Defines data types for Temporary FS Manager.
+ * \file   hsmlite_types.h
+ * \brief  Defines data types for HSM Lite purpose
  */
 
 #include <sys/types.h>
@@ -27,7 +27,7 @@
 #endif
 
 /********************************************************
- *       Types For temporary filesystem space manager   *
+ *       Types For HSM lite purpose
  ********************************************************/
 
 #if (defined (_LUSTRE) && defined(_HAVE_FID))
@@ -109,8 +109,11 @@ typedef enum
   STATUS_UNKNOWN = 0,           /* undetermined status */
   STATUS_NEW,                   /* file does not exists in the backend */
   STATUS_MODIFIED,              /* file has been modified since it was stored in the backend */
-  STATUS_ARCHIVE_RUNNING,       /* file is being archived to the backend */
-  STATUS_SYNCHRO,               /* file is synchronized in the backend */
+  STATUS_RESTORE_RUNNING,       /* file is being retrieved */
+  STATUS_ARCHIVE_RUNNING,       /* file is being archived */
+  STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
+  STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
+  STATUS_RELEASE_PENDING,    	/* file is being released */
   STATUS_REMOVED                /* file has been removed from lustre and still exists in the backend */
 } file_status_t;
 
@@ -136,6 +139,7 @@ type,	    	char,   DB_TEXT, 32, FREQ_ACCESS
 backendpath,	char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO
 custom_info,    char, DB_TEXT, 1024,     ANNEX_INFO
 last_archive,   unsigned int, DB_UINT, 0, ANNEX_INFO
+last_restore,   unsigned int, DB_UINT, 0, ANNEX_INFO
 
 # generated fields
 name,			char,		  DB_TEXT,   256,  GENERATED, fullpath, lmgr_gen_name
@@ -148,9 +152,6 @@ path_update, unsigned int, DB_UINT, 0, FREQ_ACCESS
 #file status compared to external backend
 status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
 
-# is file tagged no_archive buy the admin?
-no_archive,     int, DB_BOOL, 0, FREQ_ACCESS
-
 # file is tagged invalid for the current pass (internal use)
 invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
 
@@ -160,6 +161,8 @@ last_op_index, uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
 # file class and their last update
 archive_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
 arch_cl_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
+release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
+rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
 # directories only
 dircount, 	unsigned int, DB_UINT, 0, ANNEX_INFO

@@ -33,7 +33,6 @@ if HSM_LITE
 noinst_HEADERS+=hsmlite_types.h hsmlite_types.def backend_ext.h backend_mgr.h  hsmlite_pipeline.h
 hsmlite_types.h: hsmlite_types.def $(TYPEGEN)
 all: hsmlite_types.h
-
 endif
 
 CLEANFILES = lustre_hsm_types.h tmp_fs_mgr_types.h sherpa_types.h hsmlite_types.h

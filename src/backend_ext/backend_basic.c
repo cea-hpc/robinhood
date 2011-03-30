@@ -51,7 +51,6 @@ int rbhext_compat_flags()
 #ifdef _HAVE_FID
     compat_flags |= RBHEXT_COMPAT_LUSTRE;
 #endif
-
     return compat_flags;
 }
 
@@ -72,6 +71,10 @@ int rbhext_init( const backend_config_t * conf,
 
     /* synchronous archiving and rm support */
     *p_behaviors_flags = RBHEXT_SYNC_ARCHIVE | RBHEXT_RM_SUPPORT;
+
+#ifdef HAVE_PURGE_POLICY
+    *p_behaviors_flags |= RBHEXT_RELEASE_SUPPORT;
+#endif
 
     /* check that backend filesystem is mounted */
     rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev,
@@ -336,6 +339,17 @@ int rbhext_get_status( const entry_id_t * p_id,
                     ATTR(p_attrs_in, type) );
         return -ENOTSUP;
     }
+
+#ifdef HAVE_PURGE_POLICY
+#ifdef HAVE_SHOOK
+    /* @TODO check status from libshook.
+     * return if status != ONLINE
+     * else, continue checking.
+     */
+
+    /* @TODO: ignore shook special entries */
+#endif
+#endif
 
     if ( entry_type == TYPE_FILE )
     {
@@ -1088,6 +1102,12 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     /* restore entry */
     if ( S_ISREG( st_bk.st_mode ) )
     {
+#ifdef HAVE_PURGE_POLICY
+    /* @TODO this backend is restore/release capable.
+     * Recover the entry in released state (md only),
+     * so it will be recovered at first open.
+     */
+#else
         struct utimbuf utb;
 
         rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
@@ -1111,6 +1131,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         if ( utime( fspath, &utb ) )
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
                         fspath, strerror(errno) );
+#endif
     }
 
     /* set owner, group */
@@ -1192,7 +1213,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     strcpy( ATTR( p_attrs_new, fullpath ), fspath );
     ATTR_MASK_SET( p_attrs_new, fullpath );
     /* status is always synchro after a recovery */
-    ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
+    ATTR( p_attrs_new, status ) = STATUS_SYNCHRO; /* @TODO 'released' if only md import */
     ATTR_MASK_SET( p_attrs_new, status );
 
 #ifdef _HAVE_FID
@@ -1260,5 +1281,42 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         return RS_DELTA;
     else
         return RS_OK;
+}
 
+int rbhext_release( const entry_id_t * p_id,
+                    attr_set_t * p_attrs )
+{
+#ifndef HAVE_PURGE_POLICY
+    return -ENOTSUP;
+#else
+    int rc;
+    obj_type_t entry_type;
+
+    /* if status is not determined, retrieve it */
+    if ( !ATTR_MASK_TEST(p_attrs, status) )
+    {
+        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Status not provided to rbhext_release()" );
+        rc = rbhext_get_status( p_id, p_attrs, p_attrs );
+        if (rc)
+            return rc;
+    }
+
+    /* is it the good type? */
+    if ( !ATTR_MASK_TEST(p_attrs, type) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'type' in %s()",
+                    __FUNCTION__ );
+        return -EINVAL;
+    }
+
+    entry_type = ListMgr2PolicyType(ATTR(p_attrs, type));
+    if ( entry_type != TYPE_FILE )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unsupported type for release operation: %s",
+                    ATTR(p_attrs, type) );
+        return -ENOTSUP;
+    }
+
+    return -1;
+#endif
 }
