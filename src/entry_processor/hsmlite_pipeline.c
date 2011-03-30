@@ -200,9 +200,11 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
     }
 #ifdef HAVE_SHOOK
     /* shook specific: xattrs on file indicate its current status */
-    else if ((logrec->cr_type == CL_XATTR )
+    else if (logrec->cr_type == CL_XATTR)
     {
-        /* @TODO */
+        /* need to update status */
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getstatus_needed = TRUE;
     }
 #endif
     else if ((logrec->cr_type == CL_MKDIR )

@@ -34,6 +34,13 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 elif [[ $PURPOSE = "HSM_LITE" ]]; then
 	is_lhsm=0
 	is_hsmlite=1
+
+	if [[ "x$SHOOK" != "x1" ]]; then
+		shook=0
+	else
+		shook=1
+	fi
+
 	RH="../../src/robinhood/rbh-hsmlite $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
 	RECOV="../../src/robinhood/rbh-hsmlite-recov $RBH_OPT"
@@ -613,8 +620,8 @@ function purge_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_hsmlite != 0 )); then
-		echo "No purge for hsmlite purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -697,8 +704,8 @@ function purge_size_filesets
 	count=$3
 	policy_str="$4"
 
-	if (( $is_hsmlite != 0 )); then
-		echo "No purge for hsmlite purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1257,8 +1264,8 @@ function periodic_class_match_purge
 	update_period=$2
 	policy_str="$3"
 
-	if (( $is_hsmlite != 0 )); then
-		echo "No purge for hsmlite purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1343,8 +1350,8 @@ function test_cnt_trigger
 	exp_purge_count=$3
 	policy_str="$4"
 
-	if (( $is_hsmlite != 0 )); then
-		echo "No purge for hsmlite purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1397,8 +1404,8 @@ function test_ost_trigger
 	mb_l_watermark=$3
 	policy_str="$4"
 
-	if (( $is_hsmlite != 0 )); then
-		echo "No purge for hsmlite purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1493,8 +1500,8 @@ function test_trigger_check
 	target_user_vol=$7
 	max_user_vol=$8
 
-	if (( $is_hsmlite != 0 )); then
-		echo "No purge for hsmlite purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1604,8 +1611,8 @@ function test_periodic_trigger
 	sleep_time=$2
 	policy_str=$3
 
-	if (( $is_hsmlite != 0 )); then
-		echo "No purge for hsmlite purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -2499,8 +2506,8 @@ function check_disabled
 
        case "$flavor" in
                purge)
-                       if (( $is_hsmlite != 0 )); then
-                               echo "No purge for hsmlite purpose: skipped"
+		       if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+			       echo "No purge for hsmlite purpose (shook=$shook): skipped"
                                set_skipped
                                return 1
                        fi

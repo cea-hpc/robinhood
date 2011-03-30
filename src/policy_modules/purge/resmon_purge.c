@@ -1059,7 +1059,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     }
 #endif
 
-#if ATTR_INDEX_status
+#ifdef ATTR_INDEX_status
     if ( !ATTR_MASK_TEST( &new_attr_set, status ) )
     {
         DisplayLog( LVL_MAJOR, PURGE_TAG, "Warning: entry status should be set at this point");
