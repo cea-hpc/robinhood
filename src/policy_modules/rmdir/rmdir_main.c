@@ -375,7 +375,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
     /**
      * Do nothing if no previous scan was done.
      */
-    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_VAR, timestamp ) != DB_SUCCESS )
+    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, timestamp ) != DB_SUCCESS )
     {
           DisplayLog( LVL_MAJOR, RMDIR_TAG,
                       "Full FS Scan has never been done. "
@@ -621,7 +621,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
     /**
      * Do nothing if no previous scan was done.
      */
-    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_VAR, timestamp ) != DB_SUCCESS )
+    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, timestamp ) != DB_SUCCESS )
       {
           DisplayLog( LVL_MAJOR, RMDIR_TAG,
                       "Full FS Scan has never been done. "

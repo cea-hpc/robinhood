@@ -323,7 +323,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     /**
      * Do nothing if no previous scan was done.
      */
-    if ( ListMgr_GetVar( lmgr, LAST_SCAN_VAR, timestamp ) != DB_SUCCESS )
+    if ( ListMgr_GetVar( lmgr, LAST_SCAN_END_TIME, timestamp ) != DB_SUCCESS )
     {
         DisplayLog( LVL_MAJOR, PURGE_TAG,
                     "Full FS Scan has never been done. Cannot build a purge list." );
