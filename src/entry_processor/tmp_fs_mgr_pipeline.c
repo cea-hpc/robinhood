@@ -916,7 +916,6 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-    char           timestamp[128];
     lmgr_filter_t  filter;
     filter_value_t val;
 

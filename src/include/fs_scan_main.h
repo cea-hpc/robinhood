@@ -74,6 +74,9 @@ int            FSScan_Wait(  );
 /** dump scan stats */
 int            FSScan_DumpStats(  );
 
+/** store scan stats in db */
+int            FSScan_StoreStats(  );
+
 /** 
  * \addtogroup MODULE_CONFIG_FUNCTIONS
  * @{
