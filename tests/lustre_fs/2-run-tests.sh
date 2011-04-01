@@ -149,13 +149,13 @@ function clean_fs
 
 	echo "Cleaning filesystem..."
 	if [[ -n "$ROOT" ]]; then
-		rm  -rf $ROOT/*
+		 find "$ROOT" -mindepth 1 -delete 2>/dev/null
 	fi
 
 	if (( $is_backup != 0 )); then
 		if [[ -n "$BKROOT" ]]; then
 			echo "Cleaning backend content..."
-			rm -rf $BKROOT/*
+			find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
 		fi
 	fi
 
@@ -1826,6 +1826,7 @@ function test_info_collect
 
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+#	$RH -f ./cfg/$config_file --scan -l FULL -L rh_chglogs.log  --once || error ""
  
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
@@ -1834,6 +1835,7 @@ function test_info_collect
 	if (( $nb_db_apply == $db_expect )); then
 		echo "OK: $db_expect database operations"
 	else
+#		grep ENTRIES rh_chglogs.log
 		error ": unexpected number of operations: $nb_db_apply database operations"
 	fi
 }

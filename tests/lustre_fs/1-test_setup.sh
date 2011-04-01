@@ -29,3 +29,6 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	fi
 
 fi
+
+f=`ls /proc/fs/lustre/llite/*/statahead_max`
+echo 0 > $f
