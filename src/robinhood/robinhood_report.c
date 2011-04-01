@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <libgen.h>
 #include <pthread.h>
+#include <string.h>
 
 #define REPORT_TAG    "Report"
 
@@ -406,39 +407,19 @@ void report_activity( int flags )
 {
     char           value[1024];
     time_t         timestamp;
+    time_t         timestamp2;
     char           date[128];
     struct tm      t;
     int            rc;
+    char           scan_status[128];
+    int            nb_threads;
+
 
     if ( !CSV(flags) )
-        printf( "\n" );
-
-    /* Last FS scan */
-    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_VAR, value );
-    if ( rc == DB_SUCCESS )
-    {
-        timestamp = atoi( value );
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( CSV(flags) )
-            printf( "last_scan, %s\n", date );
-        else
-            printf( "Last Filesystem scan:     %s\n", date );
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( CSV(flags) )
-            printf( "last_scan, none\n" );
-        else
-            printf( "Filesystem has never been scanned\n" );
-    }
-    else
-    {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR retrieving variable " LAST_SCAN_VAR " from database" );
-    }
+        printf( "\nFilesystem scan activity:\n\n" );
 
 #ifndef _LUSTRE_HSM
-    /* Last FS scan */
+    /* Scan interval */
     rc = ListMgr_GetVar( &lmgr, SCAN_INTERVAL_VAR, value );
     if ( rc == DB_SUCCESS )
     {
@@ -447,7 +428,7 @@ void report_activity( int flags )
         if ( CSV(flags) )
             printf( "current_scan_interval, %s\n", date );
         else
-            printf( "Current scan interval:    %s\n", date );
+            printf( "    Current scan interval:   %s\n\n", date );
     }
     else if ( rc != DB_NOT_EXISTS )
     {
@@ -455,6 +436,277 @@ void report_activity( int flags )
                     "ERROR retrieving variable " SCAN_INTERVAL_VAR " from database" );
     }
 #endif
+
+    /* Last FS scan */
+    if ( !CSV(flags) )
+        printf( "    Last filesystem scan:\n" );
+
+    // status
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_STATUS, scan_status );
+    if ( rc == DB_SUCCESS )
+    {
+        if ( CSV(flags) )
+            printf( "last_scan_status, %s\n", scan_status );
+        else
+            printf( "            status:          %s\n", scan_status );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "last_scan_status, unknown\n" );
+        else
+            printf( "            status:          unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_STATUS " from database" );
+    }
+
+    // start
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_START_TIME, value );
+    if ( rc == DB_SUCCESS )
+    {
+        timestamp = atoi( value );
+        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
+        if ( CSV(flags) )
+            printf( "last_scan_start, %s\n", date );
+        else
+            printf( "            start:           %s\n", date );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "last_scan_start, unknown\n" );
+        else
+            printf( "            start:           unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_START_TIME " from database" );
+    }
+
+    // last action
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value );
+    if ( rc == DB_SUCCESS )
+    {
+        timestamp2 = atoi( value );
+        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
+        if ( CSV(flags) )
+            printf( "last_action_time, %s\n", date );
+        else
+            printf( "            last action:     %s\n", date );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "last_action_time, unknown\n" );
+        else
+            printf( "            last action:     unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_LAST_ACTION_TIME " from database" );
+    }
+
+    // end
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, value );
+    if ( rc == DB_SUCCESS )
+    {
+        timestamp2 = atoi( value );
+        if ( timestamp2 > timestamp ) {
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
+            if ( CSV(flags) )
+                printf( "last_scan_end, %s\n", date );
+            else
+                printf( "            end:             %s\n", date );
+
+            // duration
+            int dur = (int)difftime( timestamp2, timestamp );
+            if ( CSV(flags) )
+                printf( "last_scan_duration, %i sec\n", dur);
+            else
+            {
+                int hour, minute, second;
+                second = dur%60;
+                minute = (second/60)%60;
+                hour = second/3600;
+                if ( hour == 0 ) {
+                    if ( minute == 0 )
+                        printf( "            duration:        %d second%s\n", second, (second > 1) ? "s" : "" );
+                    else
+                        printf( "            duration:        %d minute%s and %d second%s\n", minute, (minute > 1) ? "s" : "", \
+                                                                              second, (second > 1) ? "s" : "" );
+                }
+                else
+                   printf( "            duration:        %d hour%s, %d minute%s, and %d second%s\n", hour, (hour > 1) ? "s" : "", \
+                                                                              minute, (minute > 1) ? "s" : "", \
+                                                                              second, (second > 1) ? "s" : "" );
+            }
+        }
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "last_scan_end, unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_END_TIME " from database" );
+    }
+
+    if ( !CSV(flags) )
+        printf( "\n" );
+
+    // entries scanned
+    if ( !CSV(flags) )
+        printf( "         Statistics:\n" );
+
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_ENTRIES_SCANNED, value);
+    if ( rc == DB_SUCCESS )
+    {
+        if ( CSV(flags) )
+            printf( "entries_scanned, %s\n", value );
+        else
+            printf( "            entries scanned: %s\n", value );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "entries_scanned, unknown\n" );
+        else
+            printf( "            entries scanned: unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_ENTRIES_SCANNED " from database" );
+    }
+
+    // errors
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_ERRORS, value);
+    if ( rc == DB_SUCCESS )
+    {
+        if ( CSV(flags) )
+            printf( "errors, %s\n", value );
+        else
+            printf( "            errors:          %s\n", value );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "errors, unknown\n" );
+        else
+            printf( "            errors:          unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_ERRORS " from database" );
+    }
+
+    // timeouts
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_TIMEOUTS, value);
+    if ( rc == DB_SUCCESS )
+    {
+        if ( CSV(flags) )
+            printf( "timeouts, %s\n", value );
+        else
+            printf( "            timeouts:        %s\n", value );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "timeouts, unknown\n" );
+        else
+            printf( "            timeouts:        unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_TIMEOUTS " from database" );
+    }
+
+    // nb threads
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_NB_THREADS, value );
+    if ( rc == DB_SUCCESS )
+    {
+        nb_threads = atoi( value );
+        if ( CSV(flags) )
+            printf( "nb_threads, %i\n", nb_threads );
+        else
+            printf( "            # threads:       %i\n", nb_threads );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "nb_threads, unknown\n" );
+        else
+            printf( "            # threads:       unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_NB_THREADS " from database" );
+    }
+
+    // average speed
+    rc = ListMgr_GetVar( &lmgr, LAST_SCAN_AVGMSPE, value);
+    if ( rc == DB_SUCCESS )
+    {
+        double speed = 0.0;
+        double avgmspe = atof(value);
+        if ( avgmspe > 0 )
+            speed = ( 1000.0 / avgmspe ) * nb_threads;
+        if ( CSV(flags) )
+            printf( "average_speed, %.2f\n", speed );
+        else
+            printf( "            average speed:   %.2f entries/sec\n", speed );
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "average_speed, unknown\n" );
+        else
+            printf( "            average speed:   unknown\n" );
+    }
+    else
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " LAST_SCAN_AVGMSPE " from database" );
+    }
+
+    // current speed
+    if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+    {
+        rc = ListMgr_GetVar( &lmgr, LAST_SCAN_CURMSPE, value);
+        if ( rc == DB_SUCCESS )
+        {
+            double speed = 0.0;
+            double curmspe = atof(value);
+            if ( value > 0 )
+                speed = ( 1000.0 / curmspe ) * nb_threads;
+            if ( CSV(flags) )
+                printf( "current_speed, %.2f\n", speed );
+            else
+                printf( "        >>> current speed:   %.2f entries/sec\n", speed );
+        }
+        else if ( rc == DB_NOT_EXISTS )
+        {
+            if ( CSV(flags) )
+                printf( "current_speed, unknown\n" );
+            else
+                printf( "        >>> current speed:   unknown\n" );
+        }
+        else
+        {
+            DisplayLog( LVL_CRIT, REPORT_TAG,
+                        "ERROR retrieving variable " LAST_SCAN_CURMSPE " from database" );
+        }
+    }
 
     if ( !CSV(flags) )
         printf( "\n" );
@@ -499,9 +751,9 @@ void report_activity( int flags )
     else if ( rc == DB_NOT_EXISTS )
     {
         if ( CSV(flags) )
-            printf( "last_migration_time, none\n" );
+            printf( "last_migration_time, unknown\n" );
         else
-            printf( "No migration was performed on this filesystem\n" );
+            printf( "No migration was performed on this filesystem\n\n" );
         return;
     }
     else
@@ -546,9 +798,9 @@ void report_activity( int flags )
     else if ( rc == DB_NOT_EXISTS )
     {
         if ( CSV(flags) )
-            printf( "last_purge_time, none\n" );
+            printf( "last_purge_time, unknown\n" );
         else
-            printf( "No purge was performed on this filesystem\n" );
+            printf( "No purge was performed on this filesystem\n\n" );
         return;
     }
     else

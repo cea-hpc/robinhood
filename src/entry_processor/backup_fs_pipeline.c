@@ -1112,9 +1112,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->callback_func( lmgr, p_op, p_op->callback_param );
     }
 
-    /* also update the LastScan variable */
-    sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
-    ListMgr_SetVar( lmgr, LAST_SCAN_VAR, timestamp );
+    // update last scan end time moved to callback
 
     /* unset force commit flag */
     ListMgr_ForceCommitFlag( lmgr, FALSE );

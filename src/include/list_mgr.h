@@ -647,18 +647,35 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 /*
  * Name of variables stored in database
  */
-#define LAST_SCAN_VAR       "LastScan"
+
 #define LAST_PURGE_TIME     "LastPurgeTime"
 #define LAST_PURGE_TARGET   "LastPurgeTarget"
 #define LAST_PURGE_STATUS   "LastPurgeStatus"
-#define LAST_MIGR_TIME     "LastMigrTime"
-#define LAST_MIGR_STATUS   "LastMigrStatus"
-#define LAST_MIGR_INFO     "LastMigrInfo"
+#define LAST_MIGR_TIME      "LastMigrTime"
+#define LAST_MIGR_STATUS    "LastMigrStatus"
+#define LAST_MIGR_INFO      "LastMigrInfo"
 #define FS_PATH_VAR         "FS_Path"
 #define USAGE_MAX_VAR       "MaxUsage"
 #define SCAN_INTERVAL_VAR   "ScanInterval"
 #define NEXT_MAINT_VAR      "NextMaintenance"
 
+// For statistics
+#define LAST_SCAN_START_TIME  "LastScanStartTime"
+#define LAST_SCAN_END_TIME    "LastScanEndTime"
+#define LAST_SCAN_PROCESSING_END_TIME "LastScanProcessingEndTime"
+#define LAST_SCAN_STATUS      "LastScanStatus"
+#define LAST_SCAN_LAST_ACTION_TIME "LastScanLastActionTime"
+#define LAST_SCAN_ENTRIES_SCANNED  "LastScanEntriesScanned"
+#define LAST_SCAN_ERRORS      "LastScanErrors"
+#define LAST_SCAN_TIMEOUTS    "LastScanTimeouts"
+#define LAST_SCAN_AVGMSPE     "LastScanAvgMsPerEntry"
+#define LAST_SCAN_CURMSPE     "LastScanCurMsPerEntry"
+#define LAST_SCAN_NB_THREADS  "LastScanNbThreads"
+
+#define SCAN_STATUS_DONE      "done"
+#define SCAN_STATUS_RUNNING   "running"
+#define SCAN_STATUS_ABORTED   "aborted"
+#define SCAN_STATUS_TIMEDOUT  "timed out"
 
 #define MAX_VAR_LEN     1024
 /**

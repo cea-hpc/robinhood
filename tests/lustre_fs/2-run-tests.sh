@@ -160,8 +160,8 @@ function clean_fs
 	fi
 
 	echo "Destroying any running instance of robinhood..."
-	pkill -f robinhood
-	pkill -f rbh-hsm
+	pkill robinhood
+	pkill rbh-hsm
 
 	if [ -f rh.pid ]; then
 		echo "killing remaining robinhood process..."
@@ -526,7 +526,7 @@ function link_unlink_remove_test
 	fi
 
 	# kill event handler
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 
 }
 
@@ -1083,7 +1083,7 @@ function update_test
 
 		# force flushing log
 		sleep 1
-		pkill -f $PROC
+		pkill $PROC
 		sleep 1
 		t=$(( `date "+%s"` - $init ))
 
@@ -1127,7 +1127,7 @@ function update_test
 
 		# force flushing log
 		sleep 1
-		pkill -f $PROC
+		pkill $PROC
 		sleep 1
 
 		nb_getpath=`grep getpath=1 $LOG | wc -l`
@@ -1159,7 +1159,7 @@ function update_test
 
 	# force flushing log
 	sleep 1
-	pkill -f $PROC
+	pkill $PROC
 	sleep 1
 
 	nb_getattr=`grep getattr=1 $LOG | wc -l`
@@ -1178,7 +1178,7 @@ function update_test
 
 	# kill remaning event handler
 	sleep 1
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 }
 
 function periodic_class_match_migr
@@ -1682,7 +1682,7 @@ function test_periodic_trigger
 	fi
 
 	# terminate
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 }
 
 function fileclass_test
@@ -2255,7 +2255,7 @@ function test_logs
 		cat /tmp/test_report.1
         fi
 
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
 	rm -f /tmp/test_log.1.old /tmp/test_report.1.old /tmp/test_alert.1.old
 }
