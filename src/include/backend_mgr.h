@@ -18,6 +18,9 @@ typedef struct backend_config_t
     char root[RBH_PATH_MAX];
     char mnt_type[RBH_NAME_MAX];
     char action_cmd[RBH_PATH_MAX];
+#ifdef HAVE_SHOOK
+    char shook_cfg[RBH_PATH_MAX];
+#endif
     unsigned int copy_timeout; /* 0=disabled */
     unsigned int xattr_support:1;
     unsigned int check_mounted:1;

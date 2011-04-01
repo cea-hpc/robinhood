@@ -195,6 +195,10 @@ enum what_to_do SherpaManageEntry( const entry_id_t * p_id, attr_set_t * p_attrs
                                    int match_classes);
 #endif
 
+#ifdef HAVE_SHOOK
+int ShookGetStatus(const char * path, file_status_t * p_status);
+#endif
+
 /**
  * Shoot a thread.
  */

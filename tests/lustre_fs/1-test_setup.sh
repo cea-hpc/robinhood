@@ -18,7 +18,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	echo $status
 
 	if [[ $status != "enabled" ]]; then
-		echo "enable" >  /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control
+		echo "enabled" >  /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control
 	fi
 
 	echo "Checking if copytool is already running..."
@@ -29,3 +29,8 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	fi
 
 fi
+
+# workaround for statahead issues
+f=`ls /proc/fs/lustre/llite/lustre-*/statahead_max`
+echo 0 > $f
+
