@@ -119,7 +119,7 @@ static inline void display_version( char *bin_name )
     printf( "    Temporary filesystem manager\n" );
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
     printf( "    Backup filesystem to external storage\n" );
 #else
 #error "No purpose was specified"
@@ -222,7 +222,7 @@ int list_rm()
     struct lmgr_rm_list_t * list;
     entry_id_t     id;
     char   last_known_path[RBH_PATH_MAX] = "";
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
 
@@ -252,7 +252,7 @@ int list_rm()
 
     index = 0;
     while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                         bkpath,
 #endif
                         &soft_rm_time, &expiration_time )) == DB_SUCCESS )
@@ -268,7 +268,7 @@ int list_rm()
         printf( "Fid:               "DFID"\n", PFID(&id) );
         if ( !EMPTY_STRING(last_known_path) )
             printf( "Last known path:   %s\n", last_known_path );
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
         if ( !EMPTY_STRING(bkpath) )
             printf( "Backend path:      %s\n", bkpath );
 #endif
@@ -280,7 +280,7 @@ int list_rm()
 
         /* prepare next call */
         last_known_path[0] = '\0';
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
         bkpath[0] = '\0';
 #endif
         soft_rm_time = 0;
@@ -298,7 +298,7 @@ int undo_rm()
     entry_id_t     id, new_id;
     attr_set_t     attrs, new_attrs;
     char   last_known_path[RBH_PATH_MAX] = "";
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
     recov_status_t st;
@@ -321,7 +321,7 @@ int undo_rm()
     }
 
     while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                         bkpath,
 #endif
                         NULL, NULL )) == DB_SUCCESS )
@@ -517,7 +517,7 @@ int main( int argc, char **argv )
         exit( rc );
     }
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     rc = Backend_Start( &config.backend_config, 0 );
     if ( rc )
     {

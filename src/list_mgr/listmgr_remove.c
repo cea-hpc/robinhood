@@ -88,7 +88,7 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
 
 /* macro for clarifying the code */
 #ifdef HAVE_RM_POLICY
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #define SOFTRM_SAVED_FIELDS "fullpath, backendpath"
 #else
 #define SOFTRM_SAVED_FIELDS "fullpath"
@@ -130,7 +130,7 @@ static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
  */
 static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    const char * entry_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                                    const char * backend_path,
 #endif
                                    time_t due_time )
@@ -146,7 +146,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
 
     if ( entry_path )
         curr += sprintf(curr, "fullpath, " );
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     if ( backend_path )
         curr += sprintf(curr, "backendpath, " );
 #endif
@@ -159,7 +159,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
         db_escape_string( &p_mgr->conn, escaped, 1024, entry_path );
         curr += sprintf(curr, "'%s', ", escaped );
     }
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     if ( backend_path )
     {
         db_escape_string( &p_mgr->conn, escaped, 1024, backend_path );
@@ -441,7 +441,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
             /* insert into softrm table */
             rc = listmgr_softrm_single( p_mgr, &id,
                                         field_tab[1],
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                                         field_tab[2],
 #endif
                                         real_remove_time );
@@ -530,14 +530,14 @@ int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    const char * last_known_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                                    const char * bkpath,
 #endif
                                    time_t real_remove_time )
 {
     int rc;
     const char * entry_path = NULL;
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     const char * backendpath = NULL;
 #endif
     attr_set_t missing_attrs;
@@ -549,7 +549,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
         /* check if the previous entry had a path */
         ATTR_MASK_SET( &missing_attrs, fullpath );
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     if ( bkpath )
         backendpath = bkpath;
     else
@@ -563,7 +563,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
         {
             if ( ATTR_MASK_TEST( &missing_attrs, fullpath ) )
                 entry_path = ATTR(&missing_attrs, fullpath);
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
             if ( ATTR_MASK_TEST( &missing_attrs, backendpath ) )
                 backendpath = ATTR(&missing_attrs, backendpath);
 #endif
@@ -576,7 +576,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
         return rc;
 
     rc = listmgr_softrm_single( p_mgr, p_id, entry_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     backendpath,
 #endif
                                 real_remove_time );
@@ -631,7 +631,7 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
             return NULL;
         }
         /* are there unsuported fields in this filter? */
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
         if ( lmgr_check_filter_fields( p_filter, ATTR_MASK_fullpath | ATTR_MASK_backendpath ) )
 #else
         if ( lmgr_check_filter_fields( p_filter, ATTR_MASK_fullpath ) )
@@ -650,7 +650,7 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
 
     p_list->p_mgr = p_mgr;
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     snprintf( query, 4096, "SELECT fid, fullpath, backendpath, soft_rm_time, real_rm_time "
 #else
     snprintf( query, 4096, "SELECT fid, fullpath, soft_rm_time, real_rm_time "
@@ -679,7 +679,7 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
 int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
                                        entry_id_t * p_id,
                                        char * last_known_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                                        char * bkpath,
 #endif
                                        time_t * soft_rm_time,
@@ -688,7 +688,7 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
     int            rc = 0;
     int i;
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     #define SHIFT 1
 #else
     #define SHIFT 0
@@ -721,7 +721,7 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
             last_known_path[0] = '\0';
     }
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     if ( bkpath )
     {
         if (record[2])

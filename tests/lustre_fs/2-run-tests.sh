@@ -18,26 +18,33 @@ else
 fi
 
 if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
-	is_hsm=1
-	is_backup=0
+	is_lhsm=1
+	is_hsmlite=0
 	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
 	REPORT=../../src/robinhood/rbh-hsm-report
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
 elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
-	is_hsm=0
-	is_backup=0
+	is_lhsm=0
+	is_hsmlite=0
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
 	CMD=robinhood
-elif [[ $PURPOSE = "BACKUP" ]]; then
-	is_hsm=0
-	is_backup=1
-	RH="../../src/robinhood/rbh-backup $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
-	RECOV="../../src/robinhood/rbh-backup-recov $RBH_OPT"
-	CMD=rbh-backup
+elif [[ $PURPOSE = "HSM_LITE" ]]; then
+	is_lhsm=0
+	is_hsmlite=1
+
+	if [[ "x$SHOOK" != "x1" ]]; then
+		shook=0
+	else
+		shook=1
+	fi
+
+	RH="../../src/robinhood/rbh-hsmlite $RBH_OPT"
+	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
+	RECOV="../../src/robinhood/rbh-hsmlite-recov $RBH_OPT"
+	CMD=rbh-hsmlite
 	ARCH_STR="Starting backup"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
@@ -135,7 +142,7 @@ function wait_done
 
 function clean_fs
 {
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		echo "Cancelling agent actions..."
 		if [[ -n "$MDS" ]]; then
 			ssh $MDS "echo purge > /proc/fs/lustre/mdt/*/hsm_control"
@@ -152,7 +159,7 @@ function clean_fs
 		 find "$ROOT" -mindepth 1 -delete 2>/dev/null
 	fi
 
-	if (( $is_backup != 0 )); then
+	if (( $is_hsmlite != 0 )); then
 		if [[ -n "$BKROOT" ]]; then
 			echo "Cleaning backend content..."
 			find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
@@ -211,7 +218,7 @@ function migration_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -267,7 +274,7 @@ function migration_test_single
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -360,7 +367,7 @@ function xattr_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -414,7 +421,7 @@ function xattr_test
 	else
 		echo "OK: $nb_migr files migrated"
 
-		if (( $is_backup != 0 )); then
+		if (( $is_hsmlite != 0 )); then
 			# checking policy
 			nb_migr_arch1=`grep "hints='fileclass=xattr_bar'" rh_migr.log | wc -l`
 			nb_migr_arch2=`grep "hints='fileclass=xattr_foo'" rh_migr.log | wc -l`
@@ -448,7 +455,7 @@ function link_unlink_remove_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -480,7 +487,7 @@ function link_unlink_remove_test
 
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 60 || error "Migration timeout"
-	elif (( $is_backup != 0 )); then
+	elif (( $is_hsmlite != 0 )); then
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 	fi
 
@@ -541,7 +548,7 @@ function mass_softrm
 	entries=$3
 	policy_str="$4"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -567,13 +574,13 @@ function mass_softrm
 	# archiving files
 	echo "3-Archiving files..."
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		flush_data
 		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
 
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 120 || error "Migration timeout"
-	elif (( $is_backup != 0 )); then
+	elif (( $is_hsmlite != 0 )); then
 		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
 	fi
 
@@ -617,8 +624,8 @@ function purge_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -634,12 +641,12 @@ function purge_test
 	for i in a `seq 1 10`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 
-		if (( $is_hsm != 0 )); then
+		if (( $is_lhsm != 0 )); then
 			flush_data
 			lfs hsm_archive $ROOT/file.$i || error "lfs hsm_archive"
 		fi
 	done
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
 	
@@ -651,7 +658,7 @@ function purge_test
 		echo "2-Reading changelogs to update file status (after 1sec)..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 
-		if (($is_hsm != 0)); then
+		if (($is_lhsm != 0)); then
 			((`grep "archive,rc=0" rh_chglogs.log | wc -l` == 11)) || error "Not enough archive events in changelog!"
 		fi
 	fi
@@ -660,7 +667,7 @@ function purge_test
 	# no purge expected here
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
 	else
 	        nb_purge=`grep "Purged" rh_purge.log | wc -l`
@@ -678,7 +685,7 @@ function purge_test
 	echo "5-Applying purge policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
 	else
 	        nb_purge=`grep "Purged" rh_purge.log | wc -l`
@@ -701,8 +708,8 @@ function purge_size_filesets
 	count=$3
 	policy_str="$4"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -721,7 +728,7 @@ function purge_size_filesets
 		for i in `seq 1 $count`; do
 			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || error "writing file.$size.$i"
 
-			if (( $is_hsm != 0 )); then
+			if (( $is_lhsm != 0 )); then
 				flush_data
 				lfs hsm_archive $ROOT/file.$size.$i || error "lfs hsm_archive"
 				wait_done 60 || error "Copy timeout"
@@ -768,7 +775,7 @@ function test_maint_mode
 	policy_str="$4"
 	delay_min=$5  		# in seconds
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -890,7 +897,7 @@ function path_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "hsm test only: skipped"
 		set_skipped
 		return 1
@@ -1154,7 +1161,7 @@ function update_test
 	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 	sleep $update_period
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		# chg something different that path or POSIX attributes
 		lfs hsm_set --noarchive $ROOT/file
 	else
@@ -1173,7 +1180,7 @@ function update_test
 	echo "nb path update: $nb_getpath"
 	(( $nb_getpath == 1 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		# also check that the status is to be retrieved
 		nb_getstatus=`grep getstatus=1 $LOG | wc -l`
 		echo "nb status update: $nb_getstatus"
@@ -1191,7 +1198,7 @@ function periodic_class_match_migr
 	update_period=$2
 	policy_str="$3"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -1261,8 +1268,8 @@ function periodic_class_match_purge
 	update_period=$2
 	policy_str="$3"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1273,12 +1280,12 @@ function periodic_class_match_purge
 	for file in ignore1 whitelist1 purge1 default1 ; do
 		touch $ROOT/$file
 
-		if (( $is_hsm != 0 )); then
+		if (( $is_lhsm != 0 )); then
 			flush_data
 			lfs hsm_archive $ROOT/$file
 		fi
 	done
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
 
@@ -1292,7 +1299,7 @@ function periodic_class_match_purge
 	# HSM: we must have 4 lines like this: "Need to update fileclass (not set)"
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
 	# 	so 2 entries have already been matched (ignore1 and whitelist1)
-	if (( $is_hsm == 0 )); then
+	if (( $is_lhsm == 0 )); then
 		already=2
 	else
 		already=0
@@ -1311,7 +1318,7 @@ function periodic_class_match_purge
 
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
 	# 	2 entries are new (default and to_be_released)
-	if (( $is_hsm == 0 )); then
+	if (( $is_lhsm == 0 )); then
 		already=0
 		new=2
 	else
@@ -1347,8 +1354,8 @@ function test_cnt_trigger
 	exp_purge_count=$3
 	policy_str="$4"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1362,12 +1369,12 @@ function test_cnt_trigger
 	for i in `seq 1 $file_count`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
-		if (( $is_hsm != 0 )); then
+		if (( $is_lhsm != 0 )); then
 			lfs hsm_archive $ROOT/file.$i
 		fi
 	done
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
 
@@ -1380,7 +1387,7 @@ function test_cnt_trigger
 	# apply purge trigger
 	$RH -f ./cfg/$config_file --purge --once -l FULL -L rh_purge.log
 
-	if (($is_hsm != 0 )); then
+	if (($is_lhsm != 0 )); then
 		nb_release=`grep "Released" rh_purge.log | wc -l`
 	else
 		nb_release=`grep "Purged" rh_purge.log | wc -l`
@@ -1401,8 +1408,8 @@ function test_ost_trigger
 	mb_l_watermark=$3
 	policy_str="$4"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1418,19 +1425,19 @@ function test_ost_trigger
 	for i in `seq $empty_vol $mb_h_watermark`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
-		if (( $is_hsm != 0 )); then
+		if (( $is_lhsm != 0 )); then
 			flush_data
 			lfs hsm_archive $ROOT/file.$i
 		fi
 	done
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
 
 	# wait for df sync
 	sync; sleep 1
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		arch_count=`lfs hsm_state $ROOT/file.* | grep "exists archived" | wc -l`
 		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
 	fi
@@ -1497,8 +1504,8 @@ function test_trigger_check
 	target_user_vol=$7
 	max_user_vol=$8
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1536,13 +1543,13 @@ function test_trigger_check
 	for i in `seq 1 $file_count`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
-		if (( $is_hsm != 0 )); then
+		if (( $is_lhsm != 0 )); then
 			flush_data
 			lfs hsm_archive $ROOT/file.$i
 		fi
 	done
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
 
@@ -1562,7 +1569,7 @@ function test_trigger_check
 	((expect_vol_user=$file_count*$file_size-$target_user_vol))
 	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root"
 
-	if (($is_hsm != 0 )); then
+	if (($is_lhsm != 0 )); then
 		nb_release=`grep "Released" rh_purge.log | wc -l`
 	else
 		nb_release=`grep "Purged" rh_purge.log | wc -l`
@@ -1594,7 +1601,7 @@ function test_trigger_check
 
 function check_released
 {
-	if (($is_hsm != 0)); then
+	if (($is_lhsm != 0)); then
 		lfs hsm_state $1 | grep released || return 1
 	else
 		[ -f $1 ] && return 1
@@ -1608,8 +1615,8 @@ function test_periodic_trigger
 	sleep_time=$2
 	policy_str=$3
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for hsmlite purpose (shook=$shook): skipped"
 		set_skipped
 		return 1
 	fi
@@ -1623,13 +1630,13 @@ function test_periodic_trigger
 		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/foo.$i"
 		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/bar.$i"
 
-		if (( $is_hsm != 0 )); then
+		if (( $is_lhsm != 0 )); then
 			flush_data
 			lfs hsm_archive $ROOT/file.$i $ROOT/foo.$i $ROOT/bar.$i
 		fi
 	done
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
 
@@ -1695,7 +1702,7 @@ function fileclass_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm + $is_backup == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -1812,7 +1819,7 @@ function test_info_collect
 	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-	if (( $is_hsm + $is_backup != 0 )); then
+	if (( $is_lhsm + $is_hsmlite != 0 )); then
 		db_expect=4
 	else
 		db_expect=7
@@ -1956,7 +1963,7 @@ function test_pools
 	grep "Missing attribute" rh_chglogs.log && error "missing attribute when matching classes"
 
 	# purge field index
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		pf=7
 	else
 		pf=5
@@ -1964,22 +1971,22 @@ function test_pools
 
 	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_hsm + $is_backup != 0 )) &&  \
+		(( $is_lhsm + $is_hsmlite != 0 )) &&  \
 			( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || error "bad migr class for no_pool.$i" )
-		 (( $is_backup == 0 )) && \
+		 (( $is_hsmlite == 0 )) && \
 			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || error "bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		(( $is_hsm  + $is_backup != 0 )) && \
+		(( $is_lhsm  + $is_hsmlite != 0 )) && \
 			 ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || error "bad migr class for in_pool_1.$i" )
-		(( $is_backup == 0 )) && \
+		(( $is_hsmlite == 0 )) && \
 			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || error "bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
-		(( $is_backup == 0 )) && \
+		(( $is_lhsm + $is_hsmlite != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
+		(( $is_hsmlite == 0 )) && \
 			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || error "bad purg class for in_pool_2.$i")
 	done
 
@@ -1995,20 +2002,20 @@ function test_pools
 
 	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || error "bad migr class for no_pool.$i" )
-		(( $is_backup == 0 )) && \
+		(( $is_lhsm + $is_hsmlite != 0 )) && ( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || error "bad migr class for no_pool.$i" )
+		(( $is_hsmlite == 0 )) && \
 			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || error "bad purg class for no_pool.$i")
 	done
 
 	for i in a b; do
 		# in_pool_1 files must match pool_1
-		(( $is_hsm + $is_backup != 0 )) &&  ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || error "bad migr class for in_pool_1.$i" )
-		(( $is_backup == 0 )) && \
+		(( $is_lhsm + $is_hsmlite != 0 )) &&  ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || error "bad migr class for in_pool_1.$i" )
+		(( $is_hsmlite == 0 )) && \
 			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || error "bad purg class for in_pool_1.$i")
 
 		# in_pool_2 files must match pool_2
-		(( $is_hsm + $is_backup != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
-		(( $is_backup == 0 )) && \
+		(( $is_lhsm + $is_hsmlite != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
+		(( $is_hsmlite == 0 )) && \
 			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || error "bad purg class for in_pool_2.$i")
 	done
 
@@ -2052,7 +2059,7 @@ function test_logs
 	touch $ROOT/file.3 || error "creating file"
 	touch $ROOT/file.4 || error "creating file"
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		flush_data
 		lfs hsm_archive $ROOT/file.*
 		wait_done 60 || error "Copy timeout"
@@ -2162,7 +2169,7 @@ function test_logs
 		cat $report
         fi
 	
-	if (( $is_backup == 0 )); then
+	if (( $is_hsmlite == 0 )); then
 
 		# reinit msg idx
 		if (( $syslog )); then
@@ -2284,9 +2291,9 @@ function test_cfg_parsing
 
 	if [[ $flavor == "basic" ]]; then
 
-		if (($is_backup)) ; then
-			TEMPLATE=$TEMPLATE_DIR"/backup_basic.conf"
-		elif (($is_hsm)); then
+		if (($is_hsmlite)) ; then
+			TEMPLATE=$TEMPLATE_DIR"/hsmlite_basic.conf"
+		elif (($is_lhsm)); then
 			TEMPLATE=$TEMPLATE_DIR"/hsm_policy_basic.conf"
 		else
 			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_basic.conf"
@@ -2294,9 +2301,9 @@ function test_cfg_parsing
 
 	elif [[ $flavor == "detailed" ]]; then
 
-		if (($is_backup)) ; then
-			TEMPLATE=$TEMPLATE_DIR"/backup_detailed.conf"
-		elif (($is_hsm)); then
+		if (($is_hsmlite)) ; then
+			TEMPLATE=$TEMPLATE_DIR"/hsmlite_detailed.conf"
+		elif (($is_lhsm)); then
 			TEMPLATE=$TEMPLATE_DIR"/hsm_policy_detailed.conf"
 		else
 			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_detailed.conf"
@@ -2327,7 +2334,7 @@ function recovery_test
 	flavor=$2
 	policy_str="$3"
 
-	if (( $is_backup == 0 )); then
+	if (( $is_hsmlite == 0 )); then
 		echo "Backup test only: skipped"
 		set_skipped
 		return 1
@@ -2505,8 +2512,8 @@ function check_disabled
 
        case "$flavor" in
                purge)
-                       if (( $is_backup != 0 )); then
-                               echo "No purge for backup purpose: skipped"
+		       if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+			       echo "No purge for hsmlite purpose (shook=$shook): skipped"
                                set_skipped
                                return 1
                        fi
@@ -2514,8 +2521,8 @@ function check_disabled
                        match='Resource Monitor is disabled'
                        ;;
                migration)
-                       if (( $is_backup + $is_hsm == 0 )); then
-                               echo "backup or HSM test only: skipped"
+                       if (( $is_hsmlite + $is_lhsm == 0 )); then
+                               echo "hsmlite or HSM test only: skipped"
                                set_skipped
                                return 1
                        fi
@@ -2523,8 +2530,8 @@ function check_disabled
                        match='Migration module is disabled'
                        ;;
                hsm_remove) 
-                       if (( $is_backup + $is_hsm == 0 )); then
-                               echo "backup or HSM test only: skipped"
+                       if (( $is_hsmlite + $is_lhsm == 0 )); then
+                               echo "hsmlite or HSM test only: skipped"
                                set_skipped
                                return 1
                        fi
@@ -2532,8 +2539,8 @@ function check_disabled
                        match='HSM removal successfully initialized' # enabled by default
                        ;;
                rmdir) 
-                       if (( $is_backup + $is_hsm != 0 )); then
-                               echo "No rmdir policy for backup or HSM purpose: skipped"
+                       if (( $is_hsmlite + $is_lhsm != 0 )); then
+                               echo "No rmdir policy for hsmlite or HSM purpose: skipped"
                                set_skipped
                                return 1
                        fi
@@ -2791,7 +2798,7 @@ run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
 run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
 run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
 run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
-run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
+run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing hsmlites"
 run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
 
 echo

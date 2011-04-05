@@ -153,8 +153,8 @@ typedef struct field_info_t
 #include "tmp_fs_mgr_types.h"
 #elif defined(_SHERPA)
 #include "sherpa_types.h"
-#elif defined(_BACKUP_FS)
-#include "backup_fs_types.h"
+#elif defined(_HSM_LITE)
+#include "hsmlite_types.h"
 #else
 #error "No application was specified"
 #endif
@@ -393,7 +393,7 @@ int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id );
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    const char * last_known_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                                    const char * bkpath,
 #endif
                                    time_t real_remove_time );
@@ -422,7 +422,7 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
 int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
                                        entry_id_t * p_id,
                                        char * last_known_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                                        char * bkpath,
 #endif
                                        time_t * soft_rm_time,
@@ -437,7 +437,7 @@ void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter );
 
 #endif
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 
 #define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
                           ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \

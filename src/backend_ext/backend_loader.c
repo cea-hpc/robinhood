@@ -208,6 +208,11 @@ int Backend_Start( backend_config_t * config, int flags )
     else
         backend.rm_support = 0;
 
+    if ( behav_flags & RBHEXT_RELEASE_SUPPORT )
+        backend.release_support = 1;
+    else
+        backend.release_support = 0;
+
     return 0;
 }
 

@@ -30,7 +30,7 @@ all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/migration/libmigration.la
 all_libs += ../policy_modules/hsm_remove/libhsmrm.la
 endif
-if BACKUP_FS
+if HSM_LITE
 all_libs += ../policy_modules/migration/libmigration.la
 all_libs += ../policy_modules/hsm_remove/libhsmrm.la
 all_libs += ../backend_ext/libbackend_ext.la

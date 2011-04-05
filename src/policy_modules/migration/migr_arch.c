@@ -30,7 +30,7 @@
 #include <SHERPA_CacheAcces.h>
 #include <SHERPA_CacheAccesP.h>
 #endif
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #include "backend_mgr.h"
 #include "backend_ext.h"
 #endif
@@ -103,7 +103,7 @@ static migr_status_t MigrateEntry_ByPath( const char * path, char *hints )
 
     return sherpa_maj_reference_entree(path, NULL, tmp, SHERPA_FLAG_ZAPPER);
 }
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
 
 static migr_status_t MigrateEntry( const entry_id_t * p_id,
                                    attr_set_t * p_attrs,
@@ -344,7 +344,7 @@ static int wait_queue_empty( unsigned int nb_submitted,
 /* indicates attributes to be retrieved from db */
 static int init_db_attr_mask( attr_set_t * p_attr_set )
 {
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     int rc;
     unsigned int allow_cached_attrs = 0;
     unsigned int need_fresh_attrs = 0;
@@ -366,7 +366,7 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
     ATTR_MASK_SET( p_attr_set, arch_cl_update );
     p_attr_set->attr_mask |= policies.migr_policies.global_attr_mask;
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     ATTR_MASK_SET( p_attr_set, type );
 
     /* what information the backend needs from DB? */
@@ -448,7 +448,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         return rc;
 #endif
 
-#if defined(_LUSTRE_HSM) || defined(_BACKUP_FS)
+#if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
     if ( migr_config.backup_new_files )
     {
         /* retrieve entries with status MODIFIED or NEW or NULL */
@@ -473,7 +473,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
         if ( rc )
             return rc;
-#if defined(_LUSTRE_HSM) || defined(_BACKUP_FS)
+#if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
     }
 #endif
 
@@ -958,7 +958,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
     return MIGR_OK;
 }
 
-#elif defined(_BACKUP_FS) /* backup with fid support */
+#elif defined(_HSM_LITE) /* backup with fid support */
 
 static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_attr_set )
 {
@@ -1244,7 +1244,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     }
     else
     {
-#if defined( _LUSTRE_HSM ) || defined( _BACKUP_FS )
+#if defined( _LUSTRE_HSM ) || defined( _HSM_LITE )
         if ( (ATTR( &new_attr_set, status ) != STATUS_MODIFIED)
              && ( !migr_config.backup_new_files
                   || ( ATTR( &new_attr_set, status ) != STATUS_NEW )) )
@@ -1444,9 +1444,9 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             ATTR_MASK_SET( &new_attr_set, no_archive );
         }
     }
-#elif defined( _BACKUP_FS )
+#elif defined( _HSM_LITE )
 
-    /* if archive is synchronous, set status=archive running before */
+    /* if archive is asynchronous, set status=archive running before */
     if ( backend.async_archive )
     {
         ATTR_MASK_SET( &new_attr_set, status );
@@ -1502,7 +1502,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         /* copy is synchronous */
         action_str = "performing migration";
         err_str =  sherpa_cache_message_r(rc, buff, 1024 );
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
         if (backend.async_archive)
             action_str = "starting archive";
         else
@@ -1537,7 +1537,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 #elif defined(_SHERPA)
         /* For SHERPA, migration is synchronous */
         action_str = "Archived";
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
         if (backend.async_archive)
             action_str = "Start archiving";
         else
@@ -1752,7 +1752,7 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
     unsigned int nb_returned = 0;
     unsigned int nb_aborted = 0;
     int          attr_mask_sav = 0;
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     unsigned int allow_cached_attrs = 0;
     unsigned int need_fresh_attrs = 0;
 #endif
@@ -1763,7 +1763,7 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
     ATTR_MASK_SET( &migr_item.entry_attr, path_update );
     /* /!\ don't retrieve status, to force getting it from the filesystem */
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     ATTR_MASK_SET( &migr_item.entry_attr, type );
 
     /* what information the backend needs from DB? */

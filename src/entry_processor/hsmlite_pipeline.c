@@ -77,6 +77,9 @@ pipeline_stage_t entry_proc_pipeline[] = {
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 0}
 };
 
+#ifdef HAVE_SHOOK
+/* @TODO: ignore shook lock files */
+#endif
 
 /**
  * For entries from FS scan, we must get the associated entry ID.
@@ -183,17 +186,27 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->entry_attr_is_set = TRUE;
             ATTR_MASK_SET( &p_op->entry_attr, status );
             ATTR( &p_op->entry_attr, status ) = STATUS_NEW;
-
-            /* no flag is set for now */
-            ATTR_MASK_SET( &p_op->entry_attr, no_archive );
-            ATTR( &p_op->entry_attr, no_archive ) = 0;
+            /* new file, no get status needed */
             p_op->extra_info.getstatus_needed = FALSE;
 
             /* new entry: never archived or restored */
             ATTR( &p_op->entry_attr, last_archive ) = 0;
             ATTR_MASK_SET( &p_op->entry_attr, last_archive );
+#ifdef HAVE_PURGE_POLICY
+            ATTR( &p_op->entry_attr, last_restore ) = 0;
+            ATTR_MASK_SET( &p_op->entry_attr, last_restore );
+#endif
         }
     }
+#ifdef HAVE_SHOOK
+    /* shook specific: xattrs on file indicate its current status */
+    else if (logrec->cr_type == CL_XATTR)
+    {
+        /* need to update status */
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getstatus_needed = TRUE;
+    }
+#endif
     else if ((logrec->cr_type == CL_MKDIR )
             || (logrec->cr_type == CL_RMDIR ))
     {
@@ -460,6 +473,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* get fileclass update info to know if we must check it */
             ATTR_MASK_SET( &p_op->entry_attr, arch_cl_update );
             ATTR_MASK_SET( &p_op->entry_attr, archive_class );
+#ifdef HAVE_PURGE_POLICY
+            ATTR_MASK_SET( &p_op->entry_attr, rel_cl_update );
+            ATTR_MASK_SET( &p_op->entry_attr, release_class );
+#endif
             p_op->entry_attr.attr_mask |= policies.migr_policies.global_attr_mask;
         }
         p_op->entry_attr.attr_mask |= entry_proc_conf.alert_attr_mask;
@@ -591,6 +608,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
                         tmp_attr.attr_mask |= (policies.migr_policies.global_attr_mask
                                                & ~p_op->entry_attr.attr_mask);
+#ifdef HAVE_PURGE_POLICY
+                        ATTR_MASK_SET( &p_op->entry_attr, rel_cl_update );
+                        ATTR_MASK_SET( &p_op->entry_attr, release_class );
+
+                        tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
+                                               & ~p_op->entry_attr.attr_mask);
+#endif
                     }
                     /* no dircount for files */
                     tmp_attr.attr_mask &= ~ATTR_MASK_dircount;
@@ -860,6 +884,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 {
                     ATTR_MASK_SET( &p_op->entry_attr, last_archive );
                     ATTR( &p_op->entry_attr, last_archive ) = 0;
+#ifdef HAVE_PURGE_POLICY
+                    ATTR_MASK_SET( &p_op->entry_attr, last_restore );
+                    ATTR( &p_op->entry_attr, last_restore ) = 0;
+#endif
                 }
             }
             else if ( rc == -ENOTSUP )
