@@ -37,6 +37,13 @@
 #include <pwd.h>
 #include <grp.h>
 
+#ifdef HAVE_PURGE_POLICY
+#ifdef HAVE_SHOOK
+#include <shook_svr.h>
+#endif
+#endif
+
+
 #define RBHEXT_TAG "Backend"
 
 /**
@@ -74,6 +81,16 @@ int rbhext_init( const backend_config_t * conf,
 
 #ifdef HAVE_PURGE_POLICY
     *p_behaviors_flags |= RBHEXT_RELEASE_SUPPORT;
+#endif
+
+#ifdef HAVE_SHOOK
+    rc = shook_svr_init(config.shook_cfg);
+    if (rc)
+    {
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR %d initializing shook server library",
+                    rc );
+        return rc;
+    }
 #endif
 
     /* check that backend filesystem is mounted */
@@ -342,12 +359,29 @@ int rbhext_get_status( const entry_id_t * p_id,
 
 #ifdef HAVE_PURGE_POLICY
 #ifdef HAVE_SHOOK
-    /* @TODO check status from libshook.
+    /* @TODO: ignore shook special entries */
+
+    /* check status from libshook.
      * return if status != ONLINE
      * else, continue checking.
      */
+    char fidpath[RBH_PATH_MAX];
+    file_status_t status;
+    
+    BuildFidPath( p_id, fidpath );
 
-    /* @TODO: ignore shook special entries */
+    rc = ShookGetStatus( fidpath, &status );
+    if (rc)
+        return rc;
+
+    if ( status != STATUS_SYNCHRO )
+    {
+        ATTR_MASK_SET( p_attrs_changed, status );
+        ATTR( p_attrs_changed, status ) = status;
+        return 0;
+    }
+#else
+    #error "Unexpected compilation case"
 #endif
 #endif
 
@@ -1097,24 +1131,51 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     /* restripe the file in Lustre */
     if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
         File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
+#else
+    fd = creat( fspath, st_bk.st_mode & 07777 );
+    if (fd < 0)
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: couldn't create '%s': %s",
+                    fspath, strerror(-rc) );
+        return RS_ERROR;
+    }
+    else
+        close(fd);
 #endif
 
     /* restore entry */
     if ( S_ISREG( st_bk.st_mode ) )
     {
+        struct utimbuf utb;
+
 #ifdef HAVE_PURGE_POLICY
-    /* @TODO this backend is restore/release capable.
+    /* this backend is restore/release capable.
      * Recover the entry in released state (md only),
      * so it will be recovered at first open.
      */
-#else
-        struct utimbuf utb;
+#ifdef HAVE_SHOOK
+        /* set the file in "released" state */
+        rc = shook_set_status(fspath, SS_RELEASED);
+        if (rc)
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
+                        fspath, strerror(-rc));
+            return RS_ERROR;
+        }
 
+        /* @TODO etc... */
+#else
+    #error "Unexpected case"
+#endif
+#else
+        /* full restore (even data) */
         rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
                                     backend_path, fspath );
         if (rc)
             return RS_ERROR;
         /* TODO: remove partial copy */
+#endif
 
         /* set the same mode as in the backend */
         DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
@@ -1131,7 +1192,6 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         if ( utime( fspath, &utb ) )
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
                         fspath, strerror(errno) );
-#endif
     }
 
     /* set owner, group */
@@ -1190,7 +1250,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     }
 
     /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
-    if ( ATTR_MASK_TEST(p_attrs_old, size) && ( st_dest.st_size != ATTR(p_attrs_old, size)) )
+    if ( ATTR_MASK_TEST(p_attrs_old, size) && (st_dest.st_size != ATTR(p_attrs_old, size)) )
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%zu) is "
                     "different from the last known size in filesystem (%"PRIu64"): "
