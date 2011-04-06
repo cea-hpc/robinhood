@@ -127,6 +127,10 @@ int FSScan_StoreStats(  )
         lmgr_init = TRUE;
     }
 
+    /* store the number of scanning threads */
+    sprintf( tmp_buff, "%i", fs_scan_config.nb_threads_scan );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, tmp_buff );
+
     if ( stats.scan_running )
     {
         if ( stats.last_action > 0 )

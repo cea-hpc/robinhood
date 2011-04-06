@@ -672,6 +672,9 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 #define LAST_SCAN_CURMSPE     "LastScanCurMsPerEntry"
 #define LAST_SCAN_NB_THREADS  "LastScanNbThreads"
 
+#define PREV_SCAN_START_TIME  "PrevScanStartTime"
+#define PREV_SCAN_END_TIME    "PrevScanEndTime"
+
 #define SCAN_STATUS_DONE      "done"
 #define SCAN_STATUS_RUNNING   "running"
 #define SCAN_STATUS_ABORTED   "aborted"
