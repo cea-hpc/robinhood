@@ -283,7 +283,6 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     int     st, i;
     time_t  last_action = 0;
     char    timestamp[128];
-    char    value[128];
 
     /* store the last scan end date */
     if ( !lmgr_init )
@@ -309,13 +308,10 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     sprintf( timestamp, "%lu", ( unsigned long ) last_action );
     ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
 
-    /* store the number of scanning threads */
-    sprintf( value, "%i", fs_scan_config.nb_threads_scan );
-    ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, value );
-
+    /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
+    FSScan_StoreStats() ;
     /* and update the scan status */
     ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, scan_complete ? SCAN_STATUS_DONE : SCAN_STATUS_TIMEDOUT );
-
 
     /* final DB operation: remove entries with md_update < scan_start_time */
     InitEntryProc_op( &op );
@@ -1148,13 +1144,19 @@ static int StartScan(  )
     scan_start_time = time( NULL );
     gettimeofday( &accurate_start_time, NULL );
 
-    /* store scan start time and status in db */
     if ( !lmgr_init )
     {
         if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
             return 1;
         lmgr_init = TRUE;
     }
+    /* archive previous scan start/end time */
+    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_START_TIME, timestamp ) == DB_SUCCESS )
+         ListMgr_SetVar( &lmgr, PREV_SCAN_START_TIME, timestamp );
+    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, timestamp ) == DB_SUCCESS )
+         ListMgr_SetVar( &lmgr, PREV_SCAN_END_TIME, timestamp );
+
+    /* store current scan start time and status in db */
     sprintf( timestamp, "%lu", ( unsigned long ) scan_start_time );
     ListMgr_SetVar( &lmgr, LAST_SCAN_START_TIME, timestamp );
     ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
