@@ -125,7 +125,7 @@ int db_connect( db_conn_t * conn )
     mysql_options( conn, MYSQL_OPT_RECONNECT, &reconnect );
 #endif
 
-    DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Logged on to database sucessfully" );
+    DisplayLog( LVL_FULL, LISTMGR_TAG, "Logged on to database sucessfully" );
     return DB_SUCCESS;
 }
 
@@ -134,7 +134,7 @@ int db_close_conn( db_conn_t * conn )
     /* XXX Ensure there is no pending transactions? */
     mysql_close( conn );
 
-    DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Database connection closed" );
+    DisplayLog( LVL_FULL, LISTMGR_TAG, "Database connection closed" );
 
     return DB_SUCCESS;
 }

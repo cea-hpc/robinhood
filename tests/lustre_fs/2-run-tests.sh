@@ -489,6 +489,8 @@ function link_unlink_remove_test
 	ln $ROOT/file.1 $ROOT/link.1 || error "ln"
 	ln $ROOT/file.1 $ROOT/link.2 || error "ln"
 
+	sleep 1
+
 	# removing all files
         echo "5-Removing all links to file.1..."
 	rm -f $ROOT/link.* $ROOT/file.1 
