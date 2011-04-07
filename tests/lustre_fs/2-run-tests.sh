@@ -20,6 +20,7 @@ fi
 if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_lhsm=1
 	is_hsmlite=0
+	shook=0
 	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
 	REPORT=../../src/robinhood/rbh-hsm-report
 	CMD=rbh-hsm
@@ -28,6 +29,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
+	shook=0
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
 	CMD=robinhood

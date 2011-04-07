@@ -26,6 +26,11 @@
 #include "xplatform_print.h"
 #include "RobinhoodConfig.h"
 
+#ifdef _HSM_LITE
+#include "backend_mgr.h"
+#include "backend_ext.h"
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -248,10 +253,55 @@ static int wait_queue_empty( unsigned int nb_submitted,
     return 0;
 }
 
+/* indicates attributes to be retrieved from db */
+static int init_db_attr_mask( attr_set_t * p_attr_set )
+{
+#ifdef _HSM_LITE
+    int rc;
+    unsigned int allow_cached_attrs = 0;
+    unsigned int need_fresh_attrs = 0;
+#endif
+
+
+    ATTR_MASK_INIT( p_attr_set );
+
+    /* Retrieve at least: fullpath, last_access, size, blcks
+     * because they are used for checking if info changed.
+     * Retrieve last_mod and stripe_info for logs and reports.
+     * Also retrieve info needed for blacklist/whitelist rules.
+     */
+    ATTR_MASK_SET( p_attr_set, fullpath );
+    ATTR_MASK_SET( p_attr_set, last_access );
+    ATTR_MASK_SET( p_attr_set, size );
+    ATTR_MASK_SET( p_attr_set, blocks );
+    ATTR_MASK_SET( p_attr_set, last_mod );
+    ATTR_MASK_SET( p_attr_set, stripe_info );
+    ATTR_MASK_SET( p_attr_set, stripe_items );
+    ATTR_MASK_SET( p_attr_set, release_class );
+    ATTR_MASK_SET( p_attr_set, rel_cl_update );
+    p_attr_set->attr_mask |= policies.purge_policies.global_attr_mask;
+
+#ifdef _HSM_LITE
+    ATTR_MASK_SET( p_attr_set, type );
+
+    /* what information the backend needs from DB? */
+    rc = rbhext_status_needs( TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs );
+    if (rc != 0)
+    {
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
+                   __FUNCTION__, __LINE__, rc );
+        return rc;
+    }
+    p_attr_set->attr_mask |= allow_cached_attrs;
+#endif
+
+    return 0;
+}
+
+
 /*
  *  Return ENOENT if no list is available
  */
-
 int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                    unsigned long long *p_nb_purged,
                    unsigned long long *p_nb_specific )
@@ -347,27 +397,13 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                     date.tm_hour, date.tm_min, date.tm_sec );
     }
 
-    ATTR_MASK_INIT( &attr_set );
 
-    /* Retrieve at least: fullpath, last_access, size, blcks
-     * because they are used for checking if info changed.
-     * Retrieve last_mod and stripe_info for logs and reports.
-     * Also retrieve info needed for blacklist/whitelist rules.
-     */
-    ATTR_MASK_SET( &attr_set, fullpath );
-    ATTR_MASK_SET( &attr_set, last_access );
-    ATTR_MASK_SET( &attr_set, size );
-    ATTR_MASK_SET( &attr_set, blocks );
-    ATTR_MASK_SET( &attr_set, last_mod );
-    ATTR_MASK_SET( &attr_set, stripe_info );
-    ATTR_MASK_SET( &attr_set, stripe_items );
-    ATTR_MASK_SET( &attr_set, release_class );
-    ATTR_MASK_SET( &attr_set, rel_cl_update );
-    attr_set.attr_mask |= policies.purge_policies.global_attr_mask;
+    rc = init_db_attr_mask( &attr_set );
+    if (rc)
+        return rc;
 
     /* sort by last access */
     sort_type.attr_index = ATTR_INDEX_last_access;
-
     sort_type.order = SORT_ASC;
 
     rc = lmgr_simple_filter_init( &filter );
@@ -392,7 +428,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         return rc;
 #endif
 
-#if defined(_LUSTRE_HSM) || defined (_SHERPA)
+#if defined(_LUSTRE_HSM) || defined (_SHERPA) || defined(_HSM_LITE)
     /* only get entries with HSM state SYNCHRO */
     fval.val_int = STATUS_SYNCHRO;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
