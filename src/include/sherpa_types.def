@@ -122,7 +122,7 @@ typedef enum
 
 %attrdef
 
-# /!\ Entry attribute type must fit with DB type for working with prepared statements
+# /!\ Entry attribute type must fit with DB type
 # name, 		C type, 	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
 

@@ -104,7 +104,7 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 
 %attrdef
 
-# /!\ Entry attribute type must fit with DB type for working with prepared statements
+# /!\ Entry attribute type must fit with DB type
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 stripe_info, 	stripe_info_t, DB_STRIPE_INFO, 0, INIT_ONLY
 stripe_items, stripe_items_t, DB_STRIPE_ITEMS, 0, INIT_ONLY

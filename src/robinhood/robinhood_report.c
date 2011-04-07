@@ -365,10 +365,10 @@ static inline void display_version( char *bin_name )
     printf( "    Address entries by path\n" );
 #endif
 
-#ifdef _ENABLE_PREP_STMT
-    printf( "    Prepared statements enabled\n" );
+#ifdef HAVE_CHANGELOGS
+    printf( "    MDT Changelogs supported\n" );
 #else
-    printf( "    Prepared statements disabled\n" );
+    printf( "    MDT Changelogs disabled\n" );
 #endif
 
     printf( "\n" );

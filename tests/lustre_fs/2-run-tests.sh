@@ -471,6 +471,8 @@ function link_unlink_remove_test
 	echo "2-Writing data to file.1..."
 	dd if=/dev/zero of=$ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.1"
 
+	sleep 1
+
 	if (( $is_hsm != 0 )); then
 		echo "3-Archiving file....1"
 		flush_data

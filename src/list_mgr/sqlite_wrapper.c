@@ -146,7 +146,6 @@ int db_exec_sql( db_conn_t * conn, const char *query, result_handle_t * p_result
         p_result->curr_row = 0;
         p_result->result_array = 0;
 
-        /* @todo use prepared statement with steps instead ? */
         do
         {
             rc = sqlite3_get_table( *conn, query, &p_result->result_array,

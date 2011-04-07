@@ -159,23 +159,6 @@ typedef struct field_info_t
 #error "No application was specified"
 #endif
 
-/* Hash of prepared statements
- * key = attrset / table / op type
- * value => statement
- */
-
-/* First prime before 64 */
-#define PREP_STMT_HASH_SIZE 61
-
-/** operation type */
-typedef enum
-{
-    OP_INSERT,
-    OP_UPDATE,
-    OP_SELECT,
-    OP_DELETE
-} db_op_type_t;
-
 /** table switch */
 typedef enum
 {
@@ -187,22 +170,6 @@ typedef enum
     TAB_IDMAP
 } db_tables_t;
 
-/** Item in the prepared statement cache */
-typedef struct stmt_cache_item_t
-{
-    /* keys */
-    db_op_type_t   op_type;
-    db_tables_t    db_table;
-    int            attr_mask;
-
-    /* value */
-    prep_stmt_t    stmt;
-
-    /** for chained list */
-    struct stmt_cache_item_t *p_next;
-
-} stmt_cache_item_t;
-
 /** Connection related information for a thread */
 typedef struct lmgr_t
 {
@@ -211,8 +178,6 @@ typedef struct lmgr_t
 
     /* flag for forcing commit */
     int            force_commit;
-
-    stmt_cache_item_t *prep_cache[PREP_STMT_HASH_SIZE];
 } lmgr_t;
 
 /** List manager configuration */
@@ -758,11 +723,6 @@ void           ListMgr_MergeAttrSets( attr_set_t * p_target_attrset,
                                       attr_set_t * p_source_attrset,
                                       int update );
 
-
-/**
- * Stats functions
- */
-void           dump_prep_stmt_stats( unsigned int index, lmgr_t * pmgr );
 
 /**
  * Generate fields automatically from already existing fields,
