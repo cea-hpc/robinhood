@@ -495,7 +495,7 @@ function link_unlink_remove_test
         echo "5-Removing all links to file.1..."
 	rm -f $ROOT/link.* $ROOT/file.1 
 
-	sleep 1
+	sleep 2
 	
 	echo "Checking report..."
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
