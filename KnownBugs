@@ -1,15 +1,5 @@
 
 Description:
-	Process terminates with SEGFAULT when MySQL server restarts.
-Cause:
-	This is due to a bad resilience of MySQL client API to server crash when prepared statements are used.
-	This is known as bug #33384 in MySQL tracker (see http://bugs.mysql.com/bug.php?id=33384 for current bug status).
-Workaround:
-	Disable prepared statements in Robinhood: to do so, use '--disable-prep-stmts' argument to ./configure
-	before compiling the program or building the RPM.
-
-
-Description:
 	There are a lot of <defunc> process when reading Lustre's Changelogs.
 Cause:
 	In first Lustre 2.0 releases < 2.1, liblustreapi forks a process each time the changelog is reopened.

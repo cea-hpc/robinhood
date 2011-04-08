@@ -122,8 +122,10 @@ int            Lustre_Init(  );
 int            File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                                      stripe_items_t * p_stripe_items );
 
+#ifdef HAVE_LLAPI_GETPOOL_INFO
 /** Create a file with the given stripe information */
 int File_CreateSetStripe( const char * path, const stripe_info_t * stripe );
+#endif
 
 void           set_mount_point( char *mntpnt );
 char          *get_mount_point(  );

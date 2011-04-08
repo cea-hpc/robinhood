@@ -1,4 +1,7 @@
 #!/bin/sh
+#
+# Simple cp command wrapper for robinhood
+#
 
 VERB=$1
 SRC=$2

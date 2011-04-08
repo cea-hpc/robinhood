@@ -14,5 +14,5 @@ EXTRA_DIST= robinhood.init			\
 
 dist_sbin_SCRIPTS=rbh-config
 if BACKUP_FS
-dist_sbin_SCRIPTS+=rbhext_tool
+dist_sbin_SCRIPTS+=rbhext_tool rbhext_tool_svr rbhext_tool_clnt
 endif

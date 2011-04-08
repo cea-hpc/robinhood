@@ -161,23 +161,6 @@ typedef struct field_info_t
 #error "No application was specified"
 #endif
 
-/* Hash of prepared statements
- * key = attrset / table / op type
- * value => statement
- */
-
-/* First prime before 64 */
-#define PREP_STMT_HASH_SIZE 61
-
-/** operation type */
-typedef enum
-{
-    OP_INSERT,
-    OP_UPDATE,
-    OP_SELECT,
-    OP_DELETE
-} db_op_type_t;
-
 /** table switch */
 typedef enum
 {
@@ -189,22 +172,6 @@ typedef enum
     TAB_IDMAP
 } db_tables_t;
 
-/** Item in the prepared statement cache */
-typedef struct stmt_cache_item_t
-{
-    /* keys */
-    db_op_type_t   op_type;
-    db_tables_t    db_table;
-    int            attr_mask;
-
-    /* value */
-    prep_stmt_t    stmt;
-
-    /** for chained list */
-    struct stmt_cache_item_t *p_next;
-
-} stmt_cache_item_t;
-
 /** Connection related information for a thread */
 typedef struct lmgr_t
 {
@@ -213,8 +180,6 @@ typedef struct lmgr_t
 
     /* flag for forcing commit */
     int            force_commit;
-
-    stmt_cache_item_t *prep_cache[PREP_STMT_HASH_SIZE];
 } lmgr_t;
 
 /** List manager configuration */
@@ -655,18 +620,38 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 /*
  * Name of variables stored in database
  */
-#define LAST_SCAN_VAR       "LastScan"
+
 #define LAST_PURGE_TIME     "LastPurgeTime"
 #define LAST_PURGE_TARGET   "LastPurgeTarget"
 #define LAST_PURGE_STATUS   "LastPurgeStatus"
-#define LAST_MIGR_TIME     "LastMigrTime"
-#define LAST_MIGR_STATUS   "LastMigrStatus"
-#define LAST_MIGR_INFO     "LastMigrInfo"
+#define LAST_MIGR_TIME      "LastMigrTime"
+#define LAST_MIGR_STATUS    "LastMigrStatus"
+#define LAST_MIGR_INFO      "LastMigrInfo"
 #define FS_PATH_VAR         "FS_Path"
 #define USAGE_MAX_VAR       "MaxUsage"
 #define SCAN_INTERVAL_VAR   "ScanInterval"
 #define NEXT_MAINT_VAR      "NextMaintenance"
 
+// For statistics
+#define LAST_SCAN_START_TIME  "LastScanStartTime"
+#define LAST_SCAN_END_TIME    "LastScanEndTime"
+#define LAST_SCAN_PROCESSING_END_TIME "LastScanProcessingEndTime"
+#define LAST_SCAN_STATUS      "LastScanStatus"
+#define LAST_SCAN_LAST_ACTION_TIME "LastScanLastActionTime"
+#define LAST_SCAN_ENTRIES_SCANNED  "LastScanEntriesScanned"
+#define LAST_SCAN_ERRORS      "LastScanErrors"
+#define LAST_SCAN_TIMEOUTS    "LastScanTimeouts"
+#define LAST_SCAN_AVGMSPE     "LastScanAvgMsPerEntry"
+#define LAST_SCAN_CURMSPE     "LastScanCurMsPerEntry"
+#define LAST_SCAN_NB_THREADS  "LastScanNbThreads"
+
+#define PREV_SCAN_START_TIME  "PrevScanStartTime"
+#define PREV_SCAN_END_TIME    "PrevScanEndTime"
+
+#define SCAN_STATUS_DONE      "done"
+#define SCAN_STATUS_RUNNING   "running"
+#define SCAN_STATUS_ABORTED   "aborted"
+#define SCAN_STATUS_TIMEDOUT  "timed out"
 
 #define MAX_VAR_LEN     1024
 /**
@@ -749,11 +734,6 @@ void           ListMgr_MergeAttrSets( attr_set_t * p_target_attrset,
                                       attr_set_t * p_source_attrset,
                                       int update );
 
-
-/**
- * Stats functions
- */
-void           dump_prep_stmt_stats( unsigned int index, lmgr_t * pmgr );
 
 /**
  * Generate fields automatically from already existing fields,

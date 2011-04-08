@@ -18,7 +18,6 @@
 
 #include "list_mgr.h"
 #include "listmgr_common.h"
-#include "listmgr_prep_stmt.h"
 #include "database.h"
 #include "RobinhoodLogs.h"
 #include "listmgr_stripe.h"
@@ -412,7 +411,7 @@ int attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const 
  * @return nbr of fields
  */
 int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
-                       table_enum table, int leading_coma, int prep_stmt )
+                       table_enum table, int leading_coma )
 {
     int            i;
     char          *values_curr = str;
@@ -435,19 +434,11 @@ int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
                     values_curr++;
                 }
 
-                if ( prep_stmt )
-                {
-                    values_curr[0] = '?';
-                    values_curr++;
-                }
-                else
-                {
-                    ASSIGN_UNION( typeu, field_infos[i].db_type,
-                                  ( ( char * ) &p_set->attr_values + field_infos[i].offset ) );
+                ASSIGN_UNION( typeu, field_infos[i].db_type,
+                              ( ( char * ) &p_set->attr_values + field_infos[i].offset ) );
 
-                    values_curr += printdbtype( p_mgr, values_curr,
-                                                field_infos[i].db_type, &typeu );
-                }
+                values_curr += printdbtype( p_mgr, values_curr,
+                                            field_infos[i].db_type, &typeu );
 
                 nbfields++;
             }
@@ -505,47 +496,6 @@ int attrset2updatelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
     return nbfields;
 }
 
-
-#ifdef _ENABLE_PREP_STMT
-
-/**
- * Bind prepared statement parameters to an attr_set_t structure.
- * @return Number of bound fields.
- */
-int prep_stmt_bind_attrs( prep_stmt_t prep, const attr_set_t * p_set,
-                          table_enum table, unsigned int start_index )
-{
-    int            i, rc;
-    unsigned int   nbfields = 0;
-    int            mask = 1;
-    unsigned int   curr_param_index = start_index;
-
-    if ( ( table == T_STRIPE_INFO ) || ( table == T_STRIPE_ITEMS ) )
-        return -DB_NOT_SUPPORTED;
-
-    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
-    {
-        if ( p_set->attr_mask & mask )
-        {
-            if ( MATCH_TABLE( table, i ) )
-            {
-                rc = db_bind_param( prep, curr_param_index, field_infos[i].db_type,
-                                    ( void * ) ( ( char * ) &p_set->attr_values +
-                                                 field_infos[i].offset ),
-                                    field_infos[i].db_type_size );
-
-                if ( rc )
-                    return -rc;
-                curr_param_index++;
-                nbfields++;
-            }
-        }
-    }
-    return nbfields;
-}
-
-#endif
-
 /**
  * Make a bind list for retrieving attributes.
  * @param type_list must be allocated by caller
@@ -582,42 +532,6 @@ int mk_result_bind_list( const attr_set_t * p_set, table_enum table, db_type_t *
     return nbfields;
 
 }
-
-#ifdef _ENABLE_PREP_STMT
-
-int unset_null_results( attr_set_t * p_set, table_enum table, prep_stmt_t stmt, unsigned int shift )
-{
-    int            i;
-    int            mask = 1;
-    unsigned int   curr_param_index = 0;
-
-    if ( ( table == T_STRIPE_INFO ) || ( table == T_STRIPE_ITEMS ) )
-        return -DB_NOT_SUPPORTED;
-
-    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
-    {
-        if ( p_set->attr_mask & mask )
-        {
-            if ( MATCH_TABLE( table, i ) )
-            {
-                /* unset the parameter if it is null */
-                if ( db_is_null_result( stmt, curr_param_index + shift ) )
-                {
-#ifdef _DEBUG_DB
-                    DisplayLog( LVL_FULL, LISTMGR_TAG, "Attribute %s is null",
-                                field_infos[i].field_name );
-#endif
-                    p_set->attr_mask &= ~mask;
-                }
-
-                curr_param_index++;
-            }
-        }
-    }
-    return 0;
-
-}
-#endif
 
 int pkfields( char *str, int with_validator )
 {

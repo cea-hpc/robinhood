@@ -31,6 +31,11 @@ static pthread_t scan_starter_thread;
 static pthread_attr_t starter_attr;
 static int     terminate = FALSE;
 
+/* for accessing persistent variables */
+static lmgr_t  lmgr;
+static int     lmgr_init = FALSE;
+
+
 /* Scan starter thread */
 static void   *scan_starter( void *arg )
 {
@@ -104,6 +109,55 @@ int FSScan_Terminate(  )                         /* @TODO */
     rc = Robinhood_StopScanModule(  );
     return rc;
 }
+
+/** Store FS Scan into database */
+int FSScan_StoreStats(  )
+{
+    int            rc;
+    robinhood_fsscan_stat_t stats;
+    char           tmp_buff[256];
+
+    if ( ( rc = Robinhood_StatsScan( &stats ) ) )
+        return rc;
+
+    if ( !lmgr_init )
+    {
+        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+            return 1;
+        lmgr_init = TRUE;
+    }
+
+    /* store the number of scanning threads */
+    sprintf( tmp_buff, "%i", fs_scan_config.nb_threads_scan );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, tmp_buff );
+
+    if ( stats.scan_running )
+    {
+        if ( stats.last_action > 0 )
+        {
+           sprintf( tmp_buff, "%lu", ( unsigned long ) stats.last_action );
+           ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, tmp_buff);
+        }
+
+        if ( stats.scanned_entries )
+        {
+            sprintf(tmp_buff, "%u", stats.scanned_entries);
+            ListMgr_SetVar( &lmgr, LAST_SCAN_ENTRIES_SCANNED, tmp_buff);
+            sprintf(tmp_buff, "%u", stats.error_count);
+            ListMgr_SetVar( &lmgr, LAST_SCAN_ERRORS, tmp_buff);
+            sprintf(tmp_buff, "%.2f", stats.avg_ms_per_entry);
+            ListMgr_SetVar( &lmgr, LAST_SCAN_AVGMSPE, tmp_buff);
+            sprintf(tmp_buff, "%.2f", stats.curr_ms_per_entry);
+            ListMgr_SetVar( &lmgr, LAST_SCAN_CURMSPE, tmp_buff);
+        }
+    }
+    sprintf(tmp_buff, "%u", stats.nb_hang);
+    ListMgr_SetVar( &lmgr, LAST_SCAN_TIMEOUTS, tmp_buff);
+
+    return 0;
+
+}
+
 
 /** Dump FS Scan stats to log file */
 int FSScan_DumpStats(  )
@@ -237,7 +291,7 @@ int FSScan_WriteDefaultConfig( FILE * output )
     print_line( output, 1, "exit_on_timeout        : FALSE" );
     print_line( output, 1, "spooler_check_interval :  1min" );
     print_line( output, 1, "nb_prealloc_tasks      :   256" );
-    print_line( output, 1, "ignore                 :   NONE" );
+    print_line( output, 1, "ignore                 :  NONE" );
     print_end_block( output, 0 );
     return 0;
 }

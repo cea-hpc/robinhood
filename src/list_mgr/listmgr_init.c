@@ -18,7 +18,6 @@
 
 #include "list_mgr.h"
 #include "listmgr_internal.h"
-#include "listmgr_prep_stmt.h"
 #include "database.h"
 #include "listmgr_common.h"
 #include "RobinhoodLogs.h"
@@ -1115,11 +1114,6 @@ int ListMgr_InitAccess( lmgr_t * p_mgr )
     p_mgr->last_commit = 0;
     p_mgr->force_commit = FALSE;
 
-#ifdef _ENABLE_PREP_STMT
-    /* initialize prepared statement cache */
-    init_prep_stmt_cache( p_mgr );
-#endif
-
     return 0;
 }
 
@@ -1130,11 +1124,6 @@ int ListMgr_CloseAccess( lmgr_t * p_mgr )
 
     /* force to commit queued requests */
     rc = lmgr_flush_commit( p_mgr );
-
-#ifdef _ENABLE_PREP_STMT
-    /* free prepared requests */
-    destroy_statements( p_mgr );
-#endif
 
     /* close connexion */
     db_close_conn( &p_mgr->conn );

@@ -76,11 +76,10 @@ for purp in $purp_list; do
 for lustre in "--enable-lustre" "--disable-lustre"; do 
 for fid in "--disable-fid-support" "--enable-fid-support"; do 
 for chglog in "--disable-changelogs" "--enable-changelogs"; do 
-for prep in "--disable-prep-stmts" "--enable-prep-stmts"; do
 for db in MYSQL SQLITE; do 
 for mdsstat in "--disable-mds-stat" "--enable-mds-stat"; do
 
-config_cmd="./configure --with-db=$db --with-purpose=$purp $prep $lustre $fid $chglog $mdsstat"
+config_cmd="./configure --with-db=$db --with-purpose=$purp $lustre $fid $chglog $mdsstat"
 
 # skip conflicting options
 if [[ $lustre = "--disable-lustre" && $fid = "--enable-fid-support" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
@@ -90,7 +89,6 @@ if [[ $fid = "--disable-fid-support" && $chglog = "--enable-changelogs" ]]; then
 if [[ $purp = "LUSTRE_HSM" && $lustre = "--disable-lustre" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 if [[ $purp = "LUSTRE_HSM" && $fid = "--disable-fid-support" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 if [[ $purp = "LUSTRE_HSM" && $chglog = "--disable-changelogs" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
-if [[ $db = "SQLITE" && $prep = "--enable-prep-stmts" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 
 echo "TEST: $config_cmd"
 
@@ -99,7 +97,6 @@ echo "TEST: $config_cmd"
 
 make clean 2>&1 >/dev/null
 
-done
 done
 done
 done

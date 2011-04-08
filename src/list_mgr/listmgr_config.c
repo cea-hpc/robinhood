@@ -71,7 +71,7 @@ int WriteLmgrConfigDefault( FILE * output )
     print_line( output, 2, "user    :   robinhood" );
     print_line( output, 2, "password|password_file : [MANDATORY]" );
     print_line( output, 2, "port    :   (MySQL default)" );
-    print_line( output, 2, "socket  :   none" );
+    print_line( output, 2, "socket  :   NONE" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)
     print_begin_block( output, 1, SQLITE_CONFIG_BLOCK, NULL );

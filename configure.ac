@@ -55,7 +55,6 @@ AX_ENABLE_FLAG([debug-policies], [enables debug traces for entry processor pipel
 AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DEBUG_HASH])
 
 # behavior flags
-AX_ENABLE_FLAG( [prep-stmts], [enables prepared statements for accessing the database], [-D_ENABLE_PREP_STMT] )
 AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
 
 
@@ -288,7 +287,7 @@ case $DB in
                     AC_MSG_ERROR([sqlite-devel not installed]))
         AC_CHECK_LIB([sqlite3], [sqlite3_exec], HAVE_SQLITE_LIB="true", 
                     AC_MSG_ERROR([sqlite3 library not found]))
-        DB_CFLAGS="-D_SQLITE -D_DISABLE_PREP_STMT"
+        DB_CFLAGS="-D_SQLITE"
         DB_LDFLAGS="-lsqlite3"
         ;;
     *)

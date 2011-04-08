@@ -149,19 +149,19 @@ function clean_fs
 
 	echo "Cleaning filesystem..."
 	if [[ -n "$ROOT" ]]; then
-		rm  -rf $ROOT/*
+		 find "$ROOT" -mindepth 1 -delete 2>/dev/null
 	fi
 
 	if (( $is_backup != 0 )); then
 		if [[ -n "$BKROOT" ]]; then
 			echo "Cleaning backend content..."
-			rm -rf $BKROOT/*
+			find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
 		fi
 	fi
 
 	echo "Destroying any running instance of robinhood..."
-	pkill -f robinhood
-	pkill -f rbh-hsm
+	pkill robinhood
+	pkill rbh-hsm
 
 	if [ -f rh.pid ]; then
 		echo "killing remaining robinhood process..."
@@ -471,6 +471,8 @@ function link_unlink_remove_test
 	echo "2-Writing data to file.1..."
 	dd if=/dev/zero of=$ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.1"
 
+	sleep 1
+
 	if (( $is_hsm != 0 )); then
 		echo "3-Archiving file....1"
 		flush_data
@@ -487,11 +489,13 @@ function link_unlink_remove_test
 	ln $ROOT/file.1 $ROOT/link.1 || error "ln"
 	ln $ROOT/file.1 $ROOT/link.2 || error "ln"
 
+	sleep 1
+
 	# removing all files
         echo "5-Removing all links to file.1..."
 	rm -f $ROOT/link.* $ROOT/file.1 
 
-	sleep 1
+	sleep 2
 	
 	echo "Checking report..."
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
@@ -526,7 +530,7 @@ function link_unlink_remove_test
 	fi
 
 	# kill event handler
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 
 }
 
@@ -1083,7 +1087,7 @@ function update_test
 
 		# force flushing log
 		sleep 1
-		pkill -f $PROC
+		pkill $PROC
 		sleep 1
 		t=$(( `date "+%s"` - $init ))
 
@@ -1127,7 +1131,7 @@ function update_test
 
 		# force flushing log
 		sleep 1
-		pkill -f $PROC
+		pkill $PROC
 		sleep 1
 
 		nb_getpath=`grep getpath=1 $LOG | wc -l`
@@ -1159,7 +1163,7 @@ function update_test
 
 	# force flushing log
 	sleep 1
-	pkill -f $PROC
+	pkill $PROC
 	sleep 1
 
 	nb_getattr=`grep getattr=1 $LOG | wc -l`
@@ -1178,7 +1182,7 @@ function update_test
 
 	# kill remaning event handler
 	sleep 1
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 }
 
 function periodic_class_match_migr
@@ -1682,7 +1686,7 @@ function test_periodic_trigger
 	fi
 
 	# terminate
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 }
 
 function fileclass_test
@@ -1826,6 +1830,7 @@ function test_info_collect
 
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+#	$RH -f ./cfg/$config_file --scan -l FULL -L rh_chglogs.log  --once || error ""
  
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
@@ -1834,6 +1839,7 @@ function test_info_collect
 	if (( $nb_db_apply == $db_expect )); then
 		echo "OK: $db_expect database operations"
 	else
+#		grep ENTRIES rh_chglogs.log
 		error ": unexpected number of operations: $nb_db_apply database operations"
 	fi
 }
@@ -2255,7 +2261,7 @@ function test_logs
 		cat /tmp/test_report.1
         fi
 
-	pkill -9 -f $PROC
+	pkill -9 $PROC
 	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
 	rm -f /tmp/test_log.1.old /tmp/test_report.1.old /tmp/test_alert.1.old
 }

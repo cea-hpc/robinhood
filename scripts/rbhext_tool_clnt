@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+# Client script to call remote file copy operations
+#
+# 20110325 <kilian.cavalotti@cea.fr>
+#
+
+VERB=$1
+SRC=$2
+DEST=$3
+HINTS=$4
+
+BIN=`basename $0`
+DIR=`dirname "$DEST"`
+
+if [[ -z "$VERB" || -z "$SRC" || -z "$DEST" || $# -gt 4 ]]; then
+    echo "Usage:"
+    echo "  $BIN ARCHIVE <src> <dest> [hints]"
+    exit 22
+fi
+
+# Choose a random server in a pool
+# TODO use nodeset instead of static list
+#SERVERS=$(nodeset -e @<group>)
+#FIXME
+SERVERS=(node1 node2)
+RAND_ID=$(($RANDOM % ${#SERVERS[@]}))
+RAND_SERV=${SERVERS[$RAND_ID]}
+SERV_PORT=49999
+
+#FIXME
+#RAND_SERV="node1"
+
+if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
+    # connect to $RAND_SERV and transmit parameters
+    ret=$(echo $VERB $SRC $DEST $HINTS | nc $RAND_SERV $SERV_PORT)
+    if (( $? != 0 )); then
+	exit $?
+    fi
+    # get return code and exit
+    exit $ret
+fi
+

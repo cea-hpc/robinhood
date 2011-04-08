@@ -162,19 +162,12 @@ int            attrmask2fieldoperation( char *str, int attr_mask, table_enum tab
 
 int            attrset2valuelist( lmgr_t * p_mgr, char *str,
                                   const attr_set_t * p_set, table_enum table,
-                                  int leading_coma, int prep_stmt );
+                                  int leading_coma );
 int            attrset2updatelist( lmgr_t * p_mgr, char *str,
                                    const attr_set_t * p_set, table_enum table,
                                    int leading_coma );
-
-int            prep_stmt_bind_attrs( prep_stmt_t prep, const attr_set_t * p_set, table_enum table,
-                                     unsigned int start_index );
-
 int            mk_result_bind_list( const attr_set_t * p_set, table_enum table,
                                     db_type_t * type_list, void **buff_list, size_t * size_list );
-
-int            unset_null_results( attr_set_t * p_set, table_enum table, prep_stmt_t stmt,
-                                   unsigned int shift );
 
 char          *compar2str( filter_comparator_t compar );
 int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,

@@ -1013,18 +1013,6 @@ void EntryProcessor_DumpCurrentStages(  )
             } /* end for */
         } /* end if pending op */
     }
-
-#ifdef _ENABLE_PREP_STMT
-    if ( TestDisplayLevel( LVL_DEBUG ) )
-    {
-        DisplayLog( LVL_DEBUG, "STATS", "====== Prepared Statement Stats ======" );
-
-        for ( i = 0; i < entry_proc_conf.nb_thread; i++ )
-        {
-            dump_prep_stmt_stats( i, &worker_params[i].lmgr );
-        }
-    }
-#endif
 }
 
 

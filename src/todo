@@ -220,9 +220,6 @@ Dumper l'état du processus sur un siguser1
 - rajouter force commit là ou necessaire pour les purges, etc...
 ~x Arret propre par sigterm (fs scan bloqué)
 
-- Tester la resistance aux deconnexions lorsqu'on utilise pas les prepared statements
-	- Le cas echeant, ne pas utiliser les prepared statements (meilleure resistance aux deconnexions a tester)
-
 - Traquer tous les @TODO
 
 (- ameliorer fonctions de hash)
@@ -236,8 +233,6 @@ Dumper l'état du processus sur un siguser1
 
 
 - Doxygen
-
-- Blinder les prepared statements au redemarrage du serveur MySQL
 
 scan recovery:
 1) recupere le dernier timestamp de debut de dernier parcours

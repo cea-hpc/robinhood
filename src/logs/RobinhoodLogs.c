@@ -63,7 +63,7 @@
 static int     log_initialized = FALSE;
 
 static log_config_t log_config = {
-    .debug_level = LVL_EVENT, /* used for non-itilialized logging */
+    .debug_level = LVL_EVENT, /* used for non-initialized logging */
     .syslog_facility = LOG_LOCAL1,
     .syslog_priority = LOG_INFO
 };

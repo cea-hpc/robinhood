@@ -136,7 +136,16 @@ static void wait_for_db_callback(  )
 
 static int db_special_op_callback( lmgr_t *lmgr, struct entry_proc_op_t *p_op, void *arg )
 {
+    char timestamp[128];
+
     DisplayLog( LVL_VERB, FSSCAN_TAG, "Callback from database for operation '%s'", ( char * ) arg );
+
+    /* Update end time for pipeline processing */
+    if ( lmgr )
+    {
+        sprintf( timestamp, "%lu", ( unsigned long ) time ( NULL ) );
+        ListMgr_SetVar( lmgr, LAST_SCAN_PROCESSING_END_TIME, timestamp );
+    }
 
     P( special_db_op_lock );
     waiting_db_op = FALSE;
@@ -271,7 +280,38 @@ int ignore_entry( char *fullpath, char *name, unsigned int depth, struct stat *p
 static int TerminateScan( int scan_complete, time_t date_fin )
 {
     entry_proc_op_t op;
-    int            st;
+    int     st, i;
+    time_t  last_action = 0;
+    char    timestamp[128];
+
+    /* store the last scan end date */
+    if ( !lmgr_init )
+    {
+        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+            return 1;
+        lmgr_init = TRUE;
+    }
+    sprintf( timestamp, "%lu", ( unsigned long ) date_fin );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
+
+    /* update the last action date */
+    P( lock_scan );
+    for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
+    {
+        if ( ( thread_list[i].current_task != NULL )
+             && ( thread_list[i].last_action > last_action ) )
+        {
+            last_action = thread_list[i].last_action;
+        }
+    }
+    V( lock_scan );
+    sprintf( timestamp, "%lu", ( unsigned long ) last_action );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
+
+    /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
+    FSScan_StoreStats() ;
+    /* and update the scan status */
+    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, scan_complete ? SCAN_STATUS_DONE : SCAN_STATUS_TIMEDOUT );
 
     /* final DB operation: remove entries with md_update < scan_start_time */
     InitEntryProc_op( &op );
@@ -1018,9 +1058,18 @@ int Robinhood_StopScanModule(  )
 {
     unsigned int   i;
     int            err = 0;
+    int            running = 0;
+    char           timestamp[128];
+
+    P( lock_scan );
+    /* is a scan really running ? */
+    if ( root_task != NULL )
+    {
+        running = 1;
+    }
+    V( lock_scan );
 
     /* terminate scan threads */
-
     for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
     {
         thread_list[i].force_stop = TRUE;
@@ -1031,6 +1080,20 @@ int Robinhood_StopScanModule(  )
     /* if there are still threads doing something, wait for them */
     if ( !all_threads_idle() )
         wait_scan_finished();
+
+    /* update scan status in db */
+    if ( running )
+    {
+        if ( !lmgr_init )
+        {
+            if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+                return 1;
+            lmgr_init = TRUE;
+        }
+        sprintf( timestamp, "%lu", ( unsigned long ) time ( NULL ) );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, SCAN_STATUS_ABORTED);
+    }
 
     return err;
 }
@@ -1044,6 +1107,8 @@ int Robinhood_StopScanModule(  )
 static int StartScan(  )
 {
     robinhood_task_t *p_parent_task;
+    char              timestamp[128];
+    char              value[128];
 
     /* Lock scanning status */
     P( lock_scan );
@@ -1078,6 +1143,28 @@ static int StartScan(  )
     root_task = p_parent_task;
     scan_start_time = time( NULL );
     gettimeofday( &accurate_start_time, NULL );
+
+    if ( !lmgr_init )
+    {
+        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+            return 1;
+        lmgr_init = TRUE;
+    }
+    /* archive previous scan start/end time */
+    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_START_TIME, timestamp ) == DB_SUCCESS )
+         ListMgr_SetVar( &lmgr, PREV_SCAN_START_TIME, timestamp );
+    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, timestamp ) == DB_SUCCESS )
+         ListMgr_SetVar( &lmgr, PREV_SCAN_END_TIME, timestamp );
+
+    /* store current scan start time and status in db */
+    sprintf( timestamp, "%lu", ( unsigned long ) scan_start_time );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_START_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, SCAN_STATUS_RUNNING);
+    /* store the number of scanning threads */
+    sprintf( value, "%i", fs_scan_config.nb_threads_scan );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, value );
+
 
     /* reset threads stats */
     ResetScanStats(  );
