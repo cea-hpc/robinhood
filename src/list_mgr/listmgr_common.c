@@ -131,6 +131,12 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
         acct_pk_attr_set |= ATTR_MASK_owner;
     if ( lmgr_config->group_acct )
         acct_pk_attr_set |= ATTR_MASK_gr_name;
+#ifndef _LUSTRE_HSM
+    if ( lmgr_config->user_acct || lmgr_config->group_acct )
+    {
+        acct_pk_attr_set |= ATTR_MASK_type;
+    }
+#endif
     acct_attr_set = ATTR_MASK_size | ATTR_MASK_blocks ;
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )

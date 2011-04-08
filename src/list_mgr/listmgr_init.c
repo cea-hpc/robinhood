@@ -115,6 +115,8 @@ static inline int has_extra_field( int curr_field_index, char *table, char **fie
 }
 
 int            annex_table = FALSE;              /* indicates if an annex table is used */
+int            acct_on_annex = FALSE;            /* indicates if acct info are is on annex table */
+int            acct_on_main = FALSE;             /* indicates if acct info is on main table */
 
 int ListMgr_Init( const lmgr_config_t * p_conf )
 {
@@ -124,6 +126,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
     char           strbuf[4096];
     char          *next;
     char          *fieldtab[MAX_DB_FIELDS];
+    char          *acct_info_table;
 
 #ifdef FID_PK
 #   define PK_TYPE   "VARCHAR(" TOSTRING(FID_LEN) ")"
@@ -147,6 +150,47 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
 
     /* initilize attr masks for each table */
     init_attrset_masks( &lmgr_config );
+
+    if ( annex_table && ( lmgr_config.user_acct || lmgr_config.group_acct ) )
+    {
+        acct_on_annex = FALSE ;
+        acct_on_main = FALSE ;
+        acct_info_table = NULL;
+
+        for ( i = 0; i < ATTR_COUNT; i++ )
+        {
+            if ( is_acct_field( i ) || is_acct_pk( i ) )
+            {
+                if ( is_annex_field( i ) )
+                    acct_on_annex = TRUE;
+                else if ( is_main_field( i ) )
+                    acct_on_main = TRUE;
+                else
+                {
+                    DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: Accounting field not in MAIN or ANNEX table" );
+                    return -1;
+                }
+            } 
+        }
+        if ( acct_on_annex && acct_on_main )
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: Accounting info is on several tables" );
+            return -1;
+        }
+        else if (acct_on_annex )
+            acct_info_table = ANNEX_TABLE;
+        else if (acct_on_main )
+            acct_info_table = MAIN_TABLE;
+        else
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: Accounting info is not in MAIN or ANNEX table" );
+            return -1;
+        }
+    }
+    else
+        acct_info_table = MAIN_TABLE;
+
+
 
     /* create a database access */
     rc = db_connect( &conn );
@@ -743,10 +787,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
             }
 
             /* check count field*/
-            if ( ( fieldtab[curr_field_index] == NULL ) || strcmp( fieldtab[curr_field_index], "count" ) )
+            if ( ( fieldtab[curr_field_index] == NULL ) || strcmp( fieldtab[curr_field_index], ACCT_FIELD_COUNT ) )
             { 
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Incompatible database schema (missing field 'count' in table "
+                            "Incompatible database schema (missing field '" ACCT_FIELD_COUNT  "' in table "
                             ACCT_TABLE
                             "): you should drop the database and start a new FS scan." );
                 return -1;
@@ -789,7 +833,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
                 } 
             }
 
-            strcpy ( next, ", count BIGINT UNSIGNED, PRIMARY KEY ( " );
+            strcpy ( next, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED, PRIMARY KEY ( " );
             next = next + strlen( next );
 
             for ( i = 0; i < ATTR_COUNT; i++ )
@@ -827,12 +871,12 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
             next = next + strlen( next );
             attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
             next = next + strlen( next );
-            next += sprintf( next, ", count ) SELECT " );
+            next += sprintf( next, ", " ACCT_FIELD_COUNT " ) SELECT " );
             attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
             next = next + strlen( next );
             attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "SUM( ", " )" );
             next = next + strlen( next );
-            next += sprintf( next, " ,COUNT( id ) FROM " MAIN_TABLE " GROUP BY " );
+            next += sprintf( next, " ,COUNT( id ) FROM %s  GROUP BY ", acct_info_table );
             attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" ); 
             next = next + strlen( next );
             rc = db_exec_sql( &conn, strbuf, NULL );
@@ -861,7 +905,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         INCR_NEXT( next );
         attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
         INCR_NEXT( next );
-        APPEND_TXT( next, ", count ) VALUES ( " );
+        APPEND_TXT( next, ", " ACCT_FIELD_COUNT  " ) VALUES ( " );
         attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
         INCR_NEXT( next );
         attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "" );
@@ -869,7 +913,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         APPEND_TXT( next, ", 1 ) ON DUPLICATE KEY UPDATE " );
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
         INCR_NEXT( next );
-        APPEND_TXT( next,", count=count+1;" );
+        APPEND_TXT( next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1;" );
 
         rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
         if ( rc )
@@ -879,7 +923,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
             return rc;
         }
  
-        rc = db_create_trigger( &conn, ACCT_TRIGGER_INSERT, "AFTER INSERT", MAIN_TABLE, strbuf );
+        rc = db_create_trigger( &conn, ACCT_TRIGGER_INSERT, "AFTER INSERT", acct_info_table, strbuf );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
@@ -894,7 +938,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         APPEND_TXT( next, "UPDATE " ACCT_TABLE " SET " );
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBTRACT );
         INCR_NEXT( next );
-        APPEND_TXT( next,", count=count-1 WHERE " );
+        APPEND_TXT( next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1 WHERE " );
         attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" ); 
         INCR_NEXT( next );
         APPEND_TXT( next, ";" );
@@ -907,7 +951,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
             return rc;
         }
 
-        rc = db_create_trigger( &conn, ACCT_TRIGGER_DELETE, "BEFORE DELETE", MAIN_TABLE, strbuf );
+        rc = db_create_trigger( &conn, ACCT_TRIGGER_DELETE, "BEFORE DELETE", acct_info_table, strbuf );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
@@ -960,7 +1004,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         /* generate fields as follows: , size, blocks */
         attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
         INCR_NEXT( next );
-        APPEND_TXT( next, ", count ) VALUES ( " );
+        APPEND_TXT( next, ", " ACCT_FIELD_COUNT " ) VALUES ( " );
         /* generate fields as follows: NEW.owner, NEW.gr_name */
         attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
         INCR_NEXT( next );
@@ -970,13 +1014,13 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
         /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
         INCR_NEXT( next );
-        APPEND_TXT( next, ", count=count+1;" );
+        APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1;" );
 
         APPEND_TXT( next, "\n\tUPDATE " ACCT_TABLE " SET " );
         /* generate operations as follows: size=size-New.size, blocks=blocks-NEW.blocks */
         attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", SUBTRACT );
         INCR_NEXT( next );
-        APPEND_TXT( next, ", count=count-1 WHERE " );
+        APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 WHERE " );
         attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
         INCR_NEXT( next );
         APPEND_TXT( next, ";\nEND IF;\n" );
@@ -989,7 +1033,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
             return rc;
         }
 
-        rc = db_create_trigger( &conn, ACCT_TRIGGER_UPDATE, "AFTER UPDATE", MAIN_TABLE, strbuf );
+        rc = db_create_trigger( &conn, ACCT_TRIGGER_UPDATE, "AFTER UPDATE", acct_info_table, strbuf );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,

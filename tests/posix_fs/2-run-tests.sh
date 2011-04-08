@@ -434,7 +434,7 @@ function test_rh_report
 	for i in `seq 1 $dircount`; do
 		real=`du -B 512 -c $ROOT/dir.$i/* | grep total | awk '{print $1}'`
 		real=`echo "$real*512" | bc -l`
-		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
+		$REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $real )); then
 			error ": $used != $real"
@@ -443,6 +443,54 @@ function test_rh_report
 		fi
 	done
 	
+}
+
+#test report using accounting table
+function test_rh_acct_report
+{
+	config_file=$1
+	dircount=$2
+	descr_str="$3"
+
+	clean_logs
+
+	for i in `seq 1 $dircount`; do
+                mkdir $ROOT/dir.$i
+                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                # write i MB to each directory
+                for j in `seq 1 $i`; do
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                done
+        done
+
+        echo "1bis. Wait for IO completion..."
+        sync
+
+	echo "2-Scanning..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+
+	echo "3.Checking reports..."
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct --top-user > rh_no_acct_report.log
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv --top-user > rh_acct_report.log
+
+	nbrowacct=` awk -F ',' 'END {print NF}' rh_acct_report.log`;
+	nbrownoacct=` awk -F ',' 'END {print NF}' rh_no_acct_report.log`;
+	for i in `seq 1 $nbrowacct`; do
+		rowchecked=0;
+		for j in `seq 1 $nbrownoacct`; do
+			if [[ `cut -d "," -f $i rh_acct_report.log` == `cut -d "," -f $j rh_no_acct_report.log`  ]]; then
+				rowchecked=1
+				break
+			fi
+		done
+		if (( $rowchecked == 1 )); then
+			echo "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` OK"
+		else
+			error "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` is different with acct "
+		fi
+	done
+	rm rh_no_acct_report.log
+	rm rh_acct_report.log
 }
 
 function path_test
@@ -1683,6 +1731,7 @@ run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
+run_test 401	test_rh_acct_report common.conf 5 "reporting tool with acct"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
