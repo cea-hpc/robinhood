@@ -122,15 +122,20 @@ typedef enum
 
 # not used for sorting or filetring
 fullpath,	char, DB_TEXT, RBH_PATH_MAX,         ANNEX_INFO
-size,       uint64_t,	DB_BIGUINT, 0,   ANNEX_INFO
-blocks, 	uint64_t,   DB_BIGUINT, 0,   ANNEX_INFO
-owner, 		char, 		DB_TEXT,   128,  ANNEX_INFO
-gr_name, 	char, 		DB_TEXT,   128,  ANNEX_INFO
+#size,       uint64_t,	DB_BIGUINT, 0,   ANNEX_INFO
+#blocks, 	uint64_t,   DB_BIGUINT, 0,   ANNEX_INFO
+#owner, 		char, 		DB_TEXT,   128,  ANNEX_INFO
+#gr_name, 	char, 		DB_TEXT,   128,  ANNEX_INFO
 
 # important attributes for building LRUs
 last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 type,	    	char,   DB_TEXT, 32, FREQ_ACCESS
+size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
+blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
+owner,      char,       DB_TEXT,   128,  FREQ_ACCESS
+gr_name,    char,       DB_TEXT,   128,  FREQ_ACCESS
+
 
 #backend relative info
 backendpath,	char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO

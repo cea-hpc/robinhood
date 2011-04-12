@@ -434,7 +434,7 @@ function test_rh_report
 	for i in `seq 1 $dircount`; do
 		real=`du -B 512 -c $ROOT/dir.$i/* | grep total | awk '{print $1}'`
 		real=`echo "$real*512" | bc -l`
-		$REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
+		$REPORT -f ./cfg/$config_file -l MAJOR --csv  -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $real )); then
 			error ": $used != $real"
@@ -489,8 +489,58 @@ function test_rh_acct_report
 			error "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` is different with acct "
 		fi
 	done
-	rm rh_no_acct_report.log
-	rm rh_acct_report.log
+	rm -f rh_no_acct_report.log
+	rm -f rh_acct_report.log
+}
+
+#test --split-user-groups option
+function test_rh_report_split_user_group
+{
+        config_file=$1
+        dircount=$2
+        descr_str="$3"
+
+        clean_logs
+
+        for i in `seq 1 $dircount`; do
+                mkdir $ROOT/dir.$i
+                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                # write i MB to each directory
+                for j in `seq 1 $i`; do
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                done
+        done
+
+        echo "1bis. Wait for IO completion..."
+        sync
+
+        echo "2-Scanning..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+
+        echo "3.Checking reports..."
+        #$REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info -q > rh_report_no_split.log
+	#$REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info --split-user-groups -q > rh_report_split.log
+
+        nbrow=` awk -F ',' 'END {print NF}' rh_report_split.log`
+
+	for i in `seq 1 $nbrow`; do
+		curr_row=`awk -F ',' 'NR==1 { print $'$i'; }' rh_report_split.log | tr -d ' '`
+		avg_row=` awk -F ',' '$'$i'==avg_size {print NF}' rh_report_split.log`
+		echo "$avg_row"
+		if [[ $curr_row =~ "^[0-9]*$" ]]; then
+	                nb_uniq_user=`cut -d "," -f 1 rh_report_split.log | uniq | wc -l`
+        	        for i in `seq 1 $nb_uniq_user`; do
+                	        user=`awk -F ',' '{print $1;}' rh_report_split.log | uniq | awk 'NR=='$i'{ print }'`
+                       		sum_split=`egrep -e "^$user.*dir.*" rh_report_split.log | awk -F ',' '{array[$1]+=$'$i'}END{for (name in array) {print array[name]}}'`
+                        	sum_no_split=`egrep -e "^$user.*dir.*" rh_report_no_split.log | awk -F ',' '{print $'$i'; }'` 
+                        	if (( $sum_split == $sum_no_split )); then
+                                	echo "ok"
+                        	else
+                                	echo "nok: $sum_split -> $sum_no_split"
+                        	fi
+                	done    
+		fi
+	done
 }
 
 function path_test
@@ -1732,6 +1782,7 @@ run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
 run_test 401	test_rh_acct_report common.conf 5 "reporting tool with acct"
+#run_test 402    test_rh_report_split_user_group common.conf 5 "report with split-user-groups option"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"

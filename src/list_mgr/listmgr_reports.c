@@ -126,10 +126,24 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     for ( i = 0; i < report_descr_count; i++ )
     {
         if ( ( report_desc_array[i].report_type != REPORT_COUNT ) &&
+#ifdef ATTR_INDEX_dircount
                 report_desc_array[i].attr_index != ATTR_INDEX_dircount &&
+#endif
                 !is_acct_field( report_desc_array[i].attr_index ) && 
                 !is_acct_pk( report_desc_array[i].attr_index ) )
             full_acct = FALSE;
+    }
+    if ( p_filter )
+    {
+        if ( p_filter->filter_type == FILTER_SIMPLE )
+        {    
+            for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
+            {
+                if ( !is_acct_pk( p_filter->filter_simple.filter_index[i] ) &&
+                        !is_acct_field( p_filter->filter_simple.filter_index[i] ) )
+                    full_acct = FALSE;
+            }
+        }
     }
 
     if ( full_acct && !p_opt->force_no_acct )
