@@ -937,7 +937,7 @@ function test_trigger_check
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
 
 	# check purge triggers
-	$RH -f ./cfg/$config_file --check-watermarks --once -l FULL -L rh_purge.log
+	$RH -f ./cfg/$config_file --check-thresholds --once -l FULL -L rh_purge.log
 
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
@@ -960,11 +960,11 @@ function test_trigger_check
 	if (($nb_release > 0)); then
 		error ": $nb_release files released, no purge expected"
 	elif (( $count_trig != $expect_count )); then
-		error ": trigger reported $count_trig files over watermark, $expect_count expected"
+		error ": trigger reported $count_trig files over threshold, $expect_count expected"
 	elif (( $vol_fs_trig_mb != $expect_vol_fs )); then
-		error ": trigger reported $vol_fs_trig_mb MB over watermark, $expect_vol_fs expected"
+		error ": trigger reported $vol_fs_trig_mb MB over threshold, $expect_vol_fs expected"
 	elif (( $vol_user_trig_mb != $expect_vol_user )); then
-		error ": trigger reported $vol_user_trig_mb MB over watermark, $expect_vol_user expected"
+		error ": trigger reported $vol_user_trig_mb MB over threshold, $expect_vol_user expected"
 	else
 		echo "OK: all checks successful"
 	fi

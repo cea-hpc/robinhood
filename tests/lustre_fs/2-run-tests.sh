@@ -1397,8 +1397,8 @@ function test_cnt_trigger
 function test_ost_trigger
 {
 	config_file=$1
-	mb_h_watermark=$2
-	mb_l_watermark=$3
+	mb_h_threshold=$2
+	mb_l_threshold=$3
 	policy_str="$4"
 
 	if (( $is_backup != 0 )); then
@@ -1413,9 +1413,9 @@ function test_ost_trigger
 
 	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
 
-	#create test tree of archived files (2M each=1MB/ost) until we reach high watermark
-	((count=$mb_h_watermark - $empty_vol + 1))
-	for i in `seq $empty_vol $mb_h_watermark`; do
+	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
+	((count=$mb_h_threshold - $empty_vol + 1))
+	for i in `seq $empty_vol $mb_h_threshold`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
 		if (( $is_hsm != 0 )); then
@@ -1439,7 +1439,7 @@ function test_ost_trigger
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
 	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
-	((need_purge=$full_vol-$mb_l_watermark))
+	((need_purge=$full_vol-$mb_l_threshold))
 	echo "Need to purge $need_purge MB on OST#0"
 
 	# scan
@@ -1477,8 +1477,8 @@ function test_ost_trigger
 	full_vol1=$(($full_vol1/1024))
 	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
 
-	if (($full_vol1 > $mb_h_watermark )); then
-		error ": OST#1 is not expected to exceed high watermark!"
+	if (($full_vol1 > $mb_h_threshold )); then
+		error ": OST#1 is not expected to exceed high threshold!"
 	elif (($purge_ost1 != 0)); then
 		error ": no purge expected on OST#1"
 	else
@@ -1555,7 +1555,7 @@ function test_trigger_check
 	$REPORT -f ./cfg/$config_file -i
 
 	# check purge triggers
-	$RH -f ./cfg/$config_file --check-watermarks --once -l FULL -L rh_purge.log
+	$RH -f ./cfg/$config_file --check-thresholds --once -l FULL -L rh_purge.log
 
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
@@ -1582,11 +1582,11 @@ function test_trigger_check
 	if (($nb_release > 0)); then
 		error ": $nb_release files released, no purge expected"
 	elif (( $count_trig != $expect_count )); then
-		error ": trigger reported $count_trig files over watermark, $expect_count expected"
+		error ": trigger reported $count_trig files over threshold, $expect_count expected"
 	elif (( $vol_fs_trig_mb != $expect_vol_fs )); then
-		error ": trigger reported $vol_fs_trig_mb MB over watermark, $expect_vol_fs expected"
+		error ": trigger reported $vol_fs_trig_mb MB over threshold, $expect_vol_fs expected"
 	elif (( $vol_user_trig_mb != $expect_vol_user )); then
-		error ": trigger reported $vol_user_trig_mb MB over watermark, $expect_vol_user expected"
+		error ": trigger reported $vol_user_trig_mb MB over threshold, $expect_vol_user expected"
 	else
 		echo "OK: all checks successful"
 	fi

@@ -84,8 +84,8 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 0, "# Trigger purge on individual OST usage" );
     print_begin_block( output, 0, TRIGGER_BLOCK, NULL );
     print_line( output, 1, "trigger_on         = OST_usage ;" );
-    print_line( output, 1, "high_watermark_pct = 85%% ;" );
-    print_line( output, 1, "low_watermark_pct  = 80%% ;" );
+    print_line( output, 1, "high_threshold_pct = 85%% ;" );
+    print_line( output, 1, "low_threshold_pct  = 80%% ;" );
     print_line( output, 1, "check_interval     = 5min ;" );
     print_end_block( output, 0 );
     fprintf( output, "\n" );
@@ -94,14 +94,14 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 0, "# Trigger purge on filesystem usage" );
     print_begin_block( output, 0, TRIGGER_BLOCK, NULL );
     print_line( output, 1, "trigger_on         = global_usage ;" );
-    print_line( output, 1, "high_watermark_pct = 90%% ;" );
-    print_line( output, 1, "low_watermark_pct  = 85%% ;" );
+    print_line( output, 1, "high_threshold_pct = 90%% ;" );
+    print_line( output, 1, "low_threshold_pct  = 85%% ;" );
     print_line( output, 1, "check_interval     = 5min ;" );
-    print_line( output, 1, "# raise an alert when the high watermark is reached" );
-    print_line( output, 1, "notify_hw          = TRUE ;" );
+    print_line( output, 1, "# raise an alert when the high threshold is reached" );
+    print_line( output, 1, "alert_high         = TRUE ;" );
     print_line( output, 1, "# raise an alert if not enough data can be purged");
-    print_line( output, 1, "# to reach the low watermark");
-    print_line( output, 1, "alert_lw           = TRUE ;" );
+    print_line( output, 1, "# to reach the low threshold");
+    print_line( output, 1, "alert_low          = TRUE ;" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -113,8 +113,8 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "# Trigger purge on pool usage" );
     print_begin_block( output, 1, TRIGGER_BLOCK );
     print_line( output, 2, "trigger_on         = pool_usage(pool1,pool2) ;" );
-    print_line( output, 2, "high_watermark_pct = 85%% ;" );
-    print_line( output, 2, "low_watermark_pct  = 80%% ;" );
+    print_line( output, 2, "high_threshold_pct = 85%% ;" );
+    print_line( output, 2, "low_threshold_pct  = 80%% ;" );
     print_line( output, 2, "check_interval     = 5min ;" );
     print_end_block( output, 1 );
     fprintf( output, "\n" );
@@ -126,11 +126,11 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 0, "# if they use more than a TB (check twice a day)" );
     print_begin_block( output, 0, TRIGGER_BLOCK, NULL );
     print_line( output, 1, "trigger_on         = user_usage(charlie,foo) ;" );
-    print_line( output, 1, "high_watermark_vol = 1TB ;" );
-    print_line( output, 1, "low_watermark_vol  = 950GB ;" );
+    print_line( output, 1, "high_threshold_vol = 1TB ;" );
+    print_line( output, 1, "low_threshold_vol  = 950GB ;" );
     print_line( output, 1, "check_interval     = 12h ;" );
     print_line( output, 1, "# send an alert when the quota is reached" );
-    print_line( output, 1, "notify_hw          = TRUE ;" );
+    print_line( output, 1, "alert_high         = TRUE ;" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -157,6 +157,11 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     static const char *trigger_expect[] =
     {
         "trigger_on", "check_interval",
+        "high_threshold_pct", "low_threshold_pct",
+        "high_threshold_vol", "low_threshold_vol",
+        "high_threshold_cnt", "low_threshold_cnt",
+        "alert_high", "alert_low",
+        /* for backward compatibility */
         "high_watermark_pct", "low_watermark_pct",
         "high_watermark_vol", "low_watermark_vol",
         "high_watermark_cnt", "low_watermark_cnt",
@@ -312,48 +317,77 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     }
 
 
-    /* retrieve all watermark params and check their compatibility */
+    /* retrieve all threshold params and check their compatibility */
     high_count = low_count = 0;
 
-    rc_hp = GetFloatParam( config_blk, block_name, "high_watermark_pct",
+    rc_hp = GetFloatParam( config_blk, block_name, "high_threshold_pct",
                          FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &h_pct,
                          NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc_hp == ENOENT )
+        rc_hp = GetFloatParam( config_blk, block_name, "high_watermark_pct",
+                             FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &h_pct,
+                             NULL, NULL, msg_out );
+
     if ( ( rc_hp != 0 ) && ( rc_hp != ENOENT ) )
         return rc_hp;
     else if ( rc_hp != ENOENT )
         high_count++;
 
-    rc_hv = GetSizeParam( config_blk, block_name, "high_watermark_vol",
+    rc_hv = GetSizeParam( config_blk, block_name, "high_threshold_vol",
                         INT_PARAM_POSITIVE, &h_vol, NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc_hv == ENOENT )
+        rc_hv = GetSizeParam( config_blk, block_name, "high_watermark_vol",
+                              INT_PARAM_POSITIVE, &h_vol, NULL, NULL, msg_out );
+
     if ( ( rc_hv != 0 ) && ( rc_hv != ENOENT ) )
         return rc_hv;
     else if ( rc_hv != ENOENT )
         high_count++;
 
-    rc_hc = GetInt64Param( config_blk, block_name, "high_watermark_cnt",
+    rc_hc = GetInt64Param( config_blk, block_name, "high_threshold_cnt",
                            INT_PARAM_POSITIVE, &h_cnt, NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc_hc == ENOENT )
+            rc_hc = GetInt64Param( config_blk, block_name, "high_watermark_cnt",
+                                   INT_PARAM_POSITIVE, &h_cnt, NULL, NULL, msg_out );
     if ( ( rc_hc != 0 ) && ( rc_hc != ENOENT ) )
         return rc_hc;
     else if ( rc_hc != ENOENT )
         high_count++;
 
-    rc_lp = GetFloatParam( config_blk, block_name, "low_watermark_pct",
+    rc_lp = GetFloatParam( config_blk, block_name, "low_threshold_pct",
                          FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &l_pct,
                          NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc_lp == ENOENT )
+        rc_lp = GetFloatParam( config_blk, block_name, "low_watermark_pct",
+                             FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &l_pct,
+                             NULL, NULL, msg_out );
+
     if ( ( rc_lp != 0 ) && ( rc_lp != ENOENT ) )
         return rc_lp;
     else if ( rc_lp != ENOENT )
         low_count++;
 
-    rc_lv = GetSizeParam( config_blk, block_name, "low_watermark_vol",
+    rc_lv = GetSizeParam( config_blk, block_name, "low_threshold_vol",
                         INT_PARAM_POSITIVE, &l_vol, NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc_lv == ENOENT )
+        rc_lv = GetSizeParam( config_blk, block_name, "low_watermark_vol",
+                            INT_PARAM_POSITIVE, &l_vol, NULL, NULL, msg_out );
     if ( ( rc_lv != 0 ) && ( rc_lv != ENOENT ) )
         return rc_lv;
     else if ( rc_lv != ENOENT )
         low_count++;
 
-    rc_lc = GetInt64Param( config_blk, block_name, "low_watermark_cnt",
+    rc_lc = GetInt64Param( config_blk, block_name, "low_threshold_cnt",
                            INT_PARAM_POSITIVE, &l_cnt, NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc_lc == ENOENT )
+        rc_lc = GetInt64Param( config_blk, block_name, "low_watermark_cnt",
+                               INT_PARAM_POSITIVE, &l_cnt, NULL, NULL, msg_out );
     if ( ( rc_lc != 0 ) && ( rc_lc != ENOENT ) )
         return rc_lc;
     else if ( rc_lc != ENOENT )
@@ -361,21 +395,21 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
 
     if ( p_trigger_item->type == TRIGGER_ALWAYS )
     {
-        /* in case of 'periodic' trigger, no watermarks are expected */
+        /* in case of 'periodic' trigger, no thresholds are expected */
         if ( (high_count > 0) || (low_count > 0) )
         {
             strcpy( msg_out,
-                    "No high/low watermark expected for trigger type 'periodic'" );
+                    "No high/low threshold expected for trigger type 'periodic'" );
             return EINVAL;
         }
     }
     else if ( p_trigger_item->type == TRIGGER_CUSTOM_CMD )
     {
-        /* in case of an external command, no watermarks are expected */
+        /* in case of an external command, no thresholds are expected */
         if ( (high_count > 0) || (low_count > 0) )
         {
             strcpy( msg_out,
-                    "No high/low watermarks expected for trigger type 'external_command'" );
+                    "No high/low thresholds expected for trigger type 'external_command'" );
             return EINVAL;
         }
     }
@@ -392,21 +426,21 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     else if ( high_count == 0 )
     {
         strcpy( msg_out, "No purge start condition found in trigger "
-                         "(mandatory). 'high_watermark_pct', 'high_watermark_vol'"
-                         "or 'high_watermark_cnt' expected" );
+                         "(mandatory). 'high_threshold_pct', 'high_threshold_vol'"
+                         "or 'high_threshold_cnt' expected" );
         return ENOENT;
     }
     else if ( low_count == 0 )
     {
         strcpy( msg_out, "No purge stop condition found in trigger "
-                         "(mandatory). 'low_watermark_pct', 'low_watermark_vol'"
-                         "or 'low_watermark_cnt' expected" );
+                         "(mandatory). 'low_threshold_pct', 'low_threshold_vol'"
+                         "or 'low_threshold_cnt' expected" );
         return ENOENT;
     }
     else if ( rc_hc != rc_lc ) /* both 0 or both ENOENT */
     {
-        strcpy( msg_out, "Incompatible watermark types: 'high_watermark_cnt' "
-                         "must be used with 'low_watermark_cnt'" );
+        strcpy( msg_out, "Incompatible threshold types: 'high_threshold_cnt' "
+                         "must be used with 'low_threshold_cnt'" );
         return ENOENT;
     }
 
@@ -416,7 +450,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     if ( (rc_hc == 0) || (rc_lc == 0) )
     {
        DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                "WARNING: watermark on entry count doesn't make sense for "
+                "WARNING: threshold on entry count doesn't make sense for "
                          "Lustre-HSM purpose" );
     }
 #endif
@@ -426,7 +460,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
          && (p_trigger_item->type != TRIGGER_ALWAYS)
          && ( (rc_hc == 0) || (rc_lc == 0) ) )
     {
-        strcpy( msg_out, "Watermark on entry count is only supported "
+        strcpy( msg_out, "Threshold on entry count is only supported "
                          "for 'global_usage' and 'periodic' triggers" );
         return EINVAL;
     }
@@ -473,9 +507,12 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         return rc;
     p_trigger_item->check_interval = tmpval;
 
-    rc = GetBoolParam( config_blk, block_name, "notify_hw", 0,
+    rc = GetBoolParam( config_blk, block_name, "alert_high", 0,
                        &tmpval, NULL, NULL, msg_out );
     /* for backward compatibility */
+    if ( rc == ENOENT )
+        rc = GetBoolParam( config_blk, block_name, "notify_hw", 0,
+                           &tmpval, NULL, NULL, msg_out );
     if ( rc == ENOENT )
         rc = GetBoolParam( config_blk, block_name, "notify", 0,
                            &tmpval, NULL, NULL, msg_out );
@@ -485,8 +522,13 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     else if ( rc == 0 )
         p_trigger_item->alert_hw = tmpval;
 
-    rc = GetBoolParam( config_blk, block_name, "alert_lw", 0,
+    rc = GetBoolParam( config_blk, block_name, "alert_low", 0,
                        &tmpval, NULL, NULL, msg_out );
+    /* for backward compatibility */
+    if ( rc == ENOENT )
+        rc = GetBoolParam( config_blk, block_name, "alert_lw", 0,
+                           &tmpval, NULL, NULL, msg_out );
+    
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if ( rc == 0 )
@@ -638,7 +680,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
                   ( trigger_list[i].hw_type != resmon_config.trigger_list[i].hw_type ) )
         {
             DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                        "High watermark type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
+                        "High threshold type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
                         trigger_list[i].hw_type, resmon_config.trigger_list[i].hw_type );
             return;
         }
@@ -647,13 +689,13 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
                   ( trigger_list[i].lw_type != resmon_config.trigger_list[i].lw_type ) )
         {
             DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                        "Low watermark type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
+                        "Low threshold type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
                         trigger_list[i].lw_type, resmon_config.trigger_list[i].lw_type );
             return;
         }
     }
 
-    /* triggers have the same type: update simple parameters: watermark levels and check interval */
+    /* triggers have the same type: update simple parameters: threshold levels and check interval */
     for ( i = 0; i < trigger_count; i++ )
     {
         if ( trigger_list[i].check_interval != resmon_config.trigger_list[i].check_interval )
@@ -667,7 +709,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
 
         if ( trigger_list[i].alert_hw != resmon_config.trigger_list[i].alert_hw )
         {
-            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "notify_hw updated for trigger #%u: %s->%s",
+            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "alert_high updated for trigger #%u: %s->%s",
                         i, bool2str(resmon_config.trigger_list[i].alert_hw),
                         bool2str(trigger_list[i].alert_hw) );
             resmon_config.trigger_list[i].alert_hw = trigger_list[i].alert_hw;
@@ -675,13 +717,13 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
 
         if ( trigger_list[i].alert_lw != resmon_config.trigger_list[i].alert_lw )
         {
-            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "alert_lw updated for trigger #%u: %s->%s",
+            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "alert_low updated for trigger #%u: %s->%s",
                         i, bool2str(resmon_config.trigger_list[i].alert_lw),
                         bool2str(trigger_list[i].alert_lw) );
             resmon_config.trigger_list[i].alert_lw = trigger_list[i].alert_lw;
         }
 
-        /* no watermarks for custom cmd */
+        /* no thresholds for custom cmd */
         if ( trigger_list[i].type == TRIGGER_CUSTOM_CMD )
         {
             if ( strcmp( trigger_list[i].list[0], resmon_config.trigger_list[i].list[0] ) )
@@ -693,7 +735,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             /* do nothing in all cases */
             continue;
         } else if ( trigger_list[i].type == TRIGGER_ALWAYS )
-            /* no watermark for 'periodic' triggers */
+            /* no threshold for 'periodic' triggers */
             continue;
 
         switch ( trigger_list[i].hw_type )
@@ -702,7 +744,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             if ( trigger_list[i].hw_percent != resmon_config.trigger_list[i].hw_percent )
             {
                 DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "High watermark updated for trigger #%u: %.2f%%->%.2f%%", i,
+                            "High threshold updated for trigger #%u: %.2f%%->%.2f%%", i,
                             resmon_config.trigger_list[i].hw_percent, trigger_list[i].hw_percent );
                 resmon_config.trigger_list[i].hw_percent = trigger_list[i].hw_percent;
             }
@@ -712,7 +754,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             if ( trigger_list[i].hw_volume != resmon_config.trigger_list[i].hw_volume )
             {
                 DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "High watermark updated for trigger #%u: %llu bytes->%llu bytes", i,
+                            "High threshold updated for trigger #%u: %llu bytes->%llu bytes", i,
                             resmon_config.trigger_list[i].hw_volume, trigger_list[i].hw_volume );
                 resmon_config.trigger_list[i].hw_volume = trigger_list[i].hw_volume;
             }
@@ -722,7 +764,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             if ( trigger_list[i].hw_count != resmon_config.trigger_list[i].hw_count )
             {
                 DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "High watermark updated for trigger #%u: %llu files->%llu files", i,
+                            "High threshold updated for trigger #%u: %llu files->%llu files", i,
                             resmon_config.trigger_list[i].hw_count, trigger_list[i].hw_count );
                 resmon_config.trigger_list[i].hw_count = trigger_list[i].hw_count;
             }
@@ -735,7 +777,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             if ( trigger_list[i].lw_percent != resmon_config.trigger_list[i].lw_percent )
             {
                 DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "Low watermark updated for trigger #%u: %.2f%%->%.2f%%", i,
+                            "Low threshold updated for trigger #%u: %.2f%%->%.2f%%", i,
                             resmon_config.trigger_list[i].lw_percent, trigger_list[i].lw_percent );
                 resmon_config.trigger_list[i].lw_percent = trigger_list[i].lw_percent;
             }
@@ -745,7 +787,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             if ( trigger_list[i].lw_volume != resmon_config.trigger_list[i].lw_volume )
             {
                 DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "Low watermark updated for trigger #%u: %llu bytes->%llu bytes", i,
+                            "Low threshold updated for trigger #%u: %llu bytes->%llu bytes", i,
                             resmon_config.trigger_list[i].lw_volume, trigger_list[i].lw_volume );
                 resmon_config.trigger_list[i].lw_volume = trigger_list[i].lw_volume;
             }
@@ -755,7 +797,7 @@ static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger
             if ( trigger_list[i].lw_count != resmon_config.trigger_list[i].lw_count )
             {
                 DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "Low watermark updated for trigger #%u: %llu files->%llu files", i,
+                            "Low threshold updated for trigger #%u: %llu files->%llu files", i,
                             resmon_config.trigger_list[i].lw_count, trigger_list[i].lw_count );
                 resmon_config.trigger_list[i].lw_count = trigger_list[i].lw_count;
             }

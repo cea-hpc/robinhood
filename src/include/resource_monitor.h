@@ -83,7 +83,7 @@ typedef struct trigger_item_t
     /* raise alert when it is triggered */
     unsigned int alert_hw:1;
 
-    /* raise alert when it cannot reach low watermark */
+    /* raise alert when it cannot reach low threshold */
     unsigned int alert_lw:1;
 
 } trigger_item_t;
