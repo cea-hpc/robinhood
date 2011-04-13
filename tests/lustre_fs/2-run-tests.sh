@@ -591,6 +591,7 @@ function mass_softrm
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
 	status=`cat fsinfo.1 | cut -d "," -f 1 | tr -d ' '`
 	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 2 | tr -d ' '`
+	[[ -n $nb ]] || nb=0
 	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries )) || error "$entries entries expected, got $nb"
 	(( `wc -l deferred.1 | awk '{print $1}'`==0 )) || error "no deferred rm expected after first scan"
