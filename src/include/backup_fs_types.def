@@ -120,22 +120,20 @@ typedef enum
 # /!\ Entry attribute type must fit with DB type
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
-# not used for sorting or filetring
-fullpath,	char, DB_TEXT, RBH_PATH_MAX,         ANNEX_INFO
-#size,       uint64_t,	DB_BIGUINT, 0,   ANNEX_INFO
-#blocks, 	uint64_t,   DB_BIGUINT, 0,   ANNEX_INFO
-#owner, 		char, 		DB_TEXT,   128,  ANNEX_INFO
-#gr_name, 	char, 		DB_TEXT,   128,  ANNEX_INFO
-
 # important attributes for building LRUs
+status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
 last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
+
+# used for accounting
 type,	    	char,   DB_TEXT, 32, FREQ_ACCESS
 size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 owner,      char,       DB_TEXT,   128,  FREQ_ACCESS
 gr_name,    char,       DB_TEXT,   128,  FREQ_ACCESS
 
+# not used for sorting or filetring
+fullpath,	char, DB_TEXT, RBH_PATH_MAX,         ANNEX_INFO
 
 #backend relative info
 backendpath,	char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO
@@ -149,9 +147,6 @@ depth, 	        unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
 # attr update timestamps
 md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
 path_update, unsigned int, DB_UINT, 0, FREQ_ACCESS
-
-#file status compared to external backend
-status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
 
 # is file tagged no_archive buy the admin?
 no_archive,     int, DB_BOOL, 0, FREQ_ACCESS
