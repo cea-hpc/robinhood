@@ -110,23 +110,31 @@ function wait_done
 {
 	max_sec=$1
 	sec=0
-	echo -n "Waiting for copy requests to end."
 	if [[ -n "$MDS" ]]; then
 #		cmd="ssh $MDS egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="ssh $MDS egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="ssh $MDS egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	else
 #		cmd="egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	fi
 
-	while $cmd > /dev/null ; do
-		echo -n "."
-		sleep 1;
-		((sec=$sec+1))
-		(( $sec > $max_sec )) && return 1
-	done
-	$cmd
-	echo " Done ($sec sec)"
+	action_count=`$cmd | wc -l`
+
+	if (( $action_count > 0 )); then
+		echo "Current actions:"
+		$cmd
+
+		echo -n "Waiting for copy requests to end."
+		while (( $action_count > 0 )) ; do
+			echo -n "."
+			sleep 1;
+			((sec=$sec+1))
+			(( $sec > $max_sec )) && return 1
+			action_count=`$cmd | wc -l`
+		done
+		$cmd
+		echo " Done ($sec sec)"
+	fi
 
 	return 0
 }
