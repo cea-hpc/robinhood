@@ -304,7 +304,7 @@ extern int     readonly_attr_set;
 /* -------- Main functions -------- */
 
 /** Initialize the List Manager */
-int            ListMgr_Init( const lmgr_config_t * p_conf );
+int            ListMgr_Init( const lmgr_config_t * p_conf, int report_only );
 
 /** Create a connection to the database for current thread */
 int            ListMgr_InitAccess( lmgr_t * p_mgr );

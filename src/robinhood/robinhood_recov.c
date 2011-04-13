@@ -592,7 +592,7 @@ int main( int argc, char **argv )
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config );
+    rc = ListMgr_Init( &config.lmgr_config, FALSE );
     if ( rc )
     {
         DisplayLog( LVL_CRIT, RECOV_TAG, "Error %d initializing list manager", rc );
