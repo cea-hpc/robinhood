@@ -863,6 +863,9 @@ int ListMgr_Init( const lmgr_config_t * p_conf )
 
             DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " created sucessfully" );
 
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB content. This can take a while..." );
+            FlushLogs();
+
             /* Initial table population for already existing entries */
             strcpy( strbuf, "INSERT INTO " ACCT_TABLE "( " );
             next = strbuf + strlen( strbuf );
