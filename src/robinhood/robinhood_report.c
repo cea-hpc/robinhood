@@ -1145,9 +1145,7 @@ void report_fs_info( int flags )
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
-    {
         opt.force_no_acct = 1;
-    }
     else
         opt.force_no_acct = 0;
 
@@ -1433,9 +1431,7 @@ void report_usergroup_info( char *name, int flags )
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
-    {
         opt.force_no_acct = 1;
-    }
     else
         opt.force_no_acct = 0;
     /* no limit */
@@ -1816,6 +1812,7 @@ void report_topdirs( unsigned int count, int flags )
 
     /* select only the top dirs */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -1911,6 +1908,7 @@ void report_topsize( unsigned int count, int flags )
 
     /* select only the top size */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -2121,6 +2119,7 @@ void report_toppurge( unsigned int count, int flags )
 
     /* select only the top size */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -2261,6 +2260,7 @@ void report_toprmdir( unsigned int count, int flags )
 
     /* select only the top dirs */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -2366,12 +2366,11 @@ void report_topuser( unsigned int count, int flags )
 
     /* select only the top users */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
-    {
         opt.force_no_acct = 1;
-    }
     else
         opt.force_no_acct = 0;
 
@@ -3423,7 +3422,7 @@ int main( int argc, char **argv )
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config );
+    rc = ListMgr_Init( &config.lmgr_config, TRUE );
     if ( rc )
     {
         DisplayLog( LVL_CRIT, REPORT_TAG, "Error %d initializing list manager", rc );

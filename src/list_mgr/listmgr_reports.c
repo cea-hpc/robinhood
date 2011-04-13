@@ -146,7 +146,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
         }
     }
 
-    if ( full_acct && !p_opt->force_no_acct )
+    if ( full_acct && (p_opt != NULL) && !p_opt->force_no_acct )
     {
         listmgr_optimizedstat( p_report, report_descr_count, report_desc_array, 
                         fields, &curr_field, group_by, &curr_group_by, order_by, &curr_sort );
@@ -270,7 +270,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 
     if ( p_filter )
     {
-        if ( ( full_acct && !p_opt->force_no_acct ) )
+        if ( ( full_acct &&  (p_opt != NULL) && !p_opt->force_no_acct ) )
         {
             filter_acct = filter2str( p_mgr, curr_where, p_filter, T_ACCT,
                                       ( where != curr_where ), TRUE );
@@ -302,15 +302,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 
     /* from clause */
 
-    if ( main_table_flag && annex_table_flag )
-        strcpy( from,
-                MAIN_TABLE " LEFT JOIN " ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id" );
+    if ( acct_table_flag )
+        strcpy( from, ACCT_TABLE );
+    else if ( main_table_flag && annex_table_flag )
+        strcpy( from, MAIN_TABLE " LEFT JOIN " ANNEX_TABLE " ON "
+                MAIN_TABLE ".id = " ANNEX_TABLE ".id" );
     else if ( main_table_flag )
         strcpy( from, MAIN_TABLE );
     else if ( annex_table_flag )
         strcpy( from, ANNEX_TABLE );
-    else if ( acct_table_flag )
-        strcpy( from, ACCT_TABLE );
 
 
     /* Build the request */
@@ -349,8 +349,29 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     printf( "Report is specified by: %s\n", query );
 #endif
 
-    /* execute request */
-    rc = db_exec_sql( &p_mgr->conn, query, &p_report->select_result );
+    /* execute request (expect that ACCT table does not exists) */
+    if (acct_table_flag)
+        rc = db_exec_sql_quiet( &p_mgr->conn, query, &p_report->select_result );
+    else
+        rc = db_exec_sql( &p_mgr->conn, query, &p_report->select_result );
+
+    /* if the ACCT table does exist, switch to standard mode */
+    if ( acct_table_flag && (rc == DB_NOT_EXISTS))
+    {
+        lmgr_iter_opt_t new_opt;
+        if (p_opt != NULL)
+            new_opt = *p_opt;
+        else
+            new_opt.list_count_max = 0;
+
+        new_opt.force_no_acct = TRUE;
+
+        DisplayLog( LVL_EVENT, LISTMGR_TAG, "No accounting info: switching to standard query mode" );
+
+        return ListMgr_Report( p_mgr, report_desc_array, report_descr_count,
+                               p_filter, &new_opt );
+    }
+
     if ( rc )
         goto free_field_tab;
     else
