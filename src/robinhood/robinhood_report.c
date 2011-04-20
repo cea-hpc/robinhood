@@ -1357,6 +1357,7 @@ void report_usergroup_info( char *name, int flags )
     unsigned int   shift = 0;
 
     char           prevuser[256] = "";
+    char           prevusersplit[256] = "";
     char           strsize[128] = "";
     int            is_filter = FALSE;
 
@@ -1533,7 +1534,9 @@ void report_usergroup_info( char *name, int flags )
         if ( !strcmp( result[1+shift].value_u.val_str, STR_TYPE_DIR ) )
         {
             if ( CSV(flags) )
+            {
                 if ( DB_IS_NULL( &result[7+shift] ) && DB_IS_NULL( &result[8+shift] ) )
+                {
                     if ( ISSPLITUSERGROUP(flags) )
                         printf( "%-10s, %10s, %10s, %10u, %15llu, %15u\n",
                                 result[0].value_u.val_str,
@@ -1544,12 +1547,14 @@ void report_usergroup_info( char *name, int flags )
                                 result[10].value_u.val_uint );
                     else
                         printf( "%-10s, %10s, %10u, %15llu, %15u\n",
-                                result[0+shift].value_u.val_str,
-                                result[1+shift].value_u.val_str,
-                                result[2+shift].value_u.val_uint,
-                                result[3+shift].value_u.val_biguint * DEV_BSIZE,
-                                result[9+shift].value_u.val_uint );
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_uint,
+                                result[3].value_u.val_biguint * DEV_BSIZE,
+                                result[9].value_u.val_uint );
+                }
                 else
+                {
                     if ( ISSPLITUSERGROUP(flags) )
                         printf( "%-10s, %10s, %10s, %10u, %15llu, %15u, %15u, %15u\n",
                                 result[0].value_u.val_str,
@@ -1561,12 +1566,14 @@ void report_usergroup_info( char *name, int flags )
                                 result[9].value_u.val_uint, result[10].value_u.val_uint );
                     else
                         printf( "%-10s, %10s, %10u, %15llu, %15u, %15u, %15u\n",
-                                result[0+shift].value_u.val_str,
-                                result[1+shift].value_u.val_str,
-                                result[2+shift].value_u.val_uint,
-                                result[3+shift].value_u.val_biguint * DEV_BSIZE,
-                                result[7+shift].value_u.val_uint,
-                                result[8+shift].value_u.val_uint, result[9+shift].value_u.val_uint );
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_uint,
+                                result[3].value_u.val_biguint * DEV_BSIZE,
+                                result[7].value_u.val_uint,
+                                result[8].value_u.val_uint, result[9].value_u.val_uint );
+                }
+            }
             else
             {
                 if ( strcmp( prevuser, result[0].value_u.val_str ) )
@@ -1581,11 +1588,15 @@ void report_usergroup_info( char *name, int flags )
 
                 if ( ISSPLITUSERGROUP(flags) )
                 {
-                    if ( ISGROUP(flags) )
-                        printf( "\n    User:         %15s\n", result[1].value_u.val_str );
-                    else
-                        printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
-                }                
+                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) )
+                    {
+                        if ( ISGROUP(flags) )
+                            printf( "\n    User:         %15s\n", result[1].value_u.val_str );
+                        else
+                            printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                    }
+                    strncpy( prevusersplit, result[1].value_u.val_str, 256 );
+                }
 
                 FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
 
@@ -1654,10 +1665,14 @@ void report_usergroup_info( char *name, int flags )
                 }
                 if ( ISSPLITUSERGROUP(flags) ) 
                 {
-                    if ( ISGROUP(flags) )
-                        printf( "\n    User:         %15s\n", result[1].value_u.val_str );
-                    else
-                        printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) )
+                    {
+                        if ( ISGROUP(flags) )
+                            printf( "\n    User:         %15s\n", result[1].value_u.val_str );
+                        else
+                            printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                    }
+                    strncpy( prevusersplit, result[1].value_u.val_str, 256 );
                 }
 
                 FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
@@ -1739,26 +1754,37 @@ void report_usergroup_info( char *name, int flags )
 
                 strncpy( prevuser, result[0].value_u.val_str, 256 );
             }
+            if ( ISSPLITUSERGROUP(flags) )
+            {
+                if ( strcmp( prevusersplit, result[1].value_u.val_str ) )
+                {
+                    if ( ISGROUP(flags) )
+                        printf( "\n    User:         %15s\n", result[1].value_u.val_str );
+                    else
+                        printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                }
+                strncpy( prevusersplit, result[1].value_u.val_str, 256 );
+            }
 
-            FormatFileSize( strsize, 128, result[3].value_u.val_biguint * DEV_BSIZE );
+            FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
 
             printf( "\n" );
-            printf( "%s    Count:        %15u\n",ISSPLITUSERGROUP(flags) ? "    " : "", result[1].value_u.val_uint );
+            printf( "%s    Count:        %15u\n",ISSPLITUSERGROUP(flags) ? "    " : "", result[1+shift].value_u.val_uint );
             printf( "%s    Space used:   %15s    (%llu blks)\n",ISSPLITUSERGROUP(flags) ? "    " : "",
-                    FormatFileSize( strsize, 128, result[2].value_u.val_biguint * DEV_BSIZE ),
-                    result[2].value_u.val_biguint );
-            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
+                    FormatFileSize( strsize, 128, result[2+shift].value_u.val_biguint * DEV_BSIZE ),
+                    result[2+shift].value_u.val_biguint );
+            if ( !DB_IS_NULL( &result[3+shift] ) && !DB_IS_NULL( &result[4+shift] ) )
             {
                 printf( "%s    Size min:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                        FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                        result[3].value_u.val_biguint );
+                        FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint ),
+                        result[3+shift].value_u.val_biguint );
                 printf( "%s    Size max:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                        FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                        result[4].value_u.val_biguint );
+                        FormatFileSize( strsize, 128, result[4+shift].value_u.val_biguint ),
+                        result[4+shift].value_u.val_biguint );
             }
             printf( "%s    Size avg:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                    FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
-                    result[5].value_u.val_biguint );
+                    FormatFileSize( strsize, 128, result[5+shift].value_u.val_biguint ),
+                    result[5+shift].value_u.val_biguint );
         }
 
 #endif
@@ -2413,7 +2439,7 @@ void report_topuser( unsigned int count, int flags )
         if ( CSV(flags) )
         {
             if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
-                printf( "%3u, %-10s, %15llu, %10u, %15llu, %15llu, %15llu\n",
+                printf( "%4u, %-10s, %15llu, %10u, %15llu, %15llu, %15llu\n",
                         rank,
                         result[0].value_u.val_str,
                         result[1].value_u.val_biguint * DEV_BSIZE,
@@ -2421,7 +2447,7 @@ void report_topuser( unsigned int count, int flags )
                         result[3].value_u.val_biguint,
                         result[4].value_u.val_biguint, result[5].value_u.val_biguint );
             else
-                 printf( "%3u, %-10s, %15llu, %10u, %15llu\n",
+                printf( "%4u, %-10s, %15llu, %10u, %15llu\n",
                         rank,
                         result[0].value_u.val_str,
                         result[1].value_u.val_biguint * DEV_BSIZE,

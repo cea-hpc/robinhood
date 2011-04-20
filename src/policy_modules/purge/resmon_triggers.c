@@ -1162,14 +1162,13 @@ static int check_user_trigger( unsigned trigger_index )
     user_info[1].filter_compar = MORETHAN_STRICT;
     user_info[1].filter_value.val_biguint = max_blk512;
 
-    /* filtre non-whitelisted/non-invalid entries */
+    /* filtre non-invalid entries */
     lmgr_simple_filter_init( &filter );
+#if 0
     fv.val_bool = TRUE;
-#ifdef ATTR_INDEX_whitelisted
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0 );
-#endif
 #ifdef ATTR_INDEX_invalid
     lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0 );
+#endif
 #endif
 
     /* if a specific set of users is specified, make a filter for this */
@@ -1203,7 +1202,8 @@ static int check_user_trigger( unsigned trigger_index )
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }
     }
-
+    
+    
     it = ListMgr_Report( &lmgr, user_info, 2, &filter, NULL );
 
     lmgr_simple_filter_free( &filter );
@@ -1427,14 +1427,15 @@ static int check_group_trigger( unsigned trigger_index )
     group_info[1].filter_compar = MORETHAN_STRICT;
     group_info[1].filter_value.val_biguint = max_blk512;
 
-    /* filtre non-whitelisted/non-invalid entries */
+    /* filtre non-invalid entries */
     lmgr_simple_filter_init( &filter );
+
+#if 0
+    /** @TODO if accounting is enabled, don't filter to take benefits of accounting table */
     fv.val_bool = TRUE;
-#ifdef ATTR_INDEX_whitelisted
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0 );
-#endif
 #ifdef ATTR_INDEX_invalid
     lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0 );
+#endif
 #endif
 
     /* if a specific set of groups is specified, make a filter for this */

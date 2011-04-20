@@ -43,7 +43,14 @@ static inline int append_field_def( int i, char *next, int is_first )
             return sprintf( next, "%s %s TEXT", is_first ? "" : ",", field_infos[i].field_name );
         break;
     case DB_INT:
+#ifdef ATTR_INDEX_status
+        if( i == ATTR_INDEX_status )
+            return sprintf( next, "%s %s INT DEFAULT 0", is_first ? "" : ",", field_infos[i].field_name );
+        else
+            return sprintf( next, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name );
+#else
         return sprintf( next, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name );
+#endif
         break;
     case DB_UINT:
         return sprintf( next, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
@@ -879,7 +886,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 for ( i = 0; i < ATTR_COUNT; i++ )
                 {
                     if ( is_acct_field( i ) )
-                    { 
+                    {
                         next += append_field_def( i, next, is_first_acct_field);
                     } 
                 }

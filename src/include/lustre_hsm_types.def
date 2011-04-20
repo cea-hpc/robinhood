@@ -116,11 +116,11 @@ stripe_items, 		stripe_items_t, DB_STRIPE_ITEMS,  0, 	 INIT_ONLY
 
 # information that is not used for sorting or filtering
 fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
-path_update,    unsigned int, DB_UINT, 0,    ANNEX_INFO
-size,        	uint64_t,	DB_BIGUINT, 0,    ANNEX_INFO
-blocks, 	    uint64_t,   DB_BIGUINT, 0, ANNEX_INFO
-owner, 			char, 		DB_TEXT,   128,  ANNEX_INFO
-gr_name, 		char, 		DB_TEXT,   128,  ANNEX_INFO
+path_update,    unsigned int, DB_UINT, 0,    FREQ_ACCESS
+size,        	uint64_t,	DB_BIGUINT, 0,   FREQ_ACCESS
+blocks, 	    uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
+owner, 			char, 		DB_TEXT,   128,  FREQ_ACCESS
+gr_name, 		char, 		DB_TEXT,   128,  FREQ_ACCESS
 
 # generated fields
 type,           char,   DB_TEXT, 32,         GENERATED, , lmgr_gen_type 
