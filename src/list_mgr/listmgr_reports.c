@@ -38,12 +38,20 @@ typedef struct lmgr_report_t
     char         **str_tab;
 } lmgr_report_t;
 
-static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, unsigned int report_descr_count, report_field_descr_t *report_desc_array,
-                    char *fields, char **curr_field, char *group_by, char **curr_group_by, char *order_by, char **curr_sort, char *having,
-                    char **curr_having, char *where, char **curr_where );
+static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    unsigned int report_descr_count, 
+                                    report_field_descr_t *report_desc_array,
+                                    char *fields, char **curr_field, 
+                                    char *group_by, char **curr_group_by, 
+                                    char *order_by, char **curr_sort, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where );
 
-static void listmgr_fieldfilter ( lmgr_report_t *p_report, lmgr_t * p_mgr, report_field_descr_t *report_desc_array,
-                    char *attrstring, char *attrname, char *having, char **curr_having, char *where, char **curr_where , int i );
+static void listmgr_fieldfilter ( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    report_field_descr_t *report_desc_array,
+                                    char *attrstring, char *attrname, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where , int i );
 
 /* Return field string */
 static inline const char *field_str( unsigned int index )
@@ -130,7 +138,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     if ( p_opt == NULL )
     {
         opt.list_count_max = 0;
-        opt.force_no_acct = 0;
+        opt.force_no_acct = FALSE;
     }
     else
     {
@@ -253,7 +261,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
             }
 
             /* is this field filtered ? */
-            listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, having, &curr_having, where, &curr_where, i );
+            listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
+                                having, &curr_having, where, &curr_where, i );
         }
     } 
     /* filter */
@@ -443,9 +452,14 @@ void ListMgr_CloseReport( struct lmgr_report_t *p_iter )
 }
 
 
-static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, unsigned int report_descr_count, report_field_descr_t *report_desc_array,
-                    char *fields, char **curr_field, char *group_by, char **curr_group_by, char *order_by, char **curr_sort, char *having,
-                    char **curr_having, char *where, char **curr_where )
+static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    unsigned int report_descr_count, 
+                                    report_field_descr_t *report_desc_array,
+                                    char *fields, char **curr_field, 
+                                    char *group_by, char **curr_group_by, 
+                                    char *order_by, char **curr_sort, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where )
 {
     char           attrstring[1024];
     int            i;
@@ -520,13 +534,17 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, unsi
             add_string( fields, *curr_field, attrstring );
             p_report->result_type_array[i] = DB_TEXT;
         }
-        listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, having, curr_having, where, curr_where, i ); 
+        listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
+                            having, curr_having, where, curr_where, i ); 
 
     }
 }
 
-static void listmgr_fieldfilter ( lmgr_report_t *p_report, lmgr_t * p_mgr, report_field_descr_t *report_desc_array, 
-                    char *attrstring, char *attrname, char *having, char **curr_having, char *where, char **curr_where , int i )
+static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    report_field_descr_t *report_desc_array, 
+                                    char *attrstring, char *attrname, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where , int i )
 {   
     /* is this field filtered ? */
     if ( report_desc_array[i].filter )

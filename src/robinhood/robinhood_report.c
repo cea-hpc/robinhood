@@ -80,6 +80,7 @@ struct status_descr
 status_array[] =
 {
 #ifdef _LUSTRE_HSM
+    { STATUS_UNKNOWN, "unknown", "unknown" },
     { STATUS_NEW, "new", "new file (no HSM status)" },
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
@@ -92,7 +93,7 @@ status_array[] =
     { STATUS_MODIFIED, "dirty", "dirty (modified)" },
     { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
 
-#define ALLOWED_STATUS "new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
 
 #elif defined(_SHERPA)
     { STATUS_UNKNOWN, "unknown", "unknown" },
@@ -1145,9 +1146,9 @@ void report_fs_info( int flags )
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
-        opt.force_no_acct = 1;
+        opt.force_no_acct = TRUE;
     else
-        opt.force_no_acct = 0;
+        opt.force_no_acct = FALSE;
 
 
     /* append global filters */
@@ -1432,9 +1433,9 @@ void report_usergroup_info( char *name, int flags )
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
-        opt.force_no_acct = 1;
+        opt.force_no_acct = TRUE;
     else
-        opt.force_no_acct = 0;
+        opt.force_no_acct = FALSE;
     /* no limit */
     opt.list_count_max = 0;
 
@@ -2396,9 +2397,9 @@ void report_topuser( unsigned int count, int flags )
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
-        opt.force_no_acct = 1;
+        opt.force_no_acct = TRUE;
     else
-        opt.force_no_acct = 0;
+        opt.force_no_acct = FALSE;
 
     is_filter = FALSE;
 

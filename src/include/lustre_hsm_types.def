@@ -92,9 +92,11 @@ static int lmgr_gen_depth( void * tgt, const void * src )
    return 0;
 }
 
+#define _HAVE_UNKNOWN_STATUS
 
 typedef enum
 {
+  STATUS_UNKNOWN = 0,           /* undetermined status */
   STATUS_NEW,                   /* file has no HSM flags (just created) */
   STATUS_MODIFIED,              /* file must be archived */
   STATUS_RESTORE_RUNNING,       /* file is being retrieved */
