@@ -338,9 +338,9 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     }
 
     /* iterator opt */
-    if ( p_opt && ( p_opt->list_count_max > 0 ) )
+    if ( opt.list_count_max > 0 )
     {
-        curr_query += sprintf( curr_query, " LIMIT %u", p_opt->list_count_max );
+        curr_query += sprintf( curr_query, " LIMIT %u", opt.list_count_max );
     }
 
 

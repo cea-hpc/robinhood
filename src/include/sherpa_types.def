@@ -105,8 +105,6 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 }
 
 
-#define _HAVE_UNKNOWN_STATUS
-
 /* cache file status */
 typedef enum
 {

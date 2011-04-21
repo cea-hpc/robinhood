@@ -998,8 +998,8 @@ function test_rh_report_split_user_group
                 fi
         done
 
-        #rm -f rh_report_no_split.log
-        #rm -f rh_report_split.log
+        rm -f rh_report_no_split.log
+        rm -f rh_report_split.log
 
 }
 
@@ -1028,7 +1028,7 @@ function test_acct_table
         $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
 
         echo "3.Checking acct table and triggers creation"
-        grep -q "Table ANNEX_INFO created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
+        grep -q "Table ACCT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
         grep -q "Trigger ACCT_ENTRY_INSERT created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_INSERT trigger"
         grep -q "Trigger ACCT_ENTRY_UPDATE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
         grep -q "Trigger ACCT_ENTRY_DELETE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
@@ -2891,6 +2891,11 @@ run_test 101b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
 run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
 run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
 run_test 102	update_test test_updt.conf 5 30 "db update policy"
+run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
+run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
+run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
+run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
+
 
 #### policy matching tests  ####
 
@@ -2935,8 +2940,6 @@ run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: conf
 
 run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
-
-run_test 403    test_acct_table common.conf 5 "Acct table and triggers creation"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"

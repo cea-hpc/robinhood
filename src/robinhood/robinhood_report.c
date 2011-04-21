@@ -3212,11 +3212,11 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Unknown status '%s'. Allowed status: "ALLOWED_STATUS".\n", optarg );
                 exit(1);
             }
-#ifdef _HAVE_UNKNOWN_STATUS
+
             /* match NULL value for unknown status */
             if ( status_to_dump == STATUS_UNKNOWN )
                 flags |= OPT_FLAG_MATCH_NULL_STATUS;
-#endif
+
             break;
 #endif
 

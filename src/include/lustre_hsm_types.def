@@ -92,7 +92,6 @@ static int lmgr_gen_depth( void * tgt, const void * src )
    return 0;
 }
 
-#define _HAVE_UNKNOWN_STATUS
 
 typedef enum
 {

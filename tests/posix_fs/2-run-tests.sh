@@ -1,7 +1,6 @@
 #/bin/sh
 
-#ROOT="/tmp/mnt.rbh"
-ROOT="/tmp/test_ao"
+ROOT="/tmp/mnt.rbh"
 BKROOT="/tmp/backend"
 RBH_OPT=""
 DB=robinhood_test
@@ -26,8 +25,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 fi
 
 PROC=$CMD
-#CFG_SCRIPT="../../scripts/rbh-config"
-CFG_SCRIPT="../../scripts/rbh-config.user"
+CFG_SCRIPT="../../scripts/rbh-config"
 CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
@@ -558,14 +556,13 @@ function test_rh_report_split_user_group
 function test_acct_table
 {
 	config_file_scan=$1
-	config_file_report=$2
-        dircount=$3
-        descr_str="$4"
+        dircount=$2
+        descr_str="$3"
 	
 	clean_logs
 
         for i in `seq 1 $dircount`; do
-                mkdir $ROOT/dir.$i
+		mkdir $ROOT/dir.$i
                 echo "1.$i-Writing files to $ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $i`; do
@@ -580,7 +577,7 @@ function test_acct_table
         $RH -f ./cfg/$config_file_scan --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
 
         echo "3.Checking acct table and triggers creation"
-        grep -q "Table ANNEX_INFO created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
+        grep -q "Table ACCT_STAT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
         grep -q "Trigger ACCT_ENTRY_INSERT created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_INSERT trigger"
 	grep -q "Trigger ACCT_ENTRY_UPDATE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
 	grep -q "Trigger ACCT_ENTRY_DELETE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
@@ -1792,6 +1789,10 @@ fi
 run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
 run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
 #TODO run_test 102	update_test test_updt.conf 5 30 "db update policy"
+run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
+run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
+run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
+run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 
 #### policy matching tests  ####
 
@@ -1833,8 +1834,6 @@ run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: conf
 
 run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
-
-run_test 403    test_acct_table common.conf common.conf 5 "Acct table and triggers creation"
 
 
 #### misc, internals #####
