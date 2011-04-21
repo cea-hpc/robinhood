@@ -235,6 +235,31 @@ fi
 
 %changelog
 
+* Fri Apr 15 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.0
+- [optim.] instant accounting reports (user/group usage, fs content summary, ...)
+- [reporting] split user usage per group (--split-user-groups option)
+- [reporting] split group usage per user (--split-user-groups option)
+- [feature] new policy criteria for Lustre FileSystems: ost_index
+- [reporting] detailed FS scan statistics in "rbh-report -a"
+- [misc.] fast and clean abort on ctrl^c (during scan, migration and purge)
+- [admin.] automatically disables features that are not defined in config file
+- [admin.] "rbh-config backup_db" helper to create a robinhood DB backup
+- [misc.] -V option displays Lustre version and release number
+- [tweak] changed 'watermark' parameters to 'threshold'
+- [tweak] changed 'notify_lw' and 'alert_hw' parameters to 'alert_low' and 'alert_high'
+- [database] alternative port or socket file can be used for MySQL connection
+- [database] limiting DB access rights for reporting command
+- [bugfix](major) fixed inconsistent pool names
+- [bugfix](minor) kill -HUP terminated the process if no trigger was defined
+- [bugfix](minor) 'unknown' status not correctly filtered in '--dump-status' report
+- [bugfix](tweak) added 'reload' in short help of SLES init script
+- [misc.] code cleaning, error message cleaning, removed some obsolete code
+- [feature] new robinhood flavor to track modifications in a Lustre v2 filesystem, and backup data to an external storage (current status: Alpha testing only).
+- [feature] soft rm + command to retrieve removed files
+- [feature] disaster recovery command
+- [feature] --migrate-file option to archive a single file
+- [feature] pre-maintenance mode to smoothly backup the whole filesystem content before a due date.
+
 * Wed Jan 05 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.3
 - [feature] periodic purge trigger
 - [feature] options for controlling trigger notifications
