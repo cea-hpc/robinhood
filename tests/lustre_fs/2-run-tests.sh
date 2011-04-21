@@ -1,7 +1,6 @@
 #/bin/sh
 
-#ROOT="/mnt/lustre"
-ROOT="/mnt/lustre/test_ao"
+ROOT="/mnt/lustre"
 
 BKROOT="/tmp/backend"
 RBH_OPT=""
@@ -63,8 +62,7 @@ else
 fi
 
 PROC=$CMD
-#CFG_SCRIPT="../../scripts/rbh-config"
-CFG_SCRIPT="../../scripts/rbh-config.user"
+CFG_SCRIPT="../../scripts/rbh-config"
 
 CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log"
 
