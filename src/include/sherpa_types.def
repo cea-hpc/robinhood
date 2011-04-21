@@ -105,8 +105,6 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 }
 
 
-#define _HAVE_UNKNOWN_STATUS
-
 /* cache file status */
 typedef enum
 {
@@ -135,10 +133,10 @@ stripe_items, 		stripe_items_t, DB_STRIPE_ITEMS,  0, 	 INIT_ONLY
 # information that is not used for sorting or filtering
 fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
 path_update,    unsigned int, DB_UINT, 0,    ANNEX_INFO
-size,        		size_t,		DB_BIGUINT, 0,    ANNEX_INFO
-blocks, 	    unsigned long long, DB_BIGUINT, 0, ANNEX_INFO
-owner, 			char, 		DB_TEXT,   128,  ANNEX_INFO
-gr_name, 		char, 		DB_TEXT,   128,  ANNEX_INFO
+size,        		size_t,		DB_BIGUINT, 0,    FREQ_ACCESS
+blocks, 	    unsigned long long, DB_BIGUINT, 0, FREQ_ACCESS
+owner, 			char, 		DB_TEXT,   128,  FREQ_ACCESS
+gr_name, 		char, 		DB_TEXT,   128,  FREQ_ACCESS
 dircount, 	    unsigned int, DB_UINT, 0, ANNEX_INFO
 
 # refpath is generated outside listmgr

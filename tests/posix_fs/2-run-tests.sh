@@ -498,7 +498,8 @@ function test_rh_report_split_user_group
 {
         config_file=$1
         dircount=$2
-        descr_str="$3"
+	option=$3
+        descr_str="$4"
 
         clean_logs
 
@@ -518,29 +519,68 @@ function test_rh_report_split_user_group
         $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
 
         echo "3.Checking reports..."
-        #$REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info -q > rh_report_no_split.log
-	#$REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info --split-user-groups -q > rh_report_split.log
+        $REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info $option | head --lines=-2 > rh_report_no_split.log
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info --split-user-groups $option | head --lines=-2 > rh_report_split.log
 
-        nbrow=` awk -F ',' 'END {print NF}' rh_report_split.log`
-
-	for i in `seq 1 $nbrow`; do
-		curr_row=`awk -F ',' 'NR==1 { print $'$i'; }' rh_report_split.log | tr -d ' '`
-		avg_row=` awk -F ',' '$'$i'==avg_size {print NF}' rh_report_split.log`
-		echo "$avg_row"
-		if [[ $curr_row =~ "^[0-9]*$" ]]; then
-	                nb_uniq_user=`cut -d "," -f 1 rh_report_split.log | uniq | wc -l`
-        	        for i in `seq 1 $nb_uniq_user`; do
-                	        user=`awk -F ',' '{print $1;}' rh_report_split.log | uniq | awk 'NR=='$i'{ print }'`
-                       		sum_split=`egrep -e "^$user.*dir.*" rh_report_split.log | awk -F ',' '{array[$1]+=$'$i'}END{for (name in array) {print array[name]}}'`
-                        	sum_no_split=`egrep -e "^$user.*dir.*" rh_report_no_split.log | awk -F ',' '{print $'$i'; }'` 
-                        	if (( $sum_split == $sum_no_split )); then
-                                	echo "ok"
-                        	else
-                                	echo "nok: $sum_split -> $sum_no_split"
-                        	fi
-                	done    
-		fi
+	nbrow=` awk -F ',' 'END {print NF}' rh_report_split.log`
+	nb_uniq_user=`sed "1d" rh_report_split.log | cut -d "," -f 1 | uniq | wc -l `
+	for i in `seq 1 $nb_uniq_user`; do
+		check=1
+		user=`sed "1d" rh_report_split.log | awk -F ',' '{print $1;}' | uniq | awk 'NR=='$i'{ print }'`
+		for j in `seq 1 $nbrow`; do
+			curr_row=`sed "1d" rh_report_split.log | awk -F ',' 'NR==1 { print $'$j'; }' | tr -d ' '`
+	                curr_row_label=` awk -F ',' 'NR==1 { print $'$j'; }' rh_report_split.log | tr -d ' '`
+			if [[ "$curr_row" =~ "^[0-9]*$" && "$curr_row_label" != "avg_size" ]]; then
+				sum_split_dir=`egrep -e "^$user.*dir.*" rh_report_split.log | awk -F ',' '{array[$1]+=$'$j'}END{for (name in array) {print array[name]}}'`
+                                sum_no_split_dir=`egrep -e "^$user.*dir.*" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
+                                sum_split_file=`egrep -e "^$user.*file.*" rh_report_split.log | awk -F ',' '{array[$1]+=$'$j'}END{for (name in array) {print array[name]}}'`
+                                sum_no_split_file=`egrep -e "^$user.*file.*" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
+                                if (( $sum_split_dir != $sum_no_split_dir || $sum_split_file != $sum_no_split_file )); then
+                                        check=0
+                                fi
+			fi
+		done
+		if (( $check == 1 )); then
+                	echo "Report for user $user: OK"
+                else
+                        error "Report for user $user is wrong"
+                fi
 	done
+
+	rm -f rh_report_no_split.log
+	rm -f rh_report_split.log
+
+}
+
+#test acct table and triggers creation
+function test_acct_table
+{
+	config_file_scan=$1
+        dircount=$2
+        descr_str="$3"
+	
+	clean_logs
+
+        for i in `seq 1 $dircount`; do
+		mkdir $ROOT/dir.$i
+                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                # write i MB to each directory
+                for j in `seq 1 $i`; do
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                done
+        done
+
+        echo "1bis. Wait for IO completion..."
+        sync
+
+        echo "2-Scanning..."
+        $RH -f ./cfg/$config_file_scan --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+
+        echo "3.Checking acct table and triggers creation"
+        grep -q "Table ACCT_STAT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
+        grep -q "Trigger ACCT_ENTRY_INSERT created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_INSERT trigger"
+	grep -q "Trigger ACCT_ENTRY_UPDATE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
+	grep -q "Trigger ACCT_ENTRY_DELETE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
 }
 
 function path_test
@@ -906,11 +946,11 @@ function test_trigger_check
 	# - root quota  > user_quota
 
 	# initial inode count
-	empty_count=`df -i $ROOT/ | grep "$ROOT" | awk '{print $(NF-3)}'`
+	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
 	((file_count=$max_count-$empty_count))
 
 	# compute file size to exceed max vol and user quota
-	empty_vol=`df -k $ROOT  | grep "$ROOT" | awk '{print $(NF-3)}'`
+	empty_vol=`df -k $ROOT  | xargs | awk '{print $(NF-3)}'`
 	((empty_vol=$empty_vol/1024))
 
 	if (( $empty_vol < $max_vol_mb )); then
@@ -1749,6 +1789,10 @@ fi
 run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
 run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
 #TODO run_test 102	update_test test_updt.conf 5 30 "db update policy"
+run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
+run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
+run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
+run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 
 #### policy matching tests  ####
 
@@ -1781,8 +1825,16 @@ run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
-run_test 401	test_rh_acct_report common.conf 5 "reporting tool with acct"
-#run_test 402    test_rh_report_split_user_group common.conf 5 "report with split-user-groups option"
+
+run_test 401a	test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
+run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
+run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
+run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
+run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
+
+run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
+run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
+
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
@@ -1816,4 +1868,5 @@ if (( $RC > 0 )); then
 else
 	echo "All tests passed ($SUCCES successful, $SKIP skipped)"
 fi
+rm -f $TMPERR_FILE
 exit $RC

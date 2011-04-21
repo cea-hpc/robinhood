@@ -38,8 +38,20 @@ typedef struct lmgr_report_t
     char         **str_tab;
 } lmgr_report_t;
 
-static void listmgr_optimizedstat( lmgr_report_t *p_report, unsigned int report_descr_count, report_field_descr_t *report_desc_array,
-                    char *fields, char **curr_field, char *group_by, char **curr_group_by, char *order_by, char **curr_sort );
+static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    unsigned int report_descr_count, 
+                                    report_field_descr_t *report_desc_array,
+                                    char *fields, char **curr_field, 
+                                    char *group_by, char **curr_group_by, 
+                                    char *order_by, char **curr_sort, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where );
+
+static void listmgr_fieldfilter ( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    report_field_descr_t *report_desc_array,
+                                    char *attrstring, char *attrname, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where , int i );
 
 /* Return field string */
 static inline const char *field_str( unsigned int index )
@@ -104,6 +116,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     int            filter_annex = 0;
     int            filter_acct = 0;
     int            full_acct = TRUE;
+    lmgr_iter_opt_t opt;
 
     /* allocate a new report structure */
     p_report = ( lmgr_report_t * ) MemAlloc( sizeof( lmgr_report_t ) );
@@ -122,6 +135,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     /* initialy, no char * tab allocated */
     p_report->str_tab = NULL;
 
+    if ( p_opt == NULL )
+    {
+        opt.list_count_max = 0;
+        opt.force_no_acct = FALSE;
+    }
+    else
+    {
+        opt = *p_opt;    
+    }
 
     for ( i = 0; i < report_descr_count; i++ )
     {
@@ -145,11 +167,12 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
             }
         }
     }
-
-    if ( full_acct && (p_opt != NULL) && !p_opt->force_no_acct )
+    
+    if ( full_acct && !opt.force_no_acct )
     {
-        listmgr_optimizedstat( p_report, report_descr_count, report_desc_array, 
-                        fields, &curr_field, group_by, &curr_group_by, order_by, &curr_sort );
+        listmgr_optimizedstat( p_report, p_mgr, report_descr_count, report_desc_array, 
+                        fields, &curr_field, group_by, &curr_group_by, order_by, &curr_sort,
+                        having, &curr_having, where, &curr_where);
         acct_table_flag = TRUE;
     }
     else
@@ -238,39 +261,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
             }
 
             /* is this field filtered ? */
-
-            if ( report_desc_array[i].filter )
-            {
-                printdbtype( p_mgr, attrstring, p_report->result_type_array[i],
-                             &report_desc_array[i].filter_value );
-
-                if ( report_desc_array[i].report_type != REPORT_GROUP_BY )
-                {
-                    /* sum, min, max, etc. are addressed by attr#n */
-                    if ( having != curr_having )
-                        curr_having += sprintf( curr_having, " AND " );
-                    curr_having +=
-                        sprintf( curr_having, "(%s %s %s)", attrname,
-                                 compar2str( report_desc_array[i].filter_compar ), attrstring );
-                }
-                else
-                {
-                    /* this is a real db field, can be filtered in a 'where' clause */
-                    if ( where != curr_where )
-                        curr_where += sprintf( curr_where, " AND " );
-                    curr_where +=
-                        sprintf( curr_where, "(%s %s %s)",
-                                 field_str( report_desc_array[i].attr_index ),
-                                 compar2str( report_desc_array[i].filter_compar ), attrstring );
-                }
-            }
+            listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
+                                having, &curr_having, where, &curr_where, i );
         }
     } 
     /* filter */
 
     if ( p_filter )
     {
-        if ( ( full_acct &&  (p_opt != NULL) && !p_opt->force_no_acct ) )
+        if ( ( full_acct && !opt.force_no_acct ) )
         {
             filter_acct = filter2str( p_mgr, curr_where, p_filter, T_ACCT,
                                       ( where != curr_where ), TRUE );
@@ -339,9 +338,9 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     }
 
     /* iterator opt */
-    if ( p_opt && ( p_opt->list_count_max > 0 ) )
+    if ( opt.list_count_max > 0 )
     {
-        curr_query += sprintf( curr_query, " LIMIT %u", p_opt->list_count_max );
+        curr_query += sprintf( curr_query, " LIMIT %u", opt.list_count_max );
     }
 
 
@@ -453,8 +452,14 @@ void ListMgr_CloseReport( struct lmgr_report_t *p_iter )
 }
 
 
-static void listmgr_optimizedstat( lmgr_report_t *p_report, unsigned int report_descr_count, report_field_descr_t *report_desc_array,
-                    char *fields, char **curr_field, char *group_by, char **curr_group_by, char *order_by, char **curr_sort )
+static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    unsigned int report_descr_count, 
+                                    report_field_descr_t *report_desc_array,
+                                    char *fields, char **curr_field, 
+                                    char *group_by, char **curr_group_by, 
+                                    char *order_by, char **curr_sort, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where )
 {
     char           attrstring[1024];
     int            i;
@@ -528,6 +533,43 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, unsigned int report_
             sprintf( attrstring, "NULL as %s", attrname );
             add_string( fields, *curr_field, attrstring );
             p_report->result_type_array[i] = DB_TEXT;
+        }
+        listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
+                            having, curr_having, where, curr_where, i ); 
+
+    }
+}
+
+static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr, 
+                                    report_field_descr_t *report_desc_array, 
+                                    char *attrstring, char *attrname, 
+                                    char *having, char **curr_having, 
+                                    char *where, char **curr_where , int i )
+{   
+    /* is this field filtered ? */
+    if ( report_desc_array[i].filter )
+    {
+        printdbtype( p_mgr, attrstring, p_report->result_type_array[i],
+                     &report_desc_array[i].filter_value );
+
+        if ( report_desc_array[i].report_type != REPORT_GROUP_BY )
+        {
+            /* sum, min, max, etc. are addressed by attr#n */
+            if ( having != *curr_having )
+                *curr_having += sprintf( *curr_having, " AND " );
+            *curr_having +=
+                sprintf( *curr_having, "(%s %s %s)", attrname,
+                         compar2str( report_desc_array[i].filter_compar ), attrstring );
+        }
+        else
+        {
+            /* this is a real db field, can be filtered in a 'where' clause */
+            if ( where != *curr_where )
+                *curr_where += sprintf( *curr_where, " AND " );
+            *curr_where +=
+                sprintf( *curr_where, "(%s %s %s)",
+                         field_str( report_desc_array[i].attr_index ),
+                         compar2str( report_desc_array[i].filter_compar ), attrstring );
         }
     }
 }
