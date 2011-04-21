@@ -112,23 +112,31 @@ function wait_done
 {
 	max_sec=$1
 	sec=0
-	echo -n "Waiting for copy requests to end."
 	if [[ -n "$MDS" ]]; then
 #		cmd="ssh $MDS egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="ssh $MDS egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="ssh $MDS egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	else
 #		cmd="egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	fi
 
-	while $cmd > /dev/null ; do
-		echo -n "."
-		sleep 1;
-		((sec=$sec+1))
-		(( $sec > $max_sec )) && return 1
-	done
-	$cmd
-	echo " Done ($sec sec)"
+	action_count=`$cmd | wc -l`
+
+	if (( $action_count > 0 )); then
+		echo "Current actions:"
+		$cmd
+
+		echo -n "Waiting for copy requests to end."
+		while (( $action_count > 0 )) ; do
+			echo -n "."
+			sleep 1;
+			((sec=$sec+1))
+			(( $sec > $max_sec )) && return 1
+			action_count=`$cmd | wc -l`
+		done
+		$cmd
+		echo " Done ($sec sec)"
+	fi
 
 	return 0
 }
@@ -585,6 +593,7 @@ function mass_softrm
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
 	status=`cat fsinfo.1 | cut -d "," -f 1 | tr -d ' '`
 	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 2 | tr -d ' '`
+	[[ -n $nb ]] || nb=0
 	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries )) || error "$entries entries expected, got $nb"
 	(( `wc -l deferred.1 | awk '{print $1}'`==0 )) || error "no deferred rm expected after first scan"

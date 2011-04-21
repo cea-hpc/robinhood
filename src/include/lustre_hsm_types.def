@@ -110,29 +110,7 @@ typedef enum
 # /!\ Entry attribute type must fit with DB type
 # name, 		C type, 	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
-# info that is set once for each file
-creation_time, 		time_t, 	DB_BIGUINT,    0, 	 INIT_ONLY
-stripe_info, 		stripe_info_t, 	DB_STRIPE_INFO,   0, 	 INIT_ONLY
-stripe_items, 		stripe_items_t, DB_STRIPE_ITEMS,  0, 	 INIT_ONLY
-
-# information that is not used for sorting or filtering
-fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
-path_update,    unsigned int, DB_UINT, 0,    FREQ_ACCESS
-size,        	uint64_t,	DB_BIGUINT, 0,   FREQ_ACCESS
-blocks, 	    uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
-owner, 			char, 		DB_TEXT,   128,  FREQ_ACCESS
-gr_name, 		char, 		DB_TEXT,   128,  FREQ_ACCESS
-
-# generated fields
-type,           char,   DB_TEXT, 32,         GENERATED, , lmgr_gen_type 
-name,			char,		DB_TEXT,   RBH_NAME_MAX,  GENERATED, fullpath, lmgr_gen_name
-depth, 	        unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
-
 # fields used for sorting/filtering
-
-# is file eligible for purge/migration? 
-no_release,     int, DB_BOOL, 0, FREQ_ACCESS
-no_archive,     int, DB_BOOL, 0, FREQ_ACCESS
 
 #file status
 status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
@@ -145,9 +123,35 @@ last_restore,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
 last_op_index,		uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
 md_update,          unsigned int, DB_UINT, 0, FREQ_ACCESS
 
+# used for accounting
+size,        	uint64_t,	DB_BIGUINT, 0, FREQ_ACCESS  
+blocks, 	    uint64_t,   DB_BIGUINT, 0, FREQ_ACCESS
+owner, 			char, 		DB_TEXT,   128, FREQ_ACCESS
+gr_name, 		char, 		DB_TEXT,   128, FREQ_ACCESS
+
+# information that is not used for sorting or filtering
+fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
+path_update,    unsigned int, DB_UINT, 0,    ANNEX_INFO
+
+# generated fields
+type,           char,   DB_TEXT, 32,         GENERATED, , lmgr_gen_type 
+name,			char,		DB_TEXT,   RBH_NAME_MAX,  GENERATED, fullpath, lmgr_gen_name
+depth, 	        unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
+
+
+# is file eligible for purge/migration? 
+no_release,     int, DB_BOOL, 0, FREQ_ACCESS
+no_archive,     int, DB_BOOL, 0, FREQ_ACCESS
+
+
 # file classes and last update
 archive_class,      char,           DB_TEXT,    128,   FREQ_ACCESS 
 arch_cl_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
 rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
+
+# info that is set once for each file
+creation_time, 		time_t, 	DB_BIGUINT,    0, 	 INIT_ONLY
+stripe_info, 		stripe_info_t, 	DB_STRIPE_INFO,   0, 	 INIT_ONLY
+stripe_items, 		stripe_items_t, DB_STRIPE_ITEMS,  0, 	 INIT_ONLY

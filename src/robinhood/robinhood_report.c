@@ -416,59 +416,23 @@ char class_filter[1024] = "";
  *  Read variable from DB and allocate value.
  *  @param value must be of size 1024.
  **/
-void ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
+int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
 {
     int rc;
     rc = ListMgr_GetVar( &lmgr, varname, value);
     if ( rc == DB_SUCCESS )
-        return;
+        return 0;
     else if ( rc == DB_NOT_EXISTS )
     {
         strcpy(value,"unknown");
         DisplayLog( LVL_EVENT, REPORT_TAG, "WARNING variable %s not in database", varname );
+        return rc;
     }
     else
     {
         strcpy(value,"error");
-        DisplayLog( LVL_CRIT, REPORT_TAG, "ERROR retrieving variable %s from database", varname );
-    }
-}
-
-/**
- *  Transform a number of seconds in a "i days, j hours, k minutes and l seconds" string.
- *  @param: int   s    : the number of seconds to convert
- *          char* dhms : the char* to store the string in
- **/
-void s2dhms( int s, char* dhms )
-{
-    unsigned int  day, hour, minute, second;
-    char          tmp_buf[128];
-
-    second = s%60;
-    minute = (s/60)%60;
-    hour   = (s/3600)%24;
-    day    = s/86400;
-
-    strcpy( dhms, "" );
-
-    if ( day > 0 ) {
-        sprintf( tmp_buf, "%u day%s", day, (day > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
-    }
-    if ( hour > 0 ) {
-        sprintf( tmp_buf, "%s%u hour%s", (minute == 0 && second == 0) ? " and " : "", \
-                             hour, (hour > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
-    }
-    if ( minute > 0 ) {
-        sprintf( tmp_buf, "%s%u minute%s", (second == 0) ? " and " : "", \
-                             minute, (minute > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
-    }
-    if ( second > 0 ) {
-        sprintf( tmp_buf, "%s%u second%s", (day > 0 || hour > 0 || minute > 0) ? " and " : "", \
-                             second, (second > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
+        DisplayLog( LVL_CRIT, REPORT_TAG, "ERROR %d retrieving variable %s from database", rc, varname );
+        return rc;
     }
 }
 
@@ -490,40 +454,47 @@ void report_activity( int flags )
 
 #ifndef _LUSTRE_HSM
     /* Scan interval */
-    ListMgr_GetVar_helper( &lmgr, SCAN_INTERVAL_VAR, value );
-    timestamp = atoi( value );
-    FormatDurationFloat( date, 128, timestamp );
-    if ( CSV(flags) )
-        printf( "current_scan_interval, %s\n", date );
-    else
-        printf( "    Current scan interval:   %s\n\n", date );
+    if ( ListMgr_GetVar_helper( &lmgr, SCAN_INTERVAL_VAR, value ) == 0 )
+    {
+        timestamp = str2int( value );
+        FormatDurationFloat( date, 128, timestamp );
+        if ( CSV(flags) )
+            printf( "current_scan_interval, %s\n", date );
+        else
+            printf( "    Current scan interval:   %s\n\n", date );
+    }
 #endif
 
     /* Previous FS scan */
 
-    ListMgr_GetVar_helper( &lmgr, PREV_SCAN_START_TIME, value );
-    timestamp = atoi( value );
-    if ( timestamp > 0 ) {
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( !CSV(flags) )
-        {
-            printf( "    Previous filesystem scan:\n" );
-            printf( "            start:           %s\n", date );
-        }
-        else
-            printf("previous_scan_start, %s\n", date);
-        ListMgr_GetVar_helper( &lmgr, PREV_SCAN_END_TIME, value );
-        timestamp2 = atoi( value );
-        if ( timestamp2 > timestamp )
-        {
-            int dur = (int)difftime( timestamp2, timestamp );
+    if ( ListMgr_GetVar_helper( &lmgr, PREV_SCAN_START_TIME, value ) == 0 )
+    {
+        timestamp = str2int( value );
+        if ( timestamp >= 0 ) {
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
             if ( !CSV(flags) )
             {
-                s2dhms( dur, value );
-                printf( "            duration:        %s\n\n", value);
+                printf( "    Previous filesystem scan:\n" );
+                printf( "            start:           %s\n", date );
             }
             else
-                printf( "previous_scan_duration, %i sec\n", dur );
+                printf("previous_scan_start, %s\n", date);
+
+            if ( ListMgr_GetVar_helper( &lmgr, PREV_SCAN_END_TIME, value ) == 0 )
+            {
+                timestamp2 = str2int( value );
+                if ( timestamp2 >= timestamp )
+                {
+                    int dur = (int)difftime( timestamp2, timestamp );
+                    if ( !CSV(flags) )
+                    {
+                        FormatDuration( value, 1024, dur );
+                        printf( "            duration:        %s\n\n", value);
+                    }
+                    else
+                        printf( "previous_scan_duration, %i sec\n", dur );
+                }
+            }
         }
     }
 
@@ -541,58 +512,74 @@ void report_activity( int flags )
         printf( "last_scan_status, %s\n", scan_status );
 
     // start
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_START_TIME, value );
-    timestamp = atoi( value );
-    strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-    if ( CSV(flags) )
-        printf( "last_scan_start, %s\n", date );
-    else {
-        int ago = difftime( time( NULL ), timestamp );
-        if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) && ago > 0 )
-        {
-            s2dhms( ago, value );
-            printf( "            start:           %s (%s ago)\n", date, value );
+    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_START_TIME, value ) == 0 )
+        timestamp = str2int( value );
+    else
+        timestamp = -1;
+
+    if ( timestamp > 0 )
+    {
+        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
+        if ( CSV(flags) )
+            printf( "last_scan_start, %s\n", date );
+        else {
+            int ago = difftime( time( NULL ), timestamp );
+            if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+            {
+                FormatDuration( value, 1024, ago );
+                printf( "            start:           %s (%s ago)\n", date, value );
+            }
+            else
+                printf( "            start:           %s\n", date );
         }
-        else
-            printf( "            start:           %s\n", date );
     }
 
     // last action
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value );
-    timestamp2 = atoi( value );
-    strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
-    if ( CSV(flags) )
-        printf( "last_action_time, %s\n", date );
-    else {
-        int ago = difftime( time( NULL ), timestamp2 );
-        if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) && ago > 0 )
+    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value ) == 0 )
+    {
+        timestamp2 = str2int( value );
+        if (timestamp2 > 0)
         {
-            s2dhms( ago, value );
-            printf( "            last action:     %s (%s ago)\n", date, value );
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
+            if ( CSV(flags) )
+                printf( "last_action_time, %s\n", date );
+            else {
+                int ago = difftime( time( NULL ), timestamp2 );
+                if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+                {
+                    FormatDuration( value, 1024, ago );
+                    printf( "            last action:     %s (%s ago)\n", date, value );
+                }
+                else
+                    printf( "            last action:     %s\n", date );
+            }
         }
-        else
-            printf( "            last action:     %s\n", date );
     }
 
     // end
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_END_TIME, value );
-    timestamp2 = atoi( value );
-    if ( timestamp2 > timestamp )
+    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_END_TIME, value ) == 0 )
     {
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
-        if ( CSV(flags) )
-            printf( "last_scan_end, %s\n", date );
-        else
-            printf( "            end:             %s\n", date );
-
-        // duration
-        int dur = (int)difftime( timestamp2, timestamp );
-        if ( CSV(flags) )
-            printf( "last_scan_duration, %i sec\n", dur);
-        else
+        timestamp2 = str2int( value );
+        if ( timestamp2 >= timestamp )
         {
-            s2dhms( dur, value );
-            printf( "            duration:        %s\n\n", value);
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
+            if ( CSV(flags) )
+                printf( "last_scan_end, %s\n", date );
+            else
+                printf( "            end:             %s\n", date );
+
+            // duration
+            if ( timestamp > 0 )
+            {
+                int dur = (int)difftime( timestamp2, timestamp );
+                if ( CSV(flags) )
+                    printf( "last_scan_duration, %i sec\n", dur);
+                else
+                {
+                    FormatDuration( value, 1024, dur );
+                    printf( "            duration:        %s\n\n", value);
+                }
+            }
         }
     }
 
