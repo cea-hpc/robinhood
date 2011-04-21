@@ -1035,7 +1035,7 @@ function test_acct_table
         $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
 
         echo "3.Checking acct table and triggers creation"
-        grep -q "Table ACCT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
+        grep -q "Table ACCT_STAT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
         grep -q "Trigger ACCT_ENTRY_INSERT created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_INSERT trigger"
         grep -q "Trigger ACCT_ENTRY_UPDATE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
         grep -q "Trigger ACCT_ENTRY_DELETE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
@@ -1773,6 +1773,7 @@ function test_periodic_trigger
 	fi
 	clean_logs
 
+	t0=`date +%s`
 	echo "1-Populating filesystem..."
 	# create 3 files of each type
 	# (*.1, *.2, *.3, *.4)
@@ -1804,13 +1805,16 @@ function test_periodic_trigger
 	$RH -f ./cfg/$config_file --purge -l DEBUG -L rh_purge.log &
 	sleep 2
 	
+	t1=`date +%s`
+	((delta=$t1 - $t0))
+
 	# it first must have purged *.1 files (not others)
 	check_released "$ROOT/file.1" || error "$ROOT/file.1 should have been released"
 	check_released "$ROOT/foo.1"  || error "$ROOT/foo.1 should have been released"
 	check_released "$ROOT/bar.1"  || error "$ROOT/bar.1 should have been released"
-	check_released "$ROOT/file.2" && error "$ROOT/file.2 shouldn't have been released"
-	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released"
-	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released"
+	check_released "$ROOT/file.2" && error "$ROOT/file.2 shouldn't have been released after $delta s"
+	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released after $delta s"
+	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released after $delta s"
 
 	sleep $(( $sleep_time + 2 ))
 	# now, *.2 must have been purged

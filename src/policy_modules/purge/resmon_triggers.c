@@ -256,6 +256,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
         }
         else
         {
+            FormatFileSize( tmp1, 128, used_vol );
             DisplayLog( LVL_MAJOR, RESMON_TAG, "High threshold reached on %s (%s): "
                         "spaced used: %s (%.2f%%), high threshold: %.2f%%",
                         storage_descr, global_config.fs_path,  tmp1, used_pct, p_trigger->hw_percent );
