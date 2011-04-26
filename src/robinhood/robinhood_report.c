@@ -1352,7 +1352,8 @@ void report_usergroup_info( char *name, int flags )
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
     lmgr_iter_opt_t opt;
-    int display_header = 1;
+    int display_header = TRUE;
+    int display_new_block = TRUE;
 
 #define USERINFOCOUNT_MAX 11
 
@@ -1572,11 +1573,12 @@ void report_usergroup_info( char *name, int flags )
                         printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
 
                     strncpy( prevuser, result[0].value_u.val_str, 256 );
+                    display_new_block = TRUE;
                 }
 
                 if ( ISSPLITUSERGROUP(flags) )
                 {
-                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) )
+                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
                     {
                         if ( ISGROUP(flags) )
                             printf( "\n    User:         %15s\n", result[1].value_u.val_str );
@@ -1584,6 +1586,7 @@ void report_usergroup_info( char *name, int flags )
                             printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
                     }
                     strncpy( prevusersplit, result[1].value_u.val_str, 256 );
+                    display_new_block = FALSE;
                 }
 
                 FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
@@ -1650,15 +1653,17 @@ void report_usergroup_info( char *name, int flags )
                         printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
 
                     strncpy( prevuser, result[0].value_u.val_str, 256 );
+                    display_new_block = TRUE;
                 }
                 if ( ISSPLITUSERGROUP(flags) ) 
                 {
-                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) )
+                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
                     {
                         if ( ISGROUP(flags) )
                             printf( "\n    User:         %15s\n", result[1].value_u.val_str );
                         else
                             printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                        display_new_block = FALSE;
                     }
                     strncpy( prevusersplit, result[1].value_u.val_str, 256 );
                 }
