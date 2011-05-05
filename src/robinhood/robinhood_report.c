@@ -318,6 +318,9 @@ static const char *help_string =
     "    " _B "--cancel-maintenance"B_"\n"
     "        Cancel next maintenance.\n\n"
 #endif
+    _B "Accounting report options:" B_ "\n"
+    "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n" "        Display the report by user AND group\n"
+    "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n" "        Generate the report without using accounting table\n\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Specifies path to configuration file.\n"
@@ -334,9 +337,7 @@ static const char *help_string =
     "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n"
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
-    "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n"
-    "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n" "        Display the report by users and groups\n"
-    "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n" "        Generate the report without using accounting table\n";
+    "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
 
 static inline void display_help( char *bin_name )
 {

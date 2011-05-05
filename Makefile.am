@@ -76,8 +76,8 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
         doc/templates/backup_basic.conf  		\
         doc/templates/backup_detailed.conf  		\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
-	doc/admin_guides/robinhood_v223_tmp_fs_mgr-admin_guide.pdf \
-	doc/admin_guides/robinhood_v223_tmp_fs_mgr-tutorial.pdf	  \
+	doc/admin_guides/robinhood_v230_tmp_fs_mgr-admin_guide.pdf \
+	doc/admin_guides/robinhood_v230_tmp_fs_mgr-tutorial.pdf	  \
 	ChangeLog
 
 
