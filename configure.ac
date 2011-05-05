@@ -5,7 +5,7 @@
 AC_PREREQ(2.59)
 
 AC_INIT( [robinhood], [2.3.0], [robinhood-support@lists.sourceforge.net])
-RELEASE="0.rc1.3"
+RELEASE="1"
 AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info] )
 AC_SUBST(RELEASE)
 
@@ -276,6 +276,8 @@ case $DB in
 
         if test "$MYSQL_VERSION" = "5" ; then
             DB_CFLAGS="$DB_CFLAGS -D_MYSQL5"
+        else
+            AC_MSG_WARN([MySQL version is too old (<5), optimized accounting won't be supported.])
         fi
         ;;
 

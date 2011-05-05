@@ -74,6 +74,9 @@ extern int     main_attr_set;
 extern int     annex_attr_set;
 extern int     gen_attr_set;
 extern int     stripe_attr_set;
+extern int     acct_attr_set;
+extern int     acct_pk_attr_set;
+
 /* extern int     readonly_attr_set; => moved to listmgr.h */
 
 void           init_attrset_masks(  );
@@ -83,6 +86,14 @@ void           init_attrset_masks(  );
 #define gen_fields( _attr_mask )       ( (_attr_mask) & gen_attr_set )
 #define stripe_fields( _attr_mask )    ( (_attr_mask) & stripe_attr_set )
 #define readonly_fields( _attr_mask )  ( (_attr_mask) & readonly_attr_set )
+
+/* these 2 functions can only be used after init_attrset_masks() has been called */
+#define is_acct_field( _attr_index ) \
+                ( (1 << _attr_index) & acct_attr_set )
+
+#define is_acct_pk( _attr_index ) \
+                ( (1 << _attr_index) & acct_pk_attr_set )
+/* ------------ */
 
 #define is_read_only_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & GENERATED )
@@ -123,6 +134,7 @@ typedef enum
     T_ANNEX,                                     /* fiels in annex table */
     T_STRIPE_INFO,                               /* field in stripe info table */
     T_STRIPE_ITEMS,                              /* field in stripe items table */
+    T_ACCT,                                      /* fields in accounting table */   
 #ifdef HAVE_RM_POLICY
     T_SOFTRM,                                    /* fields in softrm table */
 #endif
@@ -131,11 +143,23 @@ typedef enum
 #endif
 } table_enum;
 
+typedef enum {
+    ADD,
+    SUBTRACT
+} operation_type;
+
 void           add_source_fields_for_gen( int * attr_mask );
 void           generate_fields( attr_set_t * p_set );
 
-int            attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_coma,
-                                   int for_update );
+int            attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_comma,
+                                   int for_update, char *prefix, char *postfix );
+
+int            attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix, 
+                                   const char *right_prefix, const char *comparator, const char *separator );
+
+int            attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix,
+                                   operation_type operation );
+
 int            attrset2valuelist( lmgr_t * p_mgr, char *str,
                                   const attr_set_t * p_set, table_enum table,
                                   int leading_coma );

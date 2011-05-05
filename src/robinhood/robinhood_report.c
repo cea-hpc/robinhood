@@ -57,12 +57,15 @@
 #define OPT_FLAG_NOHEADER   0x0002
 #define OPT_FLAG_GROUP      0x0004
 #define OPT_FLAG_MATCH_NULL_STATUS 0x0008
+#define OPT_FLAG_NO_ACCT 0x0010
+#define OPT_FLAG_SPLITUSERGROUP 0x0020
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
 #define ISGROUP(_x) ((_x)&OPT_FLAG_GROUP)
+#define ISSPLITUSERGROUP(_x) ((_x)&OPT_FLAG_SPLITUSERGROUP)
 #define MATCH_NULL_STATUS(_x) ((_x)&OPT_FLAG_MATCH_NULL_STATUS)
-
+#define FORCE_NO_ACCT(_x) ((_x)&OPT_FLAG_NO_ACCT)
 
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
@@ -77,6 +80,7 @@ struct status_descr
 status_array[] =
 {
 #ifdef _LUSTRE_HSM
+    { STATUS_UNKNOWN, "unknown", "unknown" },
     { STATUS_NEW, "new", "new file (no HSM status)" },
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
     { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
@@ -89,7 +93,7 @@ status_array[] =
     { STATUS_MODIFIED, "dirty", "dirty (modified)" },
     { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
 
-#define ALLOWED_STATUS "new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
 
 #elif defined(_SHERPA)
     { STATUS_UNKNOWN, "unknown", "unknown" },
@@ -211,6 +215,7 @@ static struct option option_tab[] = {
     /* additional options for topusers etc... */
     {"filter-path", required_argument, NULL, 'P' },
     {"filter-class", required_argument, NULL, 'C' },
+    {"split-user-groups", no_argument, NULL, 'S'},
 
 #ifdef HAVE_MIGR_POLICY
     {"next-maintenance", optional_argument, NULL, SET_NEXT_MAINT},
@@ -230,12 +235,13 @@ static struct option option_tab[] = {
     /* miscellaneous options */
     {"help", no_argument, NULL, 'h'},
     {"version", no_argument, NULL, 'V'},
+    {"force-no-acct", no_argument, NULL, 'F'},
 
     {NULL, 0, NULL, 0}
 
 };
 
-#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:C:Rf:cql:hV"
+#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:C:Rf:cql:hVFS"
 
 /* special character sequences for displaying help */
 
@@ -328,8 +334,9 @@ static const char *help_string =
     "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n"
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
-    "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
-
+    "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n"
+    "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n" "        Display the report by users and groups\n"
+    "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n" "        Generate the report without using accounting table\n";
 
 static inline void display_help( char *bin_name )
 {
@@ -409,59 +416,23 @@ char class_filter[1024] = "";
  *  Read variable from DB and allocate value.
  *  @param value must be of size 1024.
  **/
-void ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
+int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
 {
     int rc;
     rc = ListMgr_GetVar( &lmgr, varname, value);
     if ( rc == DB_SUCCESS )
-        return;
+        return 0;
     else if ( rc == DB_NOT_EXISTS )
     {
         strcpy(value,"unknown");
         DisplayLog( LVL_EVENT, REPORT_TAG, "WARNING variable %s not in database", varname );
+        return rc;
     }
     else
     {
         strcpy(value,"error");
-        DisplayLog( LVL_CRIT, REPORT_TAG, "ERROR retrieving variable %s from database", varname );
-    }
-}
-
-/**
- *  Transform a number of seconds in a "i days, j hours, k minutes and l seconds" string.
- *  @param: int   s    : the number of seconds to convert
- *          char* dhms : the char* to store the string in
- **/
-void s2dhms( int s, char* dhms )
-{
-    unsigned int  day, hour, minute, second;
-    char          tmp_buf[128];
-
-    second = s%60;
-    minute = (s/60)%60;
-    hour   = (s/3600)%24;
-    day    = s/86400;
-
-    strcpy( dhms, "" );
-
-    if ( day > 0 ) {
-        sprintf( tmp_buf, "%u day%s", day, (day > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
-    }
-    if ( hour > 0 ) {
-        sprintf( tmp_buf, "%s%u hour%s", (minute == 0 && second == 0) ? " and " : "", \
-                             hour, (hour > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
-    }
-    if ( minute > 0 ) {
-        sprintf( tmp_buf, "%s%u minute%s", (second == 0) ? " and " : "", \
-                             minute, (minute > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
-    }
-    if ( second > 0 ) {
-        sprintf( tmp_buf, "%s%u second%s", (day > 0 || hour > 0 || minute > 0) ? " and " : "", \
-                             second, (second > 1) ? "s" : "" );
-        strcat( dhms, tmp_buf );
+        DisplayLog( LVL_CRIT, REPORT_TAG, "ERROR %d retrieving variable %s from database", rc, varname );
+        return rc;
     }
 }
 
@@ -483,40 +454,47 @@ void report_activity( int flags )
 
 #ifndef _LUSTRE_HSM
     /* Scan interval */
-    ListMgr_GetVar_helper( &lmgr, SCAN_INTERVAL_VAR, value );
-    timestamp = atoi( value );
-    FormatDurationFloat( date, 128, timestamp );
-    if ( CSV(flags) )
-        printf( "current_scan_interval, %s\n", date );
-    else
-        printf( "    Current scan interval:   %s\n\n", date );
+    if ( ListMgr_GetVar_helper( &lmgr, SCAN_INTERVAL_VAR, value ) == 0 )
+    {
+        timestamp = str2int( value );
+        FormatDurationFloat( date, 128, timestamp );
+        if ( CSV(flags) )
+            printf( "current_scan_interval, %s\n", date );
+        else
+            printf( "    Current scan interval:   %s\n\n", date );
+    }
 #endif
 
     /* Previous FS scan */
 
-    ListMgr_GetVar_helper( &lmgr, PREV_SCAN_START_TIME, value );
-    timestamp = atoi( value );
-    if ( timestamp > 0 ) {
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( !CSV(flags) )
-        {
-            printf( "    Previous filesystem scan:\n" );
-            printf( "            start:           %s\n", date );
-        }
-        else
-            printf("previous_scan_start, %s\n", date);
-        ListMgr_GetVar_helper( &lmgr, PREV_SCAN_END_TIME, value );
-        timestamp2 = atoi( value );
-        if ( timestamp2 > timestamp )
-        {
-            int dur = (int)difftime( timestamp2, timestamp );
+    if ( ListMgr_GetVar_helper( &lmgr, PREV_SCAN_START_TIME, value ) == 0 )
+    {
+        timestamp = str2int( value );
+        if ( timestamp >= 0 ) {
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
             if ( !CSV(flags) )
             {
-                s2dhms( dur, value );
-                printf( "            duration:        %s\n\n", value);
+                printf( "    Previous filesystem scan:\n" );
+                printf( "            start:           %s\n", date );
             }
             else
-                printf( "previous_scan_duration, %i sec\n", dur );
+                printf("previous_scan_start, %s\n", date);
+
+            if ( ListMgr_GetVar_helper( &lmgr, PREV_SCAN_END_TIME, value ) == 0 )
+            {
+                timestamp2 = str2int( value );
+                if ( timestamp2 >= timestamp )
+                {
+                    int dur = (int)difftime( timestamp2, timestamp );
+                    if ( !CSV(flags) )
+                    {
+                        FormatDuration( value, 1024, dur );
+                        printf( "            duration:        %s\n\n", value);
+                    }
+                    else
+                        printf( "previous_scan_duration, %i sec\n", dur );
+                }
+            }
         }
     }
 
@@ -534,58 +512,74 @@ void report_activity( int flags )
         printf( "last_scan_status, %s\n", scan_status );
 
     // start
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_START_TIME, value );
-    timestamp = atoi( value );
-    strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-    if ( CSV(flags) )
-        printf( "last_scan_start, %s\n", date );
-    else {
-        int ago = difftime( time( NULL ), timestamp );
-        if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) && ago > 0 )
-        {
-            s2dhms( ago, value );
-            printf( "            start:           %s (%s ago)\n", date, value );
+    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_START_TIME, value ) == 0 )
+        timestamp = str2int( value );
+    else
+        timestamp = -1;
+
+    if ( timestamp > 0 )
+    {
+        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
+        if ( CSV(flags) )
+            printf( "last_scan_start, %s\n", date );
+        else {
+            int ago = difftime( time( NULL ), timestamp );
+            if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+            {
+                FormatDuration( value, 1024, ago );
+                printf( "            start:           %s (%s ago)\n", date, value );
+            }
+            else
+                printf( "            start:           %s\n", date );
         }
-        else
-            printf( "            start:           %s\n", date );
     }
 
     // last action
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value );
-    timestamp2 = atoi( value );
-    strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
-    if ( CSV(flags) )
-        printf( "last_action_time, %s\n", date );
-    else {
-        int ago = difftime( time( NULL ), timestamp2 );
-        if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) && ago > 0 )
+    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value ) == 0 )
+    {
+        timestamp2 = str2int( value );
+        if (timestamp2 > 0)
         {
-            s2dhms( ago, value );
-            printf( "            last action:     %s (%s ago)\n", date, value );
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
+            if ( CSV(flags) )
+                printf( "last_action_time, %s\n", date );
+            else {
+                int ago = difftime( time( NULL ), timestamp2 );
+                if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+                {
+                    FormatDuration( value, 1024, ago );
+                    printf( "            last action:     %s (%s ago)\n", date, value );
+                }
+                else
+                    printf( "            last action:     %s\n", date );
+            }
         }
-        else
-            printf( "            last action:     %s\n", date );
     }
 
     // end
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_END_TIME, value );
-    timestamp2 = atoi( value );
-    if ( timestamp2 > timestamp )
+    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_END_TIME, value ) == 0 )
     {
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
-        if ( CSV(flags) )
-            printf( "last_scan_end, %s\n", date );
-        else
-            printf( "            end:             %s\n", date );
-
-        // duration
-        int dur = (int)difftime( timestamp2, timestamp );
-        if ( CSV(flags) )
-            printf( "last_scan_duration, %i sec\n", dur);
-        else
+        timestamp2 = str2int( value );
+        if ( timestamp2 >= timestamp )
         {
-            s2dhms( dur, value );
-            printf( "            duration:        %s\n\n", value);
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
+            if ( CSV(flags) )
+                printf( "last_scan_end, %s\n", date );
+            else
+                printf( "            end:             %s\n", date );
+
+            // duration
+            if ( timestamp > 0 )
+            {
+                int dur = (int)difftime( timestamp2, timestamp );
+                if ( CSV(flags) )
+                    printf( "last_scan_duration, %i sec\n", dur);
+                else
+                {
+                    FormatDuration( value, 1024, dur );
+                    printf( "            duration:        %s\n\n", value);
+                }
+            }
         }
     }
 
@@ -1131,6 +1125,18 @@ void report_fs_info( int flags )
 
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
+    lmgr_iter_opt_t opt;
+    int display_header = 1; 
+
+    /* no limit */
+    opt.list_count_max = 0;
+
+    /* test FORCE NO ACCT option */
+    if( FORCE_NO_ACCT( flags ) )
+        opt.force_no_acct = TRUE;
+    else
+        opt.force_no_acct = FALSE;
+
 
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
@@ -1145,9 +1151,9 @@ void report_fs_info( int flags )
 #endif
 
     if ( is_filter )
-        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT, &filter, NULL );
+        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT, &filter, &opt );
     else
-        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT, NULL, NULL );
+        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT, NULL, &opt );
 
     if ( it == NULL )
     {
@@ -1159,19 +1165,33 @@ void report_fs_info( int flags )
 
     result_count = FSINFOCOUNT;
 
-    if ( CSV(flags) && !NOHEADER(flags) )
-#ifdef _TMP_FS_MGR
-        printf( "%-10s, %10s, %15s, %15s, %15s\n",
-                "type", "count", "min_size", "max_size", "avg_size" );
-#else
-        printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n", "status",
-                "count", "volume", "min_size", "max_size", "avg_size" );
-#endif
-
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
               == DB_SUCCESS )
     {
+        if ( CSV(flags) && !NOHEADER(flags) && display_header )
+        {
+            if ( !DB_IS_NULL( &result[2] ) && !DB_IS_NULL( &result[3] ) )
 #ifdef _TMP_FS_MGR
+                printf( "%-10s, %10s, %15s, %15s, %15s\n",
+                        "type", "count", "min_size", "max_size", "avg_size" );
+#else
+                printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n", "status",
+                        "count", "volume", "min_size", "max_size", "avg_size" );
+#endif
+            else
+#ifdef _TMP_FS_MGR
+                printf( "%-10s, %10s, %15s\n",
+                        "type", "count", "avg_size" );
+#else
+                printf( "%-10s, %10s, %15s, %15s\n", "status",
+                        "count", "volume", "avg_size" );
+#endif
+            display_header = 0;
+        }
+
+#ifdef _TMP_FS_MGR
+        if ( result[1].value_u.val_uint == 0 )
+            continue;
 
         total_count += result[1].value_u.val_uint;
 
@@ -1181,19 +1201,28 @@ void report_fs_info( int flags )
         if ( !strcmp( result[0].value_u.val_str, STR_TYPE_DIR ) )
         {
             if ( CSV(flags) )
-                printf( "%-10s, %10u, %15u, %15u, %15u\n",
-                        result[0].value_u.val_str,
-                        result[1].value_u.val_uint,
-                        result[5].value_u.val_uint,
-                        result[6].value_u.val_uint, result[7].value_u.val_uint );
+                if ( !DB_IS_NULL( &result[5] ) && !DB_IS_NULL( &result[6] ) )
+                    printf( "%-10s, %10u, %15u, %15u, %15u\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_uint,
+                            result[5].value_u.val_uint,
+                            result[6].value_u.val_uint, result[7].value_u.val_uint );
+                else
+                    printf( "%-10s, %10u, %15u\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_uint,
+                            result[7].value_u.val_uint );
             else
             {
                 printf( "\n" );
                 printf( "Type:         %15s\n", "directory" );
                 printf( "Count:        %15u\n", result[1].value_u.val_uint );
-                printf( "Dircount min: %15u\n", result[5].value_u.val_uint );
-                printf( "Dircount max: %15u\n", result[6].value_u.val_uint );
-                printf( "Dircount avg: %15u\n", result[7].value_u.val_uint );
+                if ( !DB_IS_NULL( &result[5] ) && !DB_IS_NULL( &result[6] ) && !DB_IS_NULL( &result[7] ) )
+                {
+                    printf( "Dircount min: %15u\n", result[5].value_u.val_uint );
+                    printf( "Dircount max: %15u\n", result[6].value_u.val_uint );
+                    printf( "Dircount avg: %15u\n", result[7].value_u.val_uint );
+                }
             }
         }
         else
@@ -1201,23 +1230,32 @@ void report_fs_info( int flags )
             total_size += result[1].value_u.val_uint * result[4].value_u.val_biguint;
 
             if ( CSV(flags) )
-                printf( "%-10s, %10u, %15llu, %15llu, %15llu\n",
-                        result[0].value_u.val_str,
-                        result[1].value_u.val_uint,
-                        result[2].value_u.val_biguint,
-                        result[3].value_u.val_biguint, result[4].value_u.val_biguint );
+                if ( !DB_IS_NULL( &result[2] ) && !DB_IS_NULL( &result[3] ) )
+                    printf( "%-10s, %10u, %15llu, %15llu, %15llu\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_uint,
+                            result[2].value_u.val_biguint,
+                            result[3].value_u.val_biguint, result[4].value_u.val_biguint );
+                else
+                    printf( "%-10s, %10u, %15llu\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_uint,
+                            result[4].value_u.val_biguint );
             else
             {
                 char           strsize[128];
                 printf( "\n" );
                 printf( "Type:         %15s\n", result[0].value_u.val_str );
                 printf( "Count:        %15u\n", result[1].value_u.val_uint );
-                printf( "Size min:     %15s   (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[2].value_u.val_biguint ),
-                        result[2].value_u.val_biguint );
-                printf( "Size max:     %15s   (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                        result[3].value_u.val_biguint );
+                if ( !DB_IS_NULL( &result[2] ) && !DB_IS_NULL( &result[3] ) )
+                {
+                    printf( "Size min:     %15s   (%llu bytes)\n",
+                            FormatFileSize( strsize, 128, result[2].value_u.val_biguint ),
+                            result[2].value_u.val_biguint );
+                    printf( "Size max:     %15s   (%llu bytes)\n",
+                            FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
+                            result[3].value_u.val_biguint );
+                }
                 printf( "Size avg:     %15s   (%llu bytes)\n",
                         FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
                         result[4].value_u.val_biguint );
@@ -1225,17 +1263,28 @@ void report_fs_info( int flags )
 
         }
 #else
+        if ( result[1].value_u.val_uint == 0 )
+            continue;
+
         total_count += result[1].value_u.val_uint;
         total_size += result[2].value_u.val_biguint;
 
         if ( CSV(flags) )
-            printf( "%10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
-                    db_status2str(result[0].value_u.val_uint,1),
-                    result[1].value_u.val_uint,
-                    result[2].value_u.val_biguint,
-                    result[3].value_u.val_biguint,
-                    result[4].value_u.val_biguint,
-                    result[5].value_u.val_biguint );
+            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
+                printf( "%10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
+                        db_status2str(result[0].value_u.val_uint,1),
+                        result[1].value_u.val_uint,
+                        result[2].value_u.val_biguint,
+                        result[3].value_u.val_biguint,
+                        result[4].value_u.val_biguint,
+                        result[5].value_u.val_biguint );
+            else
+                printf( "%10s, %10u, %15llu, %15llu\n",
+                        db_status2str(result[0].value_u.val_uint,1),
+                        result[1].value_u.val_uint,
+                        result[2].value_u.val_biguint,
+                        result[5].value_u.val_biguint );
+
         else
         {
             char           strsize[128];
@@ -1245,12 +1294,15 @@ void report_fs_info( int flags )
             printf( "   Volume:   %10s   (%llu bytes)\n",
                     FormatFileSize( strsize, 128, result[2].value_u.val_biguint ),
                     result[2].value_u.val_biguint );
-            printf( "   Size min: %10s   (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                    result[3].value_u.val_biguint );
-            printf( "   Size max: %10s   (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                    result[4].value_u.val_biguint );
+            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
+            {
+                printf( "   Size min: %10s   (%llu bytes)\n",
+                        FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
+                        result[3].value_u.val_biguint );
+                printf( "   Size max: %10s   (%llu bytes)\n",
+                        FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
+                        result[4].value_u.val_biguint );
+            }
             printf( "   Size avg: %10s   (%llu bytes)\n",
                     FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
                     result[5].value_u.val_biguint );
@@ -1275,6 +1327,18 @@ void report_fs_info( int flags )
 
 }
 
+static inline void set_report_rec_nofilter( report_field_descr_t* ent,
+                                   unsigned int   attr_index,
+                                   report_type_t  report_type,
+                                   sort_order_t   sort_flag )
+{
+    ent->attr_index = attr_index;
+    ent->report_type = report_type;
+    ent->sort_flag = sort_flag;
+    ent->filter = FALSE;
+    ent->filter_compar = 0;
+}
+
 void report_usergroup_info( char *name, int flags )
 {
     unsigned int   result_count;
@@ -1282,21 +1346,23 @@ void report_usergroup_info( char *name, int flags )
     lmgr_filter_t  filter;
     filter_value_t fv;
     int            rc;
+    unsigned int   field_count = 0;
+    unsigned int   shift = 0;
 
     char           prevuser[256] = "";
+    char           prevusersplit[256] = "";
     char           strsize[128] = "";
-    int is_filter = FALSE;
+    int            is_filter = FALSE;
 
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
+    lmgr_iter_opt_t opt;
+    int display_header = TRUE;
+    int display_new_block = TRUE;
 
-#ifndef _LUSTRE_HSM
-#define USERINFOCOUNT 10
-#else
-#define USERINFOCOUNT 6
-#endif
+#define USERINFOCOUNT_MAX 11
 
-    db_value_t     result[USERINFOCOUNT];
+    db_value_t     result[USERINFOCOUNT_MAX];
 
     /* To be retrieved for each user:
      * - username
@@ -1305,26 +1371,66 @@ void report_usergroup_info( char *name, int flags )
      * - MIN/MAX/AVG size
      * - MIN/MAX/AVG dircount
      */
-    report_field_descr_t user_info[USERINFOCOUNT] = {
-        {ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
-#ifndef _LUSTRE_HSM
-        {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
-#endif
-        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
-#ifndef _LUSTRE_HSM
-        {ATTR_INDEX_dircount, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_dircount, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_dircount, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}}
-#endif
-    };
+    report_field_descr_t user_info[USERINFOCOUNT_MAX];
 
-    /* modify user_info tab if function is for group stats */
-    if ( ISGROUP(flags) )
-        user_info[0].attr_index = ATTR_INDEX_gr_name;
+    if (ISSPLITUSERGROUP(flags) && ISGROUP(flags))
+    {
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        field_count++;
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        field_count++;
+        shift++ ;
+    }
+    else if (ISSPLITUSERGROUP(flags) && !ISGROUP(flags))
+    {
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        field_count++;
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        field_count++;
+        shift++;
+    }
+    else if (ISGROUP(flags))
+    {
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        field_count++;
+    }
+    else
+    {
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        field_count++;
+    }
+
+#ifndef _LUSTRE_HSM
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC );
+    field_count++;
+#endif
+
+    set_report_rec_nofilter(&user_info[field_count], 0, REPORT_COUNT, SORT_NONE );
+    field_count++;
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
+    field_count++;
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_MIN, SORT_NONE );
+    field_count++;
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_MAX, SORT_NONE );
+    field_count++;
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_AVG, SORT_NONE );
+    field_count++;
+#ifndef _LUSTRE_HSM
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_dircount, REPORT_MIN, SORT_NONE );
+    field_count++;
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_dircount, REPORT_MAX, SORT_NONE );
+    field_count++;
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_dircount, REPORT_AVG, SORT_NONE );
+    field_count++;
+#endif
+
+    /* test FORCE NO ACCT option */
+    if( FORCE_NO_ACCT( flags ) )
+        opt.force_no_acct = TRUE;
+    else
+        opt.force_no_acct = FALSE;
+    /* no limit */
+    opt.list_count_max = 0;
 
     if ( name )
     {
@@ -1342,7 +1448,7 @@ void report_usergroup_info( char *name, int flags )
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
-    it = ListMgr_Report( &lmgr, user_info, USERINFOCOUNT, ( is_filter ? &filter : NULL ), NULL );
+    it = ListMgr_Report( &lmgr, user_info, field_count, ( is_filter ? &filter : NULL ), &opt );
 
     if ( is_filter )
         lmgr_simple_filter_free( &filter );
@@ -1353,43 +1459,115 @@ void report_usergroup_info( char *name, int flags )
         return;
     }
 
-
-    result_count = USERINFOCOUNT;
-
-    if ( CSV(flags) && !NOHEADER(flags) )
-#ifndef _LUSTRE_HSM
-        printf( "%-10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
-                ( ISGROUP(flags) ? "group" : "user" ), "type", "count", "spc_used", "min_size",
-                "max_size", "avg_size" );
-#else
-        printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n",
-                ( ISGROUP(flags) ? "group" : "user" ), "count", "spc_used", "min_size", "max_size",
-                "avg_size" );
-#endif
+    result_count = field_count;
 
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
     {
-        /* unknown user */
+        if ( CSV(flags) && !NOHEADER(flags) && display_header )
+        {
+            /* Without using accounting table */
+            if ( !DB_IS_NULL( &result[3+shift] ) && !DB_IS_NULL( &result[4+shift] ) )
+            {
+#ifndef _LUSTRE_HSM
+                if ( ISSPLITUSERGROUP(flags) )
+                    printf( "%-10s, %10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ), ( ISGROUP(flags) ? "user" : "group" ),
+                            "type", "count", "spc_used", "min_size", "max_size", "avg_size" );
+                else
+                    printf( "%-10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ), "type", "count", "spc_used", "min_size", 
+                            "max_size", "avg_size" );
+#else
+                if ( ISSPLITUSERGROUP(flags) )
+                    printf( "%-10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ),( ISGROUP(flags) ? "user" : "group" ),
+                            "count", "spc_used", "min_size", "max_size", "avg_size" );
+                else
+                    printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ), "count", "spc_used", "min_size", "max_size",
+                            "avg_size" );
+#endif
+            }
+            /* Using accounting table*/
+            else
+            {
+#ifndef _LUSTRE_HSM
+                if ( ISSPLITUSERGROUP(flags) )
+                    printf( "%-10s, %10s, %10s, %10s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ), (ISGROUP(flags) ? "user" : "group" ),
+                            "type", "count", "spc_used", "avg_size" );
+                else
+                    printf( "%-10s, %10s, %10s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ), "type", "count", "spc_used", "avg_size" );
+#else
+                if ( ISSPLITUSERGROUP(flags) )
+                    printf( "%-10s, %10s, %10s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ),(ISGROUP(flags) ? "user" : "group" ), "count", "spc_used", "avg_size" );
+                else
+                    printf( "%-10s, %10s, %15s, %15s\n",
+                            ( ISGROUP(flags) ? "group" : "user" ), "count", "spc_used", "avg_size" );
+#endif
+            }
+            display_header = 0;
+        }
+
+        /* unknown user or group*/
         if ( result[0].value_u.val_str == NULL )
             result[0].value_u.val_str = "(?)";
+        if ( ISSPLITUSERGROUP(flags) && ( result[1].value_u.val_str == NULL ) )
+            result[1].value_u.val_str = "(?)";
 
 #ifndef _LUSTRE_HSM
-        total_count += result[2].value_u.val_uint;
-        total_size += (result[3].value_u.val_biguint * DEV_BSIZE);
+        total_count += result[2+shift].value_u.val_uint;
+        total_size += (result[3+shift].value_u.val_biguint * DEV_BSIZE);
 
         if ( result[1].value_u.val_str == NULL )
             result[1].value_u.val_str = "(unknown)";
 
-        if ( !strcmp( result[1].value_u.val_str, STR_TYPE_DIR ) )
+        /* Directory info display */
+        if ( !strcmp( result[1+shift].value_u.val_str, STR_TYPE_DIR ) )
         {
             if ( CSV(flags) )
-                printf( "%-10s, %10s, %10u, %15llu, %15u, %15u, %15u\n",
-                        result[0].value_u.val_str,
-                        result[1].value_u.val_str,
-                        result[2].value_u.val_uint,
-                        result[3].value_u.val_biguint * DEV_BSIZE,
-                        result[7].value_u.val_uint,
-                        result[8].value_u.val_uint, result[9].value_u.val_uint );
+            {
+                if ( DB_IS_NULL( &result[7+shift] ) && DB_IS_NULL( &result[8+shift] ) )
+                {
+                    if ( ISSPLITUSERGROUP(flags) )
+                        printf( "%-10s, %10s, %10s, %10u, %15llu, %15u\n",
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_str,
+                                result[3].value_u.val_uint,
+                                result[4].value_u.val_biguint * DEV_BSIZE,
+                                result[10].value_u.val_uint );
+                    else
+                        printf( "%-10s, %10s, %10u, %15llu, %15u\n",
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_uint,
+                                result[3].value_u.val_biguint * DEV_BSIZE,
+                                result[9].value_u.val_uint );
+                }
+                else
+                {
+                    if ( ISSPLITUSERGROUP(flags) )
+                        printf( "%-10s, %10s, %10s, %10u, %15llu, %15u, %15u, %15u\n",
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_str,
+                                result[3].value_u.val_uint,
+                                result[4].value_u.val_biguint * DEV_BSIZE,
+                                result[8].value_u.val_uint,
+                                result[9].value_u.val_uint, result[10].value_u.val_uint );
+                    else
+                        printf( "%-10s, %10s, %10u, %15llu, %15u, %15u, %15u\n",
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_uint,
+                                result[3].value_u.val_biguint * DEV_BSIZE,
+                                result[7].value_u.val_uint,
+                                result[8].value_u.val_uint, result[9].value_u.val_uint );
+                }
+            }
             else
             {
                 if ( strcmp( prevuser, result[0].value_u.val_str ) )
@@ -1400,30 +1578,76 @@ void report_usergroup_info( char *name, int flags )
                         printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
 
                     strncpy( prevuser, result[0].value_u.val_str, 256 );
+                    display_new_block = TRUE;
                 }
 
-                FormatFileSize( strsize, 128, result[3].value_u.val_biguint * DEV_BSIZE );
+                if ( ISSPLITUSERGROUP(flags) )
+                {
+                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
+                    {
+                        if ( ISGROUP(flags) )
+                            printf( "\n    User:         %15s\n", result[1].value_u.val_str );
+                        else
+                            printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                    }
+                    strncpy( prevusersplit, result[1].value_u.val_str, 256 );
+                    display_new_block = FALSE;
+                }
+
+                FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
 
                 printf( "\n" );
-                printf( "    Type:         %15s\n", "directory" );
-                printf( "    Count:        %15u\n", result[2].value_u.val_uint );
-                printf( "    Space used:   %15s    (%llu blks)\n", strsize,
-                        result[3].value_u.val_biguint );
-                printf( "    Dircount min: %15u\n", result[7].value_u.val_uint );
-                printf( "    Dircount max: %15u\n", result[8].value_u.val_uint );
-                printf( "    Dircount avg: %15u\n", result[9].value_u.val_uint );
+                printf( "%s    Type:         %15s\n", ISSPLITUSERGROUP(flags) ? "    " : "", "directory" );
+                printf( "%s    Count:        %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[2+shift].value_u.val_uint );
+                printf( "%s    Space used:   %15s    (%llu blks)\n", ISSPLITUSERGROUP(flags) ? "    " : "", strsize,
+                        result[3+shift].value_u.val_biguint );
+                if ( !DB_IS_NULL( &result[7+shift] ) && !DB_IS_NULL( &result[8+shift] ) && !DB_IS_NULL( &result[9+shift] ) )
+                {
+                    printf( "%s    Dircount min: %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[7+shift].value_u.val_uint );
+                    printf( "%s    Dircount max: %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[8+shift].value_u.val_uint );
+                    printf( "%s    Dircount avg: %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[9+shift].value_u.val_uint );
+                }
             }
         }
+        /* File info display */
         else
         {
             if ( CSV(flags) )
-                printf( "%-10s, %10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
-                        result[0].value_u.val_str,
-                        result[1].value_u.val_str,
-                        result[2].value_u.val_uint,
-                        result[3].value_u.val_biguint * DEV_BSIZE,
-                        result[4].value_u.val_biguint,
-                        result[5].value_u.val_biguint, result[6].value_u.val_biguint );
+                if ( DB_IS_NULL( &result[4+shift] ) && DB_IS_NULL( &result[5+shift] ) )
+                    if ( ISSPLITUSERGROUP(flags) )
+                        printf( "%-10s, %10s, %10s, %10u, %15llu, %15llu\n",
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_str,
+                                result[3].value_u.val_uint,
+                                result[4].value_u.val_biguint * DEV_BSIZE,
+                                result[7].value_u.val_biguint );
+                    else
+                        printf( "%-10s, %10s, %10u, %15llu, %15llu\n",
+                                result[0+shift].value_u.val_str,
+                                result[1+shift].value_u.val_str,
+                                result[2+shift].value_u.val_uint,
+                                result[3+shift].value_u.val_biguint * DEV_BSIZE,
+                                result[6+shift].value_u.val_biguint );
+                else
+                    if ( ISSPLITUSERGROUP(flags) )
+                        printf( "%-10s, %10s, %10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
+                                result[0].value_u.val_str,
+                                result[1].value_u.val_str,
+                                result[2].value_u.val_str,
+                                result[3].value_u.val_uint,
+                                result[4].value_u.val_biguint * DEV_BSIZE,
+                                result[5].value_u.val_biguint,
+                                result[6].value_u.val_biguint, result[7].value_u.val_biguint );
+                    else
+                        printf( "%-10s, %10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
+                                result[0+shift].value_u.val_str,
+                                result[1+shift].value_u.val_str,
+                                result[2+shift].value_u.val_uint,
+                                result[3+shift].value_u.val_biguint * DEV_BSIZE,
+                                result[4+shift].value_u.val_biguint,
+                                result[5+shift].value_u.val_biguint, result[6+shift].value_u.val_biguint );
+
             else
             {
                 if ( strcmp( prevuser, result[0].value_u.val_str ) )
@@ -1434,42 +1658,89 @@ void report_usergroup_info( char *name, int flags )
                         printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
 
                     strncpy( prevuser, result[0].value_u.val_str, 256 );
+                    display_new_block = TRUE;
+                }
+                if ( ISSPLITUSERGROUP(flags) ) 
+                {
+                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
+                    {
+                        if ( ISGROUP(flags) )
+                            printf( "\n    User:         %15s\n", result[1].value_u.val_str );
+                        else
+                            printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                        display_new_block = FALSE;
+                    }
+                    strncpy( prevusersplit, result[1].value_u.val_str, 256 );
                 }
 
-                FormatFileSize( strsize, 128, result[3].value_u.val_biguint * DEV_BSIZE );
+                FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
 
                 printf( "\n" );
-                printf( "    Type:         %15s\n", result[1].value_u.val_str );
-                printf( "    Count:        %15u\n", result[2].value_u.val_uint );
-                printf( "    Space used:   %15s    (%llu blks)\n",
+                printf( "%s    Type:         %15s\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[1+shift].value_u.val_str );
+                printf( "%s    Count:        %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[2+shift].value_u.val_uint );
+                printf( "%s    Space used:   %15s    (%llu blks)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
                         FormatFileSize( strsize, 128,
-                                        result[3].value_u.val_biguint * DEV_BSIZE ),
-                        result[3].value_u.val_biguint );
-                printf( "    Size min:     %15s    (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                        result[4].value_u.val_biguint );
-                printf( "    Size max:     %15s    (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
-                        result[5].value_u.val_biguint );
-                printf( "    Size avg:     %15s    (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[6].value_u.val_biguint ),
-                        result[6].value_u.val_biguint );
+                                        result[3+shift].value_u.val_biguint * DEV_BSIZE ),
+                        result[3+shift].value_u.val_biguint );
+                if ( !DB_IS_NULL( &result[4+shift] ) && !DB_IS_NULL( &result[5+shift] ) )
+                {
+                    printf( "%s    Size min:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
+                            FormatFileSize( strsize, 128, result[4+shift].value_u.val_biguint ),
+                            result[4+shift].value_u.val_biguint );
+                    printf( "%s    Size max:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
+                            FormatFileSize( strsize, 128, result[5+shift].value_u.val_biguint ),
+                            result[5+shift].value_u.val_biguint );
+                }
+                printf( "%s    Size avg:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
+                        FormatFileSize( strsize, 128, result[6+shift].value_u.val_biguint ),
+                        result[6+shift].value_u.val_biguint );
             }
 
         }
 
 #else /* Lustre HSM */
 
-        total_count += result[1].value_u.val_uint;
-        total_size += (result[2].value_u.val_biguint * DEV_BSIZE);
+        total_count += result[1+shift].value_u.val_uint;
+        total_size += (result[2+shift].value_u.val_biguint * DEV_BSIZE);
 
         if ( CSV(flags) )
-            printf( "%-10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
-                    result[0].value_u.val_str,
-                    result[1].value_u.val_uint,
-                    result[2].value_u.val_biguint * DEV_BSIZE,
-                    result[3].value_u.val_biguint,
-                    result[4].value_u.val_biguint, result[5].value_u.val_biguint );
+        {
+            if ( DB_IS_NULL( &result[3+shift] ) && DB_IS_NULL( &result[4+shift] ) )
+            {
+                if ( ISSPLITUSERGROUP(flags) )
+                    printf( "%-10s, %10s, %10u, %15llu, %15llu\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_str,
+                            result[2].value_u.val_uint,
+                            result[3].value_u.val_biguint * DEV_BSIZE,
+                            result[6].value_u.val_biguint );
+                else
+                    printf( "%-10s, %10u, %15llu, %15llu\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_uint,
+                            result[2].value_u.val_biguint * DEV_BSIZE,
+                            result[5].value_u.val_biguint );
+            }
+            else
+            {
+                if ( ISSPLITUSERGROUP(flags) )
+                    printf( "%-10s, %10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_str,
+                            result[2].value_u.val_uint,
+                            result[3].value_u.val_biguint * DEV_BSIZE,
+                            result[4].value_u.val_biguint,
+                            result[5].value_u.val_biguint, result[6].value_u.val_biguint );
+
+                else
+                    printf( "%-10s, %10u, %15llu, %15llu, %15llu, %15llu\n",
+                            result[0].value_u.val_str,
+                            result[1].value_u.val_uint,
+                            result[2].value_u.val_biguint * DEV_BSIZE,
+                            result[3].value_u.val_biguint,
+                            result[4].value_u.val_biguint, result[5].value_u.val_biguint );
+            }
+        }
         else
         {
             if ( strcmp( prevuser, result[0].value_u.val_str ) )
@@ -1480,30 +1751,45 @@ void report_usergroup_info( char *name, int flags )
                     printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
 
                 strncpy( prevuser, result[0].value_u.val_str, 256 );
+                display_new_block = TRUE;
+            }
+            if ( ISSPLITUSERGROUP(flags) )
+            {
+                if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
+                {
+                    if ( ISGROUP(flags) )
+                        printf( "\n    User:         %15s\n", result[1].value_u.val_str );
+                    else
+                        printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
+                }
+                strncpy( prevusersplit, result[1].value_u.val_str, 256 );
+                display_new_block = FALSE;
             }
 
-            FormatFileSize( strsize, 128, result[3].value_u.val_biguint * DEV_BSIZE );
+            FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
 
             printf( "\n" );
-            printf( "    Count:        %15u\n", result[1].value_u.val_uint );
-            printf( "    Space used:   %15s    (%llu blks)\n",
-                    FormatFileSize( strsize, 128,
-                                    result[2].value_u.val_biguint * DEV_BSIZE ),
-                    result[2].value_u.val_biguint );
-            printf( "    Size min:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                    result[3].value_u.val_biguint );
-            printf( "    Size max:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                    result[4].value_u.val_biguint );
-            printf( "    Size avg:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
-                    result[5].value_u.val_biguint );
+            printf( "%s    Count:        %15u\n",ISSPLITUSERGROUP(flags) ? "    " : "", result[1+shift].value_u.val_uint );
+            printf( "%s    Space used:   %15s    (%llu blks)\n",ISSPLITUSERGROUP(flags) ? "    " : "",
+                    FormatFileSize( strsize, 128, result[2+shift].value_u.val_biguint * DEV_BSIZE ),
+                    result[2+shift].value_u.val_biguint );
+            if ( !DB_IS_NULL( &result[3+shift] ) && !DB_IS_NULL( &result[4+shift] ) )
+            {
+                printf( "%s    Size min:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
+                        FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint ),
+                        result[3+shift].value_u.val_biguint );
+                printf( "%s    Size max:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
+                        FormatFileSize( strsize, 128, result[4+shift].value_u.val_biguint ),
+                        result[4+shift].value_u.val_biguint );
+            }
+            printf( "%s    Size avg:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
+                    FormatFileSize( strsize, 128, result[5+shift].value_u.val_biguint ),
+                    result[5+shift].value_u.val_biguint );
         }
 
 #endif
         /* prepare next call */
-        result_count = USERINFOCOUNT;
+        result_count = field_count;
 
     }
 
@@ -1552,6 +1838,7 @@ void report_topdirs( unsigned int count, int flags )
 
     /* select only the top dirs */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -1647,6 +1934,7 @@ void report_topsize( unsigned int count, int flags )
 
     /* select only the top size */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -1857,6 +2145,7 @@ void report_toppurge( unsigned int count, int flags )
 
     /* select only the top size */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -1997,6 +2286,7 @@ void report_toprmdir( unsigned int count, int flags )
 
     /* select only the top dirs */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -2102,6 +2392,13 @@ void report_topuser( unsigned int count, int flags )
 
     /* select only the top users */
     opt.list_count_max = count;
+    opt.force_no_acct = FALSE;
+
+    /* test FORCE NO ACCT option */
+    if( FORCE_NO_ACCT( flags ) )
+        opt.force_no_acct = TRUE;
+    else
+        opt.force_no_acct = FALSE;
 
     is_filter = FALSE;
 
@@ -2123,24 +2420,40 @@ void report_topuser( unsigned int count, int flags )
 
     result_count = TOPUSERCOUNT;
 
-    if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%3s, %-10s, %15s, %10s, %15s, %15s, %15s\n", "rank",
-                "user", "spc_used", "nb_entries", "min_size", "max_size", "avg_size" );
-
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
     {
+        if ( CSV(flags) && !NOHEADER(flags) && rank == 1 )
+        {
+            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
+                printf( "%3s, %-10s, %15s, %10s, %15s, %15s, %15s\n", "rank",
+                        "user", "spc_used", "nb_entries", "min_size", "max_size", "avg_size" );
+            else
+                printf( "%3s, %-10s, %15s, %10s, %15s\n", "rank",
+                        "user", "spc_used", "nb_entries", "avg_size" );
+        }
+
         /* unknown user */
         if ( result[0].value_u.val_str == NULL )
             result[0].value_u.val_str = "(?)";
 
         if ( CSV(flags) )
-            printf( "%3u, %-10s, %15llu, %10u, %15llu, %15llu, %15llu\n",
-                    rank,
-                    result[0].value_u.val_str,
-                    result[1].value_u.val_biguint * DEV_BSIZE,
-                    result[2].value_u.val_uint,
-                    result[3].value_u.val_biguint,
-                    result[4].value_u.val_biguint, result[5].value_u.val_biguint );
+        {
+            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
+                printf( "%4u, %-10s, %15llu, %10u, %15llu, %15llu, %15llu\n",
+                        rank,
+                        result[0].value_u.val_str,
+                        result[1].value_u.val_biguint * DEV_BSIZE,
+                        result[2].value_u.val_uint,
+                        result[3].value_u.val_biguint,
+                        result[4].value_u.val_biguint, result[5].value_u.val_biguint );
+            else
+                printf( "%4u, %-10s, %15llu, %10u, %15llu\n",
+                        rank,
+                        result[0].value_u.val_str,
+                        result[1].value_u.val_biguint * DEV_BSIZE,
+                        result[2].value_u.val_uint,
+                        result[5].value_u.val_biguint );
+        }
         else
         {
             printf( "\n" );
@@ -2152,12 +2465,15 @@ void report_topuser( unsigned int count, int flags )
                     result[1].value_u.val_biguint );
 
             printf( "Nb entries:   %15u\n", result[2].value_u.val_uint );
-            printf( "Size min:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                    result[3].value_u.val_biguint );
-            printf( "Size max:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                    result[4].value_u.val_biguint );
+            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
+            {
+                printf( "Size min:     %15s    (%llu bytes)\n",
+                        FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
+                        result[3].value_u.val_biguint );
+                printf( "Size max:     %15s    (%llu bytes)\n",
+                        FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
+                        result[4].value_u.val_biguint );
+            }
             printf( "Size avg:     %15s    (%llu bytes)\n",
                     FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
                     result[5].value_u.val_biguint );
@@ -2895,11 +3211,11 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Unknown status '%s'. Allowed status: "ALLOWED_STATUS".\n", optarg );
                 exit(1);
             }
-#ifdef _HAVE_UNKNOWN_STATUS
+
             /* match NULL value for unknown status */
             if ( status_to_dump == STATUS_UNKNOWN )
                 flags |= OPT_FLAG_MATCH_NULL_STATUS;
-#endif
+
             break;
 #endif
 
@@ -3041,6 +3357,12 @@ int main( int argc, char **argv )
             display_version( bin );
             exit( 0 );
             break;
+        case 'F':
+            flags |= OPT_FLAG_NO_ACCT;
+            break;
+        case 'S':
+            flags |= OPT_FLAG_SPLITUSERGROUP;
+            break;
         case ':':
         case '?':
         default:
@@ -3126,7 +3448,7 @@ int main( int argc, char **argv )
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config );
+    rc = ListMgr_Init( &config.lmgr_config, TRUE );
     if ( rc )
     {
         DisplayLog( LVL_CRIT, REPORT_TAG, "Error %d initializing list manager", rc );

@@ -31,7 +31,8 @@
 
 /* table: id+... */
 /* TODO: generate this list automatically */
-#define RECOV_LIST_FIELDS "fullpath,size,owner,gr_name,last_mod,backendpath,status,stripe_count,stripe_size,pool_name"
+/* /!\ it must be in the same order as in MAIN, ANNEX, ... */
+#define RECOV_LIST_FIELDS "status,last_mod,size,owner,gr_name,fullpath,backendpath,stripe_count,stripe_size,pool_name"
 #define RECOV_FIELD_COUNT 10
 
 

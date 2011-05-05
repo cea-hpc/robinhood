@@ -21,6 +21,11 @@
 #define STRIPE_INFO_TABLE	"STRIPE_INFO"
 #define STRIPE_ITEMS_TABLE	"STRIPE_ITEMS"
 #define VAR_TABLE           "VARS"
+#define ACCT_TABLE          "ACCT_STAT"
+#define ACCT_TRIGGER_INSERT "ACCT_ENTRY_INSERT"
+#define ACCT_TRIGGER_UPDATE "ACCT_ENTRY_UPDATE"
+#define ACCT_TRIGGER_DELETE "ACCT_ENTRY_DELETE"
+#define ACCT_FIELD_COUNT    "count"
 
 #ifdef HAVE_RM_POLICY
 #   define SOFT_RM_TABLE    "SOFT_RM"
@@ -63,6 +68,12 @@ int            db_result_nb_records( db_conn_t * conn, result_handle_t * p_resul
 /* free result resources */
 int            db_result_free( db_conn_t * conn, result_handle_t * p_result );
 
+/* remove a trigger */
+int            db_drop_trigger( db_conn_t * conn, const char *name );
+
+/* create a trigger */
+int            db_create_trigger( db_conn_t * conn, const char *name, const char *event,
+                               const char *table, const char *body );
 
 /* -------------------- miscellaneous routines ---------------- */
 
