@@ -1190,6 +1190,8 @@ void report_fs_info( int flags )
         }
 
 #ifdef _TMP_FS_MGR
+        if ( result[1].value_u.val_uint == 0 )
+            continue;
 
         total_count += result[1].value_u.val_uint;
 
@@ -1261,6 +1263,9 @@ void report_fs_info( int flags )
 
         }
 #else
+        if ( result[1].value_u.val_uint == 0 )
+            continue;
+
         total_count += result[1].value_u.val_uint;
         total_size += result[2].value_u.val_biguint;
 
