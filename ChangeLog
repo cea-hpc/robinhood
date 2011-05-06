@@ -1,5 +1,4 @@
 Changes between version 2.2.3 and 2.3.0:
-
 - [optim.] instant accounting reports (user/group usage, fs content summary, ...)
 - [reporting] split user usage per group (--split-user-groups option)
 - [reporting] split group usage per user (--split-user-groups option)
@@ -19,10 +18,12 @@ Changes between version 2.2.3 and 2.3.0:
 - [bugfix](tweak) added 'reload' in short help of SLES init script
 - [misc.] code cleaning, error message cleaning, removed some obsolete code
 - [feature] new robinhood flavor to track modifications in a Lustre v2 filesystem, and backup data to an external storage (current status: Alpha testing only).
-- [feature] soft rm + command to retrieve removed files
-- [feature] disaster recovery command
-- [feature] --migrate-file option to archive a single file
-- [feature] pre-maintenance mode to smoothly backup the whole filesystem content before a due date.
+  As part of this feature:
+        - soft rm + command to retrieve removed files
+        - disaster recovery command
+        - "--migrate-file" option to archive a single file
+        - pre-maintenance mode to smoothly backup the whole filesystem content before a due date.
+
 
 Changes between version 2.2.2 and 2.2.3:
 
