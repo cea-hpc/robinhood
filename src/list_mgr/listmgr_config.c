@@ -50,6 +50,9 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
 #endif
 
+     conf->user_acct = TRUE;
+     conf->group_acct = TRUE;
+
     return 0;
 }
 
@@ -95,6 +98,8 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         "commit_behavior",
         "connect_retry_interval_min",
         "connect_retry_interval_max",
+        "user_acct",
+        "group_acct",
         MYSQL_CONFIG_BLOCK,
         SQLITE_CONFIG_BLOCK,
         NULL
@@ -187,8 +192,19 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    CheckUnknownParameters( lmgr_block, LMGR_CONFIG_BLOCK, lmgr_allowed );
+    /* 3) ACCT configuration*/
 
+    rc = GetBoolParam( lmgr_block, LMGR_CONFIG_BLOCK,
+                       "user_acct", 0, &conf->user_acct, NULL, NULL, msg_out);
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetBoolParam( lmgr_block, LMGR_CONFIG_BLOCK,
+                       "group_acct", 0, &conf->group_acct, NULL, NULL, msg_out);
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;      
+
+    CheckUnknownParameters( lmgr_block, LMGR_CONFIG_BLOCK, lmgr_allowed );
 
     /* Database specific parameters */
 #ifdef _MYSQL

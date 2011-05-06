@@ -589,6 +589,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
     /* start with a limited count of entries, to save memory */
     opt.list_count_max = migr_config.db_request_limit;
+    opt.force_no_acct = FALSE;
     nb_returned = 0;
     total_returned = 0;
 

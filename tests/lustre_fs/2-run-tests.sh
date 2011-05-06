@@ -1,6 +1,7 @@
 #/bin/sh
 
 ROOT="/mnt/lustre"
+
 BKROOT="/tmp/backend"
 RBH_OPT=""
 
@@ -71,6 +72,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
+
 CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
@@ -119,23 +121,31 @@ function wait_done
 {
 	max_sec=$1
 	sec=0
-	echo -n "Waiting for copy requests to end."
 	if [[ -n "$MDS" ]]; then
 #		cmd="ssh $MDS egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="ssh $MDS egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="ssh $MDS egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	else
 #		cmd="egrep 'WAITING|RUNNING|STARTED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
-		cmd="egrep -v 'SUCCEED|CANCELED' /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
+		cmd="egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/agent_actions"
 	fi
 
-	while $cmd > /dev/null ; do
-		echo -n "."
-		sleep 1;
-		((sec=$sec+1))
-		(( $sec > $max_sec )) && return 1
-	done
-	$cmd
-	echo " Done ($sec sec)"
+	action_count=`$cmd | wc -l`
+
+	if (( $action_count > 0 )); then
+		echo "Current actions:"
+		$cmd
+
+		echo -n "Waiting for copy requests to end."
+		while (( $action_count > 0 )) ; do
+			echo -n "."
+			sleep 1;
+			((sec=$sec+1))
+			(( $sec > $max_sec )) && return 1
+			action_count=`$cmd | wc -l`
+		done
+		$cmd
+		echo " Done ($sec sec)"
+	fi
 
 	return 0
 }
@@ -504,7 +514,7 @@ function link_unlink_remove_test
         echo "5-Removing all links to file.1..."
 	rm -f $ROOT/link.* $ROOT/file.1 
 
-	sleep 1
+	sleep 2
 	
 	echo "Checking report..."
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
@@ -592,6 +602,7 @@ function mass_softrm
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
 	status=`cat fsinfo.1 | cut -d "," -f 1 | tr -d ' '`
 	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 2 | tr -d ' '`
+	[[ -n $nb ]] || nb=0
 	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries )) || error "$entries entries expected, got $nb"
 	(( `wc -l deferred.1 | awk '{print $1}'`==0 )) || error "no deferred rm expected after first scan"
@@ -891,6 +902,153 @@ function test_rh_report
 		fi
 	done
 	
+}
+
+#test report using accounting table
+function test_rh_acct_report
+{
+        config_file=$1
+        dircount=$2
+        descr_str="$3"
+
+        clean_logs
+
+        for i in `seq 1 $dircount`; do
+                mkdir $ROOT/dir.$i
+                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                # write i MB to each directory
+                for j in `seq 1 $i`; do
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                done
+        done
+
+        echo "1bis. Wait for IO completion..."
+        sync
+
+        echo "2-Scanning..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+
+        echo "3.Checking reports..."
+        $REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct --top-user > rh_no_acct_report.log
+        $REPORT -f ./cfg/$config_file -l MAJOR --csv --top-user > rh_acct_report.log
+
+        nbrowacct=` awk -F ',' 'END {print NF}' rh_acct_report.log`;
+        nbrownoacct=` awk -F ',' 'END {print NF}' rh_no_acct_report.log`;
+        for i in `seq 1 $nbrowacct`; do
+                rowchecked=0;
+                for j in `seq 1 $nbrownoacct`; do
+                        if [[ `cut -d "," -f $i rh_acct_report.log` == `cut -d "," -f $j rh_no_acct_report.log`  ]]; then
+                                rowchecked=1
+                                break
+                        fi
+                done
+                if (( $rowchecked == 1 )); then
+                        echo "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` OK"
+                else
+                        error "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` is different with acct "
+                fi
+        done
+        rm -f rh_no_acct_report.log
+        rm -f rh_acct_report.log
+}
+
+#test --split-user-groups option
+function test_rh_report_split_user_group
+{
+        config_file=$1
+        dircount=$2
+        option=$3
+        descr_str="$4"
+
+        clean_logs
+
+        for i in `seq 1 $dircount`; do
+                mkdir $ROOT/dir.$i
+                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                # write i MB to each directory
+                for j in `seq 1 $i`; do
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                done
+        done
+
+        echo "1bis. Wait for IO completion..."
+        sync
+
+        echo "2-Scanning..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+
+        echo "3.Checking reports..."
+        $REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info $option | head --lines=-2 > rh_report_no_split.log
+        $REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info --split-user-groups $option | head --lines=-2 > rh_report_split.log
+
+        nbrow=` awk -F ',' 'END {print NF}' rh_report_split.log`
+        nb_uniq_user=`sed "1d" rh_report_split.log | cut -d "," -f 1 | uniq | wc -l `
+        for i in `seq 1 $nb_uniq_user`; do
+                check=1
+                user=`sed "1d" rh_report_split.log | awk -F ',' '{print $1;}' | uniq | awk 'NR=='$i'{ print }'`
+                for j in `seq 1 $nbrow`; do
+                        curr_row=`sed "1d" rh_report_split.log | awk -F ',' 'NR==1 { print $'$j'; }' | tr -d ' '`
+                        curr_row_label=` awk -F ',' 'NR==1 { print $'$j'; }' rh_report_split.log | tr -d ' '`
+                        if [[ "$curr_row" =~ "^[0-9]*$" && "$curr_row_label" != "avg_size" ]]; then
+				if [[ `grep -e "dir" rh_report_split.log` ]]; then
+					sum_split_dir=`egrep -e "^$user.*dir.*" rh_report_split.log | awk -F ',' '{array[$1]+=$'$j'}END{for (name in array) {print array[name]}}'`
+					sum_no_split_dir=`egrep -e "^$user.*dir.*" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
+					sum_split_file=`egrep -e "^$user.*file.*" rh_report_split.log | awk -F ',' '{array[$1]+=$'$j'}END{for (name in array) {print array[name]}}'`
+					sum_no_split_file=`egrep -e "^$user.*file.*" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
+                                        if (( $sum_split_dir != $sum_no_split_dir || $sum_split_file != $sum_no_split_file )); then
+                                                check=0
+                                        fi
+				else
+                                        sum_split=`egrep -e "^$user" rh_report_split.log | awk -F ',' '{array[$1]+=$'$j'}END{for (name in array) {print array[name]}}'`
+                                        sum_no_split=`egrep -e "^$user" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
+					if (( $sum_split != $sum_no_split )); then
+                                        	check=0
+                                	fi
+				fi
+                        fi
+                done
+                if (( $check == 1 )); then
+                        echo "Report for user $user: OK"
+                else
+                        error "Report for user $user is wrong"
+                fi
+        done
+
+        rm -f rh_report_no_split.log
+        rm -f rh_report_split.log
+
+}
+
+#test acct table and triggers creation
+function test_acct_table
+{
+        config_file=$1
+        dircount=$2
+        descr_str="$3"
+
+        clean_logs
+	
+        for i in `seq 1 $dircount`; do
+	        mkdir $ROOT/dir.$i
+                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                # write i MB to each directory
+                for j in `seq 1 $i`; do
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                done
+        done
+
+        echo "1bis. Wait for IO completion..."
+        sync
+
+        echo "2-Scanning..."
+        $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+
+        echo "3.Checking acct table and triggers creation"
+        grep -q "Table ACCT_STAT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
+        grep -q "Trigger ACCT_ENTRY_INSERT created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_INSERT trigger"
+        grep -q "Trigger ACCT_ENTRY_UPDATE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
+        grep -q "Trigger ACCT_ENTRY_DELETE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
+
 }
 
 function path_test
@@ -1406,8 +1564,8 @@ function test_cnt_trigger
 function test_ost_trigger
 {
 	config_file=$1
-	mb_h_watermark=$2
-	mb_l_watermark=$3
+	mb_h_threshold=$2
+	mb_l_threshold=$3
 	policy_str="$4"
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
@@ -1422,9 +1580,9 @@ function test_ost_trigger
 
 	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
 
-	#create test tree of archived files (2M each=1MB/ost) until we reach high watermark
-	((count=$mb_h_watermark - $empty_vol + 1))
-	for i in `seq $empty_vol $mb_h_watermark`; do
+	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
+	((count=$mb_h_threshold - $empty_vol + 1))
+	for i in `seq $empty_vol $mb_h_threshold`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
@@ -1448,7 +1606,7 @@ function test_ost_trigger
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
 	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
-	((need_purge=$full_vol-$mb_l_watermark))
+	((need_purge=$full_vol-$mb_l_threshold))
 	echo "Need to purge $need_purge MB on OST#0"
 
 	# scan
@@ -1486,8 +1644,8 @@ function test_ost_trigger
 	full_vol1=$(($full_vol1/1024))
 	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
 
-	if (($full_vol1 > $mb_h_watermark )); then
-		error ": OST#1 is not expected to exceed high watermark!"
+	if (($full_vol1 > $mb_h_threshold )); then
+		error ": OST#1 is not expected to exceed high threshold!"
 	elif (($purge_ost1 != 0)); then
 		error ": no purge expected on OST#1"
 	else
@@ -1519,11 +1677,11 @@ function test_trigger_check
 	# - root quota  > user_quota
 
 	# initial inode count
-	empty_count=`df -i $ROOT/ | grep "$ROOT" | awk '{print $(NF-3)}'`
+	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
 	((file_count=$max_count-$empty_count))
 
 	# compute file size to exceed max vol and user quota
-	empty_vol=`df -k $ROOT  | grep "$ROOT" | awk '{print $(NF-3)}'`
+	empty_vol=`df -k $ROOT  | xargs | awk '{print $(NF-3)}'`
 	((empty_vol=$empty_vol/1024))
 
 	if (( $empty_vol < $max_vol_mb )); then
@@ -1564,7 +1722,7 @@ function test_trigger_check
 	$REPORT -f ./cfg/$config_file -i
 
 	# check purge triggers
-	$RH -f ./cfg/$config_file --check-watermarks --once -l FULL -L rh_purge.log
+	$RH -f ./cfg/$config_file --check-thresholds --once -l FULL -L rh_purge.log
 
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
@@ -1591,11 +1749,11 @@ function test_trigger_check
 	if (($nb_release > 0)); then
 		error ": $nb_release files released, no purge expected"
 	elif (( $count_trig != $expect_count )); then
-		error ": trigger reported $count_trig files over watermark, $expect_count expected"
+		error ": trigger reported $count_trig files over threshold, $expect_count expected"
 	elif (( $vol_fs_trig_mb != $expect_vol_fs )); then
-		error ": trigger reported $vol_fs_trig_mb MB over watermark, $expect_vol_fs expected"
+		error ": trigger reported $vol_fs_trig_mb MB over threshold, $expect_vol_fs expected"
 	elif (( $vol_user_trig_mb != $expect_vol_user )); then
-		error ": trigger reported $vol_user_trig_mb MB over watermark, $expect_vol_user expected"
+		error ": trigger reported $vol_user_trig_mb MB over threshold, $expect_vol_user expected"
 	else
 		echo "OK: all checks successful"
 	fi
@@ -1624,6 +1782,7 @@ function test_periodic_trigger
 	fi
 	clean_logs
 
+	t0=`date +%s`
 	echo "1-Populating filesystem..."
 	# create 3 files of each type
 	# (*.1, *.2, *.3, *.4)
@@ -1655,13 +1814,16 @@ function test_periodic_trigger
 	$RH -f ./cfg/$config_file --purge -l DEBUG -L rh_purge.log &
 	sleep 2
 	
+	t1=`date +%s`
+	((delta=$t1 - $t0))
+
 	# it first must have purged *.1 files (not others)
 	check_released "$ROOT/file.1" || error "$ROOT/file.1 should have been released"
 	check_released "$ROOT/foo.1"  || error "$ROOT/foo.1 should have been released"
 	check_released "$ROOT/bar.1"  || error "$ROOT/bar.1 should have been released"
-	check_released "$ROOT/file.2" && error "$ROOT/file.2 shouldn't have been released"
-	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released"
-	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released"
+	check_released "$ROOT/file.2" && error "$ROOT/file.2 shouldn't have been released after $delta s"
+	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released after $delta s"
+	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released after $delta s"
 
 	sleep $(( $sleep_time + 2 ))
 	# now, *.2 must have been purged
@@ -2749,6 +2911,11 @@ run_test 101b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
 run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
 run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
 run_test 102	update_test test_updt.conf 5 30 "db update policy"
+run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
+run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
+run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
+run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
+
 
 #### policy matching tests  ####
 
@@ -2784,6 +2951,15 @@ run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
+
+run_test 401a   test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
+run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
+run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
+run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
+run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
+
+run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
+run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
@@ -2823,4 +2999,5 @@ if (( $RC > 0 )); then
 else
 	echo "All tests passed ($SUCCES successful, $SKIP skipped)"
 fi
+rm -f $TMPERR_FILE
 exit $RC

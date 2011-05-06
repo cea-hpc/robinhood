@@ -207,26 +207,26 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
         FormatFileSize( tmp2, 128, p_trigger->hw_volume );
 
         /* compare used volume to threshold */
-        DisplayLog( LVL_VERB, RESMON_TAG, "%s usage: %s / high watermark: %s", storage_descr,
+        DisplayLog( LVL_VERB, RESMON_TAG, "%s usage: %s / high threshold: %s", storage_descr,
                     tmp1, tmp2 );
 
         if ( used_vol < p_trigger->hw_volume )
         {
             DisplayLog( LVL_DEBUG, RESMON_TAG,
-                        "%s usage is under high watermark: nothing to do.", storage_descr );
+                        "%s usage is under high threshold: nothing to do.", storage_descr );
             return 0;
         }
         else if ( p_trigger->alert_hw )
         {
-           snprintf( buff, 1024, "High watermark reached on %s (%s)",
+           snprintf( buff, 1024, "High threshold reached on %s (%s)",
                      storage_descr, global_config.fs_path );
-           RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high watermark: %s",
+           RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high threshold: %s",
                        buff, tmp1, used_pct, tmp2 );
         }
         else
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "High watermark reached on %s (%s): "
-                        "spaced used: %s (%.2f%%), high watermark: %s",
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "High threshold reached on %s (%s): "
+                        "spaced used: %s (%.2f%%), high threshold: %s",
                         storage_descr, global_config.fs_path, tmp1, used_pct, tmp2 );
         }
     }
@@ -236,34 +236,35 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
             ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
 
         DisplayLog( LVL_VERB, RESMON_TAG,
-                    "%s usage: %.2f%% (%"PRIu64" blocks) / high watermark: %.2f%% (%lu blocks)",
+                    "%s usage: %.2f%% (%"PRIu64" blocks) / high threshold: %.2f%% (%lu blocks)",
                     storage_descr, used_pct, p_statfs->f_blocks - p_statfs->f_bfree,
                     p_trigger->hw_percent, used_hw );
 
         if ( used_pct < p_trigger->hw_percent )
         {
             DisplayLog( LVL_DEBUG, RESMON_TAG,
-                        "%s usage is under high watermark: nothing to do.", storage_descr );
+                        "%s usage is under high threshold: nothing to do.", storage_descr );
             return 0;
         }
         else if ( p_trigger->alert_hw )
         {
            FormatFileSize( tmp1, 128, used_vol );
-           snprintf( buff, 1024, "High watermark reached on %s (%s)",
+           snprintf( buff, 1024, "High threshold reached on %s (%s)",
                      storage_descr, global_config.fs_path );
-           RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high watermark: %.2f%%",
+           RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high threshold: %.2f%%",
                        buff, tmp1, used_pct, p_trigger->hw_percent );
         }
         else
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "High watermark reached on %s (%s): "
-                        "spaced used: %s (%.2f%%), high watermark: %.2f%%",
+            FormatFileSize( tmp1, 128, used_vol );
+            DisplayLog( LVL_MAJOR, RESMON_TAG, "High threshold reached on %s (%s): "
+                        "spaced used: %s (%.2f%%), high threshold: %.2f%%",
                         storage_descr, global_config.fs_path,  tmp1, used_pct, p_trigger->hw_percent );
         }
     }
 
-    /* if we reach this point, high watermark is exceeded.
-     * compute the amount of data for reaching low watermark */
+    /* if we reach this point, high threshold is exceeded.
+     * compute the amount of data for reaching low threshold */
 
     if ( p_trigger->lw_type == VOL_THRESHOLD )
     {
@@ -282,14 +283,14 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
     }
     else
     {
-        DisplayLog( LVL_CRIT, RESMON_TAG, "Unexpected Low Watermark type %d. Trigger skipped.",
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Unexpected Low Threshold type %d. Trigger skipped.",
                     p_trigger->lw_type );
         return -EINVAL;
     }
 
     if ( p_statfs->f_blocks - p_statfs->f_bfree <= block_target )
     {
-        DisplayLog( LVL_EVENT, RESMON_TAG, "Usage is already under low watermark. Do nothing." );
+        DisplayLog( LVL_EVENT, RESMON_TAG, "Usage is already under low threshold. Do nothing." );
         return 0;
     }
 
@@ -342,38 +343,38 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
     /* check it is a condition on inode count */
     if (( p_trigger->hw_type != COUNT_THRESHOLD ) || ( p_trigger->lw_type != COUNT_THRESHOLD ))
     {
-        DisplayLog( LVL_CRIT, RESMON_TAG, "Unexpected watermark types %d, %d. Trigger skipped.",
+        DisplayLog( LVL_CRIT, RESMON_TAG, "Unexpected threshold types %d, %d. Trigger skipped.",
                     p_trigger->hw_type, p_trigger->lw_type );
         return -EINVAL;
     }
 
-    DisplayLog( LVL_EVENT, RESMON_TAG, "%s entry count: %llu / high watermark: %llu",
+    DisplayLog( LVL_EVENT, RESMON_TAG, "%s entry count: %llu / high threshold: %llu",
                 storage_descr, inode_used, p_trigger->hw_count );
 
     if ( inode_used < p_trigger->hw_count )
     {
         DisplayLog( LVL_VERB, RESMON_TAG,
-                    "%s inode count is under high watermark: nothing to do.",
+                    "%s inode count is under high threshold: nothing to do.",
                     storage_descr );
         return 0;
     }
     else if ( p_trigger->alert_hw )
     {
        char buff[1024];
-       snprintf( buff, 1024, "High watermark reached on %s (%s)",
+       snprintf( buff, 1024, "High threshold reached on %s (%s)",
                  storage_descr, global_config.fs_path );
-       RaiseAlert( buff, "%s\nentry count: %Lu, high watermark: %Lu",
+       RaiseAlert( buff, "%s\nentry count: %Lu, high threshold: %Lu",
                    buff, inode_used, p_trigger->hw_count );
     }
 
-    /* if we reach this point, high watermark is exceeded compute the amount of data for reaching low watermark */
+    /* if we reach this point, high threshold is exceeded compute the amount of data for reaching low threshold */
     DisplayLog( LVL_VERB, RESMON_TAG, "Target entry count: %llu",
                 p_trigger->lw_count );
 
     if ( inode_used < p_trigger->lw_count )
     {
         DisplayLog( LVL_EVENT, RESMON_TAG,
-                    "Inode count is already under low watermark. Do nothing." );
+                    "Inode count is already under low threshold. Do nothing." );
         return 0;
     }
 
@@ -480,7 +481,7 @@ static int check_periodic_trigger( unsigned trigger_index )
 
     FlushLogs(  );
 
-    if ( ( blocks_purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    if ( (!terminate) && ( blocks_purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
     {
         DisplayLog( LVL_EVENT, RESMON_TAG,
                     "Waiting %lus before performing 'df' on other storage units.",
@@ -556,11 +557,11 @@ static int check_global_trigger( unsigned trigger_index )
     if ( module_args.flags & FLAG_CHECK_ONLY )
     {
         if ( IS_COUNT_TRIGGER( trigger_index ) )
-            snprintf(status_str, 1024, "High watermark exceeded on inode count: "
+            snprintf(status_str, 1024, "High threshold exceeded on inode count: "
                      "%Lu inodes used",
                      trigger_status_list[trigger_index].last_count );
         else
-            snprintf(status_str, 1024, "High watermark exceeded on filesystem usage: "
+            snprintf(status_str, 1024, "High threshold exceeded on filesystem usage: "
                      "%.2f%% used", trigger_status_list[trigger_index].last_usage );
 
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -707,7 +708,7 @@ static int check_global_trigger( unsigned trigger_index )
 
     FlushLogs(  );
 
-    if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    if ( (!terminate) && ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
     {
         DisplayLog( LVL_EVENT, RESMON_TAG,
                     "Waiting %lus before performing 'df' on other storage units.",
@@ -798,7 +799,7 @@ static int check_ost_trigger( unsigned trigger_index )
         /* only purge if check_only is not set */
         if ( module_args.flags & FLAG_CHECK_ONLY )
         {
-            snprintf(status_str, 1024, "High watermark exceeded on %s: "
+            snprintf(status_str, 1024, "High threshold exceeded on %s: "
                      "%.2f%% used", ostname, ost_usage );
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             update_trigger_status( trigger_index, TRIG_OK );
@@ -876,7 +877,7 @@ static int check_ost_trigger( unsigned trigger_index )
 
         FlushLogs(  );
 
-        if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+        if ( (!terminate) && ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
         {
             DisplayLog( LVL_EVENT, RESMON_TAG,
                         "Waiting %lus before performing 'df' on other storage units.",
@@ -987,7 +988,7 @@ static int check_pool_trigger( unsigned trigger_index )
         /* only purge if check_only is not set */
         if ( module_args.flags & FLAG_CHECK_ONLY )
         {
-            snprintf(status_str, 1024, "High watermark exceeded on %s: "
+            snprintf(status_str, 1024, "High threshold exceeded on %s: "
                      "%.2f%% used", pool_string, pool_usage );
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             update_trigger_status( trigger_index, TRIG_OK );
@@ -1064,7 +1065,7 @@ static int check_pool_trigger( unsigned trigger_index )
 
         FlushLogs(  );
 
-        if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+        if ( (!terminate) && ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
         {
             DisplayLog( LVL_EVENT, RESMON_TAG,
                         "Waiting %lus before performing 'df' on other storage units.",
@@ -1121,7 +1122,7 @@ static int check_user_trigger( unsigned trigger_index )
 
     }
 
-    /* compute high watermark, in number of blocks */
+    /* compute high threshold, in number of blocks */
 
     if ( p_trigger->hw_type == VOL_THRESHOLD )
     {
@@ -1137,7 +1138,7 @@ static int check_user_trigger( unsigned trigger_index )
         max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
     }
 
-    /* compute low watermark */
+    /* compute low threshold */
     if ( p_trigger->lw_type == VOL_THRESHOLD )
         low_blk512 = p_trigger->lw_volume / DEV_BSIZE;
     else
@@ -1154,7 +1155,7 @@ static int check_user_trigger( unsigned trigger_index )
     user_info[0].sort_flag = SORT_NONE;
     user_info[0].filter = FALSE;
 
-    /* select users whose sum(blocks) > high_watermark */
+    /* select users whose sum(blocks) > high_threshold */
     user_info[1].attr_index = ATTR_INDEX_blocks;
     user_info[1].report_type = REPORT_SUM;
     user_info[1].sort_flag = SORT_NONE;
@@ -1162,14 +1163,13 @@ static int check_user_trigger( unsigned trigger_index )
     user_info[1].filter_compar = MORETHAN_STRICT;
     user_info[1].filter_value.val_biguint = max_blk512;
 
-    /* filtre non-whitelisted/non-invalid entries */
+    /* filtre non-invalid entries */
     lmgr_simple_filter_init( &filter );
+#if 0
     fv.val_bool = TRUE;
-#ifdef ATTR_INDEX_whitelisted
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0 );
-#endif
 #ifdef ATTR_INDEX_invalid
     lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0 );
+#endif
 #endif
 
     /* if a specific set of users is specified, make a filter for this */
@@ -1203,7 +1203,8 @@ static int check_user_trigger( unsigned trigger_index )
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }
     }
-
+    
+    
     it = ListMgr_Report( &lmgr, user_info, 2, &filter, NULL );
 
     lmgr_simple_filter_free( &filter );
@@ -1224,7 +1225,7 @@ static int check_user_trigger( unsigned trigger_index )
         char           timestamp[128];
 
         DisplayLog( LVL_EVENT, RESMON_TAG,
-                    "User '%s' exceeds high watermark: used: %llu blocks / high watermark: %llu blocks (x%u).",
+                    "User '%s' exceeds high threshold: used: %llu blocks / high threshold: %llu blocks (x%u).",
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 
@@ -1386,7 +1387,7 @@ static int check_group_trigger( unsigned trigger_index )
 
     }
 
-    /* compute high watermark, in number of blocks */
+    /* compute high threshold, in number of blocks */
 
     if ( p_trigger->hw_type == VOL_THRESHOLD )
     {
@@ -1402,7 +1403,7 @@ static int check_group_trigger( unsigned trigger_index )
         max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
     }
 
-    /* compute low watermark */
+    /* compute low threshold */
     if ( p_trigger->lw_type == VOL_THRESHOLD )
         low_blk512 = p_trigger->lw_volume / DEV_BSIZE;
     else
@@ -1419,7 +1420,7 @@ static int check_group_trigger( unsigned trigger_index )
     group_info[0].sort_flag = SORT_NONE;
     group_info[0].filter = FALSE;
 
-    /* select groups whose sum(blocks) > high_watermark */
+    /* select groups whose sum(blocks) > high_threshold */
     group_info[1].attr_index = ATTR_INDEX_blocks;
     group_info[1].report_type = REPORT_SUM;
     group_info[1].sort_flag = SORT_NONE;
@@ -1427,14 +1428,15 @@ static int check_group_trigger( unsigned trigger_index )
     group_info[1].filter_compar = MORETHAN_STRICT;
     group_info[1].filter_value.val_biguint = max_blk512;
 
-    /* filtre non-whitelisted/non-invalid entries */
+    /* filtre non-invalid entries */
     lmgr_simple_filter_init( &filter );
+
+#if 0
+    /** @TODO if accounting is enabled, don't filter to take benefits of accounting table */
     fv.val_bool = TRUE;
-#ifdef ATTR_INDEX_whitelisted
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0 );
-#endif
 #ifdef ATTR_INDEX_invalid
     lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0 );
+#endif
 #endif
 
     /* if a specific set of groups is specified, make a filter for this */
@@ -1489,7 +1491,7 @@ static int check_group_trigger( unsigned trigger_index )
         char           group_desc[128];
 
         DisplayLog( LVL_EVENT, RESMON_TAG,
-                    "Group '%s' exceeds high watermark: used: %llu blocks / high watermark: %llu blocks (x%u).",
+                    "Group '%s' exceeds high threshold: used: %llu blocks / high threshold: %llu blocks (x%u).",
                     result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
                     DEV_BSIZE );
 

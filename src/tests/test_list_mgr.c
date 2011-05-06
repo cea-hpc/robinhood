@@ -271,6 +271,12 @@ int main( int argc, char **argv )
     printf( "%u entries inserted in %us (%u entries/s)\n", i,
             ( unsigned int ) ( t2 - t1 ), ( unsigned int ) ( i / ( t2 - t1 ) ) );
 
+    /* */
+    db_create_trigger();
+
+
+    exit(0);
+
 
     /* SELECT entries whose status is not STATUS_MODIFIED, mtime <= now - 20000, not whitelisted, on OST 100 */
 

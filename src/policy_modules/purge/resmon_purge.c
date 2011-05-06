@@ -582,6 +582,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
     /* start with a limited count of entries, to save memory */
     opt.list_count_max = resmon_config.db_request_limit;
+    opt.force_no_acct = FALSE;
     nb_returned = 0;
     total_returned = 0;
 

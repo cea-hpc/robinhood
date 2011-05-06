@@ -315,6 +315,4 @@ x démarrage d'une purge sur un autre critère que le df: typiquement % quota/gr
 - démarrage d'une purge sur un script externe
 - plages horaires pour les parcours et les purges
 x ne pas descendre dans un répertoire (ex: .snapshot)
-x one-shot avec watermarks
-x one-shot: purge par plus ancien (en fait démon qui s'arrête qd le df < low watermark)
 

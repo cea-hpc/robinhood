@@ -112,6 +112,8 @@ typedef struct db_value_t
     db_type_u      value_u;
 } db_value_t;
 
+#define DB_IS_NULL( _p_v ) ( ((_p_v)->type == DB_TEXT) && ((_p_v)->value_u.val_str == NULL) )
+
 /** generic function from generating fields: 1rst parameter points to the field
  * to be generated. 2nd parameter is the source field.
  */
@@ -187,6 +189,11 @@ typedef struct lmgr_config_t
     unsigned int   commit_behavior;              /* 0: autocommit, 1: commit every transaction, <n>: commit every <n> transactions */
     unsigned int   connect_retry_min;            /* min retry delay when connection is lost */
     unsigned int   connect_retry_max;            /* max retry delay when connection is lost */
+
+
+    /* XXXXXX TEMPORAIREMENT valeur des options pour l'accounting */
+    int user_acct;
+    int group_acct;
 } lmgr_config_t;
 
 /**
@@ -211,6 +218,7 @@ struct lmgr_rm_list_t;
 typedef struct lmgr_iter_opt_t
 {
     unsigned int   list_count_max;               /* max entries to be returned by iterator or report */
+    unsigned int   force_no_acct:1;              /* don't use acct table for reports */
 } lmgr_iter_opt_t;
 
 /** Set of attributes for a FS entry */
@@ -296,7 +304,7 @@ extern int     readonly_attr_set;
 /* -------- Main functions -------- */
 
 /** Initialize the List Manager */
-int            ListMgr_Init( const lmgr_config_t * p_conf );
+int            ListMgr_Init( const lmgr_config_t * p_conf, int report_only );
 
 /** Create a connection to the database for current thread */
 int            ListMgr_InitAccess( lmgr_t * p_mgr );

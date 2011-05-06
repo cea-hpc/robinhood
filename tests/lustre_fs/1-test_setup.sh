@@ -19,7 +19,10 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 
 	if [[ $status != "enabled" ]]; then
 		echo "enabled" >  /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control
+		sleep 2
 	fi
+
+	echo 10 > /proc/fs/lustre/mdt/lustre-MDT0000/hsm/grace_delay
 
 	echo "Checking if copytool is already running..."
 	if (( `pgrep -f lhsmd_posix | wc -l` > 0 )); then

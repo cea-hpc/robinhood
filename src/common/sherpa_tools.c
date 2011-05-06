@@ -31,7 +31,7 @@
 static int tab_cache_size = 0;
 static struct EntreeCache tab_cache[MAX_CACHE_DIR];
 
-int InitSherpa(char * sherpa_config, char * log_file, char * report_file )
+int InitSherpa(char * sherpa_config, char * log_file, char * event_file )
 {
     char msg[1024];
     int rc;
@@ -39,7 +39,7 @@ int InitSherpa(char * sherpa_config, char * log_file, char * report_file )
     if ( putenv("CODE=rbh-sherpa") )
         DisplayLog( LVL_MAJOR, SHERPA_TAG, "Error setting CODE environment variable" );
         
-    InitialiseLogFichiers( "sherpa", log_file, report_file );
+    InitialiseLogFichiers( "sherpa", log_file, event_file );
 
     /* set default configuration */
     ConfigParDefaut();

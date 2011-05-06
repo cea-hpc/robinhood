@@ -457,7 +457,7 @@ static int reload_purge_policy( purge_policy_t *policy )
 {
     /* Reloading purge policies dynamically is quite complex:
      * 1) compare triggers: if they are the same (same count, same type)
-     *    update their simple parameters: watermark levels and check interval
+     *    update their simple parameters: thresholds and check interval
      * 2) compare whitelist expressions count and structures.
      *    If the structure is the same (same parameters, comparators, etc.) only update
      *    the numerical values for conditions.
@@ -2361,7 +2361,7 @@ static int reload_policies( policies_t * policies )
 
     /* Reloading purge policies dynamically is quite complex:
      * 1) compare triggers: if they are the same (same count, same type)
-     *    update their simple parameters: watermark levels and check interval
+     *    update their simple parameters: thresholds and check interval
      * 2) compare whitelist expressions count and structures.
      *    If the structure is the same (same parameters, comparators, etc.) only update
      *    the numerical values for conditions.

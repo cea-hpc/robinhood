@@ -81,7 +81,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
     values_curr = values + strlen( values );
 
     /* create field and values lists */
-    attrmask2fieldlist( fields_curr, p_info->attr_mask, T_MAIN, TRUE, FALSE );
+    attrmask2fieldlist( fields_curr, p_info->attr_mask, T_MAIN, TRUE, FALSE, "", "" );
     attrset2valuelist( p_mgr, values_curr, p_info, T_MAIN, TRUE );
 
     sprintf( query, "INSERT INTO " MAIN_TABLE "(%s) VALUES (%s)", fields, values );
@@ -118,7 +118,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         /* Create field and values lists.
          * Do nothing if no fields are to be set.
          */
-        if ( attrmask2fieldlist( fields_curr, p_info->attr_mask, T_ANNEX, TRUE, FALSE ) > 0 )
+        if ( attrmask2fieldlist( fields_curr, p_info->attr_mask, T_ANNEX, TRUE, FALSE, "", "" ) > 0 )
         {
 
             attrset2valuelist( p_mgr, values_curr, p_info, T_ANNEX, TRUE );

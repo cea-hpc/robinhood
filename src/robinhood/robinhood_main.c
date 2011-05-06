@@ -133,6 +133,7 @@ static struct option option_tab[] = {
     {"purge", no_argument, NULL, 'P'},
     {"release", no_argument, NULL, 'P'},
     {"check-watermarks", no_argument, NULL, 'C'},
+    {"check-thresholds", no_argument, NULL, 'C'},
 #endif
 #ifdef HAVE_MIGR_POLICY
     {"migrate", no_argument, NULL, 'M'},
@@ -242,8 +243,8 @@ static const char *help_string =
 #ifdef HAVE_PURGE_POLICY
     "    " _B "-P" B_ ", " _B "--purge" B_ "\n"
     "        Purge non-directory entries according to policy.\n"
-    "    " _B "-C" B_ ", " _B "--check-watermarks" B_ "\n"
-    "        Only check watermarks of purge triggers without purging.\n"
+    "    " _B "-C" B_ ", " _B "--check-thresholds" B_ "\n"
+    "        Only check thresholds without purging.\n"
 #endif
 #ifdef HAVE_RMDIR_POLICY
     "    " _B "-R" B_ ", " _B "--rmdir" B_ "\n"
@@ -1163,7 +1164,7 @@ int main( int argc, char **argv )
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &rh_config.lmgr_config );
+    rc = ListMgr_Init( &rh_config.lmgr_config, FALSE );
     if ( rc )
     {
         DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing list manager", rc );
