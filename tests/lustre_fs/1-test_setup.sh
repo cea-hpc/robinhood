@@ -36,3 +36,4 @@ fi
 # workaround for statahead issues
 f=`ls /proc/fs/lustre/llite/lustre-*/statahead_max`
 echo 0 > $f
+

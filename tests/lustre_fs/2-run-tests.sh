@@ -492,7 +492,7 @@ function link_unlink_remove_test
 
 	sleep 1
 
-	if (( $is_hsm != 0 )); then
+	if (( $is_lhsm != 0 )); then
 		echo "3-Archiving file....1"
 		flush_data
 		lfs hsm_archive $ROOT/file.1 || error "executing lfs hsm_archive"
