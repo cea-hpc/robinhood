@@ -64,7 +64,7 @@ void abort_migration()
     migr_abort = TRUE;
 }
 
-/** 
+/**
  * Migration helpers (depending on purpose)
  * @return posix error code
  */
@@ -88,7 +88,7 @@ static migr_status_t MigrateEntry_ByFid( const entry_id_t * p_entry_id,
     return LustreHSM_Action( HUA_ARCHIVE, p_entry_id, hints, archive_num );
 }
 #elif defined(_SHERPA)
-static migr_status_t MigrateEntry_ByPath( const char * path, char *hints ) 
+static migr_status_t MigrateEntry_ByPath( const char * path, char *hints )
 {
     char tmp[1024];
     if ( hints )
@@ -216,7 +216,6 @@ static int heuristic_end_of_list( time_t last_mod_time )
     else
         return FALSE;
 }
-
 
 
 /**

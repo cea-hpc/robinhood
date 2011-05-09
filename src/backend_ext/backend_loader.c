@@ -170,7 +170,7 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line( output, 1, "mnt_type      = nfs;");
 #ifdef HAVE_SHOOK
     print_line( output, 1, "# shook server configuration" );
-    print_line( output, 1, "shook_cfg     = \"/etc/shooksvr.conf\"" );
+    print_line( output, 1, "shook_cfg     = \"/etc/shooksvr.conf\";" );
 #endif
     print_line( output, 1, "# copy wrapper script" );
     print_line( output, 1, "action_cmd    = \"/usr/sbin/rbhext_tool\";" );

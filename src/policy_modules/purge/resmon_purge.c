@@ -29,6 +29,11 @@
 #ifdef _HSM_LITE
 #include "backend_mgr.h"
 #include "backend_ext.h"
+
+#ifdef HAVE_SHOOK
+#include <shook_svr.h>
+#endif
+
 #endif
 
 #include <sys/types.h>
@@ -42,8 +47,8 @@
 
 /* Module configuration */
 resource_monitor_config_t resmon_config;
-static int resmon_flags = 0;
 
+static int resmon_flags = 0;
 static int purge_abort = FALSE;
 
 #define ignore_policies (resmon_flags & FLAG_IGNORE_POL)
@@ -57,8 +62,8 @@ entry_queue_t  purge_queue;
  * @return posix error code (from errno)
  */
 
-#ifdef _LUSTRE_HSM
-/** purge by FID in Lustre-HSM */
+#if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
+/** purge by FID in Lustre-HSM and HSMLITE */
 static int PurgeEntry_ByFid( const entry_id_t * p_entry_id )
 {
     DisplayLog( LVL_EVENT, PURGE_TAG, "Releasing(" DFID_NOBRACE ")", PFID( p_entry_id ) );
@@ -66,7 +71,11 @@ static int PurgeEntry_ByFid( const entry_id_t * p_entry_id )
     if ( dry_run )
         return 0;
 
+#ifdef _LUSTRE_HSM
     return LustreHSM_Action( HUA_RELEASE, p_entry_id, NULL, 0 );
+#elif defined(HAVE_SHOOK)
+   return shook_release(p_entry_id);
+#endif
 }
 #else
 /** purge by path for other purpose */
@@ -118,44 +127,6 @@ static void FreePurgeItem( purge_item_t * item )
 }
 
 
-/**
- *  Sum the number of acks from a status tab
- */
-static inline unsigned int ack_count( const unsigned int *status_tab )
-{
-    unsigned int   i, sum;
-    sum = 0;
-
-    for ( i = 0; i < PURGE_ST_COUNT; i++ )
-        sum += status_tab[i];
-
-    return sum;
-}
-
-
-/**
- * build a filter from policies, to optimize DB queries.
- */
-static int set_purge_optimization_filters(lmgr_filter_t * p_filter)
-{
-    /** @TODO build a filter for getting the union of all filesets/conditions */
-
-    /* If there is a single policy, try to convert its condition
-     * to a simple filter.
-     */
-    if ( policies.purge_policies.policy_count == 1 )
-    {
-        if ( convert_boolexpr_to_simple_filter( &policies.purge_policies.policy_list[0].condition,
-             p_filter ) )
-        {
-            DisplayLog( LVL_FULL, PURGE_TAG, "Could not convert purge policy '%s' to simple filter.",
-                policies.purge_policies.policy_list[0].policy_id );
-        }
-    }
-    
-    return 0;
-}
-
 static int heuristic_end_of_list( time_t last_access_time )
 {
     entry_id_t     void_id;
@@ -195,6 +166,45 @@ static int heuristic_end_of_list( time_t last_access_time )
     }
     else
         return FALSE;
+}
+
+
+/**
+ *  Sum the number of acks from a status tab
+ */
+static inline unsigned int ack_count( const unsigned int *status_tab )
+{
+    unsigned int   i, sum;
+    sum = 0;
+
+    for ( i = 0; i < PURGE_ST_COUNT; i++ )
+        sum += status_tab[i];
+
+    return sum;
+}
+
+
+/**
+ * build a filter from policies, to optimize DB queries.
+ */
+static int set_purge_optimization_filters(lmgr_filter_t * p_filter)
+{
+    /** @TODO build a filter for getting the union of all filesets/conditions */
+
+    /* If there is a single policy, try to convert its condition
+     * to a simple filter.
+     */
+    if ( policies.purge_policies.policy_count == 1 )
+    {
+        if ( convert_boolexpr_to_simple_filter( &policies.purge_policies.policy_list[0].condition,
+             p_filter ) )
+        {
+            DisplayLog( LVL_FULL, PURGE_TAG, "Could not convert purge policy '%s' to simple filter.",
+                policies.purge_policies.policy_list[0].policy_id );
+        }
+    }
+    
+    return 0;
 }
 
 /** wait until the queue is empty or migrations timed-out.
@@ -262,7 +272,6 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
     unsigned int need_fresh_attrs = 0;
 #endif
 
-
     ATTR_MASK_INIT( p_attr_set );
 
     /* Retrieve at least: fullpath, last_access, size, blcks
@@ -271,12 +280,16 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
      * Also retrieve info needed for blacklist/whitelist rules.
      */
     ATTR_MASK_SET( p_attr_set, fullpath );
+    ATTR_MASK_SET( p_attr_set, path_update );
     ATTR_MASK_SET( p_attr_set, last_access );
     ATTR_MASK_SET( p_attr_set, size );
     ATTR_MASK_SET( p_attr_set, blocks );
     ATTR_MASK_SET( p_attr_set, last_mod );
     ATTR_MASK_SET( p_attr_set, stripe_info );
     ATTR_MASK_SET( p_attr_set, stripe_items );
+#ifdef ATTR_INDEX_status
+    ATTR_MASK_SET( p_attr_set, status );
+#endif
     ATTR_MASK_SET( p_attr_set, release_class );
     ATTR_MASK_SET( p_attr_set, rel_cl_update );
     p_attr_set->attr_mask |= policies.purge_policies.global_attr_mask;
@@ -895,7 +908,6 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
                 }
             }
         } /* end get path */
-
     }
 
 #ifdef _LUSTRE_HSM
@@ -1324,6 +1336,15 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
             ATTR_MASK_SET( &new_attr_set, no_archive );
         }
     }
+#elif defined(_HSM_LITE)
+    rc = PurgeEntry_ByFid( &p_item->entry_id );
+
+    if ( rc == 0 )
+    {
+        /* new status is released */
+        ATTR_MASK_SET( &new_attr_set, status );
+        ATTR( &new_attr_set, status ) = STATUS_RELEASED;
+    }
 #else
     rc = PurgeEntry_ByPath( ATTR( &p_item->entry_attr, fullpath ) );
 #endif
@@ -1373,11 +1394,13 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
                        (time_t)ATTR( &new_attr_set, last_mod ),
                        strstorage );
 
-#ifdef _LUSTRE_HSM
-        /* do not remove the entry immediatly from database:
+#if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
+        /* Lustre-HSM: do not remove the entry from database:
          * a chglog record will confirm that the entry has been
          * release successfully */
+        /* Shook: don't remove the entry (need to keep path in backend) */
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
+
 #else
         /* remove it from database */
         rc = ListMgr_Remove( lmgr, &p_item->entry_id );

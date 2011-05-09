@@ -676,6 +676,14 @@ function purge_test
 		fi
 	fi
 
+	# use robinhood for flushing
+	if (( $is_hsmlite != 0 )); then
+		echo "2bis-Archiving files"
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing migrate-file"
+		arch_count=`grep Archived rh_migr.log | wc -l`
+		(( $arch_count == 11 )) || error "$11 archive commands expected"
+	fi
+
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
@@ -758,6 +766,9 @@ function purge_size_filesets
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
+	if (( $is_hsmlite != 0 )); then
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+    fi
 
 	echo "3-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
@@ -1261,7 +1272,11 @@ function update_test
 		nb_getattr=`grep getattr=1 $LOG | wc -l`
 		egrep -e "getattr=1|needed because" $LOG
 		echo "nb attr update: $nb_getattr"
-		(( $nb_getattr == 1 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t)"
+
+		expect_attr=1
+		(( $shook != 0 && $i == 1 )) && expect_attr=2 # one for shook lock dir ### XXX todo ignore .shook_dir events
+
+		(( $nb_getattr == $expect_attr )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t)"
 		# the path may be retrieved at the first loop (at creation)
 		# but not during the next loop (as long as enlapsed time < update_period)
 		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
@@ -1450,16 +1465,19 @@ function periodic_class_match_purge
 	fi
 
 	echo "FS Scan..."
-	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	if (( $is_hsmlite != 0 )); then
+		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+    else
+    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+    fi
 
 	# now apply policies
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
 
-	# HSM: we must have 4 lines like this: "Need to update fileclass (not set)"
+	# HSM & HSM_LITE: we must have 4 lines like this: "Need to update fileclass (not set)"
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
 	# 	so 2 entries have already been matched (ignore1 and whitelist1)
-	if (( $is_lhsm == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		already=2
 	else
 		already=0
@@ -1478,7 +1496,7 @@ function periodic_class_match_purge
 
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
 	# 	2 entries are new (default and to_be_released)
-	if (( $is_lhsm == 0 )); then
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		already=0
 		new=2
 	else
@@ -1521,6 +1539,12 @@ function test_cnt_trigger
 	fi
 	clean_logs
 
+	if (( $is_hsmlite != 0 )); then
+        # this mode may create an extra inode in filesystem: inital scan
+        # to take it into account
+		$RH -f ./cfg/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+    fi
+
 	# initial inode count
 	empty_count=`df -i $ROOT/ | grep "$ROOT" | awk '{print $(NF-3)}'`
 	(( file_count=$file_count - $empty_count ))
@@ -1541,8 +1565,13 @@ function test_cnt_trigger
 	# wait for df sync
 	sync; sleep 1
 
-	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	if (( $is_hsmlite != 0 )); then
+        # scan and sync
+		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+    else
+       	# scan
+	    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+    fi
 
 	# apply purge trigger
 	$RH -f ./cfg/$config_file --purge --once -l FULL -L rh_purge.log
@@ -1593,6 +1622,10 @@ function test_ost_trigger
 	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
+
+	if (( $is_hsmlite != 0 )); then
+		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+    fi
 
 	# wait for df sync
 	sync; sleep 1
@@ -1671,6 +1704,12 @@ function test_trigger_check
 	fi
 	clean_logs
 
+	if (( $is_hsmlite != 0 )); then
+        # this mode may create an extra inode in filesystem: inital scan
+        # to take it into account
+		$RH -f ./cfg/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+    fi
+
 	# triggers to be checked
 	# - inode count > max_count
 	# - fs volume	> max_vol
@@ -1716,8 +1755,13 @@ function test_trigger_check
 	# wait for df sync
 	sync; sleep 1
 
-	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	if (( $is_hsmlite != 0 )); then
+        # scan and sync
+		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+    else
+	  # scan
+  	  $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+    fi
 
 	$REPORT -f ./cfg/$config_file -i
 
@@ -1763,6 +1807,13 @@ function check_released
 {
 	if (($is_lhsm != 0)); then
 		lfs hsm_state $1 | grep released || return 1
+    elif (($shook != 0 )); then
+        # check that nb blocks is 0
+        bl=`stat -c "%b" $1`
+        [[ -n $bl ]] && (( $bl == 0 )) || return 1
+        # check that shook_state is "released"
+        st=`getfattr -n user.shook_state $1 --only-values 2>/dev/null`
+        [[ "x$st" = "xreleased" ]] || return 1
 	else
 		[ -f $1 ] && return 1
 	fi
@@ -1804,7 +1855,12 @@ function test_periodic_trigger
 
 	# scan
 	echo "2-Populating robinhood database (scan)..."
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+	if (( $is_hsmlite != 0 )); then
+        # scan and sync
+		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+    else
+	    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
+    fi
 
 	# make sure files are old enough
 	sleep 2
