@@ -481,7 +481,7 @@ static int check_periodic_trigger( unsigned trigger_index )
 
     FlushLogs(  );
 
-    if ( ( blocks_purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    if ( (!terminate) && ( blocks_purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
     {
         DisplayLog( LVL_EVENT, RESMON_TAG,
                     "Waiting %lus before performing 'df' on other storage units.",
@@ -708,7 +708,7 @@ static int check_global_trigger( unsigned trigger_index )
 
     FlushLogs(  );
 
-    if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    if ( (!terminate) && ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
     {
         DisplayLog( LVL_EVENT, RESMON_TAG,
                     "Waiting %lus before performing 'df' on other storage units.",
@@ -877,7 +877,7 @@ static int check_ost_trigger( unsigned trigger_index )
 
         FlushLogs(  );
 
-        if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+        if ( (!terminate) && ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
         {
             DisplayLog( LVL_EVENT, RESMON_TAG,
                         "Waiting %lus before performing 'df' on other storage units.",
@@ -1065,7 +1065,7 @@ static int check_pool_trigger( unsigned trigger_index )
 
         FlushLogs(  );
 
-        if ( ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+        if ( (!terminate) && ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
         {
             DisplayLog( LVL_EVENT, RESMON_TAG,
                         "Waiting %lus before performing 'df' on other storage units.",

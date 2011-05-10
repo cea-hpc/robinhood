@@ -235,7 +235,7 @@ fi
 
 %changelog
 
-* Fri Apr 15 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.0
+* Fri May 06 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.0
 - [optim.] instant accounting reports (user/group usage, fs content summary, ...)
 - [reporting] split user usage per group (--split-user-groups option)
 - [reporting] split group usage per user (--split-user-groups option)
