@@ -1164,7 +1164,13 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             return RS_ERROR;
         }
 
-        /* @TODO etc... */
+        rc = truncate( fspath, st_bk.st_size );
+        if (rc)
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
+                        st_bk.st_size, fspath, strerror(-rc));
+            return RS_ERROR;
+        }
 #else
     #error "Unexpected case"
 #endif
