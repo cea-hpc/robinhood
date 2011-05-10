@@ -2289,9 +2289,15 @@ function test_logs
 		init_msg_idx=`wc -l /var/log/messages | awk '{print $1}'`
 	fi
 
+    if (( $is_hsmlite != 0 )); then
+        extra_action="--sync"
+    else
+        extra_action=""
+    fi
+
 	# run a scan
 	if (( $stdio )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
+		$RH -f ./cfg/$config_file --scan $extra_action -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
 	else
 		$RH -f ./cfg/$config_file --scan -l DEBUG --once || error ""
 	fi
@@ -2318,13 +2324,13 @@ function test_logs
 			grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
 		fi
 		# grep 'robinhood\[' => don't select lines with no headers
-		grep -v ALERT /tmp/rbh.stdout | grep "$CMD[^ ]*\[" > /tmp/extract_report
+		grep -v ALERT /tmp/rbh.stdout | egrep -e "($CMD|shook)[^ ]*\[" > /tmp/extract_report
 		alert="/tmp/extract_alert"
 		report="/tmp/extract_report"
 	elif (( $syslog )); then
         # wait for syslog to flush logs to disk
         sync; sleep 2
-		tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
+		tail -n +"$init_msg_idx" /var/log/messages | egrep -e "$CMD|shook" > /tmp/extract_all
 		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
