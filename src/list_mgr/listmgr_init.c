@@ -39,7 +39,7 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
         if ( field_infos[i].db_type_size < 256 )
         {
             if ( default_value )
-                return sprintf( next, "%s %s VARCHAR(%u) DEFAULT %s",is_first ? "" : ",",
+                return sprintf( next, "%s %s VARCHAR(%u) DEFAULT '%s'",is_first ? "" : ",",
                     field_infos[i].field_name, field_infos[i].db_type_size, default_value->val_str );
             else
                 return sprintf( next, "%s %s VARCHAR(%u)",is_first ? "" : ",",
@@ -48,7 +48,7 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
         else
         {
             if ( default_value )
-                return sprintf( next, "%s %s TEXT DEFAULT %s", is_first ? "" : ",", field_infos[i].field_name,
+                return sprintf( next, "%s %s TEXT DEFAULT '%s'", is_first ? "" : ",", field_infos[i].field_name,
                     default_value->val_str );
             else
                 return sprintf( next, "%s %s TEXT", is_first ? "" : ",", field_infos[i].field_name );
@@ -347,10 +347,9 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                         default_val.val_int = 0;
                         next += append_field_def( i, next, 0, &default_val );
                     }
-                    else if ( i == ATTR_INDEX_owner )
-#else
-                    if ( i == ATTR_INDEX_owner )
+                    else
 #endif
+                    if ( i == ATTR_INDEX_owner )
                     {
                         default_val.val_str = ACCT_DEFAULT_OWNER;
                         next += append_field_def( i, next, 0, &default_val );
