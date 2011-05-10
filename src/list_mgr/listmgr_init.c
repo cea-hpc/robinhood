@@ -28,7 +28,7 @@
 #define APPEND_TXT( _n, _str ) do { strcpy( _n, _str );  _n = _n + strlen( _n ); } while (0)
 #define INCR_NEXT( _n ) do { _n = _n + strlen( _n ); } while (0)
 
-static inline int append_field_def( int i, char *next, int is_first )
+static inline int append_field_def( int i, char *next, int is_first, db_type_u *default_value )
 {
     switch ( field_infos[i].db_type )
     {
@@ -37,32 +37,57 @@ static inline int append_field_def( int i, char *next, int is_first )
         break;
     case DB_TEXT:
         if ( field_infos[i].db_type_size < 256 )
-            return sprintf( next, "%s %s VARCHAR(%u)",is_first ? "" : ",",
-                field_infos[i].field_name, field_infos[i].db_type_size );
+        {
+            if ( default_value )
+                return sprintf( next, "%s %s VARCHAR(%u) DEFAULT '%s'",is_first ? "" : ",",
+                    field_infos[i].field_name, field_infos[i].db_type_size, default_value->val_str );
+            else
+                return sprintf( next, "%s %s VARCHAR(%u)",is_first ? "" : ",",
+                    field_infos[i].field_name, field_infos[i].db_type_size );
+        }
         else
-            return sprintf( next, "%s %s TEXT", is_first ? "" : ",", field_infos[i].field_name );
+        {
+            if ( default_value )
+                return sprintf( next, "%s %s TEXT DEFAULT '%s'", is_first ? "" : ",", field_infos[i].field_name,
+                    default_value->val_str );
+            else
+                return sprintf( next, "%s %s TEXT", is_first ? "" : ",", field_infos[i].field_name );
+        }
         break;
     case DB_INT:
-#ifdef ATTR_INDEX_status
-        if( i == ATTR_INDEX_status )
-            return sprintf( next, "%s %s INT DEFAULT 0", is_first ? "" : ",", field_infos[i].field_name );
+        if ( default_value )
+            return sprintf( next, "%s %s INT DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_int );
         else
             return sprintf( next, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name );
-#else
-        return sprintf( next, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name );
-#endif
         break;
     case DB_UINT:
-        return sprintf( next, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+        if ( default_value )
+            return sprintf( next, "%s %s INT UNSIGNED DEFAULT %u", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_uint );
+        else
+            return sprintf( next, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
         break;
     case DB_BIGINT:
-        return sprintf( next, "%s %s BIGINT", is_first ? "" : ",", field_infos[i].field_name );
+        if ( default_value )
+            return sprintf( next, "%s %s BIGINT DEFAULT %lld", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_bigint );
+        else
+            return sprintf( next, "%s %s BIGINT", is_first ? "" : ",", field_infos[i].field_name );
         break;
     case DB_BIGUINT:
-        return sprintf( next, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+        if ( default_value )
+            return sprintf( next, "%s %s BIGINT UNSIGNED DEFAULT %llu", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_biguint );
+        else
+            return sprintf( next, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
         break;
     case DB_BOOL:
-        return sprintf( next, "%s %s BOOLEAN", is_first ? "" : ",", field_infos[i].field_name );
+        if ( default_value )
+            return sprintf( next, "%s %s BOOLEAN DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_bool );
+        else
+            return sprintf( next, "%s %s BOOLEAN", is_first ? "" : ",", field_infos[i].field_name );
         break;
     }
     return 0;
@@ -133,6 +158,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     char          *next;
     char          *fieldtab[MAX_DB_FIELDS];
     char          *acct_info_table;
+    db_type_u      default_val;
 
 #ifdef FID_PK
 #   define PK_TYPE   "VARCHAR(" TOSTRING(FID_LEN) ")"
@@ -315,7 +341,26 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             {
                 if ( is_main_field( i ) )
                 {
-                    next += append_field_def( i, next, 0);
+#ifdef ATTR_INDEX_status
+                    if ( i == ATTR_INDEX_status )
+                    {
+                        default_val.val_int = 0;
+                        next += append_field_def( i, next, 0, &default_val );
+                    }
+                    else
+#endif
+                    if ( i == ATTR_INDEX_owner )
+                    {
+                        default_val.val_str = ACCT_DEFAULT_OWNER;
+                        next += append_field_def( i, next, 0, &default_val );
+                    }
+                    else if ( i == ATTR_INDEX_gr_name )
+                    {
+                        default_val.val_str = ACCT_DEFAULT_GROUP;
+                        next += append_field_def( i, next, 0, &default_val );
+                    }
+                    else
+                         next += append_field_def( i, next, 0, NULL );
                 }
             }
 
@@ -603,7 +648,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 {
                     if ( is_annex_field( i ) )
                     {
-                        next += append_field_def( i, next, 0);
+                        next += append_field_def( i, next, 0, NULL );
                     }
                 }
                 strcpy( next, " )" );
@@ -878,7 +923,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 {
                     if ( is_acct_pk( i ) )
                     {
-                        next += append_field_def( i, next, is_first_acct_field);
+                        next += append_field_def( i, next, is_first_acct_field, NULL );
                         is_first_acct_field = 0;
                     }                
                 }
@@ -887,7 +932,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 {
                     if ( is_acct_field( i ) )
                     {
-                        next += append_field_def( i, next, is_first_acct_field);
+                        next += append_field_def( i, next, is_first_acct_field, NULL );
                     } 
                 }
 
