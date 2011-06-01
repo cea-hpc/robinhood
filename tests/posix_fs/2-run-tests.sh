@@ -470,27 +470,35 @@ function test_rh_acct_report
         $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
 
 	echo "3.Checking reports..."
-	$REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct --top-user > rh_no_acct_report.log
-	$REPORT -f ./cfg/$config_file -l MAJOR --csv --top-user > rh_acct_report.log
+	compare_reports_with_F $config_file
+}
 
-	nbrowacct=` awk -F ',' 'END {print NF}' rh_acct_report.log`;
-	nbrownoacct=` awk -F ',' 'END {print NF}' rh_no_acct_report.log`;
-	for i in `seq 1 $nbrowacct`; do
-		rowchecked=0;
-		for j in `seq 1 $nbrownoacct`; do
-			if [[ `cut -d "," -f $i rh_acct_report.log` == `cut -d "," -f $j rh_no_acct_report.log`  ]]; then
-				rowchecked=1
-				break
-			fi
-		done
-		if (( $rowchecked == 1 )); then
-			echo "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` OK"
-		else
-			error "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` is different with acct "
-		fi
-	done
-	rm -f rh_no_acct_report.log
-	rm -f rh_acct_report.log
+function compare_reports_with_F
+{
+	config_file=$1
+
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct --top-user > rh_no_acct_report.log
+        $REPORT -f ./cfg/$config_file -l MAJOR --csv --top-user > rh_acct_report.log
+
+        nbrowacct=` awk -F ',' 'END {print NF}' rh_acct_report.log`;
+        nbrownoacct=` awk -F ',' 'END {print NF}' rh_no_acct_report.log`;
+        for i in `seq 1 $nbrowacct`; do
+                rowchecked=0;
+                for j in `seq 1 $nbrownoacct`; do
+                        if [[ `cut -d "," -f $i rh_acct_report.log` == `cut -d "," -f $j rh_no_acct_report.log`  ]]; then
+                                rowchecked=1
+                                break
+                        fi
+                done
+                if (( $rowchecked == 1 )); then
+                        echo "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` OK"
+                else
+                        error "Row `awk -F ',' 'NR == 1 {print $'$i';}' rh_acct_report.log | tr -d ' '` is different with acct "
+                fi
+        done
+
+        rm -f rh_no_acct_report.log
+        rm -f rh_acct_report.log
 }
 
 #test --split-user-groups option
@@ -582,6 +590,7 @@ function test_acct_table
 	grep -q "Trigger ACCT_ENTRY_UPDATE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
 	grep -q "Trigger ACCT_ENTRY_DELETE created sucessfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
 }
+
 
 function path_test
 {
@@ -1834,7 +1843,6 @@ run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: conf
 
 run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
-
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
