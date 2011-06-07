@@ -643,7 +643,7 @@ function purge_test
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "$? writing file.$i"
 
 		if (( $is_hsm != 0 )); then
 			flush_data
@@ -909,7 +909,7 @@ function test_rh_acct_report
                 echo "1.$i-Writing files to $ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $i`; do
-                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/dir.$i/file.$j"
                 done
         done
 
@@ -954,7 +954,7 @@ function test_rh_report_split_user_group
         clean_logs
 
         for i in `seq 1 $dircount`; do
-                mkdir $ROOT/dir.$i
+                mkdir $ROOT/dir.$i || error "creating directory $ROOT/dir.$i"
                 echo "1.$i-Writing files to $ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $i`; do
