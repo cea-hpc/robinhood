@@ -31,6 +31,12 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     lustre_fs/cfg/test_fileclass.conf \
     lustre_fs/cfg/test_pools.conf   \
     lustre_fs/cfg/test_trig3.conf   \
+    lustre_fs/cfg/test_recov.conf   \
+    lustre_fs/cfg/acct_group.conf   \
+    lustre_fs/cfg/acct_user_group.conf \
+    lustre_fs/cfg/acct_user.conf \
+    lustre_fs/cfg/no_acct.conf  \
+    lustre_fs/cfg/test_maintenance.conf \
     posix_fs/1-test_setup.sh    \
     posix_fs/2-run-tests.sh     \
     posix_fs/3-test_report.sh   \
@@ -59,6 +65,10 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     posix_fs/cfg/test_trig3.conf    \
     posix_fs/cfg/test_updt.conf     \
     posix_fs/cfg/test_xattr.conf    \
+    posix_fs/cfg/acct_user.conf     \
+    posix_fs/cfg/acct_group.conf    \
+    posix_fs/cfg/acct_user_group.conf \
+    posix_fs/cfg/no_acct.conf  \
     posix_fs/cleanup.sh             \
 	test_compil_switches.sh	    \
 	fill_fs.sh
