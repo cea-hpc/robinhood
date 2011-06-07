@@ -443,6 +443,7 @@ void display_line_log( log_stream_t * p_log, const char * tag,
     time_t         now = time( NULL );
     unsigned int   th = GetThreadIndex(  );
     struct tm      date;
+    int            would_print;
 
     if ( log_initialized )
     {
@@ -475,8 +476,12 @@ void display_line_log( log_stream_t * p_log, const char * tag,
                           date.tm_hour, date.tm_min, date.tm_sec,
                           ( unsigned long ) getpid(  ), th );
 
-        vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
-        fprintf( stderr, "%s\n", line_log );
+        would_print = vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
+
+        if (would_print >= MAX_LINE_LEN - written)
+            fprintf( stderr, "%s... <Line truncated. Real size=%u>\n", line_log, would_print );
+        else
+            fprintf( stderr, "%s\n", line_log );
     }
     else if ( p_log->log_type == RBH_LOG_SYSLOG )
     {
@@ -485,7 +490,7 @@ void display_line_log( log_stream_t * p_log, const char * tag,
         if ( tag )
             snprintf(new_format, MAX_LINE_LEN, "%s | %s", tag, format );
         else
-            strcpy( new_format, format );
+            strncpy( new_format, format, MAX_LINE_LEN );
 
         vsyslog(log_config.syslog_priority, new_format, arglist );
     }
@@ -509,10 +514,15 @@ void display_line_log( log_stream_t * p_log, const char * tag,
                           date.tm_hour, date.tm_min, date.tm_sec, prog_name,
                           machine_name, ( unsigned long ) getpid(), th );
 
-        vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
+        would_print = vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
 
         if ( p_log->f_log != NULL )
+        {
+        if (would_print >= MAX_LINE_LEN - written)
+            fprintf( p_log->f_log, "%s... <Line truncated. Real size=%u>\n", line_log, would_print );
+        else
             fprintf( p_log->f_log, "%s\n", line_log );
+        }
     }
 }
 

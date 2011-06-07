@@ -1,3 +1,8 @@
+Changes between version 2.3.0 and 2.3.1:
+- [bugfix](major) Wrong accounting values if file owner changes
+- [bugfix](major) SQL error for widely striped files
+- [compat] Compatibility fix for MySQL servers between 5.0.0 and 5.0.32
+
 Changes between version 2.2.3 and 2.3.0:
 - [optim.] instant accounting reports (user/group usage, fs content summary, ...)
 - [reporting] split user usage per group (--split-user-groups option)

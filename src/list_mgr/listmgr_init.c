@@ -980,13 +980,13 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             APPEND_TXT( next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1;" );
 
             rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
-            if ( rc )
+            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-     
+
             rc = db_create_trigger( &conn, ACCT_TRIGGER_INSERT, "AFTER INSERT", acct_info_table, strbuf );
             if ( rc )
             {
@@ -1008,7 +1008,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             APPEND_TXT( next, ";" );
 
             rc = db_drop_trigger( &conn, ACCT_TRIGGER_DELETE );
-            if ( rc )
+            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
@@ -1081,8 +1081,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1;" );
 
             APPEND_TXT( next, "\n\tUPDATE " ACCT_TABLE " SET " );
-            /* generate operations as follows: size=size-New.size, blocks=blocks-NEW.blocks */
-            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", SUBTRACT );
+            /* generate operations as follows: size=size-Old.size, blocks=blocks-Old.blocks */
+            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBTRACT );
             INCR_NEXT( next );
             APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 WHERE " );
             attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
@@ -1090,7 +1090,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             APPEND_TXT( next, ";\nEND IF;\n" );
 
             rc = db_drop_trigger( &conn, ACCT_TRIGGER_UPDATE );
-            if ( rc )
+            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Failed to drop " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
@@ -1114,21 +1114,21 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         if ( rc == DB_SUCCESS )
         {
             rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
-            if ( rc )
+            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
             rc = db_drop_trigger( &conn, ACCT_TRIGGER_DELETE );
-            if ( rc )
+            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
             rc = db_drop_trigger( &conn, ACCT_TRIGGER_UPDATE );
-            if ( rc )
+            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Failed to drop " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
