@@ -876,6 +876,16 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         /* temporary copy path */
         sprintf( tmp, "%s.%s", bkpath, COPY_EXT );
 
+#ifdef HAVE_SHOOK
+        rc = shook_archive_start(p_id, bkpath);
+        if (rc)
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to initialize transfer: shook_archive_start() returned error %d",
+                        rc );
+            return rc;
+        }
+#endif
+
         /* execute the archive command */
         if ( hints )
             rc = execute_shell_command( config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
@@ -884,6 +894,9 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
 
         if (rc)
         {
+#ifdef HAVE_SHOOK
+            shook_archive_abort(p_id);
+#endif
             /* cleanup tmp copy */
             unlink(tmp);
             /* the transfer failed. still needs to be archived */
@@ -974,6 +987,15 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
             /* update entry attributes */
             PosixStat2EntryAttr( &info, p_attrs, TRUE );
         }
+#ifdef HAVE_SHOOK
+        rc = shook_archive_finalize(p_id, bkpath);
+        if (rc)
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",
+                        rc );
+            return rc;
+        }
+#endif
     }
     else if ( entry_type == TYPE_LINK )
     {
@@ -1342,6 +1364,15 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             strcpy( ATTR(p_attrs_new, backendpath), backend_path );
         }
     }
+
+#ifdef HAVE_SHOOK
+    /* save new backendpath to filesystem */
+    /* XXX for now, don't manage several hsm_index */
+    rc = shook_set_hsm_info( fspath, backend_path, 0 );
+    if (rc)
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
+                    fspath, rc );
+#endif
 
     if (delta)
         return RS_DELTA;
