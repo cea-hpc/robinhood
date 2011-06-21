@@ -960,6 +960,16 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
 
             ATTR_MASK_SET( p_attrs, backendpath );
             strcpy( ATTR( p_attrs, backendpath ), bkpath );
+
+#ifdef HAVE_SHOOK
+            rc = shook_archive_finalize(p_id, bkpath);
+            if (rc)
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",
+                            rc );
+                return rc;
+            }
+#endif
         }
 
         if ( lstat(fspath, &info) != 0 )
@@ -987,15 +997,6 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
             /* update entry attributes */
             PosixStat2EntryAttr( &info, p_attrs, TRUE );
         }
-#ifdef HAVE_SHOOK
-        rc = shook_archive_finalize(p_id, bkpath);
-        if (rc)
-        {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",
-                        rc );
-            return rc;
-        }
-#endif
     }
     else if ( entry_type == TYPE_LINK )
     {
@@ -1072,6 +1073,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     struct stat st_dest;
     int delta = FALSE;
     attr_set_t attr_bk;
+    int fd;
 
     if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
     {
@@ -1153,7 +1155,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     /* restripe the file in Lustre */
     if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
         File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
-#else
+    else {
+#endif
     fd = creat( fspath, st_bk.st_mode & 07777 );
     if (fd < 0)
     {
@@ -1164,6 +1167,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     }
     else
         close(fd);
+#ifdef _LUSTRE
+    }
 #endif
 
     /* restore entry */
