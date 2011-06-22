@@ -40,7 +40,7 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
     strcpy( conf->mnt_type, "nfs" );
     strcpy( conf->action_cmd, "/usr/sbin/rbhext_tool" );
 #ifdef HAVE_SHOOK
-    strcpy( conf->shook_cfg, "/etc/shooksvr.conf" );
+    strcpy( conf->shook_cfg, "/etc/shook.cfg" );
 #endif
     conf->copy_timeout = 21600; /* =6h (0=disabled) */
     conf->xattr_support = FALSE;
@@ -55,7 +55,7 @@ int Write_Backend_ConfigDefault( FILE * output )
     print_line( output, 1, "mnt_type      : nfs ");
     print_line( output, 1, "action_cmd    : \"/usr/sbin/rbhext_tool\"" );
 #ifdef HAVE_SHOOK
-     print_line( output, 1, "shook_cfg    : \"/etc/shooksvr.conf\"" );
+     print_line( output, 1, "shook_cfg    : \"/etc/shook.cfg\"" );
 #endif
     print_line( output, 1, "copy_timeout  : 6h" );
     print_line( output, 1, "xattr_support : FALSE");
@@ -170,7 +170,7 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line( output, 1, "mnt_type      = nfs;");
 #ifdef HAVE_SHOOK
     print_line( output, 1, "# shook server configuration" );
-    print_line( output, 1, "shook_cfg     = \"/etc/shooksvr.conf\";" );
+    print_line( output, 1, "shook_cfg     = \"/etc/shook.cfg\";" );
 #endif
     print_line( output, 1, "# copy wrapper script" );
     print_line( output, 1, "action_cmd    = \"/usr/sbin/rbhext_tool\";" );
