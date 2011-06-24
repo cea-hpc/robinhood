@@ -30,12 +30,14 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <utime.h>
 #include <libgen.h>
 #include <pwd.h>
 #include <grp.h>
+
 
 #ifdef HAVE_PURGE_POLICY
 #ifdef HAVE_SHOOK
@@ -1116,6 +1118,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             return RS_ERROR;
     }
 
+    ATTR_MASK_INIT( &attr_bk );
     /* merge missing posix attrs to p_attrs_old */
     PosixStat2EntryAttr( &st_bk, &attr_bk, TRUE );
     /* leave attrs unchanged if they are already set in p_attrs_old */
@@ -1305,8 +1308,12 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     PosixStat2EntryAttr( &st_dest, p_attrs_new, TRUE );
     strcpy( ATTR( p_attrs_new, fullpath ), fspath );
     ATTR_MASK_SET( p_attrs_new, fullpath );
-    /* status is always synchro after a recovery */
-    ATTR( p_attrs_new, status ) = STATUS_SYNCHRO; /* @TODO 'released' if only md import */
+    /* status is always synchro or released after a recovery */
+#ifdef HAVE_SHOOK
+    ATTR( p_attrs_new, status ) = STATUS_RELEASED;
+#else
+    ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
+#endif
     ATTR_MASK_SET( p_attrs_new, status );
 
 #ifdef _HAVE_FID
@@ -1373,7 +1380,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 #ifdef HAVE_SHOOK
     /* save new backendpath to filesystem */
     /* XXX for now, don't manage several hsm_index */
-    rc = shook_set_hsm_info( fspath, backend_path, 0 );
+    rc = shook_set_hsm_info( fspath, ATTR(p_attrs_new, backendpath), 0 );
     if (rc)
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
                     fspath, rc );

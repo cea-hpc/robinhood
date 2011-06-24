@@ -442,6 +442,19 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
  */
 void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter );
 
+/**
+ * Get entry to be removed from its fid.
+ */
+int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
+                           const entry_id_t * p_id,
+                           char * last_known_path,
+#ifdef _HSM_LITE
+                           char * bkpath,
+#endif
+                           time_t * soft_rm_time,
+                           time_t * expiration_time);
+
+
 /** @} */
 
 #endif

@@ -753,6 +753,97 @@ void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter )
     MemFree( p_iter );
 }
 
+/**
+ * Get entry to be removed from its fid.
+ */
+int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
+                           const entry_id_t * p_id,
+                           char * last_known_path,
+#ifdef _HSM_LITE
+                           char * bkpath,
+#endif
+                           time_t * soft_rm_time,
+                           time_t * expiration_time)
+{
+    char query[4096];
+    result_handle_t result;
+    int rc, i;
+
+    /* 0=path, 1=soft_rm_time, 2=real_rm_time */
+    char          * record[3+SHIFT];
+
+    if ( !p_id )
+        return DB_INVALID_ARG;
+
+#ifdef _HSM_LITE
+    snprintf( query, 4096, "SELECT fullpath, backendpath, soft_rm_time, real_rm_time "
+#else
+    snprintf( query, 4096, "SELECT fullpath, soft_rm_time, real_rm_time "
+#endif
+              "FROM "SOFT_RM_TABLE" WHERE fid='"DFID_NOBRACE"'",
+              PFID(p_id) );
+
+    /* execute request */
+    rc = db_exec_sql( &p_mgr->conn, query, &result );
+
+    if ( rc )
+    {
+        char msg_buff[1024];
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "DB query failed in %s line %d: query=\"%s\",code=%d, %s",
+                    __FUNCTION__, __LINE__, query, rc, db_errmsg( &p_mgr->conn, msg_buff, 1024 ) );
+        return rc;
+    }
+
+    for ( i=0; i < 3+SHIFT; i++)
+        record[i] = NULL;
+
+    rc = db_next_record( &p_mgr->conn, &result, record, 3+SHIFT);
+    if ( rc == DB_END_OF_LIST )
+    {
+        rc = DB_NOT_EXISTS;
+        goto free_res;
+    } else if ( rc )
+         return rc;
+
+    if ( record[0] == NULL )
+        return DB_REQUEST_FAILED;
+
+    if ( last_known_path )
+    {
+        if (record[0])
+            strcpy( last_known_path, record[0] );
+        else
+            last_known_path[0] = '\0';
+    }
+
+#ifdef _HSM_LITE
+    if ( bkpath )
+    {
+        if (record[1])
+            strcpy( bkpath, record[1] );
+        else
+            bkpath[1] = '\0';
+    }
+#endif
+
+    if ( soft_rm_time )
+    {
+        if ( sscanf( record[1+SHIFT], "%lu", soft_rm_time ) <= 0 )
+            return DB_REQUEST_FAILED;
+    }
+
+    if ( expiration_time )
+    {
+        if ( sscanf( record[2+SHIFT], "%lu", expiration_time ) <= 0 )
+            return DB_REQUEST_FAILED;
+    }
+
+free_res:
+    db_result_free( &p_mgr->conn, &result );
+    return rc;
+}
+
 int ListMgr_SoftRemove_Discard( lmgr_t * p_mgr, const entry_id_t * p_id )
 {
     char query[1024];
