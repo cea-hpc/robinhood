@@ -78,7 +78,19 @@ pipeline_stage_t entry_proc_pipeline[] = {
 };
 
 #ifdef HAVE_SHOOK
-/* @TODO: ignore shook lock files */
+#include <fnmatch.h>
+int shook_special_file( struct entry_proc_op_t * p_op )
+{
+    if ( p_op->entry_attr_is_set || ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
+    {
+        if ( fnmatch( "*/.shook_locks/lock.*", ATTR(&p_op->entry_attr, fullpath ), 0 ) == 0 )
+        {
+            /* skip the entry */
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
 #endif
 
 /**
@@ -1029,6 +1041,18 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( !p_op->extra_info.getstripe_needed )
         ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
 
+#ifdef HAVE_SHOOK
+    if (shook_special_file( p_op )) {
+                DisplayLog( LVL_FULL, ENTRYPROC_TAG,
+                    "Shook lock file '%s', skipped",
+                    (ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?
+                     ATTR(&p_op->entry_attr, fullpath):
+                     ATTR(&p_op->entry_attr, name)) );
+        /* skip special shook entry */
+        goto skip_record;
+    }
+#endif
+
     /* insert to DB */
     switch ( p_op->db_op_type )
     {
@@ -1074,6 +1098,22 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     stage_info->stage_name );
 
     return rc;
+
+#ifdef HAVE_SHOOK
+skip_record:
+#ifdef HAVE_CHANGELOGS
+    if ( p_op->extra_info.is_changelog_record )
+    /* do nothing on DB but ack the record */
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
+    else
+#endif
+    /* remove the operation from pipeline */
+        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+
+    if ( rc )
+        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    return rc;
+#endif
 }
 
 int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmgr )
