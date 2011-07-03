@@ -652,7 +652,7 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 #define SCAN_STATUS_DONE      "done"
 #define SCAN_STATUS_RUNNING   "running"
 #define SCAN_STATUS_ABORTED   "aborted"
-#define SCAN_STATUS_TIMEDOUT  "timed out"
+#define SCAN_STATUS_PARTIAL   "partial"
 
 #define MAX_VAR_LEN     1024
 /**

@@ -426,7 +426,7 @@ int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
     else if ( rc == DB_NOT_EXISTS )
     {
         strcpy(value,"unknown");
-        DisplayLog( LVL_EVENT, REPORT_TAG, "WARNING variable %s not in database", varname );
+        DisplayLog( LVL_VERB, REPORT_TAG, "WARNING variable %s not in database", varname );
         return rc;
     }
     else
@@ -502,16 +502,26 @@ void report_activity( int flags )
     /* Last FS scan */
 
     // status
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_STATUS, scan_status );
+    rc = ListMgr_GetVar_helper( &lmgr, LAST_SCAN_STATUS, scan_status );
 
-    if ( !CSV(flags) )
+    if ( rc == 0 )
     {
-        printf( "    Last filesystem scan:\n" );
-        printf( "            status:          %s\n", scan_status );
+        if ( !CSV(flags) )
+        {
+            printf( "    Last filesystem scan:\n" );
+            printf( "            status:          %s\n", scan_status );
+        }
+        else
+            printf( "last_scan_status, %s\n", scan_status );
     }
-    else
-        printf( "last_scan_status, %s\n", scan_status );
-
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( CSV(flags) )
+            printf( "last_scan_status, no scan done\n" );
+        else
+            printf( "    Filesystem has never been scanned\n" );
+    }
+    
     // start
     if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_START_TIME, value ) == 0 )
         timestamp = str2int( value );
@@ -536,7 +546,8 @@ void report_activity( int flags )
     }
 
     // last action
-    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value ) == 0 )
+    if( !strcmp( scan_status, SCAN_STATUS_RUNNING ) &&
+        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value ) == 0 )
     {
         timestamp2 = str2int( value );
         if (timestamp2 > 0)
@@ -578,69 +589,72 @@ void report_activity( int flags )
                 else
                 {
                     FormatDuration( value, 1024, dur );
-                    printf( "            duration:        %s\n\n", value);
+                    printf( "            duration:        %s\n", value);
                 }
             }
         }
     }
 
-    // entries scanned
-    if ( !CSV(flags) )
+    rc = ListMgr_GetVar_helper( &lmgr, LAST_SCAN_ENTRIES_SCANNED, value);
+    if (rc == 0)
     {
-        printf( "\n" );
-        printf( "         Statistics:\n" );
-    }
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_ENTRIES_SCANNED, value);
-    if ( CSV(flags) )
-        printf( "entries_scanned, %s\n", value );
-    else
-        printf( "            entries scanned: %s\n", value );
-
-    // errors
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_ERRORS, value);
-    if ( CSV(flags) )
-        printf( "errors, %s\n", value );
-    else
-        printf( "            errors:          %s\n", value );
-
-    // timeouts
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_TIMEOUTS, value);
-    if ( CSV(flags) )
-        printf( "timeouts, %s\n", value );
-    else
-        printf( "            timeouts:        %s\n", value );
-
-    // nb threads
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_NB_THREADS, value );
-    nb_threads = atoi( value );
-    if ( CSV(flags) )
-        printf( "nb_threads, %i\n", nb_threads );
-    else
-        printf( "            # threads:       %i\n", nb_threads );
-
-    // average speed
-    ListMgr_GetVar_helper( &lmgr, LAST_SCAN_AVGMSPE, value);
-    double speed = 0.0;
-    double avgmspe = atof(value);
-    if ( avgmspe > 0 )
-        speed = ( 1000.0 / avgmspe ) * nb_threads;
-    if ( CSV(flags) )
-        printf( "average_speed, %.2f entries/sec\n", speed );
-    else
-        printf( "            average speed:   %.2f entries/sec\n", speed );
-
-    // current speed
-    if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
-    {
-        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_CURMSPE, value);
-        double speed = 0.0;
-        double curmspe = atof(value);
-        if ( value > 0 )
-            speed = ( 1000.0 / curmspe ) * nb_threads;
+        // entries scanned
+        if ( !CSV(flags) )
+        {
+            printf( "\n" );
+            printf( "         Statistics:\n" );
+        }
         if ( CSV(flags) )
-            printf( "current_speed, %.2f\n", speed );
+            printf( "entries_scanned, %s\n", value );
         else
-            printf( "        >>> current speed:   %.2f entries/sec\n", speed );
+            printf( "            entries scanned: %s\n", value );
+
+        // errors
+        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_ERRORS, value);
+        if ( CSV(flags) )
+            printf( "scan_errors, %s\n", value );
+        else
+            printf( "            errors:          %s\n", value );
+
+        // timeouts
+        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_TIMEOUTS, value);
+        if ( CSV(flags) )
+            printf( "scan_timeouts, %s\n", value );
+        else
+            printf( "            timeouts:        %s\n", value );
+
+        // nb threads
+        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_NB_THREADS, value );
+        nb_threads = atoi( value );
+        if ( CSV(flags) )
+            printf( "scan_nb_threads, %i\n", nb_threads );
+        else
+            printf( "            # threads:       %i\n", nb_threads );
+
+        // average speed
+        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_AVGMSPE, value);
+        double speed = 0.0;
+        double avgmspe = atof(value);
+        if ( avgmspe > 0 )
+            speed = ( 1000.0 / avgmspe ) * nb_threads;
+        if ( CSV(flags) )
+            printf( "scan_average_speed, %.2f entries/sec\n", speed );
+        else
+            printf( "            average speed:   %.2f entries/sec\n", speed );
+
+        // current speed
+        if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+        {
+            ListMgr_GetVar_helper( &lmgr, LAST_SCAN_CURMSPE, value);
+            double speed = 0.0;
+            double curmspe = atof(value);
+            if ( value > 0 )
+                speed = ( 1000.0 / curmspe ) * nb_threads;
+            if ( CSV(flags) )
+                printf( "scan_current_speed, %.2f\n", speed );
+            else
+                printf( "        >>> current speed:   %.2f entries/sec\n", speed );
+        }
     }
 
     if ( !CSV(flags) )
