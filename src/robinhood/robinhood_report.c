@@ -52,6 +52,8 @@
 #define SET_NEXT_MAINT    261
 #define CLEAR_NEXT_MAINT  262
 
+#define OPT_BY_COUNT      263
+
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
 #define OPT_FLAG_NOHEADER   0x0002
@@ -59,6 +61,7 @@
 #define OPT_FLAG_MATCH_NULL_STATUS 0x0008
 #define OPT_FLAG_NO_ACCT 0x0010
 #define OPT_FLAG_SPLITUSERGROUP 0x0020
+#define OPT_FLAG_BY_COUNT       0x0040
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
@@ -66,6 +69,7 @@
 #define ISSPLITUSERGROUP(_x) ((_x)&OPT_FLAG_SPLITUSERGROUP)
 #define MATCH_NULL_STATUS(_x) ((_x)&OPT_FLAG_MATCH_NULL_STATUS)
 #define FORCE_NO_ACCT(_x) ((_x)&OPT_FLAG_NO_ACCT)
+#define SORT_BY_COUNT(_x) ((_x)&OPT_FLAG_BY_COUNT)
 
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
@@ -216,6 +220,7 @@ static struct option option_tab[] = {
     {"filter-path", required_argument, NULL, 'P' },
     {"filter-class", required_argument, NULL, 'C' },
     {"split-user-groups", no_argument, NULL, 'S'},
+    {"by-count", no_argument, NULL, OPT_BY_COUNT},
 
 #ifdef HAVE_MIGR_POLICY
     {"next-maintenance", optional_argument, NULL, SET_NEXT_MAINT},
@@ -282,7 +287,7 @@ static const char *help_string =
     "    " _B "--top-rmdir" B_ " [=" _U "count" U_ "], " _B "-r" B_ " " _U "count" U_ "\n"
     "        Display oldest empty directories eligible for rmdir. Optional argument indicates the number of dirs to be returned (default: 20).\n"
 #endif
-    "    "  _B "--top-users" B_ " [=" _U "count" U_ "], " _B "-U" B_ " " _U "count" U_ "\n"
+    "    " _B "--top-users" B_ " [=" _U "count" U_ "], " _B "-U" B_ " " _U "count" U_ "\n"
     "        Display top disk space consumers. Optional argument indicates the number of users to be returned (default: 20).\n"
 #ifdef HAVE_RM_POLICY
     "    " _B "--deferred-rm" B_ ", " _B "-R" B_ "\n"
@@ -319,8 +324,12 @@ static const char *help_string =
     "        Cancel next maintenance.\n\n"
 #endif
     _B "Accounting report options:" B_ "\n"
-    "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n" "        Display the report by user AND group\n"
-    "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n" "        Generate the report without using accounting table\n\n"
+    "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n"
+    "        Display the report by user AND group\n"
+    "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n"
+    "        Generate the report without using accounting table\n"
+    "    " _B "--by-count" B_ "\n"
+    "        Sort top users by count instead of sorting by volume\n\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Specifies path to configuration file.\n"
@@ -2405,6 +2414,12 @@ void report_topuser( unsigned int count, int flags )
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
     };
 
+    if (SORT_BY_COUNT(flags)) {
+        /* replace sort on blocks by sort on count */
+        user_info[1].sort_flag = SORT_NONE;
+        user_info[2].sort_flag = SORT_DESC;
+    }
+
     /* select only the top users */
     opt.list_count_max = count;
     opt.force_no_acct = FALSE;
@@ -3377,6 +3392,9 @@ int main( int argc, char **argv )
             break;
         case 'S':
             flags |= OPT_FLAG_SPLITUSERGROUP;
+            break;
+        case OPT_BY_COUNT:
+            flags |= OPT_FLAG_BY_COUNT;
             break;
         case ':':
         case '?':
