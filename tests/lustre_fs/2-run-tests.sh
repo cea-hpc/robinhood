@@ -1654,6 +1654,7 @@ function test_trigger_check
 	target_fs_vol=$6
 	target_user_vol=$7
 	max_user_vol=$8
+        target_user_count=$9
 
 	if (( $is_backup != 0 )); then
 		echo "No purge for backup purpose: skipped"
@@ -1669,7 +1670,9 @@ function test_trigger_check
 
 	# initial inode count
 	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
-	((file_count=$max_count-$empty_count))
+	empty_count_user=`find $ROOT/ | grep -v "$ROOT/.lustre" | wc -l`
+#	((file_count=$max_count-$empty_count))
+	file_count=$max_count
 
 	# compute file size to exceed max vol and user quota
 	empty_vol=`df -k $ROOT  | xargs | awk '{print $(NF-3)}'`
@@ -1718,7 +1721,9 @@ function test_trigger_check
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
 	((expect_vol_user=$file_count*$file_size-$target_user_vol))
-	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root"
+	((expect_count_user=$file_count+$empty_count_user-$target_user_count))
+
+	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root, $expect_count_user entries for user root"
 
 	if (($is_hsm != 0 )); then
 		nb_release=`grep "Released" rh_purge.log | wc -l`
@@ -1727,14 +1732,18 @@ function test_trigger_check
 	fi
 
 	count_trig=`grep " entries must be purged in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	[ -n "$count_trig" ] || count_trig=0
 
 	vol_fs_trig=`grep " blocks (x512) must be purged on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	((vol_fs_trig_mb=$vol_fs_trig/2048)) # /2048 == *512/1024/1024
 
 	vol_user_trig=`grep " blocks (x512) must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	((vol_user_trig_mb=$vol_user_trig/2048)) # /2048 == *512/1024/1024
+
+	cnt_user_trig=`grep " files must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	[ -n "$cnt_user_trig" ] || cnt_user_trig=0
 	
-	echo "triggers reported: $count_trig entries, $vol_fs_trig_mb MB, $vol_user_trig_mb MB"
+	echo "triggers reported: $count_trig entries (global), $cnt_user_trig entries (user), $vol_fs_trig_mb MB (global), $vol_user_trig_mb MB (user)"
 
 	# check then was no actual purge
 	if (($nb_release > 0)); then
@@ -1745,6 +1754,9 @@ function test_trigger_check
 		error ": trigger reported $vol_fs_trig_mb MB over threshold, $expect_vol_fs expected"
 	elif (( $vol_user_trig_mb != $expect_vol_user )); then
 		error ": trigger reported $vol_user_trig_mb MB over threshold, $expect_vol_user expected"
+        elif ((  $cnt_user_trig != $expect_count_user )); then
+                error ": trigger reported $cnt_user_trig files over threshold, $expect_count_user expected"
+
 	else
 		echo "OK: all checks successful"
 	fi
@@ -2937,7 +2949,7 @@ run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode
 
 run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
-run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10
+run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
 run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####
