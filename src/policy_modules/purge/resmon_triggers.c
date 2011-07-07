@@ -1083,7 +1083,8 @@ static int check_pool_trigger( unsigned trigger_index )
 /** Check trigger on user usage */
 static int check_user_trigger( unsigned trigger_index )
 {
-    unsigned long long max_blk512, low_blk512;
+    unsigned long long max_blk512 = 0;
+    unsigned long long low_blk512 = 0;
     report_field_descr_t user_info[2];
     db_value_t     result[2];
     unsigned int   result_count;
@@ -1102,9 +1103,10 @@ static int check_user_trigger( unsigned trigger_index )
 
     update_trigger_status( trigger_index, TRIG_BEING_CHECKED );
 
-    /* if PCT_THRESHOLD is used, statfs is needed */
     if ( ( p_trigger->hw_type == PCT_THRESHOLD ) || ( p_trigger->lw_type == PCT_THRESHOLD ) )
     {
+        /* if PCT_THRESHOLD is used, statfs is needed */
+
         char           traverse_path[RBH_PATH_MAX];
         snprintf( traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path );
 
@@ -1119,7 +1121,6 @@ static int check_user_trigger( unsigned trigger_index )
 
         /* number of blocks available to users */
         total_user_blocks = ( statfs_glob.f_blocks + statfs_glob.f_bavail - statfs_glob.f_bfree );
-
     }
 
     /* compute high threshold, in number of blocks */
@@ -1129,7 +1130,7 @@ static int check_user_trigger( unsigned trigger_index )
         max_blk512 = p_trigger->hw_volume / DEV_BSIZE;
         FormatFileSize( hw_str, 128, p_trigger->hw_volume );
     }
-    else
+    else if ( p_trigger->hw_type == PCT_THRESHOLD )
     {
         unsigned long  used_hw =
             ( unsigned long ) ( ( p_trigger->hw_percent * total_user_blocks ) / 100.0 );
@@ -1141,7 +1142,7 @@ static int check_user_trigger( unsigned trigger_index )
     /* compute low threshold */
     if ( p_trigger->lw_type == VOL_THRESHOLD )
         low_blk512 = p_trigger->lw_volume / DEV_BSIZE;
-    else
+    else if ( p_trigger->hw_type == PCT_THRESHOLD )
     {
         unsigned long  target =
             ( unsigned long ) ( ( p_trigger->lw_percent * total_user_blocks ) / 100.0 );
@@ -1155,13 +1156,25 @@ static int check_user_trigger( unsigned trigger_index )
     user_info[0].sort_flag = SORT_NONE;
     user_info[0].filter = FALSE;
 
-    /* select users whose sum(blocks) > high_threshold */
-    user_info[1].attr_index = ATTR_INDEX_blocks;
-    user_info[1].report_type = REPORT_SUM;
-    user_info[1].sort_flag = SORT_NONE;
-    user_info[1].filter = TRUE;
-    user_info[1].filter_compar = MORETHAN_STRICT;
-    user_info[1].filter_value.val_biguint = max_blk512;
+    if ( IS_COUNT_TRIGGER(trigger_index) )
+    {
+        user_info[1].attr_index = 0;
+        user_info[1].report_type = REPORT_COUNT;
+        user_info[1].sort_flag = SORT_NONE;
+        user_info[1].filter = TRUE;
+        user_info[1].filter_compar = MORETHAN_STRICT;
+        user_info[1].filter_value.val_uint = p_trigger->hw_count;
+    }
+    else /* volume based trigger */
+    {
+        /* select users whose sum(blocks) > high_threshold */
+        user_info[1].attr_index = ATTR_INDEX_blocks;
+        user_info[1].report_type = REPORT_SUM;
+        user_info[1].sort_flag = SORT_NONE;
+        user_info[1].filter = TRUE;
+        user_info[1].filter_compar = MORETHAN_STRICT;
+        user_info[1].filter_value.val_biguint = max_blk512;
+    }
 
     /* filtre non-invalid entries */
     lmgr_simple_filter_init( &filter );
@@ -1220,42 +1233,84 @@ static int check_user_trigger( unsigned trigger_index )
     result_count = 2;
     while ( (( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS) && !terminate )
     {
-        unsigned long long blocks_purged;
+        unsigned long long blocks_purged, nb_purged;
         char           user_desc[128];
         char           timestamp[128];
 
-        DisplayLog( LVL_EVENT, RESMON_TAG,
-                    "User '%s' exceeds high threshold: used: %llu blocks / high threshold: %llu blocks (x%u).",
-                    result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
-                    DEV_BSIZE );
-
-        if ( p_trigger->alert_hw )
+        if (IS_COUNT_TRIGGER(trigger_index))
         {
-            char usage_str[128];
-            FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
-            snprintf(buff, 1024, "User quota exceeded (in %s)", global_config.fs_path );
-            RaiseAlert(buff, "%s\nuser:       %s\nquota:      %s\nspace used: %s",
-                       buff, result[0].value_u.val_str, hw_str, usage_str);
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "User '%s' exceeds high threshold: used: %Lu inodes / high threshold: %llu inodes.",
+                        result[0].value_u.val_str, result[1].value_u.val_biguint, p_trigger->hw_count );
+
+            if ( p_trigger->alert_hw )
+            {
+                snprintf(buff, 1024, "User quota exceeded (in %s)", global_config.fs_path );
+                RaiseAlert(buff, "%s\n"
+                                 "user:       %s\n"
+                                 "quota:      %Lu inodes\n"
+                                 "usage:      %Lu inodes",
+                           buff, result[0].value_u.val_str, p_trigger->hw_count, result[1].value_u.val_biguint);
+            }
         }
+        else
+        {
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "User '%s' exceeds high threshold: used: %llu blocks / high threshold: %llu blocks (x%u).",
+                        result[0].value_u.val_str, result[1].value_u.val_biguint, max_blk512,
+                        DEV_BSIZE );
+
+            if ( p_trigger->alert_hw )
+            {
+                char usage_str[128];
+                FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
+                snprintf(buff, 1024, "User quota exceeded (in %s)", global_config.fs_path );
+                RaiseAlert(buff, "%s\nuser:       %s\nquota:      %s\nspace used: %s",
+                           buff, result[0].value_u.val_str, hw_str, usage_str);
+            }
+        }
+
+        /* reset result count before continuing */
+        result_count = 2;
 
         purge_param.type = PURGE_BY_USER;
         purge_param.flags = module_args.flags;
         purge_param.param_u.user_name = result[0].value_u.val_str;
-        purge_param.nb_blocks = result[1].value_u.val_biguint - low_blk512;
 
-        result_count = 2;
+        if (IS_COUNT_TRIGGER(trigger_index))
+        {
+            purge_param.nb_inodes = result[1].value_u.val_biguint - p_trigger->lw_count;
+            purge_param.nb_blocks = 0;
 
-        DisplayLog( LVL_EVENT, RESMON_TAG,
-                    "%lu blocks (x%u) must be purged for user '%s' (used=%Lu, target=%Lu)",
-                    purge_param.nb_blocks, DEV_BSIZE, result[0].value_u.val_str,
-                    result[1].value_u.val_biguint, low_blk512 );
+
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "%Lu files must be purged for user '%s' (used=%Lu, target=%Lu)",
+                        purge_param.nb_inodes, result[0].value_u.val_str,
+                        result[1].value_u.val_biguint, p_trigger->lw_count );
+        }
+        else
+        {
+            purge_param.nb_blocks = result[1].value_u.val_biguint - low_blk512;
+            purge_param.nb_inodes = 0;
+
+            DisplayLog( LVL_EVENT, RESMON_TAG,
+                        "%lu blocks (x%u) must be purged for user '%s' (used=%Lu, target=%Lu)",
+                        purge_param.nb_blocks, DEV_BSIZE, result[0].value_u.val_str,
+                        result[1].value_u.val_biguint, low_blk512 );
+        }
 
         /* only purge if check_only is not set */
         if ( module_args.flags & FLAG_CHECK_ONLY )
         {
-            snprintf(status_str, 1024, "Quota exceeded for user '%s': "
-                     "%Lu kB used", result[0].value_u.val_str,
-                     (result[1].value_u.val_biguint*DEV_BSIZE)/1024 );
+            if (IS_COUNT_TRIGGER(trigger_index))
+                snprintf(status_str, 1024, "Quota exceeded for user '%s': "
+                         "%Lu inodes", result[0].value_u.val_str,
+                         result[1].value_u.val_biguint );
+            else
+                snprintf(status_str, 1024, "Quota exceeded for user '%s': "
+                         "%Lu kB used", result[0].value_u.val_str,
+                         (result[1].value_u.val_biguint*DEV_BSIZE)/1024 );
+
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             update_trigger_status( trigger_index, TRIG_OK );
 
@@ -1265,7 +1320,8 @@ static int check_user_trigger( unsigned trigger_index )
         update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
 
         /* perform the purge */
-        rc = perform_purge( &lmgr, &purge_param, &blocks_purged, NULL );
+        blocks_purged = nb_purged = 0;
+        rc = perform_purge( &lmgr, &purge_param, &blocks_purged, &nb_purged );
 
         /* update last purge time and target */
         sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
@@ -1273,64 +1329,134 @@ static int check_user_trigger( unsigned trigger_index )
         snprintf( user_desc, 128, "user \"%s\"", result[0].value_u.val_str );
         ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, user_desc );
 
-
-        if ( rc == 0 )
+        if ( IS_COUNT_TRIGGER(trigger_index) )
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG,
-                        "User files purge summary: %Lu blocks purged/%lu blocks needed for user '%s'",
-                        blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str );
-        }
-
-        if ( blocks_purged < purge_param.nb_blocks )
-        {
-            if (rc == ENOENT)
+            if ( rc == 0 )
             {
-                update_trigger_status( trigger_index, TRIG_NO_LIST );
-                DisplayLog( LVL_EVENT, RESMON_TAG,
-                            "Could not purge %lu blocks for user '%s': no list is available.",
-                            purge_param.nb_blocks, result[0].value_u.val_str );
-
-                snprintf(status_str, 1024, "No list available (%lu blocks need to be released for user '%s')",
-                         purge_param.nb_blocks, result[0].value_u.val_str);
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                DisplayLog( LVL_MAJOR, RESMON_TAG,
+                            "User files purge summary: %Lu entries purged (%Lu blocks)/%Lu needed for user '%s'",
+                            nb_purged, blocks_purged, purge_param.nb_inodes, result[0].value_u.val_str );
             }
-            else if ( rc == ECANCELED )
+
+            if ( nb_purged < purge_param.nb_inodes )
             {
-                update_trigger_status( trigger_index, TRIG_ABORTED );
-                DisplayLog( LVL_CRIT, RESMON_TAG,
-                            "Purge aborted after releasing %Lu blocks for user %s.",
-                            blocks_purged, result[0].value_u.val_str );
-                snprintf(status_str, 1024, "Purge on user %s aborted by admin (after releasing %Lu blocks)",
-                         result[0].value_u.val_str, blocks_purged);
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                if ( rc == ENOENT )
+                {
+                    update_trigger_status( trigger_index, TRIG_NO_LIST );
+                    DisplayLog( LVL_EVENT, RESMON_TAG,
+                                "Could not purge %Lu entries for user '%s': no list is available.",
+                                purge_param.nb_inodes, result[0].value_u.val_str );
+
+                    snprintf(status_str, 1024, "No list available (%Lu entries need to be released for user '%s')",
+                             purge_param.nb_inodes, result[0].value_u.val_str);
+                    ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                }
+                else if ( rc == ECANCELED )
+                {
+                    update_trigger_status( trigger_index, TRIG_ABORTED );
+                    DisplayLog( LVL_CRIT, RESMON_TAG,
+                                "Purge aborted after releasing %Lu entries (%Lu blocks) for user %s.",
+                                nb_purged, blocks_purged, result[0].value_u.val_str );
+                                
+                    snprintf(status_str, 1024, "Purge on user %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
+                             result[0].value_u.val_str, nb_purged, blocks_purged);
+                    ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                }
+                else
+                {
+                    update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
+                    DisplayLog( LVL_CRIT, RESMON_TAG,
+                                "Could not purge %Lu entries for user '%s': not enough eligible files. Only %Lu entries released.",
+                                purge_param.nb_inodes, result[0].value_u.val_str, nb_purged );
+
+                    if ( ALERT_LW( trigger_index ) )
+                    {
+                        sprintf(buff, "cannot purge user '%s' files (in %s)",
+                                result[0].value_u.val_str, global_config.fs_path );
+                        RaiseAlert( buff,
+                                    "Could not purge %Lu entries for user '%s' in %s:\n"
+                                    "not enough eligible files. Only %Lu entries freed.",
+                                    purge_param.nb_inodes, result[0].value_u.val_str,
+                                    global_config.fs_path, nb_purged );
+                    }
+
+                    snprintf(status_str, 1024, "Not enough eligible files (%Lu/%Lu entries released for user '%s')",
+                             nb_purged, purge_param.nb_inodes, result[0].value_u.val_str);
+                    ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                }
             }
             else
             {
-                update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
-                DisplayLog( LVL_CRIT, RESMON_TAG,
-                            "Could not purge %lu blocks for user '%s': not enough eligible files. Only %Lu blocks freed.",
-                            purge_param.nb_blocks, result[0].value_u.val_str, blocks_purged );
-
-                sprintf(buff, "cannot purge user '%s' files (in %s)",
-                        result[0].value_u.val_str, global_config.fs_path );
-                RaiseAlert( buff,
-                            "Could not purge %lu blocks for user '%s' in %s:\n"
-                            "not enough eligible files. Only %Lu blocks freed.",
-                            purge_param.nb_blocks, result[0].value_u.val_str,
-                            global_config.fs_path, blocks_purged );
-
-                snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released for user '%s')",
-                         blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str);
+                snprintf(status_str, 1024, "Success (%Lu/%Lu entries released for user '%s')",
+                         nb_purged, purge_param.nb_inodes, result[0].value_u.val_str);
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                update_trigger_status( trigger_index, TRIG_OK );
+
+            }
+        }
+        else /* volume trigger */
+        {
+            if ( rc == 0 )
+            {
+                DisplayLog( LVL_MAJOR, RESMON_TAG,
+                            "User files purge summary: %Lu blocks purged/%lu blocks needed for user '%s'",
+                            blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str );
             }
 
-        }
-        else
-        {
-            snprintf(status_str, 1024, "Success (%Lu/%lu blocks released for user '%s')",
-                     blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str);
-            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            update_trigger_status( trigger_index, TRIG_OK );
+            if ( blocks_purged < purge_param.nb_blocks )
+            {
+                if (rc == ENOENT)
+                {
+                    update_trigger_status( trigger_index, TRIG_NO_LIST );
+                    DisplayLog( LVL_EVENT, RESMON_TAG,
+                                "Could not purge %lu blocks for user '%s': no list is available.",
+                                purge_param.nb_blocks, result[0].value_u.val_str );
+
+                    snprintf(status_str, 1024, "No list available (%lu blocks need to be released for user '%s')",
+                             purge_param.nb_blocks, result[0].value_u.val_str);
+                    ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                }
+                else if ( rc == ECANCELED )
+                {
+                    update_trigger_status( trigger_index, TRIG_ABORTED );
+                    DisplayLog( LVL_CRIT, RESMON_TAG,
+                                "Purge aborted after releasing %Lu blocks for user %s.",
+                                blocks_purged, result[0].value_u.val_str );
+                    snprintf(status_str, 1024, "Purge on user %s aborted by admin (after releasing %Lu blocks)",
+                             result[0].value_u.val_str, blocks_purged);
+                    ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                }
+                else
+                {
+                    update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
+                    DisplayLog( LVL_CRIT, RESMON_TAG,
+                                "Could not purge %lu blocks for user '%s': not enough eligible files. Only %Lu blocks freed.",
+                                purge_param.nb_blocks, result[0].value_u.val_str, blocks_purged );
+
+                    if ( ALERT_LW( trigger_index ) )
+                    {
+                        sprintf(buff, "cannot purge user '%s' files (in %s)",
+                                result[0].value_u.val_str, global_config.fs_path );
+                        RaiseAlert( buff,
+                                    "Could not purge %lu blocks for user '%s' in %s:\n"
+                                    "not enough eligible files. Only %Lu blocks freed.",
+                                    purge_param.nb_blocks, result[0].value_u.val_str,
+                                    global_config.fs_path, blocks_purged );
+                    }
+
+                    snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released for user '%s')",
+                             blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str);
+                    ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                }
+
+            }
+            else
+            {
+                snprintf(status_str, 1024, "Success (%Lu/%lu blocks released for user '%s')",
+                         blocks_purged, purge_param.nb_blocks, result[0].value_u.val_str);
+                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                update_trigger_status( trigger_index, TRIG_OK );
+            }
         }
 
         FlushLogs(  );
@@ -1348,7 +1474,8 @@ static int check_user_trigger( unsigned trigger_index )
 /** Check trigger on group usage */
 static int check_group_trigger( unsigned trigger_index )
 {
-    unsigned long long max_blk512, low_blk512;
+    unsigned long long max_blk512 = 0;
+    unsigned long long low_blk512 = 0;
     report_field_descr_t group_info[2];
     db_value_t     result[2];
     unsigned int   result_count;

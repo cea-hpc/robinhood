@@ -470,11 +470,11 @@ typedef enum {
 
 typedef struct _lmgr_recov_stat
 {
-    unsigned int total;
+    unsigned long long total;
 
     /* recovery status count */
-    unsigned int status_count[RS_COUNT];
-    uint64_t     status_size[RS_COUNT];
+    unsigned long long status_count[RS_COUNT];
+    uint64_t           status_size[RS_COUNT];
 } lmgr_recov_stat_t;
 
 /* Filesystem recovery functions  */
