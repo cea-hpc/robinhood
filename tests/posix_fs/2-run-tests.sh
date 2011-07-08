@@ -948,7 +948,7 @@ function test_trigger_check
 
 	# initial inode count
 	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
-	empty_count_user=`find $ROOT/ | wc -l`
+	empty_count_user=0
 	#((file_count=$max_count-$empty_count))
 	file_count=$max_count
 

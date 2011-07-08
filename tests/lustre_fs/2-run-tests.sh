@@ -1670,7 +1670,7 @@ function test_trigger_check
 
 	# initial inode count
 	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
-	empty_count_user=`find $ROOT/ | grep -v "$ROOT/.lustre" | wc -l`
+	empty_count_user=0
 #	((file_count=$max_count-$empty_count))
 	file_count=$max_count
 
@@ -1712,8 +1712,6 @@ function test_trigger_check
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-
-	$REPORT -f ./cfg/$config_file -i
 
 	# check purge triggers
 	$RH -f ./cfg/$config_file --check-thresholds --once -l FULL -L rh_purge.log
