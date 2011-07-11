@@ -432,13 +432,8 @@ function migrate_symlink
 		echo "OK: $nb_migr files migrated"
 	fi
 
-	echo "6-Reading changelogs..."
-	# read changelogs
-	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
-	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
-	fi
+	echo "6-Scanning..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 
 	count=`$REPORT -f ./cfg/$config_file --fs-info --csv -q 2>/dev/null | grep synchro | wc -l`
 	if  (($count == 1)); then
