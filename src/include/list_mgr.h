@@ -81,11 +81,13 @@ typedef struct stripe_items_t
 #define INIT_ONLY    0x00000001 /* set at insert only: stored in an annex table (can't be modified) */
 #define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
+#define INDEXED      0x20000000 /* this field must be indexed */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
 
 /** type of fields in database */
 typedef enum
 {
+    DB_ID,           /**< entry id */
     DB_STRIPE_INFO,  /**< stripe info */
     DB_STRIPE_ITEMS,  /**< stripe items */
     DB_TEXT,    /**< string/text        */

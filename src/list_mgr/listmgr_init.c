@@ -28,6 +28,12 @@
 #define APPEND_TXT( _n, _str ) do { strcpy( _n, _str );  _n = _n + strlen( _n ); } while (0)
 #define INCR_NEXT( _n ) do { _n = _n + strlen( _n ); } while (0)
 
+#ifdef FID_PK
+#   define PK_TYPE   "VARCHAR(" TOSTRING(FID_LEN) ")"
+#else
+#   define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
+#endif
+
 static inline int append_field_def( int i, char *next, int is_first )
 {
     switch ( field_infos[i].db_type )
@@ -63,6 +69,9 @@ static inline int append_field_def( int i, char *next, int is_first )
         break;
     case DB_BOOL:
         return sprintf( next, "%s %s BOOLEAN", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    case DB_ID:
+        return sprintf( next, "%s %s "PK_TYPE, is_first ? "" : ",", field_infos[i].field_name );
         break;
     }
     return 0;
@@ -133,12 +142,6 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     char          *next;
     char          *fieldtab[MAX_DB_FIELDS];
     char          *acct_info_table;
-
-#ifdef FID_PK
-#   define PK_TYPE   "VARCHAR(" TOSTRING(FID_LEN) ")"
-#else
-#   define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
-#endif
 
     /* store the configuration */
     lmgr_config = *p_conf;
@@ -332,6 +335,28 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             }
 
             DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " MAIN_TABLE " created sucessfully" );
+
+            /* create indexes on this table */
+            for ( i = 0; i < ATTR_COUNT; i++ )
+            {
+                if ( is_main_field( i ) && is_indexed_field( i ) )
+                {
+                    sprintf( strbuf, "CREATE INDEX %s_index ON " MAIN_TABLE "(%s)",
+                             field_infos[i].field_name, field_infos[i].field_name );
+
+                    DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
+
+                    rc = db_exec_sql( &conn, strbuf, NULL );
+                    if ( rc )
+                    {
+                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                    "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        return rc;
+                    }
+                    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " MAIN_TABLE "(%s) created sucessfully",
+                                field_infos[i].field_name );
+                }
+            }
         }
     }
     else
@@ -620,6 +645,28 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 }
 
                 DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ANNEX_TABLE " created sucessfully" );
+
+                /* create indexes on this table */
+                for ( i = 0; i < ATTR_COUNT; i++ )
+                {
+                    if ( is_annex_field( i ) && is_indexed_field( i ) )
+                    {
+                        sprintf( strbuf, "CREATE INDEX %s_index ON " ANNEX_TABLE "(%s)",
+                                 field_infos[i].field_name, field_infos[i].field_name );
+
+                        DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
+
+                        rc = db_exec_sql( &conn, strbuf, NULL );
+                        if ( rc )
+                        {
+                            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                        "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                            return rc;
+                        }
+                        DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " ANNEX_TABLE "(%s) created sucessfully",
+                                    field_infos[i].field_name );
+                    }
+                }
             }
         }
         else

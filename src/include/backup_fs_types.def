@@ -119,6 +119,8 @@ typedef enum
 # /!\ Entry attribute type must fit with DB type
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
+parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
+
 # important attributes for building LRUs
 status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
 last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS

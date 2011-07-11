@@ -109,6 +109,9 @@ void           init_attrset_masks(  );
 #define is_gen_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & GENERATED )
 
+#define is_indexed_field( _attr_index ) \
+                ( field_infos[_attr_index].flags & INDEXED )
+
 #define is_annex_field( _attr_index ) \
                 ( annex_table && ( field_infos[_attr_index].flags & ( ANNEX_INFO | INIT_ONLY ) ) \
                   && !is_stripe_field( _attr_index ) \
