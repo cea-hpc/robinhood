@@ -16,6 +16,7 @@
 
 #include "SemN.h"
 #include "rbh_const.h"
+#include "list_mgr.h"
 
 #include <sys/types.h>
 #include <pthread.h>
@@ -41,8 +42,11 @@ typedef struct robinhood_task__
     /* the relative depth of the directory to be read */
     unsigned int   depth;
 
+    /* id of this directory */
+    entry_id_t     dir_id;
+
     /* metadatas of this directory */
-    struct stat    directory_md;
+    struct stat    dir_md;
 
     /* parent task */
     struct robinhood_task__ *parent_task;

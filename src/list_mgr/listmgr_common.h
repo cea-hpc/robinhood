@@ -20,6 +20,9 @@
 #define ASSIGN_UNION( _u, _type, _address ) do {            \
                     switch( _type )                         \
                     {                                       \
+                      case DB_ID:                           \
+                        _u.val_id = *((entry_id_t*)(_address)); \
+                        break;                              \
                       case DB_TEXT:                         \
                         _u.val_str = (char*)(_address);     \
                         break;                              \
@@ -46,6 +49,9 @@
 #define UNION_GET_VALUE( _u, _type, _address ) do {            \
                     switch( _type )                         \
                     {                                       \
+                      case DB_ID:                           \
+                        *((entry_id_t*)(_address)) = _u.val_id; \
+                        break;                              \
                       case DB_TEXT:                         \
                         strcpy( (char*)(_address), _u.val_str ); \
                         break;                              \
@@ -108,6 +114,9 @@ void           init_attrset_masks(  );
 
 #define is_gen_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & GENERATED )
+
+#define is_indexed_field( _attr_index ) \
+                ( field_infos[_attr_index].flags & INDEXED )
 
 #define is_annex_field( _attr_index ) \
                 ( annex_table && ( field_infos[_attr_index].flags & ( ANNEX_INFO | INIT_ONLY ) ) \

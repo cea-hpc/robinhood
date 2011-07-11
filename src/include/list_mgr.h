@@ -82,10 +82,13 @@ typedef struct stripe_items_t
 #define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
+#define INDEXED      0x20000000 /* this field must be indexed */
+#define SPECIAL_GEN  0x40000000 /* like generated field, but using a special DB request */
 
 /** type of fields in database */
 typedef enum
 {
+    DB_ID,           /**< entry id */
     DB_STRIPE_INFO,  /**< stripe info */
     DB_STRIPE_ITEMS,  /**< stripe items */
     DB_TEXT,    /**< string/text        */
@@ -96,22 +99,6 @@ typedef enum
     DB_BOOL     /**< boolean            */
 } db_type_t;
 
-typedef union
-{
-    const char    *val_str;
-    int            val_int;
-    unsigned int   val_uint;
-    long long      val_bigint;
-    unsigned long long val_biguint;
-    int            val_bool;
-} db_type_u;
-
-/** value from DB with the associated type */
-typedef struct db_value_t
-{
-    db_type_t      type;
-    db_type_u      value_u;
-} db_value_t;
 
 #define DB_IS_NULL( _p_v ) ( ((_p_v)->type == DB_TEXT) && ((_p_v)->value_u.val_str == NULL) )
 
@@ -161,6 +148,24 @@ typedef struct field_info_t
 #else
 #error "No application was specified"
 #endif
+
+typedef union
+{
+    const char    *val_str;
+    int            val_int;
+    unsigned int   val_uint;
+    long long      val_bigint;
+    unsigned long long val_biguint;
+    int            val_bool;
+    entry_id_t     val_id;
+} db_type_u;
+
+/** value from DB with the associated type */
+typedef struct db_value_t
+{
+    db_type_t      type;
+    db_type_u      value_u;
+} db_value_t;
 
 /** table switch */
 typedef enum

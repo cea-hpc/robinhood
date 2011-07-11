@@ -595,6 +595,9 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 #endif
         ATTR_MASK_INIT( &op.entry_attr );
 
+        ATTR_MASK_SET( &op.entry_attr, parent_id );
+        ATTR( &op.entry_attr, parent_id) = p_task->dir_id;
+
         ATTR_MASK_SET( &op.entry_attr, name );
         strcpy( ATTR( &op.entry_attr, name ), entry_name );
 
@@ -664,7 +667,17 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 
         p_scan_task->parent_task = p_task;
         strncpy( p_scan_task->path, entry_path, RBH_PATH_MAX );
-        p_scan_task->directory_md = inode;
+        /* set parent id */
+#ifdef _HAVE_FID
+        st = Lustre_GetFidFromPath( entry_path, &p_scan_task->dir_id );
+        if (st)
+            return st;
+#else
+        p_scan_task->dir_id.inode = inode.st_ino;
+        p_scan_task->dir_id.device = inode.st_dev;
+        p_scan_task->dir_id.validator = inode.st_ctime;
+#endif
+        p_scan_task->dir_md = inode;
         p_scan_task->depth = p_task->depth + 1;
         p_scan_task->task_finished = FALSE;
 
@@ -672,7 +685,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         st = AddChildTask( p_task, p_scan_task );
 
         if ( st )
-            return ( st );
+            return st;
 
         /* insert task to the stack */
         st = InsertTask_to_Stack( &tasks_stack, p_scan_task );
@@ -682,7 +695,6 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
             DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: InsertCandidate returned %d", st );
             return st;
         }
-
     }
 
     return 0;
@@ -773,9 +785,38 @@ static void   *Thr_scan( void *arg_thread )
                 Exit( 1 );
             }
 
+            /* set dir_md and dir_id */
+            p_task->dir_md = inode_entree;
+
+#ifdef _HAVE_FID
+            st = Lustre_GetFidFromPath( p_task->path, &p_task->dir_id );
+            if (st) {
+                DisplayLog( LVL_CRIT, FSSCAN_TAG,
+                            "Skipping scan of %s because its FID couldn't be resolved",
+                            p_task->path );
+                p_info->entries_errors ++;
+
+                /* cancel the task */
+                st = RecursiveTaskTermination( p_info, p_task, FALSE );
+
+                if ( st )
+                {
+                    DisplayLog( LVL_CRIT, FSSCAN_TAG,
+                                "CRITICAL ERROR: RecursiveTaskTermination returned %d", st );
+                    Exit( 1 );
+                }
+
+                /* back to "normal" life :-) */
+                continue;
+            }
+#else
+            p_task->dir_id.inode = inode_entree.st_ino;
+            p_task->dir_id.device = inode_entree.st_dev;
+            p_task->dir_id.validator = inode_entree.st_ctime;
+#endif
+
             /* test lock before starting scan */
             TestLockFile( &p_info->last_action );
-
         }
 
 
@@ -866,15 +907,20 @@ static void   *Thr_scan( void *arg_thread )
 
             /* init the structure */
             InitEntryProc_op( &op );
-
-#ifdef _HAVE_FID
-            /* retrieve fids from posix path */
-            op.pipeline_stage = STAGE_GET_FID;
-#else
-            /* attributes already retrieved */
-            op.pipeline_stage = STAGE_GET_INFO_DB;
-#endif
             ATTR_MASK_INIT( &op.entry_attr );
+
+            /* set entry ID */
+            op.entry_id = p_task->dir_id;
+            op.entry_id_is_set = TRUE;
+
+            /* Id already known */
+            op.pipeline_stage = STAGE_GET_INFO_DB;
+
+            if (p_task->parent_task)
+            {
+                ATTR_MASK_SET( &op.entry_attr, parent_id );
+                ATTR( &op.entry_attr, parent_id ) = p_task->parent_task->dir_id;
+            }
 
             ATTR_MASK_SET( &op.entry_attr, name );
             strcpy( ATTR( &op.entry_attr, name ), basename( p_task->path ) );
@@ -892,9 +938,9 @@ static void   *Thr_scan( void *arg_thread )
             ATTR( &op.entry_attr, dircount ) = nb_entries;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-            PosixStat2EntryAttr( &p_task->directory_md, &op.entry_attr, !(is_lustre_fs && global_config.direct_mds_stat) );
+            PosixStat2EntryAttr( &p_task->dir_md, &op.entry_attr, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-            PosixStat2EntryAttr( &p_task->directory_md, &op.entry_attr, TRUE );
+            PosixStat2EntryAttr( &p_task->dir_md, &op.entry_attr, TRUE );
 #endif
             op.entry_attr_is_set = TRUE;
 
@@ -904,16 +950,6 @@ static void   *Thr_scan( void *arg_thread )
 #ifdef _HAVE_FID
             ATTR_MASK_SET( &op.entry_attr, path_update );
             ATTR( &op.entry_attr, path_update ) = time( NULL );
-#endif
-
-            /* Set entry id */
-#ifndef _HAVE_FID
-            op.entry_id.inode = p_task->directory_md.st_ino;
-            op.entry_id.device = p_task->directory_md.st_dev;
-            op.entry_id.validator = p_task->directory_md.st_ctime;
-            op.entry_id_is_set = TRUE;
-#else
-            op.entry_id_is_set = FALSE;
 #endif
 
             op.extra_info_is_set = FALSE;
@@ -966,7 +1002,6 @@ end_task:
         signal_scan_finished();
 
     return NULL;
-
 }
 
 

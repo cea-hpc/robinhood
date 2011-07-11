@@ -171,6 +171,13 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     int allow_md_updt = TRUE;
     int allow_path_updt = TRUE;
 
+    /* is there parent_id in log rec ? */
+    if ( logrec->cr_namelen > 0 )
+    {
+        ATTR_MASK_SET( &p_op->entry_attr, parent_id );
+        ATTR( &p_op->entry_attr, parent_id ) = logrec->cr_pfid;
+    }
+
     if ( logrec->cr_type == CL_UNLINK )
     {
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,

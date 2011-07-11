@@ -63,6 +63,30 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
     return rc;
 }
 
+#ifdef ATTR_INDEX_dircount
+static int listmgr_get_dircount( lmgr_t * p_mgr, PK_ARG_T dir_pk, unsigned int *dircount )
+{
+    char            query[1024];
+    result_handle_t result;
+    char            *str_count;
+    int rc;
+
+    sprintf( query, "SELECT count(*) FROM "MAIN_TABLE" where parent_id="DPK, dir_pk );
+    rc = db_exec_sql( &p_mgr->conn, query, &result );
+    if ( rc )
+        return rc;
+
+    rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
+    if ( rc )
+        return rc;
+    if ( str_count == NULL )
+        return DB_REQUEST_FAILED;
+
+    *dircount = atoi(str_count);
+    return 0;
+}
+#endif
+
 /**
  *  Retrieve entry attributes from its primary key
  */
@@ -161,6 +185,25 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         else if ( rc )
             return rc;
     }
+
+#ifdef ATTR_INDEX_dircount
+    /* special field dircount */
+    if (ATTR_MASK_TEST( p_info, dircount ))
+    {
+        /* dircount is only for directories */
+        if (ATTR_MASK_TEST( p_info, type) &&  (strcmp( ATTR(p_info, type), STR_TYPE_DIR ) != 0))
+        {
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Type='%s' != 'dir' => unsetting dircount in attr mask",
+                        ATTR(p_info, type) );
+            ATTR_MASK_UNSET(p_info, dircount);
+        }
+        else if (listmgr_get_dircount(p_mgr, pk, &ATTR(p_info, dircount)))
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dircount failed for "DPK, pk );
+            ATTR_MASK_UNSET(p_info, dircount);
+        }
+    }
+#endif
 
     /* compute generated fields if asked */
     generate_fields( p_info );

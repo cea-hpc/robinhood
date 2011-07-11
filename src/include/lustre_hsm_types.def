@@ -110,6 +110,8 @@ typedef enum
 # /!\ Entry attribute type must fit with DB type
 # name, 		C type, 	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
+parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
+
 # fields used for sorting/filtering
 
 #file status
