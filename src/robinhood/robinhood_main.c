@@ -1154,7 +1154,7 @@ int main( int argc, char **argv )
         exit( 1 );
     }
     else
-        DisplayLog( LVL_EVENT, MAIN_TAG, "Signal handler thread started successfully" );
+        DisplayLog( LVL_VERB, MAIN_TAG, "Signal handler thread started successfully" );
 
     if ( once )
     {
@@ -1171,7 +1171,7 @@ int main( int argc, char **argv )
         exit( rc );
     }
     else
-        DisplayLog( LVL_EVENT, MAIN_TAG, "ListManager successfully initialized" );
+        DisplayLog( LVL_VERB, MAIN_TAG, "ListManager successfully initialized" );
 
     if ( CheckLastFS(  ) != 0 )
         exit( 1 );
@@ -1186,7 +1186,7 @@ int main( int argc, char **argv )
             exit( rc );
         }
         else
-            DisplayLog( LVL_EVENT, MAIN_TAG, "EntryProcessor successfully initialized" );
+            DisplayLog( LVL_VERB, MAIN_TAG, "EntryProcessor successfully initialized" );
     }
 
     /* Note: in 'one-shot' mode, we must take care of performing action in the correct order:
@@ -1204,7 +1204,7 @@ int main( int argc, char **argv )
             exit( rc );
         }
         else
-            DisplayLog( LVL_EVENT, MAIN_TAG, "FS Scan module successfully initialized" );
+            DisplayLog( LVL_VERB, MAIN_TAG, "FS Scan module successfully initialized" );
 
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
@@ -1229,7 +1229,7 @@ int main( int argc, char **argv )
             exit( rc );
         }
         else
-            DisplayLog( LVL_EVENT, MAIN_TAG, "ChangeLog Reader successfully initialized" );
+            DisplayLog( LVL_VERB, MAIN_TAG, "ChangeLog Reader successfully initialized" );
 
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
@@ -1312,7 +1312,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            DisplayLog( LVL_EVENT, MAIN_TAG, "Migration module successfully initialized" );
+            DisplayLog( LVL_VERB, MAIN_TAG, "Migration module successfully initialized" );
 
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
@@ -1376,7 +1376,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            DisplayLog( LVL_EVENT, MAIN_TAG, "Resource Monitor successfully initialized" );
+            DisplayLog( LVL_VERB, MAIN_TAG, "Resource Monitor successfully initialized" );
 
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
@@ -1408,7 +1408,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            DisplayLog( LVL_EVENT, MAIN_TAG, "Directory Remover successfully initialized" );
+            DisplayLog( LVL_VERB, MAIN_TAG, "Directory Remover successfully initialized" );
 
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
@@ -1440,7 +1440,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            DisplayLog( LVL_EVENT, MAIN_TAG, "HSM removal successfully initialized" );
+            DisplayLog( LVL_VERB, MAIN_TAG, "HSM removal successfully initialized" );
 
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
