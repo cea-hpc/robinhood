@@ -1195,6 +1195,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
     ATTR_MASK_SET( p_attrs_new, status );
 
+    /* TODO retrieve parent fid */
+
 #ifdef _HAVE_FID
     /* get the new fid */
     rc = Lustre_GetFidFromPath( fspath, p_new_id );

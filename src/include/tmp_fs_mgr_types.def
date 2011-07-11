@@ -106,7 +106,9 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 
 # /!\ Entry attribute type must fit with DB type
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
+
 parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
+dircount, 	unsigned int, DB_UINT, 0, GENERATED | SPECIAL_GEN, type, NULL
 
 stripe_info, 	stripe_info_t, DB_STRIPE_INFO, 0, INIT_ONLY
 stripe_items, stripe_items_t, DB_STRIPE_ITEMS, 0, INIT_ONLY
@@ -122,7 +124,6 @@ md_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
 path_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
 invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
 whitelisted, 	int, DB_BOOL, 0, FREQ_ACCESS
-dircount, 	unsigned int, DB_UINT, 0, ANNEX_INFO
 
 # file classes and last update
 release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS

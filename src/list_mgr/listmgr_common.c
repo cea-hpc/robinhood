@@ -26,14 +26,18 @@
 
 int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr )
 {
-    char escaped[4096];
+    char tmpstr[4096];
 
     switch ( type )
     {
+    case DB_ID:
+        /* convert id to str */
+        entry_id2pk( p_mgr, &value_ptr->val_id, FALSE, tmpstr );
+        return sprintf( str, "'%s'", tmpstr );
     case DB_TEXT:
         /* escape special characters in value */
-        db_escape_string( &p_mgr->conn, escaped, 4096, value_ptr->val_str );
-        return sprintf( str, "'%s'", escaped );
+        db_escape_string( &p_mgr->conn, tmpstr, 4096, value_ptr->val_str );
+        return sprintf( str, "'%s'", tmpstr );
     case DB_INT:
         return sprintf( str, "%d", value_ptr->val_int );
     case DB_UINT:
@@ -57,8 +61,15 @@ int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_pt
 /* return 1 on success */
 int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 {
+    int rc;
     switch ( type )
     {
+    case DB_ID:
+        /* convert str to id */
+        rc = pk2entry_id( NULL, str_in, &value_out->val_id );
+        if (rc)
+            return 0;
+        return 1;
     case DB_TEXT:
         value_out->val_str = str_in;
         return 1;
@@ -190,7 +201,7 @@ void           generate_fields( attr_set_t * p_set )
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
-        if ( ( p_set->attr_mask & mask) && (field_infos[i].flags & GENERATED) )
+        if ( ( p_set->attr_mask & mask) && (field_infos[i].flags & GENERATED) && !(field_infos[i].flags & SPECIAL_GEN) )
         {
            void * src_data;
            void * tgt_data;
