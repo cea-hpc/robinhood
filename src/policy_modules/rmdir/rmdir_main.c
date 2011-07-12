@@ -419,7 +419,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
       }
     /* do not retrieve 'invalid' entries */
     fval.val_bool = FALSE;
-    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, 0 );
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
       {
           ListMgr_CloseAccess( &lmgr );
@@ -857,12 +857,20 @@ static void   *Thr_Rmdir( void *arg )
         rc = Lustre_GetFullPath( &p_item->entry_id, ATTR(&p_item->entry_attr, fullpath), 1024 );
         if ( rc )
         {
-           DisplayLog( LVL_MAJOR, RMDIR_TAG, "Can not get path for fid "DFID", tagging it invalid: (%d) %s",
-                       PFID( &p_item->entry_id), rc, strerror(-rc) );
-           invalidate_dir( &lmgr, &p_item->entry_id );
+            if (rc == -ENOENT || rc == -ESTALE)
+            {
+                DisplayLog( LVL_EVENT, RMDIR_TAG, "Directory with fid "DFID" disapeared, tagging it invalid: (%d) %s",
+                            PFID( &p_item->entry_id), rc, strerror(-rc) );
+            }
+            else
+            {
+                DisplayLog( LVL_MAJOR, RMDIR_TAG, "Can not get path for fid "DFID", tagging it invalid: (%d) %s",
+                            PFID( &p_item->entry_id), rc, strerror(-rc) );
+            }
+            invalidate_dir( &lmgr, &p_item->entry_id );
 
-           /* Notify that this entry has been processed and is errorneous */
-           Queue_Acknowledge( &rmdir_queue, RMDIR_ERROR, NULL, 0 );
+            /* Notify that this entry has been processed and is errorneous */
+            Queue_Acknowledge( &rmdir_queue, RMDIR_ERROR, NULL, 0 );
 
            /* free entry resources */
            FreeRmdirItem( p_item );
@@ -875,8 +883,13 @@ static void   *Thr_Rmdir( void *arg )
         ATTR( &p_item->entry_attr, path_update ) = time( NULL );
 #endif
 
+#ifdef _HAVE_FID
+        DisplayLog( LVL_FULL, RMDIR_TAG, "Considering entry %s (fid="DFID")",
+                    ATTR( &p_item->entry_attr, fullpath ), PFID( &p_item->entry_id) );
+#else
         DisplayLog( LVL_FULL, RMDIR_TAG, "Considering entry %s",
                     ATTR( &p_item->entry_attr, fullpath ) );
+#endif
 
         /* 2) Perform lstat on entry */
 
@@ -1165,7 +1178,7 @@ static void   *Thr_Rmdir( void *arg )
                         char volstr[256];
 
                          /* report messages */
-                         DisplayLog( LVL_DEBUG, RMDIR_TAG,
+                         DisplayLog( LVL_EVENT, RMDIR_TAG,
                                      "Recursively removed directory %s (content: %u entries, volume: %s)",
                                      ATTR( &p_item->entry_attr, fullpath ), nb_entries,
                                      FormatFileSize( volstr, 256, DEV_BSIZE*blocks ) );

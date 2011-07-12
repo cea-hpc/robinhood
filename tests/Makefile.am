@@ -38,6 +38,7 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     lustre_fs/cfg/acct_user.conf \
     lustre_fs/cfg/no_acct.conf  \
     lustre_fs/cfg/test_maintenance.conf \
+    lustre_fs/cfg/rmdir.conf   \
     posix_fs/1-test_setup.sh    \
     posix_fs/2-run-tests.sh     \
     posix_fs/3-test_report.sh   \
@@ -72,6 +73,7 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     posix_fs/cfg/acct_user_group.conf \
     posix_fs/cfg/no_acct.conf  \
     posix_fs/cleanup.sh             \
+    posix_fs/cfg/rmdir.conf   \
     huge_posix/cfg/innodb.conf	    \
     huge_posix/cfg/common.conf	    \
     huge_posix/1-test_setup.sh      \
