@@ -1118,9 +1118,9 @@ void report_fs_info( int flags )
 #endif
 
 #if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
-#define FSINFOCOUNT 6
+#define FSINFOCOUNT 3
 #else
-#define FSINFOCOUNT 8
+#define FSINFOCOUNT 5
 #endif
 
     db_value_t     result[FSINFOCOUNT];
@@ -1144,11 +1144,6 @@ void report_fs_info( int flags )
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
-#if !defined(_LUSTRE_HSM) && !defined( _SHERPA ) && !defined(_HSM_LITE)
-        {ATTR_INDEX_dircount, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_dircount, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_dircount, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}}
-#endif
     };
 
     unsigned long long total_size, total_count;
@@ -1397,7 +1392,6 @@ void report_usergroup_info( char *name, int flags )
      * - number of items of each type
      * - SUM(blocks)
      * - MIN/MAX/AVG size
-     * - MIN/MAX/AVG dircount
      */
     report_field_descr_t user_info[USERINFOCOUNT_MAX];
 
@@ -1443,14 +1437,6 @@ void report_usergroup_info( char *name, int flags )
     field_count++;
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_AVG, SORT_NONE );
     field_count++;
-#ifndef _LUSTRE_HSM
-    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_dircount, REPORT_MIN, SORT_NONE );
-    field_count++;
-    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_dircount, REPORT_MAX, SORT_NONE );
-    field_count++;
-    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_dircount, REPORT_AVG, SORT_NONE );
-    field_count++;
-#endif
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
