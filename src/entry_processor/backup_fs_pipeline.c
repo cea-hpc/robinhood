@@ -588,7 +588,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                                        & ~p_op->entry_attr.attr_mask);
 
                 /* no class for directories */
-                if ( strcmp( ATTR(&p_op->entry_attr, type), STR_TYPE_DIR ) != 0 )
+                if ( ATTR_MASK_TEST(&p_op->entry_attr, type) &&
+                     strcmp( ATTR(&p_op->entry_attr, type), STR_TYPE_DIR ) != 0 )
                 {
                     if ( entry_proc_conf.match_classes )
                     {
