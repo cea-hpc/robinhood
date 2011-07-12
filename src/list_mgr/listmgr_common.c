@@ -689,7 +689,7 @@ char          *compar2str( filter_comparator_t compar )
 /**
  * return true if the test is 'dircount == 0'
  */
-int test_emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str)
+int emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str)
 {
     int i;
     filter_str[0] = '\0';
