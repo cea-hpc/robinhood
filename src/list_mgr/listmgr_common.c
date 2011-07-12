@@ -686,6 +686,33 @@ char          *compar2str( filter_comparator_t compar )
     }
 }
 
+/**
+ * return true if the test is 'dircount == 0'
+ */
+int test_emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str)
+{
+    int i;
+    filter_str[0] = '\0';
+
+    if ( p_filter->filter_type == FILTER_SIMPLE )
+    {
+        for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
+        {
+            if ( p_filter->filter_simple.filter_index[i] == ATTR_INDEX_dircount )
+            {
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on dircount" );
+
+                if ( p_filter->filter_simple.filter_value[i].val_uint == 0 )
+                {
+                    strcpy( filter_str, "id NOT IN (SELECT distinct(parent_id) from ENTRIES)" );
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
 
 int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 table_enum table, int leading_and, int prefix_table )
@@ -711,7 +738,12 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
             fname[0] = '\0';
 
             /* filter on generated fields are not allowed */
-            if ( field_infos[index].flags & GENERATED )
+            if ( field_infos[index].flags & SPECIAL_GEN )
+            {
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "Special generated filter on '%s'", field_infos[index].field_name );
+                continue;
+            }
+            else if ( field_infos[index].flags & GENERATED )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG, "Cannot use filter on generated field '%s'", field_infos[index].field_name );
                 return -DB_INVALID_ARG;

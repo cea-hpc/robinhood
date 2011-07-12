@@ -37,10 +37,12 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
     char           filter_str_annex[2048];
     char           filter_str_stripe_info[2048];
     char           filter_str_stripe_items[2048];
+    char           filter_emptydir_str[512];
     int            filter_main = 0;
     int            filter_annex = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
+    int            filter_emptydir = 0;
     int            rc;
     char           fields[2048];
     char           tables[2048];
@@ -91,6 +93,9 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
     if ( p_filter )
     {
+
+        filter_emptydir = test_emptydir_filter(p_mgr, p_filter, filter_emptydir_str);
+
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
                                   FALSE, TRUE );
 
@@ -131,33 +136,56 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             {
                 strcpy( query, "SELECT id FROM " MAIN_TABLE );
             }
+
+            if (filter_emptydir)
+            {
+                char * curr = query;
+                curr += strlen(query);
+                sprintf( curr, " WHERE %s", filter_emptydir_str );
+            }
         }
         else if ( filter_main && !( filter_annex || filter_stripe_items || filter_stripe_info )
                   && ( !do_sort || ( sort_table == T_MAIN ) ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " MAIN_TABLE " table" );
-            sprintf( query, "SELECT id FROM " MAIN_TABLE " WHERE %s", filter_str_main );
+            if (filter_emptydir)
+                sprintf( query, "SELECT id FROM " MAIN_TABLE " WHERE %s AND %s", filter_emptydir_str, filter_str_main );
+            else
+                sprintf( query, "SELECT id FROM " MAIN_TABLE " WHERE %s", filter_str_main );
         }
         else if ( filter_annex && !( filter_main || filter_stripe_items || filter_stripe_info )
                   && ( !do_sort || ( sort_table == T_ANNEX ) ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " ANNEX_TABLE " table" );
-            sprintf( query, "SELECT id FROM " ANNEX_TABLE " WHERE %s", filter_str_annex );
+            if (filter_emptydir)
+                sprintf( query, "SELECT id FROM " ANNEX_TABLE " WHERE %s AND %s", filter_emptydir_str, filter_str_annex );
+            else
+                sprintf( query, "SELECT id FROM " ANNEX_TABLE " WHERE %s", filter_str_annex );
         }
         else if ( filter_stripe_info && !( filter_main || filter_annex || filter_stripe_items )
                   && ( !do_sort || ( sort_table == T_STRIPE_INFO ) ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_INFO_TABLE " table" );
-            sprintf( query,
-                     "SELECT id FROM " STRIPE_INFO_TABLE " WHERE %s", filter_str_stripe_info );
+
+            if (filter_emptydir)
+                sprintf( query, "SELECT id FROM " STRIPE_INFO_TABLE " WHERE %s AND %s", filter_emptydir_str, filter_str_stripe_info );
+            else
+                sprintf( query,
+                         "SELECT id FROM " STRIPE_INFO_TABLE " WHERE %s", filter_str_stripe_info );
         }
         else if ( filter_stripe_items && !( filter_main || filter_annex || filter_stripe_info )
                   && ( !do_sort || ( sort_table == T_STRIPE_ITEMS ) ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_ITEMS_TABLE " table" );
-            sprintf( query,
-                     "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE
-                     " WHERE %s", filter_str_stripe_items );
+
+            if (filter_emptydir)
+                sprintf( query,
+                         "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE
+                         " WHERE %s AND %s", filter_emptydir_str, filter_str_stripe_items );
+            else
+                sprintf( query,
+                         "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE
+                         " WHERE %s", filter_str_stripe_items );
         }
         else
         {
@@ -266,8 +294,10 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                 curr_tables += sprintf( curr_tables, "%s", STRIPE_INFO_TABLE );
             }
 
-            sprintf( query, "SELECT %s.id AS id FROM %s WHERE %s", first_table, tables, fields );
-
+            if (filter_emptydir)
+                sprintf( query, "SELECT %s.id AS id FROM %s WHERE %s AND %s", first_table, tables, filter_emptydir_str, fields );
+            else
+                sprintf( query, "SELECT %s.id AS id FROM %s WHERE %s", first_table, tables, fields );
         }
     }
     else if ( do_sort )

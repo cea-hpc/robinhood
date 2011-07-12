@@ -182,6 +182,9 @@ char          *compar2str( filter_comparator_t compar );
 int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                            table_enum table, int leading_and, int prefix_table );
 
+int test_emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str);
+ 
+
 int            result2attrset( table_enum table, char **result_tab,
                                unsigned int res_count, attr_set_t * p_set );
 
