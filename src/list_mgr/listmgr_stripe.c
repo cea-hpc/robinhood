@@ -52,25 +52,28 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                         int update_if_exists )
 {
     int            i, rc;
-    char           query[4096];
     int            created = FALSE;
+
+    if ( p_stripe == NULL )
+        return DB_INVALID_ARG;
 
     do
     {
+        char short_query[4096];
         /* First insert info into STRIPE_INFO_TABLE,
          * so if a file is already present with the same id,
          * we will remove its previous stripe info */
 
-        sprintf( query, "INSERT INTO " STRIPE_INFO_TABLE
+        sprintf( short_query, "INSERT INTO " STRIPE_INFO_TABLE
                  "(id,validator, stripe_count,stripe_size,pool_name) "
                  "VALUES ("DPK",%u,%u,%u,'%s')", pk, validator,
                  p_stripe->stripe_count, ( unsigned int ) p_stripe->stripe_size,
                  p_stripe->pool_name );
 
         if ( update_if_exists )
-            rc = db_exec_sql_quiet( &p_mgr->conn, query, NULL );
+            rc = db_exec_sql_quiet( &p_mgr->conn, short_query, NULL );
         else
-            rc = db_exec_sql( &p_mgr->conn, query, NULL );
+            rc = db_exec_sql( &p_mgr->conn, short_query, NULL );
 
         if ( rc == 0 )
         {
@@ -88,7 +91,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
                         "DB query failed in %s line %d: code=%d: %s",
-                        __FUNCTION__, __LINE__, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
+                        __FUNCTION__, __LINE__, rc, db_errmsg( &p_mgr->conn, short_query, 4096 ) );
             return rc;
         }
 
@@ -96,38 +99,54 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
     while ( !created );         /* retry loop in case a similar entry already exists */
 
     /* then insert stripe items */
-    if ( p_items->count > 0 )
+    if ( (p_items != NULL) && (p_items->count > 0) )
     {
-        ssize_t        len;
+        ssize_t         len;
+        unsigned int    est_len;
+        char            *query = NULL;
+        
+        /* estimate query size = fix part + stripe_count * ( 4 + pklen + ost_idx_len )
+         *                     = ~64(oversize to 128) + stripe_count * 4 + 128
+         */
+        est_len = 128 + p_items->count * 128;
+        DisplayLog( LVL_FULL, LISTMGR_TAG, "Estimated query size for %u stripe = %u",  p_items->count, est_len );
+        query = MemAlloc(est_len);
+        if (query == NULL) {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Not enough memory to build SQL query (length = %u)", est_len );
+            return DB_NO_MEMORY;
+        }
 
         strcpy( query, "INSERT INTO " STRIPE_ITEMS_TABLE "(id, storage_item) VALUES " );
         len = strlen( query );
 
         /* first stripe item */
-        len += snprintf( query + len, 4096 - len, "("DPK",%u)", pk, p_items->stripe_units[0] );
+        len += snprintf( query + len, est_len - len, "("DPK",%u)", pk, p_items->stripe_units[0] );
 
         /* next items */
         for ( i = 1; i < p_items->count; i++ )
         {
-            len += snprintf( query + len, 4096 - len, ",("DPK",%u)", pk, p_items->stripe_units[i] );
+            len += snprintf( query + len, est_len - len, ",("DPK",%u)", pk, p_items->stripe_units[i] );
 
-            if ( len >= 4096 )
+            if ( len >= est_len )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Error in %s(): query too long (>4096 bytes long), stripe_count=%d",
-                            __FUNCTION__, p_items->count );
+                            "Error in %s(): query too long (>%u bytes long), stripe_count=%d",
+                            __FUNCTION__, est_len, p_items->count );
+                MemFree( query );
                 return DB_BUFFER_TOO_SMALL;
             }
         }
-    }
 
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    if ( rc )
-    {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "DB query failed in %s line %d: code=%d: %s",
-                    __FUNCTION__, __LINE__, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
-        return rc;
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( rc )
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "DB query failed in %s line %d: code=%d: %s",
+                        __FUNCTION__, __LINE__, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
+            MemFree( query );
+            return rc;
+        }
+        MemFree( query );
     }
 
     return 0;

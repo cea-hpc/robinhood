@@ -470,11 +470,11 @@ typedef enum {
 
 typedef struct _lmgr_recov_stat
 {
-    unsigned int total;
+    unsigned long long total;
 
     /* recovery status count */
-    unsigned int status_count[RS_COUNT];
-    uint64_t     status_size[RS_COUNT];
+    unsigned long long status_count[RS_COUNT];
+    uint64_t           status_size[RS_COUNT];
 } lmgr_recov_stat_t;
 
 /* Filesystem recovery functions  */
@@ -652,7 +652,7 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 #define SCAN_STATUS_DONE      "done"
 #define SCAN_STATUS_RUNNING   "running"
 #define SCAN_STATUS_ABORTED   "aborted"
-#define SCAN_STATUS_TIMEDOUT  "timed out"
+#define SCAN_STATUS_PARTIAL   "partial"
 
 #define MAX_VAR_LEN     1024
 /**

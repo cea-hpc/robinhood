@@ -223,6 +223,11 @@ fi
 
 %changelog
 
+* Tue Jun 07 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.1
+- [bugfix](major) Wrong accounting values if file owner changes
+- [bugfix](major) SQL error for widely striped files
+- [compat] Compatibility fix for MySQL servers between 5.0.0 and 5.0.32
+
 * Fri May 06 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.0
 - [optim.] instant accounting reports (user/group usage, fs content summary, ...)
 - [reporting] split user usage per group (--split-user-groups option)

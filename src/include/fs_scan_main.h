@@ -29,12 +29,6 @@
 #include "config_parsing.h"
 #include "policies.h"
 
-typedef struct ignore_item_t
-{
-    bool_node_t    boolexpr;
-    int            attr_mask;
-} ignore_item_t;
-
 /** Configuration for FS scan Module */
 typedef struct fs_scan_config_t
 {
@@ -56,7 +50,7 @@ typedef struct fs_scan_config_t
     unsigned       nb_prealloc_tasks;
 
     /** ignore list (bool expr) */
-    ignore_item_t *ignore_list;
+    whitelist_item_t *ignore_list;
     unsigned int   ignore_count;
 
 } fs_scan_config_t;

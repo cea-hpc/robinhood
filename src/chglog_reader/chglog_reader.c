@@ -538,6 +538,8 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
                "Ready to trap SIGCHLD from liblustreapi child process" );
 #endif
 
+    Alert_StartBatching();
+
     /* create one reader per MDT */
     for ( i = 0; i < p_config->mdt_count ; i++ )
     {
@@ -624,6 +626,9 @@ int            ChgLogRdr_Wait(  )
     {
         pthread_join( reader_info[i].thr_id, &ret );
     }
+
+    Alert_EndBatching();
+
     return 0;
 }
 
