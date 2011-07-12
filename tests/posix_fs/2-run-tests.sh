@@ -149,6 +149,88 @@ function migration_test
 	fi
 }
 
+# test rmdir policies
+function test_rmdir
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str="$3"
+
+	if (( $is_backup != 0 )); then
+		echo "No rmdir policy for hsm flavors: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	EMPTY=empty
+	NONEMPTY=smthg
+	RECURSE=remove_me
+
+	echo "1-Create test directories"
+
+	# create 3 empty directories
+	mkdir "$ROOT/$EMPTY.1" "$ROOT/$EMPTY.2" "$ROOT/$EMPTY.3" || error "creating empty directories"
+	# create non-empty directories
+	mkdir "$ROOT/$NONEMPTY.1" "$ROOT/$NONEMPTY.2" "$ROOT/$NONEMPTY.3" || error "creating directories"
+	touch "$ROOT/$NONEMPTY.1/f" "$ROOT/$NONEMPTY.2/f" "$ROOT/$NONEMPTY.3/f" || error "populating directories"
+	# create "deep" directories for testing recurse rmdir
+	mkdir "$ROOT/$RECURSE.1"  "$ROOT/$RECURSE.2" || error "creating directories"
+	mkdir "$ROOT/$RECURSE.1/subdir.1" "$ROOT/$RECURSE.1/subdir.2" || error "creating directories"
+	touch "$ROOT/$RECURSE.1/subdir.1/file.1" "$ROOT/$RECURSE.1/subdir.1/file.2" "$ROOT/$RECURSE.1/subdir.2/file" || error "populating directories"
+	
+	echo "2-Scanning..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning filesystem"
+
+	echo "3-Applying rmdir policy ($policy_str)..."
+	# files should not be migrated this time: do not match policy
+	$RH -f ./cfg/$config_file --rmdir --once -l EVENT -L rh_purge.log 2>/dev/null
+
+	grep "Empty dir removal summary" rh_purge.log || error "did not file summary line in log"
+	grep "Recursive dir removal summary" rh_purge.log || error "did not file summary line in log"
+
+	cnt_empty=`grep "Empty dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
+	cnt_recurs=`grep "Recursive dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
+
+	if (( $cnt_empty == 0 )); then
+		echo "OK: no empty directory removed for now"
+	else
+		error "$cnt_empty directories removed (too young)"
+	fi
+	if (( $cnt_recurs == 2 )); then
+		echo "OK: 2 top-level directories removed"
+	else
+		error "$cnt_resurs directories removed (2 expected)"
+	fi
+
+	cp /dev/null rh_purge.log
+	echo "4-Sleeping $sleep_time seconds..."
+	sleep $sleep_time
+
+	echo "5-Applying rmdir policy again ($policy_str)..."
+	# files should not be migrated this time: do not match policy
+	$RH -f ./cfg/$config_file --rmdir --once -l EVENT -L rh_purge.log 2>/dev/null
+
+	grep "Empty dir removal summary" rh_purge.log || error "did not file summary line in log"
+	grep "Recursive dir removal summary" rh_purge.log || error "did not file summary line in log"
+
+	cnt_empty=`grep "Empty dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
+	cnt_recurs=`grep "Recursive dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
+
+	if (( $cnt_empty == 3 )); then
+		echo "OK: 3 empty directories removed"
+	else
+		error "$cnt_empty directories removed (3 expected)"
+	fi
+	if (( $cnt_recurs == 0 )); then
+		echo "OK: no top-level directories removed"
+	else
+		error "$cnt_resurs directories removed (none expected)"
+	fi
+}
+
+
 function xattr_test
 {
 	config_file=$1
@@ -1826,6 +1908,8 @@ run_test 214b 	check_disabled	common.conf  migration	"no migration if not define
 run_test 214c 	check_disabled	common.conf  rmdir	"no rmdir if not defined in config"
 run_test 214d 	check_disabled	common.conf  hsm_remove	"hsm_rm is enabled by default"
 run_test 214e 	check_disabled	common.conf  class	"no class matching if none defined in config"
+#test 215-217 are HSM specific
+run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 
 #### triggers ####
 

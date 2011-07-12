@@ -61,5 +61,6 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     posix_fs/cfg/test_updt.conf     \
     posix_fs/cfg/test_xattr.conf    \
     posix_fs/cleanup.sh             \
+    posix_fs/cfg/rmdir.conf   \
 	test_compil_switches.sh	    \
 	fill_fs.sh
