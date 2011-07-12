@@ -120,6 +120,7 @@ typedef enum
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
 parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
+dircount, 	    unsigned int, DB_UINT, 0, GENERATED | SPECIAL_GEN, type, NULL
 
 # important attributes for building LRUs
 status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
@@ -161,9 +162,6 @@ last_op_index, uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
 # file class and their last update
 archive_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
 arch_cl_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
-
-# directories only
-dircount, 	unsigned int, DB_UINT, 0, ANNEX_INFO
 
 # info that is set once for each file
 creation_time,  unsigned int,   DB_UINT,    0,       INIT_ONLY
