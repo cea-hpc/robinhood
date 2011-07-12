@@ -205,18 +205,18 @@ static void terminate_handler( int sig )
 static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
 {
     char buff[128];
-    int diff;
+    unsigned long long diff;
 
     FormatFileSize( buff, 128, p_stat->status_size[RS_OK] );
     if (forecast)
-        printf( "   - full recovery:   %10u entries (%s)\n", p_stat->status_count[RS_OK], buff );
+        printf( "   - full recovery:   %10Lu entries (%s)\n", p_stat->status_count[RS_OK], buff );
     else
-        printf( "   - successfully recovered: %3u entries (%s)\n", p_stat->status_count[RS_OK], buff );
+        printf( "   - successfully recovered: %3Lu entries (%s)\n", p_stat->status_count[RS_OK], buff );
 
     FormatFileSize( buff, 128, p_stat->status_size[RS_DELTA] );
-    printf( "   - old version:     %10u entries (%s)\n", p_stat->status_count[RS_DELTA], buff );
+    printf( "   - old version:     %10Lu entries (%s)\n", p_stat->status_count[RS_DELTA], buff );
     FormatFileSize( buff, 128, p_stat->status_size[RS_NOBACKUP] );
-    printf( "   - not recoverable: %10u entries (%s)\n", p_stat->status_count[RS_NOBACKUP], buff );
+    printf( "   - not recoverable: %10Lu entries (%s)\n", p_stat->status_count[RS_NOBACKUP], buff );
 
     diff = p_stat->total - p_stat->status_count[RS_OK] - p_stat->status_count[RS_DELTA]
            - p_stat->status_count[RS_NOBACKUP] - p_stat->status_count[RS_ERROR];
@@ -224,10 +224,10 @@ static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
     FormatFileSize( buff, 128, p_stat->status_size[RS_ERROR] );
 
     if ( forecast )
-        printf( "   - other/errors:    %10u/%u (%s)\n", diff, p_stat->status_count[RS_ERROR], buff );
+        printf( "   - other/errors:    %10Lu/%Lu (%s)\n", diff, p_stat->status_count[RS_ERROR], buff );
     else {
-        printf( "   - errors:          %10u entries (%s)\n", p_stat->status_count[RS_ERROR], buff ); 
-        printf( "   - still to be recovered: %4u entries\n", diff );
+        printf( "   - errors:          %10Lu entries (%s)\n", p_stat->status_count[RS_ERROR], buff ); 
+        printf( "   - still to be recovered: %4Lu entries\n", diff );
     }
 }
 
@@ -251,9 +251,9 @@ int recov_start()
         printf( "\nERROR: a recovery is already in progress, or a previous recovery\n"
                 "was not completed properly (see --resume, --complete or --reset option).\n\n" );
 
-        unsigned int total = stats.status_count[RS_OK] + stats.status_count[RS_DELTA]
+        unsigned long long total = stats.status_count[RS_OK] + stats.status_count[RS_DELTA]
                            + stats.status_count[RS_NOBACKUP] + stats.status_count[RS_ERROR];
-        printf( "The progress of this recovery is %u/%u entries\n", total, stats.total );
+        printf( "The progress of this recovery is %Lu/%Lu entries\n", total, stats.total );
         print_recov_stats( FALSE, &stats );
 
         return -EALREADY;

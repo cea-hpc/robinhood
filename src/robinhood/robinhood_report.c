@@ -1114,7 +1114,7 @@ void report_fs_info( int flags )
 #endif
 
 #if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_BACKUP_FS)
-#define FSINFOCOUNT 3
+#define FSINFOCOUNT 6
 #else
 #define FSINFOCOUNT 5
 #endif

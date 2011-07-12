@@ -363,6 +363,98 @@ function migration_test_single
 	fi
 }
 
+# migrate a symlink
+function migrate_symlink
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str="$3"
+
+	if (( $is_backup == 0 )); then
+		echo "Backup test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# create a symlink
+
+	echo "1-Create a symlink"
+	ln -s "this is a symlink" "$ROOT/link.1" || error "creating symlink"
+
+	echo "2-Reading changelogs..."
+	# read changelogs
+	if (( $no_log )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	else
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	fi
+
+	count=0
+	echo "3-Applying migration policy ($policy_str)..."
+	# files should not be migrated this time: do not match policy
+	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	grep "$ROOT/link.1" rh_migr.log | grep "whitelisted" && count=$(($count+1))
+
+	if (( $count == 1 )); then
+		echo "OK: symlink not eligible for migration"
+	else
+		error "$count entries are not eligible, 1 expected"
+	fi
+
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	if (($nb_migr != 0)); then
+		error "********** TEST FAILED: No migration expected, $nb_migr started"
+	else
+		echo "OK: no entries migrated"
+	fi
+
+	cp /dev/null rh_migr.log
+	echo "4-Sleeping $sleep_time seconds..."
+	sleep $sleep_time
+
+	count=0
+	echo "5-Applying migration policy again ($policy_str)..."
+	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	grep "$ROOT/link.1" rh_migr.log | grep "successful" && count=$(($count+1))
+
+	if (( $count == 1 )); then
+		echo "OK: symlink has been migrated successfully"
+	else
+		error "$count symlink migrated, 1 expected"
+	fi
+
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	if (($nb_migr != 1)); then
+		error "********** TEST FAILED: 1 migration expected, $nb_migr started"
+	else
+		echo "OK: $nb_migr files migrated"
+	fi
+
+	echo "6-Scanning..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+
+	count=`$REPORT -f ./cfg/$config_file --fs-info --csv -q 2>/dev/null | grep synchro | wc -l`
+	if  (($count == 1)); then
+		echo "OK: 1 synchro symlink"
+	else
+		error "1 symlink is expected to be synchro (found $count)"
+	fi
+
+	cp /dev/null rh_migr.log
+	echo "7-Applying migration policy again ($policy_str)..."
+	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+
+	count=`grep "$ROOT/link.1" rh_migr.log | grep "skipping entry" | wc -l`
+
+	if (( $count == 1 )); then
+		echo "OK: symlink already migrated"
+	else
+		error "$count symlink skipped, 1 expected"
+	fi
+}
+
 
 function xattr_test
 {
@@ -2941,6 +3033,7 @@ run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by def
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
 run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
+run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
 
 	
 #### triggers ####

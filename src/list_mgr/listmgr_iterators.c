@@ -78,8 +78,10 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             sort_table = T_STRIPE_INFO;
         else if ( field_infos[p_sort_type->attr_index].db_type == DB_STRIPE_ITEMS )
             sort_table = T_STRIPE_ITEMS;
+#ifdef ATTR_INDEX_dircount
         else if ( p_sort_type->attr_index == ATTR_INDEX_dircount )
             sort_dircount = 1;
+#endif
         else
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid field for sort order (index=%d)", p_sort_type->attr_index );
