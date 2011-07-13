@@ -1162,6 +1162,54 @@ function test_acct_table
 
 }
 
+#test dircount reports
+function test_dircount_report
+{
+	config_file=$1
+	dircount=$2
+	descr_str="$3"
+
+	clean_logs
+
+	# inital scan
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+
+	# create several dirs with different entry count (+10 for each)
+
+	for i in `seq 1 $dircount`; do
+                mkdir $ROOT/dir.$i
+                echo "1.$i-Creating files in $ROOT/dir.$i..."
+                # write i MB to each directory
+                for j in `seq 1 $((10*$i))`; do
+                        touch $ROOT/dir.$i/file.$j || error "creating $ROOT/dir.$i/file.$j"
+                done
+        done
+
+	# read changelogs
+	if (( $no_log )); then
+		echo "2-Scanning..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	else
+		echo "2-Reading changelogs..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	fi
+
+	echo "3.Checking dircount report..."
+	$REPORT -f ./cfg/$config_file --topdirs=$dircount --csv > report.out
+
+	# check that dircount is right for each dir
+	for i in `seq 1 $dircount`; do
+		line=`grep "$ROOT/dir.$i " report.out`
+		rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
+		count=`echo $line | cut -d ',' -f 3 | tr -d ' '`
+		#echo "dir.$i: rank=$rank, dircount=$count"
+		(($rank == $(( 20 - $i +1 )) )) || error "Invalid rank $rank for dir.$i"
+		(($count == $(( 10 * $i )) )) || error "Invalid dircount $count for dir.$i"
+	done
+	
+}
+
+
 function path_test
 {
 	config_file=$1
@@ -3138,6 +3186,8 @@ run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: conf
 
 run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
+
+run_test 403   test_dircount_report common.conf 20  "dircount reports"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
