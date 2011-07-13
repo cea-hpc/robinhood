@@ -26,6 +26,8 @@
 #define ACCT_TRIGGER_UPDATE "ACCT_ENTRY_UPDATE"
 #define ACCT_TRIGGER_DELETE "ACCT_ENTRY_DELETE"
 #define ACCT_FIELD_COUNT    "count"
+#define ACCT_DEFAULT_OWNER  "unknown"
+#define ACCT_DEFAULT_GROUP  "unknown"
 
 #ifdef HAVE_RM_POLICY
 #   define SOFT_RM_TABLE    "SOFT_RM"

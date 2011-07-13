@@ -1220,28 +1220,14 @@ void report_fs_info( int flags )
         if ( !strcmp( result[0].value_u.val_str, STR_TYPE_DIR ) )
         {
             if ( CSV(flags) )
-                if ( !DB_IS_NULL( &result[5] ) && !DB_IS_NULL( &result[6] ) )
-                    printf( "%-10s, %10Lu, %15u, %15u, %15u\n",
+                    printf( "%-10s, %10Lu\n",
                             result[0].value_u.val_str,
-                            result[1].value_u.val_biguint,
-                            result[5].value_u.val_uint,
-                            result[6].value_u.val_uint, result[7].value_u.val_uint );
-                else
-                    printf( "%-10s, %10Lu, %15u\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_biguint,
-                            result[7].value_u.val_uint );
+                            result[1].value_u.val_biguint );
             else
             {
                 printf( "\n" );
                 printf( "Type:         %15s\n", "directory" );
                 printf( "Count:        %15Lu\n", result[1].value_u.val_biguint );
-                if ( !DB_IS_NULL( &result[5] ) && !DB_IS_NULL( &result[6] ) && !DB_IS_NULL( &result[7] ) )
-                {
-                    printf( "Dircount min: %15u\n", result[5].value_u.val_uint );
-                    printf( "Dircount max: %15u\n", result[6].value_u.val_uint );
-                    printf( "Dircount avg: %15u\n", result[7].value_u.val_uint );
-                }
             }
         }
         else
@@ -1379,7 +1365,7 @@ void report_usergroup_info( char *name, int flags )
     int display_header = TRUE;
     int display_new_block = TRUE;
 
-#define USERINFOCOUNT_MAX 11
+#define USERINFOCOUNT_MAX 8
 
     db_value_t     result[USERINFOCOUNT_MAX];
 
@@ -1498,8 +1484,7 @@ void report_usergroup_info( char *name, int flags )
                             "avg_size" );
 #endif
             }
-            /* Using accounting table*/
-            else
+            else /* Using accounting table*/
             {
 #ifndef _LUSTRE_HSM
                 if ( ISSPLITUSERGROUP(flags) )
@@ -1539,45 +1524,20 @@ void report_usergroup_info( char *name, int flags )
         {
             if ( CSV(flags) )
             {
-                if ( DB_IS_NULL( &result[7+shift] ) && DB_IS_NULL( &result[8+shift] ) )
-                {
                     if ( ISSPLITUSERGROUP(flags) )
-                        printf( "%-10s, %10s, %10s, %10Lu, %15llu, %15u\n",
+                        printf( "%-10s, %10s, %10s, %10Lu, %15llu\n",
                                 result[0].value_u.val_str,
                                 result[1].value_u.val_str,
                                 result[2].value_u.val_str,
                                 result[3].value_u.val_biguint,
-                                result[4].value_u.val_biguint * DEV_BSIZE,
-                                result[10].value_u.val_uint );
+                                result[4].value_u.val_biguint * DEV_BSIZE );
                     else
-                        printf( "%-10s, %10s, %10Lu, %15llu, %15u\n",
+                        printf( "%-10s, %10s, %10Lu, %15llu\n",
                                 result[0].value_u.val_str,
                                 result[1].value_u.val_str,
                                 result[2].value_u.val_biguint,
-                                result[3].value_u.val_biguint * DEV_BSIZE,
-                                result[9].value_u.val_uint );
-                }
-                else
-                {
-                    if ( ISSPLITUSERGROUP(flags) )
-                        printf( "%-10s, %10s, %10s, %10Lu, %15llu, %15u, %15u, %15u\n",
-                                result[0].value_u.val_str,
-                                result[1].value_u.val_str,
-                                result[2].value_u.val_str,
-                                result[3].value_u.val_biguint,
-                                result[4].value_u.val_biguint * DEV_BSIZE,
-                                result[8].value_u.val_uint,
-                                result[9].value_u.val_uint, result[10].value_u.val_uint );
-                    else
-                        printf( "%-10s, %10s, %10Lu, %15llu, %15u, %15u, %15u\n",
-                                result[0].value_u.val_str,
-                                result[1].value_u.val_str,
-                                result[2].value_u.val_biguint,
-                                result[3].value_u.val_biguint * DEV_BSIZE,
-                                result[7].value_u.val_uint,
-                                result[8].value_u.val_uint, result[9].value_u.val_uint );
-                }
-            }
+                                result[3].value_u.val_biguint * DEV_BSIZE );
+            } 
             else
             {
                 if ( strcmp( prevuser, result[0].value_u.val_str ) )
@@ -1611,19 +1571,15 @@ void report_usergroup_info( char *name, int flags )
                 printf( "%s    Count:        %15Lu\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[2+shift].value_u.val_biguint );
                 printf( "%s    Space used:   %15s    (%llu blks)\n", ISSPLITUSERGROUP(flags) ? "    " : "", strsize,
                         result[3+shift].value_u.val_biguint );
-                if ( !DB_IS_NULL( &result[7+shift] ) && !DB_IS_NULL( &result[8+shift] ) && !DB_IS_NULL( &result[9+shift] ) )
-                {
-                    printf( "%s    Dircount min: %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[7+shift].value_u.val_uint );
-                    printf( "%s    Dircount max: %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[8+shift].value_u.val_uint );
-                    printf( "%s    Dircount avg: %15u\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[9+shift].value_u.val_uint );
-                }
             }
         }
         /* File info display */
         else
         {
             if ( CSV(flags) )
+            {
                 if ( DB_IS_NULL( &result[4+shift] ) && DB_IS_NULL( &result[5+shift] ) )
+                {
                     if ( ISSPLITUSERGROUP(flags) )
                         printf( "%-10s, %10s, %10s, %10Lu, %15llu, %15llu\n",
                                 result[0].value_u.val_str,
@@ -1639,7 +1595,9 @@ void report_usergroup_info( char *name, int flags )
                                 result[2+shift].value_u.val_biguint,
                                 result[3+shift].value_u.val_biguint * DEV_BSIZE,
                                 result[6+shift].value_u.val_biguint );
+                }
                 else
+                {
                     if ( ISSPLITUSERGROUP(flags) )
                         printf( "%-10s, %10s, %10s, %10Lu, %15llu, %15llu, %15llu, %15llu\n",
                                 result[0].value_u.val_str,
@@ -1657,8 +1615,9 @@ void report_usergroup_info( char *name, int flags )
                                 result[3+shift].value_u.val_biguint * DEV_BSIZE,
                                 result[4+shift].value_u.val_biguint,
                                 result[5+shift].value_u.val_biguint, result[6+shift].value_u.val_biguint );
-
-            else
+                }
+            }
+            else /* not CSV */
             {
                 if ( strcmp( prevuser, result[0].value_u.val_str ) )
                 {
@@ -1705,7 +1664,6 @@ void report_usergroup_info( char *name, int flags )
                         FormatFileSize( strsize, 128, result[6+shift].value_u.val_biguint ),
                         result[6+shift].value_u.val_biguint );
             }
-
         }
 
 #else /* Lustre HSM */
