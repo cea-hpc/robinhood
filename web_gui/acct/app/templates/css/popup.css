@@ -1,0 +1,51 @@
+/* the overlayed element */
+.apple_overlay {
+	
+	/* initially overlay is hidden */
+	display:none;
+	
+	/* growing background image */
+	background-image:url(../../img/popup/white.png);
+	
+	/* 
+		width after the growing animation finishes
+		height is automatically calculated
+	*/
+	width:640px;
+	
+	/* some padding to layout nested elements nicely  */
+	padding:35px;
+
+	/* a little styling */	
+	font-size:11px;
+}
+
+.apple_overlay .contentWrap {
+	height:500px;
+        overflow: auto;
+	font-size: 1.1em;
+}
+
+.apple_overlay .contentWrap h1 {
+    	font-size: 1.7em;
+    	line-height: 1.5em;
+    	color: #5168A3;
+    	font-weight: normal;
+}
+
+.apple_overlay .contentWrap hr {
+	color: #B3C3D9;
+	background-color: #B3C3D9;
+	height: 1px;
+	border: 0;
+}
+
+/* default close button positioned on upper right corner */
+.apple_overlay .close {
+	background-image:url(../../img/popup/close.png);
+	position:absolute; right:5px; top:5px;
+	cursor:pointer;
+	height:35px;
+	width:35px;
+}
+
