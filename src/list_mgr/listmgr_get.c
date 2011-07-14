@@ -44,7 +44,7 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
 
     /* verify it exists in main table */
 
-    sprintf( request, "SELECT COUNT(*) FROM " MAIN_TABLE " WHERE id="DPK, pk );
+    sprintf( request, "SELECT id FROM " MAIN_TABLE " WHERE id="DPK, pk );
 
     /* execute the request */
     rc = db_exec_sql( &p_mgr->conn, request, &result );
@@ -52,21 +52,13 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
         return -rc;
 
     rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
-    if ( rc )
-        return -rc;
-    if ( str_count == NULL )
-        return -1;
-
-#ifdef _DEBUG_DB
-    DisplayLog( LVL_FULL, LISTMGR_TAG, "in %s: str_count=%s\n", __FUNCTION__, str_count );
-#endif
-
-    /* result */
-    if ( atoi( str_count ) > 0 )
+    if ( rc == 0 )
         rc = 1;
+    else if (rc != DB_END_OF_LIST)
+        rc = -rc;
     else
         rc = 0;
-
+        
     db_result_free( &p_mgr->conn, &result );
     return rc;
 }

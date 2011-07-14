@@ -44,6 +44,7 @@ typedef struct db_config_t
     char           password[256];
     int            port;
     char           socket[RBH_PATH_MAX];
+    int            innodb;
 } db_config_t;
 
 #elif defined(_SQLITE)

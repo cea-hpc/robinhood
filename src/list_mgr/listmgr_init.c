@@ -268,6 +268,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         strcpy( strbuf, "CREATE TABLE " VAR_TABLE " ( "
                 "varname VARCHAR(255) PRIMARY KEY, "
                 "value TEXT )" );
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
 
         DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
@@ -369,6 +373,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             strcpy( next, ")" );
 
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
             rc = db_exec_sql( &conn, strbuf, NULL );
@@ -510,7 +518,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                      " (id "PK_TYPE" PRIMARY KEY, validator INT UNSIGNED, "
                      "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u) )",
                      MAX_POOL_LEN - 1 );
-
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
             rc = db_exec_sql( &conn, strbuf, NULL );
@@ -578,7 +589,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             strcpy( strbuf,
                     "CREATE TABLE " STRIPE_ITEMS_TABLE
                     " ( id "PK_TYPE", storage_item INT UNSIGNED ) " );
-
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
             rc = db_exec_sql( &conn, strbuf, NULL );
@@ -677,7 +691,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     }
                 }
                 strcpy( next, " )" );
-
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
                 rc = db_exec_sql( &conn, strbuf, NULL );
@@ -771,7 +788,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     "fullpath VARCHAR(1023), "
                     "soft_rm_time INT UNSIGNED, "
                     "real_rm_time INT UNSIGNED  )" );
-
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
             rc = db_exec_sql( &conn, strbuf, NULL );
@@ -855,7 +875,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     "backendpath VARCHAR(1023), "
                     "soft_rm_time INT UNSIGNED, "
                     "real_rm_time INT UNSIGNED  )" );
-
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
             rc = db_exec_sql( &conn, strbuf, NULL );
@@ -1000,8 +1023,11 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     }
                 } 
 
-                strcpy( next, " ) )" );
-
+                strcpy( next, " ))" );
+#ifdef _MYSQL
+        if (lmgr_config.db_config.innodb)
+            strcat(strbuf, " ENGINE=InnoDB");
+#endif
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
                 rc = db_exec_sql( &conn, strbuf, NULL );
