@@ -879,7 +879,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         sprintf( tmp, "%s.%s", bkpath, COPY_EXT );
 
 #ifdef HAVE_SHOOK
-        rc = shook_archive_start(p_id, bkpath);
+        rc = shook_archive_start(get_fsname(), p_id, bkpath);
         if (rc)
         {
             DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to initialize transfer: shook_archive_start() returned error %d",
@@ -897,7 +897,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         if (rc)
         {
 #ifdef HAVE_SHOOK
-            shook_archive_abort(p_id);
+            shook_archive_abort(get_fsname(), p_id);
 #endif
             /* cleanup tmp copy */
             unlink(tmp);
@@ -964,7 +964,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
             strcpy( ATTR( p_attrs, backendpath ), bkpath );
 
 #ifdef HAVE_SHOOK
-            rc = shook_archive_finalize(p_id, bkpath);
+            rc = shook_archive_finalize(get_fsname(), p_id, bkpath);
             if (rc)
             {
                 DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",

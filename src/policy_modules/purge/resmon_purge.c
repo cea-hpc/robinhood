@@ -74,7 +74,7 @@ static int PurgeEntry_ByFid( const entry_id_t * p_entry_id )
 #ifdef _LUSTRE_HSM
     return LustreHSM_Action( HUA_RELEASE, p_entry_id, NULL, 0 );
 #elif defined(HAVE_SHOOK)
-   return shook_release(p_entry_id);
+   return shook_release(get_fsname(), p_entry_id);
 #endif
 }
 #else
