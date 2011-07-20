@@ -458,10 +458,12 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     /* count threshold is only on global usage */
     if ( (p_trigger_item->type != TRIGGER_GLOBAL_USAGE)
          && (p_trigger_item->type != TRIGGER_ALWAYS)
+         && (p_trigger_item->type != TRIGGER_USER_USAGE)
+         && (p_trigger_item->type != TRIGGER_GROUP_USAGE)
          && ( (rc_hc == 0) || (rc_lc == 0) ) )
     {
         strcpy( msg_out, "Threshold on entry count is only supported "
-                         "for 'global_usage' and 'periodic' triggers" );
+                         "for 'global_usage', 'user_usage', 'group_usage' and 'periodic' triggers" );
         return EINVAL;
     }
 

@@ -61,13 +61,13 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     while ( (rc = db_next_record( &p_mgr->conn, &result, status, 3 ))
             != DB_END_OF_LIST )
     {
-        int cnt;
+        long long cnt;
         uint64_t sz;
         if (rc)
             return rc;
 
-        cnt = str2int( status[1] );
-        if ( cnt == -1)
+        cnt = str2bigint( status[1] );
+        if ( cnt == -1LL)
             return DB_INVALID_ARG;
 
         sz = str2size(  status[2] );
@@ -131,13 +131,13 @@ int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     while ( (rc = db_next_record( &p_mgr->conn, &result, status, 3 ))
             != DB_END_OF_LIST )
     {
-        int cnt;
+        long long cnt;
         uint64_t sz;
         if (rc)
             return rc;
 
-        cnt = str2int( status[1] );
-        if ( cnt == -1)
+        cnt = str2bigint( status[1] );
+        if ( cnt == -1LL)
             return DB_INVALID_ARG;
 
         sz = str2size(  status[2] );
@@ -237,10 +237,10 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     if ( str_count == NULL )
         return -1;
     /* result */
-    if ( atoi( str_count ) != p_stats->total )
+    if ( str2bigint( str_count ) != p_stats->total )
     {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: recovery count (%u) is different from entry count in main table (%u): preserving entries",
-                    p_stats->total,  atoi( str_count ) );
+        DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: recovery count (%llu) is different from entry count in main table (%lld): preserving entries",
+                    p_stats->total,  str2bigint( str_count ) );
         return DB_REQUEST_FAILED;
     }
 
@@ -342,7 +342,7 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
 
 int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
 {
-    int diff;
+    long long int diff;
     int rc;
 
     /* Check there is no more unprocessed entries */
@@ -354,7 +354,7 @@ int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
            - p_stats->status_count[RS_NOBACKUP] - p_stats->status_count[RS_ERROR];
     if (diff > 0)
     {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Cannot complete recovery: there are still %d unprocessed files",
+        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Cannot complete recovery: there are still %lld unprocessed files",
                     diff );
         return DB_NOT_ALLOWED;
     }

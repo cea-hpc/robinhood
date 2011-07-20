@@ -202,7 +202,7 @@ static void ResetScanStats(  )
 }
 
 
-int ignore_entry( char *fullpath, char *name, unsigned int depth, struct stat *p_stat )
+static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct stat *p_stat )
 {
     entry_id_t     tmpid;
     attr_set_t     tmpattr;
@@ -237,7 +237,7 @@ int ignore_entry( char *fullpath, char *name, unsigned int depth, struct stat *p
     rc = POLICY_NO_MATCH;
     for ( i = 0; i < fs_scan_config.ignore_count; i++ )
     {
-        switch ( EntryMatches( &tmpid, &tmpattr, &fs_scan_config.ignore_list[i].boolexpr, NULL ) )
+        switch ( EntryMatches( &tmpid, &tmpattr, &fs_scan_config.ignore_list[i].bool_expr, NULL ) )
         {
         case POLICY_MATCH:
             return TRUE;
@@ -279,10 +279,10 @@ int ignore_entry( char *fullpath, char *name, unsigned int depth, struct stat *p
  */
 static int TerminateScan( int scan_complete, time_t date_fin )
 {
-    entry_proc_op_t op;
     int     st, i;
     time_t  last_action = 0;
     char    timestamp[128];
+    unsigned int count = 0;
 
     /* store the last scan end date */
     if ( !lmgr_init )
@@ -294,7 +294,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     sprintf( timestamp, "%lu", ( unsigned long ) date_fin );
     ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
 
-    /* update the last action date */
+    /* update the last action date and get entry count */
     P( lock_scan );
     for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
     {
@@ -302,6 +302,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
              && ( thread_list[i].last_action > last_action ) )
         {
             last_action = thread_list[i].last_action;
+            count += thread_list[i].entries_handled;
         }
     }
     V( lock_scan );
@@ -311,41 +312,47 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
     FSScan_StoreStats() ;
     /* and update the scan status */
-    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, scan_complete ? SCAN_STATUS_DONE : SCAN_STATUS_TIMEDOUT );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, scan_complete ? SCAN_STATUS_DONE : SCAN_STATUS_PARTIAL );
 
-    /* final DB operation: remove entries with md_update < scan_start_time */
-    InitEntryProc_op( &op );
-    op.pipeline_stage = STAGE_RM_OLD_ENTRIES;
-
-    /* set callback */
-    op.callback_func = db_special_op_callback;
-    op.callback_param = ( void * ) "Remove obsolete entries";
-
-    /* set the timestamp of scan in (md_update attribute) */
-    ATTR_MASK_INIT( &op.entry_attr );
-
-    /* set update time  */
-    ATTR_MASK_SET( &op.entry_attr, md_update );
-    ATTR( &op.entry_attr, md_update ) = scan_start_time;
-
-    op.entry_attr_is_set = TRUE;
-
-    /* set wait db flag */
-    set_db_wait_flag(  );
-
-    st = EntryProcessor_Push( &op );
-
-    if ( st )
+    /* if scan is errorneous and no entries was listed, don't rm old entries */
+    if ((count > 0) || scan_complete)
     {
-        DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
-        return st;
+        entry_proc_op_t op;
+
+        /* final DB operation: remove entries with md_update < scan_start_time */
+        InitEntryProc_op( &op );
+        op.pipeline_stage = STAGE_RM_OLD_ENTRIES;
+
+        /* set callback */
+        op.callback_func = db_special_op_callback;
+        op.callback_param = ( void * ) "Remove obsolete entries";
+
+        /* set the timestamp of scan in (md_update attribute) */
+        ATTR_MASK_INIT( &op.entry_attr );
+
+        /* set update time  */
+        ATTR_MASK_SET( &op.entry_attr, md_update );
+        ATTR( &op.entry_attr, md_update ) = scan_start_time;
+
+        op.entry_attr_is_set = TRUE;
+
+        /* set wait db flag */
+        set_db_wait_flag(  );
+
+        st = EntryProcessor_Push( &op );
+
+        if ( st )
+        {
+            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
+            return st;
+        }
+        wait_for_db_callback(  );
     }
-    wait_for_db_callback(  );
 
     /* reset threads stats */
     ResetScanStats(  );
 
-    /* take a lock of scan info */
+    /* take a lock on scan info */
     P( lock_scan );
 
     /* reinitialize scan status */
@@ -779,6 +786,8 @@ static void   *Thr_scan( void *arg_thread )
             DisplayLog( LVL_CRIT, FSSCAN_TAG,
                         "opendir on %s failed: Error %d: %s",
                         p_task->path, errno, strerror( errno ) );
+
+            p_info->entries_errors ++;
 
             /* cancel the task */
             st = RecursiveTaskTermination( p_info, p_task, FALSE );
@@ -1541,9 +1550,9 @@ int Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
                 timeradd( &thread_list[i].time_consumed, &total_time, &total_time );
                 timeradd( &thread_list[i].last_processing_time, &curr_time, &curr_time );
                 p_stats->scanned_entries += thread_list[i].entries_handled;
-                p_stats->error_count += thread_list[i].entries_errors;
                 nb_done++;
             }
+            p_stats->error_count += thread_list[i].entries_errors;
         }
 
         p_stats->last_action = last_action;

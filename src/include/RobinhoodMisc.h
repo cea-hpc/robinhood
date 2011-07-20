@@ -236,6 +236,11 @@ int            str2bool( char *str );
  */
 int            str2int( char *str );
 
+/**
+ * Convert a string to a long integer
+ * @return -1 on error.
+ */
+long long str2bigint( char *str );
 
 /**
  * Convert a string to a duration in seconds

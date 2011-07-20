@@ -372,6 +372,98 @@ function migration_test_single
 	fi
 }
 
+# migrate a symlink
+function migrate_symlink
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str="$3"
+
+	if (( $is_backup == 0 )); then
+		echo "Backup test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# create a symlink
+
+	echo "1-Create a symlink"
+	ln -s "this is a symlink" "$ROOT/link.1" || error "creating symlink"
+
+	echo "2-Reading changelogs..."
+	# read changelogs
+	if (( $no_log )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	else
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	fi
+
+	count=0
+	echo "3-Applying migration policy ($policy_str)..."
+	# files should not be migrated this time: do not match policy
+	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	grep "$ROOT/link.1" rh_migr.log | grep "whitelisted" && count=$(($count+1))
+
+	if (( $count == 1 )); then
+		echo "OK: symlink not eligible for migration"
+	else
+		error "$count entries are not eligible, 1 expected"
+	fi
+
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	if (($nb_migr != 0)); then
+		error "********** TEST FAILED: No migration expected, $nb_migr started"
+	else
+		echo "OK: no entries migrated"
+	fi
+
+	cp /dev/null rh_migr.log
+	echo "4-Sleeping $sleep_time seconds..."
+	sleep $sleep_time
+
+	count=0
+	echo "5-Applying migration policy again ($policy_str)..."
+	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	grep "$ROOT/link.1" rh_migr.log | grep "successful" && count=$(($count+1))
+
+	if (( $count == 1 )); then
+		echo "OK: symlink has been migrated successfully"
+	else
+		error "$count symlink migrated, 1 expected"
+	fi
+
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	if (($nb_migr != 1)); then
+		error "********** TEST FAILED: 1 migration expected, $nb_migr started"
+	else
+		echo "OK: $nb_migr files migrated"
+	fi
+
+	echo "6-Scanning..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+
+	count=`$REPORT -f ./cfg/$config_file --fs-info --csv -q 2>/dev/null | grep synchro | wc -l`
+	if  (($count == 1)); then
+		echo "OK: 1 synchro symlink"
+	else
+		error "1 symlink is expected to be synchro (found $count)"
+	fi
+
+	cp /dev/null rh_migr.log
+	echo "7-Applying migration policy again ($policy_str)..."
+	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+
+	count=`grep "$ROOT/link.1" rh_migr.log | grep "skipping entry" | wc -l`
+
+	if (( $count == 1 )); then
+		echo "OK: symlink already migrated"
+	else
+		error "$count symlink skipped, 1 expected"
+	fi
+}
+
 
 function xattr_test
 {
@@ -1696,6 +1788,7 @@ function test_trigger_check
 	target_fs_vol=$6
 	target_user_vol=$7
 	max_user_vol=$8
+        target_user_count=$9
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
 		echo "No purge for hsmlite purpose (shook=$shook): skipped"
@@ -1717,7 +1810,9 @@ function test_trigger_check
 
 	# initial inode count
 	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
-	((file_count=$max_count-$empty_count))
+	empty_count_user=0
+#	((file_count=$max_count-$empty_count))
+	file_count=$max_count
 
 	# compute file size to exceed max vol and user quota
 	empty_vol=`df -k $ROOT  | xargs | awk '{print $(NF-3)}'`
@@ -1763,15 +1858,15 @@ function test_trigger_check
   	  $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
     fi
 
-	$REPORT -f ./cfg/$config_file -i
-
 	# check purge triggers
 	$RH -f ./cfg/$config_file --check-thresholds --once -l FULL -L rh_purge.log
 
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
 	((expect_vol_user=$file_count*$file_size-$target_user_vol))
-	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root"
+	((expect_count_user=$file_count+$empty_count_user-$target_user_count))
+
+	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root, $expect_count_user entries for user root"
 
 	if (($is_lhsm != 0 )); then
 		nb_release=`grep "Released" rh_purge.log | wc -l`
@@ -1780,14 +1875,18 @@ function test_trigger_check
 	fi
 
 	count_trig=`grep " entries must be purged in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	[ -n "$count_trig" ] || count_trig=0
 
 	vol_fs_trig=`grep " blocks (x512) must be purged on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	((vol_fs_trig_mb=$vol_fs_trig/2048)) # /2048 == *512/1024/1024
 
 	vol_user_trig=`grep " blocks (x512) must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	((vol_user_trig_mb=$vol_user_trig/2048)) # /2048 == *512/1024/1024
+
+	cnt_user_trig=`grep " files must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	[ -n "$cnt_user_trig" ] || cnt_user_trig=0
 	
-	echo "triggers reported: $count_trig entries, $vol_fs_trig_mb MB, $vol_user_trig_mb MB"
+	echo "triggers reported: $count_trig entries (global), $cnt_user_trig entries (user), $vol_fs_trig_mb MB (global), $vol_user_trig_mb MB (user)"
 
 	# check then was no actual purge
 	if (($nb_release > 0)); then
@@ -1798,6 +1897,9 @@ function test_trigger_check
 		error ": trigger reported $vol_fs_trig_mb MB over threshold, $expect_vol_fs expected"
 	elif (( $vol_user_trig_mb != $expect_vol_user )); then
 		error ": trigger reported $vol_user_trig_mb MB over threshold, $expect_vol_user expected"
+        elif ((  $cnt_user_trig != $expect_count_user )); then
+                error ": trigger reported $cnt_user_trig files over threshold, $expect_count_user expected"
+
 	else
 		echo "OK: all checks successful"
 	fi
@@ -3002,13 +3104,14 @@ run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by def
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
 run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
+run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
 
 	
 #### triggers ####
 
 run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
-run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10
+run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
 run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####

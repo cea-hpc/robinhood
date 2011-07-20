@@ -769,6 +769,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     char tmp[RBH_PATH_MAX];
     char * destdir;
     struct stat info;
+    struct stat void_stat;
     int check_moved = FALSE;
     obj_type_t entry_type;
 
@@ -813,7 +814,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     if ( ATTR(p_attrs, status) == STATUS_NEW )
     {
         /* check the entry does not already exist */
-        if ( (access(bkpath, F_OK) == 0) || (errno != ENOENT) )
+        if ( (lstat(bkpath, &void_stat) == 0) || (errno != ENOENT) )
         {
             rc = -errno;
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: new entry %s already exist. errno=%d, %s",
@@ -828,7 +829,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         {
             /* need to check if the entry was renamed */
             check_moved = TRUE;
-            if ( access(ATTR(p_attrs,backendpath), F_OK) != 0 )
+            if ( lstat(ATTR(p_attrs,backendpath), &void_stat) != 0 )
             {
                 rc = -errno;
                 DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in backend. errno=%d, %s",
@@ -1020,6 +1021,11 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
                         bkpath, link, strerror(-rc) );
             return rc;
         }
+        ATTR_MASK_SET( p_attrs, status );
+        ATTR( p_attrs, status ) = STATUS_SYNCHRO;
+
+        ATTR_MASK_SET( p_attrs, backendpath );
+        strcpy( ATTR( p_attrs, backendpath ), bkpath );
     }
 
     return 0;

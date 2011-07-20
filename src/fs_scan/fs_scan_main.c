@@ -406,18 +406,18 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
         if ( !strcasecmp( block_name, IGNORE_BLOCK ) )
         {
             if ( conf->ignore_count == 0 )
-                conf->ignore_list = ( ignore_item_t * ) malloc( sizeof( ignore_item_t ) );
+                conf->ignore_list = ( whitelist_item_t * ) malloc( sizeof( whitelist_item_t ) );
             else
                 conf->ignore_list =
-                    ( ignore_item_t * ) realloc( conf->ignore_list,
+                    ( whitelist_item_t * ) realloc( conf->ignore_list,
                                                  ( conf->ignore_count + 1 )
-                                                 * sizeof( ignore_item_t ) );
+                                                 * sizeof( whitelist_item_t ) );
 
             conf->ignore_count++;
 
             /* analyze boolean expression */
             rc = GetBoolExpr( curr_item, block_name,
-                              &conf->ignore_list[conf->ignore_count - 1].boolexpr,
+                              &conf->ignore_list[conf->ignore_count - 1].bool_expr,
                               &conf->ignore_list[conf->ignore_count - 1].attr_mask, msg_out );
 
             if ( rc )
@@ -435,8 +435,8 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
 #define RELOAD_TAG  "FS_Scan_Config"
 
 /** Update ignore rules */
-static void update_ignore( ignore_item_t * old_items, unsigned int old_count,
-                      ignore_item_t * new_items, unsigned int new_count,
+static void update_ignore( whitelist_item_t * old_items, unsigned int old_count,
+                      whitelist_item_t * new_items, unsigned int new_count,
                       const char * block_name )
 {
    unsigned int i;
@@ -452,7 +452,7 @@ static void update_ignore( ignore_item_t * old_items, unsigned int old_count,
    for (i = 0; i < new_count; i++ )
    {
         if ( (old_items[i].attr_mask != new_items[i].attr_mask)
-             || compare_boolexpr( &old_items[i].boolexpr, &new_items[i].boolexpr) )
+             || compare_boolexpr( &old_items[i].bool_expr, &new_items[i].bool_expr) )
         {
            DisplayLog( LVL_MAJOR, RELOAD_TAG, "Ignore expression #%u changed in block '%s'. Only numerical values can be modified dynamically. Ignore update cancelled", i, block_name ); 
            return;
@@ -463,10 +463,10 @@ static void update_ignore( ignore_item_t * old_items, unsigned int old_count,
 
    for (i = 0; i < new_count; i++ )
    {
-       if ( update_boolexpr( &old_items[i].boolexpr, &new_items[i].boolexpr ) )
+       if ( update_boolexpr( &old_items[i].bool_expr, &new_items[i].bool_expr ) )
        {
             char criteriastr[2048];
-            BoolExpr2str( &old_items[i].boolexpr, criteriastr, 2048 );
+            BoolExpr2str( &old_items[i].bool_expr, criteriastr, 2048 );
             DisplayLog( LVL_EVENT, RELOAD_TAG, "Ignore expression #%u in block '%s' has been updated and is now: %s",
                 i, block_name, criteriastr ); 
        }
@@ -475,12 +475,12 @@ static void update_ignore( ignore_item_t * old_items, unsigned int old_count,
     /* XXX attr_mask is unchanged, since we keep the same expression structures */
 } /* update_ignore */
 
-static void free_ignore( ignore_item_t * p_items, unsigned int count )
+static void free_ignore( whitelist_item_t * p_items, unsigned int count )
 {
     unsigned int i;
 
     for ( i = 0; i < count; i++ )
-        FreeBoolExpr( &p_items[i].boolexpr, FALSE );
+        FreeBoolExpr( &p_items[i].bool_expr, FALSE );
 
     if ( (count > 0) && (p_items!= NULL) )
         free(p_items);

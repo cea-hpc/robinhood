@@ -714,6 +714,30 @@ int str2int( char *str )
         return -1;
 }
 
+/**
+ * Convert a string to a long integer
+ * @return -1 on error.
+ */
+long long str2bigint( char *str )
+{
+    char           suffix[256];
+    int            nb_read;
+    long long      value;
+
+    if ( str == NULL )
+        return -1;
+
+    nb_read = sscanf( str, "%lld%s", &value, suffix );
+
+    if ( nb_read <= 0 )
+        return -1;              /* invalid format */
+
+    if ( ( nb_read == 1 ) || ( suffix[0] == '\0' ) )
+        return value;           /* no suffix => 0K */
+    else
+        return -1;
+}
+
 
 /**
  * Convert a string to a boolean 

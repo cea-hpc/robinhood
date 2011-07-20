@@ -72,5 +72,9 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     posix_fs/cfg/acct_user_group.conf \
     posix_fs/cfg/no_acct.conf  \
     posix_fs/cleanup.sh             \
+    huge_posix/cfg/innodb.conf	    \
+    huge_posix/cfg/common.conf	    \
+    huge_posix/1-test_setup.sh      \
+    huge_posix/2-run-tests.sh	    \
 	test_compil_switches.sh	    \
 	fill_fs.sh

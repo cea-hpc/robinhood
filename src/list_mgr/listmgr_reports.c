@@ -230,13 +230,13 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
             case REPORT_COUNT:
                 sprintf( attrstring, "COUNT(*) as %s", attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = DB_UINT;
+                p_report->result_type_array[i] = DB_BIGUINT;
                 break;
             case REPORT_COUNT_DISTINCT:
                 sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = DB_UINT;
+                p_report->result_type_array[i] = DB_BIGUINT;
                 break;
             case REPORT_GROUP_BY:
                 sprintf( attrstring, "%s as %s", field_str( report_desc_array[i].attr_index ),
@@ -498,13 +498,13 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
             case REPORT_COUNT:
                 sprintf( attrstring, "SUM(" ACCT_FIELD_COUNT ") as %s", attrname );
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = DB_UINT;
+                p_report->result_type_array[i] = DB_BIGUINT;
                 break;
             case REPORT_COUNT_DISTINCT:
                 sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = DB_UINT;
+                p_report->result_type_array[i] = DB_BIGUINT;
                 break;
             case REPORT_GROUP_BY:
                 sprintf( attrstring, "%s as %s", field_str( report_desc_array[i].attr_index ),

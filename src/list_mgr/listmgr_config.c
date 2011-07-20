@@ -45,6 +45,7 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     conf->db_config.password[0] = '\0';
     conf->db_config.port = 0;
     conf->db_config.socket[0] = '\0';
+    conf->db_config.innodb = FALSE;
 #elif defined (_SQLITE)
     strcpy( conf->db_config.filepath, "/var/robinhood/robinhood_sqlite_db" );
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
@@ -72,6 +73,7 @@ int WriteLmgrConfigDefault( FILE * output )
     print_line( output, 2, "password|password_file : [MANDATORY]" );
     print_line( output, 2, "port    :   (MySQL default)" );
     print_line( output, 2, "socket  :   NONE" );
+    print_line( output, 2, "innodb  :   disabled" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)
     print_begin_block( output, 1, SQLITE_CONFIG_BLOCK, NULL );
@@ -109,7 +111,7 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
 #ifdef _MYSQL
     static const char *db_allowed[] = {
         "server", "db", "user", "password", "password_file", "port", "socket",
-        NULL
+        "innodb", NULL
     };
 #elif defined (_SQLITE)
     static const char *db_allowed[] = {
@@ -299,6 +301,11 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
+    rc = GetBoolParam( db_block, MYSQL_CONFIG_BLOCK, "innodb", 0,
+                       &conf->db_config.innodb, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
     CheckUnknownParameters( db_block, MYSQL_CONFIG_BLOCK, db_allowed );
 
 #elif defined (_SQLITE)
@@ -444,6 +451,7 @@ int WriteLmgrConfigTemplate( FILE * output )
     print_line( output, 2, "password_file = \"/etc/robinhood.d/.dbpassword\" ;" );
     print_line( output, 2, "port   = 3306 ;" );
     print_line( output, 2, "socket = \"/tmp/mysql.sock\" ;" );
+    print_line( output, 2, "innodb = enabled ;" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)
     print_begin_block( output, 1, SQLITE_CONFIG_BLOCK, NULL );
