@@ -1,18 +1,16 @@
 Lustre must be mounted as /mnt/lustre before running setup step and tests.
 
-cd scripts/regression
+1) set the purpose environment variable
+export PURPOSE=TMP_FS_MGR
 
-On a scratch test system, run:
-./1-test-setup.sh
-* creates and configure robinhood database
-* register a client for reading changelogs
-* start posix copytool
+2) setup the test environment
+./1-test_setup.sh
 
-Lustre-HSM PolicyEngine tests:
-	for brief output:
-		./2-run-tests.sh -q
-	for full output:
-		./2-run-tests.sh
+3) Run the tests
 
-To run other Lustre-HSM tests:
-	./3-tests-lustre.sh
+for brief output:
+	./2-run-tests.sh -q
+for full output:
+	./2-run-tests.sh
+to run only some tests:
+    ./2-run_tests.sh 3,4

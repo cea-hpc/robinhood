@@ -2925,7 +2925,12 @@ shift $(($OPTIND-1))
 
 if [[ -n "$1" ]]; then
 	only_test=$1
+
+    # prepare only_test variable
+    # 1,2 => ,1,2,
+    only_test=",$only_test,"
 fi
+
 
 # initialize tmp files for XML report
 function junit_init
@@ -3006,7 +3011,7 @@ function run_test
 
 	index_clean=`echo $index | sed -e 's/[a-z]//'`
 
-	if [[ -z $only_test || "$only_test" = "$index" || "$only_test" = "$index_clean" ]]; then
+    if [[ -z "$only_test" || $only_test = *",$index_clean,"* || $only_test = *",$index,"* ]]; then
 		cleanup
 		echo
 		echo "==== TEST #$index $2 ($args) ===="
