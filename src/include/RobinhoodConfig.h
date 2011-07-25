@@ -68,7 +68,7 @@ typedef int    ( *write_config_func_t ) ( FILE * output );
 #include "BuddyMalloc.h"
 #endif
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #include "backend_mgr.h"
 #endif
 
@@ -131,7 +131,7 @@ typedef struct robinhood_config_t
     hsm_rm_config_t hsm_rm_config;
 #endif
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     backend_config_t backend_config;
 #endif
 
@@ -170,7 +170,7 @@ static const module_config_def_t robinhood_module_conf[] = {
     {"Log", SetDefaultLogConfig, ReadLogConfig, ReloadLogConfig,
      WriteLogConfigTemplate, WriteLogConfigDefault,
      offsetof( robinhood_config_t, log_config ), MODULE_MASK_ALWAYS},
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     {"Backend", SetDefault_Backend_Config, Read_Backend_Config,
         Reload_Backend_Config, Write_Backend_ConfigTemplate,
         Write_Backend_ConfigDefault,

@@ -33,7 +33,7 @@
 #   define SOFT_RM_TABLE    "SOFT_RM"
 #endif
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #   define  RECOV_TABLE     "RECOVERY"
 #endif
 

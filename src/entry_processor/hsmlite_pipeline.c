@@ -77,6 +77,21 @@ pipeline_stage_t entry_proc_pipeline[] = {
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 0}
 };
 
+#ifdef HAVE_SHOOK
+#include <fnmatch.h>
+int shook_special_file( struct entry_proc_op_t * p_op )
+{
+    if ( p_op->entry_attr_is_set || ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
+    {
+        if ( fnmatch( "*/.shook_locks/lock.*", ATTR(&p_op->entry_attr, fullpath ), 0 ) == 0 )
+        {
+            /* skip the entry */
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+#endif
 
 /**
  * For entries from FS scan, we must get the associated entry ID.
@@ -183,17 +198,27 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->entry_attr_is_set = TRUE;
             ATTR_MASK_SET( &p_op->entry_attr, status );
             ATTR( &p_op->entry_attr, status ) = STATUS_NEW;
-
-            /* no flag is set for now */
-            ATTR_MASK_SET( &p_op->entry_attr, no_archive );
-            ATTR( &p_op->entry_attr, no_archive ) = 0;
+            /* new file, no get status needed */
             p_op->extra_info.getstatus_needed = FALSE;
 
             /* new entry: never archived or restored */
             ATTR( &p_op->entry_attr, last_archive ) = 0;
             ATTR_MASK_SET( &p_op->entry_attr, last_archive );
+#ifdef HAVE_PURGE_POLICY
+            ATTR( &p_op->entry_attr, last_restore ) = 0;
+            ATTR_MASK_SET( &p_op->entry_attr, last_restore );
+#endif
         }
     }
+#ifdef HAVE_SHOOK
+    /* shook specific: xattrs on file indicate its current status */
+    else if (logrec->cr_type == CL_XATTR)
+    {
+        /* need to update status */
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getstatus_needed = TRUE;
+    }
+#endif
     else if ((logrec->cr_type == CL_MKDIR )
             || (logrec->cr_type == CL_RMDIR ))
     {
@@ -467,6 +492,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* get fileclass update info to know if we must check it */
             ATTR_MASK_SET( &p_op->entry_attr, arch_cl_update );
             ATTR_MASK_SET( &p_op->entry_attr, archive_class );
+#ifdef HAVE_PURGE_POLICY
+            ATTR_MASK_SET( &p_op->entry_attr, rel_cl_update );
+            ATTR_MASK_SET( &p_op->entry_attr, release_class );
+#endif
             p_op->entry_attr.attr_mask |= policies.migr_policies.global_attr_mask;
         }
         p_op->entry_attr.attr_mask |= entry_proc_conf.alert_attr_mask;
@@ -599,6 +628,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
                         tmp_attr.attr_mask |= (policies.migr_policies.global_attr_mask
                                                & ~p_op->entry_attr.attr_mask);
+#ifdef HAVE_PURGE_POLICY
+                        ATTR_MASK_SET( &p_op->entry_attr, rel_cl_update );
+                        ATTR_MASK_SET( &p_op->entry_attr, release_class );
+
+                        tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
+                                               & ~p_op->entry_attr.attr_mask);
+#endif
                     }
                     /* no dircount for files */
                     tmp_attr.attr_mask &= ~ATTR_MASK_dircount;
@@ -868,6 +904,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 {
                     ATTR_MASK_SET( &p_op->entry_attr, last_archive );
                     ATTR( &p_op->entry_attr, last_archive ) = 0;
+#ifdef HAVE_PURGE_POLICY
+                    ATTR_MASK_SET( &p_op->entry_attr, last_restore );
+                    ATTR( &p_op->entry_attr, last_restore ) = 0;
+#endif
                 }
             }
             else if ( rc == -ENOTSUP )
@@ -915,10 +955,31 @@ skip_record:
     return rc;
 
 rm_record:
-    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
-    if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    /* soft remove the entry, except if it was 'new' (not in backend)
+     * or not in DB.
+     */
+    if (ATTR_MASK_TEST(&p_op->entry_attr, status)
+        && (ATTR(&p_op->entry_attr, status) == STATUS_NEW))
+    {
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
+                    PFID(&p_op->entry_id) );
+        p_op->db_op_type = OP_TYPE_REMOVE;
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    }
+    else if ( p_op->db_exists )
+    {
+        p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    }
+    else
+    {
+        /* drop the record */
+        goto skip_record;
+    }
     return rc;
 }
 
@@ -1009,6 +1070,18 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( !p_op->extra_info.getstripe_needed )
         ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
 
+#ifdef HAVE_SHOOK
+    if (shook_special_file( p_op )) {
+                DisplayLog( LVL_FULL, ENTRYPROC_TAG,
+                    "Shook lock file '%s', skipped",
+                    (ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?
+                     ATTR(&p_op->entry_attr, fullpath):
+                     ATTR(&p_op->entry_attr, name)) );
+        /* skip special shook entry */
+        goto skip_record;
+    }
+#endif
+
     /* insert to DB */
     switch ( p_op->db_op_type )
     {
@@ -1054,6 +1127,22 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     stage_info->stage_name );
 
     return rc;
+
+#ifdef HAVE_SHOOK
+skip_record:
+#ifdef HAVE_CHANGELOGS
+    if ( p_op->extra_info.is_changelog_record )
+    /* do nothing on DB but ack the record */
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
+    else
+#endif
+    /* remove the operation from pipeline */
+        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+
+    if ( rc )
+        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    return rc;
+#endif
 }
 
 int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmgr )

@@ -92,7 +92,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
     }
 }
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
                                 ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
                                 ( ( _t == T_RECOV ) && is_recov_field( _i ) ) || \

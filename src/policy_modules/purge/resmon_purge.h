@@ -30,7 +30,7 @@ typedef enum
     PURGE_ENTRY_MOVED,          /* entry has been moved or deleted */
     PURGE_ENTRY_WHITELISTED,    /* entry is whitelisted  */
 
-#if defined(_LUSTRE_HSM) | defined(_SHERPA)
+#ifdef ATTR_INDEX_status
     PURGE_STATUS_CHGD,          /* HSM status flags changed */
 #endif
 

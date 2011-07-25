@@ -149,7 +149,7 @@ static inline void display_version( char *bin_name )
     printf( "    Temporary filesystem manager\n" );
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
     printf( "    Backup filesystem to external storage\n" );
 #else
 #error "No purpose was specified"
@@ -612,7 +612,7 @@ int main( int argc, char **argv )
         exit( rc );
     }
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     rc = Backend_Start( &config.backend_config, 0 );
     if ( rc )
     {

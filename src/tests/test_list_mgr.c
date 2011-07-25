@@ -225,7 +225,7 @@ int main( int argc, char **argv )
     
     /* soft remove */
     rc = ListMgr_SoftRemove( &lmgr, &id, NULL,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     NULL,
 #endif
         time(NULL)+3600 );
@@ -308,7 +308,7 @@ int main( int argc, char **argv )
     printf( "ListMgr_Iterator: %us, it=%p\n", ( unsigned int ) ( t2 - t1 ), it );
 
     i = 0;
-#if defined(_LUSTRE_HSM) || defined(_BACKUP_FS)
+#if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
     set.attr_mask =
         ATTR_MASK_fullpath | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_creation_time | ATTR_MASK_size | ATTR_MASK_stripe_info |

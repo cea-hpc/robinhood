@@ -289,6 +289,9 @@ static int process_log_rec( reader_thr_info_t * p_info, struct changelog_rec * p
         case CL_HSM:
         case CL_EXT:
         case CL_RENAME:
+#ifdef HAVE_SHOOK
+        case CL_XATTR:
+#endif
             /* OK */
             break;
 
@@ -303,7 +306,9 @@ static int process_log_rec( reader_thr_info_t * p_info, struct changelog_rec * p
         case CL_HARDLINK:
         case CL_MKNOD:
         case CL_IOCTL:
+#ifndef HAVE_SHOOK
         case CL_XATTR:
+#endif
 #ifdef CL_SPLITTED_TIME
         case CL_ATIME:
 #endif

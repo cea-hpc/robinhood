@@ -92,6 +92,7 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
                     p_stats->status_size[RS_DELTA] += sz;
                     break;
                 case STATUS_SYNCHRO:
+                case STATUS_RELEASED:
                     p_stats->status_count[RS_OK] += cnt;
                     p_stats->status_size[RS_OK] += sz;
                     break;

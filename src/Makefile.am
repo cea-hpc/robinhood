@@ -4,7 +4,7 @@ if CHANGELOGS
 SUBDIRS+=chglog_reader
 endif
 
-if BACKUP_FS
+if HSM_LITE
 SUBDIRS+=backend_ext
 endif
 
