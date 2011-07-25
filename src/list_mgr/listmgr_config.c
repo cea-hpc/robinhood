@@ -63,6 +63,8 @@ int WriteLmgrConfigDefault( FILE * output )
     print_line( output, 1, "commit_behavior             : autocommit" );
     print_line( output, 1, "connect_retry_interval_min  : 1s" );
     print_line( output, 1, "connect_retry_interval_max  : 30s" );
+    print_line( output, 1, "user_acct  : enabled" );
+    print_line( output, 1, "group_acct : enabled" );
     fprintf( output, "\n" );
 
 #ifdef _MYSQL
