@@ -778,7 +778,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
         return rc;
     }
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
     /*
      *  ===== Checking SOFT_RM table ====
      * SCHEMA: fid (string), last_known_path, bkpath, soft_rm_time, real_rm_time

@@ -30,7 +30,7 @@
 #include <unistd.h>
 #include <sys/vfs.h>
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #include "backend_mgr.h"
 #include "backend_ext.h"
 #endif
@@ -218,7 +218,7 @@ static int start_migration_pass(  )
     action_str = "started";
 #elif defined(_SHERPA)
     action_str = "done";
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
     if ( backend.async_archive )
         action_str = "started";
     else

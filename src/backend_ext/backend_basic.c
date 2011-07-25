@@ -30,12 +30,21 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <utime.h>
 #include <libgen.h>
 #include <pwd.h>
 #include <grp.h>
+
+
+#ifdef HAVE_PURGE_POLICY
+#ifdef HAVE_SHOOK
+#include <shook_svr.h>
+#endif
+#endif
+
 
 #define RBHEXT_TAG "Backend"
 
@@ -51,7 +60,6 @@ int rbhext_compat_flags()
 #ifdef _HAVE_FID
     compat_flags |= RBHEXT_COMPAT_LUSTRE;
 #endif
-
     return compat_flags;
 }
 
@@ -72,6 +80,20 @@ int rbhext_init( const backend_config_t * conf,
 
     /* synchronous archiving and rm support */
     *p_behaviors_flags = RBHEXT_SYNC_ARCHIVE | RBHEXT_RM_SUPPORT;
+
+#ifdef HAVE_PURGE_POLICY
+    *p_behaviors_flags |= RBHEXT_RELEASE_SUPPORT;
+#endif
+
+#ifdef HAVE_SHOOK
+    rc = shook_svr_init(config.shook_cfg);
+    if (rc)
+    {
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR %d initializing shook server library",
+                    rc );
+        return rc;
+    }
+#endif
 
     /* check that backend filesystem is mounted */
     rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev,
@@ -332,10 +354,38 @@ int rbhext_get_status( const entry_id_t * p_id,
     entry_type = ListMgr2PolicyType(ATTR(p_attrs_in, type));
     if ( (entry_type != TYPE_FILE) && (entry_type != TYPE_LINK) )
     {
-        DisplayLog( LVL_EVENT, RBHEXT_TAG, "Unsupported type %s for this backend",
+        DisplayLog( LVL_VERB, RBHEXT_TAG, "Unsupported type %s for this backend",
                     ATTR(p_attrs_in, type) );
         return -ENOTSUP;
     }
+
+#ifdef HAVE_PURGE_POLICY
+#ifdef HAVE_SHOOK
+    /* @TODO: ignore shook special entries */
+
+    /* check status from libshook.
+     * return if status != ONLINE
+     * else, continue checking.
+     */
+    char fidpath[RBH_PATH_MAX];
+    file_status_t status;
+    
+    BuildFidPath( p_id, fidpath );
+
+    rc = ShookGetStatus( fidpath, &status );
+    if (rc)
+        return rc;
+
+    if ( status != STATUS_SYNCHRO )
+    {
+        ATTR_MASK_SET( p_attrs_changed, status );
+        ATTR( p_attrs_changed, status ) = status;
+        return 0;
+    }
+#else
+    #error "Unexpected compilation case"
+#endif
+#endif
 
     if ( entry_type == TYPE_FILE )
     {
@@ -406,9 +456,14 @@ int rbhext_get_status( const entry_id_t * p_id,
             return 0;
         }
         /* compare mtime and size to check if the entry changed */
-        if ( (ATTR( p_attrs_in, last_mod ) > bkmd.st_mtime )
+        /* XXX consider it modified this even if mtime is smaller */
+        if ( (ATTR( p_attrs_in, last_mod ) != bkmd.st_mtime )
              || (ATTR( p_attrs_in, size ) != bkmd.st_size ) )
         {
+                /* display a warning if last_mod in FS < mtime in backend */
+                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: mtime in filesystem < mtime in backend (%s)",
+                           bkpath);
+
                 ATTR_MASK_SET( p_attrs_changed, status );
                 ATTR( p_attrs_changed, status ) = STATUS_MODIFIED;
 
@@ -829,6 +884,16 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         /* temporary copy path */
         sprintf( tmp, "%s.%s", bkpath, COPY_EXT );
 
+#ifdef HAVE_SHOOK
+        rc = shook_archive_start(get_fsname(), p_id, bkpath);
+        if (rc)
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to initialize transfer: shook_archive_start() returned error %d",
+                        rc );
+            return rc;
+        }
+#endif
+
         /* execute the archive command */
         if ( hints )
             rc = execute_shell_command( config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
@@ -837,6 +902,9 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
 
         if (rc)
         {
+#ifdef HAVE_SHOOK
+            shook_archive_abort(get_fsname(), p_id);
+#endif
             /* cleanup tmp copy */
             unlink(tmp);
             /* the transfer failed. still needs to be archived */
@@ -900,6 +968,16 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
 
             ATTR_MASK_SET( p_attrs, backendpath );
             strcpy( ATTR( p_attrs, backendpath ), bkpath );
+
+#ifdef HAVE_SHOOK
+            rc = shook_archive_finalize(get_fsname(), p_id, bkpath);
+            if (rc)
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",
+                            rc );
+                return rc;
+            }
+#endif
         }
 
         if ( lstat(fspath, &info) != 0 )
@@ -1008,6 +1086,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     struct stat st_dest;
     int delta = FALSE;
     attr_set_t attr_bk;
+    int fd;
 
     if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
     {
@@ -1050,6 +1129,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             return RS_ERROR;
     }
 
+    ATTR_MASK_INIT( &attr_bk );
     /* merge missing posix attrs to p_attrs_old */
     PosixStat2EntryAttr( &st_bk, &attr_bk, TRUE );
     /* leave attrs unchanged if they are already set in p_attrs_old */
@@ -1089,6 +1169,20 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     /* restripe the file in Lustre */
     if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
         File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
+    else {
+#endif
+    fd = creat( fspath, st_bk.st_mode & 07777 );
+    if (fd < 0)
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: couldn't create '%s': %s",
+                    fspath, strerror(-rc) );
+        return RS_ERROR;
+    }
+    else
+        close(fd);
+#ifdef _LUSTRE
+    }
 #endif
 
     /* restore entry */
@@ -1096,11 +1190,39 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     {
         struct utimbuf utb;
 
+#ifdef HAVE_PURGE_POLICY
+    /* this backend is restore/release capable.
+     * Recover the entry in released state (md only),
+     * so it will be recovered at first open.
+     */
+#ifdef HAVE_SHOOK
+        /* set the file in "released" state */
+        rc = shook_set_status(fspath, SS_RELEASED);
+        if (rc)
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
+                        fspath, strerror(-rc));
+            return RS_ERROR;
+        }
+
+        rc = truncate( fspath, st_bk.st_size );
+        if (rc)
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
+                        st_bk.st_size, fspath, strerror(-rc));
+            return RS_ERROR;
+        }
+#else
+    #error "Unexpected case"
+#endif
+#else
+        /* full restore (even data) */
         rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
                                     backend_path, fspath );
         if (rc)
             return RS_ERROR;
         /* TODO: remove partial copy */
+#endif
 
         /* set the same mode as in the backend */
         DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
@@ -1175,7 +1297,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     }
 
     /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
-    if ( ATTR_MASK_TEST(p_attrs_old, size) && ( st_dest.st_size != ATTR(p_attrs_old, size)) )
+    if ( ATTR_MASK_TEST(p_attrs_old, size) && (st_dest.st_size != ATTR(p_attrs_old, size)) )
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%zu) is "
                     "different from the last known size in filesystem (%"PRIu64"): "
@@ -1197,8 +1319,12 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     PosixStat2EntryAttr( &st_dest, p_attrs_new, TRUE );
     strcpy( ATTR( p_attrs_new, fullpath ), fspath );
     ATTR_MASK_SET( p_attrs_new, fullpath );
-    /* status is always synchro after a recovery */
+    /* status is always synchro or released after a recovery */
+#ifdef HAVE_SHOOK
+    ATTR( p_attrs_new, status ) = STATUS_RELEASED;
+#else
     ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
+#endif
     ATTR_MASK_SET( p_attrs_new, status );
 
 #ifdef _HAVE_FID
@@ -1262,9 +1388,55 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         }
     }
 
+#ifdef HAVE_SHOOK
+    /* save new backendpath to filesystem */
+    /* XXX for now, don't manage several hsm_index */
+    rc = shook_set_hsm_info( fspath, ATTR(p_attrs_new, backendpath), 0 );
+    if (rc)
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
+                    fspath, rc );
+#endif
+
     if (delta)
         return RS_DELTA;
     else
         return RS_OK;
+}
 
+int rbhext_release( const entry_id_t * p_id,
+                    attr_set_t * p_attrs )
+{
+#ifndef HAVE_PURGE_POLICY
+    return -ENOTSUP;
+#else
+    int rc;
+    obj_type_t entry_type;
+
+    /* if status is not determined, retrieve it */
+    if ( !ATTR_MASK_TEST(p_attrs, status) )
+    {
+        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Status not provided to rbhext_release()" );
+        rc = rbhext_get_status( p_id, p_attrs, p_attrs );
+        if (rc)
+            return rc;
+    }
+
+    /* is it the good type? */
+    if ( !ATTR_MASK_TEST(p_attrs, type) )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'type' in %s()",
+                    __FUNCTION__ );
+        return -EINVAL;
+    }
+
+    entry_type = ListMgr2PolicyType(ATTR(p_attrs, type));
+    if ( entry_type != TYPE_FILE )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unsupported type for release operation: %s",
+                    ATTR(p_attrs, type) );
+        return -ENOTSUP;
+    }
+
+    return -1;
+#endif
 }

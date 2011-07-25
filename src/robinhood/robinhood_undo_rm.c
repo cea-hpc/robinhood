@@ -119,7 +119,7 @@ static inline void display_version( char *bin_name )
     printf( "    Temporary filesystem manager\n" );
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
     printf( "    Backup filesystem to external storage\n" );
 #else
 #error "No purpose was specified"
@@ -195,7 +195,7 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
             snprintf( path_regexp, 1024, "%s/*", path_filter );
             fv.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
-                                    FILTER_FLAG_OR | FILTER_FLAG_END ); 
+                                    FILTER_FLAG_OR | FILTER_FLAG_END );
         }
         else /* ends with slash */
         {
@@ -215,6 +215,49 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
     return 0;
 }
 
+static int is_fid_filter(entry_id_t * id)
+{
+    lustre_fid  fid;
+    if ( !EMPTY_STRING( path_filter ) )
+    {
+        if (sscanf(path_filter, SFID, RFID(&fid)) != 3)
+            return FALSE;
+        else {
+            if (id)
+                *id = fid;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static inline void display_rm_entry(entry_id_t * id, const char *last_known_path,
+#ifdef _HSM_LITE
+                             const char *bkpath,
+#endif
+                             time_t soft_rm_time, time_t expiration_time)
+{
+    char           date_rm[128];
+    char           date_exp[128];
+    struct tm      t;
+
+    strftime( date_rm, 128, "%Y/%m/%d %T", localtime_r( &soft_rm_time, &t ) );
+    strftime( date_exp, 128, "%Y/%m/%d %T", localtime_r( &expiration_time, &t ) );
+
+    printf( "Fid:               "DFID"\n", PFID(id) );
+    if ( !EMPTY_STRING(last_known_path) )
+        printf( "Last known path:   %s\n", last_known_path );
+#ifdef _HSM_LITE
+    if ( !EMPTY_STRING(bkpath) )
+        printf( "Backend path:      %s\n", bkpath );
+#endif
+    printf( "Removal time:      %s\n", date_rm );
+    if ( expiration_time <= time(NULL) )
+        printf( "Delayed until:     %s (expired)\n", date_exp );
+    else
+        printf( "Delayed until:     %s\n", date_exp );
+}
+
 
 int list_rm()
 {
@@ -222,154 +265,208 @@ int list_rm()
     struct lmgr_rm_list_t * list;
     entry_id_t     id;
     char   last_known_path[RBH_PATH_MAX] = "";
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
 
     time_t soft_rm_time = 0;
     time_t expiration_time = 0;
-    char           date_rm[128];
-    char           date_exp[128];
-    struct tm      t;
 
     unsigned long long total_count = 0;
     lmgr_filter_t  filter;
 
-    lmgr_simple_filter_init( &filter );
-
-    /* append global filters */
-    mk_path_filter( &filter, TRUE, NULL );
-
-    /* list all deferred rm, even if non expired */
-    list = ListMgr_RmList( &lmgr, FALSE, &filter );
-
-    if ( list == NULL )
+    if (is_fid_filter(&id)) /* 1 single entry */
     {
-        DisplayLog( LVL_CRIT, LOGTAG,
-                    "ERROR: Could not retrieve removed entries from database." );
-        return -1;
-    }
-
-    index = 0;
-    while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
-#ifdef _BACKUP_FS
-                        bkpath,
+         rc = ListMgr_GetRmEntry( &lmgr, &id, last_known_path,
+#ifdef _HSM_LITE
+                            bkpath,
 #endif
-                        &soft_rm_time, &expiration_time )) == DB_SUCCESS )
-    {
-        total_count++;
-
-        index++;
-        /* format last mod */
-        strftime( date_rm, 128, "%Y/%m/%d %T", localtime_r( &soft_rm_time, &t ) );
-        strftime( date_exp, 128, "%Y/%m/%d %T", localtime_r( &expiration_time, &t ) );
-
-        printf( "\n" );
-        printf( "Fid:               "DFID"\n", PFID(&id) );
-        if ( !EMPTY_STRING(last_known_path) )
-            printf( "Last known path:   %s\n", last_known_path );
-#ifdef _BACKUP_FS
-        if ( !EMPTY_STRING(bkpath) )
-            printf( "Backend path:      %s\n", bkpath );
+                            &soft_rm_time, &expiration_time );
+        if (rc == DB_SUCCESS)
+        {
+            display_rm_entry( &id, last_known_path,
+#ifdef _HSM_LITE
+                            bkpath,
 #endif
-        printf( "Removal time:      %s\n", date_rm );
-        if ( expiration_time <= time(NULL) )
-        printf( "Delayed until:     %s (expired)\n", date_exp );
+                            soft_rm_time, expiration_time);
+        }
+        else if ( rc == DB_NOT_EXISTS )
+            fprintf(stderr, DFID": fid not found in deferred removal list\n",
+                    PFID(&id));
         else
-        printf( "Delayed until:     %s\n", date_exp );
-
-        /* prepare next call */
-        last_known_path[0] = '\0';
-#ifdef _BACKUP_FS
-        bkpath[0] = '\0';
-#endif
-        soft_rm_time = 0;
-        expiration_time = 0;
+            fprintf(stderr, "ERROR %d in ListMgr_GetRmEntry("DFID")\n",
+                    rc, PFID(&id));
+        return rc;
     }
+    else /* list of entries */
+    {
+        lmgr_simple_filter_init( &filter );
 
-    ListMgr_CloseRmList(list);
+        /* append global filters */
+        mk_path_filter( &filter, TRUE, NULL );
+
+        /* list all deferred rm, even if non expired */
+        list = ListMgr_RmList( &lmgr, FALSE, &filter );
+
+        if ( list == NULL )
+        {
+            DisplayLog( LVL_CRIT, LOGTAG,
+                        "ERROR: Could not retrieve removed entries from database." );
+            return -1;
+        }
+
+        index = 0;
+        while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
+    #ifdef _HSM_LITE
+                            bkpath,
+    #endif
+                            &soft_rm_time, &expiration_time )) == DB_SUCCESS )
+        {
+            total_count++;
+            index++;
+
+            printf( "\n" );
+            display_rm_entry( &id, last_known_path,
+#ifdef _HSM_LITE
+                            bkpath,
+#endif
+                            soft_rm_time, expiration_time );
+
+            /* prepare next call */
+            last_known_path[0] = '\0';
+#ifdef _HSM_LITE
+            bkpath[0] = '\0';
+#endif
+            soft_rm_time = 0;
+            expiration_time = 0;
+        }
+
+        ListMgr_CloseRmList(list);
+    }
     return 0;
 }
 
+static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
+#ifdef _HSM_LITE
+                             const char *bkpath
+#endif
+                             )
+{
+    entry_id_t new_id;
+    recov_status_t st;
+    attr_set_t     attrs, new_attrs;
+    int rc;
+
+    if ( EMPTY_STRING( last_known_path ) )
+    {
+        fprintf(stderr, "Last filesystem path is not known for fid "DFID", backend_path=%s.\n",
+                PFID(id), bkpath);
+        fprintf(stderr, " ----> skipped\n");
+        return;
+    }
+
+    printf("Restoring '%s'...\n", last_known_path );
+
+    ATTR_MASK_INIT( &attrs );
+    ATTR_MASK_SET(&attrs, fullpath);
+    strcpy( ATTR(&attrs, fullpath), last_known_path );
+
+    if ( !EMPTY_STRING( bkpath ) )
+    {
+        ATTR_MASK_SET(&attrs, backendpath);
+        strcpy( ATTR(&attrs, backendpath), bkpath );
+    }
+
+    /* copy file to Lustre */
+    st = rbhext_recover( id, &attrs, &new_id, &new_attrs );
+    if ( (st == RS_OK) || (st == RS_DELTA) )
+    {
+        printf("Success\n");
+        /* discard entry from remove list */
+        if ( ListMgr_SoftRemove_Discard(&lmgr, id) != 0 )
+            fprintf(stderr, "Error: could not remove previous id "DFID" from database\n", PFID(id) );
+        /* insert or update it in the db */
+        rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
+        if ( rc == 0 )
+            printf("Entry successfully updated in the dabatase\n");
+        else
+            fprintf(stderr, "ERROR %d inserting entry in the database\n", rc );
+    }
+    else
+    {
+        printf("ERROR\n");
+    }
+}
+
+
 int undo_rm()
 {
-    int            rc, index;
+    int            rc;
     struct lmgr_rm_list_t * list;
-    entry_id_t     id, new_id;
-    attr_set_t     attrs, new_attrs;
+    entry_id_t     id;
     char   last_known_path[RBH_PATH_MAX] = "";
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
-    recov_status_t st;
     unsigned long long total_count = 0;
     lmgr_filter_t  filter;
 
-    lmgr_simple_filter_init( &filter );
-
-    /* append global filters */
-    mk_path_filter( &filter, TRUE, NULL );
-
-    /* list files to be recovered */
-    list = ListMgr_RmList( &lmgr, FALSE, &filter );
-
-    if ( list == NULL )
+    if (is_fid_filter(&id)) /* 1 single entry */
     {
-        DisplayLog( LVL_CRIT, LOGTAG,
-                    "ERROR: Could not retrieve removed entries from database." );
-        return -1;
-    }
-
-    while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
-#ifdef _BACKUP_FS
-                        bkpath,
+         rc = ListMgr_GetRmEntry( &lmgr, &id, last_known_path,
+#ifdef _HSM_LITE
+                            bkpath,
 #endif
-                        NULL, NULL )) == DB_SUCCESS )
-    {
-        total_count++;
-
-        if ( EMPTY_STRING( last_known_path ) )
+                            NULL, NULL );
+        if (rc == DB_SUCCESS)
         {
-            fprintf(stderr, "Last filesystem path is not known for fid "DFID", backend_path=%s.\n",
-                    PFID(&id), bkpath);
-            fprintf(stderr, " ----> skipped\n");
-            continue;
+            undo_rm_helper( &id, last_known_path,
+#ifdef _HSM_LITE
+                            bkpath
+#endif
+                            );
         }
-
-        printf("Restoring '%s'...\n", last_known_path );
-
-        ATTR_MASK_INIT( &attrs );
-        ATTR_MASK_SET(&attrs, fullpath);
-        strcpy( ATTR(&attrs, fullpath), last_known_path );
-
-        if ( !EMPTY_STRING( bkpath ) )
-        {
-            ATTR_MASK_SET(&attrs, backendpath);
-            strcpy( ATTR(&attrs, backendpath), bkpath );
-        }
-
-        /* copy file to Lustre */
-        st = rbhext_recover( &id, &attrs, &new_id, &new_attrs );
-        if ( (st == RS_OK) || (st == RS_DELTA) )
-        {
-            printf("Success\n");
-            /* discard entry from remove list */
-            if ( ListMgr_SoftRemove_Discard(&lmgr, &id) != 0 )
-                fprintf(stderr, "Error: could not remove previous id "DFID" from database\n", PFID(&id) );
-            /* insert or update it in the db */
-            rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
-            if ( rc == 0 )
-                printf("Entry successfully updated in the dabatase\n");
-            else
-                fprintf(stderr, "ERROR %d inserting entry in the database\n", rc );
-        }
+        else if ( rc == DB_NOT_EXISTS )
+            fprintf(stderr, DFID": fid not found in deferred removal list\n",
+                    PFID(&id));
         else
-        {
-            printf("ERROR\n");
-        }
+            fprintf(stderr, "ERROR %d in ListMgr_GetRmEntry("DFID")\n",
+                    rc, PFID(&id));
+        return rc;
     }
+    else /* recover a list of entries */
+    {
+        lmgr_simple_filter_init( &filter );
 
-    ListMgr_CloseRmList(list);
+        /* append global filters */
+        mk_path_filter( &filter, TRUE, NULL );
+
+        /* list files to be recovered */
+        list = ListMgr_RmList( &lmgr, FALSE, &filter );
+
+        if ( list == NULL )
+        {
+            DisplayLog( LVL_CRIT, LOGTAG,
+                        "ERROR: Could not retrieve removed entries from database." );
+            return -1;
+        }
+
+        while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
+    #ifdef _HSM_LITE
+                            bkpath,
+    #endif
+                            NULL, NULL )) == DB_SUCCESS )
+        {
+            total_count++;
+
+            undo_rm_helper( &id, last_known_path,
+#ifdef _HSM_LITE
+                            bkpath
+#endif
+                            );
+        }
+        ListMgr_CloseRmList(list);
+    }
     return 0;
 }
 
@@ -444,7 +541,7 @@ int main( int argc, char **argv )
         }
     }
 
-    /* 1 expected argument: path|fid */
+    /* 1 expected argument: path */
     if ( optind != argc - 1 )
     {
         fprintf( stderr, "Error: missing mandatory argument on command line: <path|fid>\n" );
@@ -517,7 +614,7 @@ int main( int argc, char **argv )
         exit( rc );
     }
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     rc = Backend_Start( &config.backend_config, 0 );
     if ( rc )
     {
@@ -533,7 +630,7 @@ int main( int argc, char **argv )
             rc= list_rm();
             break;
         case ACTION_RESTORE:
-            rc = undo_rm(); 
+            rc = undo_rm();
             break;
         case ACTION_NONE:
             display_help( bin );

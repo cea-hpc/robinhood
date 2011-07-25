@@ -115,18 +115,22 @@ status_array[] =
 
 #define ALLOWED_STATUS "unknown, ref_missing|missing_ref, modified|dirty, retrieving|restoring, archiving, synchro, obsolete"
 
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
     { STATUS_UNKNOWN, "unknown", "unknown" },
     { STATUS_NEW, "new", "new file (not in backend)" },
     { STATUS_MODIFIED, "modified", "modified (must be archived)" },
+    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
     { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
     { STATUS_SYNCHRO, "synchro", "synchronized in backend" },
+    { STATUS_RELEASED, "released", "released" },
+    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
     { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
 
     /* alternative names */
     { STATUS_MODIFIED, "dirty", "dirty (modified)" },
+    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
 
-#define ALLOWED_STATUS "unknown, new, modified|dirty, archiving, synchro, removed"
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
 
 #endif
     { (file_status_t)-1, NULL, NULL }
@@ -369,8 +373,8 @@ static inline void display_version( char *bin_name )
     printf( "    Temporary filesystem manager\n" );
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
-#elif defined(_BACKUP_FS)
-    printf( "    Backup filesystem to external storage\n" );
+#elif defined(_HSM_LITE)
+    printf( "    Basic HSM binding\n" );
 #else
 #error "No purpose was specified"
 #endif
@@ -1113,7 +1117,7 @@ void report_fs_info( int flags )
     filter_value_t fv;
 #endif
 
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_BACKUP_FS)
+#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
 #define FSINFOCOUNT 6
 #else
 #define FSINFOCOUNT 8
@@ -1128,19 +1132,19 @@ void report_fs_info( int flags )
      * - MIN/MAX/SUM dircount
      */
     report_field_descr_t fs_info[FSINFOCOUNT] = {
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_BACKUP_FS)
+#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #else
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_BACKUP_FS)
+#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
 #endif
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
-#if !defined(_LUSTRE_HSM) && !defined( _SHERPA ) && !defined(_BACKUP_FS)
+#if !defined(_LUSTRE_HSM) && !defined( _SHERPA ) && !defined(_HSM_LITE)
         {ATTR_INDEX_dircount, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_dircount, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_dircount, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}}
@@ -2528,7 +2532,7 @@ void report_deferred_rm( int flags )
     struct lmgr_rm_list_t * list;
     entry_id_t     id;
     char   last_known_path[RBH_PATH_MAX] = "";
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
 
@@ -2558,7 +2562,7 @@ void report_deferred_rm( int flags )
     }
 
     if ( CSV(flags) && !NOHEADER(flags) )
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
         printf( "%3s, %21s, %-40s, %19s, %19s, %s\n", "rank", "fid",
                 "last_known_path", "lustre_rm", "hsm_rm", "backend_path" );
 #else
@@ -2567,7 +2571,7 @@ void report_deferred_rm( int flags )
 
     index = 0;
     while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
                         bkpath,
 #endif
                         &soft_rm_time, &expiration_time )) == DB_SUCCESS )
@@ -2580,7 +2584,7 @@ void report_deferred_rm( int flags )
         strftime( date_exp, 128, "%Y/%m/%d %T", localtime_r( &expiration_time, &t ) );
 
         if ( CSV(flags) )
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
             printf( "%3u, "DFID", %-40s, %19s, %19s, %s\n", index, PFID(&id),
                     last_known_path, date_rm, date_exp, bkpath );
 #else
@@ -2594,7 +2598,7 @@ void report_deferred_rm( int flags )
             printf( "Fid:               "DFID"\n", PFID(&id) );
             if ( !EMPTY_STRING(last_known_path) )
                 printf( "Last known path:   %s\n", last_known_path );
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
             if ( !EMPTY_STRING(bkpath) )
                 printf( "Backend path:      %s\n", bkpath );
 #endif
@@ -2607,7 +2611,7 @@ void report_deferred_rm( int flags )
 
         /* prepare next call */
         last_known_path[0] = '\0';
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
         bkpath[0] = '\0';
 #endif
         soft_rm_time = 0;
@@ -2635,7 +2639,14 @@ void report_deferred_rm( int flags )
 #elif defined(_SHERPA)
     #define IS_PURGE_CONCERNED( _status ) ( (_status) == STATUS_SYNCHRO )
     #define IS_MODIFIED( _status )  ((_status) == STATUS_MODIFIED)
-#elif defined(_BACKUP_FS)
+#elif defined(_HSM_LITE)
+    #ifdef HAVE_PURGE_POLICY
+    #define IS_PURGE_CONCERNED( _status ) ( ((_status) == STATUS_SYNCHRO)  \
+                                     || ((_status) == STATUS_RELEASED) \
+                                     || ((_status) == STATUS_RELEASE_PENDING) )
+    #else
+    #define IS_PURGE_CONCERNED( _status ) FALSE
+    #endif
     #define IS_MODIFIED( _status )  (((_status) == STATUS_MODIFIED)|| \
                                      ((_status) == STATUS_NEW))
 #endif

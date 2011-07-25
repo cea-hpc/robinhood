@@ -12,16 +12,16 @@ TMPERR_FILE="/tmp/err_str.$$"
 TEMPLATE_DIR='../../doc/templates'
 
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
-	is_backup=0
+	is_hsmlite=0
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
 	CMD=robinhood
 	PURPOSE="TMP_FS_MGR"
-elif [[ $PURPOSE = "BACKUP" ]]; then
-	is_backup=1
-	RH="../../src/robinhood/rbh-backup $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
-	CMD=rbh-backup
+elif [[ $PURPOSE = "HSM_LITE" ]]; then
+	is_hsmlite=1
+	RH="../../src/robinhood/rbh-hsmlite $RBH_OPT"
+	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
+	CMD=rbh-hsmlite
 fi
 
 PROC=$CMD
@@ -76,7 +76,7 @@ function clean_fs
 		rm  -rf $ROOT/*
 	fi
 
-#	if (( $is_backup != 0 )); then
+#	if (( $is_hsmlite != 0 )); then
 #		if [[ -n "$BKROOT" ]]; then
 #			rm -rf $BKROOT/*
 #		fi
@@ -106,8 +106,8 @@ function migration_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_backup == 0 )); then
-		echo "backup test only: skipped"
+	if (( $is_hsmlite == 0 )); then
+		echo "hsmlite test only: skipped"
 		set_skipped
 		return 1
 	fi
@@ -155,8 +155,8 @@ function xattr_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_backup == 0 )); then
-		echo "backup test only: skipped"
+	if (( $is_hsmlite == 0 )); then
+		echo "hsmlite test only: skipped"
 		set_skipped
 		return 1
 	fi
@@ -204,7 +204,7 @@ function xattr_test
 	else
 		echo "OK: $nb_migr files migrated"
 
-		if (( $is_backup != 0 )); then
+		if (( $is_hsmlite != 0 )); then
 			# checking policy
 			nb_migr_arch1=`grep "fileclass=xattr_bar" rh_migr.log | wc -l`
 			nb_migr_arch2=`grep "fileclass=xattr_foo" rh_migr.log | wc -l`
@@ -236,8 +236,8 @@ function link_unlink_remove_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_backup == 0 )); then
-		echo "backup test only: skipped"
+	if (( $is_hsmlite == 0 )); then
+		echo "hsmlite test only: skipped"
 		set_skipped
 		return 1
 	fi
@@ -297,8 +297,8 @@ function purge_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( $is_hsmlite != 0 )); then
+		echo "No purge for hsmlite purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -356,8 +356,8 @@ function purge_size_filesets
 	count=$3
 	policy_str="$4"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( $is_hsmlite != 0 )); then
+		echo "No purge for hsmlite purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -598,8 +598,8 @@ function path_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_backup == 0 )); then
-		echo "backup test only: skipped"
+	if (( $is_hsmlite == 0 )); then
+		echo "hsmlite test only: skipped"
 		set_skipped
 		return 1
 	fi
@@ -761,8 +761,8 @@ function periodic_class_match_migr
 	update_period=$2
 	policy_str="$3"
 
-	if (( $is_backup == 0 )); then
-		echo "backup test only: skipped"
+	if (( $is_hsmlite == 0 )); then
+		echo "hsmlite test only: skipped"
 		set_skipped
 		return 1
 	fi
@@ -831,8 +831,8 @@ function periodic_class_match_purge
 	update_period=$2
 	policy_str="$3"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( $is_hsmlite != 0 )); then
+		echo "No purge for hsmlite purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -897,8 +897,8 @@ function test_cnt_trigger
 	exp_purge_count=$3
 	policy_str="$4"
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( $is_hsmlite != 0 )); then
+		echo "No purge for hsmlite purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -943,8 +943,8 @@ function test_trigger_check
 	target_user_vol=$7
 	target_user_count=$8
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( $is_hsmlite != 0 )); then
+		echo "No purge for hsmlite purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1036,8 +1036,8 @@ function test_periodic_trigger
 	sleep_time=$2
 	policy_str=$3
 
-	if (( $is_backup != 0 )); then
-		echo "No purge for backup purpose: skipped"
+	if (( $is_hsmlite != 0 )); then
+		echo "No purge for hsmlite purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1109,8 +1109,8 @@ function fileclass_test
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_backup == 0 )); then
-		echo "backup test only: skipped"
+	if (( $is_hsmlite == 0 )); then
+		echo "hsmlite test only: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1214,7 +1214,7 @@ function test_info_collect
 	nb_create=`grep ChangeLog rh_scan.log | grep 01CREAT | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-	if (( $is_backup != 0 )); then
+	if (( $is_hsmlite != 0 )); then
 		db_expect=4
 	else
 		db_expect=7
@@ -1412,7 +1412,7 @@ function test_logs
 		cat $report
         fi
 	
-	if (( $is_backup == 0 )); then
+	if (( $is_hsmlite == 0 )); then
 
 		# reinit msg idx
 		if (( $syslog )); then
@@ -1534,16 +1534,16 @@ function test_cfg_parsing
 
 	if [[ $flavor == "basic" ]]; then
 
-		if (($is_backup)) ; then
-			TEMPLATE=$TEMPLATE_DIR"/backup_basic.conf"
+		if (($is_hsmlite)) ; then
+			TEMPLATE=$TEMPLATE_DIR"/hsmlite_basic.conf"
 		else
 			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_basic.conf"
 		fi
 
 	elif [[ $flavor == "detailed" ]]; then
 
-		if (($is_backup)) ; then
-			TEMPLATE=$TEMPLATE_DIR"/backup_detailed.conf"
+		if (($is_hsmlite)) ; then
+			TEMPLATE=$TEMPLATE_DIR"/hsmlite_detailed.conf"
 		else
 			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_detailed.conf"
 		fi
@@ -1576,8 +1576,8 @@ function check_disabled
 
 	case "$flavor" in
 		purge)
-			if (( $is_backup != 0 )); then
-				echo "No purge for backup purpose: skipped"
+			if (( $is_hsmlite != 0 )); then
+				echo "No purge for hsmlite purpose: skipped"
 				set_skipped
 				return 1
 			fi
@@ -1585,8 +1585,8 @@ function check_disabled
 			match='Resource Monitor is disabled'
 			;;
 		migration)
-			if (( $is_backup == 0 )); then
-				echo "backup test only: skipped"
+			if (( $is_hsmlite == 0 )); then
+				echo "hsmlite test only: skipped"
 				set_skipped
 				return 1
 			fi
@@ -1594,8 +1594,8 @@ function check_disabled
 			match='Migration module is disabled'
 			;;
 		hsm_remove) 
-			if (( $is_backup == 0 )); then
-				echo "backup test only: skipped"
+			if (( $is_hsmlite == 0 )); then
+				echo "hsmlite test only: skipped"
 				set_skipped
 				return 1
 			fi
@@ -1603,8 +1603,8 @@ function check_disabled
                         match='HSM removal successfully initialized' # enabled by default
 			;;
 		rmdir) 
-			if (( $is_backup != 0 )); then
-				echo "No rmdir policy for backup purpose: skipped"
+			if (( $is_hsmlite != 0 )); then
+				echo "No rmdir policy for hsmlite purpose: skipped"
 				set_skipped
 				return 1
 			fi

@@ -39,6 +39,9 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
     strcpy( conf->root, "/backend" );
     strcpy( conf->mnt_type, "nfs" );
     strcpy( conf->action_cmd, "/usr/sbin/rbhext_tool" );
+#ifdef HAVE_SHOOK
+    strcpy( conf->shook_cfg, "/etc/shook.cfg" );
+#endif
     conf->copy_timeout = 21600; /* =6h (0=disabled) */
     conf->xattr_support = FALSE;
     conf->check_mounted = TRUE;
@@ -51,6 +54,9 @@ int Write_Backend_ConfigDefault( FILE * output )
     print_line( output, 1, "root          : \"/backend\"" );
     print_line( output, 1, "mnt_type      : nfs ");
     print_line( output, 1, "action_cmd    : \"/usr/sbin/rbhext_tool\"" );
+#ifdef HAVE_SHOOK
+     print_line( output, 1, "shook_cfg    : \"/etc/shook.cfg\"" );
+#endif
     print_line( output, 1, "copy_timeout  : 6h" );
     print_line( output, 1, "xattr_support : FALSE");
     print_line( output, 1, "check_mounted : TRUE" );
@@ -65,6 +71,9 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
 
     static const char *allowed_params[] = {
         "root", "mnt_type", "action_cmd", "copy_timeout",
+#ifdef HAVE_SHOOK
+        "shook_cfg",
+#endif
         "xattr_support", "check_mounted", NULL };
 
     /* get Backend block */
@@ -88,6 +97,15 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
                          NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
+
+#ifdef HAVE_SHOOK
+    rc = GetStringParam( block, BACKEND_BLOCK, "shook_cfg",
+                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
+                         conf->shook_cfg, RBH_PATH_MAX,
+                         NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+#endif
 
     rc = GetStringParam( block, BACKEND_BLOCK, "mnt_type", 0,
                          conf->mnt_type, RBH_NAME_MAX, NULL, NULL, msg_out );
@@ -150,6 +168,10 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line( output, 1, "# backend path and type" );
     print_line( output, 1, "root          = \"/backend\";" );
     print_line( output, 1, "mnt_type      = nfs;");
+#ifdef HAVE_SHOOK
+    print_line( output, 1, "# shook server configuration" );
+    print_line( output, 1, "shook_cfg     = \"/etc/shook.cfg\";" );
+#endif
     print_line( output, 1, "# copy wrapper script" );
     print_line( output, 1, "action_cmd    = \"/usr/sbin/rbhext_tool\";" );
     print_line( output, 1, "copy_timeout  = 6h;" );
@@ -169,6 +191,9 @@ int Backend_Start( backend_config_t * config, int flags )
     DisplayLog(LVL_DEBUG, BKL_TAG, "Backend extension config:");
     DisplayLog(LVL_DEBUG, BKL_TAG, "root            =   \"%s\"", config->root );
     DisplayLog(LVL_DEBUG, BKL_TAG, "mnt_type        =   %s", config->mnt_type );
+#ifdef HAVE_SHOOK
+    DisplayLog(LVL_DEBUG, BKL_TAG, "shook_cfg       =   \"%s\"", config->shook_cfg );
+#endif
     DisplayLog(LVL_DEBUG, BKL_TAG, "check_mounted   =   %s", bool2str(config->check_mounted));
     DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd      =   \"%s\"", config->action_cmd );
     DisplayLog(LVL_DEBUG, BKL_TAG, "copy_timeout    =   %us", config->copy_timeout );
@@ -207,6 +232,11 @@ int Backend_Start( backend_config_t * config, int flags )
         backend.rm_support = 1;
     else
         backend.rm_support = 0;
+
+    if ( behav_flags & RBHEXT_RELEASE_SUPPORT )
+        backend.release_support = 1;
+    else
+        backend.release_support = 0;
 
     return 0;
 }

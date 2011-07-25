@@ -35,6 +35,7 @@
 #define RBHEXT_SYNC_ARCHIVE     0x00000001 /* copy command is synchronous */
 #define RBHEXT_ASYNC_ARCHIVE    0x00000002 /* copy command is asynchronous */
 #define RBHEXT_RM_SUPPORT       0x00000004 /* backend supports entry removal operation */
+#define RBHEXT_RELEASE_SUPPORT  0x00000008 /* this system supports release/copyback operations */
 
 /**
  * Get compatibility information,
@@ -92,6 +93,15 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
                     const entry_id_t * p_id,
                     attr_set_t * p_attrs,
                     const char * hints );
+
+/**
+ * Perform a release operation.
+ * \param[in] p_id pointer to id of entry to be archived
+ * \param[in,out] p_attrs pointer to entry attributes
+ *        function must update at least the entry status
+ */
+int rbhext_release( const entry_id_t * p_id,
+                    attr_set_t * p_attrs );
 
 /**
  * Performs entry removal in the backend

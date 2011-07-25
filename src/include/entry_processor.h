@@ -99,8 +99,8 @@ typedef struct pipeline_stage_t
 #include "tmp_fs_mgr_pipeline.h"
 #elif defined(_SHERPA)
 #include "sherpa_pipeline.h"
-#elif defined(_BACKUP_FS)
-#include "backup_fs_pipeline.h"
+#elif defined(_HSM_LITE)
+#include "hsmlite_pipeline.h"
 #else
 #error "No application was specified"
 #endif

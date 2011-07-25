@@ -51,7 +51,7 @@
 #include <lustre/liblustreapi.h>
 #endif
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #include "backend_mgr.h"
 #endif
 
@@ -107,7 +107,7 @@ static time_t  boot_time;
 #       define DEFAULT_ACTION_HELP   "--scan --purge --rmdir --migrate"
 #   endif
 
-#elif defined (_BACKUP_FS )
+#elif defined (_HSM_LITE )
 
 #   ifdef HAVE_CHANGELOGS
 #       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
@@ -361,8 +361,8 @@ static inline void display_version( char *bin_name )
     printf( "    Temporary filesystem manager\n" );
 #elif defined(_SHERPA)
     printf( "    SHERPA cache zapper\n" );
-#elif defined(_BACKUP_FS)
-    printf( "    Backup filesystem to external storage\n" );
+#elif defined(_HSM_LITE)
+    printf( "    Basic HSM binding\n" );
 #else
 #error "No purpose was specified"
 #endif
@@ -572,7 +572,7 @@ static void   *signal_handler_thr( void *arg )
 #endif
 
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
             Backend_Stop();
 #endif
 
@@ -1136,7 +1136,7 @@ int main( int argc, char **argv )
     if ( pid_file )
         create_pid_file( pid_filepath );
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     rc = Backend_Start( &rh_config.backend_config, flags );
     if ( rc )
     {

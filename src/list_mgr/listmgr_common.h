@@ -114,7 +114,7 @@ void           init_attrset_masks(  );
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) )
 
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
 #define is_recov_field( _attr_index ) \
                 ( (1 << _attr_index) & RECOV_ATTR_MASK )
 #endif
@@ -138,7 +138,7 @@ typedef enum
 #ifdef HAVE_RM_POLICY
     T_SOFTRM,                                    /* fields in softrm table */
 #endif
-#ifdef _BACKUP_FS
+#ifdef _HSM_LITE
     T_RECOV,                                     /* fields in recov table */
 #endif
 } table_enum;

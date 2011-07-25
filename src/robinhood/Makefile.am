@@ -33,7 +33,10 @@ all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/migration/libmigration.la
 all_libs += ../policy_modules/hsm_remove/libhsmrm.la
 endif
-if BACKUP_FS
+if HSM_LITE
+if SHOOK
+all_libs += ../policy_modules/purge/libresmonitor.la
+endif
 all_libs += ../policy_modules/migration/libmigration.la
 all_libs += ../policy_modules/hsm_remove/libhsmrm.la
 all_libs += ../backend_ext/libbackend_ext.la
@@ -75,29 +78,29 @@ rbh_hsm_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_hsm_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
-if BACKUP_FS
-sbin_PROGRAMS=rbh-backup rbh-backup-report rbh-backup-recov rbh-backup-undo-rm
+if HSM_LITE
+sbin_PROGRAMS=rbh-hsmlite rbh-hsmlite-report rbh-hsmlite-recov rbh-hsmlite-undo-rm
 
 # dependencies:
-rbh_backup_DEPENDENCIES=$(all_libs)
-rbh_backup_report_DEPENDENCIES=$(all_libs)
-rbh_backup_recov_DEPENDENCIES=$(all_libs)
+rbh_hsmlite_DEPENDENCIES=$(all_libs)
+rbh_hsmlite_report_DEPENDENCIES=$(all_libs)
+rbh_hsmlite_recov_DEPENDENCIES=$(all_libs)
 
-rbh_backup_SOURCES=robinhood_main.c
-rbh_backup_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_backup_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_hsmlite_SOURCES=robinhood_main.c
+rbh_hsmlite_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_hsmlite_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_report_SOURCES=robinhood_report.c
-rbh_backup_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_backup_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_hsmlite_report_SOURCES=robinhood_report.c
+rbh_hsmlite_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_hsmlite_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_recov_SOURCES=robinhood_recov.c
-rbh_backup_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_backup_recov_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_hsmlite_recov_SOURCES=robinhood_recov.c
+rbh_hsmlite_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_hsmlite_recov_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_undo_rm_SOURCES=robinhood_undo_rm.c
-rbh_backup_undo_rm_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_backup_undo_rm_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_hsmlite_undo_rm_SOURCES=robinhood_undo_rm.c
+rbh_hsmlite_undo_rm_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_hsmlite_undo_rm_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
 
