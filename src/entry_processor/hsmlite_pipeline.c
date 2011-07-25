@@ -947,10 +947,31 @@ skip_record:
     return rc;
 
 rm_record:
-    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
-    if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    /* soft remove the entry, except if it was 'new' (not in backend)
+     * or not in DB.
+     */
+    if (ATTR_MASK_TEST(&p_op->entry_attr, status)
+        && (ATTR(&p_op->entry_attr, status) == STATUS_NEW))
+    {
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
+                    PFID(&p_op->entry_id) );
+        p_op->db_op_type = OP_TYPE_REMOVE;
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    }
+    else if ( p_op->db_exists )
+    {
+        p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    }
+    else
+    {
+        /* drop the record */
+        goto skip_record;
+    }
     return rc;
 }
 

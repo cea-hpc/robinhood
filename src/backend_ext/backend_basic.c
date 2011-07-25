@@ -354,7 +354,7 @@ int rbhext_get_status( const entry_id_t * p_id,
     entry_type = ListMgr2PolicyType(ATTR(p_attrs_in, type));
     if ( (entry_type != TYPE_FILE) && (entry_type != TYPE_LINK) )
     {
-        DisplayLog( LVL_EVENT, RBHEXT_TAG, "Unsupported type %s for this backend",
+        DisplayLog( LVL_VERB, RBHEXT_TAG, "Unsupported type %s for this backend",
                     ATTR(p_attrs_in, type) );
         return -ENOTSUP;
     }
@@ -456,6 +456,7 @@ int rbhext_get_status( const entry_id_t * p_id,
             return 0;
         }
         /* compare mtime and size to check if the entry changed */
+        /* XXX consider it modified this even if mtime is smaller? */
         if ( (ATTR( p_attrs_in, last_mod ) > bkmd.st_mtime )
              || (ATTR( p_attrs_in, size ) != bkmd.st_size ) )
         {
