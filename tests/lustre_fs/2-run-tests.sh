@@ -379,7 +379,7 @@ function migrate_symlink
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_backup == 0 )); then
+	if (( $is_hsmlite == 0 )); then
 		echo "Backup test only: skipped"
 		set_skipped
 		return 1
