@@ -38,8 +38,10 @@ static int mysql_error_convert( int err )
         return DB_NOT_EXISTS;
     case ER_DUP_ENTRY:
         return DB_ALREADY_EXISTS;
+#ifdef _MYSQL5
     case ER_TRG_DOES_NOT_EXIST:
         return DB_TRG_NOT_EXISTS;
+#endif
     case ER_BAD_FIELD_ERROR:
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid DB field" );
         return DB_INVALID_ARG;
@@ -191,12 +193,14 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
                         "A database record already exists for this entry: '%s' (%s)",
                         query, mysql_error(conn) );
         }
+#ifdef _MYSQL5
         else if (mysql_errno( conn ) == ER_TRG_DOES_NOT_EXIST)
         {
             DisplayLog( quiet?LVL_DEBUG:LVL_EVENT, LISTMGR_TAG,
                         "Trigger does not exist: '%s' (%s)",
                         query, mysql_error(conn) );
         }
+#endif
         else if (mysql_errno( conn ) == ER_NO_SUCH_TABLE)
             DisplayLog( quiet?LVL_DEBUG:LVL_EVENT, LISTMGR_TAG,
                         "Table does not exist: '%s' (%s)",
