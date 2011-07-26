@@ -168,12 +168,12 @@ AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="
 
 # Purpose ?
 
-AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|HSM_LITE|SHERPA],[specify the purpose of the daemon] ),
+AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|HSM_LITE|BACKUP|SHOOK|SHERPA],[specify the purpose of the daemon] ),
              PURPOSE="$withval", PURPOSE="TMP_FS_MGR")
 
 AM_CONDITIONAL(LUSTRE_HSM,     test "$PURPOSE" = "LUSTRE_HSM")
 AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR")
-AM_CONDITIONAL(HSM_LITE, test "$PURPOSE" = "HSM_LITE")
+AM_CONDITIONAL(HSM_LITE, test "$PURPOSE" = "HSM_LITE" -o  "$PURPOSE" = "SHOOK" -o  "$PURPOSE" = "BACKUP" )
 AM_CONDITIONAL(SHERPA, test "$PURPOSE" = "SHERPA")
 
 # purpose dependent flags
@@ -215,7 +215,7 @@ case $PURPOSE in
         AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for SHERPA purpose])
         ;;
 
-    HSM_LITE)
+    BACKUP | HSM_LITE | SHOOK)
         # check pre-requisites
         if test "x$have_liblustre_api" != "xyes" ; then
             AC_MSG_ERROR([For now, HSM-lite purpose is only supported on Lustre v2 filesystem])
@@ -225,28 +225,41 @@ case $PURPOSE in
         fi
 
         PURPOSE_CFLAGS="-D_HSM_LITE"
-        PURPOSE_BIN="rbh-hsmlite"
-        PURPOSE_EXT="hsmlite"
-        PURPOSE_SVC="robinhood-hsmlite"
 
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for HSM-lite purpose])
         AC_DEFINE([HAVE_RM_POLICY], [1], [Backend removal policy for HSM-lite purpose])
 
-        AC_ARG_ENABLE( [shook], AS_HELP_STRING([--disable-shook],
-                       [Disable usage of shook library]),
-                       [use_shook="$enableval"],[use_shook="yes"] )
-
-        if test "x$use_shook" = "xyes" ; then
+        if test "$PURPOSE" = "SHOOK" -o "$PURPOSE" = "HSM_LITE"; then
+            # test if library is available for shook mode
             AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
 
             if test "x$have_shook" != "xyes" ; then
-                AC_MSG_WARN([libshooksvr not found, backup mode only])
+                if test "$PURPOSE" != "HSM_LITE"; then
+                    AC_MSG_ERROR([libshooksvr not found, cannot build robinhood unsing shook])
+                fi
+                # HSM_LITE mode without shook: OK (just display a warning)
+                AC_MSG_WARN([libshooksvr not found, switching to backup mode only])
+
+                PURPOSE_BIN="rbh-backup"
+                PURPOSE_EXT="backup"
+                PURPOSE_SVC="robinhood-backup"
             else
+                # Shook mode with Shook library: OK
                 AC_MSG_NOTICE([libshooksvr is installed, full HSM-lite support is enabled]) 
                 PURPOSE_LDFLAGS="-lshooksvr"
                 AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for HSM-lite purpose])
                 AC_DEFINE([HAVE_SHOOK], [1], [libshook based HSM binding])
+
+                PURPOSE_BIN="rbh-shook"
+                PURPOSE_EXT="shook"
+                PURPOSE_SVC="robinhood-shook"
             fi
+        else
+            # backup mode
+            AC_MSG_NOTICE([Compiling robinhood with backup mode])
+            PURPOSE_BIN="rbh-backup"
+            PURPOSE_EXT="backup"
+            PURPOSE_SVC="robinhood-backup"
         fi
         ;;
 
@@ -255,7 +268,8 @@ case $PURPOSE in
         ;;
 esac
 
-AM_CONDITIONAL( SHOOK, test  "x$have_shook" = "xyes" )
+AM_CONDITIONAL( SHOOK, test  "$PURPOSE_EXT" = "shook" )
+AM_CONDITIONAL( BACKUP, test  "$PURPOSE_EXT" = "backup" )
 
 AC_SUBST(PURPOSE_CFLAGS)
 AC_SUBST(PURPOSE_LDFLAGS)

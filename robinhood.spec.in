@@ -19,7 +19,8 @@
 %bcond_with mysql
 %bcond_with sqlite
 %bcond_with sherpa
-%bcond_with hsmlite
+%bcond_with backup
+%bcond_with shook
 
 # macro for defining dependencies
 
@@ -103,15 +104,31 @@ PolicyEngine for SHERPA cache manager
 Generated using options: @ac_configure_args@
 
 %else
-%if %{with hsmlite}
+# backup mode
+%if %{with backup}
 
 %package %{purpose}
-Summary: PolicyEngine for basic HSM migration
+Summary: PolicyEngine for filesystem backup to external storage
 Group: Applications/System
 %pkg_dependencies
 
 %description %{purpose}
 Backup modified files to an external backend.
+
+Generated using options: @ac_configure_args@
+%else
+# light HSM binding mode (using shook library)
+%if %{with shook}
+
+%package %{purpose}
+Summary: PolicyEngine for simple HSM binding
+Group: Applications/System
+%pkg_dependencies
+
+%description %{purpose}
+Backup modified files to an external backend
+and automatically trigger data restore using
+shook library.
 
 Generated using options: @ac_configure_args@
 %else
@@ -130,6 +147,7 @@ Possibly trigger purge by LRU when free disk space is low.
 
 Generated using options: @ac_configure_args@
 
+%endif
 %endif
 %endif
 %endif
@@ -157,12 +175,18 @@ mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 install -m 644 doc/templates/hsm_policy_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/hsm_policy_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 %else
-%if %{with hsmlite}
-install -m 644 doc/templates/hsmlite_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
-install -m 644 doc/templates/hsmlite_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+%if %{with backup}
+install -m 644 doc/templates/hsmlite_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_basic.conf
+install -m 644 doc/templates/hsmlite_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_detailed.conf
 %else
+%if %{with shook}
+install -m 644 doc/templates/hsmlite_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_basic.conf
+install -m 644 doc/templates/hsmlite_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_detailed.conf
+%else
+# tmp fs mgr
 install -m 644 doc/templates/tmp_fs_mgr_basic.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
 install -m 644 doc/templates/tmp_fs_mgr_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+%endif
 %endif
 %endif
 
@@ -222,9 +246,13 @@ fi
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_detailed.conf
 %else
-%if %{with hsmlite}
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsmlite_basic.conf
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsmlite_detailed.conf
+%if %{with backup}
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_basic.conf
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_detailed.conf
+%else
+%if %{with shook}
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_basic.conf
+%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_detailed.conf
 %else
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_basic.conf
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_detailed.conf

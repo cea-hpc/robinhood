@@ -34,20 +34,28 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
 	CMD=robinhood
-elif [[ $PURPOSE = "HSM_LITE" ]]; then
+elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
+    shook=0
 	is_hsmlite=1
 
-	if [[ "x$SHOOK" != "x1" ]]; then
-		shook=0
-	else
-		shook=1
+	RH="../../src/robinhood/rbh-backup $RBH_OPT"
+	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
+	RECOV="../../src/robinhood/rbh-backup-recov $RBH_OPT"
+	CMD=rbh-backup
+	ARCH_STR="Starting backup"
+	if [ ! -d $BKROOT ]; then
+		mkdir -p $BKROOT
 	fi
+elif [[ $PURPOSE = "SHOOK" ]]; then
+	is_lhsm=0
+	is_hsmlite=1
+    shook=1
 
-	RH="../../src/robinhood/rbh-hsmlite $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
-	RECOV="../../src/robinhood/rbh-hsmlite-recov $RBH_OPT"
-	CMD=rbh-hsmlite
+	RH="../../src/robinhood/rbh-shook $RBH_OPT"
+	REPORT="../../src/robinhood/rbh-shook-report $RBH_OPT"
+	RECOV="../../src/robinhood/rbh-shook-recov $RBH_OPT"
+	CMD=rbh-shook
 	ARCH_STR="Starting backup"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
@@ -730,7 +738,7 @@ function purge_test
 	policy_str="$4"
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for hsmlite purpose (shook=$shook): skipped"
+		echo "No purge for backup purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -822,7 +830,7 @@ function purge_size_filesets
 	policy_str="$4"
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for hsmlite purpose (shook=$shook): skipped"
+		echo "No purge for backup purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1536,7 +1544,7 @@ function periodic_class_match_purge
 	policy_str="$3"
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for hsmlite purpose (shook=$shook): skipped"
+		echo "No purge for backup purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1625,7 +1633,7 @@ function test_cnt_trigger
 	policy_str="$4"
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for hsmlite purpose (shook=$shook): skipped"
+		echo "No purge for backup purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1690,7 +1698,7 @@ function test_ost_trigger
 	policy_str="$4"
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for hsmlite purpose (shook=$shook): skipped"
+		echo "No purge for backup purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1791,7 +1799,7 @@ function test_trigger_check
         target_user_count=$9
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for hsmlite purpose (shook=$shook): skipped"
+		echo "No purge for backup purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -1929,7 +1937,7 @@ function test_periodic_trigger
 	policy_str=$3
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for hsmlite purpose (shook=$shook): skipped"
+		echo "No purge for backup purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -2841,7 +2849,7 @@ function check_disabled
        case "$flavor" in
                purge)
 		       if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-			       echo "No purge for hsmlite purpose (shook=$shook): skipped"
+			       echo "No purge for backup purpose: skipped"
                                set_skipped
                                return 1
                        fi

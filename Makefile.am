@@ -37,9 +37,13 @@ if SHERPA
   purpose=sherpa
   rpmbuild_opt += --with sherpa
 endif
-if HSM_LITE
-  purpose=hsmlite
-  rpmbuild_opt += --with hsmlite
+if SHOOK
+  purpose=shook
+  rpmbuild_opt += --with shook
+endif
+if BACKUP
+  purpose=backup
+  rpmbuild_opt += --with backup
 endif
 
 
