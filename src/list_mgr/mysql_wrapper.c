@@ -350,7 +350,7 @@ int db_drop_trigger( db_conn_t * conn, const char *name )
 
     DisplayLog( LVL_CRIT, LISTMGR_TAG, "Trigger %s was not dropped: "
                 "you should upgrade to MYSQL 5 to use triggers", name  );
-    return DB_REQUEST_FAILED;
+    return DB_NOT_SUPPORTED;
 
 #endif
 }
@@ -370,7 +370,7 @@ int db_create_trigger( db_conn_t * conn, const char *name, const char *event,
 
     DisplayLog( LVL_CRIT, LISTMGR_TAG, "Trigger %s was not created: "
                 "you should upgrade to MYSQL 5 to use triggers", name  );
-    return DB_REQUEST_FAILED;
+    return DB_NOT_SUPPORTED;
 
 #endif
 }
