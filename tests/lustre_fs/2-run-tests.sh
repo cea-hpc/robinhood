@@ -3154,7 +3154,7 @@ run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
 run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
 run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
 run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
-run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing hsmlites"
+run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
 run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
 
 echo

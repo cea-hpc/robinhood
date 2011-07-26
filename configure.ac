@@ -235,7 +235,7 @@ case $PURPOSE in
 
             if test "x$have_shook" != "xyes" ; then
                 if test "$PURPOSE" != "HSM_LITE"; then
-                    AC_MSG_ERROR([libshooksvr not found, cannot build robinhood unsing shook])
+                    AC_MSG_ERROR([libshooksvr not found, cannot build robinhood using shook])
                 fi
                 # HSM_LITE mode without shook: OK (just display a warning)
                 AC_MSG_WARN([libshooksvr not found, switching to backup mode only])
