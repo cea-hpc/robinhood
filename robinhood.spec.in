@@ -258,6 +258,7 @@ fi
 %config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_detailed.conf
 %endif
 %endif
+%endif
 
 %{_initrddir}/@PURPOSE_SVC@
 
