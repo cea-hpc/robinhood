@@ -136,15 +136,16 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                     strcpy( query, "SELECT id FROM " STRIPE_INFO_TABLE );
                 else if ( sort_table == T_STRIPE_ITEMS )
                     strcpy( query, "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE );
+                else if ( sort_dircount )
+                    /* XXX sorting on dircount doesn't return empty dirs */
+                    strcpy( query, "SELECT parent_id, COUNT(*) as cnt FROM "MAIN_TABLE" GROUP BY parent_id" );
             }
             else
             {
                 strcpy( query, "SELECT id FROM " MAIN_TABLE );
             }
 
-            if (sort_dircount)
-                strcat( query, JOIN_DIRCOUNT );
-            else if (filter_emptydir)
+            if (filter_emptydir)
             {
                 char * curr = query;
                 curr += strlen(query);
@@ -408,7 +409,8 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set_t * p_info )
 {
     int            rc = 0;
-    char          *idstr;
+    /* can contain id+dircount in case of directory listing */
+    char          *idstr[2];
     DEF_PK(pk);
 
     int            entry_disappeared = FALSE;
@@ -417,14 +419,15 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
     {
         entry_disappeared = FALSE;
 
-        rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result, &idstr, 1 );
+        idstr[0] = idstr[1] = NULL;
+        rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result, idstr, 2 );
 
         if ( rc )
             return rc;
         if ( idstr == NULL )
             return DB_REQUEST_FAILED;
 
-        if ( sscanf( idstr, SPK, PTR_PK(pk) ) != 1 )
+        if ( sscanf( idstr[0], SPK, PTR_PK(pk) ) != 1 )
             return DB_REQUEST_FAILED;
 
         /* retrieve entry id (except validator) */
@@ -438,9 +441,19 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
 
         /* Idem */
         rc = listmgr_get_by_pk( p_iter->p_mgr, pk, p_info );
-        if ( rc == DB_NOT_EXISTS )
-            entry_disappeared = TRUE;
 
+        if ( idstr[1] != NULL )
+        {
+            /* clear attrs on error */
+           if ( rc != 0 )
+               ATTR_MASK_INIT(p_info);
+            
+           ATTR(p_info, dircount) = atoi(idstr[1]);
+           ATTR_MASK_SET(p_info, dircount);
+           rc = 0;
+        }
+        else if ( rc == DB_NOT_EXISTS )
+            entry_disappeared = TRUE;
     }
     while ( entry_disappeared );        /* goto next record if entry desappered */
 

@@ -25,6 +25,7 @@
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
 #include "xplatform_print.h"
+#include "uidgidcache.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -449,6 +450,44 @@ int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
         return rc;
     }
 }
+
+#ifdef _HAVE_FID
+/**
+ * Manage fid2path resolution
+ */
+int TryFid2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
+{
+    static int is_init = 0;
+    static int is_resolvable = 0;
+    int rc;
+    char value[1024];
+    dev_t      dev;
+
+
+    if ( !is_init ) {
+        is_init = 1;
+        /* try to get fspath from DB */
+        rc = ListMgr_GetVar(&lmgr, FS_PATH_VAR, value);
+        if (rc)
+            return -1;
+        /* try to check filesystem */
+        if (CheckFSInfo( value, "lustre", &dev, TRUE, TRUE) == 0) {
+            is_resolvable = 1;
+            /* may be used for solving uids from filesystem */
+            InitUidGid_Cache();
+            Lustre_Init();
+        }
+        else
+            return -1;
+    }
+    if ( !is_resolvable )
+        return -1;
+
+    /* filesystem is mounted and fsname can be get: solve the fid */
+    rc = Lustre_GetFullPath( p_id, path, RBH_PATH_MAX );
+    return rc;
+}
+#endif
 
 
 void report_activity( int flags )
@@ -1118,7 +1157,7 @@ void report_fs_info( int flags )
 #endif
 
 #if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
-#define FSINFOCOUNT 3
+#define FSINFOCOUNT 6
 #else
 #define FSINFOCOUNT 5
 #endif
@@ -1839,9 +1878,11 @@ void report_topdirs( unsigned int count, int flags )
     struct tm      t;
 
     /* select only directories */
-    fv.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_init( &filter );
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
+
+    /* This filter is implicit when sorting dirs by count */
+//    fv.val_str = STR_TYPE_DIR;
+//    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
@@ -1881,24 +1922,68 @@ void report_topdirs( unsigned int count, int flags )
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        time_t         mod = ATTR( &attrs, last_mod );
+        time_t         mod;
+        char * title;
+        char * name;
+        char buff[128];
+
+        if (ATTR_MASK_TEST(&attrs, fullpath)) {
+            title = "Path:     ";
+            name = ATTR( &attrs, fullpath );
+        }
+        else {
+#ifdef _HAVE_FID
+            /* try to get dir path from fid if it's mounted */
+            if ( TryFid2path( &lmgr, &id, ATTR(&attrs, fullpath)) == 0 )
+            {
+                struct stat st;
+                ATTR_MASK_SET(&attrs, fullpath);
+                name = ATTR( &attrs, fullpath );
+                title = "Path:     ";
+
+                /* we're lucky, try lstat now! */
+                if (lstat(ATTR( &attrs, fullpath ), &st) == 0)
+                    PosixStat2EntryAttr(&st, &attrs, TRUE);
+            }
+            else
+            {
+                sprintf(buff, DFID, PFID(&id));
+                title = "Fid:      ";
+                name = buff;
+            }
+#else
+            sprintf(buff, "%"PRI_DT"/%LX", id.device, id.inode);
+            title = "dev/inode:";
+            name = buff;
+#endif
+        }
 
         index++;
-        /* format last mod */
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &mod, &t ) );
+        if (ATTR_MASK_TEST(&attrs, last_mod))
+        {
+            /* format last mod */
+            mod = ATTR( &attrs, last_mod );
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &mod, &t ) );
+        }
+        else
+            date[0] = '\0';
 
         if ( CSV(flags) )
-            printf( "%3u, %-40s, %6u, %10s, %10s, %s\n", index, ATTR( &attrs, fullpath ),
-                    ATTR( &attrs, dircount ), ATTR( &attrs, owner ), ATTR( &attrs, gr_name ),
+            printf( "%3u, %-40s, %6u, %10s, %10s, %s\n", index, name,
+                    ATTR( &attrs, dircount ),
+                    ATTR_MASK_TEST( &attrs, owner )? ATTR( &attrs, owner ): "",
+                    ATTR_MASK_TEST( &attrs, gr_name )? ATTR( &attrs, gr_name ): "",
                     date );
         else
         {
             printf( "\n" );
             printf( "Rank:              %u\n", index );
-            printf( "Path:              %s\n", ATTR( &attrs, fullpath ) );
+            printf( "%s         %s\n", title, name );
             printf( "Dircount:          %u\n", ATTR( &attrs, dircount ) );
-            printf( "Last modification: %s\n", date );
-            printf( "Owner/Group:       %s/%s\n", ATTR( &attrs, owner ), ATTR( &attrs, gr_name ) );
+            if (ATTR_MASK_TEST(&attrs, last_mod))
+                printf( "Last modification: %s\n", date );
+            if (ATTR_MASK_TEST(&attrs, owner) && ATTR_MASK_TEST(&attrs, gr_name))
+                printf( "Owner/Group:       %s/%s\n", ATTR( &attrs, owner ), ATTR( &attrs, gr_name ) );
         }
 
         ListMgr_FreeAttrs( &attrs );
@@ -3412,13 +3497,15 @@ int main( int argc, char **argv )
     if ( !activity && !fs_info && !user_info && !group_info
          && !topsize && !toppurge && !topuser && !dump_all
          && !dump_user && !dump_group && !class_info
+         && !topdirs
 #ifdef ATTR_INDEX_status
          && !dump_status
 #endif
 #ifdef HAVE_RM_POLICY
         && !deferred_rm
-#else
-        && !topdirs && !toprmdir
+#endif
+#ifdef HAVE_RMDIR_POLICY
+         && !toprmdir
 #endif
 #ifdef _LUSTRE
         && !dump_ost

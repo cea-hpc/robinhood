@@ -479,7 +479,7 @@ function test_rmdir
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm + $is_backup != 0 )); then
+	if (( $is_hsm + $is_hsmlite != 0 )); then
 		echo "No rmdir policy for hsm flavors: skipped"
 		set_skipped
 		return 1

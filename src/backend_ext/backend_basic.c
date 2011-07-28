@@ -1087,6 +1087,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     int delta = FALSE;
     attr_set_t attr_bk;
     int fd;
+    entry_id_t  parent_id;
 
     if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
     {
@@ -1158,12 +1159,32 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     {
         DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
                     fspath );
-        return -EINVAL;
+        return RS_ERROR;
     }
 
     rc = mkdir_recurse( destdir, 0750, TO_FS );
     if (rc)
         return RS_ERROR;
+
+    /* retrieve parent fid */
+#ifdef _HAVE_FID
+    rc = Lustre_GetFidFromPath( destdir, &parent_id );
+    if (rc)
+        return RS_ERROR;
+#else
+    if (lstat(destdir, &parent_stat))
+    {
+        rc = errno;
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: cannot stat target directory '%s': %s",
+                    destdir, strerror(rc) );
+        return RS_ERROR;
+    }
+    /* build id from dev/inode*/
+    parent_id.inode = parent_stat.st_ino;
+    parent_id.device = parent_stat.st_dev;
+    parent_id.validator = parent_stat.st_ctime;
+#endif
+
 
 #ifdef _LUSTRE
     /* restripe the file in Lustre */
@@ -1327,8 +1348,6 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 #endif
     ATTR_MASK_SET( p_attrs_new, status );
 
-    /* TODO retrieve parent fid */
-
 #ifdef _HAVE_FID
     /* get the new fid */
     rc = Lustre_GetFidFromPath( fspath, p_new_id );
@@ -1340,6 +1359,10 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     p_new_id->device =  st_dest.st_dev;
     p_new_id->validator =  st_dest.st_ctime;
 #endif
+
+    /* set parent id */
+    ATTR_MASK_SET( p_attrs_new, parent_id );
+    ATTR( p_attrs_new, parent_id ) = parent_id;
 
 #ifdef _LUSTRE
     /* get the new stripe info */
