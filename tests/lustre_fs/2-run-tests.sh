@@ -479,7 +479,7 @@ function test_rmdir
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsm + $is_hsmlite != 0 )); then
+	if (( $is_lhsm + $is_hsmlite != 0 )); then
 		echo "No rmdir policy for hsm flavors: skipped"
 		set_skipped
 		return 1
@@ -1196,12 +1196,22 @@ function test_rh_report_split_user_group
 					sum_split_file=`egrep -e "^$user.*file.*" rh_report_split.log | awk -F ',' '{array[$1]+=$'$j'}END{for (name in array) {print array[name]}}'`
 					sum_no_split_file=`egrep -e "^$user.*file.*" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
                                         if (( $sum_split_dir != $sum_no_split_dir || $sum_split_file != $sum_no_split_file )); then
+						error "Unexpected value: dircount=$sum_split_dir/$sum_no_split_dir, filecount: $sum_split_file/$sum_no_split_file"
+						echo "Splitted report: "
+						cat rh_report_split.log
+						echo "Summed report: "
+						cat rh_report_no_split.log
                                                 check=0
                                         fi
 				else
                                         sum_split=`egrep -e "^$user" rh_report_split.log | awk -F ',' '{array[$1]+=$'$j'}END{for (name in array) {print array[name]}}'`
                                         sum_no_split=`egrep -e "^$user" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
 					if (( $sum_split != $sum_no_split )); then
+						error "Unexpected value: filecount: $sum_split/$sum_no_split"
+						echo "Splitted report: "
+						cat rh_report_split.log
+						echo "Summed report: "
+						cat rh_report_no_split.log
                                         	check=0
                                 	fi
 				fi

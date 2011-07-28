@@ -31,6 +31,7 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
     lustre_fs/cfg/test_fileclass.conf \
     lustre_fs/cfg/test_pools.conf   \
     lustre_fs/cfg/test_trig3.conf   \
+    lustre_fs/cfg/rmdir.conf   \
     lustre_fs/cfg/test_trig4.conf   \
     lustre_fs/cfg/test_recov.conf   \
     lustre_fs/cfg/acct_group.conf   \

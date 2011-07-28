@@ -694,6 +694,7 @@ int emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter
     int i;
     filter_str[0] = '\0';
 
+#ifdef ATTR_INDEX_dircount
     if ( p_filter->filter_type == FILTER_SIMPLE )
     {
         for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
@@ -710,6 +711,7 @@ int emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter
             }
         }
     }
+#endif
     return 0;
 }
 
