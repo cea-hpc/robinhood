@@ -15,7 +15,7 @@ class Router extends ApplicationComponent
         if( !file_exists( dirname(__FILE__)."/../app/config/database.xml" ) )
         {
             require dirname(__FILE__).'/../app/modules/configuration/ConfigurationController.class.php';
-            $controller = new ConfigurationController( $this->getApplication(), "configuration", "configForm", "blank" );
+            $controller = new ConfigurationController( $this->getApplication(), "configuration", "blank" );
         }
         else
         {
@@ -32,7 +32,6 @@ class Router extends ApplicationComponent
                         {
                             $module = $route->getAttribute( "module" );
                             $type = $route->getAttribute( "type" );
-                            $page = $route->getAttribute( "page" );
 
                             $controller_name = ucfirst($module).'Controller';
                             $controller_file = dirname(__FILE__).'/../app/modules/'.$module.'/'.ucfirst($module).'Controller.class.php';
@@ -41,7 +40,7 @@ class Router extends ApplicationComponent
                             else
                                 require $controller_file;
 
-                            $controller = new $controller_name( $this->getApplication(), $module, $page, $type );
+                            $controller = new $controller_name( $this->getApplication(), $module, $type );
 
                             //if there are $_GET variables
                             if ( $route->hasAttribute('vars') )

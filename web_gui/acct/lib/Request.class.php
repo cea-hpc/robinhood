@@ -32,6 +32,18 @@ class Request extends ApplicationComponent
     }
 
    /**
+    * This method returns true if there are post values
+    * @return boolean
+    */
+    public function hasPostValues()
+    {
+        if( sizeof( $_POST ) == 0 )
+            return FALSE;
+        else
+            return TRUE;
+    }
+
+   /**
     * This method gets the current URL
     */
     public function getURL()

@@ -6,16 +6,15 @@
 <form method="post" id="form">
     <fieldset>
         <h3>Configuration</h3>
- 
+
+        <?php 
+        if( isset( $file_created ) )
+        {
+            echo "<p id='error'><b> Error: Database connection failed </b></p>";
+        }
+        ?>
         <p> Enter database configuration </p>
       
-        <p id="list">
-	        <label>DBMS:</label>
-            <select name="dbms">
-                <option>mysql</option>
-                <option>sqlite</option>
-            </select>
-        </p>
         <p>
             <label>Host (localhost by default)</label>
             <input type="text" name="host" />
@@ -30,7 +29,7 @@
       </p>
       <p>
          <label>Password </label>
-         <input type="text" name="password" />
+         <input type="password" name="password" />
       </p>
 
       
@@ -40,6 +39,17 @@
    </fieldset>
 
 </form>
+
+<?php
+if( isset( $file_created ) && $file_created == TRUE )
+{
+?>
+    <script language="javascript" type="text/javascript">
+        window.location.replace("index.php");
+    </script>
+<?php
+}
+?>
 
 <script>
 $("#form").validator();

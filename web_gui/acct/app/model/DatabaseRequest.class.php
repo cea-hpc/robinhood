@@ -14,24 +14,17 @@ class DatabaseRequest
     private $dbname;
     private $user;
     private $password;
+    private $rowNumber;
 
    /**
     * The constructor creates a new database connection
     * @param string $config_file
     */
-    public function __construct( $config_file )
+    public function __construct( $config_file_path )
     {
-        try
-        {
-            $this->getParametersFromConfigFile( $config_file );
-            $this->connection = new PDO($this->dbms.':host='.$this->host.';dbname='.$this->dbname, $this->user, $this->password );
-            $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        }
-        catch( PDOException $e )
-        {
-            echo 'Error: '.$e->getMessage().'</br>';
-            die();
-        }
+        $this->getParametersFromConfigFile( $config_file_path );
+        $this->connection = new PDO($this->dbms.':host='.$this->host.';dbname='.$this->dbname, $this->user, $this->password );
+        $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
     public function closeConnection()
@@ -42,10 +35,10 @@ class DatabaseRequest
    /**
     * This method get connection parameters from database.xml.
     */
-    private function getParametersFromConfigFile( $config_file )
+    private function getParametersFromConfigFile( $config_file_path )
     {
         $dom = new DOMDocument();
-        $dom->load( $config_file );
+        $dom->load( $config_file_path );
         
         $dbms = $dom->getElementsByTagName('dbms')->item(0);
         if( $dbms )
@@ -123,8 +116,20 @@ class DatabaseRequest
         {
             foreach( $filter as $field => $value ) 
             {
-                $filter_str = $filter_str.($is_first ? '' : ',').$field.'=\''.$value.'\'';
-                $is_first = FALSE;
+                if( $value != "")
+                {
+                    if( preg_match( '`^.*(\*|\?).*$`', $value ) )
+                    {
+                        $value = str_replace( '*', '%', $value );
+                        $value = str_replace( '?', '_', $value );
+                        $filter_str = $filter_str.($is_first ? '' : ' AND ').$field.' LIKE \''.$value.'\'';
+                    }
+                    else
+                    {
+                        $filter_str = $filter_str.($is_first ? '' : ' AND ').$field.'=\''.$value.'\'';
+                    }
+                    $is_first = FALSE;
+                }
             }
         }
 
@@ -141,7 +146,7 @@ class DatabaseRequest
         $is_first = TRUE;
         foreach( $this->getSchema( $table ) as $field => $type )
         {
-            if( substr_count( $type, "int" ) != 0 && $groupby )
+            if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) //TODO status case
                 $field_str = $field_str.( $is_first ? '' : ', ' )." SUM(".$field.")";
             else
                 $field_str = $field_str.( $is_first ? '' : ', ' ).$field;
@@ -152,12 +157,20 @@ class DatabaseRequest
         {
             $result = $this->connection->query( "SELECT ".$field_str." FROM ".$table.( $filter ? " WHERE ".$filter_str : "" ).
                         ( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? "ORDER BY ".$orderby." ".$order : "" ) );
+            $this->rowNumber = $result->rowCount();
+
+            if( $this->rowNumber > 500 || $this->rowNumber == 0)
+            {
+                return null;
+            }
+
             while( $line = $result->fetch( PDO::FETCH_ASSOC ) )
             {
                 $returned_result[$i] = $line;
                 $i++;
             }
             $result->closeCursor();
+
             return $returned_result;
         }
         catch( PDOException $e )
@@ -166,6 +179,9 @@ class DatabaseRequest
         }
     }
 
+    public function getRowNumber(){
+        return $this->rowNumber;
+    }
 }
 
 ?>

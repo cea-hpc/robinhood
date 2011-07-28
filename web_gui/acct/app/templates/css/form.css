@@ -1,5 +1,5 @@
 #form {
-	background:#4b598C;
+	background: #3B5998;
 	padding:15px 20px;
 	color:#eee;
 	width:400px;
@@ -26,7 +26,7 @@
 
 #form input:focus {
 	color:#000;
-	background-color:#DAE2FF;
+	background-color: #E0E9F5;
 }
 
 /* field label */
@@ -35,17 +35,13 @@
 	font-size:0.8em;
 }
 
-#form #list label {
-	float:left;
-	margin-right: 2em;
-}
 
 /* error message */
 .error {
 	height:15px;
-	background-color:#DAE2FF;
+	background-color: #E0E9F5;
 	font-size:12px;
-	border:1px solid #DAE2FF;
+	border:1px solid #E0E9F5;
 	padding:4px 10px;
 	color:#000;
 	display:none;	

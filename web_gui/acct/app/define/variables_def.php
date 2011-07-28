@@ -19,4 +19,7 @@ define("SIZE" , "size");
 define("COUNT" , "count");
 define("STATUS" , "status");
 
+//Define entries table fields
+define("PATH" , "fullpath");
+
 ?>

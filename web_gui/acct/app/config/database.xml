@@ -1,9 +1,5 @@
-<?xml version="1.0" encoding="iso-8859-1" ?>
+<?xml version="1.0"?>
 <database>
-    <dbname>robinhood_db</dbname>
-    <host>localhost</host>
-    <user>robinhood</user>
-    <password>r0binhood!</password>
+  <dbname>robinhood_backup</dbname>
+  <user>root</user>
 </database>
-
-
