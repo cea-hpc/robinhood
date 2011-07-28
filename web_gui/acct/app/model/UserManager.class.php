@@ -20,6 +20,7 @@ class UserManager
     {
         $count = array();
         $size = array();
+        $blks = array();
         $db_result = $this->db_request->select( null, ACCT_TABLE, array(OWNER), null );
 
         $stat = new Statistics();
@@ -30,10 +31,12 @@ class UserManager
             {
                 $count[$line[OWNER]] = $line['SUM('.COUNT.')'];
                 $size[$line[OWNER]] = $line['SUM('.SIZE.')'];
+                $blks[$line[OWNER]] = $line['SUM('.BLOCKS.')'];
             }
         }
 
         $stat->setSize( $size );
+        $stat->setBlocks( $blks );
         $stat->setCount( $count );
 
         return $stat;

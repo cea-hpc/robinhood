@@ -146,7 +146,7 @@ class DatabaseRequest
         $is_first = TRUE;
         foreach( $this->getSchema( $table ) as $field => $type )
         {
-            if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) //TODO status case
+            if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) //TODO status case (no meaning here)
                 $field_str = $field_str.( $is_first ? '' : ', ' )." SUM(".$field.")";
             else
                 $field_str = $field_str.( $is_first ? '' : ', ' ).$field;

@@ -30,13 +30,13 @@
     $graph->options->font = 'app/img/arial.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
-    $graph->render( 532, 195, 'app/img/graph/volumePieGraph.png' );
+    $graph->render( 532, 195, 'app/img/graph/statusVolumePieGraph.png' );
 
     echo '<h2>Volume per status </h2>';
     
 ?>
 
-<img src="app/img/graph/volumePieGraph.png"/>
+<img src="app/img/graph/statusVolumePieGraph.png"/>
 <table class="simple">
      <thead>
         <tr>

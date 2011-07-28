@@ -29,13 +29,13 @@
     $graph->options->font = 'app/img/arial.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
-    $graph->render( 532, 195, 'app/img/graph/countPieGraph.png' );
+    $graph->render( 532, 195, 'app/img/graph/userCountPieGraph.png' );
 
     echo '<h2>File number per user</h2>';
 
 ?>
 
-<img src="app/img/graph/countPieGraph.png"/>
+<img src="app/img/graph/userCountPieGraph.png"/>
 <table class="simple">
      <thead>
         <tr>
@@ -47,7 +47,7 @@
     <tbody>
         <?php
         reset( $top_count );
-        $size = $statistics->getSize();
+        $blks = $statistics->getBlocks();
         for ($i = 0; $i < sizeof($top_count)-1; $i++)
         {
             $user = key($top_count);
@@ -57,7 +57,7 @@
                     <?php echo "<a href='".str_replace( " ", "%20", $user).
                         "_user_popup.php'rel='#count'>".$user."</a>"; ?>
                 </td>
-                <td><?php echo formatSizeNumber( $size[$user] ); ?></td>
+                <td><?php echo formatSizeNumber( $blks[$user]*DEV_BSIZE ); ?></td>
                 <td><?php echo formatNumber( $top_count[$user] ); ?></td>
             </tr>
             <?php

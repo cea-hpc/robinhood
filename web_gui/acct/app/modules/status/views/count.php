@@ -29,13 +29,13 @@
     $graph->options->font = 'app/img/arial.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
-    $graph->render( 532, 195, 'app/img/graph/countPieGraph.png' );
+    $graph->render( 532, 195, 'app/img/graph/statusCountPieGraph.png' );
 
     echo '<h2>File number per status</h2>';
 
 ?>
 
-<img src="app/img/graph/countPieGraph.png"/>
+<img src="app/img/graph/statusCountPieGraph.png"/>
 <table class="simple">
      <thead>
         <tr>

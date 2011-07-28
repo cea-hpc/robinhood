@@ -2,7 +2,7 @@
 /* -*- mode: php; c-basic-offset: 4; indent-tabs-mode: nil; -*-
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
-
+    /*TODO Generalize pie chart generation*/
     $graph = new ezcGraphPieChart();
     $graph->palette = new ezcGraphPaletteEzBlue();
     $graph->legend = false; 
@@ -30,13 +30,13 @@
     $graph->options->font = 'app/img/arial.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
-    $graph->render( 532, 195, 'app/img/graph/volumePieGraph.png' );
+    $graph->render( 532, 195, 'app/img/graph/userVolumePieGraph.png' );
 
-    echo '<h2>Volume per user  </h2>';
+    echo '<h2>Space used per user</h2>';
     
 ?>
 
-<img src="app/img/graph/volumePieGraph.png"/>
+<img src="app/img/graph/userVolumePieGraph.png"/>
 <table class="simple">
      <thead>
         <tr>
