@@ -684,8 +684,12 @@ function test_dircount_report
 	config_file=$1
 	dircount=$2
 	descr_str="$3"
+	emptydir=5
 
 	clean_logs
+
+	# inital scan
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 
 	# create several dirs with different entry count (+10 for each)
 
@@ -697,25 +701,57 @@ function test_dircount_report
                         touch $ROOT/dir.$i/file.$j || error "creating $ROOT/dir.$i/file.$j"
                 done
         done
+	if [ $PURPOSE = "TMP_FS_MGR" ]; then
+                echo "1bis. Creating empty directories..."
+		# create 5 empty dirs
+		for i in `seq 1 $emptydir`; do
+			mkdir $ROOT/empty.$i
+		done
+	fi
 
+	# read changelogs
 	echo "2-Scanning..."
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 
 	echo "3.Checking dircount report..."
-	$REPORT -f ./cfg/$config_file --topdirs=$dircount --csv > report.out
+	# dircount+1 because $ROOT may be returned
+	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --csv > report.out
 
 	# check that dircount is right for each dir
+
+	# check if $ROOT is in topdirs. If so, check its position
+	# else, check with its path and its dev/ino
+	is_root=0
+	line=`grep "$ROOT/ " report.out`
+	[[ -n $line ]] && is_root=1
+	if (( ! $is_root )); then
+		id=`stat -c "0X%D/%i" $ROOT/.`
+		line=`grep "$id " report.out`
+		[[ -n $line ]] && is_root=1
+	fi
+	if (( $is_root )); then
+		root_rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
+		echo "FS root $ROOT was returned in top dircount (rank=$root_rank)"
+	fi
 	for i in `seq 1 $dircount`; do
 		line=`grep "$ROOT/dir.$i " report.out`
 		rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
 		count=`echo $line | cut -d ',' -f 3 | tr -d ' '`
-		#echo "dir.$i: rank=$rank, dircount=$count"
+		# if expected_rank >= root_rank, shift expected rank
+		(($is_root )) && (($rank >= $root_rank)) && rank=$rank-1
 		(($rank == $(( 20 - $i +1 )) )) || error "Invalid rank $rank for dir.$i"
 		(($count == $(( 10 * $i )) )) || error "Invalid dircount $count for dir.$i"
 	done
 	
+	if [ $PURPOSE = "TMP_FS_MGR" ]; then
+		echo "4. Check empty dirs..."
+		# check empty dirs
+		$REPORT -f ./cfg/$config_file --toprmdir --csv > report.out
+		for i in `seq 1 $emptydir`; do
+			grep "$ROOT/empty.$i" report.out > /dev/null || error "$ROOT/empty.$i not found in top rmdir"
+		done
+	fi
 }
-
 
 
 function path_test

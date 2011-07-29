@@ -1910,8 +1910,8 @@ void report_topdirs( unsigned int count, int flags )
                 name = buff;
             }
 #else
-            sprintf(buff, "%"PRI_DT"/%LX", id.device, id.inode);
-            title = "dev/inode:";
+            sprintf(buff, "%#"PRI_DT"/%Lu", id.device, (unsigned long long)id.inode);
+            title = "Dev/inode:";
             name = buff;
 #endif
         }
@@ -2325,11 +2325,11 @@ void report_toprmdir( unsigned int count, int flags )
 
     /* select only non whitelisted */
     fv.val_bool = TRUE;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0);
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, FILTER_FLAG_ALLOW_NULL);
 
     /* select only non invalid */
     fv.val_bool = TRUE;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0);
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, FILTER_FLAG_ALLOW_NULL);
 
     /* only consider empty directories */
     fv.val_uint = 0;
