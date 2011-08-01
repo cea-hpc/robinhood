@@ -48,6 +48,9 @@ static int mysql_error_convert( int err )
     case ER_PARSE_ERROR:
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "SQL request parse error" );
         return DB_REQUEST_FAILED;
+    case ER_LOCK_DEADLOCK:
+        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "DB deadlock detected" );
+        return DB_DEADLOCK;
 
         /* connection relative errors */
 
@@ -80,7 +83,14 @@ static int mysql_error_convert( int err )
 
 static int is_retryable( int sql_err )
 {
-    return ( mysql_error_convert( sql_err ) == DB_CONNECT_FAILED );
+    switch (mysql_error_convert(sql_err))
+    {
+        case DB_CONNECT_FAILED:
+        case DB_DEADLOCK:
+            return TRUE;
+        default:
+            return FALSE;
+    }
 }
 
 
@@ -167,13 +177,21 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
 
     do
     {
+        int dberr;
         rc = mysql_real_query( conn, query, strlen( query ) );
 
-        if ( rc && is_retryable( mysql_errno( conn ) ) )
+        dberr = mysql_errno( conn );
+        if ( rc && is_retryable( dberr ) )
         {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                        "Connection to database lost in %s()... Retrying in %u sec.", __FUNCTION__,
-                        retry );
+            if (dberr != ER_LOCK_DEADLOCK)
+                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
+                            "Connection to database lost in %s()... Retrying in %u sec.",
+                            __FUNCTION__, retry );
+            else
+                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
+                            "Deadlock during DB request... Retrying in %u sec.",
+                            retry );
+
             rh_sleep( retry );
             retry *= 2;
             if ( retry > lmgr_config.connect_retry_max )
