@@ -19,7 +19,7 @@ class SearchManager
     */
     public function getStatistics( $user, $group, $path )
     {
-        $db_result = $this->db_request->select( array( OWNER => $user, GROUP => $group, PATH => $path), MAIN_TABLE, null, null );
+        $db_result = $this->db_request->select( array( OWNER => $user, GROUP => $group, PATH => $path), MAIN_TABLE, null, null, null, MAX_SEARCH_RESULT );
         $this->rowNumber = $this->db_request->getRowNumber();
         return $db_result;
     }

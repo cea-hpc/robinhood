@@ -26,4 +26,8 @@ define("PATH" , "fullpath");
 // system block size
 define("DEV_BSIZE", 512);
 
+// max search results
+define("MAX_SEARCH_RESULT", 500);
+
+
 ?>

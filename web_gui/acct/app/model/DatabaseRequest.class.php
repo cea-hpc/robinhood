@@ -111,7 +111,7 @@ class DatabaseRequest
     * @param order ( desc or asc )
     * @return A double array containing the query result.
     */
-    public function select( $filter, $table, $groupby, $orderby, $order='desc' )
+    public function select( $filter, $table, $groupby, $orderby, $order='desc', $limit=0 )
     {
         $filter_str = "";
         $groupby_str = "";
@@ -162,11 +162,14 @@ class DatabaseRequest
 
         try
         {
-            $result = $this->connection->query( "SELECT ".$field_str." FROM ".$table.( $filter ? " WHERE ".$filter_str : "" ).
-                        ( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? "ORDER BY ".$orderby." ".$order : "" ) );
+	    $query = "SELECT ".$field_str." FROM ".$table.( $filter ? " WHERE ".$filter_str : "" ).
+                        ( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
+                        ( $limit > 0 ? " LIMIT $limit" : "" );
+
+            $result = $this->connection->query( $query );
             $this->rowNumber = $result->rowCount();
 
-            if( $this->rowNumber > 500 || $this->rowNumber == 0)
+            if( $this->rowNumber > MAX_SEARCH_RESULT || $this->rowNumber == 0)
             {
                 return null;
             }

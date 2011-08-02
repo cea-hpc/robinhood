@@ -9,7 +9,7 @@ if( ( $page == 'result' && $result == null ) || $page == 'form' )
     <form method="post" id="form">
         <fieldset>
             <?php
-            if( isset( $rowNumber ) && $rowNumber > 500 )
+            if( isset( $rowNumber ) && $rowNumber > MAX_SEARCH_RESULT )
             {
                 echo "<p id='error'>The result is too large to be displayed.<br/> Please, specify other filters.</p>";
             }
@@ -42,8 +42,13 @@ if( ( $page == 'result' && $result == null ) || $page == 'form' )
 }
 else
 {
-?>
 
+	if( isset( $rowNumber ) && $rowNumber == MAX_SEARCH_RESULT )
+	{
+		echo "<p id='error'>NOTICE: too many results!<br/>Display has been truncated to 500 entries.</p>";
+	}
+
+?>
 
 <table cellpadding="0" cellspacing="0" border="0" class="display" id="jQueryTable">
     <thead>
