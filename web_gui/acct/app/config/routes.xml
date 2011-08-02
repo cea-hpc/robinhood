@@ -8,5 +8,6 @@
   <route url="(.*)_status_popup.php" module="status" type="popup" vars="status"/>
   <route url="search.php" module="search" type="main"/>
   <route url="configuration.php" module="configuration" type="main"/>
+  <route url="" module="user" type="main"/>
   <route url="index.php" module="user" type="main"/>
 </routes>
