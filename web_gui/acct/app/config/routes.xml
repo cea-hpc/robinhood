@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+<routes>
+    <route url="users.php" module="user" page="main"  type="main" />
+    <route url="groups.php" module="group" page="main" type="main" />
+    <route url="(.*)_user_popup.php" module="user" page="popup" type="popup" vars="user" />
+    <route url="(.*)_group_popup.php" module="group" page="popup" type="popup" vars="group" />
+    <route url="search.php" module="search" page="" type="main" />
+</routes>
+
