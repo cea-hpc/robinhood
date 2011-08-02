@@ -29,5 +29,16 @@ define("DEV_BSIZE", 512);
 // max search results
 define("MAX_SEARCH_RESULT", 500);
 
+$hsmlite_status_tab = array( "unknown", "new", "modified", 
+	     		     "retrieving", "archiving",
+        		     "synchro", "released", "release_pending",
+			     "removed" );
+$hsm_status_tab = array( "unknown", "new", "modified",
+			 "retrieving", "archiving",
+			 "synchro", "released", "release_pending" );
+$sherpa_status_tab = array( "unknown", "ref_missing", "modified",
+			    "retrieving", "archiving", "synchro",
+			    "obsolete" );
+
 
 ?>

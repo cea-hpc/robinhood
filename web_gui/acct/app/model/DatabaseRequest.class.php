@@ -85,7 +85,7 @@ class DatabaseRequest
     */ 
     public function getSchema( $table )
     {
-        $schema = array();
+       	$schema = array();
         try{
             $result = $this->connection->query( "DESCRIBE ".$table );
             $result->setFetchMode(PDO::FETCH_OBJ);
@@ -97,7 +97,8 @@ class DatabaseRequest
         }
         catch( PDOException $e )
         {
-            echo 'Error: '.$e->getMessage().'</br>';
+            #echo 'Error: '.$e->getMessage().'</br>';
+	    $schema = null;
         }
         return $schema;
     }
@@ -117,12 +118,21 @@ class DatabaseRequest
         $groupby_str = "";
         $field_str = "";
         $is_first = TRUE;
+	$join_annex = 0;
         $i = 0;
+	if ( $table == MAIN_TABLE )
+		$annex_schema = $this->getSchema( ANNEX_TABLE );
+	else
+		$annex_schema = null;
 
         if( $filter )
         {
             foreach( $filter as $field => $value ) 
             {
+		if (($annex_schema != null) && (in_array($field, array_keys($annex_schema))))
+			# need to join on annex table
+			$join_annex = 1;
+
                 if( $value != "")
                 {
                     if( preg_match( '`^.*(\*|\?).*$`', $value ) )
@@ -145,26 +155,48 @@ class DatabaseRequest
             $is_first = TRUE;
             foreach( $groupby as $field )
             {
+		if (($annex_schema != null) && (in_array($field, array_keys($annex_schema))))
+			# need to join on annex table
+			$join_annex = 1;
+
                 $groupby_str = $groupby_str.($is_first ? '' : ',').$field;
                 $is_first = FALSE;
             }
         }
 
+	/* /!\ is there a field in ANNEX_INFO? */
+
         $is_first = TRUE;
         foreach( $this->getSchema( $table ) as $field => $type )
         {
             if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) //TODO status case (no meaning here)
-                $field_str = $field_str.( $is_first ? '' : ', ' )." SUM(".$field.")";
+                $field_str .= ( $is_first ? '' : ', ' )." SUM(".($join_annex ? "$table." : "").$field.")";
             else
-                $field_str = $field_str.( $is_first ? '' : ', ' ).$field;
+                $field_str .= ( $is_first ? '' : ', ' ).($join_annex ? "$table." : "").$field;
             $is_first = FALSE;
         }
+	if ($join_annex) {
+	        foreach( $this->getSchema( ANNEX_TABLE ) as $field => $type )
+		{
+		    if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) //TODO status case (no meaning here)
+			$field_str .= ( $is_first ? '' : ', ' )." SUM(".($join_annex ? ANNEX_TABLE."." : "").$field.")";
+		    else
+			$field_str .= ( $is_first ? '' : ', ' ).($join_annex ? ANNEX_TABLE."." : "").$field;
+		    $is_first = FALSE;
+		}
+	}
 
         try
         {
-	    $query = "SELECT ".$field_str." FROM ".$table.( $filter ? " WHERE ".$filter_str : "" ).
-                        ( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
-                        ( $limit > 0 ? " LIMIT $limit" : "" );
+	    if ($join_annex)
+		    $query = "SELECT ".$field_str." FROM ".$table." LEFT JOIN ".ANNEX_TABLE." ON $table.id = ".ANNEX_TABLE.".id ".
+				( $filter ? " WHERE ".$filter_str : "" ).
+				( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
+				( $limit > 0 ? " LIMIT $limit" : "" );
+	    else
+		    $query = "SELECT ".$field_str." FROM ".$table.( $filter ? " WHERE ".$filter_str : "" ).
+				( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
+				( $limit > 0 ? " LIMIT $limit" : "" );
 
             $result = $this->connection->query( $query );
             $this->rowNumber = $result->rowCount();
@@ -195,16 +227,9 @@ class DatabaseRequest
 
     public function statusName( $st_num )
     {
-	$hsmlite_status_tab = array( "unknown", "new", "modified", 
-				     "retrieving", "archiving",
-				     "synchro", "released", "release_pending",
-				     "removed" );
-	$hsm_status_tab = array( "unknown", "new", "modified",
-				 "retrieving", "archiving",
-				 "synchro", "released", "release_pending" );
-	$sherpa_status_tab = array( "unknown", "ref_missing", "modified",
-  				    "retrieving", "archiving", "synchro",
-				    "obsolete" );
+	global $hsm_status_tab ;
+	global $sherpa_status_tab;
+	global $hsmlite_status_tab ;
 
 	switch( $this->rbh_mode )
 	{
@@ -226,16 +251,9 @@ class DatabaseRequest
 
     public function statusIndex( $st_str )
     {
-	$hsmlite_status_tab = array( "unknown", "new", "modified", 
-				     "retrieving", "archiving",
-				     "synchro", "released", "release_pending",
-				     "removed" );
-	$hsm_status_tab = array( "unknown", "new", "modified",
-				 "retrieving", "archiving",
-				 "synchro", "released", "release_pending" );
-	$sherpa_status_tab = array( "unknown", "ref_missing", "modified",
-  				    "retrieving", "archiving", "synchro",
-				    "obsolete" );
+	global $hsm_status_tab ;
+	global $sherpa_status_tab;
+	global $hsmlite_status_tab ;
 
 	switch( $this->rbh_mode )
 	{
