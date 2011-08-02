@@ -20,9 +20,9 @@ class GroupController extends Controller
         $result = $groupManager->getStat();
 
         $count = $result->getCount();
-        $size = $result->getSize();
+        $blks = $result->getBlocks();
         array_multisort($count, SORT_NUMERIC, SORT_DESC);
-        array_multisort($size, SORT_NUMERIC, SORT_DESC);
+        array_multisort($blks, SORT_NUMERIC, SORT_DESC);
 
         
         //Create array for the count section (top10)
@@ -43,15 +43,15 @@ class GroupController extends Controller
         
         //Create array for the volume section (top10)
         $i = 0;
-        foreach( $size as $key => $value )
+        foreach( $blks as $key => $value )
         {
             if( $i < LIMIT )
             {
-                $top_size[$key] = $value;
+                $top_size[$key] = $value * DEV_BSIZE;
             }
             else
             {
-                $others_size += $value;
+                $others_size += $value * DEV_BSIZE;
             }
             $i++;
         }
@@ -76,8 +76,25 @@ class GroupController extends Controller
         else
             $result = $group_manager->getDetailedStat( $_GET['group'], null );
             
+        $group_status = array();
+        $has_status = 0;
+        foreach( $result as $line )
+        {
+            if( array_key_exists( STATUS, $acct_schema ) ) {
+                $has_status = 1;
+                if ( !array_key_exists( TYPE, $acct_schema ) || ( $line[TYPE] != 'dir' ) ) {
+                        if (isset($group_status[$line[STATUS]]))
+                            $group_status[$line[STATUS]] += $line[COUNT];
+                        else
+                            $group_status[$line[STATUS]] = $line[COUNT];
+                }
+            }
+        }
+ 
         $this->page->addVar( 'acct_schema', $acct_schema );
         $this->page->addVar( 'result', $result );
+        if ($has_status)
+            $this->page->addVar( 'group_status',  $group_status );
     }
 }
 

@@ -15,17 +15,18 @@
     </thead>
     <tbody>
         <?php
-        $size = $statistics->getSize();
+        $blks = $statistics->getBlocks();
         $count = $statistics->getCount();
-        foreach( $size as $owner => $size_value )
+        foreach( $blks as $owner => $size_value )
         {
         ?>
             <tr class="gradeB">
                 <?php
                 echo "<td><a href='".str_replace( " ", "%20", $owner)."_group_popup.php'
                         rel='#overlay'>".$owner."</a></td>";
+                $spc = $blks[$owner] * DEV_BSIZE;
                 ?>
-                <td align="right"><?php echo $size[$owner]; ?></td>
+                <td align="right"><?php echo $spc; ?></td>
                 <td align="right"><?php echo $count[$owner]; ?></td>
             </tr>
         <?php

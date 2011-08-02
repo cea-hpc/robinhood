@@ -32,7 +32,7 @@
     $graph->driver->options->imageFormat = IMG_PNG; 
     $graph->render( 532, 195, 'app/img/graph/groupVolumePieGraph.png' );
 
-    echo '<h2>Volume per group </h2>';
+    echo '<h2>Space used per group </h2>';
     
 ?>
 

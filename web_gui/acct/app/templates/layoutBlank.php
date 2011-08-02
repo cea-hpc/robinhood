@@ -16,7 +16,7 @@
             @import "app/templates/css/smoothness/jquery-ui-1.8.4.custom.css";
         </style>
         <script type="text/javascript" src="jQuery/jquery.tools.min.js"></script>
-        <script src="http://cdn.jquerytools.org/1.2.5/form/jquery.tools.min.js"></script>
+<!--        <script src="http://cdn.jquerytools.org/1.2.5/form/jquery.tools.min.js"></script> -->
     <head>
     <body>
         <div><?php echo $content; ?></div>

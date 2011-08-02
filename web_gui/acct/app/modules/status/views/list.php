@@ -15,17 +15,18 @@
     </thead>
     <tbody>
         <?php
-        $size = $statistics->getSize();
+        $blks = $statistics->getBlocks();
         $count = $statistics->getCount();
-        foreach( $size as $status => $size_value )
+        foreach( $blks as $status => $size_value )
         {
         ?>
             <tr class="gradeB">
                 <?php
                 echo "<td><a href='".str_replace( " ", "%20", $status)."_status_popup.php'
                         rel='#overlay'>".$status."</a></td>";
+                $spc = $blks[$status] * DEV_BSIZE;
                 ?>
-                <td align="right"><?php echo $size[$status]; ?></td>
+                <td align="right"><?php echo $spc; ?></td>
                 <td align="right"><?php echo $count[$status]; ?></td>
             </tr>
         <?php

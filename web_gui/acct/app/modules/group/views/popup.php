@@ -4,6 +4,8 @@
 */
 echo "<h1>".$_GET['group']."</h1>";
 
+    $group = $_GET['group'];
+echo "<h1>".$group."</h1>";
 echo "<hr/>";
 
     $tab = array( array() );
@@ -35,7 +37,38 @@ echo "<hr/>";
     $header = $header."<th>Size</th>";
     $header = $header."<th>Count</th>";
     $header = $header."</tr> </thead>";
+    // display the table
     generateMergedTable( $tab, $header );
+
+    if (isset($group_status))
+    {
+        // build status chart
+        /*TODO Generalize pie chart generation*/
+        $graph = new ezcGraphPieChart();
+        $graph->palette = new ezcGraphPaletteEzBlue();
+        $graph->legend = false; 
+        $title = 'Status repartition for group '.$group.' (count)';
+        $graph->data[$title] = new ezcGraphArrayDataSet( $group_status );
+
+        $graph->renderer = new ezcGraphRenderer3d();
+        $graph->renderer->options->moveOut = .2;
+        $graph->renderer->options->pieChartOffset = 63;
+        $graph->renderer->options->pieChartGleam = .3;
+        $graph->renderer->options->pieChartGleamColor = '#FFFFFF';
+        $graph->renderer->options->pieChartGleamBorder = 2; 
+        $graph->renderer->options->pieChartShadowSize = 5;
+        $graph->renderer->options->pieChartShadowColor = '#BABDB6';
+        $graph->renderer->options->pieChartHeight = 5;
+        $graph->renderer->options->pieChartRotation = .8;
+        $graph->driver = new ezcGraphGdDriver();
+        $graph->options->font = 'app/img/arial.ttf';
+        $graph->driver->options->imageFormat = IMG_PNG; 
+        // FIXME change png name depending on group
+        $graph->render( 532, 195, 'app/img/graph/groupStatusPieGraph-'.$group.'.png' );
+
+        echo '<h2>'.$title.'</h2>';
+        echo '<img src="app/img/graph/groupStatusPieGraph-'.$group.'.png"/>';
+    }
 ?>
 
 

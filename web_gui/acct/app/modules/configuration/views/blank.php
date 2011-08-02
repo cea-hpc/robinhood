@@ -3,6 +3,18 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 ?>
+
+<?php
+if( isset( $file_created ) && $file_created == TRUE )
+{
+?>
+    <script language="javascript" type="text/javascript">
+        window.location.replace("index.php");
+    </script>
+<?php
+}
+?>
+
 <form method="post" id="form">
     <fieldset>
         <h3>Configuration</h3>
@@ -40,16 +52,6 @@
 
 </form>
 
-<?php
-if( isset( $file_created ) && $file_created == TRUE )
-{
-?>
-    <script language="javascript" type="text/javascript">
-        window.location.replace("index.php");
-    </script>
-<?php
-}
-?>
 
 <script>
 $("#form").validator();

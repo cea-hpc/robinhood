@@ -31,7 +31,7 @@
     $graph->driver->options->imageFormat = IMG_PNG; 
     $graph->render( 532, 195, 'app/img/graph/userCountPieGraph.png' );
 
-    echo '<h2>File number per user</h2>';
+    echo '<h2>File count per user</h2>';
 
 ?>
 

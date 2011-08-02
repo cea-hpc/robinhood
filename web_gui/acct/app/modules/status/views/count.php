@@ -31,7 +31,7 @@
     $graph->driver->options->imageFormat = IMG_PNG; 
     $graph->render( 532, 195, 'app/img/graph/statusCountPieGraph.png' );
 
-    echo '<h2>File number per status</h2>';
+    echo '<h2>File count per status</h2>';
 
 ?>
 
@@ -47,7 +47,7 @@
     <tbody>
         <?php
         reset( $top_count );
-        $size = $statistics->getSize();
+        $blks = $statistics->getBlocks();
         for ($i = 0; $i < sizeof($top_count)-1; $i++)
         {
             $status = key($top_count);
@@ -57,7 +57,7 @@
                     <?php echo "<a href='".str_replace( " ", "%20", $status).
                         "_status_popup.php'rel='#count'>".$status."</a>"; ?>
                 </td>
-                <td><?php echo formatSizeNumber( $size[$status] ); ?></td>
+                <td><?php echo formatSizeNumber( $blks[$status] *DEV_BSIZE); ?></td>
                 <td><?php echo formatNumber( $top_count[$status] ); ?></td>
             </tr>
             <?php

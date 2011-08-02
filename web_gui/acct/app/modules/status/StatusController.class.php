@@ -20,9 +20,9 @@ class StatusController extends Controller
         $result = $statusManager->getStat();
 
         $count = $result->getCount();
-        $size = $result->getSize();
+        $blks = $result->getBlocks();
         arsort( $count, SORT_NUMERIC );
-        arsort( $size, SORT_NUMERIC );
+        arsort( $blks, SORT_NUMERIC );
 
         
         //Create array for the count section (top10)
@@ -43,15 +43,15 @@ class StatusController extends Controller
         
         //Create array for the volume section (top10)
         $i = 0;
-        foreach( $size as $key => $value )
+        foreach( $blks as $key => $value )
         {
             if( $i < LIMIT )
             {
-                $top_size[$key] = $value;
+                $top_size[$key] = $value * DEV_BSIZE;
             }
             else
             {
-                $others_size += $value;
+                $others_size += $value * DEV_BSIZE;
             }
             $i++;
         }

@@ -31,7 +31,7 @@
     $graph->driver->options->imageFormat = IMG_PNG; 
     $graph->render( 532, 195, 'app/img/graph/groupCountPieGraph.png' );
 
-    echo '<h2>File number per group</h2>';
+    echo '<h2>File count per group</h2>';
 
 ?>
 
@@ -47,7 +47,7 @@
     <tbody>
         <?php
         reset( $top_count );
-        $size = $statistics->getSize();
+        $blks = $statistics->getBlocks();
         for ($i = 0; $i < sizeof($top_count)-1; $i++)
         {
             $group = key($top_count);
@@ -57,7 +57,7 @@
                     <?php echo "<a href='".str_replace( " ", "%20", $group).
                         "_group_popup.php'rel='#count'>".$group."</a>"; ?>
                 </td>
-                <td><?php echo formatSizeNumber( $size[$group] ); ?></td>
+                <td><?php echo formatSizeNumber( $blks[$group]*DEV_BSIZE ); ?></td>
                 <td><?php echo formatNumber( $top_count[$group] ); ?></td>
             </tr>
             <?php

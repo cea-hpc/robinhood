@@ -20,6 +20,7 @@ class GroupManager
     {
         $count = array();
         $size = array();
+        $blks = array();
         $db_result = $this->db_request->select( null, ACCT_TABLE, array(GROUP), null );
 
         $stat = new Statistics();
@@ -30,10 +31,12 @@ class GroupManager
             {
                 $count[$line[GROUP]] = $line['SUM('.COUNT.')'];
                 $size[$line[GROUP]] = $line['SUM('.SIZE.')'];
+                $blks[$line[GROUP]] = $line['SUM('.BLOCKS.')'];
             }
         }
 
         $stat->setSize( $size );
+        $stat->setBlocks( $blks );
         $stat->setCount( $count );
 
         return $stat;

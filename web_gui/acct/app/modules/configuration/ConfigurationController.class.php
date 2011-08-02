@@ -43,7 +43,7 @@ class ConfigurationController extends Controller
     private function createDatabaseConfigFile()
     {
         //Create database.xml file
-        $conf_file = fopen( "app/config/database.xml", "w" );
+        //$conf_file = fopen( "app/config/database.xml", "w" );
         $dom_db = new DomDocument();
         $database = $dom_db->createElement("database");
         $dom_db->appendChild($database);
@@ -80,6 +80,8 @@ class ConfigurationController extends Controller
 
         $dom_db->formatOutput = TRUE;
         $dom_db->save( 'app/config/database.xml' );
+	
+	chmod('app/config/database.xml', 0640);
     }
 
    /*

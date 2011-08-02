@@ -20,6 +20,7 @@ class StatusManager
     {
         $count = array();
         $size = array();
+        $blks = array();
         $db_result = $this->db_request->select( null, ACCT_TABLE, array(STATUS), null );
 
         $stat = new Statistics();
@@ -28,8 +29,10 @@ class StatusManager
         {
             $count[$line[STATUS]] = $line['SUM('.COUNT.')'];
             $size[$line[STATUS]] = $line['SUM('.SIZE.')'];
+            $blks[$line[STATUS]] = $line['SUM('.BLOCKS.')'];
         }
         $stat->setSize( $size );
+        $stat->setBlocks( $blks );
         $stat->setCount( $count );
 
         return $stat;
