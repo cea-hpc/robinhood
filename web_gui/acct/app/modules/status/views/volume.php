@@ -2,13 +2,13 @@
 /* -*- mode: php; c-basic-offset: 4; indent-tabs-mode: nil; -*-
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
-    /*TODO Generalize pie chart generation*/
+
     $graph = new ezcGraphPieChart();
     $graph->palette = new ezcGraphPaletteEzBlue();
     $graph->legend = false; 
-    $graph->data['Volume per user'] = new ezcGraphArrayDataSet( $top_size );
+    $graph->data['Volume per status'] = new ezcGraphArrayDataSet( $top_size );
 
-    $graph->data['Volume per user']->highlight['Others'] = true;
+    $graph->data['Volume per status']->highlight['Others'] = true;
 
     $graph->renderer = new ezcGraphRenderer3d();
 
@@ -30,17 +30,17 @@
     $graph->options->font = 'app/img/arial.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
-    $graph->render( 532, 195, 'app/img/graph/userVolumePieGraph.png' );
+    $graph->render( 532, 195, 'app/img/graph/statusVolumePieGraph.png' );
 
-    echo '<h2>Space used per user</h2>';
+    echo '<h2>Volume per status </h2>';
     
 ?>
 
-<img src="app/img/graph/userVolumePieGraph.png"/>
+<img src="app/img/graph/statusVolumePieGraph.png"/>
 <table class="simple">
      <thead>
         <tr>
-            <th>User</th>
+            <th>Status</th>
             <th>Space used</th>
             <th>Count</th>
         </tr>
@@ -52,15 +52,15 @@
         $count = $statistics->getCount();
         for ($i = 0; $i < sizeof($top_size)-1; $i++)
         {
-            $user = key($top_size);
+            $status = key($top_size);
             ?>
             <tr>
                 <td>
-                     <?php echo "<a href='".str_replace( " ", "%20", $user).
-                        "_user_popup.php'rel='#volume'>".$user."</a>"; ?>
+                     <?php echo "<a href='".str_replace( " ", "%20", $status).
+                        "_status_popup.php'rel='#volume'>".$status."</a>"; ?>
                 </td>
-                <td><?php echo formatSizeNumber( $top_size[$user] ); ?></td>
-                <td><?php echo formatNumber( $count[$user] ); ?></td>
+                <td><?php echo formatSizeNumber( $top_size[$status] ); ?></td>
+                <td><?php echo formatNumber( $count[$status] ); ?></td>
             </tr>
             <?php
             next($top_size);
@@ -71,7 +71,7 @@
 
 <!-- POPUP -->
 <div class="apple_overlay" id="volume">
-    <!-- the user detailed stat is loaded inside this tag -->
+    <!-- the status detailed stat is loaded inside this tag -->
     <div class="contentWrap"></div>
 </div>
 

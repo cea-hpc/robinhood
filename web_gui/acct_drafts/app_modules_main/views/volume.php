@@ -2,13 +2,13 @@
 /* -*- mode: php; c-basic-offset: 4; indent-tabs-mode: nil; -*-
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
-    /*TODO Generalize pie chart generation*/
+
     $graph = new ezcGraphPieChart();
     $graph->palette = new ezcGraphPaletteEzBlue();
     $graph->legend = false; 
-    $graph->data['Volume per user'] = new ezcGraphArrayDataSet( $top_size );
+    $graph->data['Volume per '.$index] = new ezcGraphArrayDataSet( $size );
 
-    $graph->data['Volume per user']->highlight['Others'] = true;
+    $graph->data['Volume per '.$index]->highlight['Others'] = true;
 
     $graph->renderer = new ezcGraphRenderer3d();
 
@@ -30,48 +30,37 @@
     $graph->options->font = 'app/img/arial.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
-    $graph->render( 532, 195, 'app/img/graph/userVolumePieGraph.png' );
+    $graph->render( 532, 195, 'app/img/graph/volumePieGraph.png' );
 
-    echo '<h2>Space used per user</h2>';
+    echo '<h2>Volume per '.$index.'  </h2>';
     
 ?>
 
-<img src="app/img/graph/userVolumePieGraph.png"/>
+<img src="app/img/graph/volumePieGraph.png"/>
 <table class="simple">
      <thead>
         <tr>
-            <th>User</th>
-            <th>Space used</th>
+            <th><?php echo ucfirst($index); ?></th>
+            <th>Space used (bytes)</th>
             <th>Count</th>
         </tr>
     </thead>
     <tbody>
         <?php
-
-        reset( $top_size );
-        $count = $statistics->getCount();
-        for ($i = 0; $i < sizeof($top_size)-1; $i++)
+        reset( $size );
+        $whole_count = $statistics->getCount();
+        for ($i = 0; $i < sizeof($size)-1; $i++)
         {
-            $user = key($top_size);
+            $key = key($size);
             ?>
             <tr>
-                <td>
-                     <?php echo "<a href='".str_replace( " ", "%20", $user).
-                        "_user_popup.php'rel='#volume'>".$user."</a>"; ?>
-                </td>
-                <td><?php echo formatSizeNumber( $top_size[$user] ); ?></td>
-                <td><?php echo formatNumber( $count[$user] ); ?></td>
+                <td><?php echo $key; ?></td>
+                <td><?php echo formatSizeNumber($size[$key]); ?></td>
+                <td><?php echo formatNumber($whole_count[$key]); ?></td>
             </tr>
             <?php
-            next($top_size);
+            next($size);
         }
     ?>
     </tbody>
 </table>
-
-<!-- POPUP -->
-<div class="apple_overlay" id="volume">
-    <!-- the user detailed stat is loaded inside this tag -->
-    <div class="contentWrap"></div>
-</div>
-

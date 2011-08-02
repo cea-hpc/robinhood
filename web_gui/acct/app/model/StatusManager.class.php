@@ -3,7 +3,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 
-class UserManager
+class StatusManager
 {
     private $db_request;
 
@@ -13,43 +13,36 @@ class UserManager
     }
 
    /**
-    * This method returns Statistics object to create the pie graph or the user list
+    * This method returns Statistics object to create the pie graph or the status list
     * @return Statistics
     */
     public function getStat()
     {
         $count = array();
         $size = array();
-        $blks = array();
-        $db_result = $this->db_request->select( null, ACCT_TABLE, array(OWNER), null );
+        $db_result = $this->db_request->select( null, ACCT_TABLE, array(STATUS), null );
 
         $stat = new Statistics();
 
         foreach( $db_result as $line )
         {
-            if ($line[OWNER] && $line['SUM('.COUNT.')'] && $line['SUM('.SIZE.')'] )
-            {
-                $count[$line[OWNER]] = $line['SUM('.COUNT.')'];
-                $size[$line[OWNER]] = $line['SUM('.SIZE.')'];
-                $blks[$line[OWNER]] = $line['SUM('.BLOCKS.')'];
-            }
+            $count[$line[STATUS]] = $line['SUM('.COUNT.')'];
+            $size[$line[STATUS]] = $line['SUM('.SIZE.')'];
         }
-
         $stat->setSize( $size );
-        $stat->setBlocks( $blks );
         $stat->setCount( $count );
 
         return $stat;
     }
 
    /**
-    * This method returns detailed statistics for a specific user
-    * @param user
+    * This method returns detailed statistics for a specific status
+    * @param status
     * @return db_result
     */
-    public function getDetailedStat( $user, $sort )
+    public function getDetailedStat( $status, $sort )
     {
-        $db_result = $this->db_request->select( array( OWNER => $user ), ACCT_TABLE, null, $sort );
+        $db_result = $this->db_request->select( array( STATUS => $status ), ACCT_TABLE, null, $sort );
         return $db_result;
     }
 

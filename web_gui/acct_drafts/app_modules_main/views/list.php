@@ -8,26 +8,25 @@
 <table cellpadding="0" cellspacing="0" border="0" class="display" id="jQueryTable">
     <thead>
         <tr>
-            <th>User</th>
-            <th>Space used</th>
+            <th><?php echo ucfirst( $index ); ?></th>
+            <th>Size</th>
             <th>Count</th>
         </tr>
     </thead>
     <tbody>
         <?php
-        $blks = $statistics->getBlocks();
+        $size = $statistics->getSize();
         $count = $statistics->getCount();
-        foreach( $blks as $owner => $size_value )
+        foreach( $size as $owner => $size_value )
         {
         ?>
             <tr class="gradeB">
                 <?php
-                echo "<td><a href='".str_replace( " ", "%20", $owner)."_user_popup.php'
+                echo "<td><a href='".str_replace( " ", "%20", $owner)."_".$index."_popup.php'
                         rel='#overlay'>".$owner."</a></td>";
-                $spc = $blks[$owner] * DEV_BSIZE;
                 ?>
-                <td align="right"><?php echo $spc; ?></td>
-                <td align="right"><?php echo $count[$owner]; ?></td>
+                <td><?php echo $size[$owner]; ?></td>
+                <td><?php echo $count[$owner]; ?></td>
             </tr>
         <?php
         }

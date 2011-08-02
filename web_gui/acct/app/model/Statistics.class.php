@@ -5,36 +5,10 @@
 
 class Statistics
 {
-    //private $owner = array();
-    //private $group = array();
-    //private $type = array();
     private $size = array();
     private $blocks = array();
     private $count = array();
 
-    /*public function setOwner( $owner )
-    {
-        if( in_array( false, array_map( 'is_string', $owner ) ) )
-            throw new InvalidArgumentException('The owner attribute must be a string');
-        else
-            $this->owner = $owner;
-    }
-
-    public function setGroup( $group )
-    {
-        if( in_array( false, array_map( 'is_string', $group ) ) )
-            throw new InvalidArgumentException('The group attribute must be a string');
-        else
-            $this->group = $group;
-    }
-
-    public function setType( $type )
-    {
-        if( in_array( false, array_map( 'is_string', $type ) ) )
-            throw new InvalidArgumentException('The type attribute must be a string');
-        else
-            $this->type = $type;
-    }*/
 
     public function setSize( $size )
     {
@@ -59,22 +33,6 @@ class Statistics
         else
             $this->count = $count;
     }
-
-
-    /*public function getOwner()
-    {
-        return $this->owner;
-    }
-
-    public function getGroup()
-    {
-        return $this->group;
-    }
-
-    public function getType()
-    {
-        return $this->type;
-    }*/
 
     public function getSize()
     {

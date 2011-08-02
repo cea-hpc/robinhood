@@ -77,4 +77,8 @@ ul, li {
     border-bottom: 1px solid #7A7A7C;
 }
 
-
+#error {
+    color: #FF4B4B;
+    text-align: center;
+    background-color: #FFDBDB;
+}

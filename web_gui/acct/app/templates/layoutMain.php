@@ -15,6 +15,7 @@
             @import "app/templates/css/tab.css";
             @import "app/templates/css/simple_table.css";
             @import "app/templates/css/popup.css";
+            @import "app/templates/css/form.css";
             @import "app/templates/css/smoothness/jquery-ui-1.8.4.custom.css";
         </style>
         <script type="text/javascript" src="jQuery/jquery.tools.min.js"></script>
@@ -99,7 +100,7 @@
                         echo "<li><a href='".strtolower($section).".php'>".$section."</a></li>";
                     }
                     ?>
-                    <li><a href='#'>Search</a></li>
+                    <li><a href='search.php'>Search</a></li>
                 </ul>
             </div>
         </div>

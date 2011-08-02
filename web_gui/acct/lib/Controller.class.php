@@ -10,7 +10,6 @@ abstract class Controller extends ApplicationComponent
 {
     protected $module;
     private $type;
-    private $pageName;
     protected $page;
 
    /**
@@ -19,22 +18,21 @@ abstract class Controller extends ApplicationComponent
     * @param module
     * @param type
     */
-    public function __construct( Application $app, $module,  $pageName, $type )
+    public function __construct( Application $app, $module, $type )
     {
         parent::__construct( $app );
         $this->page = new Page( $app, $type );
         $this->module = $module;
         $this->type = $type;
-        $this->pageName = $pageName;
-        $this->setViews();
+        $this->setView();
     }
 
     public function execute()
     {
-        $method = 'execute'.ucfirst($this->pageName);
+        $method = 'execute'.ucfirst($this->type);
         if( !is_callable( array($this, $method) ) )
         {
-            throw new RuntimeException( "The page ".$this->pageName." is undefined for the module ".$this->module );
+            throw new RuntimeException( "The method ".$method." is undefined for the module ".$this->module );
         }
         $this->$method();
     }
@@ -42,9 +40,9 @@ abstract class Controller extends ApplicationComponent
    /**
     * This method selects the view matching the page and module
     */
-    private function setViews()
+    private function setView()
     {
-        $view = dirname(__FILE__).'/../app/modules/'.$this->module.'/views/'.$this->pageName.'.php';
+        $view = dirname(__FILE__).'/../app/modules/'.$this->module.'/views/'.$this->type.'.php';
         $this->page->setContent( $view );
     }
 

@@ -8,26 +8,25 @@
 <table cellpadding="0" cellspacing="0" border="0" class="display" id="jQueryTable">
     <thead>
         <tr>
-            <th>User</th>
+            <th>Status</th>
             <th>Space used</th>
             <th>Count</th>
         </tr>
     </thead>
     <tbody>
         <?php
-        $blks = $statistics->getBlocks();
+        $size = $statistics->getSize();
         $count = $statistics->getCount();
-        foreach( $blks as $owner => $size_value )
+        foreach( $size as $status => $size_value )
         {
         ?>
             <tr class="gradeB">
                 <?php
-                echo "<td><a href='".str_replace( " ", "%20", $owner)."_user_popup.php'
-                        rel='#overlay'>".$owner."</a></td>";
-                $spc = $blks[$owner] * DEV_BSIZE;
+                echo "<td><a href='".str_replace( " ", "%20", $status)."_status_popup.php'
+                        rel='#overlay'>".$status."</a></td>";
                 ?>
-                <td align="right"><?php echo $spc; ?></td>
-                <td align="right"><?php echo $count[$owner]; ?></td>
+                <td align="right"><?php echo $size[$status]; ?></td>
+                <td align="right"><?php echo $count[$status]; ?></td>
             </tr>
         <?php
         }
@@ -40,7 +39,7 @@
 
 <!-- POPUP -->
 <div class="apple_overlay" id="overlay">
-    <!-- the user detailed stat is loaded inside this tag -->
+    <!-- the status detailed stat is loaded inside this tag -->
     <div class="contentWrap"></div>
 </div>
 

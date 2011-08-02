@@ -19,4 +19,10 @@ define("SIZE" , "size");
 define("COUNT" , "count");
 define("STATUS" , "status");
 
+//Define entries table fields
+define("PATH" , "fullpath");
+
+// system block size
+define("DEV_BSIZE", 512);
+
 ?>

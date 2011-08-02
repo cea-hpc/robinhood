@@ -3,7 +3,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 
-class Response
+class Response extends ApplicationComponent
 {
     private $page;
 
@@ -23,7 +23,13 @@ class Response
         $this->page = $page;
     }
 
-    //TODO -> redirect404();
+    public function redirect404()
+    {
+        $this->page = new Page( $this->getApplication(), "blank" );
+        $this->page->setContent( 'error404.html' );
+        //$this->addHeader( 'HTTP/1.0 404 Not Found' );
+        $this->send();
+    }
 }
 
 ?>

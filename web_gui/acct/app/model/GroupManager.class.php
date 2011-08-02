@@ -46,8 +46,6 @@ class GroupManager
     */
     public function getDetailedStat( $group, $sort )
     {
-        $groups = array();
-        $size = 0;
         $db_result = $this->db_request->select( array( GROUP => $group ), ACCT_TABLE, null, $sort );
         return $db_result;
     }
