@@ -97,4 +97,3 @@ function generateMergedTable( $tab, $header )
     echo "</tbody>";
     echo "</table>";
 }
-

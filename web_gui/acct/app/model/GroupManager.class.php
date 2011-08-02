@@ -50,6 +50,13 @@ class GroupManager
     public function getDetailedStat( $group, $sort )
     {
         $db_result = $this->db_request->select( array( GROUP => $group ), ACCT_TABLE, null, $sort );
+	# translate status index into status name
+        foreach( $db_result as  $key => $line )
+	{
+		if (isset($line[STATUS])) {
+			$db_result[$key][STATUS] = $this->db_request->statusName($line[STATUS]);
+		}
+	}
         return $db_result;
     }
 

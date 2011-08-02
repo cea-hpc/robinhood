@@ -14,6 +14,7 @@ class DatabaseRequest
     private $dbname;
     private $user;
     private $password;
+    private $rbh_mode;
     private $rowNumber;
 
    /**
@@ -69,6 +70,12 @@ class DatabaseRequest
             $this->password = $password->nodeValue;
         else
             $this->password = '';
+
+        $flavor = $dom->getElementsByTagName('flavor')->item(0);
+        if( $flavor )
+            $this->rbh_mode = $flavor->nodeValue;
+        else
+            $this->rbh_mode = "tmp_fs_mgr";
     }
     
    /**
@@ -182,6 +189,79 @@ class DatabaseRequest
     public function getRowNumber(){
         return $this->rowNumber;
     }
+
+    public function statusName( $st_num )
+    {
+	$hsmlite_status_tab = array( "unknown", "new", "modified", 
+				     "retrieving", "archiving",
+				     "synchro", "released", "release_pending",
+				     "removed" );
+	$hsm_status_tab = array( "unknown", "new", "modified",
+				 "retrieving", "archiving",
+				 "synchro", "released", "release_pending" );
+	$sherpa_status_tab = array( "unknown", "ref_missing", "modified",
+  				    "retrieving", "archiving", "synchro",
+				    "obsolete" );
+
+	switch( $this->rbh_mode )
+	{
+		case "tmp_fs_mgr":
+			echo 'Error: unexpected status for robinhood flavor '.$this->rbh_mode.'<br>';
+			return "Unknown status ".$st_num;
+		case "backup":
+		case "shook":
+			return $hsmlite_status_tab[$st_num];
+		case "hsm":
+			return $hsm_status_tab[$st_num];
+		case "sherpa":
+			return $sherpa_status_tab[$st_num];
+		default:
+			echo 'Error: unknown robinhood flavor '.$this->rbh_mode.'<br>';
+			return "Unknown status ".$st_num;
+	}
+    }
+
+    public function statusIndex( $st_str )
+    {
+	$hsmlite_status_tab = array( "unknown", "new", "modified", 
+				     "retrieving", "archiving",
+				     "synchro", "released", "release_pending",
+				     "removed" );
+	$hsm_status_tab = array( "unknown", "new", "modified",
+				 "retrieving", "archiving",
+				 "synchro", "released", "release_pending" );
+	$sherpa_status_tab = array( "unknown", "ref_missing", "modified",
+  				    "retrieving", "archiving", "synchro",
+				    "obsolete" );
+
+	switch( $this->rbh_mode )
+	{
+		case "tmp_fs_mgr":
+			return -1;
+		case "backup":
+		case "shook":
+			$arr = $hsmlite_status_tab;
+			break;
+		case "hsm":
+			$arr = $hsm_status_tab;
+			break;
+		case "sherpa":
+			$arr = $sherpa_status_tab;
+			break;
+		default:
+			return -1;
+	}
+
+	$i=-1;
+	foreach ($arr as $st)
+	{
+		$i++;
+		if ($st == $st_str)
+			return $i;
+	}
+	return -1;
+    }
+
 }
 
 ?>

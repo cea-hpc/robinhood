@@ -4,7 +4,7 @@
  */
 
     $user = $_GET['user'];
-echo "<h1>".$user."</h1>";
+echo "<h1>User ".$user."</h1>";
 echo "<hr/>";
 
     $tab = array( array() );

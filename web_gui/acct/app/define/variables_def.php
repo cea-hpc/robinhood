@@ -9,6 +9,7 @@ define("LIMIT" , 4);
 //Define tables
 define("ACCT_TABLE" , "ACCT_STAT");
 define("MAIN_TABLE" , "ENTRIES");
+define("ANNEX_TABLE" , "ANNEX_INFO");
 
 //Define acct table fields
 define("OWNER" , "owner");

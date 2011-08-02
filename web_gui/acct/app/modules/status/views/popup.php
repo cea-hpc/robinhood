@@ -3,7 +3,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 
-echo "<h1>".$_GET['status']."</h1>";
+echo "<h1>Status ".$_GET['status']."</h1>";
 echo "<hr/>";
 
     $tab = array( array() );

@@ -77,6 +77,11 @@ class ConfigurationController extends Controller
             $this-> addNode( $dom_db, $database, "password",
                     $this->getApplication()->getRequest()->getPostData("password") );
         }
+        if( $this->getApplication()->getRequest()->getPostData("flavor") )
+        {
+            $this-> addNode( $dom_db, $database, "flavor",
+                    $this->getApplication()->getRequest()->getPostData("flavor") );
+        }
 
         $dom_db->formatOutput = TRUE;
         $dom_db->save( 'app/config/database.xml' );

@@ -27,9 +27,10 @@ class StatusManager
 
         foreach( $db_result as $line )
         {
-            $count[$line[STATUS]] = $line['SUM('.COUNT.')'];
-            $size[$line[STATUS]] = $line['SUM('.SIZE.')'];
-            $blks[$line[STATUS]] = $line['SUM('.BLOCKS.')'];
+	    $stname = $this->db_request->statusName($line[STATUS]);
+            $count[$stname] = $line['SUM('.COUNT.')'];
+            $size[$stname] = $line['SUM('.SIZE.')'];
+            $blks[$stname] = $line['SUM('.BLOCKS.')'];
         }
         $stat->setSize( $size );
         $stat->setBlocks( $blks );
@@ -45,7 +46,8 @@ class StatusManager
     */
     public function getDetailedStat( $status, $sort )
     {
-        $db_result = $this->db_request->select( array( STATUS => $status ), ACCT_TABLE, null, $sort );
+	$st_idx = $this->db_request->statusIndex( $status );
+        $db_result = $this->db_request->select( array( STATUS => $st_idx ), ACCT_TABLE, null, $sort );
         return $db_result;
     }
 

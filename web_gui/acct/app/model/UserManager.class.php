@@ -50,6 +50,13 @@ class UserManager
     public function getDetailedStat( $user, $sort )
     {
         $db_result = $this->db_request->select( array( OWNER => $user ), ACCT_TABLE, null, $sort );
+	# translate status index into status name
+        foreach( $db_result as  $key => $line )
+	{
+		if (isset($line[STATUS])) {
+			$db_result[$key][STATUS] = $this->db_request->statusName($line[STATUS]);
+		}
+	}
         return $db_result;
     }
 

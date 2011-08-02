@@ -2,10 +2,9 @@
 /* -*- mode: php; c-basic-offset: 4; indent-tabs-mode: nil; -*-
 * vim:expandtab:shiftwidth=4:tabstop=4:
 */
-echo "<h1>".$_GET['group']."</h1>";
 
     $group = $_GET['group'];
-echo "<h1>".$group."</h1>";
+echo "<h1>Group ".$group."</h1>";
 echo "<hr/>";
 
     $tab = array( array() );
