@@ -63,7 +63,7 @@ Prefix: %{_prefix}
 Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
-Summary: Robinhood - Policy engine and monitoring tool for large filesystems
+Summary: Robinhood - Policy engine and accounting tool for large filesystems
 License: CeCILL 
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
@@ -283,6 +283,20 @@ fi
 %{installdir_www}/robinhood
 
 %changelog
+
+* Wed Aug 03 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.2
+- [webgui] Web interface (beta)
+- [quota/alerts] Implemented quota alerts on inode count (users and groups)
+- [reporting] New option --by-count for --top-users, to sort users by entry count
+- [database] Support of InnoDB MySQL engine
+- [database] MySQL 4 compatibility fix
+- [bugfix](minor) handling DB deadlock error
+- [bugfix](tweak) added acct parameters to default and template outputs
+- [testing] big tests with 1M entries
+- [backup] about backup mode (beta):
+    - [bugfix](major) fixed error determining symlink status
+    - [bugfix](minor) don't consider 'new' entries in deferred removal
+    - [trace] display warning if mtime in FS < mtime in backend
 
 * Tue Jun 07 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.1
 - [bugfix](major) Wrong accounting values if file owner changes

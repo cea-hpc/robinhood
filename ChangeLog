@@ -1,11 +1,16 @@
 Changes between version 2.3.1 and 2.3.2:
+- [webgui] Web interface (beta)
 - [quota/alerts] Implemented quota alerts on inode count (users and groups)
 - [reporting] New option --by-count for --top-users, to sort users by entry count
 - [database] Support of InnoDB MySQL engine
-- [webgui] Web interface (beta)
-- backup mode (beta)
-- [testing] big tests with 1M entries
+- [database] MySQL 4 compatibility fix
 - [bugfix](minor) handling DB deadlock error
+- [bugfix](tweak) added acct parameters to default and template outputs
+- [testing] big tests with 1M entries
+- [backup] about backup mode (beta):
+    - [bugfix](major) fixed error determining symlink status
+    - [bugfix](minor) don't consider 'new' entries in deferred removal
+    - [trace] display warning if mtime in FS < mtime in backend
 
 Changes between version 2.3.0 and 2.3.1:
 - [bugfix](major) Wrong accounting values if file owner changes

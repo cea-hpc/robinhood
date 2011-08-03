@@ -18,6 +18,9 @@
 %bcond_with sqlite
 %bcond_with sherpa
 
+# target install dir for web gui
+%define installdir_www  /var/www/html
+
 ###### end of macro definitions #####
 
 Name: @PACKAGE@
@@ -29,6 +32,8 @@ Prefix: %{_prefix}
 %if %{with lustre}
 %if %{defined lversion}
 %define config_dependant .lustre%{lversion}
+%else
+%define config_dependant .lustre
 %endif
 %endif
 
@@ -39,7 +44,7 @@ Prefix: %{_prefix}
 Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
-Summary: Robinhood - Accounting/purge tool for large filesystems
+Summary: Robinhood - Policy engine and accounting tool for large filesystems
 License: CeCILL 
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
@@ -132,6 +137,14 @@ Generated using options: @ac_configure_args@
 %endif
 %endif
 
+%package webgui
+Summary: Web interface to vizualize filesystems stats
+Group: Applications/System
+
+%description webgui
+Web interface to vizualize filesystems stats.
+This uses robinhood database to display misc. user and group stats.
+
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -167,6 +180,9 @@ install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC
 
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
 install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/@PURPOSE_SVC@
+
+mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
+cp -r web_gui/acct/*	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -221,7 +237,27 @@ fi
 
 %{_initrddir}/@PURPOSE_SVC@
 
+%files webgui
+
+# set apache permissions
+%defattr(750,root,apache)
+%{installdir_www}/robinhood
+
 %changelog
+
+* Wed Aug 03 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.2
+- [webgui] Web interface (beta)
+- [quota/alerts] Implemented quota alerts on inode count (users and groups)
+- [reporting] New option --by-count for --top-users, to sort users by entry count
+- [database] Support of InnoDB MySQL engine
+- [database] MySQL 4 compatibility fix
+- [bugfix](minor) handling DB deadlock error
+- [bugfix](tweak) added acct parameters to default and template outputs
+- [testing] big tests with 1M entries
+- [backup] about backup mode (beta):
+    - [bugfix](major) fixed error determining symlink status
+    - [bugfix](minor) don't consider 'new' entries in deferred removal
+    - [trace] display warning if mtime in FS < mtime in backend
 
 * Tue Jun 07 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.1
 - [bugfix](major) Wrong accounting values if file owner changes
