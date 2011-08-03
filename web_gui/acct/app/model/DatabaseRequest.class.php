@@ -135,16 +135,35 @@ class DatabaseRequest
 
                 if( $value != "")
                 {
-                    if( preg_match( '`^.*(\*|\?).*$`', $value ) )
-                    {
-                        $value = str_replace( '*', '%', $value );
-                        $value = str_replace( '?', '_', $value );
-                        $filter_str = $filter_str.($is_first ? '' : ' AND ').$field.' LIKE \''.$value.'\'';
-                    }
-                    else
-                    {
-                        $filter_str = $filter_str.($is_first ? '' : ' AND ').$field.'=\''.$value.'\'';
-                    }
+  		    	$filter_str .= ($is_first ? '' : ' AND ');
+
+			if( preg_match( '`^.*(\*|\?).*$`', $value ) ) {
+				$compar = ' LIKE ';
+				$value = strtr( $value, array( '?' => '.', '*' => '%' ));
+			} else {
+				$compar = '=';
+			}
+
+			if ( $field == PATH ) {
+				$match_array = db_path_match($value);
+				if ( array_count_values( $match_array ) == 1 )
+					$filter_str .= $field.$compar.'\''.$value.'\'';
+				else {
+					$filter_str .= '(';
+					$is_first_subexpr = TRUE;
+					foreach ($match_array as $expr ) {
+						if (preg_match( '`^.*(\%|\_).*$`', $expr ))
+							$filter_str .= ($is_first_subexpr ? '': ' OR ').$field.' LIKE \''.$expr.'\'';
+						else
+							$filter_str .= ($is_first_subexpr ? '': ' OR ').$field.'=\''.$expr.'\'';
+							
+						$is_first_subexpr = FALSE;
+					}
+					$filter_str .= ')';
+				}
+                    	} else {
+	                        $filter_str .= $field.$compar.'\''.$value.'\'';
+                        }
                     $is_first = FALSE;
                 }
             }
@@ -198,6 +217,7 @@ class DatabaseRequest
 				( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
 				( $limit > 0 ? " LIMIT $limit" : "" );
 
+	    echo "$query<br>";
             $result = $this->connection->query( $query );
             $this->rowNumber = $result->rowCount();
 

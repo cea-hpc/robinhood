@@ -56,7 +56,7 @@ else
             <th>User</th>
             <th>Group</th>
             <th>Path</th>
-            <th>Space used</th>
+            <th>Size</th>
         </tr>
     </thead>
     <tbody>

@@ -97,3 +97,21 @@ function generateMergedTable( $tab, $header )
     echo "</tbody>";
     echo "</table>";
 }
+
+# convert a db path regexp to an array of mathing expressions
+function db_path_match( $path )
+{
+	$to_match = array();
+	# if the path ends with '/' => this is a directory
+	# => find it or its sub entries
+	if (substr($path, -1) == '/') {
+		array_push( $to_match, $path.'%' );
+		if ( strlen($path > 1) )
+			array_push( $to_match, substr($path, 0, -1) );
+	} else {
+		 # else, find the exact match or 'entry/%'
+		array_push( $to_match, $path );
+		array_push( $to_match, $path.'/%' );
+	}
+	return $to_match;
+}
