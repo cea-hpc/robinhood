@@ -217,7 +217,6 @@ class DatabaseRequest
 				( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
 				( $limit > 0 ? " LIMIT $limit" : "" );
 
-	    echo "$query<br>";
             $result = $this->connection->query( $query );
             $this->rowNumber = $result->rowCount();
 
