@@ -444,6 +444,11 @@ int WriteLmgrConfigTemplate( FILE * output )
                 "# Then this time is multiplied by 2 until reaching connect_retry_interval_max" );
     print_line( output, 1, "connect_retry_interval_min = 1 ;" );
     print_line( output, 1, "connect_retry_interval_max = 30 ;" );
+
+    print_line( output, 1, "# disable the following options if your are not interested in" );
+    print_line( output, 1, "# user or group stats (to speed up scan)" );
+    print_line( output, 1, "user_acct  = enabled ;" );
+    print_line( output, 1, "group_acct = enabled ;" );
     fprintf( output, "\n" );
 #ifdef _MYSQL
     print_begin_block( output, 1, MYSQL_CONFIG_BLOCK, NULL );

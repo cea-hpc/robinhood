@@ -1,10 +1,11 @@
 Changes between version 2.3.1 and 2.3.2:
-- [database] Support of InnoDB MySQL engine
 - [quota/alerts] Implemented quota alerts on inode count (users and groups)
 - [reporting] New option --by-count for --top-users, to sort users by entry count
-- (incoming) Web interface (beta)
-- [feature](alpha) hsmlite mode
+- [database] Support of InnoDB MySQL engine
+- [webgui] Web interface (beta)
+- backup mode (beta)
 - [testing] big tests with 1M entries
+- [bugfix](minor) handling DB deadlock error
 
 Changes between version 2.3.0 and 2.3.1:
 - [bugfix](major) Wrong accounting values if file owner changes
