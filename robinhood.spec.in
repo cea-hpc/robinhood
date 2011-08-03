@@ -37,6 +37,9 @@ BuildRequires: mysql-devel >= 4.1    \
 %endif \
 %{nil}
 
+# target install dir for web gui
+%define installdir_www  /var/www/html
+
 ###### end of macro definitions #####
 
 Name: @PACKAGE@
@@ -152,6 +155,14 @@ Generated using options: @ac_configure_args@
 %endif
 %endif
 
+%package webgui
+Summary: Web interface to vizualize filesystems stats
+Group: Applications/System
+
+%description webgui
+Web interface to vizualize filesystems stats.
+This uses robinhood database to display misc. user and group stats.
+
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -198,6 +209,9 @@ install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC
 
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
 install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/@PURPOSE_SVC@
+
+mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
+cp -r web_gui/acct/*	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -261,6 +275,12 @@ fi
 %endif
 
 %{_initrddir}/@PURPOSE_SVC@
+
+%files webgui
+
+# set apache permissions
+%defattr(750,root,apache)
+%{installdir_www}/robinhood
 
 %changelog
 

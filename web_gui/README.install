@@ -1,0 +1,13 @@
+Installation and configuration:
+
+Copy the 'acct' directory to the root directory of your web server
+e.g.
+	cp -r acct /var/www/html/robinhood
+(note: you can use the name you want for the target directory)
+
+Then, access this directory using a web browser:
+	http://host/robinhood
+
+The first time you access it, this will display a configuration page.
+If you want to change these settings later, edit the db configuration file:
+/var/www/html/robinhood/app/config/database.xml

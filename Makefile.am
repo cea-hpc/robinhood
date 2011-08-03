@@ -1,7 +1,7 @@
 ACLOCAL_AMFLAGS = -I autotools/m4
 
 #SUBDIRS=src man scripts
-SUBDIRS=src scripts tests
+SUBDIRS=src scripts tests web_gui
 
 rpm_dir=`pwd`/rpms
 
@@ -73,15 +73,9 @@ srpm: robinhood.spec dist
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	robinhood.old_spec.in				\
-        doc/templates/hsm_policy_basic.conf     	\
-        doc/templates/hsm_policy_detailed.conf  	\
-        doc/templates/tmp_fs_mgr_basic.conf  		\
-        doc/templates/tmp_fs_mgr_detailed.conf  	\
-        doc/templates/hsmlite_basic.conf  		\
-        doc/templates/hsmlite_detailed.conf  		\
+        doc/templates					\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
-	doc/admin_guides/robinhood_v230_tmp_fs_mgr-admin_guide.pdf \
-	doc/admin_guides/robinhood_v230_tmp_fs_mgr-tutorial.pdf	  \
+	doc/admin_guides \
 	ChangeLog
 
 

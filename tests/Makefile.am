@@ -6,74 +6,14 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
 	lustre_fs/cleanup.sh		\
 	lustre_fs/README			\
 	lustre_fs/bench_rpc.sh		\
-	lustre_fs/cfg/common.conf		\
-	lustre_fs/cfg/test1.conf		\
-	lustre_fs/cfg/test2.conf		\
-	lustre_fs/cfg/test3.conf		\
-	lustre_fs/cfg/test_purge.conf	\
-	lustre_fs/cfg/test_purge2.conf	\
-	lustre_fs/cfg/test_rm1.conf	\
-	lustre_fs/cfg/test_xattr.conf	\
-	lustre_fs/cfg/test_path.conf	\
-	lustre_fs/cfg/immediate_rm.conf	\
-	lustre_fs/cfg/test_updt.conf	\
-	lustre_fs/cfg/test_trig.conf	\
-	lustre_fs/cfg/test_trig2.conf   \
-    lustre_fs/cfg/info_collect.conf \
-    lustre_fs/cfg/info_collect2.conf \
-    lustre_fs/cfg/log1.conf         \
-    lustre_fs/cfg/log1b.conf        \
-    lustre_fs/cfg/log2.conf         \
-    lustre_fs/cfg/log2b.conf        \
-    lustre_fs/cfg/log3.conf         \
-    lustre_fs/cfg/log3b.conf        \
-    lustre_fs/cfg/log_common.conf   \
-    lustre_fs/cfg/test_fileclass.conf \
-    lustre_fs/cfg/test_pools.conf   \
-    lustre_fs/cfg/test_trig3.conf   \
-    lustre_fs/cfg/test_trig4.conf   \
-    lustre_fs/cfg/test_recov.conf   \
-    lustre_fs/cfg/acct_group.conf   \
-    lustre_fs/cfg/acct_user_group.conf \
-    lustre_fs/cfg/acct_user.conf \
-    lustre_fs/cfg/no_acct.conf  \
-    lustre_fs/cfg/test_maintenance.conf \
+	lustre_fs/cfg		    \
     posix_fs/1-test_setup.sh    \
     posix_fs/2-run-tests.sh     \
     posix_fs/3-test_report.sh   \
     posix_fs/README             \
-    posix_fs/cfg/common.conf    \
-    posix_fs/cfg/immediate_rm.conf  \
-    posix_fs/cfg/info_collect.conf  \
-    posix_fs/cfg/info_collect2.conf  \
-    posix_fs/cfg/log1.conf  \
-    posix_fs/cfg/log1b.conf \
-    posix_fs/cfg/log2.conf  \
-    posix_fs/cfg/log2b.conf \
-    posix_fs/cfg/log3.conf  \
-    posix_fs/cfg/log3b.conf \
-    posix_fs/cfg/log_common.conf    \
-    posix_fs/cfg/test1.conf     \
-    posix_fs/cfg/test2.conf     \
-    posix_fs/cfg/test3.conf     \
-    posix_fs/cfg/test_fileclass.conf    \
-    posix_fs/cfg/test_path.conf     \
-    posix_fs/cfg/test_purge.conf    \
-    posix_fs/cfg/test_purge2.conf   \
-    posix_fs/cfg/test_rm1.conf      \
-    posix_fs/cfg/test_trig.conf     \
-    posix_fs/cfg/test_trig2.conf    \
-    posix_fs/cfg/test_trig3.conf    \
-    posix_fs/cfg/test_trig4.conf    \
-    posix_fs/cfg/test_updt.conf     \
-    posix_fs/cfg/test_xattr.conf    \
-    posix_fs/cfg/acct_user.conf     \
-    posix_fs/cfg/acct_group.conf    \
-    posix_fs/cfg/acct_user_group.conf \
-    posix_fs/cfg/no_acct.conf  \
+    posix_fs/cfg		\
     posix_fs/cleanup.sh             \
-    huge_posix/cfg/innodb.conf	    \
-    huge_posix/cfg/common.conf	    \
+    huge_posix/cfg		 \
     huge_posix/1-test_setup.sh      \
     huge_posix/2-run-tests.sh	    \
 	test_compil_switches.sh	    \
