@@ -725,7 +725,7 @@ function test_dircount_report
 	line=`grep "$ROOT/ " report.out`
 	[[ -n $line ]] && is_root=1
 	if (( ! $is_root )); then
-		id=`stat -c "0X%D/%i" $ROOT/.`
+		id=`stat -c "0X%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
 		line=`grep "$id " report.out`
 		[[ -n $line ]] && is_root=1
 	fi
