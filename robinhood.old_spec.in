@@ -239,6 +239,7 @@ fi
 - [database] MySQL 4 compatibility fix
 - [bugfix](minor) handling DB deadlock error
 - [bugfix](tweak) added acct parameters to default and template outputs
+- [alerts](tweak) additional info in the title of quota alert e-mails
 - [testing] big tests with 1M entries
 - [backup] about backup mode (beta):
     - [bugfix](major) fixed error determining symlink status
