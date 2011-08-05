@@ -447,6 +447,15 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         return rc;
 #endif
 
+#ifdef ATTR_INDEX_invalid
+    /* don't retrieve invalid entries (allow entries with invalid == NULL) */
+    fval.val_int = TRUE;
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fval,
+            FILTER_FLAG_ALLOW_NULL );
+    if ( rc )
+        return rc;
+#endif
+
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
     if ( migr_config.backup_new_files )
     {
@@ -785,7 +794,9 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     return 0;
 }
 
-#ifndef _HAVE_FID               /* if entries are accessed by FID, we can always get their status */
+#ifdef ATTR_INDEX_invalid
+/* if entries are accessed by FID, we can always get their status */
+/* XXX wrong => maybe they were removed since last scan! */
 inline static int invalidate_entry( lmgr_t * lmgr, entry_id_t * p_entry_id )
 {
     attr_set_t     new_attr_set;
@@ -1014,6 +1025,11 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
             ATTR_MASK_SET( new_attr_set, stripe_info );
             ATTR_MASK_SET( new_attr_set, stripe_items );
         }
+        else if (rc == -ENOENT)
+        {
+            invalidate_entry( lmgr, &p_item->entry_id );
+            return MIGR_ENTRY_MOVED;
+        }
     }
 
     if ( (need_fresh_attrs & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth ))
@@ -1032,6 +1048,12 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
             ATTR_MASK_SET( &p_item->entry_attr, path_update );
             ATTR( &p_item->entry_attr, path_update ) = time( NULL );
         }
+        else if (rc == -ENOENT)
+        {
+            invalidate_entry( lmgr, &p_item->entry_id );
+            return MIGR_ENTRY_MOVED;
+        }
+
 #else
         DisplayLog( LVL_MAJOR, MIGR_TAG, "Missing path info for addressing the entry" );
         return MIGR_PARTIAL_MD;
@@ -1058,6 +1080,11 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
             ATTR_MASK_SET( new_attr_set, md_update );
             ATTR( new_attr_set, md_update ) = time( NULL );
         }
+        else if (rc == -ENOENT)
+        {
+            invalidate_entry( lmgr, &p_item->entry_id );
+            return MIGR_ENTRY_MOVED;
+        }
     }
 
     /* Merge with missing attrs from database */
@@ -1070,8 +1097,9 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
 
     if ( rc == -ENOENT || rc == -ESTALE )
     {
-        DisplayLog( LVL_FULL, MIGR_TAG, "Entry %s does not exist anymore",
+        DisplayLog( LVL_EVENT, MIGR_TAG, "Entry %s does not exist no more",
                     fspath );
+        invalidate_entry( lmgr, &p_item->entry_id );
         return MIGR_ENTRY_MOVED;
     }
     else if ( rc == 0 )
