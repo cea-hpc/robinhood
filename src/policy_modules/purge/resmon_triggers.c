@@ -1264,7 +1264,8 @@ static int check_usergroup_trigger( unsigned trigger_index )
 
             if ( p_trigger->alert_hw )
             {
-                snprintf(buff, 1024, "%s quota exceeded (in %s)", what_up, global_config.fs_path );
+                snprintf(buff, 1024, "Inode quota exceeded for %s '%s' (in %s)",
+                         what, result[0].value_u.val_str, global_config.fs_path );
                 RaiseAlert(buff, "%s\n"
                                  "%s:       %s\n"
                                  "quota:      %Lu inodes\n"
@@ -1283,7 +1284,8 @@ static int check_usergroup_trigger( unsigned trigger_index )
             {
                 char usage_str[128];
                 FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
-                snprintf(buff, 1024, "%s quota exceeded (in %s)", what_up, global_config.fs_path );
+                snprintf(buff, 1024, "Volume quota exceeded for %s '%s' (in %s)",
+                         what,  result[0].value_u.val_str, global_config.fs_path );
                 RaiseAlert(buff, "%s\n%s:       %s\nquota:      %s\nspace used: %s",
                            buff, what, result[0].value_u.val_str, hw_str, usage_str);
             }
@@ -1330,11 +1332,11 @@ static int check_usergroup_trigger( unsigned trigger_index )
         if ( module_args.flags & FLAG_CHECK_ONLY )
         {
             if (IS_COUNT_TRIGGER(trigger_index))
-                snprintf(status_str, 1024, "Quota exceeded for %s '%s': "
+                snprintf(status_str, 1024, "Inode quota exceeded for %s '%s': "
                          "%Lu inodes", what, result[0].value_u.val_str,
                          result[1].value_u.val_biguint );
             else
-                snprintf(status_str, 1024, "Quota exceeded for %s '%s': "
+                snprintf(status_str, 1024, "Volume quota exceeded for %s '%s': "
                          "%Lu kB used", what, result[0].value_u.val_str,
                          (result[1].value_u.val_biguint*DEV_BSIZE)/1024 );
 
