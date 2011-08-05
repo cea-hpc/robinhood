@@ -55,6 +55,7 @@
 #define DB_READ_ONLY_ATTR      13
 #define DB_NOT_ALLOWED         14
 #define DB_TRG_NOT_EXISTS      15
+#define DB_DEADLOCK            16
 
 
 /* Tag in logfile */

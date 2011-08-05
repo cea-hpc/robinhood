@@ -1,0 +1,84 @@
+/* -*- mode: php; c-basic-offset: 4; indent-tabs-mode: nil; -*-
+ * vim:expandtab:shiftwidth=4:tabstop=4:
+ */
+body{
+    font: Verdana, Arial, Helvetica, sans-serif;
+    color: #333;
+}
+
+ul, li {
+    margin: 0;
+    padding: 0;
+    list-style:none;
+    font-family: Verdana, Arial, Helvetica, sans-serif;
+    font-size: 1em;
+}
+
+#top_panel{
+    padding-top: 2em;
+    margin-bottom: 2em;
+    padding-bottom: 1em;
+    border-top: 1px solid #B3C3D9;
+    border-bottom: 1px solid #B3C3D9;
+    text-align:center;
+}
+
+#top_panel img{
+    margin-left:2em;
+    margin-right:2em;
+    width:50px;
+    height:62px;
+}
+
+#top_panel h1{
+    font-size: 1.5em;
+    line-height: 1.5em;
+    color: #5168A3;
+    font-weight: normal;
+    display:inline;
+    vertical-align:50%;
+}
+
+#right_panel{
+    width:85%;
+    float:left;
+}
+
+#right_panel h2 {
+    font-size: 1.4em;
+    font-weight: normal;
+    line-height: 1.6em;
+    color: #4E6CA3;
+}
+
+#right_panel a.classic_link {
+    color: #4E6CA3;
+}
+
+#left_panel{
+    width:15%;
+    float:left;
+}
+
+#menu{
+    margin-top:10%;
+    background-color: #ECEFF5;
+    border: 1px #bababa solid;
+    width:90%;
+}
+
+#menu ul li a {
+    display:block;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 4px;
+    text-decoration:none;
+    color: #3B5998;
+    border-bottom: 1px solid #7A7A7C;
+}
+
+#error {
+    color: #FF4B4B;
+    text-align: center;
+    background-color: #FFDBDB;
+}

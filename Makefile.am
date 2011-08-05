@@ -1,7 +1,7 @@
 ACLOCAL_AMFLAGS = -I autotools/m4
 
 #SUBDIRS=src man scripts
-SUBDIRS=src scripts tests
+SUBDIRS=src scripts tests web_gui
 
 rpm_dir=`pwd`/rpms
 
@@ -51,37 +51,36 @@ endif
 new: clean all
 
 rpms: robinhood.spec dist
-	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS \
-	&& rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
+	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
+	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" --define="_prefix $(prefix)" \
-		-ta $(distdir).tar.gz \
-	&& echo "RPMs successfully generated in $(rpm_dir)"
+		-ta $(distdir).tar.gz
 
 rpm: robinhood.spec dist
-	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS \
-	&& rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
+	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
+	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
-		--define="_prefix $(prefix)" -tb $(distdir).tar.gz \
-	&& echo "RPM successfully generated in $(rpm_dir)/RPMS"
+		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
 srpm: robinhood.spec dist
-	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS \
-	&& rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
+	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
+	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
-		-ts $(distdir).tar.gz \
-	&& echo "SRPM successfully generated in $(rpm_dir)/SRPMS"
+		-ts $(distdir).tar.gz
+
+webgui:	robinhood-webgui.spec dist
+	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS $(rpm_dir)/SOURCES
+	cp $(distdir).tar.gz $(rpm_dir)/SOURCES/.
+	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
+		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
+		-bb robinhood-webgui.spec
+
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	robinhood.old_spec.in				\
-        doc/templates/hsm_policy_basic.conf     	\
-        doc/templates/hsm_policy_detailed.conf  	\
-        doc/templates/tmp_fs_mgr_basic.conf  		\
-        doc/templates/tmp_fs_mgr_detailed.conf  	\
-        doc/templates/hsmlite_basic.conf  		\
-        doc/templates/hsmlite_detailed.conf  		\
+        doc/templates					\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
-	doc/admin_guides/robinhood_v230_tmp_fs_mgr-admin_guide.pdf \
-	doc/admin_guides/robinhood_v230_tmp_fs_mgr-tutorial.pdf	  \
+	doc/admin_guides \
 	ChangeLog
 
 

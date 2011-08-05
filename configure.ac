@@ -14,7 +14,7 @@ AC_CONFIG_MACRO_DIR([autotools/m4])
 AC_CONFIG_HEADER([src/include/config.h])
 AC_CONFIG_SRCDIR([src/list_mgr/listmgr_init.c])
 
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall -Werror tar-pax foreign])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 
 AC_PREFIX_DEFAULT([/usr])
@@ -235,7 +235,7 @@ case $PURPOSE in
 
             if test "x$have_shook" != "xyes" ; then
                 if test "$PURPOSE" != "HSM_LITE"; then
-                    AC_MSG_ERROR([libshooksvr not found, cannot build robinhood unsing shook])
+                    AC_MSG_ERROR([libshooksvr not found, cannot build robinhood using shook])
                 fi
                 # HSM_LITE mode without shook: OK (just display a warning)
                 AC_MSG_WARN([libshooksvr not found, switching to backup mode only])
@@ -371,6 +371,8 @@ AC_CONFIG_FILES([Makefile
          scripts/robinhood.init.sles
          scripts/sysconfig_robinhood
          tests/Makefile
+         web_gui/Makefile
          robinhood.spec
+         robinhood-webgui.spec
          doc/doxygen/doxygen.cfg])
 AC_OUTPUT

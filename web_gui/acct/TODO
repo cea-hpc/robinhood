@@ -1,0 +1,12 @@
+- factorize pie chart generation (in 'define' module)
+- manage png generation concurrency (per session?)
+x backport changes in user section (space used, pie chart in popup) to other sections
+- manage list of entries within 2 tables (ENTRIES and ANNEX_INFO)
+x clean "error 404" page
+x security: add .htaccess in app/config driectory
+- status mapping
+- in pie charts: calibrate size units
+- search section:	
+	- extra filters in search section (type, status, size, last_access, last_mod, archive/release_class)
+	- interpret path regexp like in rbh-report
+	- better management of search limit (>500 causes error)

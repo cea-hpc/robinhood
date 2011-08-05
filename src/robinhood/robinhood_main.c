@@ -109,6 +109,15 @@ static time_t  boot_time;
 
 #elif defined (_HSM_LITE )
 
+#ifdef HAVE_SHOOK
+#   ifdef HAVE_CHANGELOGS
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE | ACTION_MASK_PURGE)
+#       define DEFAULT_ACTION_HELP   "--read-log --migrate --hsm-remove --purge"
+#   else
+#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE | ACTION_MASK_PURGE)
+#       define DEFAULT_ACTION_HELP   "--scan --migrate --hsm-remove --purge"
+#   endif
+#else
 #   ifdef HAVE_CHANGELOGS
 #       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
 #       define DEFAULT_ACTION_HELP   "--read-log --migrate --hsm-remove"
@@ -116,6 +125,7 @@ static time_t  boot_time;
 #       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
 #       define DEFAULT_ACTION_HELP   "--scan --migrate --hsm-remove"
 #   endif
+#endif
 
 #endif
 
