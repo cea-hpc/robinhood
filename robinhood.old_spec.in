@@ -137,14 +137,6 @@ Generated using options: @ac_configure_args@
 %endif
 %endif
 
-%package webgui
-Summary: Web interface to vizualize filesystems stats
-Group: Applications/System
-
-%description webgui
-Web interface to vizualize filesystems stats.
-This uses robinhood database to display misc. user and group stats.
-
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -236,12 +228,6 @@ fi
 %endif
 
 %{_initrddir}/@PURPOSE_SVC@
-
-%files webgui
-
-# set apache permissions
-%defattr(750,root,apache)
-%{installdir_www}/robinhood
 
 %changelog
 

@@ -373,5 +373,6 @@ AC_CONFIG_FILES([Makefile
          tests/Makefile
          web_gui/Makefile
          robinhood.spec
+         robinhood-webgui.spec
          doc/doxygen/doxygen.cfg])
 AC_OUTPUT
