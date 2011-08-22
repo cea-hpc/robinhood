@@ -68,14 +68,6 @@ srpm: robinhood.spec dist
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
 		-ts $(distdir).tar.gz
 
-webgui:	robinhood-webgui.spec dist
-	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS $(rpm_dir)/SOURCES
-	cp $(distdir).tar.gz $(rpm_dir)/SOURCES/.
-	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
-		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
-		-bb robinhood-webgui.spec
-
-
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	robinhood.old_spec.in				\
         doc/templates					\

@@ -77,6 +77,15 @@ large file systems with millions of entries and petabytes of data.
 
 Generated using options: @ac_configure_args@
 
+%package webgui
+Summary: Web interface to vizualize filesystems stats
+Group: Applications/System
+Release: @RELEASE@.noarch
+
+%description webgui
+Web interface to vizualize filesystems stats.
+This uses robinhood database to display misc. user and group stats.
+
 #summary, description and dependencies of each purpose
 %if %{with hsm}
 
@@ -231,13 +240,25 @@ if [ "$1" = 0 ]; then
   fi
 fi
 
+%files webgui
+
+# set apache permissions
+%defattr(750,root,apache)
+%{installdir_www}/robinhood
+
 %files %{purpose}
 %defattr(-,root,root,-)
 #%doc README
 #%doc COPYING 
 #%doc ChangeLog
 
-%{_sbindir}/*
+%{_sbindir}/rbh-config
+%{_sbindir}/@PURPOSE_BIN@*
+%{_sbindir}/*-report
+%if %{with backup}
+%{_sbindir}/rbhext_*
+%endif
+
 #%{_mandir}/man5/*
 #%{_mandir}/man8/*
 
