@@ -77,6 +77,26 @@ large file systems with millions of entries and petabytes of data.
 
 Generated using options: @ac_configure_args@
 
+
+%package adm
+Summary: admin/config helper for Robinhood PolicyEngine
+Group: Applications/System
+Release: @RELEASE@.noarch
+%pkg_dependencies
+
+%description adm
+This RPM provides admin/config helper for Robinhood PolicyEngine (command rbh-config)
+which is common to all robinhood flavors.
+
+%package webgui
+Summary: Web interface to vizualize filesystems stats
+Group: Applications/System
+Release: @RELEASE@.noarch
+
+%description webgui
+Web interface to vizualize filesystems stats.
+This uses robinhood database to display misc. user and group stats.
+
 #summary, description and dependencies of each purpose
 %if %{with hsm}
 
@@ -84,6 +104,7 @@ Generated using options: @ac_configure_args@
 Summary: PolicyEngine for Lustre-HSM binding
 Group: Applications/System
 %pkg_dependencies
+Requires: %{name}-adm >= %{version}
 
 %description %{purpose}
 Monitor Lustre usage and trigger file migration and purges.
@@ -100,6 +121,7 @@ BuildRequires: sherpa-client >= 4.1
 Requires: sherpa-server >= 4.1-150
 Requires: sherpa-client >= 4.1
 %pkg_dependencies
+Requires: %{name}-adm >= %{version}
 
 %description %{purpose}
 PolicyEngine for SHERPA cache manager
@@ -114,6 +136,7 @@ Generated using options: @ac_configure_args@
 Summary: PolicyEngine for filesystem backup to external storage
 Group: Applications/System
 %pkg_dependencies
+Requires: %{name}-adm >= %{version}
 
 %description %{purpose}
 Backup modified files to an external backend.
@@ -127,6 +150,7 @@ Generated using options: @ac_configure_args@
 Summary: PolicyEngine for simple HSM binding
 Group: Applications/System
 %pkg_dependencies
+Requires: %{name}-adm >= %{version}
 
 %description %{purpose}
 Backup modified files to an external backend
@@ -142,6 +166,7 @@ Generated using options: @ac_configure_args@
 Summary: Accounting, reporting and purge tool for large filesystems
 Group: Applications/System
 %pkg_dependencies
+Requires: %{name}-adm >= %{version}
 
 %description %{purpose}
 Provides disk space fair-share, accounting, reporting facilities for
@@ -231,13 +256,27 @@ if [ "$1" = 0 ]; then
   fi
 fi
 
+%files adm
+%{_sbindir}/rbh-config
+
+%files webgui
+
+# set apache permissions
+%defattr(750,root,apache)
+%{installdir_www}/robinhood
+
 %files %{purpose}
 %defattr(-,root,root,-)
 #%doc README
 #%doc COPYING 
 #%doc ChangeLog
 
-%{_sbindir}/*
+# everythink in sbin, except rbh-config which is in adm
+%{_sbindir}/@PURPOSE_BIN@*
+%{_sbindir}/*-report
+%if %{with backup}
+%{_sbindir}/rbhext_*
+%endif
 #%{_mandir}/man5/*
 #%{_mandir}/man8/*
 
