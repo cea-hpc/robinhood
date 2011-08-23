@@ -88,7 +88,7 @@ function db_config
 
 	    while (( 1 )); do
 		read -p "fsname (max 8 chars): " fsname
-		if [[ "$fsname" =~ "^[a-zA-Z][a-zA-Z0-9_]{0,7}$" ]]; then
+		if [[ $fsname =~ ^[a-zA-Z][a-zA-Z0-9_]{0,7}$ ]]; then
 		    break
 		else
 		    echo
@@ -112,7 +112,7 @@ function db_config
 		read -p  "confirm password: " -s pass2
 		echo
 		
-		if [[ "$pass1" = "$pass2" ]]; then
+		if [[ $pass1 = $pass2 ]]; then
 		    break
 		else
 		    echo "Passwords don't match."
@@ -225,7 +225,7 @@ function enable_changelogs
 	    fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | xargs`
 	    echo $fslist
 
-	    if [[ -z "$fslist" ]]; then
+	    if [[ -z $fslist ]]; then
 		echo "No MDT found on this machine. Run the command on MDT."
 		exit 2
 	    fi
@@ -264,7 +264,7 @@ function enable_changelogs
 
     echo "Checking event mask..."
 
-    if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
+    if [[ -z "$PURPOSE" || $PURPOSE = LUSTRE_HSM ]]; then
 	EVENT_LIST="HSM CREAT UNLNK TRUNC SATTR MTIME CTIME TIME"
     elif [[ $PURPOSE = SHOOK ]]; then
     EVENT_LIST="CREAT UNLNK TRUNC XATTR SATTR MTIME CTIME TIME"
@@ -579,28 +579,28 @@ EOF
 }
 
 
-if [[ "$1" = "precheck_db" ]]; then 
+if [[ "$1" = precheck_db ]]; then 
     shift 1
     db_check $*
-elif [[ "$1" = "create_db" ]]; then
+elif [[ "$1" = create_db ]]; then
     shift 1
     db_check && db_config $*
-elif [[ "$1" = "enable_chglogs" ]]; then
+elif [[ "$1" = enable_chglogs ]]; then
     shift 1
     enable_changelogs $*
-elif [[ "$1" = "empty_db" ]]; then
+elif [[ "$1" = empty_db ]]; then
     shift 1
     empty_db $*
-elif [[ "$1" = "reset_classes" ]]; then
+elif [[ "$1" = reset_classes ]]; then
     shift 1
     reset_fileclasses $*
-elif [[ "$1" = "repair_db" ]]; then
+elif [[ "$1" = repair_db ]]; then
     shift 1
     repair_db $*
-elif [[ "$1" = "backup_db" ]]; then
+elif [[ "$1" = backup_db ]]; then
     shift 1
     backup_db $*
-elif [[ "$1" = "test_db" ]]; then
+elif [[ "$1" = test_db ]]; then
     shift 1
     test_connect $*
 else
