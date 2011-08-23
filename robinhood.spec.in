@@ -258,6 +258,9 @@ fi
 %if %{with backup}
 %{_sbindir}/rbhext_*
 %endif
+%if %{with shook}
+%{_sbindir}/rbhext_*
+%endif
 
 #%{_mandir}/man5/*
 #%{_mandir}/man8/*
