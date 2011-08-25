@@ -54,9 +54,11 @@ typedef struct chglog_reader_config_t
 
 /* type if a log record is a ctime or mtime ? */
 #ifdef CL_SPLITTED_TIME
-#define CL_TIME_NOACCESS(_t) (((_t)==CL_MTIME)||((_t)==CL_CTIME))
+#define CL_MOD_TIME(_t) ((_t)==CL_MTIME)
+#define CL_CHG_TIME(_t) ((_t)==CL_CTIME)
 #else
-#define CL_TIME_NOACCESS(_t) ((_t)==CL_TIME)
+#define CL_MOD_TIME(_t) ((_t)==CL_TIME)
+#define CL_CHG_TIME(_t) ((_t)==CL_TIME)
 #endif
 
 

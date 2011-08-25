@@ -243,7 +243,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->extra_info.getstatus_needed = TRUE;
 #endif
     }
-    else if ( CL_TIME_NOACCESS(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) )
+    else if ( CL_MOD_TIME(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) )
     {
         /* if file is modified or truncated, need to check its status
          * (probably modified) EXCEPT if its status is already 'modified' */
@@ -252,7 +252,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                  (ATTR(&p_op->entry_attr, status) != STATUS_NEW)) )
         {
             DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getstatus needed because this is a TIME or TRUNC event "
+                        "Getstatus needed because this is a MTIME or TRUNC event "
                         "and status is not already 'modified' or 'new': event=%s, status=%d",
                         changelog_type2str(logrec->cr_type),
                         ATTR_MASK_TEST( &p_op->entry_attr, status )?
@@ -260,6 +260,23 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->extra_info.getstatus_needed = TRUE;
         }
     }
+    else if (CL_CHG_TIME(logrec->cr_type))
+    {
+        /* need to update attrs */
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getattr_needed = TRUE;
+#ifdef HAVE_SHOOK
+        /* in Lustre v2.O, changing trusted xattr generates CTIME event */
+        p_op->extra_info.getstatus_needed = TRUE;
+
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                    "getstatus and getattr needed because this is a CTIME event" );
+#else
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                    "getattr needed because this is a CTIME event" );
+#endif
+    }
+
 
     /* if the entry is already in DB, try to determine if something changed */
     if ( p_op->db_exists )
@@ -310,7 +327,8 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         }
 
         /* get the new attributes, in case of a SATTR, HSM... */
-        if ( allow_md_updt && (CL_TIME_NOACCESS(logrec->cr_type)
+        if ( allow_md_updt && (CL_MOD_TIME(logrec->cr_type)
+                               || CL_CHG_TIME(logrec->cr_type)
                                || ( logrec->cr_type == CL_TRUNC )
                                || ( logrec->cr_type == CL_HSM )
                                || ( logrec->cr_type == CL_SETATTR )) )
