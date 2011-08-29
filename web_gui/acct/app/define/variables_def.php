@@ -4,7 +4,7 @@
  */
 
 //Number of users/groups/status to display in count and size section
-define("LIMIT" , 4);
+define("LIMIT" , 7);
 
 //Define tables
 define("ACCT_TABLE" , "ACCT_STAT");
@@ -27,7 +27,7 @@ define("PATH" , "fullpath");
 define("DEV_BSIZE", 512);
 
 // max search results
-define("MAX_SEARCH_RESULT", 500);
+define("MAX_SEARCH_RESULT", 5000);
 
 $hsmlite_status_tab = array( "unknown", "new", "modified", 
 	     		     "retrieving", "archiving",
@@ -37,8 +37,7 @@ $hsm_status_tab = array( "unknown", "new", "modified",
 			 "retrieving", "archiving",
 			 "synchro", "released", "release_pending" );
 $sherpa_status_tab = array( "unknown", "ref_missing", "modified",
-			    "retrieving", "archiving", "synchro",
-			    "obsolete" );
+			    "retrieving", "archiving", "obsolete", "synchro" );
 
 
 ?>
