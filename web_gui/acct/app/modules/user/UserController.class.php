@@ -61,6 +61,8 @@ class UserController extends Controller
         $this->page->addVar( 'top_count', $top_count );
         $this->page->addVar( 'top_size', $top_size );
         $this->page->addVar( 'statistics', $result );
+
+        $this->page->addVar( 'fsname' , $userManager->getfsname() );
     }
 
     public function executePopup()

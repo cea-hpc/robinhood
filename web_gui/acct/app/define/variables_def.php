@@ -10,6 +10,7 @@ define("LIMIT" , 7);
 define("ACCT_TABLE" , "ACCT_STAT");
 define("MAIN_TABLE" , "ENTRIES");
 define("ANNEX_TABLE" , "ANNEX_INFO");
+define("VAR_TABLE" , "VARS");
 
 //Define acct table fields
 define("OWNER" , "owner");
@@ -19,6 +20,9 @@ define("BLOCKS" , "blocks");
 define("SIZE" , "size");
 define("COUNT" , "count");
 define("STATUS" , "status");
+
+define("VARNAME", "varname");
+define("VARVALUE", "value");
 
 //Define entries table fields
 define("PATH" , "fullpath");

@@ -13,6 +13,21 @@ class SearchManager
         $this->db_request = new DatabaseRequest( 'app/config/database.xml' );
     }
 
+    /**
+     * this returns FS name
+     */
+    public function getfsname()
+    {
+        $db_result = $this->db_request->select( array( VARNAME => 'FS_Path' ), VAR_TABLE, null, null );
+        if ($db_result != null)
+        {
+            foreach( $db_result as $line )
+            {
+                return $line[VARVALUE];
+            }
+        }
+    }
+
    /**
     * This method returns the result of the mysql query
     * @return db_result

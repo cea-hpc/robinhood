@@ -7,7 +7,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="fr">
     <head>
-        <title>Robinhood Report</title>
         <meta http-equiv="Content-type" content="text/html; charset=iso-8859-1" />
         <style type="text/css" title="currentStyle">
             @import "app/templates/css/style.css";
@@ -81,6 +80,8 @@
             });
         </script>
 
+        <title>Robinhood Report <?php echo $fsname; ?></title>
+
     </head>
 
     <body>
@@ -90,6 +91,7 @@
             <h1>Robinhood Policy Engine</h1>
             <img src="app/img/logoCEA20.jpg" alt="Logo CEA"/>
         </div>
+        <div align="center"><h3><?php echo $fsname; ?></h3></div>
 
         <div id="left_panel">
             <div id="menu">
