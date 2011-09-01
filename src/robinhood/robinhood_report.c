@@ -53,6 +53,8 @@
 #define CLEAR_NEXT_MAINT  262
 
 #define OPT_BY_COUNT      263
+#define OPT_BY_AVGSIZE    264
+#define OPT_COUNT_MIN     265
 
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
@@ -62,6 +64,7 @@
 #define OPT_FLAG_NO_ACCT 0x0010
 #define OPT_FLAG_SPLITUSERGROUP 0x0020
 #define OPT_FLAG_BY_COUNT       0x0040
+#define OPT_FLAG_BY_AVGSIZE     0x0080
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
@@ -70,6 +73,7 @@
 #define MATCH_NULL_STATUS(_x) ((_x)&OPT_FLAG_MATCH_NULL_STATUS)
 #define FORCE_NO_ACCT(_x) ((_x)&OPT_FLAG_NO_ACCT)
 #define SORT_BY_COUNT(_x) ((_x)&OPT_FLAG_BY_COUNT)
+#define SORT_BY_AVGSIZE(_x) ((_x)&OPT_FLAG_BY_AVGSIZE)
 
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
@@ -225,6 +229,9 @@ static struct option option_tab[] = {
     {"filter-class", required_argument, NULL, 'C' },
     {"split-user-groups", no_argument, NULL, 'S'},
     {"by-count", no_argument, NULL, OPT_BY_COUNT},
+    {"by-avgsize", no_argument, NULL, OPT_BY_AVGSIZE},
+    {"by-avg-size", no_argument, NULL, OPT_BY_AVGSIZE},
+    {"count-min", required_argument, NULL, OPT_COUNT_MIN },
 
 #ifdef HAVE_MIGR_POLICY
     {"next-maintenance", optional_argument, NULL, SET_NEXT_MAINT},
@@ -318,6 +325,8 @@ static const char *help_string =
     "        Display the report only for objects in the given path.\n"
     "    " _B "-C" B_ " " _U "class" U_ ", " _B "--filter-class" B_ " " _U "class" U_ "\n"
     "        Report only entries in the given FileClass.\n"
+    "    " _B "--count-min" B_ " "_U"cnt"U_"\n"
+    "        Display only topuser/userinfo with at least "_U"cnt"U_" entries\n\n"
     "\n"
 #ifdef HAVE_MIGR_POLICY
     _B "Pre-maintenance commands:" B_ "\n"
@@ -333,7 +342,9 @@ static const char *help_string =
     "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n"
     "        Generate the report without using accounting table\n"
     "    " _B "--by-count" B_ "\n"
-    "        Sort top users by count instead of sorting by volume\n\n"
+    "        Sort users by count instead of sorting by volume\n"
+    "    " _B "--by-avgsize" B_ "\n"
+    "        Sort users by average file size (smallest first)\n\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Specifies path to configuration file.\n"
@@ -423,6 +434,7 @@ static lmgr_t  lmgr;
 /* global filter variables */
 char path_filter[1024] = "";
 char class_filter[1024] = "";
+unsigned int count_min = 0;
 
 
 
@@ -1352,7 +1364,6 @@ void report_fs_info( int flags )
         printf( "\nTotal: %Lu entries, %Lu bytes (%s)\n",
                 total_count, total_size, strsz );
     }
-
 }
 
 static inline void set_report_rec_nofilter( report_field_descr_t* ent,
@@ -1434,6 +1445,12 @@ void report_usergroup_info( char *name, int flags )
 #endif
 
     set_report_rec_nofilter(&user_info[field_count], 0, REPORT_COUNT, SORT_NONE );
+    if (count_min) {
+        user_info[field_count].filter = TRUE;
+        user_info[field_count].filter_compar = MORETHAN;
+        user_info[field_count].filter_value.val_biguint = count_min;
+    }
+
     field_count++;
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
     field_count++;
@@ -2422,6 +2439,16 @@ void report_topuser( unsigned int count, int flags )
         /* replace sort on blocks by sort on count */
         user_info[1].sort_flag = SORT_NONE;
         user_info[2].sort_flag = SORT_DESC;
+    } else if (SORT_BY_AVGSIZE(flags)) {
+        /* sort (small files first) */
+        user_info[1].sort_flag = SORT_NONE;
+        user_info[5].sort_flag = SORT_ASC;
+    }
+
+    if (count_min) {
+        user_info[2].filter = TRUE;
+        user_info[2].filter_compar = MORETHAN;
+        user_info[2].filter_value.val_biguint = count_min;
     }
 
     /* select only the top users */
@@ -3407,6 +3434,13 @@ int main( int argc, char **argv )
         case OPT_BY_COUNT:
             flags |= OPT_FLAG_BY_COUNT;
             break;
+        case OPT_BY_AVGSIZE:
+            flags |= OPT_FLAG_BY_AVGSIZE;
+            break;
+        case OPT_COUNT_MIN:
+            count_min = atoi(optarg);
+            break;
+
         case ':':
         case '?':
         default:
