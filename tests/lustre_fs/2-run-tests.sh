@@ -1162,6 +1162,101 @@ function test_acct_table
 
 }
 
+# test report options: avg_size, by-count, count-min and reverse
+function    test_sort_report
+{
+    config_file=$1
+    dummy=$2
+    descr_str="$3"
+
+    clean_logs
+
+    # get 3 different users (from /etc/passwd)
+    users=( $(head -n 3 /etc/passwd | cut -d ':' -f 1) )
+
+    echo "1-Populating filesystem with test files..."
+
+    # populate the filesystem with data of these users
+    for i in `seq 0 2`; do
+        u=${users[$i]}
+        mkdir $ROOT/dir.$u || error "creating directory  $ROOT/dir.$u"
+        if (( $i == 0 )); then
+            # first user:  20 files of size 1k to 20k
+            for f in `seq 1 20`; do
+                dd if=/dev/zero of=$ROOT/dir.$u/file.$f bs=1k count=$f 2>/dev/null || error "writing $f KB to $ROOT/dir.$u/file.$f"
+            done
+        elif (( $i == 1 )); then
+            # second user: 10 files of size 10k to 100k
+            for f in `seq 1 10`; do
+                dd if=/dev/zero of=$ROOT/dir.$u/file.$f bs=10k count=$f 2>/dev/null || error "writing $f x10 KB to $ROOT/dir.$u/file.$f"
+            done
+        else
+            # 3rd user:    5 files of size 100k to 500k
+            for f in `seq 1 5`; do
+                dd if=/dev/zero of=$ROOT/dir.$u/file.$f bs=100k count=$f 2>/dev/null || error "writing $f x100 KB to $ROOT/dir.$u/file.$f"
+            done
+        fi
+        chown -R $u $ROOT/dir.$u || error "changing owner of $ROOT/dir.$u"
+    done
+
+    # flush data to OSTs
+    sync
+
+    # scan!
+    echo "2-Scanning..."
+    $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+
+    echo "3-checking reports..."
+
+    # sort users by volume
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user > report.out || error "generating topuser report by volume"
+    first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    [ $first = ${users[2]} ] || error "first user expected in top volume: ${users[2]} (got $first)"
+    [ $last = ${users[0]} ] || error "last user expected in top volume: ${users[0]} (got $last)"
+
+    # sort users by volume (reverse)
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --reverse > report.out || error "generating topuser report by volume (reverse)"
+    first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    [ $first = ${users[0]} ] || error "first user expected in top volume: ${users[0]} (got $first)"
+    [ $last = ${users[2]} ] || error "last user expected in top volume: ${users[2]} (got $last)"
+
+    # sort users by count
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-count > report.out || error "generating topuser report by count"
+    first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    [ $first = ${users[0]} ] || error "first user expected in top count: ${users[0]} (got $first)"
+    [ $last = ${users[2]} ] || error "last user expected in top count: ${users[2]} (got $last)"
+
+    # sort users by count (reverse)
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-count --reverse > report.out || error "generating topuser report by count (reverse)"
+    first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    [ $first = ${users[2]} ] || error "first user expected in top count: ${users[2]} (got $first)"
+    [ $last = ${users[0]} ] || error "last user expected in top count: ${users[0]} (got $last)"
+
+    # sort users by avg size
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-avgsize > report.out || error "generating topuser report by avg size"
+    first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    [ $first = ${users[2]} ] || error "first user expected in top avg size: ${users[2]} (got $first)"
+    [ $last = ${users[0]} ] || error "last user expected in top avg size: ${users[0]} (got $last)"
+
+    # sort users by avg size (reverse)
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-avgsize --reverse > report.out || error "generating topuser report by avg size (reverse)"
+    first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
+    [ $first = ${users[0]} ] || error "first user expected in top avg size: ${users[0]} (got $first)"
+    [ $last = ${users[2]} ] || error "last user expected in top avg size: ${users[2]} (got $last)"
+
+    # filter users by min count
+    # only user 0 and 1 have 10 entries or more
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --count-min=10 > report.out || error "generating topuser with at least 10 entries"
+    (( $(wc -l report.out | awk '{print$1}') == 2 )) || error "only 2 users expected with more than 10 entries"
+    grep ${users[2]} report.out && error "${users[2]} is not expected to have more than 10 entries"
+}
+
 function path_test
 {
 	config_file=$1
@@ -3138,6 +3233,7 @@ run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: conf
 
 run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
+run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
