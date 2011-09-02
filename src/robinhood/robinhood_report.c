@@ -56,6 +56,8 @@
 #define OPT_BY_AVGSIZE    264
 #define OPT_COUNT_MIN     265
 
+#define OPT_TOPRMDIR      266
+
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
 #define OPT_FLAG_NOHEADER   0x0002
@@ -65,6 +67,7 @@
 #define OPT_FLAG_SPLITUSERGROUP 0x0020
 #define OPT_FLAG_BY_COUNT       0x0040
 #define OPT_FLAG_BY_AVGSIZE     0x0080
+#define OPT_FLAG_REVERSE        0x0100
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
@@ -74,6 +77,7 @@
 #define FORCE_NO_ACCT(_x) ((_x)&OPT_FLAG_NO_ACCT)
 #define SORT_BY_COUNT(_x) ((_x)&OPT_FLAG_BY_COUNT)
 #define SORT_BY_AVGSIZE(_x) ((_x)&OPT_FLAG_BY_AVGSIZE)
+#define REVERSE(_x) ((_x)&OPT_FLAG_REVERSE)
 
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
@@ -205,8 +209,8 @@ static struct option option_tab[] = {
     {"toppurge", optional_argument, NULL, 'p'},
     {"top-purge", optional_argument, NULL, 'p'},
 #ifdef HAVE_RMDIR_POLICY
-    {"toprmdir", optional_argument, NULL, 'r'},
-    {"top-rmdir", optional_argument, NULL, 'r'},
+    {"toprmdir", optional_argument, NULL, OPT_TOPRMDIR},
+    {"top-rmdir", optional_argument, NULL, OPT_TOPRMDIR},
 #endif
     {"topusers", optional_argument, NULL, 'U'},
     {"top-users", optional_argument, NULL, 'U'},
@@ -232,6 +236,7 @@ static struct option option_tab[] = {
     {"by-avgsize", no_argument, NULL, OPT_BY_AVGSIZE},
     {"by-avg-size", no_argument, NULL, OPT_BY_AVGSIZE},
     {"count-min", required_argument, NULL, OPT_COUNT_MIN },
+    {"reverse", no_argument, NULL, 'r' },
 
 #ifdef HAVE_MIGR_POLICY
     {"next-maintenance", optional_argument, NULL, SET_NEXT_MAINT},
@@ -257,7 +262,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:C:Rf:cql:hVFS"
+#define SHORT_OPT_STRING    "aiDu:g:d:s:p:rU:P:C:Rf:cql:hVFS"
 
 /* special character sequences for displaying help */
 
@@ -344,7 +349,9 @@ static const char *help_string =
     "    " _B "--by-count" B_ "\n"
     "        Sort users by count instead of sorting by volume\n"
     "    " _B "--by-avgsize" B_ "\n"
-    "        Sort users by average file size (smallest first)\n\n"
+    "        Sort users by average file size\n\n"
+    "    " _B "--reverse" B_ "\n"
+    "        Reverse sort order\n\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Specifies path to configuration file.\n"
@@ -1166,7 +1173,10 @@ void report_fs_info( int flags )
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
     lmgr_iter_opt_t opt;
-    int display_header = 1; 
+    int display_header = 1;
+
+    if (REVERSE(flags))
+        fs_info[0].sort_flag = SORT_DESC;
 
     /* no limit */
     opt.list_count_max = 0;
@@ -1414,33 +1424,40 @@ void report_usergroup_info( char *name, int flags )
 
     if (ISSPLITUSERGROUP(flags) && ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
         shift++ ;
     }
     else if (ISSPLITUSERGROUP(flags) && !ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
         shift++;
     }
     else if (ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
     }
     else
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
     }
 
 #ifndef _LUSTRE_HSM
-    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC );
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type,
+                            REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
     field_count++;
 #endif
 
@@ -1879,7 +1896,7 @@ void report_topdirs( unsigned int count, int flags )
 
     /* order by dircount desc */
     sorttype.attr_index = ATTR_INDEX_dircount;
-    sorttype.order = SORT_DESC;
+    sorttype.order = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
     /* select only the top dirs */
     opt.list_count_max = count;
@@ -1975,7 +1992,7 @@ void report_topsize( unsigned int count, int flags )
 
     /* order by size desc */
     sorttype.attr_index = ATTR_INDEX_size;
-    sorttype.order = SORT_DESC;
+    sorttype.order = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
     /* select only the top size */
     opt.list_count_max = count;
@@ -2186,7 +2203,7 @@ void report_toppurge( unsigned int count, int flags )
 #endif
 
     sorttype.attr_index = ATTR_INDEX_last_access;
-    sorttype.order = SORT_ASC;
+    sorttype.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
 
     /* select only the top size */
     opt.list_count_max = count;
@@ -2327,7 +2344,7 @@ void report_toprmdir( unsigned int count, int flags )
 
     /* order by last_mod asc */
     sorttype.attr_index = ATTR_INDEX_last_mod;
-    sorttype.order = SORT_ASC;
+    sorttype.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
 
     /* select only the top dirs */
     opt.list_count_max = count;
@@ -2435,14 +2452,17 @@ void report_topuser( unsigned int count, int flags )
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
     };
 
+    if (REVERSE(flags))
+        user_info[1].sort_flag = SORT_ASC;
+
     if (SORT_BY_COUNT(flags)) {
         /* replace sort on blocks by sort on count */
         user_info[1].sort_flag = SORT_NONE;
-        user_info[2].sort_flag = SORT_DESC;
+        user_info[2].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
     } else if (SORT_BY_AVGSIZE(flags)) {
-        /* sort (small files first) */
+        /* sort (big files first) */
         user_info[1].sort_flag = SORT_NONE;
-        user_info[5].sort_flag = SORT_ASC;
+        user_info[5].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
     }
 
     if (count_min) {
@@ -3337,7 +3357,7 @@ int main( int argc, char **argv )
                 toppurge = DEFAULT_TOP_SIZE;
             break;
 
-        case 'r':
+        case OPT_TOPRMDIR:
             if ( optarg )
             {
                 toprmdir = str2int( optarg );
@@ -3411,6 +3431,9 @@ int main( int argc, char **argv )
             }
             break;
 
+        case 'r':
+            flags |= OPT_FLAG_REVERSE;
+            break;
         case 'c':
             flags |= OPT_FLAG_CSV;
             break;
