@@ -1095,6 +1095,7 @@ function test_periodic_trigger
 	if (( $nb_pass == 3 )); then
 		echo "OK: triggered 3 times"
 	else
+        grep "Purge summary" rh_purge.log >&2
 		error "unexpected trigger count $nb_pass"
 	fi
 
