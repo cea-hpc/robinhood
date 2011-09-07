@@ -727,7 +727,7 @@ void report_activity( int flags )
         if ( !CSV(flags) )
         {
             printf("        Changelog stats:\n");
-            printf("                %5s: %15s \t(%s)\t(%s)\n", "type",
+            printf("                %5s  %15s \t(%s)\t(%s)\n", "type",
                    "total", "diff", "rate" );
         }
         else
