@@ -310,9 +310,10 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
 
     /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
-    FSScan_StoreStats() ;
+    FSScan_StoreStats( &lmgr ) ;
     /* and update the scan status */
-    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, scan_complete ? SCAN_STATUS_DONE : SCAN_STATUS_PARTIAL );
+    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, scan_complete ?  SCAN_STATUS_DONE :
+                                             SCAN_STATUS_PARTIAL );
 
     /* if scan is errorneous and no entries was listed, don't rm old entries */
     if ((count > 0) || scan_complete)

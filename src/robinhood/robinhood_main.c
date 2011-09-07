@@ -415,39 +415,37 @@ static inline void display_version( char *bin_name )
 
 static pthread_t stat_thread;
 
-void          *DumpStats( void *arg )
+/* database connexion for updating stats */
+static lmgr_t  lmgr;
+static int     lmgr_init = FALSE;
+static char    boot_time_str[256];
+
+static void dump_stats( lmgr_t * lmgr, const int * module_mask )
 {
-    int           *module_mask = ( int * ) arg;
-    struct tm      date;
-    char           tmp_buff[256];
-    char           tmp_buff2[256];
-    time_t         now;
-
-    strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &boot_time, &date ) );
-
-    DisplayLog( LVL_VERB, MAIN_TAG, "Statistics thread started" );
-
-    while ( 1 )
-    {
-        WaitStatsInterval(  );
+        char           tmp_buff[256];
+        time_t         now;
+        struct tm      date;
 
         now = time( NULL );
-        strftime( tmp_buff2, 256, "%Y/%m/%d %T", localtime_r( &now, &date ) );
+        strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &now, &date ) );
 
         DisplayLog( LVL_MAJOR, "STATS",
-                    "==================== Dumping stats at %s =====================", tmp_buff2 );
+                    "==================== Dumping stats at %s =====================", tmp_buff );
         DisplayLog( LVL_MAJOR, "STATS", "======== General statistics =========" );
-        DisplayLog( LVL_MAJOR, "STATS", "Daemon start time: %s", tmp_buff );
+        DisplayLog( LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str );
 
         if ( *module_mask & MODULE_MASK_FS_SCAN )
         {
             FSScan_DumpStats(  );
-            FSScan_StoreStats(  );
+            FSScan_StoreStats( lmgr );
         }
 
 #ifdef HAVE_CHANGELOGS
         if ( *module_mask & MODULE_MASK_EVENT_HDLR )
+        {
             ChgLogRdr_DumpStats(  );
+            ChgLogRdr_StoreStats( lmgr );
+        }
 #endif
         if ( *module_mask & MODULE_MASK_ENTRY_PROCESSOR )
             EntryProcessor_DumpCurrentStages(  );
@@ -469,6 +467,28 @@ void          *DumpStats( void *arg )
 #endif
         /* Flush stats */
         FlushLogs(  );
+}
+
+static void  *stats_thr( void *arg )
+{
+    int           *module_mask = ( int * ) arg;
+    struct tm      date;
+
+    strftime( boot_time_str, 256, "%Y/%m/%d %T", localtime_r( &boot_time, &date ) );
+
+    if ( !lmgr_init )
+    {
+        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+            return NULL;
+        lmgr_init = TRUE;
+    }
+
+    DisplayLog( LVL_VERB, MAIN_TAG, "Statistics thread started" );
+
+    while ( 1 )
+    {
+        WaitStatsInterval(  );
+        dump_stats(&lmgr, module_mask);
     }
 }
 
@@ -1170,7 +1190,7 @@ int main( int argc, char **argv )
     {
         /* used for dumping stats in one shot mode */
         currently_running_mask = 0;
-        pthread_create( &stat_thread, NULL, DumpStats, &currently_running_mask );
+        pthread_create( &stat_thread, NULL, stats_thr, &currently_running_mask );
     }
 
     /* Initialize list manager */
@@ -1468,7 +1488,7 @@ int main( int argc, char **argv )
     if ( !once )
     {
         /* dump stats periodically */
-        DumpStats( &parsing_mask );
+        stats_thr( &parsing_mask );
 
         /* should never return */
         exit( 1 );

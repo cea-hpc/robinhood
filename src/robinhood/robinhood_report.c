@@ -692,6 +692,98 @@ void report_activity( int flags )
     if ( !CSV(flags) )
         printf( "\n" );
 
+#ifdef HAVE_CHANGELOGS
+    /* changelog stats */
+    rc = ListMgr_GetVar( &lmgr, CL_LAST_READ_ID, value );
+    if ( rc == DB_SUCCESS )
+    {
+        int i;
+        unsigned int interval;
+
+        if ( CSV(flags) )
+            printf( "changelog_last_record_id, %s\n", value );
+        else
+        {
+            printf( "\nChangelog stats:\n\n" );
+            printf( "        Last read record id:      %s\n", value );
+        }
+
+        if ( ListMgr_GetVar( &lmgr, CL_LAST_READ_TIME, value ) == DB_SUCCESS )
+        {
+            if ( CSV(flags) )
+                printf( "changelog_last_time, %s\n", value );
+            else
+                printf( "        Last record read time:    %s\n", value );
+        }
+
+        if ( ListMgr_GetVar( &lmgr, CL_LAST_COMMITTED, value ) == DB_SUCCESS )
+        {
+            if ( CSV(flags) )
+                printf( "changelog_last_committed_id, %s\n", value );
+            else
+                printf( "        Last committed record id: %s\n", value );
+        }
+
+        if ( !CSV(flags) )
+        {
+            printf("        Changelog stats:\n");
+            printf("                %5s: %15s \t(%s)\t(%s)\n", "type",
+                   "total", "diff", "rate" );
+        }
+        else
+            printf("%11s, %12s, %8s, %s\n",
+                   "record_type", "total", "diff", "rate (ops/sec)" );
+
+        /* get diff interval */
+        if ( ListMgr_GetVar( &lmgr, CL_DIFF_INTERVAL, value ) != DB_SUCCESS )
+            interval = 0;
+        else
+            interval = str2int(value);
+
+        for (i = 0; i < CL_LAST; i++)
+        {
+            char varname[256];
+            char varname2[256];
+            char diff_str[256];
+            unsigned long long diff;
+            double rate;
+
+            sprintf( varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i) );
+            sprintf( varname2, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i) );
+
+            rc = ListMgr_GetVar( &lmgr, varname, value );
+            if (rc == DB_NOT_EXISTS )
+                strcpy(value, "0");
+            else if (rc != 0)
+                strcpy(value, "db_error");
+
+            if ((interval > 0) && (ListMgr_GetVar( &lmgr, varname2, diff_str ) == DB_SUCCESS))
+            {
+                diff = str2bigint(diff_str);
+                rate = (0.0+diff)/(0.0+interval);
+            }
+            else
+            {
+                diff = 0;
+                rate = 0.0;
+            }
+
+            if ( CSV(flags) )
+                printf( "%11s, %12s, %8Lu, %8.2f\n",  changelog_type2str(i), value,
+                        diff, rate );
+            else if (diff != 0)
+                printf("                %5s: %15s \t(+%Lu)\t(%.2f/sec)\n",
+                        changelog_type2str(i), value, diff, rate );
+            else
+                printf("                %5s: %15s\n", changelog_type2str(i), value );
+
+        }
+
+        if ( !CSV(flags) )
+            printf( "\n" );
+    }
+#endif
+
     /* max usage */
     rc = ListMgr_GetVar( &lmgr, USAGE_MAX_VAR, value );
     if ( rc == DB_SUCCESS )

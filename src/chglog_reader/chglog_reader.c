@@ -73,6 +73,10 @@ typedef struct reader_thr_info_t
     /** log handler */
     void * chglog_hdlr;
 
+    unsigned long long cl_counters[CL_LAST]; /* from boot time */
+    unsigned long long cl_reported[CL_LAST]; /* last reported stat (for incremental diff) */
+    time_t last_report;
+
 } reader_thr_info_t;
 
 
@@ -255,6 +259,16 @@ static int process_log_rec( reader_thr_info_t * p_info, struct changelog_rec * p
     {
         DisplayLog( LVL_CRIT, CHGLOG_TAG,
                     "Unsupported log record type %d. Skipping record.",
+                    opnum );
+        return EINVAL;
+    }
+
+    /* update stats */
+    if ((opnum >= 0) && (opnum < CL_LAST))
+        p_info->cl_counters[opnum] ++;
+    else {
+        DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                    "Log record type %d out of bounds.",
                     opnum );
         return EINVAL;
     }
@@ -483,7 +497,7 @@ static void action_sigchld( int sig )
 /** start ChangeLog Reader module */
 int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
 {
-    int i, rc;
+    int i, j, rc;
     char mdtdevice[128];
 #ifdef _LLAPI_FORKS
     struct sigaction act_sigchld ;
@@ -560,6 +574,12 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
         reader_info[i].last_committed_record = 0;
         reader_info[i].chglog_hdlr = NULL;
         reader_info[i].force_stop = FALSE;
+        for (j = 0; j < CL_LAST; j++)
+        {
+            reader_info[i].cl_counters[j] = 0;
+            reader_info[i].cl_reported[j] = 0;
+        }
+        reader_info[i].last_report = time(NULL);
 
         snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
                   p_config->mdt_def[i].mdt_name );
@@ -640,8 +660,9 @@ int            ChgLogRdr_Wait(  )
 /** dump changelog processing stats */
 int            ChgLogRdr_DumpStats(  )
 {
-    unsigned int i;
+    unsigned int i,j;
     char tmp_buff[256];
+    char * ptr;
     struct tm paramtm;
 
     /* ask threads to stop */
@@ -650,27 +671,113 @@ int            ChgLogRdr_DumpStats(  )
     {
         DisplayLog( LVL_MAJOR, "STATS", "ChangeLog reader #%u:", i );
 
-        DisplayLog( LVL_MAJOR, "STATS", "  fs_name    =   %s",
+        DisplayLog( LVL_MAJOR, "STATS", "   fs_name    =   %s",
                     get_fsname() );
-        DisplayLog( LVL_MAJOR, "STATS", "  mdt_name   =   %s",
+        DisplayLog( LVL_MAJOR, "STATS", "   mdt_name   =   %s",
                     chglog_reader_config.mdt_def[i].mdt_name );
-        DisplayLog( LVL_MAJOR, "STATS", "  reader_id  =   %s",
+        DisplayLog( LVL_MAJOR, "STATS", "   reader_id  =   %s",
                     chglog_reader_config.mdt_def[i].reader_id );
-        DisplayLog( LVL_MAJOR, "STATS", "  lines read =   %llu",
+        DisplayLog( LVL_MAJOR, "STATS", "   lines read =   %llu",
                     reader_info[i].nb_read );
 
         strftime( tmp_buff, 256, "%Y/%m/%d %T",
                   localtime_r( &reader_info[i].last_read_time, &paramtm ) );
-        DisplayLog( LVL_MAJOR, "STATS", "  last line read  =   %s", tmp_buff );
+        DisplayLog( LVL_MAJOR, "STATS", "   last line read  =   %s", tmp_buff );
 
-        DisplayLog( LVL_MAJOR, "STATS", "  last read record id      = %llu",
+        DisplayLog( LVL_MAJOR, "STATS", "   last read record id      = %llu",
                     reader_info[i].last_read_record );
-        DisplayLog( LVL_MAJOR, "STATS", "  last committed record id = %llu",
+        DisplayLog( LVL_MAJOR, "STATS", "   last committed record id = %llu",
                     reader_info[i].last_committed_record );
 
         if ( reader_info[i].force_stop )
-            DisplayLog( LVL_MAJOR, "STATS", "  status = terminating");
+            DisplayLog( LVL_MAJOR, "STATS", "   status = terminating");
+
+        DisplayLog( LVL_MAJOR, "STATS", "   ChangeLog stats:");
+
+        tmp_buff[0] = '\0';
+        ptr = tmp_buff;
+        for (j = 0; j < CL_LAST; j++)
+        {
+            /* flush full line */
+            if (ptr - tmp_buff >= 80)
+            {
+                DisplayLog( LVL_MAJOR, "STATS", "   %s", tmp_buff );
+                tmp_buff[0] = '\0';
+                ptr = tmp_buff;
+            }
+            if (ptr == tmp_buff)
+                ptr += sprintf( ptr, "%s: %llu", changelog_type2str(j),
+                                reader_info[i].cl_counters[j] );
+            else
+                ptr += sprintf( ptr, ", %s: %llu", changelog_type2str(j),
+                                reader_info[i].cl_counters[j] );
+        }
+        /* last unflushed line */
+        if (ptr != tmp_buff)
+            sprintf( ptr, ", %s: %llu", changelog_type2str(j),
+                     reader_info[i].cl_counters[j] );
     }
+
+    return 0;
+}
+
+/** store changelog stats to the database */
+int            ChgLogRdr_StoreStats( lmgr_t * lmgr )
+{
+    unsigned int i;
+    char tmp_buff[256];
+    struct tm paramtm;
+
+    /* ask threads to stop */
+
+    if ( chglog_reader_config.mdt_count > 1 )
+        DisplayLog( LVL_MAJOR, CHGLOG_TAG, "WARNING: more than 1 MDT changelog reader, only 1st reader stats will be stored in DB" );
+    else if ( chglog_reader_config.mdt_count < 1 )
+        return ENOENT; /* nothing to be stored */
+
+    sprintf( tmp_buff, "%llu", reader_info[0].last_read_record );
+    ListMgr_SetVar( lmgr, CL_LAST_READ_ID, tmp_buff );
+
+    strftime( tmp_buff, 256, "%Y/%m/%d %T",
+              localtime_r( &reader_info[0].last_read_time, &paramtm ) );
+    ListMgr_SetVar( lmgr, CL_LAST_READ_TIME, tmp_buff );
+
+    sprintf( tmp_buff, "%llu", reader_info[0].last_committed_record );
+    ListMgr_SetVar( lmgr, CL_LAST_COMMITTED, tmp_buff );
+
+
+    for (i = 0; i < CL_LAST; i++)
+    {
+        /* get and set (increment) */
+        char varname[256];
+        char last_val[256];
+        unsigned long long last, current, diff;
+        sprintf( varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i) );
+        if ( ListMgr_GetVar( lmgr, varname, last_val ) != DB_SUCCESS )
+            last = 0;
+        else
+            last = str2bigint(last_val);
+
+        /* diff = current - last_reported */
+        current = reader_info[0].cl_counters[i];
+        diff = current - reader_info[0].cl_reported[i];
+
+        /* new value = last + diff */
+        sprintf( tmp_buff, "%llu", last + diff );
+        if ( ListMgr_SetVar( lmgr, varname, tmp_buff ) == DB_SUCCESS )
+            /* last_reported is now current */
+            reader_info[0].cl_reported[i] = current;
+
+        /* save diff */
+        sprintf( varname, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i) );
+        sprintf( tmp_buff, "%llu", diff );
+        ListMgr_SetVar( lmgr, varname, tmp_buff );
+    }
+
+    /* indicate diff interval */
+    sprintf( tmp_buff, "%lu", time(NULL) - reader_info[0].last_report );
+    ListMgr_SetVar( lmgr, CL_DIFF_INTERVAL, tmp_buff );
+    reader_info[0].last_report = time(NULL);
 
     return 0;
 }

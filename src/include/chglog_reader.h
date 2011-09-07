@@ -27,6 +27,7 @@
 #define _CHGLOG_READER_H
 
 #include "config_parsing.h"
+#include "list_mgr.h"
 
 #define MDT_NAME_MAX  32
 #define READER_ID_MAX 16
@@ -73,6 +74,9 @@ int            ChgLogRdr_Wait(  );
 
 /** dump changelog processing stats */
 int            ChgLogRdr_DumpStats(  );
+
+/** store changelog stats to db */
+int            ChgLogRdr_StoreStats( lmgr_t * lmgr );
 
 /** 
  * \addtogroup MODULE_CONFIG_FUNCTIONS
