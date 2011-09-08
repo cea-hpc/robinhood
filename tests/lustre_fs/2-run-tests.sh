@@ -3197,7 +3197,7 @@ run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\
 run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
 run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
 run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-run_test 206	purge_test test_purge.conf 11 41 "last_access > 20s"
+run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
 run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
 run_test 208	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
 run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
