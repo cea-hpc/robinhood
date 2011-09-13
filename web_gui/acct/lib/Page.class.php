@@ -59,7 +59,6 @@ class Page extends ApplicationComponent
         $this->content = $content;
     }
 
-
 }
 
 ?>

@@ -77,7 +77,6 @@ large file systems with millions of entries and petabytes of data.
 
 Generated using options: @ac_configure_args@
 
-
 %package adm
 Summary: admin/config helper for Robinhood PolicyEngine
 Group: Applications/System
@@ -277,6 +276,11 @@ fi
 %if %{with backup}
 %{_sbindir}/rbhext_*
 %endif
+
+%if %{with shook}
+%{_sbindir}/rbhext_*
+%endif
+
 #%{_mandir}/man5/*
 #%{_mandir}/man8/*
 
@@ -317,6 +321,7 @@ fi
 - [database] MySQL 4 compatibility fix
 - [bugfix](minor) handling DB deadlock error
 - [bugfix](tweak) added acct parameters to default and template outputs
+- [alerts](tweak) additional info in the title of quota alert e-mails
 - [testing] big tests with 1M entries
 - [backup] about backup mode (beta):
     - [bugfix](major) fixed error determining symlink status

@@ -68,6 +68,9 @@ srpm: robinhood.spec dist
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
 		-ts $(distdir).tar.gz
 
+cppcheck:
+	cppcheck -j12 -v --force --enable=all -I`pwd`/src/include -DHAVE_CONFIG_H @PURPOSE_CFLAGS@ @DB_CFLAGS@ src/
+
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	robinhood.old_spec.in				\
         doc/templates					\

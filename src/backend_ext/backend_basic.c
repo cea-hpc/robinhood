@@ -461,8 +461,10 @@ int rbhext_get_status( const entry_id_t * p_id,
              || (ATTR( p_attrs_in, size ) != bkmd.st_size ) )
         {
                 /* display a warning if last_mod in FS < mtime in backend */
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: mtime in filesystem < mtime in backend (%s)",
-                           bkpath);
+                if (ATTR( p_attrs_in, last_mod ) < bkmd.st_mtime)
+                    DisplayLog(LVL_MAJOR, RBHEXT_TAG,
+                               "Warning: mtime in filesystem < mtime in backend (%s)",
+                               bkpath);
 
                 ATTR_MASK_SET( p_attrs_changed, status );
                 ATTR( p_attrs_changed, status ) = STATUS_MODIFIED;

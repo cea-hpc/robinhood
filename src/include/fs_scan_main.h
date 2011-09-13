@@ -69,7 +69,7 @@ int            FSScan_Wait(  );
 int            FSScan_DumpStats(  );
 
 /** store scan stats in db */
-int            FSScan_StoreStats(  );
+int            FSScan_StoreStats( lmgr_t * lmgr );
 
 /** 
  * \addtogroup MODULE_CONFIG_FUNCTIONS

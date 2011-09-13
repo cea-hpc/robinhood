@@ -41,6 +41,8 @@ class SearchController extends Controller
         {
              $this->page->addVar( 'page', 'form' );
         }
+
+        $this->page->addVar( 'fsname' , $menuManager->getfsname() );
     }
 }
 

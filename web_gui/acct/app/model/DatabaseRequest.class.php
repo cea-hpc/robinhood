@@ -222,6 +222,7 @@ class DatabaseRequest
 
             if( $this->rowNumber > MAX_SEARCH_RESULT || $this->rowNumber == 0)
             {
+                echo "<b>ERROR: max result count exceeded</b><br>\n";
                 return null;
             }
 

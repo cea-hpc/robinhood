@@ -12,6 +12,18 @@ class UserManager
         $this->db_request = new DatabaseRequest( 'app/config/database.xml' );
     }
 
+    public function getfsname()
+    {
+        $db_result = $this->db_request->select( array( VARNAME => 'FS_Path' ), VAR_TABLE, null, null );
+        if ($db_result != null)
+        {
+            foreach( $db_result as $line )
+            {
+                return $line[VARVALUE];
+            }
+        }
+    }
+
    /**
     * This method returns Statistics object to create the pie graph or the user list
     * @return Statistics

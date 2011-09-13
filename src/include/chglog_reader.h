@@ -27,6 +27,7 @@
 #define _CHGLOG_READER_H
 
 #include "config_parsing.h"
+#include "list_mgr.h"
 
 #define MDT_NAME_MAX  32
 #define READER_ID_MAX 16
@@ -54,9 +55,11 @@ typedef struct chglog_reader_config_t
 
 /* type if a log record is a ctime or mtime ? */
 #ifdef CL_SPLITTED_TIME
-#define CL_TIME_NOACCESS(_t) (((_t)==CL_MTIME)||((_t)==CL_CTIME))
+#define CL_MOD_TIME(_t) ((_t)==CL_MTIME)
+#define CL_CHG_TIME(_t) ((_t)==CL_CTIME)
 #else
-#define CL_TIME_NOACCESS(_t) ((_t)==CL_TIME)
+#define CL_MOD_TIME(_t) ((_t)==CL_TIME)
+#define CL_CHG_TIME(_t) ((_t)==CL_TIME)
 #endif
 
 
@@ -71,6 +74,9 @@ int            ChgLogRdr_Wait(  );
 
 /** dump changelog processing stats */
 int            ChgLogRdr_DumpStats(  );
+
+/** store changelog stats to db */
+int            ChgLogRdr_StoreStats( lmgr_t * lmgr );
 
 /** 
  * \addtogroup MODULE_CONFIG_FUNCTIONS

@@ -54,6 +54,10 @@
 #define CLEAR_NEXT_MAINT  262
 
 #define OPT_BY_COUNT      263
+#define OPT_BY_AVGSIZE    264
+#define OPT_COUNT_MIN     265
+
+#define OPT_TOPRMDIR      266
 
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
@@ -63,6 +67,8 @@
 #define OPT_FLAG_NO_ACCT 0x0010
 #define OPT_FLAG_SPLITUSERGROUP 0x0020
 #define OPT_FLAG_BY_COUNT       0x0040
+#define OPT_FLAG_BY_AVGSIZE     0x0080
+#define OPT_FLAG_REVERSE        0x0100
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
@@ -71,6 +77,8 @@
 #define MATCH_NULL_STATUS(_x) ((_x)&OPT_FLAG_MATCH_NULL_STATUS)
 #define FORCE_NO_ACCT(_x) ((_x)&OPT_FLAG_NO_ACCT)
 #define SORT_BY_COUNT(_x) ((_x)&OPT_FLAG_BY_COUNT)
+#define SORT_BY_AVGSIZE(_x) ((_x)&OPT_FLAG_BY_AVGSIZE)
+#define REVERSE(_x) ((_x)&OPT_FLAG_REVERSE)
 
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
@@ -202,8 +210,8 @@ static struct option option_tab[] = {
     {"toppurge", optional_argument, NULL, 'p'},
     {"top-purge", optional_argument, NULL, 'p'},
 #ifdef HAVE_RMDIR_POLICY
-    {"toprmdir", optional_argument, NULL, 'r'},
-    {"top-rmdir", optional_argument, NULL, 'r'},
+    {"toprmdir", optional_argument, NULL, OPT_TOPRMDIR},
+    {"top-rmdir", optional_argument, NULL, OPT_TOPRMDIR},
 #endif
     {"topusers", optional_argument, NULL, 'U'},
     {"top-users", optional_argument, NULL, 'U'},
@@ -226,6 +234,10 @@ static struct option option_tab[] = {
     {"filter-class", required_argument, NULL, 'C' },
     {"split-user-groups", no_argument, NULL, 'S'},
     {"by-count", no_argument, NULL, OPT_BY_COUNT},
+    {"by-avgsize", no_argument, NULL, OPT_BY_AVGSIZE},
+    {"by-avg-size", no_argument, NULL, OPT_BY_AVGSIZE},
+    {"count-min", required_argument, NULL, OPT_COUNT_MIN },
+    {"reverse", no_argument, NULL, 'r' },
 
 #ifdef HAVE_MIGR_POLICY
     {"next-maintenance", optional_argument, NULL, SET_NEXT_MAINT},
@@ -251,7 +263,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDu:g:d:s:p:r:U:P:C:Rf:cql:hVFS"
+#define SHORT_OPT_STRING    "aiDu:g:d:s:p:rU:P:C:Rf:cql:hVFS"
 
 /* special character sequences for displaying help */
 
@@ -319,6 +331,8 @@ static const char *help_string =
     "        Display the report only for objects in the given path.\n"
     "    " _B "-C" B_ " " _U "class" U_ ", " _B "--filter-class" B_ " " _U "class" U_ "\n"
     "        Report only entries in the given FileClass.\n"
+    "    " _B "--count-min" B_ " "_U"cnt"U_"\n"
+    "        Display only topuser/userinfo with at least "_U"cnt"U_" entries\n\n"
     "\n"
 #ifdef HAVE_MIGR_POLICY
     _B "Pre-maintenance commands:" B_ "\n"
@@ -334,7 +348,11 @@ static const char *help_string =
     "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n"
     "        Generate the report without using accounting table\n"
     "    " _B "--by-count" B_ "\n"
-    "        Sort top users by count instead of sorting by volume\n\n"
+    "        Sort users by count instead of sorting by volume\n"
+    "    " _B "--by-avgsize" B_ "\n"
+    "        Sort users by average file size\n\n"
+    "    " _B "--reverse" B_ "\n"
+    "        Reverse sort order\n\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Specifies path to configuration file.\n"
@@ -424,6 +442,7 @@ static lmgr_t  lmgr;
 /* global filter variables */
 char path_filter[1024] = "";
 char class_filter[1024] = "";
+unsigned int count_min = 0;
 
 
 
@@ -711,6 +730,98 @@ void report_activity( int flags )
 
     if ( !CSV(flags) )
         printf( "\n" );
+
+#ifdef HAVE_CHANGELOGS
+    /* changelog stats */
+    rc = ListMgr_GetVar( &lmgr, CL_LAST_READ_ID, value );
+    if ( rc == DB_SUCCESS )
+    {
+        int i;
+        unsigned int interval;
+
+        if ( CSV(flags) )
+            printf( "changelog_last_record_id, %s\n", value );
+        else
+        {
+            printf( "\nChangelog stats:\n\n" );
+            printf( "        Last read record id:      %s\n", value );
+        }
+
+        if ( ListMgr_GetVar( &lmgr, CL_LAST_READ_TIME, value ) == DB_SUCCESS )
+        {
+            if ( CSV(flags) )
+                printf( "changelog_last_time, %s\n", value );
+            else
+                printf( "        Last record read time:    %s\n", value );
+        }
+
+        if ( ListMgr_GetVar( &lmgr, CL_LAST_COMMITTED, value ) == DB_SUCCESS )
+        {
+            if ( CSV(flags) )
+                printf( "changelog_last_committed_id, %s\n", value );
+            else
+                printf( "        Last committed record id: %s\n", value );
+        }
+
+        if ( !CSV(flags) )
+        {
+            printf("        Changelog stats:\n");
+            printf("                %5s  %15s \t(%s)\t(%s)\n", "type",
+                   "total", "diff", "rate" );
+        }
+        else
+            printf("%11s, %12s, %8s, %s\n",
+                   "record_type", "total", "diff", "rate (ops/sec)" );
+
+        /* get diff interval */
+        if ( ListMgr_GetVar( &lmgr, CL_DIFF_INTERVAL, value ) != DB_SUCCESS )
+            interval = 0;
+        else
+            interval = str2int(value);
+
+        for (i = 0; i < CL_LAST; i++)
+        {
+            char varname[256];
+            char varname2[256];
+            char diff_str[256];
+            unsigned long long diff;
+            double rate;
+
+            sprintf( varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i) );
+            sprintf( varname2, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i) );
+
+            rc = ListMgr_GetVar( &lmgr, varname, value );
+            if (rc == DB_NOT_EXISTS )
+                strcpy(value, "0");
+            else if (rc != 0)
+                strcpy(value, "db_error");
+
+            if ((interval > 0) && (ListMgr_GetVar( &lmgr, varname2, diff_str ) == DB_SUCCESS))
+            {
+                diff = str2bigint(diff_str);
+                rate = (0.0+diff)/(0.0+interval);
+            }
+            else
+            {
+                diff = 0;
+                rate = 0.0;
+            }
+
+            if ( CSV(flags) )
+                printf( "%11s, %12s, %8Lu, %8.2f\n",  changelog_type2str(i), value,
+                        diff, rate );
+            else if (diff != 0)
+                printf("                %5s: %15s \t(+%Lu)\t(%.2f/sec)\n",
+                        changelog_type2str(i), value, diff, rate );
+            else
+                printf("                %5s: %15s\n", changelog_type2str(i), value );
+
+        }
+
+        if ( !CSV(flags) )
+            printf( "\n" );
+    }
+#endif
 
     /* max usage */
     rc = ListMgr_GetVar( &lmgr, USAGE_MAX_VAR, value );
@@ -1188,7 +1299,10 @@ void report_fs_info( int flags )
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
     lmgr_iter_opt_t opt;
-    int display_header = 1; 
+    int display_header = 1;
+
+    if (REVERSE(flags))
+        fs_info[0].sort_flag = SORT_DESC;
 
     /* no limit */
     opt.list_count_max = 0;
@@ -1372,7 +1486,6 @@ void report_fs_info( int flags )
         printf( "\nTotal: %Lu entries, %Lu bytes (%s)\n",
                 total_count, total_size, strsz );
     }
-
 }
 
 static inline void set_report_rec_nofilter( report_field_descr_t* ent,
@@ -1422,37 +1535,50 @@ void report_usergroup_info( char *name, int flags )
 
     if (ISSPLITUSERGROUP(flags) && ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
         shift++ ;
     }
     else if (ISSPLITUSERGROUP(flags) && !ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
         shift++;
     }
     else if (ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
     }
     else
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_ASC );
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+                                REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
     }
 
 #ifdef ATTR_INDEX_type
-    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC );
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type,
+                            REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
     field_count++;
 #endif
 
     set_report_rec_nofilter(&user_info[field_count], 0, REPORT_COUNT, SORT_NONE );
+    if (count_min) {
+        user_info[field_count].filter = TRUE;
+        user_info[field_count].filter_compar = MORETHAN;
+        user_info[field_count].filter_value.val_biguint = count_min;
+    }
+
     field_count++;
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
     field_count++;
@@ -1847,7 +1973,7 @@ void report_topdirs( unsigned int count, int flags )
 
     /* order by dircount desc */
     sorttype.attr_index = ATTR_INDEX_dircount;
-    sorttype.order = SORT_DESC;
+    sorttype.order = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
     /* select only the top dirs */
     opt.list_count_max = count;
@@ -1991,7 +2117,7 @@ void report_topsize( unsigned int count, int flags )
 
     /* order by size desc */
     sorttype.attr_index = ATTR_INDEX_size;
-    sorttype.order = SORT_DESC;
+    sorttype.order = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
     /* select only the top size */
     opt.list_count_max = count;
@@ -2202,7 +2328,7 @@ void report_toppurge( unsigned int count, int flags )
 #endif
 
     sorttype.attr_index = ATTR_INDEX_last_access;
-    sorttype.order = SORT_ASC;
+    sorttype.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
 
     /* select only the top size */
     opt.list_count_max = count;
@@ -2343,7 +2469,7 @@ void report_toprmdir( unsigned int count, int flags )
 
     /* order by last_mod asc */
     sorttype.attr_index = ATTR_INDEX_last_mod;
-    sorttype.order = SORT_ASC;
+    sorttype.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
 
     /* select only the top dirs */
     opt.list_count_max = count;
@@ -2451,10 +2577,23 @@ void report_topuser( unsigned int count, int flags )
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
     };
 
+    if (REVERSE(flags))
+        user_info[1].sort_flag = SORT_ASC;
+
     if (SORT_BY_COUNT(flags)) {
         /* replace sort on blocks by sort on count */
         user_info[1].sort_flag = SORT_NONE;
-        user_info[2].sort_flag = SORT_DESC;
+        user_info[2].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
+    } else if (SORT_BY_AVGSIZE(flags)) {
+        /* sort (big files first) */
+        user_info[1].sort_flag = SORT_NONE;
+        user_info[5].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
+    }
+
+    if (count_min) {
+        user_info[2].filter = TRUE;
+        user_info[2].filter_compar = MORETHAN;
+        user_info[2].filter_value.val_biguint = count_min;
     }
 
     /* select only the top users */
@@ -3343,7 +3482,7 @@ int main( int argc, char **argv )
                 toppurge = DEFAULT_TOP_SIZE;
             break;
 
-        case 'r':
+        case OPT_TOPRMDIR:
             if ( optarg )
             {
                 toprmdir = str2int( optarg );
@@ -3417,6 +3556,9 @@ int main( int argc, char **argv )
             }
             break;
 
+        case 'r':
+            flags |= OPT_FLAG_REVERSE;
+            break;
         case 'c':
             flags |= OPT_FLAG_CSV;
             break;
@@ -3440,6 +3582,13 @@ int main( int argc, char **argv )
         case OPT_BY_COUNT:
             flags |= OPT_FLAG_BY_COUNT;
             break;
+        case OPT_BY_AVGSIZE:
+            flags |= OPT_FLAG_BY_AVGSIZE;
+            break;
+        case OPT_COUNT_MIN:
+            count_min = atoi(optarg);
+            break;
+
         case ':':
         case '?':
         default:

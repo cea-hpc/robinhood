@@ -652,7 +652,7 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 #define SCAN_INTERVAL_VAR   "ScanInterval"
 #define NEXT_MAINT_VAR      "NextMaintenance"
 
-// For statistics
+// Scan statistics
 #define LAST_SCAN_START_TIME  "LastScanStartTime"
 #define LAST_SCAN_END_TIME    "LastScanEndTime"
 #define LAST_SCAN_PROCESSING_END_TIME "LastScanProcessingEndTime"
@@ -672,6 +672,14 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 #define SCAN_STATUS_RUNNING   "running"
 #define SCAN_STATUS_ABORTED   "aborted"
 #define SCAN_STATUS_PARTIAL   "partial"
+
+// Changelog statitics
+#define CL_LAST_READ_ID       "ChangelogLastId"
+#define CL_LAST_READ_TIME     "ChangelogLastTime"
+#define CL_LAST_COMMITTED     "ChangelogLastCommit"
+#define CL_COUNT_PREFIX       "ChangelogCount" /* variable is <prefix>_<event_name> */
+#define CL_DIFF_INTERVAL      "ChangelogDiffInt"
+#define CL_DIFF_PREFIX       "ChangelogDiff" /* variable is <prefix>_<event_name> */
 
 #define MAX_VAR_LEN     1024
 /**
