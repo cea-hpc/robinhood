@@ -3143,12 +3143,14 @@ function run_test
 			echo "(TEST #$index : skipped)" >> $SUMMARY
 			SKIP=$(($SKIP+1))
 		elif (( $NB_ERROR > 0 )); then
+			grep "Failed" $CLEAN 2>/dev/null
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
 			RC=$(($RC+1))
 			if (( $junit )); then
 				junit_report_failure "robinhood.$PURPOSE.Lustre" "Test #$index: $args" "$dur" "ERROR" 
 			fi
 		else
+			grep "Failed" $CLEAN 2>/dev/null
 			echo "TEST #$index : OK" >> $SUMMARY
 			SUCCES=$(($SUCCES+1))
 			if (( $junit )); then

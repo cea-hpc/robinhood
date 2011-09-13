@@ -98,6 +98,7 @@ static int is_retryable( int sql_err )
 int db_connect( db_conn_t * conn )
 {
     my_bool        reconnect = 1;
+    unsigned int retry = 0;
 
     /* Connect to database */
     if ( mysql_init( conn ) == NULL )
@@ -114,18 +115,31 @@ int db_connect( db_conn_t * conn )
     conn->reconnect = 1;
 #endif
 
-    /* connect to server */
-    if ( !mysql_real_connect
-         ( conn, lmgr_config.db_config.server, lmgr_config.db_config.user,
-           lmgr_config.db_config.password, lmgr_config.db_config.db, 
-           lmgr_config.db_config.port,
-           EMPTY_STRING(lmgr_config.db_config.socket)?
-                        NULL:lmgr_config.db_config.socket,
-           0 ) )
-    {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to connect to MySQL: Error: %s", mysql_error( conn ) );
-        return DB_CONNECT_FAILED;
+    while(1) {
+        /* connect to server */
+        if ( !mysql_real_connect
+             ( conn, lmgr_config.db_config.server, lmgr_config.db_config.user,
+               lmgr_config.db_config.password, lmgr_config.db_config.db, 
+               lmgr_config.db_config.port,
+               EMPTY_STRING(lmgr_config.db_config.socket)?
+                            NULL:lmgr_config.db_config.socket,
+               0 ) )
+        {
+            if ((retry < 3) && is_retryable(mysql_errno(conn))) {
+                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                            "Failed to connect to MySQL: Error: %s. Retrying...", mysql_error( conn ) );
+                retry ++;
+                sleep(1);
+            }
+            else
+            {
+                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                            "Failed to connect to MySQL: Error: %s. Aborting.", mysql_error( conn ) );
+                return DB_CONNECT_FAILED;
+            }
+        }
+        else /* OK */
+            break;
     }
 
     /* Note [MySQL reference guide]: mysql_real_connect()  incorrectly reset
