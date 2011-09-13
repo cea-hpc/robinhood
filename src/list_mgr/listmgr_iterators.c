@@ -78,8 +78,10 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             sort_table = T_STRIPE_INFO;
         else if ( field_infos[p_sort_type->attr_index].db_type == DB_STRIPE_ITEMS )
             sort_table = T_STRIPE_ITEMS;
+#ifdef ATTR_INDEX_dircount
         else if ( p_sort_type->attr_index == ATTR_INDEX_dircount )
             sort_dircount = 1;
+#endif
         else
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid field for sort order (index=%d)", p_sort_type->attr_index );
@@ -442,6 +444,7 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
         /* Idem */
         rc = listmgr_get_by_pk( p_iter->p_mgr, pk, p_info );
 
+#ifdef ATTR_INDEX_dircount
         if ( idstr[1] != NULL )
         {
             /* clear attrs on error */
@@ -452,7 +455,9 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
            ATTR_MASK_SET(p_info, dircount);
            rc = 0;
         }
-        else if ( rc == DB_NOT_EXISTS )
+        else
+#endif
+        if ( rc == DB_NOT_EXISTS )
             entry_disappeared = TRUE;
     }
     while ( entry_disappeared );        /* goto next record if entry desappered */

@@ -22,6 +22,7 @@
 #include "listmgr_stripe.h"
 #include "database.h"
 #include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,29 +64,55 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
     return rc;
 }
 
-#ifdef ATTR_INDEX_dircount
-static int listmgr_get_dircount( lmgr_t * p_mgr, PK_ARG_T dir_pk, unsigned int *dircount )
+/** retrieve directory attributes (nbr of entries, avg size of entries)*/
+static int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs )
 {
+    if (ATTR_MASK_TEST( p_attrs, type) &&  (strcmp( ATTR(p_attrs, type), STR_TYPE_DIR ) != 0))
+    {
+        DisplayLog( LVL_FULL, LISTMGR_TAG, "Type='%s' != 'dir' => unsetting dirattrs in attr mask",
+                    ATTR(p_attrs, type) );
+        p_attrs->attr_mask &= ~dir_attr_set;
+        return 0;
+    }
+#ifdef ATTR_INDEX_dircount
     char            query[1024];
     result_handle_t result;
-    char            *str_count;
+    char            *str_info[2];
     int rc;
+    int       tmp_val;
+    long long tmp_long; 
 
-    sprintf( query, "SELECT count(*) FROM "MAIN_TABLE" where parent_id="DPK, dir_pk );
+    sprintf( query, "SELECT count(*), avg(size) FROM "MAIN_TABLE" where parent_id="DPK, dir_pk );
     rc = db_exec_sql( &p_mgr->conn, query, &result );
     if ( rc )
         return rc;
 
-    rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
+    rc = db_next_record( &p_mgr->conn, &result, str_info, 2 );
     if ( rc )
         return rc;
-    if ( str_count == NULL )
+    if ((str_info[0] == NULL) || (str_info[1] == NULL))
         return DB_REQUEST_FAILED;
 
-    *dircount = atoi(str_count);
+    tmp_val = str2int(str_info[0]);
+    if (tmp_val != -1)
+    {
+        ATTR_MASK_SET(p_attrs, dircount);
+        ATTR( p_attrs, dircount ) = tmp_val;
+    }
+    else
+        ATTR_MASK_UNSET(p_attrs, dircount);
+
+    tmp_long = str2bigint(str_info[1]);
+    if (tmp_long != -1LL)
+    {
+        ATTR_MASK_SET(p_attrs, avgsize);
+        ATTR( p_attrs, avgsize ) = tmp_long;
+    }
+    else
+        ATTR_MASK_UNSET(p_attrs, avgsize);
+#endif
     return 0;
 }
-#endif
 
 /**
  *  Retrieve entry attributes from its primary key
@@ -169,7 +196,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     }
 
     /* get stripe info if asked */
-    if ( ATTR_MASK_TEST( p_info, stripe_info ) || ATTR_MASK_TEST( p_info, stripe_items ) )
+    if (stripe_fields( p_info->attr_mask ))
     {
         rc = get_stripe_info( p_mgr, pk, &ATTR( p_info, stripe_info ),
                               ATTR_MASK_TEST( p_info, stripe_items ) ? &ATTR( p_info,
@@ -186,24 +213,15 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
             return rc;
     }
 
-#ifdef ATTR_INDEX_dircount
     /* special field dircount */
-    if (ATTR_MASK_TEST( p_info, dircount ))
+    if (dirattr_fields( p_info->attr_mask ))
     {
-        /* dircount is only for directories */
-        if (ATTR_MASK_TEST( p_info, type) &&  (strcmp( ATTR(p_info, type), STR_TYPE_DIR ) != 0))
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Type='%s' != 'dir' => unsetting dircount in attr mask",
-                        ATTR(p_info, type) );
-            ATTR_MASK_UNSET(p_info, dircount);
-        }
-        else if (listmgr_get_dircount(p_mgr, pk, &ATTR(p_info, dircount)))
+        if (listmgr_get_dirattrs(p_mgr, pk, p_info))
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dircount failed for "DPK, pk );
-            ATTR_MASK_UNSET(p_info, dircount);
+            p_info->attr_mask &= ~dir_attr_set;
         }
     }
-#endif
 
     /* compute generated fields if asked */
     generate_fields( p_info );

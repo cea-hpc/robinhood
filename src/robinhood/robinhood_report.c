@@ -193,7 +193,7 @@ static struct option option_tab[] = {
 
     {"classinfo", optional_argument, NULL, OPT_CLASS_INFO},
     {"class-info", optional_argument, NULL, OPT_CLASS_INFO},
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_dircount
     {"topdirs", optional_argument, NULL, 'd'},
     {"top-dirs", optional_argument, NULL, 'd'},
 #endif
@@ -280,7 +280,7 @@ static const char *help_string =
     "        Display user statistics. Use optional parameter " _U "user" U_ " for retrieving stats about a single user.\n"
     "    " _B "--group-info" B_ " [=" _U "group" U_ "], " _B "-g" B_ " " _U "group" U_ "\n"
     "        Display group statistics. Use optional parameter " _U "group" U_ " for retrieving stats about a single group.\n"
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_dircount
     "    " _B "--top-dirs" B_ " [=" _U "count" U_ "], " _B "-d" B_ " " _U "count" U_ "\n"
     "        Display largest directories. Optional argument indicates the number of directories to be returned (default: 20).\n"
 #endif
@@ -1156,7 +1156,7 @@ void report_fs_info( int flags )
     filter_value_t fv;
 #endif
 
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
+#ifdef ATTR_INDEX_status
 #define FSINFOCOUNT 6
 #else
 #define FSINFOCOUNT 5
@@ -1171,13 +1171,13 @@ void report_fs_info( int flags )
      * - MIN/MAX/SUM dircount
      */
     report_field_descr_t fs_info[FSINFOCOUNT] = {
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
+#ifdef  ATTR_INDEX_status
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #else
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-#if defined( _LUSTRE_HSM ) || defined( _SHERPA ) || defined(_HSM_LITE)
+#ifdef  ATTR_INDEX_status
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
 #endif
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
@@ -1447,7 +1447,7 @@ void report_usergroup_info( char *name, int flags )
         field_count++;
     }
 
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_type
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC );
     field_count++;
 #endif
@@ -1817,7 +1817,7 @@ void report_usergroup_info( char *name, int flags )
 
 }
 
-#ifndef _LUSTRE_HSM             /* dirs are not considered for LUSTRE_HSM */
+#ifdef ATTR_INDEX_dircount
 void report_topdirs( unsigned int count, int flags )
 {
     /* To be retrieved for dirs:
@@ -1858,6 +1858,7 @@ void report_topdirs( unsigned int count, int flags )
     ATTR_MASK_SET( &attrs, owner );
     ATTR_MASK_SET( &attrs, gr_name );
     ATTR_MASK_SET( &attrs, dircount );
+    ATTR_MASK_SET( &attrs, avgsize );
     ATTR_MASK_SET( &attrs, last_mod );
 
     mask_sav = attrs.attr_mask;
@@ -1874,7 +1875,7 @@ void report_topdirs( unsigned int count, int flags )
     }
 
     if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%3s, %-40s, %6s, %10s, %10s, %s\n", "rank", "path", "dircount", "owner", "group",
+        printf( "%3s, %-40s, %6s, %10s, %10s, %10s, %s\n", "rank", "path", "dircount", "avg_size", "owner", "group",
                 "last_mod" );
 
     index = 0;
@@ -1927,8 +1928,9 @@ void report_topdirs( unsigned int count, int flags )
             date[0] = '\0';
 
         if ( CSV(flags) )
-            printf( "%3u, %-40s, %6u, %10s, %10s, %s\n", index, name,
+            printf( "%3u, %-40s, %6u, %10"PRIu64", %10s, %10s, %s\n", index, name,
                     ATTR( &attrs, dircount ),
+                    ATTR_MASK_TEST( &attrs, avgsize )? ATTR( &attrs, avgsize ):0,
                     ATTR_MASK_TEST( &attrs, owner )? ATTR( &attrs, owner ): "",
                     ATTR_MASK_TEST( &attrs, gr_name )? ATTR( &attrs, gr_name ): "",
                     date );
@@ -1938,6 +1940,8 @@ void report_topdirs( unsigned int count, int flags )
             printf( "Rank:              %u\n", index );
             printf( "%s         %s\n", title, name );
             printf( "Dircount:          %u\n", ATTR( &attrs, dircount ) );
+            FormatFileSize( buff, 128, ATTR( &attrs, avgsize ) ),
+            printf( "Avg entry size:    %s (%"PRIu64" bytes)\n", buff, ATTR( &attrs, avgsize ) );
             if (ATTR_MASK_TEST(&attrs, last_mod))
                 printf( "Last modification: %s\n", date );
             if (ATTR_MASK_TEST(&attrs, owner) && ATTR_MASK_TEST(&attrs, gr_name))
@@ -3110,7 +3114,7 @@ int main( int argc, char **argv )
 
     int            class_info = FALSE;
 
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_dircount
     int            topdirs = 0;
 #endif
     int            topsize = 0;
@@ -3289,7 +3293,7 @@ int main( int argc, char **argv )
             break;
 #endif
 
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_dircount
         case 'd':
             if ( optarg )
             {
@@ -3455,7 +3459,9 @@ int main( int argc, char **argv )
     if ( !activity && !fs_info && !user_info && !group_info
          && !topsize && !toppurge && !topuser && !dump_all
          && !dump_user && !dump_group && !class_info
+#ifdef ATTR_INDEX_dircount
          && !topdirs
+#endif
 #ifdef ATTR_INDEX_status
          && !dump_status
 #endif
@@ -3562,7 +3568,7 @@ int main( int argc, char **argv )
     if ( class_info )
         report_class_info(flags);
 
-#ifndef _LUSTRE_HSM
+#ifdef ATTR_INDEX_dircount
     if ( topdirs )
         report_topdirs( topdirs, flags );
 #endif

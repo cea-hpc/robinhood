@@ -108,7 +108,8 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
 parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
-dircount, 	unsigned int, DB_UINT, 0, GENERATED | SPECIAL_GEN, type, NULL
+dircount, 	    unsigned int,  DB_UINT,        0, DIR_ATTR, type, NULL
+avgsize, 	    uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 
 stripe_info, 	stripe_info_t, DB_STRIPE_INFO, 0, INIT_ONLY
 stripe_items, stripe_items_t, DB_STRIPE_ITEMS, 0, INIT_ONLY

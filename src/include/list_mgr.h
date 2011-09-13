@@ -84,7 +84,7 @@ typedef struct stripe_items_t
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
 #define INDEXED      0x20000000 /* this field must be indexed */
-#define SPECIAL_GEN  0x40000000 /* like generated field, but using a special DB request */
+#define DIR_ATTR     0x40000000 /* need to aggregate directory info (specific DB request) */
 
 /** type of fields in database */
 typedef enum

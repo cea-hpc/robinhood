@@ -80,6 +80,7 @@ extern int     main_attr_set;
 extern int     annex_attr_set;
 extern int     gen_attr_set;
 extern int     stripe_attr_set;
+extern int     dir_attr_set;
 extern int     acct_attr_set;
 extern int     acct_pk_attr_set;
 
@@ -92,6 +93,7 @@ void           init_attrset_masks(  );
 #define gen_fields( _attr_mask )       ( (_attr_mask) & gen_attr_set )
 #define stripe_fields( _attr_mask )    ( (_attr_mask) & stripe_attr_set )
 #define readonly_fields( _attr_mask )  ( (_attr_mask) & readonly_attr_set )
+#define dirattr_fields( _attr_mask )   ( (_attr_mask) & dir_attr_set )
 
 /* these 2 functions can only be used after init_attrset_masks() has been called */
 #define is_acct_field( _attr_index ) \
@@ -102,7 +104,7 @@ void           init_attrset_masks(  );
 /* ------------ */
 
 #define is_read_only_field( _attr_index ) \
-                ( field_infos[_attr_index].flags & GENERATED )
+                ( (field_infos[_attr_index].flags & GENERATED) || (field_infos[_attr_index].flags & DIR_ATTR) )
 
 #define is_stripe_field( _attr_index ) \
                 ( ( field_infos[_attr_index].db_type == DB_STRIPE_INFO ) || ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS ) )
@@ -110,7 +112,8 @@ void           init_attrset_masks(  );
 #define is_main_field( _attr_index ) \
                 ( (!annex_table || ( field_infos[_attr_index].flags & FREQ_ACCESS )) \
                   && !is_stripe_field( _attr_index ) \
-                  && !(field_infos[_attr_index].flags & GENERATED) )
+                  && !(field_infos[_attr_index].flags & GENERATED) \
+                  && !(field_infos[_attr_index].flags & DIR_ATTR) )
 
 #define is_gen_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & GENERATED )
@@ -121,7 +124,10 @@ void           init_attrset_masks(  );
 #define is_annex_field( _attr_index ) \
                 ( annex_table && ( field_infos[_attr_index].flags & ( ANNEX_INFO | INIT_ONLY ) ) \
                   && !is_stripe_field( _attr_index ) \
-                  && !(field_infos[_attr_index].flags & GENERATED) )
+                  && !(field_infos[_attr_index].flags & GENERATED) \
+                  && !(field_infos[_attr_index].flags & DIR_ATTR) )
+
+#define is_dirattr( _attr_index )  ( field_infos[_attr_index].flags & DIR_ATTR )
 
 #ifdef _HSM_LITE
 #define is_recov_field( _attr_index ) \

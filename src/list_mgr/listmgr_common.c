@@ -119,6 +119,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 int            main_attr_set = 0;
 int            annex_attr_set = 0;
 int            stripe_attr_set = 0;
+int            dir_attr_set = 0;
 int            readonly_attr_set = 0;
 int            gen_attr_set = 0;
 int            acct_attr_set = 0;
@@ -136,6 +137,7 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     readonly_attr_set = 0;
     acct_pk_attr_set = 0;
     acct_attr_set = 0;
+    dir_attr_set = 0;
 
     if ( lmgr_config->user_acct )
         acct_pk_attr_set |= ATTR_MASK_owner;
@@ -169,6 +171,8 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
             annex_attr_set |= mask;
         else if ( is_stripe_field( i ) )
             stripe_attr_set |= mask;
+        else if ( is_dirattr( i ) )
+            dir_attr_set |= mask;
     }
 
 }
@@ -185,7 +189,8 @@ void add_source_fields_for_gen( int * attr_mask )
     /* add attr mask for source info of generated fields */
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
-        if ( ((*attr_mask) & mask) && (field_infos[i].flags & GENERATED)
+        if ( ((*attr_mask) & mask)
+             && ((field_infos[i].flags & GENERATED) || (field_infos[i].flags & DIR_ATTR))
              && (field_infos[i].gen_index != -1) )
         {
            (*attr_mask) |= (1 << field_infos[i].gen_index);
@@ -201,7 +206,7 @@ void           generate_fields( attr_set_t * p_set )
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
-        if ( ( p_set->attr_mask & mask) && (field_infos[i].flags & GENERATED) && !(field_infos[i].flags & SPECIAL_GEN) )
+        if ( ( p_set->attr_mask & mask) && (field_infos[i].flags & GENERATED) )
         {
            void * src_data;
            void * tgt_data;
@@ -740,9 +745,9 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
             fname[0] = '\0';
 
             /* filter on generated fields are not allowed */
-            if ( field_infos[index].flags & SPECIAL_GEN )
+            if ( field_infos[index].flags & DIR_ATTR )
             {
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "Special generated filter on '%s'", field_infos[index].field_name );
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on dir attribute '%s'", field_infos[index].field_name );
                 continue;
             }
             else if ( field_infos[index].flags & GENERATED )
