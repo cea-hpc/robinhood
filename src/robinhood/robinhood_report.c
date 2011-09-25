@@ -1971,8 +1971,13 @@ void report_topdirs( unsigned int count, int flags )
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
-    /* order by dircount desc */
-    sorttype.attr_index = ATTR_INDEX_dircount;
+    
+    if (SORT_BY_AVGSIZE(flags))
+        sorttype.attr_index = ATTR_INDEX_avgsize;
+    else
+        /* default: order by dircount */
+        sorttype.attr_index = ATTR_INDEX_dircount;
+
     sorttype.order = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
     /* select only the top dirs */
@@ -1984,6 +1989,7 @@ void report_topdirs( unsigned int count, int flags )
     ATTR_MASK_SET( &attrs, owner );
     ATTR_MASK_SET( &attrs, gr_name );
     ATTR_MASK_SET( &attrs, dircount );
+    ATTR_MASK_SET( &attrs, avgsize );
     ATTR_MASK_SET( &attrs, avgsize );
     ATTR_MASK_SET( &attrs, last_mod );
 

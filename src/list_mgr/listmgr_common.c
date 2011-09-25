@@ -878,6 +878,20 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
     return nbfields;
 }                               /* filter2str */
 
+const char * dirattr2str( unsigned int attr_index )
+{
+    switch (attr_index)
+    {
+        case ATTR_INDEX_dircount:
+            return "COUNT(*)";
+        case ATTR_INDEX_avgsize:
+            return "ROUND(AVG(size),0)";
+        default:
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected attr index %u in %s", attr_index, __func__ );
+            return NULL;
+    }
+}
+
 
 /* special masks values for id2pk and pk2id */
 #define MASK_ID2PK  0

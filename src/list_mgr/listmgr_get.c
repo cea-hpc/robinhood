@@ -82,7 +82,8 @@ static int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p
     int       tmp_val;
     long long tmp_long; 
 
-    sprintf( query, "SELECT count(*), avg(size) FROM "MAIN_TABLE" where parent_id="DPK, dir_pk );
+    sprintf( query, "SELECT %s, %s FROM "MAIN_TABLE" WHERE parent_id="DPK,
+             dirattr2str(ATTR_INDEX_dircount), dirattr2str(ATTR_INDEX_avgsize), dir_pk );
     rc = db_exec_sql( &p_mgr->conn, query, &result );
     if ( rc )
         return rc;
