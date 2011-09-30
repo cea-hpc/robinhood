@@ -305,6 +305,8 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         else
             strcpy( new_str, p_comp->val.str );
 
+        /* XXX this won't match the root entry */
+
         /* is a / needed ? */
         if ( !FINAL_SLASH(new_str) )
         {
@@ -480,6 +482,12 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         rc = TestPathRegexp( p_triplet->val.str, rep, PATHREGEXP_IS_CHILD |
                               ((p_triplet->flags & CMP_FLG_ANY_LEVEL)?
                                     PATHREGEXP_ANY_LEVEL:0) ) ;
+        if ( !rc ) /* try matching root */
+        {
+            rc = TestPathRegexp( p_triplet->val.str, ATTR( p_entry_attr, fullpath ),
+                              ((p_triplet->flags & CMP_FLG_ANY_LEVEL)?
+                                    PATHREGEXP_ANY_LEVEL:0) ) ;
+        }
 
 #ifdef _DEBUG_POLICIES
         if ( rc )

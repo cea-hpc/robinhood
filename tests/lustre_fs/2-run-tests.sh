@@ -1292,6 +1292,7 @@ function path_test
 
 	mkdir -p $ROOT/one_dir/dir3
 	mkdir -p $ROOT/other_dir/dir3
+	mkdir -p $ROOT/yetanother_dir
 	mkdir -p $ROOT/dir3
 	mkdir -p $ROOT/one_dir/one_dir/dir3
 	# 2 matching files for fileclass path_depth2
@@ -1305,9 +1306,10 @@ function path_test
 	mkdir -p $ROOT/other_dir/dir4/subdir1
 	mkdir -p $ROOT/dir4
 	mkdir -p $ROOT/one_dir/one_dir/dir4
-	# 2 matching files for fileclass tree_depth2
+	# 3 matching files for fileclass tree_depth2
 	echo "data" > $ROOT/one_dir/dir4/subdir1/X
 	echo "data" > $ROOT/other_dir/dir4/subdir1/X
+    echo "data" > $ROOT/yetanother_dir/dir4 # tree root should match too!
 	# unmatching files for fileclass tree_depth2
 	echo "data" > $ROOT/dir4/X
 	echo "data" > $ROOT/one_dir/one_dir/dir4/X
@@ -1323,9 +1325,10 @@ function path_test
 
 	mkdir -p $ROOT/dir6/subdir
 	mkdir -p $ROOT/subdir/dir6
-	# 2 matching files for fileclass relative_tree
+	# 3 matching files for fileclass relative_tree
 	echo "data" > $ROOT/dir6/A
 	echo "data" > $ROOT/dir6/subdir/A
+    echo "data" > $ROOT/file.6 # tree root should match too!
 	# 2 unmatching files for fileclass relative_tree
 	echo "data" > $ROOT/subdir/dir6/A
 	echo "data" > $ROOT/subdir/dir6/B
@@ -1335,9 +1338,10 @@ function path_test
 	mkdir -p $ROOT/dir71/subdir
 	mkdir -p $ROOT/subdir/subdir/dir7
 	mkdir -p $ROOT/subdir/subdir/dir72
-	# 2 matching files for fileclass any_root_tree
+	# 3 matching files for fileclass any_root_tree
 	echo "data" > $ROOT/dir7/subdir/file
 	echo "data" > $ROOT/subdir/subdir/dir7/file
+    echo "data" > $ROOT/yetanother_dir/dir7 # tree root should match too!
 	# 2 unmatching files for fileclass any_root_tree
 	echo "data" > $ROOT/dir71/subdir/file
 	echo "data" > $ROOT/subdir/subdir/dir72/file
@@ -1356,9 +1360,10 @@ function path_test
 	mkdir -p $ROOT/dir9/subdir/dir10/subdir
 	mkdir -p $ROOT/dir9/subdir/dir10x/subdir
 	mkdir -p $ROOT/dir91/subdir/dir10
-	# 2 matching files for fileclass any_level_tree
+	# 3 matching files for fileclass any_level_tree
 	echo "data" > $ROOT/dir9/subdir/dir10/file
 	echo "data" > $ROOT/dir9/subdir/dir10/subdir/file
+	echo "data" > $ROOT/dir9/subdir/dir10x/dir10  # tree root should match too!
 	# 2 unmatching files for fileclass any_level_tree
 	echo "data" > $ROOT/dir9/subdir/dir10x/subdir/file
 	echo "data" > $ROOT/dir91/subdir/dir10/file
@@ -1408,19 +1413,19 @@ function path_test
 	(( $nb_pol1 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'absolute_path': $nb_pol1"
 	(( $nb_pol2 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'absolute_tree': $nb_pol2"
 	(( $nb_pol3 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'path_depth2': $nb_pol3"
-	(( $nb_pol4 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'tree_depth2': $nb_pol4"
+	(( $nb_pol4 == 3 )) || error "********** TEST FAILED: wrong count of matching files for policy 'tree_depth2': $nb_pol4"
 	(( $nb_pol5 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'relative_path': $nb_pol5"
-	(( $nb_pol6 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'relative_tree': $nb_pol6"
+	(( $nb_pol6 == 3 )) || error "********** TEST FAILED: wrong count of matching files for policy 'relative_tree': $nb_pol6"
 
-	(( $nb_pol7 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_root_tree': $nb_pol7"
+	(( $nb_pol7 == 3 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_root_tree': $nb_pol7"
 	(( $nb_pol8 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_root_path': $nb_pol8"
-	(( $nb_pol9 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_level_tree': $nb_pol9"
+	(( $nb_pol9 == 3 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_level_tree': $nb_pol9"
 	(( $nb_pol10 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'any_level_tree': $nb_pol10"
 	(( $nb_unmatch == 19 )) || error "********** TEST FAILED: wrong count of unmatching files: $nb_unmatch"
 
-	(( $nb_pol1 == 2 )) && (( $nb_pol2 == 2 )) && (( $nb_pol3 == 2 )) && (( $nb_pol4 == 2 )) \
-        	&& (( $nb_pol5 == 2 )) && (( $nb_pol6 == 2 )) && (( $nb_pol7 == 2 )) \
-		&& (( $nb_pol8 == 2 )) && (( $nb_pol9 == 2 )) && (( $nb_pol10 == 2 )) \
+	(( $nb_pol1 == 2 )) && (( $nb_pol2 == 2 )) && (( $nb_pol3 == 2 )) && (( $nb_pol4 == 3 )) \
+        	&& (( $nb_pol5 == 2 )) && (( $nb_pol6 == 3 )) && (( $nb_pol7 == 3 )) \
+		&& (( $nb_pol8 == 2 )) && (( $nb_pol9 == 3 )) && (( $nb_pol10 == 2 )) \
 		&& (( $nb_unmatch == 19 )) \
 		&& echo "OK: test successful"
 }
