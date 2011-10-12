@@ -1548,9 +1548,14 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 #endif
 #endif
 
+#ifdef HAVE_MIGR_POLICY
+    /* check whitelisted fileclasses for migration */
+    ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
+    _IsWhitelisted( p_id, p_attrs, MIGR_POLICY, TRUE );
+#endif
+
     if ( match_all_fc )
     {
-
 #ifdef HAVE_PURGE_POLICY
         if ( need_fileclass_update( p_attrs, PURGE_POLICY ) == TRUE )
         {
@@ -1575,8 +1580,6 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 #endif
 
 #ifdef HAVE_MIGR_POLICY
-        ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
-
         if ( need_fileclass_update( p_attrs, MIGR_POLICY ) == TRUE )
         {
             policy_item_t *policy_case = NULL;

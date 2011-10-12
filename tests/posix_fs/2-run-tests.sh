@@ -49,7 +49,7 @@ function error
 	((ERROR=$ERROR+1))
 
 	if (($junit)); then
-	 	grep -i error *.log >> $TMPERR_FILE
+	 	grep -i error *.log | grep -v "(0 errors)" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
 }

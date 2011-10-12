@@ -101,11 +101,11 @@ function error_reset
 function error
 {
 	echo "ERROR $@"
- 	grep -i error *.log
+ 	grep -i error *.log | grep -v "(0 errors)"
 	NB_ERROR=$(($NB_ERROR+1))
 
 	if (($junit)); then
-	 	grep -i error *.log >> $TMPERR_FILE
+	 	grep -i error *.log | grep -v "(0 errors)" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
 }
@@ -1636,6 +1636,209 @@ function periodic_class_match_migr
         (( $nb_valid == 0 )) && (( $nb_updt == 4 )) \
 		&& echo "OK: all fileclasses updated"
 }
+
+function policy_check_migr
+{
+    # check that migr fileclasses are properly matched at scan time,
+    # then at application time
+	config_file=$1
+	update_period=$2
+	policy_str="$3"
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	#create test tree
+	touch $ROOT/ignore1
+	touch $ROOT/whitelist1
+	touch $ROOT/migrate1
+	touch $ROOT/default1
+
+    echo "1. scan..."
+	# scan
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
+    # check that all files have been properly matched
+
+    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+    st1=`grep ignore1 report.out | cut -d ',' -f 6 | tr -d ' '`
+    st2=`grep whitelist1 report.out  | cut -d ',' -f 6 | tr -d ' '`
+    st3=`grep migrate1 report.out  | cut -d ',' -f 6 | tr -d ' '`
+    st4=`grep default1 report.out  | cut -d ',' -f 6 | tr -d ' '`
+
+    [ "$st1" = "to_be_ignored" ] || error "file should be in class 'to_be_ignored'"
+    [ "$st2" = "[ignored]" ] || error "file should be in class '[ignored]'"
+    [ "$st3" = "to_be_migr" ] || error "file should be in class 'to_be_migr'"
+    [ "$st4" = "[default]" ] || error "file should be in class '[default]'"
+
+    echo "2. migrate..."
+
+	# now apply policies
+	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || error "running migration"
+
+    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+    st1=`grep ignore1 report.out | cut -d ',' -f 6 | tr -d ' '`
+    st2=`grep whitelist1 report.out  | cut -d ',' -f 6 | tr -d ' '`
+    st3=`grep migrate1 report.out  | cut -d ',' -f 6 | tr -d ' '`
+    st4=`grep default1 report.out  | cut -d ',' -f 6 | tr -d ' '`
+
+    [ "$st1" = "to_be_ignored" ] || error "file should be in class 'to_be_ignored'"
+    [ "$st2" = "[ignored]" ] || error "file should be in class '[ignored]'"
+    [ "$st3" = "to_be_migr" ] || error "file should be in class 'to_be_migr'"
+    [ "$st4" = "[default]" ] || error "file should be in class '[default]'"
+
+	#we must have 4 lines like this: "Need to update fileclass (not set)"
+	nb_migr_match=`grep "matches the condition for policy 'migr_match'" rh_migr.log | wc -l`
+	nb_default=`grep "matches the condition for policy 'default'" rh_migr.log | wc -l`
+
+	(( $nb_migr_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'migr_match': $nb_migr_match"
+	(( $nb_default == 1 )) || error "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
+
+    (( $nb_migr_match == 1 )) && (( $nb_default == 1 )) \
+		&& echo "OK: initial fileclass matching successful"
+
+	# rematch entries
+	clean_logs
+	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || error "running $RH --migrate"
+
+	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_migr.log | wc -l`
+	nb_migr_valid=`grep "fileclass 'to_be_migr' is still valid" rh_migr.log | wc -l`
+	nb_updt=`grep "Need to update fileclass" rh_migr.log | wc -l`
+
+	(( $nb_default_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for default policy: $nb_default_valid"
+	(( $nb_migr_valid == 1 )) || error "********** TEST FAILED: wrong count of cached fileclass for 'migr_match' : $nb_migr_valid"
+	(( $nb_updt == 0 )) || error "********** TEST FAILED: no expected fileclass update: $nb_updt updated"
+
+        (( $nb_updt == 0 )) && (( $nb_default_valid == 1 )) && (( $nb_migr_valid == 1 )) \
+		&& echo "OK: fileclasses do not need update"
+	
+    # check effectively migrated files
+    m1_arch=`grep Archived rh_migr.log | grep migrate1 | wc -l`
+    d1_arch=`grep Archived rh_migr.log | grep default1 | wc -l`
+    w1_arch=`grep Archived rh_migr.log | grep whitelist1 | wc -l`
+    i1_arch=`grep Archived rh_migr.log | grep ignore1 | wc -l`
+
+    (( $w1_arch == 0 )) || error "whitelist1 should not have been migrated"
+    (( $i1_arch == 0 )) || error "ignore1 should not have been migrated"
+    (( $m1_arch == 1 )) || error "migrate1 should have been migrated"
+    (( $d1_arch == 1 )) || error "default1 should have been migrated"
+    
+    (( $w1_arch == 0 )) && (( $i1_arch == 0 )) && (( $m1_arch == 1 )) \
+    && (( $d1_arch == 1 )) && echo "OK: All expected files migrated"
+}
+
+function policy_check_purge
+{
+    # check that purge fileclasses are properly matched at scan time,
+    # then at application time
+	config_file=$1
+	update_period=$2
+	policy_str="$3"
+
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+        # no status nor migration state: status field=5
+        stf=5
+    else
+        # status + migration state: status field=7
+        stf=7
+    fi
+
+	clean_logs
+
+	#create test tree
+	touch $ROOT/ignore1
+	touch $ROOT/whitelist1
+	touch $ROOT/purge1
+	touch $ROOT/default1
+
+    echo "1. scan..."
+	# scan
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
+    # check that all files have been properly matched
+
+    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+
+    st1=`grep ignore1 report.out | cut -d ',' -f $stf | tr -d ' '`
+    st2=`grep whitelist1 report.out  | cut -d ',' -f $stf | tr -d ' '`
+    st3=`grep purge1 report.out  | cut -d ',' -f $stf | tr -d ' '`
+    st4=`grep default1 report.out  | cut -d ',' -f $stf | tr -d ' '`
+
+    [ "$st1" = "to_be_ignored" ] || error "file should be in class 'to_be_ignored'"
+    [ "$st2" = "[ignored]" ] || error "file should be in class '[ignored]'"
+    [ "$st3" = "to_be_released" ] || error "file should be in class 'to_be_released'"
+    [ "$st4" = "[default]" ] || error "file should be in class '[default]'"
+
+    if (( $is_lhsm + $is_hsmlite > 0 )); then
+        echo "1bis. migrate..."
+
+        # now apply policies
+        $RH -f ./cfg/$config_file --sync -l FULL -L rh_migr.log --once || error "running migration"
+
+        # check that release class is still correct
+        $REPORT -f ./cfg/$config_file --dump -q  > report.out
+
+        st1=`grep ignore1 report.out | cut -d ',' -f $stf | tr -d ' '`
+        st2=`grep whitelist1 report.out  | cut -d ',' -f $stf | tr -d ' '`
+        st3=`grep purge1 report.out  | cut -d ',' -f $stf | tr -d ' '`
+        st4=`grep default1 report.out  | cut -d ',' -f $stf | tr -d ' '`
+
+        [ "$st1" = "to_be_ignored" ] || error "file should be in class 'to_be_ignored'"
+        [ "$st2" = "[ignored]" ] || error "file should be in class '[ignored]'"
+        [ "$st3" = "to_be_released" ] || error "file should be in class 'to_be_released'"
+        [ "$st4" = "[default]" ] || error "file should be in class '[default]'"
+    fi
+    sleep 1
+    echo "2. purge/release..."
+
+    # now apply policies
+    $RH -f ./cfg/$config_file --purge-fs=0 -l FULL -L rh_purge.log --once || error "running purge"
+
+    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+    st1=`grep ignore1 report.out | cut -d ',' -f $stf | tr -d ' '`
+    st2=`grep whitelist1 report.out  | cut -d ',' -f $stf | tr -d ' '`
+
+    [ "$st1" = "to_be_ignored" ] || error "file should be in class 'to_be_ignored'"
+    [ "$st2" = "[ignored]" ] || error "file should be in class '[ignored]'"
+
+	#we must have 2 lines like this: "Need to update fileclass (not set)"
+	nb_purge_match=`grep "matches the condition for policy 'purge_match'" rh_purge.log | wc -l`
+	nb_default=`grep "matches the condition for policy 'default'" rh_purge.log | wc -l`
+
+	(( $nb_purge_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'purge_match': $nb_purge_match"
+	(( $nb_default == 1 )) || error "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
+
+    (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
+		&& echo "OK: initial fileclass matching successful"
+
+    # check effectively purged files
+    p1_arch=`grep Unlink rh_purge.log | grep purge1 | wc -l`
+    d1_arch=`grep Unlink rh_purge.log | grep default1 | wc -l`
+    w1_arch=`grep Unlink rh_purge.log | grep whitelist1 | wc -l`
+    i1_arch=`grep Unlink rh_purge.log | grep ignore1 | wc -l`
+
+    (( $w1_arch == 0 )) || error "whitelist1 should not have been purged"
+    (( $i1_arch == 0 )) || error "ignore1 should not have been purged"
+    (( $p1_arch == 1 )) || error "purge1 should have been purged"
+    (( $d1_arch == 1 )) || error "default1 should have been purged"
+    
+    (( $w1_arch == 0 )) && (( $i1_arch == 0 )) && (( $p1_arch == 1 )) \
+    && (( $d1_arch == 1 )) && echo "OK: All expected files released"
+
+    # check that purge fileclasses are properly matched at scan time,
+    # then at application time
+    return 0
+}
+
 
 function periodic_class_match_purge
 {
@@ -3206,8 +3409,10 @@ run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
 run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
 run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
 run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
-run_test 208	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
-run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
+run_test 208a	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
+run_test 208b	policy_check_migr test_check_migr.conf 10 "test fileclass matching (migration)"
+run_test 209a	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
+run_test 209b	policy_check_purge test_check_purge.conf 10 "test fileclass matching (purge)"
 run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
 run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
