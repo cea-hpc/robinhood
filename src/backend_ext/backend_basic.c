@@ -378,6 +378,8 @@ int rbhext_get_status( const entry_id_t * p_id,
 
     if ( status != STATUS_SYNCHRO )
     {
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "shook reported status<>online: %d",
+                    status );
         ATTR_MASK_SET( p_attrs_changed, status );
         ATTR( p_attrs_changed, status ) = status;
         return 0;
@@ -519,7 +521,7 @@ int rbhext_get_status( const entry_id_t * p_id,
 #endif
 
         /* compare symlink content */
-        if ( readlink(bkpath, lnk1, RBH_PATH_MAX ) < 0 )
+        if ( (rc = readlink(bkpath, lnk1, RBH_PATH_MAX )) < 0 )
         {
             rc = -errno;
             if ( rc == ENOENT )
@@ -532,13 +534,17 @@ int rbhext_get_status( const entry_id_t * p_id,
             else
                 return rc;
         }
-        if ( readlink(fspath, lnk2, RBH_PATH_MAX ) < 0 )
+        lnk1[rc] = '\0';
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "backend symlink => %s", lnk1 );
+        if ( (rc = readlink(fspath, lnk2, RBH_PATH_MAX )) < 0 )
         {
             rc = -errno;
             DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing readlink(%s): %s",
                         fspath, strerror(-rc) );
             return rc;
         }
+        lnk2[rc] = '\0';
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "FS symlink => %s", lnk2 );
         if ( strcmp(lnk1, lnk2) )
         {
             /* symlink content is different */
