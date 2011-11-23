@@ -233,19 +233,22 @@ static inline unsigned int ack_count( const unsigned int *status_tab )
 }
 
 /* return 0 if limit is not reached, a non null value else */
-static inline int check_migration_limit( unsigned int count, unsigned long long vol )
+static inline int check_migration_limit( unsigned int count, unsigned long long vol,
+                                         int verbose )
 {
     if ( no_limit )
         return 0;
 
     if ( ( migr_config.max_migr_nbr > 0 ) && ( count >= migr_config.max_migr_nbr ) )
     {
-        DisplayLog( LVL_EVENT, MIGR_TAG, "max migration count %u is reached.", migr_config.max_migr_nbr);
+        DisplayLog( verbose ? LVL_EVENT : LVL_DEBUG, MIGR_TAG,
+                    "max migration count %u is reached.", migr_config.max_migr_nbr);
         return 1;
     }
     if ( ( migr_config.max_migr_vol > 0 ) && ( vol >= migr_config.max_migr_vol ) )
     {
-        DisplayLog( LVL_EVENT, MIGR_TAG, "max migration volume %llu is reached.", migr_config.max_migr_vol);
+        DisplayLog( verbose ? LVL_EVENT : LVL_DEBUG, MIGR_TAG,
+                    "max migration volume %llu is reached.", migr_config.max_migr_vol);
         return 1;
     }
     return 0;
@@ -766,7 +769,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
         }
         while ( !check_migration_limit( nb_submitted + migr_count,
-                                        submitted_vol + migr_vol ) );
+                                        submitted_vol + migr_vol, FALSE ) );
 
         /* Wait for end of migration pass */
         wait_queue_empty( nb_submitted, feedback_before, status_tab,
@@ -781,7 +784,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
             break;
 
     }
-    while ( ( !end_of_list ) && !check_migration_limit( migr_count, migr_vol ) );
+    while ( ( !end_of_list ) && !check_migration_limit( migr_count, migr_vol, TRUE ) );
 
     lmgr_simple_filter_free( &filter );
     ListMgr_CloseIterator( it );
