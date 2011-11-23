@@ -1120,8 +1120,7 @@ int main( int argc, char **argv )
     if ( ( action_mask & ACTION_MASK_SCAN ) && !once
          && strcmp( global_config.fs_type, "lustre" ) == 0 )
     {
-        fprintf(stderr, "WARNING: you started a scan without the '--once' option, which will result in\n");
-        fprintf(stderr, "         scanning the filesystem periodically. Is it really what you want?\n");
+        fprintf(stderr, "ADVICE: this filesystem is changelog-capable, you should use changelogs instead of scanning.\n");
     }
 #endif
 
