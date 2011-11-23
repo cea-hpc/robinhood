@@ -27,6 +27,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
+    REL_STR="Releasing"
 elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
@@ -34,6 +35,7 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
 	CMD=robinhood
+    REL_STR="Purged"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
     shook=0
@@ -44,6 +46,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	RECOV="../../src/robinhood/rbh-backup-recov $RBH_OPT"
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
+    REL_STR="Purged"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
 	fi
@@ -57,6 +60,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	RECOV="../../src/robinhood/rbh-shook-recov $RBH_OPT"
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
+    REL_STR="Purged"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
 	fi
@@ -788,11 +792,7 @@ function purge_test
 	# no purge expected here
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
 
-	if (( $is_lhsm != 0 )); then
-	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
-	else
-	        nb_purge=`grep "Purged" rh_purge.log | wc -l`
-	fi
+        nb_purge=`grep $REL_STR rh_purge.log | wc -l`
 
         if (($nb_purge != 0)); then
                 error "********** TEST FAILED: No release actions expected, $nb_purge done"
@@ -806,17 +806,13 @@ function purge_test
 	echo "5-Applying purge policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
 
-	if (( $is_lhsm != 0 )); then
-	        nb_purge=`grep "Releasing" rh_purge.log | wc -l`
-	else
-	        nb_purge=`grep "Purged" rh_purge.log | wc -l`
-	fi
+    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
 
-        if (($nb_purge != $expected_purge)); then
-                error "********** TEST FAILED: $expected_purge release actions expected, $nb_purge done"
-        else
-                echo "OK: $nb_purge files released"
-        fi
+    if (($nb_purge != $expected_purge)); then
+            error "********** TEST FAILED: $expected_purge release actions expected, $nb_purge done"
+    else
+            echo "OK: $nb_purge files released"
+    fi
 
 	# stop RH in background
 #	kill %1
@@ -1821,10 +1817,10 @@ function policy_check_purge
 		&& echo "OK: initial fileclass matching successful"
 
     # check effectively purged files
-    p1_arch=`grep Unlink rh_purge.log | grep purge1 | wc -l`
-    d1_arch=`grep Unlink rh_purge.log | grep default1 | wc -l`
-    w1_arch=`grep Unlink rh_purge.log | grep whitelist1 | wc -l`
-    i1_arch=`grep Unlink rh_purge.log | grep ignore1 | wc -l`
+    p1_arch=`grep $REL_STR rh_purge.log | grep purge1 | wc -l`
+    d1_arch=`grep $REL_STR rh_purge.log | grep default1 | wc -l`
+    w1_arch=`grep $REL_STR rh_purge.log | grep whitelist1 | wc -l`
+    i1_arch=`grep $REL_STR rh_purge.log | grep ignore1 | wc -l`
 
     (( $w1_arch == 0 )) || error "whitelist1 should not have been purged"
     (( $i1_arch == 0 )) || error "ignore1 should not have been purged"
@@ -1949,7 +1945,7 @@ function test_cnt_trigger
     fi
 
 	# initial inode count
-	empty_count=`df -i $ROOT/ | grep "$ROOT" | awk '{print $(NF-3)}'`
+	empty_count=`df -i $ROOT/ | grep "$ROOT" | xargs | awk '{print $(NF-3)}'`
 	(( file_count=$file_count - $empty_count ))
 
 	#create test tree of archived files (1M each)

@@ -1000,7 +1000,7 @@ function test_cnt_trigger
 	clean_logs
 
 	# initial inode count
-	empty_count=`df -i $ROOT/ | grep "$ROOT" | awk '{print $(NF-3)}'`
+	empty_count=`df -i $ROOT/ | grep "$ROOT" | xargs | awk '{print $(NF-3)}'`
 	(( file_count=$file_count - $empty_count ))
 
 	#create test tree of archived files (1M each)
