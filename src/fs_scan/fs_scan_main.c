@@ -559,7 +559,7 @@ int FSScan_WriteConfigTemplate( FILE * output )
 
     print_line( output, 1, "# Min/max intervals for scanning filesystem namespace." );
     print_line( output, 1, "# The interval for scanning is computed according to this formula:" );
-    print_line( output, 1, "# min + (100% - max storage usage)*(max-min)" );
+    print_line( output, 1, "# min + (100%% - max storage usage)*(max-min)" );
     print_line( output, 1,
                 "# so the more the filesystem is full, the more frequently it is scanned." );
 #ifdef _LUSTRE_HSM

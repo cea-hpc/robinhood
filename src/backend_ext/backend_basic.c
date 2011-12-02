@@ -37,6 +37,7 @@
 #include <libgen.h>
 #include <pwd.h>
 #include <grp.h>
+#include <ctype.h>
 
 
 #ifdef HAVE_PURGE_POLICY
@@ -65,6 +66,31 @@ int rbhext_compat_flags()
 
 static backend_config_t config;
 static dev_t backend_dev = 0;
+
+/* is it a special shell character */
+static inline int is_shell_special(char c)
+{
+    static const char * specials = "`#$*?!|;&<>[]{}'\"\\";
+    const char * curr;
+    for (curr = specials; (*curr) != '\0'; curr++)
+        if (c == (*curr))
+            return TRUE;
+    /* not found */
+    return FALSE;
+}
+
+#define is_allowed_char(_c) (isascii(_c) && !isspace(_c) && !is_shell_special(_c))
+
+/* clean non ascii characters, spaces, special chars, ... */
+static void clean_bad_chars(char * path)
+{
+    char * curr;
+    for ( curr = path; *curr != '\0'; curr++ )
+    {
+        if ( !is_allowed_char(*curr) )
+            *curr = '_';
+    }
+}
 
 /**
  * Initialize the extension module.
@@ -218,6 +244,9 @@ static int entry2backend_path( const entry_id_t * p_id,
             else
                 sprintf(backend_path, "%s/%s/%s", config.root, UNK_PATH, fname );
         }
+
+        /* clean bad characters */
+        clean_bad_chars(backend_path);
 
         /* add __<id> after the name */
         pathlen = strlen(backend_path);
