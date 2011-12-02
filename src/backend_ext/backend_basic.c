@@ -1474,6 +1474,6 @@ int rbhext_release( const entry_id_t * p_id,
         return -ENOTSUP;
     }
 
-    return -1;
+    return shook_release(get_fsname(), p_id);
 #endif
 }
