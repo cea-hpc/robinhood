@@ -439,7 +439,7 @@ static inline void display_version( char *bin_name )
 static lmgr_t  lmgr;
 
 /* global filter variables */
-char path_filter[1024] = "";
+char path_filter[RBH_PATH_MAX] = "";
 char class_filter[1024] = "";
 unsigned int count_min = 0;
 
@@ -947,7 +947,7 @@ static inline const char * release_class( attr_set_t * attrs )
 static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * initialized )
 {
     filter_value_t fv;
-    char path_regexp[1024] = "";
+    char path_regexp[RBH_PATH_MAX] = "";
     size_t  len;
 
     /* is a filter on path specified? */
@@ -969,14 +969,14 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_BEGIN );
 
-            snprintf( path_regexp, 1024, "%s/*", path_filter );
+            snprintf( path_regexp, RBH_PATH_MAX, "%s/*", path_filter );
             fv.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_OR | FILTER_FLAG_END ); 
         }
         else /* ends with slash */
         {
-            snprintf( path_regexp, 1024, "%s*", path_filter );
+            snprintf( path_regexp, RBH_PATH_MAX, "%s*", path_filter );
             /* directory or directory/% */
 
             fv.val_str = path_regexp;
@@ -3274,7 +3274,7 @@ int main( int argc, char **argv )
             }
             else
             {
-                strncpy( path_filter, optarg, 1024 );
+                strncpy( path_filter, optarg, RBH_PATH_MAX );
             }
             break;
 

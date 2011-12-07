@@ -854,7 +854,7 @@ static void   *Thr_Rmdir( void *arg )
             }
 #else
         /* 1) Update full path */
-        rc = Lustre_GetFullPath( &p_item->entry_id, ATTR(&p_item->entry_attr, fullpath), 1024 );
+        rc = Lustre_GetFullPath( &p_item->entry_id, ATTR(&p_item->entry_attr, fullpath), RBH_PATH_MAX );
         if ( rc )
         {
            DisplayLog( LVL_MAJOR, RMDIR_TAG, "Can not get path for fid "DFID", tagging it invalid: (%d) %s",

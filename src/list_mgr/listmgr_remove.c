@@ -136,7 +136,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
                                    time_t due_time )
 {
     char query[4096];
-    char escaped[1024];
+    char escaped[RBH_PATH_MAX];
     char * curr = query;
     int rc;
  
@@ -156,13 +156,13 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
 
     if ( entry_path )
     {
-        db_escape_string( &p_mgr->conn, escaped, 1024, entry_path );
+        db_escape_string( &p_mgr->conn, escaped, RBH_PATH_MAX, entry_path );
         curr += sprintf(curr, "'%s', ", escaped );
     }
 #ifdef _HSM_LITE
     if ( backend_path )
     {
-        db_escape_string( &p_mgr->conn, escaped, 1024, backend_path );
+        db_escape_string( &p_mgr->conn, escaped, RBH_PATH_MAX, backend_path );
         curr += sprintf(curr, "'%s', ", escaped );
     }
 #endif
