@@ -232,6 +232,72 @@ static struct option option_tab[] = {
 
 #define SHORT_OPT_STRING    "CSPMsRUrOdf:T:DF:t:L:l:hVp:i"
 
+#define MAX_OPT_LEN 1024
+#define MAX_TYPE_LEN 256
+
+typedef struct rbh_options {
+    int            flags;
+    int            detach;
+    char           config_file[MAX_OPT_LEN];
+    char           template_file[MAX_OPT_LEN];
+    int            write_template;
+    int            write_defaults;
+    int            force_fspath;
+    char           fspath[MAX_OPT_LEN];
+    int            force_fstype;
+    char           fstype[MAX_TYPE_LEN];
+    int            force_log;
+    char           log[MAX_OPT_LEN];
+    int            force_log_level;
+    int            log_level;
+    int            pid_file;
+    char           pid_filepath[MAX_OPT_LEN];
+    int            test_syntax;
+    int            ost_trigger;
+    int            fs_trigger;
+    int            purge_target_ost;
+    double         usage_target;
+    int            purge_class;
+    char           purge_target_class[128];
+
+#ifdef HAVE_MIGR_POLICY
+#ifdef _LUSTRE
+    int            migrate_ost;
+    int            migr_target_ost;
+#endif
+    int            migrate_user;
+    int            migrate_group;
+    int            migrate_class;
+    int            migrate_file;
+    char           migr_target_user[128];
+    char           migr_target_group[128];
+    char           migr_target_class[128];
+    char           migr_target_file[RBH_PATH_MAX];
+#endif
+
+} rbh_options;
+
+static inline void zero_options(struct rbh_options * opts)
+{
+    /* default value is 0 for most options */
+    memset(opts, 0, sizeof(struct rbh_options));
+
+    /* undefined target ost is -1 */
+    opts->purge_target_ost = -1;
+    opts->usage_target = 0.0;
+
+#ifdef HAVE_MIGR_POLICY
+#ifdef _LUSTRE
+    opts->migr_target_ost = -1;
+#endif
+#endif
+}
+
+
+/* program options from command line  */
+static struct rbh_options options;
+
+
 /* special character sequences for displaying help */
 
 /* Bold start character sequence */
@@ -725,8 +791,6 @@ static void create_pid_file( const char *pid_file )
                                         action_mask |= _f_;             \
                                 } while(0)
 
-#define MAX_OPT_LEN 1024
-#define MAX_TYPE_LEN 256
 
 /**
  * Main daemon routine
@@ -737,55 +801,16 @@ int main( int argc, char **argv )
     char          *bin = basename( argv[0] );
 
     int            is_default_actions = TRUE;
-    int            flags = 0;
-#define once ( flags & FLAG_ONCE )
-    int            detach = FALSE;
-    char           config_file[MAX_OPT_LEN] = "";
-    char           template_file[MAX_OPT_LEN] = "";
-    int            write_template = FALSE;
-    int            write_defaults = FALSE;
-    int            force_fspath = FALSE;
-    char           fspath[MAX_OPT_LEN] = "";
-    int            force_fstype = FALSE;
-    char           fstype[MAX_TYPE_LEN] = "";
-    int            force_log = FALSE;
-    char           log[MAX_OPT_LEN];
-    int            force_log_level = FALSE;
-    int            log_level = 0;
-    int            pid_file = FALSE;
-    char           pid_filepath[MAX_OPT_LEN];
-    int            test_syntax = FALSE;
-
     char           extra_chr[1024];
-    int            ost_trigger = FALSE;
-    int            fs_trigger = FALSE;
-    int            purge_target_ost = -1;
-    double         usage_target = 0.0;
-    int            purge_class = FALSE;
-    char           purge_target_class[128] = "";
-
-#ifdef HAVE_MIGR_POLICY
-#ifdef _LUSTRE
-    int            migrate_ost = FALSE;
-    int            migr_target_ost = -1;
-#endif
-    int            migrate_user = FALSE;
-    int            migrate_group = FALSE;
-    int            migrate_class = FALSE;
-    int            migrate_file = FALSE;
-    char           migr_target_user[128] = "";
-    char           migr_target_group[128] = "";
-    char           migr_target_class[128] = "";
-    char           migr_target_file[RBH_PATH_MAX] = "";
-#endif
 
     int            rc;
     int            parsing_mask, currently_running_mask;
     char           err_msg[4096];
     robinhood_config_t rh_config;
 
-
     boot_time = time( NULL );
+
+    zero_options( &options );
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab, &option_index ) ) != -1 )
@@ -797,7 +822,7 @@ int main( int argc, char **argv )
             break;
         case 'C':
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            flags |= FLAG_CHECK_ONLY;
+            options.flags |= FLAG_CHECK_ONLY;
             break;
         case 'P':
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
@@ -827,7 +852,7 @@ int main( int argc, char **argv )
             exit( 1 );
 #else
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            flags |= (FLAG_ONCE | FLAG_IGNORE_POL | FLAG_NO_LIMIT);
+            options.flags |= (FLAG_ONCE | FLAG_IGNORE_POL | FLAG_NO_LIMIT);
 #endif
             break;
 
@@ -842,26 +867,27 @@ int main( int argc, char **argv )
             break;
 
         case 'O':
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             break;
         case NO_LIMIT:
-            flags |= FLAG_NO_LIMIT;
+            options.flags |= FLAG_NO_LIMIT;
             break;
         case DRY_RUN:
-            flags |= FLAG_DRY_RUN;
+            options.flags |= FLAG_DRY_RUN;
             break;
         case 'i':
-            flags |= FLAG_IGNORE_POL;
+            options.flags |= FLAG_IGNORE_POL;
             break;
 
 #ifdef _LUSTRE
         case FORCE_OST_PURGE:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            ost_trigger = TRUE;
+            options.ost_trigger = TRUE;
             /* parse <index,float> argument */
-            if ( sscanf( optarg, "%u,%lf%s", &purge_target_ost, &usage_target, extra_chr ) != 2 )
+            if ( sscanf( optarg, "%u,%lf%s", &options.purge_target_ost,
+                         &options.usage_target, extra_chr ) != 2 )
             {
                 fprintf( stderr,
                          "Invalid argument: --purge-ost=<ost_index,target_usage> expected. E.g. --purge-ost=5,10.00\n" );
@@ -872,12 +898,12 @@ int main( int argc, char **argv )
 
         case FORCE_FS_PURGE:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            fs_trigger = TRUE;
+            options.fs_trigger = TRUE;
 
             /* parse float argument */
-            if ( sscanf( optarg, "%lf%s", &usage_target, extra_chr ) != 1 )
+            if ( sscanf( optarg, "%lf%s", &options.usage_target, extra_chr ) != 1 )
             {
                 fprintf( stderr,
                          "Invalid argument: --purge-fs=<target_usage> expected. E.g. --purge-fs=20.00\n" );
@@ -888,10 +914,10 @@ int main( int argc, char **argv )
 
         case FORCE_CLASS_PURGE:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            purge_class = TRUE;
-            strncpy( purge_target_class, optarg, 128 );
+            options.purge_class = TRUE;
+            strncpy( options.purge_target_class, optarg, 128 );
             break;
 
 
@@ -900,12 +926,12 @@ int main( int argc, char **argv )
 #ifdef _LUSTRE
         case FORCE_OST_MIGR:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            migrate_ost = TRUE;
+            options.migrate_ost = TRUE;
 
             /* parse <index> argument */
-            if ( sscanf( optarg, "%u%s", &migr_target_ost, extra_chr ) != 1 )
+            if ( sscanf( optarg, "%u%s", &options.migr_target_ost, extra_chr ) != 1 )
             {
                 fprintf( stderr,
                          "Invalid argument: --migrate-ost=<ost_index> expected. E.g. --migrate-ost=5\n" );
@@ -916,70 +942,70 @@ int main( int argc, char **argv )
 
         case FORCE_USER_MIGR:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            migrate_user = TRUE;
-            strncpy( migr_target_user, optarg, 128 );
+            options.migrate_user = TRUE;
+            strncpy( options.migr_target_user, optarg, 128 );
             break;
 
         case FORCE_GROUP_MIGR:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            migrate_group = TRUE;
-            strncpy( migr_target_group, optarg, 128 );
+            options.migrate_group = TRUE;
+            strncpy( options.migr_target_group, optarg, 128 );
             break;
 
         case FORCE_CLASS_MIGR:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            migrate_class = TRUE;
-            strncpy( migr_target_class, optarg, 128 );
+            options.migrate_class = TRUE;
+            strncpy( options.migr_target_class, optarg, 128 );
             break;
 
         case MIGR_ONE_FILE:
             /* this mode is always 'one-shot' */
-            flags |= FLAG_ONCE;
+            options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            migrate_file = TRUE;
-            strncpy( migr_target_file, optarg, RBH_PATH_MAX );
+            options.migrate_file = TRUE;
+            strncpy( options.migr_target_file, optarg, RBH_PATH_MAX );
             break;
 #endif
 
         case 'd':
-            detach = TRUE;
+            options.detach = TRUE;
             break;
         case 'f':
-            strncpy( config_file, optarg, MAX_OPT_LEN );
+            strncpy( options.config_file, optarg, MAX_OPT_LEN );
             break;
         case 'T':
             if ( optarg )       /* optional argument */
-                strncpy( template_file, optarg, MAX_OPT_LEN );
-            write_template = TRUE;
+                strncpy( options.template_file, optarg, MAX_OPT_LEN );
+            options.write_template = TRUE;
             break;
         case TEST_SYNTAX:
-            test_syntax = TRUE;
+            options.test_syntax = TRUE;
             break;
         case 'D':
-            write_defaults = TRUE;
+            options.write_defaults = TRUE;
             break;
         case 'F':
-            force_fspath = TRUE;
-            strncpy( fspath, optarg, MAX_OPT_LEN );
+            options.force_fspath = TRUE;
+            strncpy( options.fspath, optarg, MAX_OPT_LEN );
             break;
         case 't':
-            force_fstype = TRUE;
-            strncpy( fstype, optarg, MAX_TYPE_LEN );
+            options.force_fstype = TRUE;
+            strncpy( options.fstype, optarg, MAX_TYPE_LEN );
             break;
         case 'L':
-            force_log = TRUE;
-            strncpy( log, optarg, MAX_OPT_LEN );
+            options.force_log = TRUE;
+            strncpy( options.log, optarg, MAX_OPT_LEN );
             break;
         case 'l':
-            force_log_level = TRUE;
-            log_level = str2debuglevel( optarg );
-            if ( log_level == -1 )
+            options.force_log_level = TRUE;
+            options.log_level = str2debuglevel( optarg );
+            if ( options.log_level == -1 )
             {
                 fprintf( stderr,
                          "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
@@ -988,8 +1014,8 @@ int main( int argc, char **argv )
             }
             break;
         case 'p':
-            pid_file = TRUE;
-            strncpy( pid_filepath, optarg, MAX_OPT_LEN );
+            options.pid_file = TRUE;
+            strncpy( options.pid_filepath, optarg, MAX_OPT_LEN );
             break;
         case 'h':
             display_help( bin );
@@ -1016,7 +1042,7 @@ int main( int argc, char **argv )
     }
 
     /* check that force-purge options are not used together */
-    if ( ost_trigger && fs_trigger )
+    if ( options.ost_trigger && options.fs_trigger )
     {
         fprintf( stderr,
                  "Error: --purge-ost and --purge-fs cannot be used together\n" );
@@ -1024,9 +1050,9 @@ int main( int argc, char **argv )
     }
     
 #ifdef HAVE_MIGR_POLICY
-    if ( migrate_user + migrate_group 
+    if ( options.migrate_user + options.migrate_group 
 #ifdef _LUSTRE
-        + migrate_ost
+        + options.migrate_ost
 #endif
         > 1 )
     {
@@ -1038,13 +1064,13 @@ int main( int argc, char **argv )
 
     /* Template or Defaults options specified ? */
 
-    if ( write_template )
+    if ( options.write_template )
     {
-        rc = do_write_template( template_file );
+        rc = do_write_template( options.template_file );
         exit( rc );
     }
 
-    if ( write_defaults )
+    if ( options.write_defaults )
     {
         rc = WriteConfigDefault( stdout );
         if ( rc )
@@ -1075,40 +1101,41 @@ int main( int argc, char **argv )
     parsing_mask = action2parsing_mask(action_mask);
 
     /* get default config file, if not specified */
-    if ( EMPTY_STRING( config_file ) )
+    if ( EMPTY_STRING( options.config_file ) )
     {
-        if ( SearchConfig( config_file ) != 0 )
+        if ( SearchConfig( options.config_file ) != 0 )
         {
             fprintf(stderr, "No config file found in '/etc/robinhood.d/"PURPOSE_EXT"'\n" );
             exit(2);
         }
         else
         {
-            fprintf(stderr, "Using config file '%s'.\n", config_file );
+            fprintf(stderr, "Using config file '%s'.\n", options.config_file );
         }
     }
 
-    if ( ReadRobinhoodConfig( parsing_mask, config_file, err_msg, &rh_config ) )
+    if ( ReadRobinhoodConfig( parsing_mask, options.config_file, err_msg, &rh_config ) )
     {
-        fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
+        fprintf( stderr, "Error reading configuration file '%s': %s\n",
+                 options.config_file, err_msg );
         exit( 1 );
     }
 
-    if ( test_syntax )
+    if ( options.test_syntax )
     {
         printf( "Configuration file has been read successfully\n" );
         exit(0);
     }
 
     /* override config file options with command line parameters */
-    if ( force_fspath )
-        strcpy( rh_config.global_config.fs_path, fspath );
-    if ( force_fstype )
-        strcpy( rh_config.global_config.fs_type, fstype );
-    if ( force_log )
-        strcpy( rh_config.log_config.log_file, log );
-    if ( force_log_level )
-        rh_config.log_config.debug_level = log_level;
+    if ( options.force_fspath )
+        strcpy( rh_config.global_config.fs_path, options.fspath );
+    if ( options.force_fstype )
+        strcpy( rh_config.global_config.fs_type, options.fstype );
+    if ( options.force_log )
+        strcpy( rh_config.log_config.log_file, options.log );
+    if ( options.force_log_level )
+        rh_config.log_config.debug_level = options.log_level;
 
     /* set global configuration */
     global_config = rh_config.global_config;
@@ -1127,7 +1154,7 @@ int main( int argc, char **argv )
 
 /* if the filesystem supports changelogs and a scan is requested
  * and the once option is not set, display a warning */
-    if ( ( action_mask & ACTION_MASK_SCAN ) && !once
+    if ( ( action_mask & ACTION_MASK_SCAN ) && !( options.flags & FLAG_ONCE )
          && strcmp( global_config.fs_type, "lustre" ) == 0 )
     {
         fprintf(stderr, "ADVICE: this filesystem is changelog-capable, you should use changelogs instead of scanning.\n");
@@ -1159,7 +1186,7 @@ int main( int argc, char **argv )
     }
 
     /* deamonize program if detach flag is set */
-    if ( detach )
+    if ( options.detach )
     {
         rc = daemon( 0, 0 );
 
@@ -1172,11 +1199,11 @@ int main( int argc, char **argv )
         }
     }
 
-    if ( pid_file )
-        create_pid_file( pid_filepath );
+    if ( options.pid_file )
+        create_pid_file( options.pid_filepath );
 
 #ifdef _HSM_LITE
-    rc = Backend_Start( &rh_config.backend_config, flags );
+    rc = Backend_Start( &rh_config.backend_config, options.flags );
     if ( rc )
     {
         DisplayLog( LVL_CRIT, MAIN_TAG, "Error initializing backend" );
@@ -1195,7 +1222,7 @@ int main( int argc, char **argv )
     else
         DisplayLog( LVL_VERB, MAIN_TAG, "Signal handler thread started successfully" );
 
-    if ( once )
+    if ( options.flags & FLAG_ONCE )
     {
         /* used for dumping stats in one shot mode */
         currently_running_mask = 0;
@@ -1218,7 +1245,7 @@ int main( int argc, char **argv )
     if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
     {
         /* Initialise Pipeline */
-        rc = EntryProcessor_Init( &rh_config.entry_proc_config, flags );
+        rc = EntryProcessor_Init( &rh_config.entry_proc_config, options.flags );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing EntryProcessor pipeline", rc );
@@ -1236,7 +1263,7 @@ int main( int argc, char **argv )
     {
 
         /* Start FS scan */
-        rc = FSScan_Start( &rh_config.fs_scan_config, flags );
+        rc = FSScan_Start( &rh_config.fs_scan_config, options.flags );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing FS Scan module", rc );
@@ -1248,7 +1275,7 @@ int main( int argc, char **argv )
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
 
-        if ( once )
+        if ( options.flags & FLAG_ONCE )
         {
             currently_running_mask = MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
             FSScan_Wait(  );
@@ -1261,7 +1288,7 @@ int main( int argc, char **argv )
     {
 
         /* Start reading changelogs */
-        rc = ChgLogRdr_Start( &rh_config.chglog_reader_config, flags );
+        rc = ChgLogRdr_Start( &rh_config.chglog_reader_config, options.flags );
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing ChangeLog Reader", rc );
@@ -1273,7 +1300,7 @@ int main( int argc, char **argv )
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
 
-        if ( once )
+        if ( options.flags & FLAG_ONCE )
         {
             currently_running_mask = MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
             ChgLogRdr_Wait(  );
@@ -1282,51 +1309,51 @@ int main( int argc, char **argv )
     }
 #endif
 
-    if ( once && (  action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) ) )
+    if ( (options.flags & FLAG_ONCE) && (  action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) ) )
     {
         /* Pipeline must be flushed */
         EntryProcessor_Terminate(  );
     }
 
 #ifdef HAVE_MIGR_POLICY
-    if ( migrate_file )
+    if ( options.migrate_file )
     {
-        rc = MigrateSingle( &rh_config.migr_config, migr_target_file, flags );
+        rc = MigrateSingle( &rh_config.migr_config, options.migr_target_file, options.flags );
         DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration completed with status %d", rc );
     }
     else if ( action_mask & ACTION_MASK_MIGRATE )
     {
         migr_opt_t     migr_opt;
-        migr_opt.flags = flags;
+        migr_opt.flags = options.flags;
 
 #ifdef _LUSTRE
-        if ( migrate_ost )
+        if ( options.migrate_ost )
         {
             /* migrate OST (one-shot) */
             migr_opt.mode = MIGR_OST;
-            migr_opt.optarg_u.ost_index = migr_target_ost;
+            migr_opt.optarg_u.ost_index = options.migr_target_ost;
         }
         else
 #endif
-        if ( migrate_user )
+        if ( options.migrate_user )
         {
             /* migrate user files (one-shot) */
             migr_opt.mode = MIGR_USER;
-            migr_opt.optarg_u.name = migr_target_user;
+            migr_opt.optarg_u.name = options.migr_target_user;
         }
-        else if ( migrate_group )
+        else if ( options.migrate_group )
         {
             /* purge on FS (one-shot) */
             migr_opt.mode = MIGR_GROUP;
-            migr_opt.optarg_u.name = migr_target_group;
+            migr_opt.optarg_u.name = options.migr_target_group;
         }
-        else if ( migrate_class )
+        else if ( options.migrate_class )
         {
             /* purge on FS (one-shot) */
             migr_opt.mode = MIGR_CLASS;
-            migr_opt.optarg_u.name = migr_target_class;
+            migr_opt.optarg_u.name = options.migr_target_class;
         }
-        else if ( once )
+        else if ( options.flags & FLAG_ONCE )
         {
             /* one-shot migration on all filesystem */
             migr_opt.mode = MIGR_ONCE;
@@ -1357,7 +1384,7 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( once )
+            if ( options.flags & FLAG_ONCE )
             {
                 currently_running_mask = MODULE_MASK_MIGRATION;
                 Wait_Migration( FALSE );
@@ -1371,27 +1398,27 @@ int main( int argc, char **argv )
     if ( action_mask & ACTION_MASK_PURGE )
     {
         resmon_opt_t   resmon_opt = {0,0,0.0};
-        resmon_opt.flags = flags;
-        if ( ost_trigger )
+        resmon_opt.flags = options.flags;
+        if ( options.ost_trigger )
         {
             /* purge on OST (one-shot) */
             resmon_opt.mode = RESMON_PURGE_OST;
-            resmon_opt.ost_index = purge_target_ost;
-            resmon_opt.target_usage = usage_target;
+            resmon_opt.ost_index = options.purge_target_ost;
+            resmon_opt.target_usage = options.usage_target;
         }
-        else if ( fs_trigger )
+        else if ( options.fs_trigger )
         {
             /* purge on FS (one-shot) */
             resmon_opt.mode = RESMON_PURGE_FS;
-            resmon_opt.target_usage = usage_target;
+            resmon_opt.target_usage = options.usage_target;
         }
-        else if ( purge_class )
+        else if ( options.purge_class )
         {
             /* purge on FS (one-shot) */
             resmon_opt.mode = RESMON_PURGE_CLASS;
-            resmon_opt.fileclass = purge_target_class;
+            resmon_opt.fileclass = options.purge_target_class;
         }
-        else if ( once )
+        else if ( options.flags & FLAG_ONCE )
         {
             /* one-shot mode on all triggers */
             resmon_opt.mode = RESMON_ALL_TRIGGERS;
@@ -1422,7 +1449,7 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( once )
+            if ( options.flags & FLAG_ONCE )
             {
                 currently_running_mask = MODULE_MASK_RES_MONITOR;
                 Wait_ResourceMonitor( FALSE );
@@ -1435,7 +1462,7 @@ int main( int argc, char **argv )
 #ifdef HAVE_RMDIR_POLICY
     if ( action_mask & ACTION_MASK_RMDIR )
     {
-        rc = Start_Rmdir( &rh_config.rmdir_config, flags );
+        rc = Start_Rmdir( &rh_config.rmdir_config, options.flags );
         if ( rc == ENOENT )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." ); 
@@ -1455,7 +1482,7 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( once )
+            if ( options.flags & FLAG_ONCE )
             {
                 currently_running_mask = MODULE_MASK_RMDIR;
                 Wait_Rmdir(  );
@@ -1468,7 +1495,7 @@ int main( int argc, char **argv )
 #ifdef HAVE_RM_POLICY
     if ( action_mask & ACTION_MASK_UNLINK )
     {
-        rc = Start_HSMRm( &rh_config.hsm_rm_config, flags );
+        rc = Start_HSMRm( &rh_config.hsm_rm_config, options.flags );
         if ( rc == ENOENT )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." ); 
@@ -1488,7 +1515,7 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( once )
+            if ( options.flags & FLAG_ONCE )
             {
                 currently_running_mask = MODULE_MASK_UNLINK;
                 Wait_HSMRm(  );
@@ -1498,7 +1525,7 @@ int main( int argc, char **argv )
     }
 #endif
 
-    if ( !once )
+    if ( !(options.flags & FLAG_ONCE) )
     {
         /* dump stats periodically */
         stats_thr( &parsing_mask );
