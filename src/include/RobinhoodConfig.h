@@ -242,13 +242,15 @@ static const module_config_def_t robinhood_module_conf[] = {
  * else, returns an error code and sets a contextual error message in err_msg_out.
  */
 int            ReadRobinhoodConfig( int module_mask, char *file_path,
-                                    char *err_msg_out, robinhood_config_t * config_struct );
+                                    char *err_msg_out, robinhood_config_t * config_struct,
+                                    int for_reload );
 
 /**
  * Reload robinhood's configuration file (the one used for last call to ReadRobinhoodConfig),
  * and change only parameters that can be modified on the fly.
  */
-int            ReloadRobinhoodConfig( int curr_module_mask );
+int            ReloadRobinhoodConfig( int curr_module_mask,
+                                      robinhood_config_t * new_config );
 
 /**
  * Write a documented template of configuration file,

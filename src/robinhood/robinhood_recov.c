@@ -562,7 +562,7 @@ int main( int argc, char **argv )
 
     /* only read ListMgr config */
 
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config ) )
+    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );

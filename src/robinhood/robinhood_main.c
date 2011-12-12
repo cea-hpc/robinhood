@@ -56,6 +56,7 @@
 #endif
 
 #define MAIN_TAG    "Main"
+#define RELOAD_TAG "ReloadConfig"
 
 static time_t  boot_time;
 
@@ -710,8 +711,47 @@ static void   *signal_handler_thr( void *arg )
         }
         else if ( reload_sig )
         {
+            char  err_msg[4096];
+            robinhood_config_t new_config;
+
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration" );
-            ReloadRobinhoodConfig( action2parsing_mask(action_mask) );
+
+            DisplayLog( LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", options.config_file );
+            if ( ReadRobinhoodConfig( action2parsing_mask(action_mask), options.config_file,
+                                      err_msg, &new_config, TRUE ) )
+            {
+                DisplayLog( LVL_CRIT, RELOAD_TAG, "Error reading config: %s", err_msg );
+            }
+            else
+            {
+                if ( options.force_fspath && strcmp(options.fspath, new_config.global_config.fs_path) )
+                {
+                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing FS path (forced on command line): %s)",
+                                options.fspath);
+                    strcpy( new_config.global_config.fs_path, options.fspath );
+                }
+                if ( options.force_fstype && strcmp(options.fstype, new_config.global_config.fs_type))
+                {
+                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing FS type (forced on command line): %s)",
+                                options.fstype);
+                    strcpy( new_config.global_config.fs_type, options.fstype );
+                }
+                if ( options.force_log && strcmp(options.log, new_config.log_config.log_file ))
+                {
+                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing log file (forced on command line): %s)",
+                                options.log );
+                    strcpy( new_config.log_config.log_file, options.log );
+                }
+                if ( options.force_log_level && (options.log_level != new_config.log_config.debug_level))
+                {
+                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing log level (forced on command line): %d)",
+                                options.log_level );
+                    new_config.log_config.debug_level = options.log_level;
+                }
+
+                ReloadRobinhoodConfig( action2parsing_mask(action_mask), &new_config );
+            }
+
             reload_sig = FALSE;
             FlushLogs(  );
         }
@@ -1114,7 +1154,8 @@ int main( int argc, char **argv )
         }
     }
 
-    if ( ReadRobinhoodConfig( parsing_mask, options.config_file, err_msg, &rh_config ) )
+    if ( ReadRobinhoodConfig( parsing_mask, options.config_file, err_msg,
+                              &rh_config, FALSE ) )
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n",
                  options.config_file, err_msg );
