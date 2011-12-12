@@ -79,7 +79,7 @@ int            TestDisplayLevel( int level );
 int            InitializeLogs( char *prog_name, const log_config_t * log_config );
 
 /* flush logs */
-void           FlushLogs(  );
+void           FlushLogs(void);
 
 
 /* Displays a log message */
@@ -100,11 +100,11 @@ void RaiseEntryAlert( const char *alert_name, /* alert name (if set) */
                       const char *entry_info);  /* alert related attributes */
 
 /* Start grouping several entry alerts in the same email */
-void           Alert_StartBatching();
-void           Alert_EndBatching();
+void           Alert_StartBatching(void);
+void           Alert_EndBatching(void);
 
 /* Wait for next stat deadline */
-void           WaitStatsInterval(  );
+void           WaitStatsInterval(void);
 
 
 #endif

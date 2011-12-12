@@ -108,7 +108,7 @@ int ReadRobinhoodConfig( int module_mask, char *file_path, char *err_msg_out,
  * Reload robinhood's configuration file (the one used for last call to ReadRobinhoodConfig),
  * and change only parameters that can be modified on the fly.
  */
-int ReloadRobinhoodConfig(  )
+int ReloadRobinhoodConfig( int module_mask )
 {
     config_file_t  syntax_tree;
     int            rc = 0;
@@ -117,8 +117,14 @@ int ReloadRobinhoodConfig(  )
     robinhood_config_t new_config;
 #define RELOAD_TAG "ReloadConfig"
 
-
     DisplayLog( LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", config_file_path );
+
+    if ( module_mask != config_mask )
+    {
+        DisplayLog( LVL_DEBUG, RELOAD_TAG, "config mask changed: %#x -> %#x",
+                    config_mask, module_mask );
+        config_mask = module_mask;
+    }
 
     /* First, Parse the configuration file */
     syntax_tree = rh_config_ParseFile( config_file_path );

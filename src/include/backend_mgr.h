@@ -36,6 +36,6 @@ int            Write_Backend_ConfigDefault( FILE * output );
 extern backend_t backend;
 
 int Backend_Start( backend_config_t * config, int flags );
-int Backend_Stop();
+int Backend_Stop( void );
 
 #endif

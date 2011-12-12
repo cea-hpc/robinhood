@@ -510,6 +510,35 @@ static void reload_handler( int sig )
 }
 
 
+static int action2parsing_mask( int act_mask )
+{
+    /* build config parsing mask */
+    int parsing_mask = 0;
+    if ( act_mask & ACTION_MASK_SCAN )
+        parsing_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
+    if ( act_mask & ACTION_MASK_PURGE )
+        parsing_mask |= MODULE_MASK_RES_MONITOR;
+#ifdef HAVE_RMDIR_POLICY
+    if ( act_mask & ACTION_MASK_RMDIR )
+        parsing_mask |= MODULE_MASK_RMDIR;
+#endif
+#ifdef HAVE_CHANGELOGS
+    if ( act_mask & ACTION_MASK_HANDLE_EVENTS )
+        parsing_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
+#endif
+#ifdef HAVE_MIGR_POLICY
+    if ( act_mask & ACTION_MASK_MIGRATE )
+        parsing_mask |= MODULE_MASK_MIGRATION;
+#endif
+#ifdef HAVE_RM_POLICY
+    if ( act_mask & ACTION_MASK_UNLINK )
+        parsing_mask |= MODULE_MASK_UNLINK;
+#endif
+
+    return parsing_mask;
+}
+
+
 static void   *signal_handler_thr( void *arg )
 {
 
@@ -616,7 +645,7 @@ static void   *signal_handler_thr( void *arg )
         else if ( reload_sig )
         {
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration" );
-            ReloadRobinhoodConfig(  );
+            ReloadRobinhoodConfig( action2parsing_mask(action_mask) );
             reload_sig = FALSE;
             FlushLogs(  );
         }
@@ -684,6 +713,7 @@ static void create_pid_file( const char *pid_file )
     }
 
 }
+
 
 #define SET_ACTION_FLAG( _f_ )  do {                                    \
                                     if ( is_default_actions )           \
@@ -1042,27 +1072,7 @@ int main( int argc, char **argv )
     }
 
     /* build config parsing mask */
-    parsing_mask = 0;
-    if ( action_mask & ACTION_MASK_SCAN )
-        parsing_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
-    if ( action_mask & ACTION_MASK_PURGE )
-        parsing_mask |= MODULE_MASK_RES_MONITOR;
-#ifdef HAVE_RMDIR_POLICY
-    if ( action_mask & ACTION_MASK_RMDIR )
-        parsing_mask |= MODULE_MASK_RMDIR;
-#endif
-#ifdef HAVE_CHANGELOGS
-    if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
-        parsing_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
-#endif
-#ifdef HAVE_MIGR_POLICY
-    if ( action_mask & ACTION_MASK_MIGRATE )
-        parsing_mask |= MODULE_MASK_MIGRATION;
-#endif
-#ifdef HAVE_RM_POLICY
-    if ( action_mask & ACTION_MASK_UNLINK )
-        parsing_mask |= MODULE_MASK_UNLINK;
-#endif
+    parsing_mask = action2parsing_mask(action_mask);
 
     /* get default config file, if not specified */
     if ( EMPTY_STRING( config_file ) )
@@ -1333,6 +1343,7 @@ int main( int argc, char **argv )
             DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." ); 
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_MIGRATION;
+            action_mask &= ~ACTION_MASK_MIGRATE;
         }
         else if ( rc )
         {
@@ -1397,6 +1408,7 @@ int main( int argc, char **argv )
             DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." ); 
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_RES_MONITOR;
+            action_mask &= ~ACTION_MASK_PURGE;
         }
         else if ( rc )
         {
@@ -1429,6 +1441,7 @@ int main( int argc, char **argv )
             DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." ); 
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_RMDIR;
+            action_mask &= ~ACTION_MASK_RMDIR;
         }
         else if ( rc )
         {
@@ -1461,6 +1474,7 @@ int main( int argc, char **argv )
             DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." ); 
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_UNLINK;
+            action_mask &= ~ACTION_MASK_UNLINK;
         }
         else if ( rc )
         {

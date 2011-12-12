@@ -41,7 +41,7 @@
  * Get compatibility information,
  * to check compatibility with the current FS.
  */
-int rbhext_compat_flags();
+int rbhext_compat_flags(void);
 
 /**
  * Initialize the extension module.
