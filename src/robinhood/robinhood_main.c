@@ -562,6 +562,7 @@ static void  *stats_thr( void *arg )
 
 static int     terminate_sig = 0;
 static int     reload_sig = FALSE;
+static int     dump_sig = FALSE;
 static pthread_t sig_thr;
 
 #define SIGHDL_TAG  "SigHdlr"
@@ -575,6 +576,12 @@ static void reload_handler( int sig )
 {
     reload_sig = TRUE;
 }
+
+static void usr_handler( int sig )
+{
+    dump_sig = TRUE;
+}
+
 
 
 static int action2parsing_mask( int act_mask )
@@ -611,6 +618,7 @@ static void   *signal_handler_thr( void *arg )
 
     struct sigaction act_sighup;
     struct sigaction act_sigterm;
+    struct sigaction act_sigusr;
 
     /* create signal handlers */
     memset( &act_sigterm, 0, sizeof( act_sigterm ) );
@@ -639,6 +647,18 @@ static void   *signal_handler_thr( void *arg )
     }
     else
         DisplayLog( LVL_EVENT, SIGHDL_TAG, "Signal SIGHUP (config reloading) is ready to be used" );
+
+    memset( &act_sigusr, 0, sizeof( act_sigusr ) );
+    act_sigusr.sa_flags = 0;
+    act_sigusr.sa_handler = usr_handler;
+    if ( sigaction( SIGUSR1, &act_sigusr, NULL ) == -1 )
+    {
+        DisplayLog( LVL_CRIT, SIGHDL_TAG, "Error while setting signal handlers for SIGUSR1: %s",
+                    strerror( errno ) );
+        exit( 1 );
+    }
+    else
+        DisplayLog( LVL_EVENT, SIGHDL_TAG, "Signal SIGUSR1 (stats dump) is ready to be used" );
 
 
     /* signal flag checking loop */
@@ -754,6 +774,21 @@ static void   *signal_handler_thr( void *arg )
 
             reload_sig = FALSE;
             FlushLogs(  );
+        }
+        else if ( dump_sig )
+        {
+            int tmp_mask = action2parsing_mask(action_mask);
+            DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGUSR1 received: dumping stats" );
+
+            if ( !lmgr_init )
+            {
+                if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+                    return NULL;
+                lmgr_init = TRUE;
+            }
+
+            dump_stats(&lmgr, &tmp_mask);
+            dump_sig = FALSE;
         }
     }
 }
