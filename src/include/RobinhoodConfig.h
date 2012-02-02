@@ -181,6 +181,7 @@ static const module_config_def_t robinhood_module_conf[] = {
     {"List Manager", SetDefaultLmgrConfig, ReadLmgrConfig, ReloadLmgrConfig,
      WriteLmgrConfigTemplate, WriteLmgrConfigDefault,
      offsetof( robinhood_config_t, lmgr_config ), MODULE_MASK_ALWAYS},
+
     {"Policies", SetDefault_Policies, Read_Policies,
      Reload_Policies, Write_Policy_Template,
      Write_Policy_Default, offsetof( robinhood_config_t,
@@ -201,12 +202,6 @@ static const module_config_def_t robinhood_module_conf[] = {
      ChgLogRdr_WriteConfigTemplate, ChgLogRdr_WriteDefaultConfig,
      offsetof( robinhood_config_t, chglog_reader_config ), MODULE_MASK_EVENT_HDLR},
 #endif
-
-    {"Policies", SetDefault_Policies, Read_Policies,
-     Reload_Policies, Write_Policy_Template,
-     Write_Policy_Default, offsetof( robinhood_config_t,
-                                     policies ),
-     MODULE_MASK_ALWAYS},
 
 #ifdef HAVE_PURGE_POLICY
     {"Resource Monitor", SetDefault_ResourceMon_Config, Read_ResourceMon_Config,
@@ -247,13 +242,15 @@ static const module_config_def_t robinhood_module_conf[] = {
  * else, returns an error code and sets a contextual error message in err_msg_out.
  */
 int            ReadRobinhoodConfig( int module_mask, char *file_path,
-                                    char *err_msg_out, robinhood_config_t * config_struct );
+                                    char *err_msg_out, robinhood_config_t * config_struct,
+                                    int for_reload );
 
 /**
  * Reload robinhood's configuration file (the one used for last call to ReadRobinhoodConfig),
  * and change only parameters that can be modified on the fly.
  */
-int            ReloadRobinhoodConfig(  );
+int            ReloadRobinhoodConfig( int curr_module_mask,
+                                      robinhood_config_t * new_config );
 
 /**
  * Write a documented template of configuration file,

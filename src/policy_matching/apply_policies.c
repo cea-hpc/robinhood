@@ -305,6 +305,8 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         else
             strcpy( new_str, p_comp->val.str );
 
+        /* XXX this won't match the root entry */
+
         /* is a / needed ? */
         if ( !FINAL_SLASH(new_str) )
         {
@@ -480,6 +482,12 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         rc = TestPathRegexp( p_triplet->val.str, rep, PATHREGEXP_IS_CHILD |
                               ((p_triplet->flags & CMP_FLG_ANY_LEVEL)?
                                     PATHREGEXP_ANY_LEVEL:0) ) ;
+        if ( !rc ) /* try matching root */
+        {
+            rc = TestPathRegexp( p_triplet->val.str, ATTR( p_entry_attr, fullpath ),
+                              ((p_triplet->flags & CMP_FLG_ANY_LEVEL)?
+                                    PATHREGEXP_ANY_LEVEL:0) ) ;
+        }
 
 #ifdef _DEBUG_POLICIES
         if ( rc )
@@ -1540,9 +1548,14 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 #endif
 #endif
 
+#ifdef HAVE_MIGR_POLICY
+    /* check whitelisted fileclasses for migration */
+    ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
+    _IsWhitelisted( p_id, p_attrs, MIGR_POLICY, TRUE );
+#endif
+
     if ( match_all_fc )
     {
-
 #ifdef HAVE_PURGE_POLICY
         if ( need_fileclass_update( p_attrs, PURGE_POLICY ) == TRUE )
         {
@@ -1567,8 +1580,6 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 #endif
 
 #ifdef HAVE_MIGR_POLICY
-        ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
-
         if ( need_fileclass_update( p_attrs, MIGR_POLICY ) == TRUE )
         {
             policy_item_t *policy_case = NULL;

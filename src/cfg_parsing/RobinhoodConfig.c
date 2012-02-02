@@ -27,27 +27,18 @@
 
 #define XATTR_PREFIX    "xattr"
 
-/* last config file loaded (used for reload operation) */
-static char    config_file_path[RBH_PATH_MAX];
-/* module mask used */
-static int     config_mask;
-
 /**
  * Read robinhood's configuration file and fill config struct.
  * if everything is OK, returns 0 and fills the structure
  * else, returns an error code and sets a contextual error message in err_msg_out.
  */
 int ReadRobinhoodConfig( int module_mask, char *file_path, char *err_msg_out,
-                         robinhood_config_t * config_struct )
+                         robinhood_config_t * config_struct, int for_reload )
 {
     config_file_t  syntax_tree;
     int            rc = 0;
     char           msg_buf[2048] = "";
     const module_config_def_t *p_curr;
-
-    /* saving config file path for reload operations */
-    strncpy( config_file_path, file_path, RBH_PATH_MAX );
-    config_mask = module_mask;
 
     /* First, Parse the configuration file */
     syntax_tree = rh_config_ParseFile( file_path );
@@ -83,7 +74,7 @@ int ReadRobinhoodConfig( int module_mask, char *file_path, char *err_msg_out,
             goto config_free;
         }
 
-        rc = p_curr->read_func( syntax_tree, module_config, msg_buf, FALSE );
+        rc = p_curr->read_func( syntax_tree, module_config, msg_buf, for_reload );
 
         if ( rc != 0 )
         {
@@ -101,83 +92,45 @@ int ReadRobinhoodConfig( int module_mask, char *file_path, char *err_msg_out,
     rh_config_Free( syntax_tree );
 
     return rc;
-
 }
 
 /**
  * Reload robinhood's configuration file (the one used for last call to ReadRobinhoodConfig),
  * and change only parameters that can be modified on the fly.
  */
-int ReloadRobinhoodConfig(  )
+int ReloadRobinhoodConfig( int module_mask, robinhood_config_t * new_config )
 {
-    config_file_t  syntax_tree;
     int            rc = 0;
     char           msg_buf[2048] = "";
     const module_config_def_t *p_curr;
-    robinhood_config_t new_config;
+
 #define RELOAD_TAG "ReloadConfig"
-
-
-    DisplayLog( LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", config_file_path );
-
-    /* First, Parse the configuration file */
-    syntax_tree = rh_config_ParseFile( config_file_path );
-
-    if ( syntax_tree == NULL )
-    {
-        DisplayLog( LVL_CRIT, RELOAD_TAG, "Error reloading config file: %s",
-                    rh_config_GetErrorMsg(  ) );
-        return EINVAL;
-    }
-
-    /* Set defaults to the structure, then load values from syntax tree  */
 
     for ( p_curr = &robinhood_module_conf[0]; p_curr->module_name != NULL; p_curr++ )
     {
         void          *module_config;
+        int rc_temp = 0;
 
-        /* only initialize modules with flag MODULE_MASK_ALWAYS or matching 'config_mask' parameter */
-        if ( ( p_curr->flags != MODULE_MASK_ALWAYS ) && !( p_curr->flags & config_mask ) )
+        /* only initialize modules with flag MODULE_MASK_ALWAYS or matching 'module_mask' parameter */
+        if ( ( p_curr->flags != MODULE_MASK_ALWAYS ) && !( p_curr->flags & module_mask ) )
             continue;
 
-        module_config = ( void * ) &new_config + p_curr->module_config_offset;
-        rc = p_curr->set_default_func( module_config, msg_buf );
-
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, RELOAD_TAG,
-                        "Error %d setting default configuration for module '%s':\n%s", rc,
-                        p_curr->module_name, msg_buf );
-            goto config_free;
-        }
-
-        rc = p_curr->read_func( syntax_tree, module_config, msg_buf, TRUE );
-
-        if ( rc != 0 )
-        {
-            DisplayLog( LVL_CRIT, RELOAD_TAG, "Error %d reading configuration for module '%s':\n%s",
-                        rc, p_curr->module_name, msg_buf );
-            goto config_free;
-        }
+        module_config = ( void * ) new_config + p_curr->module_config_offset;
 
         /* finally reload the configuration */
-        rc = p_curr->reload_func( module_config );
-        if ( rc )
+        rc_temp = p_curr->reload_func( module_config );
+        if ( rc_temp )
+        {
             DisplayLog( LVL_CRIT, RELOAD_TAG, "Error %d reloading configuration for module '%s'",
-                        rc, p_curr->module_name );
+                        rc_temp, p_curr->module_name );
+            rc = rc_temp;
+        }
         else
             DisplayLog( LVL_EVENT, RELOAD_TAG, "Configuration of module '%s' successfully reloaded",
                         p_curr->module_name );
-
     }
 
-  config_free:
-
-    /* free config file resources */
-    rh_config_Free( syntax_tree );
-
     return rc;
-
 }
 
 /**

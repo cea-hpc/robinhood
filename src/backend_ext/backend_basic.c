@@ -37,6 +37,7 @@
 #include <libgen.h>
 #include <pwd.h>
 #include <grp.h>
+#include <ctype.h>
 
 
 #ifdef HAVE_PURGE_POLICY
@@ -65,6 +66,31 @@ int rbhext_compat_flags()
 
 static backend_config_t config;
 static dev_t backend_dev = 0;
+
+/* is it a special shell character */
+static inline int is_shell_special(char c)
+{
+    static const char * specials = "`#$*?!|;&<>[]{}'\"\\";
+    const char * curr;
+    for (curr = specials; (*curr) != '\0'; curr++)
+        if (c == (*curr))
+            return TRUE;
+    /* not found */
+    return FALSE;
+}
+
+#define is_allowed_char(_c) (isascii(_c) && !isspace(_c) && !is_shell_special(_c))
+
+/* clean non ascii characters, spaces, special chars, ... */
+static void clean_bad_chars(char * path)
+{
+    char * curr;
+    for ( curr = path; *curr != '\0'; curr++ )
+    {
+        if ( !is_allowed_char(*curr) )
+            *curr = '_';
+    }
+}
 
 /**
  * Initialize the extension module.
@@ -218,6 +244,9 @@ static int entry2backend_path( const entry_id_t * p_id,
             else
                 sprintf(backend_path, "%s/%s/%s", config.root, UNK_PATH, fname );
         }
+
+        /* clean bad characters */
+        clean_bad_chars(backend_path);
 
         /* add __<id> after the name */
         pathlen = strlen(backend_path);
@@ -378,6 +407,8 @@ int rbhext_get_status( const entry_id_t * p_id,
 
     if ( status != STATUS_SYNCHRO )
     {
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "shook reported status<>online: %d",
+                    status );
         ATTR_MASK_SET( p_attrs_changed, status );
         ATTR( p_attrs_changed, status ) = status;
         return 0;
@@ -519,7 +550,7 @@ int rbhext_get_status( const entry_id_t * p_id,
 #endif
 
         /* compare symlink content */
-        if ( readlink(bkpath, lnk1, RBH_PATH_MAX ) < 0 )
+        if ( (rc = readlink(bkpath, lnk1, RBH_PATH_MAX )) < 0 )
         {
             rc = -errno;
             if ( rc == ENOENT )
@@ -532,13 +563,17 @@ int rbhext_get_status( const entry_id_t * p_id,
             else
                 return rc;
         }
-        if ( readlink(fspath, lnk2, RBH_PATH_MAX ) < 0 )
+        lnk1[rc] = '\0';
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "backend symlink => %s", lnk1 );
+        if ( (rc = readlink(fspath, lnk2, RBH_PATH_MAX )) < 0 )
         {
             rc = -errno;
             DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing readlink(%s): %s",
                         fspath, strerror(-rc) );
             return rc;
         }
+        lnk2[rc] = '\0';
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "FS symlink => %s", lnk2 );
         if ( strcmp(lnk1, lnk2) )
         {
             /* symlink content is different */
@@ -1466,6 +1501,6 @@ int rbhext_release( const entry_id_t * p_id,
         return -ENOTSUP;
     }
 
-    return -1;
+    return shook_release(get_fsname(), p_id);
 #endif
 }

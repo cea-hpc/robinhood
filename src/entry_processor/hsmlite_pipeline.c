@@ -712,14 +712,23 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             p_op->extra_info.getattr_needed = FALSE;
             p_op->extra_info.getpath_needed = FALSE;
 
-            /* Does file has stripe info ? */
-            rc = ListMgr_CheckStripe( lmgr, &p_op->entry_id );
-            if ( rc != DB_SUCCESS )
+#ifdef _LUSTRE
+            /* validate entry stripe if this is a Lustre filesystem
+             * and only if the entry is a file.
+             */
+            if ( p_op->entry_attr_is_set
+                 && ATTR_MASK_TEST( &p_op->entry_attr, type )
+                 && !strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_FILE ) 
+                 && !strcmp( global_config.fs_type, "lustre" ) )
             {
-                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is out-of-date, needs update" );
-                p_op->extra_info.getstripe_needed = TRUE;
+                /* Does file has stripe info ? */
+                if ( ListMgr_CheckStripe( lmgr, &p_op->entry_id ) != DB_SUCCESS )
+                {
+                    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is out-of-date, needs update" );
+                    p_op->extra_info.getstripe_needed = TRUE;
+                }
             }
-
+#endif
             next_stage = STAGE_GET_INFO_FS;
         }
 

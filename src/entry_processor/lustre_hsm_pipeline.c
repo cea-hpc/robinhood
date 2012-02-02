@@ -672,7 +672,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
             /* Does file has stripe info ? */
             if ( ListMgr_CheckStripe( lmgr, &p_op->entry_id ) != DB_SUCCESS )
+            {
+                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is missing" );
                 p_op->extra_info.getstripe_needed = TRUE;
+            }
 
             next_stage = STAGE_GET_INFO_FS;
         }

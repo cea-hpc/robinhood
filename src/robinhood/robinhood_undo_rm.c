@@ -62,7 +62,7 @@ static struct option option_tab[] =
 /* global variables */
 
 static lmgr_t  lmgr;
-char path_filter[1024] = "";
+char path_filter[RBH_PATH_MAX] = "";
 
 /* special character sequences for displaying help */
 
@@ -170,7 +170,7 @@ static inline void display_version( char *bin_name )
 static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initialized )
 {
     filter_value_t fv;
-    char path_regexp[1024] = "";
+    char path_regexp[RBH_PATH_MAX] = "";
     size_t  len;
 
     /* is a filter on path specified? */
@@ -192,14 +192,14 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_BEGIN );
 
-            snprintf( path_regexp, 1024, "%s/*", path_filter );
+            snprintf( path_regexp, RBH_PATH_MAX, "%s/*", path_filter );
             fv.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }
         else /* ends with slash */
         {
-            snprintf( path_regexp, 1024, "%s*", path_filter );
+            snprintf( path_regexp, RBH_PATH_MAX, "%s*", path_filter );
             /* directory or directory/% */
 
             fv.val_str = path_regexp;
@@ -547,7 +547,7 @@ int main( int argc, char **argv )
         fprintf( stderr, "Error: missing mandatory argument on command line: <path|fid>\n" );
         exit( 1 );
     }
-    strncpy( path_filter, argv[optind], 1024 );
+    strncpy( path_filter, argv[optind], RBH_PATH_MAX );
 
     /* get default config file, if not specified */
     if ( EMPTY_STRING( config_file ) )
@@ -564,7 +564,7 @@ int main( int argc, char **argv )
     }
 
     /* only read ListMgr config */
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config ) )
+    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );

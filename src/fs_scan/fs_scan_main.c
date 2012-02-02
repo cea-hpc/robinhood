@@ -297,13 +297,15 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
 {
     int            rc, blc_index;
     fs_scan_config_t *conf = ( fs_scan_config_t * ) module_config;
+    int scan_intl_set = FALSE;
+    int scan_intl = 0;
 
     static const char * fsscan_allowed[] =
     {
-        "min_scan_interval", "max_scan_interval", "scan_retry_delay",
-        "nb_threads_scan", "scan_op_timeout", "exit_on_timeout",
-        "spooler_check_interval", "nb_prealloc_tasks", IGNORE_BLOCK,
-        NULL
+        "scan_interval", "min_scan_interval", "max_scan_interval",
+        "scan_retry_delay", "nb_threads_scan", "scan_op_timeout",
+        "exit_on_timeout", "spooler_check_interval", "nb_prealloc_tasks",
+        IGNORE_BLOCK, NULL
     };
 
     /* get FS Scan block */
@@ -324,13 +326,14 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
     }
 
     /* retrieve parameters */
-
     rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
                            "min_scan_interval",
                            INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
                            ( int * ) &conf->min_scan_interval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
+    else if ( rc == 0 )
+        scan_intl_set = TRUE;
 
     rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
                            "max_scan_interval",
@@ -338,6 +341,25 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
                            ( int * ) &conf->max_scan_interval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
+    else if ( rc == 0 )
+        scan_intl_set = TRUE;
+
+    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
+                           "scan_interval",
+                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
+                           &scan_intl, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc == 0 )
+    {
+        if (scan_intl_set)
+        {
+            strcpy( msg_out, "scan_interval parameter cannot be used with min/max_scan_interval" );
+            return EINVAL;
+        }
+        conf->min_scan_interval = scan_intl;
+        conf->max_scan_interval = scan_intl;
+    }
 
     rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
                            "scan_retry_delay",
@@ -559,7 +581,7 @@ int FSScan_WriteConfigTemplate( FILE * output )
 
     print_line( output, 1, "# Min/max intervals for scanning filesystem namespace." );
     print_line( output, 1, "# The interval for scanning is computed according to this formula:" );
-    print_line( output, 1, "# min + (100% - max storage usage)*(max-min)" );
+    print_line( output, 1, "# min + (100%% - max storage usage)*(max-min)" );
     print_line( output, 1,
                 "# so the more the filesystem is full, the more frequently it is scanned." );
 #ifdef _LUSTRE_HSM

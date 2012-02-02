@@ -29,11 +29,6 @@
 #ifdef _HSM_LITE
 #include "backend_mgr.h"
 #include "backend_ext.h"
-
-#ifdef HAVE_SHOOK
-#include <shook_svr.h>
-#endif
-
 #endif
 
 #include <sys/types.h>
@@ -64,9 +59,11 @@ entry_queue_t  purge_queue;
 
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
 /** purge by FID in Lustre-HSM and HSMLITE */
-static int PurgeEntry_ByFid( const entry_id_t * p_entry_id )
+static int PurgeEntry_ByFid( const entry_id_t * p_entry_id,
+                             attr_set_t * p_attrs )
 {
-    DisplayLog( LVL_EVENT, PURGE_TAG, "Releasing(" DFID_NOBRACE ")", PFID( p_entry_id ) );
+    DisplayLog( LVL_EVENT, PURGE_TAG, "Releasing(" DFID_NOBRACE ": %s)", PFID( p_entry_id ),
+                (p_attrs && ATTR_MASK_TEST(p_attrs, fullpath))?ATTR(p_attrs, fullpath):"" );
 
     if ( dry_run )
         return 0;
@@ -74,7 +71,7 @@ static int PurgeEntry_ByFid( const entry_id_t * p_entry_id )
 #ifdef _LUSTRE_HSM
     return LustreHSM_Action( HUA_RELEASE, p_entry_id, NULL, 0 );
 #elif defined(HAVE_SHOOK)
-   return shook_release(get_fsname(), p_entry_id);
+    return rbhext_release(p_entry_id, p_attrs);
 #endif
 }
 #else
@@ -453,9 +450,16 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 #ifdef ATTR_INDEX_type
     if ( (field_infos[ATTR_INDEX_type].flags & GENERATED) == 0 )
     {
+
+#if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
+        /* only retrieve files */
+        fval.val_str = STR_TYPE_FILE;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fval, 0 );
+#else
         /* do not retrieve directories */
         fval.val_str = STR_TYPE_DIR;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fval, 0 );
+#endif
         if ( rc )
             return rc;
     }
@@ -1311,7 +1315,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     /* Perform purge operation! */
 
 #ifdef _LUSTRE_HSM
-    rc = PurgeEntry_ByFid( &p_item->entry_id );
+    rc = PurgeEntry_ByFid( &p_item->entry_id, &new_attr_set );
 
     if ( rc == 0 )
     {
@@ -1337,7 +1341,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         }
     }
 #elif defined(_HSM_LITE)
-    rc = PurgeEntry_ByFid( &p_item->entry_id );
+    rc = PurgeEntry_ByFid( &p_item->entry_id, &new_attr_set );
 
     if ( rc == 0 )
     {
