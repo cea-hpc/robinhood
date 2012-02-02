@@ -441,11 +441,22 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
     /* check filesystem type */
     if ( strcasecmp( type, expected_type ) )
     {
-        DisplayLog( LVL_CRIT, "CheckFS",
-                    "/!\\ ERROR /!\\ The specified type for '%s' (%s) does not match actual filesystem type (%s)",
-                    rpath, expected_type, type );
-        endmntent( fp );
-        return EINVAL;
+        if (check_mounted)
+        {
+            DisplayLog( LVL_CRIT, "CheckFS",
+                        "/!\\ ERROR /!\\ The specified type for '%s' (%s) does not match actual filesystem type (%s)",
+                        rpath, expected_type, type );
+            endmntent( fp );
+            return EINVAL;
+        }
+        else
+        {
+            DisplayLog( LVL_MAJOR, "CheckFS",
+                        "/!\\ WARNING /!\\ The specified type for '%s' (%s) "
+                        "does not match actual filesystem type (%s).",
+                        rpath, expected_type, type );
+            DisplayLog( LVL_MAJOR, "CheckFS", "check_mounted is disabled: continuing." );
+        }
     }
 
     /* stat the given fs_path */
