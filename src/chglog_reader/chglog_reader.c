@@ -147,6 +147,11 @@ int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void * para
         return EINVAL;
     }
 
+
+    /* if batch_ack_count == 0, only acknowledge when cr_index == last_read_record */
+    if ((chglog_reader_config.batch_ack_count == 0) && (logrec->cr_index < p_info->last_read_record))
+        return 0;
+
     /* batching llapi_changelog_clear() calls.
      * If we reached the last read record, we acknowledge anyway. */
     if ( (chglog_reader_config.batch_ack_count > 1) && (logrec->cr_index < p_info->last_read_record) )

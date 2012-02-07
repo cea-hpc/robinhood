@@ -322,9 +322,9 @@ int Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int le
 
     if ( (rc != 0) && (rc != -ENOENT) && (rc != -ESTALE) )
         DisplayLog( LVL_CRIT, "Fid2Path",
-                    "Error %d calling llapi_fid2path(%s,%s,%lld,%d)."
-                    " Cannot retrieve full path for [%s]",
-                    -rc, mount_point, fid, recno, linkno, fid );
+                    "Error %d calling llapi_fid2path(%s,%s,%lld,%d), errno=%d."
+                    " Cannot retrieve full path for %s",
+                    rc, mount_point, fid, recno, linkno, errno, fid );
 
     return rc;
 }
