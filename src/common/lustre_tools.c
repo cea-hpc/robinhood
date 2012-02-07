@@ -74,11 +74,11 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
 
     if ( rc != 0 )
     {
-        if ( rc == ENODATA )
+        if ( rc == -ENODATA )
             DisplayLog( LVL_DEBUG, TAG_STRIPE,
                         "File %s has no stripe information",
                         entry_path );
-        else if ( ( rc != ENOENT ) && ( rc != ESTALE ) )
+        else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
             DisplayLog( LVL_CRIT, TAG_STRIPE,
                         "Error %d getting stripe info for %s", rc,
                         entry_path );
