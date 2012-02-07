@@ -375,7 +375,99 @@ static int process_log_rec( reader_thr_info_t * p_info, struct changelog_rec * p
     }
 
     return 0; 
+}
 
+static inline void cl_update_stats(reader_thr_info_t * info, struct changelog_rec * p_rec)
+{
+        /* update thread info */
+        info->last_read_time = time(NULL);
+        info->nb_read ++;
+        info->last_read_record =  p_rec->cr_index;
+}
+
+
+/* get a changelog line (with retries) */
+typedef enum {cl_ok, cl_continue, cl_stop} cl_status_e;
+
+static cl_status_e cl_get_one(reader_thr_info_t * info,  struct changelog_rec ** pp_rec)
+{
+    int rc;
+    /* get next record */
+    rc = llapi_changelog_recv( info->chglog_hdlr, pp_rec);
+
+    /* is it EOF ? */
+    if ( rc == 1 )
+    {
+        /* do we exit at EOF? */
+        if ( !one_shot )
+        {
+            /* reopen */
+            char mdtdevice[128];
+            int flags;
+
+            snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
+                      chglog_reader_config.mdt_def[info->thr_index].mdt_name );
+            log_close(info);
+
+            if ( chglog_reader_config.force_polling )
+            {
+                DisplayLog( LVL_FULL, CHGLOG_TAG,
+                    "EOF reached on changelog, reopening in %d sec",
+                    chglog_reader_config.polling_interval);
+                    /* sleep during polling interval */
+                    rh_sleep( chglog_reader_config.polling_interval );
+                    flags = CHANGELOG_FLAG_BLOCK;
+            }
+            else
+            {
+                DisplayLog( LVL_EVENT, CHGLOG_TAG,
+                    "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
+                    "was specified. Re-openning in 1 sec..." );
+                    rh_sleep( 1 );
+                    flags = CHANGELOG_FLAG_BLOCK | CHANGELOG_FLAG_FOLLOW;
+            }
+            /* opening the log again (from last_read_record + 1) */
+            rc = llapi_changelog_start( &info->chglog_hdlr, flags,
+                                        mdtdevice, info->last_read_record + 1 );
+            if (rc==0)
+                return cl_continue;
+            else
+                return cl_stop;
+        }
+        else
+            return cl_stop;
+    }
+    else if ( rc == -EINTR )
+    {
+        DisplayLog( LVL_EVENT, CHGLOG_TAG,
+                    "llapi_changelog_recv() interrupted. Retrying." );
+        return cl_continue;
+    }
+
+    if ( rc )
+    {
+        DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                    "Error in llapi_changelog_recv(): %d: %s",
+                    rc, strerror(abs(rc)));
+        rh_sleep(1);
+        /* try to recover from this error */
+        return cl_continue;
+    }
+    else if ( *pp_rec == NULL )
+    {
+        DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                    "Error in llapi_changelog_recv(): NULL pointer returned" );
+        rh_sleep(1);
+        /* try to recover from this error */
+        return cl_continue;
+    }
+
+    /* sucessfully retrieved a record */
+
+    /* update thread info */
+    cl_update_stats(info, *pp_rec);
+
+    return cl_ok;
 }
 
 
@@ -384,90 +476,110 @@ void * chglog_reader_thr( void *  arg )
 {
     reader_thr_info_t * info = (reader_thr_info_t*) arg;
     struct changelog_rec * p_rec = NULL;
-    int rc;
+    cl_status_e st;
 
     do
     {
-        /* get next record */
-        rc = llapi_changelog_recv( info->chglog_hdlr, &p_rec);
+        st = cl_get_one(info, &p_rec); 
+        if (st == cl_continue )
+            continue;
+        else if (st == cl_stop)
+            break;
 
-        /* is it EOF ? */
-        if ( rc == 1 )
+#ifdef _CL_RNM_OVER
+        /* First rename record indicates the renamed entry.
+         * Second rename record eventually indicates the overwritten entry, 
+         * and the target name.
+         * if record is CL_RENAME => read the next one
+         *  - only push the target CL_EXT event (rename target)
+         *    with old fashion format (t=renamed entry)
+         *  - if the rename removes another entry,
+         *    push an dummy unlink record.
+         */
+        if (p_rec->cr_type == CL_RENAME)
         {
-            /* do we exit at EOF? */
-            if ( !one_shot )
+            /* read next record */
+            struct changelog_rec * p_rec2 = NULL;
+
+            st = cl_get_one(info, &p_rec2); 
+            if (st == cl_continue)
+                continue;
+            else if (st == cl_stop)
+                break;
+
+            if (p_rec2->cr_type != CL_EXT)
             {
-                /* reopen */
-                char mdtdevice[128];
-                int flags;
+                DisplayLog( LVL_MAJOR, CHGLOG_TAG,
+                           "CL_RENAME record not immediatly followed by CL_EXT" );
+                /* process record(s) as usual... */
+                process_log_rec( info, p_rec );
+                process_log_rec( info, p_rec2 );
+            }
+            else if (FID_IS_ZERO(&p_rec2->cr_tfid))
+            {
+                /* rename record without removing a target.
+                 * translate this record to a CL_EXT with tfid = the renamed object
+                 */
+                p_rec2->cr_tfid = p_rec->cr_tfid;
 
-                snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
-                          chglog_reader_config.mdt_def[info->thr_index].mdt_name );
-                log_close(info);
-
-                if ( chglog_reader_config.force_polling )
-                {
-                    DisplayLog( LVL_FULL, CHGLOG_TAG,
-                        "EOF reached on changelog, reopening in %d sec",
-                        chglog_reader_config.polling_interval);
-                        /* sleep during polling interval */
-                        rh_sleep( chglog_reader_config.polling_interval );
-                        flags = CHANGELOG_FLAG_BLOCK;
-                }
-                else
-                {
-                    DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                        "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
-                        "was specified. Re-openning in 1 sec..." );
-                        rh_sleep( 1 );
-                        flags = CHANGELOG_FLAG_BLOCK | CHANGELOG_FLAG_FOLLOW;
-                }
-                /* opening the log again (from last_read_record + 1) */
-                rc = llapi_changelog_start( &info->chglog_hdlr, flags,
-                                            mdtdevice, info->last_read_record + 1 );
-                if (rc==0)
-                    continue;
-                else
-                    break;
+                DisplayLog( LVL_DEBUG, CHGLOG_TAG,
+                           "Standard rename: object="DFID", name=%.*s",
+                            PFID(&p_rec2->cr_tfid), p_rec2->cr_namelen,
+                            p_rec2->cr_name );
+                process_log_rec(info, p_rec2);
+                /* 1st p_rec can be freed */
+                llapi_changelog_free( &p_rec );
             }
             else
-                break;
-        }
-        else if ( rc == -EINTR )
-        {
-            DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                        "llapi_changelog_recv() interrupted. Retrying." );
-            continue;
-        }
+            {
+                /* rename that removes a target entry.
+                 * push CL_UNLINK (as p_rec) + CL_EXT (as p_rec2) */
+                lustre_fid rename_fid = p_rec->cr_tfid; /* the renamed object */
+                lustre_fid remove_fid = p_rec2->cr_tfid; /* the removed object */
+                uint64_t idx1 = p_rec->cr_index;
+                uint64_t idx2 = p_rec2->cr_index;
 
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "Error in llapi_changelog_recv(): %d: %s",
-                        rc, strerror(abs(rc)));
-            goto end_of_thr;
-        }
-        else if ( p_rec == NULL )
-        {
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "Error in llapi_changelog_recv(): NULL pointer returned" );
-            goto end_of_thr;
-        }
+                /* duplicate 2nd changelog rec */
+                /* XXX /!\ this line is based on the fact that llapi_changelog_recv()
+                 * always allocate CR_MAXSIZE, so it is safe to copy the target name
+                 * in rec1 without overflow */
+                memcpy(p_rec, p_rec2, CR_MAXSIZE); /* both CL_EXT now */
+                p_rec->cr_index = idx1;
+                p_rec->cr_type = CL_UNLINK;
+                p_rec->cr_tfid = remove_fid;
+                p_rec2->cr_index = idx2;
+                p_rec2->cr_type = CL_EXT;
+                p_rec2->cr_tfid = rename_fid;
 
-        /* update thread info */
-        info->last_read_time = time(NULL);
-        info->nb_read ++;
-        info->last_read_record =  p_rec->cr_index;
-
-        /* handle the line and push it to the pipeline */
-        process_log_rec( info, p_rec );
+                DisplayLog( LVL_DEBUG, CHGLOG_TAG,
+                           "Unlink: object="DFID", name=%.*s",
+                            PFID(&p_rec->cr_tfid), p_rec->cr_namelen,
+                            p_rec->cr_name );
+                DisplayLog( LVL_DEBUG, CHGLOG_TAG,
+                           "Rename: object="DFID", new name=%.*s",
+                            PFID(&p_rec2->cr_tfid), p_rec2->cr_namelen,
+                            p_rec2->cr_name );
+                /* process unlink before rename, to make sure there is no name conflict */
+                process_log_rec( info, p_rec );
+                process_log_rec( info, p_rec2 );
+            }
+        }
+        else
+        {
+            /* single record */
+#endif
+            /* handle the line and push it to the pipeline */
+            process_log_rec( info, p_rec );
+#ifdef _CL_RNM_OVER
+        }
+#endif
 
     } while ( !info->force_stop );
      /* loop until a TERM signal is caught */
 
     log_close(info);
 
-end_of_thr:
+//end_of_thr:
 
     DisplayLog(LVL_CRIT, CHGLOG_TAG, "Changelog reader thread terminating");
     return NULL;

@@ -135,6 +135,9 @@ char          *get_fsname(  );
 int            BuildFidPath( const entry_id_t * p_id /* IN */ , char *path /* OUT */  );
 int            Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int len );
 int            Lustre_GetFidFromPath( const char *fullpath, entry_id_t * p_id );
+
+#define FID_IS_ZERO(_pf) (((_pf)->f_seq == 0) && ((_pf)->f_oid == 0))
+
 #endif
 
 #ifdef HAVE_CHANGELOGS
