@@ -213,6 +213,7 @@ install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/syscon
 
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
 cp -r web_gui/acct/*	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+cp    web_gui/acct/.htaccess	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 
 %clean
 rm -rf $RPM_BUILD_ROOT
