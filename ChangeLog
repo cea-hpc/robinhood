@@ -1,3 +1,30 @@
+Changes between version 2.3.2 and 2.3.3:
+[webgui]
+    - added FS name to page title and page header
+    - added missing file in RPM (.htaccess)
+[reports]
+    - new options for top-users/top-groups: --by-avgsize, --count-min, --reverse
+    - Lustre changelog stats in 'rbh-report -a'
+[policies]
+    - fix: 'tree' condition must match root entry
+    - fix: migration class matching at scan time
+[config]
+    - simpler parameter 'scan_interval'
+    - fix: don't reload config of disabled modules on SIGHUP
+    - fix: on SIGHUP, don't reload parameters specified on cmd line
+[database]
+    - retry on connection failure
+[stats]
+    - dump process stats on SIGUSR1
+[backup]
+    - clean special chars in archive names
+    - fix issues in symlink archiving
+[lustre]
+    - specific compilation option for jira's LU-543
+[misc]
+    - code cleaning, sanity checks, improved traces...
+
+
 Changes between version 2.3.1 and 2.3.2:
 - [webgui] Web interface (beta)
 - [quota/alerts] Implemented quota alerts on inode count (users and groups)
