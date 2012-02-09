@@ -685,6 +685,8 @@ function mass_softrm
 	echo "2-Initial scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
 
+	grep "Full scan of" rh_scan.log | tail -1
+
 	sleep 1
 
 	# archiving files
@@ -699,9 +701,11 @@ function mass_softrm
 	elif (( $is_hsmlite != 0 )); then
 		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
 	fi
+	grep "Migration summary" rh_migr.log
 
 	echo "Checking stats after 1st scan..."
 	$REPORT -f ./cfg/$config_file --fs-info --csv -q > fsinfo.1
+	cat fsinfo.1
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.1
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
 	status=`cat fsinfo.1 | cut -d "," -f 1 | tr -d ' '`
@@ -716,18 +720,24 @@ function mass_softrm
         echo "4-Removing files in $ROOT/dir.1..."
 	rm -rf "$ROOT/dir.1" || error "removing files in $ROOT/dir.1"
 
+	# at least 1 second must be enlapsed since last entry change (sync)	
+	sleep 1
+
 	echo "5-Update DB with a new scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
 	
+	grep "Full scan of" rh_scan.log | tail -1
+
 	echo "Checking stats after 2nd scan..."
 	$REPORT -f ./cfg/$config_file --fs-info --csv -q > fsinfo.2
+	cat fsinfo.2
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.2
 	# 100 files were in the removed directory
 	(( `wc -l fsinfo.2 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
 	status=`cat fsinfo.2 | cut -d "," -f 1 | tr -d ' '`
 	nb=`cat fsinfo.2 | grep synchro | cut -d "," -f 2 | tr -d ' '`
 	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
-	(( $nb == $entries - 100 )) || error "$entries - 100 entries expected, got $nb"
+	(( $nb == $entries - 100 )) || error $(($entries - 100)) " entries expected, got $nb"
 	nb=`wc -l deferred.2 | awk '{print $1}'`
 	(( $nb == 100 )) || error "100 deferred rm expected after first scan, got $nb"
 	rm -f fsinfo.2 deferred.2
