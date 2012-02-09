@@ -228,6 +228,7 @@ install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/syscon
 
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
 cp -r web_gui/acct/*	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+cp    web_gui/acct/.htaccess	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -312,6 +313,23 @@ fi
 %{_initrddir}/@PURPOSE_SVC@
 
 %changelog
+
+* Wed Feb 08 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3
+- [webgui] added FS name to page title and page header
+- [webgui] fix: added missing file in RPM (.htaccess)
+- [reports] new options for top-users/top-groups: --by-avgsize, --count-min, --reverse
+- [reports] Lustre changelog stats in 'rbh-report -a'
+- [policies] fix: 'tree' condition must match root entry
+- [policies] fix: migration class matching at scan time
+- [config] simpler scan parameter 'scan_interval'
+- [config] fix: don't reload config of disabled modules on SIGHUP
+- [config] fix: on SIGHUP, don't reload parameters specified on cmd line
+- [database] retry on connection failure
+- [stats] dump process stats on SIGUSR1
+- [backup] clean special chars in archive names
+- [backup] fix issues in symlink archiving
+- [lustre] specific compilation option for jira's LU-543
+- [misc] code cleaning, sanity checks, improved traces...
 
 * Wed Aug 03 2011 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.2
 - [webgui] Web interface (beta)

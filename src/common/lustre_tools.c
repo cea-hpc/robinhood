@@ -67,18 +67,18 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
     unsigned int   i;
 
     if ( !entry_path || !entry_path[0] )
-        return EFAULT;
+        return -EFAULT;
 
     memset( lum_buffer, 0, sizeof( lum_buffer ) );
     rc = llapi_file_get_stripe( entry_path, p_lum );
 
     if ( rc != 0 )
     {
-        if ( rc == ENODATA )
+        if ( rc == -ENODATA )
             DisplayLog( LVL_DEBUG, TAG_STRIPE,
                         "File %s has no stripe information",
                         entry_path );
-        else if ( ( rc != ENOENT ) && ( rc != ESTALE ) )
+        else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
             DisplayLog( LVL_CRIT, TAG_STRIPE,
                         "Error %d getting stripe info for %s", rc,
                         entry_path );
@@ -162,7 +162,7 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
     {
         DisplayLog( LVL_CRIT, TAG_STRIPE, "Unsupported Luster magic number for %s: %#X",
                     entry_path, p_lum->lmm_magic );
-        return EINVAL;
+        return -EINVAL;
     }
 }
 
@@ -322,9 +322,9 @@ int Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int le
 
     if ( (rc != 0) && (rc != -ENOENT) && (rc != -ESTALE) )
         DisplayLog( LVL_CRIT, "Fid2Path",
-                    "Error %d calling llapi_fid2path(%s,%s,%lld,%d)."
-                    " Cannot retrieve full path for [%s]",
-                    -rc, mount_point, fid, recno, linkno, fid );
+                    "Error %d calling llapi_fid2path(%s,%s,%lld,%d), errno=%d."
+                    " Cannot retrieve full path for %s",
+                    rc, mount_point, fid, recno, linkno, errno, fid );
 
     return rc;
 }

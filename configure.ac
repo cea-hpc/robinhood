@@ -56,6 +56,7 @@ AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DE
 
 # behavior flags
 AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
+AX_ENABLE_FLAG( [cl-rename-overwrite], [changelog correctly reflects overwriting rename], [-D_CL_RNM_OVER] )
 
 
 

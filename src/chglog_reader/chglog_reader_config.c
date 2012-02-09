@@ -212,7 +212,7 @@ int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
         return rc;
 
     rc = GetIntParam( chglog_block, CHGLOG_CFG_BLOCK,
-                      "batch_ack_count", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
+                      "batch_ack_count", INT_PARAM_POSITIVE,
                        &p_config->batch_ack_count, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
