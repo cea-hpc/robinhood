@@ -2,10 +2,11 @@
 
 CFG_SCRIPT="../../scripts/rbh-config"
 
-service mysqld start
+sudo service mysqld start # sudo has been added before creating base
 
 $CFG_SCRIPT test_db  robinhood_test robinhood || $CFG_SCRIPT create_db robinhood_test localhost robinhood
 $CFG_SCRIPT empty_db robinhood_test
+
 
 LOOP_FILE=/tmp/rbh.loop.cont
 MNT_PT=/tmp/mnt.rbh
@@ -27,7 +28,7 @@ fi
 # mount it!
 mnted=`mount | grep $MNT_PT | grep loop | wc -l`
 if (( $mnted == 0 )); then
-    mount -o loop -t ext3 $LOOP_FILE $MNT_PT || exit 1
+    mount -o loop,user_xattr -t ext3 $LOOP_FILE $MNT_PT || exit 1
 fi
 
 df $MNT_PT
