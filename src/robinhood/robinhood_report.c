@@ -301,7 +301,7 @@ static const char *help_string =
     "    " _B "--top-purge" B_ " [=" _U "count" U_ "], " _B "-p" B_ " " _U "count" U_ "\n"
     "        Display oldest entries eligible for purge. Optional argument indicates the number of entries to be returned (default: 20).\n"
 #ifdef HAVE_RMDIR_POLICY
-    "    " _B "--top-rmdir" B_ " [=" _U "count" U_ "], " _B "-r" B_ " " _U "count" U_ "\n"
+    "    " _B "--top-rmdir" B_ " [=" _U "count" U_ "]\n"
     "        Display oldest empty directories eligible for rmdir. Optional argument indicates the number of dirs to be returned (default: 20).\n"
 #endif
     "    " _B "--top-users" B_ " [=" _U "count" U_ "], " _B "-U" B_ " " _U "count" U_ "\n"
@@ -592,7 +592,7 @@ void report_activity( int flags )
         else
             printf( "    Filesystem has never been scanned\n" );
     }
-    
+
     // start
     if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_START_TIME, value ) == 0 )
         timestamp = str2int( value );
@@ -968,7 +968,7 @@ static inline const char * migr_class( attr_set_t * attrs )
 #endif
 
 #ifdef ATTR_INDEX_release_class
-static inline const char * release_class( attr_set_t * attrs )
+static inline const char * release_class( const attr_set_t * attrs )
 {
     if (!ATTR_MASK_TEST(attrs, release_class))
         return "";
@@ -1059,6 +1059,340 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
     return 0;
 }
 
+/* return attr name to be displayed */
+static inline const char * attrindex2name(unsigned int index)
+{
+    switch(index)
+    {
+        case ATTR_INDEX_fullpath: return "path";
+        case ATTR_INDEX_avgsize: return "avgsize";
+#ifdef ATTR_INDEX_dircount
+        case ATTR_INDEX_dircount: return "dircount";
+#endif
+#ifdef ATTR_INDEX_status
+        case ATTR_INDEX_status: return "status";
+#endif
+#ifdef ATTR_INDEX_type
+        case ATTR_INDEX_type: return "type";
+#endif
+        case ATTR_INDEX_owner: return "user";
+        case ATTR_INDEX_gr_name: return "group";
+        case ATTR_INDEX_blocks: return "spc_used";
+        case ATTR_INDEX_size: return "size";
+        case ATTR_INDEX_last_access: return "last_access";
+        case ATTR_INDEX_last_mod: return "last_mod";
+
+#ifdef ATTR_INDEX_archive_class
+        case ATTR_INDEX_archive_class: return "migr. class";
+#endif
+#ifdef ATTR_INDEX_release_class
+        case ATTR_INDEX_release_class: return "purge class";
+#endif
+        case ATTR_INDEX_stripe_info: return "stripe_cnt, stripe_size,      pool";
+        case ATTR_INDEX_stripe_items: return "ost_idx";
+    }
+    return "?";
+}
+
+
+//                "stripe_count", "stripe_size", "pool", "storage_units" );
+
+static inline unsigned int attrindex2len(unsigned int index, int csv)
+{
+    switch(index)
+    {
+        case 0: return 10; /* count */
+#ifdef ATTR_INDEX_dircount
+        case ATTR_INDEX_dircount: return 8;
+#endif
+#ifdef  ATTR_INDEX_status
+        case ATTR_INDEX_status: return 10;
+#endif
+#ifdef ATTR_INDEX_type
+        case ATTR_INDEX_type: return 8;
+#endif
+        case ATTR_INDEX_fullpath: return 40;
+        case ATTR_INDEX_owner: return 10;
+        case ATTR_INDEX_gr_name: return 10;
+
+        case ATTR_INDEX_last_access: return 20;
+        case ATTR_INDEX_last_mod: return 20;
+
+#ifdef ATTR_INDEX_archive_class
+        case ATTR_INDEX_archive_class: return 20;
+#endif
+#ifdef ATTR_INDEX_release_class
+        case ATTR_INDEX_release_class: return 20;
+#endif
+
+        case ATTR_INDEX_blocks:
+        case ATTR_INDEX_avgsize:
+        case ATTR_INDEX_size:
+            if (csv)
+                return 15; /* up to 999To */
+            else
+                return 10; /* 1024.21 GB */
+        case ATTR_INDEX_stripe_info: return strlen(attrindex2name(ATTR_INDEX_stripe_info));
+        case ATTR_INDEX_stripe_items: return 10;
+    }
+    return 1;
+}
+
+static int list2mask(int * attr_list, int attr_count)
+{
+    int i, mask, tmpmask;
+    mask = 0;
+    for (i=0; i < attr_count; i++)
+    {
+        tmpmask = 1 << attr_list[i];
+        mask |= tmpmask;
+    }
+    return mask;
+}
+
+
+static void print_attr_list(int rank_field, int * attr_list, int attr_count, int csv)
+{
+    int i;
+    int coma = 0;
+
+    if (rank_field)
+    {
+        printf("rank");
+        coma = 1;
+    }
+    for (i=0; i < attr_count; i++)
+    {
+        if (coma)
+            printf(", %*s", attrindex2len(attr_list[i], csv),
+                   attrindex2name(attr_list[i]));
+        else
+        {
+            printf("%*s", attrindex2len(attr_list[i], csv),
+                   attrindex2name(attr_list[i]));
+            coma = 1;
+        }
+    }
+    printf("\n");
+}
+
+
+static const char * attr2str(const attr_set_t * attrs, const entry_id_t * id,
+                int attr_index, int csv, char * out)
+{
+    time_t tt;
+    struct tm stm;
+    switch(attr_index)
+    {
+        case ATTR_INDEX_fullpath:
+            if (ATTR_MASK_TEST(attrs, fullpath))
+                return ATTR(attrs, fullpath);
+            else
+                return "n/a"; /* TODO fid2path if possible? */
+        case ATTR_INDEX_avgsize:
+            if (csv)
+                sprintf(out, "%"PRIu64, ATTR(attrs, avgsize));
+            else
+                FormatFileSize(out, 128, ATTR(attrs, avgsize));
+            return out;
+#ifdef ATTR_INDEX_dircount
+        case ATTR_INDEX_dircount: 
+            sprintf(out, "%u", ATTR(attrs, dircount));
+            return out;
+#endif
+#ifdef ATTR_INDEX_status
+        case ATTR_INDEX_status: return db_status2str(ATTR(attrs, status), csv);
+#endif
+#ifdef ATTR_INDEX_type
+        case ATTR_INDEX_type:
+             return ATTR(attrs, type);
+#endif
+        case ATTR_INDEX_owner: return ATTR(attrs, owner);
+        case ATTR_INDEX_gr_name: return ATTR(attrs, gr_name);
+        case ATTR_INDEX_blocks:
+            if (csv)
+                sprintf(out, "%"PRIu64, ATTR(attrs, blocks) * DEV_BSIZE);
+            else
+                FormatFileSize(out, 128, ATTR(attrs, blocks) * DEV_BSIZE);
+            return out;
+
+        case ATTR_INDEX_size:
+            if (csv)
+                sprintf(out, "%"PRIu64, ATTR(attrs, size));
+            else
+                FormatFileSize(out, 128, ATTR(attrs, size));
+            return out;
+
+        case ATTR_INDEX_last_access:
+            tt = ATTR(attrs, last_access);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_last_mod:
+            tt = ATTR(attrs, last_mod);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+#ifdef ATTR_INDEX_archive_class
+        case ATTR_INDEX_archive_class:
+            return migr_class(attrs);
+#endif
+#ifdef ATTR_INDEX_release_class
+        case ATTR_INDEX_release_class:
+            return release_class(attrs);
+#endif
+        case ATTR_INDEX_stripe_info:
+            if (csv)
+                sprintf(out, "%10u, %11"PRIu64", %9s",
+                    ATTR( attrs, stripe_info ).stripe_count,
+                    ATTR( attrs, stripe_info ).stripe_size,
+                    ATTR( attrs, stripe_info ).pool_name);
+            else {
+                char tmp[128];
+                FormatFileSize(tmp, 128, ATTR( attrs, stripe_info ).stripe_size);
+                sprintf(out, "%10u, %11s, %9s",
+                    ATTR( attrs, stripe_info ).stripe_count, tmp,
+                    ATTR( attrs, stripe_info ).pool_name);
+            }
+            return out;
+
+        case ATTR_INDEX_stripe_items:
+            FormatStripeList(out, 1024, &ATTR( attrs, stripe_items ));
+            return out;
+    }
+    return "?";
+}
+
+
+static void print_attr_values(int rank, int * attr_list, int attr_count,
+                              const attr_set_t * attrs, const entry_id_t * id,
+                              int csv, char * out, int resolv_id)
+{
+    int i, coma = 0;
+    char str[1024];
+    if (rank)
+    {
+        printf("%4d", rank);
+        coma = 1;
+    }
+    for (i=0; i < attr_count; i++)
+    {
+        if (coma)
+            printf(", %*s", attrindex2len(attr_list[i], csv),
+                   attr2str(attrs, id, attr_list[i], csv, str));
+        else
+        {
+            printf("%*s", attrindex2len(attr_list[i], csv),
+                   attr2str(attrs, id, attr_list[i], csv, str));
+            coma = 1;
+        }
+    }
+    printf("\n");
+
+}
+
+
+/* return attr name to be displayed */
+static inline const char * attrdesc2name(const report_field_descr_t * desc)
+{
+    switch(desc->attr_index)
+    {
+        case 0:
+            if (desc->report_type == REPORT_COUNT)
+                return "count";
+            break;
+        case ATTR_INDEX_size:
+            if (desc->report_type == REPORT_MIN)
+                return "min_size";
+            else if (desc->report_type == REPORT_MAX)
+                return "max_size";
+            else if (desc->report_type == REPORT_AVG)
+                return "avg_size";
+            else if (desc->report_type == REPORT_SUM)
+                return "volume";
+            else
+                return "size";
+        /*default: */
+    }
+    return attrindex2name(desc->attr_index);
+}
+
+
+static inline char * result_val2str(const report_field_descr_t * desc,
+                                    const db_value_t * val, int csv,
+                                    char * out)
+{
+    out[0] = '\0';
+    switch(desc->attr_index)
+    {
+        case 0: /* count */
+            sprintf(out, "%Lu", val->value_u.val_biguint);
+            break;
+#ifdef  ATTR_INDEX_status
+        case ATTR_INDEX_status:
+            sprintf(out, db_status2str(val->value_u.val_uint,csv);
+            break;
+#endif
+#ifdef ATTR_INDEX_type
+        case ATTR_INDEX_type:
+#endif
+        case ATTR_INDEX_owner:
+        case ATTR_INDEX_gr_name:
+            strcpy(out, val->value_u.val_str);
+            break;
+        case ATTR_INDEX_size:
+            if (csv)
+                sprintf(out, "%Lu", val->value_u.val_biguint);
+            else
+                FormatFileSize( out, 128, val->value_u.val_biguint );
+            break;
+        case ATTR_INDEX_blocks:
+            if (csv)
+                sprintf(out, "%Lu", val->value_u.val_biguint * DEV_BSIZE);
+            else
+                FormatFileSize( out, 128, val->value_u.val_biguint * DEV_BSIZE);
+            break;
+
+    }
+    return out;
+}
+
+
+
+/**
+ * Generic fucntion to display a report
+ */
+static void display_report( const report_field_descr_t * descr, unsigned int field_count,
+                            const db_value_t * result, unsigned int result_count,
+                            int flags, int header )
+{
+    unsigned int i;
+    if (!NOHEADER(flags) && header)
+    {
+        if (!DB_IS_NULL(&result[0]))
+            printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
+                   attrdesc2name(&descr[0]));
+        for (i = 1; i < field_count && i < result_count; i++)
+            if (!DB_IS_NULL(&result[i]))
+                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
+                        attrdesc2name(&descr[i]));
+        printf("\n");
+    }
+    if (result)
+    {
+        char tmpstr[1024];
+        if (!DB_IS_NULL(&result[0]))
+            printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
+                   result_val2str(&descr[0],&result[0], CSV(flags), tmpstr));
+        for (i = 1; i < field_count && i < result_count; i++)
+            if (!DB_IS_NULL(&result[i]))
+                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
+                       result_val2str(&descr[i],&result[i], CSV(flags), tmpstr));
+        printf("\n");
+    }
+}
+
+
 
 void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 {
@@ -1072,6 +1406,23 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
+
+    int list[] = { 
+                   ATTR_INDEX_type,
+#ifdef ATTR_INDEX_status
+                   ATTR_INDEX_status,
+#endif
+                   ATTR_INDEX_size,
+                   ATTR_INDEX_owner,
+                   ATTR_INDEX_gr_name,
+#ifdef ATTR_INDEX_archive_class
+                   ATTR_INDEX_archive_class,
+#endif
+#ifdef ATTR_INDEX_release_class
+                   ATTR_INDEX_release_class,
+#endif
+                   ATTR_INDEX_fullpath };
+    int list_cnt = sizeof(list)/sizeof(int);
 
     lmgr_simple_filter_init( &filter );
 
@@ -1114,23 +1465,7 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 
     /* attributes to be retrieved */
     ATTR_MASK_INIT( &attrs );
-    ATTR_MASK_SET( &attrs, type );
-    ATTR_MASK_SET( &attrs, fullpath );
-    ATTR_MASK_SET( &attrs, owner );
-    ATTR_MASK_SET( &attrs, gr_name );
-    ATTR_MASK_SET( &attrs, size );
-#ifdef ATTR_INDEX_archive_class
-    ATTR_MASK_SET( &attrs, archive_class );
-#endif
-#ifdef ATTR_INDEX_release_class
-    ATTR_MASK_SET( &attrs, release_class );
-#endif
-
-#ifdef ATTR_INDEX_status
-    ATTR_MASK_SET( &attrs, status );
-#endif
-
-    mask_sav = attrs.attr_mask;
+    mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
 
     it = ListMgr_Iterator( &lmgr, &filter, NULL, NULL );
 
@@ -1143,100 +1478,19 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
         return;
     }
 
-    /* print header */
-    if (!NOHEADER(flags) )
-        printf( "%7s, "
-#ifdef ATTR_INDEX_status
-                "%10s, "
-#endif
-                "%*s, %10s, %10s, "
-#ifdef ATTR_INDEX_archive_class
-                "%20s, "
-#endif
-#ifdef ATTR_INDEX_release_class
-                "%20s, "
-#endif
-                "%s\n",
-                "type",
-#ifdef ATTR_INDEX_status
-                "status",
-#endif
-                (CSV(flags)?15:10),
-                "size", "owner", "group",
-#ifdef ATTR_INDEX_archive_class
-                "migr. class",
-#endif
-#ifdef ATTR_INDEX_release_class
-                "purge class",
-#endif
-                "path" );
-
+    print_attr_list(0, list, list_cnt, CSV(flags));
 
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
+        char out[1024];
         total_count ++ ;
         total_size += ATTR( &attrs, size );
 
-        if ( CSV(flags) )
-        {
-            printf( "%7s, "
-    #ifdef ATTR_INDEX_status
-                    "%10s, "
-    #endif
-                    "%15llu, %10s, %10s, "
-    #ifdef ATTR_INDEX_archive_class
-                    "%20s, "
-    #endif
-    #ifdef ATTR_INDEX_release_class
-                    "%20s, "
-    #endif
-                    " %s\n",
-                    ATTR( &attrs, type ),
-    #ifdef ATTR_INDEX_status
-                    db_status2str( ATTR(&attrs, status), TRUE ),
-    #endif
-                    (unsigned long long)ATTR( &attrs, size ),
-                    ATTR( &attrs, owner ), ATTR( &attrs, gr_name ),
-     #ifdef ATTR_INDEX_archive_class
-                    migr_class(&attrs),
-     #endif
-     #ifdef ATTR_INDEX_release_class
-                    release_class(&attrs),
-     #endif
-                    ATTR( &attrs, fullpath ) );
-        }
-        else
-        {
-            char strsz[128];
-
-            printf( "%7s, "
-#ifdef ATTR_INDEX_status
-                    "%10s, "
-#endif
-                    "%10s, %10s, %10s, "
-#ifdef ATTR_INDEX_archive_class
-                    "%20s, "
-#endif
-#ifdef ATTR_INDEX_release_class
-                    "%20s, "
-#endif
-                    "%s\n",
-                    ATTR( &attrs, type ),
-#ifdef ATTR_INDEX_status
-                    db_status2str( ATTR(&attrs, status), TRUE ),
-#endif
-                    FormatFileSize( strsz, 128, ATTR( &attrs, size ) ),
-                    ATTR( &attrs, owner ), ATTR( &attrs, gr_name ),
-#ifdef ATTR_INDEX_archive_class
-                    migr_class(&attrs),
-#endif
-#ifdef ATTR_INDEX_release_class
-                    release_class(&attrs),
-#endif
-                    ATTR( &attrs, fullpath ) );
-        }
+        print_attr_values(0, list, list_cnt, &attrs, &id,
+                          CSV(flags), out, FALSE); // XXX don't resolv id ?
 
         ListMgr_FreeAttrs( &attrs );
+
         /* prepare next call */
         attrs.attr_mask = mask_sav;
     }
@@ -1253,7 +1507,6 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
     }
 }
 
-
 void report_fs_info( int flags )
 {
     unsigned int   result_count;
@@ -1267,11 +1520,7 @@ void report_fs_info( int flags )
     filter_value_t fv;
 #endif
 
-#ifdef ATTR_INDEX_status
 #define FSINFOCOUNT 6
-#else
-#define FSINFOCOUNT 5
-#endif
 
     db_value_t     result[FSINFOCOUNT];
 
@@ -1288,9 +1537,7 @@ void report_fs_info( int flags )
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-#ifdef  ATTR_INDEX_status
-        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
-#endif
+        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}}, /* XXX ifdef STATUS ? */
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
@@ -1344,136 +1591,17 @@ void report_fs_info( int flags )
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
               == DB_SUCCESS )
     {
-        if ( CSV(flags) && !NOHEADER(flags) && display_header )
-        {
-            if ( !DB_IS_NULL( &result[2] ) && !DB_IS_NULL( &result[3] ) )
-#ifdef _TMP_FS_MGR
-                printf( "%-10s, %10s, %15s, %15s, %15s\n",
-                        "type", "count", "min_size", "max_size", "avg_size" );
-#else
-                printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n", "status",
-                        "count", "volume", "min_size", "max_size", "avg_size" );
-#endif
-            else
-#ifdef _TMP_FS_MGR
-                printf( "%-10s, %10s, %15s\n",
-                        "type", "count", "avg_size" );
-#else
-                printf( "%-10s, %10s, %15s, %15s\n", "status",
-                        "count", "volume", "avg_size" );
-#endif
-            display_header = 0;
-        }
-
-#ifdef _TMP_FS_MGR
-        if ( result[1].value_u.val_biguint == 0 )
-            continue;
-
-        total_count += result[1].value_u.val_biguint;
-
-        if ( result[0].value_u.val_str == NULL )
-            result[0].value_u.val_str = "(?)";
-
-        if ( !strcmp( result[0].value_u.val_str, STR_TYPE_DIR ) )
-        {
-            if ( CSV(flags) )
-                    printf( "%-10s, %10Lu\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_biguint );
-            else
-            {
-                printf( "\n" );
-                printf( "Type:         %15s\n", "directory" );
-                printf( "Count:        %15Lu\n", result[1].value_u.val_biguint );
-            }
-        }
+        if (result[1].value_u.val_biguint == 0) /* count=0 (don't display)*/
+            display_report( fs_info, FSINFOCOUNT, NULL, result_count, flags, display_header );
         else
-        {
-            total_size += result[1].value_u.val_biguint * result[4].value_u.val_biguint;
-
-            if ( CSV(flags) )
-                if ( !DB_IS_NULL( &result[2] ) && !DB_IS_NULL( &result[3] ) )
-                    printf( "%-10s, %10Lu, %15llu, %15llu, %15llu\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_biguint,
-                            result[2].value_u.val_biguint,
-                            result[3].value_u.val_biguint, result[4].value_u.val_biguint );
-                else
-                    printf( "%-10s, %10Lu, %15llu\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_biguint,
-                            result[4].value_u.val_biguint );
-            else
-            {
-                char           strsize[128];
-                printf( "\n" );
-                printf( "Type:         %15s\n", result[0].value_u.val_str );
-                printf( "Count:        %15Lu\n", result[1].value_u.val_biguint );
-                if ( !DB_IS_NULL( &result[2] ) && !DB_IS_NULL( &result[3] ) )
-                {
-                    printf( "Size min:     %15s   (%llu bytes)\n",
-                            FormatFileSize( strsize, 128, result[2].value_u.val_biguint ),
-                            result[2].value_u.val_biguint );
-                    printf( "Size max:     %15s   (%llu bytes)\n",
-                            FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                            result[3].value_u.val_biguint );
-                }
-                printf( "Size avg:     %15s   (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                        result[4].value_u.val_biguint );
-            }
-
-        }
-#else
-        if ( result[1].value_u.val_biguint == 0 )
-            continue;
+            display_report( fs_info, FSINFOCOUNT, result, result_count, flags, display_header );
+        display_header = 0; /* just display it once */
 
         total_count += result[1].value_u.val_biguint;
         total_size += result[2].value_u.val_biguint;
 
-        if ( CSV(flags) )
-            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
-                printf( "%10s, %10Lu, %15llu, %15llu, %15llu, %15llu\n",
-                        db_status2str(result[0].value_u.val_uint,1),
-                        result[1].value_u.val_biguint,
-                        result[2].value_u.val_biguint,
-                        result[3].value_u.val_biguint,
-                        result[4].value_u.val_biguint,
-                        result[5].value_u.val_biguint );
-            else
-                printf( "%10s, %10Lu, %15llu, %15llu\n",
-                        db_status2str(result[0].value_u.val_uint,1),
-                        result[1].value_u.val_biguint,
-                        result[2].value_u.val_biguint,
-                        result[5].value_u.val_biguint );
-
-        else
-        {
-            char           strsize[128];
-            printf("\n");
-            printf( "Status: %s\n",db_status2str(result[0].value_u.val_uint,0) );
-            printf( "   Count:    %10Lu\n", result[1].value_u.val_biguint );
-            printf( "   Volume:   %10s   (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[2].value_u.val_biguint ),
-                    result[2].value_u.val_biguint );
-            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
-            {
-                printf( "   Size min: %10s   (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                        result[3].value_u.val_biguint );
-                printf( "   Size max: %10s   (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                        result[4].value_u.val_biguint );
-            }
-            printf( "   Size avg: %10s   (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
-                    result[5].value_u.val_biguint );
-        }
-#endif
-
         /* prepare next call */
         result_count = FSINFOCOUNT;
-
     }
 
     ListMgr_CloseReport( it );
@@ -1509,17 +1637,12 @@ void report_usergroup_info( char *name, int flags )
     int            rc;
     unsigned int   field_count = 0;
     unsigned int   shift = 0;
-
-    char           prevuser[256] = "";
-    char           prevusersplit[256] = "";
-    char           strsize[128] = "";
     int            is_filter = FALSE;
 
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
     lmgr_iter_opt_t opt;
     int display_header = TRUE;
-    int display_new_block = TRUE;
 
 #define USERINFOCOUNT_MAX 8
 
@@ -1570,6 +1693,7 @@ void report_usergroup_info( char *name, int flags )
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type,
                             REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
     field_count++;
+    shift++;
 #endif
 
     set_report_rec_nofilter(&user_info[field_count], 0, REPORT_COUNT, SORT_NONE );
@@ -1628,306 +1752,13 @@ void report_usergroup_info( char *name, int flags )
 
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
     {
-        if ( CSV(flags) && !NOHEADER(flags) && display_header )
-        {
-            /* Without using accounting table */
-            if ( !DB_IS_NULL( &result[3+shift] ) && !DB_IS_NULL( &result[4+shift] ) )
-            {
-#ifndef _LUSTRE_HSM
-                if ( ISSPLITUSERGROUP(flags) )
-                    printf( "%-10s, %10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ), ( ISGROUP(flags) ? "user" : "group" ),
-                            "type", "count", "spc_used", "min_size", "max_size", "avg_size" );
-                else
-                    printf( "%-10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ), "type", "count", "spc_used", "min_size", 
-                            "max_size", "avg_size" );
-#else
-                if ( ISSPLITUSERGROUP(flags) )
-                    printf( "%-10s, %10s, %10s, %15s, %15s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ),( ISGROUP(flags) ? "user" : "group" ),
-                            "count", "spc_used", "min_size", "max_size", "avg_size" );
-                else
-                    printf( "%-10s, %10s, %15s, %15s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ), "count", "spc_used", "min_size", "max_size",
-                            "avg_size" );
-#endif
-            }
-            else /* Using accounting table*/
-            {
-#ifndef _LUSTRE_HSM
-                if ( ISSPLITUSERGROUP(flags) )
-                    printf( "%-10s, %10s, %10s, %10s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ), (ISGROUP(flags) ? "user" : "group" ),
-                            "type", "count", "spc_used", "avg_size" );
-                else
-                    printf( "%-10s, %10s, %10s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ), "type", "count", "spc_used", "avg_size" );
-#else
-                if ( ISSPLITUSERGROUP(flags) )
-                    printf( "%-10s, %10s, %10s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ),(ISGROUP(flags) ? "user" : "group" ), "count", "spc_used", "avg_size" );
-                else
-                    printf( "%-10s, %10s, %15s, %15s\n",
-                            ( ISGROUP(flags) ? "group" : "user" ), "count", "spc_used", "avg_size" );
-#endif
-            }
-            display_header = 0;
-        }
-
-        /* unknown user or group*/
-        if ( result[0].value_u.val_str == NULL )
-            result[0].value_u.val_str = "(?)";
-        if ( ISSPLITUSERGROUP(flags) && ( result[1].value_u.val_str == NULL ) )
-            result[1].value_u.val_str = "(?)";
-
-#ifndef _LUSTRE_HSM
-        total_count += result[2+shift].value_u.val_biguint;
-        total_size += (result[3+shift].value_u.val_biguint * DEV_BSIZE);
-
-        if ( result[1].value_u.val_str == NULL )
-            result[1].value_u.val_str = "(unknown)";
-
-        /* Directory info display */
-        if ( !strcmp( result[1+shift].value_u.val_str, STR_TYPE_DIR ) )
-        {
-            if ( CSV(flags) )
-            {
-                    if ( ISSPLITUSERGROUP(flags) )
-                        printf( "%-10s, %10s, %10s, %10Lu, %15llu\n",
-                                result[0].value_u.val_str,
-                                result[1].value_u.val_str,
-                                result[2].value_u.val_str,
-                                result[3].value_u.val_biguint,
-                                result[4].value_u.val_biguint * DEV_BSIZE );
-                    else
-                        printf( "%-10s, %10s, %10Lu, %15llu\n",
-                                result[0].value_u.val_str,
-                                result[1].value_u.val_str,
-                                result[2].value_u.val_biguint,
-                                result[3].value_u.val_biguint * DEV_BSIZE );
-            } 
-            else
-            {
-                if ( strcmp( prevuser, result[0].value_u.val_str ) )
-                {
-                    if ( !ISGROUP(flags) )
-                        printf( "\nUser:         %15s\n", result[0].value_u.val_str );
-                    else
-                        printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
-
-                    strncpy( prevuser, result[0].value_u.val_str, 256 );
-                    display_new_block = TRUE;
-                }
-
-                if ( ISSPLITUSERGROUP(flags) )
-                {
-                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
-                    {
-                        if ( ISGROUP(flags) )
-                            printf( "\n    User:         %15s\n", result[1].value_u.val_str );
-                        else
-                            printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
-                    }
-                    strncpy( prevusersplit, result[1].value_u.val_str, 256 );
-                    display_new_block = FALSE;
-                }
-
-                FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
-
-                printf( "\n" );
-                printf( "%s    Type:         %15s\n", ISSPLITUSERGROUP(flags) ? "    " : "", "directory" );
-                printf( "%s    Count:        %15Lu\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[2+shift].value_u.val_biguint );
-                printf( "%s    Space used:   %15s    (%llu blks)\n", ISSPLITUSERGROUP(flags) ? "    " : "", strsize,
-                        result[3+shift].value_u.val_biguint );
-            }
-        }
-        /* File info display */
-        else
-        {
-            if ( CSV(flags) )
-            {
-                if ( DB_IS_NULL( &result[4+shift] ) && DB_IS_NULL( &result[5+shift] ) )
-                {
-                    if ( ISSPLITUSERGROUP(flags) )
-                        printf( "%-10s, %10s, %10s, %10Lu, %15llu, %15llu\n",
-                                result[0].value_u.val_str,
-                                result[1].value_u.val_str,
-                                result[2].value_u.val_str,
-                                result[3].value_u.val_biguint,
-                                result[4].value_u.val_biguint * DEV_BSIZE,
-                                result[7].value_u.val_biguint );
-                    else
-                        printf( "%-10s, %10s, %10Lu, %15llu, %15llu\n",
-                                result[0+shift].value_u.val_str,
-                                result[1+shift].value_u.val_str,
-                                result[2+shift].value_u.val_biguint,
-                                result[3+shift].value_u.val_biguint * DEV_BSIZE,
-                                result[6+shift].value_u.val_biguint );
-                }
-                else
-                {
-                    if ( ISSPLITUSERGROUP(flags) )
-                        printf( "%-10s, %10s, %10s, %10Lu, %15llu, %15llu, %15llu, %15llu\n",
-                                result[0].value_u.val_str,
-                                result[1].value_u.val_str,
-                                result[2].value_u.val_str,
-                                result[3].value_u.val_biguint,
-                                result[4].value_u.val_biguint * DEV_BSIZE,
-                                result[5].value_u.val_biguint,
-                                result[6].value_u.val_biguint, result[7].value_u.val_biguint );
-                    else
-                        printf( "%-10s, %10s, %10Lu, %15llu, %15llu, %15llu, %15llu\n",
-                                result[0+shift].value_u.val_str,
-                                result[1+shift].value_u.val_str,
-                                result[2+shift].value_u.val_biguint,
-                                result[3+shift].value_u.val_biguint * DEV_BSIZE,
-                                result[4+shift].value_u.val_biguint,
-                                result[5+shift].value_u.val_biguint, result[6+shift].value_u.val_biguint );
-                }
-            }
-            else /* not CSV */
-            {
-                if ( strcmp( prevuser, result[0].value_u.val_str ) )
-                {
-                    if ( !ISGROUP(flags) )
-                        printf( "\nUser:         %15s\n", result[0].value_u.val_str );
-                    else
-                        printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
-
-                    strncpy( prevuser, result[0].value_u.val_str, 256 );
-                    display_new_block = TRUE;
-                }
-                if ( ISSPLITUSERGROUP(flags) ) 
-                {
-                    if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
-                    {
-                        if ( ISGROUP(flags) )
-                            printf( "\n    User:         %15s\n", result[1].value_u.val_str );
-                        else
-                            printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
-                        display_new_block = FALSE;
-                    }
-                    strncpy( prevusersplit, result[1].value_u.val_str, 256 );
-                }
-
-                FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
-
-                printf( "\n" );
-                printf( "%s    Type:         %15s\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[1+shift].value_u.val_str );
-                printf( "%s    Count:        %15Lu\n", ISSPLITUSERGROUP(flags) ? "    " : "", result[2+shift].value_u.val_biguint );
-                printf( "%s    Space used:   %15s    (%llu blks)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                        FormatFileSize( strsize, 128,
-                                        result[3+shift].value_u.val_biguint * DEV_BSIZE ),
-                        result[3+shift].value_u.val_biguint );
-                if ( !DB_IS_NULL( &result[4+shift] ) && !DB_IS_NULL( &result[5+shift] ) )
-                {
-                    printf( "%s    Size min:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                            FormatFileSize( strsize, 128, result[4+shift].value_u.val_biguint ),
-                            result[4+shift].value_u.val_biguint );
-                    printf( "%s    Size max:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                            FormatFileSize( strsize, 128, result[5+shift].value_u.val_biguint ),
-                            result[5+shift].value_u.val_biguint );
-                }
-                printf( "%s    Size avg:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                        FormatFileSize( strsize, 128, result[6+shift].value_u.val_biguint ),
-                        result[6+shift].value_u.val_biguint );
-            }
-        }
-
-#else /* Lustre HSM */
+        result_count = field_count;
+        display_report( user_info, result_count, result, result_count, flags,
+                        display_header );
+        display_header = 0; /* just display it once */
 
         total_count += result[1+shift].value_u.val_biguint;
         total_size += (result[2+shift].value_u.val_biguint * DEV_BSIZE);
-
-        if ( CSV(flags) )
-        {
-            if ( DB_IS_NULL( &result[3+shift] ) && DB_IS_NULL( &result[4+shift] ) )
-            {
-                if ( ISSPLITUSERGROUP(flags) )
-                    printf( "%-10s, %10s, %10Lu, %15llu, %15llu\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_str,
-                            result[2].value_u.val_biguint,
-                            result[3].value_u.val_biguint * DEV_BSIZE,
-                            result[6].value_u.val_biguint );
-                else
-                    printf( "%-10s, %10Lu, %15llu, %15llu\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_biguint,
-                            result[2].value_u.val_biguint * DEV_BSIZE,
-                            result[5].value_u.val_biguint );
-            }
-            else
-            {
-                if ( ISSPLITUSERGROUP(flags) )
-                    printf( "%-10s, %10s, %10Lu, %15llu, %15llu, %15llu, %15llu\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_str,
-                            result[2].value_u.val_biguint,
-                            result[3].value_u.val_biguint * DEV_BSIZE,
-                            result[4].value_u.val_biguint,
-                            result[5].value_u.val_biguint, result[6].value_u.val_biguint );
-
-                else
-                    printf( "%-10s, %10Lu, %15llu, %15llu, %15llu, %15llu\n",
-                            result[0].value_u.val_str,
-                            result[1].value_u.val_biguint,
-                            result[2].value_u.val_biguint * DEV_BSIZE,
-                            result[3].value_u.val_biguint,
-                            result[4].value_u.val_biguint, result[5].value_u.val_biguint );
-            }
-        }
-        else
-        {
-            if ( strcmp( prevuser, result[0].value_u.val_str ) )
-            {
-                if ( !ISGROUP(flags) )
-                    printf( "\nUser:         %15s\n", result[0].value_u.val_str );
-                else
-                    printf( "\nGroup:        %15s\n", result[0].value_u.val_str );
-
-                strncpy( prevuser, result[0].value_u.val_str, 256 );
-                display_new_block = TRUE;
-            }
-            if ( ISSPLITUSERGROUP(flags) )
-            {
-                if ( strcmp( prevusersplit, result[1].value_u.val_str ) || display_new_block )
-                {
-                    if ( ISGROUP(flags) )
-                        printf( "\n    User:         %15s\n", result[1].value_u.val_str );
-                    else
-                        printf( "\n    Group:        %15s\n", result[1].value_u.val_str );
-                }
-                strncpy( prevusersplit, result[1].value_u.val_str, 256 );
-                display_new_block = FALSE;
-            }
-
-            FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint * DEV_BSIZE );
-
-            printf( "\n" );
-            printf( "%s    Count:        %15Lu\n",ISSPLITUSERGROUP(flags) ? "    " : "", result[1+shift].value_u.val_biguint );
-            printf( "%s    Space used:   %15s    (%llu blks)\n",ISSPLITUSERGROUP(flags) ? "    " : "",
-                    FormatFileSize( strsize, 128, result[2+shift].value_u.val_biguint * DEV_BSIZE ),
-                    result[2+shift].value_u.val_biguint );
-            if ( !DB_IS_NULL( &result[3+shift] ) && !DB_IS_NULL( &result[4+shift] ) )
-            {
-                printf( "%s    Size min:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                        FormatFileSize( strsize, 128, result[3+shift].value_u.val_biguint ),
-                        result[3+shift].value_u.val_biguint );
-                printf( "%s    Size max:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                        FormatFileSize( strsize, 128, result[4+shift].value_u.val_biguint ),
-                        result[4+shift].value_u.val_biguint );
-            }
-            printf( "%s    Size avg:     %15s    (%llu bytes)\n", ISSPLITUSERGROUP(flags) ? "    " : "",
-                    FormatFileSize( strsize, 128, result[5+shift].value_u.val_biguint ),
-                    result[5+shift].value_u.val_biguint );
-        }
-
-#endif
-        /* prepare next call */
-        result_count = field_count;
-
     }
 
     ListMgr_CloseReport( it );
@@ -1940,7 +1771,6 @@ void report_usergroup_info( char *name, int flags )
         printf( "\nTotal: %Lu entries, %Lu bytes used (%s)\n",
                 total_count, total_size, strsz );
     }
-
 }
 
 #ifdef ATTR_INDEX_dircount
@@ -1958,8 +1788,14 @@ void report_topdirs( unsigned int count, int flags )
     struct lmgr_iterator_t *it;
     attr_set_t     attrs;
     entry_id_t     id;
-    char           date[128];
-    struct tm      t;
+
+    int list[] = { ATTR_INDEX_fullpath,
+                   ATTR_INDEX_dircount,
+                   ATTR_INDEX_avgsize,
+                   ATTR_INDEX_owner,
+                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_last_mod };
+    int list_cnt = sizeof(list)/sizeof(int);
 
     /* select only directories */
     lmgr_simple_filter_init( &filter );
@@ -1968,10 +1804,15 @@ void report_topdirs( unsigned int count, int flags )
 //    fv.val_str = STR_TYPE_DIR;
 //    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
+    if (count_min) {
+        /* @TODO Not supported by ListMgr yet */
+        fv.val_biguint = count_min;
+        lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, MORETHAN, fv, 0 );
+    }
+
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
-    
     if (SORT_BY_AVGSIZE(flags))
         sorttype.attr_index = ATTR_INDEX_avgsize;
     else
@@ -1985,15 +1826,7 @@ void report_topdirs( unsigned int count, int flags )
     opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
-    ATTR_MASK_SET( &attrs, fullpath );
-    ATTR_MASK_SET( &attrs, owner );
-    ATTR_MASK_SET( &attrs, gr_name );
-    ATTR_MASK_SET( &attrs, dircount );
-    ATTR_MASK_SET( &attrs, avgsize );
-    ATTR_MASK_SET( &attrs, avgsize );
-    ATTR_MASK_SET( &attrs, last_mod );
-
-    mask_sav = attrs.attr_mask;
+    mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
 
     it = ListMgr_Iterator( &lmgr, &filter, &sorttype, &opt );
 
@@ -2006,18 +1839,18 @@ void report_topdirs( unsigned int count, int flags )
         return;
     }
 
-    if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%3s, %-40s, %6s, %10s, %10s, %10s, %s\n", "rank", "path", "dircount", "avg_size", "owner", "group",
-                "last_mod" );
+    print_attr_list(1, list, list_cnt, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        time_t         mod;
-        char * title;
-        char * name;
-        char buff[128];
+        char   out[1024];
 
+        index++;
+        print_attr_values(index, list, list_cnt, &attrs, &id,
+                          CSV(flags), out, FALSE); // XXX don't resolv id ?
+
+#if 0
         if (ATTR_MASK_TEST(&attrs, fullpath)) {
             title = "Path:     ";
             name = ATTR( &attrs, fullpath );
@@ -2048,38 +1881,7 @@ void report_topdirs( unsigned int count, int flags )
             name = buff;
 #endif
         }
-
-        index++;
-        if (ATTR_MASK_TEST(&attrs, last_mod))
-        {
-            /* format last mod */
-            mod = ATTR( &attrs, last_mod );
-            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &mod, &t ) );
-        }
-        else
-            date[0] = '\0';
-
-        if ( CSV(flags) )
-            printf( "%3u, %-40s, %6u, %10"PRIu64", %10s, %10s, %s\n", index, name,
-                    ATTR( &attrs, dircount ),
-                    ATTR_MASK_TEST( &attrs, avgsize )? ATTR( &attrs, avgsize ):0,
-                    ATTR_MASK_TEST( &attrs, owner )? ATTR( &attrs, owner ): "",
-                    ATTR_MASK_TEST( &attrs, gr_name )? ATTR( &attrs, gr_name ): "",
-                    date );
-        else
-        {
-            printf( "\n" );
-            printf( "Rank:              %u\n", index );
-            printf( "%s         %s\n", title, name );
-            printf( "Dircount:          %u\n", ATTR( &attrs, dircount ) );
-            FormatFileSize( buff, 128, ATTR( &attrs, avgsize ) ),
-            printf( "Avg entry size:    %s (%"PRIu64" bytes)\n", buff, ATTR( &attrs, avgsize ) );
-            if (ATTR_MASK_TEST(&attrs, last_mod))
-                printf( "Last modification: %s\n", date );
-            if (ATTR_MASK_TEST(&attrs, owner) && ATTR_MASK_TEST(&attrs, gr_name))
-                printf( "Owner/Group:       %s/%s\n", ATTR( &attrs, owner ), ATTR( &attrs, gr_name ) );
-        }
-
+#endif
         ListMgr_FreeAttrs( &attrs );
 
         /* prepare next call */
@@ -2105,11 +1907,26 @@ void report_topsize( unsigned int count, int flags )
     struct lmgr_iterator_t *it;
     attr_set_t     attrs;
     entry_id_t     id;
-    char           acc[128];
-    char           mod[128];
-    char           sz[128];
-    char           sl[1024];
-    struct tm      t;
+
+    int list[] = { ATTR_INDEX_fullpath,
+#ifdef ATTR_INDEX_status
+                   ATTR_INDEX_status,
+#endif
+                   ATTR_INDEX_size,
+                   ATTR_INDEX_owner,
+                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_last_access,
+                   ATTR_INDEX_last_mod,
+#ifdef ATTR_INDEX_archive_class
+                   ATTR_INDEX_archive_class,
+#endif
+#ifdef ATTR_INDEX_release_class
+                   ATTR_INDEX_release_class,
+#endif
+                   ATTR_INDEX_stripe_info,
+                   ATTR_INDEX_stripe_items
+                };
+    int list_cnt = sizeof(list)/sizeof(int);
 
     /* select only files */
     fv.val_str = STR_TYPE_FILE;
@@ -2130,27 +1947,7 @@ void report_topsize( unsigned int count, int flags )
     opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
-    ATTR_MASK_SET( &attrs, fullpath );
-    ATTR_MASK_SET( &attrs, owner );
-    ATTR_MASK_SET( &attrs, gr_name );
-    ATTR_MASK_SET( &attrs, size );
-    ATTR_MASK_SET( &attrs, stripe_info );
-    ATTR_MASK_SET( &attrs, stripe_items );
-    ATTR_MASK_SET( &attrs, last_access );
-    ATTR_MASK_SET( &attrs, last_mod );
-
-#ifdef ATTR_INDEX_status
-    ATTR_MASK_SET( &attrs, status );
-#endif
-
-#ifdef ATTR_INDEX_archive_class
-    ATTR_MASK_SET( &attrs, archive_class );
-#endif
-#ifdef ATTR_INDEX_release_class
-    ATTR_MASK_SET( &attrs, release_class );
-#endif
-
-    mask_sav = attrs.attr_mask;
+    mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
 
     it = ListMgr_Iterator( &lmgr, &filter, &sorttype, &opt );
 
@@ -2163,114 +1960,15 @@ void report_topsize( unsigned int count, int flags )
         return;
     }
 
-    if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%3s, %-40s, "
-#ifdef ATTR_INDEX_status
-                "%15s,"
-#endif
-                "%15s, %10s, %10s, %20s, %20s, "
-#ifdef ATTR_INDEX_archive_class
-                "%15s, "
-#endif
-#ifdef ATTR_INDEX_release_class
-                "%15s, "
-#endif
-                "%5s, %7s, %8s, %s\n", "rank", "path",
-#ifdef ATTR_INDEX_status
-                "status",
-#endif
-                "size", "owner", "group", "last_access", "last_mod",
-#ifdef ATTR_INDEX_archive_class
-                "migr_class",
-#endif
-#ifdef ATTR_INDEX_release_class
-                "purge_class",
-#endif
-                "stripe_count", "stripe_size", "pool", "storage_units" );
+    print_attr_list(1, list, list_cnt, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        time_t         access = ATTR( &attrs, last_access );
-        time_t         modif = ATTR( &attrs, last_mod );
-
+        char out[1024];
         index++;
-        /* format last mod and last acess */
-        strftime( acc, 128, "%Y/%m/%d %T", localtime_r( &access, &t ) );
-        strftime( mod, 128, "%Y/%m/%d %T", localtime_r( &modif, &t ) );
-
-        if ( CSV(flags) )
-            printf( "%3u, %-40s, "
-#ifdef ATTR_INDEX_status
-                    "%15s ,"
-#endif
-                    "%15" PRIu64 ", %10s, %10s, %20s, %20s, "
-#ifdef ATTR_INDEX_archive_class
-                    "%15s, "
-#endif
-#ifdef ATTR_INDEX_release_class
-                    "%15s, "
-#endif
-                    "%5u, %7"PRIu64 ", %8s, %s\n",
-                    index, ATTR( &attrs, fullpath ),
-#ifdef ATTR_INDEX_status
-                    db_status2str( ATTR( &attrs, status), TRUE ),
-#endif
-                    ATTR( &attrs, size ),
-                    ATTR( &attrs, owner ), ATTR( &attrs, gr_name ), acc, mod,
-#ifdef ATTR_INDEX_archive_class
-                    migr_class(&attrs),
-#endif
-#ifdef ATTR_INDEX_release_class
-                    release_class(&attrs),
-#endif
-                    ATTR( &attrs, stripe_info ).stripe_count,
-                    ATTR( &attrs, stripe_info ).stripe_size,
-                    ATTR( &attrs, stripe_info ).pool_name,
-                    FormatStripeList( sl, 1024, &ATTR( &attrs, stripe_items ) ) );
-        else
-        {
-            FormatFileSize( sz, 128, ATTR( &attrs, size ) );
-
-            printf( "\n" );
-            printf( "Rank:              %u\n", index );
-
-            if ( ATTR_MASK_TEST( &attrs, fullpath ) )
-                printf( "Path:              %s\n", ATTR( &attrs, fullpath ) );
-
-#ifdef ATTR_INDEX_status
-            printf( "Status:            %s\n", db_status2str( ATTR( &attrs, status), FALSE ) );
-#endif
-
-            printf( "Size:              %s   (%" PRIu64 " bytes)\n", sz,
-                    ATTR( &attrs, size ) );
-            printf( "Last access:       %s\n", acc );
-            printf( "Last modification: %s\n", mod );
-            printf( "Owner/Group:       %s/%s\n", ATTR( &attrs, owner ), ATTR( &attrs, gr_name ) );
-
-#ifdef ATTR_INDEX_archive_class
-            if ( ATTR_MASK_TEST( &attrs, archive_class ) )
-                printf( "Migration class:   %s\n", migr_class(&attrs) );
-#endif
-#ifdef ATTR_INDEX_release_class
-            if ( ATTR_MASK_TEST( &attrs, release_class ) )
-                printf( "Purge class:       %s\n", release_class(&attrs) );
-#endif
-
-            if ( ATTR_MASK_TEST( &attrs, stripe_info )
-                 && ( ATTR( &attrs, stripe_info ).stripe_count > 0 ) )
-            {
-                printf( "Stripe count:      %u\n", ATTR( &attrs, stripe_info ).stripe_count );
-                printf( "Stripe size:       %s   (%" PRIu64 " bytes)\n",
-                        FormatFileSize( sz, 128, ATTR( &attrs, stripe_info ).stripe_size ),
-                        ATTR( &attrs, stripe_info ).stripe_size );
-                if ( !EMPTY_STRING( ATTR( &attrs, stripe_info ).pool_name ) )
-                    printf( "Pool:              %s\n", ATTR( &attrs, stripe_info ).pool_name );
-                printf( "Storage units:     %s\n",
-                        FormatStripeList( sl, 1024, &ATTR( &attrs, stripe_items ) ) );
-            }
-
-        }
+        print_attr_values(index, list, list_cnt, &attrs, &id,
+                          CSV(flags), out, FALSE); // XXX don't resolv id ?
 
         ListMgr_FreeAttrs( &attrs );
         /* prepare next call */
@@ -2278,7 +1976,6 @@ void report_topsize( unsigned int count, int flags )
     }
 
     ListMgr_CloseIterator( it );
-
 }
 
 
@@ -2301,6 +1998,18 @@ void report_toppurge( unsigned int count, int flags )
     char           sz[128];
     char           sl[1024];
     struct tm      t;
+
+    int list[] = {
+                ATTR_INDEX_fullpath,
+                ATTR_INDEX_type,
+                ATTR_INDEX_last_access,
+                ATTR_INDEX_last_mod,
+                ATTR_INDEX_size,
+                ATTR_INDEX_blocks,
+                ATTR_INDEX_stripe_info,
+                ATTR_INDEX_stripe_items
+                };
+    int list_cnt = sizeof(list)/sizeof(int);
 
     lmgr_simple_filter_init( &filter );
 
@@ -2341,16 +2050,7 @@ void report_toppurge( unsigned int count, int flags )
     opt.force_no_acct = FALSE;
 
     ATTR_MASK_INIT( &attrs );
-    ATTR_MASK_SET( &attrs, fullpath );
-    ATTR_MASK_SET( &attrs, type );
-    ATTR_MASK_SET( &attrs, last_access );
-    ATTR_MASK_SET( &attrs, last_mod );
-    ATTR_MASK_SET( &attrs, size );
-    ATTR_MASK_SET( &attrs, blocks );
-    ATTR_MASK_SET( &attrs, stripe_info );
-    ATTR_MASK_SET( &attrs, stripe_items );
-
-    mask_sav = attrs.attr_mask;
+    mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
 
     it = ListMgr_Iterator( &lmgr, &filter, &sorttype, &opt );
 
@@ -2362,6 +2062,8 @@ void report_toppurge( unsigned int count, int flags )
                     "ERROR: Could not retrieve top purge list from database." );
         return;
     }
+
+    print_attr_list(1, list, list_cnt, CSV(flags));
 
     if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-40s, %8s, %20s, %20s, %15s, %10s, %5s, %7s, %8s, %s\n", "rank",
@@ -2499,6 +2201,8 @@ void report_toprmdir( unsigned int count, int flags )
                     "ERROR: Could not retrieve top directories from database." );
         return;
     }
+
+// TODOREPL    print_attr_mask(1, mask_sav, list, list_cnt, CSV(flags));
 
     if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-40s, %10s, %10s, %20s, %s\n", "rank", "path", "owner", "group",
