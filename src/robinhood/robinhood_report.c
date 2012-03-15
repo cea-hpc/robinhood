@@ -1364,11 +1364,15 @@ static inline char * result_val2str(const report_field_descr_t * desc,
  */
 static void display_report( const report_field_descr_t * descr, unsigned int field_count,
                             const db_value_t * result, unsigned int result_count,
-                            int flags, int header )
+                            int flags, int header, int rank )
 {
     unsigned int i;
+
     if (!NOHEADER(flags) && header)
     {
+        if (rank)
+            printf("rank, ");
+
         if (!DB_IS_NULL(&result[0]))
             printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
                    attrdesc2name(&descr[0]));
@@ -1378,8 +1382,12 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
                         attrdesc2name(&descr[i]));
         printf("\n");
     }
+
     if (result)
     {
+        if (rank)
+            printf("%4d, ", rank);
+
         char tmpstr[1024];
         if (!DB_IS_NULL(&result[0]))
             printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
@@ -1592,9 +1600,9 @@ void report_fs_info( int flags )
               == DB_SUCCESS )
     {
         if (result[1].value_u.val_biguint == 0) /* count=0 (don't display)*/
-            display_report( fs_info, FSINFOCOUNT, NULL, result_count, flags, display_header );
+            display_report( fs_info, FSINFOCOUNT, NULL, result_count, flags, display_header, 0 );
         else
-            display_report( fs_info, FSINFOCOUNT, result, result_count, flags, display_header );
+            display_report( fs_info, FSINFOCOUNT, result, result_count, flags, display_header, 0 );
         display_header = 0; /* just display it once */
 
         total_count += result[1].value_u.val_biguint;
@@ -1754,7 +1762,7 @@ void report_usergroup_info( char *name, int flags )
     {
         result_count = field_count;
         display_report( user_info, result_count, result, result_count, flags,
-                        display_header );
+                        display_header, 0 );
         display_header = 0; /* just display it once */
 
         total_count += result[1+shift].value_u.val_biguint;
@@ -1993,11 +2001,7 @@ void report_toppurge( unsigned int count, int flags )
     struct lmgr_iterator_t *it;
     attr_set_t     attrs;
     entry_id_t     id;
-    char           acc[128];
-    char           mod[128];
-    char           sz[128];
-    char           sl[1024];
-    struct tm      t;
+    char           out[128];
 
     int list[] = {
                 ATTR_INDEX_fullpath,
@@ -2065,65 +2069,13 @@ void report_toppurge( unsigned int count, int flags )
 
     print_attr_list(1, list, list_cnt, CSV(flags));
 
-    if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%3s, %-40s, %8s, %20s, %20s, %15s, %10s, %5s, %7s, %8s, %s\n", "rank",
-                "path", "type", "last_access", "last_mod", "size", "blks",
-                "stripe_count", "stripe_size", "pool", "storage_units" );
-
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        time_t         access = ATTR( &attrs, last_access );
-        time_t         modif = ATTR( &attrs, last_mod );
-
         index++;
-        /* format last mod and last acess */
-        strftime( acc, 128, "%Y/%m/%d %T", localtime_r( &access, &t ) );
-        strftime( mod, 128, "%Y/%m/%d %T", localtime_r( &modif, &t ) );
 
-        if ( CSV(flags) )
-            printf( "%3u, %-40s, %8s, %20s, %20s, %15" PRIu64 ", %10llu, %5u, %7"
-                    PRIu64 ", %8s, %s\n", index, ATTR( &attrs, fullpath ),
-                    ATTR( &attrs, type ), acc, mod,
-                    ATTR( &attrs, size ),
-                    (unsigned long long)ATTR( &attrs, blocks ),
-                    ATTR( &attrs, stripe_info ).stripe_count,
-                    ATTR( &attrs, stripe_info ).stripe_size,
-                    ATTR( &attrs, stripe_info ).pool_name,
-                    FormatStripeList( sl, 1024, &ATTR( &attrs, stripe_items ) ) );
-        else
-        {
-            printf( "\n" );
-            printf( "Rank:              %u\n", index );
-
-            if ( ATTR_MASK_TEST( &attrs, fullpath ) )
-                printf( "Path:              %s\n", ATTR( &attrs, fullpath ) );
-
-            printf( "Type:              %s\n", ATTR( &attrs, type ) );
-            printf( "Last access:       %s\n", acc );
-            printf( "Last modification: %s\n", mod );
-            printf( "Size:              %s   (%" PRIu64 " bytes)\n",
-                    FormatFileSize( sz, 128, ATTR( &attrs, size ) ),
-                    ATTR( &attrs, size ) );
-            printf( "Space used:        %s   (%llu blocks)\n",
-                    FormatFileSize( sz, 128, ATTR( &attrs, blocks ) * DEV_BSIZE ),
-                    (unsigned long long)ATTR( &attrs, blocks ) );
-
-            if ( ATTR_MASK_TEST( &attrs, stripe_info )
-                 && ( ATTR( &attrs, stripe_info ).stripe_count > 0 ) )
-            {
-                printf( "Stripe count:      %u\n", ATTR( &attrs, stripe_info ).stripe_count );
-                printf( "Stripe size:       %s   (%" PRIu64 " bytes)\n",
-                        FormatFileSize( sz, 128, ATTR( &attrs, stripe_info ).stripe_size ),
-                        ATTR( &attrs, stripe_info ).stripe_size );
-                if ( !EMPTY_STRING( ATTR( &attrs, stripe_info ).pool_name ) )
-                    printf( "Pool:              %s\n", ATTR( &attrs, stripe_info ).pool_name );
-                printf( "Storage units:     %s\n",
-                        FormatStripeList( sl, 1024, &ATTR( &attrs, stripe_items ) ) );
-            }
-
-        }
-
+        print_attr_values(index, list, list_cnt, &attrs, &id,
+                          CSV(flags), out, FALSE); // XXX don't resolv id ?
         ListMgr_FreeAttrs( &attrs );
 
         /* prepare next call */
@@ -2263,7 +2215,6 @@ void report_topuser( unsigned int count, int flags )
     struct lmgr_report_t *it;
     lmgr_iter_opt_t opt;
     int            rc;
-    char           strsize[128] = "";
     unsigned int   rank = 1;
     lmgr_filter_t  filter;
     int is_filter = FALSE;
@@ -2335,65 +2286,10 @@ void report_topuser( unsigned int count, int flags )
     }
 
     result_count = TOPUSERCOUNT;
-
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
     {
-        if ( CSV(flags) && !NOHEADER(flags) && rank == 1 )
-        {
-            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
-                printf( "%3s, %-10s, %15s, %10s, %15s, %15s, %15s\n", "rank",
-                        "user", "spc_used", "nb_entries", "min_size", "max_size", "avg_size" );
-            else
-                printf( "%3s, %-10s, %15s, %10s, %15s\n", "rank",
-                        "user", "spc_used", "nb_entries", "avg_size" );
-        }
-
-        /* unknown user */
-        if ( result[0].value_u.val_str == NULL )
-            result[0].value_u.val_str = "(?)";
-
-        if ( CSV(flags) )
-        {
-            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
-                printf( "%4u, %-10s, %15llu, %10Lu, %15llu, %15llu, %15llu\n",
-                        rank,
-                        result[0].value_u.val_str,
-                        result[1].value_u.val_biguint * DEV_BSIZE,
-                        result[2].value_u.val_biguint,
-                        result[3].value_u.val_biguint,
-                        result[4].value_u.val_biguint, result[5].value_u.val_biguint );
-            else
-                printf( "%4u, %-10s, %15llu, %10Lu, %15llu\n",
-                        rank,
-                        result[0].value_u.val_str,
-                        result[1].value_u.val_biguint * DEV_BSIZE,
-                        result[2].value_u.val_biguint,
-                        result[5].value_u.val_biguint );
-        }
-        else
-        {
-            printf( "\n" );
-            printf( "Rank:         %15u\n", rank );
-            printf( "User:         %15s\n", result[0].value_u.val_str );
-            printf( "Space used:   %15s    (%llu blks)\n",
-                    FormatFileSize( strsize, 128,
-                                    result[1].value_u.val_biguint * DEV_BSIZE ),
-                    result[1].value_u.val_biguint );
-
-            printf( "Nb entries:   %15Lu\n", result[2].value_u.val_biguint );
-            if ( !DB_IS_NULL( &result[3] ) && !DB_IS_NULL( &result[4] ) )
-            {
-                printf( "Size min:     %15s    (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                        result[3].value_u.val_biguint );
-                printf( "Size max:     %15s    (%llu bytes)\n",
-                        FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                        result[4].value_u.val_biguint );
-            }
-            printf( "Size avg:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
-                    result[5].value_u.val_biguint );
-        }
+        display_report( user_info, result_count, result, result_count, flags,
+                        rank == 1, rank ); /* display header once */
 
         rank++;
 
