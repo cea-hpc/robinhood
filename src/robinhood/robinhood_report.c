@@ -1318,7 +1318,7 @@ static inline const char * attrdesc2name(const report_field_descr_t * desc)
 }
 
 
-static inline char * result_val2str(const report_field_descr_t * desc,
+static inline const char * result_val2str(const report_field_descr_t * desc,
                                     const db_value_t * val, int csv,
                                     char * out)
 {
@@ -1353,6 +1353,15 @@ static inline char * result_val2str(const report_field_descr_t * desc,
                 FormatFileSize( out, 128, val->value_u.val_biguint * DEV_BSIZE);
             break;
 
+#ifdef ATTR_INDEX_archive_class
+        case ATTR_INDEX_archive_class:
+            return class_format( val->value_u.val_str );
+#endif
+#ifdef ATTR_INDEX_release_class
+        case ATTR_INDEX_release_class:
+            return class_format( val->value_u.val_str );
+#endif
+
     }
     return out;
 }
@@ -1373,9 +1382,8 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
         if (rank)
             printf("rank, ");
 
-        if (!DB_IS_NULL(&result[0]))
-            printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
-                   attrdesc2name(&descr[0]));
+        printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
+               attrdesc2name(&descr[0]));
         for (i = 1; i < field_count && i < result_count; i++)
             if (!DB_IS_NULL(&result[i]))
                 printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
@@ -1389,9 +1397,8 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
             printf("%4d, ", rank);
 
         char tmpstr[1024];
-        if (!DB_IS_NULL(&result[0]))
-            printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
-                   result_val2str(&descr[0],&result[0], CSV(flags), tmpstr));
+        printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
+               result_val2str(&descr[0],&result[0], CSV(flags), tmpstr));
         for (i = 1; i < field_count && i < result_count; i++)
             if (!DB_IS_NULL(&result[i]))
                 printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
@@ -2564,6 +2571,7 @@ static void report_class_info( int flags )
     lmgr_filter_t  filter;
     int            is_filter = FALSE;
     int            rc;
+    int header = 1;
     unsigned int   result_count;
 
     unsigned long long total_size, total_count;
@@ -2579,7 +2587,7 @@ static void report_class_info( int flags )
      * - SUM(blocks)
      * - MIN/MAX/AVG file size
      */
-    report_field_descr_t user_info[CLASSINFO_FIELDS] = {
+    report_field_descr_t class_info[CLASSINFO_FIELDS] = {
 #ifdef ATTR_INDEX_release_class
         {ATTR_INDEX_release_class, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #endif
@@ -2610,9 +2618,9 @@ static void report_class_info( int flags )
 
     /* is a filter specified? */
     if ( is_filter )
-        it = ListMgr_Report( &lmgr, user_info, CLASSINFO_FIELDS, &filter, NULL );
+        it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS, &filter, NULL );
     else
-        it = ListMgr_Report( &lmgr, user_info, CLASSINFO_FIELDS, NULL, NULL );
+        it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS, NULL, NULL );
 
     if ( it == NULL )
     {
@@ -2632,41 +2640,12 @@ static void report_class_info( int flags )
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
             == DB_SUCCESS )
     {
+        display_report( class_info, result_count, result, result_count, flags,
+                        header, 0);
+        header = 0; /* display header once */
+
         total_count += result[1].value_u.val_biguint;
         total_size += result[2].value_u.val_biguint * DEV_BSIZE;
-
-        if ( CSV(flags) )
-            printf( "%20s, %10Lu, %15Lu, %15Lu, %15Lu, %15Lu\n",
-                    class_format( result[0].value_u.val_str ),
-                    result[1].value_u.val_biguint,
-                    result[2].value_u.val_biguint * DEV_BSIZE,
-                    result[3].value_u.val_biguint,
-                    result[4].value_u.val_biguint,
-                    result[5].value_u.val_biguint );
-        else
-        {
-            char           strsize[128] = "";
-
-            printf( "\n" );
-            printf( "Class:   %20s\n",
-                    class_format( result[0].value_u.val_str ) );
-            printf( "Nb entries:   %15Lu\n", result[1].value_u.val_biguint );
-            printf( "Space used:   %15s    (%llu blks)\n",
-                    FormatFileSize( strsize, 128,
-                                    result[2].value_u.val_biguint * DEV_BSIZE ),
-                                    result[2].value_u.val_biguint );
-
-            printf( "Size min:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[3].value_u.val_biguint ),
-                                    result[3].value_u.val_biguint );
-            printf( "Size max:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[4].value_u.val_biguint ),
-                                    result[4].value_u.val_biguint );
-            printf( "Size avg:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, result[5].value_u.val_biguint ),
-                    result[5].value_u.val_biguint );
-        }
-
     }
 
 #else
