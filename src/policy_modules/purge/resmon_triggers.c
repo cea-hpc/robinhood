@@ -1197,6 +1197,13 @@ static int check_usergroup_trigger( unsigned trigger_index )
     /* filtre non-invalid entries */
     lmgr_simple_filter_init( &filter );
 
+#ifdef ATTR_INDEX_status
+    /* don't consider released files in quota */
+    fv.val_int = STATUS_RELEASED;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, NOTEQUAL, fv,
+                            FILTER_FLAG_ALLOW_NULL);
+#endif
+
 #if 0
     /** @TODO if accounting is enabled, don't filter to take benefits of accounting table */
     fv.val_bool = TRUE;
