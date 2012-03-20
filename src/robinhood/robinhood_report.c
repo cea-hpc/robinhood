@@ -958,7 +958,7 @@ static inline const char * class_format( const char * class_name )
 }
 
 #ifdef ATTR_INDEX_archive_class
-static inline const char * migr_class( attr_set_t * attrs )
+static inline const char * migr_class( const attr_set_t * attrs )
 {
     if (!ATTR_MASK_TEST(attrs, archive_class))
         return "";
@@ -1330,7 +1330,7 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
             break;
 #ifdef  ATTR_INDEX_status
         case ATTR_INDEX_status:
-            sprintf(out, db_status2str(val->value_u.val_uint,csv);
+            sprintf(out, db_status2str(val->value_u.val_uint,csv));
             break;
 #endif
 #ifdef ATTR_INDEX_type
@@ -1422,7 +1422,7 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
 
-    int list[] = { 
+    int list[] = {
                    ATTR_INDEX_type,
 #ifdef ATTR_INDEX_status
                    ATTR_INDEX_status,
@@ -2571,7 +2571,9 @@ static void report_class_info( int flags )
     lmgr_filter_t  filter;
     int            is_filter = FALSE;
     int            rc;
+#ifndef ATTR_INDEX_archive_class
     int header = 1;
+#endif
     unsigned int   result_count;
 
     unsigned long long total_size, total_count;
