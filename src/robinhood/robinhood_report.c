@@ -1421,8 +1421,9 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
         printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
                attrdesc2name(&descr[0]));
         for (i = 1; i < field_count && i < result_count; i++)
-            printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
-                    attrdesc2name(&descr[i]));
+            if (!result || !DB_IS_NULL(&result[i]))
+                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
+                        attrdesc2name(&descr[i]));
         printf("\n");
     }
 
@@ -1438,8 +1439,6 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
             if (!DB_IS_NULL(&result[i]))
                 printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
                        result_val2str(&descr[i],&result[i], CSV(flags), tmpstr));
-            else
-                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags))," ");
         printf("\n");
     }
 }
