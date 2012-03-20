@@ -2410,7 +2410,7 @@ function check_released
         bl=`stat -c "%b" $1`
         [[ -n $bl ]] && (( $bl == 0 )) || return 1
         # check that shook_state is "released"
-        st=`getfattr -n user.shook_state $1 --only-values 2>/dev/null`
+        st=`getfattr -n security.shook_state $1 --only-values 2>/dev/null`
         [[ "x$st" = "xreleased" ]] || return 1
 	else
 		[ -f $1 ] && return 1

@@ -438,7 +438,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         return rc;
 #endif
 
-#if defined(_LUSTRE_HSM) || defined (_SHERPA) || defined(_HSM_LITE)
+#ifdef ATTR_INDEX_status
     /* only get entries with HSM state SYNCHRO */
     fval.val_int = STATUS_SYNCHRO;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
