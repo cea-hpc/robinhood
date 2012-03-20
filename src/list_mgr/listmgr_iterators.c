@@ -395,6 +395,15 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
     /* allocate a new iterator */
     it = ( lmgr_iterator_t * ) MemAlloc( sizeof( lmgr_iterator_t ) );
     it->p_mgr = p_mgr;
+    if (p_opt)
+    {
+        it->opt = *p_opt;
+        it->opt_is_set = 1;
+    }
+    else
+    {
+        it->opt_is_set = 0;
+    }
 
 #ifdef _DEBUG_DB
     printf( "Iterator is specified by: %s\n", query );
@@ -410,7 +419,6 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
     }
     else
         return it;
-
 }
 
 
@@ -452,7 +460,29 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
         rc = listmgr_get_by_pk( p_iter->p_mgr, pk, p_info );
 
         if ( rc == DB_NOT_EXISTS )
-            entry_disappeared = TRUE;
+        {
+            if (p_iter->opt_is_set && p_iter->opt.allow_no_attr)
+            {
+                /* clear missing fields */
+                p_info->attr_mask &= dir_attr_set;
+                /* special field dircount */
+                if (dirattr_fields( p_info->attr_mask ))
+                {
+                    if (listmgr_get_dirattrs(p_iter->p_mgr, pk, p_info))
+                    {
+                        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattr failed for "DPK, pk );
+                        p_info->attr_mask &= ~dir_attr_set;
+                    }
+                }
+
+                /* compute generated fields if asked */
+                generate_fields( p_info );
+
+                rc = 0;
+            }
+            else
+                entry_disappeared = TRUE;
+        }
     }
     while ( entry_disappeared );        /* goto next record if entry desappered */
 

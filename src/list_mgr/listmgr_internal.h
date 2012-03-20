@@ -53,11 +53,15 @@
 #endif
 
 int            listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info );
+int            listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs );
+
 
 typedef struct lmgr_iterator_t
 {
-    lmgr_t        *p_mgr;
+    lmgr_t          *p_mgr;
+    lmgr_iter_opt_t opt;
     result_handle_t select_result;
+    unsigned int    opt_is_set:1;
 } lmgr_iterator_t;
 
 

@@ -76,6 +76,12 @@ function flush_data
 	fi
 }
 
+function clean_caches
+{
+    echo 3 > /proc/sys/vm/drop_caches
+    lctl set_param ldlm.namespaces.lustre-*.lru_size=clear
+}
+
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 	no_log=0
 else
@@ -1287,7 +1293,7 @@ function test_dircount_report
                 echo "1.$i-Creating files in $ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $((10*$i))`; do
-                        touch $ROOT/dir.$i/file.$j || error "creating $ROOT/dir.$i/file.$j"
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1 count=$i 2>/dev/null || error "creating $ROOT/dir.$i/file.$j"
                 done
         done
 	if [ $PURPOSE = "TMP_FS_MGR" ]; then
@@ -1312,6 +1318,8 @@ function test_dircount_report
 	# dircount+1 because $ROOT may be returned
 	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --csv > report.out
 
+    [ "$DEBUG" = "1" ] && cat report.out
+
 	# check that dircount is right for each dir
 
 	# check if $ROOT is in topdirs. If so, check its position
@@ -1328,13 +1336,16 @@ function test_dircount_report
 		echo "FS root $ROOT was returned in top dircount (rank=$root_rank)"
 	fi
 	for i in `seq 1 $dircount`; do
-		line=`grep "$ROOT/dir.$i " report.out`
+		line=`grep "$ROOT/dir.$i," report.out`
 		rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
 		count=`echo $line | cut -d ',' -f 3 | tr -d ' '`
+		avg=`echo $line | cut -d ',' -f 4 | tr -d ' '`
+        [ "$DEBUG" = "1" ] && echo "rank=$rank, count=$count, avg_sz=$avg"
 		# if expected_rank >= root_rank, shift expected rank
 		(($is_root )) && (($rank >= $root_rank)) && rank=$rank-1
 		(($rank == $(( 20 - $i +1 )) )) || error "Invalid rank $rank for dir.$i"
 		(($count == $(( 10 * $i )) )) || error "Invalid dircount $count for dir.$i"
+		(($avg == $i)) || error "Invalid avg size $avg for dir.$i ($i expected)"
 	done
 
 	if [ $PURPOSE = "TMP_FS_MGR" ]; then
@@ -2408,9 +2419,11 @@ function check_released
     elif (($shook != 0 )); then
         # check that nb blocks is 0
         bl=`stat -c "%b" $1`
+        [ "$DEBUG" = "1" ] && echo "$1: $bl blocks"
         [[ -n $bl ]] && (( $bl == 0 )) || return 1
         # check that shook_state is "released"
         st=`getfattr -n security.shook_state $1 --only-values 2>/dev/null`
+        [ "$DEBUG" = "1" ] && echo "$1: status $st"
         [[ "x$st" = "xreleased" ]] || return 1
 	else
 		[ -f $1 ] && return 1
@@ -2440,8 +2453,8 @@ function test_periodic_trigger
 		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/foo.$i"
 		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/bar.$i"
 
+    	flush_data
 		if (( $is_lhsm != 0 )); then
-			flush_data
 			lfs hsm_archive $ROOT/file.$i $ROOT/foo.$i $ROOT/bar.$i
 		fi
 	done
@@ -2471,10 +2484,11 @@ function test_periodic_trigger
 	t1=`date +%s`
 	((delta=$t1 - $t0))
 
+    clean_caches # blocks is cached
 	# it first must have purged *.1 files (not others)
-	check_released "$ROOT/file.1" || error "$ROOT/file.1 should have been released"
-	check_released "$ROOT/foo.1"  || error "$ROOT/foo.1 should have been released"
-	check_released "$ROOT/bar.1"  || error "$ROOT/bar.1 should have been released"
+	check_released "$ROOT/file.1" || error "$ROOT/file.1 should have been released after $delta s"
+	check_released "$ROOT/foo.1"  || error "$ROOT/foo.1 should have been released after $delta s"
+	check_released "$ROOT/bar.1"  || error "$ROOT/bar.1 should have been released after $delta s"
 	check_released "$ROOT/file.2" && error "$ROOT/file.2 shouldn't have been released after $delta s"
 	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released after $delta s"
 	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released after $delta s"
@@ -2483,24 +2497,32 @@ function test_periodic_trigger
 	# now, *.2 must have been purged
 	echo "3.2-checking trigger for second policy..."
 
-	check_released "$ROOT/file.2" || error "$ROOT/file.2 should have been released"
-	check_released "$ROOT/foo.2" || error "$ROOT/foo.2 should have been released"
-	check_released "$ROOT/bar.2" || error "$ROOT/bar.2 should have been released"
-	check_released "$ROOT/file.3" && error "$ROOT/file.3 shouldn't have been released"
-	check_released "$ROOT/foo.3"  && error "$ROOT/foo.3 shouldn't have been released"
-	check_released "$ROOT/bar.3" && error "$ROOT/bar.3 shouldn't have been released"
+	t2=`date +%s`
+	((delta=$t2 - $t0))
+
+    clean_caches # blocks is cached
+	check_released "$ROOT/file.2" || error "$ROOT/file.2 should have been released after $delta s"
+	check_released "$ROOT/foo.2" || error "$ROOT/foo.2 should have been released after $delta s"
+	check_released "$ROOT/bar.2" || error "$ROOT/bar.2 should have been released after $delta s"
+	check_released "$ROOT/file.3" && error "$ROOT/file.3 shouldn't have been released after $delta s"
+	check_released "$ROOT/foo.3"  && error "$ROOT/foo.3 shouldn't have been released after $delta s"
+	check_released "$ROOT/bar.3" && error "$ROOT/bar.3 shouldn't have been released after $delta s"
 
 	sleep $(( $sleep_time + 2 ))
 	# now, it's *.3
 	# *.4 must be preserved
 	echo "3.3-checking trigger for third policy..."
 
-	check_released "$ROOT/file.3" || error "$ROOT/file.3 should have been released"
-	check_released "$ROOT/foo.3"  || error "$ROOT/foo.3 should have been released"
-	check_released "$ROOT/bar.3"  || error "$ROOT/bar.3 should have been released"
-	check_released "$ROOT/file.4" && error "$ROOT/file.4 shouldn't have been released"
-	check_released "$ROOT/foo.4"  && error "$ROOT/foo.4 shouldn't have been released"
-	check_released "$ROOT/bar.4"  && error "$ROOT/bar.4 shouldn't have been released"
+	t3=`date +%s`
+	((delta=$t3 - $t0))
+
+    clean_caches # blocks is cached
+	check_released "$ROOT/file.3" || error "$ROOT/file.3 should have been released after $delta s"
+	check_released "$ROOT/foo.3"  || error "$ROOT/foo.3 should have been released after $delta s"
+	check_released "$ROOT/bar.3"  || error "$ROOT/bar.3 should have been released after $delta s"
+	check_released "$ROOT/file.4" && error "$ROOT/file.4 shouldn't have been released after $delta s"
+	check_released "$ROOT/foo.4"  && error "$ROOT/foo.4 shouldn't have been released after $delta s"
+	check_released "$ROOT/bar.4"  && error "$ROOT/bar.4 shouldn't have been released after $delta s"
 
 	# final check: 3x "Purge summary: 3 entries"
 	nb_pass=`grep "Purge summary: 3 entries" rh_purge.log | wc -l`

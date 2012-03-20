@@ -508,6 +508,40 @@ int TryFid2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
 }
 #endif
 
+static const char * ResolvName(const entry_id_t * p_id, attr_set_t * attrs,
+                               char * buff)
+{
+    if (ATTR_MASK_TEST(attrs, fullpath))
+    {
+        return  ATTR(attrs, fullpath);
+    }
+    else
+    {
+#ifdef _HAVE_FID
+        /* try to get dir path from fid if it's mounted */
+        if ( TryFid2path( &lmgr, p_id, ATTR(attrs, fullpath)) == 0 )
+        {
+            struct stat st;
+            ATTR_MASK_SET(attrs, fullpath);
+
+            /* we're lucky, try lstat now! */
+            if (lstat(ATTR(attrs, fullpath ), &st) == 0)
+                PosixStat2EntryAttr(&st, attrs, TRUE);
+            return ATTR(attrs, fullpath);
+        }
+        else
+        {
+            sprintf(buff, DFID, PFID(p_id));
+            return buff;
+        }
+#else
+        sprintf(buff, "%#"PRI_DT"/%Lu", p_id->device,
+                (unsigned long long)p_id->inode);
+        return buff;
+#endif
+    }
+}
+
 
 void report_activity( int flags )
 {
@@ -1177,8 +1211,8 @@ static void print_attr_list(int rank_field, int * attr_list, int attr_count, int
 }
 
 
-static const char * attr2str(const attr_set_t * attrs, const entry_id_t * id,
-                int attr_index, int csv, char * out)
+static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
+                int attr_index, int csv, int resolv_id, char * out)
 {
     time_t tt;
     struct tm stm;
@@ -1187,6 +1221,8 @@ static const char * attr2str(const attr_set_t * attrs, const entry_id_t * id,
         case ATTR_INDEX_fullpath:
             if (ATTR_MASK_TEST(attrs, fullpath))
                 return ATTR(attrs, fullpath);
+            else if (resolv_id)
+                return ResolvName(id, attrs, out);
             else
                 return "n/a"; /* TODO fid2path if possible? */
         case ATTR_INDEX_avgsize:
@@ -1265,7 +1301,7 @@ static const char * attr2str(const attr_set_t * attrs, const entry_id_t * id,
 
 
 static void print_attr_values(int rank, int * attr_list, int attr_count,
-                              const attr_set_t * attrs, const entry_id_t * id,
+                              attr_set_t * attrs, const entry_id_t * id,
                               int csv, char * out, int resolv_id)
 {
     int i, coma = 0;
@@ -1279,11 +1315,11 @@ static void print_attr_values(int rank, int * attr_list, int attr_count,
     {
         if (coma)
             printf(", %*s", attrindex2len(attr_list[i], csv),
-                   attr2str(attrs, id, attr_list[i], csv, str));
+                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str));
         else
         {
             printf("%*s", attrindex2len(attr_list[i], csv),
-                   attr2str(attrs, id, attr_list[i], csv, str));
+                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str));
             coma = 1;
         }
     }
@@ -1385,9 +1421,8 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
         printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
                attrdesc2name(&descr[0]));
         for (i = 1; i < field_count && i < result_count; i++)
-            if (!DB_IS_NULL(&result[i]))
-                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
-                        attrdesc2name(&descr[i]));
+            printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
+                    attrdesc2name(&descr[i]));
         printf("\n");
     }
 
@@ -1403,6 +1438,8 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
             if (!DB_IS_NULL(&result[i]))
                 printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
                        result_val2str(&descr[i],&result[i], CSV(flags), tmpstr));
+            else
+                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags))," ");
         printf("\n");
     }
 }
@@ -1502,7 +1539,7 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
         total_size += ATTR( &attrs, size );
 
         print_attr_values(0, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, FALSE); // XXX don't resolv id ?
+                          CSV(flags), out, FALSE);
 
         ListMgr_FreeAttrs( &attrs );
 
@@ -1568,6 +1605,8 @@ void report_fs_info( int flags )
 
     /* no limit */
     opt.list_count_max = 0;
+    /* skip missing entries */
+    opt.allow_no_attr = FALSE;
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )
@@ -1735,6 +1774,8 @@ void report_usergroup_info( char *name, int flags )
         opt.force_no_acct = FALSE;
     /* no limit */
     opt.list_count_max = 0;
+    /* skip missing entries */
+    opt.allow_no_attr = FALSE;
 
     if ( name )
     {
@@ -1839,6 +1880,8 @@ void report_topdirs( unsigned int count, int flags )
     /* select only the top dirs */
     opt.list_count_max = count;
     opt.force_no_acct = FALSE;
+    /* allow missing entries */
+    opt.allow_no_attr = TRUE;
 
     ATTR_MASK_INIT( &attrs );
     mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
@@ -1862,49 +1905,16 @@ void report_topdirs( unsigned int count, int flags )
         char   out[1024];
 
         index++;
+        /* resolv id for dir requests */
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, FALSE); // XXX don't resolv id ?
+                          CSV(flags), out, TRUE);
 
-#if 0
-        if (ATTR_MASK_TEST(&attrs, fullpath)) {
-            title = "Path:     ";
-            name = ATTR( &attrs, fullpath );
-        }
-        else {
-#ifdef _HAVE_FID
-            /* try to get dir path from fid if it's mounted */
-            if ( TryFid2path( &lmgr, &id, ATTR(&attrs, fullpath)) == 0 )
-            {
-                struct stat st;
-                ATTR_MASK_SET(&attrs, fullpath);
-                name = ATTR( &attrs, fullpath );
-                title = "Path:     ";
-
-                /* we're lucky, try lstat now! */
-                if (lstat(ATTR( &attrs, fullpath ), &st) == 0)
-                    PosixStat2EntryAttr(&st, &attrs, TRUE);
-            }
-            else
-            {
-                sprintf(buff, DFID, PFID(&id));
-                title = "Fid:      ";
-                name = buff;
-            }
-#else
-            sprintf(buff, "%#"PRI_DT"/%Lu", id.device, (unsigned long long)id.inode);
-            title = "Dev/inode:";
-            name = buff;
-#endif
-        }
-#endif
         ListMgr_FreeAttrs( &attrs );
 
         /* prepare next call */
         attrs.attr_mask = mask_sav;
     }
-
     ListMgr_CloseIterator( it );
-
 }
 #endif
 
@@ -1960,6 +1970,8 @@ void report_topsize( unsigned int count, int flags )
     /* select only the top size */
     opt.list_count_max = count;
     opt.force_no_acct = FALSE;
+    /* skip missing entries */
+    opt.allow_no_attr = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
@@ -1983,7 +1995,7 @@ void report_topsize( unsigned int count, int flags )
         char out[1024];
         index++;
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, FALSE); // XXX don't resolv id ?
+                          CSV(flags), out, FALSE);
 
         ListMgr_FreeAttrs( &attrs );
         /* prepare next call */
@@ -2059,6 +2071,8 @@ void report_toppurge( unsigned int count, int flags )
     /* select only the top size */
     opt.list_count_max = count;
     opt.force_no_acct = FALSE;
+    /* skip missing entries */
+    opt.allow_no_attr = FALSE;
 
     ATTR_MASK_INIT( &attrs );
     mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
@@ -2082,7 +2096,7 @@ void report_toppurge( unsigned int count, int flags )
         index++;
 
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, FALSE); // XXX don't resolv id ?
+                          CSV(flags), out, FALSE);
         ListMgr_FreeAttrs( &attrs );
 
         /* prepare next call */
@@ -2141,6 +2155,8 @@ void report_toprmdir( unsigned int count, int flags )
     /* select only the top dirs */
     opt.list_count_max = count;
     opt.force_no_acct = FALSE;
+    /* allow missing entries */
+    opt.allow_no_attr = TRUE;
 
     ATTR_MASK_INIT( &attrs );
     ATTR_MASK_SET( &attrs, fullpath );
@@ -2267,6 +2283,8 @@ void report_topuser( unsigned int count, int flags )
     /* select only the top users */
     opt.list_count_max = count;
     opt.force_no_acct = FALSE;
+    /* skip missing entries */
+    opt.allow_no_attr = FALSE;
 
     /* test FORCE NO ACCT option */
     if( FORCE_NO_ACCT( flags ) )

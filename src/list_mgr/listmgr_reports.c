@@ -139,10 +139,11 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     {
         opt.list_count_max = 0;
         opt.force_no_acct = FALSE;
+        opt.allow_no_attr = FALSE;
     }
     else
     {
-        opt = *p_opt;    
+        opt = *p_opt;
     }
 
     for ( i = 0; i < report_descr_count; i++ )

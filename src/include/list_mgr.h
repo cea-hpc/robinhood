@@ -226,6 +226,7 @@ typedef struct lmgr_iter_opt_t
 {
     unsigned int   list_count_max;               /* max entries to be returned by iterator or report */
     unsigned int   force_no_acct:1;              /* don't use acct table for reports */
+    unsigned int   allow_no_attr:1;              /* allow returning entries if no attr is available */
 } lmgr_iter_opt_t;
 
 /** Set of attributes for a FS entry */

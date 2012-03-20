@@ -65,7 +65,7 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
 }
 
 /** retrieve directory attributes (nbr of entries, avg size of entries)*/
-static int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs )
+int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs )
 {
     if (ATTR_MASK_TEST( p_attrs, type) &&  (strcmp( ATTR(p_attrs, type), STR_TYPE_DIR ) != 0))
     {
@@ -219,7 +219,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     {
         if (listmgr_get_dirattrs(p_mgr, pk, p_info))
         {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dircount failed for "DPK, pk );
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattrs failed for "DPK, pk );
             p_info->attr_mask &= ~dir_attr_set;
         }
     }
