@@ -698,7 +698,7 @@ function test_dircount_report
                 echo "1.$i-Creating files in $ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $((10*$i))`; do
-                        touch $ROOT/dir.$i/file.$j || error "creating $ROOT/dir.$i/file.$j"
+                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1 count=$i 2>/dev/null || error "creating $ROOT/dir.$i/file.$j"
                 done
         done
 	if [ $PURPOSE = "TMP_FS_MGR" ]; then
@@ -734,13 +734,15 @@ function test_dircount_report
 		echo "FS root $ROOT was returned in top dircount (rank=$root_rank)"
 	fi
 	for i in `seq 1 $dircount`; do
-		line=`grep "$ROOT/dir.$i " report.out`
+		line=`grep "$ROOT/dir.$i," report.out`
 		rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
 		count=`echo $line | cut -d ',' -f 3 | tr -d ' '`
+        avg=`echo $line | cut -d ',' -f 4 | tr -d ' '`
 		# if expected_rank >= root_rank, shift expected rank
 		(($is_root )) && (($rank >= $root_rank)) && rank=$rank-1
 		(($rank == $(( 20 - $i +1 )) )) || error "Invalid rank $rank for dir.$i"
 		(($count == $(( 10 * $i )) )) || error "Invalid dircount $count for dir.$i"
+        (($avg == $i)) || error "Invalid avg size $avg for dir.$i ($i expected)"
 	done
 	
 	if [ $PURPOSE = "TMP_FS_MGR" ]; then
