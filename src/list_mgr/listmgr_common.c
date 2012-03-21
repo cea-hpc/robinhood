@@ -692,9 +692,12 @@ char          *compar2str( filter_comparator_t compar )
 }
 
 /**
- * return true if the test is 'dircount == 0'
+ * return FILTERDIR_NONE if there is no filter on dirattrs
+ * return FILTERDIR_EMPTY if the test is 'dircount == 0'
+ * return FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, ...
  */
-int emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str)
+filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str,
+                        unsigned int * dir_attr_index)
 {
     int i;
     filter_str[0] = '\0';
@@ -704,20 +707,35 @@ int emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter
     {
         for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
         {
-            if ( p_filter->filter_simple.filter_index[i] == ATTR_INDEX_dircount )
-            {
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on dircount" );
+            unsigned int index = p_filter->filter_simple.filter_index[i];
+            if (!is_dirattr(index))
+                continue;
 
-                if ( p_filter->filter_simple.filter_value[i].val_uint == 0 )
-                {
-                    strcpy( filter_str, "id NOT IN (SELECT distinct(parent_id) from ENTRIES)" );
-                    return 1;
-                }
+            /* condition about empty directory ? */
+            if ((index == ATTR_INDEX_dircount)
+                  && (p_filter->filter_simple.filter_value[i].val_uint == 0)
+                  && (p_filter->filter_simple.filter_compar[i] == EQUAL))
+            {
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on empty directory" );
+                strcpy( filter_str, "id NOT IN (SELECT distinct(parent_id) from ENTRIES)" );
+                *dir_attr_index = index;
+                return FILTERDIR_EMPTY;
+            }
+            else
+            {
+                char val[1024];
+                db_type_u typeu = p_filter->filter_simple.filter_value[i];
+                printdbtype( p_mgr, val, field_infos[index].db_type, &typeu );
+
+                sprintf(filter_str, "dirattr%s%s", compar2str( p_filter->filter_simple.filter_compar[i] ),
+                        val);
+                *dir_attr_index = index;
+                return FILTERDIR_OTHER;
             }
         }
     }
 #endif
-    return 0;
+    return FILTERDIR_NONE;
 }
 
 

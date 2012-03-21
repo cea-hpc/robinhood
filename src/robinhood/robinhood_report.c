@@ -2176,7 +2176,7 @@ void report_toprmdir( unsigned int count, int flags )
         return;
     }
 
-// TODOREPL    print_attr_mask(1, mask_sav, list, list_cnt, CSV(flags));
+    // @TODO replace: print_attr_mask(1, mask_sav, list, list_cnt, CSV(flags));
 
     if ( CSV(flags) && !NOHEADER(flags) )
         printf( "%3s, %-40s, %10s, %10s, %20s, %s\n", "rank", "path", "owner", "group",
@@ -3266,8 +3266,10 @@ int main( int argc, char **argv )
 
     if ( force_log_level )
         config.log_config.debug_level = log_level;
+    else
+        config.log_config.debug_level = LVL_MAJOR; /* no event message */
 
-    /* XXX HOOK: Set logging to stderr */
+    /* XXX set logging to stderr */
     strcpy( config.log_config.log_file, "stderr" );
     strcpy( config.log_config.report_file, "stderr" );
     strcpy( config.log_config.alert_file, "stderr" );

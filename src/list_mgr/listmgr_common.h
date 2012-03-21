@@ -188,7 +188,15 @@ char          *compar2str( filter_comparator_t compar );
 int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                            table_enum table, int leading_and, int prefix_table );
 
-int     emptydir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str);
+typedef enum
+{
+    FILTERDIR_NONE = 0,    /* no dir filter */
+    FILTERDIR_EMPTY,       /* empty dir filter */
+    FILTERDIR_OTHER,       /* other condition on directory attribute */
+} filter_dir_e;
+ 
+filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                        char* filter_str, unsigned int * dir_attr_index);
  
 
 int            result2attrset( table_enum table, char **result_tab,
