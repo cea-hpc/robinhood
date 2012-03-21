@@ -717,6 +717,7 @@ function test_dircount_report
 	# dircount+1 because $ROOT may be returned
 	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --csv > report.out
 
+    [ "$DEBUG" = "1" ] && cat report.out
 	# check that dircount is right for each dir
 
 	# check if $ROOT is in topdirs. If so, check its position
@@ -726,7 +727,7 @@ function test_dircount_report
 	[[ -n $line ]] && is_root=1
 	if (( ! $is_root )); then
 		id=`stat -c "0X%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
-		line=`grep "$id " report.out`
+		line=`grep "$id," report.out`
 		[[ -n $line ]] && is_root=1
 	fi
 	if (( $is_root )); then
