@@ -19,7 +19,7 @@ liblistmgr_la_SOURCES=	listmgr_init.c listmgr_common.c listmgr_common.h \
 		    	listmgr_stripe.c listmgr_stripe.h \
 			listmgr_update.c listmgr_filters.c listmgr_remove.c listmgr_iterators.c \
 			listmgr_reports.c listmgr_config.c listmgr_internal.h database.h \
-			listmgr_vars.c $(DB_WRAPPER_SRC) $(DB_PURPOSE_SRC)
+			listmgr_vars.c listmgr_ns.c $(DB_WRAPPER_SRC) $(DB_PURPOSE_SRC)
 
 indent:
 	$(top_srcdir)/scripts/indent.sh

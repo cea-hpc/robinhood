@@ -578,6 +578,32 @@ void           ListMgr_CloseIterator( struct lmgr_iterator_t *p_iter );
 /** @} */
 
 /**
+ * Function for handling namespace and child entries
+ *
+ * \addtogroup NAMESPACE_FUNCTIONS
+ * @{
+ */
+/**
+ * Get the list of children of a given parent (or list of parents).
+ * \param parent_list       [in]  list of parents to get the child of
+ * \param parent_count      [in]  number of ids in parent list
+ * \param child_id_list     [out] array of child ids
+ * \param child_attr_list   [out] array of child attrs
+ * \param child_count       [out] number of returned children
+ *
+ * ListMgr_FreeAttrs() must be called on each child attribute
+ * and child_id_list and child_attr_list must be freed with MemFree()
+ */
+int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                      const entry_id_t * parent_list, unsigned int parent_count,
+                      int attr_mask,
+                      entry_id_t ** child_id_list, attr_set_t ** child_attr_list,
+                      unsigned int * child_count );
+
+
+/** @} */
+
+/**
  * Types and functions for building reports about FS content.
  *
  * \addtogroup REPORT_FUNCTIONS

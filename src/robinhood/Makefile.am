@@ -47,11 +47,12 @@ all_libs += ../common/libcommontools.la
 
 if TMP_FS_MGR
 
-sbin_PROGRAMS=robinhood rbh-report
+sbin_PROGRAMS=robinhood rbh-report rbh-du
 
 # dependencies:
 robinhood_DEPENDENCIES=$(all_libs)
 rbh_report_DEPENDENCIES=$(all_libs)
+rbh_du_DEPENDENCIES=$(all_libs)
 
 robinhood_SOURCES=robinhood_main.c
 robinhood_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
@@ -60,6 +61,10 @@ robinhood_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 rbh_report_SOURCES=robinhood_report.c
 rbh_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+
+rbh_du_SOURCES=rbh_du.c
+rbh_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
 if LUSTRE_HSM
