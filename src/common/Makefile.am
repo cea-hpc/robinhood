@@ -15,7 +15,8 @@ if SHOOK
 PURPOSE_SRC=shook_wrap.c
 endif
 
-libcommontools_la_SOURCES= RW_Lock.c SemN.c uidgidcache.c RobinhoodMisc.c global_config.c queue.c StringAlloc.c $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
+libcommontools_la_SOURCES= RW_Lock.c SemN.c uidgidcache.c RobinhoodMisc.c \
+                           global_config.c queue.c StringAlloc.c $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
 
 indent:
 	$(top_srcdir)/scripts/indent.sh

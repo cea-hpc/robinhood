@@ -36,7 +36,7 @@
 #include <libgen.h>
 #include <pthread.h>
 
-#define DU_TAG "du"
+#define FIND_TAG "find"
 
 static struct option option_tab[] =
 {
@@ -102,7 +102,7 @@ static inline void display_help( char *bin_name )
 static inline void display_version( char *bin_name )
 {
     printf( "\n" );
-    printf( "Product:         " PACKAGE_NAME " 'du' command\n" );
+    printf( "Product:         " PACKAGE_NAME " 'find' command\n" );
     printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
     printf( "Build:           " COMPIL_DATE "\n" );
     printf( "\n" );
@@ -158,22 +158,70 @@ static inline void display_version( char *bin_name )
     printf( "\n" );
 }
 
-/* display callback */
-static int display_ent(entry_id_t * id_list, attr_set_t * attr_list,
+/* directory callback */
+static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
                        unsigned int entry_count )
 {
-    int i;
+    /* retrieve child entries for all directories */
+    int i, rc;
+
     for (i = 0; i < entry_count; i++)
-        printf(DFID": %s\n", PFID(&id_list[i]),
-               ATTR_MASK_TEST(&attr_list[i], fullpath) ?
-                  ATTR(&attr_list[i], fullpath): "[n/a]");
+    {
+        entry_id_t * chids = NULL;
+        attr_set_t * chattrs = NULL;
+        unsigned int chcount = 0;
+        int j;
+
+        /* @TODO create filter according to program options */
+        rc = ListMgr_GetChild( &lmgr, NULL, id_list+i, 1,
+                               ATTR_MASK_fullpath | ATTR_MASK_type,
+                               &chids, &chattrs, &chcount );
+        if (rc)
+        {
+            DisplayLog(LVL_MAJOR, FIND_TAG, "ListMgr_GetChild() failed with error %d", rc);
+            return rc;
+        }
+
+        for (j = 0; j < chcount; j++)
+        {
+            char * post = "";
+            if (ATTR_MASK_TEST(&chattrs[j], type))
+            {
+                if (!strcasecmp( ATTR(&chattrs[j], type), STR_TYPE_DIR))
+                    post="/";
+            }
+            if (ATTR_MASK_TEST(&chattrs[j], fullpath))
+                printf("%s%s\n", ATTR(&chattrs[j], fullpath), post);
+            else
+                printf(DFID"%s\n", PFID(&chids[j]), post);
+        }
+    }
     return 0;
 }
 
+static int Path2Id(const char *path, entry_id_t * id)
+{
+    int rc;
+#ifndef _HAVE_FID
+    struct stat inode;
+    if (lstat(path, &inode))
+        return -errno;
+
+    id->inode = inode.st_ino;
+    id->device = inode.st_dev;
+    id->validator = inode.st_ctime;
+    return 0;
+#else
+    /* perform path2fid */
+    rc = Lustre_GetFidFromPath(path, id);
+    return rc;
+#endif
+}
+
 /**
- * List the content of the given id list
+ * List the content of the given id/path list
  */
-int list_content(char ** id_list, int id_count)
+static int list_content(char ** id_list, int id_count)
 {
     entry_id_t * ids;
     int i, rc;
@@ -184,16 +232,23 @@ int list_content(char ** id_list, int id_count)
 
     for (i = 0; i < id_count; i++)
     {
+        /* is it a path or fid? */
         if (sscanf(id_list[i], SFID, RFID(&ids[i])) != 3)
         {
-            DisplayLog(LVL_CRIT, DU_TAG, "Invalid id: %s", id_list[i]);
-            MemFree(ids);
-            return -EINVAL;
+            /* take it as a path */
+            rc = Path2Id(id_list[i], &ids[i]);
+            if (rc)
+            {
+                DisplayLog(LVL_MAJOR, FIND_TAG, "Invalid parameter: %s: %s",
+                           id_list[i], strerror(-rc));
+                goto out;
+            }
         }
     }
 
-    rc = rbh_scrub(&lmgr, ids, id_count, ATTR_MASK_fullpath, display_ent);
+    rc = rbh_scrub(&lmgr, ids, id_count, 0, dircb);
 
+out:
     /* ids have been processed, free them */
     MemFree(ids);
     return rc;
@@ -213,7 +268,7 @@ int main( int argc, char **argv )
     char           config_file[MAX_OPT_LEN] = "";
     int            force_log_level = FALSE;
     int            log_level = 0;
-    int            rc, i;
+    int            rc;
     char           err_msg[4096];
     robinhood_config_t config;
 
@@ -264,9 +319,8 @@ int main( int argc, char **argv )
         }
     }
 
-    /* print extra arguments */
-    for (i = optind; i < argc; i++)
-        printf( "arg: %s\n", argv[i]);
+    /* analyse arguments */
+    /* @TODO if no path is specified, list all */
 
     /* get default config file, if not specified */
     if ( EMPTY_STRING( config_file ) )
@@ -319,11 +373,11 @@ int main( int argc, char **argv )
     rc = ListMgr_Init( &config.lmgr_config, FALSE );
     if ( rc )
     {
-        DisplayLog( LVL_CRIT, DU_TAG, "Error %d initializing list manager", rc );
+        DisplayLog( LVL_CRIT, FIND_TAG, "Error %d initializing list manager", rc );
         exit( rc );
     }
     else
-        DisplayLog( LVL_DEBUG, DU_TAG, "ListManager successfully initialized" );
+        DisplayLog( LVL_DEBUG, FIND_TAG, "ListManager successfully initialized" );
 
     if (CheckLastFS(  ) != 0)
         exit(1);
@@ -332,11 +386,11 @@ int main( int argc, char **argv )
     rc = ListMgr_InitAccess(&lmgr);
     if (rc)
     {
-        DisplayLog( LVL_CRIT, DU_TAG, "Error %d: cannot connect to database", rc );
+        DisplayLog( LVL_CRIT, FIND_TAG, "Error %d: cannot connect to database", rc );
         exit(rc);
     }
 
-    list_content(argv+optind, argc-optind);
+    rc = list_content(argv+optind, argc-optind);
 
     ListMgr_CloseAccess( &lmgr );
 

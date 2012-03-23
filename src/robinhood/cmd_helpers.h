@@ -29,9 +29,8 @@ typedef int    ( *scrub_callback_t ) ( entry_id_t * id_list,
 /** scan sets of directories
  * \param cb_func, callback function for each set of directory
  */
-int rbh_scrub(list_mgr_t   * p_mgr, entry_id_t * id_list,
-              unsigned int id_count,
-              lmgr_filter_t * entry_filter, int attr_mask,
+int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
+              unsigned int id_count, int dir_attr_mask,
               scrub_callback_t cb_func);
 
 #endif

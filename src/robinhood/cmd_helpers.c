@@ -20,16 +20,14 @@
 #include "config.h"
 #endif
 
-#include "list_mgr.h"
+#include "cmd_helpers.h"
 #include "RobinhoodConfig.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
 #include "Memory.h"
 #include "xplatform_print.h"
 
-#define SRUB_TAG "Scrubber"
-
-
+#define SCRUB_TAG "Scrubber"
 
 /* initially empty array */
 static entry_id_t  * dir_array = NULL;
@@ -133,18 +131,11 @@ static inline void rbh_scrub_release_list(unsigned int first, unsigned int count
 }
 
 
-/** The caller's function to be called for scanned entries */
-typedef int    ( *scrub_callback_t ) ( entry_id_t * id_list,
-                                       attr_set_t * attr_list,
-                                       unsigned int entry_count );
-
-
 /** scan sets of directories
  * \param cb_func, callback function for each set of directory
  */
-int rbh_scrub(list_mgr_t   * p_mgr, entry_id_t * id_list,
-              unsigned int id_count,
-              lmgr_filter_t * entry_filter, int attr_mask,
+int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
+              unsigned int id_count, int dir_attr_mask,
               scrub_callback_t cb_func)
 {
     entry_id_t  * curr_array;
@@ -192,7 +183,7 @@ int rbh_scrub(list_mgr_t   * p_mgr, entry_id_t * id_list,
         res_count = 0;
         child_ids = NULL;
         child_attrs = NULL;
-        rc = ListMgr_GetChild(p_mgr, &filter, curr_array, count, 0,
+        rc = ListMgr_GetChild(p_mgr, &filter, curr_array, count, dir_attr_mask,
                               &child_ids, &child_attrs, &res_count);
 
         if (rc)
