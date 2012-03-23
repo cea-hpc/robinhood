@@ -249,6 +249,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                                      &((*child_attr_list)[i]) );
                 goto array_free;
             }
+            generate_fields(&((*child_attr_list)[i]));
         }
     }
 

@@ -1961,10 +1961,3 @@ void free_migration_hints( char *hints )
 
 #endif
 
-
-
-#ifndef GIGABYTE
-#define GIGABYTE (1024*1024*1024)
-#endif
-
-

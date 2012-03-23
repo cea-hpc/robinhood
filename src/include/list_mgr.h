@@ -334,7 +334,7 @@ void           ListMgr_ForceCommitFlag( lmgr_t * p_mgr, int force_commit );
 int            ListMgr_GetCommitStatus( lmgr_t * p_mgr );
 
 
-/** 
+/**
  * Tests if this entry exists in the database.
  * @param p_mgr pointer to a DB connection
  * @param p_id pointer to an entry identifier

@@ -1527,6 +1527,65 @@ static int build_bool_expr( type_bool_expr * p_in_bool_expr, bool_node_t * p_out
 }
 
 
+/** Create a boolean condition */
+int CreateBoolCond(bool_node_t * p_out_node, compare_direction_t compar,
+                   compare_criteria_t  crit, compare_value_t val)
+{
+    p_out_node->node_type = NODE_CONDITION;
+    p_out_node->content_u.condition = (compare_triplet_t*)malloc(sizeof(compare_triplet_t));
+    if (!p_out_node->content_u.condition)
+        return -ENOMEM;
+    memset(p_out_node->content_u.condition, 0, sizeof(compare_triplet_t));
+    p_out_node->content_u.condition->flags = 0;
+    p_out_node->content_u.condition->crit = crit;
+    p_out_node->content_u.condition->op = compar;
+    p_out_node->content_u.condition->val = val;
+    return 0;
+}
+
+/** Append a boolean condition with bool op = AND */
+int AppendBoolCond(bool_node_t * p_in_out_node, compare_direction_t compar,
+                   compare_criteria_t  crit, compare_value_t val)
+{
+    bool_node_t copy_prev = *p_in_out_node;
+    int rc = 0;
+
+    p_in_out_node->node_type = NODE_BINARY_EXPR;
+    p_in_out_node->content_u.bool_expr.bool_op = BOOL_AND;
+
+    /* bool expr will be allocated */
+    p_in_out_node->content_u.bool_expr.owner = 1;
+
+    /* first expression = the previous expression */
+    p_in_out_node->content_u.bool_expr.expr1 = (bool_node_t *)malloc(sizeof(bool_node_t));
+    if (!p_in_out_node->content_u.bool_expr.expr1)
+        return -ENOMEM;
+    *p_in_out_node->content_u.bool_expr.expr1 = copy_prev;
+
+    /* second expression = the appended value */
+    p_in_out_node->content_u.bool_expr.expr2 = (bool_node_t *)malloc(sizeof(bool_node_t));
+    if (!p_in_out_node->content_u.bool_expr.expr2)
+    {
+        rc = -ENOMEM;
+        goto free_expr1;
+    }
+
+    /* expr2 is a triplet */
+    rc = CreateBoolCond(p_in_out_node->content_u.bool_expr.expr2, compar,
+                        crit, val);
+    if (rc)
+        goto free_expr2;
+
+    return 0;
+
+free_expr2:
+    free(p_in_out_node->content_u.bool_expr.expr2);
+free_expr1:
+    FreeBoolExpr(p_in_out_node->content_u.bool_expr.expr1, TRUE);
+    return rc;
+}
+
+
 /**
  * Build a policy boolean expression from the given block
  */

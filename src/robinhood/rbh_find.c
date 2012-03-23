@@ -80,7 +80,7 @@ struct find_opt
     const char * group;
     const char * type;
     // size cond: gt/eq/lt <val>
-    filter_comparator_t sz_compar;
+    compare_direction_t sz_compar;
     uint64_t            sz_val;
     const char * name;
 #ifdef ATTR_INDEX_status
@@ -117,15 +117,76 @@ struct find_opt
 #define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_fullpath | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod)
 static int disp_mask = ATTR_MASK_fullpath;
+static int query_mask = 0;
 
 //static lmgr_filter_t    dir_filter;
+
+/* for filtering non directory entries from DB */
 static lmgr_filter_t    nondir_filter;
+
+/* post filter for all entries */
+static bool_node_t      match_expr;
+static int              is_expr = 0; /* is it set? */
 
 /* build filters depending on program options */
 static int mkfilters()
 {
     filter_value_t fv;
 
+    /* create boolean expression for matching */
+
+    if (prog_options.match_user)
+    {
+        compare_value_t val;
+        strcpy(val.str, prog_options.user);
+        if (!is_expr)
+            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+        else
+            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_owner;
+    }
+
+    if (prog_options.match_group)
+    {
+        compare_value_t val;
+        strcpy(val.str, prog_options.group);
+        if (!is_expr)
+            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+        else
+            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_gr_name;
+    }
+
+    if (prog_options.match_name)
+    {
+        /* this is not converted to DB filter, but will be used in post checking */
+        compare_value_t val;
+        strcpy(val.str, prog_options.name);
+        if (!is_expr)
+            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_FILENAME, val);
+        else
+            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_FILENAME, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_name;
+    }
+
+    /* @TODO status */
+
+    if (prog_options.match_size)
+    {
+        compare_value_t val;
+        val.size = prog_options.sz_val;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val);
+        else
+            AppendBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_size;
+    }
+
+    /* create DB filters */
     lmgr_simple_filter_init( &nondir_filter );
 
     /* analyze type filter */
@@ -149,37 +210,16 @@ static int mkfilters()
         lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
     }
 
-    if (prog_options.match_user)
+    if (is_expr)
     {
-        fv.val_str = prog_options.user;
-        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_owner, LIKE, fv, 0 );
+        char expr[RBH_PATH_MAX];
+        /* for debug */
+        if (BoolExpr2str(&match_expr, expr, RBH_PATH_MAX)>0)
+            DisplayLog(LVL_FULL, FIND_TAG, "Expression matching: %s", expr);
+
+        /* append bool expr to entry filter */
+        convert_boolexpr_to_simple_filter( &match_expr, &nondir_filter );
     }
-
-    if (prog_options.match_group)
-    {
-        fv.val_str = prog_options.group;
-        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_gr_name, LIKE, fv, 0 );
-    }
-
-    if (prog_options.match_name)
-    {
-        /* XXX this prefilter entries (because '* / *.dir' matches x/x.dir)
-         * so it will need to be post filtered */
-        char tmp[RBH_NAME_MAX];
-        sprintf(tmp, "*/%s", prog_options.name);
-        fv.val_str = tmp;
-        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_fullpath, LIKE, fv, 0 );
-    }
-
-    /* @TODO status */
-
-    if (prog_options.match_size)
-    {
-        fv.val_biguint = prog_options.sz_val;
-        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_size,
-                                prog_options.sz_compar, fv, 0 );
-    }
-
 
     return 0;
 }
@@ -328,7 +368,7 @@ static const char * opt2type(const char * type_opt)
 /* parse size filter and set prog_options struct */
 int set_size_filter(char * str)
 {
-    filter_comparator_t comp;
+    compare_direction_t comp;
     char * curr = str;
     uint64_t val;
     char suffix[1024];
@@ -336,16 +376,16 @@ int set_size_filter(char * str)
 
     if (str[0] == '+')
     {
-        comp = MORETHAN_STRICT;
+        comp = COMP_GRTHAN;
         curr++;
     }
     else if (str[0] == '-')
     {
-        comp = LESSTHAN_STRICT;
+        comp = COMP_LSTHAN;
         curr++;
     }
     else
-        comp = EQUAL;
+        comp = COMP_EQUAL;
 
     n = sscanf(curr, "%"PRIu64"%s", &val, suffix);
     if (n < 1 || n > 2)
@@ -452,13 +492,16 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
         if (!prog_options.no_dir)
         {
-            /* @TODO match condition on dirs */
-            print_entry(&id_list[i], &attr_list[i]);
+            /* match condition on dirs */
+            if (!is_expr || (EntryMatches(&id_list[i], &attr_list[i],
+                             &match_expr, NULL) != POLICY_NO_MATCH))
+                print_entry(&id_list[i], &attr_list[i]);
         }
 
         if (!prog_options.dir_only)
         {
-            rc = ListMgr_GetChild( &lmgr, &nondir_filter, id_list+i, 1, disp_mask,
+            rc = ListMgr_GetChild( &lmgr, &nondir_filter, id_list+i, 1,
+                                   disp_mask | query_mask,
                                    &chids, &chattrs, &chcount );
             if (rc)
             {
@@ -467,7 +510,11 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
             }
 
             for (j = 0; j < chcount; j++)
-                print_entry(&chids[j], &chattrs[j]);
+            {
+                if (!is_expr || (EntryMatches(&chids[j], &chattrs[j],
+                                 &match_expr, NULL) != POLICY_NO_MATCH))
+                    print_entry(&chids[j], &chattrs[j]);
+            }
         }
     }
     return 0;
@@ -521,14 +568,17 @@ static int list_content(char ** id_list, int id_count)
         }
 
         /* get root attrs to print it (if it matches program options) */
-        root_attrs.attr_mask = disp_mask;
+        root_attrs.attr_mask = disp_mask | query_mask;
         rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
         if (rc == 0)
-            print_entry(&ids[i], &root_attrs);
+        {
+            if (!is_expr || (EntryMatches(&ids[i], &root_attrs,
+                             &match_expr, NULL) != POLICY_NO_MATCH))
+                print_entry(&ids[i], &root_attrs);
+        }
     }
 
-    /* @TODO add request conditions to the asked attributes */
-    rc = rbh_scrub(&lmgr, ids, id_count, disp_mask, dircb);
+    rc = rbh_scrub(&lmgr, ids, id_count, disp_mask | query_mask, dircb);
 
 out:
     /* ids have been processed, free them */
