@@ -114,8 +114,13 @@ struct find_opt
     0, 0
 };
 
+#ifdef ATTR_INDEX_status
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_status)
+#else
 #define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_fullpath | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod)
+#endif
 static int disp_mask = ATTR_MASK_fullpath;
 static int query_mask = 0;
 
@@ -172,8 +177,6 @@ static int mkfilters()
         query_mask |= ATTR_MASK_name;
     }
 
-    /* @TODO status */
-
     if (prog_options.match_size)
     {
         compare_value_t val;
@@ -209,6 +212,15 @@ static int mkfilters()
         fv.val_str = STR_TYPE_DIR;
         lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
     }
+
+#ifdef ATTR_INDEX_status
+    if (prog_options.match_status)
+    {
+        /* not part of user policies, only add it to DB filter */
+        fv.val_uint = prog_options.status;
+        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
+    }
+#endif
 
     if (is_expr)
     {
@@ -438,6 +450,17 @@ int set_size_filter(char * str)
 
 static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
 {
+#ifdef ATTR_INDEX_status
+    if (prog_options.match_status)
+    {
+        if (ATTR_MASK_TEST(attrs, status) && (ATTR(attrs, status) != prog_options.status))
+        {
+            /* no match -> no display */
+            return;
+        }
+    }
+#endif
+
     if (!prog_options.ls)
     {
         /* just display name */
@@ -450,14 +473,29 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
     {
         const char * type;
         char date_str[128];
+#ifdef ATTR_INDEX_status
+        const char * status_str = "";
 
+        /* add status after type */
+        if (ATTR_MASK_TEST(attrs, status) && (ATTR(attrs, status) != STATUS_UNKNOWN))
+            status_str = db_status2str(ATTR(attrs, status), 1); /* 1 for brief */
+
+        #define STATUS_FORMAT   "%-10s"
+        #define STATUS_VAL ,status_str
+#else
+        #define STATUS_FORMAT   ""
+        #define STATUS_VAL
+#endif
         /* type2char */
         if (!ATTR_MASK_TEST(attrs, type))
             type = "?";
         else
             type = type2char(ATTR(attrs, type));
 
-        /* @TODO add status after type */
+        if (!ATTR_MASK_TEST(attrs, type))
+            type = "?";
+        else
+            type = type2char(ATTR(attrs, type));
 
         if (!ATTR_MASK_TEST(attrs, last_mod))
             strcpy(date_str, "");
@@ -470,8 +508,8 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
         }
 
         /* display all: id, type, owner, group, size, mtime, path */
-        printf(DFID" %-4s %-10s %-10s %15"PRIu64" %20s %s\n",
-               PFID(id), type, ATTR(attrs, owner), ATTR(attrs, gr_name),
+        printf(DFID" %-4s "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
+               PFID(id), type STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
                ATTR(attrs, size), date_str, ATTR(attrs, fullpath));
     }
 }
@@ -639,8 +677,13 @@ int main( int argc, char **argv )
 #ifdef ATTR_INDEX_status
         case 'S':
             prog_options.match_status = 1;
-            /* @TODO convert status */
-            prog_options.status = str2status(optarg);
+            prog_options.status = status2dbval(optarg);
+            if ( prog_options.status == (file_status_t)-1 )
+            {
+                fprintf(stderr, "Unknown status '%s'. Allowed status: %s.\n", optarg,
+                        allowed_status());
+                exit(1);
+            }
             break;
 #endif
         case 'l':

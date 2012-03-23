@@ -21,6 +21,7 @@
 #endif
 
 #include "list_mgr.h"
+#include "cmd_helpers.h"
 #include "RobinhoodConfig.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
@@ -80,109 +81,6 @@
 #define SORT_BY_AVGSIZE(_x) ((_x)&OPT_FLAG_BY_AVGSIZE)
 #define REVERSE(_x) ((_x)&OPT_FLAG_REVERSE)
 
-#ifdef ATTR_INDEX_status
-/* ===  status display and conversion routines === */
-
-/* status conversion array */
-struct status_descr
-{
-    file_status_t db_status;
-    char * short_descr;
-    char * long_descr;
-}
-status_array[] =
-{
-#ifdef _LUSTRE_HSM
-    { STATUS_UNKNOWN, "unknown", "unknown" },
-    { STATUS_NEW, "new", "new file (no HSM status)" },
-    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
-    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
-    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for release)" },
-    { STATUS_RELEASED, "released", "released" },
-    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
-
-    /* alternative names */
-    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
-    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
-
-#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
-
-#elif defined(_SHERPA)
-    { STATUS_UNKNOWN, "unknown", "unknown" },
-    { STATUS_NO_REF, "ref_missing", "reference is missing" },
-    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
-    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
-    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
-    { STATUS_OUT_OF_DATE, "obsolete", "obsolete (older than reference)" },
-
-    /* alternative names */
-    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
-    { STATUS_NO_REF, "missing_ref", "reference is missing" },
-    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
-
-#define ALLOWED_STATUS "unknown, ref_missing|missing_ref, modified|dirty, retrieving|restoring, archiving, synchro, obsolete"
-
-#elif defined(_HSM_LITE)
-    { STATUS_UNKNOWN, "unknown", "unknown" },
-    { STATUS_NEW, "new", "new file (not in backend)" },
-    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
-    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
-    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized in backend" },
-    { STATUS_RELEASED, "released", "released" },
-    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
-    { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
-
-    /* alternative names */
-    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
-    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
-
-#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
-
-#endif
-    { (file_status_t)-1, NULL, NULL }
-};
-
-static const char * db_status2str( file_status_t status, int flags )
-{
-    struct status_descr * curr;
-
-    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
-    {
-       if ( status == curr->db_status )
-       {
-            if ( CSV(flags) )
-                return curr->short_descr;
-            else
-                return curr->long_descr;
-       }
-    }
-    /* not found */
-    return "?";
-}
-
-static file_status_t status2dbval( char * status_str )
-{
-    struct status_descr * curr;
-    int len;
-
-    if (  (status_str == NULL) || (status_str[0] == '\0') )
-        return (file_status_t)-1;
-
-    len = strlen( status_str );
-
-    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
-    {
-       if ( !strncmp( status_str, curr->short_descr, len ) )
-            return curr->db_status;
-    }
-    /* not found */
-    return (file_status_t)-1;
-}
-
-#endif /* status attr exists */
 
 
 static struct option option_tab[] = {
@@ -322,7 +220,7 @@ static const char *help_string =
 #endif
 #ifdef ATTR_INDEX_status
     "    "  _B "--dump-status" B_ " " _U "status" U_ "\n"
-    "        Dump all entries with the given status ("ALLOWED_STATUS").\n"
+    "        Dump all entries with the given status (%s).\n"
 #endif
     "\n"
     _B "Filter options:" B_ "\n"
@@ -373,7 +271,11 @@ static const char *help_string =
 
 static inline void display_help( char *bin_name )
 {
-    printf( help_string, bin_name );
+    printf( help_string, bin_name
+#ifdef ATTR_INDEX_status
+,allowed_status()
+#endif
+);
 }
 
 static inline void display_version( char *bin_name )
@@ -3025,7 +2927,8 @@ int main( int argc, char **argv )
             status_to_dump = status2dbval( optarg );
             if ( status_to_dump == (file_status_t)-1 )
             {
-                fprintf(stderr, "Unknown status '%s'. Allowed status: "ALLOWED_STATUS".\n", optarg );
+                fprintf(stderr, "Unknown status '%s'. Allowed status: %s.\n", optarg,
+                        allowed_status());
                 exit(1);
             }
 

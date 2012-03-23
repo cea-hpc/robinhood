@@ -236,18 +236,22 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
         {
             (*child_attr_list)[i].attr_mask = attr_mask;
 
-            /* first id, then main attrs, then annex attrs */
-            /* shift of 1 for id */
-            rc = result2attrset( T_MAIN, res + 1, main_attrs, &((*child_attr_list)[i]) );
-            if ( rc )
-                goto array_free;
+            if (main_attrs)
+            {
+                /* first id, then main attrs, then annex attrs */
+                /* shift of 1 for id */
+                rc = result2attrset( T_MAIN, res + 1, main_attrs, &((*child_attr_list)[i]) );
+                if ( rc )
+                    goto array_free;
+            }
 
-            if (annex_table)
+            if (annex_attrs)
             {
                 /* shift of main_attrs count */
                 rc = result2attrset( T_ANNEX, res + main_attrs + 1, annex_attrs,
                                      &((*child_attr_list)[i]) );
-                goto array_free;
+                if ( rc )
+                    goto array_free;
             }
             generate_fields(&((*child_attr_list)[i]));
         }

@@ -33,4 +33,12 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
               unsigned int id_count, int dir_attr_mask,
               scrub_callback_t cb_func);
 
+
+#ifdef ATTR_INDEX_status
+/** status conversion functions */
+const char * db_status2str( file_status_t status, int csv );
+file_status_t status2dbval( char * status_str );
+const char * allowed_status();
+#endif
+
 #endif

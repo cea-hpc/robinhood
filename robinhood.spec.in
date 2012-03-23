@@ -274,6 +274,8 @@ fi
 # everythink in sbin, except rbh-config which is in adm
 %{_sbindir}/@PURPOSE_BIN@*
 %{_sbindir}/*-report
+%{_bindir}/*-du
+%{_bindir}/*-find
 %if %{with backup}
 %{_sbindir}/rbhext_*
 %endif

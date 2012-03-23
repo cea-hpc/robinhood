@@ -225,3 +225,111 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
     return last_err;
 }
 
+#ifdef ATTR_INDEX_status
+/* ===  status display and conversion routines === */
+
+/* status conversion array */
+struct status_descr
+{
+    file_status_t db_status;
+    char * short_descr;
+    char * long_descr;
+}
+status_array[] =
+{
+#ifdef _LUSTRE_HSM
+    { STATUS_UNKNOWN, "unknown", "unknown" },
+    { STATUS_NEW, "new", "new file (no HSM status)" },
+    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
+    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
+    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
+    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for release)" },
+    { STATUS_RELEASED, "released", "released" },
+    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
+
+    /* alternative names */
+    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
+    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
+
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
+
+#elif defined(_SHERPA)
+    { STATUS_UNKNOWN, "unknown", "unknown" },
+    { STATUS_NO_REF, "ref_missing", "reference is missing" },
+    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
+    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
+    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
+    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
+    { STATUS_OUT_OF_DATE, "obsolete", "obsolete (older than reference)" },
+
+    /* alternative names */
+    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
+    { STATUS_NO_REF, "missing_ref", "reference is missing" },
+    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
+
+#define ALLOWED_STATUS "unknown, ref_missing|missing_ref, modified|dirty, retrieving|restoring, archiving, synchro, obsolete"
+
+#elif defined(_HSM_LITE)
+    { STATUS_UNKNOWN, "unknown", "unknown" },
+    { STATUS_NEW, "new", "new file (not in backend)" },
+    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
+    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
+    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
+    { STATUS_SYNCHRO, "synchro", "synchronized in backend" },
+    { STATUS_RELEASED, "released", "released" },
+    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
+    { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
+
+    /* alternative names */
+    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
+    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
+
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
+
+#endif
+    { (file_status_t)-1, NULL, NULL }
+};
+
+const char * db_status2str( file_status_t status, int csv )
+{
+    struct status_descr * curr;
+
+    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
+    {
+       if ( status == curr->db_status )
+       {
+            if ( csv )
+                return curr->short_descr;
+            else
+                return curr->long_descr;
+       }
+    }
+    /* not found */
+    return "?";
+}
+
+file_status_t status2dbval( char * status_str )
+{
+    struct status_descr * curr;
+    int len;
+
+    if (  (status_str == NULL) || (status_str[0] == '\0') )
+        return (file_status_t)-1;
+
+    len = strlen( status_str );
+
+    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
+    {
+       if ( !strncmp( status_str, curr->short_descr, len ) )
+            return curr->db_status;
+    }
+    /* not found */
+    return (file_status_t)-1;
+}
+
+const char * allowed_status()
+{
+    return ALLOWED_STATUS;
+}
+
+#endif /* status attr exists */
