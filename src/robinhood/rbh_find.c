@@ -43,13 +43,18 @@ static struct option option_tab[] =
     {"user", required_argument, NULL, 'u'},
     {"group", required_argument, NULL, 'g'},
     {"type", required_argument, NULL, 't'},
+    {"size", required_argument, NULL, 's'},
+    {"name", required_argument, NULL, 'n'},
+#ifdef ATTR_INDEX_status
     {"status", required_argument, NULL, 'S'},
+#endif
+    {"ls", no_argument, NULL, 'l'},
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
 
     /* log options */
-    {"log-level", required_argument, NULL, 'l'},
+    {"debug-level", required_argument, NULL, 'd'},
 
     /* miscellaneous options */
     {"help", no_argument, NULL, 'h'},
@@ -59,11 +64,125 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "u:g:t:S:f:l:hV"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:f:d:hV"
+
+#define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
+#define SIZE_HELP "[-|+]<val>[K|M|G|T]"
 
 /* global variables */
 
 static lmgr_t  lmgr;
+
+/* program options */
+struct find_opt
+{
+    const char * user;
+    const char * group;
+    const char * type;
+    // size cond: gt/eq/lt <val>
+    filter_comparator_t sz_compar;
+    uint64_t            sz_val;
+    const char * name;
+#ifdef ATTR_INDEX_status
+    file_status_t status;
+#endif
+
+    /* output flags */
+    unsigned int ls:1;
+    /* condition flags */
+    unsigned int match_user:1;
+    unsigned int match_group:1;
+    unsigned int match_type:1;
+    unsigned int match_size:1;
+    unsigned int match_name:1;
+#ifdef ATTR_INDEX_status
+    unsigned int match_status:1;
+#endif
+
+    /* behavior flags */
+    unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
+    unsigned int dir_only:1; /* if -t dir => only display dir */
+} prog_options = {
+    NULL, NULL, NULL,
+#ifdef ATTR_INDEX_status
+    STATUS_UNKNOWN,
+#endif
+    0, 0, 0, 0,
+#ifdef ATTR_INDEX_status
+    0,
+#endif
+    0, 0
+};
+
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod)
+static int disp_mask = ATTR_MASK_fullpath;
+
+//static lmgr_filter_t    dir_filter;
+static lmgr_filter_t    nondir_filter;
+
+/* build filters depending on program options */
+static int mkfilters()
+{
+    filter_value_t fv;
+
+    lmgr_simple_filter_init( &nondir_filter );
+
+    /* analyze type filter */
+    if (prog_options.match_type)
+    {
+        if (!strcasecmp(prog_options.type, STR_TYPE_DIR))
+            /* only match dirs */
+            prog_options.dir_only = 1;
+        else
+        {
+            /* smthg different from dir */
+            prog_options.no_dir = 1;
+            fv.val_str = prog_options.type;
+            lmgr_simple_filter_add(&nondir_filter, ATTR_INDEX_type, EQUAL, fv, 0);
+        }
+    }
+    else /* no specific type specified */
+    {
+        /* nondir_filter is for non directories */
+        fv.val_str = STR_TYPE_DIR;
+        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
+    }
+
+    if (prog_options.match_user)
+    {
+        fv.val_str = prog_options.user;
+        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_owner, LIKE, fv, 0 );
+    }
+
+    if (prog_options.match_group)
+    {
+        fv.val_str = prog_options.group;
+        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_gr_name, LIKE, fv, 0 );
+    }
+
+    if (prog_options.match_name)
+    {
+        /* XXX this prefilter entries (because '* / *.dir' matches x/x.dir)
+         * so it will need to be post filtered */
+        char tmp[RBH_NAME_MAX];
+        sprintf(tmp, "*/%s", prog_options.name);
+        fv.val_str = tmp;
+        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_fullpath, LIKE, fv, 0 );
+    }
+
+    /* @TODO status */
+
+    if (prog_options.match_size)
+    {
+        fv.val_biguint = prog_options.sz_val;
+        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_size,
+                                prog_options.sz_compar, fv, 0 );
+    }
+
+
+    return 0;
+}
 
 /* special character sequences for displaying help */
 
@@ -84,11 +203,21 @@ static const char *help_string =
     "    " _B "-u" B_ " " _U "user" U_ "\n"
     "    " _B "-g" B_ " " _U "group" U_ "\n"
     "    " _B "-t" B_ " " _U "type" U_ "\n"
+    "       "TYPE_HELP"\n"
+    "    " _B "-s" B_ " " _U "size_crit" U_ "\n"
+    "       "SIZE_HELP"\n"
+    "    " _B "-n" B_ " " _U "filename" U_ "\n"
+#ifdef ATTR_INDEX_status
     "    " _B "-S" B_ " " _U "status" U_ "\n"
+#endif
+    "\n"
+    _B "Output options:" B_ "\n"
+    "    " _B "-l" B_" \t: display attributes\n"
     "\n"
     _B "Program options:" B_ "\n"
     "    " _B "-f" B_ " " _U "config_file" U_ "\n"
-    "    " _B "-l" B_ " " _U "log_level" U_ "\n"
+    "    " _B "-d" B_ " " _U "log_level" U_ "\n"
+    "       CRIT, MAJOR, EVENT, VERB, DEBUG, FULL\n"
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
     "    " _B "-V" B_ ", " _B "--version" B_ "\n"
@@ -158,6 +287,155 @@ static inline void display_version( char *bin_name )
     printf( "\n" );
 }
 
+static const char * type2char(const char * type)
+{
+    if (!strcasecmp(type, STR_TYPE_DIR))
+        return "dir";
+    else if (!strcasecmp(type, STR_TYPE_FILE))
+        return "file";
+    else if (!strcasecmp(type, STR_TYPE_LINK))
+        return "link";
+    else if (!strcasecmp(type, STR_TYPE_CHR))
+        return "char";
+    else if (!strcasecmp(type, STR_TYPE_BLK))
+        return "blk";
+    else if (!strcasecmp(type, STR_TYPE_FIFO))
+        return "fifo";
+    else if (!strcasecmp(type, STR_TYPE_SOCK))
+        return "sock";
+    return "?";
+}
+
+static const char * opt2type(const char * type_opt)
+{
+    if (strlen(type_opt) != 1)
+        return NULL;
+
+    switch (type_opt[0])
+    {
+        case 'b': return STR_TYPE_BLK;
+        case 'c': return STR_TYPE_CHR;
+        case 'd': return STR_TYPE_DIR;
+        case 'p': return STR_TYPE_FIFO;
+        case 'f': return STR_TYPE_FILE;
+        case 'l': return STR_TYPE_LINK;
+        case 's': return STR_TYPE_SOCK;
+        default:
+            return NULL;
+    }
+}
+
+/* parse size filter and set prog_options struct */
+int set_size_filter(char * str)
+{
+    filter_comparator_t comp;
+    char * curr = str;
+    uint64_t val;
+    char suffix[1024];
+    int n;
+
+    if (str[0] == '+')
+    {
+        comp = MORETHAN_STRICT;
+        curr++;
+    }
+    else if (str[0] == '-')
+    {
+        comp = LESSTHAN_STRICT;
+        curr++;
+    }
+    else
+        comp = EQUAL;
+
+    n = sscanf(curr, "%"PRIu64"%s", &val, suffix);
+    if (n < 1 || n > 2)
+    {
+        fprintf(stderr, "Invalid size: '%s'. Expected size format: "SIZE_HELP"\n", str);
+        return -EINVAL;
+    }
+    if ((n == 1) || !strcmp(suffix, ""))
+    {
+        prog_options.sz_compar = comp;
+        prog_options.sz_val = val;
+        prog_options.match_size = 1;
+    }
+    else
+    {
+        switch(suffix[0])
+        {
+            case 'k':
+            case 'K':
+                val *= 1024LL;
+                break;
+            case 'm':
+            case 'M':
+                val *= 1024LL * 1024LL;
+                break;
+            case 'g':
+            case 'G':
+                val *= 1024LL * 1024LL * 1024LL;
+                break;
+            case 't':
+            case 'T':
+                val *= 1024LL * 1024LL * 1024LL * 1024LL;
+                break;
+
+            case 'p':
+            case 'P':
+                val *= 1024LL * 1024LL * 1024LL * 1024LL *1024LL;
+                break;
+            default:
+                fprintf(stderr, "Invalid suffix for size: '%s'. Expected size format: "SIZE_HELP"\n", str);
+                return -EINVAL;
+        }
+        prog_options.sz_compar = comp;
+        prog_options.sz_val = val;
+        prog_options.match_size = 1;
+    }
+    return 0;
+}
+
+
+static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
+{
+    if (!prog_options.ls)
+    {
+        /* just display name */
+        if (ATTR_MASK_TEST(attrs, fullpath))
+            printf("%s\n", ATTR(attrs, fullpath));
+        else
+            printf(DFID"\n", PFID(id));
+    }
+    else
+    {
+        const char * type;
+        char date_str[128];
+
+        /* type2char */
+        if (!ATTR_MASK_TEST(attrs, type))
+            type = "?";
+        else
+            type = type2char(ATTR(attrs, type));
+
+        /* @TODO add status after type */
+
+        if (!ATTR_MASK_TEST(attrs, last_mod))
+            strcpy(date_str, "");
+        else
+        {
+            time_t tt;
+            struct tm stm;
+            tt = ATTR(attrs, last_mod);
+            strftime(date_str, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+        }
+
+        /* display all: id, type, owner, group, size, mtime, path */
+        printf(DFID" %-4s %-10s %-10s %15"PRIu64" %20s %s\n",
+               PFID(id), type, ATTR(attrs, owner), ATTR(attrs, gr_name),
+               ATTR(attrs, size), date_str, ATTR(attrs, fullpath));
+    }
+}
+
 /* directory callback */
 static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
                        unsigned int entry_count )
@@ -172,28 +450,24 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
         unsigned int chcount = 0;
         int j;
 
-        /* @TODO create filter according to program options */
-        rc = ListMgr_GetChild( &lmgr, NULL, id_list+i, 1,
-                               ATTR_MASK_fullpath | ATTR_MASK_type,
-                               &chids, &chattrs, &chcount );
-        if (rc)
+        if (!prog_options.no_dir)
         {
-            DisplayLog(LVL_MAJOR, FIND_TAG, "ListMgr_GetChild() failed with error %d", rc);
-            return rc;
+            /* @TODO match condition on dirs */
+            print_entry(&id_list[i], &attr_list[i]);
         }
 
-        for (j = 0; j < chcount; j++)
+        if (!prog_options.dir_only)
         {
-            char * post = "";
-            if (ATTR_MASK_TEST(&chattrs[j], type))
+            rc = ListMgr_GetChild( &lmgr, &nondir_filter, id_list+i, 1, disp_mask,
+                                   &chids, &chattrs, &chcount );
+            if (rc)
             {
-                if (!strcasecmp( ATTR(&chattrs[j], type), STR_TYPE_DIR))
-                    post="/";
+                DisplayLog(LVL_MAJOR, FIND_TAG, "ListMgr_GetChild() failed with error %d", rc);
+                return rc;
             }
-            if (ATTR_MASK_TEST(&chattrs[j], fullpath))
-                printf("%s%s\n", ATTR(&chattrs[j], fullpath), post);
-            else
-                printf(DFID"%s\n", PFID(&chids[j]), post);
+
+            for (j = 0; j < chcount; j++)
+                print_entry(&chids[j], &chattrs[j]);
         }
     }
     return 0;
@@ -225,6 +499,7 @@ static int list_content(char ** id_list, int id_count)
 {
     entry_id_t * ids;
     int i, rc;
+    attr_set_t root_attrs;
 
     ids = MemCalloc(id_count, sizeof(entry_id_t));
     if (!ids)
@@ -244,9 +519,16 @@ static int list_content(char ** id_list, int id_count)
                 goto out;
             }
         }
+
+        /* get root attrs to print it (if it matches program options) */
+        root_attrs.attr_mask = disp_mask;
+        rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
+        if (rc == 0)
+            print_entry(&ids[i], &root_attrs);
     }
 
-    rc = rbh_scrub(&lmgr, ids, id_count, 0, dircb);
+    /* @TODO add request conditions to the asked attributes */
+    rc = rbh_scrub(&lmgr, ids, id_count, disp_mask, dircb);
 
 out:
     /* ids have been processed, free them */
@@ -272,8 +554,6 @@ int main( int argc, char **argv )
     char           err_msg[4096];
     robinhood_config_t config;
 
-
-#define SHORT_OPT_STRING    "u:g:t:S:f:l:hV"
     /* parse command line options */
     while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab,
                             &option_index )) != -1)
@@ -281,17 +561,46 @@ int main( int argc, char **argv )
         switch ( c )
         {
         case 'u':
+            prog_options.match_user = 1;
+            prog_options.user = optarg;
             break;
         case 'g':
+            prog_options.match_group = 1;
+            prog_options.group = optarg;
+            break;
+        case 'n':
+            prog_options.match_name = 1;
+            prog_options.name = optarg;
             break;
         case 't':
+            prog_options.match_type = 1;
+            prog_options.type = opt2type(optarg);
+            if (prog_options.type == NULL)
+            {
+                fprintf(stderr, "invalid type '%s': expected types: "TYPE_HELP".\n", optarg);
+                exit(1);
+            }
             break;
+        case 's':
+            if (set_size_filter(optarg))
+                exit(1);
+            break;
+
+#ifdef ATTR_INDEX_status
         case 'S':
+            prog_options.match_status = 1;
+            /* @TODO convert status */
+            prog_options.status = str2status(optarg);
+            break;
+#endif
+        case 'l':
+            prog_options.ls = 1;
+            disp_mask = DISPLAY_MASK;
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
             break;
-        case 'l':
+        case 'd':
             force_log_level = TRUE;
             log_level = str2debuglevel( optarg );
             if ( log_level == -1 )
@@ -390,6 +699,7 @@ int main( int argc, char **argv )
         exit(rc);
     }
 
+    mkfilters();
     rc = list_content(argv+optind, argc-optind);
 
     ListMgr_CloseAccess( &lmgr );

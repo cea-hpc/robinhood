@@ -217,8 +217,6 @@ int main( int argc, char **argv )
     char           err_msg[4096];
     robinhood_config_t config;
 
-
-#define SHORT_OPT_STRING    "u:g:t:S:f:l:hV"
     /* parse command line options */
     while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab,
                             &option_index )) != -1)
