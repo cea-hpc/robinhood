@@ -511,6 +511,9 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
         printf(DFID" %-4s "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
                PFID(id), type STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
                ATTR(attrs, size), date_str, ATTR(attrs, fullpath));
+
+            printf("%#"PRI_DT"/%Lu\n", id->device,
+                    (unsigned long long)id->inode);
     }
 }
 

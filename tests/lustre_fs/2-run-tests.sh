@@ -2659,17 +2659,18 @@ function test_info_collect
 	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-	if (( $is_lhsm + $is_hsmlite != 0 )); then
-		db_expect=4
-	else
-		db_expect=7
-	fi
-	# 4 files have been created, 4 db operations expected (files)
-	# tmp_fs_mgr purpose: +3 for mkdir operations
+    # (directories are always inserted with robinhood 2.4)
+    # 4 file + 3 dirs
+    # +1 for shook (.shook_locks)
+    db_expect=7
+    if (($shook != 0)); then
+        ((db_expect=$db_expect+1))
+    fi
+
 	if (( $nb_create == $nb_cr && $nb_db_apply == $db_expect )); then
 		echo "OK: $nb_cr files created, $db_expect database operations"
 	else
-		error ": unexpected number of operations: $nb_create files created, $nb_db_apply database operations"
+		error ": unexpected number of operations: $nb_create files created/$nb_cr, $nb_db_apply database operations/$db_expect"
 		return 1
 	fi
 

@@ -1857,9 +1857,7 @@ void report_topsize( unsigned int count, int flags )
     /* select only files */
     fv.val_str = STR_TYPE_FILE;
     lmgr_simple_filter_init( &filter );
-#ifndef _LUSTRE_HSM
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
-#endif
 
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
@@ -1937,11 +1935,9 @@ void report_toppurge( unsigned int count, int flags )
 
     lmgr_simple_filter_init( &filter );
 
-#ifndef _LUSTRE_HSM
     /* select only non directories */
     fv.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
-#endif
 
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
@@ -2488,7 +2484,6 @@ static void report_class_info( int flags )
 
     struct lmgr_report_t *it;
     lmgr_filter_t  filter;
-    int            is_filter = FALSE;
     int            rc;
 #ifndef ATTR_INDEX_archive_class
     int header = 1;
@@ -2498,9 +2493,8 @@ static void report_class_info( int flags )
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
 
-#ifndef _LUSTRE_HSM /* no filter on type */
+    /* no filter on type */
     filter_value_t fv;
-#endif
 
     /* To be retrieved for each group:
      * - class names and status
@@ -2523,25 +2517,18 @@ static void report_class_info( int flags )
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
     };
 
-    is_filter = FALSE;
-
-#ifndef _LUSTRE_HSM /* type is not stored in database: only files are considered */
+    /* type is not stored in database: only files are considered */
     /* select only files */
     fv.val_str = STR_TYPE_FILE;
     lmgr_simple_filter_init( &filter );
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
-    is_filter = TRUE;
-#endif
 
-    mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     result_count = CLASSINFO_FIELDS;
 
     /* is a filter specified? */
-    if ( is_filter )
-        it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS, &filter, NULL );
-    else
-        it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS, NULL, NULL );
+    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS, &filter, NULL );
 
     if ( it == NULL )
     {
