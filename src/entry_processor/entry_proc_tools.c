@@ -586,7 +586,6 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
 
     print_begin_block( output, 0, ENTRYPROC_CONFIG_BLOCK, NULL );
 
-#ifndef _LUSTRE_HSM
     print_line( output, 1, "# Raise alerts for directories with too many entries" );
     print_begin_block( output, 1, ALERT_BLOCK, "Too_many_entries_in_directory" );
     print_line( output, 2, "type == directory" );
@@ -594,13 +593,10 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     print_line( output, 2, "dircount > 10000" );
     print_end_block( output, 1 );
     fprintf( output, "\n" );
-#endif
     print_line( output, 1, "# Raise alerts for large files" );
     print_begin_block( output, 1, ALERT_BLOCK, "Large_file" );
-#ifndef _LUSTRE_HSM
     print_line( output, 2, "type == file" );
     print_line( output, 2, "and" );
-#endif
     print_line( output, 2, "size > 100GB" );
     print_end_block( output, 1 );
     fprintf( output, "\n" );

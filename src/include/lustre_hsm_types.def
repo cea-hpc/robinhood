@@ -52,13 +52,6 @@ static int lmgr_gen_name( void * tgt, const void * src )
     return 0;
 }
 
-static int lmgr_gen_type( void * tgt, const void * src )
-{
-   char * type = (char*)tgt;
-   strcpy(type, "file"); 
-   return 0;
-}
-
 static int lmgr_gen_depth( void * tgt, const void * src )
 {
     const char * fullpath = (char*)src;
@@ -136,7 +129,7 @@ fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
 path_update,    unsigned int, DB_UINT, 0,    ANNEX_INFO
 
 # generated fields
-type,           char,   DB_TEXT, 32,         GENERATED, , lmgr_gen_type 
+type,           char,   DB_TEXT, 32,         FREQ_ACCESS
 name,			char,		DB_TEXT,   RBH_NAME_MAX,  GENERATED, fullpath, lmgr_gen_name
 depth, 	        unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
 

@@ -65,6 +65,14 @@
 #define V(_mutex_) pthread_mutex_unlock(&(_mutex_))
 #endif
 
+/* displaying FID */
+#ifndef _HAVE_FID
+#define DFID "%#"PRI_DT"/%Lu"
+#define PFID(_pid) (_pid)->device, (unsigned long long)((_pid)->inode)
+#define SFID "0X%"PRI_DT"/%Lu"
+#define RFID(_pid) &((_pid)->device), &((_pid)->inode)
+#endif
+
 /**
  * Send a mail
  */
