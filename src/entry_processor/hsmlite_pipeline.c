@@ -527,8 +527,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             if ( rc == -ENOTSUP )
             {
                 /* this type can't be backup'ed: skip the record */
-                next_stage = STAGE_CHGLOG_CLR;
-                goto next_step;
+//                next_stage = STAGE_CHGLOG_CLR;
+//                goto next_step;
+                ATTR_MASK_UNSET(&p_op->entry_attr, status);
+                p_op->extra_info.getstatus_needed = FALSE;
             }
             else
                 DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
@@ -735,8 +737,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         if ( rc_status_need == -ENOTSUP )
         {
             /* entry type is not managed for this backend => skipped */
-            next_stage = -1;
-            goto next_step;
+//            next_stage = -1;
+//            goto next_step;
         }
         else if ( attr_need_fresh )
         {
@@ -768,6 +770,7 @@ next_step:
 int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
+    int            match_cl = entry_proc_conf.match_classes;
 
     if ( p_op->extra_info_is_set )
     {
@@ -941,14 +944,17 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             {
                 /* this type of entry is not managed: ignored */
                 /* TODO: backup md in database anyhow */
-                goto skip_record;
+//                goto skip_record;
+                match_cl = FALSE;
+                /* no status */
+                ATTR_MASK_UNSET(&p_op->entry_attr, status);
             }
 
         } /* get_status needed */
     }
 
     /* match fileclasses if specified in config */
-    if ( entry_proc_conf.match_classes )
+    if ( match_cl )
         check_policies( &p_op->entry_id, &p_op->entry_attr, TRUE );
 
     /* set other info */
@@ -985,7 +991,17 @@ rm_record:
     /* soft remove the entry, except if it was 'new' (not in backend)
      * or not in DB.
      */
-    if (ATTR_MASK_TEST(&p_op->entry_attr, status)
+
+    if (ATTR_MASK_TEST( &p_op->entry_attr, type )
+        && !strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR ))
+    {
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
+        p_op->db_op_type = OP_TYPE_REMOVE;
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    }
+    else if (ATTR_MASK_TEST(&p_op->entry_attr, status)
         && (ATTR(&p_op->entry_attr, status) == STATUS_NEW))
     {
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
@@ -1219,6 +1235,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* remove entries listed in previous scans */
     if (policies.unlink_policy.hsm_remove)
+        /* @TODO fix for dirs */
         rc = ListMgr_MassSoftRemove( lmgr, &filter, time(NULL) + policies.unlink_policy.deferred_remove_delay );
     else
         rc = ListMgr_MassRemove( lmgr, &filter );
