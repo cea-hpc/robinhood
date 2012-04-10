@@ -213,7 +213,9 @@ function clean_fs
 	$CFG_SCRIPT empty_db robinhood_lustre > /dev/null
 
 	echo "Cleaning changelogs..."
-	lfs changelog_clear lustre-MDT0000 cl1 0
+	if (( $no_log==0 )); then
+	   lfs changelog_clear lustre-MDT0000 cl1 0
+	fi
 
 }
 
@@ -1328,7 +1330,7 @@ function test_dircount_report
 	[[ -n $line ]] && is_root=1
 	if (( ! $is_root )); then
 		id=`stat -c "0X%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
-		line=`grep "$id " report.out`
+		line=`grep "$id," report.out`
 		[[ -n $line ]] && is_root=1
 	fi
 	if (( $is_root )); then

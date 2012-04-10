@@ -71,6 +71,9 @@
 #define PFID(_pid) (_pid)->device, (unsigned long long)((_pid)->inode)
 #define SFID "0X%"PRI_DT"/%Lu"
 #define RFID(_pid) &((_pid)->device), &((_pid)->inode)
+#define FID_SCAN_CNT 2
+#else
+#define FID_SCAN_CNT 3
 #endif
 
 /**

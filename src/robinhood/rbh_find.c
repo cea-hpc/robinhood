@@ -593,7 +593,7 @@ static int list_content(char ** id_list, int id_count)
     for (i = 0; i < id_count; i++)
     {
         /* is it a path or fid? */
-        if (sscanf(id_list[i], SFID, RFID(&ids[i])) != 3)
+        if (sscanf(id_list[i], SFID, RFID(&ids[i])) != FID_SCAN_CNT)
         {
             /* take it as a path */
             rc = Path2Id(id_list[i], &ids[i]);
@@ -609,11 +609,7 @@ static int list_content(char ** id_list, int id_count)
         root_attrs.attr_mask = disp_mask | query_mask;
         rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
         if (rc == 0)
-        {
-            if (!is_expr || (EntryMatches(&ids[i], &root_attrs,
-                             &match_expr, NULL) != POLICY_NO_MATCH))
-                print_entry(&ids[i], &root_attrs);
-        }
+            dircb(&ids[i], &root_attrs, 1);
     }
 
     rc = rbh_scrub(&lmgr, ids, id_count, disp_mask | query_mask, dircb);
