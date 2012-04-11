@@ -24,6 +24,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	shook=0
 	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
 	REPORT=../../src/robinhood/rbh-hsm-report
+    FIND=../../src/robinhood/rbh-hsm-find
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
@@ -34,6 +35,7 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	shook=0
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
+    FIND=../../src/robinhood/rbh-find
 	CMD=robinhood
     REL_STR="Purged"
 elif [[ $PURPOSE = "BACKUP" ]]; then
@@ -44,6 +46,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	RH="../../src/robinhood/rbh-backup $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
 	RECOV="../../src/robinhood/rbh-backup-recov $RBH_OPT"
+    FIND=../../src/robinhood/rbh-backup-find
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
     REL_STR="Purged"
@@ -58,6 +61,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	RH="../../src/robinhood/rbh-shook $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-shook-report $RBH_OPT"
 	RECOV="../../src/robinhood/rbh-shook-recov $RBH_OPT"
+    FIND=../../src/robinhood/rbh-shook-find
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
     REL_STR="Purged"
@@ -3349,6 +3353,109 @@ function recovery_test
 	rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
 }
 
+function check_find
+{
+    dir=$1
+    args=$2
+    count=$3
+
+    [ "$DEBUG" = "1" ] && echo "==================="
+    [ "$DEBUG" = "1" ] && echo $FIND $args $dir
+    [ "$DEBUG" = "1" ] && $FIND -d VERB $args $dir -l
+
+    c=`$FIND $args $dir | wc -l`
+    (( $c == $count )) || error "find: $count entries expected in $dir, got: $c"
+
+    # same test with '-l option'
+    c=`$FIND $args $dir -l | wc -l`
+    (( $c == $count )) || error "find -l: $count entries expected in $dir, got: $c"
+}
+
+function test_find
+{
+	cfg=./cfg/$1
+	opt=$2
+	policy_str="$3"
+
+	clean_logs
+
+    # 1) create a FS tree with several levels:
+    #   root
+    #       file.1
+    #       file.2
+    #       dir.1
+    #       dir.2
+    #           file.1
+    #           file.2
+    #           dir.1
+    #           dir.2
+    #               file.1
+    #               file.2
+    #               dir.1
+    touch $ROOT/file.1 || error "creating file"
+    touch $ROOT/file.2 || error "creating file"
+    mkdir $ROOT/dir.1 || error "creating dir"
+    mkdir $ROOT/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
+    touch $ROOT/dir.2/file.2 || error "creating file"
+    mkdir $ROOT/dir.2/dir.1 || error "creating dir"
+    mkdir $ROOT/dir.2/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+    touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
+    mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
+
+    # scan FS content
+    $RH -f $cfg --scan -l DEBUG -L rh_scan.log --once 2>/dev/null || error "scanning"
+    if (($? == 0)); then cp -f /dev/null rh_scan.log; fi
+
+    # 2) test find at several levels
+    echo "checking find list at all levels..."
+    check_find $ROOT "-f $cfg" 12 # should return all (including root)
+    check_find $ROOT/file.1 "-f $cfg" 1 # should return only the file
+    check_find $ROOT/dir.1 "-f $cfg" 1  # should return dir.1
+    check_find $ROOT/dir.2 "-f $cfg" 8  # should return dir.2 + its content
+    check_find $ROOT/dir.2/file.2 "-f $cfg" 1  # should return dir.2/file.2
+    check_find $ROOT/dir.2/dir.1 "-f $cfg" 1  # should return dir2/dir.1
+    check_find $ROOT/dir.2/dir.2 "-f $cfg" 4  # should return dir.2/dir.2 + its content
+    check_find $ROOT/dir.2/dir.2/file.1 "-f $cfg" 1  # should return dir.2/dir.2/file.1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg" 1 # should return dir.2/dir.2/dir.1
+
+    # 3) test -td / -tf
+    echo "testing type filter (-td)..."
+    check_find $ROOT "-f $cfg -td" 6 # 6 including root
+    check_find $ROOT/dir.2 "-f $cfg -td" 4 # 4 including dir.2
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -td" 2 # 2 including dir.2/dir.2
+    check_find $ROOT/dir.1 "-f $cfg -td" 1
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -td" 1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -td" 1
+
+    echo "testing type filter (-tf)..."
+    check_find $ROOT "-f $cfg -tf" 6
+    check_find $ROOT/dir.2 "-f $cfg -tf" 4
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -tf" 2
+    check_find $ROOT/dir.1 "-f $cfg -tf" 0
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -tf" 0
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -tf" 0
+    check_find $ROOT/file.1 "-f $cfg -tf" 1
+    check_find $ROOT/dir.2/file.1 "-f $cfg -tf" 1
+
+    echo "testing name filter..."
+    check_find $ROOT "-f $cfg -n dir.*" 5 # 5
+    check_find $ROOT/dir.2 "-f $cfg -n dir.*" 4 # 4 including dir.2
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -n dir.*" 2 # 2 including dir.2/dir.2
+    check_find $ROOT/dir.1 "-f $cfg -n dir.*" 1
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -n dir.*" 1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -n dir.*" 1
+
+    echo "testing size filter..."
+    check_find $ROOT "-f $cfg -tf -s +2k" 2
+    check_find $ROOT "-f $cfg -tf -s +11k" 1
+    check_find $ROOT "-f $cfg -tf -s +1M" 0
+    check_find $ROOT "-f $cfg -tf -s 1M" 1
+    check_find $ROOT "-f $cfg -tf -s 10k" 1
+    check_find $ROOT "-f $cfg -tf -s -1M" 5
+    check_find $ROOT "-f $cfg -tf -s -10k" 4
+}
 
 
 function check_disabled
@@ -3658,6 +3765,8 @@ run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with sp
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
 run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
 run_test 404   test_dircount_report common.conf 20  "dircount reports"
+
+run_test 405    test_find   common.conf ""  "rbh-find command"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"

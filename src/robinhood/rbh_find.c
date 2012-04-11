@@ -121,7 +121,7 @@ struct find_opt
 #define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_fullpath | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod)
 #endif
-static int disp_mask = ATTR_MASK_fullpath;
+static int disp_mask = ATTR_MASK_fullpath | ATTR_MASK_type;
 static int query_mask = 0;
 
 //static lmgr_filter_t    dir_filter;
@@ -528,11 +528,13 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
         unsigned int chcount = 0;
         int j;
 
-        if (!prog_options.no_dir)
+        /* match condition on dirs parent */
+        if (!is_expr || (EntryMatches(&id_list[i], &attr_list[i],
+                         &match_expr, NULL) != POLICY_NO_MATCH))
         {
-            /* match condition on dirs */
-            if (!is_expr || (EntryMatches(&id_list[i], &attr_list[i],
-                             &match_expr, NULL) != POLICY_NO_MATCH))
+            /* don't display dirs if no_dir is specified */
+            if (! (prog_options.no_dir && ATTR_MASK_TEST(&attr_list[i], type)
+                   && !strcasecmp(ATTR(&attr_list[i], type), STR_TYPE_DIR)) )
                 print_entry(&id_list[i], &attr_list[i]);
         }
 
@@ -585,6 +587,7 @@ static int list_content(char ** id_list, int id_count)
     entry_id_t * ids;
     int i, rc;
     attr_set_t root_attrs;
+    int is_id;
 
     ids = MemCalloc(id_count, sizeof(entry_id_t));
     if (!ids)
@@ -592,9 +595,11 @@ static int list_content(char ** id_list, int id_count)
 
     for (i = 0; i < id_count; i++)
     {
+        is_id = TRUE;
         /* is it a path or fid? */
         if (sscanf(id_list[i], SFID, RFID(&ids[i])) != FID_SCAN_CNT)
         {
+            is_id = FALSE;
             /* take it as a path */
             rc = Path2Id(id_list[i], &ids[i]);
             if (rc)
@@ -610,6 +615,22 @@ static int list_content(char ** id_list, int id_count)
         rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
         if (rc == 0)
             dircb(&ids[i], &root_attrs, 1);
+        else
+        {
+            DisplayLog(LVL_VERB, FIND_TAG, "Notice: no attrs in DB for %s", id_list[i]);
+
+            if (!is_id)
+            {
+                struct stat st;
+                ATTR_MASK_SET(&root_attrs, fullpath);
+                strcpy(ATTR(&root_attrs, fullpath), id_list[i]);
+
+                if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                    PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+            }
+
+            dircb(&ids[i], &root_attrs, 1);
+        }
     }
 
     rc = rbh_scrub(&lmgr, ids, id_count, disp_mask | query_mask, dircb);
@@ -768,7 +789,7 @@ int main( int argc, char **argv )
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, FALSE );
+    rc = ListMgr_Init( &config.lmgr_config, TRUE );
     if ( rc )
     {
         DisplayLog( LVL_CRIT, FIND_TAG, "Error %d initializing list manager", rc );
