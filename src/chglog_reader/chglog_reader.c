@@ -317,10 +317,9 @@ static int process_log_rec( reader_thr_info_t * p_info, struct changelog_rec * p
         case CL_SOFTLINK:
         case CL_MKDIR:
         case CL_RMDIR:
-#ifndef _LUSTRE_HSM
             /* handle those events for non-HSM purposes */
             break;
-#endif
+
         case CL_MARK:
         case CL_HARDLINK:
         case CL_MKNOD:

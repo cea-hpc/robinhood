@@ -225,6 +225,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         /* entry is a directory */
         ATTR_MASK_SET( &p_op->entry_attr, type );
         strcpy( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR );
+        p_op->extra_info.getstripe_needed = FALSE;
     }
     else if (logrec->cr_type == CL_UNLINK )
     {

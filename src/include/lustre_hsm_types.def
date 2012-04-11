@@ -104,6 +104,8 @@ typedef enum
 # name, 		C type, 	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
 
 parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
+dircount,       unsigned int,  DB_UINT,        0, DIR_ATTR, type, NULL
+avgsize,        uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 
 # fields used for sorting/filtering
 

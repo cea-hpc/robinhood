@@ -571,17 +571,10 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         }
     }
 
-    /* General purpose: Push all entries except dirs to the pipeline.
-     * Lustre-HSM: Only push files.
+    /* Push all entries except dirs to the pipeline.
+     * Note: directories are pushed in Thr_scan(), after the closedir() call.
      */
-    /* Note: for non-Lustre-HSM purposes, directories are pushed in Thr_scan(),
-     * after the closedir() call.
-     */
-#ifdef _LUSTRE_HSM
-    if ( S_ISREG( inode.st_mode ) )
-#else
     if ( !S_ISDIR( inode.st_mode ) )
-#endif
     {
         entry_proc_op_t op;
 
@@ -896,8 +889,6 @@ static void   *Thr_scan( void *arg_thread )
         if ( rc != EBADF )
             closedir( dirp );
 
-/* No directory management for Lustre HSM */
-#ifndef _LUSTRE_HSM
         if ( p_task->depth > 0 )
         {
             /* Fill dir info and push it to the pileline for checking alerts on it,
@@ -929,8 +920,10 @@ static void   *Thr_scan( void *arg_thread )
             ATTR_MASK_SET( &op.entry_attr, fullpath );
             strcpy( ATTR( &op.entry_attr, fullpath ), p_task->path );
 
+#ifdef ATTR_INDEX_invalid
             ATTR_MASK_SET( &op.entry_attr, invalid );
             ATTR( &op.entry_attr, invalid ) = FALSE;
+#endif
 
             ATTR_MASK_SET( &op.entry_attr, depth );
             ATTR( &op.entry_attr, depth ) = p_task->depth - 1;  /* depth(/tmp/toto) = 0 */
@@ -965,7 +958,6 @@ static void   *Thr_scan( void *arg_thread )
                 return NULL;
             }
         }
-#endif
 
         gettimeofday( &end_dir, NULL );
         timersub( &end_dir, &start_dir, &diff );
@@ -992,7 +984,6 @@ static void   *Thr_scan( void *arg_thread )
                         "CRITICAL ERROR: RecursiveTaskTermination returned %d", st );
             Exit( 1 );
         }
-
     }
 
 end_task:

@@ -177,6 +177,15 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             ATTR_MASK_SET( &p_op->entry_attr, last_restore );
         }
     }
+    else if ((logrec->cr_type == CL_MKDIR )
+            || (logrec->cr_type == CL_RMDIR ))
+    {
+        /* entry is a directory */
+        ATTR_MASK_SET( &p_op->entry_attr, type );
+        strcpy( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR );
+        p_op->extra_info.getstripe_needed = FALSE;
+        p_op->extra_info.getstatus_needed = FALSE;
+    }
     else if ( logrec->cr_type == CL_HSM )
     {
         switch ( hsm_get_cl_event( logrec->cr_flags ) )
@@ -369,8 +378,6 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     /* allow event-driven update */
     int md_allow_event_updt = TRUE;
     int path_allow_event_updt = TRUE;
-
-    /* TODO : mkdir/rmdir => directory */
 
     /* is there parent_id in log rec ? */
     if ( logrec->cr_namelen > 0 )
@@ -574,18 +581,6 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             goto next_step;
         }
 
-        /* skip directories */
-        if ( ATTR_MASK_TEST( &p_op->entry_attr, type )
-             && !strcmp( ATTR(&p_op->entry_attr, type), STR_TYPE_DIR ) )
-        {
-            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Skipping entry (directory): %s",
-                        ATTR( &p_op->entry_attr, fullpath ) );
-            /* skip the entry */
-            next_stage = -1;
-            goto next_step;
-        }
-
         /* check if the entry exists in DB */
         p_op->db_exists = ListMgr_Exists( lmgr, &p_op->entry_id );
 
@@ -602,20 +597,27 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 tmp_attr.attr_mask |= (entry_proc_conf.alert_attr_mask
                                        & ~p_op->entry_attr.attr_mask);
 
-                if ( entry_proc_conf.match_classes )
+                /* no class for directories */
+                if ( ATTR_MASK_TEST(&p_op->entry_attr, type) &&
+                     strcmp( ATTR(&p_op->entry_attr, type), STR_TYPE_DIR ) != 0 )
                 {
-                    /* get fileclass update info to know if we must check it */
-                    ATTR_MASK_SET( &tmp_attr, rel_cl_update );
-                    ATTR_MASK_SET( &tmp_attr, release_class );
+                    if ( entry_proc_conf.match_classes )
+                    {
+                        /* get fileclass update info to know if we must check it */
+                        ATTR_MASK_SET( &tmp_attr, rel_cl_update );
+                        ATTR_MASK_SET( &tmp_attr, release_class );
 
-                    tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
-                                           & ~p_op->entry_attr.attr_mask);
+                        tmp_attr.attr_mask |= (policies.purge_policies.global_attr_mask
+                                               & ~p_op->entry_attr.attr_mask);
 
-                    ATTR_MASK_SET( &tmp_attr, arch_cl_update );
-                    ATTR_MASK_SET( &tmp_attr, archive_class );
+                        ATTR_MASK_SET( &tmp_attr, arch_cl_update );
+                        ATTR_MASK_SET( &tmp_attr, archive_class );
 
-                    tmp_attr.attr_mask |= (policies.migr_policies.global_attr_mask
-                                           & ~p_op->entry_attr.attr_mask);
+                        tmp_attr.attr_mask |= (policies.migr_policies.global_attr_mask
+                                               & ~p_op->entry_attr.attr_mask);
+                    }
+                    /* no dircount for files */
+                    tmp_attr.attr_mask &= ~ATTR_MASK_dircount;
                 }
 
                 if( tmp_attr.attr_mask )
@@ -652,11 +654,21 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             ATTR_MASK_SET( &p_op->entry_attr, creation_time );
             ATTR( &p_op->entry_attr, creation_time ) = time( NULL );
 
+            /* defaults */
             p_op->extra_info_is_set = TRUE;
             p_op->extra_info.getstatus_needed = TRUE;
             p_op->extra_info.getstripe_needed = TRUE;
             p_op->extra_info.getattr_needed = FALSE;
             p_op->extra_info.getpath_needed = FALSE;
+
+            if ( p_op->entry_attr_is_set
+                 && ATTR_MASK_TEST( &p_op->entry_attr, type )
+                 && strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_FILE ) != 0 )
+            {
+                /* not a file, for sure */
+                p_op->extra_info.getstatus_needed = FALSE;
+                p_op->extra_info.getstripe_needed = FALSE;
+            }
 
             next_stage = STAGE_GET_INFO_FS;
         }
@@ -666,20 +678,28 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
             /* FS scan is used for resynchronizing DB, so we always get status */
             p_op->extra_info_is_set = TRUE;
-            p_op->extra_info.getstatus_needed = TRUE;
+            p_op->extra_info.getstatus_needed = FALSE;
             p_op->extra_info.getattr_needed = FALSE;
             p_op->extra_info.getpath_needed = FALSE;
 
-            /* Does file has stripe info ? */
-            if ( ListMgr_CheckStripe( lmgr, &p_op->entry_id ) != DB_SUCCESS )
+            if ( p_op->entry_attr_is_set
+                 && ATTR_MASK_TEST( &p_op->entry_attr, type )
+                 && !strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_FILE ) )
             {
-                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is missing" );
-                p_op->extra_info.getstripe_needed = TRUE;
+                /* only get status for files */
+                p_op->extra_info.getstatus_needed = TRUE;
+
+                /* Does file has stripe info ? */
+                if ( ListMgr_CheckStripe( lmgr, &p_op->entry_id ) != DB_SUCCESS )
+                {
+                    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is missing" );
+                    p_op->extra_info.getstripe_needed = TRUE;
+                }
             }
 
             next_stage = STAGE_GET_INFO_FS;
         }
-    }
+    } /* end if scan */
 
 next_step:
     if ( next_stage == -1 )
@@ -745,13 +765,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 goto skip_record;
             }
 
-            /* only files are considered (however, ack the record)*/
-            if ( !S_ISREG( entry_md.st_mode ) )
-            {
-                rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
-                return rc;
-            }
-
             /* convert them to internal structure */
 #if defined( _MDS_STAT_SUPPORT )
             PosixStat2EntryAttr( &entry_md, &p_op->entry_attr, !global_config.direct_mds_stat );
@@ -762,6 +775,16 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
             ATTR_MASK_SET( &p_op->entry_attr, md_update );
             ATTR( &p_op->entry_attr, md_update ) = time( NULL );
+
+            /* if the entry is not a file, not try to get stripe
+             * or status on it */
+            if ( p_op->extra_info.getstripe_needed
+                 && ATTR_MASK_TEST( &p_op->entry_attr, type )
+                 && (strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_FILE ) != 0) )
+            {
+                p_op->extra_info.getstripe_needed = FALSE;
+                p_op->extra_info.getstatus_needed = FALSE;
+            }
 
         } /* getattr needed */
 

@@ -783,6 +783,9 @@ function mass_softrm
 		echo "file.$i" > $dir/file.$i || error "creating file $dir/file.$i"
 	done
 
+	# how many subdirs in dir.1?
+	nbsubdirs=$( ls $ROOT/dir.1 | grep subdir | wc -l )
+
 	echo "2-Initial scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
 
@@ -799,13 +802,16 @@ function mass_softrm
 
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 120 || error "Migration timeout"
+		echo "update db content..."
+		$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+
 	elif (( $is_hsmlite != 0 )); then
 		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
 	fi
 	grep "Migration summary" rh_migr.log
 
 	echo "Checking stats after 1st scan..."
-	$REPORT -f ./cfg/$config_file --fs-info --csv -q > fsinfo.1
+	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v unknown > fsinfo.1
 	cat fsinfo.1
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.1
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
@@ -830,7 +836,7 @@ function mass_softrm
 	grep "Full scan of" rh_scan.log | tail -1
 
 	echo "Checking stats after 2nd scan..."
-	$REPORT -f ./cfg/$config_file --fs-info --csv -q > fsinfo.2
+	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v unknown > fsinfo.2
 	cat fsinfo.2
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.2
 	# 100 files were in the removed directory
@@ -840,7 +846,8 @@ function mass_softrm
 	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries - 100 )) || error $(($entries - 100)) " entries expected, got $nb"
 	nb=`wc -l deferred.2 | awk '{print $1}'`
-	(( $nb == 100 )) || error "100 deferred rm expected after first scan, got $nb"
+	((expect=100 + $nbsubdirs + 1))
+	(( $nb == $expect )) || error "$expect deferred rm expected after first scan, got $nb"
 	rm -f fsinfo.2 deferred.2
 
 }
@@ -895,7 +902,7 @@ function purge_test
 	if (( $is_hsmlite != 0 )); then
 		echo "2bis-Archiving files"
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing migrate-file"
-		arch_count=`grep Archived rh_migr.log | wc -l`
+		arch_count=`grep "$ARCH_STR" rh_migr.log | wc -l`
 		(( $arch_count == 11 )) || error "$11 archive commands expected"
 	fi
 
@@ -1919,10 +1926,10 @@ function policy_check_migr
 		&& echo "OK: fileclasses do not need update"
 	
     # check effectively migrated files
-    m1_arch=`grep Archived rh_migr.log | grep migrate1 | wc -l`
-    d1_arch=`grep Archived rh_migr.log | grep default1 | wc -l`
-    w1_arch=`grep Archived rh_migr.log | grep whitelist1 | wc -l`
-    i1_arch=`grep Archived rh_migr.log | grep ignore1 | wc -l`
+    m1_arch=`grep "$ARCH_STR" rh_migr.log | grep migrate1 | wc -l`
+    d1_arch=`grep "$ARCH_STR" rh_migr.log | grep default1 | wc -l`
+    w1_arch=`grep "$ARCH_STR" rh_migr.log | grep whitelist1 | wc -l`
+    i1_arch=`grep "$ARCH_STR" rh_migr.log | grep ignore1 | wc -l`
 
     (( $w1_arch == 0 )) || error "whitelist1 should not have been migrated"
     (( $i1_arch == 0 )) || error "ignore1 should not have been migrated"
@@ -1984,7 +1991,18 @@ function policy_check_purge
         echo "1bis. migrate..."
 
         # now apply policies
-        $RH -f ./cfg/$config_file --sync -l FULL -L rh_migr.log --once || error "running migration"
+        if (( $is_lhsm != 0 )); then
+                flush_data
+                $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+
+                echo "1ter. Waiting for end of data migration..."
+                wait_done 120 || error "Migration timeout"
+		echo "update db content..."
+		$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+		
+        elif (( $is_hsmlite != 0 )); then
+                $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+        fi
 
         # check that release class is still correct
         $REPORT -f ./cfg/$config_file --dump -q  > report.out
@@ -2694,7 +2712,7 @@ function test_info_collect
 		echo "OK: $db_expect database operations"
 	else
 #		grep ENTRIES rh_chglogs.log
-		error ": unexpected number of operations: $nb_db_apply database operations"
+		error ": unexpected number of operations: $nb_db_apply database operations/$db_expect"
 	fi
 }
 
