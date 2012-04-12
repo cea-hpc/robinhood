@@ -2341,7 +2341,8 @@ function test_trigger_check
 
 	# initial inode count
 	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
-	empty_count_user=0
+    empty_count_user=0
+
 #	((file_count=$max_count-$empty_count))
 	file_count=$max_count
 
@@ -2517,6 +2518,7 @@ function test_periodic_trigger
 	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released after $delta s"
 	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released after $delta s"
 
+	((sleep_time=$sleep_time-$delta))
 	sleep $(( $sleep_time + 2 ))
 	# now, *.2 must have been purged
 	echo "3.2-checking trigger for second policy..."
@@ -2532,7 +2534,8 @@ function test_periodic_trigger
 	check_released "$ROOT/foo.3"  && error "$ROOT/foo.3 shouldn't have been released after $delta s"
 	check_released "$ROOT/bar.3" && error "$ROOT/bar.3 shouldn't have been released after $delta s"
 
-	sleep $(( $sleep_time + 2 ))
+	# wait 20 more secs (so another purge policy is applied)
+	sleep 20
 	# now, it's *.3
 	# *.4 must be preserved
 	echo "3.3-checking trigger for third policy..."
@@ -2553,7 +2556,7 @@ function test_periodic_trigger
 	if (( $nb_pass == 3 )); then
 		echo "OK: triggered 3 times"
 	else
-		error "unexpected trigger count $nb_pass"
+		error "unexpected trigger count $nb_pass (in $delta sec)"
 	fi
 
 	# terminate
@@ -2685,7 +2688,7 @@ function test_info_collect
 
     # (directories are always inserted with robinhood 2.4)
     # 4 file + 3 dirs
-    # +1 for shook (.shook_locks)
+    # +1 for shook (.shook_locks) that goes though DB apply step but is discarded
     db_expect=7
     if (($shook != 0)); then
         ((db_expect=$db_expect+1))
@@ -3768,7 +3771,7 @@ run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
-run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
+run_test 303    test_periodic_trigger test_trig4.conf 35 "periodic trigger"
 
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"

@@ -79,16 +79,35 @@ pipeline_stage_t entry_proc_pipeline[] = {
 
 #ifdef HAVE_SHOOK
 #include <fnmatch.h>
-int shook_special_file( struct entry_proc_op_t * p_op )
+int shook_special_obj( struct entry_proc_op_t * p_op )
 {
-    if ( p_op->entry_attr_is_set || ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
+    if (p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, fullpath )
+        && ATTR_MASK_TEST( &p_op->entry_attr, type))
     {
-        if ( fnmatch( "*/.shook_locks/lock.*", ATTR(&p_op->entry_attr, fullpath ), 0 ) == 0 )
+        if ( !strcmp(STR_TYPE_FILE, ATTR(&p_op->entry_attr, type)) &&
+             !fnmatch( "*/.shook_locks/lock.*", ATTR(&p_op->entry_attr, fullpath ), 0 ))
         {
             /* skip the entry */
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "%s is a shook lock",
+                       ATTR(&p_op->entry_attr, fullpath));
             return TRUE;
         }
     }
+
+    /* also match '.shook_locks' directory */
+    if (p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, name)
+        && ATTR_MASK_TEST( &p_op->entry_attr, type))
+    {
+        if ( !strcmp(STR_TYPE_DIR, ATTR(&p_op->entry_attr, type)) &&
+             !strcmp(".shook_locks", ATTR(&p_op->entry_attr, name)) )
+        {
+            /* skip the entry */
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "%s is a shook lock dir",
+                       ATTR(&p_op->entry_attr, name));
+            return TRUE;
+        }
+    }
+
     return FALSE;
 }
 #endif
@@ -521,17 +540,16 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* what info is needed to check backend status? */
         rc = rbhext_status_needs( TYPE_NONE,
-                                &attr_allow_cached,
-                                &attr_need_fresh );
+                                  &attr_allow_cached,
+                                  &attr_need_fresh );
         if ( rc != 0 )
         {
             if ( rc == -ENOTSUP )
             {
                 /* this type can't be backup'ed: skip the record */
-//                next_stage = STAGE_CHGLOG_CLR;
-//                goto next_step;
                 ATTR_MASK_UNSET(&p_op->entry_attr, status);
                 p_op->extra_info.getstatus_needed = FALSE;
+                p_op->extra_info.not_supp = TRUE;
             }
             else
                 DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
@@ -613,6 +631,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         rc_status_need );
             attr_allow_cached = attr_need_fresh = 0;
         }
+        if (rc_status_need == -ENOTSUP)
+             p_op->extra_info.not_supp = TRUE;
 
         /* full path and posix attrs are already set for scans */
         attr_need_fresh &= ~( ATTR_MASK_fullpath | POSIX_ATTR_MASK );
@@ -737,9 +757,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         if ( rc_status_need == -ENOTSUP )
         {
-            /* entry type is not managed for this backend => skipped */
-//            next_stage = -1;
-//            goto next_step;
+            /* entry type is not managed for this backend */
+            p_op->extra_info.getstatus_needed = FALSE;
+            p_op->extra_info.not_supp = TRUE;
         }
         else if ( attr_need_fresh )
         {
@@ -771,7 +791,6 @@ next_step:
 int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
-    int            match_cl = entry_proc_conf.match_classes;
 
     if ( p_op->extra_info_is_set )
     {
@@ -944,9 +963,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             else if ( rc == -ENOTSUP )
             {
                 /* this type of entry is not managed: ignored */
-                /* TODO: backup md in database anyhow */
-//                goto skip_record;
-                match_cl = FALSE;
+                p_op->extra_info.not_supp = TRUE;
                 /* no status */
                 ATTR_MASK_UNSET(&p_op->entry_attr, status);
             }
@@ -955,7 +972,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 
     /* match fileclasses if specified in config */
-    if ( match_cl )
+    if ( entry_proc_conf.match_classes && !p_op->extra_info.not_supp )
         check_policies( &p_op->entry_id, &p_op->entry_attr, TRUE );
 
     /* set other info */
@@ -1115,7 +1132,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
 
 #ifdef HAVE_SHOOK
-    if (shook_special_file( p_op )) {
+    if (shook_special_obj( p_op )) {
                 DisplayLog( LVL_FULL, ENTRYPROC_TAG,
                     "Shook lock file '%s', skipped",
                     (ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?
