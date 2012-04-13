@@ -1473,7 +1473,13 @@ void report_fs_info( int flags )
     filter_value_t fv;
 #endif
 
+#ifdef  ATTR_INDEX_status
+#define FSINFOCOUNT 7
+#define _SHIFT 1
+#else
 #define FSINFOCOUNT 6
+#define _SHIFT 0
+#endif
 
     db_value_t     result[FSINFOCOUNT];
 
@@ -1486,9 +1492,10 @@ void report_fs_info( int flags )
     report_field_descr_t fs_info[FSINFOCOUNT] = {
 #ifdef  ATTR_INDEX_status
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
-#else
-        {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+//#else
 #endif
+        {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+//#endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}}, /* XXX ifdef STATUS ? */
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
@@ -1546,14 +1553,14 @@ void report_fs_info( int flags )
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
               == DB_SUCCESS )
     {
-        if (result[1].value_u.val_biguint == 0) /* count=0 (don't display)*/
+        if (result[1+_SHIFT].value_u.val_biguint == 0) /* count=0 (don't display)*/
             display_report( fs_info, FSINFOCOUNT, NULL, result_count, flags, display_header, 0 );
         else
             display_report( fs_info, FSINFOCOUNT, result, result_count, flags, display_header, 0 );
         display_header = 0; /* just display it once */
 
-        total_count += result[1].value_u.val_biguint;
-        total_size += result[2].value_u.val_biguint;
+        total_count += result[1+_SHIFT].value_u.val_biguint;
+        total_size += result[2+_SHIFT].value_u.val_biguint;
 
         /* prepare next call */
         result_count = FSINFOCOUNT;
@@ -2517,7 +2524,6 @@ static void report_class_info( int flags )
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
     };
 
-    /* type is not stored in database: only files are considered */
     /* select only files */
     fv.val_str = STR_TYPE_FILE;
     lmgr_simple_filter_init( &filter );

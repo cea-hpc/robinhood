@@ -233,61 +233,63 @@ struct status_descr
 {
     file_status_t db_status;
     char * short_descr;
-    char * long_descr;
 }
 status_array[] =
 {
 #ifdef _LUSTRE_HSM
-    { STATUS_UNKNOWN, "unknown", "unknown" },
-    { STATUS_NEW, "new", "new file (no HSM status)" },
-    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
-    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
-    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for release)" },
-    { STATUS_RELEASED, "released", "released" },
-    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
+    { STATUS_UNKNOWN, "n/a" },
+    { STATUS_NEW, "new" },
+    { STATUS_MODIFIED, "modified" },
+    { STATUS_RESTORE_RUNNING, "retrieving" },
+    { STATUS_ARCHIVE_RUNNING, "archiving" },
+    { STATUS_SYNCHRO, "synchro" },
+    { STATUS_RELEASED, "released" },
+    { STATUS_RELEASE_PENDING, "release_pending" },
 
     /* alternative names */
-    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
-    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
+    { STATUS_UNKNOWN, "unknown" },
+    { STATUS_MODIFIED, "dirty" },
+    { STATUS_RESTORE_RUNNING, "restoring" },
 
 #define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
 
 #elif defined(_SHERPA)
-    { STATUS_UNKNOWN, "unknown", "unknown" },
-    { STATUS_NO_REF, "ref_missing", "reference is missing" },
-    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
-    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
-    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized (eligible for purge)" },
-    { STATUS_OUT_OF_DATE, "obsolete", "obsolete (older than reference)" },
+    { STATUS_UNKNOWN, "n/a" },
+    { STATUS_NO_REF, "ref_missing" },
+    { STATUS_MODIFIED, "modified" },
+    { STATUS_RESTORE_RUNNING, "retrieving" },
+    { STATUS_ARCHIVE_RUNNING, "archiving" },
+    { STATUS_SYNCHRO, "synchro" },
+    { STATUS_OUT_OF_DATE, "obsolete" },
 
     /* alternative names */
-    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
-    { STATUS_NO_REF, "missing_ref", "reference is missing" },
-    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
+    { STATUS_UNKNOWN, "unknown" },
+    { STATUS_MODIFIED, "dirty" },
+    { STATUS_NO_REF, "missing_ref" },
+    { STATUS_RESTORE_RUNNING, "restoring" },
 
 #define ALLOWED_STATUS "unknown, ref_missing|missing_ref, modified|dirty, retrieving|restoring, archiving, synchro, obsolete"
 
 #elif defined(_HSM_LITE)
-    { STATUS_UNKNOWN, "unknown", "unknown" },
-    { STATUS_NEW, "new", "new file (not in backend)" },
-    { STATUS_MODIFIED, "modified", "modified (must be archived)" },
-    { STATUS_RESTORE_RUNNING, "retrieving", "being retrieved" },
-    { STATUS_ARCHIVE_RUNNING, "archiving", "being archived" },
-    { STATUS_SYNCHRO, "synchro", "synchronized in backend" },
-    { STATUS_RELEASED, "released", "released" },
-    { STATUS_RELEASE_PENDING, "release_pending", "release pending" },
-    { STATUS_REMOVED, "removed", "removed from filesystem, still in the backend" },
+    { STATUS_UNKNOWN, "n/a" },
+    { STATUS_NEW, "new" },
+    { STATUS_MODIFIED, "modified" },
+    { STATUS_RESTORE_RUNNING, "retrieving" },
+    { STATUS_ARCHIVE_RUNNING, "archiving" },
+    { STATUS_SYNCHRO, "synchro" },
+    { STATUS_RELEASED, "released" },
+    { STATUS_RELEASE_PENDING, "release_pending" },
+    { STATUS_REMOVED, "removed" },
 
     /* alternative names */
-    { STATUS_MODIFIED, "dirty", "dirty (modified)" },
-    { STATUS_RESTORE_RUNNING, "restoring", "being retrieved" },
+    { STATUS_UNKNOWN, "unknown" },
+    { STATUS_MODIFIED, "dirty" },
+    { STATUS_RESTORE_RUNNING, "restoring" },
 
 #define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
 
 #endif
-    { (file_status_t)-1, NULL, NULL }
+    { (file_status_t)-1, NULL }
 };
 
 const char * db_status2str( file_status_t status, int csv )
@@ -298,10 +300,7 @@ const char * db_status2str( file_status_t status, int csv )
     {
        if ( status == curr->db_status )
        {
-            if ( csv )
-                return curr->short_descr;
-            else
-                return curr->long_descr;
+           return curr->short_descr;
        }
     }
     /* not found */

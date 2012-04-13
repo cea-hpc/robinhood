@@ -122,6 +122,9 @@ function error
 	 	grep -i error *.log | grep -v "(0 errors)" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
+
+    # avoid displaying the same log many times
+    clean_logs
 }
 
 function set_skipped
@@ -811,12 +814,12 @@ function mass_softrm
 	grep "Migration summary" rh_migr.log
 
 	echo "Checking stats after 1st scan..."
-	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v unknown > fsinfo.1
+	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v "n/a" > fsinfo.1
 	cat fsinfo.1
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.1
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
-	status=`cat fsinfo.1 | cut -d "," -f 1 | tr -d ' '`
-	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 2 | tr -d ' '`
+	status=`cat fsinfo.1 | cut -d "," -f 2 | tr -d ' '`
+	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 3 | tr -d ' '`
 	[[ -n $nb ]] || nb=0
 	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries )) || error "$entries entries expected, got $nb"
@@ -836,13 +839,13 @@ function mass_softrm
 	grep "Full scan of" rh_scan.log | tail -1
 
 	echo "Checking stats after 2nd scan..."
-	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v unknown > fsinfo.2
+	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v "n/a" > fsinfo.2
 	cat fsinfo.2
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.2
 	# 100 files were in the removed directory
 	(( `wc -l fsinfo.2 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
-	status=`cat fsinfo.2 | cut -d "," -f 1 | tr -d ' '`
-	nb=`cat fsinfo.2 | grep synchro | cut -d "," -f 2 | tr -d ' '`
+	status=`cat fsinfo.2 | cut -d "," -f 2 | tr -d ' '`
+	nb=`cat fsinfo.2 | grep synchro | cut -d "," -f 3 | tr -d ' '`
 	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries - 100 )) || error $(($entries - 100)) " entries expected, got $nb"
 	nb=`wc -l deferred.2 | awk '{print $1}'`
@@ -3282,7 +3285,7 @@ function recovery_test
 	sleep 2
 
 	# all files are new
-	new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep new | cut -d ',' -f 2`
+	new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep new | cut -d ',' -f 3`
 	echo "$new_cnt files are new"
 	(( $new_cnt == $total )) || error "20 new files expected"
 
@@ -3316,9 +3319,9 @@ function recovery_test
 	fi
 
 	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i > /tmp/report.$$
-	new_cnt=`grep "new" /tmp/report.$$ | cut -d ',' -f 2`
-	mod_cnt=`grep "modified" /tmp/report.$$ | cut -d ',' -f 2`
-	sync_cnt=`grep "synchro" /tmp/report.$$ | cut -d ',' -f 2`
+	new_cnt=`grep "new" /tmp/report.$$ | cut -d ',' -f 3`
+	mod_cnt=`grep "modified" /tmp/report.$$ | cut -d ',' -f 3`
+	sync_cnt=`grep "synchro" /tmp/report.$$ | cut -d ',' -f 3`
 	[[ -z $new_cnt ]] && new_cnt=0
 	[[ -z $mod_cnt ]] && mod_cnt=0
 	[[ -z $sync_cnt ]] && sync_cnt=0
@@ -3427,7 +3430,6 @@ function test_find
 
     # scan FS content
     $RH -f $cfg --scan -l DEBUG -L rh_scan.log --once 2>/dev/null || error "scanning"
-    if (($? == 0)); then cp -f /dev/null rh_scan.log; fi
 
     # 2) test find at several levels
     echo "checking find list at all levels..."
