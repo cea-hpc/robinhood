@@ -104,15 +104,16 @@ struct find_opt
     unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
     unsigned int dir_only:1; /* if -t dir => only display dir */
 } prog_options = {
-    NULL, NULL, NULL,
+    .user = NULL, .group = NULL, .type = NULL, .name = NULL,
 #ifdef ATTR_INDEX_status
-    STATUS_UNKNOWN,
+    .status = STATUS_UNKNOWN,
 #endif
-    0, 0, 0, 0,
+    .ls = 0, .match_user = 0, .match_group = 0,
+    .match_type = 0, .match_size = 0, .match_name = 0,
 #ifdef ATTR_INDEX_status
-    0,
+    .match_status = 0,
 #endif
-    0, 0
+    .no_dir = 0, .dir_only = 0
 };
 
 #ifdef ATTR_INDEX_status
@@ -257,22 +258,23 @@ static int mkfilters(int exclude_dirs)
 #define U_ "[0m"
 
 static const char *help_string =
-    _B "Usage:" B_ " %s [options] [path|fid]\n"
+    _B "Usage:" B_ " %s [options] [path|fid]...\n"
     "\n"
     _B "Filters:" B_ "\n"
-    "    " _B "-u" B_ " " _U "user" U_ "\n"
-    "    " _B "-g" B_ " " _U "group" U_ "\n"
-    "    " _B "-t" B_ " " _U "type" U_ "\n"
+    "    " _B "-user" B_ " " _U "user" U_ "\n"
+    "    " _B "-group" B_ " " _U "group" U_ "\n"
+    "    " _B "-type" B_ " " _U "type" U_ "\n"
     "       "TYPE_HELP"\n"
-    "    " _B "-s" B_ " " _U "size_crit" U_ "\n"
+    "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       "SIZE_HELP"\n"
-    "    " _B "-n" B_ " " _U "filename" U_ "\n"
+    "    " _B "-name" B_ " " _U "filename" U_ "\n"
 #ifdef ATTR_INDEX_status
-    "    " _B "-S" B_ " " _U "status" U_ "\n"
+    "    " _B "-status" B_ " " _U "status" U_ "\n"
+    "       %s\n"
 #endif
     "\n"
     _B "Output options:" B_ "\n"
-    "    " _B "-l" B_" \t: display attributes\n"
+    "    " _B "-ls" B_" \t: display attributes\n"
     "\n"
     _B "Program options:" B_ "\n"
     "    " _B "-f" B_ " " _U "config_file" U_ "\n"
@@ -285,7 +287,11 @@ static const char *help_string =
 
 static inline void display_help( char *bin_name )
 {
+#ifdef ATTR_INDEX_status
+    printf( help_string, bin_name, allowed_status() );
+#else
     printf( help_string, bin_name );
+#endif
 }
 
 static inline void display_version( char *bin_name )
@@ -778,7 +784,7 @@ int main( int argc, char **argv )
     char           err_msg[4096];
 
     /* parse command line options */
-    while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab,
+    while ((c = getopt_long_only(argc, argv, SHORT_OPT_STRING, option_tab,
                             &option_index )) != -1)
     {
         switch ( c )
