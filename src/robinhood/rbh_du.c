@@ -13,7 +13,7 @@
  */
 
 /**
- * Command for recovering filesystem content after a disaster (backup flavor)
+ * Du clone based on robinhood DB.
  */
 
 #ifdef HAVE_CONFIG_H

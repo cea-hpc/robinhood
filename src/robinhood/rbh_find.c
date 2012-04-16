@@ -13,7 +13,7 @@
  */
 
 /**
- * Command for recovering filesystem content after a disaster (backup flavor)
+ * Find clone based on robinhood DB
  */
 
 #ifdef HAVE_CONFIG_H
@@ -72,6 +72,7 @@ static struct option option_tab[] =
 /* global variables */
 
 static lmgr_t  lmgr;
+robinhood_config_t config;
 
 /* program options */
 struct find_opt
@@ -126,15 +127,15 @@ static int query_mask = 0;
 
 //static lmgr_filter_t    dir_filter;
 
-/* for filtering non directory entries from DB */
-static lmgr_filter_t    nondir_filter;
+/* for filtering entries from DB */
+static lmgr_filter_t    entry_filter;
 
 /* post filter for all entries */
 static bool_node_t      match_expr;
 static int              is_expr = 0; /* is it set? */
 
 /* build filters depending on program options */
-static int mkfilters()
+static int mkfilters(int exclude_dirs)
 {
     filter_value_t fv;
 
@@ -190,27 +191,34 @@ static int mkfilters()
     }
 
     /* create DB filters */
-    lmgr_simple_filter_init( &nondir_filter );
+    lmgr_simple_filter_init( &entry_filter );
 
     /* analyze type filter */
     if (prog_options.match_type)
     {
         if (!strcasecmp(prog_options.type, STR_TYPE_DIR))
+        {
             /* only match dirs */
             prog_options.dir_only = 1;
+            if (!exclude_dirs)
+            {
+                fv.val_str = STR_TYPE_DIR;
+                lmgr_simple_filter_add(&entry_filter, ATTR_INDEX_type, EQUAL, fv, 0);
+            }
+        }
         else
         {
             /* smthg different from dir */
             prog_options.no_dir = 1;
             fv.val_str = prog_options.type;
-            lmgr_simple_filter_add(&nondir_filter, ATTR_INDEX_type, EQUAL, fv, 0);
+            lmgr_simple_filter_add(&entry_filter, ATTR_INDEX_type, EQUAL, fv, 0);
         }
     }
-    else /* no specific type specified */
+    else if (exclude_dirs) /* no specific type specified => exclude dirs if required */
     {
-        /* nondir_filter is for non directories */
+        /* filter non directories (directories are handled during recursive DB scan) */
         fv.val_str = STR_TYPE_DIR;
-        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
+        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
     }
 
 #ifdef ATTR_INDEX_status
@@ -218,7 +226,7 @@ static int mkfilters()
     {
         /* not part of user policies, only add it to DB filter */
         fv.val_uint = prog_options.status;
-        lmgr_simple_filter_add( &nondir_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
+        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
     }
 #endif
 
@@ -230,7 +238,7 @@ static int mkfilters()
             DisplayLog(LVL_FULL, FIND_TAG, "Expression matching: %s", expr);
 
         /* append bool expr to entry filter */
-        convert_boolexpr_to_simple_filter( &match_expr, &nondir_filter );
+        convert_boolexpr_to_simple_filter( &match_expr, &entry_filter );
     }
 
     return 0;
@@ -540,7 +548,7 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
         if (!prog_options.dir_only)
         {
-            rc = ListMgr_GetChild( &lmgr, &nondir_filter, id_list+i, 1,
+            rc = ListMgr_GetChild( &lmgr, &entry_filter, id_list+i, 1,
                                    disp_mask | query_mask,
                                    &chids, &chattrs, &chcount );
             if (rc)
@@ -580,6 +588,93 @@ static int Path2Id(const char *path, entry_id_t * id)
 }
 
 /**
+ *  Get id of root dir
+ */
+static int get_root_id(entry_id_t * root_id)
+{
+    int rc;
+    rc = Path2Id(config.global_config.fs_path, root_id);
+    if (rc)
+        DisplayLog(LVL_MAJOR, FIND_TAG, "Can't access filesystem's root %s: %s",
+                   config.global_config.fs_path, strerror(-rc));
+    return rc;
+}
+
+/**
+ * List the content of all the DB
+ */
+static int list_all()
+{
+    attr_set_t  root_attrs, attrs;
+    entry_id_t  root_id, id;
+    int rc;
+    struct stat st;
+    struct lmgr_iterator_t *it;
+
+    ATTR_MASK_INIT( &root_attrs );
+
+    rc = get_root_id(&root_id);
+    if (rc)
+        return rc;
+
+    /* root is not a part of the DB: print it now */
+    ATTR_MASK_SET(&root_attrs, fullpath);
+    strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
+
+    if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+        PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+
+    /* match condition on dirs parent */
+    if (!is_expr || (EntryMatches(&root_id, &root_attrs,
+                     &match_expr, NULL) != POLICY_NO_MATCH))
+    {
+        /* don't display dirs if no_dir is specified */
+        if (! (prog_options.no_dir && ATTR_MASK_TEST(&root_attrs, type)
+               && !strcasecmp(ATTR(&root_attrs, type), STR_TYPE_DIR)) )
+            print_entry(&root_id, &root_attrs);
+    }
+
+    /* list all, including dirs */
+    it = ListMgr_Iterator( &lmgr, &entry_filter, NULL, NULL );
+    if (!it)
+    {
+        DisplayLog(LVL_MAJOR, FIND_TAG, "ERROR: cannot retrieve entry list from database");
+        return -1;
+    }
+
+    attrs.attr_mask = disp_mask | query_mask;
+    while ((rc = ListMgr_GetNext( it, &id, &attrs )) == DB_SUCCESS)
+    {
+        if (!is_expr || (EntryMatches(&id, &attrs, &match_expr, NULL)
+                                      != POLICY_NO_MATCH))
+        {
+            /* don't display dirs if no_dir is specified */
+            if (! (prog_options.no_dir && ATTR_MASK_TEST(&attrs, type)
+                   && !strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)) )
+                print_entry(&id, &attrs);
+            /* don't display non dirs is dir_only is specified */
+            else if (! (prog_options.dir_only && ATTR_MASK_TEST(&attrs, type)
+                   && strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)))
+                print_entry(&id, &attrs);
+            else
+                /* return entry don't match? */
+                DisplayLog(LVL_DEBUG, FIND_TAG, "Warning: returned DB entry doesn't match filter: %s",
+                           ATTR(&attrs, fullpath));
+        }
+        ListMgr_FreeAttrs( &attrs );
+
+        /* prepare next call */
+        attrs.attr_mask = disp_mask | query_mask;
+    }
+    ListMgr_CloseIterator( it );
+
+
+
+    return 0;
+
+}
+
+/**
  * List the content of the given id/path list
  */
 static int list_content(char ** id_list, int id_count)
@@ -587,7 +682,12 @@ static int list_content(char ** id_list, int id_count)
     entry_id_t * ids;
     int i, rc;
     attr_set_t root_attrs;
+    entry_id_t root_id;
     int is_id;
+
+    rc = get_root_id(&root_id);
+    if (rc)
+        return rc;
 
     ids = MemCalloc(id_count, sizeof(entry_id_t));
     if (!ids)
@@ -610,6 +710,15 @@ static int list_content(char ** id_list, int id_count)
             }
         }
 
+        if ((id_count == 1) && entry_id_equal(&ids[i], &root_id))
+        {
+            /* the ID is FS root: use list_all instead */
+            DisplayLog(LVL_DEBUG, FIND_TAG, "Optimization: command argument is filesystem's root: performing bulk DB dump");
+
+            mkfilters(FALSE); /* keep dirs */
+            return list_all();
+        }
+
         /* get root attrs to print it (if it matches program options) */
         root_attrs.attr_mask = disp_mask | query_mask;
         rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
@@ -624,6 +733,16 @@ static int list_content(char ** id_list, int id_count)
                 struct stat st;
                 ATTR_MASK_SET(&root_attrs, fullpath);
                 strcpy(ATTR(&root_attrs, fullpath), id_list[i]);
+
+                if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                    PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+            }
+            else if (entry_id_equal(&ids[i], &root_id))
+            {
+                /* this is root id */
+                struct stat st;
+                ATTR_MASK_SET(&root_attrs, fullpath);
+                strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                     PosixStat2EntryAttr(&st, &root_attrs, TRUE);
@@ -657,7 +776,6 @@ int main( int argc, char **argv )
     int            log_level = 0;
     int            rc;
     char           err_msg[4096];
-    robinhood_config_t config;
 
     /* parse command line options */
     while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab,
@@ -738,9 +856,6 @@ int main( int argc, char **argv )
         }
     }
 
-    /* analyse arguments */
-    /* @TODO if no path is specified, list all */
-
     /* get default config file, if not specified */
     if ( EMPTY_STRING( config_file ) )
     {
@@ -809,8 +924,17 @@ int main( int argc, char **argv )
         exit(rc);
     }
 
-    mkfilters();
-    rc = list_content(argv+optind, argc-optind);
+    if (argc == optind)
+    {
+        mkfilters(FALSE); /* keep dirs */
+        /* no path speficied, list all entries */
+        rc = list_all();
+    }
+    else
+    {
+        mkfilters(TRUE); /* exclude dirs */
+        rc = list_content(argv+optind, argc-optind);
+    }
 
     ListMgr_CloseAccess( &lmgr );
 
