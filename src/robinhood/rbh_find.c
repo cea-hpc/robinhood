@@ -191,6 +191,8 @@ static int mkfilters(int exclude_dirs)
         query_mask |= ATTR_MASK_size;
     }
 
+    /* TODO match status? */
+
     /* create DB filters */
     lmgr_simple_filter_init( &entry_filter );
 
