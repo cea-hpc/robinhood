@@ -209,19 +209,6 @@ static int mkfilters()
 }
 
 
-
-/* special character sequences for displaying help */
-
-/* Bold start character sequence */
-#define _B "[1m"
-/* Bold end charater sequence */
-#define B_ "[m"
-
-/* Underline start character sequence */
-#define _U "[4m"
-/* Underline end character sequence */
-#define U_ "[0m"
-
 static const char *help_string =
     _B "Usage:" B_ " %s [options] [path|fid]\n"
     "\n"

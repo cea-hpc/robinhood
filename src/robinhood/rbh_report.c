@@ -163,18 +163,6 @@ static struct option option_tab[] = {
 
 #define SHORT_OPT_STRING    "aiDu:g:d:s:p:rU:P:C:Rf:cql:hVFS"
 
-/* special character sequences for displaying help */
-
-/* Bold start character sequence */
-#define _B "[1m"
-/* Bold end charater sequence */
-#define B_ "[m"
-
-/* Underline start character sequence */
-#define _U "[4m"
-/* Underline end character sequence */
-#define U_ "[0m"
-
 static const char *help_string =
     _B "Usage:" B_ " %s [options]\n"
     "\n"

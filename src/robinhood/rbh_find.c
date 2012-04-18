@@ -45,6 +45,9 @@ static struct option option_tab[] =
     {"type", required_argument, NULL, 't'},
     {"size", required_argument, NULL, 's'},
     {"name", required_argument, NULL, 'n'},
+#ifdef _LUSTRE
+    {"ost", required_argument, NULL, 'o'},
+#endif
 #ifdef ATTR_INDEX_status
     {"status", required_argument, NULL, 'S'},
 #endif
@@ -64,7 +67,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:f:d:hV"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:f:d:hV"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -84,6 +87,7 @@ struct find_opt
     compare_direction_t sz_compar;
     uint64_t            sz_val;
     const char * name;
+    unsigned int ost_idx;
 #ifdef ATTR_INDEX_status
     file_status_t status;
 #endif
@@ -96,6 +100,9 @@ struct find_opt
     unsigned int match_type:1;
     unsigned int match_size:1;
     unsigned int match_name:1;
+#ifdef _LUSTRE
+    unsigned int match_ost:1;
+#endif
 #ifdef ATTR_INDEX_status
     unsigned int match_status:1;
 #endif
@@ -191,7 +198,20 @@ static int mkfilters(int exclude_dirs)
         query_mask |= ATTR_MASK_size;
     }
 
-    /* TODO match status? */
+#ifdef _LUSTRE
+    if (prog_options.match_ost)
+    {
+        /* this is not converted to DB filter, but will be used in post checking */
+        compare_value_t val;
+        val.integer = prog_options.ost_idx;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val);
+        else
+            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_stripe_items;
+    }
+#endif
 
     /* create DB filters */
     lmgr_simple_filter_init( &entry_filter );
@@ -247,18 +267,6 @@ static int mkfilters(int exclude_dirs)
     return 0;
 }
 
-/* special character sequences for displaying help */
-
-/* Bold start character sequence */
-#define _B "[1m"
-/* Bold end charater sequence */
-#define B_ "[m"
-
-/* Underline start character sequence */
-#define _U "[4m"
-/* Underline end character sequence */
-#define U_ "[0m"
-
 static const char *help_string =
     _B "Usage:" B_ " %s [options] [path|fid]...\n"
     "\n"
@@ -270,6 +278,9 @@ static const char *help_string =
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       "SIZE_HELP"\n"
     "    " _B "-name" B_ " " _U "filename" U_ "\n"
+#ifdef _LUSTRE
+    "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
+#endif
 #ifdef ATTR_INDEX_status
     "    " _B "-status" B_ " " _U "status" U_ "\n"
     "       %s\n"
@@ -811,6 +822,15 @@ int main( int argc, char **argv )
         case 'n':
             prog_options.match_name = 1;
             prog_options.name = optarg;
+            break;
+        case 'o':
+            prog_options.match_ost = 1;
+            prog_options.ost_idx = str2int(optarg);
+            if (prog_options.ost_idx == (unsigned int)-1)
+            {
+                fprintf(stderr, "invalid ost index '%s': unsigned integer expected\n", optarg);
+                exit(1);
+            }
             break;
         case 't':
             prog_options.match_type = 1;

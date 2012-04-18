@@ -20,6 +20,18 @@
 
 #include "list_mgr.h"
 
+/* special character sequences for displaying help */
+
+/* Bold start character sequence */
+#define _B "[1m"
+/* Bold end charater sequence */
+#define B_ "[m"
+
+/* Underline start character sequence */
+#define _U "[4m"
+/* Underline end character sequence */
+#define U_ "[0m"
+
 /** The caller's function to be called for scanned entries */
 typedef int    ( *scrub_callback_t ) ( entry_id_t * id_list,
                                        attr_set_t * attr_list,

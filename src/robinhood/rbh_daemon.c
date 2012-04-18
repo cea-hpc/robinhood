@@ -298,7 +298,6 @@ static inline void zero_options(struct rbh_options * opts)
 /* program options from command line  */
 static struct rbh_options options;
 
-
 /* special character sequences for displaying help */
 
 /* Bold start character sequence */
