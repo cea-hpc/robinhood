@@ -3391,7 +3391,7 @@ function check_find
     (( $c == $count )) || error "find: $count entries expected in $dir, got: $c"
 
     # same test with '-l option'
-    c=`$FIND $args $dir -l | wc -l`
+    c=`$FIND $args $dir -ls | wc -l`
     (( $c == $count )) || error "find -l: $count entries expected in $dir, got: $c"
 }
 
@@ -3444,40 +3444,40 @@ function test_find
     check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg" 1 # should return dir.2/dir.2/dir.1
 
     # 3) test -td / -tf
-    echo "testing type filter (-td)..."
-    check_find $ROOT "-f $cfg -td" 6 # 6 including root
-    check_find $ROOT/dir.2 "-f $cfg -td" 4 # 4 including dir.2
-    check_find $ROOT/dir.2/dir.2 "-f $cfg -td" 2 # 2 including dir.2/dir.2
-    check_find $ROOT/dir.1 "-f $cfg -td" 1
-    check_find $ROOT/dir.2/dir.1 "-f $cfg -td" 1
-    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -td" 1
+    echo "testing type filter (-type d)..."
+    check_find $ROOT "-f $cfg -type d" 6 # 6 including root
+    check_find $ROOT/dir.2 "-f $cfg -type d" 4 # 4 including dir.2
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -type d" 2 # 2 including dir.2/dir.2
+    check_find $ROOT/dir.1 "-f $cfg -type d" 1
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -type d" 1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -type d" 1
 
-    echo "testing type filter (-tf)..."
-    check_find $ROOT "-f $cfg -tf" 6
-    check_find $ROOT/dir.2 "-f $cfg -tf" 4
-    check_find $ROOT/dir.2/dir.2 "-f $cfg -tf" 2
-    check_find $ROOT/dir.1 "-f $cfg -tf" 0
-    check_find $ROOT/dir.2/dir.1 "-f $cfg -tf" 0
-    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -tf" 0
-    check_find $ROOT/file.1 "-f $cfg -tf" 1
-    check_find $ROOT/dir.2/file.1 "-f $cfg -tf" 1
+    echo "testing type filter (-type f)..."
+    check_find $ROOT "-f $cfg -type f" 6
+    check_find $ROOT/dir.2 "-f $cfg -type f" 4
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -type f" 2
+    check_find $ROOT/dir.1 "-f $cfg -type f" 0
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -type f" 0
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -type f" 0
+    check_find $ROOT/file.1 "-f $cfg -type f" 1
+    check_find $ROOT/dir.2/file.1 "-f $cfg -type f" 1
 
     echo "testing name filter..."
-    check_find $ROOT "-f $cfg -n dir.*" 5 # 5
-    check_find $ROOT/dir.2 "-f $cfg -n dir.*" 4 # 4 including dir.2
-    check_find $ROOT/dir.2/dir.2 "-f $cfg -n dir.*" 2 # 2 including dir.2/dir.2
-    check_find $ROOT/dir.1 "-f $cfg -n dir.*" 1
-    check_find $ROOT/dir.2/dir.1 "-f $cfg -n dir.*" 1
-    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -n dir.*" 1
+    check_find $ROOT "-f $cfg -name dir.*" 5 # 5
+    check_find $ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
+    check_find $ROOT/dir.1 "-f $cfg -name dir.*" 1
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -name dir.*" 1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -name dir.*" 1
 
     echo "testing size filter..."
-    check_find $ROOT "-f $cfg -tf -s +2k" 2
-    check_find $ROOT "-f $cfg -tf -s +11k" 1
-    check_find $ROOT "-f $cfg -tf -s +1M" 0
-    check_find $ROOT "-f $cfg -tf -s 1M" 1
-    check_find $ROOT "-f $cfg -tf -s 10k" 1
-    check_find $ROOT "-f $cfg -tf -s -1M" 5
-    check_find $ROOT "-f $cfg -tf -s -10k" 4
+    check_find $ROOT "-f $cfg -type f -size +2k" 2
+    check_find $ROOT "-f $cfg -type f -size +11k" 1
+    check_find $ROOT "-f $cfg -type f -size +1M" 0
+    check_find $ROOT "-f $cfg -type f -size 1M" 1
+    check_find $ROOT "-f $cfg -type f -size 10k" 1
+    check_find $ROOT "-f $cfg -type f -size -1M" 5
+    check_find $ROOT "-f $cfg -type f -size -10k" 4
 }
 
 

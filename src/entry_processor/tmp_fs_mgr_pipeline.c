@@ -644,14 +644,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             ATTR_MASK_SET( &p_op->entry_attr, md_update );
             ATTR( &p_op->entry_attr, md_update ) = time( NULL );
 
-            /* if the entry is not a file, not try to get stripe on it */
-            if ( p_op->extra_info.getstripe_needed
-                 && ATTR_MASK_TEST( &p_op->entry_attr, type )
-                 && (strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_FILE ) != 0) )
-            {
-                p_op->extra_info.getstripe_needed = FALSE;
-            }
-
         } /* getattr needed */
 
         if ( p_op->extra_info.getpath_needed )
@@ -690,6 +682,12 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
         } /* getpath needed */
 #endif
+
+        /* getstripe only for files */
+        if ( p_op->entry_attr_is_set
+             && ATTR_MASK_TEST( &p_op->entry_attr, type )
+             && strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_FILE ) != 0 )
+            p_op->extra_info.getstripe_needed = FALSE;
 
         if ( p_op->extra_info.getstripe_needed )
         {
@@ -840,7 +838,10 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* if stripe has not been updated, don't update it in the database */
     if ( !p_op->extra_info.getstripe_needed )
+    {
         ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
+        ATTR_MASK_UNSET( &p_op->entry_attr, stripe_items );
+    }
 
     /* insert to DB */
     switch ( p_op->db_op_type )

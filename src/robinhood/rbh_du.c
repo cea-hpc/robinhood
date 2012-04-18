@@ -143,6 +143,8 @@ static void reset_stats()
 /* build filters depending on program options */
 static int mkfilters()
 {
+    filter_value_t fv;
+
     /* create boolean expression for matching root entries */
     if (prog_options.match_user)
     {
@@ -482,7 +484,7 @@ static int list_all()
     printf("%s:\n", config.global_config.fs_path);
     for (i = 0; i < TYPE_SOCK+1; i++)
         if (stats[i].count > 0)
-            printf("\t%s count:%Lu, size:%Lu, spc_used:%Lu\n", stats[i].type,
+            printf("\t%s count:%"PRIu64", size:%"PRIu64", spc_used:%"PRIu64"\n", stats[i].type,
                    stats[i].count, stats[i].size, stats[i].blocks * DEV_BSIZE);
 
     return 0;
@@ -579,7 +581,7 @@ static int list_content(char ** id_list, int id_count)
 
     for (i = 0; i < TYPE_SOCK+1; i++)
         if (stats[i].count > 0)
-            printf("\t%s count:%Lu, size:%Lu, spc_used:%Lu\n", stats[i].type,
+            printf("\t%s count:%"PRIu64", size:%"PRIu64", spc_used:%"PRIu64"\n", stats[i].type,
                    stats[i].count, stats[i].size, stats[i].blocks * DEV_BSIZE);
 
 

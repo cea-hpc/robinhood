@@ -670,21 +670,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         } /* getpath needed */
 #endif
 
-        if ( p_op->extra_info.getstripe_needed )
-        {
-            /* Get stripe info for this file */
-    #ifdef _LUSTRE
-            if ( File_GetStripeByPath( path,
-                                       &ATTR( &p_op->entry_attr, stripe_info ),
-                                       &ATTR( &p_op->entry_attr, stripe_items ) ) == 0 )
-            {
-                p_op->entry_attr_is_set = TRUE;
-                ATTR_MASK_SET( &p_op->entry_attr, stripe_info );
-                ATTR_MASK_SET( &p_op->entry_attr, stripe_items );
-            }
-    #endif
-        }
-
 #ifdef HAVE_CHANGELOGS /* for scan, always get it */
         if ( p_op->extra_info.getattr_needed )
         {
@@ -711,8 +696,28 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 #endif
 
-    }
+        /* getstripe only for files */
+        if ( p_op->entry_attr_is_set
+             && ATTR_MASK_TEST( &p_op->entry_attr, type )
+             && strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_FILE ) != 0 )
+            p_op->extra_info.getstripe_needed = FALSE;
 
+        if ( p_op->extra_info.getstripe_needed )
+        {
+            /* Get stripe info for this file */
+    #ifdef _LUSTRE
+            if ( File_GetStripeByPath( path,
+                                       &ATTR( &p_op->entry_attr, stripe_info ),
+                                       &ATTR( &p_op->entry_attr, stripe_items ) ) == 0 )
+            {
+                p_op->entry_attr_is_set = TRUE;
+                ATTR_MASK_SET( &p_op->entry_attr, stripe_info );
+                ATTR_MASK_SET( &p_op->entry_attr, stripe_items );
+            }
+    #endif
+        }
+
+    }
 
     /* acknowledge the stage and go to the next */
     rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
@@ -843,7 +848,10 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
     /* if stripe has not been retrieved, don't update it in the database */
     if ( !p_op->extra_info.getstripe_needed )
+    {
         ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
+        ATTR_MASK_UNSET( &p_op->entry_attr, stripe_items );
+    }
 
     /* insert to DB */
     switch ( p_op->db_op_type )

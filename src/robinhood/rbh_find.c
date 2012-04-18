@@ -546,7 +546,7 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
         /* match condition on dirs parent */
         if (!is_expr || (EntryMatches(&id_list[i], &attr_list[i],
-                         &match_expr, NULL) != POLICY_NO_MATCH))
+                         &match_expr, NULL) == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attr_list[i], type)
@@ -568,7 +568,7 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
             for (j = 0; j < chcount; j++)
             {
                 if (!is_expr || (EntryMatches(&chids[j], &chattrs[j],
-                                 &match_expr, NULL) != POLICY_NO_MATCH))
+                                 &match_expr, NULL) == POLICY_MATCH))
                     print_entry(&chids[j], &chattrs[j]);
             }
         }
@@ -630,11 +630,14 @@ static int list_all()
     strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
 
     if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+    {
         PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+        ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+    }
 
     /* match condition on dirs parent */
     if (!is_expr || (EntryMatches(&root_id, &root_attrs,
-                     &match_expr, NULL) != POLICY_NO_MATCH))
+                     &match_expr, NULL) == POLICY_MATCH))
     {
         /* don't display dirs if no_dir is specified */
         if (! (prog_options.no_dir && ATTR_MASK_TEST(&root_attrs, type)
@@ -654,7 +657,7 @@ static int list_all()
     while ((rc = ListMgr_GetNext( it, &id, &attrs )) == DB_SUCCESS)
     {
         if (!is_expr || (EntryMatches(&id, &attrs, &match_expr, NULL)
-                                      != POLICY_NO_MATCH))
+                                      == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attrs, type)
@@ -743,7 +746,10 @@ static int list_content(char ** id_list, int id_count)
                 strcpy(ATTR(&root_attrs, fullpath), id_list[i]);
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                {
                     PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                }
             }
             else if (entry_id_equal(&ids[i], &root_id))
             {
@@ -753,7 +759,10 @@ static int list_content(char ** id_list, int id_count)
                 strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                {
                     PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                }
             }
 
             dircb(&ids[i], &root_attrs, 1);
