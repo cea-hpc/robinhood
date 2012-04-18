@@ -45,6 +45,9 @@ static struct option option_tab[] =
     {"type", required_argument, NULL, 't'},
     {"size", required_argument, NULL, 's'},
     {"name", required_argument, NULL, 'n'},
+    {"mtime", required_argument, NULL, 'M'},
+    {"mmin", required_argument, NULL, 'm'},
+    {"msec", required_argument, NULL, 'z'},
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
 #endif
@@ -67,10 +70,11 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:f:d:hV"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:M:m:z:f:d:hV"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
+#define TIME_HELP "[-|+]<val>[s|m|h|d|y] (s: sec, m: min, h: hour, d:day, y:year. default unit is days)"
 
 /* global variables */
 
@@ -88,6 +92,11 @@ struct find_opt
     uint64_t            sz_val;
     const char * name;
     unsigned int ost_idx;
+
+    // mtime cond: gt/eq/lt <time>
+    compare_direction_t mod_compar;
+    time_t              mod_val;
+
 #ifdef ATTR_INDEX_status
     file_status_t status;
 #endif
@@ -100,6 +109,7 @@ struct find_opt
     unsigned int match_type:1;
     unsigned int match_size:1;
     unsigned int match_name:1;
+    unsigned int match_mtime:1;
 #ifdef _LUSTRE
     unsigned int match_ost:1;
 #endif
@@ -198,6 +208,18 @@ static int mkfilters(int exclude_dirs)
         query_mask |= ATTR_MASK_size;
     }
 
+    if (prog_options.match_mtime)
+    {
+        compare_value_t val;
+        val.duration = prog_options.mod_val;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, prog_options.mod_compar, CRITERIA_LAST_MOD, val);
+        else
+            AppendBoolCond(&match_expr, prog_options.mod_compar, CRITERIA_LAST_MOD, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_last_mod;
+    }
+
 #ifdef _LUSTRE
     if (prog_options.match_ost)
     {
@@ -278,6 +300,12 @@ static const char *help_string =
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       "SIZE_HELP"\n"
     "    " _B "-name" B_ " " _U "filename" U_ "\n"
+    "    " _B "-mtime" B_ " " _U "time_crit" U_ "\n"
+    "       "TIME_HELP"\n"
+    "    " _B "-mmin" B_ " " _U "minute_crit" U_ "\n"
+    "        same as '-mtime "_U"N"U_"m'\n"
+    "    " _B "-msec" B_ " " _U "second_crit" U_ "\n"
+    "        same as '-mtime "_U"N"U_"s'\n"
 #ifdef _LUSTRE
     "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
 #endif
@@ -404,8 +432,26 @@ static const char * opt2type(const char * type_opt)
     }
 }
 
+static compare_direction_t prefix2comp(char** curr)
+{
+    char * str = *curr;
+
+    if (str[0] == '+')
+    {
+        (*curr)++;
+        return COMP_GRTHAN;
+    }
+    else if (str[0] == '-')
+    {
+        (*curr)++;
+        return COMP_LSTHAN;
+    }
+    else
+        return COMP_EQUAL;
+}
+
 /* parse size filter and set prog_options struct */
-int set_size_filter(char * str)
+static int set_size_filter(char * str)
 {
     compare_direction_t comp;
     char * curr = str;
@@ -413,30 +459,18 @@ int set_size_filter(char * str)
     char suffix[1024];
     int n;
 
-    if (str[0] == '+')
-    {
-        comp = COMP_GRTHAN;
-        curr++;
-    }
-    else if (str[0] == '-')
-    {
-        comp = COMP_LSTHAN;
-        curr++;
-    }
-    else
-        comp = COMP_EQUAL;
+    comp = prefix2comp(&curr);
 
     n = sscanf(curr, "%"PRIu64"%s", &val, suffix);
     if (n < 1 || n > 2)
     {
-        fprintf(stderr, "Invalid size: '%s'. Expected size format: "SIZE_HELP"\n", str);
+        fprintf(stderr, "Invalid size '%s' : expected size format: "SIZE_HELP"\n", str);
         return -EINVAL;
     }
     if ((n == 1) || !strcmp(suffix, ""))
     {
         prog_options.sz_compar = comp;
         prog_options.sz_val = val;
-        prog_options.match_size = 1;
     }
     else
     {
@@ -469,7 +503,68 @@ int set_size_filter(char * str)
         }
         prog_options.sz_compar = comp;
         prog_options.sz_val = val;
-        prog_options.match_size = 1;
+    }
+    return 0;
+}
+
+/* parse time filter and set prog_options struct */
+static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix)
+{
+    compare_direction_t comp;
+    char * curr = str;
+    uint64_t val;
+    char suffix[1024];
+    int n;
+
+    comp = prefix2comp(&curr);
+
+    n = sscanf(curr, "%"PRIu64"%s", &val, suffix);
+    /* allow_suffix => 1 or 2 is allowed
+       else => only 1 is allowed */
+    if (allow_suffix && (n < 1 || n > 2))
+    {
+        fprintf(stderr, "Invalid time '%s' : expected time format: "TIME_HELP"\n", str);
+        return -EINVAL;
+    }
+    else if (!allow_suffix && (n != 1))
+    {
+        fprintf(stderr, "Invalid value '%s' : [+|-]<integer> expected\n", str);
+        return -EINVAL;
+    }
+
+    if ((n == 1) || !strcmp(suffix, ""))
+    {
+        prog_options.mod_compar = comp;
+        if (multiplier != 0)
+            prog_options.mod_val = val * multiplier;
+        else /* default multiplier is days */
+            prog_options.mod_val =  val * 86400;
+    }
+    else
+    {
+        switch(suffix[0])
+        {
+            case 's':
+                /* keep unchanged */
+                break;
+            case 'm':
+                val *= 60;
+                break;
+            case 'h':
+                val *= 3600;
+                break;
+            case 'd':
+                val *= 86400;
+                break;
+            case 'y':
+                val *= 31557600; /* 365.25 * 86400 */
+                break;
+            default:
+                fprintf(stderr, "Invalid suffix for time: '%s'. Expected time format: "TIME_HELP"\n", str);
+                return -EINVAL;
+        }
+        prog_options.mod_compar = comp;
+        prog_options.mod_val = val;
     }
     return 0;
 }
@@ -788,6 +883,14 @@ out:
     return rc;
 }
 
+#define toggle_option(_opt, _name)              \
+            do {                                \
+                if (prog_options. _opt )        \
+                    fprintf(stderr, "warning: -%s option already specified: will be overridden\n", \
+                            _name);             \
+                prog_options. _opt = 1;         \
+            } while(0)
+
 
 #define MAX_OPT_LEN 1024
 
@@ -812,19 +915,19 @@ int main( int argc, char **argv )
         switch ( c )
         {
         case 'u':
-            prog_options.match_user = 1;
+            toggle_option(match_user, "user");
             prog_options.user = optarg;
             break;
         case 'g':
-            prog_options.match_group = 1;
+            toggle_option(match_group, "group");
             prog_options.group = optarg;
             break;
         case 'n':
-            prog_options.match_name = 1;
+            toggle_option(match_name, "name");
             prog_options.name = optarg;
             break;
         case 'o':
-            prog_options.match_ost = 1;
+            toggle_option(match_ost, "ost");
             prog_options.ost_idx = str2int(optarg);
             if (prog_options.ost_idx == (unsigned int)-1)
             {
@@ -833,7 +936,7 @@ int main( int argc, char **argv )
             }
             break;
         case 't':
-            prog_options.match_type = 1;
+            toggle_option(match_type, "type");
             prog_options.type = opt2type(optarg);
             if (prog_options.type == NULL)
             {
@@ -842,13 +945,33 @@ int main( int argc, char **argv )
             }
             break;
         case 's':
+            toggle_option(match_size, "size");
             if (set_size_filter(optarg))
                 exit(1);
             break;
 
+        case 'M':
+            toggle_option(match_mtime, "mtime/mmin/msec");
+            if (set_time_filter(optarg, 0, TRUE))
+                exit(1);
+            break;
+
+        case 'm':
+            toggle_option(match_mtime, "mtime/mmin/msec");
+            if (set_time_filter(optarg, 60, FALSE)) /* don't allow suffix (multiplier is 1min) */
+                exit(1);
+            break;
+
+        case 'z':
+            toggle_option(match_mtime, "mtime/mmin/msec");
+            if (set_time_filter(optarg, 1, FALSE)) /* don't allow suffix (multiplier is 1sec) */
+                exit(1);
+            break;
+
+
 #ifdef ATTR_INDEX_status
         case 'S':
-            prog_options.match_status = 1;
+            toggle_option(match_status, "status");
             prog_options.status = status2dbval(optarg);
             if ( prog_options.status == (file_status_t)-1 )
             {
