@@ -47,6 +47,15 @@ static struct option option_tab[] =
     {"status", required_argument, NULL, 'S'},
 #endif
 
+    /* output options */
+    {"sum", no_argument, NULL, 's'},
+    {"count", no_argument, NULL, 'c'},
+    {"bytes", no_argument, NULL, 'b'},
+    {"kilo", no_argument, NULL, 'k'},
+    {"mega", no_argument, NULL, 'm'},
+    {"human-readable", no_argument, NULL, 'H'},
+    {"details", no_argument, NULL, 'd'},
+
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
 
@@ -61,13 +70,16 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "u:g:t:S:f:l:hV"
+#define SHORT_OPT_STRING    "u:g:t:S:scbkmHdf:l:hV"
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 
 /* global variables */
 
 static lmgr_t  lmgr;
 robinhood_config_t config;
+
+typedef enum { disp_usage, disp_count, disp_size, disp_details } display_mode;
+typedef enum { disp_byte, disp_kilo, disp_mega, disp_human } display_unit;
 
 /* program options */
 struct du_opt
@@ -88,8 +100,10 @@ struct du_opt
 #endif
 
     /* behavior flags */
-//    unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
-//    unsigned int dir_only:1; /* if -t dir => only display dir */
+    display_mode    disp_what;
+    display_unit    disp_how;
+    unsigned int    sum:1;
+
 } prog_options = {
     .user = NULL, .group = NULL, .type = NULL,
 #ifdef ATTR_INDEX_status
@@ -99,12 +113,15 @@ struct du_opt
 #ifdef ATTR_INDEX_status
     .match_status = 0,
 #endif
+    .sum = 0, .disp_what = disp_usage, .disp_how = disp_kilo
+
  //   .no_dir = 0, .dir_only = 0
 };
 
 
 /* filter on entries to be summed */
 static lmgr_filter_t    entry_filter;
+static lmgr_filter_t    parent_filter; /* same as entry_filter + condition on parent id */
 
 /* filter for root entries */
 static bool_node_t      match_expr;
@@ -121,7 +138,8 @@ typedef struct stats_du_t
     uint64_t     size;
 } stats_du_t;
 
-static const stats_du_t  stats_zero[TYPE_SOCK+1] = {
+#define TYPE_COUNT  (TYPE_SOCK+1)
+static const stats_du_t  stats_zero[TYPE_COUNT] = {
     {"?", 0, 0, 0},
     {STR_TYPE_LINK, 0, 0, 0},
     {STR_TYPE_DIR, 0, 0, 0},
@@ -131,19 +149,105 @@ static const stats_du_t  stats_zero[TYPE_SOCK+1] = {
     {STR_TYPE_FIFO, 0, 0, 0},
     {STR_TYPE_SOCK, 0, 0, 0}
 };
-static stats_du_t stats[TYPE_SOCK+1];
 
-static void reset_stats()
+
+static void reset_stats(stats_du_t * stats)
 {
     int i;
-    for (i = 0; i < TYPE_SOCK+1; i++ )
+    for (i = 0; i < TYPE_COUNT; i++ )
         stats[i] = stats_zero[i];
+}
+
+#define KB  1024LL
+#define MB  (KB*KB)
+#define GB  (KB*MB)
+#define TB  (KB*GB)
+#define PB  (KB*TB)
+#define EB  (KB*PB)
+
+static char * sprint_size(char * buf, uint64_t sz)
+{
+    switch (prog_options.disp_how)
+    {
+        case disp_byte:
+            sprintf(buf, "%"PRIu64, sz);
+            break;
+        case disp_kilo:
+            if (sz % KB)
+                sprintf(buf, "%Lu", 1+(sz/KB));
+            else
+                sprintf(buf, "%Lu", sz/KB);
+            break;
+        case disp_mega:
+            if (sz % MB)
+                sprintf(buf, "%Lu", 1+(sz/MB));
+            else
+                sprintf(buf, "%Lu", sz/MB);
+            break;
+        case disp_human:
+            if (sz < KB)
+                sprintf(buf, "%"PRIu64"", sz);
+            else if (sz < MB)
+                sprintf(buf, "%.1fK", 1.0*sz/KB);
+            else if (sz < GB)
+                sprintf(buf, "%.1fM", 1.0*sz/MB);
+            else if (sz < TB)
+                sprintf(buf, "%.1fG", 1.0*sz/GB);
+            else if (sz < PB)
+                sprintf(buf, "%.1fT", 1.0*sz/TB);
+            else if (sz < EB)
+                sprintf(buf, "%.1fP", 1.0*sz/PB);
+            else
+                sprintf(buf, "%.1fE", 1.0*sz/EB);
+            break;
+    }
+    return buf;
+}
+
+static void print_stats(const char * name, stats_du_t * stats)
+{
+    int i;
+    char b1[1024];
+    char b2[1024];
+    uint64_t total = 0;
+
+    switch(prog_options.disp_what)
+    {
+        case disp_details:
+            printf("%s\n", name);
+            for (i = 0; i < TYPE_COUNT; i++)
+                if (stats[i].count > 0)
+                    printf("\t%s count:%"PRIu64", size:%s, spc_used:%s\n",
+                           stats[i].type, stats[i].count,
+                           sprint_size(b1, stats[i].size),
+                           sprint_size(b2, stats[i].blocks * DEV_BSIZE));
+            break;
+        case disp_usage:
+            for (i = 0; i < TYPE_COUNT; i++)
+                if (stats[i].count > 0)
+                    total += stats[i].blocks * DEV_BSIZE;
+            printf("%s\t%s\n", sprint_size(b1, total), name);
+            break;
+        case disp_size:
+            for (i = 0; i < TYPE_COUNT; i++)
+                if (stats[i].count > 0)
+                    total += stats[i].size;
+            printf("%s\t%s\n", sprint_size(b1, total), name);
+            break;
+        case disp_count:
+            for (i = 0; i < TYPE_COUNT; i++)
+                total += stats[i].count;
+            printf("%"PRIu64"\t%s\n", total, name);
+            break;
+    }
 }
 
 /* build filters depending on program options */
 static int mkfilters()
 {
+#ifdef ATTR_INDEX_status
     filter_value_t fv;
+#endif
 
     /* create boolean expression for matching root entries */
     if (prog_options.match_user)
@@ -184,6 +288,7 @@ static int mkfilters()
 
     /* create DB filters */
     lmgr_simple_filter_init( &entry_filter );
+    lmgr_simple_filter_init( &parent_filter );
 
 #ifdef ATTR_INDEX_status
     if (prog_options.match_status)
@@ -191,6 +296,7 @@ static int mkfilters()
         /* not part of user policies, only add it to DB filter */
         fv.val_uint = prog_options.status;
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
+        lmgr_simple_filter_add( &parent_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
     }
 #endif
 
@@ -203,6 +309,7 @@ static int mkfilters()
 
         /* append bool expr to entry filter */
         convert_boolexpr_to_simple_filter( &match_expr, &entry_filter );
+        convert_boolexpr_to_simple_filter( &match_expr, &parent_filter );
     }
 
     return 0;
@@ -221,6 +328,23 @@ static const char *help_string =
     "    " _B "-S" B_ " " _U "status" U_ "\n"
     "       %s\n"
 #endif
+    "\n"
+    _B "Output options:" B_ "\n"
+    "    " _B "-s" B_ ", "_B "--sum" B_"\n"
+    "       display total instead of stats per argument\n"
+    "    " _B "-c" B_ ", "_B "--count" B_"\n"
+    "       display entry count instead of disk usage\n"
+    "    " _B "-b" B_ ", "_B "--bytes" B_"\n"
+    "       display size instead of disk usage (display in bytes)\n"
+    "    " _B "-k" B_ ", "_B "--kilo" B_"\n"
+    "       display disk usage in KB (default)\n"
+    "    " _B "-m" B_ ", "_B "--mega" B_"\n"
+    "       display disk usage in MB\n"
+    "    " _B "-H" B_ ", "_B "--human-readable" B_"\n"
+    "       display in human readable format (e.g 512K 123.7M)\n"
+    "    " _B "-d" B_ ", "_B "--details" B_"\n"
+    "       show detailed stats: type, count, size, disk usage\n"
+    "       (display in bytes by default)\n"
     "\n"
     _B "Program options:" B_ "\n"
     "    " _B "-f" B_ " " _U "config_file" U_ "\n"
@@ -359,7 +483,7 @@ static report_field_descr_t dir_info[REPCNT] = {
 
 /* directory callback */
 static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
-                       unsigned int entry_count )
+                 unsigned int entry_count, void * arg)
 {
     /* sum child entries stats for all directories */
     int i, rc;
@@ -367,32 +491,27 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
     struct lmgr_report_t *it;
     db_value_t     result[REPCNT];
     unsigned int   result_count;
+    stats_du_t   * stats = (stats_du_t*) arg;
 
     /* filter on parent_id */
 
     for (i = 0; i < entry_count; i++)
     {
         fv.val_id = id_list[i];
-        rc = lmgr_simple_filter_add_or_replace( &entry_filter,
+        rc = lmgr_simple_filter_add_or_replace( &parent_filter,
                                                 ATTR_INDEX_parent_id,
                                                 EQUAL,
                                                 fv, 0 );
         if (rc)
             return rc;
 
-        it = ListMgr_Report(&lmgr, dir_info, REPCNT, &entry_filter, NULL);
+        it = ListMgr_Report(&lmgr, dir_info, REPCNT, &parent_filter, NULL);
         if (it == NULL)
             return -1;
 
         result_count = REPCNT;
         while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
         {
-/*            printf("%Lu %s, %Lu blocks, size %Lu\n",
-                   result[1].value_u.val_biguint,
-                   result[0].value_u.val_str,
-                   result[2].value_u.val_biguint,
-                   result[3].value_u.val_biguint);*/
-
             unsigned int idx = ListMgr2PolicyType(result[0].value_u.val_str);
             stats[idx].count += result[1].value_u.val_biguint;
             stats[idx].blocks += result[2].value_u.val_biguint;
@@ -402,24 +521,26 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
         }
 
         ListMgr_CloseReport( it );
-
-
     }
+
     return 0;
 }
 
-static int list_all()
+/**
+ * perform du command on the entire FS
+ * \param stats array to be filled in
+ * \param display_stats the function display the stats by itself
+ */
+static int list_all(stats_du_t * stats, int display_stats)
 {
     attr_set_t  root_attrs;
     entry_id_t  root_id;
-    int rc, i;
+    int rc;
     struct stat st;
     struct lmgr_report_t *it;
 
     db_value_t     result[REPCNT];
     unsigned int   result_count;
-
-
 
     ATTR_MASK_INIT( &root_attrs );
 
@@ -432,7 +553,10 @@ static int list_all()
     strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
 
     if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+    {
         PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+        ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+    }
 
     /* sum root if it matches */
     if (!is_expr || (EntryMatches(&root_id, &root_attrs,
@@ -444,7 +568,6 @@ static int list_all()
         stats[idx].size += ATTR(&root_attrs, size);
     }
 
-
     it = ListMgr_Report(&lmgr, dir_info, REPCNT, &entry_filter, NULL);
     if (it == NULL)
         return -1;
@@ -452,12 +575,6 @@ static int list_all()
     result_count = REPCNT;
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
     {
-        /*printf("%Lu %s, %Lu blocks, size %Lu\n",
-               result[1].value_u.val_biguint,
-               result[0].value_u.val_str,
-               result[2].value_u.val_biguint,
-               result[3].value_u.val_biguint);*/
-
         unsigned int idx = ListMgr2PolicyType(result[0].value_u.val_str);
         stats[idx].count += result[1].value_u.val_biguint;
         stats[idx].blocks += result[2].value_u.val_biguint;
@@ -468,11 +585,8 @@ static int list_all()
 
     ListMgr_CloseReport( it );
 
-    printf("%s:\n", config.global_config.fs_path);
-    for (i = 0; i < TYPE_SOCK+1; i++)
-        if (stats[i].count > 0)
-            printf("\t%s count:%"PRIu64", size:%"PRIu64", spc_used:%"PRIu64"\n", stats[i].type,
-                   stats[i].count, stats[i].size, stats[i].blocks * DEV_BSIZE);
+    if (display_stats)
+        print_stats(config.global_config.fs_path, stats);
 
     return 0;
 }
@@ -487,6 +601,10 @@ static int list_content(char ** id_list, int id_count)
     attr_set_t root_attrs;
     entry_id_t root_id;
     int is_id;
+    stats_du_t stats[TYPE_COUNT];
+
+    if (prog_options.sum)
+        reset_stats(stats);
 
     rc = get_root_id(&root_id);
     if (rc)
@@ -498,6 +616,9 @@ static int list_content(char ** id_list, int id_count)
 
     for (i = 0; i < id_count; i++)
     {
+        if (!prog_options.sum)
+            reset_stats(stats);
+
         is_id = TRUE;
         /* is it a path or fid? */
         if (sscanf(id_list[i], SFID, RFID(&ids[i])) != FID_SCAN_CNT)
@@ -513,18 +634,21 @@ static int list_content(char ** id_list, int id_count)
             }
         }
 
-        if ((id_count == 1) && entry_id_equal(&ids[i], &root_id))
+        if (entry_id_equal(&ids[i], &root_id))
         {
             /* the ID is FS root: use list_all instead */
             DisplayLog(LVL_DEBUG, DU_TAG, "Optimization: command argument is filesystem's root: performing bulk sum in DB");
-            return list_all();
+            rc = list_all(stats, !prog_options.sum);
+            if (rc)
+                return rc;
+            continue;
         }
 
         /* get root attrs to print it (if it matches program options) */
         root_attrs.attr_mask = disp_mask | query_mask;
         rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
         if (rc == 0)
-            dircb(&ids[i], &root_attrs, 1);
+            dircb(&ids[i], &root_attrs, 1, stats);
         else
         {
             DisplayLog(LVL_VERB, DU_TAG, "Notice: no attrs in DB for %s", id_list[i]);
@@ -536,7 +660,10 @@ static int list_content(char ** id_list, int id_count)
                 strcpy(ATTR(&root_attrs, fullpath), id_list[i]);
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                {
                     PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                }
             }
             else if (entry_id_equal(&ids[i], &root_id))
             {
@@ -546,32 +673,43 @@ static int list_content(char ** id_list, int id_count)
                 strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                {
                     PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                }
             }
 
-            dircb(&ids[i], &root_attrs, 1);
+            dircb(&ids[i], &root_attrs, 1, stats);
         }
 
         /* sum root if it matches */
         if (!is_expr || (EntryMatches(&ids[i], &root_attrs,
                          &match_expr, NULL) == POLICY_MATCH))
         {
-            printf("type=%s\n", ATTR(&root_attrs, type));
             unsigned int idx = ListMgr2PolicyType(ATTR(&root_attrs, type));
             stats[idx].count ++;
             stats[idx].blocks += ATTR(&root_attrs, blocks);
             stats[idx].size += ATTR(&root_attrs, size);
         }
+
+        if (!prog_options.sum)
+        {
+            /* if not group all, run and display stats now */
+            rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask, dircb, stats);
+            if (rc)
+                return rc;
+
+            print_stats(ATTR(&root_attrs, fullpath), stats);
+        }
     }
 
-    rc = rbh_scrub(&lmgr, ids, id_count, disp_mask, dircb);
-
-    for (i = 0; i < TYPE_SOCK+1; i++)
-        if (stats[i].count > 0)
-            printf("\t%s count:%"PRIu64", size:%"PRIu64", spc_used:%"PRIu64"\n", stats[i].type,
-                   stats[i].count, stats[i].size, stats[i].blocks * DEV_BSIZE);
-
-
+    if (prog_options.sum)
+    {
+        rc = rbh_scrub(&lmgr, ids, id_count, disp_mask, dircb, stats);
+        if (rc)
+            return rc;
+        print_stats("total", stats);
+    }
 
 out:
     /* ids have been processed, free them */
@@ -593,7 +731,7 @@ int main( int argc, char **argv )
     char           config_file[MAX_OPT_LEN] = "";
     int            force_log_level = FALSE;
     int            log_level = 0;
-    int            rc, i;
+    int            rc;
     char           err_msg[4096];
 
     /* parse command line options */
@@ -602,6 +740,36 @@ int main( int argc, char **argv )
     {
         switch ( c )
         {
+            case 's':
+                prog_options.sum = 1;
+                break;
+            case 'c':
+                prog_options.disp_what = disp_count;
+                break;
+            case 'b':
+                /* only change the default */
+                if (prog_options.disp_what == disp_usage)
+                    prog_options.disp_what = disp_size;
+                /* only change the default */
+                if (prog_options.disp_how == disp_kilo)
+                    prog_options.disp_how = disp_byte;
+                break;
+            case 'k':
+                prog_options.disp_how = disp_kilo;
+                break;
+            case 'm':
+                prog_options.disp_how = disp_mega;
+                break;
+            case 'd':
+                prog_options.disp_what = disp_details;
+                /* only change the default for display */
+                if (prog_options.disp_how == disp_kilo)
+                    prog_options.disp_how = disp_byte;
+                break;
+            case 'H':
+                prog_options.disp_how = disp_human;
+                break;
+
             case 'u':
                 prog_options.match_user = 1;
                 prog_options.user = optarg;
@@ -731,11 +899,15 @@ int main( int argc, char **argv )
     }
 
     mkfilters();
-    reset_stats();
 
     if (argc == optind)
+    {
+        stats_du_t  stats[TYPE_COUNT];
+        reset_stats(stats);
+
         /* no path in argument: du the entire FS */
-        rc = list_all();
+        rc = list_all(stats, TRUE); /* display the stats by itself */
+    }
     else
         rc = list_content(argv+optind, argc-optind);
 

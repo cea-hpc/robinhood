@@ -638,7 +638,7 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
 
 /* directory callback */
 static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
-                       unsigned int entry_count )
+                 unsigned int entry_count, void * dummy )
 {
     /* retrieve child entries for all directories */
     int i, rc;
@@ -840,7 +840,7 @@ static int list_content(char ** id_list, int id_count)
         root_attrs.attr_mask = disp_mask | query_mask;
         rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
         if (rc == 0)
-            dircb(&ids[i], &root_attrs, 1);
+            dircb(&ids[i], &root_attrs, 1, NULL);
         else
         {
             DisplayLog(LVL_VERB, FIND_TAG, "Notice: no attrs in DB for %s", id_list[i]);
@@ -871,11 +871,11 @@ static int list_content(char ** id_list, int id_count)
                 }
             }
 
-            dircb(&ids[i], &root_attrs, 1);
+            dircb(&ids[i], &root_attrs, 1, NULL);
         }
     }
 
-    rc = rbh_scrub(&lmgr, ids, id_count, disp_mask | query_mask, dircb);
+    rc = rbh_scrub(&lmgr, ids, id_count, disp_mask | query_mask, dircb, NULL);
 
 out:
     /* ids have been processed, free them */

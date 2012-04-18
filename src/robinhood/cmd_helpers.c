@@ -136,7 +136,8 @@ static inline void rbh_scrub_release_list(unsigned int first, unsigned int count
  */
 int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
               unsigned int id_count, int dir_attr_mask,
-              scrub_callback_t cb_func)
+              scrub_callback_t cb_func,
+              void * arg)
 {
     entry_id_t  * curr_array;
     unsigned int count;
@@ -194,7 +195,7 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
         }
 
         /* Call the callback func for each listed dir */
-        rc = cb_func(child_ids, child_attrs, res_count);
+        rc = cb_func(child_ids, child_attrs, res_count, arg);
         if (rc)
             /* XXX break the scan? */
             last_err = rc;
