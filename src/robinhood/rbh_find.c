@@ -684,7 +684,6 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
 static int Path2Id(const char *path, entry_id_t * id)
 {
-    int rc;
 #ifndef _HAVE_FID
     struct stat inode;
     if (lstat(path, &inode))
@@ -695,6 +694,7 @@ static int Path2Id(const char *path, entry_id_t * id)
     id->validator = inode.st_ctime;
     return 0;
 #else
+    int rc;
     /* perform path2fid */
     rc = Lustre_GetFidFromPath(path, id);
     return rc;
@@ -926,6 +926,7 @@ int main( int argc, char **argv )
             toggle_option(match_name, "name");
             prog_options.name = optarg;
             break;
+#ifdef _LUSTRE
         case 'o':
             toggle_option(match_ost, "ost");
             prog_options.ost_idx = str2int(optarg);
@@ -935,6 +936,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+#endif
         case 't':
             toggle_option(match_type, "type");
             prog_options.type = opt2type(optarg);

@@ -22,6 +22,7 @@
 #include "listmgr_common.h"
 //#include "listmgr_stripe.h"
 #include "listmgr_internal.h"
+#include "listmgr_stripe.h"
 #include "database.h"
 #include "Memory.h"
 #include "RobinhoodLogs.h"
@@ -159,13 +160,6 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                                              /* prefix */ ANNEX_TABLE".", /* postfix */ "" );
         else
             annex_attrs = 0;
-
-        if (stripe_fields(attr_mask))
-        {
-            /* @TODO implement getting stripe info */
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Getting stripe info is not supported in %s()", __func__ );
-            return DB_NOT_SUPPORTED;
-        }
     }
     else
     {
@@ -253,6 +247,17 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                 if ( rc )
                     goto array_free;
             }
+
+            if (stripe_fields(attr_mask))
+            {
+                if (get_stripe_info( p_mgr, res[0], &ATTR(&(*child_attr_list)[i], stripe_info),
+                                     &ATTR(&(*child_attr_list)[i], stripe_items) ))
+                {
+                    ATTR_MASK_UNSET(&(*child_attr_list)[i], stripe_info);
+                    ATTR_MASK_UNSET(&(*child_attr_list)[i], stripe_items);
+                }
+            }
+
             generate_fields(&((*child_attr_list)[i]));
         }
     }

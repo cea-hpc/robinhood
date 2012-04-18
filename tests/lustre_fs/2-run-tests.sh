@@ -25,6 +25,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
 	REPORT=../../src/robinhood/rbh-hsm-report
     FIND=../../src/robinhood/rbh-hsm-find
+    DU=../../src/robinhood/rbh-hsm-du
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
@@ -36,6 +37,7 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
     FIND=../../src/robinhood/rbh-find
+    DU=../../src/robinhood/rbh-du
 	CMD=robinhood
     REL_STR="Purged"
 elif [[ $PURPOSE = "BACKUP" ]]; then
@@ -47,6 +49,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
 	RECOV="../../src/robinhood/rbh-backup-recov $RBH_OPT"
     FIND=../../src/robinhood/rbh-backup-find
+    DU=../../src/robinhood/rbh-backup-du
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
     REL_STR="Purged"
@@ -62,6 +65,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	REPORT="../../src/robinhood/rbh-shook-report $RBH_OPT"
 	RECOV="../../src/robinhood/rbh-shook-recov $RBH_OPT"
     FIND=../../src/robinhood/rbh-shook-find
+    DU=../../src/robinhood/rbh-shook-du
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
     REL_STR="Purged"
@@ -3392,7 +3396,7 @@ function check_find
 
     # same test with '-l option'
     c=`$FIND $args $dir -ls | wc -l`
-    (( $c == $count )) || error "find -l: $count entries expected in $dir, got: $c"
+    (( $c == $count )) || error "find -ls: $count entries expected in $dir, got: $c"
 }
 
 function test_find
@@ -3403,6 +3407,8 @@ function test_find
 
 	clean_logs
 
+    # by default stripe all files on 0 and 1
+	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe on root"
     # 1) create a FS tree with several levels:
     #   root
     #       file.1
@@ -3421,11 +3427,11 @@ function test_find
     mkdir $ROOT/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
-    touch $ROOT/dir.2/file.2 || error "creating file"
+	lfs setstripe --count 1 --offset 1  $ROOT/dir.2/file.2 || error "creating file with stripe"
     mkdir $ROOT/dir.2/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
-    touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
+	lfs setstripe --count 1 --offset 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
     mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
 
     # scan FS content
@@ -3478,7 +3484,107 @@ function test_find
     check_find $ROOT "-f $cfg -type f -size 10k" 1
     check_find $ROOT "-f $cfg -type f -size -1M" 5
     check_find $ROOT "-f $cfg -type f -size -10k" 4
+
+    echo "testing ost filter..."
+    check_find $ROOT "-f $cfg -ost 0" 5 # all files but 1
+    check_find $ROOT "-f $cfg -ost 1" 5 # all files but 1
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
+
+    echo "testing mtime filter..."
+    # change last day
+    check_find $ROOT "-f $cfg -mtime +1d" 0  #none
+    check_find $ROOT "-f $cfg -mtime -1d" 12 #all
+    # the same with another syntax
+    check_find $ROOT "-f $cfg -mtime +1" 0  #none
+    check_find $ROOT "-f $cfg -mtime -1" 12 #all
+    # without 2 hour
+    check_find $ROOT "-f $cfg -mtime +2h" 0  #none
+    check_find $ROOT "-f $cfg -mtime -2h" 12 #all
+    # the same with another syntax
+    check_find $ROOT "-f $cfg -mtime +120m" 0  #none
+    check_find $ROOT "-f $cfg -mtime -120m" 12 #all
+    # the same with another syntax
+    check_find $ROOT "-f $cfg -mmin +120" 0  #none
+    check_find $ROOT "-f $cfg -mmin -120" 12 #all
 }
+
+function test_du
+{
+	cfg=./cfg/$1
+	opt=$2
+	policy_str="$3"
+
+	clean_logs
+
+    # 1) create a FS tree with several levels and sizes:
+    #   root
+    #       file.1          1M
+    #       file.2          1k
+    #       dir.1
+    #           file.1      2k
+    #           file.2      10k
+    #           link.1
+    #       dir.2
+    #           file.1      1M
+    #           file.2      1
+    #           link.1
+    #           dir.1
+    #           dir.2
+    #               file.1 0
+    #               file.2 0
+    #               dir.1
+    dd if=/dev/zero of=$ROOT/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$ROOT/file.2 bs=1k count=1 2>/dev/null || error "creating file"
+
+    mkdir $ROOT/dir.1 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.1/file.1 bs=1k count=2 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$ROOT/dir.1/file.2 bs=10k count=1 2>/dev/null || error "creating file"
+    ln -s "content1" $ROOT/dir.1/link.1 || error "creating symlink"
+
+    mkdir $ROOT/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+	dd if=/dev/zero of=$ROOT/dir.2/file.2 bs=1 count=1 2>/dev/null || error "creating file"
+    ln -s "content2" $ROOT/dir.2/link.1 || error "creating symlink"
+    mkdir $ROOT/dir.2/dir.1 || error "creating dir"
+    mkdir $ROOT/dir.2/dir.2 || error "creating dir"
+    touch $ROOT/dir.2/dir.2/file.1 || error "creating file"
+	touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
+    mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
+
+    # write blocks to disk
+    sync
+
+    # scan FS content
+    $RH -f $cfg --scan -l DEBUG -L rh_scan.log --once 2>/dev/null || error "scanning"
+
+    # test byte display on root
+    size=$($DU -f $cfg -t f -b $ROOT | awk '{print $1}')
+    [ $size = "2110465" ] || error "bad returned size $size: 2110465 expected"
+
+    # test on subdirs
+    size=$($DU -f $cfg -t f -b $ROOT/dir.1 | awk '{print $1}')
+    [ $size = "12288" ] || error "bad returned size $size: 12288 expected"
+
+    # block count is hard to predict (due to ext3 prealloc)
+    # only test 1st digit
+    kb=$($DU -f $cfg -t f -k $ROOT | awk '{print $1}')
+    [[ $kb = 2??? ]] || error "nb 1K block should be about 2k+smthg (got $kb)"
+
+    # 2 (for 2MB) + 1 for small files
+    mb=$($DU -f $cfg -t f -m $ROOT | awk '{print $1}')
+    [[ $mb = 3 ]] || error "nb 1M block should be 3 (got $mb)"
+
+    # count are real
+    nb_file=$($DU -f $cfg -t f -c $ROOT | awk '{print $1}')
+    nb_link=$($DU -f $cfg -t l -c $ROOT | awk '{print $1}')
+    nb_dir=$($DU -f $cfg -t d -c $ROOT | awk '{print $1}')
+    [[ $nb_file = 8 ]] || error "found $nb_file files/8"
+    [[ $nb_dir = 6 ]] || error "found $nb_dir dirs/6"
+    [[ $nb_link = 2 ]] || error "found $nb_link links/2"
+
+}
+
+
 
 
 function check_disabled
@@ -3790,6 +3896,7 @@ run_test 403    test_sort_report common.conf 0 "Sort options of reporting comman
 run_test 404   test_dircount_report common.conf 20  "dircount reports"
 
 run_test 405    test_find   common.conf ""  "rbh-find command"
+run_test 406    test_du   common.conf ""    "rbh-du command"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"

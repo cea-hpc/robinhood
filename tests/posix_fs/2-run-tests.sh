@@ -15,12 +15,16 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsmlite=0
 	RH="../../src/robinhood/robinhood $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
+    FIND=../../src/robinhood/rbh-find
+    DU=../../src/robinhood/rbh-du
 	CMD=robinhood
 	PURPOSE="TMP_FS_MGR"
 elif [[ $PURPOSE = "HSM_LITE" ]]; then
 	is_hsmlite=1
 	RH="../../src/robinhood/rbh-hsmlite $RBH_OPT"
 	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
+    FIND=../../src/robinhood/rbh-hsmlite-find
+    DU=../../src/robinhood/rbh-hsmlite-du
 	CMD=rbh-hsmlite
 fi
 
@@ -1827,6 +1831,203 @@ function test_cfg_parsing
 	grep "read successfully" rh_syntax.log > /dev/null && echo "OK: parsing succeeded"
 }
 
+function check_find
+{
+    dir=$1
+    args=$2
+    count=$3
+
+    [ "$DEBUG" = "1" ] && echo "==================="
+    [ "$DEBUG" = "1" ] && echo $FIND $args $dir
+    [ "$DEBUG" = "1" ] && $FIND -d VERB $args $dir -l
+
+    c=`$FIND $args $dir | wc -l`
+    (( $c == $count )) || error "find: $count entries expected in $dir, got: $c"
+
+    # same test with '-l option'
+    c=`$FIND $args $dir -ls | wc -l`
+    (( $c == $count )) || error "find -ls: $count entries expected in $dir, got: $c"
+}
+
+function test_find
+{
+	cfg=./cfg/$1
+	opt=$2
+	policy_str="$3"
+
+	clean_logs
+
+    # 1) create a FS tree with several levels:
+    #   root
+    #       file.1
+    #       file.2
+    #       dir.1
+    #       dir.2
+    #           file.1
+    #           file.2
+    #           dir.1
+    #           dir.2
+    #               file.1
+    #               file.2
+    #               dir.1
+    touch $ROOT/file.1 || error "creating file"
+    touch $ROOT/file.2 || error "creating file"
+    mkdir $ROOT/dir.1 || error "creating dir"
+    mkdir $ROOT/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
+	touch $ROOT/dir.2/file.2 || error "creating file"
+    mkdir $ROOT/dir.2/dir.1 || error "creating dir"
+    mkdir $ROOT/dir.2/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+	touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
+    mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
+
+    # scan FS content
+    $RH -f $cfg --scan -l DEBUG -L rh_scan.log --once 2>/dev/null || error "scanning"
+
+    # 2) test find at several levels
+    echo "checking find list at all levels..."
+    check_find $ROOT "-f $cfg" 12 # should return all (including root)
+    check_find $ROOT/file.1 "-f $cfg" 1 # should return only the file
+    check_find $ROOT/dir.1 "-f $cfg" 1  # should return dir.1
+    check_find $ROOT/dir.2 "-f $cfg" 8  # should return dir.2 + its content
+    check_find $ROOT/dir.2/file.2 "-f $cfg" 1  # should return dir.2/file.2
+    check_find $ROOT/dir.2/dir.1 "-f $cfg" 1  # should return dir2/dir.1
+    check_find $ROOT/dir.2/dir.2 "-f $cfg" 4  # should return dir.2/dir.2 + its content
+    check_find $ROOT/dir.2/dir.2/file.1 "-f $cfg" 1  # should return dir.2/dir.2/file.1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg" 1 # should return dir.2/dir.2/dir.1
+
+    # 3) test -td / -tf
+    echo "testing type filter (-type d)..."
+    check_find $ROOT "-f $cfg -type d" 6 # 6 including root
+    check_find $ROOT/dir.2 "-f $cfg -type d" 4 # 4 including dir.2
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -type d" 2 # 2 including dir.2/dir.2
+    check_find $ROOT/dir.1 "-f $cfg -type d" 1
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -type d" 1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -type d" 1
+
+    echo "testing type filter (-type f)..."
+    check_find $ROOT "-f $cfg -type f" 6
+    check_find $ROOT/dir.2 "-f $cfg -type f" 4
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -type f" 2
+    check_find $ROOT/dir.1 "-f $cfg -type f" 0
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -type f" 0
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -type f" 0
+    check_find $ROOT/file.1 "-f $cfg -type f" 1
+    check_find $ROOT/dir.2/file.1 "-f $cfg -type f" 1
+
+    echo "testing name filter..."
+    check_find $ROOT "-f $cfg -name dir.*" 5 # 5
+    check_find $ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
+    check_find $ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
+    check_find $ROOT/dir.1 "-f $cfg -name dir.*" 1
+    check_find $ROOT/dir.2/dir.1 "-f $cfg -name dir.*" 1
+    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -name dir.*" 1
+
+    echo "testing size filter..."
+    check_find $ROOT "-f $cfg -type f -size +2k" 2
+    check_find $ROOT "-f $cfg -type f -size +11k" 1
+    check_find $ROOT "-f $cfg -type f -size +1M" 0
+    check_find $ROOT "-f $cfg -type f -size 1M" 1
+    check_find $ROOT "-f $cfg -type f -size 10k" 1
+    check_find $ROOT "-f $cfg -type f -size -1M" 5
+    check_find $ROOT "-f $cfg -type f -size -10k" 4
+
+    echo "testing mtime filter..."
+    # change last day
+    check_find $ROOT "-f $cfg -mtime +1d" 0  #none
+    check_find $ROOT "-f $cfg -mtime -1d" 12 #all
+    # the same with another syntax
+    check_find $ROOT "-f $cfg -mtime +1" 0  #none
+    check_find $ROOT "-f $cfg -mtime -1" 12 #all
+    # without 2 hour
+    check_find $ROOT "-f $cfg -mtime +2h" 0  #none
+    check_find $ROOT "-f $cfg -mtime -2h" 12 #all
+    # the same with another syntax
+    check_find $ROOT "-f $cfg -mtime +120m" 0  #none
+    check_find $ROOT "-f $cfg -mtime -120m" 12 #all
+    # the same with another syntax
+    check_find $ROOT "-f $cfg -mmin +120" 0  #none
+    check_find $ROOT "-f $cfg -mmin -120" 12 #all
+}
+
+function test_du
+{
+	cfg=./cfg/$1
+	opt=$2
+	policy_str="$3"
+
+	clean_logs
+
+    # 1) create a FS tree with several levels and sizes:
+    #   root
+    #       file.1          1M
+    #       file.2          1k
+    #       dir.1
+    #           file.1      2k
+    #           file.2      10k
+    #           link.1
+    #       dir.2
+    #           file.1      1M
+    #           file.2      1
+    #           link.1
+    #           dir.1
+    #           dir.2
+    #               file.1 0
+    #               file.2 0
+    #               dir.1
+    dd if=/dev/zero of=$ROOT/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$ROOT/file.2 bs=1k count=1 2>/dev/null || error "creating file"
+
+    mkdir $ROOT/dir.1 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.1/file.1 bs=1k count=2 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$ROOT/dir.1/file.2 bs=10k count=1 2>/dev/null || error "creating file"
+    ln -s "content1" $ROOT/dir.1/link.1 || error "creating symlink"
+
+    mkdir $ROOT/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+	dd if=/dev/zero of=$ROOT/dir.2/file.2 bs=1 count=1 2>/dev/null || error "creating file"
+    ln -s "content2" $ROOT/dir.2/link.1 || error "creating symlink"
+    mkdir $ROOT/dir.2/dir.1 || error "creating dir"
+    mkdir $ROOT/dir.2/dir.2 || error "creating dir"
+    touch $ROOT/dir.2/dir.2/file.1 || error "creating file"
+	touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
+    mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
+
+    # write blocks to disk
+    sync
+
+    # scan FS content
+    $RH -f $cfg --scan -l DEBUG -L rh_scan.log --once 2>/dev/null || error "scanning"
+
+    # test byte display on root
+    size=$($DU -f $cfg -t f -b $ROOT | awk '{print $1}')
+    [ $size = "2110465" ] || error "bad returned size $size: 2110465 expected"
+
+    # test on subdirs
+    size=$($DU -f $cfg -t f -b $ROOT/dir.1 | awk '{print $1}')
+    [ $size = "12288" ] || error "bad returned size $size: 12288 expected"
+
+    # block count is hard to predict (due to ext3 prealloc)
+    # only test 1st digit
+    kb=$($DU -f $cfg -t f -k $ROOT | awk '{print $1}')
+    [[ $kb = 2??? ]] || error "nb 1K block should be about 2k+smthg (got $kb)"
+
+    # 2 (for 2MB) + 1 for small files
+    mb=$($DU -f $cfg -t f -m $ROOT | awk '{print $1}')
+    [[ $mb = 3 ]] || error "nb 1M block should be 3 (got $mb)"
+
+    # count are real
+    nb_file=$($DU -f $cfg -t f -c $ROOT | awk '{print $1}')
+    nb_link=$($DU -f $cfg -t l -c $ROOT | awk '{print $1}')
+    nb_dir=$($DU -f $cfg -t d -c $ROOT | awk '{print $1}')
+    [[ $nb_file = 8 ]] || error "found $nb_file files/8"
+    [[ $nb_dir = 6 ]] || error "found $nb_dir dirs/6"
+    [[ $nb_link = 2 ]] || error "found $nb_link links/2"
+
+}
+
+
 function check_disabled
 {
 	config_file=$1
@@ -2126,6 +2327,9 @@ run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" 
 
 run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
 run_test 404   test_dircount_report common.conf 20  "dircount reports"
+
+run_test 405    test_find common.conf ""  "rbh-find command"
+run_test 406    test_du   common.conf ""  "rbh-du command"
 
 #### misc, internals #####
 run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
