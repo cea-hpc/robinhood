@@ -126,7 +126,7 @@ int db_connect( db_conn_t * conn )
                0 ) )
         {
             if ((retry < 3) && is_retryable(mysql_errno(conn))) {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
                             "Failed to connect to MySQL: Error: %s. Retrying...", mysql_error( conn ) );
                 retry ++;
                 sleep(1);
@@ -134,12 +134,19 @@ int db_connect( db_conn_t * conn )
             else
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to connect to MySQL: Error: %s. Aborting.", mysql_error( conn ) );
+                            "Failed to connect to MySQL after %u retries: Error: %s. Aborting.",
+                            retry, mysql_error( conn ) );
                 return DB_CONNECT_FAILED;
             }
         }
-        else /* OK */
+        else
+        {
+            if (retry)
+                DisplayLog( LVL_CRIT, LISTMGR_TAG, "Connection to MySQL server sucessful after %u retries.",
+                            retry );
+            /* OK */
             break;
+        }
     }
 
     /* Note [MySQL reference guide]: mysql_real_connect()  incorrectly reset

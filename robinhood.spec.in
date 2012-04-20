@@ -295,6 +295,9 @@ fi
 
 %changelog
 
+* Wed Apr 04 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.2
+- Efix: Don't consider 'released' entries for quota-like purge triggers
+
 * Wed Feb 08 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3
 - [webgui] added FS name to page title and page header
 - [webgui] fix: added missing file in RPM (.htaccess)

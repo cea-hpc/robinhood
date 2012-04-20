@@ -86,6 +86,7 @@ int shook_special_file( struct entry_proc_op_t * p_op )
         if ( fnmatch( "*/.shook_locks/lock.*", ATTR(&p_op->entry_attr, fullpath ), 0 ) == 0 )
         {
             /* skip the entry */
+            /** @TODO raise special event for the file: LOCK/UNLOCK */
             return TRUE;
         }
     }
