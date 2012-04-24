@@ -45,7 +45,7 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     conf->db_config.password[0] = '\0';
     conf->db_config.port = 0;
     conf->db_config.socket[0] = '\0';
-    conf->db_config.innodb = FALSE;
+    conf->db_config.innodb = TRUE;
 #elif defined (_SQLITE)
     strcpy( conf->db_config.filepath, "/var/robinhood/robinhood_sqlite_db" );
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
@@ -75,7 +75,7 @@ int WriteLmgrConfigDefault( FILE * output )
     print_line( output, 2, "password|password_file : [MANDATORY]" );
     print_line( output, 2, "port    :   (MySQL default)" );
     print_line( output, 2, "socket  :   NONE" );
-    print_line( output, 2, "innodb  :   disabled" );
+    print_line( output, 2, "innodb  :   enabled" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)
     print_begin_block( output, 1, SQLITE_CONFIG_BLOCK, NULL );
