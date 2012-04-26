@@ -90,6 +90,7 @@ int shook_special_obj( struct entry_proc_op_t * p_op )
             /* skip the entry */
             DisplayLog(LVL_FULL, ENTRYPROC_TAG, "%s is a shook lock",
                        ATTR(&p_op->entry_attr, fullpath));
+            /** @TODO raise special event for the file: LOCK/UNLOCK */
             return TRUE;
         }
     }

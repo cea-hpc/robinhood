@@ -198,9 +198,11 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     /* create the recovery table */
     rc = db_exec_sql( &p_mgr->conn, "CREATE TABLE "RECOV_TABLE
         " SELECT "MAIN_TABLE".id," RECOV_LIST_FIELDS
-        " FROM "MAIN_TABLE" LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON "
+        " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON ("MAIN_TABLE".id = "ANNEX_TABLE".id)"
+        " LEFT JOIN "STRIPE_INFO_TABLE" ON ("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id )",
+/*        " FROM "MAIN_TABLE" LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON "
         "( "MAIN_TABLE".id = "ANNEX_TABLE".id AND "
-            MAIN_TABLE".id = "STRIPE_INFO_TABLE".id )",
+            MAIN_TABLE".id = "STRIPE_INFO_TABLE".id )",*/
         NULL );
     if ( rc )
         return rc;
