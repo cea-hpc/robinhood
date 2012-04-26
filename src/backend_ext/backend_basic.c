@@ -207,6 +207,21 @@ static int entry2backend_path( const entry_id_t * p_id,
        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "%s: previous backend_path: %s",
                    (what_for == FOR_LOOKUP)?"LOOKUP":"NEW_COPY",
                    ATTR(p_attrs_in, backendpath) );
+#ifdef HAVE_SHOOK
+    else
+    {
+        int rc;
+        unsigned int dummy;
+        char fidpath[RBH_PATH_MAX];
+
+        BuildFidPath( p_id, fidpath );
+
+        /* retrieve backend path from shook xattrs */
+        rc = shook_get_hsm_info(fidpath, backend_path, &dummy);
+        if (rc == 0)
+            return 0;
+    }
+#endif
 
     if ( (what_for == FOR_LOOKUP) && ATTR_MASK_TEST(p_attrs_in, backendpath) )
     {
@@ -398,7 +413,7 @@ int rbhext_get_status( const entry_id_t * p_id,
      */
     char fidpath[RBH_PATH_MAX];
     file_status_t status;
-    
+
     BuildFidPath( p_id, fidpath );
 
     rc = ShookGetStatus( fidpath, &status );
@@ -411,8 +426,18 @@ int rbhext_get_status( const entry_id_t * p_id,
                     status );
         ATTR_MASK_SET( p_attrs_changed, status );
         ATTR( p_attrs_changed, status ) = status;
+
+        /* set backend path if it is not known */
+        if (!ATTR_MASK_TEST(p_attrs_in, backendpath)
+            && !ATTR_MASK_TEST(p_attrs_changed, backendpath))
+        {
+            ATTR_MASK_SET(p_attrs_changed, backendpath);
+            strcpy(ATTR(p_attrs_changed, backendpath), bkpath);
+        }
+
         return 0;
     }
+    /* else: must compare status with backend */
 #else
     #error "Unexpected compilation case"
 #endif
