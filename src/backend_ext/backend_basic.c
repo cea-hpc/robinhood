@@ -218,7 +218,7 @@ static int entry2backend_path( const entry_id_t * p_id,
 
         /* retrieve backend path from shook xattrs */
         rc = shook_get_hsm_info(fidpath, backend_path, &dummy);
-        if (rc == 0)
+        if ((rc == 0) && !EMPTY_STRING(backend_path))
             return 0;
     }
 #endif

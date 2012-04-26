@@ -1152,7 +1152,7 @@ static int check_usergroup_trigger( unsigned trigger_index )
     {
         unsigned long  used_hw =
             ( unsigned long ) ( ( p_trigger->hw_percent * total_blocks ) / 100.0 );
-        snprintf( hw_str, 128, "%.2f", p_trigger->hw_percent );
+        snprintf( hw_str, 128, "%.2f%%", p_trigger->hw_percent );
 
         max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
     }
