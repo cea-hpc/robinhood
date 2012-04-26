@@ -874,9 +874,8 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
             if ( lstat(ATTR(p_attrs,backendpath), &void_stat) != 0 )
             {
                 rc = -errno;
-                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in backend. errno=%d, %s",
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in backend (errno=%d, %s): archiving anyway.",
                             ATTR(p_attrs,backendpath) , -rc, strerror(-rc) );
-                return rc;
             }
         }
     }
@@ -1006,6 +1005,9 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
             ATTR_MASK_SET( p_attrs, backendpath );
             strcpy( ATTR( p_attrs, backendpath ), bkpath );
 
+            ATTR_MASK_SET( p_attrs, last_archive );
+            ATTR( p_attrs, last_archive) = time(NULL);
+
 #ifdef HAVE_SHOOK
             rc = shook_archive_finalize(get_fsname(), p_id, bkpath);
             if (rc)
@@ -1013,7 +1015,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
                 DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",
                             rc );
                 return rc;
-            }
+           }
 #endif
         }
 
@@ -1063,11 +1065,33 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
                         bkpath, link, strerror(-rc) );
             return rc;
         }
+
         ATTR_MASK_SET( p_attrs, status );
         ATTR( p_attrs, status ) = STATUS_SYNCHRO;
 
+        /* set symlink owner/group */
+        if ( lstat(fspath, &info) != 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing final lstat(%s): %s",
+                        fspath, strerror(-rc) );
+            ATTR_MASK_SET( p_attrs, status );
+            ATTR( p_attrs, status ) = STATUS_UNKNOWN;
+        }
+        else
+        {
+            if (lchown(bkpath, info.st_uid, info.st_gid))
+            {
+                DisplayLog( LVL_EVENT, RBHEXT_TAG, "error setting owner/group in backend on %s: %s",
+                            bkpath, strerror(-rc) );
+            }
+        }
+
         ATTR_MASK_SET( p_attrs, backendpath );
         strcpy( ATTR( p_attrs, backendpath ), bkpath );
+
+        ATTR_MASK_SET( p_attrs, last_archive );
+        ATTR( p_attrs, last_archive) = time(NULL);
     }
 
     return 0;
@@ -1202,30 +1226,31 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     if (rc)
         return RS_ERROR;
 
-#ifdef _LUSTRE
-    /* restripe the file in Lustre */
-    if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
-        File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
-    else {
-#endif
-    fd = creat( fspath, st_bk.st_mode & 07777 );
-    if (fd < 0)
-    {
-        rc = -errno;
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: couldn't create '%s': %s",
-                    fspath, strerror(-rc) );
-        return RS_ERROR;
-    }
-    else
-        close(fd);
-#ifdef _LUSTRE
-    }
-#endif
-
-    /* restore entry */
+    /* restore FILE entry */
     if ( S_ISREG( st_bk.st_mode ) )
     {
         struct utimbuf utb;
+
+#ifdef _LUSTRE
+        /* restripe the file in Lustre */
+        if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
+            File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
+        else {
+#endif
+        fd = creat( fspath, st_bk.st_mode & 07777 );
+        if (fd < 0)
+        {
+            rc = -errno;
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: couldn't create '%s': %s",
+                        fspath, strerror(-rc) );
+            return RS_ERROR;
+        }
+        else
+            close(fd);
+#ifdef _LUSTRE
+        }
+#endif
+
 
 #ifdef HAVE_PURGE_POLICY
     /* this backend is restore/release capable.
@@ -1276,6 +1301,27 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         if ( utime( fspath, &utb ) )
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
                         fspath, strerror(errno) );
+    }
+    else if (S_ISLNK(st_bk.st_mode)) /* restore symlink */
+    {
+        char link[RBH_PATH_MAX] = "";
+
+        /* read link content from backend */
+        if ( readlink(backend_path, link, RBH_PATH_MAX) < 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink content (%s): %s",
+                        backend_path, strerror(-rc) );
+            return RS_ERROR;
+        }
+        /* set it in FS */
+        if ( symlink(link, fspath) != 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
+                        fspath, link, strerror(-rc) );
+            return RS_ERROR;
+        }
     }
 
     /* set owner, group */
@@ -1342,13 +1388,17 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                     fspath, st_dest.st_size, ATTR(p_attrs_old, size) );
         delta = TRUE;
     }
-    if ( ATTR_MASK_TEST( p_attrs_old, last_mod) && (st_dest.st_mtime != ATTR(p_attrs_old, last_mod)) )
+    /* only for files */
+    if (S_ISREG(st_dest.st_mode))
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored mtime (%lu) is "
-                    "different from the last time in filesystem (%u): "
-                    "it may have been modified in filesystem after the last backup.",
-                    fspath, st_dest.st_mtime, ATTR(p_attrs_old, last_mod) );
-        delta = TRUE;
+        if ( ATTR_MASK_TEST( p_attrs_old, last_mod) && (st_dest.st_mtime != ATTR(p_attrs_old, last_mod)) )
+        {
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored mtime (%lu) is "
+                        "different from the last time in filesystem (%u): "
+                        "it may have been modified in filesystem after the last backup.",
+                        fspath, st_dest.st_mtime, ATTR(p_attrs_old, last_mod) );
+            delta = TRUE;
+        }
     }
 
     /* set the new attributes */
@@ -1377,13 +1427,16 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 #endif
 
 #ifdef _LUSTRE
-    /* get the new stripe info */
-    if ( File_GetStripeByPath( fspath,
-                               &ATTR( p_attrs_new, stripe_info ),
-                               &ATTR( p_attrs_new, stripe_items ) ) == 0 )
+    if (!ATTR_MASK_TEST( p_attrs_new, type) || !strcmp(ATTR(p_attrs_new, type), STR_TYPE_FILE))
     {
-        ATTR_MASK_SET( p_attrs_new, stripe_info );
-        ATTR_MASK_SET( p_attrs_new, stripe_items );
+        /* get the new stripe info */
+        if ( File_GetStripeByPath( fspath,
+                                   &ATTR( p_attrs_new, stripe_info ),
+                                   &ATTR( p_attrs_new, stripe_items ) ) == 0 )
+        {
+            ATTR_MASK_SET( p_attrs_new, stripe_info );
+            ATTR_MASK_SET( p_attrs_new, stripe_items );
+        }
     }
 #endif
 
