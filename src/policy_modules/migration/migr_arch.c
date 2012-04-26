@@ -360,6 +360,7 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
     ATTR_MASK_SET( p_attr_set, path_update );
     ATTR_MASK_SET( p_attr_set, last_mod );
     ATTR_MASK_SET( p_attr_set, size );
+    ATTR_MASK_SET( p_attr_set, md_update );
 #ifdef ATTR_INDEX_last_archive
     ATTR_MASK_SET( p_attr_set, last_archive );
 #endif
@@ -380,6 +381,7 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
         return rc;
     }
     p_attr_set->attr_mask |= allow_cached_attrs;
+
 #endif
     return 0;
 }
