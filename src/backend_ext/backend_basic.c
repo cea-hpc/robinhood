@@ -211,13 +211,12 @@ static int entry2backend_path( const entry_id_t * p_id,
     else
     {
         int rc;
-        unsigned int dummy;
         char fidpath[RBH_PATH_MAX];
 
         BuildFidPath( p_id, fidpath );
 
         /* retrieve backend path from shook xattrs */
-        rc = shook_get_hsm_info(fidpath, backend_path, &dummy);
+        rc = shook_get_hsm_info(fidpath, backend_path, NULL);
         if ((rc == 0) && !EMPTY_STRING(backend_path))
             return 0;
     }
