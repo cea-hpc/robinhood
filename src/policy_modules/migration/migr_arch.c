@@ -1479,13 +1479,10 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     }
 #elif defined( _HSM_LITE )
 
-    /* if archive is asynchronous, set status=archive running before */
-    if ( backend.async_archive )
-    {
-        ATTR_MASK_SET( &new_attr_set, status );
-        ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
-        update_entry( lmgr, &p_item->entry_id, &new_attr_set );
-    }
+    /* set status="archive_running" before running the copy command */
+    ATTR_MASK_SET( &new_attr_set, status );
+    ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
+    update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
     rc = MigrateEntry( &p_item->entry_id, &new_attr_set, hints );
 

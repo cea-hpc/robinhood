@@ -363,6 +363,43 @@ static int move_orphan(const char * path)
 }
 
 
+/* check if there is a running copy and if it timed-out
+ * return <0 on error
+ * 0 if no copy is running
+ * 1 if a copy is already running
+ * */
+int check_running_copy(const char * bkpath)
+{
+    int rc;
+    /* is a copy running for this entry? */
+    rc = entry_is_archiving( bkpath );
+    if ( rc < 0 )
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error %d checking if copy is running for %s: %s",
+                    rc, bkpath, strerror(-rc) );
+        return rc;
+    }
+    else if ( rc > 0 )
+    {
+        if ( config.copy_timeout && ( time(NULL) - rc > config.copy_timeout ))
+        {
+            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Copy timed out for %s (inactive for %us)",
+                        bkpath, (unsigned int)(time(NULL) - rc) );
+            /* previous copy timed out: clean it */
+            transfer_cleanup( bkpath );
+        }
+        else
+        {
+            DisplayLog( LVL_DEBUG, RBHEXT_TAG,
+                        "'%s' is being archived (last mod: %us ago)",
+                        bkpath, (unsigned int)(time(NULL) - rc) );
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 /**
  * Get the status for an entry.
  * \param[in] p_id pointer to entry id
@@ -446,31 +483,14 @@ int rbhext_get_status( const entry_id_t * p_id,
     if ( entry_type == TYPE_FILE )
     {
         /* is a copy running for this entry? */
-        rc = entry_is_archiving( bkpath );
-        if ( rc < 0 )
-        {
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error %d checking if copy is running for %s: %s",
-                        rc, bkpath, strerror(-rc) );
+        rc = check_running_copy(bkpath);
+        if (rc < 0)
             return rc;
-        }
-        else if ( rc > 0 )
+        else if (rc > 0)/* current archive */
         {
-            if ( config.copy_timeout && ( time(NULL) - rc > config.copy_timeout ))
-            {
-                DisplayLog( LVL_EVENT, RBHEXT_TAG, "Copy timed out for %s (inactive for %us)",
-                            bkpath, (unsigned int)(time(NULL) - rc) );
-                /* previous copy timed out: clean it */
-                transfer_cleanup( bkpath );
-            }
-            else
-            {
-                DisplayLog( LVL_DEBUG, RBHEXT_TAG,
-                            "'%s' is being archived (last mod: %us ago)",
-                            bkpath, (unsigned int)(time(NULL) - rc) );
-                ATTR_MASK_SET( p_attrs_changed, status );
-                ATTR( p_attrs_changed, status ) = STATUS_ARCHIVE_RUNNING;
-                return 0;
-            }
+            ATTR_MASK_SET( p_attrs_changed, status );
+            ATTR( p_attrs_changed, status ) = STATUS_ARCHIVE_RUNNING;
+            return 0;
         }
     }
 
@@ -889,8 +909,16 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
             return rc;
         }
     }
-    else if ( ATTR(p_attrs, status) == STATUS_MODIFIED )
-    {
+    else if ( ATTR(p_attrs, status) == STATUS_MODIFIED
+             || ATTR(p_attrs, status) == STATUS_ARCHIVE_RUNNING ) /* for timed out copies.. or ourselves! */
+     {
+        /* chexck if somebody else is about to copy */
+        rc = check_running_copy(bkpath);
+        if (rc < 0)
+            return rc;
+        else if (rc > 0)/* current archive */
+            return -EALREADY;
+
        /* check that previous path exists */
         if ( ATTR_MASK_TEST(p_attrs, backendpath) )
         {
