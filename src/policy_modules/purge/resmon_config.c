@@ -36,6 +36,9 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
     conf->post_purge_df_latency = 60;   /*1 min */
     conf->purge_queue_size = 4096;
     conf->db_request_limit = 10000;
+#ifdef ATTR_INDEX_status
+    conf->check_purge_status_on_startup = TRUE;
+#endif
 
     conf->trigger_list = NULL;
     conf->trigger_count = 0;
@@ -50,6 +53,9 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
     print_line( output, 1, "post_purge_df_latency : 1min" );
     print_line( output, 1, "purge_queue_size      : 4096" );
     print_line( output, 1, "db_result_size_max    : 10000" );
+#ifdef ATTR_INDEX_status
+    print_line( output, 1, "check_purge_status_on_startup: TRUE" );
+#endif
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -76,6 +82,12 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "# Limit the size of database result sets (save memory)" );
     print_line( output, 1, "db_result_size_max    = 10000 ;" );
+
+#ifdef ATTR_INDEX_status
+    fprintf( output, "\n" );
+    print_line( output, 1, "# check status of previous purge operations on startup" );
+    print_line( output, 1, "check_purge_status_on_startup = TRUE ;" );
+#endif
 
     print_end_block( output, 0 );
 
@@ -444,14 +456,14 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         return ENOENT;
     }
 
-#ifdef _LUSTRE_HSM
+#if defined(_LUSTRE_HSM) || defined(HAVE_SHOOK)
     /* count threshold as no sense for lustre HSM, because releasing file
      * does not free inodes */
     if ( (rc_hc == 0) || (rc_lc == 0) )
     {
        DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                "WARNING: threshold on entry count doesn't make sense for "
-                         "Lustre-HSM purpose" );
+                "Warning: threshold on entry count doesn't make sense for "
+                         PURPOSE_EXT" purpose" );
     }
 #endif
 
@@ -560,6 +572,9 @@ int Read_ResourceMon_Config( config_file_t config,
     static const char *purge_allowed[] = {
         "nb_threads_purge", "post_purge_df_latency",
         "purge_queue_size", "db_result_size_max",
+#ifdef ATTR_INDEX_status
+        "check_purge_status_on_startup",
+#endif
         NULL
     };
 
@@ -602,6 +617,18 @@ int Read_ResourceMon_Config( config_file_t config,
         if ( ( rc != 0 ) && ( rc != ENOENT ) )
             return rc;
 
+#ifdef ATTR_INDEX_status
+        rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "check_purge_status_on_startup",
+                           0, &intval, NULL, NULL, msg_out );
+        if ( ( rc != 0 ) && ( rc != ENOENT ) )
+            return rc;
+        else if ( rc != ENOENT )
+            conf->check_purge_status_on_startup = intval;
+#endif
+
+        CheckUnknownParameters( param_block, PURGE_PARAM_BLOCK, purge_allowed );
+
+
         rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "simulation_mode",
                            0, &intval, NULL, NULL, msg_out );
         if ( rc == 0 )
@@ -609,7 +636,7 @@ int Read_ResourceMon_Config( config_file_t config,
             DisplayLog( LVL_CRIT, RESMONCFG_TAG,    
                 "WARNING: 'simulation_mode' parameter is deprecated. Use '--dry-run' option instead.");
         }
-        
+
         CheckUnknownParameters( param_block, PURGE_PARAM_BLOCK, purge_allowed );
 
     } /* end of purge parameters */
@@ -877,6 +904,17 @@ int Reload_ResourceMon_Config( void *module_config )
                     resmon_config.db_request_limit, conf->db_request_limit );
         resmon_config.db_request_limit = conf->db_request_limit;
     }
+
+#ifdef ATTR_INDEX_status
+    if ( resmon_config.check_purge_status_on_startup != conf->check_purge_status_on_startup )
+    {
+        DisplayLog( LVL_EVENT, RESMONCFG_TAG, PURGE_PARAM_BLOCK
+                    "::check_purge_status_on_startup updated: %u->%u",
+                    resmon_config.check_purge_status_on_startup,
+                    conf->check_purge_status_on_startup );
+        resmon_config.check_purge_status_on_startup = conf->check_purge_status_on_startup;
+    }
+#endif
 
     update_triggers( conf->trigger_list, conf->trigger_count );
 
