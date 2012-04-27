@@ -1998,6 +1998,25 @@ static void   *trigger_check_thr( void *thr_arg )
         return NULL;
     }
 
+#ifdef ATTR_INDEX_status
+    unsigned int nb_reset = 0;
+    unsigned int nb_total = 0;
+
+    /* check previous migration status */
+    if ( resmon_config.check_purge_status_on_startup )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG, "Checking status of outstanding purges..." );
+
+        rc = check_current_purges( &lmgr, &nb_reset, &nb_total, 0 );
+
+        if ( rc != 0 )
+            DisplayLog( LVL_CRIT, RESMON_TAG, "Error checking outstanding purge status" );
+        else
+            DisplayLog( LVL_EVENT, RESMON_TAG, "%u purges finished / %u total", nb_reset,
+                        nb_total );
+    }
+#endif
+
     do
     {
         max_usage = 0.0;

@@ -96,12 +96,12 @@ typedef struct resource_monitor_config_t
     unsigned int   purge_queue_size;
     unsigned int   db_request_limit;
 
+    trigger_item_t *trigger_list;
+    unsigned int   trigger_count;
+
 #ifdef ATTR_INDEX_status
     unsigned int check_purge_status_on_startup:1;
 #endif
-
-    trigger_item_t *trigger_list;
-    unsigned int   trigger_count;
 
 } resource_monitor_config_t;
 

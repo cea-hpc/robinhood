@@ -626,9 +626,6 @@ int Read_ResourceMon_Config( config_file_t config,
             conf->check_purge_status_on_startup = intval;
 #endif
 
-        CheckUnknownParameters( param_block, PURGE_PARAM_BLOCK, purge_allowed );
-
-
         rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "simulation_mode",
                            0, &intval, NULL, NULL, msg_out );
         if ( rc == 0 )

@@ -105,6 +105,12 @@ int  perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                               unsigned long long *p_nb_purged,
                               unsigned long long *p_nb_specific );
 
+#ifdef ATTR_INDEX_status
+int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
+                               unsigned int * p_nb_total,
+                               time_t timeout );
+#endif
+
 void abort_purge();
 
 
