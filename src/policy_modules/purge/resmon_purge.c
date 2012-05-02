@@ -915,11 +915,15 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
     }
 
 #ifdef ATTR_INDEX_status
+#ifdef _LUSTRE_HSM
+    /* For Lustre-HSM, don't care about fresh status because 'release'
+     * is safe (Lustre locking + check of open/modified files)
+     */
     /* is status known? */
-    if ( !ATTR_MASK_TEST( &p_item->entry_attr, status ) )
+    if ( !ATTR_MASK_TEST( &p_item->entry_attr, status )
+        || ATTR(&p_item->entry_attr, status) == STATUS_UNKNOWN )
     {
         DisplayLog( LVL_FULL, PURGE_TAG, "Update of HSM state (not known in DB)" );
-#ifdef _LUSTRE_HSM
         rc = LustreHSM_GetStatus( fid_path, &ATTR( new_attr_set, status ),
                                   &ATTR( new_attr_set, no_release ),
                                   &ATTR( new_attr_set, no_archive ) );
@@ -929,12 +933,14 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
             ATTR_MASK_SET( new_attr_set, no_release );
             ATTR_MASK_SET( new_attr_set, no_archive );
         }
-#elif defined(_HSM_LITE)
-        rc = rbhext_get_status( &p_item->entry_id, new_attr_set, new_attr_set );
-        if ( !rc )
-            ATTR_MASK_SET( new_attr_set, status );
-#endif
     }
+
+#elif defined(_HSM_LITE)
+    /* always update status for _HSM_LITE */
+    rc = rbhext_get_status( &p_item->entry_id, new_attr_set, new_attr_set );
+    if ( rc )
+        return PURGE_ERROR;
+#endif
 #endif
 
     /* entry is valid */
@@ -1220,7 +1226,9 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         {
             /* cannot determine if entry has been accessed: update and skip it */
             DisplayLog( LVL_MAJOR, PURGE_TAG,
-                        "Warning: previous value of 'last_access' or 'size' is not available: cannot determine if entry has been accessed. Skipping entry." );
+                        "Warning: previous value of 'last_access' or 'size' "
+                        "is not available: cannot determine if entry has been "
+                        "accessed. Skipping entry." );
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
             /* Notify error */

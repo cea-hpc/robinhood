@@ -456,6 +456,15 @@ int rbhext_get_status( const entry_id_t * p_id,
     if (rc)
         return rc;
 
+    /* if status is 'release_pending' or 'restore_running',
+     * check timeout. */
+    if (status == STATUS_RELEASE_PENDING || status == STATUS_RESTORE_RUNNING)
+    {
+        rc = ShookRecoverById(p_id, &status);
+        if (rc < 0)
+            return rc;
+    }
+
     if ( status != STATUS_SYNCHRO )
     {
         DisplayLog( LVL_FULL, RBHEXT_TAG, "shook reported status<>online: %d",
