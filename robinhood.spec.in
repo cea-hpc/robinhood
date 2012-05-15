@@ -295,6 +295,12 @@ fi
 
 %changelog
 
+* Tue May 15 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.4
+- shook: * entry state set to 'archive_running' during migration
+         * recovery for entries with 'release pending' state on startup
+         * fix: recovery for simlinks
+         * enable DB rebuild for shook if it is lost
+
 * Wed Apr 04 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.2
 - Efix: Don't consider 'released' entries for quota-like purge triggers
 
