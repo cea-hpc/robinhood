@@ -2241,19 +2241,19 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
     return 0;
 }
 
+int Stop_ResourceMonitor()
+{
+    terminate = TRUE;
+    abort_purge();
+    return 0;
+}
 
 static int volatile waiting = 0;
 
-int Wait_ResourceMonitor( int abort )
+int Wait_ResourceMonitor()
 {
     void          *returned;
     int rc = 0;
-
-    if ( abort )
-    {
-        terminate = TRUE;
-        abort_purge();
-    }
 
     /* /!\ pb: 2 threads cannot join the same other thread.
      * In one shot mode, the main thread is already waiting
