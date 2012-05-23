@@ -1065,6 +1065,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     policy_match_t match;
     policy_item_t *policy_case;
     fileset_item_t *p_fileset;
+    unsigned long   blk_sav = 0;
 
     int update_fileclass = -1; /* not set */
 
@@ -1326,6 +1327,12 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         }
     }
 
+    /* save block count before purging */
+    if (!ATTR_MASK_TEST(&new_attr_set, blocks))
+        DisplayLog( LVL_MAJOR, PURGE_TAG, "Warning: no block count available for computing purged amount");
+    else
+        blk_sav = ATTR(&new_attr_set, blocks);
+
     /* Perform purge operation! */
 
 #ifdef _LUSTRE_HSM
@@ -1427,8 +1434,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
 #endif
 
         /* ack to queue manager */
-        Acknowledge( &purge_queue, PURGE_OK, ATTR( &new_attr_set, blocks ),
-                     p_item->specific_blocks );
+        Acknowledge( &purge_queue, PURGE_OK, blk_sav, p_item->specific_blocks );
 
     }
 
