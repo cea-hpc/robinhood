@@ -2420,6 +2420,8 @@ function test_removing
 	mkdir -p $ROOT/dir1
 	mkdir -p $ROOT/dir5
 	echo "data" > $ROOT/dir5/file.5
+	
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 		
 	if [ $testKey == "emptyDir" ]; then
 		# wait and write more data
@@ -2462,7 +2464,7 @@ function test_removing
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-		ls -R $ROOT/dir1 || error "scaning $ROOT/dir1"
+		touch $ROOT/dir1/file.touched || error "touching file in $ROOT/dir1"
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.12 || error "writing in $ROOT/dir1/file.12"
 	fi
@@ -2480,8 +2482,8 @@ function test_removing
 			notExistedDirs="$ROOT/dir1"
 			;;
 		emptyDir)
-			existedDirs="$ROOT/dir1;$ROOT/dir5;$ROOT/dir7"
-			notExistedDirs="$ROOT/dir6"
+			existedDirs="$ROOT/dir6;$ROOT/dir5;$ROOT/dir7"
+			notExistedDirs="$ROOT/dir1"
 			;;
 		owner)
 			existedDirs="$ROOT/dir5"
@@ -2736,7 +2738,7 @@ function test_report_generation_1
 	# launch another scan ..........................
 	echo -e "\n 11-Top disk space consumers of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-users --csv > report.out || error "performing disk space consumers (--top-users)"
-	typeValues="testuser;root"
+	typeValues="root;testuser"
 	countValues="1;2"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating disk space consumers (--top-users)"
@@ -2979,7 +2981,11 @@ function TEST_OTHER_PARAMETERS_5
 
 	clean_logs
 
-	sleep 1
+    echo "Launch scan in background..."
+	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_scan.log &
+	pid=$!
+
+	sleep 2
 	
 	nbError=0
 	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
@@ -3003,9 +3009,9 @@ function TEST_OTHER_PARAMETERS_5
         ((indice++))
     done
     
-        echo "Launch scan in background..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_scan.log &
-	pid=$!
+       #echo "Launch scan in background..."
+#$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_scan.log &
+#pid=$!
 
 	echo "sleep 60 seconds"
 	sleep 60

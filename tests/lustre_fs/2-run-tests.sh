@@ -4079,7 +4079,7 @@ function migration_OST
 		
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
-
+    nbError=0
     countFile=`find $BKROOT -type f | wc -l`
     countLink=`find $BKROOT -type l | wc -l`
     count=$(($countFile+$countLink))
@@ -4102,6 +4102,7 @@ function migration_OST
 	    fi
     done
 
+	echo $nbError
     if (($nbError == 0 )); then
         echo "OK: test successful"
     else
@@ -4620,7 +4621,7 @@ function test_removing
 	testKey=$2  #== key word for specific tests
 	sleepTime=$3
     
-    if (( ($shook != 0) || ($is_lhsm != 0) )); then
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "No removing dir for this purpose: skipped"
 		set_skipped
 		return 1
@@ -4676,7 +4677,8 @@ function test_removing
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-		ls -R $ROOT/dir1 || error "scaning $ROOT/dir1"
+	#	ls -R $ROOT/dir1 || error "scaning $ROOT/dir1"
+		touch $ROOT/dir1/file.touched || error "touching file in $ROOT/dir1"
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.12 || error "writing in $ROOT/dir1/file.12"
 	fi
@@ -4694,8 +4696,8 @@ function test_removing
 			notExistedDirs="$ROOT/dir1"
 			;;
 		emptyDir)
-			existedDirs="$ROOT/dir1;$ROOT/dir5;$ROOT/dir7"
-			notExistedDirs="$ROOT/dir6"
+			existedDirs="$ROOT/dir6;$ROOT/dir5;$ROOT/dir7"
+			notExistedDirs="$ROOT/dir1"
 			;;
 		owner)
 			existedDirs="$ROOT/dir5"
@@ -4740,7 +4742,7 @@ function test_removing_ost
 	# get input parameters ....................
 	config_file=$1
     
-    if (( ($shook != 0) || ($is_lhsm != 0) )); then
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "No removing dir for this purpose: skipped"
 		set_skipped
 		return 1
@@ -4774,7 +4776,7 @@ function test_removing_ost
 	echo "Checking results ..."
 	logFile=rh_alert.log
 	existedDirs="$ROOT/dir1"
-	notExistedDirs="$ROOT/dir2;"
+	notExistedDirs="$ROOT/dir2"
 	# launch the validation for all remove process
 	exist_dirs_or_not $existedDirs $notExistedDirs
 	res=$?
@@ -5241,8 +5243,8 @@ function TEST_OTHER_PARAMETERS_1
 	sleep 1
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
 	
-	# use robinhood for flushing
-	if (( $is_hsmlite != 0 )); then
+	# use robinhood for flushing (
+	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && shook == 1) )); then
 		echo "Archiving files"
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
@@ -5260,33 +5262,53 @@ function TEST_OTHER_PARAMETERS_1
     echo "Create /var/lock/rbh.lock"
 	touch "/var/lock/rbh.lock"
 	
-	# Launch in background
-	echo "Launch Purge in background"
-	$RH -f ./cfg/$config_file --scan --purge -l DEBUG -L rh_purge.log --once &
+	if (( $is_hsmlite == 0 || $shook != 0 || $is_lhsm != 0 )); then
+	    echo "Reading changelogs and Applying purge policy..."
+	    $RH -f ./cfg/$config_file --scan --purge -l DEBUG -L rh_purge.log --once &
+
+	    sleep 5
+	    nbError=0
+	    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	    if (( $nb_purge != 0 )); then
+	        error "********** TEST FAILED (Log): $nb_purge files purged, but 0 expected"
+            ((nbError++))
+	    fi
+
+	    echo "Remove /var/lock/rbh.lock"
+	    rm "/var/lock/rbh.lock"
 	
-	sleep 5
+	    echo "wait robinhood"
+	    wait
+	    
+	    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	    if (( $nb_purge != 10 )); then
+	        error "********** TEST FAILED (Log): $nb_purge files purged, but 10 expected"
+            ((nbError++))
+	    fi
+    else #backup mod
+	    echo "Launch Migration in background"
+	    $RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once &
 	
-	echo "Count purged files number"
-	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
-	if (( $nb_purge != 0 )); then
-	    error "********** TEST FAILED (Log): $nb_purge files purged, but 0 expected"
-        ((nbError++))
-	fi
+	    sleep 5
 	
-    echo "Remove /var/lock/rbh.lock"
-	rm "/var/lock/rbh.lock"
+        count=`find $BKROOT -type f | wc -l`
+        if (($count != 0)); then
+            error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
+            ((nbError++))
+        fi
 	
-	echo "wait robinhood"
-	wait
+        echo "Remove /var/lock/rbh.lock"
+	    rm "/var/lock/rbh.lock"
 	
-	echo "Count purged files number"
-	nb_purge2=`grep $REL_STR rh_purge.log | wc -l`
-	((nb_purge2=nb_purge2-nb_purge))
-	
-	if (( $nb_purge2 != 10 )); then
-	    error "********** TEST FAILED (Log): $nb_purge2 files purged, but 10 expected"
-        ((nbError++))
-	fi
+	    echo "wait robinhood"
+	    wait
+
+        count=`find $BKROOT -type f | wc -l`
+        if (($count != 10)); then
+            error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
+            ((nbError++))
+        fi
+    fi
 	
 	if (($nbError == 0 )); then
         echo "OK: test successful"
@@ -5445,7 +5467,9 @@ function TEST_OTHER_PARAMETERS_3
 	
 	echo "sleep 60 seconds"
 	sleep 60
-	
+
+
+
 	nb_Remove=`grep "Remove request successful for entry" rh_purge.log | wc -l`
 	if (( $nb_Remove != 5 )); then
         error "********** TEST FAILED (LOG): $nb_Remove remove detected, but 5 expected"
@@ -5565,7 +5589,7 @@ function TEST_OTHER_PARAMETERS_5
 	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_scan.log &
 	pid=$!
 	
-	sleep 1
+	sleep 2
 	
 	nbError=0
 	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
@@ -5579,13 +5603,13 @@ function TEST_OTHER_PARAMETERS_5
 	
     echo "Create files"
 	elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
-	limit=95
+	limit=90
 	indice=1
-    while [ $elem -lt $limit ]
+    while (( $elem < $limit ))
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || error "writing file.$indice"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writing file.$indice"
         unset elem
-	    elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
         ((indice++))
     done
 
@@ -5736,7 +5760,7 @@ run_test 624 test_migration MigrationClass_LastModification.conf 31 2 "file.8;fi
 run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--migrate" "TEST_MIGRATION_CLASS_OST"
 run_test 626 test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
 run_test 627 test_migration MigrationUser.conf 0 1 "file.3" "--migrate-user=testuser" "TEST_MIGRATION_USER"
-run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--migrate-group=testgroup" "TEST_MIGRATION_GROUP"
+run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--migrate-group=testuser" "TEST_MIGRATION_GROUP"
 run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--migrate-file=$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
 run_test 630 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
 run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--migrate-file=$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"

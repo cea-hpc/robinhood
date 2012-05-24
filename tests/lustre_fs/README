@@ -1,4 +1,5 @@
 Lustre must be mounted as /mnt/lustre before running setup step and tests.
+(/usr/lib64/lustre/tests/llmount.sh)
 
 1) set the purpose environment variable
 export PURPOSE=TMP_FS_MGR
