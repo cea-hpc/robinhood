@@ -85,7 +85,7 @@ fi
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
 
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log rh_alert.log"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -3403,7 +3403,7 @@ function test_alerts
 	
 	clean_logs
 	
-	test -f "rh_alert.log" || touch "rh_alert.log"
+	test -f "/tmp/rh_alert.log" || touch "/tmp/rh_alert.log"
 	
 	echo "1-Preparing Filesystem..."
 	if [ $testKey == "extAttributes" ]; then
@@ -3447,7 +3447,7 @@ function test_alerts
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
 	
 	echo "3-Checking results..."
-	logFile=rh_alert.log
+	logFile=/tmp/rh_alert.log
 	case "$testKey" in
 		pathName)
 			alertKey=Alert_Name
@@ -3533,7 +3533,7 @@ function test_alerts_OST
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
 	
 	echo "3-Checking results..."
-	logFile=rh_alert.log
+	logFile=/tmp/rh_alert.log
 	alertKey=Alert_OST
 	expectedEntry="file.3;file.4;file.5"
 	occur=3
@@ -4670,6 +4670,10 @@ function test_removing
 		chown testuser $ROOT/dir6 || error "invalid chown on user 'testuser' for $ROOT/dir6" #change owner
 	fi
 	
+	# launch the scan ..........................
+	echo "2-Scanning directories in filesystem ..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "performing FS removing"
+
 	# optional sleep process ......................
 	if [ $sleepTime != 0 ]; then
 		echo "Please wait $sleepTime seconds ..."
@@ -4683,13 +4687,13 @@ function test_removing
 		echo "data" > $ROOT/dir1/file.12 || error "writing in $ROOT/dir1/file.12"
 	fi
 	
-	# launch the scan ..........................
-	echo "2-Removing directories in filesystem ..."
-	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	# launch the rmdir ..........................
+	echo "3-Removing directories in filesystem ..."
+	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 	
 	# launch the validation ..........................
-	echo "3-Checking results ..."
-	logFile=rh_alert.log
+	echo "4-Checking results ..."
+	logFile=/tmp/rh_alert.log
 	case "$testKey" in
 		pathName)
 			existedDirs="$ROOT/dir5;$ROOT/dir6"
@@ -4774,7 +4778,7 @@ function test_removing_ost
 	
 	# launch the validation ..........................
 	echo "Checking results ..."
-	logFile=rh_alert.log
+	logFile=/tmp/rh_alert.log
 	existedDirs="$ROOT/dir1"
 	notExistedDirs="$ROOT/dir2"
 	# launch the validation for all remove process

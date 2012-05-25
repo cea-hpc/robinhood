@@ -28,7 +28,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log rh_alert.log rh_rmdir.log"
+CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log /tmp/rh_alert.log rh_rmdir.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -1933,7 +1933,7 @@ function test_alerts
 	clean_logs
 	
 	# create specific file if it does not exist
-	test -f "rh_alert.log" || touch "rh_alert.log"
+	test -f "/tmp/rh_alert.log" || touch "/tmp/rh_alert.log"
 	
 	echo "1-Preparing Filesystem..."
 	if [ $testKey == "extAttributes" ]; then
@@ -1978,7 +1978,7 @@ function test_alerts
 	
 	# check the scan
 	echo -e "\n 3-Checking results ..."
-	logFile=rh_alert.log
+	logFile=/tmp/rh_alert.log
 	case "$testKey" in
 		pathName)
 			alertKey=Alert_Name
@@ -2457,6 +2457,10 @@ function test_removing
 		chown testuser $ROOT/dir6 || error "invalid chown on user 'testuser' for $ROOT/dir6" #change owner
 	fi
 	
+	# launch the rmdir ..........................
+	echo -e "\n 2-Scanning directories in filesystem ..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "performing FS removing"
+
 	# optional sleep process ......................
 	if [ $sleepTime != 0 ]; then
 		echo "Please wait $sleepTime seconds ..."
@@ -2469,13 +2473,13 @@ function test_removing
 		echo "data" > $ROOT/dir1/file.12 || error "writing in $ROOT/dir1/file.12"
 	fi
 	
-	# launch the scan ..........................
-	echo -e "\n 2-Removing directories in filesystem ..."
-	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	# launch the rmdir ..........................
+	echo -e "\n 3-Removing directories in filesystem ..."
+	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 	
 	# launch the validation ..........................
 	echo -e "\n 3-Checking results ..."
-	logFile=rh_alert.log
+	logFile=/tmp/rh_alert.log
 	case "$testKey" in
 		pathName)
 			existedDirs="$ROOT/dir5;$ROOT/dir6"
