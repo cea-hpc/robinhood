@@ -4689,8 +4689,12 @@ function test_removing
 	
 	# launch the rmdir ..........................
 	echo "3-Removing directories in filesystem ..."
+	if [ $testKey == "lastAccess" ]; then
 	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
-	
+	else
+	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	fi
+
 	# launch the validation ..........................
 	echo "4-Checking results ..."
 	logFile=/tmp/rh_alert.log
@@ -5787,7 +5791,7 @@ run_test 645 test_purge PurgeStd_LastAccess.conf 10 9 "file.8" "--purge" "TEST_P
 run_test 646 test_purge PurgeStd_LastModification.conf 30 9 "file.8" "--purge" "TEST_PURGE_STD_LAST_MODIFICATION"
 run_test 647 purge_OST PurgeStd_OST.conf 2 "file.3;file.4" "--purge" "TEST_PURGE_STD_OST"
 run_test 648 test_purge PurgeStd_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_STD_EXTENDED_ATTRIBUT"
-run_test 649 purge_OST PurgeOST.conf 2 "file.3;file.4" "--purge-ost=1,13.5" "TEST_PURGE_OST"
+run_test 649 purge_OST PurgeOST.conf 2 "file.3;file.4" "--purge-ost=1,0" "TEST_PURGE_OST"
 run_test 650 test_purge PurgeClass_Path_Name.conf 0 9 "file.1" "--purge" "TEST_PURGE_CLASS_PATH_NAME"
 run_test 651 test_purge PurgeClass_Type.conf 0 2 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--purge" "TEST_PURGE_CLASS_TYPE"
 run_test 652 test_purge PurgeClass_Owner.conf 0 3 "file.1;file.2;file.4;file.5;file.6;file.7;file.8" "--purge" "TEST_PURGE_CLASS_OWNER"
