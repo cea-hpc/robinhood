@@ -99,6 +99,10 @@ typedef struct resource_monitor_config_t
     trigger_item_t *trigger_list;
     unsigned int   trigger_count;
 
+#ifdef ATTR_INDEX_status
+    unsigned int check_purge_status_on_startup:1;
+#endif
+
 } resource_monitor_config_t;
 
 int            SetDefault_ResourceMon_Config( void *module_config, char *msg_out );
@@ -131,7 +135,9 @@ typedef struct resmon_opt_t
 int            Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t options );
 
 /* wait or abort a purge */
-int            Wait_ResourceMonitor( int abort );
+int            Wait_ResourceMonitor();
+int            Stop_ResourceMonitor();
+
 void           Dump_ResourceMonitor_Stats(  );
 
 /** Recompute trigger check interval as the GCD of all triggers */

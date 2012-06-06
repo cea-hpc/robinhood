@@ -21,6 +21,19 @@
 #include "RobinhoodLogs.h"
 #include <shook_svr.h>
 
+file_status_t shook2rbh_status(shook_state st)
+{
+    switch (st)
+    {
+        case SS_ONLINE:         return STATUS_SYNCHRO; /* may also be dirty or archiving... */
+        case SS_RELEASED:       return STATUS_RELEASED;
+        case SS_RELEASE_PEND:   return STATUS_RELEASE_PENDING;
+        case SS_RESTORE_PEND:   return STATUS_RESTORE_RUNNING;
+        case SS_LOST:           return STATUS_UNKNOWN;
+        default:                return (file_status_t)-1;
+    }
+}
+
 /**
  * Get status of entry regarding 'shook' system
  * and convert it to robinhood status.
@@ -44,26 +57,31 @@ int ShookGetStatus(const char * path, file_status_t * p_status)
                     "shook indicates '%s' status is '%s'",
                      path, shook_attr_val[st] );
 
-    switch (st)
+    *p_status = shook2rbh_status(st);
+    if (*p_status == (file_status_t)-1)
     {
-        case SS_ONLINE:
-            *p_status = STATUS_SYNCHRO; /* may also be dirty or archiving... */
-            return 0;
-        case SS_RELEASED:
-            *p_status = STATUS_RELEASED;
-            return 0;
-        case SS_RELEASE_PEND:
-            *p_status = STATUS_RELEASE_PENDING;
-            return 0;
-        case SS_RESTORE_PEND:
-            *p_status = STATUS_RESTORE_RUNNING;
-            return 0;
-        case SS_LOST:
-            *p_status = STATUS_UNKNOWN;
-            return 0;
-        default:
-            DisplayLog( LVL_CRIT, SHOOK_TAG, "ERROR getting state of %s: unknown status %d",
-                        path, (int)st );
-            return -EINVAL;
+        DisplayLog( LVL_CRIT, SHOOK_TAG, "ERROR getting state of %s: unknown status %d",
+                    path, (int)st );
+        return -EINVAL;
     }
+    return 0;
+}
+
+int ShookRecoverById(const entry_id_t * p_id, file_status_t * p_status)
+{
+    int rc;
+    shook_state st;
+
+    rc = shook_recov_pending(get_fsname(), p_id, &st);
+    if (rc < 0)
+        return rc;
+
+    *p_status = shook2rbh_status(st);
+    if (*p_status == (file_status_t)-1)
+    {
+        DisplayLog( LVL_CRIT, SHOOK_TAG, "ERROR getting recovering "DFID": unknown status %d",
+                    PFID(p_id), (int)st );
+        return -EINVAL;
+    }
+    return 0;
 }

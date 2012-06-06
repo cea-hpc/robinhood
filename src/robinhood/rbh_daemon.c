@@ -675,13 +675,24 @@ static void   *signal_handler_thr( void *arg )
                 DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
             FlushLogs(  );
 
-            if ( action_mask & ACTION_MASK_SCAN )
-            {
-                /* stop FS scan */
-                FSScan_Terminate(  );
-                FlushLogs(  );
-            }
+            /* first ask purge consummers and feeders to stop (long operations first) */
 
+            /* 1a- stop submitting migrations */
+#ifdef HAVE_MIGR_POLICY
+            if ( action_mask & ACTION_MASK_MIGRATE ) {
+                /* abort migration */
+                Stop_Migration();
+            }
+#endif
+            /* 1b- stop triggering purges */
+#ifdef HAVE_PURGE_POLICY
+            if ( action_mask & ACTION_MASK_PURGE ) {
+                /* abort purge */
+                Stop_ResourceMonitor();
+            }
+#endif
+
+            /* 2a - stop feeding with changelogs */
 #ifdef HAVE_CHANGELOGS
             if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
             {
@@ -690,7 +701,17 @@ static void   *signal_handler_thr( void *arg )
                 FlushLogs(  );
             }
 #endif
+            /* 2b - stop feeding from scan */
+            if ( action_mask & ACTION_MASK_SCAN )
+            {
+                /* stop FS scan (blocking) */
+                FSScan_Terminate(  );
+                FlushLogs(  );
+            }
 
+            /* TODO 3) wait changelog reader (blocking) */
+
+            /* 4 - entry processor can be stopped */
             if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
             {
                 /* flush processor pipeline and terminate threads */
@@ -698,25 +719,23 @@ static void   *signal_handler_thr( void *arg )
                 FlushLogs(  );
             }
 
-#ifdef HAVE_MIGR_POLICY
-            if ( action_mask & ACTION_MASK_MIGRATE )
-            {
-                /* abort migration */
-                Wait_Migration( TRUE );
-                FlushLogs(  );
-            }
-#endif
-
+            /* 5 - wait consumers */
 #ifdef HAVE_PURGE_POLICY
-            if ( action_mask & ACTION_MASK_PURGE )
-            {
-                /* abort purge */
-                Wait_ResourceMonitor( TRUE );
+            if ( action_mask & ACTION_MASK_PURGE ) {
+                /* wait for purge to end */
+                Wait_ResourceMonitor();
+                FlushLogs(  );
+            }
+#endif
+#ifdef HAVE_MIGR_POLICY
+            if ( action_mask & ACTION_MASK_MIGRATE ) {
+                /* wait for migration to end */
+                Wait_Migration();
                 FlushLogs(  );
             }
 #endif
 
-
+            /* 6 - shutdown backend access */
 #ifdef _HSM_LITE
             Backend_Stop();
 #endif
@@ -1462,7 +1481,7 @@ int main( int argc, char **argv )
             if ( options.flags & FLAG_ONCE )
             {
                 currently_running_mask = MODULE_MASK_MIGRATION;
-                Wait_Migration( FALSE );
+                Wait_Migration();
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration pass terminated" );
             }
         }
@@ -1527,7 +1546,7 @@ int main( int argc, char **argv )
             if ( options.flags & FLAG_ONCE )
             {
                 currently_running_mask = MODULE_MASK_RES_MONITOR;
-                Wait_ResourceMonitor( FALSE );
+                Wait_ResourceMonitor();
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "ResourceMonitor terminated its task" );
             }
         }

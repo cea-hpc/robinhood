@@ -2512,10 +2512,10 @@ static void report_class_info( int flags )
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
     };
 
-    /* select only files */
-    fv.val_str = STR_TYPE_FILE;
+    /* don't select dirs for policies */
+    fv.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_init( &filter );
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
 
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
 

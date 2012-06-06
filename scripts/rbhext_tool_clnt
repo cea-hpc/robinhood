@@ -27,13 +27,12 @@ SERVERS=(node1 node2)
 RAND_ID=$(($RANDOM % ${#SERVERS[@]}))
 RAND_SERV=${SERVERS[$RAND_ID]}
 SERV_PORT=49999
+TIMEOUT=15000 # must be >= robinhood's copy_timeout value
 
-#FIXME
-#RAND_SERV="node1"
 
 if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
     # connect to $RAND_SERV and transmit parameters
-    ret=$(echo $VERB $SRC $DEST $HINTS | nc $RAND_SERV $SERV_PORT)
+    ret=$(echo $VERB $SRC $DEST $HINTS | nc -w $TIMEOUT $RAND_SERV $SERV_PORT)
     if (( $? != 0 )); then
 	exit $?
     fi

@@ -2,6 +2,9 @@
 
 ROOT="/mnt/lustre"
 
+RBH_BINDIR="../../src/robinhood"
+#RBH_BINDIR="/usr/sbin"
+
 BKROOT="/tmp/backend"
 RBH_OPT=""
 
@@ -22,53 +25,53 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_lhsm=1
 	is_hsmlite=0
 	shook=0
-	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
-	REPORT=../../src/robinhood/rbh-hsm-report
-    FIND=../../src/robinhood/rbh-hsm-find
-    DU=../../src/robinhood/rbh-hsm-du
+	RH="$RBH_BINDIR/rbh-hsm $RBH_OPT"
+	REPORT=$RBH_BINDIR/rbh-hsm-report
+	FIND=$RBH_BINDIR/rbh-hsm-find
+	DU=$RBH_BINDIR/rbh-hsm-du
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
-    REL_STR="Releasing"
+	REL_STR="Releasing"
 elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
 	shook=0
-	RH="../../src/robinhood/robinhood $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-report $RBH_OPT"
-    FIND=../../src/robinhood/rbh-find
-    DU=../../src/robinhood/rbh-du
+	RH="$RBH_BINDIR/robinhood $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
+	FIND=$RBH_BINDIR/rbh-find
+	DU=$RBH_BINDIR/rbh-du
 	CMD=robinhood
-    REL_STR="Purged"
+	REL_STR="Purged"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
-    shook=0
+	shook=0
 	is_hsmlite=1
 
-	RH="../../src/robinhood/rbh-backup $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-backup-report $RBH_OPT"
-	RECOV="../../src/robinhood/rbh-backup-recov $RBH_OPT"
-    FIND=../../src/robinhood/rbh-backup-find
-    DU=../../src/robinhood/rbh-backup-du
+	RH="$RBH_BINDIR/rbh-backup $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-backup-report $RBH_OPT"
+	RECOV="$RBH_BINDIR/rbh-backup-recov $RBH_OPT"
+	FIND=$RBH_BINDIR/rbh-backup-find
+	DU=$RBH_BINDIR/rbh-backup-du
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
-    REL_STR="Purged"
+	REL_STR="Purged"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
 	fi
 elif [[ $PURPOSE = "SHOOK" ]]; then
 	is_lhsm=0
 	is_hsmlite=1
-    shook=1
+	shook=1
 
-	RH="../../src/robinhood/rbh-shook $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-shook-report $RBH_OPT"
-	RECOV="../../src/robinhood/rbh-shook-recov $RBH_OPT"
-    FIND=../../src/robinhood/rbh-shook-find
-    DU=../../src/robinhood/rbh-shook-du
+	RH="$RBH_BINDIR/rbh-shook $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-shook-report $RBH_OPT"
+	RECOV="$RBH_BINDIR/rbh-shook-recov $RBH_OPT"
+	FIND=$RBH_BINDIR/rbh-shook-find
+	DU=$RBH_BINDIR/rbh-shook-du
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
-    REL_STR="Purged"
+	REL_STR="Purged"
 	if [ ! -d $BKROOT ]; then
 		mkdir -p $BKROOT
 	fi
@@ -99,7 +102,7 @@ fi
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
 
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -2234,7 +2237,7 @@ function test_ost_trigger
 	fi
 	clean_logs
 
-	empty_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
+	empty_vol=`lfs df  $ROOT | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
 	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
@@ -2265,7 +2268,7 @@ function test_ost_trigger
 		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
 	fi
 
-	full_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
+	full_vol=`lfs df  $ROOT | grep OST0000 | awk '{print $3}'`
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
 	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
@@ -2303,7 +2306,7 @@ function test_ost_trigger
 	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
 		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
 
-	full_vol1=`lfs df  | grep OST0001 | awk '{print $3}'`
+	full_vol1=`lfs df $ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
 	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
 
@@ -2985,7 +2988,7 @@ function test_logs
 	elif (( $syslog )); then
         # wait for syslog to flush logs to disk
         sync; sleep 2
-		tail -n +"$init_msg_idx" /var/log/messages | egrep -e "$CMD|shook" > /tmp/extract_all
+		tail -n +"$init_msg_idx" /var/log/messages | egrep -e "($CMD|shook)[^ ]*\[" > /tmp/extract_all
 		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
@@ -3047,7 +3050,7 @@ function test_logs
                 echo "OK: no action reported"
         else
                 error ": there are reported actions after a scan"
-		cat $report
+  	            cat $report
         fi
 	
 	if (( $is_hsmlite == 0 )); then
@@ -3761,7 +3764,12 @@ function cleanup
 
 function run_test
 {
-	if [[ -n $6 ]]; then args=$6; else args=$5 ; fi
+	list_args=$(echo $* | tr "" "\n")
+    for x in $list_args
+    do
+        args=$x
+    done
+    # args = last argument
 
 	index=$1
 	shift
@@ -3814,6 +3822,2286 @@ function run_test
 	fi
 }
 
+
+
+###############################################
+############### Alert Functions ###############
+###############################################
+
+function test_alerts
+{
+	# send an alert in accordance to the input file and configuration
+	# 	test_alerts config_file testKey sleepTime
+	#=>
+	# config_file == config file name	
+	# testKey == 'extAttributes' for testing extended attributes
+	# 	     'lastAccess' for testing last access
+	# 	     'lastModif' for testing last modification
+	# sleepTime == expected time in second to sleep for the test, if=0 no sleep
+	
+	# get input parameters ....................
+	config_file=$1
+	testKey=$2  #== key word for specific tests
+	sleepTime=$3
+	
+	clean_logs
+	
+	test -f "/tmp/rh_alert.log" || touch "/tmp/rh_alert.log"
+	
+	echo "1-Preparing Filesystem..."
+	if [ $testKey == "extAttributes" ]; then
+		echo " is for extended attributes"
+		echo "data" > $ROOT/file.1
+		echo "data" > $ROOT/file.2
+		echo "data" > $ROOT/file.3
+		echo "data" > $ROOT/file.4
+		setfattr -n user.foo -v "abc.1.log" $ROOT/file.1
+		setfattr -n user.foo -v "abc.6.log" $ROOT/file.3
+		setfattr -n user.bar -v "abc.3.log" $ROOT/file.4
+	else
+		mkdir -p $ROOT/dir1
+		dd if=/dev/zero of=$ROOT/dir1/file.1 bs=1k count=11 >/dev/null 2>/dev/null || error "writing file.1"
+	 	
+		mkdir -p $ROOT/dir2
+		dd if=/dev/zero of=$ROOT/dir2/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
+  		chown testuser $ROOT/dir2/file.2 || error "invalid chown on user 'testuser' for $ROOT/dir2/file.2"
+		dd if=/dev/zero of=$ROOT/dir2/file.3 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.3"
+		ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1 || error "creating hardlink $ROOT/dir1/link.1"
+		
+		if  [ $testKey == "dircount" ]; then
+			# add a folder with one file
+			mkdir -p $ROOT/dir3
+		    dd if=/dev/zero of=$ROOT/dir3/file.4 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.4"
+		fi
+	fi
+	# optional sleep process ......................
+	if [ $sleepTime != 0 ]; then
+		echo "wait $sleepTime seconds ..."
+		sleep $sleepTime
+	fi
+	# specific optional action after sleep process ..........
+	if [ $testKey == "lastAccess" ]; then
+		head $ROOT/dir1/file.1 || error "opening $ROOT/dir1/file.1"
+	elif [ $testKey == "lastModif" ]; then
+		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
+	fi
+	
+	echo "2-Scanning filesystem..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	
+	echo "3-Checking results..."
+	logFile=/tmp/rh_alert.log
+	case "$testKey" in
+		pathName)
+			alertKey=Alert_Name
+			expectedEntry="file.1 "
+			occur=1
+			;;
+		type)
+			alertKey=Alert_Type
+			expectedEntry="file.1;file.2;file.3"
+			occur=3
+			;;
+		owner)
+			alertKey=Alert_Owner
+			expectedEntry="file.1;file.3"
+			occur=2
+			;;
+		size)
+			alertKey=Alert_Size
+			expectedEntry="file.1;file.2"
+			occur=2
+			;;
+		lastAccess)
+			alertKey=Alert_LastAccess
+			expectedEntry="file.1 "
+			occur=1
+			;;
+		lastModif)
+			alertKey=Alert_LastModif
+			expectedEntry="file.1 "
+			occur=1
+			;;
+		dircount)
+			alertKey=Alert_Dircount
+			expectedEntry="dir1;dir2"
+			occur=2
+			;;	
+		extAttributes)
+			alertKey=Alert_ExtendedAttribut
+			expectedEntry="file.1"
+			occur=1
+			;;
+		*)
+			error "unexpected testKey $testKey"
+			return 1 ;;
+	esac
+
+	# launch the validation for all alerts
+	check_alert $alertKey $expectedEntry $occur $logFile
+	res=$?
+
+	if (( $res == 1 )); then
+		error "Test for $alertKey failed"
+	fi
+		
+	echo "end...."
+}
+
+function test_alerts_OST
+{
+	# send an alert in accordance to the input file and configuration
+	# 	test_alerts_OST config_file
+	#=>
+	# config_file == config file name
+	
+	# get input parameters ....................
+	config_file=$1
+	
+	clean_logs
+	
+	echo "1-Create Pools ..."
+	create_pools
+	
+	echo "2-Create Files ..."
+    for i in `seq 1 2`; do
+		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+		
+    for i in `seq 3 5`; do
+		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+	
+	echo "2-Scanning filesystem..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	
+	echo "3-Checking results..."
+	logFile=/tmp/rh_alert.log
+	alertKey=Alert_OST
+	expectedEntry="file.3;file.4;file.5"
+	occur=3
+	
+	# launch the validation for all alerts
+	check_alert $alertKey $expectedEntry $occur $logFile
+	res=$?
+
+	if (( $res == 1 )); then
+		error "Test for $alertKey failed"
+	fi
+}
+
+function check_alert 
+{
+# return 0 if the $alertKey is found $occur times in the log $logFile; and if each entry of 
+# $expectedEntries is found at least one time
+# return 1 otherwise and print an error message
+#    check_alert $alertKey $expectedEntry $occur $logFile
+# =>    
+#	alertKey = alert name which is the string to find $occur times
+#	expectedEntries = list of word to find at least one time if alertKey is found
+#		ex: expectedEntry="file.1;file.2;file.3", expectedEntry="file.1" ...
+#	occur = expected nb of occurences for alertKey
+#	logFile = name of the file to scan
+	
+	# get input parameters ......................
+	alertKey=$1
+	expectedEntries=$2
+	occur=$3
+	logFile=$4
+	
+	# set default output value .................
+	out=1
+	# get all entries separated by ';' ..........
+	splitEntries=$(echo $expectedEntries | tr ";" "\n")
+	
+	# get the nb of alertKey found in log ........
+	nbOccur=`grep -c $alertKey $logFile`
+	if [ $nbOccur == $occur ]; then
+		# search the appropriated filename ...
+		for entry in $splitEntries
+    		do
+			#  get the nb of filename found in log
+       			nbOccur=`grep -c $entry $logFile`
+			if [ $nbOccur != 0 ]; then
+				out=0
+			else
+				# the entry has been not found
+				echo "ERROR in check_alert: Entry $entry not found"
+				return 1
+			fi
+    		done
+		
+	else
+		# the alertKey has been not found as expected
+		echo "ERROR in check_alert: Bad number of occurences for $alertKey: expected=$occur & found=$nbOccur"
+		return 1
+	fi
+	
+	return $out
+}
+
+###################################################
+############### End Alert Functions ###############
+###################################################
+
+###################################################
+############### Migration Functions ###############
+###################################################
+
+function create_files_migration
+{
+	# create all directory and files for migration tests
+	#  create_files_migration
+
+	mkdir $ROOT/dir1
+	mkdir $ROOT/dir2
+
+	for i in `seq 1 5` ; do
+		dd if=/dev/zero of=$ROOT/dir1/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir1/file.$i"
+	done
+
+	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1
+	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.2
+
+	chown root:testgroup $ROOT/dir1/file.2
+	chown testuser:testgroup $ROOT/dir1/file.3
+
+	setfattr -n user.foo -v 1 $ROOT/dir1/file.4
+	setfattr -n user.bar -v 1 $ROOT/dir1/file.5
+
+	dd if=/dev/zero of=$ROOT/dir2/file.6 bs=1K count=10 >/dev/null 2>/dev/null || error "writing dir2/file.6"
+	dd if=/dev/zero of=$ROOT/dir2/file.7 bs=1K count=11 >/dev/null 2>/dev/null || error "writing dir2/file.7"
+	dd if=/dev/zero of=$ROOT/dir2/file.8 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.8"
+}
+
+function update_files_migration
+{
+	# Update several files for migration tests
+	# 	update_files_migration
+	
+    for i in `seq 1 500`; do
+		echo "aaaaaaaaaaaaaaaaaaaa" >> $ROOT/dir2/file.8
+	done
+    dd if=/dev/zero of=$ROOT/dir2/file.9 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.9"
+}
+
+function test_migration
+{
+	# Realise a unit test for migration functionalities
+	# 	test_migration config_file sleepTime countFinal migrate_list migrOpt
+	#=>
+	# config_file == config file name
+	# sleepTime == expected time in second to sleep for the test, if=0 no sleep and no update
+	# countFinal == number of files migrated at the end
+	# migrate_list == list of migrated files at the end : "file.1;file.2;link.2"
+	# migrOpt == an migrate option of robinhood : "--migrate" "--migrate-ost=1"
+	
+    config_file=$1
+    sleep_time=$2
+    countFinal=$3
+	migrate_list=$4
+    migrate_arr=$(echo $migrate_list | tr ";" "\n")
+    migrOpt=$5
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No Migration for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	clean_logs
+	
+	echo "Create Files ..."
+	create_files_migration
+	
+	if(($sleep_time != 0)); then
+	    echo "Sleep $sleep_time"
+        sleep $sleep_time
+        
+	    echo "update Files"
+        update_files_migration
+    fi
+	
+	echo "Reading changelogs and Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
+    
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+    fi
+
+    nbError=0
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function migration_file_type
+{
+	# Realise a unit test for migration functionalities based on file type
+	# 	migration_file_type config_file sleepTime countFinal migrate_list
+	#=>
+	# config_file == config file name
+	# sleepTime == expected time in second to sleep for the test, if=0 no sleep and no update
+	# countFinal == number of files migrated at the end
+	# migrate_list == list of migrated files at the end : "file.1;file.2;link.2"
+	
+    config_file=$1
+    sleep_time=$2
+    countFinal=$3
+	migrate_list=$4
+    migrate_arr=$(echo $migrate_list | tr ";" "\n")
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No Migration for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	clean_logs
+	
+	echo "Create Files ..."
+	create_files_migration
+	
+	if(($sleep_time != 0)); then
+	    echo "Sleep $sleep_time"
+        sleep $sleep_time
+        
+	    echo "update Files"
+        update_files_migration
+    fi
+	
+	echo "Reading changelogs and Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/link.1 -l DEBUG -L rh_migr.log --once
+	    
+    nbError=0
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+            ((nbError++))
+    fi
+
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+    
+	echo "Applying migration policy..."
+	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	
+	countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+            ((nbError++))
+    fi
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function migration_file_owner
+{
+	# Realise a unit test for migration functionalities based on file owner
+	# 	migration_file_owner config_file sleepTime countFinal migrate_list
+	#=>
+	# config_file == config file name
+	# sleepTime == expected time in second to sleep for the test, if=0 no sleep and no update
+	# countFinal == number of files migrated at the end
+	# migrate_list == list of migrated files at the end : "file.1;file.2;link.2"
+	
+    config_file=$1
+    sleep_time=$2
+    countFinal=$3
+	migrate_list=$4
+    migrate_arr=$(echo $migrate_list | tr ";" "\n")
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No Migration for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	clean_logs
+	
+	echo "Create Files ..."
+	create_files_migration
+	
+	if(($sleep_time != 0)); then
+	    echo "Sleep $sleep_time"
+        sleep $sleep_time
+        
+	    echo "update Files"
+        update_files_migration
+    fi
+	
+	echo "Reading changelogs and Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	    
+    nbError=0
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != 0)); then
+        error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
+            ((nbError++))
+    fi
+    
+	echo "Applying migration policy..."
+	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.3 -l DEBUG -L rh_migr.log --once
+	
+	countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+            ((nbError++))
+    fi
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function migration_file_Last
+{
+	# Realise a unit test for migration functionalities based on file last acces/modification
+	# 	migration_file_Last config_file sleepTime countFinal migrate_list
+	#=>
+	# config_file == config file name
+	# sleepTime == expected time in second to sleep for the test, if=0 no sleep and no update
+	# countFinal == number of files migrated at the end
+	# migrate_list == list of migrated files at the end : "file.1;file.2;link.2"
+	
+    config_file=$1
+    sleep_time=$2
+    countFinal=$3
+	migrate_list=$4
+    migrate_arr=$(echo $migrate_list | tr ";" "\n")
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No Migration for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	clean_logs
+	
+	echo "Create Files ..."
+	create_files_migration
+	
+	echo "Reading changelogs and Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	
+	nbError=0
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != 0)); then
+        error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
+            ((nbError++))
+    fi
+	
+	if(($sleep_time != 0)); then
+	    echo "Sleep $sleep_time"
+        sleep $sleep_time
+        
+	    echo "update Files"
+        update_files_migration
+    fi
+    
+	echo "Applying migration policy..."
+	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	
+	countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+            ((nbError++))
+    fi
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function migration_file_ExtendedAttribut
+{
+	# Realise a unit test for migration functionalities based on Extended Attribut
+	# 	migration_file_ExtendedAttribut config_file sleepTime countFinal migrate_list
+	#=>
+	# config_file == config file name
+	# sleepTime == expected time in second to sleep for the test, if=0 no sleep and no update
+	# countFinal == number of files migrated at the end
+	# migrate_list == list of migrated files at the end : "file.1;file.2;link.2"
+	
+    config_file=$1
+    sleep_time=$2
+    countFinal=$3
+	migrate_list=$4
+    migrate_arr=$(echo $migrate_list | tr ";" "\n")
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No Migration for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	clean_logs
+	
+	echo "Create Files ..."
+	create_files_migration
+	
+	echo "Reading changelogs and Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.4 -l DEBUG -L rh_migr.log --once
+	
+	nbError=0
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+       ((nbError++))
+    fi
+	
+	echo "Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.5 -l DEBUG -L rh_migr.log --once
+	
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+       ((nbError++))
+    fi
+    
+	echo "Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+       ((nbError++))
+    fi
+
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function migration_OST
+{
+	# Realise a unit test for migration functionalities for OST filesystem (Lustre)
+	# 	migration_OST config_file countFinal migrate_list migrOpt
+	#=>
+	# config_file == config file name
+	# countFinal == number of files migrated at the end
+	# migrate_list == list of migrated files at the end : "file.1;file.2;link.2"
+	# migrOpt == an migrate option of robinhood : "--migrate" "--migrate-ost=1"
+
+	config_file=$1
+    countFinal=$2
+	migrate_list=$3
+    migrate_arr=$(echo $migrate_list | tr ";" "\n")
+    migrOpt=$4
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No Migration for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+	
+	echo "1-Create Pools ..."
+	create_pools
+	
+	echo "2-Create Files ..."
+    for i in `seq 1 2`; do
+		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+		
+    for i in `seq 3 4`; do
+		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+		
+	echo "Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
+    nbError=0
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+        ((nbError++))
+    fi
+    
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+
+	echo $nbError
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function migration_file_OST
+{
+	# Realise a unit test for migration functionalities for OST filesystem (Lustre) based on file policy
+	# 	migration_file_OST config_file countFinal migrate_list
+	#=>
+	# config_file == config file name
+	# countFinal == number of files migrated at the end
+	# migrate_list == list of migrated files at the end : "file.1;file.2;link.2"
+
+	config_file=$1
+    countFinal=$2
+	migrate_list=$3
+    migrate_arr=$(echo $migrate_list | tr ";" "\n")
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No Migration for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+	
+	echo "1-Create Pools ..."
+	create_pools
+	
+	echo "2-Create Files ..."
+    for i in `seq 1 2`; do
+		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+		
+    for i in `seq 3 4`; do
+		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+		
+	echo "3-Reading changelogs and Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/file.2 -l DEBUG -L rh_migr.log --once
+
+    nbError=0 
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != 0)); then
+        error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
+        ((nbError++))
+    fi
+		
+	echo "Applying migration policy..."
+	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/file.3 -l DEBUG -L rh_migr.log --once
+
+    countFile=`find $BKROOT -type f | wc -l`
+    countLink=`find $BKROOT -type l | wc -l`
+    count=$(($countFile+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+        ((nbError++))
+    fi
+    
+    for x in $migrate_arr
+    do
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not migrate"
+            ((nbError++))
+	    fi
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $x is not migrate"
+            ((nbError++))
+	    fi
+    done
+
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+###################################################
+############# End Migration Functions #############
+###################################################
+
+###########################################################
+############### Purge Trigger Functions ###################
+###########################################################
+
+function trigger_purge_QUOTA_EXCEEDED
+{
+	# Function to test the trigger system when a quota is exceeded
+	# 	trigger_purge_QUOTA_EXCEEDED config_file
+	#=>
+	# config_file == config file name
+
+	config_file=$1
+    
+    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No Purge trigger for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+	
+	echo "1-Create Files ..."	
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	limit=80
+	indice=1
+    while [ $elem -lt $limit ]
+    do
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null || break
+        
+        unset elem
+	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+        ((indice++))
+    done 
+    
+    echo "2-Reading changelogs and Applying purge trigger policy..."
+	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
+	
+    countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
+    if (($countMigrLog == 0)); then
+        error "********** TEST FAILED **********"
+    else
+        echo "OK: test successful"
+    fi
+}
+
+function trigger_purge_OST_QUOTA_EXCEEDED
+{
+	# Function to test the trigger system when a quota is exceeded in OST filesytem (Lustre)
+	# 	trigger_purge_OST_QUOTA_EXCEEDED config_file
+	#=>
+	# config_file == config file name
+
+	config_file=$1
+    
+    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No Purge trigger for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+	
+	echo "1-Create Pools ..."
+	create_pools
+	
+	echo "Calculate big string"
+	aaa="azertyuiopqsdfghjklmwxcvbn"
+	for i in `seq 0 2000`; do
+        aaa="$aaa azertyuiop"
+    done
+	
+	echo "2-Create Files ..."   
+	elem=`lfs df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	limit=80
+	indice=1
+    while [ $elem -lt $limit ]
+    do
+        lfs setstripe -p lustre.$POOL1 $ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
+        for i in `seq 0 200`; do
+		    echo "$aaa$aaa$aaa" >> $ROOT/file.$indice
+	    done
+        unset elem
+	    elem=`lfs df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+        ((indice++))
+    done 
+    
+    echo "2-Reading changelogs and Applying purge trigger policy..."
+	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
+	
+    countMigrLog=`grep "High threshold reached on OST #0" rh_purge.log | wc -l`
+    if (($countMigrLog == 0)); then
+        error "********** TEST FAILED **********"
+    else
+        echo "OK: test successful"
+    fi
+}
+
+function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
+{
+	# Function to test the trigger system when a quota is exceeded for a group or an user
+	# 	trigger_purge_USER_GROUP_QUOTA_EXCEEDED config_file usage
+	#=>
+	# config_file == config file name
+	# usage == "User" or "Group"
+
+	config_file=$1
+	usage=$2
+    
+    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No Purge trigger for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+		
+	echo "1-Create Files ..."
+		
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	limit=60
+	indice=1
+    dd_out=/tmp/dd.out.$$
+    while [ $elem -lt $limit ]
+    do
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>$dd_out || break
+
+        unset elem
+	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+        ((indice++))
+    done
+    rm -f $dd_out
+    
+    ((limit=indice/2))
+    ((indice=1))
+    while [ $indice -lt $limit ]
+    do
+        chown testuser:testgroup $ROOT/file.$indice
+        ((indice++))
+    done
+    
+    
+    echo "2-Reading changelogs and Applying purge trigger policy..."
+	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
+	
+    countMigrLog=`grep "$usage exceeds high threshold" rh_purge.log | wc -l`
+    if (($countMigrLog == 0)); then
+        error "********** TEST FAILED **********"
+    else
+        echo "OK: test successful"
+    fi
+}
+
+###########################################################
+############# End Purge Trigger Functions #################
+###########################################################
+
+###################################################
+############### Purge Functions ###################
+###################################################
+
+function create_files_Purge
+{
+	# create all directory and files for purge tests
+	#  create_files_Purge
+
+    mkdir $ROOT/dir1
+    mkdir $ROOT/dir2
+
+    for i in `seq 1 5` ; do
+    	dd if=/dev/zero of=$ROOT/dir1/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir1/file.$i"
+	done
+    
+	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1
+	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.2
+
+	chown root:testgroup $ROOT/dir1/file.2
+    chown testuser:testgroup $ROOT/dir1/file.3
+
+	setfattr -n user.foo -v 1 $ROOT/dir1/file.4
+	setfattr -n user.bar -v 1 $ROOT/dir1/file.5
+
+    dd if=/dev/zero of=$ROOT/dir2/file.6 bs=1K count=10 >/dev/null 2>/dev/null || error "writing dir2/file.6"
+    dd if=/dev/zero of=$ROOT/dir2/file.7 bs=1K count=11 >/dev/null 2>/dev/null || error "writing dir2/file.7"
+    dd if=/dev/zero of=$ROOT/dir2/file.8 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.8"
+}
+
+function update_files_Purge
+{
+	# update files for Purge tests
+	#  update_files_migration
+
+    for i in `seq 1 500`; do
+		echo "aaaaaaaaaaaaaaaaaaaa" >> $ROOT/dir2/file.8
+	done
+	more $ROOT/dir2/file.8 >/dev/null 2>/dev/null
+}
+
+function test_purge
+{
+	# Realise a unit test for purge functionalities
+	# 	test_migration config_file sleep_time countFinal purge_list purgeOpt
+	#=>
+	# config_file == config file name
+	# sleep_time == expected time in second to sleep for the test, if=0 no sleep and no update
+	# countFinal == number of files not purged at the end
+	# purge_list == list of purged files at the end : "file.1;file.2;link.2"
+	# purgeOpt == an migrate option of robinhood : "--purge" "--purge-ost=1"
+	
+    config_file=$1
+    sleep_time=$2
+    countFinal=$3
+	purge_list=$4
+    purge_arr=$(echo $purge_list | tr ";" "\n")
+    purgeOpt=$5
+    
+    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No Purge for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	needPurge=0
+	((needPurge=10-countFinal))
+
+	clean_logs
+	
+	echo "Create Files ..."
+	create_files_Purge
+	
+	sleep 1
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	
+	# use robinhood for flushing
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+		echo "Archiving files"
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+	fi
+	
+	if(($sleep_time != 0)); then
+	    echo "Sleep $sleep_time"
+        sleep $sleep_time
+        
+	    echo "update Files"
+        update_files_Purge
+        
+        if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+	        echo "Update Archiving files"
+	        $RH -f ./cfg/$config_file --scan --migrate -l DEBUG  -L rh_migr.log --once
+	    fi
+    fi
+    
+	echo "Reading changelogs and Applying purge policy..."
+	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log 
+	
+	nbError=0
+	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	if (( $nb_purge != $needPurge )); then
+	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
+        ((nbError++))
+	fi
+    
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function test_purge_tmp_fs_mgr
+{
+	# Realise a unit test for purge functionalities for TMP_FS_MGR mod
+	# 	test_migration_tmp_fs_mgr config_file sleep_time countFinal purge_list purgeOpt
+	#=>
+	# config_file == config file name
+	# sleep_time == expected time in second to sleep for the test, if=0 no sleep and no update
+	# countFinal == number of files not purged at the end
+	# purge_list == list of purged files at the end : "file.1;file.2;link.2"
+	# purgeOpt == an migrate option of robinhood : "--purge" "--purge-ost=1"
+	
+    config_file=$1
+    sleep_time=$2
+    countFinal=$3
+	purge_list=$4
+    purge_arr=$(echo $purge_list | tr ";" "\n")
+    purgeOpt=$5
+    
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+		echo "No Purge for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	needPurge=0
+	((needPurge=10-countFinal))
+
+	clean_logs
+	
+	echo "Create Files ..."
+	create_files_Purge
+	
+	sleep 1
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	
+	if(($sleep_time != 0)); then
+	    echo "Sleep $sleep_time"
+        sleep $sleep_time
+        
+	    echo "update Files"
+        update_files_Purge
+    fi
+    
+	echo "Reading changelogs and Applying purge policy..."
+	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log 
+	
+	nbError=0
+	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	if (( $nb_purge != $needPurge )); then
+	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
+        ((nbError++))
+	fi
+	    
+    countFileDir1=`find $ROOT/dir1 -type f | wc -l`
+    countFileDir2=`find $ROOT/dir2 -type f | wc -l`
+    countLink=`find $ROOT/dir1 -type l | wc -l`
+    count=$(($countFileDir1+$countFileDir2+$countLink))
+    if (($count != $countFinal)); then
+        error "********** TEST FAILED (File System): $count files stayed in filesystem, but $countFinal expected"
+        ((nbError++))
+    fi
+    
+    for x in $purge_arr
+    do
+        if [ -e "$ROOT/dir1/$x" -o -e "$ROOT/dir2/$x" ]; then
+	        error "********** TEST FAILED (File System): $x is not purged"
+            ((nbError++))
+        fi
+    done
+    
+    if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function purge_OST
+{
+	# Realise a unit test for purge functionalities for OST fileSystem (Lustre)
+	# 	migration_OST config_file countFinal purge_list purgeOpt
+	#=>
+	# config_file == config file name
+	# countFinal == number of files not purged at the end
+	# purge_list == list of purged files at the end : "file.1;file.2;link.2"
+	# purgeOpt == an migrate option of robinhood : "--purge" "--purge-ost=1"
+	
+	config_file=$1
+    countFinal=$2
+	purge_list=$3
+    purge_arr=$(echo $purge_list | tr ";" "\n")
+    purgeOpt=$4
+    
+    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No Purge for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	needPurge=0
+	((needPurge=4-countFinal))
+
+	clean_logs
+		
+	echo "1-Create Pools ..."
+	create_pools
+	
+	echo "2-Create Files ..."
+    for i in `seq 1 2`; do
+		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+		
+    for i in `seq 3 4`; do
+		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+	
+	sleep 1
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	
+	# use robinhood for flushing
+	if (( $is_hsmlite != 0 )); then
+		echo "2bis-Archiving files"
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+	fi
+		
+	echo "Reading changelogs and Applying purge policy..."
+	$RH -f ./cfg/$config_file --scan $purgeOpt -l DEBUG -L rh_purge.log --once
+	
+	nbError=0
+	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	if (( $nb_purge != $needPurge )); then
+	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
+        ((nbError++))
+	fi
+	
+	if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+###################################################
+############# End Purge Functions #################
+###################################################
+
+##################################################
+############# Removing Functions #################
+##################################################
+
+function test_removing
+{
+	# remove directory/ies in accordance to the input file and configuration
+	# 	test_removing config_file forExtAttributes sleepTime mode_list
+	#=>
+	# config_file == config file name	
+	# testKey == 'emptyDir' for testing extended attributes
+	# 	     'lastAction' for testing last access or modification
+	# sleepTime == expected time in second to sleep for the test, if=0 no sleep
+	
+	# get input parameters ....................
+	config_file=$1
+	testKey=$2  #== key word for specific tests
+	sleepTime=$3
+    
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+		echo "No removing dir for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+	
+	#  clean logs ..............................
+	clean_logs
+	
+	# prepare data..............................
+	echo "1-Preparing Filesystem..."
+	mkdir -p $ROOT/dir1
+	mkdir -p $ROOT/dir5
+	echo "data" > $ROOT/dir5/file.5
+		
+	if [ $testKey == "emptyDir" ]; then
+		# wait and write more data
+		if [ $sleepTime != 0 ]; then
+			echo "Please wait $sleepTime seconds ..."
+			sleep $sleepTime || error "sleep time"
+		fi
+		sleepTime=0
+		mkdir -p $ROOT/dir6
+		mkdir -p $ROOT/dir7
+		echo "data" > $ROOT/dir7/file.7
+	
+	else
+		# in dir1: manage folder owner and attributes
+		chown testuser $ROOT/dir1 || error "invalid chown on user 'testuser' for $ROOT/dir1 "  #change owner
+		setfattr -n user.foo -v "abc.1.test" $ROOT/dir1
+		echo "data" > $ROOT/dir1/file.1
+		mkdir -p $ROOT/dir1/dir2
+		echo "data" > $ROOT/dir1/dir2/file.2
+		mkdir -p $ROOT/dir1/dir3
+		echo "data" > $ROOT/dir1/dir3/file.3
+	 	mkdir -p $ROOT/dir1/dir4
+		chown testuser $ROOT/dir1/dir4 || error "invalid chown on user 'testuser' for $ROOT/dir4" #change owner
+		echo "data" > $ROOT/dir1/dir4/file.41
+		echo "data" > $ROOT/dir1/dir4/file.42
+		
+		# in dir5: 
+		setfattr -n user.bar -v "abc.1.test" $ROOT/dir5
+		echo "data" > $ROOT/dir5/file.5
+		
+		# in dir6:
+		mkdir -p $ROOT/dir6
+		chown testuser $ROOT/dir6 || error "invalid chown on user 'testuser' for $ROOT/dir6" #change owner
+	fi
+	
+	# launch the scan ..........................
+	echo "2-Scanning directories in filesystem ..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
+
+	# optional sleep process ......................
+	if [ $sleepTime != 0 ]; then
+		echo "Please wait $sleepTime seconds ..."
+		sleep $sleepTime
+	fi
+	# specific optional action after sleep process ..........
+	if [ $testKey == "lastAccess" ]; then
+	#	ls -R $ROOT/dir1 || error "scaning $ROOT/dir1"
+		touch $ROOT/dir1/file.touched || error "touching file in $ROOT/dir1"
+	elif [ $testKey == "lastModif" ]; then
+		echo "data" > $ROOT/dir1/file.12 || error "writing in $ROOT/dir1/file.12"
+	fi
+	
+	# launch the rmdir ..........................
+	echo "3-Removing directories in filesystem ..."
+	if [ $testKey == "lastAccess" ]; then
+	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	else
+	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	fi
+
+	# launch the validation ..........................
+	echo "4-Checking results ..."
+	logFile=/tmp/rh_alert.log
+	case "$testKey" in
+		pathName)
+			existedDirs="$ROOT/dir5;$ROOT/dir6"
+			notExistedDirs="$ROOT/dir1"
+			;;
+		emptyDir)
+			existedDirs="$ROOT/dir6;$ROOT/dir5;$ROOT/dir7"
+			notExistedDirs="$ROOT/dir1"
+			;;
+		owner)
+			existedDirs="$ROOT/dir5"
+			notExistedDirs="$ROOT/dir1;$ROOT/dir6"
+			;;
+		lastAccess)
+			existedDirs="$ROOT/dir1"
+			notExistedDirs="$ROOT/dir5;$ROOT/dir6"
+			;;
+		lastModif)
+			existedDirs="$ROOT/dir1"
+			notExistedDirs="$ROOT/dir5;$ROOT/dir6"
+			;;
+		dircount)
+			existedDirs="$ROOT/dir5;$ROOT/dir6"
+			notExistedDirs="$ROOT/dir1"
+			;;	
+		extAttributes)
+			existedDirs="$ROOT/dir5;$ROOT/dir6"
+			notExistedDirs="$ROOT/dir1"
+			;;
+		*)
+			error "unexpected testKey $testKey"
+			return 1 ;;
+	esac
+	# launch the validation for all remove process
+	exist_dirs_or_not $existedDirs $notExistedDirs
+	res=$?
+
+	if (( $res == 1 )); then
+		error "Test for RemovingDir_$testKey failed"
+	fi
+}
+
+function test_removing_ost
+{
+	# remove directory/ies in accordance to the input file and configuration
+	# 	test_removing config_file mode_list
+	#=>
+	# config_file == config file name	
+	
+	# get input parameters ....................
+	config_file=$1
+    
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+		echo "No removing dir for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+	
+	clean_logs
+	
+	echo "Create Pools ..."
+	create_pools
+	
+	echo "Create Files ..."
+	mkdir $ROOT/dir1
+	
+	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1 >/dev/null 2>/dev/null
+
+	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1/file.1 -c 1 >/dev/null 2>/dev/null
+	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1/file.2 -c 1 >/dev/null 2>/dev/null
+	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1/file.3 -c 1 >/dev/null 2>/dev/null
+	
+	mkdir $ROOT/dir2
+	lfs setstripe  -p lustre.$POOL2 $ROOT/dir2 >/dev/null 2>/dev/null
+	
+    lfs setstripe  -p lustre.$POOL2 $ROOT/file.1 -c 1 >/dev/null 2>/dev/null
+	lfs setstripe  -p lustre.$POOL2 $ROOT/dir2/file.2 -c 1 >/dev/null 2>/dev/null
+	lfs setstripe  -p lustre.$POOL2 $ROOT/dir2/file.3 -c 1 >/dev/null 2>/dev/null
+
+	echo "Removing directories in filesystem ..."
+	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	
+	# launch the validation ..........................
+	echo "Checking results ..."
+	logFile=/tmp/rh_alert.log
+	existedDirs="$ROOT/dir1"
+	notExistedDirs="$ROOT/dir2"
+	# launch the validation for all remove process
+	exist_dirs_or_not $existedDirs $notExistedDirs
+	res=$?
+
+	if (( $res == 1 )); then
+		error "Test for RemovingDir_ost failed"
+	fi
+	
+	test -f $ROOT/file.1
+	res=$?
+
+	if (( $res == 1 )); then
+		error "Test for RemovingDir_ost failed"
+	fi
+}
+
+function exist_dirs_or_not
+{
+    # read two lists of folders and check:
+    # 1- the first list must contain existed dirs
+    # 2- the first list must contain not existed dirs
+    #If the both conditions are realized, then the function returns 0, otherwise 1.
+    # 	exist_dirs_or_not $existedDirs $notExistedDirs
+    #=> existedDirs & notExistedDirs list of dirs to check separated by ';'
+    # ex: "$ROOT/dir1;$ROOT/dir5" 
+    # ex: Use "/" for giving an empty list
+
+    existedDirs=$1
+    notExistedDirs=$2
+
+    echo "[$existedDirs] & [$notExistedDirs]"
+    # launch the command which return 1 if one dir is not "! -d" (== does not exist)
+    check_cmd $existedDirs "! -d"
+    if [  $? -eq 1 ] ; then
+	    echo "error for $existedDirs"
+	    return 1
+    else
+    # launch the command which return 1 if one dir is not "-d" (== does exist)
+	    check_cmd $notExistedDirs "-d"
+	    if [  $? -eq 1 ] ; then
+		    echo "error for $notExistedDirs"
+		    return 1
+	    fi
+    fi	
+}
+
+function check_cmd
+{
+    # check if each dir respects the reverse of the given command.
+    # return 0 if it repects, 1 otherwise
+    # check_cmd $listDirs $commande
+    # => 
+    # 	$listDirs = list of dirs separated by ';' 
+    #	ex: "$ROOT/dir1;$ROOT/dir5"  or "/" to no check command
+    #	$commande = "-d" or "! -d"
+    #	ex: check_cmd $notExistedDirs "-d": checks that all dirs does not exist
+
+    existedDirs=$1
+    cmd=$2
+    # set default output value
+    out=1
+    #get the dirs which must exist
+    if [ $existedDirs != "/" ]; then
+	    splitExDirs=$(echo $existedDirs | tr ";" "\n")
+	    for entry in $splitExDirs
+        	do
+		    # for each dir check the existence, otherwise return 1 
+		    if [ $cmd $entry ]; then
+			    return 1
+		    fi
+	    done
+    fi
+}
+
+######################################################
+############# End Removing Functions #################
+######################################################
+
+###############################################################
+############### Report generation Functions ###################
+###############################################################
+
+function test_report_generation_1
+{
+	# report many statistics in accordance to the input file and configuration
+	# 	test_report_generation_1 config_file 
+	#=>
+	# config_file == config file name
+	
+	# get input parameters ....................
+	config_file=$1
+	
+	#  clean logs ..............................
+	clean_logs
+	
+	# prepare data..............................
+	echo -e "\n 1-Preparing Filesystem..."
+	# dir1:
+	mkdir -p $ROOT/dir1/dir2
+	sleep 1
+	dd if=/dev/zero of=$ROOT/dir1/file.1 bs=1k count=5 >/dev/null 2>/dev/null || error "writing file.1"
+	sleep 1
+	dd if=/dev/zero of=$ROOT/dir1/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
+	sleep 1
+	dd if=/dev/zero of=$ROOT/dir1/file.3 bs=1k count=15 >/dev/null 2>/dev/null || error "writing file.3"
+	sleep 1
+	# link from dir1:
+	ln -s $ROOT/dir1/file.1 $ROOT/link.1 || error "creating symbolic link $ROOT/link.1"
+	sleep 1
+	# dir2 inside dir1:
+	ln -s $ROOT/dir1/file.3 $ROOT/dir1/dir2/link.2 || error "creating symbolic link $ROOT/dir1/dir2/link.2"
+	sleep 1
+	# dir3 inside dir1:
+	mkdir -p $ROOT/dir1/dir3
+	sleep 1
+	#dir4:
+	mkdir -p $ROOT/dir4	
+	sleep 1
+	#dir5:
+	mkdir -p $ROOT/dir5
+	sleep 1
+	dd if=/dev/zero of=$ROOT/dir5/file.4 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.4"
+	sleep 1
+	dd if=/dev/zero of=$ROOT/dir5/file.5 bs=1k count=20 >/dev/null 2>/dev/null || error "writing file.5"
+	sleep 1
+	dd if=/dev/zero of=$ROOT/dir5/file.6 bs=1k count=21 >/dev/null 2>/dev/null || error "writing file.6"
+	sleep 1
+	ln -s $ROOT/dir1/file.2 $ROOT/dir5/link.3 || error "creating symbolic link $ROOT/dir5/link.3"
+	sleep 1	
+	#dir6 inside dir5:
+	mkdir -p $ROOT/dir5/dir6
+	sleep 1	
+	# dir7:
+	mkdir -p $ROOT/dir7
+	sleep 1
+	
+	# manage owner and group
+	filesList="$ROOT/link.1 $ROOT/dir1/dir2/link.2"
+	chgrp -h testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
+	chown -h testuser $filesList || error "invalid chown on user 'testuser' for $filesList "
+	filesList="$ROOT/dir1/file.2 $ROOT/dir1/dir2 $ROOT/dir1/dir3 $ROOT/dir5 $ROOT/dir7 $ROOT/dir5/dir6"
+	chown testuser:testgroup $filesList || error "invalid chown on user 'testuser' for $filesList "
+	filesList="$ROOT/dir1/file.1 $ROOT/dir5/file.6"
+	chgrp testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
+	
+	# launch the scan ..........................
+	echo -e "\n 2-Scanning Filesystem..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	
+	# launch another scan ..........................
+	echo -e "\n 3-Filesystem content statistics..."
+	#$REPORT -f ./cfg/$config_file --fs-info -c || error "performing FS statistics (--fs-info)"
+	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs-info)"
+	logFile=report.out
+	typeValues="dir;file;symlink"
+	countValues="7;6;3"
+	colSearch=2
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
+	
+	
+	# launch another scan ..........................
+	echo -e "\n 4-FileClasses summary..."
+	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
+	typeValues="test_file_type;test_link_type"
+	#typeValues="test_file_type"
+	countValues="6;3"
+	#countValues="6"
+	colSearch=2
+	#echo "arguments= $logFile $typeValues $countValues $colSearch**"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FileClasses summary (--class)"
+	# launch another scan ..........................
+	echo -e "\n 5-User statistics of root..."
+	$REPORT -f ./cfg/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
+	typeValues="root.*dir;root.*file;root.*symlink"
+	countValues="2;5;1"
+	colSearch=3
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
+	
+	# launch another scan ..........................
+	echo -e "\n 6-Group statistics of testgroup..."
+	$REPORT -f ./cfg/$config_file --group-info -g testgroup --csv > report.out || error "performing Group statistics (--group)"
+	typeValues="testgroup.*dir;testgroup.*file;testgroup.*symlink"
+	countValues="5;3;2"
+	colSearch=3
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group statistics (--group)"
+	
+	# launch another scan ..........................
+	echo -e "\n 7-Four largest files of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-size=4 --csv > report.out || error "performing Largest files list (--top-size)"
+	typeValues="file\.6;file\.5;file\.3;file\.2"
+	countValues="1;2;3;4"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"	
+	
+	# launch another scan ..........................
+	echo -e "\n 8-Two largest directories of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-dirs=2 --csv > report.out || error "performing Largest folders list (--top-dirs)"
+	typeValues="dir1;dir5"
+	countValues="1;2"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
+	
+	# launch another scan ..........................
+	echo -e "\n 9-Four largest directories of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
+	typeValues="file\.3;file\.4;file\.5;link\.3"
+	countValues="1;2;3;4"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--top-purge)"	
+	
+   echo -e "\n 10-Oldest and empty directories of Filesystem..."
+   if (( $is_hsmlite + $is_lhsm != 0 )); then
+       echo "No rmdir policy for hsmlite or HSM purpose: skipped"
+   else
+        $REPORT -f ./cfg/$config_file --top-rmdir --csv > report.out || error "performing Oldest and empty folders list (--top-rmdir)"	
+        nb_dir3=`grep "dir3" $logFile | wc -l`
+        if (( nb_dir3==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir3 not found"
+        fi
+        nb_dir4=`grep "dir4" $logFile | wc -l`
+        if (( nb_dir4==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir4 not found"
+        fi
+        nb_dir6=`grep "dir6" $logFile | wc -l`
+        if (( nb_dir6==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir6 not found"
+        fi
+        nb_dir7=`grep "dir7" $logFile | wc -l`
+        if (( nb_dir7==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir7 not found"
+        fi
+    fi
+	
+	# launch another scan ..........................
+	echo -e "\n 11-Top disk space consumers of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-users --csv > report.out || error "performing disk space consumers (--top-users)"
+	typeValues="testuser;root"
+	countValues="1;2"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating disk space consumers (--top-users)"
+	
+	# launch another scan ..........................
+	echo -e "\n 12-Dump entries for one user of Filesystem..."
+	$REPORT -f ./cfg/$config_file --dump-user root --csv > report.out || error "dumping entries for one user 'root'(--dump-user)"
+	typeValues="root.*[root|testgroup].*dir1$;root.*[root|testgroup].*file\.1;root.*[root|testgroup].*file\.3;root.*[root|testgroup].*dir4$;"
+	countValues="dir;file;file;dir"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
+	typeValues="root.*[root|testgroup].*file\.4;root.*[root|testgroup].*file\.5;root.*[root|testgroup].*file\.6;root.*[root|testgroup].*link\.3;"
+	countValues="file;file;file;symlink"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
+	typeValue="root.*[root|testgroup]"
+	if (( $(grep $typeValue $logFile | wc -l) != 8 )) ; then
+		 error "validating entries for one user 'root'(--dump-user)"
+	fi
+		
+	# launch another scan ..........................
+	echo -e "\n 13-Dump entries for one group of Filesystem..."
+	$REPORT -f ./cfg/$config_file --dump-group testgroup --csv > report.out || error "dumping entries for one group 'testgroup'(--dump-group)"
+	#$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
+	countValues="symlink;file;file;symlink;file"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
+	typeValues="testgroup.*dir2$;testgroup.*dir3$;testgroup.*dir5$;testgroup.*dir6$;testgroup.*dir7$"
+	countValues="dir;dir;dir;dir;dir"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
+	typeValue="testgroup"
+	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
+		 error "validating Group entries for one group 'testgroup'(--dump-group)"
+	fi
+}
+
+function find_allValuesinCSVreport
+{
+    # The research is based on file CSV format generated by the report Robinhood method (--csv): 
+    # one line per information; informations separeted by ','
+    # Search in the file logFile the given series (typeValue & countValue) in the column
+    # colSearch.
+    # return 0 if all is found, 0 otherwise
+    # 	find_valueInCSVreport $logFile $typeValues $countValues $colSearch
+    # logFile = name of file to scan
+    # typeValues = list of words to extract the line. Each word must be separeted by ';'
+    # countValues = list of associated values (to typeValues) in the extracted line. Each word must be separeted by ';'
+    # colSearch =  column index to find the countValues (each column is separated by ',' in the file)
+
+    # get input parameters
+    logFile=$1
+    typeValues=$2
+    countValues=$3
+    colSearch=$4
+
+    # get typeValue and associated countvalue
+    splitTypes=$(echo $typeValues | tr ";" "\n")
+    tabTypes=""
+    j=1
+    for entry in $splitTypes
+       do
+       	tabTypes[$j]=$entry
+	    j=$(($j+1))
+    done
+    iDataMax=$j
+
+    splitValues=$(echo $countValues | tr ";" "\n")
+    tabValues=""
+    j=1
+    for entry in $splitValues
+       do
+       	tabValues[$j]=$entry
+	    j=$(($j+1))
+    done
+    if [ ${#tabValues[*]} != ${#tabTypes[*]} ]; then
+	    echo "Error: The given conditions have different length!!"
+	    return 1
+    fi
+    # treatement for each typeValue & countvalue
+    iData=1
+    #iDataMax=${#tabValues[*]}
+    #echo "... length of conditions = $iDataMax"
+    while (( $iData < $iDataMax ))
+    do
+	    # get current typeValue & countvalue
+	    typeValue=${tabTypes[$iData]}
+	    countValue=${tabValues[$iData]}
+	
+	    find_valueInCSVreport $logFile $typeValue $countValue $colSearch
+	    res=$?
+	    if (( $res == 1 )); then
+		    #error "Test for $alertKey failed"
+		    iData=$iDataMax
+		    return 1
+	    fi
+	    # go to next serie
+	    iData=$(($iData+1))
+    done
+}
+
+function find_valueInCSVreport
+{
+    # The research is based on file CSV format generated by the report Robinhood method (--csv): 
+    # one line per information; informations separeted by ','
+    # Search in the same line the given words typeValue & countValue in the column
+    # colSearch in the file logFile.
+    # return 0 if all is found, 0 otherwise
+    # 	find_valueInCSVreport $logFile $typeValues $countValues $colSearch
+    # logFile = name of file to scan
+    # typeValue = word to extract the line
+    # countValue = associated value to typeValue in the extracted line
+    # colSearch =  column index to find the countValue (each column is separated by ',')
+
+
+    # get input parameters
+    logFile=$1
+    typeValue=$2
+    countValue=$3
+    colSearch=$4
+    #echo '-------------------------------------'
+    #more $logFile
+    #echo "colSearch=$colSearch"
+    #echo '-------------------------------------'
+    # find line contains expected value type
+    line=$(grep $typeValue $logFile)
+    #echo $line
+    if (( ${#line} == 0 )); then
+	    #echo "=====> NON trouve pour $typeValue"
+	    return 1
+    fi
+
+    # get found value count for this value type
+    foundCount=$(grep $typeValue $logFile | cut -d ',' -f $colSearch | tr -d ' ')
+    #echo "foundCount=$foundCount**"
+    if (( $foundCount != $countValue )); then
+	    #echo "=====> NON trouve pour $typeValue : $countValue =/$foundCount"
+	    return 1
+    else
+	    #echo "=====> trouve pour $typeValue : $countValue "
+	    return 0
+    fi
+}
+
+function report_generation2
+{
+	# report many statistics for OST fileSystem
+	# 	report_generation_2
+
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No report generation for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+    
+	clean_logs
+		
+	echo "1-Create Pools ..."
+	create_pools
+	
+	echo "2-Create Files ..."
+    for i in `seq 1 2`; do
+		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+		
+    for i in `seq 3 4`; do
+		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+	done
+	
+	sleep 1
+	$RH -f ./cfg/common.conf --scan -l DEBUG -L rh_scan.log --once
+
+		
+	echo "Generate report..."
+	$REPORT -f ./cfg/common.conf --dump-ost 1 >> report.out
+	
+	nbError=0
+	nb_report=`grep "$ROOT/file." report.out | wc -l`
+	if (( $nb_report != 2 )); then
+	    error "********** TEST FAILED (Log): $nb_report files purged, but 2 expected"
+        ((nbError++))
+	fi
+	
+	nb_report=`grep "$ROOT/file.3" report.out | wc -l`
+	if (( $nb_report != 1 )); then
+	    error "********** TEST FAILED (Log): No report for file.3"
+        ((nbError++))
+	fi
+	
+	nb_report=`grep "$ROOT/file.4" report.out | wc -l`
+	if (( $nb_report != 1 )); then
+	    error "********** TEST FAILED (Log): No report for file.4"
+        ((nbError++))
+	fi
+	
+	if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+###################################################################
+############### End report generation Functions ###################
+###################################################################
+
+##############################################################
+############### Other Parameters Functions ###################
+##############################################################
+
+function TEST_OTHER_PARAMETERS_1
+{
+	# Test for many parameters
+	# 	TEST_OTHER_PARAMETERS_1 config_file
+	#=>
+	# config_file == config file name
+
+	config_file=$1
+
+	clean_logs
+
+	echo "Create Files ..."
+    for i in `seq 1 10` ; do
+    	dd if=/dev/zero of=$ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	    setfattr -n user.foo -v $i $ROOT/file.$i
+	done
+	
+	echo "Scan Filesystem"
+	sleep 1
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	
+	# use robinhood for flushing (
+	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && shook == 1) )); then
+		echo "Archiving files"
+		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+	fi
+	
+	echo "Report : --dump --filter-class test_purge"
+	$REPORT -f ./cfg/$config_file --dump --filter-class test_purge > report.out
+	
+	nbError=0
+	nb_entries=`grep "0 entries" report.out | wc -l`
+	if (( $nb_entries != 1 )); then
+	    error "********** TEST FAILED (Log): not found line \" $nb_entries \" "
+        ((nbError++))
+	fi
+
+    echo "Create /var/lock/rbh.lock"
+	touch "/var/lock/rbh.lock"
+	
+	if (( $is_hsmlite == 0 || $shook != 0 || $is_lhsm != 0 )); then
+	    echo "Reading changelogs and Applying purge policy..."
+	    $RH -f ./cfg/$config_file --scan --purge -l DEBUG -L rh_purge.log --once &
+
+	    sleep 5
+	    nbError=0
+	    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	    if (( $nb_purge != 0 )); then
+	        error "********** TEST FAILED (Log): $nb_purge files purged, but 0 expected"
+            ((nbError++))
+	    fi
+
+	    echo "Remove /var/lock/rbh.lock"
+	    rm "/var/lock/rbh.lock"
+	
+	    echo "wait robinhood"
+	    wait
+	    
+	    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	    if (( $nb_purge != 10 )); then
+	        error "********** TEST FAILED (Log): $nb_purge files purged, but 10 expected"
+            ((nbError++))
+	    fi
+    else #backup mod
+	    echo "Launch Migration in background"
+	    $RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once &
+	
+	    sleep 5
+	
+        count=`find $BKROOT -type f | wc -l`
+        if (($count != 0)); then
+            error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
+            ((nbError++))
+        fi
+	
+        echo "Remove /var/lock/rbh.lock"
+	    rm "/var/lock/rbh.lock"
+	
+	    echo "wait robinhood"
+	    wait
+
+        count=`find $BKROOT -type f | wc -l`
+        if (($count != 10)); then
+            error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
+            ((nbError++))
+        fi
+    fi
+	
+	if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+}
+
+function TEST_OTHER_PARAMETERS_2
+{
+	# Test for many parameters
+	# 	TEST_OTHER_PARAMETERS_2 config_file
+	#=>
+	# config_file == config file name
+
+	config_file=$1
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No TEST_OTHER_PARAMETERS_2 for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	echo "Create Files ..."
+    for i in `seq 1 5` ; do
+    	dd if=/dev/zero of=$ROOT/file.$i bs=10M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+    for i in `seq 6 10` ; do
+    	touch $ROOT/file.$i
+	done
+	
+	sleep 1
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	
+	echo "Migrate files"
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log &
+	pid=$!
+	
+	sleep 5
+	
+    nbError=0
+	count=`find $BKROOT -type f | wc -l`
+    if (( $count != 10 )); then
+        error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
+        ((nbError++))
+    fi
+
+    # Migration dans "fs"
+    countMigrLog=`grep "ShCmd | Command successful" rh_migr.log | wc -l`
+    if (( $countMigrLog != 10 )); then
+        error "********** TEST FAILED (File System): $countMigrLog files migrated, but 10 expected"
+        ((nbError++))
+    fi
+    
+    #comptage du nombre de "STATS"
+    nb_Stats=`grep "STATS" rh_migr.log | wc -l`
+    	
+	echo "Sleep 30 seconds"
+	sleep 30
+	
+    #comptage du nombre de "STATS"
+    nb_Stats2=`grep "STATS" rh_migr.log | wc -l`
+	if (( $nb_Stats2 <= $nb_Stats )); then
+        error "********** TEST FAILED (LOG): $nb_Stats2 \"STATS\" detected, but more than $nb_Stats \"STATS\" expected"
+        ((nbError++))
+    fi
+    	
+	echo "Sleep 30 seconds"
+	sleep 30
+	
+	
+	count=`find $BKROOT -type f | wc -l`
+    if (( $count != 10 )); then
+        error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
+        ((nbError++))
+    fi
+	
+	if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+    
+    kill -9 $pid
+}
+
+function TEST_OTHER_PARAMETERS_3
+{
+	# Test for many parameters
+	# 	TEST_OTHER_PARAMETERS_3 config_file
+	#=>
+	# config_file == config file name
+
+	config_file=$1
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No TEST_OTHER_PARAMETERS_3 for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	echo "Create Files ..."
+    for i in `seq 1 5` ; do
+    	dd if=/dev/zero of=$ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+	
+	echo "Archives files"
+	$RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once
+	
+	nbError=0
+	count=`find $BKROOT -type f | wc -l`
+    if (( $count != 5 )); then
+        error "********** TEST FAILED (File System): $count files migrated, but 5 expected"
+        ((nbError++))
+    fi
+	
+    for i in `seq 1 5` ; do
+    	rm -f $ROOT/file.$i
+	done
+	
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	
+	echo "sleep 30 seconds"
+	sleep 30
+	
+	echo "HSM Remove"
+	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_purge.log &
+	pid=$!
+	
+	echo "sleep 5 seconds"
+	sleep 5
+	
+	nb_Remove=`grep "Remove request successful for entry" rh_purge.log | wc -l`
+	if (( $nb_Remove != 4 )); then
+        error "********** TEST FAILED (LOG): $nb_Remove remove detected, but 4 expected"
+        ((nbError++))
+    fi
+    
+	for i in `seq 1 4` ; do
+	    countMigrFile=`ls -R $BKROOT | grep "file.$i" | wc -l`
+        if (($countMigrFile != 0)); then
+            error "********** TEST FAILED (File System): file.$i is not removed"
+            ((nbError++))
+        fi
+	done	
+
+    countMigrFile=`ls -R $BKROOT | grep "file.5" | wc -l`
+    if (($countMigrFile == 0)); then
+        error "********** TEST FAILED (File System): file.5 is removed"
+        ((nbError++))
+    fi
+	
+	echo "sleep 60 seconds"
+	sleep 60
+
+
+
+	nb_Remove=`grep "Remove request successful for entry" rh_purge.log | wc -l`
+	if (( $nb_Remove != 5 )); then
+        error "********** TEST FAILED (LOG): $nb_Remove remove detected, but 5 expected"
+        ((nbError++))
+    fi
+	
+	countMigrFile=`ls -R $BKROOT | grep "file.5" | wc -l`
+    if (($countMigrFile == 1)); then
+        error "********** TEST FAILED (File System): file.5 is not removed"
+        ((nbError++))
+    fi
+	
+	if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+    
+    kill -9 $pid
+}
+
+function TEST_OTHER_PARAMETERS_4
+{
+	# Test for many parameters
+	# 	TEST_OTHER_PARAMETERS_4 config_file
+	#=>
+	# config_file == config file name
+
+	config_file=$1
+    
+    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+		echo "No TEST_OTHER_PARAMETERS_4 for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	echo "Create Files ..."
+    for i in `seq 1 11` ; do
+    	dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+	
+	echo "Migrate files"
+	$RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once
+	
+	nbError=0
+	count=`find $BKROOT -type f | wc -l`
+    if (( $count != 0 )); then
+        error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
+        ((nbError++))
+    fi
+    
+	mnted=`mount | grep $BKROOT | grep loop | wc -l`
+    if (( $mnted == 0 )); then
+        LOOP_FILE=/tmp/rbh.loop.cont
+        if [[ ! -s $LOOP_FILE ]]; then
+            echo "creating file container $LOOP_FILE..."
+            dd if=/dev/zero of=$LOOP_FILE bs=1M count=400 || exit 1
+            echo "formatting as ext3..."
+            mkfs.ext3 -F $LOOP_FILE || exit 1
+        fi
+
+        echo "Mounting $LOOP_FILE as $BKROOT"
+        mount -o loop -t ext4 $LOOP_FILE $BKROOT || exit 1
+    fi
+    
+    echo "Migrate files"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log --once &
+	pid=$!
+    kill -9 $pid
+	
+	nbError=0
+	count=`find $BKROOT -type f | wc -l`
+    if (( $count != 0 )); then
+        error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
+        ((nbError++))
+    fi
+    
+    echo "Migrate files"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log &
+	pid=$!
+	
+	echo "sleep 30 seconds"
+	sleep 30
+	
+	nbError=0
+	count=`find $BKROOT -type f | wc -l`
+    if (( $count != 10 )); then
+        error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
+        ((nbError++))
+    fi   
+	
+	if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+    
+    kill -9 $pid
+    rm -rf $BKROOT/*
+    umount -f $BKROOT
+}
+
+function TEST_OTHER_PARAMETERS_5
+{
+	# Test for many parameters
+	# 	TEST_OTHER_PARAMETERS_5 config_file
+	#=>
+	# config_file == config file name
+
+	config_file=$1
+    
+    if (( ($shook != 0) || ($is_lhsm != 0) )); then
+		echo "No TEST_OTHER_PARAMETERS_5 for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+	
+    echo "Launch scan in background..."
+	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_scan.log &
+	pid=$!
+	
+	sleep 2
+	
+	nbError=0
+	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
+	if (( $nb_scan != 1 )); then
+        error "********** TEST FAILED (LOG): $nb_scan scan detected, but 1 expected"
+        ((nbError++))
+    fi
+	
+	echo "sleep 60 seconds"
+	sleep 60
+	
+    echo "Create files"
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	limit=60
+	indice=1
+    while (( $elem < $limit ))
+    do
+        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writing file.$indice (usage $elem/$limit)"
+        unset elem
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
+        ((indice++))
+    done
+
+	echo "sleep 60 seconds"
+	sleep 60
+	
+	nbError=0
+	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
+	if (( $nb_scan != 3 )); then
+        error "********** TEST FAILED (LOG): $nb_scan scan detected, but 3 expected"
+        ((nbError++))
+    fi
+
+	if (($nbError == 0 )); then
+        echo "OK: test successful"
+    else
+        error "********** TEST FAILED **********"
+    fi
+    
+    kill -9 $pid
+}
+
+##################################################################
+############### End Other Parameters Functions ###################
+##################################################################
+
 # clear summary
 cp /dev/null $SUMMARY
 
@@ -3829,6 +6117,7 @@ fi
 # 3xx - triggers
 # 4xx - reporting
 # 5xx - internals, misc.
+# 6xx - Tests by Sogeti
 ################################
 
 ##### info collect. + DB tests #####
@@ -3881,15 +6170,14 @@ run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
 run_test 303    test_periodic_trigger test_trig4.conf 35 "periodic trigger"
 
+
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
-
 run_test 401a   test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
 run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
 run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
 run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
 run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
-
 run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
 run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
@@ -3905,16 +6193,95 @@ run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without aler
 run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
 run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
 run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
-
 run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
 run_test 501b 	test_cfg_parsing detailed none		"parsing of detailed template"
 run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
-
 run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
 run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
 run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
 run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
 run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
+
+
+#### Tests by Sogeti ####
+run_test 601 test_alerts Alert_Path_Name.conf "pathName" 0 "TEST_ALERT_PATH_NAME"
+run_test 602 test_alerts Alert_Type.conf "type" 0 "TEST_ALERT_TYPE"
+run_test 603 test_alerts Alert_Owner.conf "owner" 0 "TEST_ALERT_OWNER"
+run_test 604 test_alerts Alert_Size.conf "size" 0 "TEST_ALERT_SIZE"
+run_test 605 test_alerts Alert_LastAccess.conf "lastAccess" 60 "TEST_ALERT_LAST_ACCESS"
+run_test 606 test_alerts Alert_LastModification.conf "lastModif" 60 "TEST_ALERT_LAST_MODIFICATION"
+run_test 607 test_alerts_OST Alert_OST.conf "TEST_ALERT_OST"
+run_test 608 test_alerts Alert_ExtendedAttribute.conf "extAttributes" 0 "TEST_ALERT_EXTENDED_ATTRIBUT"
+run_test 609 test_alerts Alert_Dircount.conf "dircount" 0 "TEST_ALERT_DIRCOUNT"
+
+run_test 610 test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.8" "--migrate" "TEST_test_migration_PATH_NAME"
+run_test 611 test_migration MigrationStd_Type.conf 0 2 "link.1;link.2" "--migrate" "TEST_MIGRATION_STD_TYPE"
+run_test 612 test_migration MigrationStd_Owner.conf 0 1 "file.3" "--migrate" "TEST_MIGRATION_STD_OWNER"
+run_test 613 test_migration MigrationStd_Size.conf 0 2 "file.6;file.7" "--migrate" "TEST_MIGRATION_STD_SIZE"
+run_test 614 test_migration MigrationStd_LastAccess.conf 31 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--migrate" "TEST_MIGRATION_STD_LAST_ACCESS"
+run_test 615 test_migration MigrationStd_LastModification.conf 31 2 "file.8;file.9" "--migrate" "TEST_MIGRATION_STD_LAST_MODIFICATION"
+run_test 616 migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--migrate" "TEST_MIGRATION_STD_OST"
+run_test 617 test_migration MigrationStd_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_STD_EXTENDED_ATTRIBUT"
+run_test 618 migration_OST MigrationOST.conf 2 "file.3;file.4" "--migrate-ost=1" "TEST_MIGRATION_OST"
+run_test 619 test_migration MigrationClass_Path_Name.conf 0 3 "file.6;file.7;file.8" "--migrate" "TEST_MIGRATION_CLASS_PATH_NAME"
+run_test 620 test_migration MigrationClass_Type.conf 0 2 "link.1;link.2" "--migrate" "TEST_MIGRATION_CLASS_TYPE"
+run_test 621 test_migration MigrationClass_Owner.conf 0 1 "file.3" "--migrate" "TEST_MIGRATION_CLASS_OWNER"
+run_test 622 test_migration MigrationClass_Size.conf 0 2 "file.6;file.7" "--migrate" "TEST_MIGRATION_CLASS_SIZE"
+run_test 623 test_migration MigrationClass_LastAccess.conf 31 8 "file.1;file.2;file.4;file.5;file.6;file.7;link.1;link.2" "--migrate" "TEST_MIGRATION_CLASS_LAST_ACCESS"
+run_test 624 test_migration MigrationClass_LastModification.conf 31 2 "file.8;file.9" "--migrate" "TEST_MIGRATION_CLASS_LAST_MODIFICATION"
+run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--migrate" "TEST_MIGRATION_CLASS_OST"
+run_test 626 test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
+run_test 627 test_migration MigrationUser.conf 0 1 "file.3" "--migrate-user=testuser" "TEST_MIGRATION_USER"
+run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--migrate-group=testgroup" "TEST_MIGRATION_GROUP"
+run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--migrate-file=$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
+run_test 630 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
+run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--migrate-file=$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
+run_test 632 test_migration MigrationFile_Size.conf 1 1 "file.8" "--migrate-file=$ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
+run_test 633 migration_file_Last MigrationFile_LastAccess.conf 31 1 "file.1" "TEST_MIGRATION_FILE_LAST_ACCESS"
+run_test 634 migration_file_Last MigrationFile_LastModification.conf 31 1 "file.1" "TEST_MIGRATION_FILE_LAST_MODIFICATION"
+run_test 635 migration_file_OST MigrationFile_OST.conf 1 "file.3" "TEST_MIGRATION_FILE_OST"
+run_test 636 migration_file_ExtendedAttribut MigrationFile_ExtendedAttribut.conf 0 1 "file.4"  "TEST_MIGRATION_FILE_EXTENDED_ATTRIBUT"
+
+run_test 637 trigger_purge_QUOTA_EXCEEDED TriggerPurge_QuotaExceeded.conf "TEST_TRIGGER_PURGE_QUOTA_EXCEEDED"
+run_test 638 trigger_purge_OST_QUOTA_EXCEEDED TriggerPurge_OstQuotaExceeded.conf "TEST_TRIGGER_PURGE_OST_QUOTA_EXCEEDED"
+run_test 639 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_UserQuotaExceeded.conf "User 'root'" "TEST_TRIGGER_PURGE_USER_QUOTA_EXCEEDED"
+run_test 640 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_GroupQuotaExceeded.conf "Group 'root'" "TEST_TRIGGER_PURGE_GROUP_QUOTA_EXCEEDED"
+
+run_test 641 test_purge PurgeStd_Path_Name.conf 0 7 "file.6;file.7;file.8" "--purge" "TEST_PURGE_STD_PATH_NAME"
+run_test 642 test_purge_tmp_fs_mgr PurgeStd_Type.conf 0 8 "link.1;link.2" "--purge" "TEST_PURGE_STD_TYPE"
+run_test 643 test_purge PurgeStd_Owner.conf 0 9 "file.3" "--purge" "TEST_PURGE_STD_OWNER"
+run_test 644 test_purge PurgeStd_Size.conf 0 8 "file.6;file.7" "--purge" "TEST_PURGE_STD_SIZE"
+run_test 645 test_purge PurgeStd_LastAccess.conf 10 9 "file.8" "--purge" "TEST_PURGE_STD_LAST_ACCESS"
+run_test 646 test_purge PurgeStd_LastModification.conf 30 9 "file.8" "--purge" "TEST_PURGE_STD_LAST_MODIFICATION"
+run_test 647 purge_OST PurgeStd_OST.conf 2 "file.3;file.4" "--purge" "TEST_PURGE_STD_OST"
+run_test 648 test_purge PurgeStd_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_STD_EXTENDED_ATTRIBUT"
+run_test 649 purge_OST PurgeOST.conf 2 "file.3;file.4" "--purge-ost=1,0" "TEST_PURGE_OST"
+run_test 650 test_purge PurgeClass_Path_Name.conf 0 9 "file.1" "--purge" "TEST_PURGE_CLASS_PATH_NAME"
+run_test 651 test_purge PurgeClass_Type.conf 0 2 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--purge" "TEST_PURGE_CLASS_TYPE"
+run_test 652 test_purge PurgeClass_Owner.conf 0 3 "file.1;file.2;file.4;file.5;file.6;file.7;file.8" "--purge" "TEST_PURGE_CLASS_OWNER"
+run_test 653 test_purge PurgeClass_Size.conf 0 8 "file.6;file.7" "--purge" "TEST_PURGE_CLASS_SIZE"
+run_test 654 test_purge PurgeClass_LastAccess.conf 60 9 "file.8" "--purge" "TEST_PURGE_CLASS_LAST_ACCESS"
+run_test 655 test_purge PurgeClass_LastModification.conf 60 9 "file.8" "--purge" "TEST_PURGE_CLASS_LAST_MODIFICATION"
+run_test 656 purge_OST PurgeClass_OST.conf 2 "file.3;file.4" "--purge" "TEST_PURGE_CLASS_OST"
+run_test 657 test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
+
+run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 31 "TEST_REMOVING_EMPTY_DIR"
+run_test 659 test_removing RemovingDir_Path_Name.conf "pathName" 0 "TEST_REMOVING_DIR_PATH_NAME"
+run_test 660 test_removing RemovingDir_Owner.conf "owner" 0 "TEST_REMOVING_DIR_OWNER"
+run_test 661 test_removing RemovingDir_LastAccess.conf "lastAccess" 31 "TEST_REMOVING_DIR_LAST_ACCESS"
+run_test 662 test_removing RemovingDir_LastModification.conf "lastModif" 31 "TEST_REMOVING_DIR_LAST_MODIFICATION"
+run_test 663 test_removing_ost RemovingDir_OST.conf "TEST_REMOVING_DIR_OST"
+run_test 664 test_removing RemovingDir_ExtendedAttribute.conf "extAttributes" 0 "TEST_REMOVING_DIR_EXTENDED_ATTRIBUT"
+run_test 665 test_removing RemovingDir_Dircount.conf "dircount" 0 "TEST_REMOVING_DIR_DIRCOUNT"
+
+run_test 666 test_report_generation_1 Generation_Report_1.conf "TEST_REPORT_GENERATION_1"
+run_test 667 report_generation2 "TEST_REPORT_GENERATION_2"
+
+run_test 668 TEST_OTHER_PARAMETERS_1 OtherParameters_1.conf "TEST_OTHER_PARAMETERS_1"
+run_test 669 TEST_OTHER_PARAMETERS_2 OtherParameters_2.conf "TEST_OTHER_PARAMETERS_2"
+run_test 670 TEST_OTHER_PARAMETERS_3 OtherParameters_3.conf "TEST_OTHER_PARAMETERS_3"
+run_test 671 TEST_OTHER_PARAMETERS_4 OtherParameters_4.conf "TEST_OTHER_PARAMETERS_4"
+run_test 672 TEST_OTHER_PARAMETERS_5 OtherParameters_5.conf "TEST_OTHER_PARAMETERS_5"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
