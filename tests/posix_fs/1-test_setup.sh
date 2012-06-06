@@ -32,3 +32,9 @@ if (( $mnted == 0 )); then
 fi
 
 df $MNT_PT
+
+# create testuser
+getent passwd testuser || useradd testuser || exit 1
+
+# create testgroup
+getent group testgroup || groupadd testgroup || exit 1
