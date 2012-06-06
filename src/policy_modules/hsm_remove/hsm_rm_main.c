@@ -142,13 +142,24 @@ static inline unsigned int ack_count( unsigned int *status_tab )
     return sum;
 }
 
+static inline int check_rm_limit( unsigned int count )
+{
+    if ( count >= hsm_rm_config.max_rm )
+    {
+        DisplayLog( LVL_EVENT, HSMRM_TAG,
+                    "max hsm_rm count %u is reached.", hsm_rm_config.max_rm );
+        return 1;
+    }
+    return 0;
+}
+
 /**
  * This function retrieve files to be removed from HSM
  * and submit them to workers.
  */
 static int perform_hsm_rm( unsigned int *p_nb_removed )
 {
-    int            rc;
+    int            rc = 0;
     lmgr_t         lmgr;
     struct lmgr_rm_list_t *it = NULL;
 
@@ -194,7 +205,7 @@ static int perform_hsm_rm( unsigned int *p_nb_removed )
 
     submitted_files = 0;
 
-    /* submit all eligible files (@TODO up to max_rm) */
+    /* submit all eligible files up to max_rm */
     do
       {
           memset( &entry_id, 0, sizeof( entry_id_t ) );
@@ -229,7 +240,8 @@ static int perform_hsm_rm( unsigned int *p_nb_removed )
 
           submitted_files++;
       }
-    while ( 1 );                /* until DB_END_OF_LIST or error is returned */
+    while ( !check_rm_limit(submitted_files) );
+    /* until END_OF_LIST or error is returned or max_rm is reached */
 
     /* close iterator and db access */
     ListMgr_CloseRmList( it );
