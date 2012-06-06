@@ -37,3 +37,8 @@ fi
 f=`ls /proc/fs/lustre/llite/lustre-*/statahead_max`
 echo 0 > $f
 
+# create testuser
+getent passwd testuser || useradd testuser || exit 1
+
+# create testgroup
+getent group testgroup || groupadd testgroup || exit 1

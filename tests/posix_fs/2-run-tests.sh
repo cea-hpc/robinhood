@@ -5,6 +5,9 @@ BKROOT="/tmp/backend"
 RBH_OPT=""
 DB=robinhood_test
 
+RBH_BINDIR="../../src/robinhood"
+#RBH_BINDIR="/usr/sbin"
+
 XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"
 TMPERR_FILE="/tmp/err_str.$$"
@@ -13,16 +16,16 @@ TEMPLATE_DIR='../../doc/templates'
 
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsmlite=0
-	RH="robinhood $RBH_OPT"
-	REPORT="rbh-report $RBH_OPT"
+	RH="$RBH_BINDIR/robinhood $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
 	CMD=robinhood
 	PURPOSE="TMP_FS_MGR"
 	REL_STR="Purged"
 
 elif [[ $PURPOSE = "HSM_LITE" ]]; then
 	is_hsmlite=1
-	RH="../../src/robinhood/rbh-hsmlite $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
+	RH="$RBH_BINDIR/rbh-hsmlite $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-hsmlite-report $RBH_OPT"
 	CMD=rbh-hsmlite
 fi
 
@@ -58,7 +61,9 @@ function error
 	if (($junit)); then
 	 	grep -i error *.log | grep -v "(0 errors)" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
-	fi
+    fi
+    # avoid displaying the same log many times
+    clean_logs
 }
 
 function set_skipped
@@ -2110,7 +2115,7 @@ function trigger_purge_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -2152,7 +2157,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -3007,7 +3012,7 @@ function TEST_OTHER_PARAMETERS_5
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || error "writing file.$indice"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -3060,68 +3065,68 @@ fi
 
 ##### info collect. + DB tests #####
 
-#run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
-#run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
+run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
+run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
 #TODO run_test 102	update_test test_updt.conf 5 30 "db update policy"
-#run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
-#run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
-#run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
-#run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
+run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
+run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
+run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
+run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 
 #### policy matching tests  ####
 
-#run_test 200	path_test test_path.conf 2 "path matching policies"
-#run_test 201	migration_test test1.conf 11 31 "last_mod>30s"
-#run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
-#run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
-#run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
-#run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-#run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
-#run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
-#run_test 208	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
-#run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
-#run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
-#test 211 is on Lustre pools (not for POSIX FS)
-#run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
-#test 213 is about migration
-#run_test 214a 	check_disabled	common.conf  purge	"no purge if not defined in config"
-#run_test 214b 	check_disabled	common.conf  migration	"no migration if not defined in config"
-#run_test 214c 	check_disabled	common.conf  rmdir	"no rmdir if not defined in config"
-#run_test 214d 	check_disabled	common.conf  hsm_remove	"hsm_rm is enabled by default"
-#run_test 214e 	check_disabled	common.conf  class	"no class matching if none defined in config"
+run_test 200	path_test test_path.conf 2 "path matching policies"
+run_test 201	migration_test test1.conf 11 31 "last_mod>30s"
+run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
+run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
+run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
+run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
+run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
+run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
+run_test 208	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
+run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
+run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
+# test 211 is on Lustre pools (not for POSIX FS)
+run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+# test 213 is about migration
+run_test 214a 	check_disabled	common.conf  purge	"no purge if not defined in config"
+run_test 214b 	check_disabled	common.conf  migration	"no migration if not defined in config"
+run_test 214c 	check_disabled	common.conf  rmdir	"no rmdir if not defined in config"
+run_test 214d 	check_disabled	common.conf  hsm_remove	"hsm_rm is enabled by default"
+run_test 214e 	check_disabled	common.conf  class	"no class matching if none defined in config"
 
 #### triggers ####
 
-#run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
+run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
 # test 301 is about OST: not for POSIX FS
-#run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 40
-#run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
+run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 40
+run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####
-#run_test 400	test_rh_report common.conf 3 1 "reporting tool"
+run_test 400	test_rh_report common.conf 3 1 "reporting tool"
 
-#run_test 401a	test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
-#run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
-#run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
-#run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
-#run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
+run_test 401a	test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
+run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
+run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
+run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
+run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
 
-#run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
-#run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
+run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
+run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
 
-#run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
+run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
 
 #### misc, internals #####
-#run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
-#run_test 500b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
-#run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
-#run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
-#run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
-#run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
+run_test 500b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
+run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
+run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
+run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
+run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
 
-#run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
-#run_test 501b 	test_cfg_parsing detailed none	"parsing of detailed template"
-#run_test 501c 	test_cfg_parsing generated none	"parsing of generated template"
+run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
+run_test 501b 	test_cfg_parsing detailed none	"parsing of detailed template"
+run_test 501c 	test_cfg_parsing generated none	"parsing of generated template"
 
 
 #### Tests by Sogeti ####
@@ -3153,7 +3158,7 @@ run_test 654 test_purge PurgeClass_LastAccess.conf 60 9 "file.8" "--purge" "TEST
 run_test 655 test_purge PurgeClass_LastModification.conf 60 9 "file.8" "--purge" "TEST_PURGE_CLASS_LAST_MODIFICATION"
 run_test 656 test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
 
-run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 30 "TEST_REMOVING_EMPTY_DIR"
+run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 31 "TEST_REMOVING_EMPTY_DIR"
 run_test 659 test_removing RemovingDir_Path_Name.conf "pathName" 0 "TEST_REMOVING_DIR_PATH_NAME"
 run_test 660 test_removing RemovingDir_Owner.conf "owner" 0 "TEST_REMOVING_DIR_OWNER"
 run_test 661 test_removing RemovingDir_LastAccess.conf "lastAccess" 31  "TEST_REMOVING_DIR_LAST_ACCESS"
