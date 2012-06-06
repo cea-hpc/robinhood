@@ -3881,7 +3881,7 @@ function test_alerts
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-		head $ROOT/dir1/file.1 || error "opening $ROOT/dir1/file.1"
+		head $ROOT/dir1/file.1 > /dev/null || error "opening $ROOT/dir1/file.1"
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
 	fi
@@ -4662,7 +4662,7 @@ function trigger_purge_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null || break
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>/dev/null || echo "WARNING: failed to write $ROOT/file.$indice"
         
         unset elem
 	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
@@ -4715,6 +4715,7 @@ function trigger_purge_OST_QUOTA_EXCEEDED
         lfs setstripe -p lustre.$POOL1 $ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
         for i in `seq 0 200`; do
 		    echo "$aaa$aaa$aaa" >> $ROOT/file.$indice
+            sync
 	    done
         unset elem
 	    elem=`lfs df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
@@ -4759,7 +4760,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     dd_out=/tmp/dd.out.$$
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>$dd_out || break
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>$dd_out ||  echo "WARNING: failed to write $ROOT/file.$indice: $(cat $dd_out)"
 
         unset elem
 	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
