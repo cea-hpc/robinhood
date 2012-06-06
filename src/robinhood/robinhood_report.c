@@ -2958,10 +2958,10 @@ static void report_class_info( int flags )
     is_filter = FALSE;
 
 #ifndef _LUSTRE_HSM /* type is not stored in database: only files are considered */
-    /* select only files */
-    fv.val_str = STR_TYPE_FILE;
+    /* don't select dirs for policies */
+    fv.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_init( &filter );
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
     is_filter = TRUE;
 #endif
 
