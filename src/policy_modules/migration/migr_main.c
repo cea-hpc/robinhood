@@ -191,7 +191,7 @@ static int start_migration_pass(  )
         snprintf(tmpstr, 128, "migrate user '%s' files", param.param_u.user_name );
         break;
     case MIGR_GROUP:
-        param.type = MIGR_BY_USER;
+        param.type = MIGR_BY_GROUP;
         param.param_u.group_name = module_args.optarg_u.name;
         snprintf(tmpstr, 128, "migrate group '%s' files", param.param_u.group_name );
         break;
