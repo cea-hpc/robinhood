@@ -102,7 +102,7 @@ fi
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
 
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 

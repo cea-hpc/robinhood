@@ -35,7 +35,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log /tmp/rh_alert.log rh_rmdir.log"
+CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log /tmp/rh_alert.log rh_rmdir.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -3015,6 +3015,9 @@ function test_report_generation_1
 	# dir7:
 	mkdir -p $ROOT/dir7
 	sleep 1
+	#link in dir.1
+	ln -s $ROOT/dir1 $ROOT/dir1/link.0 || error "creating symbolic link $ROOT/dir1/link.0"
+	sleep 1
 	
 	# manage owner and group
 	filesList="$ROOT/link.1 $ROOT/dir1/dir2/link.2"
@@ -3035,7 +3038,7 @@ function test_report_generation_1
 	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs)"
 	logFile=report.out
 	typeValues="dir;file;symlink"
-	countValues="7;6;3"
+	countValues="7;6;4"
 	colSearch=2
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs)"
 	
@@ -3045,7 +3048,7 @@ function test_report_generation_1
 	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
 	typeValues="test_file_type;test_link_type"
 	#typeValues="test_file_type"
-	countValues="6;3"
+	countValues="6;4"
 	#countValues="6"
 	colSearch=2
 	#echo "arguments= $logFile $typeValues $countValues $colSearch**"
@@ -3054,7 +3057,7 @@ function test_report_generation_1
 	echo -e "\n 5-User statistics of root..."
 	$REPORT -f ./cfg/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
 	typeValues="root.*dir;root.*file;root.*symlink"
-	countValues="2;5;1"
+	countValues="2;5;2"
 	colSearch=3
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
 	
@@ -3067,10 +3070,10 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group statistics (--group)"
 	
 	# launch another scan ..........................
-	echo -e "\n 7-Four largest files of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-size=4 --csv > report.out || error "performing Largest files list (--top-size)"
-	typeValues="file\.6;file\.5;file\.3;file\.2"
-	countValues="1;2;3;4"
+	echo -e "\n 7-Largest files of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-size=3 --csv > report.out || error "performing Largest files list (--top-size)"
+	typeValues="file\.6;file\.5;file\.3"
+	countValues="1;2;3"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"
 	
@@ -3083,7 +3086,7 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
 	
 	# launch another scan ..........................
-	echo -e "\n 9-Four largest directories of Filesystem..."
+	echo -e "\n 9-Four oldest entries of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
 	typeValues="file\.3;file\.4;file\.5;link\.3"
 	countValues="1;2;3;4"
@@ -3130,7 +3133,7 @@ function test_report_generation_1
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
 	typeValue="root.*[root|testgroup]"
-	if (( $(grep $typeValue $logFile | wc -l) != 8 )) ; then
+	if (( $(grep $typeValue $logFile | wc -l) != 9 )) ; then
 		 error "validating entries for one user 'root'(--dump-user)"
 	fi
 		
@@ -3141,14 +3144,14 @@ function test_report_generation_1
 	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
 	countValues="symlink;file;file;symlink;file"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validatingGroup entries for one group 'testgroup'(--dump-group)"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValues="testgroup.*dir2$;testgroup.*dir3$;testgroup.*dir5$;testgroup.*dir6$;testgroup.*dir7$"
 	countValues="dir;dir;dir;dir;dir"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validatingGroup entries for one group 'testgroup'(--dump-group)"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValue="testgroup"
 	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
-		 error"validatingGroup entries for one group 'testgroup'(--dump-group)"
+		 error "validating Group entries for one group 'testgroup'(--dump-group)"
 	fi
 }
 
