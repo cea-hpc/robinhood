@@ -1972,7 +1972,7 @@ function test_alerts
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-		head $ROOT/dir1/file.1 || error "opening $ROOT/dir1/file.1"
+		head $ROOT/dir1/file.1 > /dev/null || error "opening $ROOT/dir1/file.1"
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
 	fi
