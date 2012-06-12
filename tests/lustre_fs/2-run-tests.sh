@@ -4755,7 +4755,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	echo "1-Create Files ..."
 		
 	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
-	limit=60
+	limit=80
 	indice=1
     dd_out=/tmp/dd.out.$$
     while [ $elem -lt $limit ]
@@ -5387,9 +5387,14 @@ function test_report_generation_1
 	#$REPORT -f ./cfg/$config_file --fs-info -c || error "performing FS statistics (--fs-info)"
 	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs-info)"
 	logFile=report.out
-	typeValues="dir;file;symlink"
-	countValues="7;6;3"
-	colSearch=2
+    if (( $is_hsmlite + $is_lhsm != 0 )); then
+	    typeValues="new"
+    	countValues="9"
+    else
+	    typeValues="dir;file;symlink"
+    	countValues="7;6;3"
+    fi
+   	colSearch=2
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
 	
 	
@@ -5436,7 +5441,7 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
 	
 	# launch another scan ..........................
-	echo -e "\n 9-Four largest directories of Filesystem..."
+	echo -e "\n 9-Four oldest purgeable entries of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
 	typeValues="file\.3;file\.4;file\.5;link\.3"
 	countValues="1;2;3;4"
@@ -6044,7 +6049,7 @@ function TEST_OTHER_PARAMETERS_5
 
 	config_file=$1
     
-    if (( ($shook != 0) || ($is_lhsm != 0) )); then
+    if (( ($shook + $is_lhsm) == 0 )); then
 		echo "No TEST_OTHER_PARAMETERS_5 for this purpose: skipped"
 		set_skipped
 		return 1
