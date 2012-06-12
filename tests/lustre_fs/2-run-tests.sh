@@ -5562,6 +5562,8 @@ function TEST_OTHER_PARAMETERS_4
 
         echo "Mounting $LOOP_FILE as $BKROOT"
         mount -o loop -t ext4 $LOOP_FILE $BKROOT || exit 1
+    	echo "Cleaning backend content..."
+		find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
     fi
     
     echo "Migrate files"
