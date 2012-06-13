@@ -4226,7 +4226,7 @@ function trigger_purge_QUOTA_EXCEEDED
     while [ $elem -lt $limit ]
     do
         dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>/dev/null
-        if (( $? != 0 )); THEN
+        if (( $? != 0 )); then
             echo "WARNING: failed to write $ROOT/file.$indice"
             # give it a chance to end the loop
             ((limit=$limit-1))
