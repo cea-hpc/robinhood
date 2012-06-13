@@ -2184,7 +2184,7 @@ function test_cnt_trigger
 
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			lfs hsm_archive $ROOT/file.$i
@@ -2245,7 +2245,7 @@ function test_ost_trigger
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
 	((count=$mb_h_threshold - $empty_vol + 1))
 	for i in `seq $empty_vol $mb_h_threshold`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
@@ -2377,7 +2377,7 @@ function test_trigger_check
 
 	#create test tree of archived files (file_size MB each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
@@ -2484,9 +2484,9 @@ function test_periodic_trigger
 	# create 3 files of each type
 	# (*.1, *.2, *.3, *.4)
 	for i in `seq 1 4`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
-		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/foo.$i"
-		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/bar.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/foo.$i"
+		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/bar.$i"
 
     	flush_data
 		if (( $is_lhsm != 0 )); then
@@ -3277,7 +3277,7 @@ function recovery_test
 			chmod 700 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
 		fi
 
-		dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
 	done
 
 	# read changelogs
@@ -4757,18 +4757,32 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
 	indice=1
+    last=1
     dd_out=/tmp/dd.out.$$
+    one_error=""
+    dd_err_count=0
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>$dd_out ||  echo "WARNING: failed to write $ROOT/file.$indice: $(cat $dd_out)"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>$dd_out
+        if (( $? != 0 )); then
+            [[ -z "$one_error" ]] && one_error="failed to write $ROOT/file.$indice: $(cat $dd_out)"
+            ((dd_err_count++))
+        fi
+            
+        if [[ -s $ROOT/file.$indice ]]; then
+            ((last++))
+        fi
 
         unset elem
 	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
     done
+    (($dd_err_count > 0)) && echo "WARNING: $dd_err_count errors writing $ROOT/file.*: first error: $one_error"
+    
     rm -f $dd_out
     
-    ((limit=indice/2))
+    # limit is 25% => leave half of files with owner root
+    ((limit=last/2))
     ((indice=1))
     while [ $indice -lt $limit ]
     do
@@ -5999,6 +6013,8 @@ function TEST_OTHER_PARAMETERS_4
 
         echo "Mounting $LOOP_FILE as $BKROOT"
         mount -o loop -t ext4 $LOOP_FILE $BKROOT || exit 1
+    	echo "Cleaning backend content..."
+		find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
     fi
     
     echo "Migrate files"
