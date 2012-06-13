@@ -4225,7 +4225,12 @@ function trigger_purge_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>/dev/null || echo "WARNING: failed to write $ROOT/file.$indice"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>/dev/null
+        if (( $? != 0 )); THEN
+            echo "WARNING: failed to write $ROOT/file.$indice"
+            # give it a chance to end the loop
+            ((limit=$limit-1))
+        fi
         
         unset elem
 	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
@@ -4330,6 +4335,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
         if (( $? != 0 )); then
             [[ -z "$one_error" ]] && one_error="failed to write $ROOT/file.$indice: $(cat $dd_out)"
             ((dd_err_count++))
+            ((limit=$limit-1))
         fi
             
         if [[ -s $ROOT/file.$indice ]]; then
@@ -5658,9 +5664,14 @@ function TEST_OTHER_PARAMETERS_5
 	indice=1
     while (( $elem < $limit ))
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writing file.$indice (usage $elem/$limit)"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null 
+        if (( $? != 0 )); then
+            echo "WARNING: fail writing file.$indice (usage $elem/$limit)"
+            # give it a chance to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
-	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
+        elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
         ((indice++))
     done
 

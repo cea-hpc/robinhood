@@ -295,9 +295,14 @@ fi
 
 %changelog
 
+* Wed Jun 13 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.7
+- Implemented max_rm_count in hsm remove policy
+- Consider all non dirs for classinfo (instead of files only)
+- Fix: migrate-group did migrate user
+
 * Tue May 23 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.6
-- faster and safer shutdown
-- better block counting for purges
+- Faster and safer shutdown
+- Better block counting for purges
 
 * Tue May 15 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.4
 - shook: * entry state set to 'archive_running' during migration
