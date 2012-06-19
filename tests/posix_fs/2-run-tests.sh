@@ -2481,7 +2481,12 @@ function trigger_purge_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null 
+        if (( $? != 0 )); then
+            echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+            # give it a chance to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -2523,7 +2528,12 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
+        if (( $? != 0 )); then
+            echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+            # give it a change to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -3381,7 +3391,12 @@ function TEST_OTHER_PARAMETERS_5
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null
+        if (( $? != 0 )); then
+            echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+            # give it a change to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
