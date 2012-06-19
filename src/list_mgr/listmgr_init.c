@@ -123,7 +123,7 @@ static inline int check_field( int i, int * curr_field_index, char *table, char 
     /* check that this is the expected field */
     if ( !strcmp( field_infos[i].field_name, fieldtab[*curr_field_index] ) )
     {
-        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s OK", field_infos[i].field_name );
+        DisplayLog( LVL_FULL, LISTMGR_TAG, "%s OK", field_infos[i].field_name );
         (*curr_field_index)++;
         return 0;
     }
@@ -153,6 +153,73 @@ static inline int has_extra_field( int curr_field_index, char *table, char **fie
         else
             return 0; 
 }
+
+
+static unsigned int append_size_range_fields(char * str, int leading_comma, char *prefix)
+{
+    unsigned int i, l;
+    l=0;
+    for (i = 0; i < SZ_PROFIL_COUNT; i++)
+        l += sprintf( str+l, "%s %s%s", leading_comma || (i > 0)?",":"",
+                      prefix, sz_field[i] );
+    return l;
+}
+
+/**
+ * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
+ */
+static unsigned int append_size_range_val(char * str, int leading_comma, char *prefix, const char * op_subs)
+{
+    unsigned int i, l;
+    char value[128];
+    l=0;
+
+    if (op_subs && op_subs[0])
+        strcpy(value, op_subs);
+    else
+        sprintf(value, ACCT_SZ_VAL("%ssize"), prefix);
+
+    l = sprintf( str, "%s %ssize=0", leading_comma?",":"", prefix );
+    for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
+    {
+        l += sprintf( str+l, ", %s=%u", value, i-1 );
+    }
+    /* last */
+    l += sprintf( str+l, ", %s>=%u", value, i-1 );
+    return l;
+}
+
+/**
+ * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
+ */
+static unsigned int append_size_range_op(char * str, int leading_comma, char *prefix, 
+                                         const char * op_subs, operation_type optype )
+{
+    unsigned int i, l;
+    char value[128];
+    const char * op = (optype == ADD)?"+":"-";
+    l=0;
+
+    if (op_subs && op_subs[0])
+        strcpy(value, op_subs);
+    else
+        sprintf(value,  ACCT_SZ_VAL("%ssize"), prefix);
+
+    l = sprintf( str, "%s %s=%s%s(%ssize=0)", leading_comma?",":"",
+                 sz_field[0], sz_field[0], op, prefix);
+
+    for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
+    {
+        l += sprintf( str+l, ", %s=%s%sIFNULL(%s=%u,0)", sz_field[i], sz_field[i], op,
+                      value, i-1 );
+    }
+    /* last */
+    l += sprintf( str+l, ", %s=%s%sIFNULL(%s>=%u,0)", sz_field[i], sz_field[i],
+                         op, value, i-1 );
+    return l;
+}
+
+
 
 int            annex_table = FALSE;              /* indicates if an annex table is used */
 int            acct_on_annex = FALSE;            /* indicates if acct info are is on annex table */
@@ -255,7 +322,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Fields (%s, %s) OK", fieldtab[0], fieldtab[1] );
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Fields (%s, %s) OK", fieldtab[0], fieldtab[1] );
         }
     }
     else if ( rc == DB_NOT_EXISTS )
@@ -312,7 +379,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
             curr_field_index += 1;
         }
 
@@ -444,7 +511,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
             curr_field_index += 1;
         }
 
@@ -457,7 +524,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "validator OK" );
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "validator OK" );
             curr_field_index += 1;
         }
 
@@ -560,7 +627,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "index (%s) OK", fieldtab[0] );
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "index (%s) OK", fieldtab[0] );
             curr_field_index += 1;
         }
 
@@ -650,7 +717,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             }
             else
             {
-                DisplayLog( LVL_DEBUG, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
                 curr_field_index += 1;
             }
 
@@ -768,7 +835,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Fields (%s, %s, %s, %s) OK",
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Fields (%s, %s, %s, %s) OK",
                         fieldtab[0], fieldtab[1], fieldtab[2], fieldtab[3] );
         }
     }
@@ -854,7 +921,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Fields (%s, %s, %s, %s, %s) OK",
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Fields (%s, %s, %s, %s, %s) OK",
                         fieldtab[0], fieldtab[1], fieldtab[2], fieldtab[3], fieldtab[4] );
         }
     }
@@ -957,8 +1024,27 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             }
             else
             {
-                DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s OK", fieldtab[curr_field_index] );
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "%s OK", fieldtab[curr_field_index] );
                 curr_field_index += 1;
+            }
+
+            /* check size range fields */
+            /* based on log2(size/32) => 0 1 32 1K 32K 1M 32M 1G 32G 1T */
+            for (i = 0; i < SZ_PROFIL_COUNT; i++)
+            {
+                if ((fieldtab[curr_field_index] == NULL) || strcmp(fieldtab[curr_field_index], sz_field[i]))
+                {
+                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                "Incompatible database schema (expected field '%s' at index #%u in table "ACCT_TABLE
+                                "): you should drop the database and start a new FS scan.",
+                                sz_field[i], curr_field_index);
+                    return -1;
+                }
+                else
+                {
+                    DisplayLog( LVL_FULL, LISTMGR_TAG, "%s OK", fieldtab[curr_field_index] );
+                    curr_field_index += 1;
+                }
             }
 
             if ( has_extra_field( curr_field_index, ACCT_TABLE, fieldtab ) )
@@ -988,14 +1074,14 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 /* table does not exist */
                 strcpy( strbuf, "CREATE TABLE " ACCT_TABLE "(" );
                 next = strbuf + strlen( strbuf );
-                
+
                 for ( i = 0; i < ATTR_COUNT; i++ )
                 {
                     if ( is_acct_pk( i ) )
                     {
                         next += append_field_def( i, next, is_first_acct_field, NULL );
                         is_first_acct_field = 0;
-                    }                
+                    }
                 }
 
                 for ( i = 0; i < ATTR_COUNT; i++ )
@@ -1006,7 +1092,18 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     } 
                 }
 
-                strcpy ( next, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED, PRIMARY KEY ( " );
+                /* count field */
+                strcpy ( next, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED" );
+                next = next + strlen( next );
+
+                /* size range fields */
+                for (i = 0; i < SZ_PROFIL_COUNT; i++)
+                {
+                    next += sprintf( next, ", %s BIGINT UNSIGNED DEFAULT 0", sz_field[i]);
+                }
+
+                /* PK definition */
+                strcpy ( next, ", PRIMARY KEY ( " );
                 next = next + strlen( next );
 
                 for ( i = 0; i < ATTR_COUNT; i++ )
@@ -1044,18 +1141,25 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 FlushLogs(); 
 
                 /* Initial table population for already existing entries */
-                strcpy( strbuf, "INSERT INTO " ACCT_TABLE "( " );
-                next = strbuf + strlen( strbuf );
+                next = strbuf;
+                APPEND_TXT( next, "INSERT INTO " ACCT_TABLE "( " );
                 attrmask2fieldlist( next, acct_pk_attr_set , T_ACCT, FALSE, FALSE, "", "" );
-                next = next + strlen( next );
+                INCR_NEXT( next );
                 attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
-                next = next + strlen( next );
-                next += sprintf( next, ", " ACCT_FIELD_COUNT " ) SELECT " );
+                INCR_NEXT( next );
+                APPEND_TXT( next, ", " ACCT_FIELD_COUNT );
+                next += append_size_range_fields(next, TRUE, "");
+                APPEND_TXT( next, " ) SELECT " );
                 attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
-                next = next + strlen( next );
+                INCR_NEXT( next );
                 attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "SUM( ", " )" );
-                next = next + strlen( next );
-                next += sprintf( next, " ,COUNT( id ) FROM %s  GROUP BY ", acct_info_table );
+                INCR_NEXT( next );
+                APPEND_TXT( next, " ,COUNT( id ), SUM(size=0)");
+                for (i=1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
+                        next += sprintf(next, ",SUM("ACCT_SZ_VAL("size")"=%u)", i-1);
+                next += sprintf(next, ",SUM("ACCT_SZ_VAL("size")">=%u)", i-1);
+
+                next += sprintf( next, " FROM %s  GROUP BY ", acct_info_table );
                 attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" ); 
                 next = next + strlen( next );
                 rc = db_exec_sql( &conn, strbuf, NULL );
@@ -1082,21 +1186,31 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         {
             //Trigger on insert
             next = strbuf;
+            APPEND_TXT( next, "DECLARE val BIGINT UNSIGNED; "
+                              "SET val="ACCT_SZ_VAL("NEW.size")";" );
             APPEND_TXT( next, "INSERT INTO " ACCT_TABLE "( " );
             attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
             INCR_NEXT( next );
             attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
             INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT  " ) VALUES ( " );
+            APPEND_TXT( next, ", " ACCT_FIELD_COUNT );
+            next += append_size_range_fields(next, TRUE, "");
+            APPEND_TXT( next, " ) VALUES ( " );
             attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
             INCR_NEXT( next );
             attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "" );
             INCR_NEXT( next );
-            APPEND_TXT( next, ", 1 ) ON DUPLICATE KEY UPDATE " );
+            APPEND_TXT( next, ", 1");
+            next += append_size_range_val(next, TRUE, "NEW.", "val");
+            APPEND_TXT( next, " ) ON DUPLICATE KEY UPDATE " );
             attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
             INCR_NEXT( next );
-            APPEND_TXT( next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1;" );
+            APPEND_TXT( next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1" );
 
+            /* update size range values */
+            next += append_size_range_op(next, TRUE, "NEW.", "val", ADD);
+
+            APPEND_TXT( next,";");
             rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
             if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
@@ -1114,13 +1228,19 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             }
             DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_INSERT " created sucessfully" );
 
-     
             //Trigger on delete
             next = strbuf;
+            APPEND_TXT( next, "DECLARE val BIGINT UNSIGNED; "
+                              "SET val="ACCT_SZ_VAL("OLD.size")";");
             APPEND_TXT( next, "UPDATE " ACCT_TABLE " SET " );
             attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBTRACT );
             INCR_NEXT( next );
-            APPEND_TXT( next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1 WHERE " );
+            APPEND_TXT( next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1" );
+
+            /* update size range values */
+            next += append_size_range_op(next, TRUE, "OLD.", "val", SUBTRACT);
+
+            APPEND_TXT( next, " WHERE " );
             attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" ); 
             INCR_NEXT( next );
             APPEND_TXT( next, ";" );
@@ -1145,6 +1265,9 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             //Trigger on update
             /* if it is the same owner and group: */
             next = strbuf;
+            APPEND_TXT( next, "DECLARE val_old, val_new BIGINT UNSIGNED;");
+            APPEND_TXT( next, "SET val_old="ACCT_SZ_VAL("OLD.size")"; "
+                              "SET val_new="ACCT_SZ_VAL("NEW.size")";" );
             APPEND_TXT( next, "\nIF " );
             /* generate comparison like NEW.owner=OLD.owner AND NEW.gr_name=OLD.gr_name */
             attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND" );
@@ -1171,6 +1294,20 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     }
                 }
             }
+
+            /* update size range values */
+            next += sprintf( next, "%s%s=%s-(OLD.size=0)+(NEW.size=0)",
+                             is_first_field?" ":", ", sz_field[0], sz_field[0] );
+            is_first_field = 0;
+            for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
+            {
+                next += sprintf( next, ", %s=%s-IFNULL(val_old=%u,0)+IFNULL(val_new=%u,0)",
+                                 sz_field[i], sz_field[i], i-1, i-1 );
+            }
+            /* last */
+            next += sprintf( next, ", %s=%s-IFNULL(val_old>=%u,0)+IFNULL(val_new>=%u,0)",
+                             sz_field[i], sz_field[i], i-1, i-1 );
+
             APPEND_TXT( next, " WHERE " );
             /* generate comparison as follows: owner=NEW.owner AND gr_name=NEW.gr_name */
             attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "NEW.", "=", "AND" );
@@ -1186,23 +1323,32 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             /* generate fields as follows: , size, blocks */
             attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
             INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT " ) VALUES ( " );
+            APPEND_TXT( next, ", " ACCT_FIELD_COUNT );
+            next += append_size_range_fields(next, TRUE, "");
+            APPEND_TXT( next, " ) VALUES ( " );
             /* generate fields as follows: NEW.owner, NEW.gr_name */
             attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
             INCR_NEXT( next );
             attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "" );
             INCR_NEXT( next );
-            APPEND_TXT( next,  ", 1 ) \n\tON DUPLICATE KEY UPDATE " );
+            APPEND_TXT( next, ", 1" );
+            next += append_size_range_val(next, TRUE, "NEW.", "val_new");
+            APPEND_TXT(next, " ) \n\tON DUPLICATE KEY UPDATE " );
             /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
             attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
             INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1;" );
+            APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1" );
+            /* update size range values */
+            next += append_size_range_op(next, TRUE, "NEW.", "val_new", ADD);
+            APPEND_TXT( next, ";" );
 
             APPEND_TXT( next, "\n\tUPDATE " ACCT_TABLE " SET " );
             /* generate operations as follows: size=size-Old.size, blocks=blocks-Old.blocks */
             attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBTRACT );
             INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 WHERE " );
+            APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 " );
+            next += append_size_range_op(next, TRUE, "OLD.", "val_old", SUBTRACT);
+            APPEND_TXT( next, " WHERE " );
             attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
             INCR_NEXT( next );
             APPEND_TXT( next, ";\nEND IF;\n" );

@@ -29,6 +29,26 @@
 #define ACCT_DEFAULT_OWNER  "unknown"
 #define ACCT_DEFAULT_GROUP  "unknown"
 
+/* name of sz fields */
+#define ACCT_SIZE_PREFIX "sz"
+static const __attribute__ ((__unused__))
+char * sz_field[SZ_PROFIL_COUNT] =
+{
+    ACCT_SIZE_PREFIX"0",
+    ACCT_SIZE_PREFIX"1",
+    ACCT_SIZE_PREFIX"32",
+    ACCT_SIZE_PREFIX"1K",
+    ACCT_SIZE_PREFIX"32K",
+    ACCT_SIZE_PREFIX"1M",
+    ACCT_SIZE_PREFIX"32M",
+    ACCT_SIZE_PREFIX"1G",
+    ACCT_SIZE_PREFIX"32G",
+    ACCT_SIZE_PREFIX"1T"
+};
+
+#define ACCT_SZ_VAL(_s) "FLOOR(LOG2("_s")/5)"
+
+
 #ifdef HAVE_RM_POLICY
 #   define SOFT_RM_TABLE    "SOFT_RM"
 #endif

@@ -153,6 +153,7 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
         acct_pk_attr_set |= ATTR_MASK_status;
     }
 #endif
+    /* size: also used for size range stats */
     acct_attr_set |= ATTR_MASK_size | ATTR_MASK_blocks ;
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )

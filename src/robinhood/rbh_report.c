@@ -1287,7 +1287,6 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
         case ATTR_INDEX_release_class:
             return class_format( val->value_u.val_str );
 #endif
-
     }
     return out;
 }

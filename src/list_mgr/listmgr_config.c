@@ -456,8 +456,8 @@ int WriteLmgrConfigTemplate( FILE * output )
     print_line( output, 2, "db     = \"robinhood_db\" ;" );
     print_line( output, 2, "user   = \"robinhood\" ;" );
     print_line( output, 2, "password_file = \"/etc/robinhood.d/.dbpassword\" ;" );
-    print_line( output, 2, "port   = 3306 ;" );
-    print_line( output, 2, "socket = \"/tmp/mysql.sock\" ;" );
+    print_line( output, 2, "# port   = 3306 ;" );
+    print_line( output, 2, "# socket = \"/tmp/mysql.sock\" ;" );
     print_line( output, 2, "innodb = enabled ;" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)

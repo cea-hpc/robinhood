@@ -613,6 +613,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 /** type of report that can be done on each attr */
 typedef enum
 {
+    /* 0 = no specific operation */
     REPORT_MIN = 1,
     REPORT_MAX,
     REPORT_AVG,
@@ -626,7 +627,7 @@ typedef enum
 typedef struct report_field_descr_t
 {
     unsigned int   attr_index;
-    report_type_t  report_type;
+    report_type_t  report_type; 
     sort_order_t   sort_flag;
 
     int            filter;      /**< is there a filter on this value ? */
@@ -655,6 +656,86 @@ int            ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value
  * Releases report resources.
  */
 void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
+
+/* profile is based on LOG2(size)
+ * -> FLOOR(LOG2(size)/5)
+ */
+#define SZ_PROFIL_COUNT 10
+#define SZ_MIN_BY_INDEX(_i) ((_i==0)?0:(1LL<<((_i-1)*5)))
+/** size profile descriptor */
+typedef struct size_range__
+{
+    uint64_t min_size; /* max_size[i] is min_size[i+1] */
+    char *title;
+} size_range_t;
+
+static const  __attribute__ ((__unused__))
+size_range_t size_range[SZ_PROFIL_COUNT] =
+{
+    {SZ_MIN_BY_INDEX(0), "0"},
+    {SZ_MIN_BY_INDEX(1), "1~31"},
+    {SZ_MIN_BY_INDEX(2), "32~1K"},
+    {SZ_MIN_BY_INDEX(3), "1K~32K"},
+    {SZ_MIN_BY_INDEX(4), "32K~1M"},
+    {SZ_MIN_BY_INDEX(5), "1M~32M"},
+    {SZ_MIN_BY_INDEX(6), "32M~1G"},
+    {SZ_MIN_BY_INDEX(7), "1G~32G"},
+    {SZ_MIN_BY_INDEX(8), "32G~1T"},
+    {SZ_MIN_BY_INDEX(9), "+1T"}
+};
+
+/** size profile values */
+typedef struct size_profile__
+{
+    uint64_t file_count[SZ_PROFIL_COUNT];
+} size_profile_t;
+
+typedef union
+{
+    size_profile_t size;
+    /* TODO mtime, ... */
+} profile_u;
+
+/** describe a profile field */
+typedef struct profile_field_descr_t
+{
+    unsigned int   attr_index;
+    /* TODO sort order and filters are quite special (contains many fields...) */
+
+} profile_field_descr_t;
+
+
+/**
+ * Retrieve profile (on size, atime, mtime, ...)
+ * (by status, by user, by group, ...)
+ * @param profile_descr information about the attribute to be profiled
+ * @param report_descr  information about other fields of the report
+                        (field to group on and field to sort on)
+ * @param report_descr_count number of items in report_descr
+ */
+struct lmgr_profile_t *ListMgr_Profile( lmgr_t * p_mgr,
+                                        const profile_field_descr_t  *profile_descr,
+                                        const report_field_descr_t  *report_descr,
+                                        unsigned int report_descr_count,
+                                        const lmgr_filter_t   *p_filter,
+                                        const lmgr_iter_opt_t * p_opt );
+/**
+ * Get next profile entry.
+ * @param p_profile the profile structure
+ * @param p_value array of values of report_descr
+ * @param p_value_count is IN/OUT parameter. IN: size of output array. OUT: nbr of fields set in array.
+ */
+int            ListMgr_GetNextProfile( struct lmgr_profile_t *p_iter,
+                                       profile_u  * p_profile,
+                                       db_value_t * p_value,
+                                       unsigned int *p_value_count );
+
+/**
+ * Releases profile resources.
+ */
+void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
+
+
 
 /** @} */
 
