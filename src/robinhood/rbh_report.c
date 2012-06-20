@@ -2534,10 +2534,7 @@ static void report_class_info( int flags )
 #ifndef ATTR_INDEX_archive_class
 
     /* a single class column (release), can print as is */
-    if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%20s, %10s, %15s, %15s, %15s, %15s\n",
-                "fileclass", "nb_entries", "spc_used", "min_size",
-                "max_size", "avg_size" );
+    header = !NOHEADER(flags);
 
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
             == DB_SUCCESS )

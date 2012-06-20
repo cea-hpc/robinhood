@@ -5388,6 +5388,9 @@ function test_report_generation_1
 	# dir7:
 	mkdir -p $ROOT/dir7
 	sleep 1
+        #link in dir.1
+        ln -s $ROOT/dir1 $ROOT/dir1/link.0 || error "creating symbolic link $ROOT/dir1/link.0"
+        sleep 1
 	
 	# manage owner and group
 	filesList="$ROOT/link.1 $ROOT/dir1/dir2/link.2"
@@ -5412,7 +5415,7 @@ function test_report_generation_1
     	countValues="9"
     else
 	    typeValues="dir;file;symlink"
-    	countValues="7;6;3"
+    	countValues="7;6;4"
     fi
    	colSearch=2
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
@@ -5423,7 +5426,7 @@ function test_report_generation_1
 	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
 	typeValues="test_file_type;test_link_type"
 	#typeValues="test_file_type"
-	countValues="6;3"
+	countValues="6;4"
 	#countValues="6"
 	colSearch=2
 	#echo "arguments= $logFile $typeValues $countValues $colSearch**"
@@ -5432,7 +5435,7 @@ function test_report_generation_1
 	echo -e "\n 5-User statistics of root..."
 	$REPORT -f ./cfg/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
 	typeValues="root.*dir;root.*file;root.*symlink"
-	countValues="2;5;1"
+	countValues="2;5;2"
 	colSearch=3
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
 	
@@ -5458,6 +5461,7 @@ function test_report_generation_1
 	typeValues="dir1;dir5"
 	countValues="1;2"
 	colSearch=1
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
 	
 	# launch another scan ..........................
@@ -5511,7 +5515,7 @@ function test_report_generation_1
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
 	typeValue="root.*[root|testgroup]"
-	if (( $(grep $typeValue $logFile | wc -l) != 8 )) ; then
+	if (( $(grep $typeValue $logFile | wc -l) != 9 )) ; then
 		 error "validating entries for one user 'root'(--dump-user)"
 	fi
 		
