@@ -101,7 +101,7 @@ int FSScan_Terminate(  )                         /* @TODO */
 
     terminate = TRUE;
 
-    rc = Robinhood_StopScanModule(  );
+    rc = Robinhood_StopScanModule( );
     return rc;
 }
 

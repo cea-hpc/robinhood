@@ -2,6 +2,9 @@
 
 ROOT="/mnt/lustre"
 
+RBH_BINDIR="../../src/robinhood"
+#RBH_BINDIR="/usr/sbin"
+
 BKROOT="/tmp/backend"
 RBH_OPT=""
 
@@ -22,8 +25,8 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_lhsm=1
 	is_hsmlite=0
 	shook=0
-	RH="../../src/robinhood/rbh-hsm $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-hsm-report $RBH_OPT"
+	RH="$RBH_BINDIR/rbh-hsm $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-hsm-report $RBH_OPT"
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
@@ -32,8 +35,8 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
 	shook=0
-	RH="/usr/sbin/robinhood $RBH_OPT"
-	REPORT="/usr/sbin/rbh-report $RBH_OPT"
+	RH="$RBH_BINDIR/robinhood $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
 	CMD=robinhood
     REL_STR="Purged"
 elif [[ $PURPOSE = "BACKUP" ]]; then
@@ -41,9 +44,9 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     shook=0
 	is_hsmlite=1
 
-	RH="/usr/local/rbh-backup/sbin/rbh-backup $RBH_OPT"
-	REPORT="/usr/local/rbh-backup/sbin/rbh-backup-report $RBH_OPT"
-	RECOV="/usr/local/rbh-backup/sbin/rbh-backup-recov $RBH_OPT"
+	RH="$RBH_BINDIR/rbh-backup $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-backup-report $RBH_OPT"
+	RECOV="$RBH_BINDIR/rbh-backup-recov $RBH_OPT"
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
     REL_STR="Purged"
@@ -55,9 +58,9 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	is_hsmlite=1
     shook=1
 
-	RH="/usr/local/rbh-shook/sbin/rbh-shook $RBH_OPT"
-	REPORT="/usr/local/rbh-shook/sbin/rbh-shook-report $RBH_OPT"
-	RECOV="/usr/local/rbh-shook/sbin/rbh-shook-recov $RBH_OPT"
+	RH="$RBH_BINDIR/rbh-shook $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-shook-report $RBH_OPT"
+	RECOV="$RBH_BINDIR/rbh-shook-recov $RBH_OPT"
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
     REL_STR="Purged"
@@ -85,7 +88,7 @@ fi
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
 
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -112,6 +115,9 @@ function error
 	 	grep -i error *.log | grep -v "(0 errors)" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
+
+    # avoid displaying the same log many times
+    clean_logs
 }
 
 function set_skipped
@@ -1960,7 +1966,7 @@ function test_cnt_trigger
 
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			lfs hsm_archive $ROOT/file.$i
@@ -2013,7 +2019,7 @@ function test_ost_trigger
 	fi
 	clean_logs
 
-	empty_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
+	empty_vol=`lfs df  $ROOT | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
 	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
@@ -2021,7 +2027,7 @@ function test_ost_trigger
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
 	((count=$mb_h_threshold - $empty_vol + 1))
 	for i in `seq $empty_vol $mb_h_threshold`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
@@ -2044,7 +2050,7 @@ function test_ost_trigger
 		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
 	fi
 
-	full_vol=`lfs df  | grep OST0000 | awk '{print $3}'`
+	full_vol=`lfs df  $ROOT | grep OST0000 | awk '{print $3}'`
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
 	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
@@ -2082,7 +2088,7 @@ function test_ost_trigger
 	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
 		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
 
-	full_vol1=`lfs df  | grep OST0001 | awk '{print $3}'`
+	full_vol1=`lfs df $ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
 	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
 
@@ -2152,7 +2158,7 @@ function test_trigger_check
 
 	#create test tree of archived files (file_size MB each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
@@ -2231,7 +2237,7 @@ function check_released
         bl=`stat -c "%b" $1`
         [[ -n $bl ]] && (( $bl == 0 )) || return 1
         # check that shook_state is "released"
-        st=`getfattr -n user.shook_state $1 --only-values 2>/dev/null`
+        st=`getfattr -n security.shook_state $1 --only-values 2>/dev/null`
         [[ "x$st" = "xreleased" ]] || return 1
 	else
 		[ -f $1 ] && return 1
@@ -2257,9 +2263,9 @@ function test_periodic_trigger
 	# create 3 files of each type
 	# (*.1, *.2, *.3, *.4)
 	for i in `seq 1 4`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
-		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/foo.$i"
-		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/bar.$i"
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/foo.$i"
+		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/bar.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
@@ -2749,7 +2755,7 @@ function test_logs
 	elif (( $syslog )); then
         # wait for syslog to flush logs to disk
         sync; sleep 2
-		tail -n +"$init_msg_idx" /var/log/messages | egrep -e "$CMD|shook" > /tmp/extract_all
+		tail -n +"$init_msg_idx" /var/log/messages | egrep -e "($CMD|shook)[^ ]*\[" > /tmp/extract_all
 		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
@@ -2811,7 +2817,7 @@ function test_logs
                 echo "OK: no action reported"
         else
                 error ": there are reported actions after a scan"
-		cat $report
+  	            cat $report
         fi
 	
 	if (( $is_hsmlite == 0 )); then
@@ -3038,7 +3044,7 @@ function recovery_test
 			chmod 700 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
 		fi
 
-		dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writting $ROOT/file.$i"
+		dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
 	done
 
 	# read changelogs
@@ -3438,7 +3444,7 @@ function test_alerts
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-		head $ROOT/dir1/file.1 || error "opening $ROOT/dir1/file.1"
+		head $ROOT/dir1/file.1 > /dev/null || error "opening $ROOT/dir1/file.1"
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
 	fi
@@ -4214,14 +4220,20 @@ function trigger_purge_QUOTA_EXCEEDED
 	clean_logs
 	
 	echo "1-Create Files ..."	
-	elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>/dev/null
+        if (( $? != 0 )); then
+            echo "WARNING: failed to write $ROOT/file.$indice"
+            # give it a chance to end the loop
+            ((limit=$limit-1))
+        fi
+        
         unset elem
-	    elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
     done 
     
@@ -4263,7 +4275,7 @@ function trigger_purge_OST_QUOTA_EXCEEDED
     done
 	
 	echo "2-Create Files ..."   
-	elem=`lfs df | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	elem=`lfs df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
 	indice=1
     while [ $elem -lt $limit ]
@@ -4271,9 +4283,10 @@ function trigger_purge_OST_QUOTA_EXCEEDED
         lfs setstripe -p lustre.$POOL1 $ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
         for i in `seq 0 200`; do
 		    echo "$aaa$aaa$aaa" >> $ROOT/file.$indice
+            sync
 	    done
         unset elem
-	    elem=`lfs df | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	    elem=`lfs df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
     done 
     
@@ -4309,18 +4322,36 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 		
 	echo "1-Create Files ..."
 		
-	elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
 	indice=1
+    last=1
+    dd_out=/tmp/dd.out.$$
+    one_error=""
+    dd_err_count=0
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>$dd_out
+        if (( $? != 0 )); then
+            [[ -z "$one_error" ]] && one_error="failed to write $ROOT/file.$indice: $(cat $dd_out)"
+            ((dd_err_count++))
+            ((limit=$limit-1))
+        fi
+            
+        if [[ -s $ROOT/file.$indice ]]; then
+            ((last++))
+        fi
+
         unset elem
-	    elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
     done
+    (($dd_err_count > 0)) && echo "WARNING: $dd_err_count errors writing $ROOT/file.*: first error: $one_error"
     
-    ((limit=indice/2))
+    rm -f $dd_out
+    
+    # limit is 25% => leave half of files with owner root
+    ((limit=last/2))
     ((indice=1))
     while [ $indice -lt $limit ]
     do
@@ -4672,7 +4703,7 @@ function test_removing
 	
 	# launch the scan ..........................
 	echo "2-Scanning directories in filesystem ..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "performing FS removing"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
 
 	# optional sleep process ......................
 	if [ $sleepTime != 0 ]; then
@@ -4936,13 +4967,18 @@ function test_report_generation_1
 	
 	# launch another scan ..........................
 	echo -e "\n 3-Filesystem content statistics..."
-	#$REPORT -f ./cfg/$config_file --fs-info -c || error "performing FS statistics (--fs)"
-	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs)"
+	#$REPORT -f ./cfg/$config_file --fs-info -c || error "performing FS statistics (--fs-info)"
+	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs-info)"
 	logFile=report.out
-	typeValues="dir;file;symlink"
-	countValues="7;6;3"
-	colSearch=2
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs)"
+    if (( $is_hsmlite + $is_lhsm != 0 )); then
+	    typeValues="new"
+    	countValues="9"
+    else
+	    typeValues="dir;file;symlink"
+    	countValues="7;6;3"
+    fi
+   	colSearch=2
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
 	
 	
 	# launch another scan ..........................
@@ -4988,32 +5024,35 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
 	
 	# launch another scan ..........................
-	echo -e "\n 9-Four largest directories of Filesystem..."
+	echo -e "\n 9-Four oldest purgeable entries of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
 	typeValues="file\.3;file\.4;file\.5;link\.3"
 	countValues="1;2;3;4"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--top-purge)"	
 	
-	# launch another scan ..........................
-	echo -e "\n 10-Oldest and empty directories of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-rmdir --csv > report.out || error "performing Oldest and empty folders list (--top-rmdir)"	
-	nb_dir3=`grep "dir3" $logFile | wc -l`
-	if (( nb_dir3==0 )); then
-	    error "validating Oldest and empty folders list (--top-rmdir) : dir3 not found"
-	fi
-	nb_dir4=`grep "dir4" $logFile | wc -l`
-	if (( nb_dir4==0 )); then
-	    error "validating Oldest and empty folders list (--top-rmdir) : dir4 not found"
-	fi
-	nb_dir6=`grep "dir6" $logFile | wc -l`
-	if (( nb_dir6==0 )); then
-	    error "validating Oldest and empty folders list (--top-rmdir) : dir6 not found"
-	fi
-	nb_dir7=`grep "dir7" $logFile | wc -l`
-	if (( nb_dir7==0 )); then
-	    error "validating Oldest and empty folders list (--top-rmdir) : dir7 not found"
-	fi
+   echo -e "\n 10-Oldest and empty directories of Filesystem..."
+   if (( $is_hsmlite + $is_lhsm != 0 )); then
+       echo "No rmdir policy for hsmlite or HSM purpose: skipped"
+   else
+        $REPORT -f ./cfg/$config_file --top-rmdir --csv > report.out || error "performing Oldest and empty folders list (--top-rmdir)"	
+        nb_dir3=`grep "dir3" $logFile | wc -l`
+        if (( nb_dir3==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir3 not found"
+        fi
+        nb_dir4=`grep "dir4" $logFile | wc -l`
+        if (( nb_dir4==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir4 not found"
+        fi
+        nb_dir6=`grep "dir6" $logFile | wc -l`
+        if (( nb_dir6==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir6 not found"
+        fi
+        nb_dir7=`grep "dir7" $logFile | wc -l`
+        if (( nb_dir7==0 )); then
+            error "validating Oldest and empty folders list (--top-rmdir) : dir7 not found"
+        fi
+    fi
 	
 	# launch another scan ..........................
 	echo -e "\n 11-Top disk space consumers of Filesystem..."
@@ -5046,14 +5085,14 @@ function test_report_generation_1
 	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
 	countValues="symlink;file;file;symlink;file"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validatingGroup entries for one group 'testgroup'(--dump-group)"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValues="testgroup.*dir2$;testgroup.*dir3$;testgroup.*dir5$;testgroup.*dir6$;testgroup.*dir7$"
 	countValues="dir;dir;dir;dir;dir"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validatingGroup entries for one group 'testgroup'(--dump-group)"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValue="testgroup"
 	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
-		 error"validatingGroup entries for one group 'testgroup'(--dump-group)"
+		 error "validating Group entries for one group 'testgroup'(--dump-group)"
 	fi
 }
 
@@ -5534,7 +5573,17 @@ function TEST_OTHER_PARAMETERS_4
 	mnted=`mount | grep $BKROOT | grep loop | wc -l`
     if (( $mnted == 0 )); then
         LOOP_FILE=/tmp/rbh.loop.cont
+        if [[ ! -s $LOOP_FILE ]]; then
+            echo "creating file container $LOOP_FILE..."
+            dd if=/dev/zero of=$LOOP_FILE bs=1M count=400 || exit 1
+            echo "formatting as ext3..."
+            mkfs.ext3 -F $LOOP_FILE || exit 1
+        fi
+
+        echo "Mounting $LOOP_FILE as $BKROOT"
         mount -o loop -t ext4 $LOOP_FILE $BKROOT || exit 1
+    	echo "Cleaning backend content..."
+		find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
     fi
     
     echo "Migrate files"
@@ -5573,7 +5622,7 @@ function TEST_OTHER_PARAMETERS_4
     
     kill -9 $pid
     rm -rf $BKROOT/*
-    umount $BKROOT
+    umount -f $BKROOT
 }
 
 function TEST_OTHER_PARAMETERS_5
@@ -5585,7 +5634,7 @@ function TEST_OTHER_PARAMETERS_5
 
 	config_file=$1
     
-    if (( ($shook != 0) || ($is_lhsm != 0) )); then
+    if (( ($shook + $is_lhsm) == 0 )); then
 		echo "No TEST_OTHER_PARAMETERS_5 for this purpose: skipped"
 		set_skipped
 		return 1
@@ -5610,14 +5659,19 @@ function TEST_OTHER_PARAMETERS_5
 	sleep 60
 	
     echo "Create files"
-	elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
-	limit=90
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	limit=60
 	indice=1
     while (( $elem < $limit ))
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || echo "WARNING: fail writing file.$indice"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null 
+        if (( $? != 0 )); then
+            echo "WARNING: fail writing file.$indice (usage $elem/$limit)"
+            # give it a chance to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
-	elem=`lfs df | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
+        elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
         ((indice++))
     done
 
@@ -5664,79 +5718,79 @@ fi
 
 ##### info collect. + DB tests #####
 
-#run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
-#run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
-#run_test 101b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
-#run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
-#run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
-#run_test 102	update_test test_updt.conf 5 30 "db update policy"
-#run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
-#run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
-#run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
-#run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
+run_test 100	test_info_collect info_collect.conf 1 1 "escape string in SQL requests"
+run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
+run_test 101b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
+run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
+run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
+run_test 102	update_test test_updt.conf 5 30 "db update policy"
+run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
+run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
+run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
+run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 
 
 #### policy matching tests  ####
 
-#run_test 200	path_test test_path.conf 2 "path matching policies"
-#run_test 201	migration_test test1.conf 11 31 "last_mod>30s"
-#run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
-#run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
-#run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
-#run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-#run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
-#run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
-#run_test 208a	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
-#run_test 208b	policy_check_migr test_check_migr.conf 10 "test fileclass matching (migration)"
-#run_test 209a	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
-#run_test 209b	policy_check_purge test_check_purge.conf 10 "test fileclass matching (purge)"
-#run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
-#run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
-#run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
-#run_test 213	migration_test_single test1.conf 11 31 "last_mod>30s"
-#run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
-#run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
-#run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
-#run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
-#run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
-#run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
-#run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
-#run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
+run_test 200	path_test test_path.conf 2 "path matching policies"
+run_test 201	migration_test test1.conf 11 31 "last_mod>30s"
+run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
+run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
+run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
+run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
+run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
+run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
+run_test 208a	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
+run_test 208b	policy_check_migr test_check_migr.conf 10 "test fileclass matching (migration)"
+run_test 209a	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
+run_test 209b	policy_check_purge test_check_purge.conf 10 "test fileclass matching (purge)"
+run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
+run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
+run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+run_test 213	migration_test_single test1.conf 11 31 "last_mod>30s"
+run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
+run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
+run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
+run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
+run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
+run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
+run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
+run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
 
 	
 #### triggers ####
 
-#run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
-#run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
-#run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
-#run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
+run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
+run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
+run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
+run_test 303    test_periodic_trigger test_trig4.conf 10 "periodic trigger"
 
 #### reporting ####
-#run_test 400	test_rh_report common.conf 3 1 "reporting tool"
-#run_test 401a   test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
-#run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
-#run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
-#run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
-#run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
-#run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
-#run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
-#run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
+run_test 400	test_rh_report common.conf 3 1 "reporting tool"
+run_test 401a   test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
+run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
+run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
+run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
+run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
+run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
+run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
+run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
 
 #### misc, internals #####
-#run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
-#run_test 500b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
-#run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
-#run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
-#run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
-#run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
-#run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
-#run_test 501b 	test_cfg_parsing detailed none		"parsing of detailed template"
-#run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
-#run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
-#run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
-#run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
-#run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
-#run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
+run_test 500a	test_logs log1.conf file_nobatch 	"file logging without alert batching"
+run_test 500b	test_logs log2.conf syslog_nobatch 	"syslog without alert batching"
+run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without alert batching"
+run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
+run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
+run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
+run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
+run_test 501b 	test_cfg_parsing detailed none		"parsing of detailed template"
+run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
+run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
+run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
+run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
+run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
+run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
 
 
 #### Tests by Sogeti ####
@@ -5768,7 +5822,7 @@ run_test 624 test_migration MigrationClass_LastModification.conf 31 2 "file.8;fi
 run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--migrate" "TEST_MIGRATION_CLASS_OST"
 run_test 626 test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
 run_test 627 test_migration MigrationUser.conf 0 1 "file.3" "--migrate-user=testuser" "TEST_MIGRATION_USER"
-run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--migrate-group=testuser" "TEST_MIGRATION_GROUP"
+run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--migrate-group=testgroup" "TEST_MIGRATION_GROUP"
 run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--migrate-file=$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
 run_test 630 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
 run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--migrate-file=$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
@@ -5801,7 +5855,7 @@ run_test 655 test_purge PurgeClass_LastModification.conf 60 9 "file.8" "--purge"
 run_test 656 purge_OST PurgeClass_OST.conf 2 "file.3;file.4" "--purge" "TEST_PURGE_CLASS_OST"
 run_test 657 test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
 
-run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 30 "TEST_REMOVING_EMPTY_DIR"
+run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 31 "TEST_REMOVING_EMPTY_DIR"
 run_test 659 test_removing RemovingDir_Path_Name.conf "pathName" 0 "TEST_REMOVING_DIR_PATH_NAME"
 run_test 660 test_removing RemovingDir_Owner.conf "owner" 0 "TEST_REMOVING_DIR_OWNER"
 run_test 661 test_removing RemovingDir_LastAccess.conf "lastAccess" 31 "TEST_REMOVING_DIR_LAST_ACCESS"

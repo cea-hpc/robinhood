@@ -1152,7 +1152,7 @@ static int check_usergroup_trigger( unsigned trigger_index )
     {
         unsigned long  used_hw =
             ( unsigned long ) ( ( p_trigger->hw_percent * total_blocks ) / 100.0 );
-        snprintf( hw_str, 128, "%.2f", p_trigger->hw_percent );
+        snprintf( hw_str, 128, "%.2f%%", p_trigger->hw_percent );
 
         max_blk512 = FSInfo2Blocs512( used_hw, statfs_glob.f_bsize );
     }
@@ -1196,6 +1196,13 @@ static int check_usergroup_trigger( unsigned trigger_index )
 
     /* filtre non-invalid entries */
     lmgr_simple_filter_init( &filter );
+
+#ifdef ATTR_INDEX_status
+    /* don't consider released files in quota */
+    fv.val_int = STATUS_RELEASED;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, NOTEQUAL, fv,
+                            FILTER_FLAG_ALLOW_NULL);
+#endif
 
 #if 0
     /** @TODO if accounting is enabled, don't filter to take benefits of accounting table */
@@ -1991,6 +1998,25 @@ static void   *trigger_check_thr( void *thr_arg )
         return NULL;
     }
 
+#ifdef ATTR_INDEX_status
+    unsigned int nb_reset = 0;
+    unsigned int nb_total = 0;
+
+    /* check previous migration status */
+    if ( resmon_config.check_purge_status_on_startup )
+    {
+        DisplayLog( LVL_EVENT, RESMON_TAG, "Checking status of outstanding purges..." );
+
+        rc = check_current_purges( &lmgr, &nb_reset, &nb_total, 0 );
+
+        if ( rc != 0 )
+            DisplayLog( LVL_CRIT, RESMON_TAG, "Error checking outstanding purge status" );
+        else
+            DisplayLog( LVL_EVENT, RESMON_TAG, "%u purges finished / %u total", nb_reset,
+                        nb_total );
+    }
+#endif
+
     do
     {
         max_usage = 0.0;
@@ -2215,19 +2241,19 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
     return 0;
 }
 
+int Stop_ResourceMonitor()
+{
+    terminate = TRUE;
+    abort_purge();
+    return 0;
+}
 
 static int volatile waiting = 0;
 
-int Wait_ResourceMonitor( int abort )
+int Wait_ResourceMonitor()
 {
     void          *returned;
     int rc = 0;
-
-    if ( abort )
-    {
-        terminate = TRUE;
-        abort_purge();
-    }
 
     /* /!\ pb: 2 threads cannot join the same other thread.
      * In one shot mode, the main thread is already waiting

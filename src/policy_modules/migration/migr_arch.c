@@ -360,6 +360,7 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
     ATTR_MASK_SET( p_attr_set, path_update );
     ATTR_MASK_SET( p_attr_set, last_mod );
     ATTR_MASK_SET( p_attr_set, size );
+    ATTR_MASK_SET( p_attr_set, md_update );
 #ifdef ATTR_INDEX_last_archive
     ATTR_MASK_SET( p_attr_set, last_archive );
 #endif
@@ -380,6 +381,7 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
         return rc;
     }
     p_attr_set->attr_mask |= allow_cached_attrs;
+
 #endif
     return 0;
 }
@@ -1477,13 +1479,10 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     }
 #elif defined( _HSM_LITE )
 
-    /* if archive is asynchronous, set status=archive running before */
-    if ( backend.async_archive )
-    {
-        ATTR_MASK_SET( &new_attr_set, status );
-        ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
-        update_entry( lmgr, &p_item->entry_id, &new_attr_set );
-    }
+    /* set status="archive_running" before running the copy command */
+    ATTR_MASK_SET( &new_attr_set, status );
+    ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
+    update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
     rc = MigrateEntry( &p_item->entry_id, &new_attr_set, hints );
 
@@ -1579,9 +1578,12 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         FormatDurationFloat( strmod, 256, time( NULL ) - ATTR( &new_attr_set, last_mod ) );
 
 #ifdef ATTR_INDEX_last_archive
-        if ( ATTR_MASK_TEST( &new_attr_set, last_archive ) )
+        if ( ATTR_MASK_TEST( &p_item->entry_attr, last_archive )
+             && ATTR( &p_item->entry_attr, last_archive) != 0 )
+        {
             FormatDurationFloat( strarchive, 256,
-                                 time( NULL ) - ATTR( &new_attr_set, last_archive ) );
+                                 time( NULL ) - ATTR(  &p_item->entry_attr, last_archive ) );
+        }
         else
 #endif
             is_copy = FALSE;
@@ -1598,7 +1600,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                     " last archived %s%s,  size=%s%s%s",
                     action_str, ATTR( &p_item->entry_attr, fullpath ),
                     policy_case->policy_id, strmod,
-                    ( is_copy ? strarchive : "(unknown)" ), ( is_copy ? " ago" : "" ),
+                    ( is_copy ? strarchive : "(none)" ), ( is_copy ? " ago" : "" ),
                     strsize, ( is_stor ? "stored on" : "" ), ( is_stor ? strstorage : "" ) );
 
 #ifdef ATTR_INDEX_last_archive
@@ -1607,7 +1609,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                        "%s%s", action_str, ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_mod ),
-                       is_copy ? (time_t)ATTR( &new_attr_set, last_archive ) : 0,
+                       is_copy ? (time_t)ATTR( &p_item->entry_attr, last_archive ) : 0,
                        ( is_stor ? ", storage_units=" : "" ), 
                        ( is_stor ? strstorage : "" ) );
 #else

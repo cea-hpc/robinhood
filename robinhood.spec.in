@@ -295,6 +295,24 @@ fi
 
 %changelog
 
+* Wed Jun 13 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.7
+- Implemented max_rm_count in hsm remove policy
+- Consider all non dirs for classinfo (instead of files only)
+- Fix: migrate-group did migrate user
+
+* Tue May 23 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.6
+- Faster and safer shutdown
+- Better block counting for purges
+
+* Tue May 15 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.4
+- shook: * entry state set to 'archive_running' during migration
+         * recovery for entries with 'release pending' state on startup
+         * fix: recovery for simlinks
+         * enable DB rebuild for shook if it is lost
+
+* Wed Apr 04 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.2
+- Efix: Don't consider 'released' entries for quota-like purge triggers
+
 * Wed Feb 08 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3
 - [webgui] added FS name to page title and page header
 - [webgui] fix: added missing file in RPM (.htaccess)

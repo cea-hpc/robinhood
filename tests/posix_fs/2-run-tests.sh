@@ -5,6 +5,9 @@ BKROOT="/tmp/backend"
 RBH_OPT=""
 DB=robinhood_test
 
+RBH_BINDIR="../../src/robinhood"
+#RBH_BINDIR="/usr/sbin"
+
 XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"
 TMPERR_FILE="/tmp/err_str.$$"
@@ -13,22 +16,22 @@ TEMPLATE_DIR='../../doc/templates'
 
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_hsmlite=0
-	RH="robinhood $RBH_OPT"
-	REPORT="rbh-report $RBH_OPT"
+	RH="$RBH_BINDIR/robinhood $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
 	CMD=robinhood
 	PURPOSE="TMP_FS_MGR"
 	REL_STR="Purged"
 
 elif [[ $PURPOSE = "HSM_LITE" ]]; then
 	is_hsmlite=1
-	RH="../../src/robinhood/rbh-hsmlite $RBH_OPT"
-	REPORT="../../src/robinhood/rbh-hsmlite-report $RBH_OPT"
+	RH="$RBH_BINDIR/rbh-hsmlite $RBH_OPT"
+	REPORT="$RBH_BINDIR/rbh-hsmlite-report $RBH_OPT"
 	CMD=rbh-hsmlite
 fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log report.out rh_syntax.log /tmp/rh_alert.log rh_rmdir.log"
+CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log /tmp/rh_alert.log rh_rmdir.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -58,7 +61,9 @@ function error
 	if (($junit)); then
 	 	grep -i error *.log | grep -v "(0 errors)" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
-	fi
+    fi
+    # avoid displaying the same log many times
+    clean_logs
 }
 
 function set_skipped
@@ -1967,7 +1972,7 @@ function test_alerts
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-		head $ROOT/dir1/file.1 || error "opening $ROOT/dir1/file.1"
+		head $ROOT/dir1/file.1 > /dev/null || error "opening $ROOT/dir1/file.1"
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
 	fi
@@ -2110,7 +2115,12 @@ function trigger_purge_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null 
+        if (( $? != 0 )); then
+            echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+            # give it a chance to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -2153,6 +2163,11 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     while [ $elem -lt $limit ]
     do
         dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
+        if (( $? != 0 )); then
+            echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+            # give it a change to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -2644,6 +2659,9 @@ function test_report_generation_1
 	# dir7:
 	mkdir -p $ROOT/dir7
 	sleep 1
+	#link in dir.1
+	ln -s $ROOT/dir1 $ROOT/dir1/link.0 || error "creating symbolic link $ROOT/dir1/link.0"
+	sleep 1
 	
 	# manage owner and group
 	filesList="$ROOT/link.1 $ROOT/dir1/dir2/link.2"
@@ -2664,7 +2682,7 @@ function test_report_generation_1
 	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs)"
 	logFile=report.out
 	typeValues="dir;file;symlink"
-	countValues="7;6;3"
+	countValues="7;6;4"
 	colSearch=2
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs)"
 	
@@ -2674,7 +2692,7 @@ function test_report_generation_1
 	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
 	typeValues="test_file_type;test_link_type"
 	#typeValues="test_file_type"
-	countValues="6;3"
+	countValues="6;4"
 	#countValues="6"
 	colSearch=2
 	#echo "arguments= $logFile $typeValues $countValues $colSearch**"
@@ -2683,7 +2701,7 @@ function test_report_generation_1
 	echo -e "\n 5-User statistics of root..."
 	$REPORT -f ./cfg/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
 	typeValues="root.*dir;root.*file;root.*symlink"
-	countValues="2;5;1"
+	countValues="2;5;2"
 	colSearch=3
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
 	
@@ -2696,10 +2714,10 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group statistics (--group)"
 	
 	# launch another scan ..........................
-	echo -e "\n 7-Four largest files of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-size=4 --csv > report.out || error "performing Largest files list (--top-size)"
-	typeValues="file\.6;file\.5;file\.3;file\.2"
-	countValues="1;2;3;4"
+	echo -e "\n 7-Largest files of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-size=3 --csv > report.out || error "performing Largest files list (--top-size)"
+	typeValues="file\.6;file\.5;file\.3"
+	countValues="1;2;3"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"
 	
@@ -2712,7 +2730,7 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
 	
 	# launch another scan ..........................
-	echo -e "\n 9-Four largest directories of Filesystem..."
+	echo -e "\n 9-Four oldest entries of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
 	typeValues="file\.3;file\.4;file\.5;link\.3"
 	countValues="1;2;3;4"
@@ -2759,7 +2777,7 @@ function test_report_generation_1
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
 	typeValue="root.*[root|testgroup]"
-	if (( $(grep $typeValue $logFile | wc -l) != 8 )) ; then
+	if (( $(grep $typeValue $logFile | wc -l) != 9 )) ; then
 		 error "validating entries for one user 'root'(--dump-user)"
 	fi
 		
@@ -2770,14 +2788,14 @@ function test_report_generation_1
 	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
 	countValues="symlink;file;file;symlink;file"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validatingGroup entries for one group 'testgroup'(--dump-group)"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValues="testgroup.*dir2$;testgroup.*dir3$;testgroup.*dir5$;testgroup.*dir6$;testgroup.*dir7$"
 	countValues="dir;dir;dir;dir;dir"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validatingGroup entries for one group 'testgroup'(--dump-group)"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValue="testgroup"
 	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
-		 error"validatingGroup entries for one group 'testgroup'(--dump-group)"
+		 error "validating Group entries for one group 'testgroup'(--dump-group)"
 	fi
 }
 
@@ -3007,7 +3025,12 @@ function TEST_OTHER_PARAMETERS_5
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null || error "writing file.$indice"
+        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null
+        if (( $? != 0 )); then
+            echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
+            # give it a change to end the loop
+            ((limit=$limit-1))
+        fi
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
@@ -3153,7 +3176,7 @@ run_test 654 test_purge PurgeClass_LastAccess.conf 60 9 "file.8" "--purge" "TEST
 run_test 655 test_purge PurgeClass_LastModification.conf 60 9 "file.8" "--purge" "TEST_PURGE_CLASS_LAST_MODIFICATION"
 run_test 656 test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
 
-run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 30 "TEST_REMOVING_EMPTY_DIR"
+run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 31 "TEST_REMOVING_EMPTY_DIR"
 run_test 659 test_removing RemovingDir_Path_Name.conf "pathName" 0 "TEST_REMOVING_DIR_PATH_NAME"
 run_test 660 test_removing RemovingDir_Owner.conf "owner" 0 "TEST_REMOVING_DIR_OWNER"
 run_test 661 test_removing RemovingDir_LastAccess.conf "lastAccess" 31  "TEST_REMOVING_DIR_LAST_ACCESS"

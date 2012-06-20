@@ -438,7 +438,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         return rc;
 #endif
 
-#if defined(_LUSTRE_HSM) || defined (_SHERPA) || defined(_HSM_LITE)
+#ifdef ATTR_INDEX_status
     /* only get entries with HSM state SYNCHRO */
     fval.val_int = STATUS_SYNCHRO;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
@@ -914,9 +914,14 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
         } /* end get path */
     }
 
+#ifdef ATTR_INDEX_status
 #ifdef _LUSTRE_HSM
+    /* For Lustre-HSM, don't care about fresh status because 'release'
+     * is safe (Lustre locking + check of open/modified files)
+     */
     /* is status known? */
-    if ( !ATTR_MASK_TEST( &p_item->entry_attr, status ) )
+    if ( !ATTR_MASK_TEST( &p_item->entry_attr, status )
+        || ATTR(&p_item->entry_attr, status) == STATUS_UNKNOWN )
     {
         DisplayLog( LVL_FULL, PURGE_TAG, "Update of HSM state (not known in DB)" );
         rc = LustreHSM_GetStatus( fid_path, &ATTR( new_attr_set, status ),
@@ -929,6 +934,13 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
             ATTR_MASK_SET( new_attr_set, no_archive );
         }
     }
+
+#elif defined(_HSM_LITE)
+    /* always update status for _HSM_LITE */
+    rc = rbhext_get_status( &p_item->entry_id, new_attr_set, new_attr_set );
+    if ( rc )
+        return PURGE_ERROR;
+#endif
 #endif
 
     /* entry is valid */
@@ -1053,6 +1065,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     policy_match_t match;
     policy_item_t *policy_case;
     fileset_item_t *p_fileset;
+    unsigned long   blk_sav = 0;
 
     int update_fileclass = -1; /* not set */
 
@@ -1214,7 +1227,9 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         {
             /* cannot determine if entry has been accessed: update and skip it */
             DisplayLog( LVL_MAJOR, PURGE_TAG,
-                        "Warning: previous value of 'last_access' or 'size' is not available: cannot determine if entry has been accessed. Skipping entry." );
+                        "Warning: previous value of 'last_access' or 'size' "
+                        "is not available: cannot determine if entry has been "
+                        "accessed. Skipping entry." );
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
             /* Notify error */
@@ -1311,6 +1326,12 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
             goto end;
         }
     }
+
+    /* save block count before purging */
+    if (!ATTR_MASK_TEST(&new_attr_set, blocks))
+        DisplayLog( LVL_MAJOR, PURGE_TAG, "Warning: no block count available for computing purged amount");
+    else
+        blk_sav = ATTR(&new_attr_set, blocks);
 
     /* Perform purge operation! */
 
@@ -1413,8 +1434,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
 #endif
 
         /* ack to queue manager */
-        Acknowledge( &purge_queue, PURGE_OK, ATTR( &new_attr_set, blocks ),
-                     p_item->specific_blocks );
+        Acknowledge( &purge_queue, PURGE_OK, blk_sav, p_item->specific_blocks );
 
     }
 
@@ -1488,3 +1508,167 @@ void abort_purge()
     purge_abort = TRUE;
 }
 
+#ifdef ATTR_INDEX_status
+/**
+ * Update the status of outstanding purges
+ * \param lmgr          [IN] connexion to database
+ * \param p_nb_reset    [OUT] number of purge reset
+ * \param p_nb_total    [OUT] total number of purge checked
+ */
+int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
+                           unsigned int * p_nb_total,
+                           time_t timeout )
+{
+    int            rc;
+    struct lmgr_iterator_t *it = NULL;
+
+    lmgr_filter_t  filter;
+    filter_value_t fval;
+
+    purge_item_t purge_item;
+
+    unsigned int nb_returned = 0;
+    unsigned int nb_aborted = 0;
+    int          attr_mask_sav = 0;
+#ifdef _HSM_LITE
+    unsigned int allow_cached_attrs = 0;
+    unsigned int need_fresh_attrs = 0;
+#endif
+
+    /* attributes to be retrieved */
+    ATTR_MASK_INIT( &purge_item.entry_attr );
+    ATTR_MASK_SET( &purge_item.entry_attr, fullpath );
+    ATTR_MASK_SET( &purge_item.entry_attr, path_update );
+    /* /!\ don't retrieve status, to force getting it from the filesystem */
+
+#ifdef _HSM_LITE
+    ATTR_MASK_SET( &purge_item.entry_attr, type );
+
+    /* what information the backend needs from DB? */
+    rc = rbhext_status_needs( TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs );
+    if (rc != 0)
+    {
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
+                   __FUNCTION__, __LINE__, rc );
+        return rc;
+    }
+    purge_item.entry_attr.attr_mask |= allow_cached_attrs;
+#endif
+
+    attr_mask_sav = purge_item.entry_attr.attr_mask;
+
+    rc = lmgr_simple_filter_init( &filter );
+    if ( rc )
+        return rc;
+
+    /* if timeout is > 0, only select entries whose last update
+     * is old enough (last_update <= now - timeout) or NULL*/
+    if ( timeout > 0 )
+    {
+        fval.val_int = time(NULL) - timeout;
+        rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN,
+                fval, FILTER_FLAG_ALLOW_NULL );
+        if ( rc )
+            return rc;
+    }
+
+    /* filter on current status RESTORE_RUNNING or RELEASE_PENDING
+     * also check values with NULL status */
+
+     /* '( status = RELEASE_PENDING' ... */
+    fval.val_int = STATUS_RELEASE_PENDING;
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
+                FILTER_FLAG_BEGIN );
+    if ( rc )
+        return rc;
+
+    /* ...' OR status = RESTORE_RUNNING OR status is NULL )' */
+    fval.val_int = STATUS_RESTORE_RUNNING;
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
+                FILTER_FLAG_OR | FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_END );
+    if ( rc )
+        return rc;
+
+#ifdef ATTR_INDEX_invalid
+    /* don't retrieve invalid entries (allow entries with invalid == NULL) */
+    fval.val_int = TRUE;
+    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fval,
+            FILTER_FLAG_ALLOW_NULL );
+    if ( rc )
+        return rc;
+#endif
+
+    it = ListMgr_Iterator( lmgr, &filter, NULL, NULL );
+
+    if ( it == NULL )
+    {
+        lmgr_simple_filter_free( &filter );
+        DisplayLog( LVL_CRIT, PURGE_TAG,
+                    "Error retrieving the list of current purges. Recovery cancelled." );
+        return -1;
+    }
+
+    memset( &purge_item, 0, sizeof(purge_item_t) );
+    purge_item.entry_attr.attr_mask = attr_mask_sav;
+
+    while ( (rc = ListMgr_GetNext( it, &purge_item.entry_id, &purge_item.entry_attr ))
+                == DB_SUCCESS )
+    {
+        nb_returned ++;
+
+        if ( ATTR_MASK_TEST(  &purge_item.entry_attr, fullpath ) )
+            DisplayLog( LVL_VERB, PURGE_TAG, "Updating status of '%s'...",
+                ATTR( &purge_item.entry_attr, fullpath ) );
+
+        /* check entry */
+        if ( check_entry( lmgr, &purge_item, &purge_item.entry_attr ) == PURGE_OK )
+        {
+            /* check new status */
+            if (ATTR_MASK_TEST( &purge_item.entry_attr, status)
+                 && (ATTR(&purge_item.entry_attr, status) == STATUS_RESTORE_RUNNING))
+            {
+               DisplayLog( LVL_EVENT, PURGE_TAG, "%s: restore still running",
+                           ATTR(&purge_item.entry_attr, fullpath) );
+            }
+            else if (ATTR_MASK_TEST( &purge_item.entry_attr, status)
+                 && (ATTR(&purge_item.entry_attr, status) == STATUS_RELEASE_PENDING))
+            {
+               DisplayLog( LVL_EVENT, PURGE_TAG, "%s: release still in progress",
+                           ATTR(&purge_item.entry_attr, fullpath) );
+            }
+            else
+            {
+               DisplayLog( LVL_EVENT, PURGE_TAG, "%s: operation finished\n",
+                           ATTR(&purge_item.entry_attr, fullpath) );
+               nb_aborted++;
+            }
+            /* update entry status */
+            update_entry( lmgr, &purge_item.entry_id,  &purge_item.entry_attr );
+        }
+        else
+            nb_aborted ++;
+
+        /* reset attr_mask, if it was altered by last ListMgr_GetNext() call */
+        memset( &purge_item, 0, sizeof(purge_item_t) );
+        purge_item.entry_attr.attr_mask = attr_mask_sav;
+    }
+
+    lmgr_simple_filter_free( &filter );
+    ListMgr_CloseIterator( it );
+
+    if ( p_nb_total )
+        *p_nb_total = nb_returned;
+
+    if ( p_nb_reset )
+        *p_nb_reset = nb_aborted;
+
+    /* check rc */
+    if ( rc != DB_END_OF_LIST )
+    {
+        DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d getting next entry of iterator", rc );
+        return -1;
+    }
+
+    return 0; 
+}
+#endif

@@ -191,7 +191,7 @@ static int start_migration_pass(  )
         snprintf(tmpstr, 128, "migrate user '%s' files", param.param_u.user_name );
         break;
     case MIGR_GROUP:
-        param.type = MIGR_BY_USER;
+        param.type = MIGR_BY_GROUP;
         param.param_u.group_name = module_args.optarg_u.name;
         snprintf(tmpstr, 128, "migrate group '%s' files", param.param_u.group_name );
         break;
@@ -413,18 +413,19 @@ int MigrateSingle( migration_config_t * p_config, const char * file, int flags )
 
 }
 
+int Stop_Migration()
+{
+    terminate = TRUE;
+    abort_migration();
+    return 0;
+}
+
 static int volatile waiting = 0;
 
-int Wait_Migration( int abort )
+int Wait_Migration()
 {
     void          *returned;
     int rc = 0;
-
-    if ( abort )
-    {
-        terminate = TRUE;
-        abort_migration();
-    }
 
     /* /!\ pb: 2 threads cannot join the same other thread.
      * In one shot mode, the main thread is already waiting
@@ -452,7 +453,6 @@ int Wait_Migration( int abort )
     }
     return rc;
 }
-
 
 void Dump_Migration_Stats(  )
 {
