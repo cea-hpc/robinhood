@@ -33,7 +33,9 @@ typedef struct lmgr_report_t
 
     /* expected result content */
     db_type_t     *result_type_array;
-    unsigned int   result_count;
+    unsigned int   result_count; /* report + profile */
+    unsigned int   profile_count; /* profile only */
+    unsigned int   profile_attr; /* profile attr (if profile_count > 0) */
 
     char         **str_tab;
 } lmgr_report_t;
@@ -59,7 +61,7 @@ static inline const char *field_str( unsigned int index )
 #define field_type( _f_ )   (field_infos[_f_].db_type)
 
 static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr, 
-                                    report_field_descr_t *report_desc_array, 
+                                    const report_field_descr_t *report_desc_array, 
                                     char *attrstring, char *attrname, 
                                     char *having, char **curr_having, 
                                     char *where, char **curr_where , int i )
@@ -95,7 +97,8 @@ static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr,
 
 static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, 
                                     unsigned int report_descr_count, 
-                                    report_field_descr_t *report_desc_array,
+                                    const report_field_descr_t *report_desc_array,
+                                    const profile_field_descr_t * profile_descr,
                                     char *fields, char **curr_field, 
                                     char *group_by, char **curr_group_by, 
                                     char *order_by, char **curr_sort, 
@@ -177,16 +180,31 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
         }
         listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
                             having, curr_having, where, curr_where, i ); 
-
     }
+    if (profile_descr)
+    {
+        /* XXX only size profile in managed for now */
+        if (profile_descr->attr_index == ATTR_INDEX_size)
+        {
+            for (i = 0; i < SZ_PROFIL_COUNT; i++)
+            {
+                (*curr_field) += sprintf(*curr_field, "%sSUM(%s)", (fields==(*curr_field))?"":",",
+                                         sz_field[i]);
+                p_report->result_type_array[i+report_descr_count] = DB_BIGUINT; /* count */
+            }
+        }
+    }
+
 }
 
 
 /**
  * Builds a report from database.
  */
-struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * report_desc_array,
+struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
+                                      const report_field_descr_t * report_desc_array,
                                       unsigned int report_descr_count,
+                                      const profile_field_descr_t * profile_descr,
                                       const lmgr_filter_t * p_filter,
                                       const lmgr_iter_opt_t * p_opt )
 {
@@ -228,6 +246,19 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     int            filter_acct = 0;
     int            full_acct = TRUE;
     lmgr_iter_opt_t opt;
+    unsigned int   profile_len = 0;
+
+    /* check profile argument and increase output array if needed */
+    if (profile_descr != NULL)
+    {
+        if (profile_descr->attr_index != ATTR_INDEX_size)
+        {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Profile on attribute #%u is not supported",
+                       profile_descr->attr_index);
+            return NULL;
+        }
+        profile_len = SZ_PROFIL_COUNT;
+    }
 
     /* allocate a new report structure */
     p_report = ( lmgr_report_t * ) MemAlloc( sizeof( lmgr_report_t ) );
@@ -237,11 +268,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     p_report->p_mgr = p_mgr;
 
     p_report->result_type_array =
-        ( db_type_t * ) MemCalloc( report_descr_count, sizeof( db_type_t ) );
+        ( db_type_t * ) MemCalloc( report_descr_count + profile_len,
+                                   sizeof( db_type_t ) );
     if ( !p_report->result_type_array )
         goto free_report;
 
-    p_report->result_count = report_descr_count;
+    p_report->result_count = report_descr_count + profile_len;
+    p_report->profile_count = profile_len;
+    if (profile_descr != NULL)
+        p_report->profile_attr = ATTR_INDEX_size;
 
     /* initialy, no char * tab allocated */
     p_report->str_tab = NULL;
@@ -270,7 +305,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
     if ( p_filter )
     {
         if ( p_filter->filter_type == FILTER_SIMPLE )
-        {    
+        {
             for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
             {
                 if ( !is_acct_pk( p_filter->filter_simple.filter_index[i] ) &&
@@ -279,12 +314,13 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
             }
         }
     }
-    
+
     if ( full_acct && !opt.force_no_acct )
     {
         listmgr_optimizedstat( p_report, p_mgr, report_descr_count, report_desc_array, 
-                        fields, &curr_field, group_by, &curr_group_by, order_by, &curr_sort,
-                        having, &curr_having, where, &curr_where);
+                               profile_descr,
+                               fields, &curr_field, group_by, &curr_group_by, order_by, &curr_sort,
+                               having, &curr_having, where, &curr_where);
         acct_table_flag = TRUE;
     }
     else
@@ -376,6 +412,22 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
             listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
                                 having, &curr_having, where, &curr_where, i );
         }
+
+        /* generate size profile */
+        if (profile_descr != NULL)
+        {
+            if (profile_descr->attr_index == ATTR_INDEX_size)
+            {
+                add_string( fields, curr_field, "SUM(size=0)" );
+                for (i=1; i < SZ_PROFIL_COUNT-1; i++)
+                    curr_field += sprintf(curr_field, ",SUM("ACCT_SZ_VAL("size")"=%u)", i-1);
+                curr_field += sprintf(curr_field, ",SUM("ACCT_SZ_VAL("size")">=%u)", i-1);
+
+                for (i=0; i<SZ_PROFIL_COUNT; i++)
+                    p_report->result_type_array[i+report_descr_count] = DB_BIGUINT;
+            }
+        }
+
     } 
     /* filter */
 
@@ -480,6 +532,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
         DisplayLog( LVL_EVENT, LISTMGR_TAG, "No accounting info: switching to standard query mode" );
 
         return ListMgr_Report( p_mgr, report_desc_array, report_descr_count,
+                               profile_descr,
                                p_filter, &new_opt );
     }
 
@@ -501,14 +554,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * rep
 /**
  * Get next report entry.
  * @param p_value_count is IN/OUT parameter. IN: size of output array. OUT: nbr of fields set in array.
+ * @param p_profile OUT: output profile, if required.
  */
 int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_value,
-                               unsigned int *p_value_count )
+                               unsigned int *p_value_count, profile_u *p_profile )
 {
     int            rc;
     unsigned int   i;
 
-    if ( *p_value_count < p_iter->result_count )
+    if ( *p_value_count < p_iter->result_count - p_iter->profile_count )
         return DB_BUFFER_TOO_SMALL;
 
     if ( p_iter->str_tab == NULL )
@@ -525,7 +579,7 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
         return rc;
 
     /* parse result values */
-    for ( i = 0; i < p_iter->result_count; i++ )
+    for ( i = 0; i < p_iter->result_count - p_iter->profile_count; i++ )
     {
         if ( p_iter->str_tab[i] != NULL )
         {
@@ -545,7 +599,36 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
         }
     }
 
-    *p_value_count = p_iter->result_count;
+    /* fill profile structure */
+    if (p_profile && (p_iter->profile_count > 0))
+    {
+        if (p_iter->profile_attr == ATTR_INDEX_size)
+        {
+            db_type_u dbval; 
+            for (i=0; i < p_iter->profile_count; i++)
+            {
+                unsigned int idx = p_iter->result_count - p_iter->profile_count + i ;
+                if (p_iter->str_tab[idx] == NULL)
+                {
+                    p_profile->size.file_count[i] = 0;
+                }
+                else if (parsedbtype(p_iter->str_tab[idx], p_iter->result_type_array[idx],
+                         &dbval) == 1)
+                {
+                    p_profile->size.file_count[i] = dbval.val_biguint;
+                }
+                else
+                {
+                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                "Could not parse result field #%u: value='%s'",
+                                idx, p_iter->str_tab[idx] );
+                    return DB_INVALID_ARG;
+                }
+            }
+        }
+    }
+
+    *p_value_count = p_iter->result_count - p_iter->profile_count;
 
     return DB_SUCCESS;
 }
@@ -561,83 +644,3 @@ void ListMgr_CloseReport( struct lmgr_report_t *p_iter )
     MemFree( p_iter->result_type_array );
     MemFree( p_iter );
 }
-
-
-/* profile is based on LOG2(size)
- * -> FLOOR(LOG2(size)/5)
- */
-//#define SZ_PROFIL_COUNT 10
-//#define SZ_MIN_BY_INDEX(_i) ((_i==0)?0:(1LL<<((_i-1)*5)))
-///** size profile descriptor */
-//typedef struct size_range__
-//{
-//    uint64_t min_size; /* max_size[i] is min_size[i+1] */
-//    char *title;
-//} size_range_t;
-//
-//static const  __attribute__ ((__unused__))
-//size_range_t size_range[SZ_PROFIL_COUNT] =
-//{
-//    {SZ_MIN_BY_INDEX(0), "0"},
-//    {SZ_MIN_BY_INDEX(1), "1~31"},
-//    {SZ_MIN_BY_INDEX(2), "32~1K"},
-//    {SZ_MIN_BY_INDEX(3), "1K~32K"},
-//    {SZ_MIN_BY_INDEX(4), "32K~1M"},
-//    {SZ_MIN_BY_INDEX(5), "1M~32M"},
-//    {SZ_MIN_BY_INDEX(6), "32M~1G"},
-//    {SZ_MIN_BY_INDEX(7), "1G~32G"},
-//    {SZ_MIN_BY_INDEX(8), "32G~1T"},
-//    {SZ_MIN_BY_INDEX(9), "+1T"}
-//};
-//
-///** size profile values */
-//typedef struct size_profile__
-//{
-//    uint64_t file_count[SZ_PROFIL_COUNT];
-//} size_profile_t;
-//
-//typedef union
-//{
-//    size_profile_t size;
-//    /* TODO mtime, ... */
-//} profile_u;
-//
-///** describe a profile field */
-//typedef struct profile_field_descr_t
-//{
-//    unsigned int   attr_index;
-//    /* TODO sort order and filters are quite special (contains many fields...) */
-//
-//} profile_field_descr_t;
-//
-//
-/**
- * Retrieve profile (on size, atime, mtime, ...)
- * (by status, by user, by group, ...)
- * @param profile_descr information about the attribute to be profiled
- * @param report_descr  information about other fields of the report
-                        (field to group on and field to sort on)
- * @param report_descr_count number of items in report_descr
- */
-struct lmgr_profile_t *ListMgr_Profile( lmgr_t * p_mgr,
-                                        const profile_field_descr_t  *profile_descr,
-                                        const report_field_descr_t  *report_descr,
-                                        unsigned int report_descr_count,
-                                        const lmgr_filter_t   *p_filter,
-                                        const lmgr_iter_opt_t * p_opt );
-/**
- * Get next profile entry.
- * @param p_profile the profile structure
- * @param p_value array of values of report_descr
- * @param p_value_count is IN/OUT parameter. IN: size of output array. OUT: nbr of fields set in array.
- */
-int            ListMgr_GetNextProfile( struct lmgr_profile_t *p_iter,
-                                       profile_u  * p_profile,
-                                       db_value_t * p_value,
-                                       unsigned int *p_value_count );
-
-/**
- * Releases profile resources.
- */
-void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
-

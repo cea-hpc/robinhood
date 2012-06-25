@@ -60,6 +60,8 @@
 
 #define OPT_TOPRMDIR      266
 
+#define OPT_SIZE_PROFILE  267
+
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
 #define OPT_FLAG_NOHEADER   0x0002
@@ -70,6 +72,7 @@
 #define OPT_FLAG_BY_COUNT       0x0040
 #define OPT_FLAG_BY_AVGSIZE     0x0080
 #define OPT_FLAG_REVERSE        0x0100
+#define OPT_FLAG_SPROF          0x0200
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
@@ -80,8 +83,13 @@
 #define SORT_BY_COUNT(_x) ((_x)&OPT_FLAG_BY_COUNT)
 #define SORT_BY_AVGSIZE(_x) ((_x)&OPT_FLAG_BY_AVGSIZE)
 #define REVERSE(_x) ((_x)&OPT_FLAG_REVERSE)
+#define SPROF(_x) ((_x)&OPT_FLAG_SPROF)
 
 
+static const profile_field_descr_t size_profile =
+{
+    .attr_index = ATTR_INDEX_size
+};
 
 static struct option option_tab[] = {
 
@@ -126,6 +134,9 @@ static struct option option_tab[] = {
 #ifdef ATTR_INDEX_status
     {"dump-status", required_argument, NULL, OPT_DUMP_STATUS },
 #endif
+
+    {"szprof", no_argument, NULL, OPT_SIZE_PROFILE}, /* size profile */
+    {"size-profile", no_argument, NULL, OPT_SIZE_PROFILE},
 
     /* additional options for topusers etc... */
     {"filter-path", required_argument, NULL, 'P' },
@@ -196,16 +207,13 @@ static const char *help_string =
     "    " _B "--deferred-rm" B_ ", " _B "-R" B_ "\n"
     "        Display files to be removed from HSM.\n"
 #endif
-    "    "  _B "--dump" B_ ", " _B "-D" B_ "\n"
-    "        Dump all filesystem entries.\n"
-    "    "  _B "--dump-user" B_ " " _U "user" U_ "\n"
-    "        Dump all entries for the given user.\n"
-    "    "  _B "--dump-group" B_ " " _U "group" U_ "\n"
-    "        Dump all entries for the given group.\n"
+    "\n"_B "Deprecated:" B_ "\n"
+    "    "  _B "--dump" B_ ", "_B "--dump-user" B_ ", "_B "--dump-group" B_
 #ifdef _LUSTRE
-    "    "  _B "--dump-ost" B_ " " _U "ost_index" U_ "\n"
-    "        Dump all entries on the given OST.\n"
+     ", " _B "--dump-ost" B_
 #endif
+    ": use rbh-find instead\n"
+
 #ifdef ATTR_INDEX_status
     "    "  _B "--dump-status" B_ " " _U "status" U_ "\n"
     "        Dump all entries with the given status (%s).\n"
@@ -229,16 +237,18 @@ static const char *help_string =
     "        Cancel next maintenance.\n\n"
 #endif
     _B "Accounting report options:" B_ "\n"
-    "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n"
-    "        Display the report by user AND group\n"
-    "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n"
-    "        Generate the report without using accounting table\n"
+    "    " _B "--size-profile" B_ ", "_B "--szprof" B_ "\n"
+    "        Display size profile statistics\n"
     "    " _B "--by-count" B_ "\n"
     "        Sort users by count instead of sorting by volume\n"
     "    " _B "--by-avgsize" B_ "\n"
-    "        Sort users by average file size\n\n"
+    "        Sort users by average file size\n"
     "    " _B "--reverse" B_ "\n"
-    "        Reverse sort order\n\n"
+    "        Reverse sort order\n"
+    "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n"
+    "        Display the report by user AND group\n"
+    "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n"
+    "        Generate the report without using accounting table (slower)\n\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Specifies path to configuration file.\n"
@@ -1062,6 +1072,8 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
     return 1;
 }
 
+#define PROF_CNT_LEN    8
+
 static int list2mask(int * attr_list, int attr_count)
 {
     int i, mask, tmpmask;
@@ -1075,7 +1087,8 @@ static int list2mask(int * attr_list, int attr_count)
 }
 
 
-static void print_attr_list(int rank_field, int * attr_list, int attr_count, int csv)
+static void print_attr_list(int rank_field, int * attr_list, int attr_count,
+                            profile_field_descr_t * p_profile, int csv)
 {
     int i;
     int coma = 0;
@@ -1095,6 +1108,22 @@ static void print_attr_list(int rank_field, int * attr_list, int attr_count, int
             printf("%*s", attrindex2len(attr_list[i], csv),
                    attrindex2name(attr_list[i]));
             coma = 1;
+        }
+    }
+    if (p_profile)
+    {
+        if (p_profile->attr_index == ATTR_INDEX_size)
+        {
+            for (i=0; i < SZ_PROFIL_COUNT; i++)
+            {
+                if (coma)
+                    printf(", %*s", PROF_CNT_LEN, size_range[i].title);
+                else
+                {
+                    printf("%*s", PROF_CNT_LEN, size_range[i].title);
+                    coma = 1; 
+                }
+            }
         }
     }
     printf("\n");
@@ -1298,6 +1327,7 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
  */
 static void display_report( const report_field_descr_t * descr, unsigned int field_count,
                             const db_value_t * result, unsigned int result_count,
+                            const profile_field_descr_t * prof_descr, profile_u * p_prof,
                             int flags, int header, int rank )
 {
     unsigned int i;
@@ -1313,6 +1343,15 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
             if (!result || !DB_IS_NULL(&result[i]))
                 printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
                         attrdesc2name(&descr[i]));
+        if (prof_descr)
+        {
+            if (prof_descr->attr_index == ATTR_INDEX_size)
+            {
+                for (i=0; i < SZ_PROFIL_COUNT; i++)
+                    printf(", %*s", PROF_CNT_LEN, size_range[i].title);
+            }
+        }
+
         printf("\n");
     }
 
@@ -1328,6 +1367,15 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
             if (!DB_IS_NULL(&result[i]))
                 printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
                        result_val2str(&descr[i],&result[i], CSV(flags), tmpstr));
+        if (prof_descr && p_prof)
+        {
+            if (prof_descr->attr_index == ATTR_INDEX_size)
+            {
+                for (i=0; i < SZ_PROFIL_COUNT; i++)
+                    printf(", %*"PRIu64, PROF_CNT_LEN, p_prof->size.file_count[i]);
+            }
+        }
+
         printf("\n");
     }
 }
@@ -1418,7 +1466,7 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
         return;
     }
 
-    print_attr_list(0, list, list_cnt, CSV(flags));
+    print_attr_list(0, list, list_cnt, NULL, CSV(flags));
 
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
@@ -1493,6 +1541,7 @@ void report_fs_info( int flags )
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
     lmgr_iter_opt_t opt;
+    profile_u   prof;
     int display_header = 1;
 
     if (REVERSE(flags))
@@ -1523,9 +1572,11 @@ void report_fs_info( int flags )
 #endif
 
     if ( is_filter )
-        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT, &filter, &opt );
+        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT,
+                             SPROF(flags)?&size_profile:NULL, &filter, &opt );
     else
-        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT, NULL, &opt );
+        it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT,
+                             SPROF(flags)?&size_profile:NULL, NULL, &opt );
 
     if ( it == NULL )
     {
@@ -1537,13 +1588,18 @@ void report_fs_info( int flags )
 
     result_count = FSINFOCOUNT;
 
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
+    while ((rc = ListMgr_GetNextReportItem(it, result, &result_count,
+                                             SPROF(flags)?&prof:NULL))
               == DB_SUCCESS )
     {
         if (result[1+_SHIFT].value_u.val_biguint == 0) /* count=0 (don't display)*/
-            display_report( fs_info, FSINFOCOUNT, NULL, result_count, flags, display_header, 0 );
+            display_report( fs_info, FSINFOCOUNT, NULL, result_count,
+                            SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                            flags, display_header, 0 );
         else
-            display_report( fs_info, FSINFOCOUNT, result, result_count, flags, display_header, 0 );
+            display_report( fs_info, FSINFOCOUNT, result, result_count,
+                            SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                            flags, display_header, 0 );
         display_header = 0; /* just display it once */
 
         total_count += result[1+_SHIFT].value_u.val_biguint;
@@ -1596,6 +1652,7 @@ void report_usergroup_info( char *name, int flags )
 #define USERINFOCOUNT_MAX 8
 
     db_value_t     result[USERINFOCOUNT_MAX];
+    profile_u   prof;
 
     /* To be retrieved for each user:
      * - username
@@ -1688,7 +1745,9 @@ void report_usergroup_info( char *name, int flags )
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
-    it = ListMgr_Report( &lmgr, user_info, field_count, ( is_filter ? &filter : NULL ), &opt );
+    it = ListMgr_Report( &lmgr, user_info, field_count,
+                         SPROF(flags)?&size_profile:NULL,
+                         is_filter ? &filter : NULL, &opt );
 
     if ( is_filter )
         lmgr_simple_filter_free( &filter );
@@ -1701,11 +1760,13 @@ void report_usergroup_info( char *name, int flags )
 
     result_count = field_count;
 
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count,
+                                              SPROF(flags)?&prof:NULL ) ) == DB_SUCCESS )
     {
         result_count = field_count;
-        display_report( user_info, result_count, result, result_count, flags,
-                        display_header, 0 );
+        display_report( user_info, result_count, result, result_count,
+                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                        flags, display_header, 0 );
         display_header = 0; /* just display it once */
 
         total_count += result[1+shift].value_u.val_biguint;
@@ -1722,6 +1783,7 @@ void report_usergroup_info( char *name, int flags )
         printf( "\nTotal: %Lu entries, %Lu bytes used (%s)\n",
                 total_count, total_size, strsz );
     }
+
 }
 
 #ifdef ATTR_INDEX_dircount
@@ -1792,7 +1854,7 @@ void report_topdirs( unsigned int count, int flags )
         return;
     }
 
-    print_attr_list(1, list, list_cnt, CSV(flags));
+    print_attr_list(1, list, list_cnt, NULL, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
@@ -1880,7 +1942,7 @@ void report_topsize( unsigned int count, int flags )
         return;
     }
 
-    print_attr_list(1, list, list_cnt, CSV(flags));
+    print_attr_list(1, list, list_cnt, NULL, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
@@ -1979,7 +2041,7 @@ void report_toppurge( unsigned int count, int flags )
         return;
     }
 
-    print_attr_list(1, list, list_cnt, CSV(flags));
+    print_attr_list(1, list, list_cnt, NULL, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
@@ -2132,6 +2194,7 @@ void report_topuser( unsigned int count, int flags )
     unsigned int   rank = 1;
     lmgr_filter_t  filter;
     int is_filter = FALSE;
+    profile_u   prof;
 
 #define TOPUSERCOUNT 6
 
@@ -2189,9 +2252,11 @@ void report_topuser( unsigned int count, int flags )
 
     /* is a filter specified? */
     if ( is_filter )
-        it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT, &filter, &opt );
+        it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT,
+                             SPROF(flags)?&size_profile:NULL, &filter, &opt );
     else
-        it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT, NULL, &opt );
+        it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT,
+                             SPROF(flags)?&size_profile:NULL, NULL, &opt );
 
 
     if ( it == NULL )
@@ -2202,10 +2267,12 @@ void report_topuser( unsigned int count, int flags )
     }
 
     result_count = TOPUSERCOUNT;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count,
+                              SPROF(flags)?&prof:NULL ) ) == DB_SUCCESS )
     {
-        display_report( user_info, result_count, result, result_count, flags,
-                        rank == 1, rank ); /* display header once */
+        display_report( user_info, result_count, result, result_count,
+                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                        flags, rank == 1, rank ); /* display header once */
 
         rank++;
 
@@ -2479,6 +2546,7 @@ static void report_class_info( int flags )
     struct lmgr_report_t *it;
     lmgr_filter_t  filter;
     int            rc;
+    profile_u prof;
 #ifndef ATTR_INDEX_archive_class
     int header = 1;
 #endif
@@ -2521,7 +2589,8 @@ static void report_class_info( int flags )
     result_count = CLASSINFO_FIELDS;
 
     /* is a filter specified? */
-    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS, &filter, NULL );
+    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
+                         SPROF(flags)?&size_profile:NULL, &filter, NULL );
 
     if ( it == NULL )
     {
@@ -2535,20 +2604,23 @@ static void report_class_info( int flags )
     /* a single class column (release), can print as is */
     header = !NOHEADER(flags);
 
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
+    result_count = CLASSINFO_FIELDS;
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, SPROF(flags)?&prof:NULL ))
             == DB_SUCCESS )
     {
-        display_report( class_info, result_count, result, result_count, flags,
-                        header, 0);
+        display_report( class_info, result_count, result, result_count,
+                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                        flags, header, 0);
         header = 0; /* display header once */
 
         total_count += result[1].value_u.val_biguint;
         total_size += result[2].value_u.val_biguint * DEV_BSIZE;
+        result_count = CLASSINFO_FIELDS;
     }
 
 #else
 
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) )
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) )
             == DB_SUCCESS )
     {
 
@@ -2851,10 +2923,12 @@ int main( int argc, char **argv )
 
         case 'D':
             dump_all = TRUE;
+            fprintf(stderr, "Warning: 'dump' command is deprecated. Use \"rbh-find\" instead.\n");
             break;
 
         case OPT_DUMP_USER:
             dump_user = TRUE;
+            fprintf(stderr, "Warning: 'dump-user' command is deprecated. Use \"rbh-find -user\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <username> for --dump-user\n");
@@ -2865,6 +2939,7 @@ int main( int argc, char **argv )
 
         case OPT_DUMP_GROUP:
             dump_group = TRUE;
+            fprintf(stderr, "Warning: 'dump-group' command is deprecated. Use \"rbh-find -group\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <groupname> for --dump-group\n");
@@ -2876,6 +2951,7 @@ int main( int argc, char **argv )
 #ifdef _LUSTRE
         case OPT_DUMP_OST:
             dump_ost = TRUE;
+            fprintf(stderr, "Warning: 'dump-ost' command is deprecated. Use \"rbh-find -ost\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <ost_index> for --dump-ost\n");
@@ -2895,6 +2971,7 @@ int main( int argc, char **argv )
 #ifdef ATTR_INDEX_status
         case OPT_DUMP_STATUS:
             dump_status = TRUE;
+            fprintf(stderr, "Warning: 'dump-status' command is deprecated. Use \"rbh-find -status\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <status> for --dump-status\n");
@@ -3071,6 +3148,10 @@ int main( int argc, char **argv )
             break;
         case OPT_COUNT_MIN:
             count_min = atoi(optarg);
+            break;
+
+        case OPT_SIZE_PROFILE:
+            flags |= OPT_FLAG_SPROF;
             break;
 
         case ':':

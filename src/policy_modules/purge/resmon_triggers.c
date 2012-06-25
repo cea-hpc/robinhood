@@ -1243,8 +1243,8 @@ static int check_usergroup_trigger( unsigned trigger_index )
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }
     }
-    
-    it = ListMgr_Report( &lmgr, info, 2, &filter, NULL );
+
+    it = ListMgr_Report( &lmgr, info, 2, NULL, &filter, NULL );
 
     lmgr_simple_filter_free( &filter );
 
@@ -1257,7 +1257,7 @@ static int check_usergroup_trigger( unsigned trigger_index )
     }
 
     result_count = 2;
-    while ( (( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS) && !terminate )
+    while ( (( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) ) == DB_SUCCESS) && !terminate )
     {
         unsigned long long blocks_purged, nb_purged;
         char           desc[128];

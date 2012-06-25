@@ -219,6 +219,7 @@ int            WriteLmgrConfigDefault( FILE * output );
 /* opaque types */
 struct lmgr_iterator_t;
 struct lmgr_report_t;
+struct lmgr_profile_t;
 struct lmgr_rm_list_t;
 
 /** Options for iterators */
@@ -636,27 +637,6 @@ typedef struct report_field_descr_t
 
 } report_field_descr_t;
 
-
-/**
- * Builds a report from database.
- */
-struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr, report_field_descr_t * report_desc_array,
-                                      unsigned int report_descr_count,
-                                      const lmgr_filter_t * p_filter,
-                                      const lmgr_iter_opt_t * p_opt );
-
-/**
- * Get next report entry.
- * @param p_value_count is IN/OUT parameter. IN: size of output array. OUT: nbr of fields set in array.
- */
-int            ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_value,
-                                          unsigned int *p_value_count );
-
-/**
- * Releases report resources.
- */
-void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
-
 /* profile is based on LOG2(size)
  * -> FLOOR(LOG2(size)/5)
  */
@@ -703,6 +683,28 @@ typedef struct profile_field_descr_t
     /* TODO sort order and filters are quite special (contains many fields...) */
 
 } profile_field_descr_t;
+
+/**
+ * Builds a report from database.
+ */
+struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
+                                      const report_field_descr_t * report_desc_array,
+                                      unsigned int report_descr_count,
+                                      const profile_field_descr_t * profile_desc, /* optional */
+                                      const lmgr_filter_t * p_filter,
+                                      const lmgr_iter_opt_t * p_opt );
+
+/**
+ * Get next report entry.
+ * @param p_value_count is IN/OUT parameter. IN: size of output array. OUT: nbr of fields set in array.
+ */
+int            ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_value,
+                                          unsigned int *p_value_count,  profile_u *p_profile );
+
+/**
+ * Releases report resources.
+ */
+void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 
 
 /**

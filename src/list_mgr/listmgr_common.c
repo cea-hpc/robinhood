@@ -24,7 +24,7 @@
 #include "xplatform_print.h"
 #include <stdio.h>
 
-int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr )
+int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * value_ptr )
 {
     char tmpstr[4096];
 
@@ -946,6 +946,16 @@ int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
     else
         return DB_SUCCESS;
 #endif
+}
+
+unsigned int append_size_range_fields(char * str, int leading_comma, char *prefix)
+{
+    unsigned int i, l;
+    l=0;
+    for (i = 0; i < SZ_PROFIL_COUNT; i++)
+        l += sprintf( str+l, "%s %s%s", leading_comma || (i > 0)?",":"",
+                      prefix, sz_field[i] );
+    return l;
 }
 
 /* those functions are used for begin/commit/rollback */

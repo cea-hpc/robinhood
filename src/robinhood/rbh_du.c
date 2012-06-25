@@ -505,12 +505,12 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
         if (rc)
             return rc;
 
-        it = ListMgr_Report(&lmgr, dir_info, REPCNT, &parent_filter, NULL);
+        it = ListMgr_Report(&lmgr, dir_info, REPCNT, NULL, &parent_filter, NULL);
         if (it == NULL)
             return -1;
 
         result_count = REPCNT;
-        while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+        while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) ) == DB_SUCCESS )
         {
             unsigned int idx = ListMgr2PolicyType(result[0].value_u.val_str);
             stats[idx].count += result[1].value_u.val_biguint;
@@ -568,12 +568,12 @@ static int list_all(stats_du_t * stats, int display_stats)
         stats[idx].size += ATTR(&root_attrs, size);
     }
 
-    it = ListMgr_Report(&lmgr, dir_info, REPCNT, &entry_filter, NULL);
+    it = ListMgr_Report(&lmgr, dir_info, REPCNT, NULL, &entry_filter, NULL);
     if (it == NULL)
         return -1;
 
     result_count = REPCNT;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count ) ) == DB_SUCCESS )
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) ) == DB_SUCCESS )
     {
         unsigned int idx = ListMgr2PolicyType(result[0].value_u.val_str);
         stats[idx].count += result[1].value_u.val_biguint;

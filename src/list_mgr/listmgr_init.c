@@ -154,17 +154,6 @@ static inline int has_extra_field( int curr_field_index, char *table, char **fie
             return 0; 
 }
 
-
-static unsigned int append_size_range_fields(char * str, int leading_comma, char *prefix)
-{
-    unsigned int i, l;
-    l=0;
-    for (i = 0; i < SZ_PROFIL_COUNT; i++)
-        l += sprintf( str+l, "%s %s%s", leading_comma || (i > 0)?",":"",
-                      prefix, sz_field[i] );
-    return l;
-}
-
 /**
  * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
  */

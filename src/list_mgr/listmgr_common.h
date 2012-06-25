@@ -138,7 +138,7 @@ void           init_attrset_masks(  );
                 ( (1 << _attr_index) & SOFTRM_MASK )
 #endif
 
-int            printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, db_type_u * value_ptr );
+int            printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * value_ptr );
 
 int            parsedbtype( char *instr, db_type_t type, db_type_u * value_out );
 
@@ -187,6 +187,8 @@ int            mk_result_bind_list( const attr_set_t * p_set, table_enum table,
 char          *compar2str( filter_comparator_t compar );
 int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                            table_enum table, int leading_and, int prefix_table );
+
+unsigned int  append_size_range_fields(char * str, int leading_comma, char *prefix);
 
 typedef enum
 {
