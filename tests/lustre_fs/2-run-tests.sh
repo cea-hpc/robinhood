@@ -4994,16 +4994,26 @@ function test_report_generation_1
 	# launch another scan ..........................
 	echo -e "\n 5-User statistics of root..."
 	$REPORT -f ./cfg/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+	typeValues="root.*file;root.*symlink"
+	countValues="5;1"
+	else
 	typeValues="root.*dir;root.*file;root.*symlink"
 	countValues="2;5;1"
+	fi
 	colSearch=3
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
 	
 	# launch another scan ..........................
 	echo -e "\n 6-Group statistics of testgroup..."
 	$REPORT -f ./cfg/$config_file --group-info -g testgroup --csv > report.out || error "performing Group statistics (--group)"
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+	typeValues="testgroup.*file;testgroup.*symlink"
+	countValues="3;2"
+	else
 	typeValues="testgroup.*dir;testgroup.*file;testgroup.*symlink"
 	countValues="5;3;2"
+	fi
 	colSearch=3
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group statistics (--group)"
 	
@@ -5017,17 +5027,28 @@ function test_report_generation_1
 	
 	# launch another scan ..........................
 	echo -e "\n 8-Two largest directories of Filesystem..."
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+       		echo "No rmdir policy for hsmlite or HSM purpose: skipped"
+   	else
 	$REPORT -f ./cfg/$config_file --top-dirs=2 --csv > report.out || error "performing Largest folders list (--top-dirs)"
 	typeValues="dir1;dir5"
 	countValues="1;2"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
+	fi
 	
 	# launch another scan ..........................
 	echo -e "\n 9-Four oldest purgeable entries of Filesystem..."
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+	$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log  --once || error "performing migration"
+	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
+	typeValues="link\.3;link\.1;link\.2;file\.1"
+	countValues="1;2;3;4"
+	else 
 	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
 	typeValues="file\.3;file\.4;file\.5;link\.3"
 	countValues="1;2;3;4"
+	fi
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--top-purge)"	
 	
@@ -5057,14 +5078,33 @@ function test_report_generation_1
 	# launch another scan ..........................
 	echo -e "\n 11-Top disk space consumers of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-users --csv > report.out || error "performing disk space consumers (--top-users)"
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+	typeValues="root;testuser"
+	countValues="1;2"
+	else
 	typeValues="testuser;root"
 	countValues="1;2"
+	fi
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating disk space consumers (--top-users)"
 	
 	# launch another scan ..........................
 	echo -e "\n 12-Dump entries for one user of Filesystem..."
 	$REPORT -f ./cfg/$config_file --dump-user root --csv > report.out || error "dumping entries for one user 'root'(--dump-user)"
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+	typeValues="root.*[root|testgroup].*file\.1;root.*[root|testgroup].*file\.3"
+	countValues="file;file"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
+	typeValues="root.*[root|testgroup].*file\.4;root.*[root|testgroup].*file\.5;root.*[root|testgroup].*file\.6;root.*[root|testgroup].*link\.3;"
+	countValues="file;file;file;symlink"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
+	typeValue="root.*[root|testgroup]"
+	if (( $(grep $typeValue $logFile | wc -l) != 6 )) ; then
+		 error "validating entries for one user 'root'(--dump-user)"
+	fi
+	else
 	typeValues="root.*[root|testgroup].*dir1$;root.*[root|testgroup].*file\.1;root.*[root|testgroup].*file\.3;root.*[root|testgroup].*dir4$;"
 	countValues="dir;file;file;dir"
 	colSearch=1
@@ -5077,11 +5117,21 @@ function test_report_generation_1
 	if (( $(grep $typeValue $logFile | wc -l) != 8 )) ; then
 		 error "validating entries for one user 'root'(--dump-user)"
 	fi
-		
+	fi	
 	# launch another scan ..........................
 	echo -e "\n 13-Dump entries for one group of Filesystem..."
 	$REPORT -f ./cfg/$config_file --dump-group testgroup --csv > report.out || error "dumping entries for one group 'testgroup'(--dump-group)"
 	#$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
+	countValues="symlink;file;file;symlink;file"
+	colSearch=1
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
+	typeValue="testgroup"
+	if (( $(grep $typeValue $logFile | wc -l) != 5 )) ; then
+		 error "validating Group entries for one group 'testgroup'(--dump-group)"
+	fi
+	else
 	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
 	countValues="symlink;file;file;symlink;file"
 	colSearch=1
@@ -5093,6 +5143,7 @@ function test_report_generation_1
 	typeValue="testgroup"
 	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
 		 error "validating Group entries for one group 'testgroup'(--dump-group)"
+	fi
 	fi
 }
 
