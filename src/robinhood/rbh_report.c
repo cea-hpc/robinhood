@@ -61,6 +61,7 @@
 #define OPT_TOPRMDIR      266
 
 #define OPT_SIZE_PROFILE  267
+#define OPT_BY_SZ_RATIO   268
 
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
@@ -73,6 +74,7 @@
 #define OPT_FLAG_BY_AVGSIZE     0x0080
 #define OPT_FLAG_REVERSE        0x0100
 #define OPT_FLAG_SPROF          0x0200
+#define OPT_FLAG_BY_SZRATIO     0x0400
 
 #define CSV(_x) ((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) ((_x)&OPT_FLAG_NOHEADER)
@@ -82,13 +84,16 @@
 #define FORCE_NO_ACCT(_x) ((_x)&OPT_FLAG_NO_ACCT)
 #define SORT_BY_COUNT(_x) ((_x)&OPT_FLAG_BY_COUNT)
 #define SORT_BY_AVGSIZE(_x) ((_x)&OPT_FLAG_BY_AVGSIZE)
+#define SORT_BY_SZRATIO(_x) ((_x)&OPT_FLAG_BY_SZRATIO)
 #define REVERSE(_x) ((_x)&OPT_FLAG_REVERSE)
 #define SPROF(_x) ((_x)&OPT_FLAG_SPROF)
 
-
-static const profile_field_descr_t size_profile =
+static profile_field_descr_t size_profile =
 {
-    .attr_index = ATTR_INDEX_size
+    .attr_index = ATTR_INDEX_size,
+    .range_ratio_start = 0,
+    .range_ratio_len = 0,
+    .range_ratio_sort = SORT_NONE
 };
 
 static struct option option_tab[] = {
@@ -145,6 +150,9 @@ static struct option option_tab[] = {
     {"by-count", no_argument, NULL, OPT_BY_COUNT},
     {"by-avgsize", no_argument, NULL, OPT_BY_AVGSIZE},
     {"by-avg-size", no_argument, NULL, OPT_BY_AVGSIZE},
+    {"by-szratio", required_argument, NULL, OPT_BY_SZ_RATIO},
+    {"by-size-ratio", required_argument, NULL, OPT_BY_SZ_RATIO},
+
     {"count-min", required_argument, NULL, OPT_COUNT_MIN },
     {"reverse", no_argument, NULL, 'r' },
 
@@ -343,6 +351,185 @@ static lmgr_t  lmgr;
 char path_filter[RBH_PATH_MAX] = "";
 char class_filter[1024] = "";
 unsigned int count_min = 0;
+
+/**
+ * @param exact exact range value expected
+ * @return index of the range it matches
+ * @retval -1 on error
+ */
+static int szrange_val2index(uint64_t val, int exact)
+{
+    int i;
+    if (exact) /* search exact value */
+    {
+        for (i=0; i<SZ_PROFIL_COUNT; i++)
+            if (val == SZ_MIN_BY_INDEX(i))
+                return i;
+    }
+    else /* search val-1:  eg 1023M for 1G-, 31M for 32M- */
+    {
+        i=0;
+        while (val > SZ_MIN_BY_INDEX(i))
+        {
+            if (i < SZ_PROFIL_COUNT-1)
+            {
+                if (val < SZ_MIN_BY_INDEX(i+1))
+                {
+                    return i;
+                }
+            }
+            else
+            {
+                /* matches the last */
+                return SZ_PROFIL_COUNT-1;
+            }
+            i++;
+        }
+    }
+    /* not found */
+    return -1;
+}
+
+#define EXPECTED_SZ_RANGES "0, 1, 32, 1K, 32K, 1M, 32M, 1G, 32G, 1T"
+static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
+{
+    char argcp[1024];
+    char *beg = NULL;
+    char *end = NULL;
+    char *sep = NULL;
+    uint64_t sz1;
+    uint64_t sz2;
+   /* expected format:
+        0
+        <start_val><sep>[<end_val>]
+            <start_val>: 0, 1, 32, 1K, 32K, 1M, 32M, 1G, 32G, 1T
+            <sep>: ~ or ..
+            <end_val>: <start_val>- (e.g. "1K-") or <start_val - 1> (e.g. 31K)
+                       if no end_val is specified, the range has no upper limit
+
+    examples:
+            1G- => 1GB to infinite
+            1K..1G- => 1K to 1GB-1
+            1K..1023M => 1K to 1GB-1
+    */
+    strcpy(argcp, str);
+    /* is there a separator? */
+    if ((sep = strchr(argcp, '~')))
+    {
+        *sep = '\0';
+        beg=argcp;
+        end=sep+1;
+    }
+    else if ((sep = strstr(argcp, "..")))
+    {
+        *sep = '\0';
+        beg=argcp;
+        end=sep+2;
+    }
+    else /* single value? */
+    {
+        beg=argcp;
+        end=NULL;
+    }
+
+    /* parse first value */
+    sz1 = str2size(beg);
+    if (sz1 == (uint64_t)-1LL)
+    {
+        fprintf(stderr, "Invalid argument: '%s' is not a valid size format\n",
+                                           beg );
+        return -EINVAL;
+    }
+    if (end == NULL)
+    {
+        /* size value range: only 0 allowed */
+        if (sz1 != 0LL)
+        {
+            fprintf(stderr, "Only 0 is allowed for single value range (%s not allowed)\n", beg);
+            return -EINVAL;
+        }
+        p_profile->range_ratio_start = 0;
+        p_profile->range_ratio_len = 1;
+        /* sort order is determined later */
+        return 0;
+    }
+
+    p_profile->range_ratio_start = szrange_val2index(sz1, TRUE);
+    if (p_profile->range_ratio_start == (unsigned int)-1)
+    {
+        fprintf(stderr, "Invalid argument: %s is not a valid range start. Allowed values: "EXPECTED_SZ_RANGES"\n", beg);
+        return -EINVAL;
+    }
+
+    /* to the infinite ? */
+    if (end[0] == '\0')
+    {
+        if (p_profile->range_ratio_start >= SZ_PROFIL_COUNT)
+        {
+            fprintf(stderr, "Error: range end < range start\n");
+            return -EINVAL;
+        }
+        p_profile->range_ratio_len = SZ_PROFIL_COUNT - p_profile->range_ratio_start;
+        fprintf(stderr, "range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
+        return 0;
+    }
+
+    /* is second value ends with a '-' ? */
+    if (end[strlen(end)-1] == '-')
+    {
+        int end_idx;
+        /* exact match */
+        end[strlen(end)-1] = '\0';
+        sz2=str2size(end);
+        if (sz2 == (uint64_t)-1LL)
+        {
+            fprintf(stderr, "Invalid argument: '%s' is not a valid size format\n",
+                                               end );
+            return -EINVAL;
+        }
+        end_idx = szrange_val2index(sz2, TRUE); /* actually the upper index */
+        if (end_idx <= 0)
+        {
+            fprintf(stderr, "Invalid argument: %s is not a valid range end. Allowed values: "EXPECTED_SZ_RANGES"\n", end);
+            return -EINVAL;
+        }
+        if (p_profile->range_ratio_start >= end_idx)
+        {
+            fprintf(stderr, "Error: range end < range start\n");
+            return -EINVAL;
+        }
+        p_profile->range_ratio_len = end_idx - p_profile->range_ratio_start;
+        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
+        return 0;
+    }
+    else
+    {
+        int end_idx;
+        sz2=str2size(end);
+        if (sz2 == (uint64_t)-1LL)
+        {
+            fprintf(stderr, "Invalid argument: '%s' is not a valid size format\n",
+                                               end );
+            return -EINVAL;
+        }
+        end_idx = szrange_val2index(sz2, FALSE);
+        if (end_idx < 0)
+        {
+            fprintf(stderr, "Invalid argument: %s is not a valid range end: terminate it with '-'\n", end);
+            return -EINVAL;
+        }
+        if (p_profile->range_ratio_start > end_idx)
+        {
+            fprintf(stderr, "Error: range end < range start\n");
+            return -EINVAL;
+        }
+        p_profile->range_ratio_len = end_idx - p_profile->range_ratio_start + 1;
+        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
+        return 0;
+    }
+
+    return -1;
+}
 
 
 
@@ -1828,9 +2015,15 @@ void report_topdirs( unsigned int count, int flags )
 
     if (SORT_BY_AVGSIZE(flags))
         sorttype.attr_index = ATTR_INDEX_avgsize;
-    else
+    else if (!SORT_BY_SZRATIO(flags)) /* sort by count (default) */
         /* default: order by dircount */
         sorttype.attr_index = ATTR_INDEX_dircount;
+    else {
+        /* SORT_BY_SZRATIO? */
+        DisplayLog( LVL_MAJOR, REPORT_TAG,
+                   "WARNING: sorting directories by size-ratio is not supported" );
+        sorttype.attr_index = ATTR_INDEX_dircount; /* keep the default */
+    }
 
     sorttype.order = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
@@ -3146,6 +3339,12 @@ int main( int argc, char **argv )
         case OPT_BY_AVGSIZE:
             flags |= OPT_FLAG_BY_AVGSIZE;
             break;
+        case OPT_BY_SZ_RATIO:
+            flags |= OPT_FLAG_BY_SZRATIO;
+            /* parse range */
+            if (parse_size_range(optarg, &size_profile))
+                exit(1);
+            break;
         case OPT_COUNT_MIN:
             count_min = atoi(optarg);
             break;
@@ -3169,6 +3368,11 @@ int main( int argc, char **argv )
         fprintf( stderr, "Error: unexpected argument on command line: %s\n", argv[optind] );
         exit( 1 );
     }
+
+    /* if a size range was specified, determine sort order:
+        default DESC, ASC for reverse */
+    if (size_profile.range_ratio_len > 0)
+        size_profile.range_ratio_sort = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
     if ( !activity && !fs_info && !user_info && !group_info
          && !topsize && !toppurge && !topuser && !dump_all

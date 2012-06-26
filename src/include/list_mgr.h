@@ -654,13 +654,13 @@ size_range_t size_range[SZ_PROFIL_COUNT] =
 {
     {SZ_MIN_BY_INDEX(0), "0"},
     {SZ_MIN_BY_INDEX(1), "1~31"},
-    {SZ_MIN_BY_INDEX(2), "32~1K"},
-    {SZ_MIN_BY_INDEX(3), "1K~32K"},
-    {SZ_MIN_BY_INDEX(4), "32K~1M"},
-    {SZ_MIN_BY_INDEX(5), "1M~32M"},
-    {SZ_MIN_BY_INDEX(6), "32M~1G"},
-    {SZ_MIN_BY_INDEX(7), "1G~32G"},
-    {SZ_MIN_BY_INDEX(8), "32G~1T"},
+    {SZ_MIN_BY_INDEX(2), "32~1K-"},
+    {SZ_MIN_BY_INDEX(3), "1K~31K"},
+    {SZ_MIN_BY_INDEX(4), "32K~1M-"},
+    {SZ_MIN_BY_INDEX(5), "1M~31M"},
+    {SZ_MIN_BY_INDEX(6), "32M~1G-"},
+    {SZ_MIN_BY_INDEX(7), "1G~31G"},
+    {SZ_MIN_BY_INDEX(8), "32G~1T-"},
     {SZ_MIN_BY_INDEX(9), "+1T"}
 };
 
@@ -668,6 +668,7 @@ size_range_t size_range[SZ_PROFIL_COUNT] =
 typedef struct size_profile__
 {
     uint64_t file_count[SZ_PROFIL_COUNT];
+    uint64_t ratio_count; /* count for the selected set of ranges */
 } size_profile_t;
 
 typedef union
@@ -680,7 +681,11 @@ typedef union
 typedef struct profile_field_descr_t
 {
     unsigned int   attr_index;
-    /* TODO sort order and filters are quite special (contains many fields...) */
+
+    /* sort range ratio */
+    unsigned int   range_ratio_start; /* index of selected range ratio */
+    unsigned int   range_ratio_len;   /* nbr of ranges in the selected range (0=none) */
+    sort_order_t   range_ratio_sort;  /* sort order for this range */
 
 } profile_field_descr_t;
 

@@ -835,17 +835,17 @@ uint64_t str2size( char *str )
 
     if ( !strcasecmp( suffix, "B" ) )
         return size;
-    if ( !strcasecmp( suffix, "kB" ) )
+    if ( !strcasecmp( suffix, "kB" ) || !strcasecmp( suffix, "K" ) )
         return ( KILO_BYTE * size );
-    if ( !strcasecmp( suffix, "MB" ) )
+    if ( !strcasecmp( suffix, "MB" ) ||  !strcasecmp( suffix, "M" ) )
         return ( MEGA_BYTE * size );
-    if ( !strcasecmp( suffix, "GB" ) )
+    if ( !strcasecmp( suffix, "GB" ) ||  !strcasecmp( suffix, "G" ) )
         return ( GIGA_BYTE * size );
-    if ( !strcasecmp( suffix, "TB" ) )
+    if ( !strcasecmp( suffix, "TB" ) || !strcasecmp( suffix, "T" ))
         return ( TERA_BYTE * size );
-    if ( !strcasecmp( suffix, "PB" ) )
+    if ( !strcasecmp( suffix, "PB" ) || !strcasecmp( suffix, "P" ) )
         return ( PETA_BYTE * size );
-    if ( !strcasecmp( suffix, "EB" ) )
+    if ( !strcasecmp( suffix, "EB" ) || !strcasecmp( suffix, "E" ) )
         return ( EXA_BYTE * size );
 
     return (uint64_t) -1LL;

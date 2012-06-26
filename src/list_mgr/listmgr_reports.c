@@ -35,6 +35,7 @@ typedef struct lmgr_report_t
     db_type_t     *result_type_array;
     unsigned int   result_count; /* report + profile */
     unsigned int   profile_count; /* profile only */
+    unsigned int   ratio_count;  /* nbr of ratio field */
     unsigned int   profile_attr; /* profile attr (if profile_count > 0) */
 
     char         **str_tab;
@@ -108,6 +109,15 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
     char           attrstring[1024];
     int            i;
     char           attrname[128];
+
+    /* sorting by ratio first */
+    if (profile_descr->range_ratio_len > 0)
+    {
+        if (profile_descr->range_ratio_sort == SORT_ASC)
+            add_string( order_by, *curr_sort, "sizeratio ASC");
+        else
+            add_string( order_by, *curr_sort, "sizeratio DESC");
+    }
 
     for ( i = 0; i < report_descr_count; i++ )
     {
@@ -192,6 +202,24 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
                                          sz_field[i]);
                 p_report->result_type_array[i+report_descr_count] = DB_BIGUINT; /* count */
             }
+
+            if (profile_descr->range_ratio_len > 0)
+            {
+                /* add ratio field and sort it */
+                attrstring[0] = '\0';
+                char *curr_attr = attrstring;
+                for (i = 0; i < profile_descr->range_ratio_len; i++)
+                {
+                    if (attrstring != curr_attr)
+                        curr_attr += sprintf(curr_attr, "+%s",
+                                        sz_field[profile_descr->range_ratio_start + i]);
+                    else
+                        curr_attr += sprintf(curr_attr, "SUM(%s",
+                                        sz_field[profile_descr->range_ratio_start + i]);
+                }
+                curr_attr += sprintf(curr_attr, ")/SUM("ACCT_FIELD_COUNT") as sizeratio");
+                add_string( fields, *curr_field, attrstring );
+            }
         }
     }
 
@@ -247,6 +275,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     int            full_acct = TRUE;
     lmgr_iter_opt_t opt;
     unsigned int   profile_len = 0;
+    unsigned int   ratio = 0;
 
     /* check profile argument and increase output array if needed */
     if (profile_descr != NULL)
@@ -258,6 +287,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             return NULL;
         }
         profile_len = SZ_PROFIL_COUNT;
+        if (profile_descr->range_ratio_len > 0)
+            ratio = 1;
     }
 
     /* allocate a new report structure */
@@ -268,13 +299,14 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     p_report->p_mgr = p_mgr;
 
     p_report->result_type_array =
-        ( db_type_t * ) MemCalloc( report_descr_count + profile_len,
+        ( db_type_t * ) MemCalloc( report_descr_count + profile_len + ratio,
                                    sizeof( db_type_t ) );
     if ( !p_report->result_type_array )
         goto free_report;
 
-    p_report->result_count = report_descr_count + profile_len;
+    p_report->result_count = report_descr_count + profile_len + ratio;
     p_report->profile_count = profile_len;
+    p_report->ratio_count = ratio;
     if (profile_descr != NULL)
         p_report->profile_attr = ATTR_INDEX_size;
 
@@ -562,7 +594,7 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
     int            rc;
     unsigned int   i;
 
-    if ( *p_value_count < p_iter->result_count - p_iter->profile_count )
+    if ( *p_value_count < p_iter->result_count - p_iter->profile_count - p_iter->ratio_count )
         return DB_BUFFER_TOO_SMALL;
 
     if ( p_iter->str_tab == NULL )
@@ -579,7 +611,7 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
         return rc;
 
     /* parse result values */
-    for ( i = 0; i < p_iter->result_count - p_iter->profile_count; i++ )
+    for ( i = 0; i < p_iter->result_count - p_iter->profile_count - p_iter->ratio_count; i++ )
     {
         if ( p_iter->str_tab[i] != NULL )
         {
@@ -607,7 +639,8 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
             db_type_u dbval; 
             for (i=0; i < p_iter->profile_count; i++)
             {
-                unsigned int idx = p_iter->result_count - p_iter->profile_count + i ;
+                unsigned int idx = p_iter->result_count - p_iter->profile_count
+                                   - p_iter->ratio_count + i ;
                 if (p_iter->str_tab[idx] == NULL)
                 {
                     p_profile->size.file_count[i] = 0;
@@ -628,7 +661,7 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
         }
     }
 
-    *p_value_count = p_iter->result_count - p_iter->profile_count;
+    *p_value_count = p_iter->result_count - p_iter->profile_count - p_iter->ratio_count;
 
     return DB_SUCCESS;
 }
