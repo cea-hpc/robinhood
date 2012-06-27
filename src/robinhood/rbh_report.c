@@ -248,9 +248,30 @@ static const char *help_string =
     "    " _B "--size-profile" B_ ", "_B "--szprof" B_ "\n"
     "        Display size profile statistics\n"
     "    " _B "--by-count" B_ "\n"
-    "        Sort users by count instead of sorting by volume\n"
+    "        Sort by count\n"
     "    " _B "--by-avgsize" B_ "\n"
-    "        Sort users by average file size\n"
+    "        Sort by average file size\n"
+    "    " _B "--by-size-ratio" B_ " "_U"range"U_", "_B "--by-szratio"B_" " _U"range"U_"\n"
+    "        Sort on the ratio of files in the given size-range\n"
+    "        "_U"range"U_": <val><sep><val>- or <val><sep><val-1> or <val><sep>inf\n"
+    "           <val>: 0, 1, 32, 1K 32K, 1M, 32M, 1G, 32G, 1T\n"
+    "           <sep>: ~ or ..\n"
+    "           e.g: 1G..inf, 1..1K-, 0..31M\n"
+
+ /* expected format:
+        0
+        <start_val><sep>[<end_val>]
+            <start_val>: 0, 1, 32, 1K, 32K, 1M, 32M, 1G, 32G, 1T
+            <sep>: ~ or ..
+            <end_val>: <start_val>- (e.g. "1K-") or <start_val - 1> (e.g. 31K)
+                       if no end_val is specified, the range has no upper limit
+
+    examples:
+            1G- => 1GB to infinite
+            1K..1G- => 1K to 1GB-1
+            1K..1023M => 1K to 1GB-1
+    */
+
     "    " _B "--reverse" B_ "\n"
     "        Reverse sort order\n"
     "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n"
@@ -352,6 +373,32 @@ char path_filter[RBH_PATH_MAX] = "";
 char class_filter[1024] = "";
 unsigned int count_min = 0;
 
+#define KB  1024L
+#define MB  (KB*KB)
+#define GB  (KB*MB)
+#define TB  (KB*GB)
+#define PB  (KB*TB)
+#define EB  (KB*PB)
+
+static char * print_brief_sz(uint64_t sz, char * buf)
+{
+    if (sz < KB)
+        sprintf(buf, "%"PRIu64, sz);
+    else if (sz < MB)
+        sprintf(buf, "%"PRIu64"K", sz/KB);
+    else if (sz < GB)
+        sprintf(buf, "%"PRIu64"M", sz/MB);
+    else if (sz < TB)
+        sprintf(buf, "%"PRIu64"G", sz/GB);
+    else if (sz < PB)
+        sprintf(buf, "%"PRIu64"T", sz/TB);
+    else if (sz < EB)
+        sprintf(buf, "%"PRIu64"P", sz/PB);
+    else
+        sprintf(buf, "%"PRIu64"E", sz/EB);
+    return buf;
+}
+
 /**
  * @param exact exact range value expected
  * @return index of the range it matches
@@ -440,7 +487,7 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
                                            beg );
         return -EINVAL;
     }
-    if (end == NULL)
+    if (end == NULL || !strcmp(end, "0"))
     {
         /* size value range: only 0 allowed */
         if (sz1 != 0LL)
@@ -462,7 +509,7 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
     }
 
     /* to the infinite ? */
-    if (end[0] == '\0')
+    if (end[0] == '\0' || !strcasecmp(end, "inf"))
     {
         if (p_profile->range_ratio_start >= SZ_PROFIL_COUNT)
         {
@@ -499,7 +546,7 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
             return -EINVAL;
         }
         p_profile->range_ratio_len = end_idx - p_profile->range_ratio_start;
-        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
+//        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
         return 0;
     }
     else
@@ -524,7 +571,7 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
             return -EINVAL;
         }
         p_profile->range_ratio_len = end_idx - p_profile->range_ratio_start + 1;
-        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
+//        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
         return 0;
     }
 
@@ -1259,7 +1306,8 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
     return 1;
 }
 
-#define PROF_CNT_LEN    8
+#define PROF_CNT_LEN     8
+#define PROF_RATIO_LEN   7
 
 static int list2mask(int * attr_list, int attr_count)
 {
@@ -1310,6 +1358,20 @@ static void print_attr_list(int rank_field, int * attr_list, int attr_count,
                     printf("%*s", PROF_CNT_LEN, size_range[i].title);
                     coma = 1; 
                 }
+            }
+            if (p_profile->range_ratio_len > 0)
+            {
+                char tmp[128];
+                char tmp1[128];
+                char tmp2[128];
+                if (p_profile->range_ratio_start + p_profile->range_ratio_len == SZ_PROFIL_COUNT)
+                    sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1));
+                else
+                    sprintf(tmp, "ratio(%s..%s-)", 
+                            print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1),
+                            print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start + p_profile->range_ratio_len), tmp2));
+
+                printf(", %*s", PROF_RATIO_LEN, tmp);
             }
         }
     }
@@ -1536,6 +1598,21 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
             {
                 for (i=0; i < SZ_PROFIL_COUNT; i++)
                     printf(", %*s", PROF_CNT_LEN, size_range[i].title);
+
+                if (prof_descr->range_ratio_len > 0)
+                {
+                    char tmp[128];
+                    char tmp1[128];
+                    char tmp2[128];
+                    if (prof_descr->range_ratio_start + prof_descr->range_ratio_len == SZ_PROFIL_COUNT)
+                        sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1));
+                    else
+                        sprintf(tmp, "ratio(%s..%s)", 
+                                print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1),
+                                print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start + prof_descr->range_ratio_len) -1, tmp2));
+
+                    printf(", %*s", PROF_RATIO_LEN, tmp);
+                }
             }
         }
 
@@ -1558,8 +1635,21 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
         {
             if (prof_descr->attr_index == ATTR_INDEX_size)
             {
+                uint64_t tot=0;
+                uint64_t range=0;
+
                 for (i=0; i < SZ_PROFIL_COUNT; i++)
+                {
                     printf(", %*"PRIu64, PROF_CNT_LEN, p_prof->size.file_count[i]);
+                    tot += p_prof->size.file_count[i];
+                    if ((prof_descr->range_ratio_len > 0) &&
+                        (i >= prof_descr->range_ratio_start) &&
+                        (i < prof_descr->range_ratio_start + prof_descr->range_ratio_len))
+                        range += p_prof->size.file_count[i];
+                }
+
+                if (prof_descr->range_ratio_len > 0)
+                    printf(", %.2f%%", 100.0*range/tot);
             }
         }
 
@@ -1714,10 +1804,8 @@ void report_fs_info( int flags )
     report_field_descr_t fs_info[FSINFOCOUNT] = {
 #ifdef  ATTR_INDEX_status
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
-//#else
 #endif
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
-//#endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}}, /* XXX ifdef STATUS ? */
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
@@ -1733,6 +1821,12 @@ void report_fs_info( int flags )
 
     if (REVERSE(flags))
         fs_info[0].sort_flag = SORT_DESC;
+
+    if (count_min) {
+        fs_info[1+_SHIFT].filter = TRUE;
+        fs_info[1+_SHIFT].filter_compar = MORETHAN;
+        fs_info[1+_SHIFT].filter_value.val_biguint = count_min;
+    }
 
     /* no limit */
     opt.list_count_max = 0;
@@ -3341,6 +3435,8 @@ int main( int argc, char **argv )
             break;
         case OPT_BY_SZ_RATIO:
             flags |= OPT_FLAG_BY_SZRATIO;
+            /* auto-enable size profiling */
+            flags |= OPT_FLAG_SPROF;
             /* parse range */
             if (parse_size_range(optarg, &size_profile))
                 exit(1);

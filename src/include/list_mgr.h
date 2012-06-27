@@ -668,7 +668,6 @@ size_range_t size_range[SZ_PROFIL_COUNT] =
 typedef struct size_profile__
 {
     uint64_t file_count[SZ_PROFIL_COUNT];
-    uint64_t ratio_count; /* count for the selected set of ranges */
 } size_profile_t;
 
 typedef union

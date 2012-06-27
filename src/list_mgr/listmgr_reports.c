@@ -111,12 +111,15 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
     char           attrname[128];
 
     /* sorting by ratio first */
-    if (profile_descr->range_ratio_len > 0)
+    if (profile_descr && profile_descr->range_ratio_len > 0)
     {
-        if (profile_descr->range_ratio_sort == SORT_ASC)
-            add_string( order_by, *curr_sort, "sizeratio ASC");
-        else
-            add_string( order_by, *curr_sort, "sizeratio DESC");
+        if ( profile_descr->attr_index == ATTR_INDEX_size )
+        {
+            if (profile_descr->range_ratio_sort == SORT_ASC)
+                add_string( order_by, *curr_sort, "sizeratio ASC");
+            else
+                add_string( order_by, *curr_sort, "sizeratio DESC");
+        }
     }
 
     for ( i = 0; i < report_descr_count; i++ )
@@ -355,9 +358,19 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                                having, &curr_having, where, &curr_where);
         acct_table_flag = TRUE;
     }
-    else
+    else /* not only ACCT table */
     {
-        /* expected result content */
+        /* sorting by ratio first */
+        if (profile_descr && profile_descr->range_ratio_len > 0)
+        {
+            if ( profile_descr->attr_index == ATTR_INDEX_size )
+            {
+                if (profile_descr->range_ratio_sort == SORT_ASC)
+                    add_string( order_by, curr_sort, "sizeratio ASC");
+                else
+                    add_string( order_by, curr_sort, "sizeratio DESC");
+            }
+        }
 
         for ( i = 0; i < report_descr_count; i++ )
         {
@@ -457,6 +470,26 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 
                 for (i=0; i<SZ_PROFIL_COUNT; i++)
                     p_report->result_type_array[i+report_descr_count] = DB_BIGUINT;
+
+                if (profile_descr->range_ratio_len > 0)
+                {
+                    /* add ratio field and sort it */
+                    attrstring[0] = '\0';
+                    char *curr_attr = attrstring;
+
+                    curr_attr += sprintf(curr_attr, "SUM(size>=%Lu",
+                                         SZ_MIN_BY_INDEX(profile_descr->range_ratio_start));
+
+                    /* is the last range = 1T->inf ? */
+                    if (profile_descr->range_ratio_start + profile_descr->range_ratio_len >= SZ_PROFIL_COUNT)
+                        curr_attr += sprintf(curr_attr, ")");
+                    else
+                        curr_attr += sprintf(curr_attr, " and size<%Lu)",
+                                         SZ_MIN_BY_INDEX(profile_descr->range_ratio_start+profile_descr->range_ratio_len));
+
+                    curr_attr += sprintf(curr_attr, "/COUNT(*) as sizeratio");
+                    add_string( fields, curr_field, attrstring );
+                }
             }
         }
 
