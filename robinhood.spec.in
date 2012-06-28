@@ -91,6 +91,7 @@ which is common to all robinhood flavors.
 Summary: Web interface to vizualize filesystems stats
 Group: Applications/System
 Release: @RELEASE@.noarch
+Requires: php, php-mysql, php-xml, php-gd, php-pdo
 
 %description webgui
 Web interface to vizualize filesystems stats.

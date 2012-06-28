@@ -517,7 +517,6 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
             return -EINVAL;
         }
         p_profile->range_ratio_len = SZ_PROFIL_COUNT - p_profile->range_ratio_start;
-        fprintf(stderr, "range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
         return 0;
     }
 
@@ -546,7 +545,6 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
             return -EINVAL;
         }
         p_profile->range_ratio_len = end_idx - p_profile->range_ratio_start;
-//        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
         return 0;
     }
     else
@@ -571,7 +569,6 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
             return -EINVAL;
         }
         p_profile->range_ratio_len = end_idx - p_profile->range_ratio_start + 1;
-//        printf("range start #%u, len=%u\n", p_profile->range_ratio_start, p_profile->range_ratio_len );
         return 0;
     }
 

@@ -33,20 +33,24 @@ class MenuManager
     */
     public function getSections()
     {
+        global $sz_range_fields;
         $menu = array();
         $db_result = $this->db_request->getSchema( ACCT_TABLE );
         foreach( $db_result as $field => $value )
         {
             switch( $field )
             {
-                case OWNER;
+                case OWNER:
                     $menu[] = 'Users';
                     break;
-                case GROUP;
+                case GROUP:
                     $menu[] = 'Groups';
                     break;
-                case STATUS;
+                case STATUS:
                     $menu[] = 'Status';
+                    break;
+                case $sz_range_fields[0]:
+                    $menu[] = 'Sizes';
                     break;
                 default;
                     break;
