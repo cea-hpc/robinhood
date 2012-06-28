@@ -3408,6 +3408,14 @@ function test_alerts
 	sleepTime=$3
 	
 	clean_logs
+
+    if (( $is_hsmlite + $is_lhsm != 0 )); then
+        if [ $testKey == "dircount" ]; then
+            echo "No dircount support for this purpose: skipped"
+            set_skipped
+            return 1
+        fi
+    fi
 	
 	test -f "/tmp/rh_alert.log" || touch "/tmp/rh_alert.log"
 	
@@ -4780,6 +4788,10 @@ function test_removing_ost
 	
 	# get input parameters ....................
 	config_file=$1
+
+    echo "Directory stripe is not taken into account for rmdir policies: skipped"
+	set_skipped
+	return 1
     
     if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "No removing dir for this purpose: skipped"
