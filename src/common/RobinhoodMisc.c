@@ -96,55 +96,105 @@ int SendMail( const char *recipient, const char *subject, const char *message )
 }
 
 /**
- * Search for Robinhood config file
+ * Search for Robinhood config file.
+ * search a config file with the given name (+extension)
+ * If cfg_in is empty: search any config in config paths
  * /!\ not thread safe
  */
-int SearchConfig( char * cfg_out )
+int SearchConfig( const char * cfg_in, char * cfg_out, int * changed )
 {
-   static const char * default_cfg_paths[] =
-   {
+    static const char * default_cfg_paths[] =
+    {
        "/etc/robinhood.d/"PURPOSE_EXT,
        "/etc/robinhood.d",
        "/etc/robinhood",
+       ".",
        NULL
-   };
-   const char * current_path;
-   int i;
-   DIR * dir;
-   struct dirent * ent;
-   struct stat stbuf;
+    };
+    const char * current_path;
+    int i;
+    DIR * dir;
+    struct dirent * ent;
+    struct stat stbuf;
+    *changed = 1; /* most of the cases */
 
-
-   for ( i = 0, current_path = default_cfg_paths[0];
-         current_path != NULL;
-         i++, current_path = default_cfg_paths[i] )
-   {
-        /* look for files in current path */
-        dir = opendir( current_path );
-        if ( !dir )
-            continue;
-
-        while ( (ent = readdir(dir)) != NULL )
-        {
-            /* ignore .xxx files */
-            if (ent->d_name[0] == '.')
+    if (cfg_in == NULL || EMPTY_STRING(cfg_in))
+    {
+       for ( i = 0, current_path = default_cfg_paths[0];
+             current_path != NULL;
+             i++, current_path = default_cfg_paths[i] )
+       {
+            /* look for files in current path */
+            dir = opendir( current_path );
+            if ( !dir )
                 continue;
 
-            sprintf( cfg_out, "%s/%s", current_path, ent->d_name );
-            if ( (stat( cfg_out, &stbuf ) == 0)
-                 && S_ISREG(stbuf.st_mode) )
+            while ( (ent = readdir(dir)) != NULL )
             {
-                /* file found: OK */
-                closedir(dir);
-                return 0;
-            }
-        }
+                /* ignore .xxx files */
+                if (ent->d_name[0] == '.')
+                    continue;
 
-        closedir(dir);
-   }
-   /* no file found, cleaning cfg_out */
-   cfg_out[0] = '\0';
-   return -ENOENT;
+                sprintf( cfg_out, "%s/%s", current_path, ent->d_name );
+                if ( (stat( cfg_out, &stbuf ) == 0)
+                     && S_ISREG(stbuf.st_mode) )
+                {
+                    /* file found: OK */
+                    closedir(dir);
+                    return 0;
+                }
+            }
+
+            closedir(dir);
+       }
+    }
+    else if (access(cfg_in, F_OK) == 0)
+    {
+        /* the specified config file exists */
+        strcpy(cfg_out, cfg_in);
+        *changed=0;
+        return 0;
+    }
+    else if (strchr(cfg_in, '/'))
+    {
+        /* the argument is a path (not a single name
+         * and this path was not found) */
+        *changed=0;
+        return -ENOENT;
+    }
+    else /* look for a file in the given paths */
+    {
+        char cfg_cp[RBH_PATH_MAX];
+        int has_ext = (strchr(cfg_in, '.') != NULL);
+
+        strcpy(cfg_cp, cfg_in);
+
+        for ( i = 0, current_path = default_cfg_paths[0];
+             current_path != NULL;
+             i++, current_path = default_cfg_paths[i] )
+        {
+            /* if the file already has an extension, try path/name */
+            if (has_ext)
+            {
+                sprintf(cfg_out, "%s/%s", current_path, cfg_cp);
+                if (access(cfg_out, F_OK) == 0)
+                    return 0;
+            }
+
+            /* try path/name.cfg, path/name.conf */
+            sprintf(cfg_out, "%s/%s.conf", current_path, cfg_cp);
+            if (access(cfg_out, F_OK) == 0)
+                return 0;
+
+            sprintf(cfg_out, "%s/%s.cfg", current_path, cfg_cp);
+            if (access(cfg_out, F_OK) == 0)
+                return 0;
+        }
+    }
+
+    /* no file found, cleaning cfg_out */
+    cfg_out[0] = '\0';
+    return -ENOENT;
 }
 
 

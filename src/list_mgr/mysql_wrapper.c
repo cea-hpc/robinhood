@@ -142,7 +142,7 @@ int db_connect( db_conn_t * conn )
         else
         {
             if (retry)
-                DisplayLog( LVL_CRIT, LISTMGR_TAG, "Connection to MySQL server sucessful after %u retries.",
+                DisplayLog( LVL_CRIT, LISTMGR_TAG, "Connection to MySQL server successful after %u retries.",
                             retry );
             /* OK */
             break;

@@ -386,8 +386,8 @@ static const char *help_string =
     "        Don't limit the maximum number of migrations (per pass).\n"
     "\n"
     _B "Config file options:" B_ "\n"
-    "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U
-    "file" U_ "\n" "        Specifies path to configuration file.\n"
+    "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
+    "        Path to configuration file (or short name).\n"
     "    " _B "-T" B_ " " _U "file"
     U_ ", " _B "--template=" B_ _U "file" U_ "\n"
     "        Write a configuration file template to the specified file.\n"
@@ -901,6 +901,7 @@ int main( int argc, char **argv )
     int            parsing_mask, currently_running_mask;
     char           err_msg[4096];
     robinhood_config_t rh_config;
+    int chgd = 0;
 
     boot_time = time( NULL );
 
@@ -1195,17 +1196,14 @@ int main( int argc, char **argv )
     parsing_mask = action2parsing_mask(action_mask);
 
     /* get default config file, if not specified */
-    if ( EMPTY_STRING( options.config_file ) )
+    if ( SearchConfig( options.config_file, options.config_file, &chgd ) != 0 )
     {
-        if ( SearchConfig( options.config_file ) != 0 )
-        {
-            fprintf(stderr, "No config file found in '/etc/robinhood.d/"PURPOSE_EXT"'\n" );
-            exit(2);
-        }
-        else
-        {
-            fprintf(stderr, "Using config file '%s'.\n", options.config_file );
-        }
+        fprintf(stderr, "No config file found in '/etc/robinhood.d/"PURPOSE_EXT"', ...\n" );
+        exit(2);
+    }
+    else if (chgd)
+    {
+        fprintf(stderr, "Using config file '%s'.\n", options.config_file );
     }
 
     if ( ReadRobinhoodConfig( parsing_mask, options.config_file, err_msg,

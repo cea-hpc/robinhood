@@ -113,7 +113,7 @@ static const char *help_string =
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
-    "        Specifies path to robinhood configuration file.\n"
+    "        Path to configuration file (or short name).\n"
     "\n"
     _B "Output options:" B_ "\n"
     "    " _B "-o" B_ " " _U "dir" U_ ", " _B "--output-dir=" B_ _U "dir" U_ "\n"
@@ -467,8 +467,7 @@ int main( int argc, char **argv )
     char           err_msg[4096];
     robinhood_config_t config;
     struct sigaction act_sigterm;
-
-
+    int chgd = 0;
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab, &option_index ) ) != -1 )
@@ -547,17 +546,14 @@ int main( int argc, char **argv )
     }
 
     /* get default config file, if not specified */
-    if ( EMPTY_STRING( config_file ) )
+    if ( SearchConfig( config_file, config_file, &chgd ) != 0 )
     {
-        if ( SearchConfig( config_file ) != 0 )
-        {
-            fprintf(stderr, "No config file found in '/etc/robinhood.d/"PURPOSE_EXT"'\n" );
-            exit(2);
-        }
-        else
-        {
-            fprintf(stderr, "Using config file '%s'.\n", config_file );
-        }
+        fprintf(stderr, "No config file found in '/etc/robinhood.d/"PURPOSE_EXT"', ...\n" );
+        exit(2);
+    }
+    else if (chgd)
+    {
+        fprintf(stderr, "Using config file '%s'.\n", config_file );
     }
 
     /* only read ListMgr config */
