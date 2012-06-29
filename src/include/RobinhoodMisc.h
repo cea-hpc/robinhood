@@ -85,7 +85,7 @@ int            SendMail( const char *recipient, const char *subject, const char 
 /**
  * Search for Robinhood config file
  */
-int SearchConfig( char * cfg_out );
+int SearchConfig( const char * cfg_in, char * cfg_out, int * changed );
 
 /**
  * This function is blocking as long as the lock file is present.
