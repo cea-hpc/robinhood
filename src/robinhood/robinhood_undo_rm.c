@@ -357,6 +357,9 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
     attr_set_t     attrs, new_attrs;
     int rc;
 
+    /* XXX src path must be in the same filesystem as backend
+     * because it we be renamed */
+
     if ( EMPTY_STRING( last_known_path ) )
     {
         fprintf(stderr, "Last filesystem path is not known for fid "DFID", backend_path=%s.\n",
@@ -590,6 +593,23 @@ int main( int argc, char **argv )
                  rc, errno, strerror( errno ) );
         exit( rc );
     }
+
+    /* Initialize mount point info */
+#ifdef _LUSTRE
+    if ( ( rc = Lustre_Init(  ) ) )
+    {
+        fprintf( stderr, "Error %d initializing liblustreapi\n", rc );
+        exit( 1 );
+    }
+
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL,
+                      global_config.check_mounted, TRUE );
+    if (rc)
+    {
+        DisplayLog( LVL_CRIT, LOGTAG, "Error %d checking Filesystem", rc );
+        exit( rc );
+    }
+#endif
 
     /* Initialize list manager */
     rc = ListMgr_Init( &config.lmgr_config, FALSE );
