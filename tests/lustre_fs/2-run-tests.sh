@@ -213,7 +213,9 @@ function clean_fs
 	$CFG_SCRIPT empty_db robinhood_lustre > /dev/null
 
 	echo "Cleaning changelogs..."
-	lfs changelog_clear lustre-MDT0000 cl1 0
+    if (( $no_log == 0 )); then
+	    lfs changelog_clear lustre-MDT0000 cl1 0
+    fi
 
 }
 
