@@ -40,8 +40,6 @@ BuildRequires: mysql-devel >= 4.1    \
 # target install dir for web gui
 %define installdir_www  /var/www/html
 
-%{!?lustre_path: %define lustre_path / }
-
 ###### end of macro definitions #####
 
 Name: @PACKAGE@
@@ -196,7 +194,6 @@ Generated using options: @ac_configure_args@
 
 %build
 ./configure %{?configure_flags:configure_flags} \
-       CPPFLAGS=-I%{lustre_path}/usr/include/ LDFLAGS=-L%{lustre_path}/usr/lib64/ \
         --with-purpose=%{configure_purpose} \
         --sysconfdir=%{_sysconfdir} \
         --mandir=%{_mandir} \
