@@ -3,38 +3,75 @@
 # Server script to handle remotely initiated file copy operations
 #
 # 20110325 <kilian.cavalotti@cea.fr>
+# 20120629 <diego.moreno@bull.net>
 #
 
 # Get arguments from remote
 read args
 set -- $args
 
+
 VERB=$1
 SRC=$2
 DEST=$3
 HINTS=$4
 
+###############################
+###### EDIT if necessary ######
+
+LOG_FILE="/var/log/rbhext_tool.log"
+
+# must be >= robinhood's copy_timeout value
+TIMEOUT=15000
+
+# General copy command
+# CMD="my_cp $HINTS $SRC $DEST"
+CMD="cp -a $SRC $DEST"
+
+#Should be 'y' if you want to debug
+DEBUG="y"
+
+##### End of EDIT zone #######
+##############################
+
+
+TIMEOUT_CMD=`which timeout &> /dev/null ; echo $?`
+
 DIR=`dirname "$DEST"`
 
 if [[ -z "$VERB" || -z "$SRC" || -z "$DEST" || $# -gt 4 ]]; then
+
+   if [[ $DEBUG == "y" ]] ; then
+       echo "$(date +%x' '%T) Error in $VERB $SRC $DEST" >> $LOG_FILE
+   fi
     # send an exit code back to the client
     echo 22
     exit 22
 fi
 
-#CMD="$COPY_CMD -H $HINTS -c $SRC $DEST"
-CMD="cp -a $SRC $DEST"
 
 if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
     [ -d "$DIR" ] || mkdir -p "$DIR" || exit 1
     # create file if it doesn't exist
     [ -e "$DEST" ] || touch "$DEST" || exit 1
-    # FIXME really execute command
-    # $CMD
-    $CMD >> /var/log/rbhext_tool.log
+
+    if [[ $DEBUG == "y" ]] ; then
+   	echo "$(date +%x' '%T) Running $CMD" >> $LOG_FILE
+    fi
+
+    if [[ $TIMEOUT_CMD -eq 0 ]] ; then
+    	timeout $TIMEOUT $CMD >> $LOGFILE 2>&1
+    else
+    	$CMD >> $LOG_FILE 2>&1
+    fi
     # capture $CMD return code and send it back to the client
     ret=$?
+
+    if [[ $DEBUG == "y" ]] ; then
+    	echo "$(date +%x' '%T) $CMD ret=$ret" >> $LOG_FILE
+    fi
+
     echo $ret
-    exit $ret
+  	exit $ret
 fi
 

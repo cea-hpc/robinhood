@@ -43,16 +43,16 @@ if [[ -z "$VERB" || -z "$SRC" || -z "$DEST" || $# -gt 4 ]]; then
     usage
 fi
 
-# Choose a random server in a pool
-RAND_ID=$(($RANDOM % ${#SERVERS[@]}))
-RAND_SERV=${SERVERS[$RAND_ID]}
-
 if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
+
+    # Choose a random server in a pool
+    RAND_ID=$(($RANDOM % ${#SERVERS[@]}))
+    RAND_SERV=${SERVERS[$RAND_ID]}
 
     args="$VERB $SRC $DEST $HINTS"
     net_cmd="nc -w $TIMEOUT $RAND_SERV $SERV_PORT"
     if [[ $DEBUG == "y" ]] ; then
-        echo "DEBUG $DATE Starting $args | $cmd" >> $LOG_FILE
+        echo "DEBUG $(date +%x' '%T) Starting $args | $cmd" >> $LOG_FILE
     fi
     # connect to $RAND_SERV and transmit parameters
     ret=$(echo $args | $net_cmd)
@@ -62,15 +62,13 @@ if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
         if [[ $DEBUG == "y" ]] ; then
                 echo "Error in $args" >> $LOG_FILE
         fi
-        echo "Error copying file $SRC"
+        echo "Error copying file $SRC" >> $LOG_FILE
 	exit $rc
     fi
 
     # get return code and exit
-    DATE=`date +%x' '%T`
-
     if [[ $DEBUG == "y" ]] ; then
-        echo "$DATE $args to $RAND_SERV with rc=$ret" >> $LOG_FILE
+        echo "$(date +%x' '%T) $args to $RAND_SERV with rc=$ret" >> $LOG_FILE
     fi
 
     if [[ -z $ret ]] ; then
@@ -80,7 +78,7 @@ if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
         exit 1
     else
         if [[ $DEBUG == "y" ]] ; then
-                echo "$DATE $args with rc=$ret" >> $LOG_FILE
+                echo "$(date +%x' '%T) $args with rc=$ret" >> $LOG_FILE
         fi
         exit $ret
     fi
