@@ -3,8 +3,6 @@ ACLOCAL_AMFLAGS = -I autotools/m4
 #SUBDIRS=src man scripts
 SUBDIRS=src scripts tests web_gui
 
-rpm_dir=`pwd`/rpms
-
 if LUSTRE
   rpmbuild_opt=--with lustre @LDEFINES@
 #  lversion=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
@@ -32,6 +30,7 @@ endif
 if LUSTRE_HSM
   purpose=lustre_hsm
   rpmbuild_opt += --with hsm
+  lustre_path=${LUSTRE_HSM_PATH}
 endif
 if SHERPA
   purpose=sherpa
@@ -44,6 +43,7 @@ endif
 if BACKUP
   purpose=backup
   rpmbuild_opt += --with backup
+  lustre_path=${LUSTRE_PATH}
 endif
 
 
@@ -51,20 +51,20 @@ endif
 new: clean all
 
 rpms: robinhood.spec dist
-	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
-	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
+        mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
+	rpmbuild $(rpmbuild_opt) --define="lustre_path $(lustre_path)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" --define="_prefix $(prefix)" \
 		-ta $(distdir).tar.gz
 
 rpm: robinhood.spec dist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
-	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
+	rpmbuild $(rpmbuild_opt) --define="lustre_path $(lustre_path)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
 		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
 srpm: robinhood.spec dist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
-	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
+	rpmbuild $(rpmbuild_opt) --define="lustre_path $(lustre_path)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
 		-ts $(distdir).tar.gz
 
