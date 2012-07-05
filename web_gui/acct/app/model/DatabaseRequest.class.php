@@ -218,20 +218,20 @@ class DatabaseRequest
 				( $limit > 0 ? " LIMIT $limit" : "" );
 
             $result = $this->connection->query( $query );
-            $this->rowNumber = $result->rowCount();
 
-            if( $this->rowNumber > MAX_SEARCH_RESULT || $this->rowNumber == 0)
-            {
-                echo "<b>ERROR: max result count exceeded</b><br>\n";
-                return null;
-            }
-
+            $i=0;
             while( $line = $result->fetch( PDO::FETCH_ASSOC ) )
             {
                 $returned_result[$i] = $line;
                 $i++;
+                if ($i > MAX_SEARCH_RESULT)
+                {
+                    echo "<b>ERROR: max result count exceeded</b><br>\n";
+                    return null;
+                }
             }
             $result->closeCursor();
+            $this->rowNumber = $i;
 
             return $returned_result;
         }

@@ -81,6 +81,7 @@ Generated using options: @ac_configure_args@
 Summary: Web interface to vizualize filesystems stats
 Group: Applications/System
 Release: @RELEASE@.noarch
+Requires: php, php-mysql, php-xml, php-gd, php-pdo
 
 %description webgui
 Web interface to vizualize filesystems stats.
