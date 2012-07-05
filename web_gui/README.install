@@ -1,3 +1,10 @@
+Requirements:
+   httpd, php-mysql, php-xml, php, php-pdo, php-gd
+
+The following parameter must be set in httpd.conf:
+
+   AllowOverride All
+
 Installation and configuration:
 
 Copy the 'acct' directory to the root directory of your web server

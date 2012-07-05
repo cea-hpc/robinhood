@@ -288,23 +288,30 @@ fi
 
 %changelog
 
-* Wed Jun 13 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.7
+* Thu Jul 05 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.4
+- Faster and safer shutdown on SIGINT/SIGTERM
+- Can use short config name instead of full config file path.
+  E.g. "-f myconf" instead of "-f /etc/robinhood.d/tmp_fs/myconf.cfg"
+- Consider all non-dirs for classinfo (instead of files only)
 - Implemented max_rm_count in hsm remove policy
-- Consider all non dirs for classinfo (instead of files only)
-- Fix: migrate-group did migrate user
-
-* Tue May 23 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.6
-- Faster and safer shutdown
+- clearer messages about DB connection and retries
+- added lu543 configure option (must be enabled if this patch
+  is integrated to your Lustre distribution)
 - Better block counting for purges
-
-* Tue May 15 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.4
-- shook: * entry state set to 'archive_running' during migration
-         * recovery for entries with 'release pending' state on startup
-         * fix: recovery for simlinks
-         * enable DB rebuild for shook if it is lost
-
-* Wed Apr 04 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.2
-- Efix: Don't consider 'released' entries for quota-like purge triggers
+- backup/shook modes:
+    - import of existing files from backend
+    - entry state set to 'archive_running' during migration
+    - recovery for entries with 'release pending' or 'restore running' state on startup
+      (new parameter: check_purge_status_on_startup)
+    - enable DB rebuild if it is lost
+    - fix: symlink recovery
+    - improvements of rbhext_tool_clnt/svr (timeout, traces, ...)
+    - user.shook_state xattr changed to security.shook_state
+      (to avoid users to change it)
+- Fix: Don't consider 'released' entries for quota-like purge triggers
+- Fix: migrate-group did migrate user
+- Generate up-to-date template automatically at RPM installation
+- 72 new regression tests (all policies conditions and config file parameters are tested)
 
 * Wed Feb 08 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3
 - [webgui] added FS name to page title and page header
