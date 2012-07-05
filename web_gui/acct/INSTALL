@@ -1,2 +1,2 @@
 Requirements:
-httpd, php-mysl, php-xml, php, php-pdo, php-gd
+httpd, php-mysql, php-xml, php, php-pdo, php-gd
