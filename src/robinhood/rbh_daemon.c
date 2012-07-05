@@ -1197,7 +1197,7 @@ int main( int argc, char **argv )
     /* get default config file, if not specified */
     if ( SearchConfig( options.config_file, options.config_file, &chgd ) != 0 )
     {
-        fprintf(stderr, "No config file found in '/etc/robinhood.d/"PURPOSE_EXT"', ...\n" );
+        fprintf(stderr, "No config file found\n" );
         exit(2);
     }
     else if (chgd)

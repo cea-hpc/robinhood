@@ -45,7 +45,7 @@ BuildRequires: mysql-devel >= 4.1    \
 Name: @PACKAGE@
 Version: @VERSION@ 
 
-Vendor: CEA/DAM
+Vendor: CEA, HPC department <http://www-hpc.cea.fr>
 Prefix: %{_prefix}
 
 %if %{with lustre}
@@ -100,6 +100,11 @@ This uses robinhood database to display misc. user and group stats.
 #summary, description and dependencies of each purpose
 %if %{with hsm}
 
+%define configure_purpose LUSTRE_HSM
+%define purpose hsm
+%define purpose_svc robinhood-hsm
+%define purpose_bin rbh-hsm
+
 %package %{purpose}
 Summary: PolicyEngine for Lustre-HSM binding
 Group: Applications/System
@@ -112,6 +117,11 @@ Monitor Lustre usage and trigger file migration and purges.
 Generated using options: @ac_configure_args@
 %else
 %if %{with sherpa}
+
+%define configure_purpose SHERPA
+%define purpose sherpa
+%define purpose_svc robinhood-sherpa
+%define purpose_bin rbh-sherpa
 
 %package %{purpose}
 Summary: PolicyEngine for SHERPA cache manager
@@ -132,6 +142,11 @@ Generated using options: @ac_configure_args@
 # backup mode
 %if %{with backup}
 
+%define configure_purpose BACKUP
+%define purpose backup
+%define purpose_svc robinhood-backup
+%define purpose_bin rbh-backup
+
 %package %{purpose}
 Summary: PolicyEngine for filesystem backup to external storage
 Group: Applications/System
@@ -145,6 +160,11 @@ Generated using options: @ac_configure_args@
 %else
 # light HSM binding mode (using shook library)
 %if %{with shook}
+
+%define configure_purpose SHOOK
+%define purpose shook
+%define purpose_svc robinhood-shook
+%define purpose_bin rbh-shook
 
 %package %{purpose}
 Summary: PolicyEngine for simple HSM binding
@@ -161,6 +181,11 @@ Generated using options: @ac_configure_args@
 %else
 
 # TMP FS MGR
+
+%define configure_purpose TMP_FS_MGR
+%define purpose tmpfs
+%define purpose_svc robinhood
+%define purpose_bin robinhood
 
 %package %{purpose}
 Summary: Accounting, reporting and purge tool for large filesystems
@@ -195,33 +220,16 @@ make
 rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/includes
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/%{purpose}/templates
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/%{purpose}/includes
 mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 
-%if %{with hsm}
-install -m 644 doc/templates/hsm_policy_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
-install -m 644 doc/templates/hsm_policy_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
-%else
-%if %{with backup}
-install -m 644 doc/templates/hsmlite_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_basic.conf
-install -m 644 doc/templates/hsmlite_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_detailed.conf
-%else
-%if %{with shook}
-install -m 644 doc/templates/hsmlite_basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_basic.conf
-install -m 644 doc/templates/hsmlite_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_detailed.conf
-%else
-# tmp fs mgr
-install -m 644 doc/templates/tmp_fs_mgr_basic.conf  $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
-install -m 644 doc/templates/tmp_fs_mgr_detailed.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
-%endif
-%endif
-%endif
+$RPM_BUILD_ROOT/%{_prefix}/sbin/%{purpose_bin} -T $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/%{purpose}/templates/%{purpose}_detailed.conf
 
 %if %{defined suse_version}
-install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC@
+install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/%{purpose_svc}
 %else
-install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/@PURPOSE_SVC@
+install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/%{purpose_svc}
 %endif
 
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
@@ -235,24 +243,24 @@ cp    web_gui/acct/.htaccess	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 rm -rf $RPM_BUILD_ROOT
 
 %post %{purpose}
-if [ -x %{_initrddir}/@PURPOSE_SVC@ ]; then
-  if %{_initrddir}/@PURPOSE_SVC@ status | grep running | grep -v "not running"  >/dev/null 2>&1; then
-    %{_initrddir}/@PURPOSE_SVC@ stop
+if [ -x %{_initrddir}/%{purpose_svc} ]; then
+  if %{_initrddir}/%{purpose_svc} status | grep running | grep -v "not running"  >/dev/null 2>&1; then
+    %{_initrddir}/%{purpose_svc} stop
     WASRUNNING=1
   fi
-  [ -x /sbin/chkconfig ] && /sbin/chkconfig --del @PURPOSE_SVC@
-  [ -x /sbin/chkconfig ] && /sbin/chkconfig --add @PURPOSE_SVC@
+  [ -x /sbin/chkconfig ] && /sbin/chkconfig --del %{purpose_svc}
+  [ -x /sbin/chkconfig ] && /sbin/chkconfig --add %{purpose_svc}
   if test x$WASRUNNING = x1; then
-    %{_initrddir}/@PURPOSE_SVC@ start
+    %{_initrddir}/%{purpose_svc} start
   fi
 fi
 
 %preun
 if [ "$1" = 0 ]; then
-  if [ -x %{_initrddir}/@PURPOSE_SVC@ ]; then
-     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del @PURPOSE_SVC@
-    if %{_initrddir}/@PURPOSE_SVC@ status | grep running | grep -v "not running" >/dev/null 2>&1; then
-      %{_initrddir}/@PURPOSE_SVC@ stop
+  if [ -x %{_initrddir}/%{purpose_svc} ]; then
+     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del %{purpose_svc}
+    if %{_initrddir}/%{purpose_svc} status | grep running | grep -v "not running" >/dev/null 2>&1; then
+      %{_initrddir}/%{purpose_svc} stop
     fi
   fi
 fi
@@ -273,7 +281,7 @@ fi
 #%doc ChangeLog
 
 # everythink in sbin, except rbh-config which is in adm
-%{_sbindir}/@PURPOSE_BIN@*
+%{_sbindir}/%{purpose_bin}*
 %{_sbindir}/*-report
 %{_bindir}/*-du
 %{_bindir}/*-find
@@ -288,52 +296,43 @@ fi
 #%{_mandir}/man5/*
 #%{_mandir}/man8/*
 
-%config(noreplace) %{_sysconfdir}/sysconfig/@PURPOSE_SVC@
+%config(noreplace) %{_sysconfdir}/sysconfig/%{purpose_svc}
 
 %dir %{_sysconfdir}/robinhood.d
-%dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@
-%dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/includes
-%dir %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates
+%dir %{_sysconfdir}/robinhood.d/%{purpose}
+%dir %{_sysconfdir}/robinhood.d/%{purpose}/includes
+%dir %{_sysconfdir}/robinhood.d/%{purpose}/templates
 
-%if %{with hsm}
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_basic.conf
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/hsm_policy_detailed.conf
-%else
-%if %{with backup}
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_basic.conf
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/backup_detailed.conf
-%else
-%if %{with shook}
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_basic.conf
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/shook_detailed.conf
-%else
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_basic.conf
-%config %{_sysconfdir}/robinhood.d/@PURPOSE_EXT@/templates/tmp_fs_mgr_detailed.conf
-%endif
-%endif
-%endif
+%config %{_sysconfdir}/robinhood.d/%{purpose}/templates/%{purpose}_detailed.conf
 
-%{_initrddir}/@PURPOSE_SVC@
+%{_initrddir}/%{purpose_svc}
 
 %changelog
 
-* Wed Jun 13 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.7
+* Thu Jul 05 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.4
+- Faster and safer shutdown on SIGINT/SIGTERM
+- Can use short config name instead of full config file path.
+  E.g. "-f myconf" instead of "-f /etc/robinhood.d/tmp_fs/myconf.cfg"
+- Consider all non-dirs for classinfo (instead of files only)
 - Implemented max_rm_count in hsm remove policy
-- Consider all non dirs for classinfo (instead of files only)
-- Fix: migrate-group did migrate user
-
-* Tue May 23 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.6
-- Faster and safer shutdown
+- clearer messages about DB connection and retries
+- added lu543 configure option (must be enabled if this patch
+  is integrated to your Lustre distribution)
 - Better block counting for purges
-
-* Tue May 15 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.4
-- shook: * entry state set to 'archive_running' during migration
-         * recovery for entries with 'release pending' state on startup
-         * fix: recovery for simlinks
-         * enable DB rebuild for shook if it is lost
-
-* Wed Apr 04 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3.2
-- Efix: Don't consider 'released' entries for quota-like purge triggers
+- backup/shook modes:
+    - import of existing files from backend
+    - entry state set to 'archive_running' during migration
+    - recovery for entries with 'release pending' or 'restore running' state on startup
+      (new parameter: check_purge_status_on_startup)
+    - enable DB rebuild if it is lost
+    - fix: symlink recovery
+    - improvements of rbhext_tool_clnt/svr (timeout, traces, ...)
+    - user.shook_state xattr changed to security.shook_state
+      (to avoid users to change it)
+- Fix: Don't consider 'released' entries for quota-like purge triggers
+- Fix: migrate-group did migrate user
+- Generate up-to-date template automatically at RPM installation
+- 72 new regression tests (all policies conditions and config file parameters are tested)
 
 * Wed Feb 08 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.3
 - [webgui] added FS name to page title and page header

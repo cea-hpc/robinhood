@@ -58,7 +58,7 @@ rpms: robinhood.spec dist
 
 rpm: robinhood.spec dist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
-	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
+	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
 		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
@@ -76,6 +76,7 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
         doc/templates					\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
 	doc/admin_guides \
+    doc/install_webgui.txt \
 	ChangeLog
 
 

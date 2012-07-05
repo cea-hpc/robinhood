@@ -3,7 +3,33 @@
 # Client script to call remote file copy operations
 #
 # 20110325 <kilian.cavalotti@cea.fr>
+# 20120628 <diego.moreno@bull.net>
 #
+
+
+##### EDIT THIS SECTION #######
+
+# Choose a random server in a pool
+
+# XXX use nodeset instead of static list
+#SERVERS=$(nodeset -e @<group>)
+SERVERS=(server1 server2)
+SERV_PORT=49999
+# must be >= robinhood's copy_timeout value
+TIMEOUT=15000
+
+LOG_FILE="/var/log/robinhood/rbhext_tool_clnt.log"
+
+#Should be 'y' if you want to debug
+DEBUG="n"
+
+##### END OF EDIT SECTION #####
+
+usage(){
+    echo "Usage:"
+    echo "  $BIN < ARCHIVE | RESTORE > <src> <dest> [hints]"
+    exit 22
+}
 
 VERB=$1
 SRC=$2
@@ -14,29 +40,50 @@ BIN=`basename $0`
 DIR=`dirname "$DEST"`
 
 if [[ -z "$VERB" || -z "$SRC" || -z "$DEST" || $# -gt 4 ]]; then
-    echo "Usage:"
-    echo "  $BIN ARCHIVE <src> <dest> [hints]"
-    exit 22
+    usage
 fi
 
-# Choose a random server in a pool
-# TODO use nodeset instead of static list
-#SERVERS=$(nodeset -e @<group>)
-#FIXME
-SERVERS=(node1 node2)
-RAND_ID=$(($RANDOM % ${#SERVERS[@]}))
-RAND_SERV=${SERVERS[$RAND_ID]}
-SERV_PORT=49999
-TIMEOUT=15000 # must be >= robinhood's copy_timeout value
-
-
 if [[ $VERB == "ARCHIVE" || $VERB == "RESTORE" ]]; then
-    # connect to $RAND_SERV and transmit parameters
-    ret=$(echo $VERB $SRC $DEST $HINTS | nc -w $TIMEOUT $RAND_SERV $SERV_PORT)
-    if (( $? != 0 )); then
-	exit $?
+
+    # Choose a random server in a pool
+    RAND_ID=$(($RANDOM % ${#SERVERS[@]}))
+    RAND_SERV=${SERVERS[$RAND_ID]}
+
+    args="$VERB $SRC $DEST $HINTS"
+    net_cmd="nc -w $TIMEOUT $RAND_SERV $SERV_PORT"
+    if [[ $DEBUG == "y" ]] ; then
+        echo "DEBUG $(date +%x' '%T) Starting $args | $cmd" >> $LOG_FILE
     fi
+    # connect to $RAND_SERV and transmit parameters
+    ret=$(echo $args | $net_cmd)
+    rc=$?
+
+    if (( $rc != 0 )); then
+        if [[ $DEBUG == "y" ]] ; then
+                echo "Error in $args" >> $LOG_FILE
+        fi
+        echo "Error copying file $SRC" >> $LOG_FILE
+	exit $rc
+    fi
+
     # get return code and exit
-    exit $ret
+    if [[ $DEBUG == "y" ]] ; then
+        echo "$(date +%x' '%T) $args to $RAND_SERV with rc=$ret" >> $LOG_FILE
+    fi
+
+    if [[ -z $ret ]] ; then
+        if [[ $DEBUG == "y" ]] ; then
+                echo "Nothing in rc for $args : -1" >> $LOG_FILE
+        fi
+        exit 1
+    else
+        if [[ $DEBUG == "y" ]] ; then
+                echo "$(date +%x' '%T) $args with rc=$ret" >> $LOG_FILE
+        fi
+        exit $ret
+    fi
+
+else
+    usage
 fi
 
