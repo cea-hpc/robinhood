@@ -76,6 +76,7 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
         doc/templates					\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
 	doc/admin_guides \
+    doc/install_webgui.txt \
 	ChangeLog
 
 
