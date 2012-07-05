@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <libgen.h>
 #include <pthread.h>
+#include <signal.h>
 
 #define LOGTAG "Import"
 
@@ -62,7 +63,7 @@ static struct option option_tab[] =
 /* global variables */
 
 static lmgr_t  lmgr;
-char path_filter[RBH_PATH_MAX] = "";
+static int force_stop = 0;
 
 /* special character sequences for displaying help */
 
@@ -161,30 +162,43 @@ static inline void display_version( char *bin_name )
     printf( "\n" );
 }
 
-static int is_fid_str(const char * str, entry_id_t * id)
-{
-    lustre_fid  fid;
-    if (sscanf(str, SFID, RFID(&fid)) != 3)
-        return FALSE;
-    else {
-        if (id)
-            *id = fid;
-        return TRUE;
-    }
-}
-
-static inline int import_helper(const entry_id_t *old_id,
-                                const char       *backend_path,
-                                const char       *tgt_path,
+static inline int import_helper(const char       *backend_path,
+                                char             *tgt_path, /* in/out */
                                 char             *new_backend_path)
 {
-    entry_id_t new_id;
+    entry_id_t old_id, new_id;
     recov_status_t st;
     attr_set_t     attrs, new_attrs;
     int rc;
 
-    /* XXX src path must be in the same filesystem as backend
-     * because it we be renamed */
+    /* to check src path */
+    char * name;
+    char * first;
+    char * second;
+    char dummy[RBH_PATH_MAX] = "";
+    char tmp[RBH_PATH_MAX];
+
+    /* tmp copy of src path */
+    strcpy(tmp, backend_path);
+    name = basename(tmp);
+
+    /* clean import path if it already as fid in it */
+    if ((second = strrchr(name, '_')) && (second != name)
+        && (*(first = second - 1) == '_')
+        && (sscanf(second+1, SFID"%s", RFID(&old_id), dummy) >= 3))
+    {
+        if (EMPTY_STRING(dummy)) {
+            DisplayLog(LVL_EVENT, LOGTAG, "'%s' ends with a fid: "DFID_NOBRACE,
+                       name, PFID(&old_id));
+            /* clean fid in target path */
+            tgt_path[strlen(tgt_path)-strlen(first)] = '\0';
+        } else {
+            DisplayLog(LVL_MAJOR, LOGTAG, "'%s' has garbage ('%s') after fid ("DFID_NOBRACE")", 
+                       name, dummy, PFID(&old_id));
+            memset(&old_id, 0, sizeof(old_id));
+        }
+    } else
+        memset(&old_id, 0, sizeof(old_id));
 
     printf("Importing '%s' as '%s'...\n", backend_path, tgt_path);
 
@@ -197,7 +211,7 @@ static inline int import_helper(const entry_id_t *old_id,
     strcpy( ATTR( &attrs, fullpath), tgt_path );
 
     /* create file in Lustre */
-    st = rbhext_recover( old_id, &attrs, &new_id, &new_attrs );
+    st = rbhext_recover( &old_id, &attrs, &new_id, &new_attrs );
     if ( (st == RS_OK) || (st == RS_DELTA) )
     {
         printf("Success\n");
@@ -222,7 +236,6 @@ static int perform_import(const char * src_path, const char * tgt_path,
                           uint64_t * import_count, uint64_t * err_count)
 {
     int            rc;
-    entry_id_t     id;
 
     char bk_path[RBH_PATH_MAX] = "";
     char fs_path[RBH_PATH_MAX] = "";
@@ -231,11 +244,39 @@ static int perform_import(const char * src_path, const char * tgt_path,
     DIR           *dirp;
     struct dirent direntry;
     struct dirent *dircookie;
-    struct stat   md;
+    struct stat   md, src_md, tgt_md;
 
-    /* @TODO handle the case when src_path is a file */
+    printf("%s\n", src_path);
+    if (lstat(src_path, &src_md) != 0)
+    {
+        rc = -errno;
+        DisplayLog(LVL_CRIT, LOGTAG, "ERROR: lstat failed on %s: %s",
+                   src_path, strerror(-rc));
+        return rc;
+    }
 
-    fprintf(stderr, "%s\n", src_path);
+    /* handle the case when src_path is a file or symlink */
+    if (!S_ISDIR(src_md.st_mode))
+    {
+        /* tmp copy of path to modify it */
+        strcpy(fs_path, tgt_path);
+
+        /* is target an exitsting dir? (or link to a dir) */
+        if ((stat(tgt_path, &tgt_md) == 0)
+            && (S_ISDIR(tgt_md.st_mode)))
+        {
+            /* tmp copy of path to modify it */
+            strcpy(bk_path, src_path);
+            sprintf(fs_path, "%s/%s", tgt_path, basename(bk_path));
+        }
+
+        if ((rc = import_helper(src_path, fs_path, new_bk_path)))
+            (*err_count)++;
+        else
+            (*import_count)++;
+
+        return rc;
+    }
 
     /* scan bkpath */
     if ((dirp = opendir(src_path)) == NULL)
@@ -255,13 +296,11 @@ static int perform_import(const char * src_path, const char * tgt_path,
         if (rc == 0 && dircookie == NULL)
             /* end of directory */
             break;
-/* @TODO: manage ctrl+c
-        else if ( p_info->force_stop )
+        else if ( force_stop )
         {
-            DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation" );
-            goto end_task;
+            DisplayLog( LVL_EVENT, LOGTAG, "Stop requested: cancelling import of %s", src_path );
+            return 0;
         }
-*/
         else if ( rc != 0 )
         {
             DisplayLog(LVL_CRIT, LOGTAG, "ERROR %d reading directory '%s': %s",
@@ -292,27 +331,7 @@ static int perform_import(const char * src_path, const char * tgt_path,
         }
         else
         {
-            char * first;
-            char * second;
-            char dummy[RBH_PATH_MAX] = "";
-            /* clean import path if it already as fid in it */
-            if ((second = strrchr(direntry.d_name, '_')) && (second != direntry.d_name)
-                && (*(first = second - 1) == '_') && (sscanf(second+1, SFID"%s", RFID(&id), dummy) >= 3))
-            {
-                if (EMPTY_STRING(dummy)) {
-                    DisplayLog(LVL_EVENT, LOGTAG, "'%s' ends with a fid: "DFID_NOBRACE,
-                            direntry.d_name, PFID(&id));
-                    /* clean fid in target path */
-                    fs_path[strlen(fs_path)-strlen(first)] = '\0';
-                } else {
-                    DisplayLog(LVL_MAJOR, LOGTAG, "'%s' has garbage ('%s') after fid ("DFID_NOBRACE")", 
-                               direntry.d_name, dummy, PFID(&id));
-                    memset(&id, 0, sizeof(id));
-                }
-            } else
-                memset(&id, 0, sizeof(id));
-
-            if (import_helper(&id, bk_path, fs_path, new_bk_path))
+            if (import_helper(bk_path, fs_path, new_bk_path))
                 (*err_count)++;
             else
                 (*import_count)++;
@@ -322,7 +341,10 @@ static int perform_import(const char * src_path, const char * tgt_path,
     return 0;
 }
 
-
+static void terminate_handler( int sig )
+{
+    force_stop = 1;
+}
 
 #define MAX_OPT_LEN 1024
 
@@ -345,6 +367,8 @@ int main( int argc, char **argv )
     char           err_msg[4096];
     robinhood_config_t config;
     int chgd = 0;
+
+    struct sigaction act_sigterm;
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab,
@@ -480,10 +504,26 @@ int main( int argc, char **argv )
     }
 #endif
 
+    /* create signal handlers */
+    memset( &act_sigterm, 0, sizeof( act_sigterm ) );
+    act_sigterm.sa_flags = 0;
+    act_sigterm.sa_handler = terminate_handler;
+    if ( sigaction( SIGTERM, &act_sigterm, NULL ) == -1
+         || sigaction( SIGINT, &act_sigterm, NULL ) == -1 )
+    {
+        DisplayLog( LVL_CRIT, LOGTAG,
+                    "Error while setting signal handlers for SIGTERM and SIGINT: %s",
+                    strerror( errno ) );
+        exit(1);
+    }
+
     rc = perform_import(argv[optind], argv[optind+1], &total, &err);
     if (rc)
         fprintf(stderr, "Import terminated with error %d\n", rc);
-    printf("Import complete: %"PRIu64" entries imported, %"PRIu64" errors\n", total, err);
+    else if (force_stop)
+        fprintf(stderr, "Import aborted by user\n");
+
+    printf("Import summary: %"PRIu64" entries imported, %"PRIu64" errors\n", total, err);
 
     ListMgr_CloseAccess( &lmgr );
 
