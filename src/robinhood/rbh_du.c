@@ -732,6 +732,7 @@ int main( int argc, char **argv )
     int            force_log_level = FALSE;
     int            log_level = 0;
     int            rc;
+    int            chgd = 0;
     char           err_msg[4096];
 
     /* parse command line options */
@@ -830,18 +831,16 @@ int main( int argc, char **argv )
         }
     }
 
+
     /* get default config file, if not specified */
-    if ( EMPTY_STRING( config_file ) )
+    if ( SearchConfig( config_file, config_file, &chgd ) != 0 )
     {
-        if ( SearchConfig( config_file ) != 0 )
-        {
-            fprintf(stderr, "No config file found in '/etc/robinhood.d/"PURPOSE_EXT"'\n" );
-            exit(2);
-        }
-        else
-        {
-            fprintf(stderr, "Using config file '%s'.\n", config_file );
-        }
+        fprintf(stderr, "No config file found\n" );
+        exit(2);
+    }
+    else if (chgd)
+    {
+        fprintf(stderr, "Using config file '%s'.\n", config_file );
     }
 
     /* only read ListMgr config */
@@ -876,6 +875,24 @@ int main( int argc, char **argv )
                  rc, errno, strerror( errno ) );
         exit( rc );
     }
+
+    /* Initialize mount point info */
+#ifdef _LUSTRE
+    if ( ( rc = Lustre_Init(  ) ) )
+    {
+        fprintf( stderr, "Error %d initializing liblustreapi\n", rc );
+        exit( 1 );
+    }
+
+    rc = CheckFSInfo( config.global_config.fs_path,
+                      config.global_config.fs_type, NULL,
+                      config.global_config.check_mounted, TRUE );
+    if (rc)
+    {
+        DisplayLog( LVL_CRIT, DU_TAG, "Error %d checking Filesystem", rc );
+        exit( rc );
+    }
+#endif
 
     /* Initialize list manager */
     rc = ListMgr_Init( &config.lmgr_config, TRUE );
