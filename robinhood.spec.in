@@ -45,7 +45,7 @@ BuildRequires: mysql-devel >= 4.1    \
 Name: @PACKAGE@
 Version: @VERSION@ 
 
-Vendor: CEA/DAM
+Vendor: CEA, HPC department <http://www-hpc.cea.fr>
 Prefix: %{_prefix}
 
 %if %{with lustre}
@@ -193,8 +193,7 @@ Generated using options: @ac_configure_args@
 %setup -q -n @PACKAGE@-%{version}
 
 %build
-./configure %{?configure_flags:configure_flags} \
-        --with-purpose=%{configure_purpose} \
+./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
         --sysconfdir=%{_sysconfdir} \
         --mandir=%{_mandir} \
         --libdir=%{_libdir} \
