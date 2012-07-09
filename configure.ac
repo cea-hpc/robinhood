@@ -34,6 +34,10 @@ AC_PROG_LIBTOOL
 # define everything necessary for accessing large files (64bits offset)
 AC_SYS_LARGEFILE
 
+# gcc options
+CC_OPT="-Wall -Werror"
+AC_SUBST(CC_OPT)
+
 AC_CHECK_SIZEOF([nlink_t])
 AC_CHECK_SIZEOF([off_t])
 AC_CHECK_SIZEOF([ino_t])

@@ -611,7 +611,6 @@ int TryFid2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
     static int is_resolvable = 0;
     int rc;
     char value[1024];
-    dev_t      dev;
 
 
     if ( !is_init ) {
@@ -621,7 +620,7 @@ int TryFid2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
         if (rc)
             return -1;
         /* try to check filesystem */
-        if (CheckFSInfo( value, "lustre", &dev, TRUE, TRUE) == 0) {
+        if (CheckFSInfo( value, "lustre", NULL, TRUE, TRUE) == 0) {
             is_resolvable = 1;
             /* may be used for solving uids from filesystem */
             InitUidGid_Cache();
@@ -2830,7 +2829,6 @@ static void report_class_info( int flags )
     struct lmgr_report_t *it;
     lmgr_filter_t  filter;
     int            rc;
-    profile_u prof;
 #ifndef ATTR_INDEX_archive_class
     int header = 1;
 #endif
@@ -2884,6 +2882,7 @@ static void report_class_info( int flags )
     }
 
 #ifndef ATTR_INDEX_archive_class
+    profile_u prof;
 
     /* a single class column (release), can print as is */
     header = !NOHEADER(flags);

@@ -73,6 +73,77 @@ void Exit( int error_code )
     exit( error_code );
 }
 
+/* global info about the filesystem to be managed */
+static char    mount_point[1024] = "";
+static char    fsname[64] = "";
+static dev_t   dev_id = 0;
+
+/* to optimize string concatenation */
+static unsigned int mount_len = 0;
+
+
+/* used at initialization time, to avoid several modules
+ * that start in parallel to check it several times.
+ */
+static pthread_mutex_t mount_point_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* this set of functions is for retrieving/checking mount point
+ * and fs name (once for all threads):
+ */
+void set_mount_point( char *mntpnt )
+{
+    P( mount_point_lock );
+    if ( mount_len == 0 )
+    {
+        strcpy( mount_point, mntpnt );
+        mount_len = strlen( mntpnt );
+
+        /* remove final slash, if any */
+        if ( (mount_len > 1) && (mount_point[mount_len-1] == '/') )
+        {
+            mount_point[mount_len-1] = '\0';
+            mount_len --;
+        }
+    }
+    V( mount_point_lock );
+}
+
+/* retrieve the mount point from any module
+ * without final slash.
+ */
+const char          *get_mount_point( unsigned int * plen )
+{
+    if (plen) (*plen) = mount_len;
+    return mount_point;
+}
+
+void set_fsname( char *name )
+{
+    P( mount_point_lock );
+    strcpy( fsname, name );
+    V( mount_point_lock );
+}
+
+void set_fsdev( dev_t dev )
+{
+    P( mount_point_lock );
+    dev_id = dev;
+    V( mount_point_lock );
+}
+
+/* retrieve fsname from any module */
+const char          *get_fsname(  )
+{
+    return fsname;
+}
+
+/* return Filesystem device id  */
+dev_t          get_fsdev()
+{
+    return dev_id;
+}
+
+
 
 /**
  * send a mail
@@ -398,9 +469,7 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
     char           tmp_buff[RBH_PATH_MAX];
     char          *parentmntdir;
     char           fs_spec[RBH_PATH_MAX];
-#ifdef _HAVE_FID
     char          *ptr;
-#endif
 
     char           type[256];
 
@@ -544,18 +613,20 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
         return ENOENT;
     }
 
-#ifdef _HAVE_FID
     if ( save_fs )
     {
         set_mount_point( mntdir );
+        set_fsdev( pathstat.st_dev );
 
         ptr = strstr( fs_spec, ":/" );
         if ( ptr != NULL )
         {
             set_fsname( ptr + 2 );
         }
+        else
+            set_fsname(fs_spec);
+        printf("fsname=%s\n", get_fsname());
     }
-#endif
 
     /* all checks are OK */
 
@@ -564,8 +635,41 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
 
     endmntent( fp );
     return 0;
-
 }                               /* CheckFSInfo */
+
+/**
+ * Initialize filesystem access and retrieve current devid/fs_key
+ * - global_config must be set
+ * - initialize mount_point, fsname and dev_id
+ */
+int InitFS()
+{
+    int rc;
+
+    /* Initialize mount point info */
+#ifdef _LUSTRE
+    if (!strcmp( global_config.fs_type, "lustre" ))
+    {
+        if ( ( rc = Lustre_Init() ) )
+        {
+            DisplayLog( LVL_CRIT, "InitFS", "Error %d initializing liblustreapi", rc );
+            return rc;
+        }
+    }
+#endif
+
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL,
+                      global_config.check_mounted, TRUE );
+    if (rc)
+    {
+        DisplayLog( LVL_CRIT, "InitFS", "Error %d checking Filesystem", rc );
+        return rc;
+    }
+
+    /* OK */
+    return 0;
+}
+
 
 /**
  *  Check that FS path is the same as the last time.

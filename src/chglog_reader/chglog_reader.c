@@ -133,7 +133,7 @@ void free_extra_info( void * ptr )
 int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void * param )
 {
     int rc;
-    const char * mount_point = get_mount_point();
+    const char * mount_point = get_mount_point(NULL);
     reader_thr_info_t * p_info = (reader_thr_info_t *) param;
     struct changelog_rec * logrec = pop->extra_info.log_record.p_log_rec;
 
@@ -618,15 +618,6 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
 #ifdef _LLAPI_FORKS
     struct sigaction act_sigchld ;
 #endif
-
-    /* check that the FS is mounted and has the good type */
-    if ( CheckFSInfo( global_config.fs_path, "lustre", NULL,
-                      global_config.check_mounted, TRUE ) )
-    {
-        DisplayLog(LVL_CRIT, CHGLOG_TAG, "ERROR checking filesystem %s",
-            global_config.fs_path );
-        return EINVAL;
-    }
 
     /* check parameters */
 #ifdef _DEBUG_CHGLOG

@@ -440,11 +440,7 @@ int Start_HSMRm( hsm_rm_config_t * p_config, int flags )
     hsm_rm_config = *p_config;
     hsm_rm_flags = flags;
 
-    /* Check mount point and FS type.  */
-    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
-                      global_config.check_mounted, TRUE );
-    if ( rc != 0 )
-        return rc;
+    fsdev = get_fsdev();
 
     if ( !policies.unlink_policy.hsm_remove )
     {

@@ -1,5 +1,4 @@
-
-AM_CFLAGS= -Wall $(DB_CFLAGS) $(PURPOSE_CFLAGS)
+AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 AM_LDFLAGS= -lpthread
 
 check_PROGRAMS=test_hash_func test_uidgidcache test_list_mgr test_entry_proc test_info_collector test_resource_monitor

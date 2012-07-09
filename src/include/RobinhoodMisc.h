@@ -30,6 +30,7 @@
 #endif
 #include <dirent.h>
 #include <stdint.h>
+#include "xplatform_print.h"
 
 /**
  *  Miscelaneous parsing macros
@@ -68,9 +69,9 @@
 /* displaying FID */
 #ifndef _HAVE_FID
 #define DFID "%#"PRI_DT"/%Lu"
-#define PFID(_pid) (_pid)->device, (unsigned long long)((_pid)->inode)
+#define PFID(_pid) (_pid)->fs_key, (unsigned long long)((_pid)->inode)
 #define SFID "0X%"PRI_DT"/%Lu"
-#define RFID(_pid) &((_pid)->device), &((_pid)->inode)
+#define RFID(_pid) &((_pid)->fs_key), &((_pid)->inode)
 #define FID_SCAN_CNT 2
 #else
 #define FID_SCAN_CNT 3
@@ -114,6 +115,15 @@ char          *gid2str( gid_t gid, char *groupname );
 int            CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev,
                             int check_mounted, int save_fs );
 
+
+/**
+ * Initialize filesystem access and retrieve current devid/fs_key
+ * - global_config must be set
+ * - initialize mount_point, fsname and dev_id
+ */
+int InitFS();
+
+
 /**
  *  Check that FS path is the same as the last time.
  */
@@ -139,9 +149,10 @@ int File_CreateSetStripe( const char * path, const stripe_info_t * stripe );
 #endif
 
 void           set_mount_point( char *mntpnt );
-char          *get_mount_point(  );
+const char    *get_mount_point( unsigned int * plen );
 void           set_fsname( char *name );
-char          *get_fsname(  );
+const char    *get_fsname(  );
+dev_t          get_fsdev();
 #ifdef _HAVE_FID
 int            BuildFidPath( const entry_id_t * p_id /* IN */ , char *path /* OUT */  );
 int            Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int len );
@@ -178,7 +189,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
 #endif
 
 /** Retrieve OST usage info ('ost df') */
-int            Get_OST_usage( char *fs_path, unsigned int ost_index, struct statfs *ost_statfs );
+int            Get_OST_usage( const char *fs_path, unsigned int ost_index, struct statfs *ost_statfs );
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 /** Retrieve pool usage info */

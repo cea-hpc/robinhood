@@ -456,23 +456,10 @@ int main( int argc, char **argv )
         exit( rc );
     }
 
-    /* Initialize mount point info */
-#ifdef _LUSTRE
-    if ( ( rc = Lustre_Init(  ) ) )
-    {
-        fprintf( stderr, "Error %d initializing liblustreapi\n", rc );
-        exit( 1 );
-    }
-
-    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL,
-                      global_config.check_mounted, TRUE );
+    /* Initialize Filesystem access */
+    rc = InitFS();
     if (rc)
-    {
-        DisplayLog( LVL_CRIT, LOGTAG, "Error %d checking Filesystem", rc );
-        exit( rc );
-    }
-
-#endif
+        exit(rc);
 
     /* Initialize list manager */
     rc = ListMgr_Init( &config.lmgr_config, FALSE );

@@ -1,4 +1,4 @@
-AM_CFLAGS= -Wall $(DB_CFLAGS) $(PURPOSE_CFLAGS)
+AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 
 COMMON_SRC=entry_proc_impl.c entry_proc_tools.c entry_proc_tools.h
 

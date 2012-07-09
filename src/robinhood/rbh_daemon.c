@@ -1294,6 +1294,11 @@ int main( int argc, char **argv )
     if ( options.pid_file )
         create_pid_file( options.pid_filepath );
 
+    /* Initialize filesystem access */
+    rc = InitFS();
+    if (rc)
+        exit(rc);
+
 #ifdef _HSM_LITE
     rc = Backend_Start( &rh_config.backend_config, options.flags );
     if ( rc )

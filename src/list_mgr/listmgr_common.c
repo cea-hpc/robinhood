@@ -554,50 +554,6 @@ int mk_result_bind_list( const attr_set_t * p_set, table_enum table, db_type_t *
 
 }
 
-int pkfields( char *str, int with_validator )
-{
-#ifdef FID_PK
-    strcpy( str, "fid_seq,fid_oid" );
-#else
-    if ( with_validator )
-        strcpy( str, "inum,dev,validator" );
-    else
-        strcpy( str, "inum,dev" );
-#endif
-    return 0;
-}
-
-
-int pkvalues( char *str, const entry_id_t * p_id, int with_validator )
-{
-#ifdef FID_PK
-    sprintf( str, "%llu,%u", p_id->f_seq, p_id->f_oid );
-#else
-    if ( with_validator )
-        sprintf( str, "%llu,%llu,%u", ( unsigned long long ) p_id->inode,
-                 ( unsigned long long ) p_id->device, p_id->validator );
-    else
-        sprintf( str, "%llu,%llu", ( unsigned long long ) p_id->inode,
-                 ( unsigned long long ) p_id->device );
-#endif
-    return 0;
-}
-
-
-char          *pkfilter( char *str, const entry_id_t * p_id )
-{
-#ifdef FID_PK
-    /* FID Primary key */
-    sprintf( str, "fid_seq=%llu AND fid_oid=%u", p_id->f_seq, p_id->f_oid );
-#else
-    /* inum/dev primary key */
-    sprintf( str, "inum=%llu AND dev=%llu",
-             ( unsigned long long ) p_id->inode, ( unsigned long long ) p_id->device );
-#endif
-    return str;
-}
-
-
 int result2attrset( table_enum table, char **result_tab,
                     unsigned int res_count, attr_set_t * p_set )
 {
@@ -919,7 +875,7 @@ int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
                  PK_PARG_T p_pk )
 {
 #ifndef FID_PK
-    snprintf( p_pk, PK_LEN, "%"PRI_DT":%LX", p_id->device,
+    snprintf( p_pk, PK_LEN, "%"PRI_DT":%LX", p_id->fs_key,
               (unsigned long long)p_id->inode );
 #else /* FID_PK */
     snprintf( p_pk, FID_LEN, DFID_NOBRACE, PFID(p_id) );
@@ -933,7 +889,7 @@ int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
 #ifndef FID_PK
     unsigned long long tmp_ino;
 
-    if ( sscanf( pk, "%"PRI_DT":%LX", &p_id->device, &tmp_ino ) != 2 )
+    if ( sscanf( pk, "%"PRI_DT":%LX", &p_id->fs_key, &tmp_ino ) != 2 )
         return DB_INVALID_ARG;
     else
     {

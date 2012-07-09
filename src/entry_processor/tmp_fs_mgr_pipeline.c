@@ -485,18 +485,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     }
                     else
                     {
-#ifdef _HAVE_FID
                         /* ERROR */
                         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                                     "Error %d retrieving entry "DFID" from DB", rc,
                                     PFID(&p_op->entry_id) );
-#else
-
-                       DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                                 "Error %d retrieving entry [i=%llu, d=%llu] from DB", rc,
-                                 ( unsigned long long ) p_op->entry_id.inode,
-                                 ( unsigned long long ) p_op->entry_id.device );
-#endif
                     }
                 }
             }
@@ -766,14 +758,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             if ( ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
                 snprintf( strid, RBH_PATH_MAX, "%s", ATTR( &p_op->entry_attr, fullpath ) );
             else
-#ifdef _HAVE_FID
-                snprintf( strid, RBH_PATH_MAX, "fid[seq, oid]=[%llu, %u]", p_op->entry_id.f_seq,
-                          p_op->entry_id.f_oid );
-#else
-                snprintf( strid, RBH_PATH_MAX, "[inode, device]=[%llu, %llu]",
-                          ( unsigned long long ) p_op->entry_id.inode,
-                          ( unsigned long long ) p_op->entry_id.device );
-#endif
+                snprintf( strid, RBH_PATH_MAX, "id="DFID, PFID(&p_op->entry_id));
 
             rc = BoolExpr2str( &entry_proc_conf.alert_list[i].boolexpr, stralert, 2*RBH_PATH_MAX );
             if ( rc < 0 )
@@ -826,14 +811,15 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
 #ifdef _DEBUG_ENTRYPROC
-#ifdef _HAVE_FID
-    printf( "stage %s - record #%u - id=[%llu,%u]\n", stage_info->stage_name,
-            ( unsigned int ) p_op->entry_id.f_ver, p_op->entry_id.f_seq, p_op->entry_id.f_oid );
-#else
-    printf( "stage %s - entry %s - id=[%llu,%llu,%u]\n", stage_info->stage_name,
-            ATTR( &p_op->entry_attr, fullpath ), ( unsigned long long ) p_op->entry_id.inode,
-            ( unsigned long long ) p_op->entry_id.device, p_op->entry_id.validator );
+#ifdef HAVE_CHANGELOGS
+    if (p_op->extra_info.is_changelog_record && p_op->extra_info.log_record.p_log_rec)
+        printf( "stage %s - record #%u - id="DFID"\n", stage_info->stage_name,
+                p_op->extra_info.log_record.p_log_rec->cr_index, PFID(&p_op->entry_id) );
+    else
 #endif
+        printf( "stage %s - entry %s - id="DFID"\n", stage_info->stage_name,
+                ATTR( &p_op->entry_attr, fullpath ), PFID(&p_op->entry_id) );
+
 #endif
 
     /* if stripe has not been updated, don't update it in the database */

@@ -44,12 +44,12 @@ typedef lustre_fid entry_id_t;
 #define INUM_PK
 typedef struct __entry_id__
 {
-  dev_t device;
+  uint64_t fs_key;
   ino_t inode;
   int validator;
 } entry_id_t;
 
-#define entry_id_equal( _p_id_1, _p_id_2 ) ( ((_p_id_1)->device == (_p_id_2)->device) && ((_p_id_1)->inode == (_p_id_2)->inode)  )
+#define entry_id_equal( _p_id_1, _p_id_2 ) ( ((_p_id_1)->fs_key == (_p_id_2)->fs_key) && ((_p_id_1)->inode == (_p_id_2)->inode)  )
 
 #endif
 

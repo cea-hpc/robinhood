@@ -230,7 +230,7 @@ static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct 
     /* Set entry id */
 #ifndef _HAVE_FID
     tmpid.inode = p_stat->st_ino;
-    tmpid.device = p_stat->st_dev;
+    tmpid.device = p_stat->st_dev; /* TODO change by fsk */
     tmpid.validator = p_stat->st_ctime;
 #endif
 
@@ -1035,10 +1035,7 @@ int Robinhood_InitScanModule(  )
 
     pthread_mutex_init( &lock_scan, NULL );
 
-    /* check device, filesystem type, ... */
-    if ( ( rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
-                             global_config.check_mounted, TRUE ) ) != 0 )
-        return ( rc );
+    fsdev = get_fsdev();
 
     if ( !strcmp( global_config.fs_type, "lustre" ) )
         is_lustre_fs = TRUE;

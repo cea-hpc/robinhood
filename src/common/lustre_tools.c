@@ -198,62 +198,6 @@ int File_CreateSetStripe( const char * path, const stripe_info_t * old_stripe )
 }
 #endif
 
-/* global info about the filesystem to be managed */
-static char    mount_point[1024] = "";
-static char    fsname[64] = "";
-
-/* to optimize string concatenation */
-static unsigned int mount_len = 0;
-
-
-/* used at initialization time, to avoid several modules
- * that start in parallel to check it several times.
- */
-static pthread_mutex_t mount_point_lock = PTHREAD_MUTEX_INITIALIZER;
-
-/* this set of functions is for retrieving/checking mount point
- * and fs name (once for all threads):
- */
-void set_mount_point( char *mntpnt )
-{
-    P( mount_point_lock );
-    if ( mount_len == 0 )
-    {
-        strcpy( mount_point, mntpnt );
-        mount_len = strlen( mntpnt );
-
-        /* remove final slash, if any */
-        if ( (mount_len > 1) && (mount_point[mount_len-1] == '/') )
-        {
-            mount_point[mount_len-1] = '\0';
-            mount_len --;
-        }
-    }
-    V( mount_point_lock );
-}
-
-/* retrieve the mount point from any module
- * without final slash.
- */
-char          *get_mount_point(  )
-{
-    return mount_point;
-}
-
-void set_fsname( char *name )
-{
-    P( mount_point_lock );
-    strcpy( fsname, name );
-    V( mount_point_lock );
-}
-
-/* retrieve fsname from any module */
-char          *get_fsname(  )
-{
-    return fsname;
-}
-
-
 #ifdef _HAVE_FID
 
 #define FIDDIR      ".lustre/fid"
@@ -267,13 +211,14 @@ int BuildFidPath( const entry_id_t * p_id,       /* IN */
                   char *path )                   /* OUT */
 {
     char          *curr = path;
+    unsigned int  mlen = 0;
 
     if ( !p_id || !path )
         return EFAULT;
 
     /* filesystem root */
-    strcpy( path, mount_point );
-    curr += mount_len;
+    strcpy( path, get_mount_point(&mlen) );
+    curr += mlen;
 
     /* fid directory */
     strcpy( curr, "/" FIDDIR "/" );
@@ -297,10 +242,14 @@ int Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int le
     long long      recno = -1;
     int            linkno = 0;
     char           fid[256];
+    const char    *mpath = NULL;
+    unsigned int   mlen = 0;
+
+    mpath = get_mount_point(&mlen);
 
     /* set mountpoint at the beginning of the path */
-    strcpy( fullpath, mount_point );
-    curr += mount_len;
+    strcpy( fullpath, mpath );
+    curr += mlen;
 
 /* add the slash only if fid2path doesn't */
 #ifndef _FID2PATH_LEADING_SLASH
@@ -317,14 +266,14 @@ int Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int le
     /* MDT device */
 
     /* ask the path to lustre */
-    rc = llapi_fid2path( mount_point, fid, curr, len - mount_len - 2, &recno,
+    rc = llapi_fid2path( mpath, fid, curr, len - mlen - 2, &recno,
                          &linkno );
 
     if ( (rc != 0) && (rc != -ENOENT) && (rc != -ESTALE) )
         DisplayLog( LVL_CRIT, "Fid2Path",
                     "Error %d calling llapi_fid2path(%s,%s,%lld,%d), errno=%d."
                     " Cannot retrieve full path for %s",
-                    rc, mount_point, fid, recno, linkno, errno, fid );
+                    rc, mpath, fid, recno, linkno, errno, fid );
 
     return rc;
 }
@@ -467,6 +416,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
     struct hsm_user_request * req;
     int data_len = 0;
     int rc;
+    const char * mpath;
 
     if ( hints != NULL )
         data_len = strlen(hints)+1;
@@ -501,13 +451,14 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
         req->hur_request.hr_data_len = 0;
     }
 
-    rc = llapi_hsm_request( mount_point, req );
+    mpath = get_mount_point(NULL);
+    rc = llapi_hsm_request( mpath, req );
 
     free( req );
     if (rc)
         DisplayLog( LVL_CRIT, "HSMAction", "ERROR performing HSM request(%s,"
                     " root=%s, fid="DFID"): %s",
-                    HSMAction2str(action), mount_point, PFID(p_id),
+                    HSMAction2str(action), mpath, PFID(p_id),
                     strerror(-rc) );
     return rc;
 
@@ -520,7 +471,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
  *  @return 0 on success
  *          ENODEV if ost_index > ost index max of this FS
  */
-int Get_OST_usage( char *fs_path, unsigned int ost_index, struct statfs *ost_statfs )
+int Get_OST_usage( const char *fs_path, unsigned int ost_index, struct statfs *ost_statfs )
 {
     struct obd_statfs stat_buf;
     struct obd_uuid uuid_buf;
@@ -532,7 +483,8 @@ int Get_OST_usage( char *fs_path, unsigned int ost_index, struct statfs *ost_sta
     memset( &stat_buf, 0, sizeof( struct obd_statfs ) );
     memset( &uuid_buf, 0, sizeof( struct obd_uuid ) );
 
-    rc = llapi_obd_statfs( fs_path, LL_STATFS_LOV, ost_index, &stat_buf,
+    /* llapi_obd_statfs does not modify path (checked in code) */
+    rc = llapi_obd_statfs( (char*)fs_path, LL_STATFS_LOV, ost_index, &stat_buf,
                            &uuid_buf );
 
     if ( rc == -ENODEV )
@@ -582,7 +534,7 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
     memset( pool_statfs, 0, sizeof( struct statfs ) );
 
     /* retrieve list of OSTs in the pool */
-    sprintf( pool, "%s.%s", fsname, poolname );
+    sprintf( pool, "%s.%s", get_fsname(), poolname );
     rc = llapi_get_poolmembers( pool, ostlist, FIND_MAX_OSTS, buffer, 4096 );
 
     if ( rc < 0 )
@@ -612,7 +564,7 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
             return EINVAL;
         }
 
-        rc = Get_OST_usage( mount_point, index, &ost_statfs );
+        rc = Get_OST_usage( get_mount_point(NULL), index, &ost_statfs );
         if ( rc )
             return rc;
 
@@ -691,6 +643,7 @@ int lustre_mds_stat( char *fullpath, DIR * parent, struct stat *inode )
 #ifdef _HAVE_FID
 
 static DIR * fid_dir_fd = NULL;
+static pthread_mutex_t dir_lock = PTHREAD_MUTEX_INITIALIZER;
 
 int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
 {
@@ -702,15 +655,16 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
     /* ensure fid directory is openned */
     if ( fid_dir_fd == NULL )
     {
-        P( mount_point_lock );
+        P( dir_lock );
         if ( fid_dir_fd == NULL )
         {
             char path[RBH_PATH_MAX];
             char *curr = path;
+            unsigned int mlen;
 
             /* filesystem root */
-            strcpy( path, mount_point );
-            curr += mount_len;
+            strcpy( path, get_mount_point(&mlen) );
+            curr += mlen;
 
             /* fid directory */
             strcpy( curr, "/" FIDDIR );
@@ -718,7 +672,7 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
             /* open fir directory */
             fid_dir_fd = opendir( path );
         }
-        V( mount_point_lock );
+        V( dir_lock );
         if ( fid_dir_fd == NULL )
             return errno;
     }

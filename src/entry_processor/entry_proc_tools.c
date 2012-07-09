@@ -80,7 +80,7 @@ static inline unsigned int hash_id( entry_id_t * p_id, unsigned int modulo )
 #else
     unsigned long long lval;
     /* polynom of prime numbers */
-    lval = 1873 * p_id->device + 3511 * p_id->inode + 10267;
+    lval = 1873 * p_id->fs_key + 3511 * p_id->inode + 10267;
 
     lval = lval % modulo;
 
@@ -248,7 +248,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 #else
     DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
                 "id_constraint_unregister: op not found (list %u): id [dev %llu, ino %llu]",
-                hash_index, ( unsigned long long ) p_op->entry_id.device,
+                hash_index, ( unsigned long long ) p_op->entry_id.fs_key,
                 ( unsigned long long ) p_op->entry_id.inode );
 #endif
     return ID_NOT_EXISTS;
