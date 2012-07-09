@@ -74,8 +74,8 @@ void Exit( int error_code )
 }
 
 /* global info about the filesystem to be managed */
-static char    mount_point[1024] = "";
-static char    fsname[64] = "";
+static char    mount_point[RBH_PATH_MAX] = "";
+static char    fsname[RBH_PATH_MAX] = "";
 static dev_t   dev_id = 0;
 
 /* to optimize string concatenation */
@@ -618,14 +618,18 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
         set_mount_point( mntdir );
         set_fsdev( pathstat.st_dev );
 
-        ptr = strstr( fs_spec, ":/" );
-        if ( ptr != NULL )
+#ifdef _LUSTRE
+        if (!strcmp(type, "lustre"))
         {
-            set_fsname( ptr + 2 );
+            ptr = strstr( fs_spec, ":/" );
+            if ( ptr != NULL )
+            {
+                set_fsname( ptr + 2 );
+            }
         }
         else
+#endif
             set_fsname(fs_spec);
-        printf("fsname=%s\n", get_fsname());
     }
 
     /* all checks are OK */
