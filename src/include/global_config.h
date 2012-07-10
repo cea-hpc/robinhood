@@ -24,6 +24,13 @@
 #include <sys/param.h>          /* for RBH_PATH_MAX */
 #include <stdio.h>
 
+typedef enum {
+    FSKEY_ERROR=0,
+    FSKEY_FSNAME,
+    FSKEY_FSID,
+    FSKEY_DEVID
+} fs_key_t;
+
 /**
  * General Robinhood configuration
  */
@@ -40,6 +47,8 @@ typedef struct global_config_t
 #ifdef _SHERPA
     char          sherpa_config[RBH_PATH_MAX];
 #endif
+
+    fs_key_t      fs_key;
 
     /* behavior flags */
     int            stay_in_fs:1;

@@ -579,17 +579,22 @@ int FSScan_WriteConfigTemplate( FILE * output )
 {
     print_begin_block( output, 0, FSSCAN_CONFIG_BLOCK, NULL );
 
-    print_line( output, 1, "# Min/max intervals for scanning filesystem namespace." );
-    print_line( output, 1, "# The interval for scanning is computed according to this formula:" );
-    print_line( output, 1, "# min + (100%% - max storage usage)*(max-min)" );
-    print_line( output, 1,
-                "# so the more the filesystem is full, the more frequently it is scanned." );
-#ifdef _LUSTRE_HSM
-    print_line( output, 1, "min_scan_interval      =   24h ;" );
-    print_line( output, 1, "max_scan_interval      =    7d ;" );
+    print_line( output, 1, "# simple scan interval (fixed)" );
+#ifdef HAVE_CHANGELOGS
+    print_line( output, 1, "scan_interval      =   2d ;" );
 #else
-    print_line( output, 1, "min_scan_interval      =    2h ;" );
-    print_line( output, 1, "max_scan_interval      =   12h ;" );
+    print_line( output, 1, "scan_interval      =   6h ;" );
+#endif
+    fprintf( output, "\n" );
+
+    print_line( output, 1, "# min/max for adaptive scan interval:" );
+    print_line( output, 1, "# the more the filesystem is full, the more frequently it is scanned." );
+#ifdef HAVE_CHANGELOGS
+    print_line( output, 1, "#min_scan_interval      =   24h ;" );
+    print_line( output, 1, "#max_scan_interval      =    7d ;" );
+#else
+    print_line( output, 1, "#min_scan_interval      =    2h ;" );
+    print_line( output, 1, "#max_scan_interval      =   12h ;" );
 #endif
     fprintf( output, "\n" );
     print_line( output, 1, "# number of threads used for scanning the filesystem" );

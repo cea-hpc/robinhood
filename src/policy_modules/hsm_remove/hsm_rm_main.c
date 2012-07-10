@@ -434,13 +434,10 @@ static void   *remove_thr( void *thr_arg )
 int Start_HSMRm( hsm_rm_config_t * p_config, int flags )
 {
     int            rc;
-    dev_t       fsdev;
 
     /* store configuration */
     hsm_rm_config = *p_config;
     hsm_rm_flags = flags;
-
-    fsdev = get_fsdev();
 
     if ( !policies.unlink_policy.hsm_remove )
     {

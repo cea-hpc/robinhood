@@ -68,28 +68,28 @@ static migr_state_t migr_state = MS_OFF;
  */
 static int CheckFSDevice(  )
 {
-    struct stat    fsstat;
+    struct stat    root_md;
 
     /* retrieve device of filesystem, to compare it to initial device id */
 
-    if ( stat( global_config.fs_path, &fsstat ) == -1 )
+    if (stat( global_config.fs_path, &root_md ) == -1)
     {
         DisplayLog( LVL_CRIT, MIGR_TAG, "Stat on '%s' failed! Error %d: %s",
                     global_config.fs_path, errno, strerror( errno ) );
         return FALSE;
     }
-
-    if ( global_config.stay_in_fs && ( fsdev != fsstat.st_dev ) )
+    if (root_md.st_dev != fsdev)
     {
-        DisplayLog( LVL_CRIT, MIGR_TAG,
-                    "ERROR: Device id of '%s' has changed !!! (%" PRI_DT " <> %"
-                    PRI_DT "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
-
-        RaiseAlert( "Filesystem changed",
-                     "Device number of '%s' has changed !!! (%" PRI_DT " <> %"
-                     PRI_DT "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
-
-        return FALSE;
+        /* manage dev id change after umount/mount */
+        DisplayLog( LVL_MAJOR, MIGR_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
+                    "checking if it has been remounted", fsdev, root_md.st_dev );
+        if (ResetFS())
+        {
+            DisplayLog( LVL_CRIT, MIGR_TAG, "Filesystem was unmounted!!! EXITING!" );
+            Exit( 1 );
+        }
+        /* update current fsdev */
+        fsdev = get_fsdev();
     }
 
     return TRUE;
@@ -396,11 +396,7 @@ int MigrateSingle( migration_config_t * p_config, const char * file, int flags )
 {
     int            rc;
 
-    /* Check mount point and FS type.  */
-    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &fsdev,
-                      global_config.check_mounted, TRUE );
-    if ( rc != 0 )
-        return rc;
+    fsdev = get_fsdev();
 
     /* store configuration */
     migr_config = *p_config;

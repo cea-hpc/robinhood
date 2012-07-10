@@ -20,7 +20,7 @@
 #define _FSSCAN_H
 
 /* tag for logs */
-#define FSSCAN_TAG "FS Scan"
+#define FSSCAN_TAG "FS_Scan"
 
 #include "fs_scan_types.h"
 #include "fs_scan_main.h"

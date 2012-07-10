@@ -1021,18 +1021,19 @@ else
         return PURGE_ENTRY_MOVED;
     }
 
-    /* 3) check entry id */
+    /* 3) check entry id and fskey */
+
     if ( ( entry_md.st_ino != p_item->entry_id.inode )
-         || ( entry_md.st_dev != p_item->entry_id.device ) )
+         || ( get_fskey() != p_item->entry_id.fs_key ) )
     {
         /* If it has changed, invalidate the entry (fullpath does not match entry_id, it will be updated or removed at next FS scan). */
         DisplayLog( LVL_DEBUG, PURGE_TAG, "Inode of %s changed: old=<%llu,%llu>, "
                     "new=<%llu,%llu>. Tagging it invalid.",
                     ATTR(  &p_item->entry_attr, fullpath ),
                     ( unsigned long long ) p_item->entry_id.inode,
-                    ( unsigned long long ) p_item->entry_id.device,
+                    ( unsigned long long ) p_item->entry_id.fs_key,
                     ( unsigned long long ) entry_md.st_ino,
-                    ( unsigned long long ) entry_md.st_dev );
+                    ( unsigned long long ) get_fskey() );
 
         invalidate_entry( lmgr, &p_item->entry_id );
 

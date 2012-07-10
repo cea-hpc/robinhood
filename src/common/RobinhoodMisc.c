@@ -77,6 +77,7 @@ void Exit( int error_code )
 static char    mount_point[RBH_PATH_MAX] = "";
 static char    fsname[RBH_PATH_MAX] = "";
 static dev_t   dev_id = 0;
+static uint64_t fs_key = 0;
 
 /* to optimize string concatenation */
 static unsigned int mount_len = 0;
@@ -87,13 +88,51 @@ static unsigned int mount_len = 0;
  */
 static pthread_mutex_t mount_point_lock = PTHREAD_MUTEX_INITIALIZER;
 
+#define LAST_32PRIME    0xFFFFFFFB
+#define LAST_64PRIME    0xFFFFFFFFFFFFFFC5
+static uint64_t hash_name(const char * str)
+{
+    unsigned int i;
+    uint64_t val = 1;
+
+    for ( i = 0; i < strlen(str); i++ )
+        val = ( val << 5 ) - val + (unsigned int) ( str[i] );
+
+    return val % LAST_32PRIME;
+}
+
+static uint64_t fsidto64(fsid_t fsid)
+{
+    uint64_t out;
+    if (sizeof(fsid_t) <= sizeof(uint64_t))
+    {
+        memset(&out, 0, sizeof(out));
+        memcpy((&out)+(sizeof(out)-sizeof(fsid_t)), &fsid, sizeof(fsid));
+        DisplayLog(LVL_DEBUG, __func__, "sizeof(fsid)=%lu <= 64bits, fsid as 64=%"PRIX64, sizeof(fsid_t), out);
+        return out;
+    }
+    else
+    {
+        unsigned int i;
+        out = 1;
+        char * str = (char *)(&fsid);
+
+        for ( i = 0; i < sizeof(fsid_t); i++ )
+            out = ( out << 5 ) - out + (unsigned int) ( str[i] );
+
+        out = out % LAST_64PRIME;
+        DisplayLog(LVL_DEBUG, __func__, "sizeof(fsid)=%lu > 64bits, hash64(fsid)=%"PRIX64, sizeof(fsid_t), out);
+        return out;
+    }
+}
+
 /* this set of functions is for retrieving/checking mount point
  * and fs name (once for all threads):
  */
-void set_mount_point( char *mntpnt )
+static void _set_mount_point( char *mntpnt )
 {
-    P( mount_point_lock );
-    if ( mount_len == 0 )
+    /* cannot change during a run */
+    if (mount_len == 0)
     {
         strcpy( mount_point, mntpnt );
         mount_len = strlen( mntpnt );
@@ -104,6 +143,33 @@ void set_mount_point( char *mntpnt )
             mount_point[mount_len-1] = '\0';
             mount_len --;
         }
+    }
+}
+
+void set_fs_info( char *name, char * mountp, dev_t dev, fsid_t fsid)
+{
+    P( mount_point_lock );
+    _set_mount_point(mountp);
+    strcpy( fsname, name );
+    dev_id = dev;
+
+    switch (global_config.fs_key)
+    {
+        case FSKEY_FSNAME:
+            fs_key = hash_name(name);
+            DisplayLog(LVL_DEBUG, "FSInfo", "fs_key: hash(fsname)=%"PRIX64, fs_key);
+            break;
+        case FSKEY_FSID:
+            fs_key = fsidto64(fsid);
+            DisplayLog(LVL_DEBUG, "FSInfo", "fs_key: fsid as 64=%"PRIX64, fs_key);
+            break;
+        case FSKEY_DEVID:
+            fs_key = dev_id;
+            DisplayLog(LVL_DEBUG, "FSInfo", "fs_key: devid=%"PRIX64, fs_key);
+            break;
+        default:
+            DisplayLog(LVL_MAJOR, "FSInfo", "Invalid fs_key type %#x", global_config.fs_key);
+            fs_key = 0;
     }
     V( mount_point_lock );
 }
@@ -117,20 +183,6 @@ const char          *get_mount_point( unsigned int * plen )
     return mount_point;
 }
 
-void set_fsname( char *name )
-{
-    P( mount_point_lock );
-    strcpy( fsname, name );
-    V( mount_point_lock );
-}
-
-void set_fsdev( dev_t dev )
-{
-    P( mount_point_lock );
-    dev_id = dev;
-    V( mount_point_lock );
-}
-
 /* retrieve fsname from any module */
 const char          *get_fsname(  )
 {
@@ -141,6 +193,11 @@ const char          *get_fsname(  )
 dev_t          get_fsdev()
 {
     return dev_id;
+}
+
+uint64_t       get_fskey()
+{
+    return fs_key;
 }
 
 
@@ -456,8 +513,9 @@ static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
  * Also return the associated device number.
  * (for STAY_IN_FS security option).
  */
-int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mounted,
-                 int save_fs )
+int CheckFSInfo( char *path, char *expected_type,
+                 dev_t * p_fs_dev, char * fsname_out,
+                 int check_mounted, int save_fs )
 {
     FILE          *fp;
     struct mntent *p_mnt;
@@ -469,7 +527,6 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
     char           tmp_buff[RBH_PATH_MAX];
     char          *parentmntdir;
     char           fs_spec[RBH_PATH_MAX];
-    char          *ptr;
 
     char           type[256];
 
@@ -477,6 +534,8 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
     struct stat    parentmntstat;
 
     size_t         pathlen, outlen;
+    char * name = NULL;
+
 
     if ( ( expected_type == NULL ) || ( expected_type[0] == '\0' ) )
     {
@@ -613,29 +672,58 @@ int CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev, int check_mo
         return ENOENT;
     }
 
-    if ( save_fs )
-    {
-        set_mount_point( mntdir );
-        set_fsdev( pathstat.st_dev );
-
 #ifdef _LUSTRE
-        if (!strcmp(type, "lustre"))
+    if (!strcmp(type, "lustre"))
+    {
+        char *ptr;
+        ptr = strstr( fs_spec, ":/" );
+        if ( ptr != NULL )
         {
-            ptr = strstr( fs_spec, ":/" );
-            if ( ptr != NULL )
-            {
-                set_fsname( ptr + 2 );
-            }
+            name = ptr + 2;
         }
         else
-#endif
-            set_fsname(fs_spec);
+            name = fs_spec;
     }
+    else
+#endif
+        name = fs_spec;
 
     /* all checks are OK */
 
+    if ( save_fs )
+    {
+        /* getting filesystem fsid (needed for fskey) */
+        if (global_config.fs_key == FSKEY_FSID)
+        {
+            struct statfs stf;
+            if (statfs(mntdir, &stf))
+            {
+                int rc = -errno;
+                DisplayLog( LVL_CRIT, "CheckFS", "ERROR calling statfs(%s): %s",
+                    mntdir, strerror(-rc) );
+                    return rc;
+            }
+            /* if fsid == 0, it may mean that fsid is not significant on the current system
+             * => DISPLAY A WARNING */
+            if (fsidto64(stf.f_fsid) == 0)
+            {
+                DisplayLog(LVL_MAJOR, "CheckFS", "WARNING: fsid(0) doesn't look significant on this system. I should not be used as fs_key!");
+            }
+            set_fs_info(name, mntdir, pathstat.st_dev, stf.f_fsid);
+        }
+        else
+        {
+            fsid_t dummy_fsid;
+            memset(&dummy_fsid, 0, sizeof(fsid_t));
+            set_fs_info(name, mntdir, pathstat.st_dev, dummy_fsid);
+        }
+    }
+
     if ( p_fs_dev != NULL )
         *p_fs_dev = pathstat.st_dev;
+
+    if ( fsname_out != NULL )
+        strcpy(fsname_out, name);
 
     endmntent( fp );
     return 0;
@@ -662,7 +750,7 @@ int InitFS()
     }
 #endif
 
-    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL,
+    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
                       global_config.check_mounted, TRUE );
     if (rc)
     {
@@ -672,6 +760,97 @@ int InitFS()
 
     /* OK */
     return 0;
+}
+
+/**
+ * This is to be called after a dev_id change was detected
+ * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
+ * else, return -1
+ */
+int ResetFS()
+{
+    char   name[RBH_PATH_MAX];
+    dev_t  dev;
+    struct statfs stf;
+    int rc;
+    /* check depending on FS key type:
+     * - fsname: check mount tab
+     * - fsid: check statfs
+     * - devid: check dev_id
+     */
+    switch (global_config.fs_key)
+    {
+        case FSKEY_FSNAME:
+            /* get and compare FS name */
+            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, name,
+                              global_config.check_mounted, FALSE );
+            if (rc)
+                return rc;
+            /* did the name changed ? */
+            if (strcmp(name, fsname))
+            {
+                DisplayLog(LVL_CRIT, "FSInfo", "fsname change detected: %s->%s",
+                           fsname, name);
+                RaiseAlert( "Filesystem changed",
+                             "fsname of '%s' has changed !!! %s->%s => EXITING",
+                            global_config.fs_path, fsname, name );
+                return -1;
+            }
+            /* update fsid and devid */
+            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
+                              global_config.check_mounted, TRUE );
+            return rc;
+
+        case FSKEY_FSID:
+            /* get and compare FS ID */
+            if (statfs(global_config.fs_path, &stf))
+            {
+                rc = -errno;
+                DisplayLog( LVL_CRIT, "FSInfo", "ERROR calling statfs(%s): %s",
+                    global_config.fs_path, strerror(-rc) );
+                    return rc;
+            }
+            if (fsidto64(stf.f_fsid) != fs_key)
+            {
+                DisplayLog(LVL_CRIT, "FSInfo", "fsid change detected: %"PRIX64"->%"PRIX64,
+                           fs_key, fsidto64(stf.f_fsid));
+                RaiseAlert( "Filesystem changed",
+                             "fsid of '%s' has changed !!! %"PRIX64"->%"PRIX64" => EXITING",
+                            global_config.fs_path, fs_key, fsidto64(stf.f_fsid) );
+                return -1;
+            }
+            /* update fsname and devid */
+            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
+                              global_config.check_mounted, TRUE );
+            return rc;
+
+        case FSKEY_DEVID:
+            /* get and compare dev id */
+            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &dev, NULL,
+                              global_config.check_mounted, FALSE );
+            if (rc)
+                return rc;
+            /* did the device change? */
+            if (dev != dev_id)
+            {
+                DisplayLog(LVL_CRIT, "FSInfo", "devid change detected: %"PRI_DT"->%"PRI_DT,
+                           dev_id, dev);
+
+                RaiseAlert( "Filesystem changed",
+                             "devid of '%s' has changed !!! %"PRI_DT"->%"PRI_DT" => EXITING",
+                            global_config.fs_path, dev_id, dev );
+                return -1;
+            }
+            /* update fsname and fsid */
+            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
+                              global_config.check_mounted, TRUE );
+            return rc;
+
+        default:
+            DisplayLog(LVL_MAJOR, "FSInfo", "Invalid fs_key type %#x", global_config.fs_key);
+            return -1;
+    }
+
 }
 
 

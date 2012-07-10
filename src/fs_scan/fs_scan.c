@@ -230,7 +230,7 @@ static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct 
     /* Set entry id */
 #ifndef _HAVE_FID
     tmpid.inode = p_stat->st_ino;
-    tmpid.device = p_stat->st_dev; /* TODO change by fsk */
+    tmpid.fs_key = get_fskey();
     tmpid.validator = p_stat->st_ctime;
 #endif
 
@@ -560,14 +560,54 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
     /* Check that the entry is on the same device as the filesystem we manage.
      * (prevent from mountpoint traversal).
      */
-    if ( global_config.stay_in_fs )
+    if ( inode.st_dev != fsdev )
     {
-        if ( inode.st_dev != fsdev )
+        struct stat root_md;
+        /* is the FS root changed: file system may have been remounted.
+         * else: the entry is not in the same filesystem
+         */
+        /* 1) check fs root dev_id */
+        if (stat( global_config.fs_path, &root_md ) == -1)
         {
+            int rc = -errno;
             DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                        "%s (0x%.8"PRI_DT") is in a filesystem different from root (0x%.8"
-                        PRI_DT "), entry ignored", entry_path, inode.st_dev, fsdev );
-            return -1;
+                        "stat failed on %s: %s", global_config.fs_path, strerror(-rc) );
+            DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR accessing FileSystem: EXITING." );
+            Exit( rc );
+        }
+        if (root_md.st_dev != fsdev)
+        {
+            /* manage dev id change after umount/mount */
+            DisplayLog( LVL_MAJOR, FSSCAN_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
+                        "checking if it has been remounted", fsdev, root_md.st_dev );
+            if (ResetFS())
+            {
+                DisplayLog( LVL_CRIT, FSSCAN_TAG, "Filesystem was unmounted!!! EXITING!" );
+                Exit( 1 );
+            }
+            /* update current fsdev */
+            fsdev = get_fsdev();
+        }
+        /* else: root is still the same */
+
+        /* inode.st_dev == fsdev => OK: the entry is in the root filesystem */
+        if (inode.st_dev != fsdev)
+        {
+           if (global_config.stay_in_fs)
+           {
+               DisplayLog( LVL_CRIT, FSSCAN_TAG,
+                           "%s (0x%.8"PRI_DT") is in a filesystem different from root (0x%.8"
+                           PRI_DT "), entry ignored", entry_path, inode.st_dev, fsdev );
+               return -1;
+           }
+           else
+           {
+               /* TODO: what fs_key for this entry??? */
+               DisplayLog( LVL_DEBUG, FSSCAN_TAG,
+                           "%s (0x%.8"PRI_DT") is in a filesystem different from root (0x%.8"
+                           PRI_DT "), but 'stay_in_fs' parameter is disabled: processing entry anyhow",
+                           entry_path, inode.st_dev, fsdev );
+           }
         }
     }
 
@@ -624,7 +664,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         /* Set entry id */
 #ifndef _HAVE_FID
         op.entry_id.inode = inode.st_ino;
-        op.entry_id.device = inode.st_dev;
+        op.entry_id.fs_key = get_fskey();
         op.entry_id.validator = inode.st_ctime;
         op.entry_id_is_set = TRUE;
 #else
@@ -644,8 +684,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         }
 
     }
-
-    if ( S_ISDIR( inode.st_mode ) )
+    else if ( S_ISDIR( inode.st_mode ) )
     {
 
         robinhood_task_t *p_scan_task;
@@ -668,7 +707,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
             return st;
 #else
         p_scan_task->dir_id.inode = inode.st_ino;
-        p_scan_task->dir_id.device = inode.st_dev;
+        p_scan_task->dir_id.fs_key = get_fskey();
         p_scan_task->dir_id.validator = inode.st_ctime;
 #endif
         p_scan_task->dir_md = inode;
@@ -767,16 +806,23 @@ static void   *Thr_scan( void *arg_thread )
             if ( stat( p_task->path, &inode_entree ) == -1 )
             {
                 DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                            "lstat failed on %s. Error %d", p_task->path, errno );
+                            "stat failed on %s. Error %d", p_task->path, errno );
                 DisplayLog( LVL_CRIT, FSSCAN_TAG, "Error accessing filesystem: exiting" );
                 Exit( 1 );
             }
 
             if ( fsdev != inode_entree.st_dev )
             {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                            "Somebody cut the grass under my feet!!! I suicide me..." );
-                Exit( 1 );
+                /* manage dev id change after umount/mount */
+                DisplayLog( LVL_MAJOR, FSSCAN_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
+                            "checking if it has been remounted", fsdev, inode_entree.st_dev );
+                if (ResetFS())
+                {
+                    DisplayLog( LVL_CRIT, FSSCAN_TAG, "Filesystem was unmounted!!! EXITING!" );
+                    Exit( 1 );
+                }
+                /* update current fsdev */
+                fsdev = get_fsdev();
             }
 
             /* set dir_md and dir_id */
@@ -805,7 +851,7 @@ static void   *Thr_scan( void *arg_thread )
             }
 #else
             p_task->dir_id.inode = inode_entree.st_ino;
-            p_task->dir_id.device = inode_entree.st_dev;
+            p_task->dir_id.fs_key = get_fskey();
             p_task->dir_id.validator = inode_entree.st_ctime;
 #endif
 

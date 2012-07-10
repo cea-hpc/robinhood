@@ -142,12 +142,44 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
             continue;
        }
 
-       if ( global_config.stay_in_fs && ( fsdev != stat_buf.st_dev ) )
+       if ( fsdev != stat_buf.st_dev )
        {
-            DisplayLog( LVL_CRIT, RMDIR_TAG, "%s is not in the same filesystem as %s, skipping it",
-                        tmp_path, global_config.fs_path );
-            err = EXDEV;
-            continue;
+            /* check if filesystem was remounted */
+            struct stat root_md;
+            /* is the FS root changed: file system may have been remounted.
+             * else: the entry is not in the same filesystem
+             */
+            /* 1) check fs root dev_id */
+            if (stat( global_config.fs_path, &root_md ) == -1)
+            {
+                int rc = -errno;
+                DisplayLog( LVL_CRIT, RMDIR_TAG,
+                            "stat failed on %s: %s", global_config.fs_path, strerror(-rc) );
+                DisplayLog( LVL_CRIT, RMDIR_TAG, "ERROR accessing FileSystem: EXITING." );
+                Exit( rc );
+            }
+            if (root_md.st_dev != fsdev)
+            {
+                /* manage dev id change after umount/mount */
+                DisplayLog( LVL_MAJOR, RMDIR_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
+                            "checking if it has been remounted", fsdev, root_md.st_dev );
+                if (ResetFS())
+                {
+                    DisplayLog( LVL_CRIT, RMDIR_TAG, "Filesystem was unmounted!!! EXITING!" );
+                    Exit( 1 );
+                }
+                /* update current fsdev */
+                fsdev = get_fsdev();
+            }
+            /* else: root is still the same */
+
+            if ( global_config.stay_in_fs && (fsdev != stat_buf.st_dev))
+            {
+                DisplayLog( LVL_CRIT, RMDIR_TAG, "%s is not in the same filesystem as %s, skipping it",
+                            tmp_path, global_config.fs_path );
+                err = EXDEV;
+                continue;
+            }
        }
 
 #ifdef _HAVE_FID
@@ -160,7 +192,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
             continue;
        }
 #else
-       id.device = stat_buf.st_dev;
+       id.fs_key = get_fskey();
        id.inode  = stat_buf.st_ino;
        id.validator = stat_buf.st_ctime;
 #endif
@@ -912,8 +944,9 @@ static void   *Thr_Rmdir( void *arg )
 
           /* 3) check entry id */
 #ifndef _HAVE_FID
+          /* TODO: check against current fs_key */
           if ( ( entry_md.st_ino != p_item->entry_id.inode )
-               || ( entry_md.st_dev != p_item->entry_id.device ) )
+               || ( get_fskey() != p_item->entry_id.fs_key ) )
             {
                 /* If it has changed, invalidate the entry
                  * (fullpath does not match entry_id, it will be updated
@@ -924,9 +957,9 @@ static void   *Thr_Rmdir( void *arg )
                             "Tagging it invalid.",
                             ATTR( &p_item->entry_attr, fullpath ),
                             ( unsigned long long ) p_item->entry_id.inode,
-                            ( unsigned long long ) p_item->entry_id.device,
+                            ( unsigned long long ) p_item->entry_id.fs_key,
                             ( unsigned long long ) entry_md.st_ino,
-                            ( unsigned long long ) entry_md.st_dev );
+                            ( unsigned long long ) get_fskey() );
 
                 invalidate_dir( &lmgr, &p_item->entry_id );
 

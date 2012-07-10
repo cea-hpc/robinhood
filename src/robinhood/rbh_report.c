@@ -620,7 +620,7 @@ int TryFid2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
         if (rc)
             return -1;
         /* try to check filesystem */
-        if (CheckFSInfo( value, "lustre", NULL, TRUE, TRUE) == 0) {
+        if (CheckFSInfo( value, "lustre", NULL, NULL, TRUE, TRUE) == 0) {
             is_resolvable = 1;
             /* may be used for solving uids from filesystem */
             InitUidGid_Cache();
@@ -665,8 +665,7 @@ static const char * ResolvName(const entry_id_t * p_id, attr_set_t * attrs,
             return buff;
         }
 #else
-        sprintf(buff, "%#"PRI_DT"/%Lu", p_id->device,
-                (unsigned long long)p_id->inode);
+        sprintf(buff, DFID, PFID(p_id));
         return buff;
 #endif
     }

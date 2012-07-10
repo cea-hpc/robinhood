@@ -27,6 +27,19 @@
 global_config_t global_config;
 
 
+/* name 2 fskey value */
+static inline fs_key_t name2fskey( const char * name )
+{
+    if (!strcasecmp(name, "fsname"))
+        return FSKEY_FSNAME;
+    else if (!strcasecmp(name, "fsid"))
+        return FSKEY_FSID;
+    else if (!strcasecmp(name, "devid"))
+        return FSKEY_DEVID;
+    else
+        return FSKEY_ERROR;
+}
+
 int SetDefaultGlobalConfig( void *module_config, char *msg_out )
 {
     global_config_t *conf = ( global_config_t * ) module_config;
@@ -44,6 +57,7 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
 #endif
     conf->stay_in_fs = TRUE;
     conf->check_mounted = TRUE;
+    conf->fs_key = FSKEY_FSNAME;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
     conf->direct_mds_stat = FALSE;
@@ -62,6 +76,7 @@ int WriteGlobalConfigDefault( FILE * output )
 #else
     print_line( output, 1, "fs_type       :  [MANDATORY]" );
 #endif
+    print_line( output, 1, "fs_key        :  fsname" );
     print_line( output, 1, "lock_file     :  \"/var/locks/robinhood.lock\"" );
     print_line( output, 1, "stay_in_fs    :  TRUE" );
     print_line( output, 1, "check_mounted :  TRUE" );
@@ -84,7 +99,7 @@ int ReadGlobalConfig( config_file_t config, void *module_config, char *msg_out, 
 
     static const char *allowed_params[] = {
         "fs_path", "fs_type", "lock_file", "stay_in_fs", "check_mounted",
-        "direct_mds_stat",
+        "direct_mds_stat", "fs_key",
 #ifdef _SHERPA
         "sherpa_config",
 #endif
@@ -92,7 +107,6 @@ NULL
     };
 
     /* get GENERAL block */
-
     config_item_t  general_block = rh_config_FindItemByName( config, GLOBAL_CONFIG_BLOCK );
 
     if ( general_block == NULL )
@@ -165,6 +179,23 @@ NULL
         return rc;
     else if ( rc != ENOENT )
         conf->check_mounted = tmpval;
+
+    /* fs_key param */
+    char tmpstr[128];
+    rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_key",
+                         STR_PARAM_NO_WILDCARDS, tmpstr, 128, NULL, NULL,
+                         msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if (rc == 0)
+    {
+        conf->fs_key = name2fskey(tmpstr);
+        if (conf->fs_key == FSKEY_ERROR)
+        {
+            sprintf( msg_out, "Invalid type for fs_key: '%s' ('fsname', 'devid' or 'fsid' expected)", tmpstr );
+            return EINVAL;
+        }
+    }
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
     rc = GetBoolParam( general_block, GLOBAL_CONFIG_BLOCK,
@@ -245,6 +276,9 @@ int WriteGlobalConfigTemplate( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "# filesystem type (as returned by 'df' or 'mount' commands)" );
     print_line( output, 1, "fs_type = \"ext3\" ;" );
+    fprintf( output, "\n" );
+    print_line( output, 1, "# filesystem property used as FS key: fsname, devid or fsid (fsid NOT recommended)");
+    print_line( output, 1, "fs_key = fsname ;" );
     fprintf( output, "\n" );
 #endif
 

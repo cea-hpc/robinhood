@@ -66,6 +66,7 @@ int rbhext_compat_flags()
 
 static backend_config_t config;
 static dev_t backend_dev = 0;
+static char  backend_name[RBH_PATH_MAX] = "";
 
 /* is it a special shell character */
 static inline int is_shell_special(char c)
@@ -122,7 +123,7 @@ int rbhext_init( const backend_config_t * conf,
 #endif
 
     /* check that backend filesystem is mounted */
-    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev,
+    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev, backend_name,
                       config.check_mounted, FALSE );
     if ( rc )
         return -rc;

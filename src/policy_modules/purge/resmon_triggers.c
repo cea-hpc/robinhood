@@ -101,30 +101,28 @@ static void update_trigger_status( unsigned int i, trigger_status_t state )
  */
 static int CheckFSDevice(  )
 {
-    struct stat    fsstat;
+    struct stat    root_md;
 
     /* retrieve device of filesystem, to compare it to initial device id */
 
-    if ( stat( global_config.fs_path, &fsstat ) == -1 )
+    if (stat( global_config.fs_path, &root_md ) == -1)
     {
         DisplayLog( LVL_CRIT, RESMON_TAG, "Stat on '%s' failed! Error %d: %s",
                     global_config.fs_path, errno, strerror( errno ) );
         return FALSE;
     }
-
-    if ( global_config.stay_in_fs && ( fsdev != fsstat.st_dev ) )
+    if (root_md.st_dev != fsdev)
     {
-        char buff[1024];
-        DisplayLog( LVL_CRIT, RESMON_TAG,
-                    "ERROR: Device number of '%s' has changed !!! (%" PRI_DT " <> %"
-                    PRI_DT "). Exiting", global_config.fs_path, fsdev, fsstat.st_dev );
-
-        sprintf(buff, "Filesystem changed (%s)", global_config.fs_path );
-        RaiseAlert( buff,
-                    "Device number of '%s' has changed !!! (%"PRI_DT" <> %"PRI_DT"). Exiting",
-                    global_config.fs_path, fsdev, fsstat.st_dev );
-
-        return FALSE;
+        /* manage dev id change after umount/mount */
+        DisplayLog( LVL_MAJOR, RESMON_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
+                    "checking if it has been remounted", fsdev, root_md.st_dev );
+        if (ResetFS())
+        {
+            DisplayLog( LVL_CRIT, RESMON_TAG, "Filesystem was unmounted!!! EXITING!" );
+            Exit( 1 );
+        }
+        /* update current fsdev */
+        fsdev = get_fsdev();
     }
 
     return TRUE;

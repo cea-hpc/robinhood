@@ -68,9 +68,9 @@
 
 /* displaying FID */
 #ifndef _HAVE_FID
-#define DFID "%#"PRI_DT"/%Lu"
-#define PFID(_pid) (_pid)->fs_key, (unsigned long long)((_pid)->inode)
-#define SFID "0X%"PRI_DT"/%Lu"
+#define DFID "%"PRIX64"/%"PRI_STI
+#define PFID(_pid) (_pid)->fs_key, (_pid)->inode
+#define SFID "0X%"PRIX64"/%"PRI_STI
 #define RFID(_pid) &((_pid)->fs_key), &((_pid)->inode)
 #define FID_SCAN_CNT 2
 #else
@@ -112,7 +112,8 @@ char          *gid2str( gid_t gid, char *groupname );
  * Also return the associated device number.
  * (for STAY_IN_FS security option).
  */
-int            CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev,
+int            CheckFSInfo( char *path, char *expected_type,
+                            dev_t * p_fs_dev, char * fsname,
                             int check_mounted, int save_fs );
 
 
@@ -123,16 +124,30 @@ int            CheckFSInfo( char *path, char *expected_type, dev_t * p_fs_dev,
  */
 int InitFS();
 
+/**
+ * This is to be called after a dev_id change was detected
+ * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
+ * else, return -1
+ */
+int ResetFS();
+
 
 /**
  *  Check that FS path is the same as the last time.
  */
 int            CheckLastFS(  );
 
+/* retrieve FS info */
+const char    *get_mount_point( unsigned int * plen );
+const char    *get_fsname(  );
+dev_t          get_fsdev();
+uint64_t       get_fskey();
+
 /**
  * extract relative path from full path
  */
 int relative_path( const char * fullpath, const char * root, char * rel_path );
+
 
 #ifdef _LUSTRE
 
@@ -148,11 +163,6 @@ int            File_GetStripeByPath( const char *entry_path, stripe_info_t * p_s
 int File_CreateSetStripe( const char * path, const stripe_info_t * stripe );
 #endif
 
-void           set_mount_point( char *mntpnt );
-const char    *get_mount_point( unsigned int * plen );
-void           set_fsname( char *name );
-const char    *get_fsname(  );
-dev_t          get_fsdev();
 #ifdef _HAVE_FID
 int            BuildFidPath( const entry_id_t * p_id /* IN */ , char *path /* OUT */  );
 int            Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int len );

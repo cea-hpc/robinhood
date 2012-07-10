@@ -443,17 +443,17 @@ static const char * opt2type(const char * type_opt)
 
 static int Path2Id(const char *path, entry_id_t * id)
 {
-    int rc;
 #ifndef _HAVE_FID
     struct stat inode;
     if (lstat(path, &inode))
         return -errno;
 
     id->inode = inode.st_ino;
-    id->device = inode.st_dev;
+    id->fs_key = get_fskey();
     id->validator = inode.st_ctime;
     return 0;
 #else
+    int rc;
     /* perform path2fid */
     rc = Lustre_GetFidFromPath(path, id);
     return rc;

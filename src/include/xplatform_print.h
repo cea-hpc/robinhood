@@ -48,7 +48,11 @@
 
 
 #if SIZEOF_INO_T == 8
+#if __WORDSIZE == 64
+#       define PRI_STI "lu"
+#else
 #       define PRI_STI "Lu"
+#endif
 #else
 #       define PRI_STI "u"
 #endif

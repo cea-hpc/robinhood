@@ -690,7 +690,7 @@ static int Path2Id(const char *path, entry_id_t * id)
         return -errno;
 
     id->inode = inode.st_ino;
-    id->device = inode.st_dev;
+    id->fs_key = get_fskey();
     id->validator = inode.st_ctime;
     return 0;
 #else
