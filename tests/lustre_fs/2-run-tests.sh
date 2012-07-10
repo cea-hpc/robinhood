@@ -1350,7 +1350,7 @@ function test_dircount_report
 	line=`grep "$ROOT/," report.out`
 	[[ -n $line ]] && is_root=1
 	if (( ! $is_root )); then
-		id=`stat -c "0X%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
+		id=`stat -c "%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
 		line=`grep "$id," report.out`
 		[[ -n $line ]] && is_root=1
 	fi
@@ -5356,45 +5356,49 @@ function test_report_generation_1
 	echo -e "\n 1-Preparing Filesystem..."
 	# dir1:
 	mkdir -p $ROOT/dir1/dir2
-	sleep 1
+	printf "." ; sleep 1
 	dd if=/dev/zero of=$ROOT/dir1/file.1 bs=1k count=5 >/dev/null 2>/dev/null || error "writing file.1"
-	sleep 1
-	dd if=/dev/zero of=$ROOT/dir1/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
-	sleep 1
+	printf "." ; sleep 1
+	dd if=/dev/zero of=$ROOT/dir1/file.2 bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.2"
+	printf "." ; sleep 1
 	dd if=/dev/zero of=$ROOT/dir1/file.3 bs=1k count=15 >/dev/null 2>/dev/null || error "writing file.3"
-	sleep 1
+	printf "." ; sleep 1
 	# link from dir1:
 	ln -s $ROOT/dir1/file.1 $ROOT/link.1 || error "creating symbolic link $ROOT/link.1"
-	sleep 1
+	printf "." ; sleep 1
 	# dir2 inside dir1:
 	ln -s $ROOT/dir1/file.3 $ROOT/dir1/dir2/link.2 || error "creating symbolic link $ROOT/dir1/dir2/link.2"
-	sleep 1
+	printf "." ; sleep 1
 	# dir3 inside dir1:
 	mkdir -p $ROOT/dir1/dir3
-	sleep 1
+	printf "." ; sleep 1
 	#dir4:
-	mkdir -p $ROOT/dir4	
-	sleep 1
+	mkdir -p $ROOT/dir4
+	printf "." ; sleep 1
 	#dir5:
 	mkdir -p $ROOT/dir5
-	sleep 1
+	printf "." ; sleep 1
 	dd if=/dev/zero of=$ROOT/dir5/file.4 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.4"
-	sleep 1
+	printf "." ; sleep 1
 	dd if=/dev/zero of=$ROOT/dir5/file.5 bs=1k count=20 >/dev/null 2>/dev/null || error "writing file.5"
-	sleep 1
+	printf "." ; sleep 1
 	dd if=/dev/zero of=$ROOT/dir5/file.6 bs=1k count=21 >/dev/null 2>/dev/null || error "writing file.6"
-	sleep 1
+	printf "." ; sleep 1
 	ln -s $ROOT/dir1/file.2 $ROOT/dir5/link.3 || error "creating symbolic link $ROOT/dir5/link.3"
-	sleep 1	
-	#dir6 inside dir5:
+	printf "." ; sleep 1	
+	#dir6 and dir8 inside dir5:
 	mkdir -p $ROOT/dir5/dir6
-	sleep 1	
+	printf "." ; sleep 1	
+	mkdir -p $ROOT/dir5/dir8
+	printf "." ; sleep 1	
 	# dir7:
 	mkdir -p $ROOT/dir7
-	sleep 1
-    #link in dir.1
+	printf "." ; sleep 1
+    #2links in dir.1
     ln -s $ROOT/dir1 $ROOT/dir1/link.0 || error "creating symbolic link $ROOT/dir1/link.0"
-    sleep 1
+    printf "." ; sleep 1
+    ln -s $ROOT/dir1 $ROOT/dir1/link.1 || error "creating symbolic link $ROOT/dir1/link.1"
+    printf "." ; sleep 1
 
     # make sure all data is on disk
     sync
@@ -5403,7 +5407,7 @@ function test_report_generation_1
 	filesList="$ROOT/link.1 $ROOT/dir1/dir2/link.2"
 	chgrp -h testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
 	chown -h testuser $filesList || error "invalid chown on user 'testuser' for $filesList "
-	filesList="$ROOT/dir1/file.2 $ROOT/dir1/dir2 $ROOT/dir1/dir3 $ROOT/dir5 $ROOT/dir7 $ROOT/dir5/dir6"
+	filesList="$ROOT/dir1/file.2 $ROOT/dir1/dir2 $ROOT/dir1/dir3 $ROOT/dir5 $ROOT/dir7 $ROOT/dir5/dir6 $ROOT/dir5/dir8"
 	chown testuser:testgroup $filesList || error "invalid chown on user 'testuser' for $filesList "
 	filesList="$ROOT/dir1/file.1 $ROOT/dir5/file.6"
 	chgrp testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
@@ -5422,9 +5426,10 @@ function test_report_generation_1
     	countValues="9"
     else
 	    typeValues="dir;file;symlink"
-    	countValues="7;6;4"
+    	countValues="8;6;5"
     fi
    	colSearch=2
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
 	
 	
@@ -5433,33 +5438,37 @@ function test_report_generation_1
 	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
 	typeValues="test_file_type;test_link_type"
 	#typeValues="test_file_type"
-	countValues="6;4"
+	countValues="6;5"
 	#countValues="6"
 	colSearch=2
 	#echo "arguments= $logFile $typeValues $countValues $colSearch**"
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FileClasses summary (--class)"
 	# launch another scan ..........................
 	echo -e "\n 5-User statistics of root..."
 	$REPORT -f ./cfg/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
     typeValues="root.*dir;root.*file;root.*symlink"
-    countValues="2;5;2"
+    countValues="2;5;3"
 	colSearch=3
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
 	
 	# launch another scan ..........................
 	echo -e "\n 6-Group statistics of testgroup..."
 	$REPORT -f ./cfg/$config_file --group-info -g testgroup --csv > report.out || error "performing Group statistics (--group)"
 	typeValues="testgroup.*dir;testgroup.*file;testgroup.*symlink"
-	countValues="5;3;2"
+	countValues="6;3;2"
 	colSearch=3
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group statistics (--group)"
 	
 	# launch another scan ..........................
 	echo -e "\n 7-Four largest files of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-size=4 --csv > report.out || error "performing Largest files list (--top-size)"
-	typeValues="file\.6;file\.5;file\.3;file\.2"
+	typeValues="file\.2;file\.6;file\.5;file\.3"
 	countValues="1;2;3;4"
 	colSearch=1
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"	
 	
 	# launch another scan ..........................
@@ -5518,6 +5527,7 @@ function test_report_generation_1
 	typeValues="testuser;root"
 	countValues="1;2"
 	colSearch=1
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating disk space consumers (--top-users)"
 	
 	# launch another scan ..........................
@@ -5526,13 +5536,14 @@ function test_report_generation_1
 	typeValues="root.*[root|testgroup].*dir1$;root.*[root|testgroup].*file\.1;root.*[root|testgroup].*file\.3;root.*[root|testgroup].*dir4$;"
 	countValues="dir;file;file;dir"
 	colSearch=1
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
 	typeValues="root.*[root|testgroup].*file\.4;root.*[root|testgroup].*file\.5;root.*[root|testgroup].*file\.6;root.*[root|testgroup].*link\.3;"
 	countValues="file;file;file;symlink"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
 	typeValue="root.*[root|testgroup]"
-	if (( $(grep $typeValue $logFile | wc -l) != 9 )) ; then
+	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
 		 error "validating entries for one user 'root'(--dump-user)"
 	fi
 	# launch another scan ..........................
@@ -5542,13 +5553,14 @@ function test_report_generation_1
 	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
 	countValues="symlink;file;file;symlink;file"
 	colSearch=1
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValues="testgroup.*dir2$;testgroup.*dir3$;testgroup.*dir5$;testgroup.*dir6$;testgroup.*dir7$"
 	countValues="dir;dir;dir;dir;dir"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group entries for one group 'testgroup'(--dump-group)"
 	typeValue="testgroup"
-	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
+	if (( $(grep $typeValue $logFile | wc -l) != 11 )) ; then
 		 error "validating Group entries for one group 'testgroup'(--dump-group)"
 	fi
 }

@@ -32,6 +32,14 @@
 #define DFID_NOBRACE SFID
 #endif
 
+/* missing prototypes in lustre1.8 */
+#if defined(HAVE_LLAPI_GETPOOL_INFO) && !defined(_HAVE_FID)
+extern int llapi_get_poollist(const char *name, char **poollist, int list_size,
+                              char *buffer, int buffer_size);
+extern int llapi_get_poolmembers(const char *poolname, char **members,
+                                 int list_size, char *buffer, int buffer_size);
+#endif
+
 #ifndef HAVE_OBD_STATFS
 struct obd_statfs {
         __u64           os_type;

@@ -48,6 +48,8 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
               void * arg);
 
 
+int Path2Id(const char *path, entry_id_t * id);
+
 #ifdef ATTR_INDEX_status
 /** status conversion functions */
 const char * db_status2str( file_status_t status, int csv );

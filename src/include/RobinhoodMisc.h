@@ -68,6 +68,11 @@
 
 /* displaying FID */
 #ifndef _HAVE_FID
+#undef DFID
+#undef PFID
+#undef SFID
+#undef RFID
+
 #define DFID "%"PRIX64"/%"PRI_STI
 #define PFID(_pid) (_pid)->fs_key, (_pid)->inode
 #define SFID "0X%"PRIX64"/%"PRI_STI

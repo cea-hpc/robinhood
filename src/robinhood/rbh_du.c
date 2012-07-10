@@ -441,25 +441,6 @@ static const char * opt2type(const char * type_opt)
     }
 }
 
-static int Path2Id(const char *path, entry_id_t * id)
-{
-#ifndef _HAVE_FID
-    struct stat inode;
-    if (lstat(path, &inode))
-        return -errno;
-
-    id->inode = inode.st_ino;
-    id->fs_key = get_fskey();
-    id->validator = inode.st_ctime;
-    return 0;
-#else
-    int rc;
-    /* perform path2fid */
-    rc = Lustre_GetFidFromPath(path, id);
-    return rc;
-#endif
-}
-
 /**
  *  Get id of root dir
  */

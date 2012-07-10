@@ -601,17 +601,15 @@ int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
     }
 }
 
-#ifdef _HAVE_FID
 /**
  * Manage fid2path resolution
  */
-int TryFid2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
+int TryId2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
 {
     static int is_init = 0;
     static int is_resolvable = 0;
     int rc;
     char value[1024];
-
 
     if ( !is_init ) {
         is_init = 1;
@@ -619,24 +617,34 @@ int TryFid2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
         rc = ListMgr_GetVar(&lmgr, FS_PATH_VAR, value);
         if (rc)
             return -1;
-        /* try to check filesystem */
-        if (CheckFSInfo( value, "lustre", NULL, NULL, TRUE, TRUE) == 0) {
+
+        InitUidGid_Cache();
+
+        if (InitFS() == 0)
             is_resolvable = 1;
-            /* may be used for solving uids from filesystem */
-            InitUidGid_Cache();
-            Lustre_Init();
-        }
         else
             return -1;
     }
     if ( !is_resolvable )
         return -1;
 
+#ifdef _HAVE_FID
     /* filesystem is mounted and fsname can be get: solve the fid */
     rc = Lustre_GetFullPath( p_id, path, RBH_PATH_MAX );
     return rc;
-}
+#else
+    entry_id_t root_id;
+    if (Path2Id(global_config.fs_path, &root_id) == 0)
+    {
+        if (entry_id_equal(p_id, &root_id))
+        {
+            strcpy(path, global_config.fs_path);
+            return 0;
+        }
+    }
+    return -1;
 #endif
+}
 
 static const char * ResolvName(const entry_id_t * p_id, attr_set_t * attrs,
                                char * buff)
@@ -645,29 +653,22 @@ static const char * ResolvName(const entry_id_t * p_id, attr_set_t * attrs,
     {
         return  ATTR(attrs, fullpath);
     }
+    /* try to get dir path from fid if it's mounted */
+    else if ( TryId2path( &lmgr, p_id, ATTR(attrs, fullpath)) == 0 )
+    {
+        struct stat st;
+        ATTR_MASK_SET(attrs, fullpath);
+
+        /* we're lucky, try lstat now! */
+        if (lstat(ATTR(attrs, fullpath ), &st) == 0)
+            PosixStat2EntryAttr(&st, attrs, TRUE);
+        return ATTR(attrs, fullpath);
+    }
     else
     {
-#ifdef _HAVE_FID
-        /* try to get dir path from fid if it's mounted */
-        if ( TryFid2path( &lmgr, p_id, ATTR(attrs, fullpath)) == 0 )
-        {
-            struct stat st;
-            ATTR_MASK_SET(attrs, fullpath);
-
-            /* we're lucky, try lstat now! */
-            if (lstat(ATTR(attrs, fullpath ), &st) == 0)
-                PosixStat2EntryAttr(&st, attrs, TRUE);
-            return ATTR(attrs, fullpath);
-        }
-        else
-        {
-            sprintf(buff, DFID, PFID(p_id));
-            return buff;
-        }
-#else
+        /* last case: display the raw ID */
         sprintf(buff, DFID, PFID(p_id));
         return buff;
-#endif
     }
 }
 

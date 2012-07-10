@@ -226,6 +226,25 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
     return last_err;
 }
 
+int Path2Id(const char *path, entry_id_t * id)
+{
+#ifndef _HAVE_FID
+    struct stat inode;
+    if (lstat(path, &inode))
+        return -errno;
+
+    id->inode = inode.st_ino;
+    id->fs_key = get_fskey();
+    id->validator = inode.st_ctime;
+    return 0;
+#else
+    int rc;
+    /* perform path2fid */
+    rc = Lustre_GetFidFromPath(path, id);
+    return rc;
+#endif
+}
+
 #ifdef ATTR_INDEX_status
 /* ===  status display and conversion routines === */
 
