@@ -631,6 +631,11 @@ int TryId2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
 #ifdef _HAVE_FID
     /* filesystem is mounted and fsname can be get: solve the fid */
     rc = Lustre_GetFullPath( p_id, path, RBH_PATH_MAX );
+
+    /* remove final slash */
+    if ((rc == 0) && FINAL_SLASH(path))
+        REMOVE_FINAL_SLASH(path);
+
     return rc;
 #else
     entry_id_t root_id;

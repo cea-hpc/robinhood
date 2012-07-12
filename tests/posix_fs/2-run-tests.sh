@@ -1625,8 +1625,8 @@ function test_logs
         # wait for syslog to flush logs to disk
         sync; sleep 2
 		tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
-		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
-		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
+		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-z_ ]* \|' > /tmp/extract_log
+		egrep -v 'ALERT|: [A-Za-z_ ]* \|' /tmp/extract_all > /tmp/extract_report
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
 
 		log="/tmp/extract_log"
@@ -2539,7 +2539,9 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
         ((indice++))
     done
     
-    ((limit=indice/2))
+    ((limit=$indice/2))
+    ((limit=$limit+1))
+    echo "$indice files created, changing $limit files to testuser:testgroup"
     ((indice=1))
     while [ $indice -lt $limit ]
     do

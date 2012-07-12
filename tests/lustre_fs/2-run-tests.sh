@@ -1347,7 +1347,7 @@ function test_dircount_report
 
 	# check if $ROOT is in topdirs. If so, check its position
 	is_root=0
-	line=`grep "$ROOT/," report.out`
+	line=`grep "$ROOT," report.out`
 	[[ -n $line ]] && is_root=1
 	if (( ! $is_root )); then
 		id=`stat -c "%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
@@ -2911,7 +2911,7 @@ function test_logs
 	sleep_time=430 # log rotation time (300) + scan interval (100) + scan duration (30)
 
 	clean_logs
-	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
+	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1 /tmp/extract_all /tmp/extract_log /tmp/extract_report /tmp/extract_alert
 
 	# test flavors (x=supported):
 	# x	file_nobatch
@@ -2955,9 +2955,9 @@ function test_logs
 
 	# run a scan
 	if (( $stdio )); then
-		$RH -f ./cfg/$config_file --scan $extra_action -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
+		$RH -f ./cfg/$config_file --scan $extra_action -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error"
 	else
-		$RH -f ./cfg/$config_file --scan -l DEBUG --once || error ""
+		$RH -f ./cfg/$config_file --scan -l DEBUG --once || error "scan error"
 	fi
 
 	if (( $files )); then
@@ -2966,6 +2966,7 @@ function test_logs
 		report="/tmp/test_report.1"
 	elif (( $stdio )); then
                 log="/tmp/rbh.stderr"
+
 		if (( $batch )); then
 			# batch output to file has no ALERT header on each line
 			# we must extract between "ALERT REPORT" and "END OF ALERT REPORT"
@@ -2988,9 +2989,10 @@ function test_logs
 	elif (( $syslog )); then
         # wait for syslog to flush logs to disk
         sync; sleep 2
+
 		tail -n +"$init_msg_idx" /var/log/messages | egrep -e "($CMD|shook)[^ ]*\[" > /tmp/extract_all
-		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
-		egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
+		egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-z_ ]* \|' > /tmp/extract_log
+		egrep -v 'ALERT|: [A-Za-z_ ]* \|' /tmp/extract_all > /tmp/extract_report
 		grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
 
 		log="/tmp/extract_log"
@@ -4788,7 +4790,9 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     rm -f $dd_out
     
     # limit is 25% => leave half of files with owner root
-    ((limit=last/2))
+    ((limit=$last/2))
+    ((limit=$limit+1))
+    echo "$last files created, changing $limit files to testuser:testgroup"
     ((indice=1))
     while [ $indice -lt $limit ]
     do
