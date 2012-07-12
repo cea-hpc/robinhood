@@ -2540,8 +2540,9 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     done
     
     ((limit=$indice/2))
-    ((limit=$limit+1))
+    ((limit=$limit-1))
     echo "$indice files created, changing $limit files to testuser:testgroup"
+    df -h $ROOT
     ((indice=1))
     while [ $indice -lt $limit ]
     do

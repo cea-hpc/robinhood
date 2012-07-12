@@ -4791,8 +4791,9 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     
     # limit is 25% => leave half of files with owner root
     ((limit=$last/2))
-    ((limit=$limit+1))
+    ((limit=$limit-1))
     echo "$last files created, changing $limit files to testuser:testgroup"
+    df -h $ROOT
     ((indice=1))
     while [ $indice -lt $limit ]
     do
