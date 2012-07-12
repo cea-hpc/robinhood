@@ -35,7 +35,8 @@ AC_PROG_LIBTOOL
 AC_SYS_LARGEFILE
 
 # gcc options
-CC_OPT="-Wall -Werror"
+#CC_OPT="-Wall -Werror"
+CC_OPT="-Wall"
 AC_SUBST(CC_OPT)
 
 AC_CHECK_SIZEOF([nlink_t])
@@ -45,6 +46,8 @@ AC_CHECK_SIZEOF([dev_t])
 AC_CHECK_SIZEOF([time_t])
 AC_CHECK_SIZEOF([size_t])
 AC_CHECK_SIZEOF([pthread_t])
+
+AX_ENABLE_FLAG([strict], [Compile with -Wall -Werror], [-Wall -Werror])
 
 # Flag for Lustre 1.4 with join() support
 AX_ENABLE_FLAG([lustre14_bull], [Bull distribution of Lustre 1.4], [-DHAVE_LUSTRE_JOIN_TYPE])
@@ -62,7 +65,6 @@ AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DE
 AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
 AX_ENABLE_FLAG( [cl-rename-overwrite], [changelog correctly reflects overwriting rename (lu543)], [-D_CL_RNM_OVER] )
 AX_ENABLE_FLAG( [lu543], [same as cl-rename-overwrite], [-D_CL_RNM_OVER] )
-
 
 
 # program to be used for mailing
