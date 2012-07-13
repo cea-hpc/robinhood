@@ -739,7 +739,7 @@ function test_dircount_report
 	# check if $ROOT is in topdirs. If so, check its position
 	# else, check with its path and its dev/ino
 	is_root=0
-	line=`grep "$ROOT/," report.out`
+	line=`grep "$ROOT," report.out`
 	[[ -n $line ]] && is_root=1
 	if (( ! $is_root )); then
 		id=`stat -c "%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
