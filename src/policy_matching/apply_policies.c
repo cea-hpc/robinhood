@@ -725,7 +725,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         rc = lgetxattr( entry_path, p_triplet->xattr_name, value, 1024 );
         if ( rc < 0 )
         {
-            if (errno == ENOATTR)
+            if (errno == ENOATTR || errno == ENODATA || errno == ENOENT)
                 /* empty string == no attribute */
                 strcpy( value, "" );
             else if  (errno == ENOTSUP )
