@@ -646,8 +646,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     "CREATE TABLE " STRIPE_ITEMS_TABLE
                     " ( id "PK_TYPE", storage_item INT UNSIGNED ) " );
 #ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
+            if (lmgr_config.db_config.innodb)
+                strcat(strbuf, " ENGINE=InnoDB");
 #endif
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
 
@@ -662,9 +662,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " STRIPE_ITEMS_TABLE " created sucessfully" );
 
             strcpy( strbuf, "CREATE INDEX id_index ON " STRIPE_ITEMS_TABLE "(id)" );
-
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
             rc = db_exec_sql( &conn, strbuf, NULL );
             if ( rc )
             {
@@ -672,7 +670,18 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(id) created sucessfully" );
+
+            strcpy( strbuf, "CREATE INDEX st_index ON " STRIPE_ITEMS_TABLE "(storage_item)" );
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
+            rc = db_exec_sql( &conn, strbuf, NULL );
+            if ( rc )
+            {
+                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                            "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                return rc;
+            }
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(storage_item) created sucessfully" );
         }
     }
     else
