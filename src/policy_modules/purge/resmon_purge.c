@@ -837,6 +837,10 @@ inline static int update_entry( lmgr_t * lmgr, entry_id_t * p_entry_id, attr_set
 
     /* also unset read only attrs */
     tmp_attrset.attr_mask &= ~readonly_attr_set;
+#ifdef ATTR_INDEX_creation_time
+    /* never update creation time */
+    ATTR_MASK_UNSET( &tmp_attrset, creation_time );
+#endif
 
     /* update DB and skip the entry */
     rc = ListMgr_Update( lmgr, p_entry_id, &tmp_attrset );

@@ -43,11 +43,17 @@ typedef struct entry_proc_config_t
 {
     unsigned int   nb_thread;
     unsigned int   max_pending_operations;
-    int   match_classes;
 
     alert_item_t  *alert_list;
     unsigned int   alert_count;
     int            alert_attr_mask;
+
+    unsigned int   match_classes:1;
+#ifdef HAVE_MIGR_POLICY
+    /* fake mtime in the past causes higher
+     * migration priority */
+    unsigned int   detect_fake_mtime:1;
+#endif
 } entry_proc_config_t;
 
 /* === pipeline stage flags ===  */

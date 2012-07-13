@@ -518,6 +518,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR_MASK_SET( &p_op->entry_attr, md_update );
         ATTR_MASK_SET( &p_op->entry_attr, path_update );
         ATTR_MASK_SET( &p_op->entry_attr, status );
+#ifdef ATTR_INDEX_creation_time
+        if (entry_proc_conf.detect_fake_mtime)
+            ATTR_MASK_SET( &p_op->entry_attr, creation_time);
+#endif
 
         if ( entry_proc_conf.match_classes )
         {
@@ -586,16 +590,22 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         if ( p_op->db_exists )
         {
+            int needed = entry_proc_conf.alert_attr_mask;
+
+#ifdef ATTR_INDEX_creation_time
+            if (entry_proc_conf.detect_fake_mtime)
+                needed |= ATTR_MASK_creation_time;
+#endif
+
             /* retrieve missing attrs, if needed */
             if ( entry_proc_conf.match_classes ||
-                (entry_proc_conf.alert_attr_mask & ~p_op->entry_attr.attr_mask) )
+                (needed & ~p_op->entry_attr.attr_mask) )
             {
                 attr_set_t tmp_attr;
 
                 ATTR_MASK_INIT( &tmp_attr );
 
-                tmp_attr.attr_mask |= (entry_proc_conf.alert_attr_mask
-                                       & ~p_op->entry_attr.attr_mask);
+                tmp_attr.attr_mask |= (needed & ~p_op->entry_attr.attr_mask);
 
                 /* no class for directories */
                 if ( ATTR_MASK_TEST(&p_op->entry_attr, type) &&
@@ -651,8 +661,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             /* new entry */
             p_op->db_op_type = OP_TYPE_INSERT;
-            ATTR_MASK_SET( &p_op->entry_attr, creation_time );
-            ATTR( &p_op->entry_attr, creation_time ) = time( NULL );
+
+            if (!ATTR_MASK_TEST(&p_op->entry_attr, creation_time))
+            {
+                ATTR_MASK_SET( &p_op->entry_attr, creation_time );
+                ATTR( &p_op->entry_attr, creation_time ) = time( NULL );
+            }
 
             /* defaults */
             p_op->extra_info_is_set = TRUE;
@@ -777,6 +791,36 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             ATTR( &p_op->entry_attr, md_update ) = time( NULL );
 
         } /* getattr needed */
+
+#ifdef HAVE_MIGR_POLICY
+        if (entry_proc_conf.detect_fake_mtime)
+        {
+            if (ATTR_MASK_TEST(&p_op->entry_attr, creation_time)
+                && ATTR_MASK_TEST(&p_op->entry_attr, last_mod)
+                && ATTR(&p_op->entry_attr, last_mod) < ATTR(&p_op->entry_attr, creation_time))
+            {
+                time_t val;
+                char mt[128];
+                char ct[128];
+                struct tm      t;
+                val = ATTR(&p_op->entry_attr, last_mod);
+                strftime(mt, 128, "%Y/%m/%d %T", localtime_r(&val, &t));
+                val = ATTR(&p_op->entry_attr, creation_time);
+                strftime(ct, 128, "%Y/%m/%d %T", localtime_r(&val, &t));
+
+                if (ATTR_MASK_TEST(&p_op->entry_attr, fullpath))
+                    DisplayLog(LVL_VERB, ENTRYPROC_TAG,
+                               "Fake mtime detected for %s: mtime=%s, creation=%s",
+                               ATTR(&p_op->entry_attr, fullpath), mt, ct);
+                else
+                    DisplayLog(LVL_VERB, ENTRYPROC_TAG,
+                               "Fake mtime detected for "DFID": mtime=%s, creation=%s",
+                               PFID(&p_op->entry_id), mt, ct);
+                /* setting back last_mod */
+                ATTR(&p_op->entry_attr, last_mod) = ATTR(&p_op->entry_attr, creation_time);
+            }
+        }
+#endif
 
         if ( p_op->extra_info.getpath_needed )
         {
@@ -1011,6 +1055,12 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
         ATTR_MASK_UNSET( &p_op->entry_attr, stripe_items );
     }
+
+#ifdef ATTR_INDEX_creation_time
+    /* never change creation time */
+    if (p_op->db_op_type != OP_TYPE_INSERT)
+        ATTR_MASK_UNSET( &p_op->entry_attr, creation_time );
+#endif
 
     /* insert to DB */
     switch ( p_op->db_op_type )

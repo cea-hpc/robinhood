@@ -403,6 +403,20 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
     ATTR( p_attr_set, last_mod ) = MAX2( p_inode->st_mtime, p_inode->st_ctime );
 #endif
 
+#ifdef ATTR_INDEX_creation_time
+    if (ATTR_MASK_TEST(p_attr_set, creation_time))
+    {
+        /* creation time is always <= ctime */
+        if (p_inode->st_ctime < ATTR(p_attr_set, creation_time))
+            ATTR(p_attr_set, creation_time) = p_inode->st_ctime;
+    }
+    else
+    {
+        ATTR_MASK_SET(p_attr_set, creation_time);
+        ATTR(p_attr_set, creation_time) = p_inode->st_ctime;
+    }
+#endif
+
 #ifdef ATTR_INDEX_type
     if ( S_ISREG( p_inode->st_mode ) )
     {

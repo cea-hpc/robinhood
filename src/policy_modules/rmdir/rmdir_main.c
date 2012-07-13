@@ -831,6 +831,11 @@ inline static int update_dir( lmgr_t * lmgr, entry_id_t * p_entry_id, attr_set_t
 
     p_attr_set->attr_mask &= ~readonly_attr_set;
 
+#ifdef ATTR_INDEX_creation_time
+    /* never update creation time */
+    ATTR_MASK_UNSET( p_attr_set, creation_time );
+#endif
+
     rc = ListMgr_Update( lmgr, p_entry_id, p_attr_set );
     if ( rc )
         DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d updating directory in database.", rc );

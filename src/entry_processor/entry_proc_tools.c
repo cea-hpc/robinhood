@@ -314,6 +314,9 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
     conf->nb_thread = 8;
     conf->max_pending_operations = 10000;
     conf->match_classes = TRUE;
+#ifdef HAVE_MIGR_POLICY
+    conf->detect_fake_mtime = FALSE;
+#endif
 
     conf->alert_list = NULL;
     conf->alert_count = 0;
@@ -328,6 +331,9 @@ int Write_EntryProc_ConfigDefault( FILE * output )
     print_line( output, 1, "nb_threads             :  8" );
     print_line( output, 1, "max_pending_operations :  10000" );
     print_line( output, 1, "match_classes          :  TRUE" );
+#ifdef HAVE_MIGR_POLICY
+    print_line( output, 1, "detect_fake_mtime      :  FALSE" );
+#endif
     print_line( output, 1, "alert                  :  NONE" );
     print_end_block( output, 0 );
     return 0;
@@ -347,15 +353,25 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
     int            tmpval;
     entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
 
+#ifdef HAVE_MIGR_POLICY
+    #define EPC_SHIFT   5
+#else
+    #define EPC_SHIFT   4
+#endif
+
     char           pipeline_names[PIPELINE_STAGE_COUNT][256];
-    char          *entry_proc_allowed[PIPELINE_STAGE_COUNT + 5];
+    char          *entry_proc_allowed[PIPELINE_STAGE_COUNT + EPC_SHIFT + 1];
+
 
     entry_proc_allowed[0] = "nb_threads";
     entry_proc_allowed[1] = "max_pending_operations";
     entry_proc_allowed[2] = "match_classes";
     entry_proc_allowed[3] = ALERT_BLOCK;
+#ifdef HAVE_MIGR_POLICY
+    entry_proc_allowed[4] = "detect_fake_mtime";
+#endif
 
-    entry_proc_allowed[PIPELINE_STAGE_COUNT + 4] = NULL;        /* PIPELINE_STAGE_COUNT+4 = last slot */
+    entry_proc_allowed[PIPELINE_STAGE_COUNT + EPC_SHIFT] = NULL;        /* PIPELINE_STAGE_COUNT+4 = last slot */
 
     /* get EntryProcessor block */
 
@@ -389,9 +405,20 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
         return rc;
 
     rc = GetBoolParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "match_classes",
-                       0, &conf->match_classes, NULL, NULL, msg_out );
+                       0, &tmpval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
+    else if (rc == 0)
+        conf->match_classes = tmpval;
+
+#ifdef HAVE_MIGR_POLICY
+    rc = GetBoolParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "detect_fake_mtime",
+                       0, &tmpval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if (rc == 0)
+        conf->detect_fake_mtime = tmpval;
+#endif
 
 
     /* look for '<stage>_thread_max' parameters */
@@ -402,7 +429,7 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
         snprintf( varname, 256, "%s_threads_max", entry_proc_pipeline[i].stage_name );
 
         strncpy( pipeline_names[i], varname, 256 );
-        entry_proc_allowed[i + 4] = pipeline_names[i];
+        entry_proc_allowed[i + EPC_SHIFT] = pipeline_names[i];
 
         rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, varname,
                           INT_PARAM_POSITIVE, &tmpval, NULL, NULL, msg_out );
@@ -564,6 +591,16 @@ int Reload_EntryProc_Config( void *module_config )
         entry_proc_conf.match_classes = conf->match_classes;
     }
 
+#ifdef HAVE_MIGR_POLICY
+    if ( conf->detect_fake_mtime != entry_proc_conf.detect_fake_mtime )
+    {
+        DisplayLog( LVL_MAJOR, "EntryProc_Config",
+                    ENTRYPROC_CONFIG_BLOCK"::detect_fake_mtime updated: '%s'->'%s'",
+                    bool2str(entry_proc_conf.detect_fake_mtime), bool2str(conf->detect_fake_mtime) );
+        entry_proc_conf.detect_fake_mtime = conf->detect_fake_mtime;
+    }
+#endif
+
     /* Check alert rules  */
     update_alerts( entry_proc_conf.alert_list, entry_proc_conf.alert_count,
                    conf->alert_list, conf->alert_count, ENTRYPROC_CONFIG_BLOCK );
@@ -630,6 +667,13 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     print_line( output, 1, "# if set to FALSE, classes will only be matched");
     print_line( output, 1, "# at policy application time (not during a scan or reading changelog)" );
     print_line( output, 1, "match_classes = TRUE;");
+
+#ifdef HAVE_MIGR_POLICY
+    print_line( output, 1, "# Faking mtime to an old time causes the file to be migrated");
+    print_line( output, 1, "# with top priority. Enabling this parameter detect this behavior");
+    print_line( output, 1, "# and doesn't allow  mtime < creation_time");
+    print_line( output, 1, "detect_fake_mtime = FALSE;");
+#endif
 
     print_end_block( output, 0 );
     return 0;
