@@ -792,7 +792,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         } /* getattr needed */
 
-#ifdef HAVE_MIGR_POLICY
+#ifdef ATTR_INDEX_creation_time
         if (entry_proc_conf.detect_fake_mtime)
         {
             if (ATTR_MASK_TEST(&p_op->entry_attr, creation_time)
@@ -816,8 +816,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     DisplayLog(LVL_VERB, ENTRYPROC_TAG,
                                "Fake mtime detected for "DFID": mtime=%s, creation=%s",
                                PFID(&p_op->entry_id), mt, ct);
-                /* setting back last_mod */
-                ATTR(&p_op->entry_attr, last_mod) = ATTR(&p_op->entry_attr, creation_time);
             }
         }
 #endif

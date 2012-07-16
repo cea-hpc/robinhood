@@ -49,7 +49,7 @@ typedef struct entry_proc_config_t
     int            alert_attr_mask;
 
     unsigned int   match_classes:1;
-#ifdef HAVE_MIGR_POLICY
+#ifdef ATTR_INDEX_creation_time
     /* fake mtime in the past causes higher
      * migration priority */
     unsigned int   detect_fake_mtime:1;
