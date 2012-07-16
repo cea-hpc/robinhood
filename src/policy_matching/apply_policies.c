@@ -397,6 +397,7 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         break;
 
 
+/** @TODO factorize this part of code */
     case CRITERIA_LAST_MOD:
         *p_attr_index = ATTR_INDEX_last_mod;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
@@ -418,6 +419,17 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         p_value->val_uint = time(NULL) - p_comp->val.duration;
         break;
 #endif
+
+#ifdef ATTR_INDEX_creation_time
+    case CRITERIA_CREATION:
+        *p_attr_index = ATTR_INDEX_creation_time;
+        *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
+        p_value->val_uint = time(NULL) - p_comp->val.duration;
+        break;
+#endif
+
+/** end of @TODO factorize this part of code */
+
     case CRITERIA_POOL:
         *p_attr_index = ATTR_INDEX_stripe_info;
         *p_compar = Policy2FilterComparator( p_comp->op );
@@ -633,6 +645,18 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 
         break;
 #endif
+#ifdef ATTR_INDEX_creation_time
+    case CRITERIA_CREATION:
+        /* creation_time is required */
+        CHECK_ATTR( p_entry_attr, creation_time, no_warning );
+
+        rc = int_compare( time( NULL ) - ATTR( p_entry_attr, creation_time ), p_triplet->op,
+                          time_modify(p_triplet->val.duration, p_pol_mod) );
+        return BOOL2POLICY( rc );
+
+        break;
+#endif
+
     case CRITERIA_POOL:
         /* /!\ objects != file or dir don't have stripe info (never match) */
         if ( ATTR_MASK_TEST( p_entry_attr, type ) &&

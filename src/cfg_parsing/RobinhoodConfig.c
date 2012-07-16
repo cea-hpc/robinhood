@@ -1310,6 +1310,27 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
 
     }
 #endif
+#ifdef ATTR_INDEX_creation_time
+    else if ( TEST_CRIT( key_value->varname, CRITERIA_CREATION ) )
+    {
+        p_triplet->crit = CRITERIA_CREATION;
+        *p_attr_mask |= ATTR_MASK_creation_time;
+
+        /* a duration is expected */
+        p_triplet->val.duration = str2duration( key_value->varvalue );
+
+        if ( p_triplet->val.duration == -1 )
+        {
+            sprintf( err_msg, "Invalid format for duration in 'creation' criteria: '%s'",
+                     key_value->varvalue );
+            return EINVAL;
+        }
+
+        /* any comparator is allowed */
+        p_triplet->op = syntax2conf_comparator( key_value->op_type );
+
+    }
+#endif
     else if ( TEST_CRIT( key_value->varname, CRITERIA_POOL ) )
     {
         /* same thing for group */
@@ -1928,6 +1949,10 @@ const char    *criteria2str( compare_criteria_t crit )
     case CRITERIA_LAST_RESTORE:
         return "last_restore";
 #endif
+#ifdef ATTR_INDEX_creation_time
+    case CRITERIA_CREATION:
+        return "creation";
+#endif
     case CRITERIA_POOL:
         return "ost_pool";
     case CRITERIA_OST:
@@ -1986,6 +2011,9 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 #endif
 #ifdef ATTR_INDEX_last_restore
     case CRITERIA_LAST_RESTORE:
+#endif
+#ifdef ATTR_INDEX_creation_time
+    case CRITERIA_CREATION:
 #endif
         FormatDurationFloat( tmp_buff, 256, p_triplet->val.duration );
         return snprintf( out_str, str_size, "%s %s %s", criteria2str( p_triplet->crit ),

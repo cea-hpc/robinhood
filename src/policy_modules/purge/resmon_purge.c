@@ -135,12 +135,13 @@ static int heuristic_end_of_list( time_t last_access_time )
 
     /* XXX Tip for optimization:
      * we build a void entry with last_access = last_access_time
-     * and last_restore_time = last_access_time.
+     * and last_restore_time = last_access_time = creation_time.
      * If it doesn't match any policy, next entries won't match too
      * because entries are sorted by last access time,
      * so it is not necessary to continue.
-     * (Note that we have last_restore_time < last_access_time
-     * (because entries are not purged)).
+     * Note we have last_restore_time < last_access_time
+     * (because entries are not purged), and of course
+     * creation_time < last_access_time.
      */
     memset( &void_id, 0, sizeof( entry_id_t ) );
     memset( &void_attr, 0, sizeof( attr_set_t ) );
@@ -148,9 +149,13 @@ static int heuristic_end_of_list( time_t last_access_time )
     ATTR_MASK_INIT( &void_attr );
     ATTR_MASK_SET( &void_attr, last_access );
     ATTR( &void_attr, last_access ) = last_access_time;
-#ifdef ATTR_INDEX_restore
+#ifdef ATTR_INDEX_last_restore
     ATTR_MASK_SET( &void_attr, last_restore );
     ATTR( &void_attr, last_restore ) = last_access_time;
+#endif
+#ifdef ATTR_INDEX_creation_time
+    ATTR_MASK_SET( &void_attr, creation_time );
+    ATTR( &void_attr, creation_time ) = last_access_time;
 #endif
 
     if ( PolicyMatchAllConditions( &void_id, &void_attr, PURGE_POLICY, NULL ) == POLICY_NO_MATCH )

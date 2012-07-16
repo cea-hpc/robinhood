@@ -192,6 +192,7 @@ static int heuristic_end_of_list( time_t last_mod_time )
      * because entries are sorted by last modification time,
      * so it is not necessary to continue.
      * (Note that we have last_archive_time < last_modification_time (entry is dirty)).
+     * and creation_time < last_modification_time (except for faked mtime)
      */
     memset( &void_id, 0, sizeof( entry_id_t ) );
     memset( &void_attr, 0, sizeof( attr_set_t ) );
@@ -203,6 +204,11 @@ static int heuristic_end_of_list( time_t last_mod_time )
     ATTR_MASK_SET( &void_attr, last_archive );
     ATTR( &void_attr, last_archive ) = last_mod_time;
 #endif
+#ifdef ATTR_INDEX_creation_time
+    ATTR_MASK_SET( &void_attr, creation_time );
+    ATTR( &void_attr, creation_time ) = last_mod_time;
+#endif
+
 
     if ( PolicyMatchAllConditions( &void_id, &void_attr, MIGR_POLICY,
                                    migr_pol_mod ) == POLICY_NO_MATCH )

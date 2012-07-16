@@ -203,6 +203,9 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src )
 #ifdef ATTR_INDEX_last_restore
         case CRITERIA_LAST_RESTORE:
 #endif
+#ifdef ATTR_INDEX_creation_time
+        case CRITERIA_CREATION:
+#endif
             if ( p_triplet1->val.duration != p_triplet2->val.duration )
             {
                 FormatDurationFloat( tmp_buff1, 256, p_triplet1->val.duration );

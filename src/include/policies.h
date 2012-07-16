@@ -61,6 +61,9 @@ typedef enum
 #ifdef ATTR_INDEX_last_archive
     CRITERIA_LAST_ARCHIVE,
 #endif
+#ifdef ATTR_INDEX_creation_time
+    CRITERIA_CREATION,
+#endif
     CRITERIA_POOL,
     CRITERIA_OST,
     CRITERIA_XATTR,
