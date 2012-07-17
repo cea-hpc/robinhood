@@ -2481,6 +2481,7 @@ void report_topuser( unsigned int count, int flags )
     int            rc;
     unsigned int   rank = 1;
     lmgr_filter_t  filter;
+    filter_value_t fv;
     int is_filter = FALSE;
     profile_u   prof;
 
@@ -2534,7 +2535,10 @@ void report_topuser( unsigned int count, int flags )
     else
         opt.force_no_acct = FALSE;
 
-    is_filter = FALSE;
+    /* select only files */
+    fv.val_str = STR_TYPE_FILE;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
+    is_filter = TRUE;
 
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 

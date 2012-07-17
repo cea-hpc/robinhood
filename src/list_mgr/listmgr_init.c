@@ -171,10 +171,10 @@ static unsigned int append_size_range_val(char * str, int leading_comma, char *p
     l = sprintf( str, "%s %ssize=0", leading_comma?",":"", prefix );
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        l += sprintf( str+l, ", %s=%u", value, i-1 );
+        l += sprintf( str+l, ", IFNULL(%s=%u,0)", value, i-1 );
     }
     /* last */
-    l += sprintf( str+l, ", %s>=%u", value, i-1 );
+    l += sprintf( str+l, ", IFNULL(%s>=%u,0)", value, i-1 );
     return l;
 }
 
@@ -1154,8 +1154,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 INCR_NEXT( next );
                 APPEND_TXT( next, " ,COUNT( id ), SUM(size=0)");
                 for (i=1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
-                        next += sprintf(next, ",SUM("ACCT_SZ_VAL("size")"=%u)", i-1);
-                next += sprintf(next, ",SUM("ACCT_SZ_VAL("size")">=%u)", i-1);
+                        next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")"=%u,0))", i-1);
+                next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
 
                 next += sprintf( next, " FROM %s  GROUP BY ", acct_info_table );
                 attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" ); 
