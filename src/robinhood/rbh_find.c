@@ -223,7 +223,7 @@ static int mkfilters(int exclude_dirs)
 #ifdef _LUSTRE
     if (prog_options.match_ost)
     {
-        /* this is not converted to DB filter, but will be used in post checking */
+        /* this partially converted to DB filter, and will be fully used in post checking */
         compare_value_t val;
         val.integer = prog_options.ost_idx;
         if (!is_expr)
@@ -274,6 +274,14 @@ static int mkfilters(int exclude_dirs)
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
     }
 #endif
+
+    if (prog_options.match_name)
+    {
+        char tmpstr[RBH_PATH_MAX];
+        sprintf(tmpstr, "*/%s", prog_options.name);
+        fv.val_str = tmpstr;
+        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_fullpath, LIKE, fv, 0 );
+    }
 
     if (is_expr)
     {
