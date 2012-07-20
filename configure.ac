@@ -176,11 +176,11 @@ AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="
 
 # Purpose ?
 
-AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMP_FS_MGR|LUSTRE_HSM|HSM_LITE|BACKUP|SHOOK|SHERPA],[specify the purpose of the daemon] ),
+AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMPFS|LUSTRE_HSM|HSM_LITE|BACKUP|SHOOK|SHERPA],[specify the purpose of the daemon] ),
              PURPOSE="$withval", PURPOSE="TMP_FS_MGR")
 
 AM_CONDITIONAL(LUSTRE_HSM,     test "$PURPOSE" = "LUSTRE_HSM")
-AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR")
+AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR" -o "$PURPOSE" = "TMPFS" )
 AM_CONDITIONAL(HSM_LITE, test "$PURPOSE" = "HSM_LITE" -o  "$PURPOSE" = "SHOOK" -o  "$PURPOSE" = "BACKUP" )
 AM_CONDITIONAL(SHERPA, test "$PURPOSE" = "SHERPA")
 
@@ -203,7 +203,7 @@ case $PURPOSE in
         AC_DEFINE([HAVE_RM_POLICY], [1], [HSM removal policy for Lustre-HSM purpose])
         AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for Lustre-HSM purpose])
         ;;
-    TMP_FS_MGR)
+    TMP_FS_MGR | TMPFS)
         PURPOSE_CFLAGS="-D_TMP_FS_MGR"
         PURPOSE_BIN="robinhood"
         PURPOSE_EXT="tmpfs"

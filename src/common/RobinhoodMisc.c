@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <libgen.h>             /* for dirname */
 #include <stdarg.h>
+#include <fnmatch.h>
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
@@ -261,6 +262,9 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed )
             {
                 /* ignore .xxx files */
                 if (ent->d_name[0] == '.')
+                    continue;
+                if (fnmatch("*.conf", ent->d_name, 0) && fnmatch("*.cfg", ent->d_name, 0))
+                    /* not a config file */
                     continue;
 
                 sprintf( cfg_out, "%s/%s", current_path, ent->d_name );

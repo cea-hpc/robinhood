@@ -113,7 +113,9 @@ typedef enum
   STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
   STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
   STATUS_RELEASE_PENDING,    	/* file is being released */
-  STATUS_REMOVED                /* file has been removed from lustre and still exists in the backend */
+  STATUS_REMOVED,               /* file has been removed from lustre and still exists in the backend */
+
+  STATUS_COUNT                  /* number of possible file status */
 } file_status_t;
 
 

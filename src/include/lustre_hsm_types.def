@@ -95,7 +95,9 @@ typedef enum
   STATUS_ARCHIVE_RUNNING,       /* file is being archived */
   STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
   STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
-  STATUS_RELEASE_PENDING    	/* file is being released */
+  STATUS_RELEASE_PENDING,    	/* file is being released */
+
+  STATUS_COUNT                  /* number of possible file status */
 } file_status_t;
 
 %attrdef

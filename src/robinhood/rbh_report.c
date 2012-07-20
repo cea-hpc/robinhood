@@ -2709,14 +2709,13 @@ void report_deferred_rm( int flags )
 
 struct class_record {
     char class[1024];
-    unsigned long long count;
-    unsigned long long nb_modif;
-    unsigned long long nb_synchro;
-    unsigned long long spc_used;
-    unsigned long long spc_modif;
-    unsigned long long spc_synchro;
-    unsigned long long size_min;
-    unsigned long long size_max;
+    uint64_t count;
+    uint64_t total_size;
+    uint64_t status_nb[STATUS_COUNT];
+    uint64_t status_vol[STATUS_COUNT];
+    uint64_t status_spc[STATUS_COUNT];
+    uint64_t size_min;
+    uint64_t size_max;
     struct class_record * p_next;
 } * rec_list = NULL;
 
@@ -2734,27 +2733,32 @@ static int classname_cmp( const char *s1, const char *s2 )
 
 static inline int class_add( const char * name, db_value_t * res_array, int shift )
 {
-   struct class_record * p_curr;
-   int found = FALSE;
-   for ( p_curr = rec_list; p_curr != NULL; p_curr = p_curr->p_next )
-   {
+    struct class_record * p_curr;
+    int found = FALSE;
+    int st, i;
+    for ( p_curr = rec_list; p_curr != NULL; p_curr = p_curr->p_next )
+    {
        if ( !strcmp( p_curr->class, name ) )
        {
            /* found it ! */
            found = TRUE;
            break;
        }
-   }
+    }
 
-   if ( !found )
-   {
+    if ( !found )
+    {
        p_curr = (struct class_record *)malloc( sizeof(struct class_record) );
        strcpy( p_curr->class, name );
-       p_curr->count = p_curr->nb_modif = p_curr->nb_synchro = 0;
-       p_curr->spc_used = p_curr->spc_modif
-            = p_curr->spc_synchro = p_curr->size_max = 0;
-       /* initialize min to current value */
-       p_curr->size_min = res_array[5].value_u.val_biguint;
+       p_curr->count = p_curr->size_max = p_curr->total_size = 0;
+       for (i = 0; i < STATUS_COUNT; i++)
+       {
+            p_curr->status_nb[i] = 0;
+            p_curr->status_vol[i] = 0;
+            p_curr->status_spc[i] = 0;
+       }
+       /* initialize to current min value */
+       p_curr->size_min = res_array[shift+4].value_u.val_biguint;
 
        /* add sorted */
        if ( rec_list == NULL )
@@ -2794,54 +2798,45 @@ static inline int class_add( const char * name, db_value_t * res_array, int shif
                 }
            }
        }
-   }
+    }
 
-   /* increment stats */
-   p_curr->count += res_array[shift+1].value_u.val_biguint;
-   p_curr->spc_used += (res_array[shift+2].value_u.val_biguint * DEV_BSIZE);
+    /* increment stats */
+    p_curr->count += res_array[shift+1].value_u.val_biguint;
+    p_curr->total_size += res_array[shift+3].value_u.val_biguint;
 
-   if IS_MODIFIED(res_array[shift].value_u.val_uint)
-   {
-        p_curr->nb_modif += res_array[shift+1].value_u.val_biguint;
-        p_curr->spc_modif += (res_array[shift+2].value_u.val_biguint * DEV_BSIZE);
-   }
-   else if ( res_array[shift].value_u.val_uint == STATUS_SYNCHRO )
-   {
-        p_curr->nb_synchro += res_array[shift+1].value_u.val_biguint;
-        p_curr->spc_synchro += (res_array[shift+2].value_u.val_biguint * DEV_BSIZE);
-   }
+    st = res_array[shift].value_u.val_uint;
+    p_curr->status_nb[st] += res_array[shift+1].value_u.val_biguint;
+    p_curr->status_spc[st] += res_array[shift+2].value_u.val_biguint * DEV_BSIZE;
+    p_curr->status_vol[st] += res_array[shift+3].value_u.val_biguint;
 
-   /* size min */
-   if ( res_array[shift+3].value_u.val_biguint < p_curr->size_min )
-      p_curr->size_min = res_array[shift+3].value_u.val_biguint;
-   if ( res_array[shift+4].value_u.val_biguint > p_curr->size_max )
-      p_curr->size_max = res_array[shift+4].value_u.val_biguint;
+    /* size min */
+    if ( res_array[shift+4].value_u.val_biguint < p_curr->size_min )
+      p_curr->size_min = res_array[shift+4].value_u.val_biguint;
+    if ( res_array[shift+5].value_u.val_biguint > p_curr->size_max )
+      p_curr->size_max = res_array[shift+5].value_u.val_biguint;
 
-   return 0;
+    return 0;
 } /* end of helper defintion */
 
 #endif
 
 static void report_class_info( int flags )
 {
-#if defined(ATTR_INDEX_archive_class) && defined(ATTR_INDEX_release_class)
+#ifdef ATTR_INDEX_status
     #define CLASSINFO_FIELDS 8
-    struct class_record * p_curr;
-#elif defined(ATTR_INDEX_archive_class)
-    #define CLASSINFO_FIELDS 7
-    struct class_record * p_curr;
+    const int shift = 1;
 #else
-    #define CLASSINFO_FIELDS 6
+    #define CLASSINFO_FIELDS 7
+    const int shift = 0;
 #endif
     db_value_t     result[CLASSINFO_FIELDS];
 
     struct lmgr_report_t *it;
     lmgr_filter_t  filter;
     int            rc;
-#ifndef ATTR_INDEX_archive_class
-    int header = 1;
-#endif
+    int header;
     unsigned int   result_count;
+    profile_u prof;
 
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
@@ -2856,15 +2851,13 @@ static void report_class_info( int flags )
      * - MIN/MAX/AVG file size
      */
     report_field_descr_t class_info[CLASSINFO_FIELDS] = {
-#ifdef ATTR_INDEX_release_class
-        {ATTR_INDEX_release_class, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
-#endif
-#ifdef ATTR_INDEX_archive_class
-        {ATTR_INDEX_archive_class, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+        {0 /* archive or release class */, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+#ifdef ATTR_INDEX_status
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
 #endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
+        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
@@ -2876,10 +2869,25 @@ static void report_class_info( int flags )
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
 
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
-
     result_count = CLASSINFO_FIELDS;
 
-    /* is a filter specified? */
+#if defined(ATTR_INDEX_archive_class) && defined(ATTR_INDEX_release_class)
+    /* If there are 2 policies (for migration and purge):
+     * select all entries eligible for 1st policy, grouped by the appropriate class
+     * and select all entries eligible for 2st policy, grouped by the appropriate class
+     */
+    /* display archive class */
+    class_info[0].attr_index = ATTR_INDEX_archive_class;
+
+    fv.val_uint = STATUS_NEW;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_BEGIN | FILTER_FLAG_ALLOW_NULL );
+    fv.val_uint = STATUS_UNKNOWN;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
+    fv.val_uint = STATUS_MODIFIED;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
+    fv.val_uint = STATUS_ARCHIVE_RUNNING;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR | FILTER_FLAG_END );
+
     it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
                          SPROF(flags)?&size_profile:NULL, &filter, NULL );
 
@@ -2889,9 +2897,6 @@ static void report_class_info( int flags )
                     "ERROR: Could not retrieve class information from database." );
         return;
     }
-
-#ifndef ATTR_INDEX_archive_class
-    profile_u prof;
 
     /* a single class column (release), can print as is */
     header = !NOHEADER(flags);
@@ -2905,97 +2910,111 @@ static void report_class_info( int flags )
                         flags, header, 0);
         header = 0; /* display header once */
 
-        total_count += result[1].value_u.val_biguint;
-        total_size += result[2].value_u.val_biguint * DEV_BSIZE;
+        total_count += result[1+shift].value_u.val_biguint;
+        total_size += result[3+shift].value_u.val_biguint;
         result_count = CLASSINFO_FIELDS;
     }
 
-#else
+    ListMgr_CloseReport(it);
+    /* reset filter */
+    lmgr_simple_filter_free( &filter );
+    lmgr_simple_filter_init( &filter );
 
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) )
+    fv.val_str = STR_TYPE_DIR;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
+
+    /* display release class */
+    printf("\n");
+    class_info[0].attr_index = ATTR_INDEX_release_class;
+
+    fv.val_uint = STATUS_SYNCHRO;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_BEGIN );
+    fv.val_uint = STATUS_RELEASE_PENDING;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
+    fv.val_uint = STATUS_RESTORE_RUNNING;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
+    fv.val_uint = STATUS_RELEASED;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR | FILTER_FLAG_END );
+
+    mk_global_filters( &filter, !NOHEADER(flags), NULL );
+    result_count = CLASSINFO_FIELDS;
+
+    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
+                         SPROF(flags)?&size_profile:NULL, &filter, NULL );
+
+    if ( it == NULL )
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR: Could not retrieve class information from database." );
+        return;
+    }
+
+    /* a single class column (release), can print as is */
+    header = !NOHEADER(flags);
+
+    result_count = CLASSINFO_FIELDS;
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, SPROF(flags)?&prof:NULL ))
             == DB_SUCCESS )
     {
+        display_report( class_info, result_count, result, result_count,
+                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                        flags, header, 0);
+        header = 0; /* display header once */
 
-        /* what class do we display? */
-        const char * class;
-        int shift;
-        #if defined( ATTR_INDEX_archive_class ) && defined( ATTR_INDEX_release_class )
-        shift = 2;
-        if ( result[0].value_u.val_str == NULL )
-            class = result[1].value_u.val_str;
-        else if ( result[1].value_u.val_str == NULL )
-            class = result[0].value_u.val_str;
-        else /* both are defined */
-        {
-            /* up to date, released or release_pending:  take purge class */
-            if ( IS_PURGE_CONCERNED( result[2].value_u.val_uint ) )
-                class = result[0].value_u.val_str;
-            else
-                class = result[1].value_u.val_str;
-        }
-        #elif defined(ATTR_INDEX_archive_class)
-        /* archive class only */
-        shift = 1;
-        class = result[0].value_u.val_str;
-        #endif
-        class = class_format(class);
-
-        class_add( class, result, shift );
+        total_count += result[1+shift].value_u.val_biguint;
+        total_size += result[3+shift].value_u.val_biguint;
+        result_count = CLASSINFO_FIELDS;
     }
-
-    if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%20s, %10s, %10s, %10s, %15s, %15s, %15s, %15s, %15s\n",
-                "fileclass", "count", "nb_modif", "nb_synchro",
-                "spc_used", "spc_modif", "spc_synchro","size_min", "size_max" );
-    for ( p_curr = rec_list; p_curr != NULL; p_curr = p_curr->p_next )
-    {
-        total_count += p_curr->count;
-        total_size +=  p_curr->spc_used;
-
-        if (CSV(flags))
-            printf( "%20s, %10Lu, %10Lu, %10Lu, %15Lu, %15Lu, %15Lu, %15Lu, %15Lu\n",
-                    class_format( p_curr->class ),
-                    p_curr->count, p_curr->nb_modif, p_curr->nb_synchro,
-                    p_curr->spc_used, p_curr->spc_modif, p_curr->spc_synchro,
-                    p_curr->size_min, p_curr->size_max );
-        else
-        {
-            char strsize[128] = "";
-            char str2[128] = "";
-            printf( "\n" );
-            printf( "Class:   %20s\n",
-                    class_format( p_curr->class ) );
-            printf( "Nb entries:   %15Lu", p_curr->count );
-            printf( "    (%Lu modified, %Lu synchro)\n", p_curr->nb_modif,
-                    p_curr->nb_synchro );
-            printf( "Space used:   %15s",
-                    FormatFileSize( strsize, 128, p_curr->spc_used ) );
-            printf( "    (%s modified, %s synchro)\n",
-                    FormatFileSize( strsize, 128, p_curr->spc_modif ),
-                    FormatFileSize( str2, 128, p_curr->spc_synchro ) );
-
-            printf( "Size min:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, p_curr->size_min ),
-                    p_curr->size_min );
-
-            printf( "Size max:     %15s    (%llu bytes)\n",
-                    FormatFileSize( strsize, 128, p_curr->size_max ),
-                    p_curr->size_max );
-        }
-    }
-
-    /* todo: free list */
-
-#endif
 
     ListMgr_CloseReport(it);
+    lmgr_simple_filter_free( &filter );
+
+#else
+    /* if there is 1 policy: select all entries, grouped by class */
+    #ifdef ATTR_INDEX_archive_class
+        class_info[0].attr_index = ATTR_INDEX_archive_class;
+    #else
+        class_info[0].attr_index = ATTR_INDEX_release_class;
+    #endif
+
+    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
+                         SPROF(flags)?&size_profile:NULL, &filter, NULL );
+
+    if ( it == NULL )
+    {
+        DisplayLog( LVL_CRIT, REPORT_TAG,
+                    "ERROR: Could not retrieve class information from database." );
+        return;
+    }
+
+    /* a single class column (release), can print as is */
+    header = !NOHEADER(flags);
+
+    result_count = CLASSINFO_FIELDS;
+    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, SPROF(flags)?&prof:NULL ))
+            == DB_SUCCESS )
+    {
+        display_report( class_info, result_count, result, result_count,
+                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                        flags, header, 0);
+        header = 0; /* display header once */
+
+        total_count += result[1+shift].value_u.val_biguint;
+        total_size += result[3+shift].value_u.val_biguint;
+        result_count = CLASSINFO_FIELDS;
+    }
+
+    ListMgr_CloseReport(it);
+    lmgr_simple_filter_free( &filter );
+
+#endif
 
     /* display summary */
     if ( !NOHEADER(flags) )
     {
         char strsz[128];
         FormatFileSize( strsz, 128, total_size );
-        printf( "\nTotal: %Lu entries, %Lu bytes used (%s)\n",
+        printf( "\nTotal: %Lu entries, %Lu bytes (%s)\n",
                 total_count, total_size, strsz );
     }
 }
