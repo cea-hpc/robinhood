@@ -1,7 +1,9 @@
 #ifndef _RBH_CONST_H
 #define _RBH_CONST_H
 
-#define RBH_PATH_MAX    1024
+#include <limits.h>
+
+#define RBH_PATH_MAX    PATH_MAX
 #define RBH_NAME_MAX    256
 #define MAX_POOL_LEN    16
 
