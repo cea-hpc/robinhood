@@ -1323,8 +1323,9 @@ static int list2mask(int * attr_list, int attr_count)
 }
 
 
-static void print_attr_list(int rank_field, int * attr_list, int attr_count,
-                            profile_field_descr_t * p_profile, int csv)
+static void print_attr_list_custom(int rank_field, int * attr_list, int attr_count,
+                            profile_field_descr_t * p_profile, int csv,
+                            const char * custom_title, int custom_len)
 {
     int i;
     int coma = 0;
@@ -1376,7 +1377,20 @@ static void print_attr_list(int rank_field, int * attr_list, int attr_count,
             }
         }
     }
+    if (custom_title)
+    {
+        if (coma)
+            printf(", %*s", custom_len, custom_title);
+        else
+            printf("%*s", custom_len, custom_title);
+    }
     printf("\n");
+}
+
+static inline void print_attr_list(int rank_field, int * attr_list, int attr_count,
+                            profile_field_descr_t * p_profile, int csv)
+{
+    print_attr_list_custom(rank_field, attr_list, attr_count, p_profile, csv, NULL, 0);
 }
 
 
@@ -1468,10 +1482,10 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
     return "?";
 }
 
-
-static void print_attr_values(int rank, int * attr_list, int attr_count,
+static void print_attr_values_custom(int rank, int * attr_list, int attr_count,
                               attr_set_t * attrs, const entry_id_t * id,
-                              int csv, char * out, int resolv_id)
+                              int csv, int resolv_id,
+                              const char * custom, int custom_len)
 {
     int i, coma = 0;
     char str[1024];
@@ -1492,10 +1506,25 @@ static void print_attr_values(int rank, int * attr_list, int attr_count,
             coma = 1;
         }
     }
+    if (custom)
+    {
+        if (coma)
+            printf(", %*s", custom_len, custom);
+        else
+            printf("%*s", custom_len, custom);
+    }
     printf("\n");
-
 }
 
+
+
+static inline void print_attr_values(int rank, int * attr_list, int attr_count,
+                              attr_set_t * attrs, const entry_id_t * id,
+                              int csv, int resolv_id)
+{
+    print_attr_values_custom(rank, attr_list, attr_count, attrs, id, csv, resolv_id,
+                             NULL, 0);
+}
 
 /* return attr name to be displayed */
 static inline const char * attrdesc2name(const report_field_descr_t * desc)
@@ -1748,12 +1777,11 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        char out[1024];
         total_count ++ ;
         total_size += ATTR( &attrs, size );
 
         print_attr_values(0, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, FALSE);
+                          CSV(flags), FALSE);
 
         ListMgr_FreeAttrs( &attrs );
 
@@ -2147,12 +2175,10 @@ void report_topdirs( unsigned int count, int flags )
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        char   out[1024];
-
         index++;
         /* resolv id for dir requests */
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, TRUE);
+                          CSV(flags), TRUE);
 
         ListMgr_FreeAttrs( &attrs );
 
@@ -2235,10 +2261,9 @@ void report_topsize( unsigned int count, int flags )
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
-        char out[1024];
         index++;
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, FALSE);
+                          CSV(flags), FALSE);
 
         ListMgr_FreeAttrs( &attrs );
         /* prepare next call */
@@ -2263,7 +2288,6 @@ void report_toppurge( unsigned int count, int flags )
     struct lmgr_iterator_t *it;
     attr_set_t     attrs;
     entry_id_t     id;
-    char           out[128];
 
     int list[] = {
                 ATTR_INDEX_fullpath,
@@ -2337,7 +2361,7 @@ void report_toppurge( unsigned int count, int flags )
         index++;
 
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), out, FALSE);
+                          CSV(flags), FALSE);
         ListMgr_FreeAttrs( &attrs );
 
         /* prepare next call */
@@ -2365,9 +2389,17 @@ void report_toprmdir( unsigned int count, int flags )
     attr_set_t     attrs;
     entry_id_t     id;
     char           date[128];
-#
     char           dur[128];
     struct tm      t;
+
+    int list[] = {
+                ATTR_INDEX_fullpath,
+                ATTR_INDEX_owner,
+                ATTR_INDEX_gr_name,
+                ATTR_INDEX_last_mod
+                };
+    int list_cnt = sizeof(list)/sizeof(int);
+
 
     lmgr_simple_filter_init( &filter );
 
@@ -2418,11 +2450,7 @@ void report_toprmdir( unsigned int count, int flags )
         return;
     }
 
-    // @TODO replace: print_attr_mask(1, mask_sav, list, list_cnt, CSV(flags));
-
-    if ( CSV(flags) && !NOHEADER(flags) )
-        printf( "%3s, %-40s, %10s, %10s, %20s, %s\n", "rank", "path", "owner", "group",
-                "last_mod", "deadline" );
+    print_attr_list_custom(1, list, list_cnt, NULL, CSV(flags), "rmdir_deadline", 20);
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
@@ -2449,18 +2477,8 @@ void report_toprmdir( unsigned int count, int flags )
                                  policies.rmdir_policy.age_rm_empty_dirs );
 
 
-        if ( CSV(flags) )
-            printf( "%3u, %-40s, %10s, %10s, %20s, %s\n", index, ATTR( &attrs, fullpath ),
-                    ATTR( &attrs, owner ), ATTR( &attrs, gr_name ), date, dur );
-        else
-        {
-            printf( "\n" );
-            printf( "Rank:              %u\n", index );
-            printf( "Path:              %s\n", ATTR( &attrs, fullpath ) );
-            printf( "Rmdir deadline:    %s\n", dur );
-            printf( "Last modification: %s\n", date );
-            printf( "Owner/Group:       %s/%s\n", ATTR( &attrs, owner ), ATTR( &attrs, gr_name ) );
-        }
+        print_attr_values_custom(index, list, list_cnt, &attrs, &id,
+                                 CSV(flags), FALSE, dur, 20);
 
         ListMgr_FreeAttrs( &attrs );
 
