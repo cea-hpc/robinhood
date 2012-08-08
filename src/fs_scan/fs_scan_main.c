@@ -271,6 +271,7 @@ int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
 
     conf->ignore_list = NULL;
     conf->ignore_count = 0;
+    strncpy( conf->completion_command, "", RBH_PATH_MAX );
 
     return 0;
 }
@@ -292,6 +293,7 @@ int FSScan_WriteDefaultConfig( FILE * output )
     print_line( output, 1, "spooler_check_interval :  1min" );
     print_line( output, 1, "nb_prealloc_tasks      :   256" );
     print_line( output, 1, "ignore                 :  NONE" );
+    print_line( output, 1, "completion_command     :  NONE" );
     print_end_block( output, 0 );
     return 0;
 }
@@ -317,6 +319,7 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
         "scan_interval", "min_scan_interval", "max_scan_interval",
         "scan_retry_delay", "nb_threads_scan", "scan_op_timeout",
         "exit_on_timeout", "spooler_check_interval", "nb_prealloc_tasks",
+		"completion_command",
         IGNORE_BLOCK, NULL
     };
 
@@ -411,6 +414,13 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
                            ( int * ) &conf->nb_prealloc_tasks, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
+
+    rc = GetStringParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "completion_command",
+                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
+                         conf->completion_command, RBH_PATH_MAX, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
 
     /* Find and parse "ignore" blocks */
     for ( blc_index = 0; blc_index < rh_config_GetNbItems( fsscan_block ); blc_index++ )
@@ -564,6 +574,15 @@ int FSScan_ReloadConfig( void *module_config )
         fs_scan_config.spooler_check_interval = conf->spooler_check_interval;
     }
 
+    if ( strcmp( conf->completion_command, fs_scan_config.completion_command ) )
+    {   
+        DisplayLog( LVL_EVENT, "FS_Scan_Config",
+                    FSSCAN_CONFIG_BLOCK "::completion_command updated: '%s'->'%s'",
+                    fs_scan_config.completion_command, conf->completion_command );
+        strcpy( fs_scan_config.completion_command, conf->completion_command);
+    }
+
+
     /* Parameters that canNOT be modified dynamically */
 
     if ( conf->nb_threads_scan != fs_scan_config.nb_threads_scan )
@@ -619,6 +638,7 @@ int FSScan_WriteConfigTemplate( FILE * output )
     print_line( output, 1, "scan_op_timeout        =    1h ;" );
     print_line( output, 1, "# exit if operation timeout is reached?" );
     print_line( output, 1, "exit_on_timeout        =    TRUE ;" );
+    print_line( output, 1, "completion_command     =    "" ;" );
     fprintf( output, "\n" );
 
     print_line( output, 1,
