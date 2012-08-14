@@ -53,6 +53,8 @@ typedef struct fs_scan_config_t
     whitelist_item_t *ignore_list;
     unsigned int   ignore_count;
 
+	char           completion_command[RBH_PATH_MAX];
+
 } fs_scan_config_t;
 
 
