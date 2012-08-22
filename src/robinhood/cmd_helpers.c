@@ -28,6 +28,7 @@
 #include "xplatform_print.h"
 
 #define SCRUB_TAG "Scrubber"
+#define P2ID_TAG "Path2Id"
 
 /* initially empty array */
 static entry_id_t  * dir_array = NULL;
@@ -228,6 +229,31 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
 
 int Path2Id(const char *path, entry_id_t * id)
 {
+    int rc;
+    unsigned int len;
+    const char * mnt = get_mount_point(&len);
+    char rpath[RBH_PATH_MAX];
+
+    if ( !realpath( path, rpath ) )
+    {
+        rc = -errno;
+        DisplayLog(LVL_CRIT, P2ID_TAG, "Error in realpath(%s): %s",
+                   path, strerror(-rc));
+        return rc;
+    }
+
+    /* check that path is under FS root */
+    if (strncmp(mnt, rpath, len))
+    {
+        /* if path differs from realpath, display both */
+        if (strcmp(path, rpath))
+            DisplayLog(LVL_CRIT, P2ID_TAG, "Error: %s (%s) is not under filesystem root %s",
+                       path, rpath, mnt);
+        else
+            DisplayLog(LVL_CRIT, P2ID_TAG, "Error: %s is not under filesystem root %s",
+                       path, mnt);
+        return -EINVAL;
+    }
 #ifndef _HAVE_FID
     struct stat inode;
     if (lstat(path, &inode))
@@ -238,7 +264,6 @@ int Path2Id(const char *path, entry_id_t * id)
     id->validator = inode.st_ctime;
     return 0;
 #else
-    int rc;
     /* perform path2fid */
     rc = Lustre_GetFidFromPath(path, id);
     return rc;
