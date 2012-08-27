@@ -1269,9 +1269,17 @@ static int StartScan()
         return -1;
     }
 
-    /* @TODO check that partial_root is under FS root */
     if (partial_scan_root)
+    {
+        /* check that partial_root is under FS root */
+        if (strncmp(global_config.fs_path, partial_scan_root, strlen(global_config.fs_path)))
+        {
+            DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR scan root %s is not under fs root %s",
+                        partial_scan_root, global_config.fs_path );
+            return -1;
+        }
         strcpy( p_parent_task->path, partial_scan_root );
+    }
     else
         strcpy( p_parent_task->path, global_config.fs_path );
 
