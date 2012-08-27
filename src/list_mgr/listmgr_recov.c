@@ -32,8 +32,8 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
-#define RECOV_LIST_FIELDS "status,last_mod,size,owner,gr_name,fullpath,backendpath,stripe_count,stripe_size,pool_name"
-#define RECOV_FIELD_COUNT 10
+#define RECOV_LIST_FIELDS "status,last_mod,type,size,owner,gr_name,fullpath,backendpath,stripe_count,stripe_size,pool_name"
+#define RECOV_FIELD_COUNT 11
 
 
 /**
@@ -43,13 +43,15 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
 {
     int  rc, i;
     result_handle_t result;
-    char * status[3];
+    char * status[4];
 
     /* test if a RECOVERY table already exist, and contains entries */
-    rc = db_exec_sql_quiet( &p_mgr->conn, "SELECT status,COUNT(*),SUM(size) FROM "RECOV_TABLE
-                            " GROUP BY status", &result );
+    rc = db_exec_sql_quiet( &p_mgr->conn, "SELECT status,type,COUNT(*),SUM(size) FROM "RECOV_TABLE
+                            " GROUP BY status,type", &result );
     if (rc)
         return rc;
+
+    /* @TODO manage dirs differently */
 
     p_stats->total = 0;
     for (i = 0; i < RS_COUNT; i++ )
@@ -58,7 +60,7 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
         p_stats->status_size[i] = 0;
     }
 
-    while ( (rc = db_next_record( &p_mgr->conn, &result, status, 3 ))
+    while ( (rc = db_next_record( &p_mgr->conn, &result, status, 4 ))
             != DB_END_OF_LIST )
     {
         long long cnt;
@@ -66,11 +68,11 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
         if (rc)
             return rc;
 
-        cnt = str2bigint( status[1] );
+        cnt = str2bigint( status[2] );
         if ( cnt == -1LL)
             return DB_INVALID_ARG;
 
-        sz = str2size(  status[2] );
+        sz = str2size(  status[3] );
         if ( sz == -1LL)
             return DB_INVALID_ARG;
 
@@ -80,22 +82,30 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
         {
             int st = str2int( status[0] );
 
-            switch (st)
+            if (strcasecmp(status[1], STR_TYPE_DIR) != 0) /* non directory */
             {
-                case STATUS_NEW:
-                    p_stats->status_count[RS_NOBACKUP] += cnt;
-                    p_stats->status_size[RS_NOBACKUP] += sz;
-                    break;
-                case STATUS_MODIFIED:
-                case STATUS_ARCHIVE_RUNNING:
-                    p_stats->status_count[RS_DELTA] += cnt;
-                    p_stats->status_size[RS_DELTA] += sz;
-                    break;
-                case STATUS_SYNCHRO:
-                case STATUS_RELEASED:
-                    p_stats->status_count[RS_OK] += cnt;
-                    p_stats->status_size[RS_OK] += sz;
-                    break;
+                switch (st)
+                {
+                    case STATUS_NEW:
+                        p_stats->status_count[RS_NOBACKUP] += cnt;
+                        p_stats->status_size[RS_NOBACKUP] += sz;
+                        break;
+                    case STATUS_MODIFIED:
+                    case STATUS_ARCHIVE_RUNNING:
+                        p_stats->status_count[RS_DELTA] += cnt;
+                        p_stats->status_size[RS_DELTA] += sz;
+                        break;
+                    case STATUS_SYNCHRO:
+                    case STATUS_RELEASED:
+                        p_stats->status_count[RS_OK] += cnt;
+                        p_stats->status_size[RS_OK] += sz;
+                        break;
+                }
+            }
+            else
+            {
+                p_stats->status_count[RS_OK] += cnt;
+                p_stats->status_size[RS_OK] += sz;
             }
         }
     }

@@ -471,7 +471,7 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
 
 #define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
                           ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
-                          ATTR_MASK_status | ATTR_MASK_stripe_info )
+                          ATTR_MASK_status | ATTR_MASK_stripe_info | ATTR_MASK_type )
 
 #define SOFTRM_MASK ( ATTR_MASK_fullpath | ATTR_MASK_backendpath )
 

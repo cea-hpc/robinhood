@@ -203,11 +203,49 @@ static int entry2backend_path( const entry_id_t * p_id,
                                char * backend_path )
 {
     int pathlen;
+    char rel_path[RBH_PATH_MAX];
 
     if ( ATTR_MASK_TEST(p_attrs_in, backendpath) )
+    {
        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "%s: previous backend_path: %s",
                    (what_for == FOR_LOOKUP)?"LOOKUP":"NEW_COPY",
                    ATTR(p_attrs_in, backendpath) );
+    }
+    else if (ATTR_MASK_TEST(p_attrs_in, type) &&
+             !strcasecmp(ATTR(p_attrs_in, type), STR_TYPE_DIR))
+    {
+        if (ATTR_MASK_TEST(p_attrs_in, fullpath) &&
+            relative_path(ATTR(p_attrs_in, fullpath), global_config.fs_path,
+                          rel_path ) == 0)
+        {
+            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a directory: backend path is the same",
+                       ATTR(p_attrs_in, fullpath));
+
+            if (!strcmp(config.root, "/")) /* root is '/' */
+                sprintf(backend_path, "/%s", rel_path);
+            else
+                sprintf(backend_path, "%s/%s", config.root, rel_path);
+        }
+        else /* we don't have fullpath available */
+        {
+            const char * fname;
+
+            if ( ATTR_MASK_TEST(p_attrs_in, name) )
+                fname = ATTR(p_attrs_in, name);
+            else
+                fname = UNK_NAME;
+
+            /* backup entry to a special dir */
+            if ( !strcmp(config.root, "/") ) /* root is '/' */
+                sprintf(backend_path, "/%s/%s", UNK_PATH, fname);
+            else
+                sprintf(backend_path, "%s/%s/%s", config.root, UNK_PATH, fname );
+        }
+
+        /* clean bad characters */
+        clean_bad_chars(backend_path);
+        return 0;
+    }
 #ifdef HAVE_SHOOK
     else
     {
@@ -230,8 +268,6 @@ static int entry2backend_path( const entry_id_t * p_id,
     }
     else /* in any other case, build a path from scratch */
     {
-        char rel_path[RBH_PATH_MAX];
-
         /* if the fullpath is available, build human readable path */
         if ( ATTR_MASK_TEST(p_attrs_in, fullpath) &&
              relative_path( ATTR(p_attrs_in, fullpath), global_config.fs_path,
@@ -1241,179 +1277,219 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     else
         backend_path = ATTR( p_attrs_old, backendpath );
 
-    /* test if this copy exists */
-    if ( lstat( backend_path, &st_bk ) != 0 )
+    /* if the entry is a directory, create it in filesystem and set its atributes from DB */
+    if (ATTR_MASK_TEST(p_attrs_old, type) && 
+        !strcasecmp(ATTR(p_attrs_old, type), STR_TYPE_DIR))
     {
-        rc = -errno;
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
-                    backend_path, strerror(-rc) );
-        if (rc == -ENOENT )
-            return RS_NOBACKUP;
-        else
+        rc = mkdir_recurse(fspath, 0750, TO_FS);
+        if (rc)
             return RS_ERROR;
-    }
 
-    ATTR_MASK_INIT( &attr_bk );
-    /* merge missing posix attrs to p_attrs_old */
-    PosixStat2EntryAttr( &st_bk, &attr_bk, TRUE );
-    /* leave attrs unchanged if they are already set in p_attrs_old */
-    ListMgr_MergeAttrSets( p_attrs_old, &attr_bk, FALSE );
+        /* extract dir path */
+        strcpy( tmp, fspath );
+        destdir = dirname( tmp );
+        if ( destdir == NULL )
+        {
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+                        fspath );
+            return RS_ERROR;
+        }
 
-    /* test if the target does not already exist */
-    rc = lstat( ATTR(p_attrs_old, fullpath), &st_dest );
-    if ( rc == 0 )
-    {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: cannot recover '%s': already exists",
-                    fspath );
-        return RS_ERROR;
-    }
-    else if ( (rc = -errno) != -ENOENT )
-    {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unexpected error performing lstat(%s): %s",
-                    fspath, strerror(-rc) );
-        return RS_ERROR;
-    }
-
-    /* check that this is not a cross-device import or recovery (entry could not be moved
-     * in that case) */
-    if (backend_dev != st_bk.st_dev)
-    {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Source file %s is not in the same device as target %s",
-                    backend_path, config.root );
-        return RS_ERROR;
-    }
-
-    /* recursively create the parent directory */
-    /* extract dir path */
-    strcpy( tmp, fspath );
-    destdir = dirname( tmp );
-    if ( destdir == NULL )
-    {
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
-                    fspath );
-        return RS_ERROR;
-    }
-
-    rc = mkdir_recurse( destdir, 0750, TO_FS );
-    if (rc)
-        return RS_ERROR;
-
-    /* retrieve parent fid */
+        /* retrieve parent fid */
 #ifdef _HAVE_FID
-    rc = Lustre_GetFidFromPath( destdir, &parent_id );
-    if (rc)
-        return RS_ERROR;
+        rc = Lustre_GetFidFromPath( destdir, &parent_id );
+        if (rc)
+            return RS_ERROR;
 #else
-    if (lstat(destdir, &parent_stat))
-    {
-        rc = errno;
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: cannot stat target directory '%s': %s",
-                    destdir, strerror(rc) );
-        return RS_ERROR;
+        if (lstat(destdir, &parent_stat))
+        {
+            rc = errno;
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: cannot stat target directory '%s': %s",
+                        destdir, strerror(rc) );
+            return RS_ERROR;
+        }
+        /* build id from dev/inode*/
+        parent_id.inode = parent_stat.st_ino;
+        parent_id.device = parent_stat.st_dev;
+        parent_id.validator = parent_stat.st_ctime;
+#endif
     }
-    /* build id from dev/inode*/
-    parent_id.inode = parent_stat.st_ino;
-    parent_id.device = parent_stat.st_dev;
-    parent_id.validator = parent_stat.st_ctime;
-#endif
-
-    /* restore FILE entry */
-    if ( S_ISREG( st_bk.st_mode ) )
+    else /* non directory */
     {
-        struct utimbuf utb;
-
-#ifdef _LUSTRE
-        /* restripe the file in Lustre */
-        if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
-            File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
-        else {
-#endif
-        fd = creat( fspath, st_bk.st_mode & 07777 );
-        if (fd < 0)
+        /* test if this copy exists */
+        if ( lstat( backend_path, &st_bk ) != 0 )
         {
             rc = -errno;
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: couldn't create '%s': %s",
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
+                        backend_path, strerror(-rc) );
+            if (rc == -ENOENT )
+                return RS_NOBACKUP;
+            else
+                return RS_ERROR;
+        }
+
+        ATTR_MASK_INIT( &attr_bk );
+        /* merge missing posix attrs to p_attrs_old */
+        PosixStat2EntryAttr( &st_bk, &attr_bk, TRUE );
+        /* leave attrs unchanged if they are already set in p_attrs_old */
+        ListMgr_MergeAttrSets( p_attrs_old, &attr_bk, FALSE );
+
+        /* test if the target does not already exist */
+        rc = lstat( ATTR(p_attrs_old, fullpath), &st_dest );
+        if ( rc == 0 )
+        {
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: cannot recover '%s': already exists",
+                        fspath );
+            return RS_ERROR;
+        }
+        else if ( (rc = -errno) != -ENOENT )
+        {
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unexpected error performing lstat(%s): %s",
                         fspath, strerror(-rc) );
             return RS_ERROR;
         }
-        else
-            close(fd);
-#ifdef _LUSTRE
-        }
-#endif
 
-
-#ifdef HAVE_PURGE_POLICY
-    /* this backend is restore/release capable.
-     * Recover the entry in released state (md only),
-     * so it will be recovered at first open.
-     */
-#ifdef HAVE_SHOOK
-        /* set the file in "released" state */
-        rc = shook_set_status(fspath, SS_RELEASED);
-        if (rc)
+        /* check that this is not a cross-device import or recovery (entry could not be moved
+         * in that case) */
+        if (backend_dev != st_bk.st_dev)
         {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
-                        fspath, strerror(-rc));
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Source file %s is not in the same device as target %s",
+                        backend_path, config.root );
             return RS_ERROR;
         }
 
-        rc = truncate( fspath, st_bk.st_size );
-        if (rc)
+        /* recursively create the parent directory */
+        /* extract dir path */
+        strcpy( tmp, fspath );
+        destdir = dirname( tmp );
+        if ( destdir == NULL )
         {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
-                        st_bk.st_size, fspath, strerror(-rc));
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+                        fspath );
             return RS_ERROR;
         }
+
+        rc = mkdir_recurse( destdir, 0750, TO_FS );
+        if (rc)
+            return RS_ERROR;
+
+        /* retrieve parent fid */
+#ifdef _HAVE_FID
+        rc = Lustre_GetFidFromPath( destdir, &parent_id );
+        if (rc)
+            return RS_ERROR;
 #else
-    #error "Unexpected case"
-#endif
-#else
-        /* full restore (even data) */
-        rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
-                                    backend_path, fspath );
-        if (rc)
-            return RS_ERROR;
-        /* TODO: remove partial copy */
-#endif
-
-        /* set the same mode as in the backend */
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
-                    fspath, st_bk.st_mode & 07777 );
-        if ( chmod( fspath, st_bk.st_mode & 07777 ) )
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore mode for '%s': %s",
-                        fspath, strerror(errno) );
-
-        /* set the same mtime as in the backend */
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring times for '%s': atime=%lu, mtime=%lu",
-                    fspath, st_bk.st_atime, st_bk.st_mtime );
-        utb.actime = st_bk.st_atime;
-        utb.modtime = st_bk.st_mtime;
-        if ( utime( fspath, &utb ) )
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
-                        fspath, strerror(errno) );
-    }
-    else if (S_ISLNK(st_bk.st_mode)) /* restore symlink */
-    {
-        char link[RBH_PATH_MAX] = "";
-
-        /* read link content from backend */
-        if ( readlink(backend_path, link, RBH_PATH_MAX) < 0 )
+        if (lstat(destdir, &parent_stat))
         {
-            rc = -errno;
-            DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink content (%s): %s",
-                        backend_path, strerror(-rc) );
+            rc = errno;
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: cannot stat target directory '%s': %s",
+                        destdir, strerror(rc) );
             return RS_ERROR;
         }
-        /* set it in FS */
-        if ( symlink(link, fspath) != 0 )
+        /* build id from dev/inode*/
+        parent_id.inode = parent_stat.st_ino;
+        parent_id.device = parent_stat.st_dev;
+        parent_id.validator = parent_stat.st_ctime;
+#endif
+
+        /* restore FILE entry */
+        if ( S_ISREG( st_bk.st_mode ) )
         {
-            rc = -errno;
-            DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
-                        fspath, link, strerror(-rc) );
-            return RS_ERROR;
+            struct utimbuf utb;
+
+    #ifdef _LUSTRE
+            /* restripe the file in Lustre */
+            if ( ATTR_MASK_TEST( p_attrs_old, stripe_info ) )
+                File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
+            else {
+    #endif
+            fd = creat( fspath, st_bk.st_mode & 07777 );
+            if (fd < 0)
+            {
+                rc = -errno;
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: couldn't create '%s': %s",
+                            fspath, strerror(-rc) );
+                return RS_ERROR;
+            }
+            else
+                close(fd);
+    #ifdef _LUSTRE
+            }
+    #endif
+
+
+    #ifdef HAVE_PURGE_POLICY
+        /* this backend is restore/release capable.
+         * Recover the entry in released state (md only),
+         * so it will be recovered at first open.
+         */
+    #ifdef HAVE_SHOOK
+            /* set the file in "released" state */
+            rc = shook_set_status(fspath, SS_RELEASED);
+            if (rc)
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
+                            fspath, strerror(-rc));
+                return RS_ERROR;
+            }
+
+            rc = truncate( fspath, st_bk.st_size );
+            if (rc)
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
+                            st_bk.st_size, fspath, strerror(-rc));
+                return RS_ERROR;
+            }
+    #else
+        #error "Unexpected case"
+    #endif
+    #else
+            /* full restore (even data) */
+            rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
+                                        backend_path, fspath );
+            if (rc)
+                return RS_ERROR;
+            /* TODO: remove partial copy */
+    #endif
+
+            /* set the same mode as in the backend */
+            DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
+                        fspath, st_bk.st_mode & 07777 );
+            if ( chmod( fspath, st_bk.st_mode & 07777 ) )
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore mode for '%s': %s",
+                            fspath, strerror(errno) );
+
+            /* set the same mtime as in the backend */
+            DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring times for '%s': atime=%lu, mtime=%lu",
+                        fspath, st_bk.st_atime, st_bk.st_mtime );
+            utb.actime = st_bk.st_atime;
+            utb.modtime = st_bk.st_mtime;
+            if ( utime( fspath, &utb ) )
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
+                            fspath, strerror(errno) );
         }
-    }
+        else if (S_ISLNK(st_bk.st_mode)) /* restore symlink */
+        {
+            char link[RBH_PATH_MAX] = "";
+
+            /* read link content from backend */
+            if ( readlink(backend_path, link, RBH_PATH_MAX) < 0 )
+            {
+                rc = -errno;
+                DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink content (%s): %s",
+                            backend_path, strerror(-rc) );
+                return RS_ERROR;
+            }
+            /* set it in FS */
+            if ( symlink(link, fspath) != 0 )
+            {
+                rc = -errno;
+                DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
+                            fspath, link, strerror(-rc) );
+                return RS_ERROR;
+            }
+        }
+    } /* end if dir/non-dir */
 
     /* set owner, group */
     if ( ATTR_MASK_TEST( p_attrs_old, owner ) || ATTR_MASK_TEST( p_attrs_old, gr_name ) )
@@ -1470,14 +1546,18 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         return RS_ERROR;
     }
 
-    /* compare restored size and mtime with the one saved in the DB (for warning purpose) */
-    if ( ATTR_MASK_TEST(p_attrs_old, size) && (st_dest.st_size != ATTR(p_attrs_old, size)) )
+    /* compare restored size and mtime with the one saved in the DB (for warning purpose)
+     * (not for directories) */
+    if (!S_ISDIR(st_dest.st_mode))
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%zu) is "
-                    "different from the last known size in filesystem (%"PRIu64"): "
-                    "it should have been modified in filesystem after the last backup.",
-                    fspath, st_dest.st_size, ATTR(p_attrs_old, size) );
-        delta = TRUE;
+        if ( ATTR_MASK_TEST(p_attrs_old, size) && (st_dest.st_size != ATTR(p_attrs_old, size)) )
+        {
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%zu) is "
+                        "different from the last known size in filesystem (%"PRIu64"): "
+                        "it should have been modified in filesystem after the last backup.",
+                        fspath, st_dest.st_size, ATTR(p_attrs_old, size) );
+            delta = TRUE;
+        }
     }
     /* only for files */
     if (S_ISREG(st_dest.st_mode))
@@ -1499,13 +1579,15 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     ATTR_MASK_SET( p_attrs_new, fullpath );
     /* status is always synchro or released after a recovery */
 #ifdef HAVE_SHOOK
-    ATTR( p_attrs_new, status ) = STATUS_RELEASED;
+    /* only files remain released, others are synchro */
+    if (S_ISREG(st_dest.st_mode))
+        ATTR( p_attrs_new, status ) = STATUS_RELEASED;
+    else
+        ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
 #else
     ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
 #endif
     ATTR_MASK_SET( p_attrs_new, status );
-
-    /* TODO retrieve parent fid */
 
 #ifdef _HAVE_FID
     /* get the new fid */
@@ -1537,52 +1619,55 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     }
 #endif
 
-    /* set the new entry path in backend, according to the new fid */
-    rc = entry2backend_path( p_new_id, p_attrs_new,
-                             FOR_NEW_COPY,
-                             ATTR(p_attrs_new, backendpath ) );
-    if (rc)
-        return RS_ERROR;
-    ATTR_MASK_SET( p_attrs_new, backendpath );
-
-    /* recursively create the parent directory */
-    /* extract dir path */
-    strcpy( tmp, ATTR(p_attrs_new, backendpath) );
-    destdir = dirname( tmp );
-    if ( destdir == NULL )
+    if (!S_ISDIR(st_dest.st_mode))
     {
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
-                    ATTR(p_attrs_new, backendpath) );
-        return -EINVAL;
-    }
+        /* set the new entry path in backend, according to the new fid */
+        rc = entry2backend_path( p_new_id, p_attrs_new,
+                                 FOR_NEW_COPY,
+                                 ATTR(p_attrs_new, backendpath ) );
+        if (rc)
+            return RS_ERROR;
+        ATTR_MASK_SET( p_attrs_new, backendpath );
 
-    rc = mkdir_recurse( destdir, 0750, TO_BACKEND );
-    if (rc)
-        return RS_ERROR;
-
-    /* rename the entry in backend */
-    if ( strcmp( ATTR(p_attrs_new, backendpath), backend_path ) != 0 )
-    {
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "Moving the entry in backend: '%s'->'%s'",
-                    backend_path, ATTR(p_attrs_new, backendpath) );
-        if ( rename( backend_path, ATTR(p_attrs_new, backendpath) ) )
+        /* recursively create the parent directory */
+        /* extract dir path */
+        strcpy( tmp, ATTR(p_attrs_new, backendpath) );
+        destdir = dirname( tmp );
+        if ( destdir == NULL )
         {
-            rc = -errno;
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not move entry in backend ('%s'->'%s'): %s",
-                        backend_path, ATTR(p_attrs_new, backendpath), strerror(-rc) );
-            /* keep the old path */
-            strcpy( ATTR(p_attrs_new, backendpath), backend_path );
+            DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+                        ATTR(p_attrs_new, backendpath) );
+            return -EINVAL;
         }
-    }
+
+        rc = mkdir_recurse( destdir, 0750, TO_BACKEND );
+        if (rc)
+            return RS_ERROR;
+
+        /* rename the entry in backend */
+        if ( strcmp( ATTR(p_attrs_new, backendpath), backend_path ) != 0 )
+        {
+            DisplayLog( LVL_FULL, RBHEXT_TAG, "Moving the entry in backend: '%s'->'%s'",
+                        backend_path, ATTR(p_attrs_new, backendpath) );
+            if ( rename( backend_path, ATTR(p_attrs_new, backendpath) ) )
+            {
+                rc = -errno;
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not move entry in backend ('%s'->'%s'): %s",
+                            backend_path, ATTR(p_attrs_new, backendpath), strerror(-rc) );
+                /* keep the old path */
+                strcpy( ATTR(p_attrs_new, backendpath), backend_path );
+            }
+        }
 
 #ifdef HAVE_SHOOK
-    /* save new backendpath to filesystem */
-    /* XXX for now, don't manage several hsm_index */
-    rc = shook_set_hsm_info( fspath, ATTR(p_attrs_new, backendpath), 0 );
-    if (rc)
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
-                    fspath, rc );
+        /* save new backendpath to filesystem */
+        /* XXX for now, don't manage several hsm_index */
+        rc = shook_set_hsm_info( fspath, ATTR(p_attrs_new, backendpath), 0 );
+        if (rc)
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
+                        fspath, rc );
 #endif
+    }
 
     if (delta)
         return RS_DELTA;
