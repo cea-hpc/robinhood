@@ -1773,7 +1773,8 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
         return;
     }
 
-    print_attr_list(0, list, list_cnt, NULL, CSV(flags));
+    if (!(NOHEADER(flags)))
+        print_attr_list(0, list, list_cnt, NULL, CSV(flags));
 
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
@@ -2170,7 +2171,8 @@ void report_topdirs( unsigned int count, int flags )
         return;
     }
 
-    print_attr_list(1, list, list_cnt, NULL, CSV(flags));
+    if (!(NOHEADER(flags)))
+        print_attr_list(1, list, list_cnt, NULL, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
@@ -2256,7 +2258,8 @@ void report_topsize( unsigned int count, int flags )
         return;
     }
 
-    print_attr_list(1, list, list_cnt, NULL, CSV(flags));
+    if (!(NOHEADER(flags)))
+        print_attr_list(1, list, list_cnt, NULL, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
@@ -2353,7 +2356,8 @@ void report_toppurge( unsigned int count, int flags )
         return;
     }
 
-    print_attr_list(1, list, list_cnt, NULL, CSV(flags));
+    if (!(NOHEADER(flags)))
+        print_attr_list(1, list, list_cnt, NULL, CSV(flags));
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
@@ -2450,7 +2454,8 @@ void report_toprmdir( unsigned int count, int flags )
         return;
     }
 
-    print_attr_list_custom(1, list, list_cnt, NULL, CSV(flags), "rmdir_deadline", 20);
+    if (!(NOHEADER(flags)))
+        print_attr_list_custom(1, list, list_cnt, NULL, CSV(flags), "rmdir_deadline", 20);
 
     index = 0;
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
