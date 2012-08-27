@@ -782,10 +782,11 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 #define PREV_SCAN_START_TIME  "PrevScanStartTime"
 #define PREV_SCAN_END_TIME    "PrevScanEndTime"
 
-#define SCAN_STATUS_DONE      "done"
-#define SCAN_STATUS_RUNNING   "running"
-#define SCAN_STATUS_ABORTED   "aborted"
-#define SCAN_STATUS_PARTIAL   "partial"
+#define SCAN_STATUS_DONE       "done"
+#define SCAN_STATUS_RUNNING    "running"
+#define SCAN_STATUS_ABORTED    "aborted"
+#define SCAN_STATUS_INCOMPLETE "incomplete"
+#define SCAN_STATUS_PARTIAL    "partial"
 
 // Changelog statitics
 #define CL_LAST_READ_ID       "ChangelogLastId"

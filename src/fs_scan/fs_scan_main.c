@@ -47,7 +47,7 @@ static void   *scan_starter( void *arg )
         return NULL;
     }
 
-    /* no a one-shot mode */
+    /* not a one-shot mode */
     while ( !terminate )
     {
         rc = Robinhood_CheckScanDeadlines(  );
@@ -63,13 +63,16 @@ static void   *scan_starter( void *arg )
 
 
 /** Start FS Scan info collector */
-int FSScan_Start( fs_scan_config_t *module_config, int flags )
+int FSScan_Start( fs_scan_config_t *module_config, int flags, const char * partial_root )
 {
     int            rc;
     fs_scan_config = *module_config;
     fsscan_flags = flags;
+    partial_scan_root = partial_root;
 
-    rc = Robinhood_InitScanModule(  );
+    /* @TODO check that partial_root is under fs_root */
+
+    rc = Robinhood_InitScanModule();
     if ( rc )
         return rc;
 
@@ -171,7 +174,7 @@ int FSScan_DumpStats(  )
 
         DisplayLog( LVL_MAJOR, "STATS", "duration    = %s (%u s)", tmp_buff, stats.last_duration );
         DisplayLog( LVL_MAJOR, "STATS", "status      = %s",
-                    ( stats.scan_complete ? "complete" : "partial" ) );
+                    ( stats.scan_complete ? "complete" : "incomplete" ) );
     }
 
     if ( stats.current_scan_interval != 0 )

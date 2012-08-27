@@ -41,6 +41,7 @@
 
 fs_scan_config_t fs_scan_config;
 int              fsscan_flags = 0;
+const char      *partial_scan_root = NULL;
 
 #define fsscan_once ( fsscan_flags & FLAG_ONCE )
 
@@ -282,6 +283,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     int     st, i;
     time_t  last_action = 0;
     char    timestamp[128];
+    char    tmp[1024];
     unsigned int count = 0;
 
     /* store the last scan end date */
@@ -312,8 +314,14 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
     FSScan_StoreStats( &lmgr ) ;
     /* and update the scan status */
-    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, scan_complete ?  SCAN_STATUS_DONE :
-                                             SCAN_STATUS_PARTIAL );
+    if (partial_scan_root)
+    {
+        snprintf(tmp, 1024, "%s (%s)", SCAN_STATUS_PARTIAL, partial_scan_root);
+        ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, tmp );
+    }
+    else
+        ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS,
+                        scan_complete?SCAN_STATUS_DONE:SCAN_STATUS_INCOMPLETE );
 
     /* if scan is errorneous and no entries was listed, don't rm old entries */
     if ((count > 0) || scan_complete)
@@ -334,6 +342,13 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         /* set update time  */
         ATTR_MASK_SET( &op.entry_attr, md_update );
         ATTR( &op.entry_attr, md_update ) = scan_start_time;
+
+        /* set root (if partial scan) */
+        if (partial_scan_root)
+        {
+            ATTR_MASK_SET( &op.entry_attr, fullpath );
+            strcpy(ATTR(&op.entry_attr, fullpath), partial_scan_root);
+        }
 
         op.entry_attr_is_set = TRUE;
 
@@ -369,7 +384,10 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     /* release the lock */
     V( lock_scan );
 
-    DisplayLog( LVL_EVENT, FSSCAN_TAG, "File list of %s has been updated", global_config.fs_path );
+    if (partial_scan_root)
+        DisplayLog( LVL_EVENT, FSSCAN_TAG, "File list of %s has been updated", partial_scan_root);
+    else
+        DisplayLog( LVL_EVENT, FSSCAN_TAG, "File list of %s has been updated", global_config.fs_path );
 
     /* sending batched alerts */
     DisplayLog( LVL_VERB, FSSCAN_TAG, "Sending batched alerts, if any" );
@@ -463,7 +481,8 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
 
                 DisplayLog( LVL_MAJOR, FSSCAN_TAG,
                             "Full scan of %s completed, %u entries found (%u errors). Duration = %ld.%02lds",
-                            global_config.fs_path, count, err_count, duree_precise.tv_sec,
+                            partial_scan_root?partial_scan_root:global_config.fs_path,
+                            count, err_count, duree_precise.tv_sec,
                             duree_precise.tv_usec/10000 );
 
                 DisplayLog( LVL_EVENT, FSSCAN_TAG, "Flushing pipeline..." );
@@ -800,7 +819,7 @@ static void   *Thr_scan( void *arg_thread )
         gettimeofday( &start_dir, NULL );
 
         /* if this is the root task, check that the filesystem is still mounted */
-        if ( p_task->depth == 0 )
+        if ( p_task->parent_task == NULL )
         {
             /* retrieve filesystem device id */
             if ( stat( p_task->path, &inode_entree ) == -1 )
@@ -1178,12 +1197,46 @@ int Robinhood_StopScanModule(  )
 }
 
 
+static unsigned int path_depth(const char * path)
+{
+    const char     *curr;
+    unsigned int   nb1;
+    unsigned int   nb2;
+    /* depth = number of '/' - 1 - depth of root fs.
+     * E.g.: root="/mnt/lustre", path="/mnt/lustre/dir/foo", depth=4-2-1=1
+     */
+
+    nb1 = 0;
+    curr = global_config.fs_path;
+    while ( ( curr = strchr( curr, '/' ) ) )
+    {
+        curr++;
+        nb1++;
+    }
+
+    nb2 = 0;
+    curr = path;
+    while ( ( curr = strchr( curr, '/' ) ) )
+    {
+        curr++;
+        nb2++;
+    }
+    /* decrease '/' count if the path ended with '/' */
+    unsigned int len = strlen(path);
+    if ((len > 1) && (path[len-1] == '/'))
+        nb2 --;
+
+    return nb2 - nb1 - 1;
+}
+
+
 
 /* Start a scan of the filesystem. 
  * This creates a root task and push it to the stack of tasks.
- * Return EBUSY if a scan is already running.
+ * @param partial_root NULL for full scan; subdir path for partial scan
+ * @retval EBUSY if a scan is already running.
  */
-static int StartScan(  )
+static int StartScan()
 {
     robinhood_task_t *p_parent_task;
     char              timestamp[128];
@@ -1197,7 +1250,8 @@ static int StartScan(  )
     {
         V( lock_scan );
         DisplayLog( LVL_MAJOR, FSSCAN_TAG,
-                    "An scan is already running on %s", global_config.fs_path );
+                    "An scan is already running on %s",
+                    partial_scan_root?partial_scan_root:global_config.fs_path );
         return EBUSY;
     }
 
@@ -1210,12 +1264,22 @@ static int StartScan(  )
     {
         V( lock_scan );
         DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                    "ERROR creating scan task for %s", global_config.fs_path );
+                    "ERROR creating scan task for %s",
+                    partial_scan_root?partial_scan_root:global_config.fs_path );
         return -1;
     }
 
-    strcpy( p_parent_task->path, global_config.fs_path );
-    p_parent_task->depth = 0;
+    /* @TODO check that partial_root is under FS root */
+    if (partial_scan_root)
+        strcpy( p_parent_task->path, partial_scan_root );
+    else
+        strcpy( p_parent_task->path, global_config.fs_path );
+
+    if (partial_scan_root)
+        p_parent_task->depth = path_depth(partial_scan_root);
+    else
+        p_parent_task->depth = 0;
+
     p_parent_task->task_finished = FALSE;
 
     /* set the mother task, and remember start time */
@@ -1425,9 +1489,9 @@ int Robinhood_CheckScanDeadlines(  )
 
         DisplayLog( LVL_MAJOR, FSSCAN_TAG,
                     "Starting scan of %s (current scan interval is %s)",
-                    global_config.fs_path, tmp_buff );
+                    partial_scan_root?partial_scan_root:global_config.fs_path, tmp_buff );
 
-        st = StartScan(  );
+        st = StartScan();
 
         if ( st == EBUSY )
         {
@@ -1446,9 +1510,10 @@ int Robinhood_CheckScanDeadlines(  )
     {
         /* retry a scan, if the last was incomplete */
 
-        DisplayLog( LVL_MAJOR, FSSCAN_TAG, "Starting scan of %s", global_config.fs_path );
+        DisplayLog( LVL_MAJOR, FSSCAN_TAG, "Starting scan of %s",
+                    partial_scan_root?partial_scan_root:global_config.fs_path );
 
-        st = StartScan(  );
+        st = StartScan();
 
         if ( st == EBUSY )
         {
