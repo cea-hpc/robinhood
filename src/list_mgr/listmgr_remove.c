@@ -279,8 +279,6 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Creating temporary table" );
 
-printf("filter_main=%s, filter_annex=%s\n", filter_str_main, filter_str_annex);
-
     /* create id table depending on filter */
     if ( filter_main && !( filter_annex || filter_stripe_info || filter_stripe_items ) )
     {
@@ -357,10 +355,18 @@ printf("filter_main=%s, filter_annex=%s\n", filter_str_main, filter_str_annex);
     {
         sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
                  ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-        sprintf( query,
-         "CREATE TEMPORARY TABLE %s AS SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS" FROM " MAIN_TABLE
-         " LEFT JOIN "ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id"
-         " WHERE %s AND %s", tmp_table_name, filter_str_main, filter_str_annex );
+#ifdef HAVE_RM_POLICY
+        if (soft_rm)
+            sprintf( query,
+             "CREATE TEMPORARY TABLE %s AS SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS" FROM " MAIN_TABLE
+             " LEFT JOIN "ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id"
+             " WHERE %s AND %s", tmp_table_name, filter_str_main, filter_str_annex );
+        else
+#endif
+            sprintf( query,
+             "CREATE TEMPORARY TABLE %s AS SELECT "MAIN_TABLE".id FROM " MAIN_TABLE
+             " LEFT JOIN "ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id"
+             " WHERE %s AND %s", tmp_table_name, filter_str_main, filter_str_annex );
     }
     else
     {
