@@ -2559,6 +2559,8 @@ void report_topuser( unsigned int count, int flags )
         opt.force_no_acct = FALSE;
 
     /* select only files */
+    lmgr_simple_filter_init( &filter );
+
     fv.val_str = STR_TYPE_FILE;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
     is_filter = TRUE;
@@ -2566,14 +2568,8 @@ void report_topuser( unsigned int count, int flags )
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
     /* is a filter specified? */
-    if ( is_filter )
-        it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT,
-                             SPROF(flags)?&size_profile:NULL, &filter, &opt );
-    else
-        it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT,
-                             SPROF(flags)?&size_profile:NULL, NULL, &opt );
-
-
+    it = ListMgr_Report( &lmgr, user_info, TOPUSERCOUNT,
+                         SPROF(flags)?&size_profile:NULL, &filter, &opt );
     if ( it == NULL )
     {
         DisplayLog( LVL_CRIT, REPORT_TAG,

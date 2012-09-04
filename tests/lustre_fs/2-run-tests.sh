@@ -5426,14 +5426,16 @@ function test_report_generation_1
 	#$REPORT -f ./cfg/$config_file --fs-info -c || error "performing FS statistics (--fs-info)"
 	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs-info)"
 	logFile=report.out
+
+    typeValues="dir;file;symlink"
+  	countValues="8;6;5"
     if (( $is_hsmlite + $is_lhsm != 0 )); then
-	    typeValues="new"
-    	countValues="9"
+        # type counts are in 3rd column (beacause of status column)
+   	    colSearch=3
     else
-	    typeValues="dir;file;symlink"
-    	countValues="8;6;5"
+        # type counts are in 2nd column
+   	    colSearch=2
     fi
-   	colSearch=2
     [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
 	
@@ -5442,10 +5444,13 @@ function test_report_generation_1
 	echo -e "\n 4-FileClasses summary..."
 	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
 	typeValues="test_file_type;test_link_type"
-	#typeValues="test_file_type"
 	countValues="6;5"
-	#countValues="6"
-	colSearch=2
+    if (( $is_hsmlite + $is_lhsm != 0 )); then
+    	colSearch=3
+    else
+    	colSearch=2
+    fi
+
 	#echo "arguments= $logFile $typeValues $countValues $colSearch**"
     [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FileClasses summary (--class)"

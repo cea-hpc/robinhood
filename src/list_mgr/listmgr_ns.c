@@ -128,7 +128,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 
         if ( annex_table )
             filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                       T_ANNEX, ( filter_main > 0 ), TRUE );
+                                       T_ANNEX, FALSE, TRUE );
         else
             filter_annex = 0;
 
