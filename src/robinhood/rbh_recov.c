@@ -353,7 +353,7 @@ int recov_resume( int retry_errors )
         }
 
         /* TODO process entries asynchronously, in parallel, in separate threads*/
-        st = rbhext_recover( &id, &attrs, &new_id, &new_attrs );
+        st = rbhext_recover( &id, &attrs, &new_id, &new_attrs, NULL );
 
         if ( (st == RS_OK) || (st == RS_DELTA) )
         {

@@ -51,6 +51,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	RH="$RBH_BINDIR/rbh-backup $RBH_OPT"
 	REPORT="$RBH_BINDIR/rbh-backup-report $RBH_OPT"
 	RECOV="$RBH_BINDIR/rbh-backup-recov $RBH_OPT"
+	IMPORT="$RBH_BINDIR/rbh-backup-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-backup-find
 	DU=$RBH_BINDIR/rbh-backup-du
 	CMD=rbh-backup
@@ -67,6 +68,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	RH="$RBH_BINDIR/rbh-shook $RBH_OPT"
 	REPORT="$RBH_BINDIR/rbh-shook-report $RBH_OPT"
 	RECOV="$RBH_BINDIR/rbh-shook-recov $RBH_OPT"
+	IMPORT="$RBH_BINDIR/rbh-shook-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-shook-find
 	DU=$RBH_BINDIR/rbh-shook-du
 	CMD=rbh-shook
@@ -232,6 +234,27 @@ function clean_fs
 	fi
 
 }
+
+function ensure_init_backend()
+{
+	mnted=`mount | grep $BKROOT | grep loop | wc -l`
+    if (( $mnted == 0 )); then
+        LOOP_FILE=/tmp/rbh.loop.cont
+        if [[ ! -s $LOOP_FILE ]]; then
+            echo "creating file container $LOOP_FILE..."
+            dd if=/dev/zero of=$LOOP_FILE bs=1M count=400 || return 1
+            echo "formatting as ext3..."
+            mkfs.ext3 -F $LOOP_FILE || return 1
+        fi
+
+        echo "Mounting $LOOP_FILE as $BKROOT"
+        mount -o loop -t ext4 $LOOP_FILE $BKROOT || return 1
+    	echo "Cleaning backend content..."
+		find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
+    fi
+    return 0
+}
+
 
 POOL1=ost0
 POOL2=ost1
@@ -3386,6 +3409,228 @@ function recovery_test
 	rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
 }
 
+function import_test
+{
+	config_file=$1
+	flavor=$2
+	policy_str="$3"
+
+	if (( $is_hsmlite == 0 )); then
+		echo "Backup test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+    ensure_init_backend || error "Error initializing backend $BKROOT"
+
+    # initial scan
+    echo "0- initial scan..."
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 2>/dev/null || error "scanning"
+    
+
+    # create files in backend
+    echo "1- populating backend (import dir)..."
+
+    # empty dir1
+    mkdir -p $BKROOT/import/dir1
+    # dir2 with files and subdir
+    mkdir -p $BKROOT/import/dir2/sub1 #subdir with files
+    mkdir -p $BKROOT/import/dir2/sub2 #empty subdir
+    # files
+    dd if=/dev/zero of=$BKROOT/import/dir2/file1 bs=1k count=5 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$BKROOT/import/dir2/file2 bs=1k count=10 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$BKROOT/import/dir2/sub1/file3 bs=1k count=15 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$BKROOT/import/dir2/sub1/file4 bs=1k count=20 2>/dev/null || error "creating file"
+    ln -s "dummy symlink content" $BKROOT/import/dir2/sub1/link.1 || error "creating symlink"
+    ln -s "file4" $BKROOT/import/dir2/sub1/link.2 || error "creating symlink"
+
+    chown -hR testuser:testgroup $BKROOT/import || error "setting user/group in $BKROOT/import"
+    # different times
+    touch -t 201012011234 $BKROOT/import/dir2/file1
+    touch -t 201012021234 $BKROOT/import/dir2/file2
+    touch -t 201012031234 $BKROOT/import/dir2/sub1/file3
+    touch -t 201012041234 $BKROOT/import/dir2/sub1/file4
+    # different rights
+    chmod 755 $BKROOT/import/dir1
+    chmod 750 $BKROOT/import/dir2
+    chmod 700 $BKROOT/import/dir2/sub1
+    chmod 644 $BKROOT/import/dir2/file1
+    chmod 640 $BKROOT/import/dir2/file2
+    chmod 600 $BKROOT/import/dir2/sub1/file3
+    chmod 755 $BKROOT/import/dir2/sub1/file4
+
+    find $BKROOT -printf "%i %M %u %g %s %T@ %p\n" | sort -k 11 > bk.1
+
+    # 5 directories (imported, dir1, dir2, sub1, sub2) , 4 files, 2 links
+    expect_cnt=11
+    
+	# perform the import
+    echo "2- import to $ROOT..."
+    $IMPORT -l DEBUG -f ./cfg/$config_file $BKROOT/import  $ROOT/dest > recov.log 2>&1 || error "importing data from backend"
+
+    [ "$DEBUG" = "1" ] && cat recov.log
+
+    # "Import summary: 9 entries imported, 0 errors"
+    info=$(grep "Import summary: " recov.log | awk '{print $3"-"$6}')
+    [ "$info" = "$expect_cnt-0" ] || error "unexpected count of imported entries or errors: expected $expect_cnt-0, got $info"
+
+    rm -f recov.log
+
+    # check that every dir has been imported to Lustre
+    echo "3.1-checking dirs..."
+    while read i m u g s t p; do
+        newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
+        read pi pm pu pg ps pt pp < <(find $newp -printf "%i %M %u %g %s %T@ %p\n" -type f || error "Missing dir $newp")
+        [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
+        [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
+        [[ $pg == $g ]] || error "$newp has bad group $pg<>$g"
+    done < <(egrep "^[0-9]+ d" bk.1 | grep import)
+
+    # check that every file has been imported to Lustre with the same size, owner, rights, time
+    # TODO and it has been moved in backed
+    echo "3.2-checking files..."
+    while read i m u g s t p; do
+        newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
+        read pi pm pu pg ps pt pp < <(find $newp -printf "%i %M %u %g %s %T@ %p\n" -type f || error "Missing file $newp")
+        [[ $ps == $s ]] || error "$newp has bad size $ps<>$s"
+        [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
+        [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
+        [[ $pg == $g ]] || error "$newp has bad group $pg<>$g"
+        [[ $pt == $t ]] || error "$newp has bad mtime $pt<>$t"
+
+        newb=$(echo $p | sed -e "s#$BKROOT/import#$BKROOT/dest#")
+        ls -d ${newb}__* || error "${newb}__* not found in backend"
+
+    done < <(egrep "^[0-9]+ -" bk.1 | grep import)
+
+    # check that every link  has been imported to Lustre with the same content, owner, rights
+    # TODO and it has been moved in backed
+    echo "3.3-checking symlinks..."
+    while read i m u g s t p; do
+        newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
+        read pi pm pu pg ps pt pp < <(find $newp -printf "%i %M %u %g %s %T@ %p\n" -type f || error "Missing symlink $newp")
+        [[ $ps == $s ]] || error "$newp has bad size $ps<>$s"
+        [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
+        [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
+        [[ $pg == $g ]] || error "$newp has bad group $pg<>$g"
+
+        newb=$(echo $p | sed -e "s#$BKROOT/import#$BKROOT/dest#")
+        ls -d ${newb}__* || error "${newb}__* not found in backend"
+    done < <(egrep "^[0-9]+ l" bk.1 | grep import)
+
+
+    rm -f bk.1
+
+    return 0
+
+
+	# read changelogs to check there is no side effect
+	if (( $no_log )); then
+		echo "1.2-scan..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+	else
+		echo "1.2-read changelog..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+	fi
+
+	sleep 2
+
+	# all files are new
+	new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep new | cut -d ',' -f 3`
+	echo "$new_cnt files are new"
+	(( $new_cnt == $total )) || error "20 new files expected"
+
+	echo "2.1-archiving files..."
+	# archive and modify files
+	for i in `seq 1 $total`; do
+		if (( $i <= $nb_full )); then
+			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $ROOT/dir.$i/file.$i"
+		elif (( $i <= $(($nb_full+$nb_rename)) )); then
+			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $ROOT/dir.$i/file.$i"
+			mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
+			mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
+			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $ROOT/dir.$i/file.$i"
+			touch "$ROOT/dir.$i/file.$i"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
+			# no backup
+			:
+		fi
+	done
+
+	if (( $no_log )); then
+		echo "2.2-scan..."
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+	else
+		echo "2.2-read changelog..."
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+	fi
+
+	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i > /tmp/report.$$
+	new_cnt=`grep "new" /tmp/report.$$ | cut -d ',' -f 3`
+	mod_cnt=`grep "modified" /tmp/report.$$ | cut -d ',' -f 3`
+	sync_cnt=`grep "synchro" /tmp/report.$$ | cut -d ',' -f 3`
+	[[ -z $new_cnt ]] && new_cnt=0
+	[[ -z $mod_cnt ]] && mod_cnt=0
+	[[ -z $sync_cnt ]] && sync_cnt=0
+
+	echo "new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
+	(( $sync_cnt == $nb_full+$nb_rename )) || error "Nbr of synchro files doesn't match: $sync_cnt != $nb_full + $nb_rename"
+	(( $mod_cnt == $nb_delta )) || error "Nbr of modified files doesn't match: $mod_cnt != $nb_delta"
+	(( $new_cnt == $nb_nobkp )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp"
+
+	# shots before disaster (time is only significant for files)
+	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
+	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+
+	# FS disaster
+	if [[ -n "$ROOT" ]]; then
+		echo "3-Disaster: all FS content is lost"
+		rm  -rf $ROOT/*
+	fi
+
+	# perform the recovery
+	echo "4-Performing recovery..."
+	cp /dev/null recov.log
+	$RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
+
+	$RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+
+	$RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+
+	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
+	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+
+	diff  /tmp/before.$$ /tmp/after.$$ > /tmp/diff.$$
+
+	# checking status and diff result
+	for i in `seq 1 $total`; do
+		if (( $i <= $nb_full )); then
+			grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+		elif (( $i <= $(($nb_full+$nb_rename)) )); then
+			grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log	| egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+			grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i NOT expected to differ"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
+			grep "Restoring $ROOT/dir.$i/file.$i" recov.log	| grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
+			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
+			grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
+			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+		fi
+	done
+
+	rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
+}
+
+
 function check_find
 {
     dir=$1
@@ -6049,21 +6294,7 @@ function TEST_OTHER_PARAMETERS_4
         ((nbError++))
     fi
     
-	mnted=`mount | grep $BKROOT | grep loop | wc -l`
-    if (( $mnted == 0 )); then
-        LOOP_FILE=/tmp/rbh.loop.cont
-        if [[ ! -s $LOOP_FILE ]]; then
-            echo "creating file container $LOOP_FILE..."
-            dd if=/dev/zero of=$LOOP_FILE bs=1M count=400 || exit 1
-            echo "formatting as ext3..."
-            mkfs.ext3 -F $LOOP_FILE || exit 1
-        fi
-
-        echo "Mounting $LOOP_FILE as $BKROOT"
-        mount -o loop -t ext4 $LOOP_FILE $BKROOT || exit 1
-    	echo "Cleaning backend content..."
-		find "$BKROOT" -mindepth 1 -delete 2>/dev/null 
-    fi
+    ensure_init_backend || error "Error initializing backend $BKROOT"
     
     echo "Migrate files"
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
@@ -6276,6 +6507,7 @@ run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
 run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
 run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
 run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
+run_test 503     import_test    test_recov.conf "Import from backend"
 
 
 #### Tests by Sogeti ####

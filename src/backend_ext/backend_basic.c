@@ -1233,7 +1233,8 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
 recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                                attr_set_t * p_attrs_old,
                                entry_id_t * p_new_id,
-                               attr_set_t * p_attrs_new )
+                               attr_set_t * p_attrs_new,
+                               struct stat * bkinfo )
 {
     char bkpath[RBH_PATH_MAX];
     const char * backend_path;
@@ -1285,6 +1286,16 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         if (rc)
             return RS_ERROR;
 
+        if (bkinfo)
+        {
+            /* set the same mode as in the backend */
+            DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
+                        fspath, bkinfo->st_mode & 07777 );
+            if ( chmod( fspath, bkinfo->st_mode & 07777 ) )
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore mode for '%s': %s",
+                            fspath, strerror(errno) );
+        }
+
         /* extract dir path */
         strcpy( tmp, fspath );
         destdir = dirname( tmp );
@@ -1317,7 +1328,9 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     else /* non directory */
     {
         /* test if this copy exists */
-        if ( lstat( backend_path, &st_bk ) != 0 )
+        if (bkinfo)
+            st_bk=*bkinfo;
+        else if ( lstat( backend_path, &st_bk ) != 0 )
         {
             rc = -errno;
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
@@ -1647,7 +1660,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         /* rename the entry in backend */
         if ( strcmp( ATTR(p_attrs_new, backendpath), backend_path ) != 0 )
         {
-            DisplayLog( LVL_FULL, RBHEXT_TAG, "Moving the entry in backend: '%s'->'%s'",
+            DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Moving the entry in backend: '%s'->'%s'",
                         backend_path, ATTR(p_attrs_new, backendpath) );
             if ( rename( backend_path, ATTR(p_attrs_new, backendpath) ) )
             {

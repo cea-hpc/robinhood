@@ -164,11 +164,12 @@ static inline void display_version( char *bin_name )
 
 static inline int import_helper(const char       *backend_path,
                                 char             *tgt_path, /* in/out */
-                                char             *new_backend_path)
+                                char             *new_backend_path,
+                                struct stat      *src_md)
 {
     entry_id_t old_id, new_id;
     recov_status_t st;
-    attr_set_t     attrs, new_attrs;
+    attr_set_t     attrs, new_attrs, src_attrs;
     int rc;
 
     /* to check src path */
@@ -210,16 +211,23 @@ static inline int import_helper(const char       *backend_path,
     ATTR_MASK_SET( &attrs, fullpath );
     strcpy( ATTR( &attrs, fullpath), tgt_path );
 
+    /* merge with source MD (but don't override) */
+    if (src_md)
+    {
+        PosixStat2EntryAttr(src_md, &src_attrs, TRUE);
+        ListMgr_MergeAttrSets( &attrs, &src_attrs, FALSE);
+    }
+
     /* create file in Lustre */
-    st = rbhext_recover( &old_id, &attrs, &new_id, &new_attrs );
+    st = rbhext_recover( &old_id, &attrs, &new_id, &new_attrs, src_md );
     if ( (st == RS_OK) || (st == RS_DELTA) )
     {
-        printf("Success\n");
+        printf("\tSuccess\n");
 
         /* insert or update it in the db */
         rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
         if ( rc == 0 )
-            printf("Entry successfully updated in the dabatase\n");
+            printf("\tEntry successfully updated in the dabatase\n");
         else
             fprintf(stderr, "ERROR %d inserting entry in the database\n", rc );
         return rc;
@@ -233,7 +241,8 @@ static inline int import_helper(const char       *backend_path,
 
 
 static int perform_import(const char * src_path, const char * tgt_path,
-                          uint64_t * import_count, uint64_t * err_count)
+                          uint64_t * import_count, uint64_t * err_count,
+                          struct stat *md_in)
 {
     int            rc;
 
@@ -245,9 +254,12 @@ static int perform_import(const char * src_path, const char * tgt_path,
     struct dirent direntry;
     struct dirent *dircookie;
     struct stat   md, src_md, tgt_md;
+    int dir_init_err = 0; /* errors before importing the directory */
 
     printf("%s\n", src_path);
-    if (lstat(src_path, &src_md) != 0)
+    if (md_in)
+        src_md = *md_in;
+    else if (lstat(src_path, &src_md) != 0)
     {
         rc = -errno;
         DisplayLog(LVL_CRIT, LOGTAG, "ERROR: lstat failed on %s: %s",
@@ -270,12 +282,23 @@ static int perform_import(const char * src_path, const char * tgt_path,
             sprintf(fs_path, "%s/%s", tgt_path, basename(bk_path));
         }
 
-        if ((rc = import_helper(src_path, fs_path, new_bk_path)))
+        if ((rc = import_helper(src_path, fs_path, new_bk_path, &src_md)))
             (*err_count)++;
         else
             (*import_count)++;
 
         return rc;
+    }
+    else
+    {
+        /* 2nd arg of import_helper is in/out */
+        strcpy(fs_path, tgt_path);
+
+        /* import directory (create in the backend with the same rights and owner) */
+        if ((rc = import_helper(src_path, fs_path, new_bk_path, &src_md)))
+            (*err_count)++;
+        else
+            (*import_count)++;
     }
 
     /* scan bkpath */
@@ -288,6 +311,7 @@ static int perform_import(const char * src_path, const char * tgt_path,
         (*err_count)++;
         return rc;
     }
+    dir_init_err = *err_count;
 
     while (1)
     {
@@ -325,19 +349,33 @@ static int perform_import(const char * src_path, const char * tgt_path,
         if (S_ISDIR(md.st_mode))
         {
             /* recurse */
-            rc = perform_import(bk_path, fs_path, import_count, err_count);
+            rc = perform_import(bk_path, fs_path, import_count, err_count, &md);
             if (rc)
                 continue;
         }
         else
         {
-            if (import_helper(bk_path, fs_path, new_bk_path))
+            if (import_helper(bk_path, fs_path, new_bk_path, &md))
                 (*err_count)++;
             else
                 (*import_count)++;
         }
     }
     closedir(dirp);
+
+    /* no error when importing this directory => remove it from source dir */
+    if (dir_init_err == *err_count)
+    {
+        if (rmdir(src_path))
+        {
+            DisplayLog(LVL_MAJOR, LOGTAG, "Cannot remove source directory %s: %s",
+                       src_path, strerror(errno));
+            (*err_count)++;
+        }
+        else
+            printf("Removed empty source directory %s\n", src_path);
+    }
+
     return 0;
 }
 
@@ -504,7 +542,7 @@ int main( int argc, char **argv )
         exit(1);
     }
 
-    rc = perform_import(argv[optind], argv[optind+1], &total, &err);
+    rc = perform_import(argv[optind], argv[optind+1], &total, &err, NULL);
     if (rc)
         fprintf(stderr, "Import terminated with error %d\n", rc);
     else if (force_stop)

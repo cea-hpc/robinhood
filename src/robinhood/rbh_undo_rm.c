@@ -381,7 +381,7 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
     }
 
     /* copy file to Lustre */
-    st = rbhext_recover( id, &attrs, &new_id, &new_attrs );
+    st = rbhext_recover( id, &attrs, &new_id, &new_attrs, NULL );
     if ( (st == RS_OK) || (st == RS_DELTA) )
     {
         printf("Success\n");
