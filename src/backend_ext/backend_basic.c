@@ -1351,7 +1351,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 
         /* check that this is not a cross-device import or recovery (entry could not be moved
          * in that case) */
-        if (backend_dev != st_bk.st_dev)
+        if (config.check_mounted && (backend_dev != st_bk.st_dev))
         {
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Source file %s is not in the same device as target %s",
                         backend_path, config.root );
