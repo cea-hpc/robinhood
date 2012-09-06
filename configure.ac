@@ -5,7 +5,7 @@
 AC_PREREQ(2.59)
 
 AC_INIT( [robinhood], [2.4.0], [robinhood-support@lists.sourceforge.net])
-RELEASE="0.alpha3"
+RELEASE="0.alpha4"
 AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info] )
 AC_SUBST(RELEASE)
 

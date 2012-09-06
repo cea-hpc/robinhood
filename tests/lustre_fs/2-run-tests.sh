@@ -3482,7 +3482,7 @@ function import_test
     echo "3.1-checking dirs..."
     while read i m u g s t p; do
         newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
-        read pi pm pu pg ps pt pp < <(find $newp -printf "%i %M %u %g %s %T@ %p\n" -type f || error "Missing dir $newp")
+        read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing dir $newp")
         [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
         [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
         [[ $pg == $g ]] || error "$newp has bad group $pg<>$g"
@@ -3493,7 +3493,7 @@ function import_test
     echo "3.2-checking files..."
     while read i m u g s t p; do
         newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
-        read pi pm pu pg ps pt pp < <(find $newp -printf "%i %M %u %g %s %T@ %p\n" -type f || error "Missing file $newp")
+        read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing file $newp")
         [[ $ps == $s ]] || error "$newp has bad size $ps<>$s"
         [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
         [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
@@ -3510,7 +3510,7 @@ function import_test
     echo "3.3-checking symlinks..."
     while read i m u g s t p; do
         newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
-        read pi pm pu pg ps pt pp < <(find $newp -printf "%i %M %u %g %s %T@ %p\n" -type f || error "Missing symlink $newp")
+        read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing symlink $newp")
         [[ $ps == $s ]] || error "$newp has bad size $ps<>$s"
         [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
         [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
