@@ -3494,6 +3494,8 @@ function import_test
     while read i m u g s t p; do
         newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
         read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing file $newp")
+        # /!\ on some OS, mtime is retruned as "<epoch>.0000000"
+        t=$(echo "$t" | sed -e "s/\.0000000000//")
         [[ $ps == $s ]] || error "$newp has bad size $ps<>$s"
         [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
         [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
@@ -3511,6 +3513,7 @@ function import_test
     while read i m u g s t p; do
         newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
         read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing symlink $newp")
+        t=$(echo "$t" | sed -e "s/\.0000000000//")
         [[ $ps == $s ]] || error "$newp has bad size $ps<>$s"
         [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
         [[ $pu == $u ]] || error "$newp has bad user $pu<>$u"
