@@ -123,7 +123,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                                      int allow_md_updt, int allow_path_updt )
 {
     /* alias to the log record */
-    struct changelog_rec * logrec = p_op->extra_info.log_record.p_log_rec;
+    CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
 
     /* if this is a CREATE record, we know that its status is NEW. */
     if ( logrec->cr_type == CL_CREATE )
@@ -373,7 +373,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
 static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 {
     /* short alias */
-    struct changelog_rec * logrec = p_op->extra_info.log_record.p_log_rec;
+    CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
 
     /* allow event-driven update */
     int md_allow_event_updt = TRUE;
@@ -508,7 +508,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* is this a changelog record? */
     if ( p_op->extra_info.is_changelog_record )
     {
-        struct changelog_rec * logrec = p_op->extra_info.log_record.p_log_rec;
+        CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
 
         /* what do we know about this entry? */
         ATTR_MASK_INIT( &p_op->entry_attr );
@@ -1108,7 +1108,7 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-    struct changelog_rec * logrec = p_op->extra_info.log_record.p_log_rec;
+    CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
 
     if (p_op->extra_info.is_changelog_record)
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "stage %s - record #%llu - id="DFID"\n", stage_info->stage_name,

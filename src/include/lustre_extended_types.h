@@ -26,6 +26,9 @@
 #include <asm/types.h>
 #endif
 
+#include <assert.h>
+#define LASSERT assert
+
 #include <lustre/liblustreapi.h>
 
 #ifndef DFID_NOBRACE
@@ -103,4 +106,12 @@ struct lov_user_md_join
 } __attribute__ ( ( packed ) );
 
 #endif
+
+
+#ifdef HAVE_CHANGELOG_EXTEND_REC
+    #define CL_REC_TYPE struct changelog_ext_rec
+#else
+    #define CL_REC_TYPE struct changelog_rec
+#endif
+
 #endif

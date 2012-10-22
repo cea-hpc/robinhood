@@ -22,7 +22,11 @@
 
 typedef struct changelog_record
 {
+#ifdef HAVE_CHANGELOG_EXTEND_REC
+    struct changelog_ext_rec * p_log_rec;
+#else
     struct changelog_rec * p_log_rec;
+#endif
     char          *mdt;
 } changelog_record_t;
 
