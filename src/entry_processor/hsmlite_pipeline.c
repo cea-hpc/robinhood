@@ -1298,6 +1298,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     val.val_uint = ATTR( &p_op->entry_attr, md_update );
     lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN_STRICT, val, 0 );
 
+    /* partial scan: remove non-updated entries from a subset of the namespace */
     if (ATTR_MASK_TEST( &p_op->entry_attr, fullpath ))
     {
         char tmp[RBH_PATH_MAX];
