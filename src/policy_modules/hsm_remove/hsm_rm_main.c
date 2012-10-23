@@ -144,7 +144,7 @@ static inline unsigned int ack_count( unsigned int *status_tab )
 
 static inline int check_rm_limit( unsigned int count )
 {
-    if ( count >= hsm_rm_config.max_rm )
+    if ( (hsm_rm_config.max_rm > 0) && (count >= hsm_rm_config.max_rm) )
     {
         DisplayLog( LVL_EVENT, HSMRM_TAG,
                     "max hsm_rm count %u is reached.", hsm_rm_config.max_rm );

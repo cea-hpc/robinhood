@@ -3115,12 +3115,10 @@ int main( int argc, char **argv )
 
         case 'D':
             dump_all = TRUE;
-            fprintf(stderr, "Warning: 'dump' command is deprecated. Use \"rbh-find\" instead.\n");
             break;
 
         case OPT_DUMP_USER:
             dump_user = TRUE;
-            fprintf(stderr, "Warning: 'dump-user' command is deprecated. Use \"rbh-find -user\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <username> for --dump-user\n");
@@ -3131,7 +3129,6 @@ int main( int argc, char **argv )
 
         case OPT_DUMP_GROUP:
             dump_group = TRUE;
-            fprintf(stderr, "Warning: 'dump-group' command is deprecated. Use \"rbh-find -group\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <groupname> for --dump-group\n");
@@ -3143,7 +3140,6 @@ int main( int argc, char **argv )
 #ifdef _LUSTRE
         case OPT_DUMP_OST:
             dump_ost = TRUE;
-            fprintf(stderr, "Warning: 'dump-ost' command is deprecated. Use \"rbh-find -ost\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <ost_index> for --dump-ost\n");
@@ -3163,7 +3159,6 @@ int main( int argc, char **argv )
 #ifdef ATTR_INDEX_status
         case OPT_DUMP_STATUS:
             dump_status = TRUE;
-            fprintf(stderr, "Warning: 'dump-status' command is deprecated. Use \"rbh-find -status\" instead.\n");
             if ( !optarg )
             {
                 fprintf(stderr, "Missing mandatory argument <status> for --dump-status\n");
