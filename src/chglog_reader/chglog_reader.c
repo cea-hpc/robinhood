@@ -513,7 +513,7 @@ void * chglog_reader_thr( void *  arg )
 
 #ifdef HAVE_CHANGELOG_EXTEND_REC
         /* extended record: 1 single RENME record per rename op */
-        if (p_rec->cr_type == CL_RENAME)
+        if ((p_rec->cr_type == CL_RENAME) && CHANGELOG_REC_EXTENDED(p_rec))
         {
             if (!FID_IS_ZERO(&p_rec->cr_tfid))
             {
@@ -549,9 +549,10 @@ void * chglog_reader_thr( void *  arg )
             p_rec->cr_tfid = p_rec->cr_sfid;
             process_log_rec( info, p_rec, 0);
         }
-        else /* over records */
+        else /* other record or old-style RNMFM/RNMTO */
         {
-#elif defined(_CL_RNM_OVER)
+#endif
+#if defined(_CL_RNM_OVER) || defined(HAVE_CHANGELOG_EXTEND_REC)
         /* First rename record indicates the renamed entry.
          * Second rename record eventually indicates the overwritten entry, 
          * and the target name.
@@ -635,7 +636,10 @@ void * chglog_reader_thr( void *  arg )
 #endif
             /* handle the line and push it to the pipeline */
             process_log_rec( info, p_rec, 0 );
-#if defined(_CL_RNM_OVER) || defined(HAVE_CHANGELOG_EXTEND_REC)
+#if defined(_CL_RNM_OVER)
+        }
+#endif
+#if defined(HAVE_CHANGELOG_EXTEND_REC)
         }
 #endif
 
