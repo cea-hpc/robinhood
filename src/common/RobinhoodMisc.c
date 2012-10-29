@@ -562,13 +562,23 @@ int CheckFSInfo( char *path, char *expected_type,
     }
 
     /* convert to canonic path */
-    if ( !realpath( path, rpath ) )
+    /* let realpath determine the output length (NULL argument) */
+    char * tmp_path = realpath( path, NULL );
+    if ( tmp_path == NULL )
     {
         DisplayLog( LVL_CRIT, "CheckFS", "Error %d in realpath(%s): %s",
                     errno, ( path ? path : "<null>" ), strerror( errno ) );
         return errno;
     }
-
+    if (strlen(tmp_path) >= RBH_PATH_MAX)
+    {
+        DisplayLog( LVL_CRIT, "CheckFS", "Path length is too long!" );
+        return ENAMETOOLONG;
+    }
+    /* safe because of previous check */
+    strcpy(rpath, tmp_path);
+    /* now can release tmp path */
+    free(tmp_path);
 
     /* open mount tab and look for the given path */
     outlen = 0;

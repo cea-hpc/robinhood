@@ -234,13 +234,23 @@ int Path2Id(const char *path, entry_id_t * id)
     const char * mnt = get_mount_point(&len);
     char rpath[RBH_PATH_MAX];
 
-    if ( !realpath( path, rpath ) )
+    char * tmp_path = realpath( path, NULL );
+    if ( tmp_path == NULL )
     {
         rc = -errno;
         DisplayLog(LVL_CRIT, P2ID_TAG, "Error in realpath(%s): %s",
                    path, strerror(-rc));
         return rc;
     }
+    if (strlen(tmp_path) >= RBH_PATH_MAX)
+    {
+        DisplayLog( LVL_CRIT, P2ID_TAG, "Path length is too long!" );
+        return -ENAMETOOLONG;
+    }
+    /* safe because of previous check */
+    strcpy(rpath, tmp_path);
+    /* now can release tmp path */
+    free(tmp_path);
 
     /* check that path is under FS root */
     if (strncmp(mnt, rpath, len))
