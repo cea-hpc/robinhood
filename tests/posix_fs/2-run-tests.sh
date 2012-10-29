@@ -1,4 +1,4 @@
-#/bin/sh
+#!/bin/bash
 
 ROOT="/tmp/mnt.rbh"
 BKROOT="/tmp/backend"

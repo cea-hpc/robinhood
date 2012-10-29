@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 CFG_SCRIPT="../../scripts/rbh-config"
 
