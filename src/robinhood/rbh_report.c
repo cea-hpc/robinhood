@@ -215,13 +215,16 @@ static const char *help_string =
     "    " _B "--deferred-rm" B_ ", " _B "-R" B_ "\n"
     "        Display files to be removed from HSM.\n"
 #endif
-    "\n"_B "Deprecated:" B_ "\n"
-    "    "  _B "--dump" B_ ", "_B "--dump-user" B_ ", "_B "--dump-group" B_
+    "    "  _B "--dump" B_ ", " _B "-D" B_ "\n"
+    "        Dump all filesystem entries.\n"
+    "    "  _B "--dump-user" B_ " " _U "user" U_ "\n"
+    "        Dump all entries for the given user.\n"
+    "    "  _B "--dump-group" B_ " " _U "group" U_ "\n"
+    "        Dump all entries for the given group.\n"
 #ifdef _LUSTRE
-     ", " _B "--dump-ost" B_
+    "    "  _B "--dump-ost" B_ " " _U "ost_index" U_ "\n"
+    "        Dump all entries on the given OST.\n"
 #endif
-    ": use rbh-find instead\n"
-
 #ifdef ATTR_INDEX_status
     "    "  _B "--dump-status" B_ " " _U "status" U_ "\n"
     "        Dump all entries with the given status (%s).\n"

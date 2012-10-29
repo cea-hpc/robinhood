@@ -309,6 +309,28 @@ fi
 
 %changelog
 
+* Fri Oct 26 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.0-beta1
+- [feature] rbh-du and rbh-find: "du" and "find" clones querying robinhood's database
+- [report] new directory stats, top directories per dirent count, per avg file size
+- [report] file size profiling: global, per user, per group, per fileclass...
+- [report] sorting user/groups by size range (eg. percentage of files < 1G)
+- [webUI] "size" section in webUI to display file size profiles
+- [feature] Partial scans to update only a subset of the filesystem (also allows distributed scans)
+- [packaging] rpm name 'robinhood-tmp_fs_mgr' changed to 'robinhood-tmpfs'
+- [packaging] 'rbh-config' command moved to new RPM 'robinhood-adm'
+- [report] refurbished rbh-report output format
+- [policies] new criteria on file creation time
+- [database] use innodb by default for MySQL engine
+- [system] ability to detect "fake mtime" (mtime != actual modification time)
+- [system] improved filesystem detection,
+           using fsname or devid as FS identifier (config driven)
+- [misc.] can use short config name instead of full path
+          (eg. "-f <name>" instead of "-f /full/path/to/name.conf")
+- [backup] directory and symlink recovery
+- [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
+- [lustre] port to Lustre 2.2 and 2.3
+- [lustre] support for new Changelog record struct (lu-1331)
+
 * Thu Jul 05 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.4
 - Faster and safer shutdown on SIGINT/SIGTERM
 - Can use short config name instead of full config file path.

@@ -636,7 +636,7 @@ void * chglog_reader_thr( void *  arg )
 #endif
             /* handle the line and push it to the pipeline */
             process_log_rec( info, p_rec, 0 );
-#if defined(_CL_RNM_OVER)
+#if defined(_CL_RNM_OVER) || defined(HAVE_CHANGELOG_EXTEND_REC)
         }
 #endif
 #if defined(HAVE_CHANGELOG_EXTEND_REC)

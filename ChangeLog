@@ -1,3 +1,47 @@
+New features in robinhood 2.4:
+* rbh-du and rbh-find: "du" and "find" clones querying robinhood's database
+  Faster way to search for entries in a filesystem!
+
+  Performance comparison for a 1 million entries Lustre v2 filesystem
+  ("find" vs "lfs find" vs "rbh-find"):
+        find /lustre -user foo -type f -size -32M -ls
+        (no possible criteria on OST index)
+        > 58m13s
+
+        lfs find /lustre -user foo -type f --obd lustre-OST0001
+        (no possible criteria on size)
+        > 20m46s
+
+        rbh-find /lustre -user foo -type f -size -32M -ost 1 -ls
+        > 1.2s
+
+* Directory reporting: top directories per dirent count, per avg file size
+  (useful for small file hunting)
+* File size profiling: global, per user, per group, per fileclass...
+  (+additional section in webUI)
+* Sorting user/groups by size range (eg. percentage of files < 1G)
+  (useful for small file hunting)
+
+* Partial scans to update only a subset of the filesystem.
+  => allow distributed scans by splitting the namespace into
+     partial scans running on multiple clients.
+
+Other changes in 2.4.0:
+* [packaging] rpm name 'robinhood-tmp_fs_mgr' changed to 'robinhood-tmpfs'
+* [packaging] 'rbh-config' command moved to new RPM 'robinhood-adm'
+* [report] refurbished rbh-report output format
+* [policies] new criteria on file creation time
+* [database] use innodb by default for MySQL engine
+* [system] ability to detect "fake mtime" (mtime != actual modification time)
+* [system] improved filesystem detection,
+           using fsname or devid as FS identifier (config driven)
+* [misc.] can use short config name instead of full path
+          (eg. "-f <name>" instead of "-f /full/path/to/name.conf")
+* [backup] directory and symlink recovery
+* [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
+* [lustre] port to Lustre 2.2 and 2.3
+* [lustre] support for new Changelog record struct (lu-1331)
+
 Changes between version 2.3.3 and 2.3.4:
 - Faster and safer shutdown on SIGINT/SIGTERM
 - Can use short config name instead of full config file path.

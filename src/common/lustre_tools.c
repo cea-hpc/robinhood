@@ -524,8 +524,16 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
     struct statfs  ost_statfs;
     int            rc, i, count;
     char           pool[LOV_MAXPOOLNAME + 10];
+#ifdef FIND_MAX_OSTS
     char          *ostlist[FIND_MAX_OSTS];
     char           buffer[4096];
+#else /* no max OST count since Lustre 2.2 */
+    unsigned int obdcount = 256;
+    char        **ostlist = NULL;
+    int          bufsize = sizeof(struct obd_uuid) * obdcount;
+    char *buffer = MemAlloc(bufsize + (sizeof(*ostlist) * obdcount));
+    ostlist = (char **)(buffer + bufsize);
+#endif
 
     /* sanity check */
     if ( !pool_statfs )
@@ -535,7 +543,23 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
 
     /* retrieve list of OSTs in the pool */
     sprintf( pool, "%s.%s", get_fsname(), poolname );
-    rc = llapi_get_poolmembers( pool, ostlist, FIND_MAX_OSTS, buffer, 4096 );
+#ifdef FIND_MAX_OSTS
+    rc = llapi_get_poolmembers(pool, ostlist, FIND_MAX_OSTS, buffer, 4096);
+#else
+    do {
+        rc = llapi_get_poolmembers(pool, ostlist, obdcount, buffer, bufsize);
+        if (rc == -EOVERFLOW)
+        {
+            /* buffer too small, increase obdcount by 2 */
+            obdcount *= 2;
+            bufsize = sizeof(struct obd_uuid) * obdcount;
+            buffer = MemRealloc(buffer, bufsize + (sizeof(*ostlist) * obdcount));
+            if (buffer == NULL)
+                return ENOMEM;
+            ostlist = (char **)(buffer + bufsize);
+        }
+    } while (rc == -EOVERFLOW);
+#endif
 
     if ( rc < 0 )
         return -rc;
