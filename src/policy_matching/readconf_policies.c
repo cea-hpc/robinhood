@@ -490,24 +490,11 @@ static int reload_purge_policy( purge_policy_t *policy )
 
 static int set_default_update_policy( updt_policy_t *policy, char *msg_out )
 {
-    /* Update attributes on attr-related event (not more frequently than 1s).
-     * Otherwise, update periodically (every minute).
-     */
-    policy->md.policy = UPDT_ON_EVENT_PERIODIC;
-    policy->md.period_min = 1;
-    policy->md.period_max = 60;
-
+    policy->md.policy = UPDT_ALWAYS;
 #ifdef _HAVE_FID
-    /* Update path attr-related event (not more frequently than 1s).
-     * Otherwise, update periodically (hourly).
-     */
-    policy->path.policy = UPDT_ON_EVENT_PERIODIC;
-    policy->path.period_min = 1;
-    policy->path.period_max = 3600;
+    policy->path.policy = UPDT_ALWAYS;
 #endif
-
-    policy->fileclass.policy = UPDT_PERIODIC;
-    policy->fileclass.period_min =  policy->fileclass.period_max = 3600;
+    policy->fileclass.policy = UPDT_ALWAYS;
 
     return 0;
 }
@@ -515,11 +502,11 @@ static int set_default_update_policy( updt_policy_t *policy, char *msg_out )
 static int write_default_update_policy( FILE * output )
 {
     print_begin_block( output, 0, UPDTPOLICY_BLOCK, NULL );
-    print_line( output, 1, "md_update   : on_event_periodic(1s,1min);" );
+    print_line( output, 1, "md_update        : always;" );
 #ifdef _HAVE_FID
-    print_line( output, 1, "path_update : on_event_periodic(1s,1h);" );
+    print_line( output, 1, "path_update      : always;" );
 #endif
-    print_line( output, 1, "fileclass_update : periodic(1h);" );
+    print_line( output, 1, "fileclass_update : always;" );
     print_end_block( output, 0 );
 
     return 0;
@@ -533,24 +520,16 @@ static int write_update_policy_template( FILE * output )
     print_line( output, 1, "#   always: always update entry info when processing it" );
     print_line( output, 1, "#   on_event: only update on related event" ); 
     print_line( output, 1, "#   periodic(interval): only update periodically");
-    print_line( output, 1, "#   on_event_periodic(min_interval,max_interval): update on event" );
-    print_line( output, 1, "#       with a min interval (max rate), and perform periodic update too." ); 
+    print_line( output, 1, "#   on_event_periodic(min_interval,max_interval)= on_event + periodic" );
     fprintf( output, "\n" );
-    print_line( output, 1, "# Update file metadata in database on attribute-change event"  );
-    print_line( output, 1, "# with a maximum rate of 1 update/sec. Also update info if it" );
-    print_line( output, 1, "# has not been refreshed for more than 1 hour." );
-    print_line( output, 1, "md_update   = on_event_periodic(1s, 1h) ;" );
-    fprintf( output, "\n" );
+    print_line( output, 1, "# Updating of file metadata"  );
+    print_line( output, 1, "md_update = always ;" );
 #ifdef _HAVE_FID
-    print_line( output, 1, "# Update file path in database on path-change event" );
-    print_line( output, 1, "# with a maximum rate of 1 update/min. Also update path if it" );
-    print_line( output, 1, "# has not been refreshed for more than 6h." );
-    print_line( output, 1, "path_update   = on_event_periodic(1min, 6h) ;" );
-    fprintf( output, "\n" );
+    print_line( output, 1, "# Updating file path in database" );
+    print_line( output, 1, "path_update = always ;" );
 #endif
-    print_line( output, 1, "# Interval for matching file classes"  );
-    print_line( output, 1, "# only 'never', 'always' and 'periodic(...)' allowed" );
-    print_line( output, 1, "fileclass_update   = periodic(1h) ;" );
+    print_line( output, 1, "# File classes matching"  );
+    print_line( output, 1, "fileclass_update = always ;" );
 
     print_end_block( output, 0 );
     return 0;
