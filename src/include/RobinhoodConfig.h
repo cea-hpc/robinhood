@@ -137,6 +137,9 @@ typedef struct robinhood_config_t
 
 } robinhood_config_t;
 
+/* the config file for the current process */
+extern char *process_config_file;
+
 /* behavior flags for all modules */
 #define FLAG_DRY_RUN    0x00000001
 #define FLAG_IGNORE_POL 0x00000002

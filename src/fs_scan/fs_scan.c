@@ -393,8 +393,16 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     DisplayLog( LVL_VERB, FSSCAN_TAG, "Sending batched alerts, if any" );
     Alert_EndBatching();
 
-    if ( scan_complete )
-        execute_shell_command(fs_scan_config.completion_command,0);
+    if (scan_complete && !EMPTY_STRING(fs_scan_config.completion_command))
+    {
+        /* replace special args in completion command */
+        char * cmd = replace_cmd_parameters(fs_scan_config.completion_command);
+        if (cmd)
+        {
+            execute_shell_command(cmd, 0);
+            free(cmd);
+        }
+    }
 
     if ( fsscan_once )
         signal_scan_finished(  );

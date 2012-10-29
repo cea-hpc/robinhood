@@ -638,7 +638,10 @@ int FSScan_WriteConfigTemplate( FILE * output )
     print_line( output, 1, "scan_op_timeout        =    1h ;" );
     print_line( output, 1, "# exit if operation timeout is reached?" );
     print_line( output, 1, "exit_on_timeout        =    TRUE ;" );
-    print_line( output, 1, "completion_command     =    "" ;" );
+    print_line( output, 1, "# external command called on scan termination");
+    print_line( output, 1, "# special arguments can be specified: {cfg} = config file path,");
+    print_line( output, 1, "# {fspath} = path to managed filesystem");
+    print_line( output, 1, "#completion_command     =    \"/path/to/my/script.sh -f {cfg} -p {fspath}\" ;" );
     fprintf( output, "\n" );
 
     print_line( output, 1,

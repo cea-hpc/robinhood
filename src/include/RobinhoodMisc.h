@@ -334,4 +334,13 @@ int str_replace( char * str_in_out, const char * to_be_replaced,
  */
 int execute_shell_command( const char * cmd, int argc, ... );
 
+/**
+ * Replace special parameters {cfgfile}, {fspath}, ...
+ * in the given cmd line.
+ * Result string is allocated using malloc()
+ * and must be released using free().
+ */
+char * replace_cmd_parameters(const char * cmd_in);
+
+
 #endif

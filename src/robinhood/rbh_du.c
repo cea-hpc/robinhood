@@ -831,6 +831,7 @@ int main( int argc, char **argv )
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
     }
+    process_config_file = config_file;
 
     /* set global configuration */
     global_config = config.global_config;

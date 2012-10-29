@@ -1228,6 +1228,7 @@ int main( int argc, char **argv )
                  options.config_file, err_msg );
         exit( 1 );
     }
+    process_config_file = options.config_file;
 
     if ( options.test_syntax )
     {

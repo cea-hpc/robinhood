@@ -1616,3 +1616,76 @@ int execute_shell_command( const char * cmd, int argc, ... )
 }
 
 
+/**
+ * Replace special parameters {cfgfile}, {fspath}, ...
+ * in the given cmd line.
+ * Result string is allocated using malloc()
+ * and must be released using free().
+ */
+char * replace_cmd_parameters(const char * cmd_in)
+{
+#define CMDPARAMS "CmdParams"
+    int error = FALSE;
+    char * pass_begin;
+    char * begin_var;
+    char * end_var;
+    const char * value;
+
+    /* allocate tmp copy of cmd in */
+    pass_begin = (char *)malloc(strlen(cmd_in)+1);
+    strcpy(pass_begin, cmd_in);
+
+    do
+    {
+        char * new_str = NULL;
+
+        /* look for a variable */
+        begin_var = strchr( pass_begin, '{' );
+
+        /* no more variables */
+        if ( !begin_var )
+            break;
+
+        *begin_var = '\0';
+        begin_var++;
+
+        /* get matching '}' */
+        end_var = strchr( begin_var, '}' );
+        if (!end_var)
+        {
+           DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unmatched '{' in command parameters '%s'", cmd_in);
+           error = TRUE;
+           break;
+        }
+
+        *end_var = '\0';
+        end_var++;
+
+        value = NULL;
+
+        /* compute final length, depending on variable name */
+        if (!strcasecmp( begin_var, "cfg" ))
+           value = process_config_file;
+        else if (!strcasecmp( begin_var, "fspath" ))
+           value = global_config.fs_path;
+        else
+        {
+            DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unknown parameter '%s' in command parameters '%s'", begin_var, cmd_in);
+            error = TRUE;
+            break;
+        }
+
+        /* allocate a new string if var length < value length */
+        new_str = malloc( strlen(pass_begin)+strlen(value)+strlen(end_var)+1 );
+
+        sprintf(new_str, "%s%s%s", pass_begin, value, end_var );
+
+        free(pass_begin);
+        pass_begin = new_str;
+
+    } while(1);
+
+    return pass_begin;
+}
+
+

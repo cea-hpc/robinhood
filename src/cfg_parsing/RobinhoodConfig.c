@@ -27,6 +27,8 @@
 
 #define XATTR_PREFIX    "xattr"
 
+char *process_config_file = "";
+
 /**
  * Read robinhood's configuration file and fill config struct.
  * if everything is OK, returns 0 and fills the structure
