@@ -1296,16 +1296,16 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             }
 
             /* update size range values */
-            next += sprintf( next, "%s%s=%s-(OLD.size=0)+(NEW.size=0)",
+            next += sprintf( next, "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
                              is_first_field?" ":", ", sz_field[0], sz_field[0] );
             is_first_field = 0;
             for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
             {
-                next += sprintf( next, ", %s=%s-IFNULL(val_old=%u,0)+IFNULL(val_new=%u,0)",
+                next += sprintf( next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old=%u,0)+IFNULL(val_new=%u,0)) as SIGNED)",
                                  sz_field[i], sz_field[i], i-1, i-1 );
             }
             /* last */
-            next += sprintf( next, ", %s=%s-IFNULL(val_old>=%u,0)+IFNULL(val_new>=%u,0)",
+            next += sprintf( next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old>=%u,0)+IFNULL(val_new>=%u,0)) as SIGNED)",
                              sz_field[i], sz_field[i], i-1, i-1 );
 
             APPEND_TXT( next, " WHERE " );
