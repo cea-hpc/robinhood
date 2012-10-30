@@ -309,7 +309,7 @@ fi
 
 %changelog
 
-* Fri Oct 26 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.0-beta1
+* Wed Oct 31 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.0
 - [feature] rbh-du and rbh-find: "du" and "find" clones querying robinhood's database
 - [report] new directory stats, top directories per dirent count, per avg file size
 - [report] file size profiling: global, per user, per group, per fileclass...
@@ -328,10 +328,11 @@ fi
 - [misc.] can use short config name instead of full path
           (eg. "-f <name>" instead of "-f /full/path/to/name.conf")
 - [backup] directory and symlink recovery
-- [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
-- [fix] segfault in realpath() on Ubuntu
 - [lustre] port to Lustre 2.2 and 2.3
 - [lustre] support for new Changelog record struct (lu-1331)
+- [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
+- [fix] segfault in realpath() on Ubuntu
+- [fix] unsigned arythmetic issue with MySQL 5.5
 
 * Thu Jul 05 2012 Thomas Leibovici <thomas.leibovici@cea.fr> 2.3.4
 - Faster and safer shutdown on SIGINT/SIGTERM

@@ -3,7 +3,6 @@ New features in robinhood 2.4:
   Faster way to search for entries in a filesystem!
 
   Performance comparison for a 1 million entries Lustre v2 filesystem
-  ("find" vs "lfs find" vs "rbh-find"):
         find /lustre -user foo -type f -size -32M -ls
         (no possible criteria on OST index)
         > 58m13s
@@ -39,10 +38,11 @@ Other changes in 2.4.0:
 * [misc.] can use short config name instead of full path
           (eg. "-f <name>" instead of "-f /full/path/to/name.conf")
 * [backup] directory and symlink recovery
-* [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
-* [fix] segfault in realpath() on Ubuntu
 * [lustre] port to Lustre 2.2 and 2.3
 * [lustre] support for new Changelog record struct (lu-1331)
+* [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
+* [fix] segfault in realpath() on Ubuntu
+* [fix] unsigned arythmetic issue with MySQL 5.5
 
 Changes between version 2.3.3 and 2.3.4:
 - Faster and safer shutdown on SIGINT/SIGTERM
