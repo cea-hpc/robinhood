@@ -102,6 +102,8 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
     return 0;
 }
 
+#define DROP_MESSAGE "\nyou should: 1)backup current DB using 'rbh-config backup_db' 2)empty the DB using 'rbh-config empty_db' 3)start a new FS scan."
+
 /**
  * Check table fields.
  * @param i 
@@ -116,8 +118,7 @@ static inline int check_field( int i, int * curr_field_index, char *table, char 
     {
         DisplayLog( LVL_CRIT, LISTMGR_TAG,
                     "Incompatible database schema (missing field '%s' in table %s):" 
-                    " you should drop the database and start a new FS scan.",
-                    field_infos[i].field_name, table );
+                    " "DROP_MESSAGE, field_infos[i].field_name, table );
         return -1;
     }
     /* check that this is the expected field */
@@ -132,8 +133,7 @@ static inline int check_field( int i, int * curr_field_index, char *table, char 
         DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s != %s",
                     field_infos[i].field_name, fieldtab[*curr_field_index] );
         DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Incompatible database schema (unexpected field '%s' in table %s):"
-                    " you should drop the database and start a new FS scan.",
+                    "Incompatible database schema (unexpected field '%s' in table %s): "DROP_MESSAGE,
                     fieldtab[*curr_field_index], table );
         return -1;
     }
@@ -145,8 +145,7 @@ static inline int has_extra_field( int curr_field_index, char *table, char **fie
         if ( ( curr_field_index < MAX_DB_FIELDS ) && ( fieldtab[curr_field_index] != NULL ) )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (unexpected field '%s' in table %s):"
-                        " you should drop the database and start a new FS scan.",
+                        "Incompatible database schema (unexpected field '%s' in table %s): " DROP_MESSAGE,
                         fieldtab[curr_field_index], table );
             return 1;
         }
@@ -523,7 +522,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
                         "Incompatible database schema for table "
                         STRIPE_INFO_TABLE
-                        " (missing field 'stripe_count'): you should drop the database and start a new FS scan." );
+                        " (missing field 'stripe_count'): "DROP_MESSAGE );
             return -1;
         }
 
@@ -535,7 +534,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
                         "Incompatible database schema for table "
                         STRIPE_INFO_TABLE
-                        " (missing field 'stripesize'): you should drop the database and start a new FS scan." );
+                        " (missing field 'stripesize'): "DROP_MESSAGE );
             return -1;
         }
 
@@ -547,7 +546,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
                         "Incompatible database schema for table "
                         STRIPE_INFO_TABLE
-                        " (missing field 'pool_name'): you should drop the database and start a new FS scan." );
+                        " (missing field 'pool_name'): "DROP_MESSAGE );
             return -1;
         }
 
@@ -626,8 +625,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
                         "Incompatible database schema for table "
-                        STRIPE_ITEMS_TABLE
-                        ": you should drop the database and start a new FS scan." );
+                        STRIPE_ITEMS_TABLE": "DROP_MESSAGE );
             return -1;
         }
     }
@@ -1016,8 +1014,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             { 
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Incompatible database schema (missing field '" ACCT_FIELD_COUNT  "' in table "
-                            ACCT_TABLE
-                            "): you should drop the database and start a new FS scan, or check acct parameters." );
+                            ACCT_TABLE"): "DROP_MESSAGE );
                 return -1;
             }
             else
@@ -1034,8 +1031,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 {
                     DisplayLog( LVL_CRIT, LISTMGR_TAG,
                                 "Incompatible database schema (expected field '%s' at index #%u in table "ACCT_TABLE
-                                "): you should drop the database and start a new FS scan.",
-                                sz_field[i], curr_field_index);
+                                "): "DROP_MESSAGE, sz_field[i], curr_field_index);
                     return -1;
                 }
                 else
