@@ -193,16 +193,16 @@ static unsigned int append_size_range_op(char * str, int leading_comma, char *pr
     else
         sprintf(value,  ACCT_SZ_VAL("%ssize"), prefix);
 
-    l = sprintf( str, "%s %s=%s%s(%ssize=0)", leading_comma?",":"",
+    l = sprintf( str, "%s %s=CAST(%s as SIGNED)%sCAST((%ssize=0) as SIGNED)", leading_comma?",":"",
                  sz_field[0], sz_field[0], op, prefix);
 
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        l += sprintf( str+l, ", %s=%s%sIFNULL(%s=%u,0)", sz_field[i], sz_field[i], op,
+        l += sprintf( str+l, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s=%u,0) as SIGNED)", sz_field[i], sz_field[i], op,
                       value, i-1 );
     }
     /* last */
-    l += sprintf( str+l, ", %s=%s%sIFNULL(%s>=%u,0)", sz_field[i], sz_field[i],
+    l += sprintf( str+l, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s>=%u,0) as SIGNED)", sz_field[i], sz_field[i],
                          op, value, i-1 );
     return l;
 }
