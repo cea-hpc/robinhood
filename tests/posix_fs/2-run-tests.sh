@@ -656,6 +656,7 @@ function test_rh_report_split_user_group
 
         echo "2-Scanning..."
         $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
         echo "3.Checking reports..."
         $REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info $option | head --lines=-2 > rh_report_no_split.log
@@ -719,6 +720,7 @@ function test_acct_table
 
         echo "2-Scanning..."
         $RH -f ./cfg/$config_file_scan --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
         echo "3.Checking acct table and triggers creation"
         grep -q "Table ACCT_STAT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
@@ -739,6 +741,7 @@ function test_dircount_report
 
 	# inital scan
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	check_db_error rh_chglogs.log
 
 	# create several dirs with different entry count (+10 for each)
 
@@ -761,6 +764,7 @@ function test_dircount_report
 	# read changelogs
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	check_db_error rh_chglogs.log
 
 	echo "3.Checking dircount report..."
 	# dircount+1 because $ROOT may be returned
@@ -848,6 +852,7 @@ function    test_sort_report
     # scan!
     echo "2-Scanning..."
     $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+    check_db_error rh_scan.log
 
     echo "3-checking reports..."
 
@@ -1023,6 +1028,7 @@ function path_test
 	# read changelogs
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+    	check_db_error rh_scan.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -1086,6 +1092,7 @@ function periodic_class_match_migr
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
+    	check_db_error rh_scan.log
 
 	# now apply policies
 	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || error "migrating data"
@@ -1154,6 +1161,7 @@ function periodic_class_match_purge
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+    	check_db_error rh_scan.log
 
 	# now apply policies
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error "purging files"
@@ -1176,6 +1184,7 @@ function periodic_class_match_purge
 	# update db content and rematch entries: should update all fileclasses
 	clean_logs
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+    	check_db_error rh_scan.log
 
 	echo "Waiting $update_period sec..."
 	sleep $update_period
@@ -1227,6 +1236,7 @@ function test_cnt_trigger
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+    	check_db_error rh_scan.log
 
 	# apply purge trigger
 	$RH -f ./cfg/$config_file --purge --once -l FULL -L rh_purge.log
@@ -1296,6 +1306,7 @@ function test_trigger_check
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+    	check_db_error rh_scan.log
 
 	# check purge triggers
 	$RH -f ./cfg/$config_file --check-thresholds --once -l FULL -L rh_purge.log
@@ -1362,6 +1373,7 @@ function test_periodic_trigger
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+    	check_db_error rh_scan.log
 
 	# make sure files are old enough
 	sleep 2
@@ -1466,6 +1478,7 @@ function fileclass_test
 	# read changelogs
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+    	check_db_error rh_scan.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time

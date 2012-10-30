@@ -314,6 +314,7 @@ function migration_test
 	else
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
+    	check_db_error rh_chglogs.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -386,6 +387,7 @@ function migration_test_single
 	else
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error ""
 	fi
+    	check_db_error rh_chglogs.log
 
 	count=0
 	cp /dev/null rh_migr.log
@@ -461,6 +463,7 @@ function migrate_symlink
 	else
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	fi
+    	check_db_error rh_chglogs.log
 
 	count=0
 	echo "3-Applying migration policy ($policy_str)..."
@@ -505,6 +508,7 @@ function migrate_symlink
 
 	echo "6-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+    	check_db_error rh_chglogs.log
 
 	count=`$REPORT -f ./cfg/$config_file --fs-info --csv -q 2>/dev/null | grep synchro | wc -l`
 	if  (($count == 1)); then
@@ -543,6 +547,7 @@ function test_rmdir
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
+    	check_db_error rh_chglogs.log
 
 	EMPTY=empty
 	NONEMPTY=smthg
@@ -567,6 +572,7 @@ function test_rmdir
 	else
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	fi
+    	check_db_error rh_chglogs.log
 
 	echo "3-Applying rmdir policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
@@ -652,6 +658,7 @@ function xattr_test
 		echo "2-Reading changelogs..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
+    	check_db_error rh_chglogs.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -826,6 +833,7 @@ function mass_softrm
 
 	echo "2-Initial scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
+    	check_db_error rh_scan.log
 
 	grep "Full scan of" rh_scan.log | tail -1
 
@@ -870,6 +878,7 @@ function mass_softrm
 
 	echo "5-Update DB with a new scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
+    	check_db_error rh_scan.log
 	
 	grep "Full scan of" rh_scan.log | tail -1
 
@@ -907,6 +916,7 @@ function purge_test
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
+    	check_db_error rh_chglogs.log
 
 	# fill 10 files and archive them
 
@@ -935,6 +945,7 @@ function purge_test
 			((`grep "archive,rc=0" rh_chglogs.log | wc -l` == 11)) || error "Not enough archive events in changelog!"
 		fi
 	fi
+    	check_db_error rh_chglogs.log
 
 	# use robinhood for flushing
 	if (( $is_hsmlite != 0 )); then
@@ -991,6 +1002,7 @@ function purge_size_filesets
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 
+    	check_db_error rh_chglogs.log
 
 	# fill 3 files of different sizes and mark them archived non-dirty
 
@@ -1017,6 +1029,7 @@ function purge_size_filesets
 		echo "2-Reading changelogs to update file status (after 1sec)..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
+    	check_db_error rh_chglogs.log
 
 	if (( $is_hsmlite != 0 )); then
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
@@ -1074,6 +1087,7 @@ function test_maint_mode
 		echo "2-Reading changelogs..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
 	fi
+    	check_db_error rh_chglogs.log
 
     	# migrate (nothing must be migrated, no maint mode reported)
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error "executing --migrate action"
@@ -1153,6 +1167,7 @@ function test_rh_report
 		echo "2-Reading changelogs..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
+    	check_db_error rh_chglogs.log
 
 	echo "3.Checking reports..."
 	for i in `seq 1 $dircount`; do

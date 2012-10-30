@@ -160,7 +160,7 @@ typedef enum
 
 typedef enum {
     ADD,
-    SUBTRACT
+    SUBSTRACT
 } operation_type;
 
 void           add_source_fields_for_gen( int * attr_mask );

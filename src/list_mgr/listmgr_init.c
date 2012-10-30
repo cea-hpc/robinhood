@@ -1231,12 +1231,12 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             APPEND_TXT( next, "DECLARE val BIGINT UNSIGNED; "
                               "SET val="ACCT_SZ_VAL("OLD.size")";");
             APPEND_TXT( next, "UPDATE " ACCT_TABLE " SET " );
-            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBTRACT );
+            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT );
             INCR_NEXT( next );
             APPEND_TXT( next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1" );
 
             /* update size range values */
-            next += append_size_range_op(next, TRUE, "OLD.", "val", SUBTRACT);
+            next += append_size_range_op(next, TRUE, "OLD.", "val", SUBSTRACT);
 
             APPEND_TXT( next, " WHERE " );
             attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" ); 
@@ -1282,12 +1282,14 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 if ( is_acct_field( i ) )
                 {
                     if ( !is_first_field )
-                        next += sprintf( next, ", %s=%s+(NEW.%s-OLD.%s) ", field_infos[i].field_name, field_infos[i].field_name,
-                        field_infos[i].field_name, field_infos[i].field_name );
+                        next += sprintf( next, ", %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
+                                         field_infos[i].field_name, field_infos[i].field_name,
+                                         field_infos[i].field_name, field_infos[i].field_name );
                     else
                     {
-                        next += sprintf( next, " %s=%s+(NEW.%s-OLD.%s) ", field_infos[i].field_name, field_infos[i].field_name,
-                        field_infos[i].field_name, field_infos[i].field_name );
+                        next += sprintf( next, " %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
+                                         field_infos[i].field_name, field_infos[i].field_name,
+                                         field_infos[i].field_name, field_infos[i].field_name );
                         is_first_field = 0;
                     }
                 }
@@ -1342,10 +1344,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             APPEND_TXT( next, "\n\tUPDATE " ACCT_TABLE " SET " );
             /* generate operations as follows: size=size-Old.size, blocks=blocks-Old.blocks */
-            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBTRACT );
+            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT );
             INCR_NEXT( next );
             APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 " );
-            next += append_size_range_op(next, TRUE, "OLD.", "val_old", SUBTRACT);
+            next += append_size_range_op(next, TRUE, "OLD.", "val_old", SUBSTRACT);
             APPEND_TXT( next, " WHERE " );
             attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
             INCR_NEXT( next );

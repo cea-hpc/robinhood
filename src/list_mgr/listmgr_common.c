@@ -360,7 +360,7 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
     char *fields_curr = str;
     char operator;
 
-    if ( operation == SUBTRACT )
+    if ( operation == SUBSTRACT )
         operator = '-';
     else
         operator = '+';
@@ -373,11 +373,11 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
             {
                 if ( nbfields == 0 )
                     fields_curr += 
-                        sprintf( fields_curr, "%s=%s%c%s%s ", field_infos[i].field_name,
+                        sprintf( fields_curr, "%s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ", field_infos[i].field_name,
                                 field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
                 else
                     fields_curr += 
-                        sprintf( fields_curr, ", %s=%s%c%s%s ", field_infos[i].field_name,
+                        sprintf( fields_curr, ", %s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ", field_infos[i].field_name,
                                 field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
                 nbfields++;
             }
