@@ -63,7 +63,7 @@ function error
 	((ERROR=$ERROR+1))
 
 	if (($junit)); then
-	 	grep -i error *.log | grep -v "(0 errors)" >> $TMPERR_FILE
+	 	grep -i "error" *.log | grep -v "(0 errors)" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
     fi
     # avoid displaying the same log many times
@@ -114,6 +114,11 @@ function clean_fs
 	echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db $DB > /dev/null
 }
+
+function check_db_error
+{
+	grep DB_REQUEST_FAILED $1 && error "DB request error"
+}
     
 function migration_test
 {
@@ -139,6 +144,7 @@ function migration_test
 
 	echo "2-Scanning filesystem..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	check_db_error rh_scan.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -198,6 +204,7 @@ function test_rmdir
 	
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning filesystem"
+	check_db_error rh_chglogs.log
 
 	echo "3-Applying rmdir policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
@@ -278,6 +285,7 @@ function xattr_test
 	# scanning filesystem
 	echo "3-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
 	echo "4-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -343,6 +351,7 @@ function link_unlink_remove_test
 	clean_logs
 
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG  -L rh_migr.log || error "scanning filesystem"
+	check_db_error rh_migr.log
 
 	# write file.1 and force immediate migration
 	echo "1-Writing data to file.1..."
@@ -405,6 +414,7 @@ function purge_test
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log 
+	check_db_error rh_scan.log
 
 	# fill 10 files and mark them archived+non dirty
 
@@ -416,6 +426,7 @@ function purge_test
 	sleep 1
 	echo "2-Scanning the FS again to update file status (after 1sec)..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
@@ -464,6 +475,7 @@ function purge_size_filesets
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log 
+	check_db_error rh_scan.log
 
 	# fill 3 files of different sizes and mark them archived non-dirty
 
@@ -479,6 +491,7 @@ function purge_size_filesets
 	sleep 1
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
 	echo "3-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
@@ -523,8 +536,9 @@ function test_rh_report
 	echo "1bis. Wait for IO completion..."
 	sync
 
-	echo "2-Scanning..."
+	echo "2.Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
 	echo "3.Checking reports..."
 	# posix FS do some block preallocation, so we don't know the exact space used:
@@ -566,8 +580,27 @@ function test_rh_acct_report
 
 	echo "2-Scanning..."
         $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
-	echo "3.Checking reports..."
+	echo "2bis.Checking reports..."
+	compare_reports_with_F $config_file
+
+	echo "3-Remove a file and scan again..."
+	# remove one file and scan again
+	rm -f $ROOT/dir.1/file.1 || error "couldn't remove file $ROOT/dir.1/file.1"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
+
+	echo "3bis.Checking reports..."
+	compare_reports_with_F $config_file
+
+	echo "4-Truncate a file and scan again..."
+	# truncate one file and scan again
+	cp /dev/null $ROOT/dir.2/file.2 || error "couldn't truncate file $ROOT/dir.2/file.2"
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
+
+	echo "4bis.Checking reports..."
 	compare_reports_with_F $config_file
 }
 
@@ -1482,6 +1515,7 @@ function test_info_collect
 	# read changelogs
 	echo "1-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 	nb_cr=0
 
 	sleep $sleep_time2
@@ -1509,6 +1543,7 @@ function test_info_collect
 
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
  
 	grep "DB query failed" rh_scan.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`

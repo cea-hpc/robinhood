@@ -35,10 +35,12 @@ Other changes in 2.4.0:
 * [system] ability to detect "fake mtime" (mtime != actual modification time)
 * [system] improved filesystem detection,
            using fsname or devid as FS identifier (config driven)
+* [scan] can trigger external completion command when a scan ends
 * [misc.] can use short config name instead of full path
           (eg. "-f <name>" instead of "-f /full/path/to/name.conf")
 * [backup] directory and symlink recovery
 * [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
+* [fix] segfault in realpath() on Ubuntu
 * [lustre] port to Lustre 2.2 and 2.3
 * [lustre] support for new Changelog record struct (lu-1331)
 

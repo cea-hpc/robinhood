@@ -280,6 +280,11 @@ function create_pools
   POOL_CREATED=1
 }
 
+function check_db_error
+{
+        grep DB_REQUEST_FAILED $1 && error "DB request error"
+}
+
 function migration_test
 {
 	config_file=$1
@@ -1185,6 +1190,7 @@ function test_rh_acct_report
 
         echo "2-Scanning..."
         $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
         echo "3.Checking reports..."
         $REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct --top-user > rh_no_acct_report.log
@@ -1234,6 +1240,7 @@ function test_rh_report_split_user_group
 
         echo "2-Scanning..."
         $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
         echo "3.Checking reports..."
         $REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info $option | head --lines=-2 > rh_report_no_split.log
@@ -1310,6 +1317,7 @@ function test_acct_table
 
         echo "2-Scanning..."
         $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+	check_db_error rh_scan.log
 
         echo "3.Checking acct table and triggers creation"
         grep -q "Table ACCT_STAT created sucessfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
@@ -1331,6 +1339,7 @@ function test_dircount_report
 
 	# inital scan
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	check_db_error rh_chglogs.log
 
 	# create several dirs with different entry count (+10 for each)
 
@@ -1359,6 +1368,7 @@ function test_dircount_report
 		echo "2-Reading changelogs..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	fi
+	check_db_error rh_chglogs.log
 
 	echo "3.Checking dircount report..."
 	# dircount+1 because $ROOT may be returned
@@ -1447,6 +1457,7 @@ function    test_sort_report
     # scan!
     echo "2-Scanning..."
     $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+    check_db_error rh_scan.log
 
     echo "3-checking reports..."
 
@@ -1631,6 +1642,7 @@ function path_test
 		echo "2-Reading changelogs..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
+	check_db_error rh_chglogs.log
 
 
 	echo "3-Applying migration policy ($policy_str)..."
@@ -1831,6 +1843,7 @@ function periodic_class_match_migr
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	check_db_error rh_chglogs.log
 
 	# now apply policies
 	$RH -f ./cfg/$config_file --migrate --dry-run -l FULL -L rh_migr.log --once || error ""
@@ -1904,6 +1917,7 @@ function policy_check_migr
     echo "1. scan..."
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
+	check_db_error rh_chglogs.log
     # check that all files have been properly matched
 
     $REPORT -f ./cfg/$config_file --dump -q  > report.out
@@ -2006,6 +2020,7 @@ function policy_check_purge
     echo "1. scan..."
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
+	check_db_error rh_chglogs.log
     # check that all files have been properly matched
 
     $REPORT -f ./cfg/$config_file --dump -q  > report.out
@@ -2123,9 +2138,11 @@ function periodic_class_match_purge
 	echo "FS Scan..."
 	if (( $is_hsmlite != 0 )); then
 		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
-    else
-    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
-    fi
+		check_db_error rh_migr.log
+	    else
+    		$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+		check_db_error rh_chglogs.log
+	fi
 
 	# now apply policies
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
@@ -2163,6 +2180,7 @@ function periodic_class_match_purge
 	# update db content and rematch entries: should update all fileclasses
 	clean_logs
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	check_db_error rh_chglogs.log
 
 	echo "Waiting $update_period sec..."
 	sleep $update_period
@@ -2199,6 +2217,7 @@ function test_cnt_trigger
         # this mode may create an extra inode in filesystem: inital scan
         # to take it into account
 		$RH -f ./cfg/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+		check_db_error rh_scan.log
     fi
 
 	# initial inode count
@@ -2224,9 +2243,11 @@ function test_cnt_trigger
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
 		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		check_db_error rh_migr.log
     else
        	# scan
-	    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+	    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+		check_db_error rh_chglogs.log
     fi
 
 	# apply purge trigger
@@ -2300,6 +2321,7 @@ function test_ost_trigger
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	check_db_error rh_chglogs.log
 
 	$REPORT -f ./cfg/$config_file -i
 
@@ -2365,6 +2387,7 @@ function test_trigger_check
         # this mode may create an extra inode in filesystem: inital scan
         # to take it into account
 		$RH -f ./cfg/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+		check_db_error rh_scan.log
     fi
 
 	# triggers to be checked
@@ -2418,9 +2441,11 @@ function test_trigger_check
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
 		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		check_db_error rh_migr.log
     else
 	  # scan
   	  $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+  		check_db_error rh_chglogs.log
     fi
 
 	# check purge triggers
@@ -2527,8 +2552,10 @@ function test_periodic_trigger
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
 		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+  		check_db_error rh_migr.log
     else
 	    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
+  		check_db_error rh_scan.log
     fi
 
 	# make sure files are old enough
@@ -2654,6 +2681,7 @@ function fileclass_test
 		echo "2-Reading changelogs..."
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
+	check_db_error rh_chglogs.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -2711,6 +2739,7 @@ function test_info_collect
 		$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error ""
 		nb_cr=4
 	fi
+	check_db_error rh_chglogs.log
 
 	sleep $sleep_time2
 
@@ -2738,7 +2767,7 @@ function test_info_collect
 
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
-#	$RH -f ./cfg/$config_file --scan -l FULL -L rh_chglogs.log  --once || error ""
+	check_db_error rh_chglogs.log
  
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
