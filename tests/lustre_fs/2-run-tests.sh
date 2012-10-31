@@ -2239,6 +2239,8 @@ function test_cnt_trigger
 	empty_count=`df -i $ROOT/ | grep "$ROOT" | xargs | awk '{print $(NF-3)}'`
 	(( file_count=$file_count - $empty_count ))
 
+    [ "$DEBUG" = "1" ] && echo "Initial inode count $empty_count, creating additional $file_count files"
+
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
@@ -3538,7 +3540,7 @@ function import_test
     echo "3.2-checking files..."
     while read i m u g s t p; do
         newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
-	[[ -d $newp ]] || error "Missing file $newp"
+	[[ -f $newp ]] || error "Missing file $newp"
         read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing file $newp")
         # /!\ on some OS, mtime is retruned as "<epoch>.0000000"
         t=$(echo "$t" | sed -e "s/\.0000000000//")
@@ -6329,6 +6331,9 @@ function TEST_OTHER_PARAMETERS_4
 
 	clean_logs
 
+    # test initial condition: backend must not be mounted
+    umount $BKROOT || umount -f $BKROOT
+
 	echo "Create Files ..."
     for i in `seq 1 11` ; do
     	dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
@@ -6521,7 +6526,7 @@ run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 	
 #### triggers ####
 
-run_test 300	test_cnt_trigger test_trig.conf 101 21 "trigger on file count"
+run_test 300	test_cnt_trigger test_trig.conf 151 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
 run_test 303    test_periodic_trigger test_trig4.conf 35 "periodic trigger"

@@ -63,8 +63,6 @@ AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DE
 
 # behavior flags
 AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
-AX_ENABLE_FLAG( [cl-rename-overwrite], [changelog correctly reflects overwriting rename (lu543)], [-D_CL_RNM_OVER] )
-AX_ENABLE_FLAG( [lu543], [same as cl-rename-overwrite], [-D_CL_RNM_OVER] )
 
 
 # program to be used for mailing
@@ -87,6 +85,17 @@ if test "x$support_lustre" = "xyes" ; then
 
         # this defines LVERSION and LPACKAGE variables
         AX_LUSTRE_VERSION
+
+        if test "$LVERSION" = "2.2" ; then
+            # lu543 is fixed in Lustre 2.2
+            # then is replaced in Lustre 2.3
+            AC_MSG_NOTICE([lu543 is fixed in Lustre 2.2])
+            CFLAGS="$CFLAGS -D_CL_RNM_OVER"
+        else
+            # for previous version, or customized, use --enable-lu543 to activate it
+            AX_ENABLE_FLAG( [cl-rename-overwrite], [changelog correctly reflects overwriting rename (lu543)], [-D_CL_RNM_OVER] )
+            AX_ENABLE_FLAG( [lu543], [same as cl-rename-overwrite], [-D_CL_RNM_OVER] )
+        fi
 
         if test -z "$LVERSION"; then
             LDEFINES=""
