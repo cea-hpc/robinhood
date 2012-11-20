@@ -1691,6 +1691,94 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         return RS_OK;
 }
 
+
+/* rebind a backend entry to a new file in Lustre (with new fid) */
+int rbhext_rebind(const char *fs_path, const char *old_bk_path, char *new_bk_path)
+{
+    int rc;
+    entry_id_t new_id;
+    attr_set_t attrs_new;
+    struct stat st;
+    char tmp[RBH_PATH_MAX];
+    char * destdir;
+
+    /* get fid for the new file */
+    rc = Lustre_GetFidFromPath(fs_path, &new_id);
+    if (rc)
+        return rc;
+
+    if (lstat(fs_path, &st))
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: lstat() failed on target entry '%s': %s",
+                    fs_path, strerror(-rc));
+        return rc;
+    }
+
+    if (!S_ISREG(st.st_mode))
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s() is only supported for files", __func__);
+        return -ENOTSUP;
+    }
+
+    /* build attr struct */
+    ATTR_MASK_INIT( &attrs_new );
+    PosixStat2EntryAttr( &st, &attrs_new, TRUE );
+    strcpy( ATTR( &attrs_new, fullpath ), fs_path );
+    ATTR_MASK_SET( &attrs_new, fullpath );
+
+    /* build new path in backend */
+    rc = entry2backend_path(&new_id, &attrs_new, FOR_NEW_COPY, new_bk_path);
+    if (rc)
+    {
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error building backend path for %s: %s",
+                    fs_path, strerror(-rc) );
+        return rc;
+    }
+
+    /* -- move entry from old bk path to the new location -- */
+
+    /* recursively create the parent directory */
+    /* extract dir path */
+    strcpy(tmp, new_bk_path);
+    destdir = dirname(tmp);
+    if (destdir == NULL)
+    {
+        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+                    new_bk_path );
+        return -EINVAL;
+    }
+
+    rc = mkdir_recurse(destdir, 0750, TO_BACKEND);
+    if (rc)
+        return rc;
+
+    /* rename the entry in backend */
+    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Moving entry in the backend: '%s'->'%s'",
+               old_bk_path, new_bk_path);
+    if (rename(old_bk_path, new_bk_path))
+    {
+        rc = -errno;
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not move entry in the backend ('%s'->'%s'): %s",
+                    old_bk_path, new_bk_path, strerror(-rc) );
+        /* keep the old path */
+        strcpy( new_bk_path, old_bk_path);
+        return rc;
+    }
+
+#ifdef HAVE_SHOOK
+    /* save new backendpath to filesystem */
+    /* XXX for now, don't manage several hsm_index */
+    rc = shook_set_hsm_info(fs_path, new_bk_path, 0);
+    if (rc)
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
+                    fs_path, rc );
+#endif
+
+    return rc;
+}
+
+
 int rbhext_release( const entry_id_t * p_id,
                     attr_set_t * p_attrs )
 {

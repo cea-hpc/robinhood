@@ -119,4 +119,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                                attr_set_t * p_attrs_new,
                                struct stat * bkinfo );
 
+/* rebind a backend entry to a new file in Lustre (with new fid) */
+int rbhext_rebind(const char *fs_path, const char *old_bk_path, char *new_bk_path);
+
 #endif
