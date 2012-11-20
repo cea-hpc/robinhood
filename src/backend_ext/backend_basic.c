@@ -1200,6 +1200,8 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
  * \param[in] p_id pointer to id of entry to be archived
  * \param[in,out] p_attrs pointer to entry attributes
  *                        must be updated even on failure
+ * \retval  -ENOENT entry not in backend
+ * \retval  -EINVAL empty path provided
  */
 int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
 {
@@ -1211,19 +1213,20 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
             rc = -errno;
             if ( rc == -ENOENT )
             {
-                DisplayLog( LVL_EVENT, RBHEXT_TAG, "'%s' not found in backend: "
-                            "assuming backend removal is successfull",
+                DisplayLog( LVL_DEBUG, RBHEXT_TAG, "'%s' not found in backend",
                             backend_path );
-                return 0;
+                return rc;
             }
             else
             {
                 DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error removing '%s' from backend: %s",
                             backend_path, strerror(-rc) );
-                return -rc;
+                return rc;
             }
         }
     }
+    else
+        return -EINVAL;
     return 0;
 }
 

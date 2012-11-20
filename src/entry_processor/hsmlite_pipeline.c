@@ -461,6 +461,9 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             else /* hsm removal enabled: must check if there is some cleaning
                   * to be done in the backend */
             {
+                /* FIXME no consideration whether the entry is a directory,
+                 * is new, is a restripe source, is in DB... */
+
                 /* If the entry exists in DB, this moves it from main table
                  * to a remove queue, else, just insert it to remove queue. */
                 p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
@@ -1250,7 +1253,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = ListMgr_Remove( lmgr, &p_op->entry_id );
         break;
     case OP_TYPE_SOFT_REMOVE:
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "SoftRemove("DFID", path=%s, bkpath=%s)",
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID", path=%s, bkpath=%s)",
                     PFID(&p_op->entry_id),
                     ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?ATTR(&p_op->entry_attr, fullpath):"",
                     ATTR_MASK_TEST( &p_op->entry_attr, backendpath )?ATTR(&p_op->entry_attr, backendpath):"" );
