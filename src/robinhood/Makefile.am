@@ -140,13 +140,13 @@ rbh_shook_import_SOURCES=rbh_import.c
 rbh_shook_import_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_import_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_rebind_SOURCES=rbh_rebind.c
+rbh_shook_rebind_SOURCES=rbh_rebind.c cmd_helpers.h cmd_helpers.c
 rbh_shook_rebind_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_rebind_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
 if BACKUP
-sbin_PROGRAMS=rbh-backup rbh-backup-report rbh-backup-recov rbh-backup-undo-rm rbh-backup-import
+sbin_PROGRAMS=rbh-backup rbh-backup-report rbh-backup-recov rbh-backup-undo-rm rbh-backup-import rbh-backup-rebind
 bin_PROGRAMS=rbh-backup-du rbh-backup-find
 
 # dependencies:
@@ -183,6 +183,10 @@ rbh_backup_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOS
 rbh_backup_import_SOURCES=rbh_import.c
 rbh_backup_import_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_import_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+
+rbh_backup_rebind_SOURCES=rbh_rebind.c cmd_helpers.h cmd_helpers.c
+rbh_backup_rebind_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_backup_rebind_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
 

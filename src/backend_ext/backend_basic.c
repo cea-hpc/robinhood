@@ -1692,26 +1692,27 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 }
 
 
-/* rebind a backend entry to a new file in Lustre (with new fid) */
-int rbhext_rebind(const char *fs_path, const char *old_bk_path, char *new_bk_path)
+/* rebind a backend entry to a new file in Lustre (with new fid)
+ * Notice: fs_path is not necessarily the current path of new_id
+ * but it should be moved to this path in the end.
+ */
+int rbhext_rebind(const char *fs_path, const char *old_bk_path,
+                  char *new_bk_path, entry_id_t *new_id)
 {
     int rc;
-    entry_id_t new_id;
     attr_set_t attrs_new;
     struct stat st;
     char tmp[RBH_PATH_MAX];
+    char fidpath[RBH_PATH_MAX];
     char * destdir;
 
-    /* get fid for the new file */
-    rc = Lustre_GetFidFromPath(fs_path, &new_id);
-    if (rc)
-        return rc;
+    BuildFidPath( new_id, fidpath );
 
-    if (lstat(fs_path, &st))
+    if (lstat(fidpath, &st))
     {
         rc = -errno;
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: lstat() failed on target entry '%s': %s",
-                    fs_path, strerror(-rc));
+        DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: lstat() failed on target "DFID": %s",
+                   PFID(new_id), strerror(-rc));
         return rc;
     }
 
@@ -1728,7 +1729,7 @@ int rbhext_rebind(const char *fs_path, const char *old_bk_path, char *new_bk_pat
     ATTR_MASK_SET( &attrs_new, fullpath );
 
     /* build new path in backend */
-    rc = entry2backend_path(&new_id, &attrs_new, FOR_NEW_COPY, new_bk_path);
+    rc = entry2backend_path(new_id, &attrs_new, FOR_NEW_COPY, new_bk_path);
     if (rc)
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error building backend path for %s: %s",
@@ -1769,10 +1770,10 @@ int rbhext_rebind(const char *fs_path, const char *old_bk_path, char *new_bk_pat
 #ifdef HAVE_SHOOK
     /* save new backendpath to filesystem */
     /* XXX for now, don't manage several hsm_index */
-    rc = shook_set_hsm_info(fs_path, new_bk_path, 0);
+    rc = shook_set_hsm_info(fidpath, new_bk_path, 0);
     if (rc)
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
-                    fs_path, rc );
+        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for "DFID": error %d",
+                    PFID(new_id), rc );
 #endif
 
     return rc;

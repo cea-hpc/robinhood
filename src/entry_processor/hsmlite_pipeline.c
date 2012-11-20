@@ -98,6 +98,7 @@ int shook_special_obj( struct entry_proc_op_t * p_op )
                 /** @TODO raise special event for the file: LOCK/UNLOCK */
                 return TRUE;
             }
+#if 0 /* keep events on those entries */
             /* is it a restripe src or tgt */
             else if (!fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*", ATTR(&p_op->entry_attr, fullpath ), 0))
             {
@@ -113,6 +114,7 @@ int shook_special_obj( struct entry_proc_op_t * p_op )
                            ATTR(&p_op->entry_attr, fullpath));
                 return TRUE;
             }
+#endif
         }
         else if (!strcmp(STR_TYPE_DIR, ATTR(&p_op->entry_attr, type)))
         {
@@ -319,20 +321,20 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->extra_info.getstatus_needed = TRUE;
         }
     }
-    else if (CL_CHG_TIME(logrec->cr_type))
+    else if (CL_CHG_TIME(logrec->cr_type) || (logrec->cr_type == CL_SETATTR))
     {
         /* need to update attrs */
         p_op->extra_info_is_set = TRUE;
         p_op->extra_info.getattr_needed = TRUE;
 #ifdef HAVE_SHOOK
-        /* in Lustre v2.O, changing trusted xattr generates CTIME event */
+        /* in Lustre v2.O, changing trusted xattr generates CTIME/SATTR event */
         p_op->extra_info.getstatus_needed = TRUE;
 
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                    "getstatus and getattr needed because this is a CTIME event" );
+                    "getstatus and getattr needed because this is a CTIME or SATTR event" );
 #else
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                    "getattr needed because this is a CTIME event" );
+                    "getattr needed because this is a CTIME or SATTR event" );
 #endif
     }
 
