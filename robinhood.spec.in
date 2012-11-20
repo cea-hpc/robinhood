@@ -171,6 +171,8 @@ Summary: PolicyEngine for simple HSM binding
 Group: Applications/System
 %pkg_dependencies
 Requires: %{name}-adm >= %{version}
+BuildRequires: shook-server >= 1.3.0
+Requires: shook-server >= 1.3.0
 
 %description %{purpose}
 Backup modified files to an external backend

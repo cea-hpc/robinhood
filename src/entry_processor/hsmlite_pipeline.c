@@ -26,6 +26,9 @@
 #include "backend_ext.h"
 #include <errno.h>
 #include <time.h>
+#ifdef HAVE_SHOOK
+#include <shook_svr.h>
+#endif
 
 #define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
 
@@ -84,26 +87,61 @@ int shook_special_obj( struct entry_proc_op_t * p_op )
     if (p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, fullpath )
         && ATTR_MASK_TEST( &p_op->entry_attr, type))
     {
-        if ( !strcmp(STR_TYPE_FILE, ATTR(&p_op->entry_attr, type)) &&
-             !fnmatch( "*/.shook_locks/lock.*", ATTR(&p_op->entry_attr, fullpath ), 0 ))
+        if ( !strcmp(STR_TYPE_FILE, ATTR(&p_op->entry_attr, type)) )
         {
-            /* skip the entry */
-            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "%s is a shook lock",
-                       ATTR(&p_op->entry_attr, fullpath));
-            /** @TODO raise special event for the file: LOCK/UNLOCK */
-            return TRUE;
+            /* is it a lock file? */
+            if (!fnmatch("*/"LOCK_DIR"/"SHOOK_LOCK_PREFIX"*", ATTR(&p_op->entry_attr, fullpath ), 0))
+            {
+                /* skip the entry */
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook lock",
+                           ATTR(&p_op->entry_attr, fullpath));
+                /** @TODO raise special event for the file: LOCK/UNLOCK */
+                return TRUE;
+            }
+            /* is it a restripe src or tgt */
+            else if (!fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*", ATTR(&p_op->entry_attr, fullpath ), 0))
+            {
+                /* skip the entry */
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook restripe source",
+                           ATTR(&p_op->entry_attr, fullpath));
+                return TRUE;
+            }
+            else if (!fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_TGT_PREFIX"*", ATTR(&p_op->entry_attr, fullpath ), 0))
+            {
+                /* skip the entry */
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook restripe target",
+                           ATTR(&p_op->entry_attr, fullpath));
+                return TRUE;
+            }
+        }
+        else if (!strcmp(STR_TYPE_DIR, ATTR(&p_op->entry_attr, type)))
+        {
+            if (!fnmatch("*/"LOCK_DIR, ATTR(&p_op->entry_attr, fullpath ), 0))
+            {
+                /* skip the entry */
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook lock dir",
+                           ATTR(&p_op->entry_attr, fullpath));
+                return TRUE;
+            }
+            else if (!fnmatch("*/"RESTRIPE_DIR, ATTR(&p_op->entry_attr, fullpath ), 0))
+            {
+                /* skip the entry */
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook restripe dir",
+                           ATTR(&p_op->entry_attr, fullpath));
+                return TRUE;
+            }
         }
     }
 
-    /* also match '.shook_locks' directory */
+    /* also match '.shook' directory */
     if (p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, name)
         && ATTR_MASK_TEST( &p_op->entry_attr, type))
     {
         if ( !strcmp(STR_TYPE_DIR, ATTR(&p_op->entry_attr, type)) &&
-             !strcmp(".shook_locks", ATTR(&p_op->entry_attr, name)) )
+             !strcmp(SHOOK_DIR, ATTR(&p_op->entry_attr, name)) )
         {
             /* skip the entry */
-            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "%s is a shook lock dir",
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "\"%s\" is a shook dir",
                        ATTR(&p_op->entry_attr, name));
             return TRUE;
         }
@@ -1178,8 +1216,8 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 #ifdef HAVE_SHOOK
     if (shook_special_obj( p_op )) {
-                DisplayLog( LVL_FULL, ENTRYPROC_TAG,
-                    "Shook lock file '%s', skipped",
+                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                    "Shook special file or dir '%s', skipped",
                     (ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?
                      ATTR(&p_op->entry_attr, fullpath):
                      ATTR(&p_op->entry_attr, name)) );
@@ -1212,9 +1250,10 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = ListMgr_Remove( lmgr, &p_op->entry_id );
         break;
     case OP_TYPE_SOFT_REMOVE:
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "SoftRemove("DFID", path=%x, bkpath=%x)",
-                    PFID(&p_op->entry_id), ATTR_MASK_TEST( &p_op->entry_attr, fullpath ),
-                    ATTR_MASK_TEST( &p_op->entry_attr, backendpath ) );
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "SoftRemove("DFID", path=%s, bkpath=%s)",
+                    PFID(&p_op->entry_id),
+                    ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?ATTR(&p_op->entry_attr, fullpath):"",
+                    ATTR_MASK_TEST( &p_op->entry_attr, backendpath )?ATTR(&p_op->entry_attr, backendpath):"" );
         rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id,
                 ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?ATTR(&p_op->entry_attr, fullpath ):NULL,
                 ATTR_MASK_TEST( &p_op->entry_attr, backendpath )?ATTR(&p_op->entry_attr, backendpath ):NULL,
