@@ -244,7 +244,7 @@ function ensure_init_backend()
             echo "creating file container $LOOP_FILE..."
             dd if=/dev/zero of=$LOOP_FILE bs=1M count=400 || return 1
             echo "formatting as ext3..."
-            mkfs.ext3 -F $LOOP_FILE || return 1
+            mkfs.ext3 -q -F $LOOP_FILE || return 1
         fi
 
         echo "Mounting $LOOP_FILE as $BKROOT"

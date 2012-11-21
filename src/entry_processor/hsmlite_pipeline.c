@@ -208,6 +208,43 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 }
 
+static inline int soft_remove_filter(struct entry_proc_op_t *p_op)
+{
+    if (ATTR_MASK_TEST( &p_op->entry_attr, type )
+        && !strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR ))
+    {
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
+        return FALSE;
+    }
+    else if (ATTR_MASK_TEST(&p_op->entry_attr, status)
+        && (ATTR(&p_op->entry_attr, status) == STATUS_NEW))
+    {
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
+                    PFID(&p_op->entry_id) );
+        return FALSE;
+    }
+#ifdef HAVE_SHOOK
+    /* if the removed entry is a restripe source,
+     * we MUST NOT remove the backend entry
+     * as it will be linked to the restripe target
+     */
+    else if ( (ATTR_MASK_TEST(&p_op->entry_attr, fullpath)
+               && !fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*",
+                     ATTR(&p_op->entry_attr, fullpath), 0))
+        ||
+        (ATTR_MASK_TEST(&p_op->entry_attr, name)
+         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(&p_op->entry_attr, name ),
+                     strlen(RESTRIPE_SRC_PREFIX))))
+    {
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing shook stripe source %s: no removal in backend!",
+                    ATTR_MASK_TEST(&p_op->entry_attr, fullpath)?
+                    ATTR(&p_op->entry_attr, fullpath) :
+                    ATTR(&p_op->entry_attr, name) );
+        return FALSE;
+    }
+#endif
+    return TRUE;
+}
 
 #ifdef HAVE_CHANGELOGS
 /**
@@ -354,6 +391,18 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                     DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
                              "Getpath needed because name changed: '%s'->'%s'",
                              ATTR( &p_op->entry_attr, name ), logrec->cr_name );
+
+#ifdef HAVE_SHOOK
+                    /* if the old name is a restripe file, also update the status */
+                    if (!strncmp(RESTRIPE_TGT_PREFIX, ATTR( &p_op->entry_attr, name ), strlen(RESTRIPE_TGT_PREFIX)))
+                    {
+                        p_op->extra_info.getstatus_needed = TRUE;
+                        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                                    "Getstatus needed because rename source is a restripe target");
+                    }
+#endif
+
+
                 }
             }
             else if ( ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
@@ -458,17 +507,19 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                     return STAGE_DB_APPLY;
                 }
                 else
+                    /* ignore the record */
                     return STAGE_CHGLOG_CLR;
             }
             else /* hsm removal enabled: must check if there is some cleaning
                   * to be done in the backend */
             {
-                /* FIXME no consideration whether the entry is a directory,
-                 * is new, is a restripe source, is in DB... */
-
                 /* If the entry exists in DB, this moves it from main table
                  * to a remove queue, else, just insert it to remove queue. */
-                p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+
+                if (soft_remove_filter(p_op))
+                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+                else
+                    p_op->db_op_type = OP_TYPE_REMOVE;
                 return STAGE_DB_APPLY;
             }
         }
@@ -564,6 +615,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR_MASK_INIT( &p_op->entry_attr );
         ATTR_MASK_SET( &p_op->entry_attr, fullpath );
         ATTR_MASK_SET( &p_op->entry_attr, name );
+        ATTR_MASK_SET( &p_op->entry_attr, type );
         ATTR_MASK_SET( &p_op->entry_attr, stripe_info );
         ATTR_MASK_SET( &p_op->entry_attr, md_update );
         ATTR_MASK_SET( &p_op->entry_attr, path_update );
@@ -1095,37 +1147,17 @@ rm_record:
      * or not in DB.
      */
 
-    if (ATTR_MASK_TEST( &p_op->entry_attr, type )
-        && !strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR ))
-    {
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
+    if (!soft_remove_filter(p_op))
         p_op->db_op_type = OP_TYPE_REMOVE;
-        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
-        if ( rc )
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
-    }
-    else if (ATTR_MASK_TEST(&p_op->entry_attr, status)
-        && (ATTR(&p_op->entry_attr, status) == STATUS_NEW))
-    {
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
-                    PFID(&p_op->entry_id) );
-        p_op->db_op_type = OP_TYPE_REMOVE;
-        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
-        if ( rc )
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
-    }
     else if ( p_op->db_exists )
-    {
         p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
-        if ( rc )
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
-    }
     else
-    {
         /* drop the record */
         goto skip_record;
-    }
+
+    rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+    if ( rc )
+        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
 }
 
