@@ -1080,7 +1080,7 @@ static void   *Thr_Rmdir( void *arg )
 
               if ( rc < 0 )
                 {
-                    /* probably an error openning in directory... */
+                    /* probably an error opening in directory... */
                     /* update its info anyway */
                     update_dir( &lmgr, &p_item->entry_id, &new_attr_set );
 
@@ -1134,7 +1134,7 @@ static void   *Thr_Rmdir( void *arg )
                 {
                     char           strmod[256];
 
-                    /* dir has been sucessfully deleted */
+                    /* dir has been successfully deleted */
 
                     /* report messages */
 
@@ -1231,7 +1231,7 @@ static void   *Thr_Rmdir( void *arg )
                          Queue_Acknowledge( &rmdir_queue, RMDIR_OK, rmdir_stats, RMDIR_FDBK_COUNT );
                          /* free entry resources */
                          FreeRmdirItem( p_item );
-                     } /* sucess */
+                     } /* success */
                 }  /* entry matches */
                 else
                 {

@@ -358,7 +358,7 @@ static void   *Thr_Rm( void *arg )
             {
                 /*char           strmod[256];*/
 
-                /* request sucessfully sent */
+                /* request successfully sent */
 
                 /* report messages */
 

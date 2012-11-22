@@ -83,7 +83,7 @@ typedef struct robinhood_task__
 
 
 /* We define a maximum value for ordering tasks into the stack,
- * but we however handle cases when its over.
+ * but we however handle cases when it's over.
  * (we will consider that all the tasks over this limit
  * have the same prority)
  */

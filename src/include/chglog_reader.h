@@ -41,7 +41,7 @@ typedef struct mdt_def_t
 /** Configuration for ChangeLog reader Module */
 typedef struct chglog_reader_config_t
 {
-    /** List of MDTs (used for openning ChangeLogs) */
+    /** List of MDTs (used for opening ChangeLogs) */
     mdt_def_t     *mdt_def;
     unsigned int   mdt_count;
 

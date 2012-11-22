@@ -572,6 +572,7 @@ int CheckFSInfo( char *path, char *expected_type,
     }
     if (strlen(tmp_path) >= RBH_PATH_MAX)
     {
+        free(tmp_path);
         DisplayLog( LVL_CRIT, "CheckFS", "Path length is too long!" );
         return ENAMETOOLONG;
     }

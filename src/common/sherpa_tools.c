@@ -458,7 +458,7 @@ recheck:
 
                         if ( stat_cache.st_size > stat_ref.st_size )
                         {
-                            /* If file in cache is bigger, we consider its the good one.
+                            /* If file in cache is bigger, we consider it's the good one.
                              * This may happen when file is written the same second as its creation,
                              * (or if mtime in filesystem has not been updated).
                              * In this case, we invalidate reference and consider the reference as obsolete.

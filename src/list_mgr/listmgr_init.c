@@ -338,7 +338,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             return rc;
         }
 
-        DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " VAR_TABLE " created sucessfully" );
+        DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " VAR_TABLE " created successfully" );
     }
     else
     {
@@ -442,7 +442,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 return rc;
             }
 
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " MAIN_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " MAIN_TABLE " created successfully" );
 
             /* create indexes on this table */
             for ( i = 0; i < ATTR_COUNT; i++ )
@@ -461,7 +461,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                                     "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                         return rc;
                     }
-                    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " MAIN_TABLE "(%s) created sucessfully",
+                    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " MAIN_TABLE "(%s) created successfully",
                                 field_infos[i].field_name );
                 }
             }
@@ -587,7 +587,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 return rc;
             }
 
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " STRIPE_INFO_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " STRIPE_INFO_TABLE " created successfully" );
         }
     }
     else
@@ -657,7 +657,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 return rc;
             }
 
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " STRIPE_ITEMS_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " STRIPE_ITEMS_TABLE " created successfully" );
 
             strcpy( strbuf, "CREATE INDEX id_index ON " STRIPE_ITEMS_TABLE "(id)" );
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
@@ -668,7 +668,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(id) created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(id) created successfully" );
 
             strcpy( strbuf, "CREATE INDEX st_index ON " STRIPE_ITEMS_TABLE "(storage_item)" );
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
@@ -679,7 +679,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(storage_item) created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(storage_item) created successfully" );
         }
     }
     else
@@ -769,7 +769,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     return rc;
                 }
 
-                DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ANNEX_TABLE " created sucessfully" );
+                DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ANNEX_TABLE " created successfully" );
 
                 /* create indexes on this table */
                 for ( i = 0; i < ATTR_COUNT; i++ )
@@ -788,7 +788,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                                         "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                             return rc;
                         }
-                        DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " ANNEX_TABLE "(%s) created sucessfully",
+                        DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " ANNEX_TABLE "(%s) created successfully",
                                     field_infos[i].field_name );
                     }
                 }
@@ -865,7 +865,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 return rc;
             }
 
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " SOFT_RM_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " SOFT_RM_TABLE " created successfully" );
 
             strcpy( strbuf, "CREATE INDEX rm_time ON " SOFT_RM_TABLE "(real_rm_time)" );
 
@@ -878,7 +878,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " SOFT_RM_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " SOFT_RM_TABLE " created successfully" );
         }
     }
     else
@@ -952,7 +952,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 return rc;
             }
 
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " SOFT_RM_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " SOFT_RM_TABLE " created successfully" );
 
             strcpy( strbuf, "CREATE INDEX rm_time ON " SOFT_RM_TABLE "(real_rm_time)" );
 
@@ -965,7 +965,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " SOFT_RM_TABLE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " SOFT_RM_TABLE " created successfully" );
         }
     }
     else
@@ -1129,7 +1129,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     return rc;
                 }
 
-                DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " created sucessfully" );
+                DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " created successfully" );
 
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB content. This can take a while..." );
                 FlushLogs(); 
@@ -1220,7 +1220,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_INSERT " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_INSERT " created successfully" );
 
             //Trigger on delete
             next = strbuf;
@@ -1254,7 +1254,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_DELETE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_DELETE " created successfully" );
 
             //Trigger on update
             /* if it is the same owner and group: */
@@ -1364,7 +1364,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_UPDATE " created sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_UPDATE " created successfully" );
         }
     }
     //If accounting is disabled
@@ -1421,7 +1421,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to drop table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " dropped sucessfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " dropped successfully" );
             DisplayLog( LVL_EVENT, LISTMGR_TAG, "Accounting stats not activated" );
 
         }

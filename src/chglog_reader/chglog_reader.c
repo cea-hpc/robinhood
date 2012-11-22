@@ -447,7 +447,7 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
             {
                 DisplayLog( LVL_EVENT, CHGLOG_TAG,
                     "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
-                    "was specified. Re-openning in 1 sec..." );
+                    "was specified. Re-opening in 1 sec..." );
                     rh_sleep( 1 );
                     flags = CHANGELOG_FLAG_BLOCK | CHANGELOG_FLAG_FOLLOW;
             }
@@ -487,7 +487,7 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
         return cl_continue;
     }
 
-    /* sucessfully retrieved a record */
+    /* successfully retrieved a record */
 
     /* update thread info */
     cl_update_stats(info, *pp_rec);
@@ -762,7 +762,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
          * don't use the CHANGELOG_FLAG_FOLLOW flag)
          */
         rc = llapi_changelog_start( &reader_info[i].chglog_hdlr,
-                                    (one_shot || p_config->force_polling?0:CHANGELOG_FLAG_FOLLOW)
+                                    ((one_shot || p_config->force_polling)?0:CHANGELOG_FLAG_FOLLOW)
                                     | CHANGELOG_FLAG_BLOCK,
                                     mdtdevice, last_rec );
 

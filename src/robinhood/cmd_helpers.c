@@ -244,6 +244,7 @@ int Path2Id(const char *path, entry_id_t * id)
     }
     if (strlen(tmp_path) >= RBH_PATH_MAX)
     {
+        free(tmp_path);
         DisplayLog( LVL_CRIT, P2ID_TAG, "Path length is too long!" );
         return -ENAMETOOLONG;
     }

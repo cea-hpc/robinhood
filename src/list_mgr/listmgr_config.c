@@ -276,7 +276,7 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         if ( !passfile )
         {
             rc = errno;
-            sprintf( msg_out, "Error openning password file %s : %s", tmpstr, strerror(errno) );
+            sprintf( msg_out, "Error opening password file %s : %s", tmpstr, strerror(errno) );
             return rc;
         }
         fscanf( passfile, "%1024s", tmpstr );
@@ -445,7 +445,7 @@ int WriteLmgrConfigTemplate( FILE * output )
     print_line( output, 1, "connect_retry_interval_min = 1 ;" );
     print_line( output, 1, "connect_retry_interval_max = 30 ;" );
 
-    print_line( output, 1, "# disable the following options if your are not interested in" );
+    print_line( output, 1, "# disable the following options if you are not interested in" );
     print_line( output, 1, "# user or group stats (to speed up scan)" );
     print_line( output, 1, "user_acct  = enabled ;" );
     print_line( output, 1, "group_acct = enabled ;" );

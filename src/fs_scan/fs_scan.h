@@ -63,7 +63,7 @@ typedef struct robinhood_fsscan_stat__
  * that have been previously parsed.
  * 
  * It returns a status code:
- *   0 : initialization sucessful
+ *   0 : initialization successful
  *   -1 : unexpected error at initialization.
  *   EINVAL : a parameter from the config file is invalid.
  */

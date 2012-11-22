@@ -831,7 +831,7 @@ static inline int do_write_template( const char *file )
         if ( stream == NULL )
         {
             rc = errno;
-            fprintf( stderr, "Error openning file '%s' for writting: %s.\n", file, strerror( rc ) );
+            fprintf( stderr, "Error opening file '%s' for writting: %s.\n", file, strerror( rc ) );
             return rc;
         }
     }

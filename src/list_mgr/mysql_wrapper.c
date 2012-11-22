@@ -160,7 +160,7 @@ int db_connect( db_conn_t * conn )
     mysql_options( conn, MYSQL_OPT_RECONNECT, &reconnect );
 #endif
 
-    DisplayLog( LVL_FULL, LISTMGR_TAG, "Logged on to database '%s' sucessfully", lmgr_config.db_config.db );
+    DisplayLog( LVL_FULL, LISTMGR_TAG, "Logged on to database '%s' successfully", lmgr_config.db_config.db );
     return DB_SUCCESS;
 }
 

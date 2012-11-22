@@ -551,7 +551,7 @@ void DisplayLog( int debug_level, const char *tag, const char *format, ... )
         display_line_log( &log, tag, format, args );
         va_end( args );
 
-        /* test if its time to flush. Also flush major errors, to display it immediately. */
+        /* test if it's time to flush. Also flush major errors, to display it immediately. */
         if ( (now - last_time_flush_log > TIME_FLUSH_LOG)
              || (debug_level >= LVL_MAJOR) )
         {

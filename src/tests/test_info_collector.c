@@ -57,7 +57,7 @@ int EntryProc_parse_changelog( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     EntryProcessor_DumpCurrentStages(  );
 #endif
 
-    /* acknoledge */
+    /* acknowledge */
     rc = EntryProcessor_Acknowledge( p_op, p_op->pipeline_stage + 1, FALSE );
     if ( rc )
         printf( "Error acknowledging stage %s\n", stage_info->stage_name );
@@ -83,7 +83,7 @@ int EntryProc_get_info( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-    /* acknoledge */
+    /* acknowledge */
     rc = EntryProcessor_Acknowledge( p_op, p_op->pipeline_stage + 1, FALSE );
     if ( rc )
         printf( "Error acknowledging stage %s\n", stage_info->stage_name );
@@ -109,7 +109,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-    /* acknoledge */
+    /* acknowledge */
     rc = EntryProcessor_Acknowledge( p_op, p_op->pipeline_stage + 1, FALSE );
     if ( rc )
         printf( "Error acknowledging stage %s\n", stage_info->stage_name );
@@ -171,7 +171,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( p_op->callback_func )
         p_op->callback_func( lmgr, p_op, p_op->callback_param );
 
-    /* acknoledge */
+    /* acknowledge */
     rc = EntryProcessor_Acknowledge( p_op, 0, TRUE );
     if ( rc )
         printf( "Error acknowledging stage %s\n", stage_info->stage_name );

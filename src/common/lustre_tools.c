@@ -676,7 +676,7 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
     struct lov_user_mds_data *lmd = ( struct lov_user_mds_data * ) buffer;
     int rc;
 
-    /* ensure fid directory is openned */
+    /* ensure fid directory is opened */
     if ( fid_dir_fd == NULL )
     {
         P( dir_lock );

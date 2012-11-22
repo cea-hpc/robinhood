@@ -86,7 +86,7 @@ int db_connect( db_conn_t * conn )
         return DB_CONNECT_FAILED;
     }
 
-    DisplayLog( LVL_FULL, LISTMGR_TAG, "Logged on to database sucessfully" );
+    DisplayLog( LVL_FULL, LISTMGR_TAG, "Logged on to database successfully" );
 
     set_cache_size( *conn );
 

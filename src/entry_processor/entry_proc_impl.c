@@ -809,7 +809,7 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
         return -EINVAL;
     }
 
-    /* update its satus (even if its going to be removed) */
+    /* update its status (even if it's going to be removed) */
     p_op->being_processed = FALSE;
     p_op->pipeline_stage = next_stage;
 
@@ -910,7 +910,7 @@ void EntryProcessor_DumpCurrentStages(  )
     double         tpe = 0.0;
     int            is_pending_op = FALSE;
 
-    /* no locks here, because its just for information */
+    /* no locks here, because it's just for information */
 
     if ( TestDisplayLevel( LVL_MAJOR ) )
     {

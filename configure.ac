@@ -15,7 +15,7 @@ AC_CONFIG_HEADER([src/include/config.h])
 AC_CONFIG_SRCDIR([src/list_mgr/listmgr_init.c])
 
 AM_INIT_AUTOMAKE([-Wall -Werror tar-pax foreign])
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AC_PREFIX_DEFAULT([/usr])
 

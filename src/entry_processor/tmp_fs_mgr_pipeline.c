@@ -725,7 +725,7 @@ rm_record:
 }
 
 /**
- *  Raise alert if the entry exceeds an admministrator defined limit.
+ *  Raise alert if the entry exceeds an administrator defined limit.
  *  This operation can be made asynchronously.
  */
 int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
@@ -777,7 +777,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
     }
 
-    /* acknoledge now if the stage is asynchronous */
+    /* acknowledge now if the stage is asynchronous */
     if ( stage_info->stage_flags & STAGE_FLAG_ASYNC )
     {
         rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
@@ -789,7 +789,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( is_alert )
         RaiseEntryAlert(title, stralert, strid, strvalues );
 
-    /* acknoledge now if the stage was synchronous */
+    /* acknowledge now if the stage was synchronous */
     if ( !( stage_info->stage_flags & STAGE_FLAG_ASYNC ) )
     {
         rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
@@ -868,7 +868,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
 
     if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknoledging stage %s.", rc,
+        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
                     stage_info->stage_name );
 
     return rc;
@@ -895,10 +895,10 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
                         stage_info->stage_name );
     }
 
-    /* Acknoledge the operation and remove it from pipeline */
+    /* Acknowledge the operation and remove it from pipeline */
     rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
     if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknoledging stage %s.", rc,
+        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
                     stage_info->stage_name );
 
     return rc;
@@ -956,7 +956,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
 
     if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknoledging stage %s.", rc,
+        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
                     stage_info->stage_name );
 
     return rc;
