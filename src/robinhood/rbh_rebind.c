@@ -345,27 +345,6 @@ int main( int argc, char **argv )
     if (rc)
         exit(rc);
 
-    /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, FALSE );
-    if ( rc )
-    {
-        DisplayLog( LVL_CRIT, LOGTAG, "Error %d initializing list manager", rc );
-        exit( rc );
-    }
-    else
-        DisplayLog( LVL_DEBUG, LOGTAG, "ListManager successfully initialized" );
-
-    if ( CheckLastFS(  ) != 0 )
-        exit( 1 );
-
-    /* Create database access */
-    rc = ListMgr_InitAccess( &lmgr );
-    if ( rc )
-    {
-        DisplayLog( LVL_CRIT, LOGTAG, "Error %d: cannot connect to database", rc );
-        exit( rc );
-    }
-
 #ifdef _HSM_LITE
     rc = Backend_Start( &config.backend_config, 0 );
     if ( rc )
@@ -379,8 +358,6 @@ int main( int argc, char **argv )
         rc = rebind_helper(argv[optind], argv[optind+1], NULL);
     else if (optind == argc - 3)
         rc = rebind_helper(argv[optind], argv[optind+1], argv[optind+2]);
-
-    ListMgr_CloseAccess( &lmgr );
 
     return rc;
 }

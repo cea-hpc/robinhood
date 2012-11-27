@@ -180,6 +180,21 @@ and automatically trigger data restore using
 shook library.
 
 Generated using options: @ac_configure_args@
+
+%package %{purpose}-annex
+Summary: Annex tools for simple HSM binding
+Group: Applications/System
+%pkg_dependencies
+BuildRequires: shook-server >= 1.3.0
+Requires: shook-server >= 1.3.0
+
+%description %{purpose}-annex
+Annex tools for simple HSM binding.
+Can run on different nodes than robinhood
+daemon.
+
+Generated using options: @ac_configure_args@
+
 %else
 
 # TMP FS MGR
@@ -270,6 +285,11 @@ fi
 %files adm
 %{_sbindir}/rbh-config
 
+%if %{with shook}
+%files %{purpose}-annex
+%{_sbindir}/%{purpose_bin}-rebind
+%endif
+
 %files webgui
 
 # set apache permissions
@@ -283,14 +303,17 @@ fi
 #%doc ChangeLog
 
 # everythink in sbin, except rbh-config which is in adm
+%if %{with shook}
+%exclude %{_sbindir}/%{purpose_bin}-rebind
+%endif
 %{_sbindir}/%{purpose_bin}*
 %{_sbindir}/*-report
 %{_bindir}/*-du
 %{_bindir}/*-find
+
 %if %{with backup}
 %{_sbindir}/rbhext_*
 %endif
-
 %if %{with shook}
 %{_sbindir}/rbhext_*
 %endif
