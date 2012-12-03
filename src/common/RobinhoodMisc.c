@@ -1602,7 +1602,7 @@ int execute_shell_command( const char * cmd, int argc, ... )
 
         DisplayLog( LVL_MAJOR, SHCMD,
                     "ERROR: %s, error %d (cmdline=%s)",
-                    str_error, exrc, cmdline );
+                    str_error, (signed char)exrc, cmdline );
         rc = -exrc;
     }
     else if (WIFSIGNALED(rc))

@@ -1754,18 +1754,61 @@ int rbhext_rebind(const char *fs_path, const char *old_bk_path,
     if (rc)
         return rc;
 
-    /* rename the entry in backend */
-    DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Moving entry in the backend: '%s'->'%s'",
-               old_bk_path, new_bk_path);
-    if (rename(old_bk_path, new_bk_path))
-    {
-        rc = -errno;
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not move entry in the backend ('%s'->'%s'): %s",
-                    old_bk_path, new_bk_path, strerror(-rc) );
-        /* keep the old path */
-        strcpy( new_bk_path, old_bk_path);
-        return rc;
-    }
+    int retry = 0;
+    do {
+
+        /* rename the entry in backend */
+        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Moving entry in the backend: '%s'->'%s'",
+                   old_bk_path, new_bk_path);
+        if (rename(old_bk_path, new_bk_path))
+        {
+            rc = -errno;
+
+            /* only retry once if error is EXDEV */
+            if (!retry && rc == -EXDEV)
+            {
+                char tmp2[RBH_PATH_MAX];
+                char *fname;
+
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not move entry in the backend "
+                            "because target path is in different device (error EXDEV): '%s'->'%s'",
+                            old_bk_path, new_bk_path );
+
+                /* try to move file from one backend fileset to another:
+                 * in this case, just change filename within the same directory
+                 */
+                /* 1-extract current dirname in backend */
+                strcpy(tmp, old_bk_path);
+                destdir = dirname(tmp);
+                /* 2-extract new filename */
+                strcpy(tmp2, fs_path);
+                fname = basename(tmp2);
+                /* 3-build the new backend path */
+    #ifdef  _HAVE_FID
+                sprintf(new_bk_path, "%s/%s__"DFID_NOBRACE, destdir, fname,
+                        PFID(new_id));
+    #else
+                sprintf(new_bk_path, "%s/%s__%#LX:%#LX", destdir, fname,
+                     (unsigned long long)new_id->device,
+                     (unsigned long long)new_id->inode );
+    #endif
+                retry = 1;
+
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Trying to rename to '%s' instead", new_bk_path);
+                continue;
+            }
+            else
+            {
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Could not move entry in the backend ('%s'->'%s'): %s",
+                            old_bk_path, new_bk_path, strerror(-rc) );
+                /* keep the old path */
+                strcpy( new_bk_path, old_bk_path);
+                return rc;
+            }
+        }
+        /* rename succeeded */
+        retry = 0;
+    } while(retry);
 
 #ifdef HAVE_SHOOK
     /* save new backendpath to filesystem */
