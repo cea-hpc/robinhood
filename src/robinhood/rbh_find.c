@@ -48,6 +48,8 @@ static struct option option_tab[] =
     {"mtime", required_argument, NULL, 'M'},
     {"mmin", required_argument, NULL, 'm'},
     {"msec", required_argument, NULL, 'z'},
+    {"atime", required_argument, NULL, 'A'},
+    {"amin", required_argument, NULL, 'a'},
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
 #endif
@@ -70,7 +72,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:M:m:z:f:d:hV"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:A:M:m:z:f:d:hV"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -97,6 +99,10 @@ struct find_opt
     compare_direction_t mod_compar;
     time_t              mod_val;
 
+    // atime cond: gt/eq/lt <time>
+    compare_direction_t acc_compar;
+    time_t              acc_val;
+
 #ifdef ATTR_INDEX_status
     file_status_t status;
 #endif
@@ -110,6 +116,7 @@ struct find_opt
     unsigned int match_size:1;
     unsigned int match_name:1;
     unsigned int match_mtime:1;
+    unsigned int match_atime:1;
 #ifdef _LUSTRE
     unsigned int match_ost:1;
 #endif
@@ -127,6 +134,7 @@ struct find_opt
 #endif
     .ls = 0, .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
+    .match_mtime = 0, .match_atime = 0,
 #ifdef ATTR_INDEX_status
     .match_status = 0,
 #endif
@@ -220,6 +228,17 @@ static int mkfilters(int exclude_dirs)
         query_mask |= ATTR_MASK_last_mod;
     }
 
+    if (prog_options.match_atime)
+    {
+        compare_value_t val;
+        val.duration = prog_options.acc_val;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, prog_options.acc_compar, CRITERIA_LAST_ACCESS, val);
+        else
+            AppendBoolCond(&match_expr, prog_options.acc_compar, CRITERIA_LAST_ACCESS, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_last_access;
+    }
 #ifdef _LUSTRE
     if (prog_options.match_ost)
     {
@@ -314,6 +333,10 @@ static const char *help_string =
     "        same as '-mtime "_U"N"U_"m'\n"
     "    " _B "-msec" B_ " " _U "second_crit" U_ "\n"
     "        same as '-mtime "_U"N"U_"s'\n"
+    "    " _B "-atime" B_ " " _U "time_crit" U_ "\n"
+    "       "TIME_HELP"\n"
+    "    " _B "-amin" B_ " " _U "minute_crit" U_ "\n"
+    "       "TIME_HELP"\n"
 #ifdef _LUSTRE
     "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
 #endif
@@ -515,8 +538,9 @@ static int set_size_filter(char * str)
     return 0;
 }
 
+typedef enum {atime, mtime} e_time;
 /* parse time filter and set prog_options struct */
-static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix)
+static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix, e_time what)
 {
     compare_direction_t comp;
     char * curr = str;
@@ -542,11 +566,22 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
 
     if ((n == 1) || !strcmp(suffix, ""))
     {
-        prog_options.mod_compar = comp;
-        if (multiplier != 0)
-            prog_options.mod_val = val * multiplier;
-        else /* default multiplier is days */
-            prog_options.mod_val =  val * 86400;
+        if ( what == mtime )
+        {
+            prog_options.mod_compar = comp;
+            if (multiplier != 0)
+                prog_options.mod_val = val * multiplier;
+            else /* default multiplier is days */
+                prog_options.mod_val =  val * 86400;
+        }
+        else
+        {
+            prog_options.acc_compar = comp;
+            if (multiplier != 0)
+                prog_options.acc_val = val * multiplier;
+            else /* default multiplier is days */
+                prog_options.acc_val =  val * 86400;
+        }
     }
     else
     {
@@ -571,8 +606,16 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
                 fprintf(stderr, "Invalid suffix for time: '%s'. Expected time format: "TIME_HELP"\n", str);
                 return -EINVAL;
         }
-        prog_options.mod_compar = comp;
-        prog_options.mod_val = val;
+        if ( what == mtime )
+        {
+            prog_options.mod_compar = comp;
+            prog_options.mod_val = val;
+        }
+        else
+        {
+            prog_options.acc_compar = comp;
+            prog_options.acc_val = val;
+        }
     }
     return 0;
 }
@@ -942,21 +985,33 @@ int main( int argc, char **argv )
                 exit(1);
             break;
 
+        case 'A':
+            toggle_option(match_atime, "atime/amin");
+            if (set_time_filter(optarg, 0, TRUE, atime))
+                exit(1);
+            break;
+
+        case 'a':
+            toggle_option(match_atime, "atime/amin");
+            if (set_time_filter(optarg, 60, TRUE, atime))
+                exit(1);
+            break;
+
         case 'M':
             toggle_option(match_mtime, "mtime/mmin/msec");
-            if (set_time_filter(optarg, 0, TRUE))
+            if (set_time_filter(optarg, 0, TRUE, mtime))
                 exit(1);
             break;
 
         case 'm':
             toggle_option(match_mtime, "mtime/mmin/msec");
-            if (set_time_filter(optarg, 60, FALSE)) /* don't allow suffix (multiplier is 1min) */
+            if (set_time_filter(optarg, 60, FALSE, mtime)) /* don't allow suffix (multiplier is 1min) */
                 exit(1);
             break;
 
         case 'z':
             toggle_option(match_mtime, "mtime/mmin/msec");
-            if (set_time_filter(optarg, 1, FALSE)) /* don't allow suffix (multiplier is 1sec) */
+            if (set_time_filter(optarg, 1, FALSE, mtime)) /* don't allow suffix (multiplier is 1sec) */
                 exit(1);
             break;
 
