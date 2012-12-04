@@ -714,6 +714,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 ATTR_MASK_SET( &p_op->entry_attr, stripe_info );
                 ATTR_MASK_SET( &p_op->entry_attr, stripe_items );
             }
+            else
+            {
+                ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
+                ATTR_MASK_UNSET( &p_op->entry_attr, stripe_items );
+            }
     #endif
         }
 

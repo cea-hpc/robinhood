@@ -1046,6 +1046,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             rc = File_GetStripeByPath( path,
                                        &ATTR( &p_op->entry_attr, stripe_info ),
                                        &ATTR( &p_op->entry_attr, stripe_items ) );
+            if (rc)
+            {
+                ATTR_MASK_UNSET( &p_op->entry_attr, stripe_info );
+                ATTR_MASK_UNSET( &p_op->entry_attr, stripe_items );
+            }
 
             if ( ERR_MISSING( abs( rc ) ) )
             {
