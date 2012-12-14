@@ -219,8 +219,12 @@ static int init_log_descr( const char * logname, log_stream_t * p_log )
         p_log->log_type = RBH_LOG_REGFILE;
         p_log->f_log = fopen( logname, "a" );
 
-        if ( p_log->f_log == NULL )
-            return -1;
+        if ( p_log->f_log == NULL ) {
+            fprintf(stderr, "Error opening log file %s: %s. Logging to stderr instead.\n", logname, strerror(errno));
+            p_log->log_type = RBH_LOG_STDIO;
+            p_log->f_log  = stderr;
+            return 0; /* do not propagate error as there is a workaround */
+        }
 
         if ( fstat( fileno( p_log->f_log ), &filestat ) != -1 )
             p_log->f_ino = filestat.st_ino;
