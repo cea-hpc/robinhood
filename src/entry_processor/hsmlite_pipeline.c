@@ -341,7 +341,8 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             p_op->extra_info.getstatus_needed = TRUE;
 #endif
     }
-    else if ( CL_MOD_TIME(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) )
+    else if ( CL_MOD_TIME(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) ||
+              (logrec->cr_type == CL_CLOSE))
     {
         /* if file is modified or truncated, need to check its status
          * (probably modified) EXCEPT if its status is already 'modified' */
@@ -350,7 +351,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                  (ATTR(&p_op->entry_attr, status) != STATUS_NEW)) )
         {
             DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getstatus needed because this is a MTIME or TRUNC event "
+                        "Getstatus needed because this is a MTIME, TRUNC or CLOSE event "
                         "and status is not already 'modified' or 'new': event=%s, status=%d",
                         changelog_type2str(logrec->cr_type),
                         ATTR_MASK_TEST( &p_op->entry_attr, status )?
@@ -439,12 +440,13 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         /* get the new attributes, in case of a SATTR, HSM... */
         if ( allow_md_updt && (CL_MOD_TIME(logrec->cr_type)
                                || CL_CHG_TIME(logrec->cr_type)
+                               || ( logrec->cr_type == CL_CLOSE )
                                || ( logrec->cr_type == CL_TRUNC )
                                || ( logrec->cr_type == CL_HSM )
                                || ( logrec->cr_type == CL_SETATTR )) )
         {
             DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getattr needed because this is a TIME, TRUNC, HSM or SETATTR event, and "
+                        "Getattr needed because this is a TIME, TRUNC, SETATTR, HSM or CLOSE event, and "
                          "metadata has not been recently updated. event=%s",
                          changelog_type2str(logrec->cr_type) );
 

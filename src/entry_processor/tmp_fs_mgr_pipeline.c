@@ -332,12 +332,13 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         /* get the new attributes, in case of a SATTR, TIME, HSM... */
         if ( allow_md_updt && (CL_MOD_TIME(logrec->cr_type)
                                || CL_CHG_TIME(logrec->cr_type)
+                               || ( logrec->cr_type == CL_CLOSE )
                                || ( logrec->cr_type == CL_TRUNC )
                                || ( logrec->cr_type == CL_HSM )
                                || ( logrec->cr_type == CL_SETATTR )) )
         {
             DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getattr needed because this is a TIME, TRUNC, HSM or SETATTR event, and "
+                        "Getattr needed because this is a *TIME, TRUNC, SETATTR, CLOSE or HSM event, and "
                          "metadata has not been recently updated. event=%s",
                          changelog_type2str(logrec->cr_type) );
 

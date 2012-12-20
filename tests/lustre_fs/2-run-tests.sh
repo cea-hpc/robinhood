@@ -2214,6 +2214,62 @@ function periodic_class_match_purge
 		&& echo "OK: fileclasses correctly updated"
 }
 
+function test_size_updt
+{
+	config_file=$1
+	event_read_delay=$2
+	policy_str="$3"
+
+	init=`date "+%s"`
+
+	LOG=rh_chglogs.log
+
+	if (( $no_log )); then
+		echo "changelog disabled: skipped"
+		set_skipped
+		return 1
+	fi
+
+    # create a log reader
+	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach || error "starting chglog reader"
+    sleep 1
+
+    # create a small file and write it (20 bytes, incl \n)
+    echo "qqslmdkqslmdkqlmsdk" > $ROOT/file
+    sleep 1
+
+    [ "$DEBUG" = "1" ] && $FIND $ROOT/file -f ./cfg/$config_file -ls
+    size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    if [ -z "$size" ]; then
+       echo "db not yet updated, waiting one more second..." 
+       sleep 1
+       size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    fi
+
+    if (( $size != 20 )); then
+        error "unexpected size value: $size != 20 (is Lustre version < 2.3?)"
+    fi
+
+    # now appending the file (+20 bytes, incl \n)
+    echo "qqslmdkqslmdkqlmsdk" >> $ROOT/file
+    sleep 1
+
+    [ "$DEBUG" = "1" ] && $FIND $ROOT/file -f ./cfg/$config_file -ls
+    size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    if [ -z "$size" ]; then
+       echo "db not yet updated, waiting one more second..." 
+       sleep 1
+       size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    fi
+
+    if (( $size != 40 )); then
+        error "unexpected size value: $size != 40"
+    fi
+   
+    pkill -9 $PROC
+}
+
+
 function test_cnt_trigger
 {
 	config_file=$1
@@ -6489,7 +6545,7 @@ run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation
 run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
 run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
-
+run_test 104     test_size_updt common.conf 1 "test size update"
 
 #### policy matching tests  ####
 
