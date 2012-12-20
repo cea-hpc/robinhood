@@ -2260,15 +2260,11 @@ function cleanup
 
 function run_test
 {
-	#if [[ -n $6 ]]; then args=$6; else args=$5 ; fi
-	list_args=$(echo $* | tr "" "\n")
-    	for x in $list_args
-    	do
-     	   args=$x
-    	done
-    	# args = last argument
-
 	index=$1
+
+    # last argument
+    title=${!#}
+
 	shift
 
 	index_clean=`echo $index | sed -e 's/[a-z]//'`
@@ -2276,7 +2272,7 @@ function run_test
     if [[ -z "$only_test" || $only_test = *",$index_clean,"* || $only_test = *",$index,"* ]]; then
 		cleanup
 		echo
-		echo "==== TEST #$index $2 ($args) ===="
+		echo "==== TEST #$index $2 ($title) ===="
 
 		error_reset
 
@@ -2284,8 +2280,8 @@ function run_test
 
 		if (($junit == 1)); then
 			# markup in log
-			echo "==== TEST #$index $2 ($args) ====" >> $TMPXML_PREFIX.stdout
-			echo "==== TEST #$index $2 ($args) ====" >> $TMPXML_PREFIX.stderr
+			echo "==== TEST #$index $2 ($title) ====" >> $TMPXML_PREFIX.stdout
+			echo "==== TEST #$index $2 ($title) ====" >> $TMPXML_PREFIX.stderr
 			"$@" 2>> $TMPXML_PREFIX.stderr >> $TMPXML_PREFIX.stdout
 		elif (( $quiet == 1 )); then
 			"$@" 2>&1 > rh_test.log
@@ -2306,14 +2302,14 @@ function run_test
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
 			RC=$(($RC+1))
 			if (( $junit )); then
-				junit_report_failure "robinhood.$PURPOSE.Posix" "Test #$index: $args" "$dur" "ERROR" 
+				junit_report_failure "robinhood.$PURPOSE.Posix" "Test #$index: $title" "$dur" "ERROR" 
 			fi
 		else
 			grep "Failed" $CLEAN 2>/dev/null
 			echo "TEST #$index : OK" >> $SUMMARY
 			SUCCES=$(($SUCCES+1))
 			if (( $junit )); then
-				junit_report_success "robinhood.$PURPOSE.Posix" "Test #$index: $args" "$dur"
+				junit_report_success "robinhood.$PURPOSE.Posix" "Test #$index: $title" "$dur"
 			fi
 
 		fi
