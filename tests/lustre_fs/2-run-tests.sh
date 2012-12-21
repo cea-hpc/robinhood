@@ -2819,12 +2819,14 @@ function test_info_collect
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when reading changelogs"
 
 	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
+	nb_close=`grep ChangeLog rh_chglogs.log | grep 11CLOSE | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
     # (directories are always inserted with robinhood 2.4)
+    # + all close
     # 4 file + 3 dirs
     # +1 for shook (.shook_locks) that goes though DB apply step but is discarded
-    db_expect=7
+    ((db_expect=7+$nb_close))
     if (($shook != 0)); then
         ((db_expect=$db_expect+1))
     fi
@@ -2845,7 +2847,8 @@ function test_info_collect
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-	# 4 db operations expected (1 for each file)
+	# 4 db operations expected (1 for each file - close operations)
+    ((db_expect=$db_expect - $nb_close))
 	if (( $nb_db_apply == $db_expect )); then
 		echo "OK: $db_expect database operations"
 	else
