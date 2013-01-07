@@ -703,6 +703,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 
         op.extra_info_is_set = FALSE;
 
+#ifndef _BENCH_SCAN
         /* Push entry to the pipeline */
         st = EntryProcessor_Push( &op );
 
@@ -712,6 +713,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
                         "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
             return st;
         }
+#endif
 
     }
     else if ( S_ISDIR( inode.st_mode ) )
@@ -1024,6 +1026,7 @@ static void   *Thr_scan( void *arg_thread )
 
             op.extra_info_is_set = FALSE;
 
+#ifndef _BENCH_SCAN
             /* Push directory to the pipeline */
             st = EntryProcessor_Push( &op );
 
@@ -1033,6 +1036,7 @@ static void   *Thr_scan( void *arg_thread )
                             "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
                 return NULL;
             }
+#endif
         }
 
         gettimeofday( &end_dir, NULL );
