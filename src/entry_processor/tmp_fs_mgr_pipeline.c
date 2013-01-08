@@ -947,11 +947,11 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                     "Error: ListMgr MassRemove operation failed with code %d.", rc );
-    else if ( p_op->callback_func )
+
+    /* must call the cb func in any case, to unblock the scan */
+    if ( p_op->callback_func )
     {
-        /* if operation was commited, Perform callback to info collector */
-        if ( ListMgr_GetCommitStatus( lmgr ) )
-            p_op->callback_func( lmgr, p_op, p_op->callback_param );
+        p_op->callback_func( lmgr, p_op, p_op->callback_param );
     }
 
     // update last scan end time moved to callback
