@@ -62,8 +62,11 @@ AX_ENABLE_FLAG([debug-policies], [enables debug traces for entry processor pipel
 AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DEBUG_HASH])
 
 AX_ENABLE_FLAG([bench-scan], [build version for scan benchmarking], [-D_BENCH_SCAN])
+AX_ENABLE_FLAG([gprof], [Add gprof info to the binaries], [-g -pg])
 
 # behavior flags
+AX_DISABLE_FLAG([atfunc], [Don't use 'at' functions for scanning], [-D_NO_AT_FUNC])
+
 AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
 
 
@@ -299,14 +302,6 @@ AC_DEFINE_UNQUOTED([PURPOSE_EXT],"$PURPOSE_EXT", [Directory extension for the gi
 
 
 CFLAGS="$CFLAGS -I\$(top_srcdir)/src/include"
-
-AC_ARG_ENABLE( [gprof], AS_HELP_STRING([--enable-gprof],
-               [Add gprof info to the binaries]),
-               [gprof="$enableval"],[gprof="no"] )
-
-if test "x$gprof" = "xyes" ; then
-    CFLAGS="$CFLAGS -g -pg"
-fi
 
 # Db ?
 
