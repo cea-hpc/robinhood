@@ -103,6 +103,7 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
 }
 
 #define DROP_MESSAGE "\nyou should: 1)backup current DB using 'rbh-config backup_db' 2)empty the DB using 'rbh-config empty_db' 3)start a new FS scan."
+#define DROP_ACCT_MSG "\nyou should: 1)stop robinhood commands 2)drop '"ACCT_TABLE"' table 3)restart robinhood."
 
 /**
  * Check table fields.
@@ -116,9 +117,14 @@ static inline int check_field( int i, int * curr_field_index, char *table, char 
     if ( ( *curr_field_index >= MAX_DB_FIELDS )
         || ( fieldtab[*curr_field_index] == NULL ) )
     {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Incompatible database schema (missing field '%s' in table %s):" 
-                    " "DROP_MESSAGE, field_infos[i].field_name, table );
+        if (!strcmp(table, ACCT_TABLE))
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Incompatible database schema (missing field '%s' in table %s):" 
+                        " "DROP_ACCT_MSG, field_infos[i].field_name, table );
+        else
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Incompatible database schema (missing field '%s' in table %s):" 
+                        " "DROP_MESSAGE, field_infos[i].field_name, table );
         return -1;
     }
     /* check that this is the expected field */
@@ -132,9 +138,14 @@ static inline int check_field( int i, int * curr_field_index, char *table, char 
     {
         DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s != %s",
                     field_infos[i].field_name, fieldtab[*curr_field_index] );
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Incompatible database schema (unexpected field '%s' in table %s): "DROP_MESSAGE,
-                    fieldtab[*curr_field_index], table );
+        if (!strcmp(table, ACCT_TABLE))
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Incompatible database schema (unexpected field '%s' in table %s): "DROP_ACCT_MSG,
+                        fieldtab[*curr_field_index], table );
+        else
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Incompatible database schema (unexpected field '%s' in table %s): "DROP_MESSAGE,
+                        fieldtab[*curr_field_index], table );
         return -1;
     }
 }
@@ -1014,7 +1025,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             { 
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Incompatible database schema (missing field '" ACCT_FIELD_COUNT  "' in table "
-                            ACCT_TABLE"): "DROP_MESSAGE );
+                            ACCT_TABLE"): "DROP_ACCT_MSG );
                 return -1;
             }
             else
@@ -1031,7 +1042,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 {
                     DisplayLog( LVL_CRIT, LISTMGR_TAG,
                                 "Incompatible database schema (expected field '%s' at index #%u in table "ACCT_TABLE
-                                "): "DROP_MESSAGE, sz_field[i], curr_field_index);
+                                "): "DROP_ACCT_MSG, sz_field[i], curr_field_index);
                     return -1;
                 }
                 else
