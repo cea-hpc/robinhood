@@ -179,14 +179,27 @@ typedef enum
     TAB_IDMAP
 } db_tables_t;
 
+typedef enum {
+    OPIDX_GET,
+    OPIDX_INSERT,
+    OPIDX_UPDATE,
+    OPIDX_RM,
+
+    OPCOUNT
+} op_idx_e;
+
 /** Connection related information for a thread */
 typedef struct lmgr_t
 {
     db_conn_t      conn;
     unsigned int   last_commit;
 
-    /* flag for forcing commit */
+    /* flag to force commit */
     int            force_commit;
+
+    /* operation statistics */
+    unsigned int nbop[OPCOUNT];
+
 } lmgr_t;
 
 /** List manager configuration */

@@ -1474,7 +1474,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
 int ListMgr_InitAccess( lmgr_t * p_mgr )
 {
-    int            rc;
+    int            rc, i;
 
     rc = db_connect( &p_mgr->conn );
 
@@ -1483,6 +1483,9 @@ int ListMgr_InitAccess( lmgr_t * p_mgr )
 
     p_mgr->last_commit = 0;
     p_mgr->force_commit = FALSE;
+
+    for (i = 0; i < OPCOUNT; i++)
+        p_mgr->nbop[i] = 0;
 
     return 0;
 }

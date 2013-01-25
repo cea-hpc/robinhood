@@ -82,8 +82,11 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
         lmgr_rollback( p_mgr );
         return rc;
     }
-        
-    return lmgr_commit( p_mgr );
+
+    rc = lmgr_commit( p_mgr );
+    if (!rc)
+         p_mgr->nbop[OPIDX_RM]++;
+    return rc;
 }
 
 /* macro for clarifying the code */
@@ -122,6 +125,16 @@ static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
                  (unsigned int)due_time );
     }
 
+    /* set READ COMMITTED isolation level for the next (big!) request
+     * so locks can be released immediatly after the record is read */
+    rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
+    if ( rc )
+    {
+        char errmsg[1024];
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
+        /* continue anyway */
+    }
     return db_exec_sql( &p_mgr->conn, query, NULL );
 }
 
@@ -251,6 +264,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         if ( rc )
             goto rollback;
 
+        /* FIXME how many entries removed? */
         return lmgr_commit( p_mgr );
     }
 
@@ -387,8 +401,8 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         char errmsg[1024];
         DisplayLog( LVL_CRIT, LISTMGR_TAG,
                     "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
+        /* continue anyway */
     }
-        /* try to continue */
 
     /* create the temporary table */
     rc = db_exec_sql( &p_mgr->conn, query, NULL );
@@ -524,7 +538,10 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         goto rollback;
 
 
-    return lmgr_commit( p_mgr );
+    rc = lmgr_commit( p_mgr );
+    if (!rc)
+        p_mgr->nbop[OPIDX_RM]+=rmcount;
+    return rc;
 
   free_res:
     db_result_free( &p_mgr->conn, &result );
@@ -622,7 +639,10 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     }
 
     /* commit */
-    return lmgr_commit( p_mgr );
+    rc = lmgr_commit( p_mgr );
+    if (!rc)
+         p_mgr->nbop[OPIDX_RM]++;
+    return rc;
 }
 
 typedef struct lmgr_rm_list_t

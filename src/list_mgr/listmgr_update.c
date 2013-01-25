@@ -116,9 +116,17 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
 
 
     if ( nb_tables > 1 )
-        return lmgr_commit( p_mgr );
+    {
+        rc = lmgr_commit( p_mgr );
+        if (!rc)
+            p_mgr->nbop[OPIDX_UPDATE]++;
+        return rc;
+    }
     else
+    {
+        p_mgr->nbop[OPIDX_UPDATE]++;
         return DB_SUCCESS;
+    }
 
   rollback:
     lmgr_rollback( p_mgr );

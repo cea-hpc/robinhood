@@ -277,7 +277,7 @@ void id_constraint_dump(  )
 
     avg = ( double ) total / ( 0.0 + ID_HASH_SIZE );
     DisplayLog( LVL_MAJOR, "STATS",
-                "Id constraints count: %u (Hash list min: %u, max: %u, avg: %.1f)", total, min, max,
+                "Id constraints count: %u (hash min=%u/max=%u/avg=%.1f)", total, min, max,
                 avg );
 
 #ifdef _DEBUG_HASH

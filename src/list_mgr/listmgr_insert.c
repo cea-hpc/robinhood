@@ -105,7 +105,6 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         return rc;
     }
 
-
     /* insert all info in annex table, if any */
 
     if ( annex_table )
@@ -146,5 +145,11 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         }
     }
 
-    return lmgr_commit( p_mgr );
+
+    rc = lmgr_commit( p_mgr );
+
+    /* success, count it */
+    if (!rc)
+        p_mgr->nbop[OPIDX_INSERT]++;
+    return rc;
 }

@@ -909,6 +909,7 @@ void EntryProcessor_DumpCurrentStages(  )
     unsigned int   i;
     double         tpe = 0.0;
     int            is_pending_op = FALSE;
+    unsigned int nb_get, nb_ins, nb_upd,nb_rm;
 
     /* no locks here, because it's just for information */
 
@@ -942,6 +943,19 @@ void EntryProcessor_DumpCurrentStages(  )
             if ( pipeline[i].first_in_ptr || pipeline[i].last_in_ptr )
                 is_pending_op = TRUE;
         }
+        nb_get = nb_ins =  nb_upd = nb_rm = 0;
+        for (i = 0; i < entry_proc_conf.nb_thread; i++)
+        {
+            if (worker_params)
+            {
+                nb_get+= worker_params[i].lmgr.nbop[OPIDX_GET];
+                nb_ins+= worker_params[i].lmgr.nbop[OPIDX_INSERT];
+                nb_upd+= worker_params[i].lmgr.nbop[OPIDX_UPDATE];
+                nb_rm+= worker_params[i].lmgr.nbop[OPIDX_RM];
+            }
+        }
+        DisplayLog( LVL_MAJOR, "STATS", "DB ops: get=%u/ins=%u/upd=%u/rm=%u",
+                    nb_get, nb_ins, nb_upd, nb_rm );
     }
 
     if ( TestDisplayLevel( LVL_EVENT ) )
