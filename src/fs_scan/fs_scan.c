@@ -31,13 +31,19 @@
 #include "xplatform_print.h"
 
 #include <sys/types.h>
-#include <string.h>
-#include <dirent.h>
+#include <sys/stat.h>
 #include <sys/time.h>           /* for gettimeofday */
 #include <sys/utsname.h>
-#include <libgen.h>
-#include <unistd.h>
 
+#include <unistd.h>
+#include <linux/types.h>
+#include <linux/unistd.h>
+#include <errno.h>
+#include <syscall.h>
+
+#include <string.h>
+#include <fcntl.h>
+#include <libgen.h>
 
 fs_scan_config_t fs_scan_config;
 int              fsscan_flags = 0;
@@ -552,7 +558,11 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
 
 
 /* process a filesystem entry */
+#ifndef _NO_AT_FUNC
+static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task, char *entry_name, int parentfd )
+#else
 static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task, char *entry_name, DIR * parent )
+#endif
 {
     char           entry_path[RBH_PATH_MAX];
     struct stat    inode;
@@ -572,7 +582,11 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
     }
     else
 #endif
+#ifndef _NO_AT_FUNC
+    if ( fstatat( parentfd, entry_name, &inode, AT_SYMLINK_NOFOLLOW) == -1 )
+#else
     if ( lstat( entry_path, &inode ) == -1 )
+#endif
     {
         DisplayLog( LVL_MAJOR, FSSCAN_TAG,
                     "lstat on %s failed: Error %d: %s: entry ignored",
@@ -703,6 +717,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 
         op.extra_info_is_set = FALSE;
 
+#ifndef _BENCH_SCAN
         /* Push entry to the pipeline */
         st = EntryProcessor_Push( &op );
 
@@ -712,6 +727,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
                         "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
             return st;
         }
+#endif
 
     }
     else if ( S_ISDIR( inode.st_mode ) )
@@ -776,11 +792,18 @@ static void   *Thr_scan( void *arg_thread )
     int            st;
     robinhood_task_t *p_task;
 
-    struct dirent  entree_rep;
-    struct dirent *cookie_rep;
-    struct stat    inode_entree;
+    struct stat    inode_entry;
     int            rc;
+#ifndef _NO_AT_FUNC
+#define GETDENTS_BUF_SZ 4096
+    int            dirfd;
+    char           dirent_buf[GETDENTS_BUF_SZ];
+    struct dirent64  *direntry = NULL;
+#else
     DIR           *dirp;
+    struct dirent  direntry;
+    struct dirent *cookie_rep;
+#endif
 
     struct timeval start_dir;
     struct timeval end_dir;
@@ -833,7 +856,7 @@ static void   *Thr_scan( void *arg_thread )
         if ( p_task->parent_task == NULL )
         {
             /* retrieve filesystem device id */
-            if ( stat( p_task->path, &inode_entree ) == -1 )
+            if ( stat( p_task->path, &inode_entry ) == -1 )
             {
                 DisplayLog( LVL_CRIT, FSSCAN_TAG,
                             "stat failed on %s. Error %d", p_task->path, errno );
@@ -841,11 +864,11 @@ static void   *Thr_scan( void *arg_thread )
                 Exit( 1 );
             }
 
-            if ( fsdev != inode_entree.st_dev )
+            if ( fsdev != inode_entry.st_dev )
             {
                 /* manage dev id change after umount/mount */
                 DisplayLog( LVL_MAJOR, FSSCAN_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
-                            "checking if it has been remounted", fsdev, inode_entree.st_dev );
+                            "checking if it has been remounted", fsdev, inode_entry.st_dev );
                 if (ResetFS())
                 {
                     DisplayLog( LVL_CRIT, FSSCAN_TAG, "Filesystem was unmounted!!! EXITING!" );
@@ -856,7 +879,7 @@ static void   *Thr_scan( void *arg_thread )
             }
 
             /* set dir_md and dir_id */
-            p_task->dir_md = inode_entree;
+            p_task->dir_md = inode_entry;
 
 #ifdef _HAVE_FID
             st = Lustre_GetFidFromPath( p_task->path, &p_task->dir_id );
@@ -880,9 +903,9 @@ static void   *Thr_scan( void *arg_thread )
                 continue;
             }
 #else
-            p_task->dir_id.inode = inode_entree.st_ino;
+            p_task->dir_id.inode = inode_entry.st_ino;
             p_task->dir_id.fs_key = get_fskey();
-            p_task->dir_id.validator = inode_entree.st_ctime;
+            p_task->dir_id.validator = inode_entry.st_ctime;
 #endif
 
             /* test lock before starting scan */
@@ -892,10 +915,16 @@ static void   *Thr_scan( void *arg_thread )
 
         /* open directory */
 
+#ifndef _NO_AT_FUNC
+        #define OPENDIR_STR "open"
+        if ( (dirfd = open(p_task->path, O_RDONLY | O_DIRECTORY)) < 0 )
+#else
+        #define OPENDIR_STR "opendir"
         if ( ( dirp = opendir( p_task->path ) ) == NULL )
+#endif
         {
             DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                        "opendir on %s failed: Error %d: %s",
+                        OPENDIR_STR" on %s failed: Error %d: %s",
                         p_task->path, errno, strerror( errno ) );
 
             p_info->entries_errors ++;
@@ -919,19 +948,66 @@ static void   *Thr_scan( void *arg_thread )
         nb_entries = 0;
         nb_errors = 0;
 
+#ifndef _NO_AT_FUNC
+        /* scan directory entries by chunk of 4k */
+        p_info->last_action = time( NULL );
+
+        direntry = (struct dirent64*)dirent_buf;
+        while ((rc = syscall(SYS_getdents64, dirfd, direntry, GETDENTS_BUF_SZ)) > 0)
+        {
+           off_t bytepos;
+           struct dirent64 *dp;
+
+           for(bytepos = 0; bytepos < rc;)
+           {
+              dp = (struct dirent64 *)(dirent_buf + bytepos);
+              bytepos += dp->d_reclen;
+
+              /* break ASAP if requested */
+              if ( p_info->force_stop )
+              {
+                  DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation (in '%s')", p_task->path );
+                  goto end_task;
+              }
+ 
+              if (!strcmp( dp->d_name, "." ) || !strcmp( dp->d_name, ".." ))
+                    continue;
+              nb_entries++;
+
+              /* Handle filesystem entry.
+               * Don't manage return value (entry is ignored).
+               */
+              if ( HandleFSEntry( p_info, p_task, dp->d_name, dirfd ) != 0 )
+                  nb_errors++;
+            }
+        }
+        /* rc == 0 => end of dir */
+        if (rc < 0)
+        {
+            rc = errno;
+            DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR %d reading directory '%s': %s",
+                        rc, p_task->path, strerror(rc) );
+            nb_errors++;
+        }
+        if ( rc != EBADF )
+            close( dirfd );
+
+#else
+        /* read entries one by one */
+
         while ( 1 )
         {
             /* notify current activity (for watchdog) */
             p_info->last_action = time( NULL );
 
-            rc = readdir_r( dirp, &entree_rep, &cookie_rep );
+            rc = readdir_r( dirp, &direntry, &cookie_rep );
 
             if ( rc == 0 && cookie_rep == NULL )
                 /* end of directory */
                 break;
             else if ( p_info->force_stop )
             {
-                DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation" );
+                DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation (in '%s')", p_task->path );
                 goto end_task;
             }
             else if ( rc != 0 )
@@ -942,9 +1018,7 @@ static void   *Thr_scan( void *arg_thread )
                 break;
             }
 
-            /* ignore . and .. */
-
-            if ( !strcmp( entree_rep.d_name, "." ) || !strcmp( entree_rep.d_name, ".." ) )
+            if ( !strcmp( direntry.d_name, "." ) || !strcmp( direntry.d_name, ".." ) )
                 continue;
 
             nb_entries++;
@@ -957,13 +1031,14 @@ static void   *Thr_scan( void *arg_thread )
             /* Handle filesystem entry.
              * Don't manage return value (entry is ignored).
              */
-            if ( HandleFSEntry( p_info, p_task, entree_rep.d_name, dirp ) != 0 )
+            if ( HandleFSEntry( p_info, p_task, direntry.d_name, dirp ) != 0 )
                 nb_errors++;
 
         } /* end of dir */
 
         if ( rc != EBADF )
             closedir( dirp );
+#endif
 
         if ( p_task->depth > 0 )
         {
@@ -1024,6 +1099,7 @@ static void   *Thr_scan( void *arg_thread )
 
             op.extra_info_is_set = FALSE;
 
+#ifndef _BENCH_SCAN
             /* Push directory to the pipeline */
             st = EntryProcessor_Push( &op );
 
@@ -1033,6 +1109,7 @@ static void   *Thr_scan( void *arg_thread )
                             "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
                 return NULL;
             }
+#endif
         }
 
         gettimeofday( &end_dir, NULL );
