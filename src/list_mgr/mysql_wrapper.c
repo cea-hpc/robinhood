@@ -417,3 +417,30 @@ int db_create_trigger( db_conn_t * conn, const char *name, const char *event,
 
 #endif
 }
+
+static inline const char * txlvl_str(tx_level_e lvl)
+{
+    switch(lvl)
+    {
+        case TXL_SERIALIZABLE: return "SERIALIZABLE";
+        case TXL_REPEATABLE_RD: return "REPEATABLE READ";
+        case TXL_READ_COMMITTED: return "READ COMMITTED";
+        case TXL_READ_UNCOMMITTED: return "READ UNCOMMITTED";
+        default: return "";
+    }
+}
+
+/** set transaction level (optimize performance or locking) */
+int db_transaction_level(db_conn_t * conn, what_trans_e what_tx, tx_level_e tx_level)
+{
+    char query[1024];
+    if (what_tx == TRANS_NEXT)
+        sprintf(query, "SET TRANSACTION ISOLATION LEVEL %s",
+                txlvl_str(tx_level));
+    else
+        sprintf(query, "SET SESSION TRANSACTION ISOLATION LEVEL %s",
+                txlvl_str(tx_level));
+
+    return _db_exec_sql( conn, query, NULL, FALSE );
+}
+

@@ -379,6 +379,16 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         goto rollback;
     }
 
+    /* set READ COMMITTED isolation level for the next (big!) request
+     * so locks can be released immediatly after the record is read */
+    rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
+    if ( rc )
+    {
+        char errmsg[1024];
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
+    }
+        /* try to continue */
 
     /* create the temporary table */
     rc = db_exec_sql( &p_mgr->conn, query, NULL );
