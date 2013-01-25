@@ -114,6 +114,14 @@ int            db_list_table_fields( db_conn_t * conn, const char *table,
 /* id of the last inserted row */
 unsigned long long db_last_id( db_conn_t * conn );
 
+typedef enum { TRANS_NEXT, TRANS_SESSION } what_trans_e;
+typedef enum { TXL_SERIALIZABLE,
+               TXL_REPEATABLE_RD,
+               TXL_READ_COMMITTED,
+               TXL_READ_UNCOMMITTED } tx_level_e;
+
+/** set transaction level (optimize performance or locking) */
+int db_transaction_level(db_conn_t * conn, what_trans_e what_tx, tx_level_e tx_level);
 
 
 #endif

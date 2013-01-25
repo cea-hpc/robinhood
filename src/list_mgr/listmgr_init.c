@@ -1167,11 +1167,26 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 next += sprintf( next, " FROM %s  GROUP BY ", acct_info_table );
                 attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" ); 
                 next = next + strlen( next );
+
+                /* set READ COMMITTED isolation level for the next (big!) request
+                 * so locks can be released immediatly after the record is read */
+                rc = db_transaction_level(&conn, TRANS_NEXT, TXL_READ_COMMITTED);
+                if ( rc )
+                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                    /* try to continue */
+
                 rc = db_exec_sql( &conn, strbuf, NULL );
                 if ( rc )
                 {
                     DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Failed to insert accounting field: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                                "Failed to populate accounting table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+
+                    /* drop this table, to leave the db in a consistent state (if ACCT_TABLE exists, it must be populated */
+                    if (db_exec_sql( &conn, "DROP TABLE " ACCT_TABLE, NULL ))
+                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                    "Failed to drop table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+
                     return rc;
                 }
             }
