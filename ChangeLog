@@ -1,3 +1,16 @@
+Changes between version 2.4.0 and 2.4.1:
+* [lustre] better file size change detection using CLOSE events
+  from MDT ChangeLog (requires Lustre 2.2 or +)
+* [scan] optimization: using fstatat and getdents
+* [rbh-find] added -atime/-amin options
+* [logs] add'l information in logs (DB operations, HSM_rm details)
+* [logs] log to stderr if opening of the log file fails
+* [fix] scan blocked if final DB operation failed
+* [fix] avoid DB lock exhaustion for huge requests
+* [backup] manage cross device rename in backend
+* [backup] rebind an entry in backend after fid change (e.g. restripe)
+
+
 New features in robinhood 2.4:
 * rbh-du and rbh-find: "du" and "find" clones querying robinhood's database
   Faster way to search for entries in a filesystem!

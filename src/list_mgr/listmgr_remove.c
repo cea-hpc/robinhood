@@ -104,6 +104,7 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
 static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
 {
     char query[2048];
+    int rc;
     /* insert those entries to soft rm table */
 
     if ( annex_table )
