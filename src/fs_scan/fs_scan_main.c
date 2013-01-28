@@ -235,7 +235,8 @@ int FSScan_DumpStats(  )
 
     }
 
-    DisplayLog( LVL_MAJOR, "STATS", "nbr of scan operations timeouts = %u", stats.nb_hang );
+    if (stats.nb_hang > 0)
+        DisplayLog( LVL_MAJOR, "STATS", "scan operation timeouts = %u", stats.nb_hang );
 
     return 0;
 
