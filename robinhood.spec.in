@@ -81,7 +81,9 @@ Generated using options: @ac_configure_args@
 Summary: admin/config helper for Robinhood PolicyEngine
 Group: Applications/System
 Release: @RELEASE@.noarch
-%pkg_dependencies
+%if %{with mysql}
+Requires: mysql
+%endif
 
 %description adm
 This RPM provides admin/config helper for Robinhood PolicyEngine (command rbh-config)
