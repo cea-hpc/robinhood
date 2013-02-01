@@ -160,6 +160,7 @@ static int start_migration_pass(  )
     unsigned int   nb_files = 0;
     unsigned long long vol = 0;
     const char * action_str;
+    time_t start_time;
 
     /* check if filesystem is still mounted */
     if ( !CheckFSDevice(  ) )
@@ -212,6 +213,7 @@ static int start_migration_pass(  )
     ListMgr_SetVar( &lmgr, LAST_MIGR_STATUS, "running" );
     ListMgr_SetVar( &lmgr, LAST_MIGR_INFO, tmpstr );
 
+    start_time = time(NULL);
     rc = perform_migration( &lmgr, &param, &nb_files, &vol );
 
 #ifdef _LUSTRE_HSM
@@ -227,11 +229,16 @@ static int start_migration_pass(  )
 
     if ( rc == 0 )
     {
+        char buf[128];
+        unsigned int spent = time(NULL) - start_time;
+        if (spent == 0) spent = 1;
+
         FormatFileSize( tmpstr, 128, vol );
+        FormatFileSize( buf, 128, vol/spent );
 
         DisplayLog( LVL_MAJOR, MIGR_TAG,
-                    "Migration summary: %u file migrations %s (total volume: %s)",
-                    nb_files, action_str, tmpstr );
+                    "Migration summary: %u file migrations %s (%.2f/sec); total volume: %s (%s/sec)",
+                    nb_files, action_str, (float)nb_files/(float)spent, tmpstr, buf );
 
         snprintf( varstr, 512, "nbr migration %s: %u, total volume: %s",
                   action_str, nb_files, tmpstr );

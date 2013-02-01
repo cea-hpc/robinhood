@@ -2024,7 +2024,12 @@ void report_usergroup_info( char *name, int flags )
     }
 
     field_count++;
+#if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
+    /* for 'release'-capable systems, count sum(size) instead of sum(blocks) that might be zero */
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_SUM, SORT_NONE );
+#else
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
+#endif
     field_count++;
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_MIN, SORT_NONE );
     field_count++;

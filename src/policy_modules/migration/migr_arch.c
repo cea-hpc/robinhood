@@ -50,6 +50,14 @@ migration_config_t migr_config;
 static int migr_flags = 0;
 static int migr_abort = FALSE;
 
+
+struct __migr_info {
+    time_t  migr_start;
+    time_t  last_report;
+    unsigned int migr_count;
+    unsigned long migr_vol;
+} migration_info;
+
 static const policy_modifier_t * migr_pol_mod = NULL;
 
 #define ignore_policies ( migr_flags & FLAG_IGNORE_POL )
@@ -283,6 +291,35 @@ static int set_migr_optimization_filters(lmgr_filter_t * p_filter)
     return 0;
 }
 
+static void report_progress(const unsigned long long * pass_begin, const unsigned long long * pass_current)
+{
+    unsigned int migr_count = migration_info.migr_count;
+    unsigned long migr_vol = migration_info.migr_vol;
+    if (pass_begin && pass_current)
+    {
+        migr_vol += pass_current[MIGR_FDBK_VOL] - pass_begin[MIGR_FDBK_VOL];
+        migr_count += pass_current[MIGR_FDBK_NBR] - pass_begin[MIGR_FDBK_NBR];
+    }
+
+    /* say hello every runtime interval */
+    if (time(NULL) - migration_info.last_report >= migr_config.runtime_interval)
+    {
+        char buf1[128];
+        char buf2[128];
+        char buf3[128];
+        unsigned int spent = time(NULL) - migration_info.migr_start;
+        FormatDuration(buf1, 128, spent);
+        FormatFileSize(buf2, 128, migr_vol);
+        FormatFileSize(buf3, 128, migr_vol/spent);
+
+        DisplayLog(LVL_EVENT, MIGR_TAG, "Migration is running (started %s ago): %u files migrated (%.2f/sec); "
+                   "volume: %s (%s/sec)", buf1, migr_count,
+                   (float)migr_count/(float)spent,
+                   buf2, buf3);
+        migration_info.last_report = time(NULL);
+    }
+}
+
 /** wait until the queue is empty or migrations timed-out.
  * \return 0 when the queue is empty
  *         ETIME on timeout.
@@ -326,6 +363,8 @@ static int wait_queue_empty( unsigned int nb_submitted,
                 return ETIME;
             }
 
+            report_progress(feedback_init, feedback_after);
+
             DisplayLog( LVL_DEBUG, MIGR_TAG,
                         "Waiting for the end of this migr pass: "
                         "still %u files to be archived "
@@ -338,7 +377,7 @@ static int wait_queue_empty( unsigned int nb_submitted,
             if ( long_sleep )
                 rh_sleep( CHECK_MIGR_INTERVAL );
             else
-                rh_usleep( 1000 );
+                rh_usleep( 1000 ); /* 1ms */
         }
         else
             DisplayLog( LVL_DEBUG, MIGR_TAG, "End of this migration pass" );
@@ -411,8 +450,8 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
     unsigned int   status_tab[MIGR_ST_COUNT];
 
-    unsigned int   nb_submitted, migr_count;
-    unsigned long  submitted_vol, migr_vol;
+    unsigned int   nb_submitted;
+    unsigned long  submitted_vol;
 
     int            last_mod_time = 0;
     time_t         last_request_time = 0;
@@ -626,14 +665,16 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
     attr_mask_sav = attr_set.attr_mask;
 
-    last_request_time = time( NULL );
-
-    migr_count = 0;
-    migr_vol = 0;
+    migration_info.migr_count = 0;
+    migration_info.migr_vol = 0;
+    migration_info.last_report = migration_info.migr_start = last_request_time
+        = time(NULL);
 
     /* loop on all migration passes */
     do
     {
+        /* check if progress must be reported */
+        report_progress(NULL, NULL);
 
         /* Retrieve stats before starting migr,
          * for computing a delta later.
@@ -777,31 +818,31 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
             }
 
         }
-        while ( !check_migration_limit( nb_submitted + migr_count,
-                                        submitted_vol + migr_vol, FALSE ) );
+        while ( !check_migration_limit( nb_submitted + migration_info.migr_count,
+                                        submitted_vol + migration_info.migr_vol, FALSE ) );
 
         /* Wait for end of migration pass */
         wait_queue_empty( nb_submitted, feedback_before, status_tab,
                           feedback_after, TRUE );
 
         /* how much entries have been migrated ? */
-        migr_vol += feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL];
-        migr_count += feedback_after[MIGR_FDBK_NBR] - feedback_before[MIGR_FDBK_NBR];
+        migration_info.migr_vol += feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL];
+        migration_info.migr_count += feedback_after[MIGR_FDBK_NBR] - feedback_before[MIGR_FDBK_NBR];
 
         /* if getnext returned an error */
         if ( rc )
             break;
-
     }
-    while ( ( !end_of_list ) && !check_migration_limit( migr_count, migr_vol, TRUE ) );
+    while ( (!end_of_list) &&
+            !check_migration_limit(migration_info.migr_count, migration_info.migr_vol, TRUE ));
 
     lmgr_simple_filter_free( &filter );
     ListMgr_CloseIterator( it );
 
     if ( p_nb_migr )
-        *p_nb_migr = migr_count;
+        *p_nb_migr = migration_info.migr_count;
     if ( p_migr_vol )
-        *p_migr_vol = migr_vol;
+        *p_migr_vol = migration_info.migr_vol;
 
     return 0;
 }
