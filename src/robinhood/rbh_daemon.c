@@ -720,8 +720,8 @@ static void   *signal_handler_thr( void *arg )
             /* 4 - entry processor can be stopped */
             if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
             {
-                /* flush processor pipeline and terminate threads */
-                EntryProcessor_Terminate(  );
+                /* drop pipeline waiting operations and terminate threads */
+                EntryProcessor_Terminate( FALSE );
                 FlushLogs(  );
             }
 
@@ -1431,7 +1431,7 @@ int main( int argc, char **argv )
     if ( (options.flags & FLAG_ONCE) && (  action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) ) )
     {
         /* Pipeline must be flushed */
-        EntryProcessor_Terminate(  );
+        EntryProcessor_Terminate( TRUE );
     }
 
 #ifdef HAVE_MIGR_POLICY

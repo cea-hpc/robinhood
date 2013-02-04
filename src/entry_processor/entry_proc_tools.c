@@ -312,7 +312,7 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
     msg_out[0] = '\0';
 
     conf->nb_thread = 8;
-    conf->max_pending_operations = 10000;
+    conf->max_pending_operations = 1000;
     conf->match_classes = TRUE;
 #ifdef ATTR_INDEX_creation_time
     conf->detect_fake_mtime = FALSE;
@@ -329,7 +329,7 @@ int Write_EntryProc_ConfigDefault( FILE * output )
 {
     print_begin_block( output, 0, ENTRYPROC_CONFIG_BLOCK, NULL );
     print_line( output, 1, "nb_threads             :  8" );
-    print_line( output, 1, "max_pending_operations :  10000" );
+    print_line( output, 1, "max_pending_operations :  1000" );
     print_line( output, 1, "match_classes          :  TRUE" );
 #ifdef ATTR_INDEX_creation_time
     print_line( output, 1, "detect_fake_mtime      :  FALSE" );
@@ -645,9 +645,9 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     print_line( output, 1, "# If the number of pending operations exceeds this limit, " );
     print_line( output, 1, "# info collectors are suspended until this count decreases" );
 #ifdef _SQLITE
-    print_line( output, 1, "max_pending_operations = 1000 ;" );
+    print_line( output, 1, "max_pending_operations = 100 ;" );
 #else
-    print_line( output, 1, "max_pending_operations = 10000 ;" );
+    print_line( output, 1, "max_pending_operations = 1000 ;" );
 #endif
     fprintf( output, "\n" );
 

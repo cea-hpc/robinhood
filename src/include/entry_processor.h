@@ -201,9 +201,10 @@ int            Write_EntryProc_ConfigDefault( FILE * output );
 int            EntryProcessor_Init( const entry_proc_config_t * p_conf, int flags );
 
 /**
- * Terminate EntryProcessor (after the queue has been flushed)
+ * Terminate EntryProcessor
+ * \param flush_ops: wait the queue to be flushed
  */
-int            EntryProcessor_Terminate(  );
+int EntryProcessor_Terminate( int flush_ops );
 
 /**
  * This function adds a new operation to the queue

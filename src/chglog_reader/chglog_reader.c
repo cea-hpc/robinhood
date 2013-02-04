@@ -868,7 +868,7 @@ int            ChgLogRdr_DumpStats(  )
 
         tmp_buff[0] = '\0';
         ptr = tmp_buff;
-        for (j = 0; j < CL_LAST; j++)
+        for (j = 0; j < CL_LAST-1; j++)
         {
             /* flush full line */
             if (ptr - tmp_buff >= 80)

@@ -60,7 +60,8 @@ unsigned int   nb_waiting_threads = 0;
 /* termination mecanism  */
 static pthread_mutex_t terminate_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t terminate_cond = PTHREAD_COND_INITIALIZER;
-static int     terminate_flag = FALSE;
+
+static enum {NONE=0, FLUSH=1, BREAK=2}  terminate_flag = NONE;
 static int     nb_finished_threads = 0;
 
 
@@ -520,6 +521,9 @@ entry_proc_op_t *next_work_avail( int *p_empty )
     entry_proc_op_t *p_curr;
     int            i;
 
+    if (terminate_flag == BREAK)
+        return NULL;
+
     *p_empty = TRUE;
 
     /* check every stage from the last to the first */
@@ -742,7 +746,7 @@ entry_proc_op_t *EntryProcessor_GetNextOp(  )
 
     while ( ( p_op = next_work_avail( &is_empty ) ) == NULL )
     {
-        if ( terminate_flag && is_empty )
+        if ( (terminate_flag == BREAK) || ((terminate_flag == FLUSH) && is_empty) )
         {
             nb_waiting_threads--;
 
@@ -1089,15 +1093,27 @@ unsigned int count_nb_ops()
 }
 
 /**
- * Terminate EntryProcessor (after the queue has been flushed)
+ * Terminate EntryProcessor
+ * \param flush_ops: wait the queue to be flushed
  */
-int EntryProcessor_Terminate(  )
+int EntryProcessor_Terminate( int flush_ops )
 {
 
     P( terminate_lock );
 
-    /* set termination flag */
-    terminate_flag = TRUE;
+    /* set termination flag (if not already set) */
+    if (flush_ops)
+    {
+        if (terminate_flag < FLUSH)
+            terminate_flag = FLUSH;
+    }
+    else
+    {
+        if (terminate_flag < BREAK)
+            terminate_flag = BREAK;
+    }
+
+    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "EntryProcessor shutdown mode: %s", terminate_flag == BREAK ? "BREAK":"FLUSH");
 
     /* force idle thread to wake up */
     pthread_cond_broadcast( &work_avail_cond );
@@ -1105,9 +1121,15 @@ int EntryProcessor_Terminate(  )
     /* wait for all workers to process all pipeline entries and terminate */
     while ( nb_finished_threads < entry_proc_conf.nb_thread )
     {
-        DisplayLog( LVL_EVENT, ENTRYPROC_TAG,
-                    "Waiting for entry processor pipeline flush: still %u operations to be done, %u threads running",
-                    count_nb_ops(), entry_proc_conf.nb_thread - nb_finished_threads );
+        if (terminate_flag == FLUSH)
+            DisplayLog( LVL_EVENT, ENTRYPROC_TAG,
+                        "Waiting for entry processor pipeline flush: still %u operations to be done, %u threads running",
+                        count_nb_ops(), entry_proc_conf.nb_thread - nb_finished_threads );
+        else if (terminate_flag == BREAK)
+            DisplayLog( LVL_EVENT, ENTRYPROC_TAG,
+                        "Waiting for current operations to end: still %u threads running",
+                         entry_proc_conf.nb_thread - nb_finished_threads );
+
         pthread_cond_wait( &terminate_cond, &terminate_lock );
     }
 
