@@ -99,16 +99,7 @@ typedef struct pipeline_stage_t
  * - PIPELINE_STAGE_COUNT
  * - op_extra_info_t type
  */
-#ifdef _LUSTRE_HSM
-#include "lustre_hsm_pipeline.h"
-#elif defined(_TMP_FS_MGR)
-#include "tmp_fs_mgr_pipeline.h"
-#elif defined(_HSM_LITE)
-#include "hsmlite_pipeline.h"
-#else
-#error "No application was specified"
-#endif
-
+#include "pipeline_common.h"
 
 /** type of operation to be performed on database */
 typedef enum operation_type_t

@@ -15,7 +15,7 @@ noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h SemN.h \
 		policies.h rmdir.h queue.h StringAlloc.h hsm_rm.h migration.h
 
 if LUSTRE_HSM
-noinst_HEADERS+=lustre_hsm_pipeline.h lustre_hsm_types.def
+noinst_HEADERS+=pipeline_common.h lustre_hsm_types.def
 lustre_hsm_types.h: lustre_hsm_types.def $(TYPEGEN)
 all: lustre_hsm_types.h
 endif
@@ -25,7 +25,7 @@ tmp_fs_mgr_types.h: tmp_fs_mgr_types.def $(TYPEGEN)
 all: tmp_fs_mgr_types.h
 endif
 if HSM_LITE
-noinst_HEADERS+=hsmlite_types.h hsmlite_types.def backend_ext.h backend_mgr.h  hsmlite_pipeline.h
+noinst_HEADERS+=hsmlite_types.h hsmlite_types.def backend_ext.h backend_mgr.h  pipeline_common.h
 hsmlite_types.h: hsmlite_types.def $(TYPEGEN)
 all: hsmlite_types.h
 endif

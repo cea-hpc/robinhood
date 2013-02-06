@@ -923,6 +923,17 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
                 ATTR_MASK_SET( p_entry_attr, rel_cl_update );
             }
 #endif
+#ifdef HAVE_RMDIR_POLICY
+            /* tag whitelisted dir as 'IGNORED' */
+            if ( policy_type == RMDIR_POLICY )
+            {
+                strcpy( ATTR( p_entry_attr, release_class ), CLASS_IGNORED );
+                ATTR_MASK_SET( p_entry_attr, release_class );
+                ATTR( p_entry_attr, rel_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_entry_attr, rel_cl_update );
+            }
+#endif
+
 #ifdef HAVE_MIGR_POLICY
             if ( policy_type == MIGR_POLICY )
             {
@@ -1534,17 +1545,14 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
         /* generate needed fields */
         ListMgr_GenerateFields( p_attrs, policies.rmdir_policy.global_attr_mask );
 
-        isok = _IsWhitelisted( p_id, p_attrs, RMDIR_POLICY, TRUE );
-
-        if ( isok == POLICY_MATCH )
+        /* set release class if whitelisted */
+        if (_IsWhitelisted( p_id, p_attrs, RMDIR_POLICY, TRUE ) == POLICY_NO_MATCH)
         {
-            ATTR_MASK_SET( p_attrs, whitelisted );
-            ATTR( p_attrs, whitelisted ) = TRUE;
-        }
-        else if ( isok == POLICY_NO_MATCH )
-        {
-            ATTR_MASK_SET( p_attrs, whitelisted );
-            ATTR( p_attrs, whitelisted ) = FALSE;
+            /* set DEFAULT class for non-whitelisted dirs */
+            strcpy( ATTR( p_attrs, release_class ), CLASS_DEFAULT );
+            ATTR_MASK_SET( p_attrs, release_class );
+            ATTR( p_attrs, rel_cl_update ) = time(NULL);
+            ATTR_MASK_SET( p_attrs, rel_cl_update );
         }
         return 0;
     }
@@ -1555,21 +1563,8 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
     /* generate needed fields */
 #ifdef HAVE_PURGE_POLICY
     ListMgr_GenerateFields( p_attrs, policies.purge_policies.global_attr_mask );
-
-    isok = _IsWhitelisted( p_id, p_attrs, PURGE_POLICY, TRUE );
-
-#ifdef ATTR_INDEX_whitelisted
-    if ( isok == POLICY_MATCH )
-    {
-        ATTR_MASK_SET( p_attrs, whitelisted );
-        ATTR( p_attrs, whitelisted ) = TRUE;
-    }
-    else if ( isok == POLICY_NO_MATCH )
-    {
-        ATTR_MASK_SET( p_attrs, whitelisted );
-        ATTR( p_attrs, whitelisted ) = FALSE;
-    }
-#endif
+    /* set release class if whitelisted */
+    _IsWhitelisted( p_id, p_attrs, PURGE_POLICY, TRUE );
 #endif
 
 #ifdef HAVE_MIGR_POLICY

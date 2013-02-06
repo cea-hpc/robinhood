@@ -994,14 +994,11 @@ static void   *Thr_Rmdir( void *arg )
 
           /* 4) check whitelist rules */
 
+          /* this eventually set release_class to '@ignore@' */
           match = IsWhitelisted( &p_item->entry_id, &new_attr_set,
                                  RMDIR_POLICY );
           if ( match == POLICY_MATCH )
-            {
-                /* Entry is whitelisted */
-                ATTR_MASK_SET( &new_attr_set, whitelisted );
-                ATTR( &new_attr_set, whitelisted ) = TRUE;
-
+          {
                 /* update DB and skip the entry */
                 update_dir( &lmgr, &p_item->entry_id, &new_attr_set );
 
@@ -1013,13 +1010,15 @@ static void   *Thr_Rmdir( void *arg )
                 FreeRmdirItem( p_item );
                 continue;
 
-            }
+          }
           else if ( match == POLICY_NO_MATCH )
-            {
-                /* set whitelisted field as false (for any further update op) */
-                ATTR_MASK_SET( &new_attr_set, whitelisted );
-                ATTR( &new_attr_set, whitelisted ) = FALSE;
-            }
+          {
+              /* set DEFAULT class for non-whitelisted dirs */
+              strcpy( ATTR( &new_attr_set, release_class ), CLASS_DEFAULT );
+              ATTR_MASK_SET( &new_attr_set, release_class );
+              ATTR( &new_attr_set, rel_cl_update ) = time(NULL);
+              ATTR_MASK_SET( &new_attr_set, rel_cl_update );
+          }
           else
             {
                 /* Cannot determine if entry is whitelisted: skip it

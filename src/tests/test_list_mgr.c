@@ -40,7 +40,7 @@ void random_attrset( attr_set_t * p_set )
     p_set->attr_mask |=
         ATTR_MASK_fullpath | ATTR_MASK_depth | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_blksize |
-        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_whitelisted | ATTR_MASK_penalty;
+        ATTR_MASK_last_access | ATTR_MASK_last_mod;
 
     sprintf( ATTR( p_set, fullpath ), "/tutu/toto%u/titi%u", myrand( 10000 ), myrand( 10000 ) );
     ATTR( p_set, depth ) = myrand( 256 );
@@ -51,14 +51,12 @@ void random_attrset( attr_set_t * p_set )
     ATTR( p_set, blksize ) = DEV_BSIZE;
     ATTR( p_set, last_access ) = time( NULL ) - myrand( 80000 );
     ATTR( p_set, last_mod ) = time( NULL ) - myrand( 80000 );
-    ATTR( p_set, whitelisted ) = myrand( 2 );
     ATTR( p_set, penalty ) = myrand( 3600 );
 #else
     p_set->attr_mask |=
         ATTR_MASK_fullpath | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_creation_time | ATTR_MASK_size |
-        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_status |
-        ATTR_MASK_last_op_index ;
+        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_status;
 
     sprintf( ATTR( p_set, fullpath ), "/tutu/toto%u/titi%u", myrand( 10000 ), myrand( 10000 ) );
     strcpy( ATTR( p_set, owner ), "root" );
@@ -67,7 +65,6 @@ void random_attrset( attr_set_t * p_set )
     ATTR( p_set, last_access ) = time( NULL ) - myrand( 80000 );
     ATTR( p_set, last_mod ) = time( NULL ) - myrand( 80000 );
     ATTR( p_set, creation_time ) = time( NULL ) - 80000 - myrand( 80000 );
-    ATTR( p_set, last_op_index ) = myrand( 1000000 );
     ATTR( p_set, status ) = ( file_status_t ) myrand( 5 );
 
 #endif
@@ -278,7 +275,7 @@ int main( int argc, char **argv )
     exit(0);
 
 
-    /* SELECT entries whose status is not STATUS_MODIFIED, mtime <= now - 20000, not whitelisted, on OST 100 */
+    /* SELECT entries whose status is not STATUS_MODIFIED, mtime <= now - 20000, on OST 100 */
 
     lmgr_simple_filter_init( &filter );
 #ifdef ATTR_INDEX_status
@@ -312,14 +309,12 @@ int main( int argc, char **argv )
     set.attr_mask =
         ATTR_MASK_fullpath | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_creation_time | ATTR_MASK_size | ATTR_MASK_stripe_info |
-        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_status |
-        ATTR_MASK_last_op_index ;
+        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_status ;
 #else
     set.attr_mask =
         ATTR_MASK_fullpath | ATTR_MASK_depth | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_stripe_info |
-        ATTR_MASK_last_access | ATTR_MASK_last_mod |
-        ATTR_MASK_whitelisted | ATTR_MASK_penalty | ATTR_MASK_penalized_access;
+        ATTR_MASK_last_access | ATTR_MASK_last_mod;
 #endif
     if ( it )
     {
@@ -475,66 +470,6 @@ int main( int argc, char **argv )
 
     exit( 0 );
 
-
-    /* update 'whitelisted' where 'mtime' > now - 1h (same table) */
-
-    lmgr_simple_filter_init( &filter );
-    fv.val_uint = time( NULL ) - 3600;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_last_mod, MORETHAN, fv );
-
-    ATTR_MASK_INIT( &set );
-    ATTR_MASK_SET( &set, whitelisted );
-    ATTR( &set, whitelisted ) = 1;
-
-    t1 = time( NULL );
-    rc = ListMgr_MassUpdate( &lmgr, &filter, &set );
-    test_rc( rc );
-
-    t2 = time( NULL );
-    printf
-        ( "ListMgr_MassUpdate (update 'whitelisted', with condition on penalized_access): %us\n",
-          ( unsigned int ) ( t2 - t1 ) );
-
-    lmgr_simple_filter_free( &filter );
-
-    /* update 'whitelisted' and 'gid' where uid = 0 (different tables) */
-
-    lmgr_simple_filter_init( &filter );
-    fv.val_int = time( NULL ) - 20000;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_penalized_access, LESSTHAN, fv );
-
-    ATTR_MASK_INIT( &set );
-    ATTR_MASK_SET( &set, whitelisted );
-    ATTR( &set, whitelisted ) = 1;
-
-    t1 = time( NULL );
-    rc = ListMgr_MassUpdate( &lmgr, &filter, &set );
-    test_rc( rc );
-
-    t2 = time( NULL );
-    printf
-        ( "ListMgr_MassUpdate (update 'whitelisted' and 'gid', with condition on 'uid'): %us\n",
-          ( unsigned int ) ( t2 - t1 ) );
-    lmgr_simple_filter_free( &filter );
-
-    /* idem for other tables */
-
-    lmgr_simple_filter_init( &filter );
-    fv.val_int = 1;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, EQUAL, fv );
-
-    ATTR_MASK_INIT( &set );
-
-    t1 = time( NULL );
-    rc = ListMgr_MassUpdate( &lmgr, &filter, &set );
-    test_rc( rc );
-
-    t2 = time( NULL );
-    printf
-        ( "ListMgr_MassUpdate (update 'gid', with condition on 'whitelisted'): %us\n",
-          ( unsigned int ) ( t2 - t1 ) );
-    lmgr_simple_filter_free( &filter );
-
     /* impact all */
     ATTR_MASK_INIT( &set );
     ATTR_MASK_SET( &set, last_mod );
@@ -569,21 +504,6 @@ int main( int argc, char **argv )
           ( unsigned int ) ( t2 - t1 ) );
     lmgr_simple_filter_free( &filter );
 
-
-    /* remove entries with whitelisted=0 */
-
-    lmgr_simple_filter_init( &filter );
-    fv.val_bool = 0;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, EQUAL, fv );
-
-    t1 = time( NULL );
-    rc = ListMgr_MassRemove( &lmgr, &filter );
-    test_rc( rc );
-
-    t2 = time( NULL );
-    printf( "ListMgr_MassRemove (with condition on 'whitelisted'): %us\n",
-            ( unsigned int ) ( t2 - t1 ) );
-    lmgr_simple_filter_free( &filter );
 
 #endif
 

@@ -453,7 +453,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
     }
 
     mpath = get_mount_point(NULL);
-    rc = llapi_hsm_request( mpath, req );
+    rc = llapi_hsm_request(mpath, req);
 
     free( req );
     if (rc)

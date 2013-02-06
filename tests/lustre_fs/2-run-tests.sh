@@ -2162,27 +2162,19 @@ function periodic_class_match_purge
 	# now apply policies
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
 
-	# HSM & HSM_LITE: we must have 4 lines like this: "Need to update fileclass (not set)"
-	# TMP_FS_MGR:  whitelisted status is always checked at scan time
-	# 	so 2 entries have already been matched (ignore1 and whitelist1)
-	if (( $is_lhsm + $is_hsmlite == 0 )); then
-		already=2
-	else
-		already=0
-	fi
-
 	nb_updt=`grep "Need to update fileclass (not set)" rh_purge.log | wc -l`
 	nb_purge_match=`grep "matches the condition for policy 'purge_match'" rh_purge.log | wc -l`
 	nb_default=`grep "matches the condition for policy 'default'" rh_purge.log | wc -l`
 
-	(( $nb_updt == 4 - $already )) || error "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
+	# we must have 4 lines like this: "Need to update fileclass (not set)"
+	(( $nb_updt == 4 )) || error "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
 	(( $nb_purge_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'purge_match': $nb_purge_match"
 	(( $nb_default == 1 )) || error "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
 
-        (( $nb_updt == 4 - $already )) && (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
+        (( $nb_updt == 4 )) && (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
 		&& echo "OK: initial fileclass matching successful"
 
-	# TMP_FS_MGR:  whitelisted status is always checked at scan time
+	# TMP_FS_MGR:  whitelisted status is always checked at scan time (?)
 	# 	2 entries are new (default and to_be_released)
 	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		already=0

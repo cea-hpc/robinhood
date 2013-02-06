@@ -103,7 +103,6 @@ int ReadRobinhoodConfig( int module_mask, char *file_path, char *err_msg_out,
 int ReloadRobinhoodConfig( int module_mask, robinhood_config_t * new_config )
 {
     int            rc = 0;
-    char           msg_buf[2048] = "";
     const module_config_def_t *p_curr;
 
 #define RELOAD_TAG "ReloadConfig"

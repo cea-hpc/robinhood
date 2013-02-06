@@ -2321,12 +2321,15 @@ void report_toppurge( unsigned int count, int flags )
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* select only non whitelisted */
-#ifdef ATTR_INDEX_whitelisted
+#ifdef ATTR_INDEX_release_class
+    fv.val_str = CLASS_IGNORED;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, NOTEQUAL, fv,
+                            FILTER_FLAG_ALLOW_NULL);
+#endif
+#if defined(ATTR_INDEX_no_release)
     fv.val_bool = TRUE;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, 0);
-#elif defined(ATTR_INDEX_no_release)
-    fv.val_bool = TRUE;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_no_release, NOTEQUAL, fv, 0);
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_no_release, NOTEQUAL, fv,
+                            FILTER_FLAG_ALLOW_NULL);
 #endif
 
 #ifdef ATTR_INDEX_status
@@ -2418,9 +2421,10 @@ void report_toprmdir( unsigned int count, int flags )
     fv.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
-    /* select only non whitelisted */
-    fv.val_bool = TRUE;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_whitelisted, NOTEQUAL, fv, FILTER_FLAG_ALLOW_NULL);
+    /* select only non ignored */
+    fv.val_str = CLASS_IGNORED;
+    lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, NOTEQUAL, fv,
+                            FILTER_FLAG_ALLOW_NULL);
 
     /* select only non invalid */
     fv.val_bool = TRUE;

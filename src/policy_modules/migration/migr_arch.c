@@ -1373,12 +1373,6 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
         if ( match == POLICY_MATCH )
         {
-    #ifdef ATTR_INDEX_whitelisted
-            /* Entry is whitelisted */
-            ATTR_MASK_SET( &new_attr_set, whitelisted );
-            ATTR( &new_attr_set, whitelisted ) = TRUE;
-    #endif
-
             /* update DB and skip the entry */
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
@@ -1387,15 +1381,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
             goto end;
         }
-        else if ( match == POLICY_NO_MATCH )
-        {
-    #ifdef ATTR_INDEX_whitelisted
-            /* set whitelisted field as false (for any further update op) */
-            ATTR_MASK_SET( &new_attr_set, whitelisted );
-            ATTR( &new_attr_set, whitelisted ) = FALSE;
-    #endif
-        }
-        else
+        else if ( match != POLICY_NO_MATCH )
         {
             /* Cannot determine if entry is whitelisted: skip it (do nothing in database) */
             DisplayLog( LVL_MAJOR, MIGR_TAG,
