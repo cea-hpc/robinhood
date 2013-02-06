@@ -51,7 +51,6 @@ if( isset( $file_created ) && $file_created == TRUE )
 		<OPTION VALUE="backup">robinhood-backup</OPTION>
 		<OPTION VALUE="hsm">robinhood-hsm</OPTION>
 		<OPTION VALUE="shook">robinhood-shook</OPTION>
-		<OPTION VALUE="sherpa">robinhood-sherpa</OPTION>
 	 </select>
       </p>
       

@@ -19,11 +19,6 @@ noinst_HEADERS+=lustre_hsm_pipeline.h lustre_hsm_types.def
 lustre_hsm_types.h: lustre_hsm_types.def $(TYPEGEN)
 all: lustre_hsm_types.h
 endif
-if SHERPA
-noinst_HEADERS+=sherpa_pipeline.h sherpa_types.def
-sherpa_types.h: sherpa_types.def $(TYPEGEN)
-all: sherpa_types.h
-endif
 if TMP_FS_MGR
 noinst_HEADERS+=tmp_fs_mgr_pipeline.h tmp_fs_mgr_types.def
 tmp_fs_mgr_types.h: tmp_fs_mgr_types.def $(TYPEGEN)
@@ -35,7 +30,7 @@ hsmlite_types.h: hsmlite_types.def $(TYPEGEN)
 all: hsmlite_types.h
 endif
 
-CLEANFILES = lustre_hsm_types.h tmp_fs_mgr_types.h sherpa_types.h hsmlite_types.h
+CLEANFILES = lustre_hsm_types.h tmp_fs_mgr_types.h hsmlite_types.h
 
 indent:
 	$(top_srcdir)/scripts/indent.sh

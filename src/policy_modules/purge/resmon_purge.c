@@ -855,7 +855,7 @@ inline static int update_entry( lmgr_t * lmgr, entry_id_t * p_entry_id, attr_set
     return rc;
 }
 
-#if defined(_HAVE_FID) && !defined(_SHERPA)
+#ifdef _HAVE_FID
 /**
  * Check that entry exists
  * @param fill entry MD if entry is valid
@@ -956,16 +956,14 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
     /* entry is valid */
     return PURGE_OK;
 }
-#else /* sherpa or no FID */
+#else /* no FID */
 /**
  * Check that entry exists with the good path and its id is consistent.
  * @param fill entry MD if entry is valid
  */
 static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_attr_set )
 {
-#ifndef _SHERPA
     struct stat    entry_md;
-#endif
     char * stat_path;
 #ifdef _HAVE_FID
     char fid_path[1024];
@@ -993,29 +991,6 @@ if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath ) )
 else
     DisplayLog( LVL_FULL, PURGE_TAG, "Considering entry with fid="DFID, PFID(&p_item->entry_id) );
 #endif
-
-#ifdef _SHERPA
-
-    /* sherpa needs to fullpath to map with the reference */
-    if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath )
-         && !ATTR_MASK_TEST( new_attr_set, fullpath ) )
-    {
-        strcpy( ATTR( new_attr_set, fullpath ), ATTR( &p_item->entry_attr, fullpath ) );
-        ATTR_MASK_SET( new_attr_set, fullpath );
-    }
-
-    /* get info about this entry and check policies about the entry.
-     * don't check policies now, it will be done later */
-    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set, FALSE ) )
-    {
-        case do_skip:
-        case do_rm:
-            return PURGE_ENTRY_MOVED;
-        case do_update:
-            /* OK, continue */
-            break; 
-    }
-#else /* no FID */
 
     /* 2) Perform lstat on entry */
 
@@ -1056,7 +1031,6 @@ else
     /* set update time of the stucture */
     ATTR_MASK_SET( new_attr_set, md_update );
     ATTR( new_attr_set, md_update ) = time( NULL );
-#endif
 
     /* entry is valid */
     return PURGE_OK;

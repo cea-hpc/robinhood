@@ -19,11 +19,6 @@ if TMP_FS_MGR
 all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/rmdir/librmdir.la
 endif
-if SHERPA
-all_libs += ../policy_modules/purge/libresmonitor.la
-all_libs += ../policy_modules/rmdir/librmdir.la
-all_libs += ../policy_modules/migration/libmigration.la
-endif
 if LUSTRE_HSM
 all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/migration/libmigration.la

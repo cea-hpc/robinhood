@@ -33,10 +33,6 @@ if LUSTRE_HSM
   purpose=lustre_hsm
   rpmbuild_opt += --with hsm
 endif
-if SHERPA
-  purpose=sherpa
-  rpmbuild_opt += --with sherpa
-endif
 if SHOOK
   purpose=shook
   rpmbuild_opt += --with shook

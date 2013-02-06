@@ -26,10 +26,6 @@
 #include "Memory.h"
 #include "xplatform_print.h"
 
-#ifdef _SHERPA
-#include <SHERPA_CacheAcces.h>
-#include <SHERPA_CacheAccesP.h>
-#endif
 #ifdef _HSM_LITE
 #include "backend_mgr.h"
 #include "backend_ext.h"
@@ -97,22 +93,6 @@ static migr_status_t MigrateEntry_ByFid( const entry_id_t * p_entry_id,
         return MIGR_OK;
 
     return LustreHSM_Action( HUA_ARCHIVE, p_entry_id, hints, archive_num );
-}
-#elif defined(_SHERPA)
-static migr_status_t MigrateEntry_ByPath( const char * path, char *hints )
-{
-    char tmp[1024];
-    if ( hints )
-        DisplayLog( LVL_EVENT, MIGR_TAG,
-            "Starting sherpa_majref('%s', hints='%s')", path, hints );
-    else
-        DisplayLog( LVL_EVENT, MIGR_TAG,
-            "Starting sherpa_majref('%s', <no_hints>)", path );
-
-    if (dry_run)
-        return MIGR_OK;
-
-    return sherpa_maj_reference_entree(path, NULL, tmp, SHERPA_FLAG_ZAPPER);
 }
 #elif defined(_HSM_LITE)
 
@@ -1038,40 +1018,6 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
     /* entry is valid */
     return MIGR_OK;
 }
-#elif defined(_SHERPA) /* sherpa + fid support */
-
-static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_attr_set )
-{
-
-    if ( ATTR_MASK_TEST(&p_item->entry_attr, fullpath) )
-        DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry %s", ATTR( &p_item->entry_attr, fullpath ) );
-    else
-        DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry with fid="DFID, PFID(&p_item->entry_id) );
-
-    /* sherpa needs the full path to map with the reference */
-    if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath )
-         && !ATTR_MASK_TEST( new_attr_set, fullpath ) )
-    {
-        strcpy( ATTR( new_attr_set, fullpath ), ATTR( &p_item->entry_attr, fullpath ) );
-        ATTR_MASK_SET( new_attr_set, fullpath );
-    }
-
-    /* get info about this entry and check policies about the entry.
-     * don't check policies now, it will be done later */
-    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set, FALSE) )
-    {
-        case do_skip:
-        case do_rm:
-            /* entry has been removed? */
-            return MIGR_ENTRY_MOVED;
-        case do_update:
-            /* OK, continue */
-            break; 
-    }
-    /* entry is valid */
-    return MIGR_OK;
-}
-
 #elif defined(_HSM_LITE) /* backup with fid support */
 
 static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_attr_set )
@@ -1227,13 +1173,11 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
             return MIGR_ERROR;
 }
 
-#endif /* switch Lustre_HSM/SHERPA */
+#endif /* switch Lustre_HSM/HSM_LITE */
 
-#else  /* no fid support (SHERPA ONLY) */
+#else  /* no fid support (no mode support it for now) */
 
-#ifndef _SHERPA
 #error "FID support must be activated for Lustre-HSM"
-#endif
 
 /**
  * Check that entry exists with the good path and its id is consistent.
@@ -1281,7 +1225,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item,
     /* entry is valid */
     return MIGR_OK;
 }
-#endif /* no fid support / SHERPA */
+#endif /* no fid support */
 
 
 /**
@@ -1379,8 +1323,6 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         if ( (ATTR( &new_attr_set, status ) != STATUS_MODIFIED)
              && ( !migr_config.backup_new_files
                   || ( ATTR( &new_attr_set, status ) != STATUS_NEW )) )
-#else /* sherpa */
-        if ( ATTR( &new_attr_set, status ) != STATUS_MODIFIED )
 #endif
         {
             /* status changed */
@@ -1592,35 +1534,8 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     rc = MigrateEntry( &p_item->entry_id, &new_attr_set, hints );
 
     /* status has been updated by MigrateEntry call, even on failure */
-
-#elif defined(_SHERPA)
-    if ( !ATTR_MASK_TEST( &new_attr_set, refpath) )
-    {
-        DisplayLog( LVL_MAJOR, MIGR_TAG,
-            "Warning: entry %s has no reference path: skipping it.",
-            ATTR( &p_item->entry_attr, fullpath ) );
-
-        Acknowledge( &migr_queue, MIGR_PARTIAL_MD, 0, 0 );
-        goto end;
-    }
-
-    /* set entry status = ARCHIVE_RUNNING */
-    ATTR_MASK_SET( &new_attr_set, status );
-    ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
-    update_entry( lmgr, &p_item->entry_id, &new_attr_set );
-
-    rc = MigrateEntry_ByPath( ATTR( &new_attr_set, refpath), hints );
-
-    if ( rc )
-        /* unknown status */
-        ATTR_MASK_UNSET( &new_attr_set, status );
-    else
-    {
-        ATTR_MASK_SET( &new_attr_set, status );
-        ATTR( &new_attr_set, status ) = STATUS_SYNCHRO;
-    }
-
 #endif
+
     if ( hints )
         free_migration_hints( hints );
 
@@ -1632,11 +1547,6 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         /* copy is asynchronous */
         action_str = "starting archive";
         err_str = strerror(-rc);
-#elif defined(_SHERPA)
-        char buff[1024];
-        /* copy is synchronous */
-        action_str = "performing migration";
-        err_str =  sherpa_cache_message_r(rc, buff, 1024 );
 #elif defined(_HSM_LITE)
         if (backend.async_archive)
             action_str = "starting archive";
@@ -1669,9 +1579,6 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 #ifdef _LUSTRE_HSM
         /* Entry migration has been successfully started */
         action_str = "Start archiving";
-#elif defined(_SHERPA)
-        /* For SHERPA, migration is synchronous */
-        action_str = "Archived";
 #elif defined(_HSM_LITE)
         if (backend.async_archive)
             action_str = "Start archiving";

@@ -99,16 +99,6 @@ static time_t  boot_time;
 #       define DEFAULT_ACTION_HELP   "--scan --purge --rmdir"
 #   endif
 
-#elif defined (_SHERPA)
-
-#   ifdef HAVE_CHANGELOGS
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_PURGE | ACTION_MASK_RMDIR | ACTION_MASK_MIGRATE)
-#       define DEFAULT_ACTION_HELP   "--read-log --purge --rmdir --migrate"
-#   else
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_PURGE | ACTION_MASK_RMDIR | ACTION_MASK_MIGRATE)
-#       define DEFAULT_ACTION_HELP   "--scan --purge --rmdir --migrate"
-#   endif
-
 #elif defined (_HSM_LITE )
 
 #ifdef HAVE_SHOOK
@@ -441,8 +431,6 @@ static inline void display_version( char *bin_name )
     printf( "    Lustre-HSM Policy Engine\n" );
 #elif defined(_TMP_FS_MGR)
     printf( "    Temporary filesystem manager\n" );
-#elif defined(_SHERPA)
-    printf( "    SHERPA cache zapper\n" );
 #elif defined(_HSM_LITE)
     printf( "    Basic HSM binding\n" );
 #else
@@ -1269,21 +1257,6 @@ int main( int argc, char **argv )
     {
         fprintf(stderr, "ADVICE: this filesystem is changelog-capable, you should use changelogs instead of scanning.\n");
     }
-#endif
-
-#ifdef _SHERPA
-    /* read sherpa configuration */
-    rc = InitSherpa(global_config.sherpa_config, rh_config.log_config.log_file, rh_config.log_config.report_file);
-
-    if ( rc )
-    {
-        fprintf( stderr, "Sherpa initialization error!\n");
-        exit( 1 );
-    }
-
-    if ( flags & FLAG_DRY_RUN )
-        /* sherpa config */
-        config.attitudes.modes_fonctionnement |= SANS_EFFACEMENT;
 #endif
 
     /* Initialize logging */

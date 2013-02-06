@@ -40,8 +40,6 @@ $hsmlite_status_tab = array( "unknown", "new", "modified",
 $hsm_status_tab = array( "unknown", "new", "modified",
 			 "retrieving", "archiving",
 			 "synchro", "released", "release_pending" );
-$sherpa_status_tab = array( "unknown", "ref_missing", "modified",
-			    "retrieving", "archiving", "obsolete", "synchro" );
 
 $sz_range_fields = array( "sz0", "sz1", "sz32", "sz1K", "sz32K", "sz1M", "sz32M", "sz1G", "sz32G", "sz1T" );
 $sz_range_name = array( "0", "1~31", "32~1K", "1K~31K", "32K~1M", "1M~31M", "32M~1G", "1G~31G", "32G~1T", "+1T" );

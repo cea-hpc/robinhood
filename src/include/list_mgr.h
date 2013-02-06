@@ -142,8 +142,6 @@ typedef struct field_info_t
 #include "lustre_hsm_types.h"
 #elif defined(_TMP_FS_MGR)
 #include "tmp_fs_mgr_types.h"
-#elif defined(_SHERPA)
-#include "sherpa_types.h"
 #elif defined(_HSM_LITE)
 #include "hsmlite_types.h"
 #else

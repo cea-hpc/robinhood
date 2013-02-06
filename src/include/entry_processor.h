@@ -103,8 +103,6 @@ typedef struct pipeline_stage_t
 #include "lustre_hsm_pipeline.h"
 #elif defined(_TMP_FS_MGR)
 #include "tmp_fs_mgr_pipeline.h"
-#elif defined(_SHERPA)
-#include "sherpa_pipeline.h"
 #elif defined(_HSM_LITE)
 #include "hsmlite_pipeline.h"
 #else

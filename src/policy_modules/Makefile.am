@@ -4,9 +4,6 @@ endif
 if LUSTRE_HSM
 SUBDIRS = purge migration hsm_remove
 endif
-if SHERPA
-SUBDIRS = purge migration rmdir
-endif
 if HSM_LITE
 if SHOOK
 SUBDIRS = purge migration hsm_remove

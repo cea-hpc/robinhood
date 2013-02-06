@@ -44,10 +44,6 @@ typedef struct global_config_t
     /* lock file */
     char           lock_file[RBH_PATH_MAX];
 
-#ifdef _SHERPA
-    char          sherpa_config[RBH_PATH_MAX];
-#endif
-
     fs_key_t      fs_key;
 
     /* behavior flags */

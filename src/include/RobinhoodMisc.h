@@ -20,10 +20,6 @@
 
 #include "list_mgr.h"
 
-#ifdef _SHERPA
-#include "DiversCache.h"
-#endif
-
 #include <sys/stat.h>
 #ifndef __FreeBSD__
 #include <sys/vfs.h>
@@ -224,22 +220,6 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode );
 #endif
 #endif
 
-#endif
-
-#ifdef _SHERPA
-
-/* Init libSherpaCacheP with config file path */
-int InitSherpa(char * sherpa_config, char * logfile, char *reportfile);
-
-/* get the reference and cache definition for an entry */
-int Sherpa_GetEntryDescription( char * cache_path, /* in */
-                                char * reference_path,  /* out */
-                                char * relative_path, /* out */
-                                struct EntreeCache * cache_info ); /* out */
-
-enum what_to_do { do_update, do_skip, do_rm };
-enum what_to_do SherpaManageEntry( const entry_id_t * p_id, attr_set_t * p_attrs,
-                                   int match_classes);
 #endif
 
 #ifdef HAVE_SHOOK

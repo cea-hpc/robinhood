@@ -309,23 +309,6 @@ status_array[] =
 
 #define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
 
-#elif defined(_SHERPA)
-    { STATUS_UNKNOWN, "n/a" },
-    { STATUS_NO_REF, "ref_missing" },
-    { STATUS_MODIFIED, "modified" },
-    { STATUS_RESTORE_RUNNING, "retrieving" },
-    { STATUS_ARCHIVE_RUNNING, "archiving" },
-    { STATUS_SYNCHRO, "synchro" },
-    { STATUS_OUT_OF_DATE, "obsolete" },
-
-    /* alternative names */
-    { STATUS_UNKNOWN, "unknown" },
-    { STATUS_MODIFIED, "dirty" },
-    { STATUS_NO_REF, "missing_ref" },
-    { STATUS_RESTORE_RUNNING, "restoring" },
-
-#define ALLOWED_STATUS "unknown, ref_missing|missing_ref, modified|dirty, retrieving|restoring, archiving, synchro, obsolete"
-
 #elif defined(_HSM_LITE)
     { STATUS_UNKNOWN, "n/a" },
     { STATUS_NEW, "new" },

@@ -218,8 +218,6 @@ static int start_migration_pass(  )
 
 #ifdef _LUSTRE_HSM
     action_str = "started";
-#elif defined(_SHERPA)
-    action_str = "done";
 #elif defined(_HSM_LITE)
     if ( backend.async_archive )
         action_str = "started";

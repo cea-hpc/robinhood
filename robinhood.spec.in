@@ -18,7 +18,6 @@
 %bcond_with hsm
 %bcond_with mysql
 %bcond_with sqlite
-%bcond_with sherpa
 %bcond_with backup
 %bcond_with shook
 
@@ -118,29 +117,6 @@ Monitor Lustre usage and trigger file migration and purges.
 
 Generated using options: @ac_configure_args@
 %else
-%if %{with sherpa}
-
-%define configure_purpose SHERPA
-%define purpose sherpa
-%define purpose_svc robinhood-sherpa
-%define purpose_bin rbh-sherpa
-
-%package %{purpose}
-Summary: PolicyEngine for SHERPA cache manager
-Group: Applications/System
-BuildRequires: sherpa-server >= 4.1-150
-BuildRequires: sherpa-client >= 4.1
-Requires: sherpa-server >= 4.1-150
-Requires: sherpa-client >= 4.1
-%pkg_dependencies
-Requires: %{name}-adm >= %{version}
-
-%description %{purpose}
-PolicyEngine for SHERPA cache manager
-
-Generated using options: @ac_configure_args@
-
-%else
 # backup mode
 %if %{with backup}
 
@@ -219,7 +195,6 @@ Possibly trigger purge by LRU when free disk space is low.
 
 Generated using options: @ac_configure_args@
 
-%endif
 %endif
 %endif
 %endif

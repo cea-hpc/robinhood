@@ -13,10 +13,6 @@ if LUSTRE_HSM
 PIPELINE_SRC=lustre_hsm_pipeline.c
 endif
 
-if SHERPA
-PIPELINE_SRC=sherpa_pipeline.c
-endif
-
 if HSM_LITE
 PIPELINE_SRC=hsmlite_pipeline.c
 endif

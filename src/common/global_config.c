@@ -52,9 +52,6 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
     strncpy( conf->fs_type, "", FILENAME_MAX );
 #endif
     strncpy( conf->lock_file, "/var/locks/robinhood.lock", RBH_PATH_MAX );
-#ifdef _SHERPA
-    strncpy( conf->sherpa_config, "/etc/sherpa/sherpa.conf", RBH_PATH_MAX );
-#endif
     conf->stay_in_fs = TRUE;
     conf->check_mounted = TRUE;
     conf->fs_key = FSKEY_FSNAME;
@@ -80,9 +77,6 @@ int WriteGlobalConfigDefault( FILE * output )
     print_line( output, 1, "lock_file     :  \"/var/locks/robinhood.lock\"" );
     print_line( output, 1, "stay_in_fs    :  TRUE" );
     print_line( output, 1, "check_mounted :  TRUE" );
-#ifdef _SHERPA
-    print_line( output, 1, "sherpa_config :  \"/etc/sherpa/sherpa.conf\"" );
-#endif
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
     print_line( output, 1, "direct_mds_stat :   FALSE" );
@@ -100,9 +94,6 @@ int ReadGlobalConfig( config_file_t config, void *module_config, char *msg_out, 
     static const char *allowed_params[] = {
         "fs_path", "fs_type", "lock_file", "stay_in_fs", "check_mounted",
         "direct_mds_stat", "fs_key",
-#ifdef _SHERPA
-        "sherpa_config",
-#endif
 NULL
     };
 
@@ -155,14 +146,6 @@ NULL
                          conf->lock_file, RBH_PATH_MAX, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
-
-#ifdef _SHERPA
-    rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "sherpa_config",
-                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
-                         conf->sherpa_config, RBH_PATH_MAX, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-#endif
 
     /* /!\ stay_in_fs is a piece of bit field, it should not be passed directly: using tmpval instead */
     rc = GetBoolParam( general_block, GLOBAL_CONFIG_BLOCK, "stay_in_fs",
@@ -279,12 +262,6 @@ int WriteGlobalConfigTemplate( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "# filesystem property used as FS key: fsname, devid or fsid (fsid NOT recommended)");
     print_line( output, 1, "fs_key = fsname ;" );
-    fprintf( output, "\n" );
-#endif
-
-#ifdef _SHERPA
-    print_line( output, 1, "# sherpa config file" );
-    print_line( output, 1, "sherpa_config = \"/etc/sherpa/sherpa.conf\" ;" );
     fprintf( output, "\n" );
 #endif
 

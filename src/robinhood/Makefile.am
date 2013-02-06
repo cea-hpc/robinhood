@@ -22,11 +22,6 @@ if TMP_FS_MGR
 all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/rmdir/librmdir.la
 endif
-if SHERPA
-all_libs += ../policy_modules/purge/libresmonitor.la
-all_libs += ../policy_modules/rmdir/librmdir.la
-all_libs += ../policy_modules/migration/libmigration.la
-endif
 if LUSTRE_HSM
 all_libs += ../policy_modules/purge/libresmonitor.la
 all_libs += ../policy_modules/migration/libmigration.la
@@ -190,34 +185,6 @@ rbh_backup_rebind_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURP
 endif
 
 
-
-if SHERPA
-sbin_PROGRAMS=rbh-sherpa rbh-sherpa-report
-bin_PROGRAMS=rbh-sherpa-du rbh-sherpa-find
-
-# dependencies:
-rbh_sherpa_DEPENDENCIES=$(all_libs)
-rbh_sherpa_report_DEPENDENCIES=$(all_libs)
-rbh_sherpa_du_DEPENDENCIES=$(all_libs)
-rbh_sherpa_find_DEPENDENCIES=$(all_libs)
-
-rbh_sherpa_SOURCES=rbh_daemon.c
-rbh_sherpa_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_sherpa_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-rbh_sherpa_report_SOURCES=rbh_report.c cmd_helpers.c
-rbh_sherpa_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_sherpa_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-rbh_sherpa_du_SOURCES=rbh_du.c cmd_helpers.h cmd_helpers.c
-rbh_sherpa_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_sherpa_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-rbh_sherpa_find_SOURCES=rbh_find.c cmd_helpers.h cmd_helpers.c
-rbh_sherpa_find_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_sherpa_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-endif
 
 new: clean all
 

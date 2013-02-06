@@ -322,8 +322,6 @@ static inline void display_version( char *bin_name )
     printf( "    Lustre-HSM Policy Engine\n" );
 #elif defined(_TMP_FS_MGR)
     printf( "    Temporary filesystem manager\n" );
-#elif defined(_SHERPA)
-    printf( "    SHERPA cache zapper\n" );
 #elif defined(_HSM_LITE)
     printf( "    Basic HSM binding\n" );
 #else
@@ -1822,10 +1820,6 @@ void report_fs_info( int flags )
     lmgr_filter_t  filter;
     int is_filter = FALSE;
 
-#ifdef _SHERPA
-    filter_value_t fv;
-#endif
-
 #ifdef  ATTR_INDEX_status
 #define FSINFOCOUNT 7
 #define _SHIFT 1
@@ -1883,15 +1877,6 @@ void report_fs_info( int flags )
 
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
-
-#ifdef _SHERPA
-    /* only select file status  */
-    if ( !is_filter )
-        lmgr_simple_filter_init( &filter );
-    fv.val_str = STR_TYPE_FILE;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
-    is_filter = TRUE;
-#endif
 
     if ( is_filter )
         it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT,

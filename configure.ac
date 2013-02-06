@@ -196,13 +196,12 @@ AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="
 
 # Purpose ?
 
-AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMPFS|LUSTRE_HSM|HSM_LITE|BACKUP|SHOOK|SHERPA],[specify the purpose of the daemon] ),
+AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMPFS|LUSTRE_HSM|HSM_LITE|BACKUP|SHOOK],[specify the purpose of the daemon] ),
              PURPOSE="$withval", PURPOSE="TMP_FS_MGR")
 
 AM_CONDITIONAL(LUSTRE_HSM,     test "$PURPOSE" = "LUSTRE_HSM")
 AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR" -o "$PURPOSE" = "TMPFS" )
 AM_CONDITIONAL(HSM_LITE, test "$PURPOSE" = "HSM_LITE" -o  "$PURPOSE" = "SHOOK" -o  "$PURPOSE" = "BACKUP" )
-AM_CONDITIONAL(SHERPA, test "$PURPOSE" = "SHERPA")
 
 # purpose dependent flags
 case $PURPOSE in
@@ -231,18 +230,7 @@ case $PURPOSE in
         AC_DEFINE([HAVE_RMDIR_POLICY], [1], [Dir removal policy for TMP_FS_MGR purpose])
         AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for TMP_FS_MGR purpose])
         ;;
-    SHERPA)
-        PURPOSE_CFLAGS="-D_SHERPA"
-        PURPOSE_LDFLAGS="-lSherpaCacheP -lsherpa_cfg_parsing -lSherpaCache"
-        PURPOSE_BIN="rbh-sherpa"
-        PURPOSE_EXT="sherpa"
-        PURPOSE_SVC="robinhood-sherpa"
-
-        AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for SHERPA purpose])
-        AC_DEFINE([HAVE_RMDIR_POLICY], [1], [Dir removal policy for SHERPA purpose])
-        AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for SHERPA purpose])
-        ;;
-
+    
     BACKUP | HSM_LITE | SHOOK)
         # check pre-requisites
         if test "x$have_liblustre_api" != "xyes" ; then

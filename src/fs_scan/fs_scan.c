@@ -259,16 +259,6 @@ static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct 
         }
     }
 
-#ifdef _SHERPA
-    /* is the directory locked? */
-    if ( S_ISDIR( p_stat->st_mode ) && TestVerrouAsync( fullpath ) )
-    {
-        DisplayLog( LVL_EVENT, FSSCAN_TAG, "Directory %s is locked: skipping it", fullpath );
-        return TRUE;
-    }
-#endif
-
-
     return ( rc != POLICY_NO_MATCH );
 
 }

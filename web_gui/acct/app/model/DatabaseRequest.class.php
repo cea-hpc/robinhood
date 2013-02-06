@@ -248,7 +248,6 @@ class DatabaseRequest
     public function statusName( $st_num )
     {
 	global $hsm_status_tab ;
-	global $sherpa_status_tab;
 	global $hsmlite_status_tab ;
 
 	switch( $this->rbh_mode )
@@ -261,8 +260,6 @@ class DatabaseRequest
 			return $hsmlite_status_tab[$st_num];
 		case "hsm":
 			return $hsm_status_tab[$st_num];
-		case "sherpa":
-			return $sherpa_status_tab[$st_num];
 		default:
 			echo 'Error: unknown robinhood flavor '.$this->rbh_mode.'<br>';
 			return "Unknown status ".$st_num;
@@ -272,7 +269,6 @@ class DatabaseRequest
     public function statusIndex( $st_str )
     {
 	global $hsm_status_tab ;
-	global $sherpa_status_tab;
 	global $hsmlite_status_tab ;
 
 	switch( $this->rbh_mode )
@@ -285,9 +281,6 @@ class DatabaseRequest
 			break;
 		case "hsm":
 			$arr = $hsm_status_tab;
-			break;
-		case "sherpa":
-			$arr = $sherpa_status_tab;
 			break;
 		default:
 			return -1;
