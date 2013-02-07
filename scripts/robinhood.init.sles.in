@@ -178,7 +178,7 @@ check_or_start_fs()
 			echo -n "RobinHood already started for $conf"
 			rc_status -v
 			echo
-			return 1
+			return 0
 		else
 			echo "Robinhood for $conf is running:"
 			ps -fp $(<$pidfile)
