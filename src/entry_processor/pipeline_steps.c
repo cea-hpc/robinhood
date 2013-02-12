@@ -195,15 +195,15 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #ifdef HAVE_RM_POLICY
 static inline int soft_remove_filter(struct entry_proc_op_t *p_op)
 {
-    if (ATTR_MASK_TEST( &p_op->entry_attr, type )
-        && !strcmp( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR ))
+    if (ATTR_FSorDB_TEST( p_op, type )
+        && !strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_DIR ))
     {
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
         return FALSE;
     }
 #ifdef ATTR_INDEX_status
-    else if (ATTR_MASK_TEST(&p_op->entry_attr, status)
-        && (ATTR(&p_op->entry_attr, status) == STATUS_NEW))
+    else if (ATTR_FSorDB_TEST(p_op, status)
+        && (ATTR_FSorDB(p_op, status) == STATUS_NEW))
     {
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
                     PFID(&p_op->entry_id) );
@@ -215,18 +215,17 @@ static inline int soft_remove_filter(struct entry_proc_op_t *p_op)
      * we MUST NOT remove the backend entry
      * as it will be linked to the restripe target
      */
-    else if ( (ATTR_MASK_TEST(&p_op->entry_attr, fullpath)
+    else if ( (ATTR_FSorDB_TEST(p_op, fullpath)
                && !fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*",
-                     ATTR(&p_op->entry_attr, fullpath), 0))
+                     ATTR_FSorDB(p_op, fullpath), 0))
         ||
-        (ATTR_MASK_TEST(&p_op->entry_attr, name)
-         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(&p_op->entry_attr, name ),
+        (ATTR_FSorDB_TEST(p_op, name)
+         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR_FSorDB(p_op, name ),
                      strlen(RESTRIPE_SRC_PREFIX))))
     {
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing shook stripe source %s: no removal in backend!",
-                    ATTR_MASK_TEST(&p_op->entry_attr, fullpath)?
-                    ATTR(&p_op->entry_attr, fullpath) :
-                    ATTR(&p_op->entry_attr, name) );
+                    ATTR_FSorDB_TEST(p_op, fullpath)?
+                    ATTR_FSorDB(p_op, fullpath) : ATTR_FSorDB(p_op, name));
         return FALSE;
     }
 #endif
@@ -670,8 +669,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 
 #ifdef ATTR_INDEX_creation_time
         /* new entry, set insertion time */
-        ATTR_MASK_SET( &p_op->entry_attr, creation_time );
-        ATTR( &p_op->entry_attr, creation_time ) = cltime2sec(logrec->cr_time);
+        ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
+        ATTR( &p_op->fs_attrs, creation_time ) = cltime2sec(logrec->cr_time);
 #endif
 
         /* we must get info that is not provided by the chglog */
@@ -893,7 +892,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 #ifdef _HSM_LITE
         /* what info is needed to check it?*/
-        rc_status_need = rbhext_status_needs( ListMgr2PolicyType(ATTR(&p_op->entry_attr, type)),
+        rc_status_need = rbhext_status_needs( ListMgr2PolicyType(ATTR(&p_op->fs_attrs, type)),
                                               &attr_allow_cached,
                                               &attr_need_fresh );
         if ( rc == -ENOTSUP )
@@ -1011,7 +1010,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
 #ifdef ATTR_INDEX_status
-            if (ATTR_MASK_TEST(p_op->fs_attrs, type)
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
 #ifdef _LUSTRE_HSM
                 && !strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_FILE ))
 #elif defined (_HSM_LITE)
@@ -1026,7 +1025,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
             else
             {
-                p_op->extra_info.not_supp = TRUE
+                p_op->extra_info.not_supp = TRUE;
                 p_op->fs_attr_need &= ~ATTR_MASK_status;
             }
 #endif
@@ -1037,7 +1036,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             p_op->db_op_type = OP_TYPE_UPDATE;
 
 #ifdef ATTR_INDEX_status
-            if (ATTR_MASK_TEST(p_op->fs_attrs, type)
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
 #ifdef _LUSTRE_HSM
                 && !strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_FILE ))
 #elif defined (_HSM_LITE)
@@ -1052,7 +1051,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
             else
             {
-                p_op->extra_info.not_supp = TRUE
+                p_op->extra_info.not_supp = TRUE;
                 p_op->fs_attr_need &= ~ATTR_MASK_status;
             }
 #endif
@@ -1233,10 +1232,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             val = ATTR_FSorDB(p_op, creation_time);
             strftime(ct, 128, "%Y/%m/%d %T", localtime_r(&val, &t));
 
-            if (ATTR_MASK_TEST(&p_op->entry_attr, fullpath))
+            if (ATTR_FSorDB_TEST(p_op, fullpath))
                 DisplayLog(LVL_VERB, ENTRYPROC_TAG,
                            "Fake mtime detected for %s: mtime=%s, creation=%s",
-                           ATTR(&p_op->entry_attr, fullpath), mt, ct);
+                           ATTR_FSorDB(p_op, fullpath), mt, ct);
             else
                 DisplayLog(LVL_VERB, ENTRYPROC_TAG,
                            "Fake mtime detected for "DFID": mtime=%s, creation=%s",

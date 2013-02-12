@@ -998,10 +998,16 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id,
 
     for ( i = 0; i < count; i++ )
     {
+#ifdef _DEBUG_POLICIES
+        printf( "Checking if entry matches whitelisted fileset %s...\n", fs_list[i]->fileset_id );
+#endif
         switch ( _EntryMatches( p_entry_id, p_attrs_in, &fs_list[i]->definition, NULL, no_warning ) )
         {
         case POLICY_MATCH:
         {
+#ifdef _DEBUG_POLICIES
+            printf( "   -> match\n");
+#endif
 #ifdef HAVE_PURGE_POLICY
             /* remember the matched fileset */
             if ( policy_type == PURGE_POLICY )
@@ -1024,6 +1030,9 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id,
             return POLICY_MATCH;
         }
         case POLICY_MISSING_ATTR:
+#ifdef _DEBUG_POLICIES
+            printf( "   -> missing attr\n");
+#endif
             if ( !no_warning )
                 DisplayLog( LVL_MAJOR, POLICY_TAG,
                         "Attribute is missing for checking ignore_fileclass rule" );
@@ -1031,11 +1040,17 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id,
                 rc = POLICY_MISSING_ATTR;
             break;
         case POLICY_ERR:
+#ifdef _DEBUG_POLICIES
+            printf( "   -> error\n");
+#endif
             DisplayLog( LVL_CRIT, POLICY_TAG,
                         "An error occured when checking ignore_fileclass rule" );
             rc = POLICY_ERR;
             break;
         case POLICY_NO_MATCH:
+#ifdef _DEBUG_POLICIES
+            printf( "   -> no match\n");
+#endif
             /* continue testing other whitelist rules */
             break;
         }
@@ -1539,6 +1554,12 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
                     attr_set_t * p_attrs_cached,
                     int match_all_fc )
 {
+#ifdef HAVE_MIGR_POLICY
+    int wl_migr = FALSE;
+#endif
+#ifdef HAVE_PURGE_POLICY
+    int wl_purge = FALSE;
+#endif
     /* merge new attrs with cached attrs to do the check */
     attr_set_t attrs = *p_attrs_new;
     if (p_attrs_cached)
@@ -1572,19 +1593,25 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
 #ifdef HAVE_PURGE_POLICY
     ListMgr_GenerateFields( &attrs, policies.purge_policies.global_attr_mask );
     /* set release class if whitelisted */
-    _IsWhitelisted( p_id, p_attrs_new, &attrs, PURGE_POLICY, TRUE );
+    if (_IsWhitelisted( p_id, p_attrs_new, &attrs, PURGE_POLICY, TRUE ) == POLICY_MATCH)
+        wl_purge = TRUE;
+#ifdef _DEBUG_POLICIES
+            printf( "release_class=%s\n", ATTR(p_attrs_new, release_class));
+#endif
 #endif
 
 #ifdef HAVE_MIGR_POLICY
     /* check whitelisted fileclasses for migration */
     ListMgr_GenerateFields( &attrs, policies.migr_policies.global_attr_mask );
-    _IsWhitelisted( p_id, p_attrs_new, &attrs, MIGR_POLICY, TRUE );
+    if (_IsWhitelisted( p_id, p_attrs_new, &attrs, MIGR_POLICY, TRUE ) == POLICY_MATCH)
+        wl_migr = TRUE;
 #endif
 
     if ( match_all_fc )
     {
 #ifdef HAVE_PURGE_POLICY
-        if ( need_fileclass_update( &attrs, PURGE_POLICY ) == TRUE ) /* can return -1 on error */
+        if (!wl_purge && (need_fileclass_update( &attrs, PURGE_POLICY ) == TRUE) )
+                                     /* can return -1 on error */
         {
             policy_item_t *policy_case = NULL;
             fileset_item_t *p_fileset = NULL;
@@ -1602,12 +1629,17 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
                 ATTR_MASK_SET( p_attrs_new, release_class );
                 ATTR( p_attrs_new, rel_cl_update ) = time(NULL);
                 ATTR_MASK_SET( p_attrs_new, rel_cl_update );
+
+#ifdef _DEBUG_POLICIES
+                printf( "release_class=%s\n",  ATTR( p_attrs_new, release_class ) );
+#endif
             }
         }
 #endif
 
 #ifdef HAVE_MIGR_POLICY
-        if ( need_fileclass_update( &attrs, MIGR_POLICY ) == TRUE ) /* can return -1 on error */
+        if ( !wl_migr && (need_fileclass_update( &attrs, MIGR_POLICY ) == TRUE))
+                                     /* can return -1 on error */
         {
             policy_item_t *policy_case = NULL;
             fileset_item_t *p_fileset = NULL;

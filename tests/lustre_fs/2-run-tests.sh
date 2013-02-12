@@ -2922,6 +2922,44 @@ function test_info_collect2
 	fi
 }
 
+function test_enoent
+{
+	config_file=$1
+
+	clean_logs
+
+	if (($no_log != 0)); then
+		echo "Changelogs not supported on this config: skipped"
+		set_skipped
+		return 1
+	fi
+
+	echo "1-Start reading changelogs in background..."
+	# read changelogs
+	$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --detach --pid-file=rh.pid || error "could not start cl reader"
+
+	echo "2-create/unlink sequence"
+    for i in $(seq 1 1000); do
+        touch $ROOT/file.$i
+        rm -f $ROOT/file.$i
+        touch $ROOT/file.$i
+        rm -f $ROOT/file.$i
+    done
+
+    # wait for consumer to read all records
+    sleep 2
+	check_db_error rh_chglogs.log
+
+    # TODO add addl checks here
+
+	$REPORT -f ./cfg/$config_file --dump-all -cq > report.out || error "report cmd failed"
+    lines=$(cat report.out | wc -l)
+    (($lines == 0)) || error "no entries expected after create/rm"
+    rm -f report.out
+
+	# kill event handler
+	pkill -9 $PROC
+}
 
 function test_pools
 {
@@ -6542,6 +6580,7 @@ run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers crea
 run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 run_test 104     test_size_updt common.conf 1 "test size update"
+run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/unlink"
 
 #### policy matching tests  ####
 
