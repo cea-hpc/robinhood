@@ -67,12 +67,13 @@ static struct option option_tab[] =
     /* miscellaneous options */
     {"help", no_argument, NULL, 'h'},
     {"version", no_argument, NULL, 'V'},
+    {"negate", no_argument, NULL, '!'},
 
     {NULL, 0, NULL, 0}
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:A:M:m:z:f:d:hV"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:A:M:m:z:f:d:hV!"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -122,11 +123,18 @@ struct find_opt
 #endif
 #ifdef ATTR_INDEX_status
     unsigned int match_status:1;
+    unsigned int statusneg:1;
 #endif
+
+    /* negate flags */
+    unsigned int userneg:1;
+    unsigned int groupneg:1;
+    unsigned int nameneg:1;
 
     /* behavior flags */
     unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
     unsigned int dir_only:1; /* if -t dir => only display dir */
+
 } prog_options = {
     .user = NULL, .group = NULL, .type = NULL, .name = NULL,
 #ifdef ATTR_INDEX_status
@@ -136,8 +144,9 @@ struct find_opt
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_mtime = 0, .match_atime = 0,
 #ifdef ATTR_INDEX_status
-    .match_status = 0,
+    .match_status = 0, .statusneg = 0,
 #endif
+    .userneg = 0 , .groupneg = 0, .nameneg = 0,
     .no_dir = 0, .dir_only = 0
 };
 
@@ -164,6 +173,7 @@ static int              is_expr = 0; /* is it set? */
 static int mkfilters(int exclude_dirs)
 {
     filter_value_t fv;
+    int compflag;
 
     /* create boolean expression for matching */
 
@@ -171,10 +181,14 @@ static int mkfilters(int exclude_dirs)
     {
         compare_value_t val;
         strcpy(val.str, prog_options.user);
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+        if (prog_options.userneg)
+            compflag = COMP_UNLIKE;
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+            compflag = COMP_LIKE;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, compflag, CRITERIA_OWNER, val);
+        else
+            AppendBoolCond(&match_expr, compflag, CRITERIA_OWNER, val);
         is_expr = 1;
         query_mask |= ATTR_MASK_owner;
     }
@@ -183,10 +197,14 @@ static int mkfilters(int exclude_dirs)
     {
         compare_value_t val;
         strcpy(val.str, prog_options.group);
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+        if (prog_options.groupneg)
+            compflag = COMP_UNLIKE;
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+            compflag = COMP_LIKE;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, compflag, CRITERIA_GROUP, val);
+        else
+            AppendBoolCond(&match_expr, compflag, CRITERIA_GROUP, val);
         is_expr = 1;
         query_mask |= ATTR_MASK_gr_name;
     }
@@ -196,10 +214,14 @@ static int mkfilters(int exclude_dirs)
         /* this is not converted to DB filter, but will be used in post checking */
         compare_value_t val;
         strcpy(val.str, prog_options.name);
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_FILENAME, val);
+        if (prog_options.nameneg)
+            compflag = COMP_UNLIKE;
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_FILENAME, val);
+            compflag = COMP_LIKE;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, compflag, CRITERIA_FILENAME, val);
+        else
+            AppendBoolCond(&match_expr, compflag, CRITERIA_FILENAME, val);
         is_expr = 1;
         query_mask |= ATTR_MASK_name;
     }
@@ -288,9 +310,13 @@ static int mkfilters(int exclude_dirs)
 #ifdef ATTR_INDEX_status
     if (prog_options.match_status)
     {
+        if (prog_options.statusneg)
+            compflag = NOTEQUAL;
+        else
+            compflag = EQUAL;
         /* not part of user policies, only add it to DB filter */
         fv.val_uint = prog_options.status;
-        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
+        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, compflag, fv, 0 );
     }
 #endif
 
@@ -320,13 +346,13 @@ static const char *help_string =
     _B "Usage:" B_ " %s [options] [path|fid]...\n"
     "\n"
     _B "Filters:" B_ "\n"
-    "    " _B "-user" B_ " " _U "user" U_ "\n"
-    "    " _B "-group" B_ " " _U "group" U_ "\n"
+    "    [-!] " _B "-user" B_ " " _U "user" U_ "\n"
+    "    [-!] " _B "-group" B_ " " _U "group" U_ "\n"
     "    " _B "-type" B_ " " _U "type" U_ "\n"
     "       "TYPE_HELP"\n"
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       "SIZE_HELP"\n"
-    "    " _B "-name" B_ " " _U "filename" U_ "\n"
+    "    [-!] " _B "-name" B_ " " _U "filename" U_ "\n"
     "    " _B "-mtime" B_ " " _U "time_crit" U_ "\n"
     "       "TIME_HELP"\n"
     "    " _B "-mmin" B_ " " _U "minute_crit" U_ "\n"
@@ -341,7 +367,7 @@ static const char *help_string =
     "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
 #endif
 #ifdef ATTR_INDEX_status
-    "    " _B "-status" B_ " " _U "status" U_ "\n"
+    "    [-!] " _B "-status" B_ " " _U "status" U_ "\n"
     "       %s\n"
 #endif
     "\n"
@@ -940,6 +966,7 @@ int main( int argc, char **argv )
     int            rc;
     int            chgd = 0;
     char           err_msg[4096];
+    int            neg = 0;
 
     /* parse command line options */
     while ((c = getopt_long_only(argc, argv, SHORT_OPT_STRING, option_tab,
@@ -947,17 +974,26 @@ int main( int argc, char **argv )
     {
         switch ( c )
         {
+        case '!':
+            neg = 1;
+            break;
         case 'u':
             toggle_option(match_user, "user");
             prog_options.user = optarg;
+            prog_options.userneg = neg;
+            neg = 0;
             break;
         case 'g':
             toggle_option(match_group, "group");
             prog_options.group = optarg;
+            prog_options.groupneg = neg;
+            neg = 0;
             break;
         case 'n':
             toggle_option(match_name, "name");
             prog_options.name = optarg;
+            prog_options.nameneg = neg;
+            neg = 0;
             break;
 #ifdef _LUSTRE
         case 'o':
@@ -966,6 +1002,10 @@ int main( int argc, char **argv )
             if (prog_options.ost_idx == (unsigned int)-1)
             {
                 fprintf(stderr, "invalid ost index '%s': unsigned integer expected\n", optarg);
+                exit(1);
+            }
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for ost criteria\n");
                 exit(1);
             }
             break;
@@ -978,41 +1018,69 @@ int main( int argc, char **argv )
                 fprintf(stderr, "invalid type '%s': expected types: "TYPE_HELP".\n", optarg);
                 exit(1);
             }
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for type criteria\n");
+                exit(1);
+            }
             break;
         case 's':
             toggle_option(match_size, "size");
             if (set_size_filter(optarg))
                 exit(1);
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for size criteria\n");
+                exit(1);
+            }
             break;
 
         case 'A':
             toggle_option(match_atime, "atime/amin");
             if (set_time_filter(optarg, 0, TRUE, atime))
                 exit(1);
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                exit(1);
+            }
             break;
 
         case 'a':
             toggle_option(match_atime, "atime/amin");
             if (set_time_filter(optarg, 60, TRUE, atime))
                 exit(1);
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                exit(1);
+            }
             break;
 
         case 'M':
             toggle_option(match_mtime, "mtime/mmin/msec");
             if (set_time_filter(optarg, 0, TRUE, mtime))
                 exit(1);
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                exit(1);
+            }
             break;
 
         case 'm':
             toggle_option(match_mtime, "mtime/mmin/msec");
             if (set_time_filter(optarg, 60, FALSE, mtime)) /* don't allow suffix (multiplier is 1min) */
                 exit(1);
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                exit(1);
+            }
             break;
 
         case 'z':
             toggle_option(match_mtime, "mtime/mmin/msec");
             if (set_time_filter(optarg, 1, FALSE, mtime)) /* don't allow suffix (multiplier is 1sec) */
                 exit(1);
+            if (neg) {
+                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                exit(1);
+            }
             break;
 
 
@@ -1026,14 +1094,24 @@ int main( int argc, char **argv )
                         allowed_status());
                 exit(1);
             }
+            prog_options.statusneg = neg;
+            neg = 0;
             break;
 #endif
         case 'l':
             prog_options.ls = 1;
             disp_mask = DISPLAY_MASK;
+            if (neg) {
+                fprintf(stderr, "! (negate) unexpected before -l option\n");
+                exit(1);
+            }
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
+            if (neg) {
+                fprintf(stderr, "! (negate) unexpected before -f option\n");
+                exit(1);
+            }
             break;
         case 'd':
             force_log_level = TRUE;
@@ -1043,6 +1121,10 @@ int main( int argc, char **argv )
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
+                exit(1);
+            }
+            if (neg) {
+                fprintf(stderr, "! (negate) unexpected before -d option\n");
                 exit(1);
             }
             break;
