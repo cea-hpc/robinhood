@@ -871,7 +871,9 @@ policy_match_t EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p
     return _EntryMatches( p_entry_id, p_entry_attr, p_node, p_pol_mod, FALSE );
 }
 
-static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t * p_entry_attr,
+static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id,
+                                      attr_set_t * p_attrs_out,
+                                      const attr_set_t * p_attrs_in,
                               policy_type_t policy_type, int no_warning )
 {
     unsigned int   i, count;
@@ -910,37 +912,37 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
 
     for ( i = 0; i < count; i++ )
     {
-        switch ( _EntryMatches( p_entry_id, p_entry_attr, &list[i].bool_expr, NULL, no_warning ) )
+        switch ( _EntryMatches( p_entry_id, p_attrs_in, &list[i].bool_expr, NULL, no_warning ) )
         {
         case POLICY_MATCH:
 #ifdef HAVE_PURGE_POLICY
             /* remember the matched fileset */
             if ( policy_type == PURGE_POLICY )
             {
-                strcpy( ATTR( p_entry_attr, release_class ), CLASS_IGNORED );
-                ATTR_MASK_SET( p_entry_attr, release_class );
-                ATTR( p_entry_attr, rel_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_entry_attr, rel_cl_update );
+                strcpy( ATTR( p_attrs_out, release_class ), CLASS_IGNORED );
+                ATTR_MASK_SET( p_attrs_out, release_class );
+                ATTR( p_attrs_out, rel_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs_out, rel_cl_update );
             }
 #endif
 #ifdef HAVE_RMDIR_POLICY
             /* tag whitelisted dir as 'IGNORED' */
             if ( policy_type == RMDIR_POLICY )
             {
-                strcpy( ATTR( p_entry_attr, release_class ), CLASS_IGNORED );
-                ATTR_MASK_SET( p_entry_attr, release_class );
-                ATTR( p_entry_attr, rel_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_entry_attr, rel_cl_update );
+                strcpy( ATTR( p_attrs_out, release_class ), CLASS_IGNORED );
+                ATTR_MASK_SET( p_attrs_out, release_class );
+                ATTR( p_attrs_out, rel_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs_out, rel_cl_update );
             }
 #endif
 
 #ifdef HAVE_MIGR_POLICY
             if ( policy_type == MIGR_POLICY )
             {
-                strcpy( ATTR( p_entry_attr, archive_class ), CLASS_IGNORED );
-                ATTR_MASK_SET( p_entry_attr, archive_class );
-                ATTR( p_entry_attr, arch_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_entry_attr, arch_cl_update );
+                strcpy( ATTR( p_attrs_out, archive_class ), CLASS_IGNORED );
+                ATTR_MASK_SET( p_attrs_out, archive_class );
+                ATTR( p_attrs_out, arch_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs_out, arch_cl_update );
             }
 #endif
             return POLICY_MATCH;
@@ -996,7 +998,7 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
 
     for ( i = 0; i < count; i++ )
     {
-        switch ( _EntryMatches( p_entry_id, p_entry_attr, &fs_list[i]->definition, NULL, no_warning ) )
+        switch ( _EntryMatches( p_entry_id, p_attrs_in, &fs_list[i]->definition, NULL, no_warning ) )
         {
         case POLICY_MATCH:
         {
@@ -1004,19 +1006,19 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
             /* remember the matched fileset */
             if ( policy_type == PURGE_POLICY )
             {
-                strcpy( ATTR( p_entry_attr, release_class ), fs_list[i]->fileset_id );
-                ATTR_MASK_SET( p_entry_attr, release_class );
-                ATTR( p_entry_attr, rel_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_entry_attr, rel_cl_update );
+                strcpy( ATTR( p_attrs_out, release_class ), fs_list[i]->fileset_id );
+                ATTR_MASK_SET( p_attrs_out, release_class );
+                ATTR( p_attrs_out, rel_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs_out, rel_cl_update );
             }
 #endif
 #ifdef HAVE_MIGR_POLICY
             if ( policy_type == MIGR_POLICY )
             {
-                strcpy( ATTR( p_entry_attr, archive_class ), fs_list[i]->fileset_id );
-                ATTR_MASK_SET( p_entry_attr, archive_class );
-                ATTR( p_entry_attr, arch_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_entry_attr, arch_cl_update );
+                strcpy( ATTR( p_attrs_out, archive_class ), fs_list[i]->fileset_id );
+                ATTR_MASK_SET( p_attrs_out, archive_class );
+                ATTR( p_attrs_out, arch_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs_out, arch_cl_update );
             }
 #endif
             return POLICY_MATCH;
@@ -1045,7 +1047,7 @@ static policy_match_t _IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t 
 policy_match_t IsWhitelisted( const entry_id_t * p_entry_id, attr_set_t * p_entry_attr,
                               policy_type_t policy_type )
 {
-    return _IsWhitelisted( p_entry_id, p_entry_attr, policy_type, FALSE );
+    return _IsWhitelisted( p_entry_id, p_entry_attr, p_entry_attr, policy_type, FALSE );
 }
 
 
@@ -1324,7 +1326,7 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
     /* if it MATCHES any whitelist condition, return NO_MATCH
      * else, it could potentially match a policy, so we must test them.
      */
-    switch ( _IsWhitelisted( p_entry_id, p_entry_attr, policy_type, TRUE ) )
+    switch ( _IsWhitelisted( p_entry_id, p_entry_attr, p_entry_attr, policy_type, TRUE ) )
     {
     case POLICY_MATCH:
         return POLICY_NO_MATCH;
@@ -1533,26 +1535,32 @@ policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
  * check whitelist condition for file or directory entries
  * optionnally match fileclasses.
  */
-int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
+int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
+                    attr_set_t * p_attrs_cached,
                     int match_all_fc )
 {
-    policy_match_t isok;
+    /* merge new attrs with cached attrs to do the check */
+    attr_set_t attrs = *p_attrs_new;
+    if (p_attrs_cached)
+        /* don't override new attrs with cached one */
+        ListMgr_MergeAttrSets( &attrs, p_attrs_cached, FALSE );
 
 #ifdef HAVE_RMDIR_POLICY
-    if ( ATTR_MASK_TEST( p_attrs, type )
-         && !strcmp( ATTR( p_attrs, type ), STR_TYPE_DIR ) )
+    if ( ATTR_MASK_TEST( &attrs, type )
+         && !strcmp( ATTR( &attrs, type ), STR_TYPE_DIR ) )
     {
-        /* generate needed fields */
-        ListMgr_GenerateFields( p_attrs, policies.rmdir_policy.global_attr_mask );
+        /* generate missing fields (e.g. name and depth from fullpath...) */
+        ListMgr_GenerateFields( &attrs, policies.rmdir_policy.global_attr_mask );
 
         /* set release class if whitelisted */
-        if (_IsWhitelisted( p_id, p_attrs, RMDIR_POLICY, TRUE ) == POLICY_NO_MATCH)
+        if (_IsWhitelisted( p_id, p_attrs_new, &attrs, RMDIR_POLICY, TRUE )
+            == POLICY_NO_MATCH)
         {
             /* set DEFAULT class for non-whitelisted dirs */
-            strcpy( ATTR( p_attrs, release_class ), CLASS_DEFAULT );
-            ATTR_MASK_SET( p_attrs, release_class );
-            ATTR( p_attrs, rel_cl_update ) = time(NULL);
-            ATTR_MASK_SET( p_attrs, rel_cl_update );
+            strcpy( ATTR( p_attrs_new, release_class ), CLASS_DEFAULT );
+            ATTR_MASK_SET( p_attrs_new, release_class );
+            ATTR( p_attrs_new, rel_cl_update ) = time(NULL);
+            ATTR_MASK_SET( p_attrs_new, rel_cl_update );
         }
         return 0;
     }
@@ -1562,61 +1570,61 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 
     /* generate needed fields */
 #ifdef HAVE_PURGE_POLICY
-    ListMgr_GenerateFields( p_attrs, policies.purge_policies.global_attr_mask );
+    ListMgr_GenerateFields( &attrs, policies.purge_policies.global_attr_mask );
     /* set release class if whitelisted */
-    _IsWhitelisted( p_id, p_attrs, PURGE_POLICY, TRUE );
+    _IsWhitelisted( p_id, p_attrs_new, &attrs, PURGE_POLICY, TRUE );
 #endif
 
 #ifdef HAVE_MIGR_POLICY
     /* check whitelisted fileclasses for migration */
-    ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
-    _IsWhitelisted( p_id, p_attrs, MIGR_POLICY, TRUE );
+    ListMgr_GenerateFields( &attrs, policies.migr_policies.global_attr_mask );
+    _IsWhitelisted( p_id, p_attrs_new, &attrs, MIGR_POLICY, TRUE );
 #endif
 
     if ( match_all_fc )
     {
 #ifdef HAVE_PURGE_POLICY
-        if ( need_fileclass_update( p_attrs, PURGE_POLICY ) == TRUE )
+        if ( need_fileclass_update( &attrs, PURGE_POLICY ) == TRUE ) /* can return -1 on error */
         {
             policy_item_t *policy_case = NULL;
             fileset_item_t *p_fileset = NULL;
 
-            policy_case = GetPolicyCase( p_id, p_attrs, PURGE_POLICY,
+            policy_case = GetPolicyCase( p_id, &attrs, PURGE_POLICY,
                                          &p_fileset );
             if ( policy_case != NULL )
             {
                 /* store the matched fileclass */
                 if ( p_fileset )
-                    strcpy( ATTR( p_attrs, release_class ),
+                    strcpy( ATTR( p_attrs_new, release_class ),
                             p_fileset->fileset_id );
                 else
-                    strcpy( ATTR( p_attrs, release_class ), CLASS_DEFAULT );
-                ATTR_MASK_SET( p_attrs, release_class );
-                ATTR( p_attrs, rel_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_attrs, rel_cl_update );
+                    strcpy( ATTR( p_attrs_new, release_class ), CLASS_DEFAULT );
+                ATTR_MASK_SET( p_attrs_new, release_class );
+                ATTR( p_attrs_new, rel_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs_new, rel_cl_update );
             }
         }
 #endif
 
 #ifdef HAVE_MIGR_POLICY
-        if ( need_fileclass_update( p_attrs, MIGR_POLICY ) == TRUE )
+        if ( need_fileclass_update( &attrs, MIGR_POLICY ) == TRUE ) /* can return -1 on error */
         {
             policy_item_t *policy_case = NULL;
             fileset_item_t *p_fileset = NULL;
 
-            policy_case = GetPolicyCase( p_id, p_attrs, MIGR_POLICY,
+            policy_case = GetPolicyCase( p_id, &attrs, MIGR_POLICY,
                                          &p_fileset );
             if ( policy_case != NULL )
             {
                 /* store the matched fileclass */
                 if ( p_fileset )
-                    strcpy( ATTR( p_attrs, archive_class ),
+                    strcpy( ATTR( p_attrs_new, archive_class ),
                             p_fileset->fileset_id );
                 else
-                    strcpy( ATTR( p_attrs, archive_class ), CLASS_DEFAULT );
-                ATTR_MASK_SET( p_attrs, archive_class );
-                ATTR( p_attrs, arch_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_attrs, arch_cl_update );
+                    strcpy( ATTR( p_attrs_new, archive_class ), CLASS_DEFAULT );
+                ATTR_MASK_SET( p_attrs_new, archive_class );
+                ATTR( p_attrs_new, arch_cl_update ) = time(NULL);
+                ATTR_MASK_SET( p_attrs_new, arch_cl_update );
             }
         }
 #endif

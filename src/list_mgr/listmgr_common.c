@@ -1066,6 +1066,9 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
     int            i;
     int            mask = 1;
 
+    if (p_set == NULL || p_set->attr_mask == 0)
+        return;
+
     /* Free stripe count attributes */
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
@@ -1075,4 +1078,68 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
                                                       field_infos[i].offset ) );
         }
     }
+}
+
+/** only keep the differences in target attrset */
+void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
+{
+    int            i;
+    int            mask = 1;
+    db_type_u      typeu;
+    int diff_mask = p_tgt->attr_mask & p_src->attr_mask;
+
+    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+    {
+        if (mask & diff_mask)
+        {
+            int is_diff = 0;
+            if ( !is_stripe_field( i ) )
+            {
+                /* diff the values */
+                DIFF_UNION(is_diff, field_infos[i].db_type,
+                           ((char *)&p_src->attr_values +
+                                field_infos[i].offset),
+                           ((char *)&p_tgt->attr_values +
+                                field_infos[i].offset));
+                if (!is_diff)
+                    p_tgt->attr_mask &= ~mask;
+            }
+            else if ( field_infos[i].db_type == DB_STRIPE_INFO )
+            {
+                if ((ATTR(p_tgt, stripe_info).stripe_size
+                        == ATTR(p_src, stripe_info).stripe_size)
+                    && (ATTR(p_tgt, stripe_info).stripe_count
+                        == ATTR(p_src, stripe_info).stripe_count)
+                    && (!strcmp(ATTR(p_tgt, stripe_info).pool_name,
+                            ATTR(p_src, stripe_info).pool_name)))
+                {
+                    p_tgt->attr_mask &= ~mask;
+                }
+            }
+            else if ( field_infos[i].db_type == DB_STRIPE_ITEMS )
+            {
+                if (ATTR(p_tgt, stripe_items).count
+                    != ATTR(p_src, stripe_items).count)
+                    is_diff = 1;
+                else
+                {
+                    int i;
+                    for (i = 0; i < ATTR(p_tgt, stripe_items).count; i++)
+                    {
+                        if (ATTR(p_tgt,stripe_items).stripe_units[i] !=
+                            ATTR(p_src,stripe_items).stripe_units[i])
+                        {
+                            is_diff = 1;
+                            break;
+                        }
+                    }
+                }
+                if (!is_diff)
+                    p_tgt->attr_mask &= ~mask;
+            }
+        }
+    }
+    return;
+
+
 }

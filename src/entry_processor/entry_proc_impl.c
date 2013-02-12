@@ -81,8 +81,9 @@ static void dump_entry_op( entry_proc_op_t * p_op )
     if ( p_op->entry_id_is_set )
         printf( "id="DFID"\n", PFID(&p_op->entry_id) );
 #endif
-    if ( p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, fullpath ) )
-        printf("path=%s\n", ATTR( &p_op->entry_attr, fullpath ) );
+    /* mask is always set, even if fs/db_attrs is not set */
+    if ( ATTR_FSorDB_TEST( p_op, fullpath ) )
+        printf("path=%s\n", ATTR_FSorDB( p_op, fullpath ) );
 
     printf("stage=%u, being processed=%u, db_exists=%u, id is referenced=%u, db_op_type=%u\n",
             p_op->pipeline_stage, p_op->being_processed, p_op->db_exists,
@@ -787,7 +788,7 @@ entry_proc_op_t *EntryProcessor_GetNextOp(  )
 int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage, int remove )
 {
     unsigned int   curr_stage = p_op->pipeline_stage;
-    int            is_first, nb_moved;
+    int            nb_moved;
     struct timeval now, diff;
 
     gettimeofday( &now, NULL );
@@ -820,9 +821,6 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     /* update its status (even if it's going to be removed) */
     p_op->being_processed = FALSE;
     p_op->pipeline_stage = next_stage;
-
-    /* check if it is the first */
-    is_first = ( p_op == pipeline[curr_stage].first_in_ptr );
 
     /* remove entry, if it must be */
     if ( remove )
@@ -881,10 +879,8 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
             p_op->extra_info_free_func( &p_op->extra_info );
         }
 
-        if ( p_op->entry_attr_is_set )
-        {
-            ListMgr_FreeAttrs( &p_op->entry_attr );
-        }
+        ListMgr_FreeAttrs( &p_op->fs_attrs );
+        ListMgr_FreeAttrs( &p_op->db_attrs );
 
         /* destroy the lock and free the memory */
         V( p_op->entry_lock );
@@ -988,11 +984,11 @@ void EntryProcessor_DumpCurrentStages(  )
                     }
                     else
     #endif
-                    if ( ATTR_MASK_TEST( &pipeline[i].first_in_ptr->entry_attr, fullpath) )
+                    if ( ATTR_FSorDB_TEST( pipeline[i].first_in_ptr, fullpath) )
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: first: %s, status=%s",
                                     entry_proc_pipeline[i].stage_name,
-                                    ATTR( &pipeline[i].first_in_ptr->entry_attr, fullpath ),
+                                    ATTR_FSorDB( pipeline[i].first_in_ptr, fullpath ),
                                     entry_status_str( pipeline[i].first_in_ptr, i) );
                     }
                     else
@@ -1015,15 +1011,15 @@ void EntryProcessor_DumpCurrentStages(  )
                     }
                     else
     #endif
-                    if ( ATTR_MASK_TEST( &pipeline[i].last_in_ptr->entry_attr, fullpath) )
+                    /* path is always set for scan mode... */
+                    if ( ATTR_FSorDB_TEST( pipeline[i].last_in_ptr, fullpath) )
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: last: %s, status=%s",
                                     entry_proc_pipeline[i].stage_name,
-                                    ATTR_MASK_TEST( &pipeline[i].last_in_ptr->entry_attr, fullpath) ?
-                                        ATTR( &pipeline[i].last_in_ptr->entry_attr, fullpath ): "(path not set)",
+                                        ATTR_FSorDB( pipeline[i].last_in_ptr, fullpath ),
                                     entry_status_str( pipeline[i].last_in_ptr, i) );
                     }
-                    else
+                    else /* else it is a special op */
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: last: special op %s",
                                     entry_proc_pipeline[i].stage_name,
@@ -1062,10 +1058,16 @@ void InitEntryProc_op( entry_proc_op_t * p_op )
     p_op->pipeline_stage = 0;
 
     p_op->entry_id_is_set = FALSE;
-    p_op->entry_attr_is_set = FALSE;
     p_op->extra_info_is_set = FALSE;
     p_op->db_exists = FALSE;
-  
+
+    p_op->db_attr_need = 0;
+    p_op->fs_attr_need = 0;
+
+    /* nothing is set */
+    ATTR_MASK_INIT( &p_op->db_attrs );
+    ATTR_MASK_INIT( &p_op->fs_attrs );
+
     extra_info_init( &p_op->extra_info );
 
     p_op->being_processed = FALSE;
@@ -1074,7 +1076,6 @@ void InitEntryProc_op( entry_proc_op_t * p_op )
     p_op->db_op_type = OP_TYPE_NONE;
     p_op->callback_func = NULL;
     p_op->callback_param = NULL;
-    ATTR_MASK_INIT( &p_op->entry_attr );
 
     p_op->extra_info_free_func = NULL;
 

@@ -434,7 +434,8 @@ policy_match_t EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p
  * check whitelist condition for file or directory entries
  * optionnally match fileclasses.
  */
-int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
+int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
+                    attr_set_t * p_attrs_cached,
                     int match_all_fc );
 
 /**

@@ -338,21 +338,18 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         op.callback_func = db_special_op_callback;
         op.callback_param = ( void * ) "Remove obsolete entries";
 
-        /* set the timestamp of scan in (md_update attribute) */
-        ATTR_MASK_INIT( &op.entry_attr );
+        ATTR_MASK_INIT( &op.fs_attrs );
 
-        /* set update time  */
-        ATTR_MASK_SET( &op.entry_attr, md_update );
-        ATTR( &op.entry_attr, md_update ) = scan_start_time;
+        /* set the timestamp of scan in (md_update attribute) */
+        ATTR_MASK_SET( &op.fs_attrs, md_update );
+        ATTR( &op.fs_attrs, md_update ) = scan_start_time;
 
         /* set root (if partial scan) */
         if (partial_scan_root)
         {
-            ATTR_MASK_SET( &op.entry_attr, fullpath );
-            strcpy(ATTR(&op.entry_attr, fullpath), partial_scan_root);
+            ATTR_MASK_SET( &op.fs_attrs, fullpath );
+            strcpy(ATTR(&op.fs_attrs, fullpath), partial_scan_root);
         }
-
-        op.entry_attr_is_set = TRUE;
 
         /* set wait db flag */
         set_db_wait_flag(  );
@@ -667,38 +664,36 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 #else
         op.pipeline_stage = STAGE_GET_INFO_DB;
 #endif
-        ATTR_MASK_INIT( &op.entry_attr );
+        ATTR_MASK_INIT( &op.fs_attrs );
 
-        ATTR_MASK_SET( &op.entry_attr, parent_id );
-        ATTR( &op.entry_attr, parent_id) = p_task->dir_id;
+        ATTR_MASK_SET( &op.fs_attrs, parent_id );
+        ATTR( &op.fs_attrs, parent_id) = p_task->dir_id;
 
-        ATTR_MASK_SET( &op.entry_attr, name );
-        strcpy( ATTR( &op.entry_attr, name ), entry_name );
+        ATTR_MASK_SET( &op.fs_attrs, name );
+        strcpy( ATTR( &op.fs_attrs, name ), entry_name );
 
-        ATTR_MASK_SET( &op.entry_attr, fullpath );
-        strcpy( ATTR( &op.entry_attr, fullpath ), entry_path );
+        ATTR_MASK_SET( &op.fs_attrs, fullpath );
+        strcpy( ATTR( &op.fs_attrs, fullpath ), entry_path );
 
 #ifdef ATTR_INDEX_invalid
-        ATTR_MASK_SET( &op.entry_attr, invalid );
-        ATTR( &op.entry_attr, invalid ) = FALSE;
+        ATTR_MASK_SET( &op.fs_attrs, invalid );
+        ATTR( &op.fs_attrs, invalid ) = FALSE;
 #endif
 
-        ATTR_MASK_SET( &op.entry_attr, depth );
-        ATTR( &op.entry_attr, depth ) = p_task->depth;  /* depth(/<mntpoint>/toto) = 0 */
+        ATTR_MASK_SET( &op.fs_attrs, depth );
+        ATTR( &op.fs_attrs, depth ) = p_task->depth;  /* depth(/<mntpoint>/toto) = 0 */
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-        PosixStat2EntryAttr( &inode, &op.entry_attr, !(is_lustre_fs && global_config.direct_mds_stat) );
+        PosixStat2EntryAttr( &inode, &op.fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-        PosixStat2EntryAttr( &inode, &op.entry_attr, TRUE );
+        PosixStat2EntryAttr( &inode, &op.fs_attrs, TRUE );
 #endif
-        op.entry_attr_is_set = TRUE;
-
         /* set update time  */
-        ATTR_MASK_SET( &op.entry_attr, md_update );
-        ATTR( &op.entry_attr, md_update ) = time( NULL );
+        ATTR_MASK_SET( &op.fs_attrs, md_update );
+        ATTR( &op.fs_attrs, md_update ) = time( NULL );
 #ifdef _HAVE_FID
-        ATTR_MASK_SET( &op.entry_attr, path_update );
-        ATTR( &op.entry_attr, path_update ) = time( NULL );
+        ATTR_MASK_SET( &op.fs_attrs, path_update );
+        ATTR( &op.fs_attrs, path_update ) = time( NULL );
 #endif
 
         /* Set entry id */
@@ -913,7 +908,10 @@ static void   *Thr_scan( void *arg_thread )
 
 #ifndef _NO_AT_FUNC
         #define OPENDIR_STR "open"
-        if ( (dirfd = open(p_task->path, O_RDONLY | O_DIRECTORY)) < 0 )
+        dirfd = open(p_task->path, O_RDONLY | O_DIRECTORY | O_NOATIME);
+        if (dirfd < 0) /* try without NOATIME */
+            dirfd = open(p_task->path, O_RDONLY | O_DIRECTORY);
+        if (dirfd < 0)
 #else
         #define OPENDIR_STR "opendir"
         if ( ( dirp = opendir( p_task->path ) ) == NULL )
@@ -1046,7 +1044,7 @@ static void   *Thr_scan( void *arg_thread )
 
             /* init the structure */
             InitEntryProc_op( &op );
-            ATTR_MASK_INIT( &op.entry_attr );
+            ATTR_MASK_INIT( &op.fs_attrs );
 
             /* set entry ID */
             op.entry_id = p_task->dir_id;
@@ -1057,40 +1055,38 @@ static void   *Thr_scan( void *arg_thread )
 
             if (p_task->parent_task)
             {
-                ATTR_MASK_SET( &op.entry_attr, parent_id );
-                ATTR( &op.entry_attr, parent_id ) = p_task->parent_task->dir_id;
+                ATTR_MASK_SET( &op.fs_attrs, parent_id );
+                ATTR( &op.fs_attrs, parent_id ) = p_task->parent_task->dir_id;
             }
 
-            ATTR_MASK_SET( &op.entry_attr, name );
-            strcpy( ATTR( &op.entry_attr, name ), basename( p_task->path ) );
+            ATTR_MASK_SET( &op.fs_attrs, name );
+            strcpy( ATTR( &op.fs_attrs, name ), basename( p_task->path ) );
 
-            ATTR_MASK_SET( &op.entry_attr, fullpath );
-            strcpy( ATTR( &op.entry_attr, fullpath ), p_task->path );
+            ATTR_MASK_SET( &op.fs_attrs, fullpath );
+            strcpy( ATTR( &op.fs_attrs, fullpath ), p_task->path );
 
 #ifdef ATTR_INDEX_invalid
-            ATTR_MASK_SET( &op.entry_attr, invalid );
-            ATTR( &op.entry_attr, invalid ) = FALSE;
+            ATTR_MASK_SET( &op.fs_attrs, invalid );
+            ATTR( &op.fs_attrs, invalid ) = FALSE;
 #endif
 
-            ATTR_MASK_SET( &op.entry_attr, depth );
-            ATTR( &op.entry_attr, depth ) = p_task->depth - 1;  /* depth(/tmp/toto) = 0 */
+            ATTR_MASK_SET( &op.fs_attrs, depth );
+            ATTR( &op.fs_attrs, depth ) = p_task->depth - 1;  /* depth(/tmp/toto) = 0 */
 
-            ATTR_MASK_SET( &op.entry_attr, dircount );
-            ATTR( &op.entry_attr, dircount ) = nb_entries;
+            ATTR_MASK_SET( &op.fs_attrs, dircount );
+            ATTR( &op.fs_attrs, dircount ) = nb_entries;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-            PosixStat2EntryAttr( &p_task->dir_md, &op.entry_attr, !(is_lustre_fs && global_config.direct_mds_stat) );
+            PosixStat2EntryAttr( &p_task->dir_md, &op.fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-            PosixStat2EntryAttr( &p_task->dir_md, &op.entry_attr, TRUE );
+            PosixStat2EntryAttr( &p_task->dir_md, &op.fs_attrs, TRUE );
 #endif
-            op.entry_attr_is_set = TRUE;
-
             /* set update time  */
-            ATTR_MASK_SET( &op.entry_attr, md_update );
-            ATTR( &op.entry_attr, md_update ) = time( NULL );
+            ATTR_MASK_SET( &op.fs_attrs, md_update );
+            ATTR( &op.fs_attrs, md_update ) = time( NULL );
 #ifdef _HAVE_FID
-            ATTR_MASK_SET( &op.entry_attr, path_update );
-            ATTR( &op.entry_attr, path_update ) = time( NULL );
+            ATTR_MASK_SET( &op.fs_attrs, path_update );
+            ATTR( &op.fs_attrs, path_update ) = time( NULL );
 #endif
 
             op.extra_info_is_set = FALSE;

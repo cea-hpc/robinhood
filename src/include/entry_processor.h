@@ -130,25 +130,39 @@ typedef struct entry_proc_op_t
     unsigned int   pipeline_stage;
 
     /* what is set in this structure ? */
-    int            entry_id_is_set:1;
-    int            entry_attr_is_set:1;
-    int            extra_info_is_set:1;
+    unsigned int      entry_id_is_set:1;
+    unsigned int      db_attr_is_set:1;
+    unsigned int      fs_attr_is_set:1;
+    unsigned int      extra_info_is_set:1;
 
     /* entry exists in db */
-    int            db_exists:1;
+    unsigned int      db_exists:1;
 
     /* internal flag for pipeline management */
-    int            being_processed:1;
-    int            id_is_referenced:1;
+    unsigned int      being_processed:1;
+    unsigned int      id_is_referenced:1;
 
     operation_type_t db_op_type;
     callback_func_t callback_func;
     void          *callback_param;
+
+    /* === Entry information === */
     entry_id_t     entry_id;
-    attr_set_t     entry_attr;
+
+    /* list of attrs to be retrieved from DB */
+    int            db_attr_need;
+    /* list of attrs to be retrieved from FS */
+    int            fs_attr_need;
+
+    /* attrs from DB (cached) */
+    attr_set_t     db_attrs;
+    /* attrs from FS (new) */
+    attr_set_t     fs_attrs;
 
     op_extra_info_t extra_info;
     free_func_t     extra_info_free_func;
+
+    /* ========================= */
 
     /**
      * internal entry lock for pipeline management:
@@ -166,6 +180,26 @@ typedef struct entry_proc_op_t
     struct entry_proc_op_t *p_prev;
 
 } entry_proc_op_t;
+
+/* test attribute from filesystem, or else from DB */
+#define ATTR_FSorDB_TEST(_entry_op_p, _attr) \
+        (ATTR_MASK_TEST(&(_entry_op_p)->fs_attrs, _attr) || \
+         ATTR_MASK_TEST(&(_entry_op_p)->db_attrs, _attr))
+
+/* get attribute from filesystem, or else from DB */
+#define ATTR_FSorDB(_entry_op_p, _attr) \
+        (ATTR_MASK_TEST(&(_entry_op_p)->fs_attrs, _attr)? \
+         ATTR(&(_entry_op_p)->fs_attrs, _attr):           \
+         ATTR(&(_entry_op_p)->db_attrs, _attr))
+
+#define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
+                         | ATTR_MASK_gr_name | ATTR_MASK_last_access \
+                         | ATTR_MASK_last_mod | ATTR_MASK_type)
+
+#define NEED_GETSTATUS(_op) ((_op)->fs_attr_need & ATTR_MASK_status)
+#define NEED_GETSTRIPE(_op) ((_op)->fs_attr_need & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ))
+#define NEED_GETPATH(_op) ((_op)->fs_attr_need & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth))
+#define NEED_GETATTR(_op) ((_op)->fs_attr_need & POSIX_ATTR_MASK )
 
 
 /* ===== entry processor calls ===== */

@@ -75,6 +75,51 @@
                     }\
                     } while(0)
 
+
+#define DIFF_UNION( _diff, _type, _address1, _address2 ) do { \
+                    db_type_u _u1, _u2;                     \
+                    switch( _type )                         \
+                    {                                       \
+                      case DB_ID:                           \
+                        _u1.val_id = *((entry_id_t*)(_address1)); \
+                        _u2.val_id = *((entry_id_t*)(_address2)); \
+                        _diff = !entry_id_equal( &_u1.val_id, &_u2.val_id); \
+                        break;                              \
+                      case DB_TEXT:                         \
+                        _u1.val_str = (char*)(_address1);   \
+                        _u2.val_str = (char*)(_address2);   \
+                        _diff = strcmp(_u1.val_str, _u2.val_str); \
+                        break;                              \
+                      case DB_INT:                          \
+                        _u1.val_int = *((int*)(_address1));   \
+                        _u2.val_int = *((int*)(_address2));   \
+                        _diff = (_u1.val_int != _u2.val_int); \
+                        break;                              \
+                      case DB_UINT:                         \
+                        _u1.val_uint = *((unsigned int*)(_address1)); \
+                        _u2.val_uint = *((unsigned int*)(_address2)); \
+                        _diff = (_u1.val_uint != _u2.val_uint); \
+                        break;                              \
+                      case DB_BIGINT:                       \
+                        _u1.val_bigint = *((long long*)(_address1));   \
+                        _u2.val_bigint = *((long long*)(_address2));   \
+                        _diff = (_u1.val_bigint != _u2.val_bigint); \
+                        break;                              \
+                      case DB_BIGUINT:                      \
+                        _u1.val_biguint = *((unsigned long long*)(_address1));  \
+                        _u2.val_biguint = *((unsigned long long*)(_address2));  \
+                        _diff = (_u1.val_biguint != _u2.val_biguint); \
+                        break;                              \
+                      case DB_BOOL:                         \
+                        _u1.val_bool = *((int*)(_address1));   \
+                        _u2.val_bool = *((int*)(_address2));   \
+                        _diff = (_u1.val_bool != _u2.val_bool); \
+                        break;                              \
+                      default:                              \
+                        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in ASSIGN_UNION: %d !!!", _type);\
+                    }\
+                    } while(0)
+
 /* precomputed masks for testing attr sets efficiently */
 extern int     main_attr_set;
 extern int     annex_attr_set;

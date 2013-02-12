@@ -39,41 +39,17 @@ typedef struct op_extra_info_t
     /** is this entry from changelog ?*/
     int            is_changelog_record:1;
 
-    /** indicates what extra info is to be retrieved for this entry */
-    int            getstripe_needed:1;
-    int            getattr_needed:1;
-    int            getpath_needed:1;
-    int            getstatus_needed:1;
-    int            not_supp:1; /* unsupported type for migration */
+    /** unsupported type for migration */
+    int            not_supp:1;
 } op_extra_info_t;
 
 static void inline extra_info_init( op_extra_info_t * p_extra_info )
 {
    memset( &p_extra_info->log_record, 0, sizeof(changelog_record_t) );
    p_extra_info->is_changelog_record = FALSE;
-   p_extra_info->getstripe_needed = FALSE; 
-   p_extra_info->getattr_needed = FALSE;
-   p_extra_info->getpath_needed = FALSE;
-   p_extra_info->getstatus_needed = FALSE;
    p_extra_info->not_supp = FALSE;
 }
 
-#define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
-                         | ATTR_MASK_gr_name | ATTR_MASK_last_access \
-                         | ATTR_MASK_last_mod | ATTR_MASK_type)
-
-
-static void inline mask2needed_op( unsigned int attr_mask, op_extra_info_t * p_extra_info )
-{
-   if ( attr_mask & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ) )
-         p_extra_info->getstripe_needed = TRUE;
-
-   if ( attr_mask & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth ) )
-         p_extra_info->getpath_needed = TRUE;
-
-   if ( attr_mask & POSIX_ATTR_MASK )
-        p_extra_info->getattr_needed = TRUE;
-}
 
 /* pipeline stages */
 #define STAGE_GET_FID       0
@@ -86,7 +62,7 @@ static void inline mask2needed_op( unsigned int attr_mask, op_extra_info_t * p_e
 
 #define PIPELINE_STAGE_COUNT (STAGE_RM_OLD_ENTRIES+1)
 
-/** Lustre-HSM pipeline definition */
+/** pipeline definition */
 extern pipeline_stage_t entry_proc_pipeline[PIPELINE_STAGE_COUNT];
 
 
