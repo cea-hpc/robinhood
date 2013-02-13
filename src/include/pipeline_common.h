@@ -20,6 +20,7 @@
 #ifndef _PIPELINE_DEF_H
 #define _PIPELINE_DEF_H
 
+#ifdef HAVE_CHANGELOGS
 typedef struct changelog_record
 {
 #ifdef HAVE_CHANGELOG_EXTEND_REC
@@ -29,15 +30,18 @@ typedef struct changelog_record
 #endif
     char          *mdt;
 } changelog_record_t;
+#endif
 
 /** purpose specific information attached to a pipeline operation */
 typedef struct op_extra_info_t
 {
+#ifdef HAVE_CHANGELOGS
     /** changelog record info */
     changelog_record_t log_record;
 
     /** is this entry from changelog ?*/
     int            is_changelog_record:1;
+#endif
 
     /** unsupported type for migration */
     int            not_supp:1;
@@ -45,8 +49,10 @@ typedef struct op_extra_info_t
 
 static void inline extra_info_init( op_extra_info_t * p_extra_info )
 {
+#ifdef HAVE_CHANGELOGS
    memset( &p_extra_info->log_record, 0, sizeof(changelog_record_t) );
    p_extra_info->is_changelog_record = FALSE;
+#endif
    p_extra_info->not_supp = FALSE;
 }
 
@@ -57,8 +63,13 @@ static void inline extra_info_init( op_extra_info_t * p_extra_info )
 #define STAGE_GET_INFO_FS   2
 #define STAGE_REPORTING     3
 #define STAGE_DB_APPLY      4
-#define STAGE_CHGLOG_CLR    5
+#ifdef HAVE_CHANGELOGS
+#define STAGE_CHGLOG_CLR      5
 #define STAGE_RM_OLD_ENTRIES  6 /* special stage at the end of FS scan */
+#else
+#define STAGE_RM_OLD_ENTRIES  5 /* special stage at the end of FS scan */
+#endif
+
 
 #define PIPELINE_STAGE_COUNT (STAGE_RM_OLD_ENTRIES+1)
 

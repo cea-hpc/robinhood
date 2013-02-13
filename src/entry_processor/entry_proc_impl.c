@@ -151,11 +151,20 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, int flags )
     entry_proc_conf = *p_conf;
     pipeline_flags = flags;
 
-    if ( entry_proc_conf.match_classes && !is_class_defined() )
+    if ( entry_proc_conf.match_file_classes && !is_file_class_defined() )
     {
-        DisplayLog( LVL_EVENT, ENTRYPROC_TAG, "No class defined in policies, disabling class matching." );
-        entry_proc_conf.match_classes = FALSE;
+        DisplayLog( LVL_EVENT, ENTRYPROC_TAG, "No class defined in policies, disabling file class matching." );
+        entry_proc_conf.match_file_classes = FALSE;
     }
+
+#ifdef HAVE_RMDIR_POLICY
+    if ( entry_proc_conf.match_dir_classes && !is_dir_class_defined() )
+    {
+        DisplayLog( LVL_EVENT, ENTRYPROC_TAG, "No class defined in policies, disabling dir class matching." );
+        entry_proc_conf.match_dir_classes = FALSE;
+    }
+#endif
+
 
     /* If a limit of pending operations is specified, initialize a token */
     if ( entry_proc_conf.max_pending_operations > 0 )

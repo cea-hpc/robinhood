@@ -178,6 +178,9 @@ typedef struct rmdir_policy_t
     int            global_attr_mask;             /**< minimum set of attributes for checking all rules */
 } rmdir_policy_t;
 
+#define NO_DIR_POLICY( p_pol ) (((p_pol)->whitelist_count + (p_pol)->recursive_rmdir_count == 0) && ((p_pol)->age_rm_empty_dirs == 0))
+
+
 #endif
 
 #define POLICY_ID_LEN   128
@@ -346,7 +349,7 @@ extern policies_t policies;
  *  Functions for applying policies to entries
  * ==============================================*/
 
-static inline int is_class_defined()
+static inline int is_file_class_defined()
 {
 #ifdef HAVE_PURGE_POLICY
     if ( !NO_POLICY( &policies.purge_policies ) )
@@ -357,6 +360,15 @@ static inline int is_class_defined()
         return TRUE;
 #endif
 
+    return FALSE;
+}
+
+static inline int is_dir_class_defined()
+{
+#ifdef HAVE_RMDIR_POLICY
+    if ( !NO_DIR_POLICY( &policies.rmdir_policy) )
+        return TRUE;
+#endif
     return FALSE;
 }
 

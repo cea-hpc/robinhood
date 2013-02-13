@@ -48,7 +48,8 @@ typedef struct entry_proc_config_t
     unsigned int   alert_count;
     int            alert_attr_mask;
 
-    unsigned int   match_classes:1;
+    unsigned int   match_file_classes:1;
+    unsigned int   match_dir_classes:1;
 #ifdef ATTR_INDEX_creation_time
     /* fake mtime in the past causes higher
      * migration priority */

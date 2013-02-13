@@ -4026,7 +4026,7 @@ function check_disabled
                        ;;
                class)
                        cmd='--scan'
-                       match='disabling class matching'
+                       match='disabling file class matching'
                        ;;
                *)
                        error "unexpected flavor $flavor"
@@ -5593,8 +5593,75 @@ function test_removing
 
 	if (( $res == 1 )); then
 		error "Test for RemovingDir_$testKey failed"
+    else
+        echo "OK: Test successfull"
 	fi
 }
+
+function test_rmdir_mix
+{
+	config_file=$1
+	sleepTime=$2 # for age_rm_empty_dirs
+    
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+		echo "No removing dir for this purpose: skipped"
+		set_skipped
+		return 1
+	fi
+	
+	#  clean logs
+	clean_logs
+	
+	# prepare data
+	echo "1-Preparing Filesystem..."
+    # old dirempty
+	mkdir -p $ROOT/no_rm/dirempty
+	mkdir -p $ROOT/dirempty
+    sleep $sleepTime
+
+    # new dirs
+	mkdir -p $ROOT/no_rm/dir1
+	mkdir -p $ROOT/no_rm/dir2
+	mkdir -p $ROOT/no_rm/dirempty_new
+	mkdir -p $ROOT/dir1
+	mkdir -p $ROOT/dir2
+	mkdir -p $ROOT/dirempty_new
+	echo "data" >  $ROOT/no_rm/dir1/file
+	echo "data" >  $ROOT/no_rm/dir2/file
+	echo "data" >  $ROOT/dir1/file
+	echo "data" >  $ROOT/dir2/file
+		
+	# launch the scan ..........................
+	echo "2-Scanning directories in filesystem ..."
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
+
+    echo "3-Checking rmdir report"
+	$REPORT -f ./cfg/$config_file -l MAJOR -cq --top-rmdir > report.out
+    # must report empty dirs (non ignored)
+    grep "no_rm/dirempty," report.out && error "top-rmdir report whitelisted dir"
+    grep "no_rm/dirempty_new," report.out && error "top-rmdir report whitelisted dir"
+    grep "$ROOT/dirempty," report.out | grep expired || error "top-rmdir did not report expired eligible dir"
+    grep "$ROOT/dirempty_new," report.out | grep -v expired || error "top-rmdir did not report non-expired eligible dir"
+
+	# launch the rmdir ..........................
+	echo "4-Removing directories in filesystem ..."
+	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing rmdir"
+
+	echo "5-Checking results ..."
+    exist="$ROOT/no_rm/dirempty;$ROOT/no_rm/dir1;$ROOT/no_rm/dir2;$ROOT/no_rm/dirempty_new;$ROOT/dir2;$ROOT/dirempty_new"
+    noexist="$ROOT/dir1;$ROOT/dirempty"
+
+	# launch the validation for all remove process
+	exist_dirs_or_not $exist $noexist
+	res=$?
+
+	if (( $res == 1 )); then
+		error "Test for RemovingDir_mixed failed"
+    else
+        echo "OK: Test successfull"
+	fi
+}
+
 
 function test_removing_ost
 {
@@ -5864,14 +5931,18 @@ function test_report_generation_1
     [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"	
 	
-	# launch another scan ..........................
-	echo -e "\n 8-Two largest directories of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-dirs=2 --csv > report.out || error "performing Largest folders list (--top-dirs)"
-	typeValues="dir1;dir5"
-	countValues="1;2"
+	echo -e "\n 8-Largest directories of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-dirs=3 --csv > report.out || error "performing Largest folders list (--top-dirs)"
+	# 2 possible orders
+	typeValues="$ROOT/dir1;$ROOT/dir5;$ROOT,"
+	typeValuesAlt="$ROOT/dir1;$ROOT,;$ROOT/dir5"
+	countValues="1;2;3"
 	colSearch=1
-    [ "$DEBUG" = "1" ] && cat report.out
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
+    	[ "$DEBUG" = "1" ] && cat report.out
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || \
+	find_allValuesinCSVreport $logFile $typeValuesAlt $countValues $colSearch || \
+	error "validating Largest folders list (--top-dirs)"
+
 	
 	# /!\ scan/backup modifies files and symlink atime!
 	echo -e "\n 9-Four oldest purgeable entries of Filesystem..."
@@ -6609,6 +6680,7 @@ run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 
 run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
 run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
+run_test 219    test_rmdir_mix RemovingDir_Mixed.conf 11 "mixed rmdir policies"
 
 	
 #### triggers ####

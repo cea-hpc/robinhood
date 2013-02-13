@@ -84,52 +84,52 @@ pipeline_stage_t entry_proc_pipeline[] = {
 };
 
 #ifdef HAVE_SHOOK
-int shook_special_obj( const attr_set_t * attrs )
+int shook_special_obj( struct entry_proc_op_t *p_op )
 {
-    if (attrs && ATTR_MASK_TEST( attrs, fullpath )
-        && ATTR_MASK_TEST( attrs, type))
+    if (ATTR_FSorDB_TEST( p_op, fullpath )
+        && ATTR_FSorDB_TEST( p_op, type))
     {
-        if ( !strcmp(STR_TYPE_FILE, ATTR(attrs, type)) )
+        if ( !strcmp(STR_TYPE_FILE, ATTR_FSorDB(p_op, type)) )
         {
             /* is it a lock file? */
-            if (!fnmatch("*/"LOCK_DIR"/"SHOOK_LOCK_PREFIX"*", ATTR(attrs, fullpath ), 0))
+            if (!fnmatch("*/"LOCK_DIR"/"SHOOK_LOCK_PREFIX"*", ATTR_FSorDB(p_op, fullpath ), 0))
             {
                 /* skip the entry */
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook lock",
-                           ATTR(attrs, fullpath));
+                           ATTR_FSorDB(p_op, fullpath));
                 /** @TODO raise special event for the file: LOCK/UNLOCK */
                 return TRUE;
             }
         }
-        else if (!strcmp(STR_TYPE_DIR, ATTR(attrs, type)))
+        else if (!strcmp(STR_TYPE_DIR, ATTR_FSorDB(p_op, type)))
         {
-            if (!fnmatch("*/"LOCK_DIR, ATTR(attrs, fullpath ), 0))
+            if (!fnmatch("*/"LOCK_DIR, ATTR_FSorDB(p_op, fullpath ), 0))
             {
                 /* skip the entry */
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook lock dir",
-                           ATTR(attrs, fullpath));
+                           ATTR_FSorDB(p_op, fullpath));
                 return TRUE;
             }
-            else if (!fnmatch("*/"RESTRIPE_DIR, ATTR(attrs, fullpath ), 0))
+            else if (!fnmatch("*/"RESTRIPE_DIR, ATTR_FSorDB(p_op, fullpath ), 0))
             {
                 /* skip the entry */
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook restripe dir",
-                           ATTR(attrs, fullpath));
+                           ATTR_FSorDB(p_op, fullpath));
                 return TRUE;
             }
         }
     }
 
     /* also match '.shook' directory */
-    if (attrs && ATTR_MASK_TEST( attrs, name )
-        && ATTR_MASK_TEST( attrs, type))
+    if (p_op && ATTR_FSorDB_TEST( p_op, name )
+        && ATTR_FSorDB_TEST( p_op, type))
     {
-        if ( !strcmp(STR_TYPE_DIR, ATTR(attrs, type)) &&
-             !strcmp(SHOOK_DIR, ATTR(attrs, name)) )
+        if ( !strcmp(STR_TYPE_DIR, ATTR_FSorDB(p_op, type)) &&
+             !strcmp(SHOOK_DIR, ATTR_FSorDB(p_op, name)) )
         {
             /* skip the entry */
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "\"%s\" is a shook dir",
-                       ATTR(attrs, name));
+                       ATTR_FSorDB(p_op, name));
             return TRUE;
         }
     }
@@ -779,7 +779,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
              p_op->db_attr_need |= ATTR_MASK_creation_time;
 #endif
 
-        if ( entry_proc_conf.match_classes )
+        if ( entry_proc_conf.match_file_classes )
         {
             /* get fileclass update info to know if we must check it */
 #ifdef HAVE_MIGR_POLICY
@@ -795,6 +795,15 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             p_op->db_attr_need |= policies.purge_policies.global_attr_mask;
 #endif
         }
+#ifdef HAVE_RMDIR_POLICY
+        else if (entry_proc_conf.match_dir_classes)
+        {
+             if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
+                 p_op->db_attr_need |= ATTR_MASK_rel_cl_update;
+            p_op->db_attr_need |= ATTR_MASK_release_class;
+            p_op->db_attr_need |= policies.rmdir_policy.global_attr_mask;
+        }
+#endif
         p_op->db_attr_need |= entry_proc_conf.alert_attr_mask;
 
 #ifdef _HSM_LITE
@@ -933,7 +942,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             p_op->db_attr_need &= ~ATTR_MASK_dircount;
         }
 
-        if ( entry_proc_conf.match_classes &&
+        if ( entry_proc_conf.match_file_classes &&
              ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
 #ifdef _LUSTRE_HSM
              !strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_FILE )) /* file */
@@ -959,6 +968,18 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                                   & ~p_op->fs_attrs.attr_mask);
 #endif
         }
+#ifdef HAVE_RMDIR_POLICY
+        else if ( entry_proc_conf.match_dir_classes &&
+             ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
+             !strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR )) /* dir */
+        {
+            if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
+                p_op->db_attr_need |= ATTR_MASK_rel_cl_update;
+            p_op->db_attr_need |= ATTR_MASK_release_class;
+            p_op->db_attr_need |= (policies.rmdir_policy.global_attr_mask
+                                  & ~p_op->fs_attrs.attr_mask);
+        }
+#endif
 
         if (p_op->db_attr_need)
         {
@@ -1361,10 +1382,20 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
     /* match fileclasses if specified in config */
-//    if ( entry_proc_conf.match_classes && !p_op->extra_info.not_supp )
-    /* not only for migration: check policies even if 'not_supp' */
-    if (entry_proc_conf.match_classes)
-        check_policies(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs, TRUE);
+
+    /* sure it's a directory */
+    if (ATTR_FSorDB_TEST( p_op, type) && !strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_DIR ))
+    {
+        if (entry_proc_conf.match_dir_classes)
+            check_policies(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs, TRUE);
+    }
+    /* sure it is a supported type and not a dir */
+    else if (!p_op->extra_info.not_supp)
+    {
+        if (entry_proc_conf.match_file_classes)
+            check_policies(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs, TRUE);
+    }
+    /* non-dir or not supported (no check) */
 
     /* set other info */
     rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
@@ -1490,12 +1521,12 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
 #ifdef HAVE_SHOOK
-    if (p_op->entry_attr_is_set && shook_special_obj( &p_op->entry_attr )) {
+    if (shook_special_obj( p_op )) {
                 DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
                     "Shook special file or dir '%s', skipped",
-                    (ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?
-                     ATTR(&p_op->entry_attr, fullpath):
-                     ATTR(&p_op->entry_attr, name)) );
+                    (ATTR_FSorDB_TEST( p_op, fullpath )?
+                     ATTR_FSorDB(p_op, fullpath):
+                     ATTR_FSorDB(p_op, name)) );
         /* skip special shook entry */
         goto skip_record;
     }

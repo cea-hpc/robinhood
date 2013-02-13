@@ -1166,9 +1166,7 @@ function periodic_class_match_purge
 	# now apply policies
 	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error "purging files"
 
-	# TMP_FS_MGR:  whitelisted status is always checked at scan time
-	# 	so 2 entries have already been matched (ignore1 and whitelist1)
-	already=2
+	already=0
 
 	nb_updt=`grep "Need to update fileclass (not set)" rh_purge.log | wc -l`
 	nb_purge_match=`grep "matches the condition for policy 'purge_match'" rh_purge.log | wc -l`
@@ -2135,7 +2133,7 @@ function check_disabled
 			;;
 		class)
 			cmd='--scan'
-			match='disabling class matching'
+			match='disabling file class matching'
 			;;
 		*)
 			error "unexpected flavor $flavor"
@@ -3135,12 +3133,16 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"
 	
 	# launch another scan ..........................
-	echo -e "\n 8-Two largest directories of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-dirs=2 --csv > report.out || error "performing Largest folders list (--top-dirs)"
-	typeValues="dir1;dir5"
-	countValues="1;2"
+	echo -e "\n 8-Largest directories of Filesystem..."
+	$REPORT -f ./cfg/$config_file --top-dirs=3 --csv > report.out || error "performing Largest folders list (--top-dirs)"
+	# 2 possible orders
+	typeValues="$ROOT/dir1;$ROOT/dir5;$ROOT,"
+	typeValuesAlt="$ROOT/dir1;$ROOT,;$ROOT/dir5"
+	countValues="1;2;3"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest folders list (--top-dirs)"
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || \
+	find_allValuesinCSVreport $logFile $typeValuesAlt $countValues $colSearch || \
+	error "validating Largest folders list (--top-dirs)"
 	
 	# launch another scan ..........................
 	echo -e "\n 9-Four oldest entries of Filesystem..."
@@ -3298,6 +3300,7 @@ function find_valueInCSVreport
     if (( ${#line} == 0 )); then
 	    return 1
     fi
+
 
     # get found value count for this value type
     foundCount=$(grep $typeValue $logFile | cut -d ',' -f $colSearch | tr -d ' ')

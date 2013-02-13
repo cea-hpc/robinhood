@@ -1085,7 +1085,6 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
 {
     int            i;
     int            mask = 1;
-    db_type_u      typeu;
     int diff_mask = p_tgt->attr_mask & p_src->attr_mask;
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )

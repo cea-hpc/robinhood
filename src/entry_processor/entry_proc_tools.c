@@ -313,7 +313,12 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
 
     conf->nb_thread = 8;
     conf->max_pending_operations = 1000;
-    conf->match_classes = TRUE;
+    conf->match_file_classes = TRUE;
+#ifdef HAVE_RMDIR_POLICY
+    conf->match_dir_classes = TRUE;
+#else
+    conf->match_dir_classes = FALSE;
+#endif
 #ifdef ATTR_INDEX_creation_time
     conf->detect_fake_mtime = FALSE;
 #endif
@@ -409,7 +414,11 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if (rc == 0)
-        conf->match_classes = tmpval;
+#ifdef HAVE_RMDIR_POLICY
+        conf->match_file_classes = conf->match_dir_classes = tmpval;
+#else
+        conf->match_file_classes = tmpval;
+#endif
 
 #ifdef ATTR_INDEX_creation_time
     rc = GetBoolParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "detect_fake_mtime",
@@ -583,13 +592,24 @@ int Reload_EntryProc_Config( void *module_config )
                     ENTRYPROC_CONFIG_BLOCK
                     "::max_pending_operations changed in config file, but cannot be modified dynamically" );
 
-    if ( conf->match_classes != entry_proc_conf.match_classes )
+    if ( conf->match_file_classes != entry_proc_conf.match_file_classes)
     {
         DisplayLog( LVL_MAJOR, "EntryProc_Config",
-                    ENTRYPROC_CONFIG_BLOCK"::match_classes updated: '%s'->'%s'",
-                    bool2str(entry_proc_conf.match_classes), bool2str(conf->match_classes) );
-        entry_proc_conf.match_classes = conf->match_classes;
+                    ENTRYPROC_CONFIG_BLOCK"::match_classes (files) updated: '%s'->'%s'",
+                    bool2str(entry_proc_conf.match_file_classes), bool2str(conf->match_file_classes) );
+        entry_proc_conf.match_file_classes = conf->match_file_classes;
     }
+
+#ifdef HAVE_RMDIR_POLICY
+    if ( conf->match_dir_classes != entry_proc_conf.match_dir_classes)
+    {
+        DisplayLog( LVL_MAJOR, "EntryProc_Config",
+                    ENTRYPROC_CONFIG_BLOCK"::match_classes (dirs) updated: '%s'->'%s'",
+                    bool2str(entry_proc_conf.match_dir_classes), bool2str(conf->match_dir_classes) );
+        entry_proc_conf.match_dir_classes = conf->match_dir_classes;
+    }
+#endif
+
 
 #ifdef ATTR_INDEX_creation_time
     if ( conf->detect_fake_mtime != entry_proc_conf.detect_fake_mtime )
@@ -608,11 +628,18 @@ int Reload_EntryProc_Config( void *module_config )
 
     free_alert( conf->alert_list, conf->alert_count );
 
-    if ( entry_proc_conf.match_classes && !is_class_defined() )
+    if (entry_proc_conf.match_file_classes && !is_file_class_defined())
     {
-        DisplayLog( LVL_EVENT, "EntryProc_Config" , "No class defined in policies, disabling class matching." );
-        entry_proc_conf.match_classes = FALSE;
+        DisplayLog( LVL_EVENT, "EntryProc_Config" , "No class defined in policies, disabling file class matching." );
+        entry_proc_conf.match_file_classes = FALSE;
     }
+#ifdef HAVE_RMDIR_POLICY
+    if (entry_proc_conf.match_dir_classes && !is_dir_class_defined())
+    {
+        DisplayLog( LVL_EVENT, "EntryProc_Config" , "No class defined in policies, disabling dir class matching." );
+        entry_proc_conf.match_dir_classes = FALSE;
+    }
+#endif
 
     return 0;
 }
