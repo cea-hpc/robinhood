@@ -1118,11 +1118,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
     DisplayLog( LVL_FULL, ENTRYPROC_TAG,
-        "Getattr=%u, Getpath=%u,"
+        "Getattr=%u, Getpath=%u"
 #ifdef ATTR_INDEX_status
-        ", GetStatus=%u, "
+        ", GetStatus=%u"
 #endif
-        "Getstripe=%u",
+        ", Getstripe=%u",
          NEED_GETATTR(p_op)?1:0, NEED_GETPATH(p_op)?1:0,
 #ifdef ATTR_INDEX_status
         NEED_GETSTATUS(p_op)?1:0,

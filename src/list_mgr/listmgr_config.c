@@ -34,7 +34,7 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     lmgr_config_t *conf = ( lmgr_config_t * ) module_config;
     msg_out[0] = '\0';
 
-    conf->commit_behavior = 0; /* autocommit */
+    conf->commit_behavior = 1; /* transaction */
     conf->connect_retry_min = 1;
     conf->connect_retry_max = 30;
 
@@ -60,7 +60,7 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
 int WriteLmgrConfigDefault( FILE * output )
 {
     print_begin_block( output, 0, LMGR_CONFIG_BLOCK, NULL );
-    print_line( output, 1, "commit_behavior             : autocommit" );
+    print_line( output, 1, "commit_behavior             : transaction" );
     print_line( output, 1, "connect_retry_interval_min  : 1s" );
     print_line( output, 1, "connect_retry_interval_max  : 30s" );
     print_line( output, 1, "user_acct  : enabled" );
@@ -177,7 +177,6 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
                      "transaction, periodic(<count>))", tmpstr );
             return EINVAL;
         }
-
     }
 
     /* 2) connect_retry_interval_min  and connect_retry_interval_max */
@@ -432,11 +431,7 @@ int WriteLmgrConfigTemplate( FILE * output )
                 "# - \"transaction\": manage operations in transactions (best consistency, lower performance)" );
     print_line( output, 1,
                 "# - \"periodic(<nb_transaction>)\": periodically commit (every <n> transactions)." );
-#ifdef _MYSQL
-    print_line( output, 1, "commit_behavior = autocommit ;" );
-#elif defined (_SQLITE)
     print_line( output, 1, "commit_behavior = transaction ;" );
-#endif
     fprintf( output, "\n" );
     print_line( output, 1,
                 "# Minimum time (in seconds) to wait before trying to reestablish a lost connection." );

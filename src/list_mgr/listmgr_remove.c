@@ -104,7 +104,6 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
 static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
 {
     char query[2048];
-    int rc;
     /* insert those entries to soft rm table */
 
     if ( annex_table )
@@ -126,16 +125,6 @@ static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
                  (unsigned int)due_time );
     }
 
-    /* set READ COMMITTED isolation level for the next (big!) request
-     * so locks can be released immediatly after the record is read */
-    rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
-    if ( rc )
-    {
-        char errmsg[1024];
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
-        /* continue anyway */
-    }
     return db_exec_sql( &p_mgr->conn, query, NULL );
 }
 
@@ -220,6 +209,25 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     char          *field_tab[3]; /* 3 max: id, fullpath, backendpath */
     DEF_PK(pk);
     unsigned int   rmcount;
+
+    /* This is needed for creating big temporary table.
+     * Set READ COMMITTED isolation level for the next transaction
+     * so locks can be released immediatly after the record is read.
+     * - This can only be done if we are outside a transaction
+     * - If the mode is autocommit, do it just before the create tmp table
+     *   statement.
+     */
+    if ((p_mgr->last_commit == 0) && (lmgr_config.commit_behavior != 0))
+    {
+        rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
+        if ( rc )
+        {
+            char errmsg[1024];
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
+            /* continue anyway */
+        }
+    }
 
     /* We want the remove operation to be atomic */
     rc = lmgr_begin( p_mgr );
@@ -394,15 +402,19 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         goto rollback;
     }
 
-    /* set READ COMMITTED isolation level for the next (big!) request
-     * so locks can be released immediatly after the record is read */
-    rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
-    if ( rc )
+    /* in autocommit mode, set the transaction level, just before the needed statement */
+    if (lmgr_config.commit_behavior == 0)
     {
-        char errmsg[1024];
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
-        /* continue anyway */
+        /* set READ COMMITTED isolation level for the next (big!) request
+         * so locks can be released immediatly after the record is read */
+        rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
+        if ( rc )
+        {
+            char errmsg[1024];
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
+            /* continue anyway */
+        }
     }
 
     /* create the temporary table */
