@@ -67,7 +67,7 @@ static struct option option_tab[] =
     /* miscellaneous options */
     {"help", no_argument, NULL, 'h'},
     {"version", no_argument, NULL, 'V'},
-    {"negate", no_argument, NULL, '!'},
+    {"not", no_argument, NULL, '!'},
 
     {NULL, 0, NULL, 0}
 
@@ -126,7 +126,7 @@ struct find_opt
     unsigned int statusneg:1;
 #endif
 
-    /* negate flags */
+    /* -not flags */
     unsigned int userneg:1;
     unsigned int groupneg:1;
     unsigned int nameneg:1;
@@ -346,13 +346,13 @@ static const char *help_string =
     _B "Usage:" B_ " %s [options] [path|fid]...\n"
     "\n"
     _B "Filters:" B_ "\n"
-    "    [-!] " _B "-user" B_ " " _U "user" U_ "\n"
-    "    [-!] " _B "-group" B_ " " _U "group" U_ "\n"
+    "    " _B "-user" B_ " " _U "user" U_ "\n"
+    "    " _B "-group" B_ " " _U "group" U_ "\n"
     "    " _B "-type" B_ " " _U "type" U_ "\n"
     "       "TYPE_HELP"\n"
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       "SIZE_HELP"\n"
-    "    [-!] " _B "-name" B_ " " _U "filename" U_ "\n"
+    "    " _B "-name" B_ " " _U "filename" U_ "\n"
     "    " _B "-mtime" B_ " " _U "time_crit" U_ "\n"
     "       "TIME_HELP"\n"
     "    " _B "-mmin" B_ " " _U "minute_crit" U_ "\n"
@@ -367,9 +367,12 @@ static const char *help_string =
     "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
 #endif
 #ifdef ATTR_INDEX_status
-    "    [-!] " _B "-status" B_ " " _U "status" U_ "\n"
+    "    " _B "-status" B_ " " _U "status" U_ "\n"
     "       %s\n"
 #endif
+    "\n"
+    "    " _B "-not" B_ ", "_B"-!"B_"\n"
+    "        negate next argument\n"
     "\n"
     _B "Output options:" B_ "\n"
     "    " _B "-ls" B_" \t: display attributes\n"
@@ -1005,7 +1008,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for ost criteria\n");
+                fprintf(stderr, "! () is not supported for ost criteria\n");
                 exit(1);
             }
             break;
@@ -1019,7 +1022,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for type criteria\n");
+                fprintf(stderr, "! (-not) is not supported for type criteria\n");
                 exit(1);
             }
             break;
@@ -1028,7 +1031,7 @@ int main( int argc, char **argv )
             if (set_size_filter(optarg))
                 exit(1);
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for size criteria\n");
+                fprintf(stderr, "! (-not) is not supported for size criteria\n");
                 exit(1);
             }
             break;
@@ -1038,7 +1041,7 @@ int main( int argc, char **argv )
             if (set_time_filter(optarg, 0, TRUE, atime))
                 exit(1);
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
                 exit(1);
             }
             break;
@@ -1048,7 +1051,7 @@ int main( int argc, char **argv )
             if (set_time_filter(optarg, 60, TRUE, atime))
                 exit(1);
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
                 exit(1);
             }
             break;
@@ -1058,7 +1061,7 @@ int main( int argc, char **argv )
             if (set_time_filter(optarg, 0, TRUE, mtime))
                 exit(1);
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
                 exit(1);
             }
             break;
@@ -1068,7 +1071,7 @@ int main( int argc, char **argv )
             if (set_time_filter(optarg, 60, FALSE, mtime)) /* don't allow suffix (multiplier is 1min) */
                 exit(1);
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
                 exit(1);
             }
             break;
@@ -1078,7 +1081,7 @@ int main( int argc, char **argv )
             if (set_time_filter(optarg, 1, FALSE, mtime)) /* don't allow suffix (multiplier is 1sec) */
                 exit(1);
             if (neg) {
-                fprintf(stderr, "! (negate) is not supported for time criteria\n");
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
                 exit(1);
             }
             break;
@@ -1102,14 +1105,14 @@ int main( int argc, char **argv )
             prog_options.ls = 1;
             disp_mask = DISPLAY_MASK;
             if (neg) {
-                fprintf(stderr, "! (negate) unexpected before -l option\n");
+                fprintf(stderr, "! (-not) unexpected before -l option\n");
                 exit(1);
             }
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
             if (neg) {
-                fprintf(stderr, "! (negate) unexpected before -f option\n");
+                fprintf(stderr, "! (-not) unexpected before -f option\n");
                 exit(1);
             }
             break;
@@ -1124,7 +1127,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             if (neg) {
-                fprintf(stderr, "! (negate) unexpected before -d option\n");
+                fprintf(stderr, "! (-not) unexpected before -d option\n");
                 exit(1);
             }
             break;
