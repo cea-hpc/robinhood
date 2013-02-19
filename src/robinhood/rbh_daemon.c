@@ -1336,13 +1336,6 @@ int main( int argc, char **argv )
     else
         DisplayLog( LVL_VERB, MAIN_TAG, "Signal handler thread started successfully" );
 
-    if ( options.flags & FLAG_ONCE )
-    {
-        /* used for dumping stats in one shot mode */
-        currently_running_mask = 0;
-        pthread_create( &stat_thread, NULL, stats_thr, &currently_running_mask );
-    }
-
     /* Initialize list manager */
     rc = ListMgr_Init( &rh_config.lmgr_config, FALSE );
     if ( rc )
@@ -1355,6 +1348,13 @@ int main( int argc, char **argv )
 
     if ( CheckLastFS(  ) != 0 )
         exit( 1 );
+
+    if ( options.flags & FLAG_ONCE )
+    {
+        /* used for dumping stats in one shot mode */
+        currently_running_mask = 0;
+        pthread_create( &stat_thread, NULL, stats_thr, &currently_running_mask );
+    }
 
     if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
     {
