@@ -24,12 +24,18 @@ AC_GNU_SOURCE
 # disable shared libraries generation
 AC_ENABLE_SHARED(no)
 
-# Checks for programs.
+# required for automake 1.12 (since fedora 18)
+m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
+
+AC_PROG_LIBTOOL
 AC_PROG_CC
+
+# required for automake 1.12 (since fedora 18)
+m4_ifdef([AM_PROG_CC_C_O], [AM_PROG_CC_C_O])
+
 AC_C_INLINE
 AM_PROG_LEX
 AC_PROG_YACC
-AC_PROG_LIBTOOL
 
 # define everything necessary for accessing large files (64bits offset)
 AC_SYS_LARGEFILE

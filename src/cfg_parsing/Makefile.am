@@ -4,7 +4,8 @@ AM_LFLAGS		    = -i
 AM_CFLAGS= -Wall $(DB_CFLAGS) $(PURPOSE_CFLAGS) -DYY_NO_UNPUT
  
 if DEBUG_PARSING
-AM_YFLAGS += --debug -v
+# not supported with automake 1.12
+#AM_YFLAGS += --debug -v
 AM_CFLAGS += -DYYDEBUG=1
 endif
 
