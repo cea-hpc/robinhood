@@ -120,6 +120,10 @@ int shook_special_obj( struct entry_proc_op_t *p_op )
         }
     }
 
+    /* set name from path */
+    ListMgr_GenerateFields( &p_op->db_attrs, ATTR_MASK_name );
+    ListMgr_GenerateFields( &p_op->fs_attrs, ATTR_MASK_name );
+
     /* also match '.shook' directory */
     if (p_op && ATTR_FSorDB_TEST( p_op, name )
         && ATTR_FSorDB_TEST( p_op, type))
@@ -136,6 +140,19 @@ int shook_special_obj( struct entry_proc_op_t *p_op )
 
     return FALSE;
 }
+
+#define SKIP_SPECIAL_OBJ(_pop, _goto) do {                              \
+        if (shook_special_obj( _pop )) {                                \
+                    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,               \
+                        "Shook special file or dir '%s', skipped",      \
+                        (ATTR_FSorDB_TEST( _pop, fullpath )?            \
+                         ATTR_FSorDB(_pop, fullpath):                   \
+                         ATTR_FSorDB(_pop, name)) );                    \
+            goto _goto;                                                 \
+        }                                                               \
+    } while(0)
+#else
+#define SKIP_SPECIAL_OBJ(_pop, _goto) /* do nothing */
 #endif
 
 /**
@@ -1138,6 +1155,9 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 #endif
 
+    /* early check using DB info */
+    SKIP_SPECIAL_OBJ(p_op, skip_record);
+
     DisplayLog( LVL_FULL, ENTRYPROC_TAG,
         "Getattr=%u, Getpath=%u"
 #ifdef ATTR_INDEX_status
@@ -1397,6 +1417,9 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
     /* non-dir or not supported (no check) */
 
+    /* later check using DB+FS info */
+    SKIP_SPECIAL_OBJ(p_op, skip_record);
+
     /* set other info */
     rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
     if ( rc )
@@ -1520,17 +1543,8 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
-#ifdef HAVE_SHOOK
-    if (shook_special_obj( p_op )) {
-                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                    "Shook special file or dir '%s', skipped",
-                    (ATTR_FSorDB_TEST( p_op, fullpath )?
-                     ATTR_FSorDB(p_op, fullpath):
-                     ATTR_FSorDB(p_op, name)) );
-        /* skip special shook entry */
-        goto skip_record;
-    }
-#endif
+    /* final check before DB operation */
+    SKIP_SPECIAL_OBJ(p_op, skip_record);
 
 #ifdef ATTR_INDEX_creation_time
     /* once set, never change creation time */
