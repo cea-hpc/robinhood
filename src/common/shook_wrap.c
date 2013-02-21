@@ -72,7 +72,7 @@ int ShookRecoverById(const entry_id_t * p_id, file_status_t * p_status)
     int rc;
     shook_state st;
 
-    rc = shook_recov_pending(get_fsname(), p_id, &st);
+    rc = shook_recov_pending(get_fsname(), p_id, &st, 0);
     if (rc < 0)
         return rc;
 
