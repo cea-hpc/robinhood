@@ -135,6 +135,9 @@ int shook_special_obj( struct entry_proc_op_t * p_op )
         }
     }
 
+    /* set name from path */
+    ListMgr_GenerateFields( &p_op->entry_attr, ATTR_MASK_name );
+
     /* also match '.shook' directory */
     if (p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, name)
         && ATTR_MASK_TEST( &p_op->entry_attr, type))
@@ -903,6 +906,19 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
 
+#ifdef HAVE_SHOOK
+    /* early check (with only DB info) */
+    if (shook_special_obj( p_op )) {
+                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                    "Shook special file or dir '%s', skipped",
+                    (ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?
+                     ATTR(&p_op->entry_attr, fullpath):
+                     ATTR(&p_op->entry_attr, name)) );
+        /* skip special shook entry */
+        goto skip_record;
+    }
+#endif
+
     if ( p_op->extra_info_is_set )
     {
 #ifdef _HAVE_FID
@@ -1130,6 +1146,19 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 #endif
 
+#ifdef HAVE_SHOOK
+    /* later check (with DB info + FS info) */
+    if (shook_special_obj( p_op )) {
+                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                    "Shook special file or dir '%s', skipped",
+                    (ATTR_MASK_TEST( &p_op->entry_attr, fullpath )?
+                     ATTR(&p_op->entry_attr, fullpath):
+                     ATTR(&p_op->entry_attr, name)) );
+        /* skip special shook entry */
+        goto skip_record;
+    }
+#endif
+
     rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
@@ -1259,6 +1288,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 
 #ifdef HAVE_SHOOK
+    /* final check, before DB application */
     if (shook_special_obj( p_op )) {
                 DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
                     "Shook special file or dir '%s', skipped",

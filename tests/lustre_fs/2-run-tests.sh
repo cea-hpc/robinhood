@@ -133,7 +133,7 @@ function error
 	fi
 
     # avoid displaying the same log many times
-    clean_logs
+    [ "$DEBUG" = "1" ] || clean_logs
 }
 
 function set_skipped
@@ -1743,7 +1743,7 @@ function update_test
 		echo "nb attr update: $nb_getattr"
 
 		expect_attr=1
-		(( $shook != 0 && $i == 1 )) && expect_attr=2 # one for shook lock dir ### XXX todo ignore .shook_dir events
+		(( $shook != 0 && $i == 1 )) && expect_attr=4 # .shook dir, .shook/restripe dir, .shook/locks dir
 
 		(( $nb_getattr == $expect_attr )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t)"
 		# the path may be retrieved at the first loop (at creation)
@@ -2357,6 +2357,11 @@ function test_ost_trigger
 	empty_vol=`lfs df  $ROOT | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
+    if (($empty_vol >= $mb_h_threshold)); then
+        error "FILESYSTEM IS ALREADY OVER HIGH THRESHOLD (cannot run test)"
+        return 1
+    fi
+
 	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
@@ -2825,11 +2830,7 @@ function test_info_collect
     # (directories are always inserted with robinhood 2.4)
     # + all close
     # 4 file + 3 dirs
-    # +1 for shook (.shook_locks) that goes though DB apply step but is discarded
     ((db_expect=7+$nb_close))
-    if (($shook != 0)); then
-        ((db_expect=$db_expect+1))
-    fi
 
 	if (( $nb_create == $nb_cr && $nb_db_apply == $db_expect )); then
 		echo "OK: $nb_cr files created, $db_expect database operations"
@@ -6582,7 +6583,7 @@ run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 #### triggers ####
 
 run_test 300	test_cnt_trigger test_trig.conf 151 21 "trigger on file count"
-run_test 301    test_ost_trigger test_trig2.conf 100 80 "trigger on OST usage"
+run_test 301    test_ost_trigger test_trig2.conf 150 110 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
 run_test 303    test_periodic_trigger test_trig4.conf 35 "periodic trigger"
 
