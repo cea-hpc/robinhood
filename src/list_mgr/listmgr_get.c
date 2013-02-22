@@ -243,8 +243,6 @@ int ListMgr_Get( lmgr_t * p_mgr, const entry_id_t * p_id, attr_set_t * p_info )
     DEF_PK(pk);
     int rc;
 
-    p_mgr->nbop[OPIDX_GET]++;
-
     rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
     if (rc)
         return rc;
