@@ -4,6 +4,11 @@ Makefile.in
 *.o
 *.lo
 *.la
+*.diff
+*.orig
+*.rej
+*~
+TAGS
 
 /autotools/depcomp
 /autotools/install-sh
@@ -57,3 +62,15 @@ Makefile.in
 /src/backend_ext/Makefile
 /tests/Makefile
 /web_gui/Makefile
+/src/robinhood/rbh-backup
+/src/robinhood/rbh-backup-du
+/src/robinhood/rbh-backup-find
+/src/robinhood/rbh-backup-import
+/src/robinhood/rbh-backup-recov
+/src/robinhood/rbh-backup-report
+/src/robinhood/rbh-backup-undo-rm
+/src/robinhood/rbh-du
+/src/robinhood/rbh-find
+/src/robinhood/rbh-report
+/src/robinhood/robinhood
+
