@@ -775,7 +775,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                              | ATTR_MASK_type;
 
 #if TEST_DIFF
-        p_op->db_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_parent_id;
+        p_op->db_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_invalid;
 #endif
 
         /* Only need to get md_update and path_update
@@ -940,7 +940,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
 #if TEST_DIFF
-        p_op->db_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_parent_id;
+        p_op->db_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_invalid;
 #endif
 
 #ifdef ATTR_INDEX_creation_time
@@ -1559,6 +1559,30 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
         ListMgr_KeepDiff(&p_op->fs_attrs, &p_op->db_attrs);
+
+        /* SQL req optimizations:
+         * if update policy == always and path is not changed, don't set path_update
+         * idem for fileclasses and md.
+         */ 
+#ifdef _HAVE_FID
+        if ((policies.updt_policy.path.policy == UPDT_ALWAYS)
+            && !ATTR_MASK_TEST( &p_op->fs_attrs, fullpath))
+            ATTR_MASK_UNSET(&p_op->fs_attrs, path_update);
+#endif
+
+#ifdef HAVE_PURGE_POLICY
+        if ((policies.updt_policy.fileclass.policy == UPDT_ALWAYS)
+            && !ATTR_MASK_TEST( &p_op->fs_attrs, release_class))
+            ATTR_MASK_UNSET(&p_op->fs_attrs, rel_cl_update);
+#endif
+
+#ifdef HAVE_MIGR_POLICY
+        if ((policies.updt_policy.fileclass.policy == UPDT_ALWAYS)
+            && !ATTR_MASK_TEST( &p_op->fs_attrs, archive_class))
+            ATTR_MASK_UNSET(&p_op->fs_attrs, arch_cl_update);
+#endif
+
+        /* nothing changed => noop */
         if (p_op->fs_attrs.attr_mask == 0)
         {
             /* no op */
