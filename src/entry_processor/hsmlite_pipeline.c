@@ -136,7 +136,8 @@ int shook_special_obj( struct entry_proc_op_t * p_op )
     }
 
     /* set name from path */
-    ListMgr_GenerateFields( &p_op->entry_attr, ATTR_MASK_name );
+    if (ATTR_MASK_TEST(&p_op->entry_attr, fullpath))
+        ListMgr_GenerateFields( &p_op->entry_attr, ATTR_MASK_name );
 
     /* also match '.shook' directory */
     if (p_op->entry_attr_is_set && ATTR_MASK_TEST( &p_op->entry_attr, name)
