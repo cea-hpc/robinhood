@@ -121,8 +121,10 @@ int shook_special_obj( struct entry_proc_op_t *p_op )
     }
 
     /* set name from path */
-    ListMgr_GenerateFields( &p_op->db_attrs, ATTR_MASK_name );
-    ListMgr_GenerateFields( &p_op->fs_attrs, ATTR_MASK_name );
+    if (ATTR_MASK_TEST(&p_op->db_attrs, fullpath))
+        ListMgr_GenerateFields( &p_op->db_attrs, ATTR_MASK_name );
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
+        ListMgr_GenerateFields( &p_op->fs_attrs, ATTR_MASK_name );
 
     /* also match '.shook' directory */
     if (p_op && ATTR_FSorDB_TEST( p_op, name )
