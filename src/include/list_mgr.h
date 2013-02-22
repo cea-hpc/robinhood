@@ -723,6 +723,11 @@ void           ListMgr_CloseReport( struct lmgr_report_t *p_iter );
 
 
 /**
+ * Get the number of entries in DB.
+ */
+int ListMgr_EntryCount(lmgr_t * p_mgr, uint64_t *count);
+
+/**
  * Retrieve profile (on size, atime, mtime, ...)
  * (by status, by user, by group, ...)
  * @param profile_descr information about the attribute to be profiled
