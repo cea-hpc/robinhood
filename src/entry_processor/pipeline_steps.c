@@ -1732,40 +1732,46 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     lmgr_filter_t  filter;
     filter_value_t val;
 
-    lmgr_simple_filter_init( &filter );
-
-    val.val_uint = ATTR( &p_op->fs_attrs, md_update );
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN_STRICT, val, 0 );
-
-    /* partial scan: remove non-updated entries from a subset of the namespace */
-    if (ATTR_MASK_TEST( &p_op->fs_attrs, fullpath ))
+    /* if md_update is not, set, this is just an empty op to wait for
+     * pipeline flush => don't rm old entries */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, md_update))
     {
-        char tmp[RBH_PATH_MAX];
-        strcpy(tmp, ATTR(&p_op->fs_attrs, fullpath));
-        strcat(tmp, "/*");
-        val.val_str = tmp;
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, val, 0 );
+
+        lmgr_simple_filter_init( &filter );
+
+        val.val_uint = ATTR( &p_op->fs_attrs, md_update );
+        lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN_STRICT, val, 0 );
+
+        /* partial scan: remove non-updated entries from a subset of the namespace */
+        if (ATTR_MASK_TEST( &p_op->fs_attrs, fullpath ))
+        {
+            char tmp[RBH_PATH_MAX];
+            strcpy(tmp, ATTR(&p_op->fs_attrs, fullpath));
+            strcat(tmp, "/*");
+            val.val_str = tmp;
+            lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, val, 0 );
+        }
+
+        /* force commit after this operation */
+        ListMgr_ForceCommitFlag( lmgr, TRUE );
+
+        /* remove entries listed in previous scans */
+    #ifdef HAVE_RM_POLICY
+        if (policies.unlink_policy.hsm_remove)
+            /* @TODO fix for dirs */
+            rc = ListMgr_MassSoftRemove( lmgr, &filter, time(NULL) + policies.unlink_policy.deferred_remove_delay );
+        else
+    #endif
+            rc = ListMgr_MassRemove( lmgr, &filter );
+
+        /* /!\ TODO : entries must be removed from backend too */
+
+        lmgr_simple_filter_free( &filter );
+
+        if ( rc )
+            DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
+                        "Error: ListMgr MassRemove operation failed with code %d.", rc );
     }
-
-    /* force commit after this operation */
-    ListMgr_ForceCommitFlag( lmgr, TRUE );
-
-    /* remove entries listed in previous scans */
-#ifdef HAVE_RM_POLICY
-    if (policies.unlink_policy.hsm_remove)
-        /* @TODO fix for dirs */
-        rc = ListMgr_MassSoftRemove( lmgr, &filter, time(NULL) + policies.unlink_policy.deferred_remove_delay );
-    else
-#endif
-        rc = ListMgr_MassRemove( lmgr, &filter );
-
-    /* /!\ TODO : entries must be removed from backend too */
-
-    lmgr_simple_filter_free( &filter );
-
-    if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                    "Error: ListMgr MassRemove operation failed with code %d.", rc );
 
     /* must call callback function in any case, to unblock the scan */
     if ( p_op->callback_func )

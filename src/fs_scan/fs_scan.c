@@ -52,6 +52,7 @@ const char      *partial_scan_root = NULL;
 #define fsscan_once ( fsscan_flags & FLAG_ONCE )
 
 static int     is_lustre_fs = FALSE;
+static int     is_first_scan = FALSE;
 
 
 /* information about scanning thread */
@@ -325,7 +326,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         ListMgr_CloseAccess(&lmgr);
     }
 
-    /* if scan is errorneous and no entries was listed, don't rm old entries */
+    /* if scan is errorneous and no entries was listed, don't flush pipeline. */
     if ((count > 0) || scan_complete)
     {
         entry_proc_op_t op;
@@ -340,9 +341,15 @@ static int TerminateScan( int scan_complete, time_t date_fin )
 
         ATTR_MASK_INIT( &op.fs_attrs );
 
-        /* set the timestamp of scan in (md_update attribute) */
-        ATTR_MASK_SET( &op.fs_attrs, md_update );
-        ATTR( &op.fs_attrs, md_update ) = scan_start_time;
+        /* if this is an initial scan, non-partial, don't rm old entries (but flush pipeline still) */
+        if (is_first_scan && !partial_scan_root)
+            op.callback_param = ( void * ) "End of flush";
+        else
+        {
+            /* set the timestamp of scan in (md_update attribute) */
+            ATTR_MASK_SET( &op.fs_attrs, md_update );
+            ATTR( &op.fs_attrs, md_update ) = scan_start_time;
+        }
 
         /* set root (if partial scan) */
         if (partial_scan_root)
@@ -1324,6 +1331,8 @@ static int StartScan()
     char              value[128];
     lmgr_t  lmgr;
     int no_db = 0;
+    uint64_t    count = 0LL;
+    int rc;
 
     /* Lock scanning status */
     P( lock_scan );
@@ -1337,7 +1346,6 @@ static int StartScan()
                     partial_scan_root?partial_scan_root:global_config.fs_path );
         return EBUSY;
     }
-
 
     /* create a root task */
 
@@ -1399,6 +1407,20 @@ static int StartScan()
         /* store the number of scanning threads */
         sprintf( value, "%i", fs_scan_config.nb_threads_scan );
         ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, value );
+
+        /* check if it is the first scan (avoid RM_OLD_ENTRIES in this case) */
+        is_first_scan = FALSE;
+        rc = ListMgr_EntryCount(&lmgr, &count);
+
+        if ((rc == DB_SUCCESS) && (count == 0)) {
+            is_first_scan = TRUE;
+            DisplayLog(LVL_EVENT, FSSCAN_TAG, "Notice: this is the first scan (DB is empty)");
+        }
+        else if (rc)
+             DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Failed to retrieve entry count from DB: error %d", rc);
+        else
+            DisplayLog(LVL_DEBUG, FSSCAN_TAG, "%"PRIu64" entries in DB before starting the scan", count);
+
         ListMgr_CloseAccess(&lmgr);
     }
 

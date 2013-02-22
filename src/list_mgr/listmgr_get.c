@@ -26,7 +26,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <inttypes.h>
 
 
 int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )

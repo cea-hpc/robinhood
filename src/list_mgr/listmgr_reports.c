@@ -24,6 +24,7 @@
 #include "RobinhoodLogs.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 
 typedef struct lmgr_report_t
