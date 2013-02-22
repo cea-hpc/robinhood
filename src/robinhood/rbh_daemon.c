@@ -130,7 +130,8 @@ static int     action_mask = DEFAULT_ACTION_MASK;
 static struct option option_tab[] = {
 
     /* Actions selectors */
-    {"scan", no_argument, NULL, 'S'},
+    {"scan", optional_argument, NULL, 'S'},
+    /* kept for compatibility */
     {"partial-scan", required_argument, NULL, PARTIAL_SCAN},
 #ifdef HAVE_PURGE_POLICY
     {"purge", no_argument, NULL, 'P'},
@@ -308,8 +309,8 @@ static const char *help_string =
     _B "Usage:" B_ " %s [options]\n"
     "\n"
     _B "Action switches:" B_ "\n"
-    "    " _B "-S" B_ ", " _B "--scan" B_ "\n"
-    "        Scan filesystem namespace.\n"
+    "    " _B "-S" B_", " _B "--scan" B_ "[=" _U "dir" U_ "]\n"
+    "        Scan the filesystem namespace. If "_U"dir"U_" is specified, only scan the specified subdir.\n"
 #ifdef HAVE_PURGE_POLICY
     "    " _B "-P" B_ ", " _B "--purge" B_ "\n"
     "        Purge non-directory entries according to policy.\n"
@@ -332,8 +333,6 @@ static const char *help_string =
     "    " _B "-R" B_ ", " _B "--hsm-remove" B_ "\n"
     "        Perform deferred removal in HSM.\n"
 #endif
-    "    " _B "--partial-scan=" B_ _U "dir" U_ "\n"
-    "        Scan a subset of the filesystem namespace.\n"
     "\n"
     "    Default is: "DEFAULT_ACTION_HELP"\n"
     "\n"
@@ -906,9 +905,24 @@ int main( int argc, char **argv )
     {
         switch ( c )
         {
+        case PARTIAL_SCAN:
+            fprintf(stderr, "Warning: --partial-scan is deprecated. Use '--scan=<dir>' instead.\n");
+            /* same as 'scan' with optarg != NULL
+             * => continue to -S:
+             */
         case 'S':
             SET_ACTION_FLAG( ACTION_MASK_SCAN );
+
+            if (optarg) {       /* optional argument => partial scan*/
+                options.flags |= FLAG_ONCE;
+                options.partial_scan = TRUE;
+                strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
+                /* clean final slash */
+                if (FINAL_SLASH(options.partial_scan_path))
+                    REMOVE_FINAL_SLASH(options.partial_scan_path);
+            }
             break;
+
         case 'C':
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
             options.flags |= FLAG_CHECK_ONLY;
@@ -966,16 +980,6 @@ int main( int argc, char **argv )
             break;
         case 'i':
             options.flags |= FLAG_IGNORE_POL;
-            break;
-
-        case PARTIAL_SCAN:
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_SCAN );
-            options.partial_scan = TRUE;
-            strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
-            /* clean final slash */
-            if (FINAL_SLASH(options.partial_scan_path))
-                REMOVE_FINAL_SLASH(options.partial_scan_path);
             break;
 
 #ifdef _LUSTRE
