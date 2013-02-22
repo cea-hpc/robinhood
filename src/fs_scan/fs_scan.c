@@ -108,10 +108,6 @@ static unsigned int nb_hang_total = 0;
 static double  usage_max = 50.0;                 /* default: 50% */
 static time_t  scan_interval = 0;
 
-/* for accessing persistent variables */
-static lmgr_t  lmgr;
-static int     lmgr_init = FALSE;
-
 /* lock on scan stats and other information.
  * This lock must always be taken AFTER the list lock
  * at the end of a scan.
@@ -291,16 +287,20 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     char    timestamp[128];
     char    tmp[1024];
     unsigned int count = 0;
+    lmgr_t  lmgr;
+    int no_db = 0;
+
+    if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+    {
+        no_db = 1;
+        DisplayLog(LVL_MAJOR, FSSCAN_TAG, "WARNING: won't be able to update scan stats");
+    }
 
     /* store the last scan end date */
-    if ( !lmgr_init )
-    {
-        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
-            return 1;
-        lmgr_init = TRUE;
+    if (!no_db) {
+        sprintf( timestamp, "%lu", ( unsigned long ) date_fin );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
     }
-    sprintf( timestamp, "%lu", ( unsigned long ) date_fin );
-    ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
 
     /* update the last action date and get entry count */
     P( lock_scan );
@@ -314,20 +314,26 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         }
     }
     V( lock_scan );
-    sprintf( timestamp, "%lu", ( unsigned long ) last_action );
-    ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
 
-    /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
-    FSScan_StoreStats( &lmgr ) ;
-    /* and update the scan status */
-    if (partial_scan_root)
-    {
-        snprintf(tmp, 1024, "%s (%s)", SCAN_STATUS_PARTIAL, partial_scan_root);
-        ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, tmp );
+    if (!no_db) {
+        sprintf( timestamp, "%lu", ( unsigned long ) last_action );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
+        /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
+
+        FSScan_StoreStats( &lmgr ) ;
+        /* and update the scan status */
+        if (partial_scan_root)
+        {
+            snprintf(tmp, 1024, "%s (%s)", SCAN_STATUS_PARTIAL, partial_scan_root);
+            ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, tmp );
+        }
+        else
+            ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS,
+                            scan_complete?SCAN_STATUS_DONE:SCAN_STATUS_INCOMPLETE );
+
+        /* no other DB actions, close the connection */
+        ListMgr_CloseAccess(&lmgr);
     }
-    else
-        ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS,
-                        scan_complete?SCAN_STATUS_DONE:SCAN_STATUS_INCOMPLETE );
 
     /* if scan is errorneous and no entries was listed, don't rm old entries */
     if ((count > 0) || scan_complete)
@@ -1246,6 +1252,8 @@ int Robinhood_StopScanModule(  )
     int            err = 0;
     int            running = 0;
     char           timestamp[128];
+    lmgr_t  lmgr;
+
 
     P( lock_scan );
     /* is a scan really running ? */
@@ -1270,15 +1278,14 @@ int Robinhood_StopScanModule(  )
     /* update scan status in db */
     if ( running )
     {
-        if ( !lmgr_init )
-        {
-            if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
-                return 1;
-            lmgr_init = TRUE;
+        if ( ListMgr_InitAccess( &lmgr ) == DB_SUCCESS ) {
+            sprintf( timestamp, "%lu", ( unsigned long ) time ( NULL ) );
+            ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
+            ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, SCAN_STATUS_ABORTED);
+            ListMgr_CloseAccess(&lmgr);
+        } else {
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "WARNING: not able to update scan stats");
         }
-        sprintf( timestamp, "%lu", ( unsigned long ) time ( NULL ) );
-        ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
-        ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, SCAN_STATUS_ABORTED);
     }
 
     return err;
@@ -1329,6 +1336,8 @@ static int StartScan()
     robinhood_task_t *p_parent_task;
     char              timestamp[128];
     char              value[128];
+    lmgr_t  lmgr;
+    int no_db = 0;
 
     /* Lock scanning status */
     P( lock_scan );
@@ -1383,27 +1392,29 @@ static int StartScan()
     scan_start_time = time( NULL );
     gettimeofday( &accurate_start_time, NULL );
 
-    if ( !lmgr_init )
-    {
-        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
-            return 1;
-        lmgr_init = TRUE;
+    if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS ) {
+        no_db = 1;
+        DisplayLog( LVL_MAJOR, FSSCAN_TAG, "WARNING: won't be able to update scan stats");
     }
-    /* archive previous scan start/end time */
-    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_START_TIME, timestamp ) == DB_SUCCESS )
-         ListMgr_SetVar( &lmgr, PREV_SCAN_START_TIME, timestamp );
-    if ( ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, timestamp ) == DB_SUCCESS )
-         ListMgr_SetVar( &lmgr, PREV_SCAN_END_TIME, timestamp );
 
-    /* store current scan start time and status in db */
-    sprintf( timestamp, "%lu", ( unsigned long ) scan_start_time );
-    ListMgr_SetVar( &lmgr, LAST_SCAN_START_TIME, timestamp );
-    ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
-    ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, SCAN_STATUS_RUNNING);
-    /* store the number of scanning threads */
-    sprintf( value, "%i", fs_scan_config.nb_threads_scan );
-    ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, value );
+    if (!no_db)
+    {
+        /* archive previous scan start/end time */
+        if ( ListMgr_GetVar( &lmgr, LAST_SCAN_START_TIME, timestamp ) == DB_SUCCESS )
+             ListMgr_SetVar( &lmgr, PREV_SCAN_START_TIME, timestamp );
+        if ( ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, timestamp ) == DB_SUCCESS )
+             ListMgr_SetVar( &lmgr, PREV_SCAN_END_TIME, timestamp );
 
+        /* store current scan start time and status in db */
+        sprintf( timestamp, "%lu", ( unsigned long ) scan_start_time );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_START_TIME, timestamp );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, SCAN_STATUS_RUNNING);
+        /* store the number of scanning threads */
+        sprintf( value, "%i", fs_scan_config.nb_threads_scan );
+        ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, value );
+        ListMgr_CloseAccess(&lmgr);
+    }
 
     /* reset threads stats */
     ResetScanStats(  );
@@ -1467,12 +1478,11 @@ static void UpdateMaxUsage(  )
 {
     char           tmpval[1024];
     double         val;
+    lmgr_t  lmgr;
 
-    if ( !lmgr_init )
-    {
-        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
-            return;
-        lmgr_init = TRUE;
+    if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS ) {
+        DisplayLog( LVL_MAJOR, FSSCAN_TAG, "WARNING: can't update usage stats");
+        return;
     }
 
     if ( ListMgr_GetVar( &lmgr, USAGE_MAX_VAR, tmpval ) == DB_SUCCESS )
