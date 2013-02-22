@@ -33,7 +33,7 @@ int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * va
     case DB_ID:
         /* convert id to str */
         entry_id2pk( p_mgr, &value_ptr->val_id, FALSE, tmpstr );
-        return sprintf( str, "'%s'", tmpstr );
+        return sprintf( str, DPK, tmpstr );
     case DB_TEXT:
         /* escape special characters in value */
         db_escape_string( &p_mgr->conn, tmpstr, 4096, value_ptr->val_str );
