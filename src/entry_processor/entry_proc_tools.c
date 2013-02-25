@@ -327,6 +327,8 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
     conf->alert_count = 0;
     conf->alert_attr_mask = 0;
 
+    conf->diff_mask = 0;
+
     return 0;
 }
 

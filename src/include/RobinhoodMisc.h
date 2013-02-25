@@ -286,9 +286,11 @@ time_t str2date( char *str );
 
 /**
  *  Print attributes to a string
+ *  \param overide_mask if != 0, overide attrmask with this one
+ *  \param brief brief notation for diff
  */
 int            PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set,
-                           int overide_mask );
+                           int overide_mask, int brief );
 
 /** Compute greatest common divisor (GCD) of 2 numbers */
 unsigned int   gcd( unsigned int x, unsigned int y );

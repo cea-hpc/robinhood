@@ -50,7 +50,7 @@ rbh_report_DEPENDENCIES=$(all_libs)
 rbh_du_DEPENDENCIES=$(all_libs)
 rbh_find_DEPENDENCIES=$(all_libs)
 
-robinhood_SOURCES=rbh_daemon.c
+robinhood_SOURCES=rbh_daemon.c cmd_helpers.c
 robinhood_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 robinhood_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 

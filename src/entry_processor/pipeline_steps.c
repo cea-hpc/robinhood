@@ -774,9 +774,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->db_attr_need = ATTR_MASK_fullpath | ATTR_MASK_name
                              | ATTR_MASK_type;
 
-#if TEST_DIFF
-        p_op->db_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_invalid;
-#endif
+        /* add diff attrs for diff mode */
+        p_op->db_attr_need |= entry_proc_conf.diff_mask;
 
         /* Only need to get md_update and path_update
          * if the update policy != always */
@@ -939,9 +938,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 #endif
 
-#if TEST_DIFF
-        p_op->db_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_invalid;
-#endif
+        p_op->db_attr_need |= entry_proc_conf.diff_mask;
 
 #ifdef ATTR_INDEX_creation_time
         if (entry_proc_conf.detect_fake_mtime)
@@ -1501,7 +1498,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 strcpy( stralert, "Error building alert string" );
 
             PrintAttrs( strvalues, 2*RBH_PATH_MAX, &merged_attrs,
-                        entry_proc_conf.alert_list[i].attr_mask );
+                        entry_proc_conf.alert_list[i].attr_mask, 0 );
 
             if ( EMPTY_STRING(entry_proc_conf.alert_list[i].title) )
                 title = NULL;
@@ -1536,6 +1533,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     return 0;
 }
+
 
 /**
  * Perform an operation on database. 
@@ -1588,24 +1586,45 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* no op */
             p_op->db_op_type = OP_TYPE_NONE;
         }
-#if TEST_DIFF
-        else if (p_op->fs_attrs.attr_mask & POSIX_ATTR_MASK)
+        else if (p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
         {
-            /* TODO display diff */
-            printf("-"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->db_attrs, fullpath));
-            printf("+"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath));
+            char attrchg[RBH_PATH_MAX];
+            /* if only name changed, just display the 2 lines */
+            if ((p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
+                 == ATTR_MASK_fullpath)
+                attrchg[0] = '\0';
+            else
+                /* attr from DB */
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
+                    p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask
+                    & ~ATTR_MASK_fullpath, 1);
+
+            printf("-"DFID" %s%s%s\n", PFID(&p_op->entry_id),
+                ATTR(&p_op->db_attrs, fullpath),
+                attrchg[0]?" ":"", attrchg);
+
+            if (attrchg[0])
+                /* attr from FS */
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
+                    p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask
+                    & ~ATTR_MASK_fullpath, 1);
+
+            printf("+"DFID" %s%s%s\n", PFID(&p_op->entry_id),
+                 ATTR(&p_op->fs_attrs, fullpath),
+                attrchg[0]?" ":"", attrchg);
         }
     }
-    else if (p_op->db_op_type == OP_TYPE_INSERT)
+    else if (entry_proc_conf.diff_mask)
     {
-        printf("+"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath));
+        if (p_op->db_op_type == OP_TYPE_INSERT)
+        {
+            printf("++"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath));
+        }
+        else if ((p_op->db_op_type == OP_TYPE_REMOVE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
+        {
+            printf("--"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath));
+        }
     }
-    else if ((p_op->db_op_type == OP_TYPE_REMOVE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
-    {
-        printf("-"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath));
-#endif
-    }
-
 
     /* insert to DB */
     switch ( p_op->db_op_type )

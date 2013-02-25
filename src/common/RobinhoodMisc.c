@@ -1347,69 +1347,161 @@ convert:
 /**
  *  Print attributes to a string
  */
-int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, int overide_mask )
+int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, int overide_mask, int brief )
 {
     int            mask = p_attr_set->attr_mask;
     size_t         written = 0;
     char           tmpbuf[256];
+    const char *   format;
 
     if ( overide_mask )
         mask = mask & overide_mask;
 
     if ( mask & ATTR_MASK_fullpath )
+    {
+        if (brief)
+            format = "fullpath=%s,";
+        else
+            format = "Fullpath: \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, "Fullpath: \"%s\"\n",
+            snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, fullpath ) );
+    }
     if ( mask & ATTR_MASK_name )
+    {
+        if (brief)
+            format = "name=%s,";
+        else
+            format = "Name:     \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, "Name:     \"%s\"\n",
+            snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, name ) );
+    }
 #ifdef ATTR_INDEX_type
     if ( mask & ATTR_MASK_type )
+    {
+        if (brief)
+            format = "type=%s,";
+        else
+            format = "Type:     %s\n";
         written +=
-            snprintf( out_str + written, strsize - written, "Type:     %s\n",
+            snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, type ) );
+    }
 #endif
     if ( mask & ATTR_MASK_owner )
+    {
+        if (brief)
+            format = "owner=%s,";
+        else
+            format = "Owner:    \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, "Owner:    \"%s\"\n",
+            snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, owner ) );
+    }
     if ( mask & ATTR_MASK_gr_name )
+    {
+        if (brief)
+            format = "group=%s,";
+        else
+            format = "Group:    \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, "Group:    \"%s\"\n",
+            snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, gr_name ) );
+    }
     if ( mask & ATTR_MASK_size )
     {
-        FormatFileSize( tmpbuf, 256, ATTR( p_attr_set, size ) );
-        written += snprintf( out_str + written, strsize - written, "Size:     %s\n", tmpbuf );
+        if (brief)
+        {
+            written += snprintf( out_str + written, strsize - written, "size=%"PRIu64",",
+                        ATTR( p_attr_set, size ));
+        }
+        else
+        {
+            FormatFileSize( tmpbuf, 256, ATTR( p_attr_set, size ) );
+            written += snprintf( out_str + written, strsize - written, "Size:     %s\n", tmpbuf );
+        }
     }
     if ( mask & ATTR_MASK_depth )
+    {
+        if (brief)
+            format = "depth=%u,";
+        else
+            format = "Depth:    %u\n";
         written +=
-            snprintf( out_str + written, strsize - written, "Depth:    %d\n",
+            snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, depth ) );
+    }
 #ifdef ATTR_INDEX_dircount
     if ( mask & ATTR_MASK_dircount )
+    {
+        if (brief)
+            format = "dircount=%u,";
+        else
+            format = "DirCount: %u\n";
         written +=
-            snprintf( out_str + written, strsize - written, "DirCount: %d\n",
+            snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, dircount ) );
+    }
 #endif
     if ( mask & ATTR_MASK_last_access )
     {
-        FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_access ) );
-        written +=
-            snprintf( out_str + written, strsize - written, "Last Access: %s ago\n", tmpbuf );
+        if (brief)
+        {
+            written +=
+                snprintf( out_str + written, strsize - written, "access=%u,", ATTR( p_attr_set, last_access ));
+        }
+        else
+        {
+            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_access ) );
+            written +=
+                snprintf( out_str + written, strsize - written, "Last Access: %s ago\n", tmpbuf );
+        }
     }
 #ifdef ATTR_INDEX_last_copy
     if ( mask & ATTR_MASK_last_copy )
     {
-        FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_copy ) );
-        written += snprintf( out_str + written, strsize - written, "Last Copy: %s ago\n", tmpbuf );
+        if (brief)
+        {
+            written += snprintf( out_str + written, strsize - written, "copy=%u,",
+                    ATTR( p_attr_set, last_copy ));
+        }
+        else
+        {
+            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_copy ) );
+            written += snprintf( out_str + written, strsize - written, "Last Copy: %s ago\n", tmpbuf );
+        }
     }
 #endif
     if ( mask & ATTR_MASK_last_mod )
     {
-        FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_mod ) );
-        written += snprintf( out_str + written, strsize - written, "Last Mod: %s ago\n", tmpbuf );
+        if (brief)
+        {
+            written += snprintf( out_str + written, strsize - written, "modif=%u,",
+                    ATTR( p_attr_set, last_mod ));
+        }
+        else
+        {
+            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_mod ) );
+            written += snprintf( out_str + written, strsize - written, "Last Mod: %s ago\n", tmpbuf );
+        }
+    }
+
+    if ( mask & ATTR_MASK_stripe_items)
+    {
+        if (brief)
+            format = "stripes=%s,";
+        else
+            format = "Stripes: %s\n";
+        written +=
+            snprintf( out_str + written, strsize - written, format,
+                      FormatStripeList( tmpbuf, 256, &ATTR( p_attr_set, stripe_items)));
+    }
+
+    if (brief && written) {
+        /* remove final , */
+        out_str[written-1] = '\0';
+        written --;
     }
 
     return written;

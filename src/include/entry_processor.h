@@ -55,6 +55,7 @@ typedef struct entry_proc_config_t
      * migration priority */
     unsigned int   detect_fake_mtime:1;
 #endif
+    int            diff_mask;
 } entry_proc_config_t;
 
 /* === pipeline stage flags ===  */

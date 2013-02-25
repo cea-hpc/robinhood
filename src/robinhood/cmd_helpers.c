@@ -371,3 +371,61 @@ const char * allowed_status()
 }
 
 #endif /* status attr exists */
+
+
+struct __diffattr {
+    int mask;       /* 0 for last */
+    char * name;    /* NULL for last */
+    int negate;     /* negate the given mask */
+} diffattrs[] = {
+    { ATTR_MASK_fullpath, "path", 0 },
+    { POSIX_ATTR_MASK, "posix", 0 },
+#ifdef _LUSTRE
+    { ATTR_MASK_stripe_info | ATTR_MASK_stripe_items, "stripe", 0 },
+#endif
+    { ATTR_MASK_fullpath | POSIX_ATTR_MASK
+#ifdef _LUSTRE
+        | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
+#endif
+    , "all", 0},
+    { ATTR_MASK_last_mod | ATTR_MASK_last_access, "notimes", 1},
+    { ATTR_MASK_last_access, "noatime", 1},
+
+    { 0, NULL, 0 }
+};
+
+/* parse attrset for --diff option */
+int parse_diff_mask(char * arg, int * diff_mask, char * msg)
+{
+    int mask_pos = 0;
+    int mask_neg = 0;
+    char * init = arg;
+    char * curr;
+    struct __diffattr *attr;
+
+    while ((curr = strtok(init, ",")) != NULL)
+    {
+        init = NULL;
+        int found = 0;
+        for (attr = diffattrs; attr->name != NULL; attr++)
+        {
+            if (!strcasecmp(attr->name, curr))
+            {
+                found = 1;
+                if (attr->negate)
+                    mask_neg |= attr->mask;
+                else
+                    mask_pos |= attr->mask;
+            }
+        }
+        if (!found) {
+            sprintf(msg, "invalid diff attr '%s'", curr);
+            return -EINVAL;
+        }
+    }
+
+    *diff_mask = (mask_pos & ~mask_neg);
+    return 0;
+}
+
+

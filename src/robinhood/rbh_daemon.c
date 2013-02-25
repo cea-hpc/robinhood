@@ -37,6 +37,7 @@
 #include "RobinhoodConfig.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
+#include "cmd_helpers.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -75,6 +76,7 @@ static time_t  boot_time;
 #define NO_LIMIT          281
 #define TEST_SYNTAX       282
 #define PARTIAL_SCAN      283
+#define SHOW_DIFF         284
 
 #define ACTION_MASK_SCAN                0x00000001
 #define ACTION_MASK_PURGE               0x00000002
@@ -131,6 +133,7 @@ static struct option option_tab[] = {
 
     /* Actions selectors */
     {"scan", optional_argument, NULL, 'S'},
+    {"diff", required_argument, NULL, SHOW_DIFF},
     /* kept for compatibility */
     {"partial-scan", required_argument, NULL, PARTIAL_SCAN},
 #ifdef HAVE_PURGE_POLICY
@@ -255,6 +258,7 @@ typedef struct rbh_options {
     char           purge_target_class[128];
     int            partial_scan; 
     char           partial_scan_path[RBH_PATH_MAX];
+    int            diff_mask;
 
 #ifdef HAVE_MIGR_POLICY
 #ifdef _LUSTRE
@@ -334,7 +338,11 @@ static const char *help_string =
     "        Perform deferred removal in HSM.\n"
 #endif
     "\n"
-    "    Default is: "DEFAULT_ACTION_HELP"\n"
+    "    If nothing is specified, the default action set is: "DEFAULT_ACTION_HELP"\n"
+    "\n"
+    "    " _B "--diff"B_"="_U"attrset"U_ " : when scanning or reading changelogs,\n"
+    "        display changes for the given set of attributes (to stdout).\n"
+    "        "_U"attrset"U_" is a list of options in: path,posix,stripe,all,notimes,noatime.\n"
     "\n"
 #ifdef HAVE_PURGE_POLICY
     _B "Manual purge actions:" B_ "\n"
@@ -923,6 +931,15 @@ int main( int argc, char **argv )
             }
             break;
 
+        case SHOW_DIFF:
+            if (parse_diff_mask(optarg, &options.diff_mask, err_msg))
+            {
+                fprintf(stderr,
+                        "Invalid argument for --diff: %s\n", err_msg);
+                exit( 1 );
+            }
+            break;
+
         case 'C':
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
             options.flags |= FLAG_CHECK_ONLY;
@@ -1151,7 +1168,14 @@ int main( int argc, char **argv )
                  "Error: --purge-ost and --purge-fs cannot be used together\n" );
         exit( 1 );
     }
-    
+
+    if (options.diff_mask && (action_mask != ACTION_MASK_SCAN)
+        && (action_mask != ACTION_MASK_HANDLE_EVENTS))
+    {
+        fprintf( stderr, "Error: --diff option only applies to --scan and --readlog actions\n");
+        exit(1);
+    }
+
 #ifdef HAVE_MIGR_POLICY
     if ( options.migrate_user + options.migrate_group 
 #ifdef _LUSTRE
@@ -1336,6 +1360,9 @@ int main( int argc, char **argv )
 
     if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
     {
+        if (options.diff_mask)
+            rh_config.entry_proc_config.diff_mask = options.diff_mask;
+
         /* Initialise Pipeline */
         rc = EntryProcessor_Init( &rh_config.entry_proc_config, options.flags );
         if ( rc )

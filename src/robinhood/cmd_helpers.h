@@ -57,4 +57,8 @@ file_status_t status2dbval( char * status_str );
 const char * allowed_status();
 #endif
 
+
+/* parse attrset for --diff option */
+int parse_diff_mask(char * arg, int * diff_mask, char * msg);
+
 #endif
