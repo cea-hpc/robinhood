@@ -907,6 +907,7 @@ int main( int argc, char **argv )
     char           err_msg[4096];
     robinhood_config_t rh_config;
     int chgd = 0;
+    char           badcfg[RBH_PATH_MAX];
 
     boot_time = time( NULL );
 
@@ -1211,9 +1212,9 @@ int main( int argc, char **argv )
     parsing_mask = action2parsing_mask(action_mask);
 
     /* get default config file, if not specified */
-    if ( SearchConfig( options.config_file, options.config_file, &chgd ) != 0 )
+    if ( SearchConfig( options.config_file, options.config_file, &chgd, badcfg ) != 0 )
     {
-        fprintf(stderr, "No config file found\n" );
+        fprintf(stderr, "No config file found matching %s\n", badcfg);
         exit(2);
     }
     else if (chgd)

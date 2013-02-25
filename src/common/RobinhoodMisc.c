@@ -230,7 +230,7 @@ int SendMail( const char *recipient, const char *subject, const char *message )
  * If cfg_in is empty: search any config in config paths
  * /!\ not thread safe
  */
-int SearchConfig( const char * cfg_in, char * cfg_out, int * changed )
+int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unmatched )
 {
     static const char * default_cfg_paths[] =
     {
@@ -246,6 +246,20 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed )
     struct dirent * ent;
     struct stat stbuf;
     *changed = 1; /* most of the cases */
+
+    if (cfg_in == NULL || EMPTY_STRING(cfg_in))
+    {
+        /* check if a default config file is specified */
+        cfg_in = getenv(DEFAULT_CFG_VAR);
+    }
+
+    /* set unmatched, for better logging */
+    if (unmatched) {
+        if (cfg_in)
+            strcpy(unmatched, cfg_in);
+        else
+            sprintf(unmatched, "%s/*.conf", default_cfg_paths[0]);
+    }
 
     if (cfg_in == NULL || EMPTY_STRING(cfg_in))
     {
@@ -292,7 +306,7 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed )
         /* the argument is a path (not a single name
          * and this path was not found) */
         *changed=0;
-        return -ENOENT;
+        goto notfound;
     }
     else /* look for a file in the given paths */
     {
@@ -324,6 +338,7 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed )
         }
     }
 
+notfound:
     /* no file found, cleaning cfg_out */
     cfg_out[0] = '\0';
     return -ENOENT;

@@ -33,6 +33,11 @@
 #include "xplatform_print.h"
 
 /**
+ * Common info
+ */
+#define DEFAULT_CFG_VAR "RBH_CFG_DEFAULT"
+
+/**
  *  Miscelaneous parsing macros
  */
 #define EMPTY_STRING( s ) ( (s)[0] == '\0' )
@@ -91,7 +96,7 @@ int            SendMail( const char *recipient, const char *subject, const char 
 /**
  * Search for Robinhood config file
  */
-int SearchConfig( const char * cfg_in, char * cfg_out, int * changed );
+int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unmatched);
 
 /**
  * This function is blocking as long as the lock file is present.
