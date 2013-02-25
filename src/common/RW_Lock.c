@@ -53,11 +53,11 @@ int P_r( rw_lock_t * plock )
 
     plock->nbr_waiting++;
 
-    /* no new read lock is granted if writters are waiting or active */
+    /* no new read lock is granted if writers are waiting or active */
     if ( plock->nbw_active > 0 || plock->nbw_waiting > 0 )
         pthread_cond_wait( &( plock->condRead ), &( plock->mutexProtect ) );
 
-    /* There is no active or waiting writters, readers can go ... */
+    /* There is no active or waiting writers, readers can go ... */
     plock->nbr_waiting--;
     plock->nbr_active++;
 
@@ -77,10 +77,10 @@ int V_r( rw_lock_t * plock )
 
     print_lock( "V_r.1", plock );
 
-    /* I am a reader that is no more active */
+    /* I am a reader that is no longer active */
     plock->nbr_active--;
 
-    /* I was the last active reader, and there are some waiting writters, I let one of them go */
+    /* I was the last active reader, and there are some waiting writers, I let one of them go */
     if ( plock->nbr_active == 0 && plock->nbw_waiting > 0 )
     {
         print_lock( "V_r.2 lecteur libere un redacteur", plock );
@@ -96,7 +96,7 @@ int V_r( rw_lock_t * plock )
 
 
 /*
- * Take the lock for writting 
+ * Take the lock for writing
  */
 int P_w( rw_lock_t * plock )
 {
@@ -110,7 +110,7 @@ int P_w( rw_lock_t * plock )
     while ( plock->nbr_active > 0 || plock->nbw_active > 0 )
         pthread_cond_wait( &plock->condWrite, &plock->mutexProtect );
 
-    /* I become active and no more waiting */
+    /* I become active and no longer waiting */
     plock->nbw_waiting--;
     plock->nbw_active++;
 
@@ -121,7 +121,7 @@ int P_w( rw_lock_t * plock )
 }                               /* P_w */
 
 /*
- * Release the lock after writting 
+ * Release the lock after writing
  */
 int V_w( rw_lock_t * plock )
 {
@@ -129,7 +129,7 @@ int V_w( rw_lock_t * plock )
 
     print_lock( "V_w.1", plock );
 
-    /* I was the active writter, I am not it any more */
+    /* I was the active writer, I am not it any more */
     plock->nbw_active--;
 
     if ( plock->nbw_waiting > 0 )
@@ -137,7 +137,7 @@ int V_w( rw_lock_t * plock )
 
         print_lock( "V_w.4 redacteur libere un lecteur", plock );
 
-        /* There are waiting writters, but no waiting readers, I let a writter go */
+        /* There are waiting writers, but no waiting readers, I let a writer go */
         pthread_cond_signal( &( plock->condWrite ) );
 
         print_lock( "V_w.5", plock );
@@ -167,7 +167,7 @@ int rw_lock_downgrade( rw_lock_t * plock )
 
     print_lock( "downgrade.1", plock );
 
-    /* I was the active writter, I am not it any more */
+    /* I was the active writer, I am not it any more */
     plock->nbw_active--;
 
     if ( plock->nbr_waiting > 0 )

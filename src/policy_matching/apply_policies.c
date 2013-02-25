@@ -1290,7 +1290,7 @@ policy_item_t * GetPolicyCaseByClass( const char * class_id,
         }
     }
 
-    DisplayLog( LVL_MAJOR, POLICY_TAG, "saved fileclass '%s' is no more used in %s policy. Refresh needed.",
+    DisplayLog( LVL_MAJOR, POLICY_TAG, "saved fileclass '%s' is not used anymore in %s policy. Refresh needed.",
                 class_id, ( policy_type == PURGE_POLICY ) ? "purge" : "migration" );
     return NULL;
 }

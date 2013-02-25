@@ -57,7 +57,7 @@ static int mysql_error_convert( int err )
         /* In case of a deconnection, mysql_stmt_fetch returns this error CR_COMMANDS_OUT_OF_SYNC.
          * which is actually not very appropriate... */
     case CR_COMMANDS_OUT_OF_SYNC:
-        /* when connection is lost, statements are no more valid */
+        /* when connection is lost, statements are no longer valid */
     case ER_UNKNOWN_STMT_HANDLER:
 
         /* It also returns ER_UNKNOWN_ERROR... In this case, we treat it as a disconnection anyway,

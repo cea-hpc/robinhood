@@ -831,7 +831,7 @@ static inline int do_write_template( const char *file )
         if ( stream == NULL )
         {
             rc = errno;
-            fprintf( stderr, "Error opening file '%s' for writting: %s.\n", file, strerror( rc ) );
+            fprintf( stderr, "Error opening file '%s' for writing: %s.\n", file, strerror( rc ) );
             return rc;
         }
     }
@@ -840,7 +840,7 @@ static inline int do_write_template( const char *file )
 
     rc = WriteConfigTemplate( stream );
     if ( rc )
-        fprintf( stderr, "Error writting configuration template: %s\n", strerror( rc ) );
+        fprintf( stderr, "Error writing configuration template: %s\n", strerror( rc ) );
     else if ( stream != stdout )
         fprintf( stderr, "Configuration template successfully written to '%s'.\n", file );
 

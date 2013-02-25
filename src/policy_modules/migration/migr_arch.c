@@ -1154,7 +1154,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
 
     if ( rc == -ENOENT || rc == -ESTALE )
     {
-        DisplayLog( LVL_EVENT, MIGR_TAG, "Entry %s does not exist no more",
+        DisplayLog( LVL_EVENT, MIGR_TAG, "Entry %s does not exist anymore",
                     fspath );
         invalidate_entry( lmgr, &p_item->entry_id );
         return MIGR_ENTRY_MOVED;

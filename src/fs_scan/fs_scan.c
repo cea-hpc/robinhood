@@ -453,7 +453,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
         do
         {
             DisplayLog( LVL_FULL, FSSCAN_TAG,
-                        "%s is finished and has no more child => merging to the parent task",
+                        "%s is finished and has no child left => merging to the parent task",
                         current_task->path );
 
             /* No chance that another thread has a lock on the current task,

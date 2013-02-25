@@ -443,7 +443,7 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
                     MIN2( entry_proc_pipeline[i].max_thread_count, tmpval );
             else if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL )
             {
-                /* the stqge is no more parallel, it has a limited number of threads */
+                /* the stage is not parallel anymore, it has a limited number of threads */
                 entry_proc_pipeline[i].stage_flags &= ~STAGE_FLAG_PARALLEL;
                 entry_proc_pipeline[i].stage_flags |= STAGE_FLAG_MAX_THREADS;
                 entry_proc_pipeline[i].max_thread_count = tmpval;

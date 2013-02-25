@@ -478,7 +478,7 @@ static int reload_purge_policy( purge_policy_t *policy )
 
     /* XXX global_attr_mask is unchanged, since we keep the same expressions */
 
-    /* free reloaded config structure (no more used) */
+    /* free reloaded config structure (not used anymore) */
     free_whitelist( policy->whitelist_rules, policy->whitelist_count );
     free_blacklist( policy->blacklist_rules, policy->blacklist_count );
 
@@ -2356,7 +2356,7 @@ static int reload_policies( policies_t * policies )
 
     /* XXX global_attr_mask is unchanged, since we keep the same expressions */
 
-    /* free reloaded config structure (no more used) */
+    /* free reloaded config structure (no used anymore) */
     free_whitelist( policy->whitelist_rules, policy->whitelist_count );
 
 #endif

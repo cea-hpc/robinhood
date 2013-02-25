@@ -69,7 +69,7 @@ static int add_id_list(entry_id_t  * list, unsigned int count)
     /* is the array empty ?*/
     else if ((array_used == 0) && (count <= array_len))
     {
-        /* copy from the begginning */
+        /* copy from the beginning */
         memcpy(dir_array, list, count * sizeof(entry_id_t));
         array_first = 0;
         array_next = count;
@@ -201,7 +201,7 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
             /* XXX break the scan? */
             last_err = rc;
 
-        /* attributes no more needed */
+        /* attributes no longer needed */
         /* release attrs */
         if (child_attrs)
         {
