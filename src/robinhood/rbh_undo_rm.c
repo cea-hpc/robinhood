@@ -495,7 +495,7 @@ int main( int argc, char **argv )
     char           err_msg[4096];
     robinhood_config_t config;
     int chgd = 0;
-    char    badcfg[RBH_PATH_MAX]
+    char    badcfg[RBH_PATH_MAX];
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab,
@@ -557,7 +557,7 @@ int main( int argc, char **argv )
     /* get default config file, if not specified */
     if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
     {
-        fprint(stderr, "No config file found matching %s\n", badcfg);
+        fprintf(stderr, "No config file found matching %s\n", badcfg);
         exit(2);
     }
     else if (chgd)
