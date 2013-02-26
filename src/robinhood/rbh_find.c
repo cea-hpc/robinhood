@@ -757,6 +757,9 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
                                  &match_expr, NULL) == POLICY_MATCH))
                     print_entry(&chids[j], &chattrs[j]);
             }
+
+            MemFree(chids);
+            MemFree(chattrs);
         }
     }
     return 0;
