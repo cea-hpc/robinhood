@@ -39,6 +39,8 @@ endif
 all_libs += ../list_mgr/liblistmgr.la
 all_libs += ../common/libcommontools.la
 
+common_src = cmd_helpers.h cmd_helpers.c
+
 if TMP_FS_MGR
 
 sbin_PROGRAMS=robinhood rbh-report
@@ -50,19 +52,19 @@ rbh_report_DEPENDENCIES=$(all_libs)
 rbh_du_DEPENDENCIES=$(all_libs)
 rbh_find_DEPENDENCIES=$(all_libs)
 
-robinhood_SOURCES=rbh_daemon.c cmd_helpers.c
+robinhood_SOURCES=rbh_daemon.c $(common_src)
 robinhood_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 robinhood_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_report_SOURCES=rbh_report.c cmd_helpers.c
+rbh_report_SOURCES=rbh_report.c $(common_src)
 rbh_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_find_SOURCES=rbh_find.c cmd_helpers.h cmd_helpers.c
+rbh_find_SOURCES=rbh_find.c $(common_src)
 rbh_find_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_du_SOURCES=rbh_du.c cmd_helpers.h cmd_helpers.c
+rbh_du_SOURCES=rbh_du.c  $(common_src)
 rbh_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
@@ -78,19 +80,19 @@ rbh_hsm_report_DEPENDENCIES=$(all_libs)
 rbh_hsm_du_DEPENDENCIES=$(all_libs)
 rbh_hsm_find_DEPENDENCIES=$(all_libs)
 
-rbh_hsm_SOURCES=rbh_daemon.c
+rbh_hsm_SOURCES=rbh_daemon.c  $(common_src)
 rbh_hsm_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_hsm_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_hsm_report_SOURCES=rbh_report.c cmd_helpers.c
+rbh_hsm_report_SOURCES=rbh_report.c  $(common_src)
 rbh_hsm_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_hsm_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_hsm_du_SOURCES=rbh_du.c cmd_helpers.h cmd_helpers.c
+rbh_hsm_du_SOURCES=rbh_du.c  $(common_src)
 rbh_hsm_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_hsm_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_hsm_find_SOURCES=rbh_find.c cmd_helpers.h cmd_helpers.c
+rbh_hsm_find_SOURCES=rbh_find.c   $(common_src)
 rbh_hsm_find_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_hsm_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
@@ -107,35 +109,35 @@ rbh_shook_recov_DEPENDENCIES=$(all_libs)
 rbh_shook_du_DEPENDENCIES=$(all_libs)
 rbh_shook_find_DEPENDENCIES=$(all_libs)
 
-rbh_shook_SOURCES=rbh_daemon.c
+rbh_shook_SOURCES=rbh_daemon.c  $(common_src)
 rbh_shook_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_report_SOURCES=rbh_report.c cmd_helpers.c
+rbh_shook_report_SOURCES=rbh_report.c  $(common_src)
 rbh_shook_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_recov_SOURCES=rbh_recov.c
+rbh_shook_recov_SOURCES=rbh_recov.c  $(common_src)
 rbh_shook_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_recov_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_undo_rm_SOURCES=rbh_undo_rm.c
+rbh_shook_undo_rm_SOURCES=rbh_undo_rm.c  $(common_src)
 rbh_shook_undo_rm_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_undo_rm_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_du_SOURCES=rbh_du.c cmd_helpers.h cmd_helpers.c
+rbh_shook_du_SOURCES=rbh_du.c  $(common_src)
 rbh_shook_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_find_SOURCES=rbh_find.c cmd_helpers.h cmd_helpers.c
+rbh_shook_find_SOURCES=rbh_find.c  $(common_src)
 rbh_shook_find_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_import_SOURCES=rbh_import.c
+rbh_shook_import_SOURCES=rbh_import.c  $(common_src)
 rbh_shook_import_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_import_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_shook_rebind_SOURCES=rbh_rebind.c cmd_helpers.h cmd_helpers.c
+rbh_shook_rebind_SOURCES=rbh_rebind.c  $(common_src)
 rbh_shook_rebind_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_shook_rebind_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
@@ -151,35 +153,35 @@ rbh_backup_recov_DEPENDENCIES=$(all_libs)
 rbh_backup_du_DEPENDENCIES=$(all_libs)
 rbh_backup_find_DEPENDENCIES=$(all_libs)
 
-rbh_backup_SOURCES=rbh_daemon.c
+rbh_backup_SOURCES=rbh_daemon.c  $(common_src)
 rbh_backup_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_report_SOURCES=rbh_report.c cmd_helpers.c
+rbh_backup_report_SOURCES=rbh_report.c  $(common_src)
 rbh_backup_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_recov_SOURCES=rbh_recov.c
+rbh_backup_recov_SOURCES=rbh_recov.c  $(common_src)
 rbh_backup_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_recov_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_undo_rm_SOURCES=rbh_undo_rm.c
+rbh_backup_undo_rm_SOURCES=rbh_undo_rm.c  $(common_src)
 rbh_backup_undo_rm_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_undo_rm_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_du_SOURCES=rbh_du.c cmd_helpers.h cmd_helpers.c
+rbh_backup_du_SOURCES=rbh_du.c  $(common_src)
 rbh_backup_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_find_SOURCES=rbh_find.c cmd_helpers.h cmd_helpers.c
+rbh_backup_find_SOURCES=rbh_find.c  $(common_src)
 rbh_backup_find_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_import_SOURCES=rbh_import.c
+rbh_backup_import_SOURCES=rbh_import.c  $(common_src)
 rbh_backup_import_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_import_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_backup_rebind_SOURCES=rbh_rebind.c cmd_helpers.h cmd_helpers.c
+rbh_backup_rebind_SOURCES=rbh_rebind.c  $(common_src)
 rbh_backup_rebind_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_backup_rebind_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif

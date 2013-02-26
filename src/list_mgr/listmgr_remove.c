@@ -190,7 +190,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
 /* /!\ the table on which the filter apply must be removed at last */
 
 static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, int soft_rm,
-                                time_t real_remove_time )
+                                time_t real_remove_time, rm_cb_func_t cb_func )
 {
     int            rc;
     char           query[2048];
@@ -481,17 +481,18 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                 == DB_SUCCESS
             && ( field_tab[0] != NULL ) )
     {
+        entry_id_t id;
+
         if ( sscanf( field_tab[0], SPK, PTR_PK(pk) ) != 1 )
+            goto free_res;
+
+        rc = pk2entry_id( p_mgr, pk, &id );
+        if (rc)
             goto free_res;
 
 #ifdef HAVE_RM_POLICY
         if ( soft_rm )
         {
-            entry_id_t id;
-            rc = pk2entry_id( p_mgr, pk, &id );
-            if (rc)
-                goto free_res;
-
             /* insert into softrm table */
             rc = listmgr_softrm_single( p_mgr, &id,
                                         field_tab[1],
@@ -532,8 +533,10 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                 goto free_res;
         }
 
-        rmcount++;
+        if (cb_func)
+            cb_func(&id);
 
+        rmcount++;
     }
 
     db_result_free( &p_mgr->conn, &result );
@@ -563,17 +566,18 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     return rc;
 }
 
-int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter )
+int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                        rm_cb_func_t cb_func )
 {
     /* not a soft rm */
-    return listmgr_mass_remove( p_mgr, p_filter, FALSE, 0 );
+    return listmgr_mass_remove( p_mgr, p_filter, FALSE, 0, cb_func );
 }
 
 int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                            time_t real_remove_time )
+                            time_t real_remove_time, rm_cb_func_t cb_func )
 {
     /* soft rm */
-    return listmgr_mass_remove( p_mgr, p_filter, TRUE, real_remove_time );
+    return listmgr_mass_remove( p_mgr, p_filter, TRUE, real_remove_time, cb_func );
 }
 
 

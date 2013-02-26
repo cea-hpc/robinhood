@@ -1055,10 +1055,11 @@ char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration )
 
 }
 
-char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items )
+char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items, int brief )
 {
     unsigned int   i;
     size_t         written = 0;
+    const char * format;
 
     if ( !p_stripe_items || ( p_stripe_items->count == 0 ) )
     {
@@ -1070,14 +1071,20 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
 
     for ( i = 0; i < p_stripe_items->count; i++ )
     {
-        if ( i != p_stripe_items->count - 1 )
-            written +=
-                snprintf( ( char * ) ( buff + written ), sz - written, "OST #%u, ",
-                          p_stripe_items->stripe_units[i] );
-        else
-            written +=
-                snprintf( ( char * ) ( buff + written ), sz - written, "OST #%u",
-                          p_stripe_items->stripe_units[i] );
+        if ( i != p_stripe_items->count - 1 ) {
+            if (brief)
+                format = "ost%u,";
+            else
+                format = "OST #%u, ";
+        } else {
+            if (brief)
+                format = "ost%u";
+            else
+                format = "OST #%u";
+        }
+        written +=
+            snprintf( ( char * ) ( buff + written ), sz - written, format,
+                      p_stripe_items->stripe_units[i] );
     }
 
     return buff;
@@ -1360,9 +1367,9 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
     if ( mask & ATTR_MASK_fullpath )
     {
         if (brief)
-            format = "fullpath=%s,";
+            format = "path=%s,";
         else
-            format = "Fullpath: \"%s\"\n";
+            format = "Path:     \"%s\"\n";
         written +=
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, fullpath ) );
@@ -1487,16 +1494,62 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
         }
     }
 
+#ifdef _LUSTRE
     if ( mask & ATTR_MASK_stripe_items)
     {
         if (brief)
-            format = "stripes=%s,";
+            format = "stripes={%s},";
         else
             format = "Stripes: %s\n";
         written +=
             snprintf( out_str + written, strsize - written, format,
-                      FormatStripeList( tmpbuf, 256, &ATTR( p_attr_set, stripe_items)));
+                      FormatStripeList( tmpbuf, 256, &ATTR( p_attr_set, stripe_items), brief));
     }
+
+    if (mask & ATTR_MASK_stripe_info)
+    {
+        if (brief){
+            if (!EMPTY_STRING(ATTR( p_attr_set, stripe_info).pool_name)) {
+                format = "stripe_count=%u,stripe_size=%"PRIu64",ost_pool=%s,";
+                written +=
+                    snprintf( out_str + written, strsize - written, format,
+                              ATTR( p_attr_set, stripe_info).stripe_count,
+                              ATTR( p_attr_set, stripe_info).stripe_size,
+                              ATTR( p_attr_set, stripe_info).pool_name );
+            }
+            else
+            {
+                format = "stripe_count=%u,stripe_size=%"PRIu64",";
+                written +=
+                    snprintf( out_str + written, strsize - written, format,
+                              ATTR( p_attr_set, stripe_info).stripe_count,
+                              ATTR( p_attr_set, stripe_info).stripe_size );
+            }
+        }
+        else
+        {
+            FormatFileSize( tmpbuf, 256, ATTR( p_attr_set, stripe_info).stripe_size);
+            if (!EMPTY_STRING(ATTR( p_attr_set, stripe_info).pool_name)) {
+                format = "Stripe count: %u\n"
+                         "Stripe size:  %s\n"
+                         "OST pool:     %s\n";
+                written +=
+                    snprintf( out_str + written, strsize - written, format,
+                              ATTR( p_attr_set, stripe_info).stripe_count, tmpbuf,
+                              ATTR( p_attr_set, stripe_info).pool_name );
+            }
+            else
+            {
+                format = "Stripe count: %u\n"
+                         "Stripe size:  %s\n";
+                written +=
+                    snprintf( out_str + written, strsize - written, format,
+                              ATTR( p_attr_set, stripe_info).stripe_count,
+                              tmpbuf);
+            }
+        }
+    }
+#endif
 
     if (brief && written) {
         /* remove final , */

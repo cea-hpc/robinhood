@@ -1591,38 +1591,52 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             char attrchg[RBH_PATH_MAX];
             /* if only name changed, just display the 2 lines */
             if ((p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
-                 == ATTR_MASK_fullpath)
-                attrchg[0] = '\0';
+                == ATTR_MASK_fullpath)
+            {
+                printf("-"DFID" %s\n", PFID(&p_op->entry_id),
+                       ATTR(&p_op->db_attrs, fullpath));
+                printf("+"DFID" %s\n", PFID(&p_op->entry_id),
+                       ATTR(&p_op->fs_attrs, fullpath));
+            }
             else
+            {
                 /* attr from DB */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                    p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask
-                    & ~ATTR_MASK_fullpath, 1);
+                if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                    & entry_proc_conf.diff_mask & ~ATTR_MASK_fullpath) == 0)
+                    attrchg[0] = '\0';
+                else
+                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
+                        p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                        & entry_proc_conf.diff_mask & ~ATTR_MASK_fullpath, 1);
 
-            printf("-"DFID" %s%s%s\n", PFID(&p_op->entry_id),
-                ATTR(&p_op->db_attrs, fullpath),
-                attrchg[0]?" ":"", attrchg);
+                printf("-"DFID" %s%s%s\n", PFID(&p_op->entry_id),
+                    ATTR(&p_op->db_attrs, fullpath),
+                    attrchg[0]?" ":"", attrchg);
 
-            if (attrchg[0])
                 /* attr from FS */
                 PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
                     p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask
                     & ~ATTR_MASK_fullpath, 1);
 
-            printf("+"DFID" %s%s%s\n", PFID(&p_op->entry_id),
-                 ATTR(&p_op->fs_attrs, fullpath),
-                attrchg[0]?" ":"", attrchg);
+                printf("+"DFID" %s%s%s\n", PFID(&p_op->entry_id),
+                    ATTR_FSorDB(p_op, fullpath),
+                    attrchg[0]?" ":"", attrchg);
+            }
         }
     }
     else if (entry_proc_conf.diff_mask)
     {
         if (p_op->db_op_type == OP_TYPE_INSERT)
         {
-            printf("++"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath));
+            char attrnew[RBH_PATH_MAX];
+            PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
+                p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask
+                & ~ATTR_MASK_fullpath, 1);
+            printf("++"DFID" %s %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath), attrnew);
         }
         else if ((p_op->db_op_type == OP_TYPE_REMOVE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
         {
-            printf("--"DFID" %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath));
+            printf("--"DFID" %s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
         }
     }
 
@@ -1744,12 +1758,22 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
 }
 #endif
 
+static void mass_rm_cb(const entry_id_t *p_id)
+{
+    printf("--"DFID"\n", PFID(p_id));
+}
+
 int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
     lmgr_filter_t  filter;
     filter_value_t val;
+    rm_cb_func_t cb = NULL;
+
+    /* callback func for diff display */
+    if (entry_proc_conf.diff_mask)
+        cb = mass_rm_cb;
 
     /* if md_update is not, set, this is just an empty op to wait for
      * pipeline flush => don't rm old entries */
@@ -1778,10 +1802,11 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     #ifdef HAVE_RM_POLICY
         if (policies.unlink_policy.hsm_remove)
             /* @TODO fix for dirs */
-            rc = ListMgr_MassSoftRemove( lmgr, &filter, time(NULL) + policies.unlink_policy.deferred_remove_delay );
+            rc = ListMgr_MassSoftRemove(lmgr, &filter,
+                     time(NULL) + policies.unlink_policy.deferred_remove_delay, cb);
         else
     #endif
-            rc = ListMgr_MassRemove( lmgr, &filter );
+            rc = ListMgr_MassRemove(lmgr, &filter, cb);
 
         /* /!\ TODO : entries must be removed from backend too */
 

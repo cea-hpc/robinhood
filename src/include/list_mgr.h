@@ -402,10 +402,20 @@ int            ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id,
 int            ListMgr_MassUpdate( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                                    const attr_set_t * p_attr_set );
 
+/** remove callback function */
+typedef void    ( *rm_cb_func_t ) (const entry_id_t *);
+
 /**
  * Removes an entry from the database.
  */
 int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id );
+
+/**
+ * Removes all entries that match the specified filter.
+ */
+int            ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                                   rm_cb_func_t );
+
 
 #ifdef HAVE_RM_POLICY
 /**
@@ -430,7 +440,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
  * Soft remove a set of entries according to a filter.
  */
 int            ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                                       time_t real_remove_time );
+                                       time_t real_remove_time, rm_cb_func_t );
 
 /**
  * Definitly remove an entry from the delayed removal table.
@@ -555,12 +565,6 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 /* only keep fullpath by default */
 #define SOFTRM_MASK ( ATTR_MASK_fullpath )
 #endif
-
-
-/**
- * Removes all entries that match the specified filter.
- */
-int            ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter );
 
 /**
  * Function for handling iterators.

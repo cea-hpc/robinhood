@@ -1485,7 +1485,7 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
             return out;
 
         case ATTR_INDEX_stripe_items:
-            FormatStripeList(out, 1024, &ATTR( attrs, stripe_items ));
+            FormatStripeList(out, 1024, &ATTR( attrs, stripe_items ), csv);
             return out;
     }
     return "?";

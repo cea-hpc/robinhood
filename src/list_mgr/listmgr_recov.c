@@ -258,7 +258,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
 
     /* clean provious DB content */
 
-    return ListMgr_MassRemove( p_mgr, NULL );
+    return ListMgr_MassRemove( p_mgr, NULL, NULL );
 }
 
 /**

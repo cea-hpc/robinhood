@@ -1367,7 +1367,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         FormatFileSize( strsize, 256, ATTR( &new_attr_set, size ) );
 
         if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
-            FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ) );
+            FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ), 0 );
         else
             strcpy( strstorage, "(none)" );
 
