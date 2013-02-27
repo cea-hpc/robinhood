@@ -3,7 +3,7 @@
 
 #define RBH_PATH_MAX    1024
 #define RBH_NAME_MAX    256
-#define MAX_POOL_LEN    16
+#define MAX_POOL_LEN    17     /* LOV_MAXPOOLNAME + 1 */
 
 
 #endif

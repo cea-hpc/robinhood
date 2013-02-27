@@ -131,6 +131,7 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
             p_stripe_info->stripe_size = p_lum3->lmm_stripe_size;
             p_stripe_info->stripe_count = p_lum3->lmm_stripe_count;
             strncpy( p_stripe_info->pool_name, p_lum3->lmm_pool_name, LOV_MAXPOOLNAME );
+            p_stripe_info->pool_name[MAX_POOL_LEN-1] = 0;
         }
 
         if ( p_stripe_items )

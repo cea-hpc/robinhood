@@ -596,6 +596,7 @@ int result2attrset( table_enum table, char **result_tab,
                 ATTR(p_set, stripe_info).stripe_count = atoi( result_tab[nbfields]  );
                 ATTR(p_set, stripe_info).stripe_size = atoi( result_tab[nbfields+1]  );
                 strncpy( ATTR(p_set, stripe_info).pool_name, result_tab[nbfields+2] , MAX_POOL_LEN );
+                ATTR(p_set, stripe_info).pool_name[MAX_POOL_LEN-1] = 0;
 
                 /* stripe count, stripe size and pool_name */
                 nbfields += 3;
