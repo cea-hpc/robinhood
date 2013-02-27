@@ -810,6 +810,10 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     {
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "CRITICAL: entry is already at a higher pipeline stage %u >= %u !!!",
                     p_op->pipeline_stage, next_stage );
+
+        V( p_op->entry_lock );
+        V( pipeline[curr_stage].stage_mutex );
+
         return -EINVAL;
     }
 
