@@ -1,3 +1,19 @@
+Changes between version 2.4.1 and 2.4.2:
+* [general] immediate exit on ctrl+C: don't process all queued operations, just finish current.
+* [general] LSB compliance if daemon is already started.
+* [DB] validation with MariaDB (replacement for MySQL in Fedora19).
+* [config] can set default config file using RBH_CFG_DEFAULT environment variable.
+* [config] more precise message if no config file is found.
+* [rbh-find] added -not/-! option to rbh-find.
+* [lustre] fix for 16 chars pool names.
+* [bugfix] fixed memleak in rbh-find.
+* [bugfix] fixed segfault if checking scan deadline occured exactly when scan ended.
+* [logs] display bandwidth and rate stats during migration run.
+* [logs] fix: DB get operations were counted twice in stats.
+* [cosmetic] removed "connection failed" warning for one shot commands.
+* [cosmetic] fix typos in logs.
+* [devel] port to automake 1.12 (since Fedora18).
+
 Changes between version 2.4.0 and 2.4.1:
 * [lustre] better file size change detection using CLOSE events
   from MDT ChangeLog (requires Lustre 2.2 or +)
