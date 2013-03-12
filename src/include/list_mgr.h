@@ -574,7 +574,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
 
 /**
  * Clear the recovery table.
- * /!\ all previously unrecovered entry will be lost
+ * /!\ all previously unrecovered entries will be lost
  */
 int ListMgr_RecovReset( lmgr_t * p_mgr );
 
@@ -585,7 +585,7 @@ int ListMgr_RecovReset( lmgr_t * p_mgr );
  */
 struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
                                               const char * dir_path,
-                                              int retry, /* also retry previously errorneous entries */
+                                              int retry, /* also retry previously erroneous entries */
                                               const lmgr_iter_opt_t * p_opt );
 
 

@@ -326,7 +326,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         ListMgr_CloseAccess(&lmgr);
     }
 
-    /* if scan is errorneous and no entries was listed, don't flush pipeline. */
+    /* if scan is erroneous and no entry was listed, don't flush pipeline. */
     if ((count > 0) || scan_complete)
     {
         entry_proc_op_t op;

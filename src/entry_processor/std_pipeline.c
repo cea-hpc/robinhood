@@ -454,7 +454,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
             case HE_RELEASE:
                 if ( hsm_get_cl_error( logrec->cr_flags ) != CLF_HSM_SUCCESS )
                 {
-                    /* release records are not expected to be errorneous */
+                    /* release records are not expected to be erroneous */
                     DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "ERROR: "
                          "Unexpected HSM release event with error %d",
                          hsm_get_cl_error(logrec->cr_flags) );

@@ -880,7 +880,7 @@ static void   *Thr_Rmdir( void *arg )
                             "Warning: directory fullpath is not set. Tagging it invalid." );
                 invalidate_dir( &lmgr, &p_item->entry_id );
 
-                /* Notify that this entry has been processed and is errorneous */
+                /* Notify that this entry has been processed and is erroneous */
                 Queue_Acknowledge( &rmdir_queue, RMDIR_ERROR, NULL, 0 );
 
                 /* free entry resources */
@@ -906,7 +906,7 @@ static void   *Thr_Rmdir( void *arg )
             }
             invalidate_dir( &lmgr, &p_item->entry_id );
 
-            /* Notify that this entry has been processed and is errorneous */
+            /* Notify that this entry has been processed and is erroneous */
             Queue_Acknowledge( &rmdir_queue, RMDIR_ERROR, NULL, 0 );
 
            /* free entry resources */
