@@ -56,6 +56,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
             return rc;
     }
 
+#ifdef _LUSTRE
     /* ======== insert stripe information, if available ========= */
     if ( ATTR_MASK_TEST( p_info, stripe_info ) && ATTR_MASK_TEST( p_info, stripe_items ) )
     {
@@ -71,7 +72,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
             return rc;
         }
     }
-
+#endif
 
     /* ========= insert info in main table ============ */
 

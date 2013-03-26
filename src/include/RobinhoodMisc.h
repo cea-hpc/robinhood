@@ -244,8 +244,10 @@ char          *FormatFileSize( char *buff, size_t str_sz, uint64_t file_size );
 char          *FormatDuration( char *buff, size_t str_sz, time_t duration );
 char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration );
 
+#ifdef _LUSTRE
 char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items,
                                  int brief );
+#endif
 
 /*
  * Parsing functions

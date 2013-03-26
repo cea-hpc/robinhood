@@ -583,6 +583,7 @@ int result2attrset( table_enum table, char **result_tab,
                 continue;
             }
 
+#ifdef _LUSTRE
             if ( field_infos[i].db_type == DB_STRIPE_INFO )
             {
                 if ( result_tab[nbfields] == NULL
@@ -602,7 +603,9 @@ int result2attrset( table_enum table, char **result_tab,
                 nbfields += 3;
                 continue;
             }
-            else if ( !parsedbtype( result_tab[nbfields], field_infos[i].db_type, &typeu ) )
+            else
+#endif
+            if ( !parsedbtype( result_tab[nbfields], field_infos[i].db_type, &typeu ) )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Error: cannot parse field value '%s'", result_tab[nbfields] );
@@ -792,7 +795,7 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 if ( prefix_table )
                     sprintf(fname, "%s.", STRIPE_ITEMS_TABLE );
 
-                strcat( fname, "storage_item" );
+                strcat( fname, "ostidx" );
 
                 values_curr +=
                     sprintf( values_curr, "%s%s%u", fname,
@@ -1063,6 +1066,7 @@ void ListMgr_MergeAttrSets( attr_set_t * p_target_attrset, attr_set_t * p_source
 
 void ListMgr_FreeAttrs( attr_set_t * p_set )
 {
+#ifdef _LUSTRE
     int            i;
     int            mask = 1;
 
@@ -1078,6 +1082,7 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
                                                       field_infos[i].offset ) );
         }
     }
+#endif
 }
 
 /** only keep the differences in target attrset */
@@ -1103,6 +1108,7 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
                 if (!is_diff)
                     p_tgt->attr_mask &= ~mask;
             }
+#ifdef _LUSTRE
             else if ( field_infos[i].db_type == DB_STRIPE_INFO )
             {
                 if ((ATTR(p_tgt, stripe_info).stripe_size
@@ -1125,8 +1131,8 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
                     int i;
                     for (i = 0; i < ATTR(p_tgt, stripe_items).count; i++)
                     {
-                        if (ATTR(p_tgt,stripe_items).stripe_units[i] !=
-                            ATTR(p_src,stripe_items).stripe_units[i])
+                        if (ATTR(p_tgt,stripe_items).stripe[i].ost_idx !=
+                            ATTR(p_src,stripe_items).stripe[i].ost_idx)
                         {
                             is_diff = 1;
                             break;
@@ -1136,6 +1142,7 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
                 if (!is_diff)
                     p_tgt->attr_mask &= ~mask;
             }
+#endif
         }
     }
     return;

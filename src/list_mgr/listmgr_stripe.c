@@ -104,11 +104,12 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
         ssize_t         len;
         unsigned int    est_len;
         char            *query = NULL;
-        
-        /* estimate query size = fix part + stripe_count * ( 4 + pklen + ost_idx_len )
-         *                     = ~64(oversize to 128) + stripe_count * 4 + 128
+        char buff[2*STRIPE_DETAIL_SZ+1];
+
+        /* estimate query size = fix part + stripe_count * ( 4 + pklen + ost_idx_len + index_len + 2*detail_len )
+         *                     = ~64(oversize to 128) + stripe_count * 128
          */
-        est_len = 128 + p_items->count * 128;
+        est_len = 128 + p_items->count * (128+2*STRIPE_DETAIL_SZ);
         DisplayLog( LVL_FULL, LISTMGR_TAG, "Estimated query size for %u stripe = %u",  p_items->count, est_len );
         query = MemAlloc(est_len);
         if (query == NULL) {
@@ -116,16 +117,33 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
             return DB_NO_MEMORY;
         }
 
-        strcpy( query, "INSERT INTO " STRIPE_ITEMS_TABLE "(id, storage_item) VALUES " );
+        strcpy( query, "INSERT INTO " STRIPE_ITEMS_TABLE "(id, stripe_index, ostidx, details) VALUES " );
         len = strlen( query );
 
         /* first stripe item */
-        len += snprintf( query + len, est_len - len, "("DPK",%u)", pk, p_items->stripe_units[0] );
+        if (buf2hex(buff, sizeof(buff), (unsigned char *)(&p_items->stripe[0].ost_gen), STRIPE_DETAIL_SZ ) < 0){
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Buffer too small to store details stripe info");
+            buff[2*STRIPE_DETAIL_SZ] = '\0';
+        }
+        else
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Stripe details encoding = x'%s'", buff);
+
+        len += snprintf( query + len, est_len - len, "("DPK",0,%u,x'%s')", pk,
+                         p_items->stripe[0].ost_idx, buff );
 
         /* next items */
         for ( i = 1; i < p_items->count; i++ )
         {
-            len += snprintf( query + len, est_len - len, ",("DPK",%u)", pk, p_items->stripe_units[i] );
+            /* first stripe item */
+            if (buf2hex(buff, sizeof(buff), (unsigned char *)(&p_items->stripe[i].ost_gen), STRIPE_DETAIL_SZ ) < 0){
+                DisplayLog( LVL_CRIT, LISTMGR_TAG, "Buffer too small to store details stripe info");
+                buff[2*STRIPE_DETAIL_SZ] = '\0';
+            }
+            else
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "Stripe details encoding = x'%s'", buff);
+
+            len += snprintf( query + len, est_len - len, ",("DPK",%u,%u,x'%s')", pk,
+                             i, p_items->stripe[i].ost_idx, buff );
 
             if ( len >= est_len )
             {
@@ -193,7 +211,8 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
     if ( p_items )
     {
         /* retrieve stripe list */
-        sprintf( query, "SELECT storage_item FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
+        sprintf( query, "SELECT stripe_index,ostidx,details FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK
+                        " ORDER BY stripe_index ASC", pk );
 
         rc = db_exec_sql( &p_mgr->conn, query, &result );
         if ( rc )
@@ -211,9 +230,9 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
         {
 
             /* allocate stripe array */
-            p_items->stripe_units = MemCalloc( p_items->count, sizeof( storage_unit_id_t ) );
+            p_items->stripe = MemCalloc( p_items->count, sizeof( stripe_item_t ) );
 
-            if ( !p_items->stripe_units )
+            if ( !p_items->stripe )
             {
                 rc = DB_NO_MEMORY;
                 goto res_free;
@@ -222,7 +241,7 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
             /* fill stripe units */
             for ( i = 0; i < p_items->count; i++ )
             {
-                rc = db_next_record( &p_mgr->conn, &result, res, 1 );
+                rc = db_next_record( &p_mgr->conn, &result, res, 3 );
                 if ( rc )
                     goto stripe_free;
 
@@ -232,11 +251,18 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
                     goto stripe_free;
                 }
 
-                p_items->stripe_units[i] = atoi( res[0] );
+                if (i != atoi( res[0] ))
+                {
+                    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: inconsistent stripe order: stripe %s returned in position %u",
+                               res[0], i);
+                }
+                p_items->stripe[i].ost_idx = atoi( res[1] );
+                /* raw copy of binary buffer (last 3 fields of stripe_item_t = address of ost_gen field) */
+                memcpy(&p_items->stripe[i].ost_gen, res[2], STRIPE_DETAIL_SZ);
             }
         }
         else
-            p_items->stripe_units = NULL;
+            p_items->stripe = NULL;
 
         /* last query result must be freed */
         rc = DB_SUCCESS;
@@ -247,8 +273,8 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
     return DB_SUCCESS;
 
     stripe_free:
-    MemFree( p_items->stripe_units );
-    p_items->stripe_units = NULL;
+    MemFree( p_items->stripe );
+    p_items->stripe = NULL;
     p_items->count = 0;
     p_stripe_info->stripe_count = 0;
     res_free:
@@ -260,9 +286,9 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
 /** release stripe information */
 void free_stripe_items( stripe_items_t * p_stripe_items )
 {
-    if ( p_stripe_items->stripe_units )
-        MemFree( p_stripe_items->stripe_units );
-    p_stripe_items->stripe_units = NULL;
+    if ( p_stripe_items->stripe )
+        MemFree( p_stripe_items->stripe );
+    p_stripe_items->stripe = NULL;
     p_stripe_items->count = 0;
 }
 

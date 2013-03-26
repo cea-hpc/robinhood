@@ -750,6 +750,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
             {
                 if ( p_purge_param->type == PURGE_BY_OST )
                 {
+#ifdef _LUSTRE
                     unsigned int strp_cnt = ATTR(&attr_set, stripe_info).stripe_count;
 
                     /* if stripe_count is 0, assume that blk count is 0 too */
@@ -764,6 +765,10 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                         if ( (ATTR(&attr_set, blocks) % strp_cnt) != 0 )
                             tgt_count++; 
                     }
+#else
+                    DisplayLog( LVL_CRIT, PURGE_TAG, "Purge by OST is not supported in this mode" );
+                    return -ENOTSUP;
+#endif
                 }
                 else
                     tgt_count = ATTR( &attr_set, blocks );
@@ -1357,7 +1362,9 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     {
         char           straccess[256];
         char           strsize[256];
+#ifdef _LUSTRE
         char           strstorage[1024];
+#endif
 
         /* Entry has been successfully purged */
 
@@ -1366,10 +1373,12 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         FormatDurationFloat( straccess, 256, time( NULL ) - ATTR( &new_attr_set, last_access ) );
         FormatFileSize( strsize, 256, ATTR( &new_attr_set, size ) );
 
+#ifdef _LUSTRE
         if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
             FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ), 0 );
         else
             strcpy( strstorage, "(none)" );
+#endif
 
 #ifdef _LUSTRE_HSM
 #define ACTION_ED "Released"
@@ -1378,17 +1387,30 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
 #endif
 
         DisplayLog( LVL_DEBUG, PURGE_TAG,
-                    ACTION_ED " '%s' using policy '%s', last access %s ago, size=%s, stored on %s",
-                    ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id, straccess,
-                    strsize, strstorage );
+                    ACTION_ED " '%s' using policy '%s', last access %s ago, size=%s"
+#ifdef _LUSTRE
+                    ", stored on %s"
+#endif
+                    , ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id, straccess,
+                    strsize
+#ifdef _LUSTRE
+                    , strstorage
+#endif
+ );
 
         DisplayReport( ACTION_ED " '%s' using policy '%s', last access %s ago | size=%"PRIu64
                        ", last_access=%" PRI_TT ", last_mod=%" PRI_TT
-                       ", storage_units=%s", ATTR( &p_item->entry_attr, fullpath ),
+#ifdef _LUSTRE
+                       ", osts=%s"
+#endif
+                       , ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, straccess, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_access ),
-                       (time_t)ATTR( &new_attr_set, last_mod ),
-                       strstorage );
+                       (time_t)ATTR( &new_attr_set, last_mod )
+#ifdef _LUSTRE
+                        , strstorage
+#endif
+                       );
 
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
         /* Lustre-HSM: do not remove the entry from database:

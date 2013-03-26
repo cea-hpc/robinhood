@@ -28,8 +28,6 @@
 #include <pthread.h>
 
 #include "lustre_extended_types.h"
-#include <lustre/liblustreapi.h>
-#include <lustre/lustre_user.h>
 
 /* for logs */
 #define TAG_STRIPE "GetStripe"
@@ -102,19 +100,22 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
 
             if ( p_lum->lmm_stripe_count > 0 )
             {
-                p_stripe_items->stripe_units =
-                    ( storage_unit_id_t * ) MemCalloc( p_lum->lmm_stripe_count,
-                                                       sizeof( storage_unit_id_t ) );
+                p_stripe_items->stripe =
+                    ( stripe_item_t * ) MemCalloc( p_lum->lmm_stripe_count,
+                                                    sizeof( stripe_item_t ) );
 
                 /* fill OST ids */
                 for ( i = 0; i < p_lum->lmm_stripe_count; i++ )
                 {
-                    p_stripe_items->stripe_units[i] = p_lum->lmm_objects[i].l_ost_idx;
+                    p_stripe_items->stripe[i].ost_idx = p_lum->lmm_objects[i].l_ost_idx;
+                    p_stripe_items->stripe[i].ost_gen = p_lum->lmm_objects[i].l_ost_gen;
+                    p_stripe_items->stripe[i].obj_id = p_lum->lmm_objects[i].l_object_id;
+                    p_stripe_items->stripe[i].obj_seq = p_lum->lmm_objects[i].l_object_seq;
                 }
             }
             else
             {
-                p_stripe_items->stripe_units = NULL;
+                p_stripe_items->stripe = NULL;
             }
         }
 
@@ -140,19 +141,22 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
 
             if ( p_lum3->lmm_stripe_count > 0 )
             {
-                p_stripe_items->stripe_units =
-                    ( storage_unit_id_t * ) MemCalloc( p_lum3->lmm_stripe_count,
-                                                       sizeof( storage_unit_id_t ) );
+                p_stripe_items->stripe =
+                    ( stripe_item_t * ) MemCalloc( p_lum3->lmm_stripe_count,
+                                                   sizeof( stripe_item_t ) );
 
                 /* fill OST ids */
                 for ( i = 0; i < p_lum3->lmm_stripe_count; i++ )
                 {
-                    p_stripe_items->stripe_units[i] = p_lum3->lmm_objects[i].l_ost_idx;
+                    p_stripe_items->stripe[i].ost_idx = p_lum3->lmm_objects[i].l_ost_idx;
+                    p_stripe_items->stripe[i].ost_gen = p_lum3->lmm_objects[i].l_ost_gen;
+                    p_stripe_items->stripe[i].obj_id = p_lum3->lmm_objects[i].l_object_id;
+                    p_stripe_items->stripe[i].obj_seq = p_lum3->lmm_objects[i].l_object_seq;
                 }
             }
             else
             {
-                p_stripe_items->stripe_units = NULL;
+                p_stripe_items->stripe = NULL;
             }
         }
 
@@ -733,5 +737,41 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
     return 0;
 }
 #endif
+#endif /* MDS stat */
 
-#endif
+char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items, int brief )
+{
+    unsigned int   i;
+    size_t         written = 0;
+    const char * format;
+
+    if ( !p_stripe_items || ( p_stripe_items->count == 0 ) )
+    {
+        strncpy( buff, "(none)", sz );
+        return buff;
+    }
+
+    buff[0] = '\0';
+
+    for ( i = 0; i < p_stripe_items->count; i++ )
+    {
+        if ( i != p_stripe_items->count - 1 ) {
+            if (brief)
+                format = "ost%u,";
+            else
+                format = "OST #%u, ";
+        } else {
+            if (brief)
+                format = "ost%u";
+            else
+                format = "OST #%u";
+        }
+        written +=
+            snprintf( ( char * ) ( buff + written ), sz - written, format,
+                      p_stripe_items->stripe[i].ost_idx );
+    }
+
+    return buff;
+}
+
+

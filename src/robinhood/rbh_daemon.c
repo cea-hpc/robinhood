@@ -49,7 +49,7 @@
 #include <signal.h>
 
 #ifdef _LUSTRE
-#include <lustre/liblustreapi.h>
+#include "lustre_extended_types.h"
 #endif
 
 #ifdef _HSM_LITE

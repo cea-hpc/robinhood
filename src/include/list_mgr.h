@@ -61,9 +61,16 @@
 /* Tag in logfile */
 #define LISTMGR_TAG     "ListMgr"
 
-/* stripe info for all kind of FS and applications */
+#ifdef _LUSTRE
+/* stripe info for Lustre */
 
-typedef unsigned int storage_unit_id_t;
+typedef struct stripe_item_t
+{
+    unsigned int ost_idx; /* ost index */
+    unsigned int ost_gen; /* always 0 ? */
+    uint64_t obj_id;      /* object index on OST */
+    uint64_t obj_seq;     /* sequence from object fid */
+} stripe_item_t;
 
 typedef struct stripe_info_t
 {
@@ -75,8 +82,13 @@ typedef struct stripe_info_t
 typedef struct stripe_items_t
 {
     unsigned int   count;
-    storage_unit_id_t *stripe_units;             /* list of storage units used for striping */
+    stripe_item_t *stripe;   /* list of stripe pieces */
 } stripe_items_t;
+#else
+typedef int stripe_items_t; /* dummy type */
+typedef int stripe_info_t; /* dummy type */
+
+#endif
 
 /* access pattern for fields in database */
 #define INIT_ONLY    0x00000001 /* set at insert only: stored in an annex table (can't be modified) */
@@ -356,6 +368,8 @@ int            ListMgr_GetCommitStatus( lmgr_t * p_mgr );
  */
 int            ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id );
 
+
+#ifdef _LUSTRE
 /**
  * Check that validator is matching for the given entry.
  * @param p_mgr pointer to a DB connection
@@ -372,6 +386,7 @@ int            ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id );
  */
 int            ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
                                   stripe_info_t * p_stripe_info, stripe_items_t * p_stripe_items );
+#endif
 
 /**
  * Retrieves an entry from database.

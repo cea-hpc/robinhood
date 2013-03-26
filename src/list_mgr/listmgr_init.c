@@ -486,6 +486,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         return rc;
     }
 
+
+#ifdef _LUSTRE
     /*
      * ====== CHECKING STRIPE TABLES ==========
      */
@@ -630,8 +632,36 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             curr_field_index += 1;
         }
 
+        if (( fieldtab[curr_field_index] == NULL )
+            || strcmp( fieldtab[curr_field_index], "stripe_index" ))
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Incompatible database schema for table "
+                        STRIPE_ITEMS_TABLE": "DROP_MESSAGE );
+            return -1;
+        }
+        else
+        {
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "stripe_index OK" );
+            curr_field_index += 1;
+        }
+
+        if (( fieldtab[curr_field_index] == NULL )
+            || strcmp( fieldtab[curr_field_index], "ostidx" ))
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Incompatible database schema for table "
+                        STRIPE_ITEMS_TABLE": "DROP_MESSAGE );
+            return -1;
+        }
+        else
+        {
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "ostidx OK" );
+            curr_field_index += 1;
+        }
+
         if ( ( fieldtab[curr_field_index] == NULL )
-             || strcmp( fieldtab[curr_field_index], "storage_item" )
+             || strcmp( fieldtab[curr_field_index], "details" )
              || fieldtab[curr_field_index + 1] != NULL )
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
@@ -639,6 +669,11 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                         STRIPE_ITEMS_TABLE": "DROP_MESSAGE );
             return -1;
         }
+        else
+        {
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "details OK" );
+        }
+
     }
     else if ( rc == DB_NOT_EXISTS )
     {
@@ -651,9 +686,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_EVENT, LISTMGR_TAG, STRIPE_ITEMS_TABLE
                         " table does not exist: creating it." );
 
-            strcpy( strbuf,
+            sprintf( strbuf,
                     "CREATE TABLE " STRIPE_ITEMS_TABLE
-                    " ( id "PK_TYPE", storage_item INT UNSIGNED ) " );
+                    " ( id "PK_TYPE", stripe_index INT UNSIGNED, ostidx INT UNSIGNED, details BINARY(%u) )",
+                    STRIPE_DETAIL_SZ );
 #ifdef _MYSQL
             if (lmgr_config.db_config.innodb)
                 strcat(strbuf, " ENGINE=InnoDB");
@@ -681,7 +717,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             }
             DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(id) created successfully" );
 
-            strcpy( strbuf, "CREATE INDEX st_index ON " STRIPE_ITEMS_TABLE "(storage_item)" );
+            strcpy( strbuf, "CREATE INDEX st_index ON " STRIPE_ITEMS_TABLE "(ostidx)" );
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
             rc = db_exec_sql( &conn, strbuf, NULL );
             if ( rc )
@@ -690,7 +726,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(storage_item) created successfully" );
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(ostidx) created successfully" );
         }
     }
     else
@@ -701,6 +737,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         return rc;
     }
 
+#endif
 
     /*
      * ====== CHECKING ANNEX TABLE ==========

@@ -94,6 +94,11 @@ if test "x$support_lustre" = "xyes" ; then
 
         AC_DEFINE(_LUSTRE, 1, [liblustreapi is available])
 
+        AC_CHECK_HEADER([lustre/lustreapi.h], have_new_lustre_header="true", have_new_lustre_header="false")
+        if test "$have_new_lustre_header" = "true"; then
+            AC_DEFINE(_LUSTRE_API_HEADER, 1, [New lustreapi header])
+        fi
+
         # this defines LVERSION and LPACKAGE variables
         AX_LUSTRE_VERSION
 

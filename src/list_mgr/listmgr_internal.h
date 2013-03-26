@@ -64,5 +64,32 @@ typedef struct lmgr_iterator_t
     unsigned int    opt_is_set:1;
 } lmgr_iterator_t;
 
+#ifdef _LUSTRE
+/* see stripe_item_t structure in list_mgr.h */
+#define OSTGEN_SZ   4
+#define OBJID_SZ    8
+#define OBJSEQ_SZ   8
+#define STRIPE_DETAIL_SZ (OBJID_SZ+OBJSEQ_SZ+OSTGEN_SZ)
+#endif
+
+
+static inline int buf2hex(char *out, size_t out_sz, const unsigned char *in, size_t in_sz)
+{
+    /* Convert the input buffer into an hex */
+    int i;
+    const unsigned char *src = in;
+    char *dst = out;
+
+    if (out_sz < 2*in_sz + 1)
+        return -1;
+
+    for (i = 0; i < in_sz; i++) {
+        dst += sprintf(dst, "%02x", *src);
+        src++;
+    }
+    *dst = '\0';
+    return (int)(dst-out);
+}
+
 
 #endif

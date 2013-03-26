@@ -657,6 +657,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         break;
 #endif
 
+#ifdef _LUSTRE
     case CRITERIA_POOL:
         /* /!\ objects != file or dir don't have stripe info (never match) */
         if ( ATTR_MASK_TEST( p_entry_attr, type ) &&
@@ -694,7 +695,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 
         for ( i = 0; i < ATTR(p_entry_attr, stripe_items).count; i++ )
         {
-            if ( ATTR(p_entry_attr, stripe_items).stripe_units[i] == p_triplet->val.integer )
+            if ( ATTR(p_entry_attr, stripe_items).stripe[i].ost_idx == p_triplet->val.integer )
             {
                 /* if comparator is ==, at least 1 OST must match,
                  * if the cmp is !=, none must match */
@@ -713,6 +714,8 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
             return POLICY_NO_MATCH;
         break;
     }
+#endif
+
     case CRITERIA_XATTR:
 #ifdef HAVE_ATTR_XATTR_H
     {
@@ -795,6 +798,10 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         /* fullpath is required if fids are not available */
         /* @TODO */
         break;
+
+    default:
+        DisplayLog(LVL_CRIT, POLICY_TAG, "This criteria (%#x) is not supported in this mode", p_triplet->crit);
+        return POLICY_ERR;
     }
 
     return POLICY_ERR;

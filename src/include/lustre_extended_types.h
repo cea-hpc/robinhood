@@ -29,7 +29,11 @@
 #include <assert.h>
 #define LASSERT assert
 
+#ifndef _LUSTRE_API_HEADER
 #include <lustre/liblustreapi.h>
+#else
+#include <lustre/lustreapi.h>
+#endif
 
 #ifndef DFID_NOBRACE
 #define DFID_NOBRACE SFID

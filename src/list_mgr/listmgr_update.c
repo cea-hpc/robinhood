@@ -105,6 +105,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     }
 
     /* insert new stripe info if provided (and eventually remove previous values) */
+#ifdef _LUSTRE
     if ( ATTR_MASK_TEST( p_update_set, stripe_info ) )
     {
         rc = insert_stripe_info( p_mgr, pk, VALID(p_id), &ATTR( p_update_set, stripe_info ),
@@ -113,7 +114,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
         if ( rc )
             goto rollback;
     }
-
+#endif
 
     if ( nb_tables > 1 )
     {

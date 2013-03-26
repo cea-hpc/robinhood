@@ -1469,6 +1469,7 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
         case ATTR_INDEX_release_class:
             return release_class(attrs);
 #endif
+#ifdef _LUSTRE
         case ATTR_INDEX_stripe_info:
             if (csv)
                 sprintf(out, "%10u, %11"PRIu64", %9s",
@@ -1487,6 +1488,7 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
         case ATTR_INDEX_stripe_items:
             FormatStripeList(out, 1024, &ATTR( attrs, stripe_items ), csv);
             return out;
+#endif
     }
     return "?";
 }

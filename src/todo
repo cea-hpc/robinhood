@@ -1,4 +1,17 @@
-- 
+- diff option: list changes since xxx
+
+A integrer au check:
+* stripe detaillé
+* hardlinks
+
+- chgt stripe
+	FormatStripeList
+	ListMgr_KeepDiff
+	lmgr_stripe.c
+
+- ajout rbh-report --get=<id>
+- ajout rbh-find --details
+- remettre a plat lmgr_init
 
 
 - completer TRAC

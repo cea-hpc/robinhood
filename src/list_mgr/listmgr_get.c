@@ -202,6 +202,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     }
 
     /* get stripe info if asked */
+#ifdef _LUSTRE
     if (stripe_fields( p_info->attr_mask ))
     {
         rc = get_stripe_info( p_mgr, pk, &ATTR( p_info, stripe_info ),
@@ -220,6 +221,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         else
             checkmain = 0; /* entry exists */
     }
+#endif
 
     /* special field dircount */
     if (dirattr_fields( p_info->attr_mask ))

@@ -248,6 +248,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                     goto array_free;
             }
 
+#ifdef _LUSTRE
             if (stripe_fields(attr_mask))
             {
                 if (get_stripe_info( p_mgr, res[0], &ATTR(&(*child_attr_list)[i], stripe_info),
@@ -257,6 +258,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                     ATTR_MASK_UNSET(&(*child_attr_list)[i], stripe_items);
                 }
             }
+#endif
 
             generate_fields(&((*child_attr_list)[i]));
         }

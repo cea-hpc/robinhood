@@ -1055,41 +1055,6 @@ char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration )
 
 }
 
-char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items, int brief )
-{
-    unsigned int   i;
-    size_t         written = 0;
-    const char * format;
-
-    if ( !p_stripe_items || ( p_stripe_items->count == 0 ) )
-    {
-        strncpy( buff, "(none)", sz );
-        return buff;
-    }
-
-    buff[0] = '\0';
-
-    for ( i = 0; i < p_stripe_items->count; i++ )
-    {
-        if ( i != p_stripe_items->count - 1 ) {
-            if (brief)
-                format = "ost%u,";
-            else
-                format = "OST #%u, ";
-        } else {
-            if (brief)
-                format = "ost%u";
-            else
-                format = "OST #%u";
-        }
-        written +=
-            snprintf( ( char * ) ( buff + written ), sz - written, format,
-                      p_stripe_items->stripe_units[i] );
-    }
-
-    return buff;
-}
-
 /**
  * Convert a string to an integer
  * @return -1 on error.
