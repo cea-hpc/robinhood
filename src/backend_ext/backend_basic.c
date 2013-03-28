@@ -1519,7 +1519,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             struct passwd pw;
             struct passwd * p_pw;
 
-            if ( getpwnam_r( ATTR(p_attrs_old, owner ), &pw, buff, 4096, &p_pw ) != 0 )
+            if ((getpwnam_r( ATTR(p_attrs_old, owner ), &pw, buff, 4096, &p_pw ) != 0)
+                 || (p_pw == NULL))
             {
                 DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't resolve uid for user '%s'",
                             ATTR(p_attrs_old, owner ));
@@ -1533,7 +1534,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         {
             struct group gr;
             struct group * p_gr;
-            if ( getgrnam_r( ATTR(p_attrs_old, gr_name ), &gr, buff, 4096, &p_gr ) != 0 )
+            if ((getgrnam_r( ATTR(p_attrs_old, gr_name ), &gr, buff, 4096, &p_gr ) != 0)
+                 || (p_gr == NULL))
             {
                 DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't resolve gid for group '%s'",
                             ATTR(p_attrs_old, gr_name ) );
