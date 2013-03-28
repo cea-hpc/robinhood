@@ -757,18 +757,19 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
     {
         if ( i != p_stripe_items->count - 1 ) {
             if (brief)
-                format = "ost%u,";
+                format = "ost#%u:%u, ";
             else
-                format = "OST #%u, ";
+                format = "ost#%u: %u, ";
         } else {
             if (brief)
-                format = "ost%u";
+                format = "ost#%u:%u";
             else
-                format = "OST #%u";
+                format = "ost#%u: %u";
         }
         written +=
             snprintf( ( char * ) ( buff + written ), sz - written, format,
-                      p_stripe_items->stripe[i].ost_idx );
+                      p_stripe_items->stripe[i].ost_idx,
+                      p_stripe_items->stripe[i].obj_id );
     }
 
     return buff;

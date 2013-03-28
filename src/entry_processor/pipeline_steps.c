@@ -939,6 +939,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
         p_op->db_attr_need |= entry_proc_conf.diff_mask;
+        /* retrieve missing attributes for diff */
+        p_op->fs_attr_need |= (entry_proc_conf.diff_mask & ~p_op->fs_attrs.attr_mask);
 
 #ifdef ATTR_INDEX_creation_time
         if (entry_proc_conf.detect_fake_mtime)
@@ -1589,39 +1591,23 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         else if (p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
         {
             char attrchg[RBH_PATH_MAX];
-            /* if only name changed, just display the 2 lines */
-            if ((p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
-                == ATTR_MASK_fullpath)
-            {
-                printf("-"DFID" %s\n", PFID(&p_op->entry_id),
-                       ATTR(&p_op->db_attrs, fullpath));
-                printf("+"DFID" %s\n", PFID(&p_op->entry_id),
-                       ATTR(&p_op->fs_attrs, fullpath));
-            }
+
+            /* attr from DB */
+            if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                & entry_proc_conf.diff_mask) == 0)
+                attrchg[0] = '\0';
             else
-            {
-                /* attr from DB */
-                if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                    & entry_proc_conf.diff_mask & ~ATTR_MASK_fullpath) == 0)
-                    attrchg[0] = '\0';
-                else
-                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                        p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                        & entry_proc_conf.diff_mask & ~ATTR_MASK_fullpath, 1);
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
+                    p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                    & entry_proc_conf.diff_mask, 1);
 
-                printf("-"DFID" %s%s%s\n", PFID(&p_op->entry_id),
-                    ATTR(&p_op->db_attrs, fullpath),
-                    attrchg[0]?" ":"", attrchg);
+            printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
 
-                /* attr from FS */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
-                    p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask
-                    & ~ATTR_MASK_fullpath, 1);
+            /* attr from FS */
+            PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
+                p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask, 1);
 
-                printf("+"DFID" %s%s%s\n", PFID(&p_op->entry_id),
-                    ATTR_FSorDB(p_op, fullpath),
-                    attrchg[0]?" ":"", attrchg);
-            }
+            printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
         }
     }
     else if (entry_proc_conf.diff_mask)
@@ -1630,13 +1616,15 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             char attrnew[RBH_PATH_MAX];
             PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
-                p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask
-                & ~ATTR_MASK_fullpath, 1);
-            printf("++"DFID" %s %s\n", PFID(&p_op->entry_id), ATTR(&p_op->fs_attrs, fullpath), attrnew);
+                p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask, 1);
+            printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
         }
         else if ((p_op->db_op_type == OP_TYPE_REMOVE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
         {
-            printf("--"DFID" %s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
+            if (ATTR_FSorDB_TEST(p_op, fullpath))
+                printf("--"DFID" path=%s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
+            else
+                printf("--"DFID"\n", PFID(&p_op->entry_id));
         }
     }
 

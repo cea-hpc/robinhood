@@ -1267,7 +1267,7 @@ static inline const char * attrindex2name(unsigned int index)
         case ATTR_INDEX_release_class: return "purge class";
 #endif
         case ATTR_INDEX_stripe_info: return "stripe_cnt, stripe_size,      pool";
-        case ATTR_INDEX_stripe_items: return "ost_idx";
+        case ATTR_INDEX_stripe_items: return "stripes";
     }
     return "?";
 }
