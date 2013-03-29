@@ -1364,7 +1364,7 @@ int main( int argc, char **argv )
             rh_config.entry_proc_config.diff_mask = options.diff_mask;
 
         /* Initialise Pipeline */
-        rc = EntryProcessor_Init( &rh_config.entry_proc_config, options.flags );
+        rc = EntryProcessor_Init(&rh_config.entry_proc_config, STD_PIPELINE, options.flags);
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing EntryProcessor pipeline", rc );

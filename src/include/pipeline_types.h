@@ -57,24 +57,15 @@ static void inline extra_info_init( op_extra_info_t * p_extra_info )
 }
 
 
-/* pipeline stages */
-#define STAGE_GET_FID       0
-#define STAGE_GET_INFO_DB   1
-#define STAGE_GET_INFO_FS   2
-#define STAGE_REPORTING     3
-#define STAGE_DB_APPLY      4
-#ifdef HAVE_CHANGELOGS
-#define STAGE_CHGLOG_CLR      5
-#define STAGE_RM_OLD_ENTRIES  6 /* special stage at the end of FS scan */
-#else
-#define STAGE_RM_OLD_ENTRIES  5 /* special stage at the end of FS scan */
-#endif
+/** pipeline definitions */
+extern pipeline_stage_t  std_pipeline[];
+extern const pipeline_descr_t  std_pipeline_descr;
 
+typedef enum {
+    STD_PIPELINE,
+    DIFF_PIPELINE,
+} pipeline_flavor_e ;
 
-#define PIPELINE_STAGE_COUNT (STAGE_RM_OLD_ENTRIES+1)
-
-/** pipeline definition */
-extern pipeline_stage_t entry_proc_pipeline[PIPELINE_STAGE_COUNT];
 
 
 #endif

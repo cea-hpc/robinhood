@@ -365,7 +365,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
     InitEntryProc_op( &op );
 
     /* first, it will check if it already exists in database */
-    op.pipeline_stage = STAGE_GET_INFO_DB;
+    op.pipeline_stage = entry_proc_descr.GET_INFO_DB;
 
     /* set log record */
     op.extra_info_is_set = TRUE;

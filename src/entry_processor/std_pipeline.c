@@ -36,18 +36,43 @@
 #define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
 
 /* forward declaration of EntryProc functions of pipeline */
-int            EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
-int            EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
-int            EntryProc_get_info_fs( struct entry_proc_op_t *, lmgr_t * );
-int            EntryProc_reporting( struct entry_proc_op_t *, lmgr_t * );
-int            EntryProc_db_apply( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_get_info_fs( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_reporting( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_db_apply( struct entry_proc_op_t *, lmgr_t * );
 #ifdef HAVE_CHANGELOGS
-int            EntryProc_chglog_clr( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_chglog_clr( struct entry_proc_op_t *, lmgr_t * );
 #endif
-int            EntryProc_rm_old_entries( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_rm_old_entries( struct entry_proc_op_t *, lmgr_t * );
+
+/* pipeline stages */
+#define STAGE_GET_FID       0
+#define STAGE_GET_INFO_DB   1
+#define STAGE_GET_INFO_FS   2
+#define STAGE_REPORTING     3
+#define STAGE_DB_APPLY      4
+#ifdef HAVE_CHANGELOGS
+#define STAGE_CHGLOG_CLR      5
+#define STAGE_RM_OLD_ENTRIES  6 /* special stage at the end of FS scan */
+#else
+#define STAGE_RM_OLD_ENTRIES  5 /* special stage at the end of FS scan */
+#endif
+
+#define PIPELINE_STAGE_COUNT (STAGE_RM_OLD_ENTRIES+1)
+
+
+const pipeline_descr_t std_pipeline_descr =
+{
+    .stage_count    = PIPELINE_STAGE_COUNT,
+    .GET_ID         = STAGE_GET_FID,
+    .GET_INFO_DB    = STAGE_GET_INFO_DB,
+    .GET_INFO_FS    = STAGE_GET_INFO_FS,
+    .GC_OLDENT      = STAGE_RM_OLD_ENTRIES,
+};
 
 /** pipeline stages definition */
-pipeline_stage_t entry_proc_pipeline[] = {
+pipeline_stage_t std_pipeline[] = {
     {STAGE_GET_FID, "STAGE_GET_FID", EntryProc_get_fid,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
     {STAGE_GET_INFO_DB, "STAGE_GET_INFO_DB", EntryProc_get_info_db,
@@ -82,6 +107,8 @@ pipeline_stage_t entry_proc_pipeline[] = {
     {STAGE_RM_OLD_ENTRIES, "STAGE_RM_OLD_ENTRIES", EntryProc_rm_old_entries,
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 0}
 };
+
+
 
 #ifdef HAVE_SHOOK
 int shook_special_obj( struct entry_proc_op_t *p_op )

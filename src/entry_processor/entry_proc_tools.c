@@ -346,6 +346,10 @@ int Write_EntryProc_ConfigDefault( FILE * output )
     return 0;
 }
 
+
+
+
+
 #define critical_err_check(_ptr_, _blkname_) do { if (!_ptr_) {\
                                         sprintf( msg_out, "Internal error reading %s block in config file", _blkname_); \
                                         return EFAULT; \
@@ -353,32 +357,79 @@ int Write_EntryProc_ConfigDefault( FILE * output )
                                 } while (0)
 
 
+/** set expected values for the std pipeline
+ * \return the number of variables added to array
+ */
+static int std_pipeline_arg_names(char **list, char *buffer)
+{
+    int i, c;
+    char *curr_buf = buffer;
+    unsigned int w;
+    c = 0;
+    for (i = 0; i < std_pipeline_descr.stage_count; i++)
+    {
+        w = sprintf(curr_buf, "%s_threads_max", std_pipeline[i].stage_name);
+        list[i] = curr_buf;
+        curr_buf += w + 1; /* written bytes + final null char */
+        c++;
+    }
+    return c;
+}
+
+
+static int load_pipeline_config(const pipeline_descr_t * descr, pipeline_stage_t * p,
+                                config_item_t  entryproc_block, char *msg_out)
+{
+    int i, rc, tmpval;
+
+    for (i = 0; i < descr->stage_count; i++)
+    {
+        char           varname[256];
+
+        snprintf( varname, 256, "%s_threads_max", p[i].stage_name );
+
+        rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, varname,
+                          INT_PARAM_POSITIVE, &tmpval, NULL, NULL, msg_out );
+
+        if ( ( rc != 0 ) && ( rc != ENOENT ) )
+            return rc;
+        else if ( ( rc != ENOENT ) && ( tmpval > 0 ) )  /* 0: keep default */
+        {
+            if ( p[i].stage_flags & STAGE_FLAG_MAX_THREADS )
+                p[i].max_thread_count =
+                    MIN2( p[i].max_thread_count, tmpval );
+            else if ( p[i].stage_flags & STAGE_FLAG_PARALLEL )
+            {
+                /* the stage is not parallel anymore, it has a limited number of threads */
+                p[i].stage_flags &= ~STAGE_FLAG_PARALLEL;
+                p[i].stage_flags |= STAGE_FLAG_MAX_THREADS;
+                p[i].max_thread_count = tmpval;
+            }
+            else if ( ( p[i].stage_flags & STAGE_FLAG_SEQUENTIAL )
+                      && ( tmpval != 1 ) )
+            {
+                sprintf( msg_out, "%s is sequential. Cannot use %u threads at this stage.",
+                         p[i].stage_name, tmpval );
+                return EINVAL;
+            }
+        }
+    }
+    return 0;
+}
+
 int Read_EntryProc_Config( config_file_t config, void *module_config,
                            char *msg_out, int for_reload )
 {
     int            rc, blc_index, i;
     int            tmpval;
     entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
+    unsigned int next_idx = 0;
 
-#ifdef ATTR_INDEX_creation_time
-    #define EPC_SHIFT   5
-#else
-    #define EPC_SHIFT   4
-#endif
-
-    char           pipeline_names[PIPELINE_STAGE_COUNT][256];
-    char          *entry_proc_allowed[PIPELINE_STAGE_COUNT + EPC_SHIFT + 1];
-
-
-    entry_proc_allowed[0] = "nb_threads";
-    entry_proc_allowed[1] = "max_pending_operations";
-    entry_proc_allowed[2] = "match_classes";
-    entry_proc_allowed[3] = ALERT_BLOCK;
-#ifdef ATTR_INDEX_creation_time
-    entry_proc_allowed[4] = "detect_fake_mtime";
-#endif
-
-    entry_proc_allowed[PIPELINE_STAGE_COUNT + EPC_SHIFT] = NULL;        /* PIPELINE_STAGE_COUNT+4 = last slot */
+    /* buffer to store arg names */
+    char           *pipeline_names = NULL;
+    /* max size is max pipeline steps (<10) + other args (<6) */
+#define MAX_ENTRYPROC_ARGS 16
+    char           *entry_proc_allowed[MAX_ENTRYPROC_ARGS];
 
     /* get EntryProcessor block */
 
@@ -432,43 +483,13 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
 #endif
 
 
-    /* look for '<stage>_thread_max' parameters */
-    for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
-    {
-        char           varname[256];
+    /* look for '<stage>_thread_max' parameters (for all pipelines) */
+    rc = load_pipeline_config(&std_pipeline_descr, std_pipeline, entryproc_block, msg_out);
+    if (rc)
+        return rc;
 
-        snprintf( varname, 256, "%s_threads_max", entry_proc_pipeline[i].stage_name );
+    // TODO load_pipeline_config(&diff_pipeline_descr, &diff_pipeline);
 
-        strncpy( pipeline_names[i], varname, 256 );
-        entry_proc_allowed[i + EPC_SHIFT] = pipeline_names[i];
-
-        rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, varname,
-                          INT_PARAM_POSITIVE, &tmpval, NULL, NULL, msg_out );
-
-        if ( ( rc != 0 ) && ( rc != ENOENT ) )
-            return rc;
-        else if ( ( rc != ENOENT ) && ( tmpval > 0 ) )  /* 0: keep default */
-        {
-            if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_MAX_THREADS )
-                entry_proc_pipeline[i].max_thread_count =
-                    MIN2( entry_proc_pipeline[i].max_thread_count, tmpval );
-            else if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL )
-            {
-                /* the stage is not parallel anymore, it has a limited number of threads */
-                entry_proc_pipeline[i].stage_flags &= ~STAGE_FLAG_PARALLEL;
-                entry_proc_pipeline[i].stage_flags |= STAGE_FLAG_MAX_THREADS;
-                entry_proc_pipeline[i].max_thread_count = tmpval;
-            }
-            else if ( ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_SEQUENTIAL )
-                      && ( tmpval != 1 ) )
-            {
-                sprintf( msg_out, "%s is sequential. Cannot use %u threads at this stage.",
-                         entry_proc_pipeline[i].stage_name, tmpval );
-                return EINVAL;
-            }
-        }
-
-    }
 
     /* Find and parse "Alert" blocks */
     for ( blc_index = 0; blc_index < rh_config_GetNbItems( entryproc_block ); blc_index++ )
@@ -516,8 +537,34 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
         }
     }                           /* Loop on subblocks */
 
+
+    /* prepare the list of allowed variables to display a warning for others */
+    for (i = 0; i < MAX_ENTRYPROC_ARGS; i++)
+        entry_proc_allowed[i] = NULL;
+
+    entry_proc_allowed[0] = "nb_threads";
+    entry_proc_allowed[1] = "max_pending_operations";
+    entry_proc_allowed[2] = "match_classes";
+    entry_proc_allowed[3] = ALERT_BLOCK;
+#ifdef ATTR_INDEX_creation_time
+    entry_proc_allowed[4] = "detect_fake_mtime";
+    next_idx = 5;
+#else
+    next_idx = 4;
+#endif
+
+    pipeline_names = malloc(16*256); /* max 16 strings of 256 (oversized) */
+    if (!pipeline_names)
+        return ENOMEM;
+
+    /* fill arg list with pipeline step names */
+    next_idx += std_pipeline_arg_names(entry_proc_allowed + next_idx, pipeline_names);
+    //TODO
+    //next_idx += diff_pipeline_arg_names(entry_proc_allowed + next_idx, pipeline_names + XXX?);
+
     CheckUnknownParameters( entryproc_block, ENTRYPROC_CONFIG_BLOCK,
                             ( const char ** ) entry_proc_allowed );
+    free(pipeline_names);
 
     return 0;
 }
@@ -683,13 +730,13 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     print_line( output, 1,
                 "# Optionnaly specify a maximum thread count for each stage of the pipeline:" );
     print_line( output, 1, "# <stagename>_threads_max = <n> (0: use default)" );
-    for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+    for ( i = 0; i < std_pipeline_descr.stage_count; i++ )
     {
-        if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL )
-            print_line( output, 1, "# %s_threads_max\t= 8 ;", entry_proc_pipeline[i].stage_name );
-        else if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_MAX_THREADS )
-            print_line( output, 1, "%s_threads_max\t= %u ;", entry_proc_pipeline[i].stage_name,
-                        entry_proc_pipeline[i].max_thread_count );
+        if ( std_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL )
+            print_line( output, 1, "# %s_threads_max\t= 8 ;", std_pipeline[i].stage_name );
+        else if ( std_pipeline[i].stage_flags & STAGE_FLAG_MAX_THREADS )
+            print_line( output, 1, "%s_threads_max\t= %u ;", std_pipeline[i].stage_name,
+                        std_pipeline[i].max_thread_count );
     }
     fprintf( output, "\n" );
 

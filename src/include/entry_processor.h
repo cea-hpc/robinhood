@@ -95,13 +95,29 @@ typedef struct pipeline_stage_t
 
 } pipeline_stage_t;
 
+/**
+ * This structure indicates pipeline steps index and limits
+ */
+typedef struct pipeline_descr_t
+{
+   unsigned int stage_count;
+   unsigned int GET_ID;
+   unsigned int GET_INFO_DB;
+   unsigned int GET_INFO_FS;
+   unsigned int GC_OLDENT;
+} pipeline_descr_t;
+
+/* pipeline currently in operation */
+extern pipeline_stage_t * entry_proc_pipeline;
+extern pipeline_descr_t   entry_proc_descr;
+
 /* include purpose specific pipeline definitions:
  * These includes MUST define:
  * - pipeline_stage_t entry_proc_pipeline[] array
  * - PIPELINE_STAGE_COUNT
  * - op_extra_info_t type
  */
-#include "pipeline_common.h"
+#include "pipeline_types.h"
 
 /** type of operation to be performed on database */
 typedef enum operation_type_t
@@ -223,7 +239,8 @@ int            Write_EntryProc_ConfigDefault( FILE * output );
 /**
  *  Initialize entry processor pipeline
  */
-int            EntryProcessor_Init( const entry_proc_config_t * p_conf, int flags );
+int EntryProcessor_Init( const entry_proc_config_t * p_conf,
+                         pipeline_flavor_e flavor, int flags );
 
 /**
  * Terminate EntryProcessor

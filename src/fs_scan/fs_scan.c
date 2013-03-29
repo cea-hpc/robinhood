@@ -333,7 +333,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
 
         /* final DB operation: remove entries with md_update < scan_start_time */
         InitEntryProc_op( &op );
-        op.pipeline_stage = STAGE_RM_OLD_ENTRIES;
+        op.pipeline_stage = entry_proc_descr.GC_OLDENT;
 
         /* set callback */
         op.callback_func = db_special_op_callback;
@@ -666,10 +666,9 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         InitEntryProc_op( &op );
 
 #ifdef _HAVE_FID
-        /* no need for parsing */
-        op.pipeline_stage = STAGE_GET_FID;
+        op.pipeline_stage = entry_proc_descr.GET_ID;
 #else
-        op.pipeline_stage = STAGE_GET_INFO_DB;
+        op.pipeline_stage = entry_proc_descr.GET_INFO_DB;
 #endif
         ATTR_MASK_INIT( &op.fs_attrs );
 
@@ -1058,7 +1057,7 @@ static void   *Thr_scan( void *arg_thread )
             op.entry_id_is_set = TRUE;
 
             /* Id already known */
-            op.pipeline_stage = STAGE_GET_INFO_DB;
+            op.pipeline_stage = entry_proc_descr.GET_INFO_DB;
 
             if (p_task->parent_task)
             {

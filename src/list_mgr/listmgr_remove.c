@@ -484,11 +484,19 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         entry_id_t id;
 
         if ( sscanf( field_tab[0], SPK, PTR_PK(pk) ) != 1 )
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: '%s'",
+                        field_tab[0] );
+            rc = DB_INVALID_ARG;
             goto free_res;
+        }
 
         rc = pk2entry_id( p_mgr, pk, &id );
         if (rc)
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: "DPK, pk);
             goto free_res;
+        }
 
 #ifdef HAVE_RM_POLICY
         if ( soft_rm )

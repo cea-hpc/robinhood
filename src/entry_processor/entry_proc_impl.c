@@ -50,7 +50,12 @@ typedef struct __list_by_stage__
 /* Note1: nb_threads + nb_unprocessed_entries + nb_processed_entries = nb entries at a given step */
 /* stages mutex must always be taken from lower stage to upper to avoid deadlocks */
 
-static list_by_stage_t pipeline[PIPELINE_STAGE_COUNT];
+static list_by_stage_t * pipeline = NULL;
+
+/* EXPORTED VARIABLES: current pipeline in operation */
+pipeline_stage_t * entry_proc_pipeline = NULL;
+pipeline_descr_t   entry_proc_descr = {0};
+
 
 static pthread_mutex_t work_avail_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t work_avail_cond = PTHREAD_COND_INITIALIZER;
@@ -144,12 +149,27 @@ static void   *entry_proc_worker_thr( void *arg )
 /**
  *  Initialize entry processor pipeline
  */
-int EntryProcessor_Init( const entry_proc_config_t * p_conf, int flags )
+int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e flavor, int flags )
 {
     int            i;
 
     entry_proc_conf = *p_conf;
     pipeline_flags = flags;
+
+    switch (flavor)
+    {
+        case STD_PIPELINE:
+            entry_proc_pipeline = std_pipeline; /* pointer */
+            entry_proc_descr = std_pipeline_descr; /* full copy */
+            break;
+        default:
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Pipeline flavor not supported");
+            return EINVAL;
+    }
+
+    pipeline = (list_by_stage_t*)MemCalloc(entry_proc_descr.stage_count, sizeof(list_by_stage_t));
+    if (!pipeline)
+        return ENOMEM;
 
     if ( entry_proc_conf.match_file_classes && !is_file_class_defined() )
     {
@@ -170,7 +190,7 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, int flags )
     if ( entry_proc_conf.max_pending_operations > 0 )
         semaphore_init( &pipeline_token, entry_proc_conf.max_pending_operations );
 
-    for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+    for ( i = 0; i < entry_proc_descr.stage_count; i++ )
     {
         pipeline[i].last_in_ptr = NULL;
         pipeline[i].first_in_ptr = NULL;
@@ -356,7 +376,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     unsigned int   insert_stage;
 
     /* nothing to do if we are already at last step */
-    if ( source_stage_index >= PIPELINE_STAGE_COUNT - 1 )
+    if ( source_stage_index >= entry_proc_descr.stage_count - 1 )
         return 0;
 
     if ( lock_src_stage )
@@ -537,7 +557,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
     *p_empty = TRUE;
 
     /* check every stage from the last to the first */
-    for ( i = PIPELINE_STAGE_COUNT - 1; i >= 0; i-- )
+    for ( i = entry_proc_descr.stage_count - 1; i >= 0; i-- )
     {
         /* entries have not been processed at this stage. */
         P( pipeline[i].stage_mutex );
@@ -924,6 +944,9 @@ void EntryProcessor_DumpCurrentStages(  )
     int            is_pending_op = FALSE;
     unsigned int nb_get, nb_ins, nb_upd,nb_rm;
 
+    if (!entry_proc_pipeline)
+        return; /* not initialized */
+
     /* no locks here, because it's just for information */
 
     if ( TestDisplayLevel( LVL_MAJOR ) )
@@ -934,7 +957,7 @@ void EntryProcessor_DumpCurrentStages(  )
 
         id_constraint_dump(  );
 
-        for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+        for ( i = 0; i < entry_proc_descr.stage_count; i++ )
         {
             P( pipeline[i].stage_mutex );
             if ( pipeline[i].total_processed )
@@ -977,7 +1000,7 @@ void EntryProcessor_DumpCurrentStages(  )
         {
             DisplayLog( LVL_EVENT, "STATS", "--- Pipeline stage details ---" );
             /* pipeline stage details */
-            for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+            for ( i = 0; i < entry_proc_descr.stage_count; i++ )
             {
                 P( pipeline[i].stage_mutex );
                 if ( pipeline[i].first_in_ptr )
@@ -1096,7 +1119,7 @@ unsigned int count_nb_ops()
     int i;
     unsigned int total = 0;
 
-    for ( i = 0; i < PIPELINE_STAGE_COUNT; i++ )
+    for ( i = 0; i < entry_proc_descr.stage_count; i++ )
     {
         total +=  pipeline[i].nb_threads
                 + pipeline[i].nb_unprocessed_entries
