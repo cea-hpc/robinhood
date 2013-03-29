@@ -55,6 +55,7 @@ static list_by_stage_t * pipeline = NULL;
 /* EXPORTED VARIABLES: current pipeline in operation */
 pipeline_stage_t * entry_proc_pipeline = NULL;
 pipeline_descr_t   entry_proc_descr = {0};
+const char * entry_proc_db_tag = NULL;
 
 
 static pthread_mutex_t work_avail_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -149,18 +150,24 @@ static void   *entry_proc_worker_thr( void *arg )
 /**
  *  Initialize entry processor pipeline
  */
-int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e flavor, int flags )
+int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e flavor, int flags,
+                         const char * db_tag )
 {
     int            i;
 
     entry_proc_conf = *p_conf;
     pipeline_flags = flags;
+    entry_proc_db_tag = db_tag;
 
     switch (flavor)
     {
         case STD_PIPELINE:
             entry_proc_pipeline = std_pipeline; /* pointer */
             entry_proc_descr = std_pipeline_descr; /* full copy */
+            break;
+        case DIFF_PIPELINE:
+            entry_proc_pipeline = diff_pipeline; /* pointer */
+            entry_proc_descr = diff_pipeline_descr; /* full copy */
             break;
         default:
             DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Pipeline flavor not supported");

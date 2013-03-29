@@ -87,7 +87,6 @@ typedef struct stripe_items_t
 #else
 typedef int stripe_items_t; /* dummy type */
 typedef int stripe_info_t; /* dummy type */
-
 #endif
 
 /* access pattern for fields in database */
@@ -502,6 +501,29 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
 /** @} */
 
 #endif
+
+/**
+ * Create a (persitent) table to tag entries.
+ * \param filter indicate this applies to a restricted set of entries.
+ * \param reset indicate if the table is cleaned in case it already exists.
+ */
+int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
+                      lmgr_filter_t * p_filter, int reset);
+/** destroy a tag */
+int ListMgr_DestroyTag(lmgr_t * p_mgr, const char *tag_name);
+
+/**
+ * Tag an entry (in the set specified by CreateTag filter)
+ */
+int ListMgr_TagEntry(lmgr_t * p_mgr, const char *tag_name, const entry_id_t * p_id);
+/**
+ * Return an iterator on non-tagged entries (in the set specified by CreateTag filter)
+ */
+struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
+                                          const char * tag_name,
+                                          const lmgr_iter_opt_t * p_opt );
+
+
 
 #ifdef _HSM_LITE
 

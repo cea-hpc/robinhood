@@ -1332,17 +1332,27 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
     if ( mask & ATTR_MASK_fullpath )
     {
         if (brief)
-            format = "path=%s,";
+            format = "path='%s',";
         else
             format = "Path:     \"%s\"\n";
         written +=
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, fullpath ) );
     }
+    if ( mask & ATTR_MASK_parent_id )
+    {
+        if (brief)
+            format = "parent="DFID",";
+        else
+            format = "Parent:   "DFID"\n";
+        written +=
+            snprintf( out_str + written, strsize - written, format,
+                      PFID(&ATTR(p_attr_set, parent_id)) );
+    }
     if ( mask & ATTR_MASK_name )
     {
         if (brief)
-            format = "name=%s,";
+            format = "name='%s',";
         else
             format = "Name:     \"%s\"\n";
         written +=
@@ -1430,6 +1440,35 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
                 snprintf( out_str + written, strsize - written, "Last Access: %s ago\n", tmpbuf );
         }
     }
+    if ( mask & ATTR_MASK_last_mod )
+    {
+        if (brief)
+        {
+            written += snprintf( out_str + written, strsize - written, "modif=%u,",
+                    ATTR( p_attr_set, last_mod ));
+        }
+        else
+        {
+            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_mod ) );
+            written += snprintf( out_str + written, strsize - written, "Last Mod: %s ago\n", tmpbuf );
+        }
+    }
+#ifdef ATTR_INDEX_creation_time
+    if ( mask & ATTR_MASK_creation_time )
+    {
+        if (brief)
+        {
+            written += snprintf( out_str + written, strsize - written, "creation=%u,",
+                    ATTR( p_attr_set, creation_time ));
+        }
+        else
+        {
+            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, creation_time ) );
+            written += snprintf( out_str + written, strsize - written, "Creation: %s ago\n", tmpbuf );
+        }
+    }
+#endif
+
 #ifdef ATTR_INDEX_last_copy
     if ( mask & ATTR_MASK_last_copy )
     {
@@ -1445,19 +1484,6 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
         }
     }
 #endif
-    if ( mask & ATTR_MASK_last_mod )
-    {
-        if (brief)
-        {
-            written += snprintf( out_str + written, strsize - written, "modif=%u,",
-                    ATTR( p_attr_set, last_mod ));
-        }
-        else
-        {
-            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_mod ) );
-            written += snprintf( out_str + written, strsize - written, "Last Mod: %s ago\n", tmpbuf );
-        }
-    }
 
 #ifdef _LUSTRE
     if ( mask & ATTR_MASK_stripe_items)
@@ -1512,6 +1538,24 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
                               ATTR( p_attr_set, stripe_info).stripe_count,
                               tmpbuf);
             }
+        }
+    }
+#endif
+
+#ifdef ATTR_INDEX_status
+    if ( mask & ATTR_MASK_status )
+    {
+        if (brief)
+        {
+            written +=
+                snprintf(out_str + written, strsize - written, "status=%s,",
+                         db_status2str(ATTR(p_attr_set, status), 1));
+        }
+        else
+        {
+            written +=
+                snprintf( out_str + written, strsize - written, "Status:  %s\n",
+                         db_status2str(ATTR(p_attr_set, status), 0));
         }
     }
 #endif
@@ -1814,4 +1858,95 @@ char * replace_cmd_parameters(const char * cmd_in)
     return pass_begin;
 }
 
+
+#ifdef ATTR_INDEX_status
+/* ===  status display and conversion routines === */
+
+/* status conversion array */
+struct status_descr
+{
+    file_status_t db_status;
+    char * short_descr;
+}
+status_array[] =
+{
+#ifdef _LUSTRE_HSM
+    { STATUS_UNKNOWN, "n/a" },
+    { STATUS_NEW, "new" },
+    { STATUS_MODIFIED, "modified" },
+    { STATUS_RESTORE_RUNNING, "retrieving" },
+    { STATUS_ARCHIVE_RUNNING, "archiving" },
+    { STATUS_SYNCHRO, "synchro" },
+    { STATUS_RELEASED, "released" },
+    { STATUS_RELEASE_PENDING, "release_pending" },
+
+    /* alternative names */
+    { STATUS_UNKNOWN, "unknown" },
+    { STATUS_MODIFIED, "dirty" },
+    { STATUS_RESTORE_RUNNING, "restoring" },
+
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
+
+#elif defined(_HSM_LITE)
+    { STATUS_UNKNOWN, "n/a" },
+    { STATUS_NEW, "new" },
+    { STATUS_MODIFIED, "modified" },
+    { STATUS_RESTORE_RUNNING, "retrieving" },
+    { STATUS_ARCHIVE_RUNNING, "archiving" },
+    { STATUS_SYNCHRO, "synchro" },
+    { STATUS_RELEASED, "released" },
+    { STATUS_RELEASE_PENDING, "release_pending" },
+    { STATUS_REMOVED, "removed" },
+
+    /* alternative names */
+    { STATUS_UNKNOWN, "unknown" },
+    { STATUS_MODIFIED, "dirty" },
+    { STATUS_RESTORE_RUNNING, "restoring" },
+
+#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
+
+#endif
+    { (file_status_t)-1, NULL }
+};
+
+const char * db_status2str( file_status_t status, int csv )
+{
+    struct status_descr * curr;
+
+    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
+    {
+       if ( status == curr->db_status )
+       {
+           return curr->short_descr;
+       }
+    }
+    /* not found */
+    return "?";
+}
+
+file_status_t status2dbval( char * status_str )
+{
+    struct status_descr * curr;
+    int len;
+
+    if (  (status_str == NULL) || (status_str[0] == '\0') )
+        return (file_status_t)-1;
+
+    len = strlen( status_str );
+
+    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
+    {
+       if ( !strncmp( status_str, curr->short_descr, len ) )
+            return curr->db_status;
+    }
+    /* not found */
+    return (file_status_t)-1;
+}
+
+const char * allowed_status()
+{
+    return ALLOWED_STATUS;
+}
+
+#endif /* status attr exists */
 

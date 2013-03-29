@@ -110,6 +110,7 @@ typedef struct pipeline_descr_t
 /* pipeline currently in operation */
 extern pipeline_stage_t * entry_proc_pipeline;
 extern pipeline_descr_t   entry_proc_descr;
+extern const char * entry_proc_db_tag; /* tag for ListMgr tag operations */
 
 /* include purpose specific pipeline definitions:
  * These includes MUST define:
@@ -240,7 +241,8 @@ int            Write_EntryProc_ConfigDefault( FILE * output );
  *  Initialize entry processor pipeline
  */
 int EntryProcessor_Init( const entry_proc_config_t * p_conf,
-                         pipeline_flavor_e flavor, int flags );
+                         pipeline_flavor_e flavor, int flags,
+                         const char * db_tag );
 
 /**
  * Terminate EntryProcessor

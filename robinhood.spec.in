@@ -285,6 +285,7 @@ fi
 %endif
 %{_sbindir}/%{purpose_bin}*
 %{_sbindir}/*-report
+%{_sbindir}/*-diff
 %{_bindir}/*-du
 %{_bindir}/*-find
 

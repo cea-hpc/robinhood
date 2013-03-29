@@ -1,20 +1,17 @@
-- diff option: list changes since xxx
+- diff src=db
+- test diff scan partial
+- db diff option: list changes since xxx
+- apply
+- bench diff
 
-A integrer au check:
-* stripe detaillé
+To be tested: diff for hardlinks
 * hardlinks
 
-- chgt stripe
-	FormatStripeList
-	ListMgr_KeepDiff
-	lmgr_stripe.c
+- add rbh-report --get=<id>
+- add rbh-find --details
+- refactoring lmgr_init
 
-- ajout rbh-report --get=<id>
-- ajout rbh-find --details
-- remettre a plat lmgr_init
-
-
-- completer TRAC
+- update RAC
 
 Voir pourquoi un update des stripe_info renvoie une duplicate entry error.
 

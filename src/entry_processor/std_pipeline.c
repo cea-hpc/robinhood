@@ -1370,7 +1370,8 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore",
                         path );
-            /* in this case, an UNLINK event will be raised, so we ignore current record */
+            /* changelog: an UNLINK event will be raised, so we ignore current record
+             * scan: entry will be garbage collected at the end of the scan */
             goto skip_record;
         }
         else if ( rc == 0 )

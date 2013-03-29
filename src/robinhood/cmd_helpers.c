@@ -281,114 +281,30 @@ int Path2Id(const char *path, entry_id_t * id)
 #endif
 }
 
-#ifdef ATTR_INDEX_status
-/* ===  status display and conversion routines === */
-
-/* status conversion array */
-struct status_descr
-{
-    file_status_t db_status;
-    char * short_descr;
-}
-status_array[] =
-{
-#ifdef _LUSTRE_HSM
-    { STATUS_UNKNOWN, "n/a" },
-    { STATUS_NEW, "new" },
-    { STATUS_MODIFIED, "modified" },
-    { STATUS_RESTORE_RUNNING, "retrieving" },
-    { STATUS_ARCHIVE_RUNNING, "archiving" },
-    { STATUS_SYNCHRO, "synchro" },
-    { STATUS_RELEASED, "released" },
-    { STATUS_RELEASE_PENDING, "release_pending" },
-
-    /* alternative names */
-    { STATUS_UNKNOWN, "unknown" },
-    { STATUS_MODIFIED, "dirty" },
-    { STATUS_RESTORE_RUNNING, "restoring" },
-
-#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
-
-#elif defined(_HSM_LITE)
-    { STATUS_UNKNOWN, "n/a" },
-    { STATUS_NEW, "new" },
-    { STATUS_MODIFIED, "modified" },
-    { STATUS_RESTORE_RUNNING, "retrieving" },
-    { STATUS_ARCHIVE_RUNNING, "archiving" },
-    { STATUS_SYNCHRO, "synchro" },
-    { STATUS_RELEASED, "released" },
-    { STATUS_RELEASE_PENDING, "release_pending" },
-    { STATUS_REMOVED, "removed" },
-
-    /* alternative names */
-    { STATUS_UNKNOWN, "unknown" },
-    { STATUS_MODIFIED, "dirty" },
-    { STATUS_RESTORE_RUNNING, "restoring" },
-
-#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
-
-#endif
-    { (file_status_t)-1, NULL }
-};
-
-const char * db_status2str( file_status_t status, int csv )
-{
-    struct status_descr * curr;
-
-    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
-    {
-       if ( status == curr->db_status )
-       {
-           return curr->short_descr;
-       }
-    }
-    /* not found */
-    return "?";
-}
-
-file_status_t status2dbval( char * status_str )
-{
-    struct status_descr * curr;
-    int len;
-
-    if (  (status_str == NULL) || (status_str[0] == '\0') )
-        return (file_status_t)-1;
-
-    len = strlen( status_str );
-
-    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
-    {
-       if ( !strncmp( status_str, curr->short_descr, len ) )
-            return curr->db_status;
-    }
-    /* not found */
-    return (file_status_t)-1;
-}
-
-const char * allowed_status()
-{
-    return ALLOWED_STATUS;
-}
-
-#endif /* status attr exists */
-
 
 struct __diffattr {
     int mask;       /* 0 for last */
     char * name;    /* NULL for last */
     int negate;     /* negate the given mask */
 } diffattrs[] = {
-    { ATTR_MASK_fullpath, "path", 0 },
+    { ATTR_MASK_fullpath | ATTR_MASK_parent_id, "path", 0 },
     { POSIX_ATTR_MASK, "posix", 0 },
 #ifdef _LUSTRE
     { ATTR_MASK_stripe_info | ATTR_MASK_stripe_items, "stripe", 0 },
 #endif
-    { ATTR_MASK_fullpath | POSIX_ATTR_MASK
+    { ATTR_MASK_fullpath | POSIX_ATTR_MASK | ATTR_MASK_parent_id
+#ifdef ATTR_INDEX_creation_time
+        | ATTR_MASK_creation_time
+#endif
 #ifdef _LUSTRE
         | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
 #endif
     , "all", 0},
-    { ATTR_MASK_last_mod | ATTR_MASK_last_access, "notimes", 1},
+    { ATTR_MASK_last_mod | ATTR_MASK_last_access
+#ifdef ATTR_INDEX_creation_time
+        | ATTR_MASK_creation_time
+#endif
+, "notimes", 1},
     { ATTR_MASK_last_access, "noatime", 1},
 
     { 0, NULL, 0 }

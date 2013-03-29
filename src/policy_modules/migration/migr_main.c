@@ -399,8 +399,6 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
  */
 int MigrateSingle( migration_config_t * p_config, const char * file, int flags )
 {
-    int            rc;
-
     fsdev = get_fsdev();
 
     /* store configuration */

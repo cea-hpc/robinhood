@@ -28,12 +28,6 @@
 #define APPEND_TXT( _n, _str ) do { strcpy( _n, _str );  _n = _n + strlen( _n ); } while (0)
 #define INCR_NEXT( _n ) do { _n = _n + strlen( _n ); } while (0)
 
-#ifdef FID_PK
-#   define PK_TYPE   "VARCHAR(" TOSTRING(FID_LEN) ")"
-#else
-#   define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
-#endif
-
 static inline int append_field_def( int i, char *next, int is_first, db_type_u *default_value )
 {
     switch ( field_infos[i].db_type )

@@ -128,6 +128,9 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     result_handle_t result;
     int checkmain = 1;
 
+    if (p_info == NULL)
+        return 0;
+
     /* init entry info */
     memset( &p_info->attr_values, 0, sizeof( entry_info_t ) );
     fieldlist[0] = '\0';

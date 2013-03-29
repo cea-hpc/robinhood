@@ -327,7 +327,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                 if ( filter_annex > 0 )
                     curr_fields += sprintf( curr_fields, "%s", filter_str_annex );
 
-                if ( ( filter_main > 0 ) || ( do_sort && ( sort_table == T_MAIN ) ) )
+                if (first_table != NULL)
                 {
                     *curr_tables = ',';
                     curr_tables++;
@@ -347,9 +347,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                 if ( filter_stripe_items > 0 )
                     curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_items );
 
-                if ( ( filter_main > 0 )
-                     || ( do_sort && ( sort_table == T_MAIN ) )
-                     || ( filter_annex > 0 ) || ( do_sort && ( sort_table == T_ANNEX ) ) )
+                if (first_table != NULL)
                 {
                     *curr_tables = ',';
                     curr_tables++;
@@ -375,11 +373,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                 if ( filter_stripe_info > 0 )
                     curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_info );
 
-                if ( ( filter_main > 0 )
-                     || ( do_sort && ( sort_table == T_MAIN ) )
-                     || ( filter_annex > 0 ) || ( do_sort && ( sort_table == T_ANNEX ) )
-                     || ( filter_stripe_items > 0 ) || ( do_sort
-                                                         && ( sort_table == T_STRIPE_ITEMS ) ) )
+                if (first_table != NULL)
                 {
                     *curr_tables = ',';
                     curr_tables++;

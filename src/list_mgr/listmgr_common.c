@@ -1131,8 +1131,17 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
                     int i;
                     for (i = 0; i < ATTR(p_tgt, stripe_items).count; i++)
                     {
-                        if (ATTR(p_tgt,stripe_items).stripe[i].ost_idx !=
-                            ATTR(p_src,stripe_items).stripe[i].ost_idx)
+                        if ((ATTR(p_tgt,stripe_items).stripe[i].ost_idx !=
+                             ATTR(p_src,stripe_items).stripe[i].ost_idx)
+                            ||
+                            (ATTR(p_tgt,stripe_items).stripe[i].ost_gen !=
+                             ATTR(p_src,stripe_items).stripe[i].ost_gen)
+                            ||
+                            (ATTR(p_tgt,stripe_items).stripe[i].obj_id !=
+                             ATTR(p_src,stripe_items).stripe[i].obj_id)
+                            ||
+                            (ATTR(p_tgt,stripe_items).stripe[i].obj_seq !=
+                             ATTR(p_src,stripe_items).stripe[i].obj_seq))
                         {
                             is_diff = 1;
                             break;

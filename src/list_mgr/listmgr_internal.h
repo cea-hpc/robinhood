@@ -36,6 +36,7 @@
 #define DPK      "'%s'"
 #define SPK      "%s"
 #define VALID( _p ) ((_p)->validator)
+#define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
 
 #else
 #define FID_LEN 128
@@ -49,6 +50,7 @@
 #define DPK      "'%s'"
 #define SPK      "%s"
 #define VALID( _p ) (0)
+#define PK_TYPE   "VARCHAR(" TOSTRING(FID_LEN) ")"
 
 #endif
 

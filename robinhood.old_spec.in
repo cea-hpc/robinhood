@@ -290,6 +290,7 @@ fi
 %{_sbindir}/rbh-config
 %{_sbindir}/@PURPOSE_BIN@*
 %{_sbindir}/*-report
+%{_sbindir}/*-diff
 %if %{with backup}
 %{_sbindir}/rbhext_*
 %endif

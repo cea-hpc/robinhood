@@ -61,6 +61,9 @@ static void inline extra_info_init( op_extra_info_t * p_extra_info )
 extern pipeline_stage_t  std_pipeline[];
 extern const pipeline_descr_t  std_pipeline_descr;
 
+extern pipeline_stage_t  diff_pipeline[];
+extern const pipeline_descr_t  diff_pipeline_descr;
+
 typedef enum {
     STD_PIPELINE,
     DIFF_PIPELINE,

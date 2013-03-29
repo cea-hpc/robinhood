@@ -332,5 +332,11 @@ int execute_shell_command( const char * cmd, int argc, ... );
  */
 char * replace_cmd_parameters(const char * cmd_in);
 
+#ifdef ATTR_INDEX_status
+/** status conversion functions */
+const char * db_status2str( file_status_t status, int csv );
+file_status_t status2dbval( char * status_str );
+const char * allowed_status();
+#endif
 
 #endif
