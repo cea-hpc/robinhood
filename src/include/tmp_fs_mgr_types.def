@@ -121,7 +121,7 @@ avgsize, 	    uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 stripe_info, 	stripe_info_t, DB_STRIPE_INFO, 0, INIT_ONLY
 stripe_items, stripe_items_t, DB_STRIPE_ITEMS, 0, INIT_ONLY
 name,		char, DB_TEXT, RBH_NAME_MAX, FREQ_ACCESS | DNAMES
-hname,      char, DB_TEXT, 40, DNAMES
+hname,      char, DB_TEXT, 41, DNAMES
 owner, 	char, DB_TEXT, 128, FREQ_ACCESS
 gr_name, 	char, DB_TEXT, 128, FREQ_ACCESS
 size, 	uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
