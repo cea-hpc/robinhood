@@ -571,23 +571,14 @@ void * chglog_reader_thr( void *  arg )
                 process_log_rec( info, p_rec, 0 );
                 process_log_rec( info, p_rec2, 0 );
             }
-            else if (FID_IS_ZERO(&p_rec2->cr_tfid))
-            {
-                /* rename record without removing a target.
-                 * translate this record to a CL_EXT with tfid = the renamed object
-                 */
-                p_rec2->cr_tfid = p_rec->cr_tfid;
-
-                DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                           "Standard rename: object="DFID", name=%.*s",
-                            PFID(&p_rec2->cr_tfid), p_rec2->cr_namelen,
-                            p_rec2->cr_name );
-                process_log_rec(info, p_rec2, 0);
-                /* 1st p_rec can be freed */
-                llapi_changelog_free( &p_rec );
-            }
             else
             {
+                /* The target FID is 0 in the 2nd record, so set it
+                 * right. If not, may be we should ensure that
+                 * p_rec2->cr_tfid == p_rec->cr_tfid. */
+                if (FID_IS_ZERO(&p_rec2->cr_tfid))
+                    p_rec2->cr_tfid = p_rec->cr_tfid;
+
                 /* rename that removes a target entry.
                  * push CL_UNLINK (as p_rec) + CL_EXT (as p_rec2) */
                 lustre_fid rename_fid = p_rec->cr_tfid; /* the renamed object */
