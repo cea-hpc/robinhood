@@ -446,7 +446,8 @@ typedef void    ( *rm_cb_func_t ) (const entry_id_t *);
 /**
  * Removes a name from the database. Remove the entry if last is TRUE. 
  */
-int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id, int last );
+int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
+                               const attr_set_t * p_attr_set, int last );
 
 /**
  * Removes all entries that match the specified filter.

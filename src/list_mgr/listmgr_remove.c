@@ -28,13 +28,19 @@
 #include <pthread.h>
 
 
-static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id, int last )
+static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id, 
+                                          const attr_set_t * p_attr_set, int last )
 {
     char           request[4096];
     int            rc;
     DEF_PK(pk);
+    DEF_PK(ppk);
 
     rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
+    if (rc)
+        return rc;
+
+    rc = entry_id2pk( p_mgr, &ATTR( p_attr_set, parent_id ), FALSE, PTR_PK(ppk) );
     if (rc)
         return rc;
 
@@ -42,6 +48,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     {
         /* stripes are only managed for Lustre filesystems */
     #ifdef _LUSTRE
+
         /* First remove stripe info */
         sprintf( request, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
         rc = db_exec_sql( &p_mgr->conn, request, NULL );
@@ -52,6 +59,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
         rc = db_exec_sql( &p_mgr->conn, request, NULL );
         if ( rc )
             return rc;
+
     #endif
 
         /* then remove in other tables */
@@ -69,7 +77,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
         }
     }
 
-    sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE id="DPK, pk );
+    sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE parent_id="DPK" AND hname=sha1('%s') AND id="DPK, ppk, ATTR( p_attr_set, name ), pk );
     rc = db_exec_sql( &p_mgr->conn, request, NULL );
     if ( rc )
         return rc;
@@ -78,7 +86,8 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
 }
 
 
-int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id, int last )
+int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
+                    const attr_set_t * p_attr_set, int last )
 {
     int rc;
 
@@ -87,7 +96,7 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id, int last )
     if ( rc )
         return rc;
 
-    rc = listmgr_remove_no_transaction( p_mgr, p_id, last );
+    rc = listmgr_remove_no_transaction( p_mgr, p_id, p_attr_set, last );
     if (rc)
     {
         lmgr_rollback( p_mgr );

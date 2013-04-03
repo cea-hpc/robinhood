@@ -548,7 +548,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
     {
         /* in any case, update the path because the stored path
          * may be the removed one. */
-        p_op->fs_attr_need |= ATTR_MASK_fullpath;
+        p_op->fs_attr_need |= ATTR_MASK_fullpath | ATTR_MASK_name;
     }
     else if ( CL_MOD_TIME(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) ||
               (logrec->cr_type == CL_CLOSE))
@@ -705,6 +705,12 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                     p_op->db_exists?"known":"unknown", PFID(&p_op->entry_id),
                     bool2str( logrec->cr_flags & CLF_UNLINK_LAST ) );
 #endif
+
+        /* Retrieve the name now, since we'll skip info retrieval
+         * later. */
+        p_op->fs_attr_need |= ATTR_MASK_name;
+        ATTR_MASK_SET( &p_op->fs_attrs, name );
+        strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
 
         /* it it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
@@ -1817,13 +1823,13 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #ifdef _HAVE_FID
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
 #endif
-        rc = ListMgr_Remove( lmgr, &p_op->entry_id, FALSE );
+        rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, FALSE );
         break;
     case OP_TYPE_REMOVE_LAST:
 #ifdef _HAVE_FID
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
 #endif
-        rc = ListMgr_Remove( lmgr, &p_op->entry_id, TRUE );
+        rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
         break;
     case OP_TYPE_SOFT_REMOVE:
 #ifdef _HSM_LITE
