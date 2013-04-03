@@ -72,46 +72,6 @@ struct obd_statfs {
 };
 #endif
 
-#ifndef HAVE_LUSTRE_JOIN_TYPE 
-
-/* @todo  clean management of these types: lov_user_ost_data_join et obd_statfs */
-
-struct lov_user_ost_data_join
-{                                                /* per-stripe data structure */
-    __u64          l_extent_start;               /* extent start */
-    __u64          l_extent_end;                 /* extent end */
-    __u64          l_object_id;                  /* OST object ID */
-    __u64          l_object_gr;                  /* OST object group (creating MDS number) */
-    __u32          l_ost_gen;                    /* generation of this OST index */
-    __u32          l_ost_idx;                    /* OST index in LOV */
-} __attribute__ ( ( packed ) );
-
-/* Identifier for a single log object */
-struct llog_logid
-{
-    __u64          lgl_oid;
-    __u64          lgl_ogr;
-    __u32          lgl_ogen;
-} __attribute__ ( ( packed ) );
-
-struct lov_user_md_join
-{                                                /* LOV EA user data (host-endian) */
-    __u32          lmm_magic;                    /* magic number = LOV_MAGIC_JOIN */
-    __u32          lmm_pattern;                  /* LOV_PATTERN_RAID0, LOV_PATTERN_RAID1 */
-    __u64          lmm_object_id;                /* LOV object ID */
-    __u64          lmm_object_gr;                /* LOV object group */
-    __u32          lmm_stripe_size;              /* size of stripe in bytes */
-    __u32          lmm_stripe_count;             /* num stripes in use for this object */
-    __u32          lmm_extent_count;             /* extent count of lmm */
-    __u64          lmm_tree_id;                  /* mds tree object id */
-    __u64          lmm_tree_gen;                 /* mds tree object gen */
-    struct llog_logid lmm_array_id;              /* mds extent desc llog object id */
-    struct lov_user_ost_data_join lmm_objects[0];       /* per-stripe data */
-} __attribute__ ( ( packed ) );
-
-#endif
-
-
 #ifdef HAVE_CHANGELOG_EXTEND_REC
     #define CL_REC_TYPE struct changelog_ext_rec
 #else

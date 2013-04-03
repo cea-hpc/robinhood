@@ -51,10 +51,6 @@ int Lustre_Init(  )
 int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                           stripe_items_t * p_stripe_items )
 {
-    /* buffer used for llapi_get_stripe.
-     * oversize it to 4kB because there can be many stripe entries
-     * in the case of join'ed files.
-     */
     int            rc;
     char           lum_buffer[4096];
     struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;

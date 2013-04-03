@@ -11,7 +11,7 @@ To be tested: diff for hardlinks
 - add rbh-find --details
 - refactoring lmgr_init
 
-- update RAC
+- update TRAC
 
 Voir pourquoi un update des stripe_info renvoie une duplicate entry error.
 
