@@ -121,7 +121,8 @@ last_archive,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
 last_restore,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
 md_update,          unsigned int, DB_UINT, 0, FREQ_ACCESS
 
-# used for accounting
+type,           char,   DB_TEXT, 32,         FREQ_ACCESS
+mode,           unsigned short, DB_USHORT, 0, FREQ_ACCESS
 size,        	uint64_t,	DB_BIGUINT, 0, FREQ_ACCESS  
 blocks, 	    uint64_t,   DB_BIGUINT, 0, FREQ_ACCESS
 owner, 			char, 		DB_TEXT,   128, FREQ_ACCESS
@@ -132,7 +133,6 @@ fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
 path_update,    unsigned int, DB_UINT, 0,    ANNEX_INFO
 
 # generated fields
-type,           char,   DB_TEXT, 32,         FREQ_ACCESS
 name,			char,		DB_TEXT,   RBH_NAME_MAX,  GENERATED, fullpath, lmgr_gen_name
 depth, 	        unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
 

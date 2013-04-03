@@ -55,9 +55,6 @@ AC_CHECK_SIZEOF([pthread_t])
 
 AX_ENABLE_FLAG([strict], [Compile with -Wall -Werror], [-Wall -Werror])
 
-# Flag for Lustre 1.4 with join() support
-AX_ENABLE_FLAG([lustre14_bull], [Bull distribution of Lustre 1.4], [-DHAVE_LUSTRE_JOIN_TYPE])
-
 # debug flags
 AX_ENABLE_FLAG([debug-db], [enables debug traces for database operations], [-D_DEBUG_DB])
 AX_ENABLE_FLAG([debug-parsing], [enables debug traces for configuration file parsing], [-D_DEBUG_PARSING])

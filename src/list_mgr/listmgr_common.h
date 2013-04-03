@@ -32,6 +32,12 @@
                       case DB_UINT:                         \
                         _u.val_uint = *((unsigned int*)(_address));   \
                         break;                              \
+                      case DB_SHORT:                        \
+                        _u.val_short = *((short*)(_address));   \
+                        break;                              \
+                      case DB_USHORT:                         \
+                        _u.val_ushort = *((unsigned short*)(_address));  \
+                        break;                              \
                       case DB_BIGINT:                       \
                         _u.val_bigint = *((long long*)(_address));   \
                         break;                              \
@@ -60,6 +66,12 @@
                         break;                              \
                       case DB_UINT:                         \
                         *((unsigned int*)(_address)) = _u.val_uint;   \
+                        break;                              \
+                      case DB_SHORT:                          \
+                        *((short*)(_address)) =  _u.val_short ;   \
+                        break;                              \
+                      case DB_USHORT:                       \
+                        *((unsigned short*)(_address)) = _u.val_ushort;   \
                         break;                              \
                       case DB_BIGINT:                       \
                         *((long long*)(_address)) = _u.val_bigint ;   \
@@ -99,6 +111,16 @@
                         _u1.val_uint = *((unsigned int*)(_address1)); \
                         _u2.val_uint = *((unsigned int*)(_address2)); \
                         _diff = (_u1.val_uint != _u2.val_uint); \
+                        break;                              \
+                      case DB_SHORT:                          \
+                        _u1.val_short = *((short*)(_address1));   \
+                        _u2.val_short = *((short*)(_address2));   \
+                        _diff = (_u1.val_short != _u2.val_short); \
+                        break;                               \
+                      case DB_USHORT:                        \
+                        _u1.val_ushort = *((unsigned short*)(_address1)); \
+                        _u2.val_ushort = *((unsigned short*)(_address2)); \
+                        _diff = (_u1.val_ushort != _u2.val_ushort); \
                         break;                              \
                       case DB_BIGINT:                       \
                         _u1.val_bigint = *((long long*)(_address1));   \

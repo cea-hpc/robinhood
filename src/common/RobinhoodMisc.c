@@ -478,6 +478,10 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
     ATTR_MASK_SET( p_attr_set, nlink );
     ATTR( p_attr_set, nlink ) = p_inode->st_nlink;
 #endif
+#ifdef ATTR_INDEX_mode
+    ATTR_MASK_SET( p_attr_set, mode );
+    ATTR( p_attr_set, mode ) = p_inode->st_mode & 07777 ; /*  mode + sticky bits */
+#endif
 }
 
 #ifndef HAVE_GETMNTENT_R
@@ -1315,6 +1319,45 @@ convert:
      return mktime(&datetime);
 }
 
+#define TYPEINDEX(mode) (((mode) >> 12) & 0x0f)
+#define TYPECHAR(mode)  ("0pcCd?bB-?l?s???" [TYPEINDEX(mode)])
+
+/* The special bits. If set, display SMODE0/1 instead of MODE0/1 */
+static const mode_t SBIT[] = {
+    0, 0, S_ISUID,
+    0, 0, S_ISGID,
+    0, 0, S_ISVTX
+};
+
+/* The 9 mode bits to test */
+static const mode_t MBIT[] = {
+    S_IRUSR, S_IWUSR, S_IXUSR,
+    S_IRGRP, S_IWGRP, S_IXGRP,
+    S_IROTH, S_IWOTH, S_IXOTH
+};
+
+static const char MODE1[]  = "rwxrwxrwx";
+static const char MODE0[]  = "---------";
+static const char SMODE1[] = "..s..s..t";
+static const char SMODE0[] = "..S..S..T";
+
+/*
+ * Return the standard ls-like mode string from a file mode.
+ * This is static and so is overwritten on each call.
+ */
+const char *mode_string(mode_t mode, char *buf)
+{
+    int i;
+
+    for (i = 0; i < 9; i++) {
+        if (mode & SBIT[i])
+            buf[i] = (mode & MBIT[i]) ? SMODE1[i] : SMODE0[i];
+        else
+            buf[i] = (mode & MBIT[i]) ? MODE1[i] : MODE0[i];
+    }
+    return buf;
+}
+
 
 /**
  *  Print attributes to a string
@@ -1371,6 +1414,19 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
                       ATTR( p_attr_set, type ) );
     }
 #endif
+#ifdef ATTR_INDEX_type
+    if ( mask & ATTR_MASK_mode )
+    {
+        if (brief)
+            format = "mode=%#o,";
+        else
+            format = "Mode:     %#o\n";
+        written +=
+            snprintf( out_str + written, strsize - written, format,
+                      ATTR( p_attr_set, mode ) );
+    }
+#endif
+
     if ( mask & ATTR_MASK_owner )
     {
         if (brief)

@@ -106,6 +106,8 @@ typedef enum
     DB_TEXT,    /**< string/text        */
     DB_INT,     /**< signed integer     */
     DB_UINT,    /**< unsigned integer   */
+    DB_SHORT,   /**< short integer     */
+    DB_USHORT,  /**< short unsigned integer   */
     DB_BIGINT,  /**< 64 bits integer    */
     DB_BIGUINT, /**< 64 bits unsigned integer */
     DB_BOOL     /**< boolean            */
@@ -164,6 +166,8 @@ typedef union
     const char    *val_str;
     int            val_int;
     unsigned int   val_uint;
+    short          val_short;
+    unsigned short val_ushort;
     long long      val_bigint;
     unsigned long long val_biguint;
     int            val_bool;

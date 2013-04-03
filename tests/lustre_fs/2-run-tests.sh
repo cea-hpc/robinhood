@@ -29,6 +29,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	REPORT=$RBH_BINDIR/rbh-hsm-report
 	FIND=$RBH_BINDIR/rbh-hsm-find
 	DU=$RBH_BINDIR/rbh-hsm-du
+        DIFF=$RBH_BINDIR/rbh-hsm-diff
 	CMD=rbh-hsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
@@ -41,6 +42,7 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-find
 	DU=$RBH_BINDIR/rbh-du
+        DIFF=$RBH_BINDIR/rbh-diff
 	CMD=robinhood
 	REL_STR="Purged"
 elif [[ $PURPOSE = "BACKUP" ]]; then
@@ -54,6 +56,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	IMPORT="$RBH_BINDIR/rbh-backup-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-backup-find
 	DU=$RBH_BINDIR/rbh-backup-du
+        DIFF=$RBH_BINDIR/rbh-backup-diff
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
@@ -71,6 +74,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	IMPORT="$RBH_BINDIR/rbh-shook-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-shook-find
 	DU=$RBH_BINDIR/rbh-shook-du
+        DIFF=$RBH_BINDIR/rbh-shook-diff
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
@@ -283,6 +287,19 @@ function create_pools
 function check_db_error
 {
         grep DB_REQUEST_FAILED $1 && error "DB request error"
+}
+
+function get_id
+{
+    p=$1
+    # is it lustre v2?
+    has_fid=0
+    lfs help | grep path2fid > /dev/null && has_fid=1
+    if [ $has_fid -eq 1 ]; then
+        lfs path2fid $p | tr -d '[]'
+    else
+         stat -c "/%i" $p
+    fi
 }
 
 function migration_test
@@ -2959,6 +2976,82 @@ function test_enoent
 
 	# kill event handler
 	pkill -9 $PROC
+}
+
+function test_diff
+{
+	config_file=$1
+	flavor=$2
+	policy_str="$3"
+
+	clean_logs
+
+    # flavors:
+    # scan + diff option (various)
+    # diff (various), no apply
+    # diff (various) + apply to DB
+
+    # populate filesystem
+    mkdir $ROOT/dir.1 || error "mkdir"
+    chmod 0750 $ROOT/dir.1 || error "chmod"
+    mkdir $ROOT/dir.2 || error "mkdir"
+    mkdir $ROOT/dir.3 || error "mkdir"
+    touch $ROOT/dir.1/a $ROOT/dir.1/b $ROOT/dir.1/c || error "touch"
+    touch $ROOT/dir.2/d $ROOT/dir.2/e $ROOT/dir.2/f || error "touch"
+    touch $ROOT/file || error "touch"
+
+    # initial scan
+    echo "1-Initial scan..."
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+
+    # new entry (file & dir)
+    touch $ROOT/dir.1/file.new || error "touch"
+    mkdir $ROOT/dir.new	       || error "mkdir"
+
+    # rm'd entry (file & dir)
+    rm -f $ROOT/dir.1/b	|| error "rm"
+    rmdir $ROOT/dir.3	|| error "rmdir"
+    
+    # apply various changes
+    chmod 0700 $ROOT/dir.1 		|| error "chmod"
+    chown testuser $ROOT/dir.2		|| error "chown"
+    chgrp testgroup $ROOT/dir.1/a	|| error "chgrp"
+    echo "zqhjkqshdjkqshdjh" >>  $ROOT/dir.1/c || error "append"
+    mv $ROOT/dir.2/d  $ROOT/dir.1/d     || error "mv"
+    mv $ROOT/file $ROOT/fname           || error "rename"
+
+    # is swap layout feature available?
+    has_swap=0
+    lfs help | grep swap_layout > /dev/null && has_swap=1
+    # if so invert stripe for e and f
+    if [ $has_swap -eq 1 ]; then
+	lfs swap_layouts $ROOT/dir.2/e  $ROOT/dir.2/f || error "lfs swap_layouts"
+    fi
+
+    echo "2-diff..."
+    $DIFF -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+
+    [ "$DEBUG" = "1" ] && cat report.out
+
+    # must get:
+    # new entries dir.1/file.new and dir.new
+    egrep '^++' report.out | grep dir.1/file.new | grep type=file || error "missing create dir.1/file.new"
+    egrep '^++' report.out | grep dir.new | grep type=dir || error "missing create dir.new"
+    # rmd entries dir.1/b and dir.3
+    nbrm=$(egrep '^--' report.out | wc -l)
+    [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
+    # changes
+    grep "^+\["$(get_id "$ROOT/dir.1") report.out  | grep mode= || error "missing chmod $ROOT/dir.1"
+    grep "^+\["$(get_id "$ROOT/dir.2") report.out | grep owner=testuser || error "missing chown $ROOT/dir.2"
+    grep "^+\["$(get_id "$ROOT/dir.1/a") report.out  | grep group=testgroup || error "missing chgrp $ROOT/dir.1/a"
+    grep "^+\["$(get_id "$ROOT/dir.1/c") report.out | grep size= || error "missing size change $ROOT/dir.1/c"
+    grep "^+\["$(get_id "$ROOT/dir.1/d") report.out | grep path= || error "missing path change $ROOT/dir.1/d"
+    grep "^+\["$(get_id "$ROOT/fname") report.out | grep path= || error "missing path change $ROOT/fname"
+    if [ $has_swap -eq 1 ]; then
+        grep "^+\["$(get_id "$ROOT/dir.2/e") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/e"
+        grep "^+\["$(get_id "$ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/f"
+    fi
+
 }
 
 function test_pools
@@ -6652,6 +6745,7 @@ run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creat
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 run_test 104     test_size_updt common.conf 1 "test size update"
 run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/unlink"
+run_test 106     test_diff info_collect2.conf "rbh-diff"
 
 #### policy matching tests  ####
 

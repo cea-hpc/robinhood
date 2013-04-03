@@ -68,6 +68,20 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
         else
             return sprintf( next, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
         break;
+    case DB_SHORT:
+        if ( default_value )
+            return sprintf( next, "%s %s SMALLINT DEFAULT %hd", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_short );
+        else
+            return sprintf( next, "%s %s SMALLINT", is_first ? "" : ",", field_infos[i].field_name );
+        break;
+    case DB_USHORT:
+        if ( default_value )
+            return sprintf( next, "%s %s SMALLINT UNSIGNED DEFAULT %hu", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_ushort );
+        else
+            return sprintf( next, "%s %s SMALLINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+        break;
     case DB_BIGINT:
         if ( default_value )
             return sprintf( next, "%s %s BIGINT DEFAULT %lld", is_first ? "" : ",", field_infos[i].field_name,

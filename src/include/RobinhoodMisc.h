@@ -285,7 +285,10 @@ uint64_t str2size( char *str );
 
 
 /** parse date/time yyyymmdd[HH[MM[SS]]] */
-time_t str2date( char *str ); 
+time_t str2date( char *str );
+
+/** convert mode to rwxrwxrwx string */
+const char *mode_string(mode_t mode, char *buf);
 
 /**
  *  Print attributes to a string

@@ -151,10 +151,10 @@ struct find_opt
 };
 
 #ifdef ATTR_INDEX_status
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_status)
 #else
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod)
 #endif
 static int disp_mask = ATTR_MASK_fullpath | ATTR_MASK_type;
@@ -673,6 +673,7 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
     {
         const char * type;
         char date_str[128];
+        char mode_str[128];
 #ifdef ATTR_INDEX_status
         const char * status_str = "";
 
@@ -692,10 +693,8 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
         else
             type = type2char(ATTR(attrs, type));
 
-        if (!ATTR_MASK_TEST(attrs, type))
-            type = "?";
-        else
-            type = type2char(ATTR(attrs, type));
+        memset(mode_str, 0, sizeof(mode_str));
+        mode_string(ATTR(attrs, mode), mode_str);
 
         if (!ATTR_MASK_TEST(attrs, last_mod))
             strcpy(date_str, "");
@@ -708,8 +707,8 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
         }
 
         /* display all: id, type, owner, group, size, mtime, path */
-        printf(DFID" %-4s "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
-               PFID(id), type STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
+        printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
+               PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
                ATTR(attrs, size), date_str, ATTR(attrs, fullpath));
     }
 }

@@ -42,6 +42,10 @@ int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * va
         return sprintf( str, "%d", value_ptr->val_int );
     case DB_UINT:
         return sprintf( str, "%u", value_ptr->val_uint );
+    case DB_SHORT:
+        return sprintf( str, "%hd", value_ptr->val_short );
+    case DB_USHORT:
+        return sprintf( str, "%hu", value_ptr->val_ushort );
     case DB_BIGINT:
         return sprintf( str, "%lld", value_ptr->val_bigint );
     case DB_BIGUINT:
@@ -77,13 +81,14 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
         return sscanf( str_in, "%d", &value_out->val_int );
     case DB_UINT:
         return sscanf( str_in, "%u", &value_out->val_uint );
-        break;
+    case DB_SHORT:
+        return sscanf( str_in, "%hd", &value_out->val_short );
+    case DB_USHORT:
+        return sscanf( str_in, "%hu", &value_out->val_ushort );
     case DB_BIGINT:
         return sscanf( str_in, "%lld", &value_out->val_bigint );
-        break;
     case DB_BIGUINT:
         return sscanf( str_in, "%llu", &value_out->val_biguint );
-        break;
     case DB_BOOL:
         return sscanf( str_in, "%d", &value_out->val_bool );
     default:
