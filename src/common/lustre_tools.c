@@ -110,7 +110,11 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                     p_stripe_items->stripe[i].ost_idx = p_lum->lmm_objects[i].l_ost_idx;
                     p_stripe_items->stripe[i].ost_gen = p_lum->lmm_objects[i].l_ost_gen;
                     p_stripe_items->stripe[i].obj_id = p_lum->lmm_objects[i].l_object_id;
+#ifdef HAVE_OBJ_SEQ
                     p_stripe_items->stripe[i].obj_seq = p_lum->lmm_objects[i].l_object_seq;
+#else
+                    p_stripe_items->stripe[i].obj_seq = p_lum->lmm_objects[i].l_object_gr;
+#endif
                 }
             }
             else
@@ -151,7 +155,11 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                     p_stripe_items->stripe[i].ost_idx = p_lum3->lmm_objects[i].l_ost_idx;
                     p_stripe_items->stripe[i].ost_gen = p_lum3->lmm_objects[i].l_ost_gen;
                     p_stripe_items->stripe[i].obj_id = p_lum3->lmm_objects[i].l_object_id;
+#ifdef HAVE_OBJ_SEQ
                     p_stripe_items->stripe[i].obj_seq = p_lum3->lmm_objects[i].l_object_seq;
+#else
+                    p_stripe_items->stripe[i].obj_seq = p_lum3->lmm_objects[i].l_object_gr;
+#endif
                 }
             }
             else
