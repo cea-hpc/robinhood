@@ -20,6 +20,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-find
 	DU=$RBH_BINDIR/rbh-du
+    DIFF=$RBH_BINDIR/rbh-diff
 	CMD=robinhood
 	PURPOSE="TMP_FS_MGR"
 	REL_STR="Purged"
@@ -30,6 +31,7 @@ elif [[ $PURPOSE = "HSM_LITE" ]]; then
 	REPORT="$RBH_BINDIR/rbh-hsmlite-report $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-hsmlite-find
 	DU=$RBH_BINDIR/rbh-hsmlite-du
+    DIFF=$RBH_BINDIR/rbh-hsmlite-diff
 	CMD=rbh-hsmlite
 fi
 
@@ -113,6 +115,11 @@ function clean_fs
 #	$RH -f ./cfg/immediate_rm.conf --scan --hsm-remove -l DEBUG -L rh_rm.log --once || error "deferred rm"
 	echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db $DB > /dev/null
+}
+
+function get_id
+{
+    stat -c "/%i" $1
 }
 
 function check_db_error
@@ -1593,6 +1600,68 @@ function test_info_collect2
        scan_chk $config_file
 }
 
+function test_diff
+{
+	config_file=$1
+	flavor=$2
+	policy_str="$3"
+
+	clean_logs
+
+    # flavors:
+    # scan + diff option (various)
+    # diff (various), no apply
+    # diff (various) + apply to DB
+
+    # populate filesystem
+    mkdir $ROOT/dir.1 || error "mkdir"
+    chmod 0750 $ROOT/dir.1 || error "chmod"
+    mkdir $ROOT/dir.2 || error "mkdir"
+    mkdir $ROOT/dir.3 || error "mkdir"
+    touch $ROOT/dir.1/a $ROOT/dir.1/b $ROOT/dir.1/c || error "touch"
+    touch $ROOT/dir.2/d $ROOT/dir.2/e $ROOT/dir.2/f || error "touch"
+    touch $ROOT/file || error "touch"
+
+    # initial scan
+    echo "1-Initial scan..."
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+
+    # new entry (file & dir)
+    touch $ROOT/dir.1/file.new || error "touch"
+    mkdir $ROOT/dir.new	       || error "mkdir"
+
+    # rm'd entry (file & dir)
+    rm -f $ROOT/dir.1/b	|| error "rm"
+    rmdir $ROOT/dir.3	|| error "rmdir"
+    
+    # apply various changes
+    chmod 0700 $ROOT/dir.1 		|| error "chmod"
+    chown testuser $ROOT/dir.2		|| error "chown"
+    chgrp testgroup $ROOT/dir.1/a	|| error "chgrp"
+    echo "zqhjkqshdjkqshdjh" >>  $ROOT/dir.1/c || error "append"
+    mv $ROOT/dir.2/d  $ROOT/dir.1/d     || error "mv"
+    mv $ROOT/file $ROOT/fname           || error "rename"
+
+    echo "2-diff..."
+    $DIFF -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+
+    [ "$DEBUG" = "1" ] && cat report.out
+
+    # must get:
+    # new entries dir.1/file.new and dir.new
+    egrep '^++' report.out | grep dir.1/file.new | grep type=file || error "missing create dir.1/file.new"
+    egrep '^++' report.out | grep dir.new | grep type=dir || error "missing create dir.new"
+    # rmd entries dir.1/b and dir.3
+    nbrm=$(egrep '^--' report.out | wc -l)
+    [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
+    # changes
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1") report.out  | grep mode= || error "missing chmod $ROOT/dir.1"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.2") report.out | grep owner=testuser || error "missing chown $ROOT/dir.2"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/a") report.out  | grep group=testgroup || error "missing chgrp $ROOT/dir.1/a"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/c") report.out | grep size= || error "missing size change $ROOT/dir.1/c"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | grep path= || error "missing path change $ROOT/dir.1/d"
+    grep "^+[^ ]*"$(get_id "$ROOT/fname") report.out | grep path= || error "missing path change $ROOT/fname"
+}
 
 
 
@@ -3506,6 +3575,7 @@ run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation
 run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
 run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
+run_test 106     test_diff info_collect2.conf "rbh-diff"
 
 #### policy matching tests  ####
 

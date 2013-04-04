@@ -11,7 +11,7 @@ if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 	$CFG_SCRIPT enable_chglogs lustre
 fi
 
-if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
+if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	
 	echo -n "checking coordinator status: "
 	status=`cat /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control`

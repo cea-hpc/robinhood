@@ -21,20 +21,8 @@ else
 	echo "Creating directory $ROOT"
 fi
 
-if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
-	is_lhsm=1
-	is_hsmlite=0
-	shook=0
-	RH="$RBH_BINDIR/rbh-hsm $RBH_OPT"
-	REPORT=$RBH_BINDIR/rbh-hsm-report
-	FIND=$RBH_BINDIR/rbh-hsm-find
-	DU=$RBH_BINDIR/rbh-hsm-du
-        DIFF=$RBH_BINDIR/rbh-hsm-diff
-	CMD=rbh-hsm
-	PURPOSE="LUSTRE_HSM"
-	ARCH_STR="Start archiving"
-	REL_STR="Releasing"
-elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
+#default: TMP_FS_MGR
+if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
 	shook=0
@@ -42,9 +30,22 @@ elif [[ $PURPOSE = "TMP_FS_MGR" ]]; then
 	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-find
 	DU=$RBH_BINDIR/rbh-du
-        DIFF=$RBH_BINDIR/rbh-diff
+    DIFF=$RBH_BINDIR/rbh-diff
 	CMD=robinhood
 	REL_STR="Purged"
+elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
+	is_lhsm=1
+	is_hsmlite=0
+	shook=0
+	RH="$RBH_BINDIR/rbh-hsm $RBH_OPT"
+	REPORT=$RBH_BINDIR/rbh-hsm-report
+	FIND=$RBH_BINDIR/rbh-hsm-find
+	DU=$RBH_BINDIR/rbh-hsm-du
+    DIFF=$RBH_BINDIR/rbh-hsm-diff
+	CMD=rbh-hsm
+	PURPOSE="LUSTRE_HSM"
+	ARCH_STR="Start archiving"
+	REL_STR="Releasing"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
 	shook=0
@@ -98,6 +99,8 @@ function clean_caches
     echo 3 > /proc/sys/vm/drop_caches
     lctl set_param ldlm.namespaces.lustre-*.lru_size=clear
 }
+
+lustre_major=$(cat /proc/fs/lustre/version | grep "lustre:" | awk '{print $2}' | cut -d '.' -f 1)
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 	no_log=0
@@ -292,10 +295,7 @@ function check_db_error
 function get_id
 {
     p=$1
-    # is it lustre v2?
-    has_fid=0
-    lfs help | grep path2fid > /dev/null && has_fid=1
-    if [ $has_fid -eq 1 ]; then
+    if (( $lustre_major >= 2 )); then
         lfs path2fid $p | tr -d '[]'
     else
          stat -c "/%i" $p
@@ -3041,15 +3041,15 @@ function test_diff
     nbrm=$(egrep '^--' report.out | wc -l)
     [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
     # changes
-    grep "^+\["$(get_id "$ROOT/dir.1") report.out  | grep mode= || error "missing chmod $ROOT/dir.1"
-    grep "^+\["$(get_id "$ROOT/dir.2") report.out | grep owner=testuser || error "missing chown $ROOT/dir.2"
-    grep "^+\["$(get_id "$ROOT/dir.1/a") report.out  | grep group=testgroup || error "missing chgrp $ROOT/dir.1/a"
-    grep "^+\["$(get_id "$ROOT/dir.1/c") report.out | grep size= || error "missing size change $ROOT/dir.1/c"
-    grep "^+\["$(get_id "$ROOT/dir.1/d") report.out | grep path= || error "missing path change $ROOT/dir.1/d"
-    grep "^+\["$(get_id "$ROOT/fname") report.out | grep path= || error "missing path change $ROOT/fname"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1") report.out  | grep mode= || error "missing chmod $ROOT/dir.1"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.2") report.out | grep owner=testuser || error "missing chown $ROOT/dir.2"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/a") report.out  | grep group=testgroup || error "missing chgrp $ROOT/dir.1/a"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/c") report.out | grep size= || error "missing size change $ROOT/dir.1/c"
+    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | grep path= || error "missing path change $ROOT/dir.1/d"
+    grep "^+[^ ]*"$(get_id "$ROOT/fname") report.out | grep path= || error "missing path change $ROOT/fname"
     if [ $has_swap -eq 1 ]; then
-        grep "^+\["$(get_id "$ROOT/dir.2/e") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/e"
-        grep "^+\["$(get_id "$ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/f"
+        grep "^+[^ ]*"$(get_id "$ROOT/dir.2/e") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/e"
+        grep "^+[^ ]*"$(get_id "$ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/f"
     fi
 
 }
