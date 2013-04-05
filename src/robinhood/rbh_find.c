@@ -819,95 +819,6 @@ static int get_root_id(entry_id_t * root_id)
 }
 
 /**
- * List the content of all the DB
- */
-static int list_all()
-{
-    attr_set_t  root_attrs, attrs;
-    entry_id_t  root_id, id;
-    int rc;
-    struct stat st;
-    struct lmgr_iterator_t *it;
-
-    ATTR_MASK_INIT( &root_attrs );
-
-    rc = get_root_id(&root_id);
-    if (rc)
-        return rc;
-
-    /* root is not a part of the DB: print it now */
-    ATTR_MASK_SET(&root_attrs, fullpath);
-    strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
-
-    if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
-    {
-        PosixStat2EntryAttr(&st, &root_attrs, TRUE);
-        ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
-    }
-
-    /* match condition on dirs parent */
-    if (!is_expr || (EntryMatches(&root_id, &root_attrs,
-                     &match_expr, NULL) == POLICY_MATCH))
-    {
-        /* don't display dirs if no_dir is specified */
-        if (! (prog_options.no_dir && ATTR_MASK_TEST(&root_attrs, type)
-               && !strcasecmp(ATTR(&root_attrs, type), STR_TYPE_DIR)) ) {
-            wagon_t w;
-            w.id = root_id;
-            w.fullname = ATTR(&root_attrs, fullpath);
-            print_entry(&w, &root_attrs);
-        }
-    }
-
-    /* list all, including dirs */
-    it = ListMgr_Iterator( &lmgr, &entry_filter, NULL, NULL );
-    if (!it)
-    {
-        DisplayLog(LVL_MAJOR, FIND_TAG, "ERROR: cannot retrieve entry list from database");
-        return -1;
-    }
-
-    attrs.attr_mask = disp_mask | query_mask;
-    while ((rc = ListMgr_GetNext( it, &id, &attrs )) == DB_SUCCESS)
-    {
-        if (!is_expr || (EntryMatches(&id, &attrs, &match_expr, NULL)
-                                      == POLICY_MATCH))
-        {
-            /* don't display dirs if no_dir is specified */
-            if (! (prog_options.no_dir && ATTR_MASK_TEST(&attrs, type)
-                   && !strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)) ) {
-                wagon_t w;
-                w.id = id;
-                w.fullname = ATTR(&root_attrs, fullpath);
-                print_entry(&w, &attrs);
-            }
-            /* don't display non dirs is dir_only is specified */
-            else if (! (prog_options.dir_only && ATTR_MASK_TEST(&attrs, type)
-                        && strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR))) {
-                wagon_t w;
-                w.id = id;
-                w.fullname = ATTR(&root_attrs, fullpath);
-                print_entry(&w, &attrs);
-            }
-            else
-                /* return entry don't match? */
-                DisplayLog(LVL_DEBUG, FIND_TAG, "Warning: returned DB entry doesn't match filter: %s",
-                           ATTR(&attrs, fullpath));
-        }
-        ListMgr_FreeAttrs( &attrs );
-
-        /* prepare next call */
-        attrs.attr_mask = disp_mask | query_mask;
-    }
-    ListMgr_CloseIterator( it );
-
-
-
-    return 0;
-
-}
-
-/**
  * List the content of the given id/path list
  */
 static int list_content(char ** id_list, int id_count)
@@ -949,15 +860,6 @@ static int list_content(char ** id_list, int id_count)
             /* TODO: if it's an ID, get the path. And may need to remove
              * trailing slashes, like find does. */
             abort();
-        }
-
-        if ((id_count == 1) && entry_id_equal(&ids[i].id, &root_id))
-        {
-            /* the ID is FS root: use list_all instead */
-            DisplayLog(LVL_DEBUG, FIND_TAG, "Optimization: command argument is filesystem's root: performing bulk DB dump");
-
-            mkfilters(FALSE); /* keep dirs */
-            return list_all();
         }
 
         /* get root attrs to print it (if it matches program options) */
@@ -1295,9 +1197,9 @@ int main( int argc, char **argv )
 
     if (argc == optind)
     {
-        mkfilters(FALSE); /* keep dirs */
-        /* no path speficied, list all entries */
-        rc = list_all();
+        /* TODO: find will start from then local dir. Older version of
+         * RH would dump the whole database, which we can't do. */
+        abort();
     }
     else
     {
