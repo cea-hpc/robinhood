@@ -46,6 +46,7 @@ static struct option option_tab[] =
     {"size", required_argument, NULL, 's'},
     {"name", required_argument, NULL, 'n'},
     {"mtime", required_argument, NULL, 'M'},
+    {"ctime", required_argument, NULL, 'C'},
     {"mmin", required_argument, NULL, 'm'},
     {"msec", required_argument, NULL, 'z'},
     {"atime", required_argument, NULL, 'A'},
@@ -96,6 +97,10 @@ struct find_opt
     const char * name;
     unsigned int ost_idx;
 
+    // ctime cond: gt/eq/lt <time>
+    compare_direction_t crt_compar;
+    time_t              crt_val;
+
     // mtime cond: gt/eq/lt <time>
     compare_direction_t mod_compar;
     time_t              mod_val;
@@ -116,6 +121,7 @@ struct find_opt
     unsigned int match_type:1;
     unsigned int match_size:1;
     unsigned int match_name:1;
+    unsigned int match_ctime:1;
     unsigned int match_mtime:1;
     unsigned int match_atime:1;
 #ifdef _LUSTRE
@@ -142,7 +148,7 @@ struct find_opt
 #endif
     .ls = 0, .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
-    .match_mtime = 0, .match_atime = 0,
+    .match_ctime = 0, .match_mtime = 0, .match_atime = 0,
 #ifdef ATTR_INDEX_status
     .match_status = 0, .statusneg = 0,
 #endif
@@ -236,6 +242,18 @@ static int mkfilters(int exclude_dirs)
             AppendBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val);
         is_expr = 1;
         query_mask |= ATTR_MASK_size;
+    }
+
+    if (prog_options.match_ctime)
+    {
+        compare_value_t val;
+        val.duration = prog_options.crt_val;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val);
+        else
+            AppendBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_creation_time;
     }
 
     if (prog_options.match_mtime)
@@ -353,6 +371,8 @@ static const char *help_string =
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       "SIZE_HELP"\n"
     "    " _B "-name" B_ " " _U "filename" U_ "\n"
+    "    " _B "-ctime" B_ " " _U "time_crit" U_ "\n"
+    "       "TIME_HELP"\n"
     "    " _B "-mtime" B_ " " _U "time_crit" U_ "\n"
     "       "TIME_HELP"\n"
     "    " _B "-mmin" B_ " " _U "minute_crit" U_ "\n"
@@ -565,7 +585,7 @@ static int set_size_filter(char * str)
     return 0;
 }
 
-typedef enum {atime, mtime} e_time;
+typedef enum {atime, rh_ctime, mtime} e_time;
 /* parse time filter and set prog_options struct */
 static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix, e_time what)
 {
@@ -593,6 +613,15 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
 
     if ((n == 1) || !strcmp(suffix, ""))
     {
+        if ( what == rh_ctime )
+        {
+            prog_options.crt_compar = comp;
+            if (multiplier != 0)
+                prog_options.crt_val = val * multiplier;
+            else /* default multiplier is days */
+                prog_options.crt_val =  val * 86400;
+        }
+        else
         if ( what == mtime )
         {
             prog_options.mod_compar = comp;
@@ -633,6 +662,12 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
                 fprintf(stderr, "Invalid suffix for time: '%s'. Expected time format: "TIME_HELP"\n", str);
                 return -EINVAL;
         }
+        if ( what == rh_ctime )
+        {
+            prog_options.crt_compar = comp;
+            prog_options.crt_val = val;
+        }
+        else
         if ( what == mtime )
         {
             prog_options.mod_compar = comp;
@@ -1078,6 +1113,16 @@ int main( int argc, char **argv )
         case 'a':
             toggle_option(match_atime, "atime/amin");
             if (set_time_filter(optarg, 60, TRUE, atime))
+                exit(1);
+            if (neg) {
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
+                exit(1);
+            }
+            break;
+
+        case 'C':
+            toggle_option(match_ctime, "ctime");
+            if (set_time_filter(optarg, 0, TRUE, rh_ctime))
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");
