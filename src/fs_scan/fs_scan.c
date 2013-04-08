@@ -671,6 +671,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
     if ( !S_ISDIR( inode.st_mode ) )
     {
         entry_proc_op_t op;
+        int rc;
 
         /* init the structure */
         InitEntryProc_op( &op );
@@ -723,6 +724,36 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 #endif
 
         op.extra_info_is_set = FALSE;
+
+        if (S_ISREG(inode.st_mode) && is_first_scan)
+        {
+            /* Fetch the stripes information now. This is faster than
+             * doing it later in the pipeline. However if that fails now,
+             * the pipeline will retry.
+             * Do it only for initial scan, as most of the stripes information
+             * is already known for next scans.
+             */
+#ifndef _NO_AT_FUNC
+            /* have a dir fd */
+            rc = File_GetStripeByDirFd( parentfd, entry_name,
+                                        &ATTR( &op.fs_attrs, stripe_info ),
+                                        &ATTR( &op.fs_attrs, stripe_items ) );
+#else
+            rc = File_GetStripeByPath( entry_path,
+                                       &ATTR( &op.fs_attrs, stripe_info ),
+                                       &ATTR( &op.fs_attrs, stripe_items ) );
+#endif
+            if (rc)
+            {
+                ATTR_MASK_UNSET( &op.fs_attrs, stripe_info );
+                ATTR_MASK_UNSET( &op.fs_attrs, stripe_items );
+            }
+            else
+            {
+                ATTR_MASK_SET( &op.fs_attrs, stripe_info );
+                ATTR_MASK_SET( &op.fs_attrs, stripe_items );
+            }
+        }
 
 #ifndef _BENCH_SCAN
         /* Push entry to the pipeline */

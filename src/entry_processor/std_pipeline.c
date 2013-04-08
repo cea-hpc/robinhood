@@ -23,6 +23,7 @@
 #include "RobinhoodMisc.h"
 #include "entry_processor.h"
 #include "entry_proc_tools.h"
+#include "Memory.h"
 #ifdef _HSM_LITE
 #include "backend_ext.h"
 #endif
@@ -1071,7 +1072,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 #ifdef _LUSTRE
             if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
-                && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_FILE ))
+                && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_FILE )
+                /* only if it was not retrieved during the scan */
+                && !(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
+                    && ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)))
                 p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
 #endif
 
@@ -1134,7 +1138,25 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     if ( ListMgr_CheckStripe( lmgr, &p_op->entry_id ) != DB_SUCCESS )
                     {
                         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is missing/invalid in DB" );
-                        p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+
+                        /* don't need to get stripe if we already have fresh stripe info from FS */
+                        if (!(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
+                              && ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)))
+                        {
+                                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+                        }
+                    }
+                    else
+                    {
+                        /* don't update stripe info (it is still valid) */
+                        ATTR_MASK_UNSET(&p_op->fs_attrs, stripe_info);
+                        if (ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items))
+                        {
+                            /* free stripe structure */
+                            if (ATTR(&p_op->fs_attrs, stripe_items).stripe)
+                                MemFree(ATTR(&p_op->fs_attrs, stripe_items).stripe);
+                            ATTR_MASK_UNSET(&p_op->fs_attrs, stripe_items);
+                        }
                     }
                 }
             }

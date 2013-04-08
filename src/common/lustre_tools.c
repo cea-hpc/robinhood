@@ -48,41 +48,21 @@ int Lustre_Init(  )
     return 0;
 }
 
-int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
-                          stripe_items_t * p_stripe_items )
+static int fill_stripe_info(struct lov_user_md *p_lum,
+                            stripe_info_t * p_stripe_info,
+                            stripe_items_t * p_stripe_items)
 {
-    int            rc;
-    char           lum_buffer[4096];
-    struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;
 #ifdef LOV_USER_MAGIC_V3
     struct lov_user_md_v3 *p_lum3;
 #endif
-
     unsigned int   i;
 
-    if ( !entry_path || !entry_path[0] )
+    if (!p_lum)
         return -EFAULT;
-
-    memset( lum_buffer, 0, sizeof( lum_buffer ) );
-    rc = llapi_file_get_stripe( entry_path, p_lum );
-
-    if ( rc != 0 )
-    {
-        if ( rc == -ENODATA )
-            DisplayLog( LVL_DEBUG, TAG_STRIPE,
-                        "File %s has no stripe information",
-                        entry_path );
-        else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
-            DisplayLog( LVL_CRIT, TAG_STRIPE,
-                        "Error %d getting stripe info for %s", rc,
-                        entry_path );
-        return rc;
-    }
 
     /* Check protocol version number */
     if ( p_lum->lmm_magic == LOV_USER_MAGIC_V1 )
     {
-
         if ( p_stripe_info )
         {
             p_stripe_info->stripe_size = p_lum->lmm_stripe_size;
@@ -169,12 +149,75 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
 #endif
     else
     {
-        DisplayLog( LVL_CRIT, TAG_STRIPE, "Unsupported Luster magic number for %s: %#X",
-                    entry_path, p_lum->lmm_magic );
+        DisplayLog( LVL_CRIT, TAG_STRIPE, "Unsupported Luster magic number from getstripe: %#X",
+                    p_lum->lmm_magic );
         return -EINVAL;
     }
 }
 
+
+int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
+                          stripe_items_t * p_stripe_items )
+{
+    int            rc;
+    char           lum_buffer[4096];
+    struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;
+
+    if ( !entry_path || !entry_path[0] )
+        return -EFAULT;
+
+    memset( lum_buffer, 0, sizeof( lum_buffer ) );
+    rc = llapi_file_get_stripe( entry_path, p_lum );
+
+    if ( rc != 0 )
+    {
+        if ( rc == -ENODATA )
+            DisplayLog( LVL_DEBUG, TAG_STRIPE,
+                        "File %s has no stripe information",
+                        entry_path );
+        else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
+            DisplayLog( LVL_CRIT, TAG_STRIPE,
+                        "Error %d getting stripe info for %s", rc,
+                        entry_path );
+        return rc;
+    }
+
+    return fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
+}
+
+int File_GetStripeByDirFd( int dirfd, const char *fname,
+                           stripe_info_t * p_stripe_info,
+                           stripe_items_t * p_stripe_items )
+{
+    int            rc = 0;
+    char           lum_buffer[4096];
+    struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;
+
+    if ( !fname|| !fname[0] )
+        return -EFAULT;
+
+    memset( lum_buffer, 0, sizeof( lum_buffer ) );
+    strcpy((char *)p_lum, fname);
+
+    if (ioctl(dirfd, IOC_MDC_GETFILESTRIPE, (void *)p_lum) == -1)
+        rc = -errno;
+
+    if ( rc != 0 )
+    {
+        if ( rc == -ENODATA )
+            DisplayLog( LVL_DEBUG, TAG_STRIPE,
+                        "File %s has no stripe information",
+                        fname );
+        else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
+            DisplayLog( LVL_CRIT, TAG_STRIPE,
+                        "Error %d getting stripe info for %s", rc,
+                        fname );
+        return rc;
+    }
+
+    return fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
+
+}
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 int File_CreateSetStripe( const char * path, const stripe_info_t * old_stripe )
