@@ -2069,15 +2069,12 @@ int execute_shell_command( const char * cmd, int argc, ... )
 char * replace_cmd_parameters(const char * cmd_in)
 {
 #define CMDPARAMS "CmdParams"
-    int error = FALSE;
     char * pass_begin;
     char * begin_var;
     char * end_var;
     const char * value;
 
-    /* allocate tmp copy of cmd in */
-    pass_begin = (char *)malloc(strlen(cmd_in)+1);
-    strcpy(pass_begin, cmd_in);
+    pass_begin = strdup(cmd_in);
 
     do
     {
@@ -2098,7 +2095,6 @@ char * replace_cmd_parameters(const char * cmd_in)
         if (!end_var)
         {
            DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unmatched '{' in command parameters '%s'", cmd_in);
-           error = TRUE;
            break;
         }
 
@@ -2115,11 +2111,10 @@ char * replace_cmd_parameters(const char * cmd_in)
         else
         {
             DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unknown parameter '%s' in command parameters '%s'", begin_var, cmd_in);
-            error = TRUE;
             break;
         }
 
-        /* allocate a new string if var length < value length */
+        /* allocate a new string */
         new_str = malloc( strlen(pass_begin)+strlen(value)+strlen(end_var)+1 );
 
         sprintf(new_str, "%s%s%s", pass_begin, value, end_var );
