@@ -186,15 +186,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
     else
     {
-        rc = EntryProcessor_SetEntryId( p_op, &tmp_id );
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d setting entry id",
-                        rc );
-            /* remove entry from pipeline */
-            EntryProcessor_Acknowledge( p_op, -1, TRUE );
-            return rc;
-        }
+        EntryProcessor_SetEntryId( p_op, &tmp_id );
 
         /* go to GET_INFO_DB stage */
         rc = EntryProcessor_Acknowledge( p_op, STAGE_GET_INFO_DB, FALSE );

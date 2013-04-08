@@ -386,13 +386,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
     op.callback_param = p_info;
 
     /* Set entry ID */
-    st = EntryProcessor_SetEntryId( &op, &p_rec->cr_tfid );
-
-    if ( st )
-    {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG, "Error %d setting entry id", st );
-        return st;
-    }
+    EntryProcessor_SetEntryId( &op, &p_rec->cr_tfid );
 
     /* Push the entry to the pipeline */
     st = EntryProcessor_Push( &op );

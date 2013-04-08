@@ -252,9 +252,6 @@ int EntryProcessor_Push( const entry_proc_op_t * p_new_op )
     if ( ( rc = pthread_mutex_init( &p_entry->entry_lock, NULL ) ) != 0 )
         return rc;
 
-    if ( ( rc = pthread_mutex_init( &p_entry->entry_id_lock, NULL ) ) != 0 )
-        return rc;
-
     /* fill its content (except p_prev because we need a lock) */
     *p_entry = *p_new_op;
     p_entry->p_next = NULL;     /* insert as last */
@@ -922,7 +919,6 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
         /* destroy the lock and free the memory */
         V( p_op->entry_lock );
         pthread_mutex_destroy( &p_op->entry_lock );
-        pthread_mutex_destroy( &p_op->entry_id_lock );
         MemFree( p_op );
     }
 
@@ -1071,24 +1067,6 @@ void EntryProcessor_DumpCurrentStages(  )
             } /* end for */
         } /* end if pending op */
     }
-}
-
-
-/*
- * Functions for handling operations
- */
-int EntryProcessor_SetEntryId( entry_proc_op_t * p_op, const entry_id_t * p_id )
-{
-
-    P( p_op->entry_id_lock );
-    p_op->entry_id_is_set = TRUE;
-    p_op->entry_id = *p_id;
-    V( p_op->entry_id_lock );
-
-    /* @TODO: remember this reference about this entry id (to check id constraints) */
-
-    return 0;
-
 }
 
 void InitEntryProc_op( entry_proc_op_t * p_op )

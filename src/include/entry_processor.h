@@ -191,9 +191,6 @@ typedef struct entry_proc_op_t
 
     struct timeval start_processing_time;
 
-    /** lock on entry_id_is_set and entry_id */
-    pthread_mutex_t entry_id_lock;
-
     /* double chained list for FIFO */
     struct entry_proc_op_t *p_next;
     struct entry_proc_op_t *p_prev;
@@ -267,7 +264,13 @@ int            EntryProcessor_Acknowledge( entry_proc_op_t * p_op,
 /**
  * Set entry id.
  */
-int            EntryProcessor_SetEntryId( entry_proc_op_t * p_op, const entry_id_t * p_id );
+static void inline EntryProcessor_SetEntryId( entry_proc_op_t * p_op, const entry_id_t * p_id )
+{
+    p_op->entry_id_is_set = TRUE;
+    p_op->entry_id = *p_id;
+
+    /* @TODO: remember this reference about this entry id (to check id constraints) */
+}
 
 /**
  *  Initialize a entry_proc_op_t structure.
