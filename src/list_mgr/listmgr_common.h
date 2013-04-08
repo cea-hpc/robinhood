@@ -99,6 +99,7 @@
                         _u2.val_id = *((entry_id_t*)(_address2)); \
                         _diff = !entry_id_equal( &_u1.val_id, &_u2.val_id); \
                         break;                              \
+                      case DB_ENUM_FTYPE:                   \
                       case DB_TEXT:                         \
                         _u1.val_str = (char*)(_address1);   \
                         _u2.val_str = (char*)(_address2);   \

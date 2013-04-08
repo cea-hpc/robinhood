@@ -1618,6 +1618,25 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
     }
 #endif
 
+#ifdef ATTR_INDEX_backendpath
+    if ( mask & ATTR_MASK_backendpath )
+    {
+        if (brief)
+        {
+            written +=
+                snprintf(out_str + written, strsize - written, "backendpath=%s,",
+                         ATTR(p_attr_set, backendpath));
+        }
+        else
+        {
+            written +=
+                snprintf( out_str + written, strsize - written, "Backend path: %s\n",
+                         ATTR(p_attr_set, backendpath));
+        }
+    }
+#endif
+
+
     if (brief && written) {
         /* remove final , */
         out_str[written-1] = '\0';
@@ -1769,14 +1788,47 @@ int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_at
     }
     if (mask & (ATTR_MASK_last_access | ATTR_MASK_last_mod))
     {
-         struct utimbuf t = {
+        struct utimbuf t = {
             .actime = -1,
             .modtime = -1
         };
+        int get_stat = 0;
+
         if (mask & ATTR_MASK_last_access)
             t.actime = ATTR(p_attr_new, last_access);
         if (mask & ATTR_MASK_last_mod)
             t.modtime = ATTR(p_attr_new, last_mod);
+
+        /* if there is still a value == -1, we must fill it
+         * or utime will set a bad value
+         */
+        if (t.actime == -1)
+        {
+            if (ATTR_MASK_TEST(p_attr_old, last_access))
+                t.actime = ATTR(p_attr_old, last_access);
+            else
+                /* need to get old value of atime */
+                get_stat = 1;
+        }
+        if (t.modtime == -1)
+        {
+            if (ATTR_MASK_TEST(p_attr_old, last_mod))
+                t.modtime = ATTR(p_attr_old, last_mod);
+            else
+                /* need to get old value of atime */
+                get_stat = 1;
+        }
+        if (get_stat)
+        {
+            struct stat st;
+            if (lstat(ATTR(p_attr_new, fullpath), &st) == 0)
+            {
+                if (t.modtime == -1)
+                    t.modtime = st.st_mtime;
+                if (t.actime == -1)
+                    t.actime = st.st_atime;
+            }
+        }
 
         if (!dry_run && utime(ATTR(p_attr_new, fullpath), &t))
            rc = errno;

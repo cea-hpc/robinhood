@@ -852,12 +852,14 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         /* rmdir */
                         DisplayReport("%srmdir(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
                                       ATTR(&p_op->fs_attrs, fullpath));
+                        /* TODO: do it */
                     }
                     else
                     {
                         /* unlink */
                         DisplayReport("%sunlink(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
                                       ATTR(&p_op->fs_attrs, fullpath));
+                        /* TODO: do it */
                     }
                 }
                 else
@@ -980,6 +982,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, 0, 1);
 
                         printf("++"DFID" %s\n", PFID(&id), attrnew);
+                        /* TODO: create it */
                     }
                     else
                     {

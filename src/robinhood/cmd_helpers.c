@@ -296,6 +296,9 @@ struct __diffattr {
 #ifdef ATTR_INDEX_creation_time
         | ATTR_MASK_creation_time
 #endif
+#ifdef ATTR_INDEX_status
+        | ATTR_MASK_status
+#endif
 #ifdef _LUSTRE
         | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
 #endif

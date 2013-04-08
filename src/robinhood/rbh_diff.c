@@ -648,23 +648,24 @@ int main( int argc, char **argv )
      * +++db
      */
     for (i = 0; i < argc; i++)
+        /* FIXME: diff options are modified by parsing */
         printf("%s%s", i==0?"# ":" ", argv[i]);
     printf("\n");
     if (options.flags & FLAG_APPLY_FS)
-    {
-        printf("---db\n");
-        if (options.partial_scan)
-            printf("+++fs=%s\n",options.partial_scan_path);
-        else
-            printf("+++fs\n");
-    }
-    else
     {
         if (options.partial_scan)
             printf("---fs=%s\n",options.partial_scan_path);
         else
             printf("---fs\n");
         printf("+++db\n");
+    }
+    else
+    {
+        printf("---db\n");
+        if (options.partial_scan)
+            printf("+++fs=%s\n",options.partial_scan_path);
+        else
+            printf("+++fs\n");
     }
 
     /* Start FS scan */
