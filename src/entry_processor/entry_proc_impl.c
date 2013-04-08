@@ -70,6 +70,7 @@ static pthread_cond_t terminate_cond = PTHREAD_COND_INITIALIZER;
 static enum {NONE=0, FLUSH=1, BREAK=2}  terminate_flag = NONE;
 static int     nb_finished_threads = 0;
 
+static entry_proc_op_t *EntryProcessor_GetNextOp(void);
 
 typedef struct worker_info__
 {
@@ -773,7 +774,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
  * This function returns the next operation to be processed
  * according to pipeline stage/ordering constrains.
  */
-entry_proc_op_t *EntryProcessor_GetNextOp(  )
+static entry_proc_op_t *EntryProcessor_GetNextOp(void)
 {
     int            is_empty;
     entry_proc_op_t *p_op;

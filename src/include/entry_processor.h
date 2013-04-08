@@ -256,12 +256,6 @@ int EntryProcessor_Terminate( int flush_ops );
 int            EntryProcessor_Push( const entry_proc_op_t * p_new_op );
 
 /**
- * This function returns the next operation to be processed
- * according to pipeline stage/ordering constrains.
- */
-entry_proc_op_t *EntryProcessor_GetNextOp(  );
-
-/**
  * Advise that the entry is ready for next step of the pipeline.
  * @param next_stage The next stage to be performed for this entry
  * @param remove This flag indicates that the entry must be removed
