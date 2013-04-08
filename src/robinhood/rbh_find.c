@@ -648,7 +648,7 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
 }
 
 
-static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs, const char * parent_path)
+static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
 {
 #ifdef ATTR_INDEX_status
     if (prog_options.match_status)
@@ -664,10 +664,10 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs, 
     if (!prog_options.ls)
     {
         /* just display name */
-        if (ATTR_MASK_TEST(attrs, name))
-            printf("%s/%s\n", parent_path, ATTR(attrs, name));
+        if (id->fullname)
+            printf("%s\n", id->fullname);
         else
-            printf(DFID"\n", PFID(id));
+            printf(DFID"\n", PFID(&id->id));
     }
     else
     {
@@ -711,51 +711,44 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs, 
             /* display: id, type, owner, group, size, mtime, path -> link */
             printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s/%s -> %s\n",
                    PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, parent_path, ATTR(attrs, name), ATTR(attrs,link));
+                   ATTR(attrs, size), date_str, id->fullname, ATTR(attrs, name), ATTR(attrs,link));
         else
             /* display all: id, type, owner, group, size, mtime, path */
             printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s/%s\n",
                    PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, parent_path, ATTR(attrs, name));
+                   ATTR(attrs, size), date_str, id->fullname, ATTR(attrs, name));
     }
 }
 
 /* directory callback */
-static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
-                 unsigned int entry_count, void * dummy,
-                 const char *parent_path )
+static int dircb(wagon_t * id_list, attr_set_t * attr_list,
+                 unsigned int entry_count, void * dummy )
 {
     /* retrieve child entries for all directories */
     int i, rc;
 
     for (i = 0; i < entry_count; i++)
     {
-        entry_id_t * chids = NULL;
+        wagon_t * chids = NULL;
         attr_set_t * chattrs = NULL;
-        char **chnames;
         unsigned int chcount = 0;
         int j;
-        char dirpath[RBH_PATH_MAX];
-
-        snprintf(dirpath, sizeof(dirpath), "%s/%s", parent_path, attr_list[i].attr_values.name);
-        dirpath[sizeof(dirpath)-1] = 0;
 
         /* match condition on dirs parent */
-        if (!is_expr || (EntryMatches(&id_list[i], &attr_list[i],
+        if (!is_expr || (EntryMatches(&id_list[i].id, &attr_list[i],
                          &match_expr, NULL) == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attr_list[i], type)
                    && !strcasecmp(ATTR(&attr_list[i], type), STR_TYPE_DIR)) )
-                print_entry(&id_list[i], &attr_list[i], parent_path);
+                print_entry(&id_list[i], &attr_list[i]);
         }
 
         if (!prog_options.dir_only)
         {
             rc = ListMgr_GetChild( &lmgr, &entry_filter, id_list+i, 1,
                                    disp_mask | query_mask,
-                                   &chids, &chattrs, &chnames, &chcount,
-                                   dirpath);
+                                   &chids, &chattrs, &chcount);
             if (rc)
             {
                 DisplayLog(LVL_MAJOR, FIND_TAG, "ListMgr_GetChild() failed with error %d", rc);
@@ -764,14 +757,14 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
             for (j = 0; j < chcount; j++)
             {
-                if (!is_expr || (EntryMatches(&chids[j], &chattrs[j],
+                if (!is_expr || (EntryMatches(&chids[j].id, &chattrs[j],
                                  &match_expr, NULL) == POLICY_MATCH))
-                    print_entry(&chids[j], &chattrs[j], dirpath);
+                    print_entry(&chids[j], &chattrs[j]);
             }
 
+            free_wagon(chids, 0, chcount);
             MemFree(chids);
             MemFree(chattrs);
-            MemFree(chnames);
         }
     }
     return 0;
@@ -823,8 +816,12 @@ static int list_all()
     {
         /* don't display dirs if no_dir is specified */
         if (! (prog_options.no_dir && ATTR_MASK_TEST(&root_attrs, type)
-               && !strcasecmp(ATTR(&root_attrs, type), STR_TYPE_DIR)) )
-            print_entry(&root_id, &root_attrs, ATTR(&root_attrs, fullpath));
+               && !strcasecmp(ATTR(&root_attrs, type), STR_TYPE_DIR)) ) {
+            wagon_t w;
+            w.id = root_id;
+            w.fullname = ATTR(&root_attrs, fullpath);
+            print_entry(&w, &root_attrs);
+        }
     }
 
     /* list all, including dirs */
@@ -843,12 +840,20 @@ static int list_all()
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attrs, type)
-                   && !strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)) )
-                print_entry(&id, &attrs, ATTR(&root_attrs, fullpath));
+                   && !strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)) ) {
+                wagon_t w;
+                w.id = id;
+                w.fullname = ATTR(&root_attrs, fullpath);
+                print_entry(&w, &attrs);
+            }
             /* don't display non dirs is dir_only is specified */
             else if (! (prog_options.dir_only && ATTR_MASK_TEST(&attrs, type)
-                   && strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)))
-                print_entry(&id, &attrs, ATTR(&root_attrs, fullpath));
+                        && strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR))) {
+                wagon_t w;
+                w.id = id;
+                w.fullname = ATTR(&root_attrs, fullpath);
+                print_entry(&w, &attrs);
+            }
             else
                 /* return entry don't match? */
                 DisplayLog(LVL_DEBUG, FIND_TAG, "Warning: returned DB entry doesn't match filter: %s",
@@ -872,18 +877,17 @@ static int list_all()
  */
 static int list_content(char ** id_list, int id_count)
 {
-    entry_id_t * ids;
+    wagon_t *ids;
     int i, rc;
     attr_set_t root_attrs;
     entry_id_t root_id;
     int is_id;
-    char * fullpath;
 
     rc = get_root_id(&root_id);
     if (rc)
         return rc;
 
-    ids = MemCalloc(id_count, sizeof(entry_id_t));
+    ids = MemCalloc(id_count, sizeof(wagon_t));
     if (!ids)
         return -ENOMEM;
 
@@ -891,24 +895,28 @@ static int list_content(char ** id_list, int id_count)
     {
         is_id = TRUE;
         /* is it a path or fid? */
-        if (sscanf(id_list[i], SFID, RFID(&ids[i])) != FID_SCAN_CNT)
+        if (sscanf(id_list[i], SFID, RFID(&ids[i].id)) != FID_SCAN_CNT)
         {
             is_id = FALSE;
             /* take it as a path */
-            rc = Path2Id(id_list[i], &ids[i]);
+            rc = Path2Id(id_list[i], &ids[i].id);
             if (rc)
             {
                 DisplayLog(LVL_MAJOR, FIND_TAG, "Invalid parameter: %s: %s",
                            id_list[i], strerror(-rc));
                 goto out;
             }
+
+            ids[i].fullname = id_list[i];
+
+        } else {
+            /* Take it as an FID. */
+            /* TODO: if it's an ID, get the path. And may need to remove
+             * trailing slashes, like find does. */
+            abort();
         }
 
-        /* TODO: if it's an ID, get the path. And may need to remove
-         * trailing slashes, like find does. */
-        fullpath = id_list[i];
-
-        if ((id_count == 1) && entry_id_equal(&ids[i], &root_id))
+        if ((id_count == 1) && entry_id_equal(&ids[i].id, &root_id))
         {
             /* the ID is FS root: use list_all instead */
             DisplayLog(LVL_DEBUG, FIND_TAG, "Optimization: command argument is filesystem's root: performing bulk DB dump");
@@ -919,9 +927,9 @@ static int list_content(char ** id_list, int id_count)
 
         /* get root attrs to print it (if it matches program options) */
         root_attrs.attr_mask = disp_mask | query_mask;
-        rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
+        rc = ListMgr_Get(&lmgr, &ids[i].id, &root_attrs);
         if (rc == 0)
-            dircb(&ids[i], &root_attrs, 1, NULL, fullpath);
+            dircb(&ids[i], &root_attrs, 1, NULL);
         else
         {
             DisplayLog(LVL_VERB, FIND_TAG, "Notice: no attrs in DB for %s", id_list[i]);
@@ -938,7 +946,7 @@ static int list_content(char ** id_list, int id_count)
                     ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
                 }
             }
-            else if (entry_id_equal(&ids[i], &root_id))
+            else if (entry_id_equal(&ids[i].id, &root_id))
             {
                 /* this is root id */
                 struct stat st;
@@ -952,10 +960,10 @@ static int list_content(char ** id_list, int id_count)
                 }
             }
 
-            dircb(&ids[i], &root_attrs, 1, NULL, fullpath);
-    }
+            dircb(&ids[i], &root_attrs, 1, NULL);
+        }
 
-        rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask | query_mask, dircb, NULL, fullpath);
+        rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask | query_mask, dircb, NULL);
     }
 
 out:

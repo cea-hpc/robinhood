@@ -33,7 +33,7 @@
  * print parent condition depending on parent list count:
  *      parent_id == xxx or parent_id IN ( xxx, yyy, zzz )
  */
-char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz, const entry_id_t * parent_list, unsigned int parent_count,
+char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz, const wagon_t * parent_list, unsigned int parent_count,
                    const char * prefix)
 {
     DEF_PK(pk);
@@ -45,7 +45,7 @@ char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz, const entry_id_t 
     }
     if (parent_count == 1)
     {
-        if (entry_id2pk(p_mgr, &parent_list[0], FALSE, PTR_PK(pk)))
+        if (entry_id2pk(p_mgr, &parent_list[0].id, FALSE, PTR_PK(pk)))
             return NULL;
         sprintf(buff, "%sparent_id="DPK, prefix ? prefix : "", pk);
     }
@@ -56,7 +56,7 @@ char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz, const entry_id_t 
         curr += sprintf(curr, "%sparent_id IN (", prefix ? prefix : "");
         for (i = 0; i < parent_count; i++)
         {
-            if (entry_id2pk(p_mgr, &parent_list[i], FALSE, PTR_PK(pk)))
+            if (entry_id2pk(p_mgr, &parent_list[i].id, FALSE, PTR_PK(pk)))
                 return NULL;
             if ((ssize_t)(curr - buff) + strlen(pk) + 2 >= buffsz)
             {
@@ -84,12 +84,10 @@ char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz, const entry_id_t 
  * \param child_count       [out] number of returned children
  */
 int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                      const entry_id_t * parent_list, unsigned int parent_count,
+                      const wagon_t * parent_list, unsigned int parent_count,
                       int attr_mask,
-                      entry_id_t ** child_id_list, attr_set_t ** child_attr_list,
-                      char ** child_fullname[],
-                      unsigned int * child_count,
-                      const char *parent_fullname)
+                      wagon_t ** child_id_list, attr_set_t ** child_attr_list,
+                      unsigned int * child_count)
 {
     result_handle_t result;
     char *curr;
@@ -108,6 +106,13 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     char tmp[TMPBUFSZ];
     char * pc;
     int rc, i;
+
+    /* TODO: querying children from several parent cannot work, since
+     * we need to get the paths of the children. Or we could do a
+     * lookup into parent_list to find the right one. In the meantime,
+     * try not to mess up the code. */
+    if (parent_count != 1)
+        abort();
 
     /* request is always on the MAIN table (which contains [parent_id, id] relationship */
 
@@ -216,15 +221,9 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     *child_count = db_result_nb_records(&p_mgr->conn, &result);
 
     /* allocate entry_id array */
-    *child_id_list = MemCalloc(*child_count, sizeof(entry_id_t));
+    *child_id_list = MemCalloc(*child_count, sizeof(wagon_t));
     if (*child_id_list == NULL)
         return DB_NO_MEMORY;
-
-    *child_fullname = MemCalloc(*child_count, sizeof(char *));
-    if (*child_fullname == NULL) {
-        MemFree(*child_id_list);
-        return DB_NO_MEMORY;
-    }
 
     if (child_attr_list)
     {
@@ -244,7 +243,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
             goto array_free;
 
         /* copy id to array */
-        pk2entry_id(p_mgr, res[0], &((*child_id_list)[i]));
+        pk2entry_id(p_mgr, res[0], &((*child_id_list)[i].id));
 
         /* copy attributes to array */
         if (child_attr_list)
@@ -295,9 +294,9 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
             {
                 char tmppath[RBH_PATH_MAX];
 
-                snprintf(tmppath, sizeof(tmppath), "%s/%s", parent_fullname, (*child_attr_list)[i].attr_values.name);
+                snprintf(tmppath, sizeof(tmppath), "%s/%s", parent_list[0].fullname, (*child_attr_list)[i].attr_values.name);
                 tmppath[sizeof(tmppath)-1] = 0;
-                (*child_fullname)[i] = strdup(tmppath);
+                (*child_id_list)[i].fullname = strdup(tmppath);
             }
         }
     }
@@ -312,7 +311,6 @@ array_free:
         *child_attr_list = NULL;
     }
     MemFree(*child_id_list);
-    MemFree(*child_fullname);
     *child_id_list = NULL;
     return rc;
 }

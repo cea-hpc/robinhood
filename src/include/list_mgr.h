@@ -232,6 +232,12 @@ typedef struct lmgr_config_t
     int group_acct;
 } lmgr_config_t;
 
+/** Container to associate an ID with its pathname. */
+typedef struct wagon {
+    entry_id_t id;
+    char *fullname;
+} wagon_t;
+
 /**
  * Configuration management routines
  * \addtogroup MODULE_CONFIG_FUNCTIONS
@@ -680,12 +686,10 @@ void           ListMgr_CloseIterator( struct lmgr_iterator_t *p_iter );
  * and child_id_list and child_attr_list must be freed with MemFree()
  */
 int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                      const entry_id_t * parent_list, unsigned int parent_count,
+                      const wagon_t * parent_list, unsigned int parent_count,
                       int attr_mask,
-                      entry_id_t ** child_id_list, attr_set_t ** child_attr_list,
-                      char ** child_fullname[],
-                      unsigned int * child_count,
-                      const char *parent_fullname);
+                      wagon_t ** child, attr_set_t ** child_attr_list,
+                      unsigned int * child_count);
 
 
 /** @} */
