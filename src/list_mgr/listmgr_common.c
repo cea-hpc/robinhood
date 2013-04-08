@@ -975,7 +975,7 @@ int lmgr_commit( lmgr_t * p_mgr )
     else
     {
         /* if the transaction count is reached:
-         * commit operations and result transction count
+         * commit operations and result transaction count
          */
         if ( ( p_mgr->last_commit % lmgr_config.commit_behavior == 0 ) || p_mgr->force_commit )
         {

@@ -770,7 +770,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
         }
         else
         {
-            /* security: set byte n+1 to '\0', to avaoid overflows if attr is not a string */
+            /* security: set byte n+1 to '\0', to avoid overflows if attr is not a string */
             if ( rc < 1024 )
                 value[rc] = '\0';
         }

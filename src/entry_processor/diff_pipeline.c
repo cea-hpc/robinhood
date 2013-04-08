@@ -466,7 +466,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
         NEED_GETSTRIPE(p_op)?1:0);
 
-    /* don't retreive info which is already fresh */
+    /* don't retrieve info which is already fresh */
     p_op->fs_attr_need &= ~p_op->fs_attrs.attr_mask;
 
     /* scans: never need to get attr or path (provided in operation) */
@@ -906,7 +906,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (entry_proc_conf.diff_mask)
         cb = no_tag_cb;
 
-    /* if md_update is not, set, this is just an empty op to wait for
+    /* if md_update is not set, this is just an empty op to wait for
      * pipeline flush => don't rm old entries */
     if (ATTR_MASK_TEST(&p_op->fs_attrs, md_update))
     {
