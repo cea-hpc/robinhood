@@ -709,14 +709,14 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
         if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
             && ATTR_MASK_TEST(attrs, link))
             /* display: id, type, owner, group, size, mtime, path -> link */
-            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s/%s -> %s\n",
-                   PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, id->fullname, ATTR(attrs, name), ATTR(attrs,link));
+            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s -> %s\n",
+                   PFID(&id->id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, size), date_str, id->fullname, ATTR(attrs,link));
         else
             /* display all: id, type, owner, group, size, mtime, path */
-            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s/%s\n",
-                   PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, id->fullname, ATTR(attrs, name));
+            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
+                   PFID(&id->id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, size), date_str, id->fullname);
     }
 }
 
