@@ -28,7 +28,7 @@
 #include <pthread.h>
 
 
-static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id )
+static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id, int last )
 {
     char           request[4096];
     int            rc;
@@ -38,39 +38,47 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     if (rc)
         return rc;
 
-    /* stripes are only managed for Lustre filesystems */
-#ifdef _LUSTRE
-    /* First remove stripe info */
-    sprintf( request, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
-        return rc;
-
-    sprintf( request, "DELETE FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
-        return rc;
-#endif
-
-    /* then remove in other tables */
-    sprintf( request, "DELETE FROM " MAIN_TABLE " WHERE id="DPK, pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
-        return rc;
-
-    if ( annex_table )
+    if (last)
     {
-        sprintf( request, "DELETE FROM " ANNEX_TABLE " WHERE id="DPK, pk );
+        /* stripes are only managed for Lustre filesystems */
+    #ifdef _LUSTRE
+        /* First remove stripe info */
+        sprintf( request, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
         rc = db_exec_sql( &p_mgr->conn, request, NULL );
         if ( rc )
             return rc;
+
+        sprintf( request, "DELETE FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+    #endif
+
+        /* then remove in other tables */
+        sprintf( request, "DELETE FROM " MAIN_TABLE " WHERE id="DPK, pk );
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+
+        if ( annex_table )
+        {
+            sprintf( request, "DELETE FROM " ANNEX_TABLE " WHERE id="DPK, pk );
+            rc = db_exec_sql( &p_mgr->conn, request, NULL );
+            if ( rc )
+                return rc;
+        }
     }
+
+    sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE id="DPK, pk );
+    rc = db_exec_sql( &p_mgr->conn, request, NULL );
+    if ( rc )
+        return rc;
 
     return rc;
 }
 
 
-int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
+int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id, int last )
 {
     int rc;
 
@@ -79,7 +87,7 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
     if ( rc )
         return rc;
 
-    rc = listmgr_remove_no_transaction( p_mgr, p_id );
+    rc = listmgr_remove_no_transaction( p_mgr, p_id, last );
     if (rc)
     {
         lmgr_rollback( p_mgr );

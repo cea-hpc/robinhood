@@ -782,7 +782,8 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
             }
         }
-        else if ((p_op->db_op_type == OP_TYPE_REMOVE)
+        else if ((p_op->db_op_type == OP_TYPE_REMOVE_LAST) ||
+                 (p_op->db_op_type == OP_TYPE_REMOVE_ONE)
                  || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
         {
             /* actually: never happens */
@@ -855,12 +856,18 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     #endif
             rc = ListMgr_Update( lmgr, &p_op->entry_id, &p_op->fs_attrs );
             break;
-        case OP_TYPE_REMOVE:
-    #ifdef _HAVE_FID
-            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
-    #endif
-            rc = ListMgr_Remove( lmgr, &p_op->entry_id );
-            break;
+    case OP_TYPE_REMOVE_ONE:
+#ifdef _HAVE_FID
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
+#endif
+        rc = ListMgr_Remove( lmgr, &p_op->entry_id, FALSE );
+        break;
+    case OP_TYPE_REMOVE_LAST:
+#ifdef _HAVE_FID
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
+#endif
+        rc = ListMgr_Remove( lmgr, &p_op->entry_id, TRUE );
+        break;
         case OP_TYPE_SOFT_REMOVE:
     #ifdef _HSM_LITE
             DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID", path=%s, bkpath=%s)",

@@ -99,7 +99,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     }
 
     /* update names table */
-    if ( 1 )
+    if ( ATTR_MASK_TEST(p_update_set, name) )
     {
         char          *fields_curr;
         char          *values_curr;

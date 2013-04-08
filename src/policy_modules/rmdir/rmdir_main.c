@@ -228,7 +228,8 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
        }
 
        /* remove entry from database */
-       rc = ListMgr_Remove( lmgr, &id );
+       abort();                 /* TODO: fix remove arguments */
+       //rc = ListMgr_Remove( lmgr, &id );
        if (rc)
        {
             DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
@@ -256,7 +257,8 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
 
        if ( dir_id != NULL )
        {
-           rc = ListMgr_Remove( lmgr, dir_id );
+           abort();                 /* TODO: fix remove arguments */
+           //rc = ListMgr_Remove( lmgr, dir_id );
            if (rc)
            {
                 DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
@@ -1150,7 +1152,8 @@ static void   *Thr_Rmdir( void *arg )
                                    strmod, (time_t)ATTR( &new_attr_set, last_mod ) );
 
                     /* remove it from database */
-                    rc = ListMgr_Remove( &lmgr, &p_item->entry_id );
+                    abort();                 /* TODO: fix remove arguments */
+                    //rc = ListMgr_Remove( &lmgr, &p_item->entry_id );
                     if ( rc )
                         DisplayLog( LVL_CRIT, RMDIR_TAG,
                                    "Error %d removing directory from database.",

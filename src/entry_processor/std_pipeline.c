@@ -378,6 +378,11 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         }
 #endif
     }
+    else if ( logrec->cr_type == CL_HARDLINK ) {
+            /* The entry exists but not the name. We only have to
+             * create the name. */
+        p_op->fs_attr_need |= ATTR_MASK_name;        
+    }
 #ifdef HAVE_SHOOK
     /* shook specific: xattrs on file indicate its current status */
     else if (logrec->cr_type == CL_XATTR)
@@ -708,11 +713,11 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             if ( !policies.unlink_policy.hsm_remove )
             {
 #endif
-                /*  hsm_remove is disabled or file doesn't exist in the backend:
+                /* hsm_remove is disabled or file doesn't exist in the backend:
                  * If the file was in DB: remove it, else skip the record. */
                 if ( p_op->db_exists )
                 {
-                    p_op->db_op_type = OP_TYPE_REMOVE;
+                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
                     return STAGE_DB_APPLY;
                 }
                 else
@@ -737,10 +742,10 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         }
         else if ( p_op->db_exists ) /* entry still exists and is known in DB */
         {
-            /* Force updating the path, because the path we have may be
-             * the removed one. */
-            p_op->fs_attr_need |= ATTR_MASK_fullpath;
-            /* then, check needed updates in the next part of the function */
+            /* Remove the name only. Keep the inode information since
+             * there is more file names refering to it. */
+            p_op->db_op_type = OP_TYPE_REMOVE_ONE;
+            return STAGE_DB_APPLY;
         }
         /* else: is handled in the next part of the function */
 
@@ -759,7 +764,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 #endif
 
         /* we must get info that is not provided by the chglog */
-        p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_fullpath
+        p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_name
                            | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
                            | ATTR_MASK_link;
 #ifdef ATTR_INDEX_status
@@ -777,7 +782,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         if (!p_op->db_attrs.attr_mask)
         {
             /* we know nothing about it... */
-            p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_fullpath
+            p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_name
                                | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
                                | ATTR_MASK_link;
 #ifdef ATTR_INDEX_status
@@ -1385,33 +1390,14 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* get entry path (only for log records) */
         if ( p_op->extra_info.is_changelog_record )
         {
-            char pathnew[RBH_PATH_MAX];
-            /* /!\ Lustre_GetFullPath modifies fullpath even on failure,
-             * so, first write to a tmp buffer */
-            rc = Lustre_GetFullPath( &p_op->entry_id, pathnew, RBH_PATH_MAX );
+            CL_REC_TYPE * logrec = p_op->extra_info.log_record.p_log_rec;
 
-            if ( ERR_MISSING( abs( rc )) )
-            {
-                DisplayLog( LVL_FULL, ENTRYPROC_TAG,
-                            "Entry "DFID" does not exist anymore",
-                            PFID(&p_op->entry_id) );
-
-                if ((!p_op->db_exists)
-#ifdef HAVE_RM_POLICY
-                    && (!policies.unlink_policy.hsm_remove)
-#endif
-                )
-                    goto skip_record;
-                else
-                    goto rm_record;
-            }
-            else if ( rc == 0 )
-            {
-                strcpy( ATTR( &p_op->fs_attrs, fullpath ), pathnew );
-                ATTR_MASK_SET( &p_op->fs_attrs, fullpath );
-                ATTR_MASK_SET( &p_op->fs_attrs, path_update );
-                ATTR( &p_op->fs_attrs, path_update ) = time( NULL );
-            }
+            /* FZ TODO - there was an HSM file removal here. It is
+             * correct now ? */
+            strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
+            ATTR_MASK_SET( &p_op->fs_attrs, name );
+            ATTR_MASK_SET( &p_op->fs_attrs, path_update );
+            ATTR( &p_op->fs_attrs, path_update ) = time( NULL );
         }
     } /* getpath needed */
 #endif
@@ -1622,7 +1608,10 @@ rm_record:
      * or not in DB.
      */
     if (!soft_remove_filter(p_op))
-        p_op->db_op_type = OP_TYPE_REMOVE;
+        /* TODO: apparently we can get there with rmdir. Use
+         * OP_TYPE_REMOVE_LAST instead of OP_TYPE_REMOVE_ONE. But that
+         * choice might be buggy. */
+        p_op->db_op_type = OP_TYPE_REMOVE_LAST;
     else if ( p_op->db_exists )
         p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
     else
@@ -1795,7 +1784,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask, 1);
             printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
         }
-        else if ((p_op->db_op_type == OP_TYPE_REMOVE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
+        else if ((p_op->db_op_type == OP_TYPE_REMOVE_LAST) || (p_op->db_op_type == OP_TYPE_REMOVE_ONE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
         {
             if (ATTR_FSorDB_TEST(p_op, fullpath))
                 printf("--"DFID" path=%s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
@@ -1824,11 +1813,17 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
         rc = ListMgr_Update( lmgr, &p_op->entry_id, &p_op->fs_attrs );
         break;
-    case OP_TYPE_REMOVE:
+    case OP_TYPE_REMOVE_ONE:
 #ifdef _HAVE_FID
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
 #endif
-        rc = ListMgr_Remove( lmgr, &p_op->entry_id );
+        rc = ListMgr_Remove( lmgr, &p_op->entry_id, FALSE );
+        break;
+    case OP_TYPE_REMOVE_LAST:
+#ifdef _HAVE_FID
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
+#endif
+        rc = ListMgr_Remove( lmgr, &p_op->entry_id, TRUE );
         break;
     case OP_TYPE_SOFT_REMOVE:
 #ifdef _HSM_LITE

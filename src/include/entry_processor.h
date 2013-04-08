@@ -127,7 +127,8 @@ typedef enum operation_type_t
     OP_TYPE_NONE = 0,
     OP_TYPE_INSERT,
     OP_TYPE_UPDATE,
-    OP_TYPE_REMOVE,
+    OP_TYPE_REMOVE_ONE,         /* remove name only; inode still exists */
+    OP_TYPE_REMOVE_LAST,        /* remove last name to inode and inode */
     OP_TYPE_SOFT_REMOVE
 } operation_type_t;
 

@@ -318,6 +318,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
 #ifdef HAVE_SHOOK
         case CL_XATTR:
 #endif
+        case CL_HARDLINK:
             /* OK */
             break;
 
@@ -328,7 +329,6 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
             break;
 
         case CL_MARK:
-        case CL_HARDLINK:
         case CL_MKNOD:
         case CL_IOCTL:
 #ifndef HAVE_SHOOK
