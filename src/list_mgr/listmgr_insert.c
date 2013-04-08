@@ -106,6 +106,31 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         return rc;
     }
 
+    /* Insert into names */
+    strcpy( fields, "id" );
+    sprintf( values, DPK, pk );
+    fields_curr = fields + strlen( fields );
+    values_curr = values + strlen( values );
+
+    /* create field and values lists */
+    attrmask2fieldlist( fields_curr, p_info->attr_mask, T_DNAMES, TRUE, FALSE, "", "" );
+    attrset2valuelist( p_mgr, values_curr, p_info, T_DNAMES, TRUE );
+
+    static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), hname=sha1(name)";
+    sprintf( query, "INSERT INTO " DNAMES_TABLE "(%s, hname) VALUES (%s, sha1(name)) ON DUPLICATE KEY UPDATE %s", fields, values, set );
+
+    rc = db_exec_sql( &p_mgr->conn, query, NULL );
+
+    if ( rc )
+    {
+        lmgr_rollback( p_mgr );
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "DB query failed in %s line %d: pk="DPK", code=%d: %s",
+                    __FUNCTION__, __LINE__, pk, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
+        return rc;
+    }
+
+
     /* insert all info in annex table, if any */
 
     if ( annex_table )

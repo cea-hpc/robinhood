@@ -93,6 +93,7 @@ typedef int stripe_info_t; /* dummy type */
 #define INIT_ONLY    0x00000001 /* set at insert only: stored in an annex table (can't be modified) */
 #define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
+#define DNAMES       0x01000000 /* field in DNAMES table. */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
 #define INDEXED      0x20000000 /* this field must be indexed */
 #define DIR_ATTR     0x40000000 /* need to aggregate directory info (specific DB request) */
@@ -682,7 +683,9 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                       const entry_id_t * parent_list, unsigned int parent_count,
                       int attr_mask,
                       entry_id_t ** child_id_list, attr_set_t ** child_attr_list,
-                      unsigned int * child_count );
+                      char ** child_fullname[],
+                      unsigned int * child_count,
+                      const char *parent_fullname);
 
 
 /** @} */

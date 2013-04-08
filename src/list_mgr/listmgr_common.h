@@ -147,6 +147,7 @@
 
 /* precomputed masks for testing attr sets efficiently */
 extern int     main_attr_set;
+extern int     names_attr_set;
 extern int     annex_attr_set;
 extern int     gen_attr_set;
 extern int     stripe_attr_set;
@@ -160,6 +161,7 @@ extern int     acct_pk_attr_set;
 void           init_attrset_masks(  );
 
 #define main_fields( _attr_mask )      ( (_attr_mask) & main_attr_set )
+#define names_fields( _attr_mask )      ( (_attr_mask) & names_attr_set )
 #define annex_fields( _attr_mask )     ( (_attr_mask) & annex_attr_set )
 #define gen_fields( _attr_mask )       ( (_attr_mask) & gen_attr_set )
 #define stripe_fields( _attr_mask )    ( (_attr_mask) & stripe_attr_set )
@@ -185,7 +187,8 @@ void           init_attrset_masks(  );
                 ( (!annex_table || ( field_infos[_attr_index].flags & FREQ_ACCESS )) \
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
-                  && !(field_infos[_attr_index].flags & DIR_ATTR) )
+                  && !(field_infos[_attr_index].flags & DIR_ATTR) \
+                  && !(field_infos[_attr_index].flags & DNAMES) )
 
 #define is_gen_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & GENERATED )
@@ -198,6 +201,9 @@ void           init_attrset_masks(  );
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
                   && !(field_infos[_attr_index].flags & DIR_ATTR) )
+
+#define is_names_field( _attr_index ) \
+                ( field_infos[_attr_index].flags & DNAMES )
 
 #define is_dirattr( _attr_index )  ( field_infos[_attr_index].flags & DIR_ATTR )
 #define is_slinkattr( _attr_index )  ( field_infos[_attr_index].flags & SLINK_ATTR )
@@ -219,6 +225,7 @@ typedef enum
 {
     T_NONE = 0,                                  /* not set */
     T_MAIN,                                      /* fields in main table */
+    T_DNAMES,                                    /* files in dir names table */
     T_ANNEX,                                     /* fiels in annex table */
     T_STRIPE_INFO,                               /* field in stripe info table */
     T_STRIPE_ITEMS,                              /* field in stripe items table */

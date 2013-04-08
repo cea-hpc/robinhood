@@ -104,6 +104,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 
 #ifdef _HSM_LITE
 #define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
+                                ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
                                 ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
                                 ( ( _t == T_RECOV ) && is_recov_field( _i ) ) || \
                                 ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ) || \
@@ -112,6 +113,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 
 #elif defined( HAVE_RM_POLICY ) 
 #define MATCH_TABLE( _t, _i )   ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
+                                ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
                                 ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
                                 ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ) || \
                                 ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
@@ -119,6 +121,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 
 #else
 #define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
+                                ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
                                 ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
                                 ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
                                 ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
@@ -127,6 +130,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 
 /* precomputed masks for testing attr sets efficiently */
 int            main_attr_set = 0;
+int            names_attr_set = 0;
 int            annex_attr_set = 0;
 int            stripe_attr_set = 0;
 int            dir_attr_set = 0;
@@ -142,6 +146,7 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     int            mask = 1;
 
     main_attr_set = 0;
+    names_attr_set = 0;
     annex_attr_set = 0;
     gen_attr_set = 0;
     stripe_attr_set = 0;
@@ -173,6 +178,10 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
         /* is it read only ? */
         if ( is_read_only_field( i ) )
             readonly_attr_set |= mask;
+
+        /* The ID field is both in NAMES and MAIN. */
+        if ( is_names_field( i ) )
+            names_attr_set |= mask;
 
         if ( is_main_field( i ) )
             main_attr_set |= mask;

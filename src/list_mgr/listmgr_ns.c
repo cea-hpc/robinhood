@@ -87,16 +87,20 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                       const entry_id_t * parent_list, unsigned int parent_count,
                       int attr_mask,
                       entry_id_t ** child_id_list, attr_set_t ** child_attr_list,
-                      unsigned int * child_count )
+                      char ** child_fullname[],
+                      unsigned int * child_count,
+                      const char *parent_fullname)
 {
     result_handle_t result;
     char *curr;
     int  filter_main = 0;
     int  filter_annex = 0;
     int main_attrs = 0;
+    int dnames_attrs = 0;
     int annex_attrs = 0;
     char query[4096];
     char fieldlist_main[1024] = "";
+    char fieldlist_dnames[1024] = "";
     char fieldlist_annex[1024] = "";
     char filter_str_main[1024] = "";
     char filter_str_annex[1024] = "";
@@ -123,6 +127,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
             return DB_NOT_SUPPORTED;
         }
 
+        /* TODO: is the filter always on T+MAIN, and not T_DNAMES ? */
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
                                   FALSE, TRUE );
 
@@ -154,6 +159,11 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
         main_attrs = attrmask2fieldlist( fieldlist_main, attr_mask, T_MAIN,
                                          /* leading comma */ TRUE, /* for update */ FALSE,
                                          /* prefix */ MAIN_TABLE".", /* postfix */ "" );
+
+        dnames_attrs += attrmask2fieldlist( fieldlist_dnames, attr_mask, T_DNAMES,
+                                            /* leading comma */ TRUE, /* for update */ FALSE,
+                                            /* prefix */ DNAMES_TABLE".", /* postfix */ "" );
+
         if ( annex_table )
             annex_attrs = attrmask2fieldlist( fieldlist_annex, attr_mask, T_ANNEX,
                                              /* leading comma */ TRUE, /* for update */ FALSE,
@@ -167,8 +177,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
         if (child_attr_list)
             *child_attr_list = NULL;
     }
-
-    pc = parent_cond(p_mgr, tmp, TMPBUFSZ, parent_list, parent_count, MAIN_TABLE".");
+    pc = parent_cond(p_mgr, tmp, TMPBUFSZ, parent_list, parent_count, DNAMES_TABLE".");
     if (!pc)
         return DB_BUFFER_TOO_SMALL;
 
@@ -176,8 +185,14 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     curr = query;
     if (!annex_attrs && !filter_annex)
     {
-        curr += sprintf(curr, "SELECT "MAIN_TABLE".id%s FROM "MAIN_TABLE
-                        " WHERE %s", fieldlist_main, pc);
+        /* Attributes can come from the MAIN table and DNAMES. */
+        curr += sprintf(curr, "SELECT "DNAMES_TABLE".id%s%s FROM "DNAMES_TABLE"%s WHERE %s%s",
+                        fieldlist_dnames,
+                        main_attrs?fieldlist_main:"",
+                        main_attrs?", "MAIN_TABLE:"",
+                        pc,
+                        main_attrs?" AND NAMES.id = ENTRIES.id":"");
+
         if (filter_main)
             curr +=  sprintf(curr, " AND %s", filter_str_main);
     }
@@ -205,6 +220,12 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     if (*child_id_list == NULL)
         return DB_NO_MEMORY;
 
+    *child_fullname = MemCalloc(*child_count, sizeof(char *));
+    if (*child_fullname == NULL) {
+        MemFree(*child_id_list);
+        return DB_NO_MEMORY;
+    }
+
     if (child_attr_list)
     {
         *child_attr_list = MemCalloc(*child_count, sizeof(attr_set_t));
@@ -230,11 +251,20 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
         {
             (*child_attr_list)[i].attr_mask = attr_mask;
 
+            /* first id, then dnames attrs, then main attrs, then annex attrs */
+            if (dnames_attrs)
+            {
+                /* shift of 1 for id */
+                rc = result2attrset( T_DNAMES, res + 1, dnames_attrs, &((*child_attr_list)[i]) );
+                if ( rc )
+                    goto array_free;
+            }
+
             if (main_attrs)
             {
                 /* first id, then main attrs, then annex attrs */
                 /* shift of 1 for id */
-                rc = result2attrset( T_MAIN, res + 1, main_attrs, &((*child_attr_list)[i]) );
+                rc = result2attrset( T_MAIN, res + dnames_attrs + 1, main_attrs, &((*child_attr_list)[i]) );
                 if ( rc )
                     goto array_free;
             }
@@ -242,7 +272,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
             if (annex_attrs)
             {
                 /* shift of main_attrs count */
-                rc = result2attrset( T_ANNEX, res + main_attrs + 1, annex_attrs,
+                rc = result2attrset( T_ANNEX, res + dnames_attrs + main_attrs + 1, annex_attrs,
                                      &((*child_attr_list)[i]) );
                 if ( rc )
                     goto array_free;
@@ -261,6 +291,14 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 #endif
 
             generate_fields(&((*child_attr_list)[i]));
+
+            {
+                char tmppath[RBH_PATH_MAX];
+
+                snprintf(tmppath, sizeof(tmppath), "%s/%s", parent_fullname, (*child_attr_list)[i].attr_values.name);
+                tmppath[sizeof(tmppath)-1] = 0;
+                (*child_fullname)[i] = strdup(tmppath);
+            }
         }
     }
 
@@ -274,6 +312,7 @@ array_free:
         *child_attr_list = NULL;
     }
     MemFree(*child_id_list);
+    MemFree(*child_fullname);
     *child_id_list = NULL;
     return rc;
 }

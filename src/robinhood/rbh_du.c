@@ -462,7 +462,8 @@ static report_field_descr_t dir_info[REPCNT] = {
 
 /* directory callback */
 static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
-                 unsigned int entry_count, void * arg)
+                 unsigned int entry_count, void * arg,
+                 const char *parent_path)
 {
     /* sum child entries stats for all directories */
     int i, rc;
@@ -581,6 +582,7 @@ static int list_content(char ** id_list, int id_count)
     entry_id_t root_id;
     int is_id;
     stats_du_t stats[TYPE_COUNT];
+    char * fullpath;
 
     if (prog_options.sum)
         reset_stats(stats);
@@ -613,6 +615,10 @@ static int list_content(char ** id_list, int id_count)
             }
         }
 
+        /* TODO: if it's an ID, get the path. And may need to remove
+         * trailing slashes, like find does. */
+        fullpath = id_list[i];
+
         if (entry_id_equal(&ids[i], &root_id))
         {
             /* the ID is FS root: use list_all instead */
@@ -627,7 +633,7 @@ static int list_content(char ** id_list, int id_count)
         root_attrs.attr_mask = disp_mask | query_mask;
         rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
         if (rc == 0)
-            dircb(&ids[i], &root_attrs, 1, stats);
+            dircb(&ids[i], &root_attrs, 1, stats, fullpath);
         else
         {
             DisplayLog(LVL_VERB, DU_TAG, "Notice: no attrs in DB for %s", id_list[i]);
@@ -658,7 +664,7 @@ static int list_content(char ** id_list, int id_count)
                 }
             }
 
-            dircb(&ids[i], &root_attrs, 1, stats);
+            dircb(&ids[i], &root_attrs, 1, stats, fullpath);
         }
 
         /* sum root if it matches */
@@ -674,7 +680,8 @@ static int list_content(char ** id_list, int id_count)
         if (!prog_options.sum)
         {
             /* if not group all, run and display stats now */
-            rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask, dircb, stats);
+            rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask, dircb, stats, fullpath);
+
             if (rc)
                 return rc;
 
@@ -684,7 +691,7 @@ static int list_content(char ** id_list, int id_count)
 
     if (prog_options.sum)
     {
-        rc = rbh_scrub(&lmgr, ids, id_count, disp_mask, dircb, stats);
+        rc = rbh_scrub(&lmgr, ids, id_count, disp_mask, dircb, stats, fullpath);
         if (rc)
             return rc;
         print_stats("total", stats);

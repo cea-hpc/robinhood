@@ -36,7 +36,8 @@
 typedef int    ( *scrub_callback_t ) ( entry_id_t * id_list,
                                        attr_set_t * attr_list,
                                        unsigned int entry_count,
-                                       void * arg );
+                                       void * arg,
+                                       const char * fullpath );
 
 
 /** scan sets of directories
@@ -45,7 +46,8 @@ typedef int    ( *scrub_callback_t ) ( entry_id_t * id_list,
 int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
               unsigned int id_count, int dir_attr_mask,
               scrub_callback_t cb_func,
-              void * arg);
+              void * arg,
+              const char * fullpath);
 
 
 int Path2Id(const char *path, entry_id_t * id);

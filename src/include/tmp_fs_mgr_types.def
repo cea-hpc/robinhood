@@ -52,8 +52,14 @@ typedef struct __entry_id__
 #endif
 
 /* functions for automatic generation */
-static int lmgr_gen_name( void * tgt, const void * src )
+static int lmgr_gen_fullpath( void * tgt, const void * src )
 {
+#if 1
+    const char * fullpath = (char*)src;
+    char * name = (char*)tgt;
+	strcpy(name, fullpath);
+	return 0;
+#else
     char * curr;
     const char * fullpath = (char*)src;
     char * name = (char*)tgt;
@@ -67,6 +73,7 @@ static int lmgr_gen_name( void * tgt, const void * src )
     else
         strcpy( name, fullpath );
     return 0;
+#endif
 }
 
 static int lmgr_gen_depth( void * tgt, const void * src )
@@ -107,13 +114,14 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 # /!\ Entry attribute type must fit with DB type
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS, ANNEX_INFO, DIR_ATTR or SLINK_ATTR)
 
-parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
+parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED | DNAMES
 dircount, 	    unsigned int,  DB_UINT,        0, DIR_ATTR, type, NULL
 avgsize, 	    uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 
 stripe_info, 	stripe_info_t, DB_STRIPE_INFO, 0, INIT_ONLY
 stripe_items, stripe_items_t, DB_STRIPE_ITEMS, 0, INIT_ONLY
-fullpath,	char, DB_TEXT, RBH_PATH_MAX, FREQ_ACCESS
+name,		char, DB_TEXT, RBH_NAME_MAX, FREQ_ACCESS | DNAMES
+hname,      char, DB_TEXT, 40, DNAMES
 owner, 	char, DB_TEXT, 128, FREQ_ACCESS
 gr_name, 	char, DB_TEXT, 128, FREQ_ACCESS
 size, 	uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
@@ -134,5 +142,5 @@ rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 link, char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
 
 #generated fields
-name,		char, DB_TEXT, RBH_NAME_MAX, GENERATED, fullpath, lmgr_gen_name
+fullpath,	char, DB_TEXT, RBH_PATH_MAX, GENERATED, name, lmgr_gen_fullpath
 depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth

@@ -60,6 +60,9 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     else
         main_count = 0;
 
+    /* For the NAMES tables. */
+    nb_tables++;
+
     if ( annex_table && annex_fields( p_update_set->attr_mask ) )
     {
         annex_count = attrset2updatelist( p_mgr, annex_fields, p_update_set, T_ANNEX, FALSE );
@@ -90,6 +93,30 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     if ( main_count > 0 )
     {
         sprintf( query, "UPDATE " MAIN_TABLE " SET %s WHERE id="DPK, fields, pk );
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( rc )
+            goto rollback;
+    }
+
+    /* update names table */
+    if ( 1 )
+    {
+        char          *fields_curr;
+        char          *values_curr;
+        char           values[4096];
+
+        strcpy( fields, "id" );
+        sprintf( values, DPK, pk );
+        fields_curr = fields + strlen( fields );
+        values_curr = values + strlen( values );
+
+        /* create field and values lists */
+        attrmask2fieldlist( fields_curr, p_update_set->attr_mask, T_DNAMES, TRUE, FALSE, "", "" );
+        attrset2valuelist( p_mgr, values_curr, p_update_set, T_DNAMES, TRUE );
+
+        static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), hname=sha1(name)";
+        sprintf( query, "INSERT INTO " DNAMES_TABLE "(%s, hname) VALUES (%s, sha1(name)) ON DUPLICATE KEY UPDATE %s", fields, values, set );
+
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
             goto rollback;

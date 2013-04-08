@@ -17,6 +17,7 @@
 #include "list_mgr.h"
 
 #define MAIN_TABLE	        "ENTRIES"
+#define DNAMES_TABLE        "NAMES"
 #define ANNEX_TABLE	        "ANNEX_INFO"
 #define STRIPE_INFO_TABLE	"STRIPE_INFO"
 #define STRIPE_ITEMS_TABLE	"STRIPE_ITEMS"

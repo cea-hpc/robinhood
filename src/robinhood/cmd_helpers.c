@@ -20,6 +20,8 @@
 #include "config.h"
 #endif
 
+#include <libgen.h>             /* Posix versions of dirname/basename */
+
 #include "cmd_helpers.h"
 #include "RobinhoodConfig.h"
 #include "RobinhoodLogs.h"
@@ -32,6 +34,7 @@
 
 /* initially empty array */
 static entry_id_t  * dir_array = NULL;
+static char  ** names_array = NULL; /* fullpath of each directory */
 static unsigned int array_len = 0;
 
 /* first/last+1 set entry ids in array */
@@ -39,7 +42,7 @@ static unsigned int array_first = 0;
 static unsigned int array_next = 0;
 #define array_used ((int)array_next-(int)array_first)
 
-#define LS_CHUNK    50
+#define LS_CHUNK    1 /* TODO - ListMgr_GetChild will get confused if not 1 */
 
 static size_t what_2_power(size_t s)
 {
@@ -49,8 +52,18 @@ static size_t what_2_power(size_t s)
     return c;
 }
 
+/* Copy the ids and names array. */
+static void copy_arrays(entry_id_t * list, entry_id_t *id_dest,
+                        char ** id_names, char **names_dest,
+                        int first, int count)
+{
+    memcpy(&id_dest[first], list, count * sizeof(entry_id_t));
+    memcpy(&names_dest[first], id_names, count * sizeof(char *));
+}
+
 /** add a list of ids to the scrubbing array */
-static int add_id_list(entry_id_t  * list, unsigned int count)
+static int add_id_list(entry_id_t  * list, char **id_names,
+                       unsigned int count)
 {
     /* always add at the beginning to have LIFO behavior */
 
@@ -58,7 +71,9 @@ static int add_id_list(entry_id_t  * list, unsigned int count)
     if (count <= array_first)
     {
         /* copy it just before 'first' (entries must be consecutive) */
-        memcpy(&dir_array[array_first-count], list, count * sizeof(entry_id_t));
+        copy_arrays(list, dir_array, id_names, names_array,
+                    array_first-count, count);
+
         array_first -= count;
 
 #ifdef _DEBUG_ID_LIST
@@ -70,7 +85,9 @@ static int add_id_list(entry_id_t  * list, unsigned int count)
     else if ((array_used == 0) && (count <= array_len))
     {
         /* copy from the beginning */
-        memcpy(dir_array, list, count * sizeof(entry_id_t));
+        copy_arrays(list, dir_array,
+                    id_names, names_array,
+                    0, count);
         array_first = 0;
         array_next = count;
 
@@ -82,17 +99,27 @@ static int add_id_list(entry_id_t  * list, unsigned int count)
     else /* increase array size */
     {
         entry_id_t  * dir_array_new;
+        char **  names_array_new;
         size_t new_len = what_2_power(array_len + count);
         dir_array_new = MemAlloc(new_len * sizeof(entry_id_t));
         if (!dir_array_new)
             return -ENOMEM;
+        names_array_new = MemAlloc(new_len * sizeof(char *));
+        if (!names_array_new) {
+            MemFree(dir_array_new);
+            return -ENOMEM;
+        }
         /* first copy new ids */
-        memcpy(dir_array_new, list, count * sizeof(entry_id_t));
+        copy_arrays(list, dir_array_new,
+                    id_names, names_array_new,
+                    0, count);
         if (dir_array && (array_used > 0))
         {
-            /* then copy current ids */
-            memcpy(&dir_array_new[count+1], &dir_array[array_first],
+            /* then copy current ids and names */
+            memcpy(&dir_array_new[count], &dir_array[array_first],
                    array_used * sizeof(entry_id_t));
+            memcpy(&names_array_new[count], &names_array[array_first],
+                   array_used * sizeof(char *));
 
 #ifdef _DEBUG_ID_LIST
             printf("3) <new_ids:%u-%u><ids:%u-%u>...(len=%Lu)\n", 0, count - 1,
@@ -108,9 +135,12 @@ static int add_id_list(entry_id_t  * list, unsigned int count)
         /* free old array */
         if (dir_array)
             MemFree(dir_array);
+        if (names_array)
+            MemFree(names_array);
 
         /* update array info */
         dir_array = dir_array_new;
+        names_array = names_array_new;
         array_next = array_used + count;
         array_first = 0;
         array_len = new_len;
@@ -138,7 +168,8 @@ static inline void rbh_scrub_release_list(unsigned int first, unsigned int count
 int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
               unsigned int id_count, int dir_attr_mask,
               scrub_callback_t cb_func,
-              void * arg)
+              void * arg,
+              const char * mainpath)
 {
     entry_id_t  * curr_array;
     unsigned int count;
@@ -146,8 +177,13 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
     filter_value_t fv;
     int i, rc;
     int last_err = 0;
+    char tmppath[RBH_PATH_MAX];
+    char *dirpath;
 
-    rc = add_id_list(id_list, id_count);
+    dirpath = strdup(mainpath);
+    if (id_count > 1) abort();  /* TODO - fix condition */
+
+    rc = add_id_list(id_list, &dirpath, id_count);
     if (rc)
         return rc;
 
@@ -162,20 +198,23 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
         unsigned int res_count = 0;
         entry_id_t * child_ids;
         attr_set_t * child_attrs;
+        char ** child_fullname;
 
         /* get a set of entry_ids */
+        curr_array = &dir_array[array_first];
         if (array_used < LS_CHUNK)
         {
             /* get all available dirs */
-            curr_array = &dir_array[array_first];
             count = array_used;
         }
         else
         {
             /* get a constant chunk */
-            curr_array = &dir_array[array_first];
             count = LS_CHUNK;
         }
+
+        strncpy(tmppath, names_array[array_first], sizeof(tmppath));
+        tmppath[sizeof(tmppath) - 1] = 0;
 
 #ifdef _DEBUG_ID_LIST
         printf("processing %u-%u\n", array_first, array_first+count-1);
@@ -185,8 +224,10 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
         res_count = 0;
         child_ids = NULL;
         child_attrs = NULL;
+
         rc = ListMgr_GetChild(p_mgr, &filter, curr_array, count, dir_attr_mask,
-                              &child_ids, &child_attrs, &res_count);
+                              &child_ids, &child_attrs, &child_fullname, &res_count,
+                              tmppath);
 
         if (rc)
         {
@@ -196,10 +237,16 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
         }
 
         /* Call the callback func for each listed dir */
-        rc = cb_func(child_ids, child_attrs, res_count, arg);
+        rc = cb_func(child_ids, child_attrs, res_count, arg, tmppath);
         if (rc)
             /* XXX break the scan? */
             last_err = rc;
+
+        /* can release the list of input ids */
+        rbh_scrub_release_list(array_first, count);
+
+        /* copy entry ids before freeing them */
+        add_id_list(child_ids, child_fullname, res_count);
 
         /* attributes no longer needed */
         /* release attrs */
@@ -210,11 +257,6 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
             MemFree(child_attrs);
             child_attrs = NULL;
         }
-        /* can release the list of input ids */
-        rbh_scrub_release_list(array_first, count);
-
-        /* copy entry ids before freeing them */
-        add_id_list(child_ids, res_count);
 
         /* free the returned id array */
         if (child_ids)
