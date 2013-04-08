@@ -121,7 +121,7 @@ last_archive,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
 last_restore,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
 md_update,          unsigned int, DB_UINT, 0, FREQ_ACCESS
 
-type,           char,   DB_TEXT, 32,         FREQ_ACCESS
+type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
 mode,           unsigned short, DB_USHORT, 0, FREQ_ACCESS
 size,        	uint64_t,	DB_BIGUINT, 0, FREQ_ACCESS  
 blocks, 	    uint64_t,   DB_BIGUINT, 0, FREQ_ACCESS

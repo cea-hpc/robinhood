@@ -134,7 +134,7 @@ status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
 last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 
-type,	    	char,   DB_TEXT, 32, FREQ_ACCESS
+type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
 mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
 size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
