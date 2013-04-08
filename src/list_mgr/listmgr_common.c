@@ -55,6 +55,8 @@ int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * va
             return sprintf( str, "1" );
         else
             return sprintf( str, "0" );
+    case DB_ENUM_FTYPE:
+        return sprintf( str, "'%s'", value_ptr->val_str );
     default:
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error: unknown type %d in %s", type, __FUNCTION__ );
         return 0;
@@ -74,6 +76,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
         if (rc)
             return 0;
         return 1;
+    case DB_ENUM_FTYPE:
     case DB_TEXT:
         value_out->val_str = str_in;
         return 1;

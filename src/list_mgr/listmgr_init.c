@@ -106,6 +106,9 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
     case DB_ID:
         return sprintf( next, "%s %s "PK_TYPE, is_first ? "" : ",", field_infos[i].field_name );
         break;
+    case DB_ENUM_FTYPE:
+        return sprintf( next, "%s %s ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')", is_first ? "" : ",", field_infos[i].field_name, STR_TYPE_LINK, STR_TYPE_DIR, STR_TYPE_FILE, STR_TYPE_CHR, STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK );
+        break;
     }
     return 0;
 }

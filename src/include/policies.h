@@ -85,8 +85,10 @@ typedef enum
 } obj_type_t;
 
 
-/* string representation in database (not in config file) */
-
+/* string representation in database (not in config file)
+ *
+ * When adding a new type, fix the database enum in
+ * listmgr_init.c:append_field_def() */
 #define STR_TYPE_LINK   "symlink"
 #define STR_TYPE_DIR    "dir"
 #define STR_TYPE_FILE   "file"

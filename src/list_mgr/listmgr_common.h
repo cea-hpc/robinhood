@@ -23,6 +23,7 @@
                       case DB_ID:                           \
                         _u.val_id = *((entry_id_t*)(_address)); \
                         break;                              \
+                      case DB_ENUM_FTYPE:                   \
                       case DB_TEXT:                         \
                         _u.val_str = (char*)(_address);     \
                         break;                              \
@@ -58,6 +59,7 @@
                       case DB_ID:                           \
                         *((entry_id_t*)(_address)) = _u.val_id; \
                         break;                              \
+                      case DB_ENUM_FTYPE:                   \
                       case DB_TEXT:                         \
                         strcpy( (char*)(_address), _u.val_str ); \
                         break;                              \

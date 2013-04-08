@@ -110,7 +110,8 @@ typedef enum
     DB_USHORT,  /**< short unsigned integer   */
     DB_BIGINT,  /**< 64 bits integer    */
     DB_BIGUINT, /**< 64 bits unsigned integer */
-    DB_BOOL     /**< boolean            */
+    DB_BOOL,    /**< boolean            */
+    DB_ENUM_FTYPE    /**< file type enumeration */
 } db_type_t;
 
 
