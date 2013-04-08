@@ -725,6 +725,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 
         op.extra_info_is_set = FALSE;
 
+#ifdef _LUSTRE
         if (S_ISREG(inode.st_mode) && is_first_scan)
         {
             /* Fetch the stripes information now. This is faster than
@@ -754,6 +755,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
                 ATTR_MASK_SET( &op.fs_attrs, stripe_items );
             }
         }
+#endif
 
 #ifndef _BENCH_SCAN
         /* Push entry to the pipeline */
