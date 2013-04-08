@@ -67,6 +67,8 @@ static struct option option_tab[] = {
     {"apply", optional_argument, NULL, 'a'},/* to apply on DB or FS */
     {"diff", required_argument, NULL, 'd'}, /* list of diff attrs (default is all) */
 
+    {"dry-run", no_argument, NULL, 'D'}, /* dry-run */
+
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
 
@@ -80,7 +82,7 @@ static struct option option_tab[] = {
     {NULL, 0, NULL, 0}
 };
 
-#define SHORT_OPT_STRING    "s:a:d:f:l:hV"
+#define SHORT_OPT_STRING    "s:a:d:f:l:hVD"
 
 #define MAX_OPT_LEN 1024
 #define MAX_TYPE_LEN 256
@@ -129,8 +131,12 @@ static const char *help_string =
     "        Display changes for the given set of attributes.\n"
     "        "_U"attrset"U_" is a list of options in: path,posix,stripe,all,notimes,noatime.\n"
     "    " _B "-a" B_" {fs|db}, " _B "--apply" B_ "[={fs|db}]\n"
-    "        Apply changes to the database (db) or to the filesystem (fs).\n"
+    "        "_B"db"B_": apply changes to the database using the filesystem as the reference.\n"
+    "        "_B"fs"B_": revert changes in the filesystem using the database as the reference.\n"
     "        If no argument is specified, apply to the database.\n"
+    "\n"
+    "    " _B "--dry-run" B_"\n"
+    "        If --apply=fs, display operations on filesystem without performing them.\n"
     "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Path to configuration file (or short name).\n"
@@ -297,7 +303,10 @@ static void   *signal_handler_thr( void *arg )
                     "Error while setting signal handlers for SIGTERM and SIGINT: %s",
                     strerror( errno ) );
         if (db_tag != NULL && ensure_db_access())
+        {
+            fprintf(stderr, "Cleaning diff table...\n");
             ListMgr_DestroyTag(&lmgr, db_tag);
+        }
         exit( 1 );
     }
     else
@@ -312,7 +321,10 @@ static void   *signal_handler_thr( void *arg )
         DisplayLog( LVL_CRIT, SIGHDL_TAG, "Error while setting signal handlers for SIGUSR1: %s",
                     strerror( errno ) );
         if (db_tag != NULL && ensure_db_access())
+        {
+            fprintf(stderr, "Cleaning diff table...\n");
             ListMgr_DestroyTag(&lmgr, db_tag);
+        }
         exit( 1 );
     }
     else
@@ -351,7 +363,10 @@ static void   *signal_handler_thr( void *arg )
             FlushLogs(  );
 
             if (db_tag != NULL && ensure_db_access())
+            {
+                fprintf(stderr, "Cleaning diff table...\n");
                 ListMgr_DestroyTag(&lmgr, db_tag);
+            }
 
             /* indicate the process terminated due to a signal */
             exit( 128 + terminate_sig );
@@ -375,7 +390,7 @@ static void   *signal_handler_thr( void *arg )
  */
 int main( int argc, char **argv )
 {
-    int            c, option_index = 0;
+    int            c, i, option_index = 0;
     char          *bin = basename( argv[0] );
 
     int            rc;
@@ -427,6 +442,10 @@ int main( int argc, char **argv )
             }
             else
                 options.flags |= FLAG_APPLY_DB;
+            break;
+
+        case 'D':
+                options.flags |= FLAG_DRY_RUN;
             break;
 
         case 'f':
@@ -572,8 +591,10 @@ int main( int argc, char **argv )
 
     /* if no DB apply action is specified, can't use md_update field for checking
      * removed entries. So, create a special tag for that. */
-    if (!(options.flags & FLAG_APPLY_DB))
+    if (!(options.flags & FLAG_APPLY_DB) || (options.flags & FLAG_DRY_RUN))
     {
+        fprintf(stderr, "Preparing diff table...\n");
+
         /* create a connexion to the DB. this is safe to use the global lmgr var
          * as statistics thread is not running */
         if (!ensure_db_access())
@@ -583,6 +604,7 @@ int main( int argc, char **argv )
         /* There could be several diff running in parallel,
          * so set a suffix to avoid conflicts */
         sprintf(tag_name, "DIFF_%u", (unsigned int) getpid());
+        db_tag = tag_name;
 
         /* add filter for partial scan */
         if (options.partial_scan)
@@ -605,8 +627,6 @@ int main( int argc, char **argv )
 
         if (rc)
             exit(rc);
-
-        db_tag = tag_name;
     }
 
     /* Initialise Pipeline */
@@ -620,6 +640,32 @@ int main( int argc, char **argv )
     else
         DisplayLog( LVL_VERB, DIFF_TAG, "EntryProcessor successfully initialized" );
 
+    fprintf(stderr, "Starting scan\n");
+
+    /* print header to indicate the content of diff
+     * #<diff cmd>
+     * ---fs[=/subdir]
+     * +++db
+     */
+    for (i = 0; i < argc; i++)
+        printf("%s%s", i==0?"# ":" ", argv[i]);
+    printf("\n");
+    if (options.flags & FLAG_APPLY_FS)
+    {
+        printf("---db\n");
+        if (options.partial_scan)
+            printf("+++fs=%s\n",options.partial_scan_path);
+        else
+            printf("+++fs\n");
+    }
+    else
+    {
+        if (options.partial_scan)
+            printf("---fs=%s\n",options.partial_scan_path);
+        else
+            printf("---fs\n");
+        printf("+++db\n");
+    }
 
     /* Start FS scan */
     if (options.partial_scan)
@@ -661,6 +707,7 @@ int main( int argc, char **argv )
     /* Pipeline must be flushed */
     EntryProcessor_Terminate( TRUE );
 
+    fprintf(stderr, "End of scan\n");
 
     DisplayLog( LVL_MAJOR, DIFF_TAG, "All tasks done! Exiting." );
     rc = 0;
@@ -669,7 +716,10 @@ int main( int argc, char **argv )
 clean_tag:
     /* destroy the tag before exit */
     if (db_tag != NULL && ensure_db_access())
+    {
+        fprintf(stderr, "Cleaning diff table...\n");
         ListMgr_DestroyTag(&lmgr, db_tag);
+    }
 
     exit(rc);
     return rc; /* for compiler */

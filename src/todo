@@ -1,5 +1,3 @@
-- diff src=db
-- test diff scan partial
 - db diff option: list changes since xxx
 - apply
 - bench diff

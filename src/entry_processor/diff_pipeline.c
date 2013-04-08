@@ -632,39 +632,90 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             char attrchg[RBH_PATH_MAX];
 
-            /* attr from DB */
-            if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                & entry_proc_conf.diff_mask) == 0)
-                attrchg[0] = '\0';
-            else
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                    p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+            /* revert change: reverse display */
+            if (pipeline_flags & FLAG_APPLY_FS)
+            {
+                /* attr from FS */
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
+                    p_op->fs_attrs.attr_mask & p_op->db_attrs.attr_mask
                     & entry_proc_conf.diff_mask, 1);
 
-            printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+                printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
 
-            /* attr from FS */
-            PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
-                p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask, 1);
+                /* attr from DB */
+                if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                    & entry_proc_conf.diff_mask) == 0)
+                    attrchg[0] = '\0';
+                else
+                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
+                        p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                        & entry_proc_conf.diff_mask, 1);
 
-            printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+                printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+            }
+            else
+            {
+                /* attr from DB */
+                if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                    & entry_proc_conf.diff_mask) == 0)
+                    attrchg[0] = '\0';
+                else
+                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
+                        p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
+                        & entry_proc_conf.diff_mask, 1);
+
+                printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+
+                /* attr from FS */
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
+                    p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask, 1);
+
+                printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+            }
         }
     }
     else if (entry_proc_conf.diff_mask)
     {
         if (p_op->db_op_type == OP_TYPE_INSERT)
         {
-            char attrnew[RBH_PATH_MAX];
-            PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
-                p_op->fs_attrs.attr_mask, 1);
-            printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
-        }
-        else if ((p_op->db_op_type == OP_TYPE_REMOVE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
-        {
-            if (ATTR_FSorDB_TEST(p_op, fullpath))
-                printf("--"DFID" path=%s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
+            if (pipeline_flags & FLAG_APPLY_FS)
+            {
+                /* revert change: reverse display */
+                if (ATTR_FSorDB_TEST(p_op, fullpath))
+                    printf("--"DFID" path=%s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
+                else
+                    printf("--"DFID"\n", PFID(&p_op->entry_id));
+            }
             else
-                printf("--"DFID"\n", PFID(&p_op->entry_id));
+            {
+                char attrnew[RBH_PATH_MAX];
+                PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
+                    p_op->fs_attrs.attr_mask, 1);
+
+                printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
+            }
+        }
+        else if ((p_op->db_op_type == OP_TYPE_REMOVE)
+                 || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
+        {
+            /* actually: never happens */
+
+            if (pipeline_flags & FLAG_APPLY_FS)
+            {
+                /* revert change: reverse display */
+                char attrnew[RBH_PATH_MAX];
+                PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->db_attrs,
+                    p_op->db_attrs.attr_mask, 1);
+
+                printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
+            }
+            else
+            { 
+                if (ATTR_FSorDB_TEST(p_op, fullpath))
+                    printf("--"DFID" path=%s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
+                else
+                    printf("--"DFID"\n", PFID(&p_op->entry_id));
+            }
         }
     }
 
@@ -695,7 +746,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
-    if (pipeline_flags & FLAG_APPLY_DB)
+    if ((pipeline_flags & FLAG_APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
     {
         /* insert to DB */
         switch ( p_op->db_op_type )
@@ -753,16 +804,53 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation.", rc );
     }
-    else if (pipeline_flags & FLAG_APPLY_FS)
-    {
-        /* TODO apply to filesystem */
-    }
     else if (entry_proc_db_tag)
     {
         /* tag the entry in the DB */
         rc = ListMgr_TagEntry(lmgr, entry_proc_db_tag, &p_op->entry_id);
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation.", rc );
+    }
+
+    if (pipeline_flags & FLAG_APPLY_FS)
+    {
+        /* all changes must be reverted. So, insert=>rm, rm=>create, ... */
+        /* FIXME as this step is parallel, how to manage file creation while
+         * parent directory is not created?
+         * Same issue for unlink & rmdir */
+        switch ( p_op->db_op_type )
+        {
+            case OP_TYPE_INSERT:
+                /* unlink or rmdir */
+                if ( ATTR_MASK_TEST(&p_op->fs_attrs, type)
+                     &&  ATTR_MASK_TEST(&p_op->fs_attrs, fullpath) )
+                {
+                    if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
+                    {
+                        /* rmdir */
+                        DisplayReport("%srmdir(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                                      ATTR(&p_op->fs_attrs, fullpath));
+                    }
+                    else
+                    {
+                        /* unlink */
+                        DisplayReport("%sunlink(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                                      ATTR(&p_op->fs_attrs, fullpath));
+                    }
+                }
+                else
+                {
+                    DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Cannot remove entry: type or path is unknown" );
+                }
+                break;
+            case OP_TYPE_UPDATE:
+                /*attributes to be changed: p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask */
+                rc = ApplyAttrs(&p_op->db_attrs, &p_op->fs_attrs,
+                                p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask,
+                                pipeline_flags & FLAG_DRY_RUN);
+                break;
+
+        }
     }
 
     rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
@@ -775,7 +863,11 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 /* called for each untagged entry */
 static void no_tag_cb(const entry_id_t *p_id)
 {
-    printf("--"DFID"\n", PFID(p_id));
+    if (pipeline_flags & FLAG_APPLY_FS)
+        /* XXX no rm callback is supposed to be called for FS apply */
+        printf("++"DFID"\n", PFID(p_id));
+    else
+        printf("--"DFID"\n", PFID(p_id));
 }
 
 int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
@@ -795,7 +887,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (ATTR_MASK_TEST(&p_op->fs_attrs, md_update))
     {
         /* call MassRemove only if APPLY_DB is set */
-        if (pipeline_flags & FLAG_APPLY_DB)
+        if ((pipeline_flags & FLAG_APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
         {
             lmgr_simple_filter_init( &filter );
 
@@ -849,19 +941,36 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
             else
             {
-                attrs.attr_mask = ATTR_MASK_fullpath;
+                int getattr_mask;
 
-                while ((rc = ListMgr_GetNext(it, &id, &attrs ) ) == DB_SUCCESS)
+                if (pipeline_flags & FLAG_APPLY_FS)
+                    getattr_mask = 0xFFFFFFFF; /* all possible info */
+                else
+                    getattr_mask = ATTR_MASK_fullpath;
+
+                attrs.attr_mask = getattr_mask;
+                while ((rc = ListMgr_GetNext(it, &id, &attrs )) == DB_SUCCESS)
                 {
-                    if (ATTR_MASK_TEST(&attrs, fullpath))
-                        printf("--"DFID" path=%s\n", PFID(&id), ATTR(&attrs, fullpath));
+                    if (pipeline_flags & FLAG_APPLY_FS)
+                    {
+                        /* FS apply: reverse display */
+                        char attrnew[RBH_PATH_MAX];
+                        PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, 0, 1);
+
+                        printf("++"DFID" %s\n", PFID(&id), attrnew);
+                    }
                     else
-                        printf("--"DFID"\n", PFID(&id));
+                    {
+                        if (ATTR_MASK_TEST(&attrs, fullpath))
+                            printf("--"DFID" path=%s\n", PFID(&id), ATTR(&attrs, fullpath));
+                        else
+                            printf("--"DFID"\n", PFID(&id));
+                    }
 
                     ListMgr_FreeAttrs( &attrs );
 
                     /* prepare next call */
-                    attrs.attr_mask = ATTR_MASK_fullpath;
+                    attrs.attr_mask = getattr_mask;
                 }
 
                 ListMgr_CloseIterator( it );

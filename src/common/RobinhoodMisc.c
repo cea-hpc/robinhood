@@ -30,6 +30,8 @@
 #include <libgen.h>             /* for dirname */
 #include <stdarg.h>
 #include <fnmatch.h>
+#include <sys/types.h>
+#include <utime.h>
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
@@ -1414,7 +1416,7 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
                       ATTR( p_attr_set, type ) );
     }
 #endif
-#ifdef ATTR_INDEX_type
+#ifdef ATTR_INDEX_mode
     if ( mask & ATTR_MASK_mode )
     {
         if (brief)
@@ -1624,6 +1626,170 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
 
     return written;
 }
+
+/* helpers for attr change */
+#define APPLYTAG "ChgAttr"
+#define LOG_ATTR_CHANGE(_nfunc, _arg_fmt, _dr, _rc, ...) do { \
+            if (_rc)                                          \
+                DisplayLog(LVL_CRIT, APPLYTAG, "%s("_arg_fmt") failed: %s", _nfunc, __VA_ARGS__, strerror(_rc)); \
+            else                                              \
+                DisplayReport("%s%s("_arg_fmt")", _dr?"(dry-run) ":"", _nfunc, __VA_ARGS__ ); \
+        } while(0)
+
+/**
+ *  Apply attribute changes
+ *  \param change_mask mask of attributes to be changed
+ */
+int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_attr_old,
+                          int change_mask, int dry_run)
+{
+    int  mask = p_attr_new->attr_mask & change_mask;
+    int rc, err = 0;
+
+    if (!ATTR_MASK_TEST(p_attr_new, fullpath))
+    {
+        DisplayLog(LVL_CRIT, APPLYTAG, "No path: cannot apply changes to entry");
+        return -EINVAL;
+    }
+
+    if (!mask)
+        return 0;
+
+    if ( mask & ATTR_MASK_fullpath )
+    {
+        if (!ATTR_MASK_TEST(p_attr_old, fullpath))
+        {
+            DisplayLog(LVL_CRIT, APPLYTAG, "Cannot rename: source path is unknown");
+            err++;
+        }
+        else
+        {
+            if (!dry_run && rename(ATTR(p_attr_old,fullpath), ATTR(p_attr_new, fullpath)))
+               rc = errno;
+            else
+               rc = 0;
+
+            LOG_ATTR_CHANGE("rename", "%s, %s", dry_run, rc,
+                            ATTR(p_attr_old,fullpath), ATTR(p_attr_new, fullpath));
+        }
+    }
+    else if ( mask & ATTR_MASK_parent_id )
+    {
+        /* can't change parent without changing path!!! */
+    }
+    else if ( mask & ATTR_MASK_name )
+    {
+        /* just change name */
+    }
+
+#ifdef ATTR_INDEX_type
+    if ( mask & ATTR_MASK_type )
+    {
+        /* can't change entry type without creating/removing it */
+    }
+#endif
+#ifdef ATTR_INDEX_mode
+    if ( mask & ATTR_MASK_mode )
+    {
+
+        if (!dry_run && chmod(ATTR(p_attr_new, fullpath),  ATTR(p_attr_new, mode)))
+           rc = errno;
+        else
+           rc = 0;
+
+        LOG_ATTR_CHANGE("chmod", "%s, %#o", dry_run, rc,
+                        ATTR(p_attr_new, fullpath),  ATTR(p_attr_new, mode));
+    }
+#endif
+
+    if ( mask & (ATTR_MASK_owner | ATTR_MASK_gr_name))
+    {
+        uid_t u = -1;
+        gid_t g = -1;
+
+        if (mask & ATTR_MASK_owner)
+        {
+            struct passwd p;
+            char buf[4096];
+            struct passwd *res = NULL;
+
+            rc = getpwnam_r(ATTR(p_attr_new, owner), &p, buf, 4096,
+                           &res);
+            if (rc == 0 && res != NULL)
+                u = res->pw_uid;
+        }
+
+        if (mask & ATTR_MASK_gr_name)
+        {
+            struct group gs;
+            char buf[4096];
+            struct group *res = NULL;
+
+            rc = getgrnam_r(ATTR(p_attr_new, gr_name), &gs, buf, 4096,
+                            &res);
+            if (rc == 0 && res != NULL)
+                g = res->gr_gid;
+        }
+
+        if (u != -1 || g != -1)
+        {
+
+            if (!dry_run && lchown(ATTR(p_attr_new, fullpath), u, g))
+               rc = errno;
+            else
+               rc = 0;
+
+            LOG_ATTR_CHANGE("lchown", "%s, u=%d, g=%d", dry_run, rc,
+                            ATTR(p_attr_new, fullpath), u, g);
+        }
+    }
+
+#ifdef _LUSTRE
+    if ( mask & ATTR_MASK_stripe_items)
+    {
+    }
+
+    if (mask & ATTR_MASK_stripe_info)
+    {
+    }
+#endif
+
+#ifdef ATTR_INDEX_status
+    if ( mask & ATTR_MASK_status )
+    {
+    }
+#endif
+
+
+    if ( mask & ATTR_MASK_size )
+    {
+        /* if new size is zero: truncate.
+         * else, we have no idea of what's in the file...
+         */
+    }
+    if (mask & (ATTR_MASK_last_access | ATTR_MASK_last_mod))
+    {
+         struct utimbuf t = {
+            .actime = -1,
+            .modtime = -1
+        };
+        if (mask & ATTR_MASK_last_access)
+            t.actime = ATTR(p_attr_new, last_access);
+        if (mask & ATTR_MASK_last_mod)
+            t.modtime = ATTR(p_attr_new, last_mod);
+
+        if (!dry_run && utime(ATTR(p_attr_new, fullpath), &t))
+           rc = errno;
+        else
+           rc = 0;
+
+        LOG_ATTR_CHANGE("utime", "%s, a=%ld, m=%ld", dry_run, rc,
+                        ATTR(p_attr_new, fullpath), t.actime, t.modtime);
+    }
+
+    return err;
+}
+
 
 
 /** Compute greatest common divisor (GCD) of 2 numbers */

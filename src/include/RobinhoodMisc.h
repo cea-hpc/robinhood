@@ -298,6 +298,14 @@ const char *mode_string(mode_t mode, char *buf);
 int            PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set,
                            int overide_mask, int brief );
 
+/**
+ *  Apply attribute changes
+ *  \param change_mask mask of attributes to be changed
+ */
+int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_attr_old,
+                          int change_mask, int dry_run);
+
+
 /** Compute greatest common divisor (GCD) of 2 numbers */
 unsigned int   gcd( unsigned int x, unsigned int y );
 
