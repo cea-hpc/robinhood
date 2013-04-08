@@ -1435,7 +1435,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
          *   rc = ListMgr_Remove( lmgr, &p_item->entry_id );
          */
         abort();
-        rc = ListMgr_Remove( lmgr, &p_item->entry_id, 0 );
+        rc = ListMgr_Remove( lmgr, &p_item->entry_id, &new_attr_set, 0 );
         if ( rc )
             DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d removing entry from database.", rc );
 #endif

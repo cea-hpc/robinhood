@@ -319,6 +319,9 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         case CL_XATTR:
 #endif
         case CL_HARDLINK:
+#ifdef CL_SPLITTED_TIME
+        case CL_ATIME:
+#endif
             /* OK */
             break;
 
@@ -333,9 +336,6 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         case CL_IOCTL:
 #ifndef HAVE_SHOOK
         case CL_XATTR:
-#endif
-#ifdef CL_SPLITTED_TIME
-        case CL_ATIME:
 #endif
             DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
             /* free the record */

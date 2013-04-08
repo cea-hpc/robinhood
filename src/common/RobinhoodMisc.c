@@ -1521,8 +1521,8 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
     {
         if (brief)
         {
-            written += snprintf( out_str + written, strsize - written, "creation=%u,",
-                    ATTR( p_attr_set, creation_time ));
+            written += snprintf( out_str + written, strsize - written, "creation=%lu,",
+                                 (unsigned long)ATTR( p_attr_set, creation_time ));
         }
         else
         {
