@@ -131,26 +131,26 @@ int            CheckFSInfo( char *path, char *expected_type,
  * - global_config must be set
  * - initialize mount_point, fsname and dev_id
  */
-int InitFS();
+int InitFS( void );
 
 /**
  * This is to be called after a dev_id change was detected
  * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
  * else, return -1
  */
-int ResetFS();
+int ResetFS( void );
 
 
 /**
  *  Check that FS path is the same as the last time.
  */
-int            CheckLastFS(  );
+int            CheckLastFS( void );
 
 /* retrieve FS info */
 const char    *get_mount_point( unsigned int * plen );
-const char    *get_fsname(  );
-dev_t          get_fsdev();
-uint64_t       get_fskey();
+const char    *get_fsname( void );
+dev_t          get_fsdev( void );
+uint64_t       get_fskey( void );
 
 /**
  * extract relative path from full path
@@ -165,7 +165,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
 #ifdef _LUSTRE
 
 /** initialize access to lustre */
-int            Lustre_Init(  );
+int            Lustre_Init( void );
 
 /** Retrieve stripe info for a file */
 int            File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,

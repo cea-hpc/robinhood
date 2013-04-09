@@ -38,7 +38,7 @@ int                 pipeline_flags = 0;
 static struct id_hash *id_constraint_hash;
 
 /** initialize id constraint manager */
-int id_constraint_init(  )
+int id_constraint_init( void )
 {
     id_constraint_hash = id_hash_init(ID_HASH_SIZE);
     return id_constraint_hash == NULL;     /* TODO: this is not checked */
@@ -143,7 +143,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 }
 
 
-void id_constraint_dump(  )
+void id_constraint_dump( void )
 {
     id_hash_dump(id_constraint_hash, "Id constraints count");
 }

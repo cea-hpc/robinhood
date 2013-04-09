@@ -141,7 +141,7 @@ static unsigned int next_index = 1;
 
 
 /* init check */
-static inline void log_init_check(  )
+static inline void log_init_check( void )
 {
     if ( !log_initialized )
     {
@@ -160,7 +160,7 @@ static void init_keys( void )
 
 
 /* returns thread index */
-static unsigned int GetThreadIndex(  )
+static unsigned int GetThreadIndex( void )
 {
 
 #if HAVE_PTHREAD_GETSEQUENCE_NP
@@ -352,7 +352,7 @@ static void flush_log_descr( log_stream_t * p_log )
 
 
 /* Flush logs (for example, at the end of a purge pass or after dumping stats) */
-void FlushLogs(  )
+void FlushLogs( void )
 {
     log_init_check(  );
 
@@ -396,7 +396,7 @@ static void test_log_descr( const char * logname, log_stream_t * p_log )
 
 /* check if log file have been renamed */
 
-static void test_file_names(  )
+static void test_file_names( void )
 {
     log_init_check(  );
 
@@ -912,7 +912,7 @@ void RaiseAlert( const char *title, const char *format, ... )
 }                               /* DisplayAlert */
 
 /* Wait for next stat deadline */
-void WaitStatsInterval(  )
+void WaitStatsInterval( void )
 {
     rh_sleep( log_config.stats_interval );
 }

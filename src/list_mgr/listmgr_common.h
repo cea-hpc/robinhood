@@ -159,7 +159,7 @@ extern int     acct_pk_attr_set;
 
 /* extern int     readonly_attr_set; => moved to listmgr.h */
 
-void           init_attrset_masks(  );
+void           init_attrset_masks( const lmgr_config_t *lmgr_config );
 
 #define main_fields( _attr_mask )      ( (_attr_mask) & main_attr_set )
 #define names_fields( _attr_mask )      ( (_attr_mask) & names_attr_set )

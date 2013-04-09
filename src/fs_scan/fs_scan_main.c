@@ -99,7 +99,7 @@ int FSScan_Start( fs_scan_config_t *module_config, int flags, const char * parti
 }
 
 /** Wait for scan termination */
-int FSScan_Wait(  )
+int FSScan_Wait( void )
 {
     wait_scan_finished(  );
     return 0;
@@ -107,7 +107,7 @@ int FSScan_Wait(  )
 
 
 /** Stop FS Scan info collector */
-int FSScan_Terminate(  )                         /* @TODO */
+int FSScan_Terminate( void )                         /* @TODO */
 {
     int            rc;
 
@@ -160,7 +160,7 @@ int FSScan_StoreStats( lmgr_t * lmgr )
 
 
 /** Dump FS Scan stats to log file */
-int FSScan_DumpStats(  )
+int FSScan_DumpStats( void )
 {
     int            rc;
     robinhood_fsscan_stat_t stats;

@@ -135,12 +135,12 @@ typedef struct resmon_opt_t
 int            Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t options );
 
 /* wait or abort a purge */
-int            Wait_ResourceMonitor();
-int            Stop_ResourceMonitor();
+int            Wait_ResourceMonitor( void );
+int            Stop_ResourceMonitor( void );
 
-void           Dump_ResourceMonitor_Stats(  );
+void           Dump_ResourceMonitor_Stats( void );
 
 /** Recompute trigger check interval as the GCD of all triggers */
-void           ResMon_UpdateCheckInterval(  );
+void           ResMon_UpdateCheckInterval( void );
 
 #endif

@@ -45,7 +45,7 @@ extern int     yylineno;
 /**
  *  create a list of items
  */
-list_items    *rh_config_CreateItemsList(  )
+list_items    *rh_config_CreateItemsList( void )
 {
     list_items    *new = ( list_items * ) malloc( sizeof( list_items ) );
 
@@ -382,7 +382,7 @@ generic_item  *rh_config_CreateSet_Singleton( char* set_name )
 }
 
 
-arg_list_t    *rh_config_CreateArgList(  )
+arg_list_t    *rh_config_CreateArgList( void )
 {
     arg_list_t    *p_list = ( arg_list_t * ) malloc( sizeof( arg_list_t ) );
     p_list->nb_args = 0;

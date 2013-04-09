@@ -67,13 +67,13 @@ typedef struct chglog_reader_config_t
 int            ChgLogRdr_Start( chglog_reader_config_t * collector_config, int flags );
 
 /** terminate ChangeLog Readers */
-int            ChgLogRdr_Terminate(  );
+int            ChgLogRdr_Terminate( void );
 
 /** wait for ChangeLog Readers termination */
-int            ChgLogRdr_Wait(  );
+int            ChgLogRdr_Wait( void );
 
 /** dump changelog processing stats */
-int            ChgLogRdr_DumpStats(  );
+int            ChgLogRdr_DumpStats( void );
 
 /** store changelog stats to db */
 int            ChgLogRdr_StoreStats( lmgr_t * lmgr );

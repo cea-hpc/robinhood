@@ -28,7 +28,7 @@ void           SetNbPreallocTasks( size_t nb_prealloc );
 
 
 /* Create and initialize a task */
-robinhood_task_t *CreateTask(  );
+robinhood_task_t *CreateTask( void );
 
 
 /* Free the resources of a task */

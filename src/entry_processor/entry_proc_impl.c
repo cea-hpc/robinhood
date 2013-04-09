@@ -879,7 +879,7 @@ static const char * entry_status_str( entry_proc_op_t * p_op, unsigned int stage
 
 
 
-void EntryProcessor_DumpCurrentStages(  )
+void EntryProcessor_DumpCurrentStages( void )
 {
     unsigned int   i;
     double         tpe = 0.0;
@@ -1034,7 +1034,7 @@ entry_proc_op_t * EntryProcessor_Get( void )
 }
 
 /* helper for counting the number of operations in pipeline */
-unsigned int count_nb_ops()
+unsigned int count_nb_ops( void )
 {
     int i;
     unsigned int total = 0;

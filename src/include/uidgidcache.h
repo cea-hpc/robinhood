@@ -32,7 +32,7 @@
 #include <grp.h>
 #include <pwd.h>
 
-int            InitUidGid_Cache(  );
+int            InitUidGid_Cache( void );
 
 struct passwd *GetPwUid( uid_t owner );
 

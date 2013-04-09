@@ -99,7 +99,7 @@ static void update_trigger_status( unsigned int i, trigger_status_t state )
 /**
  * Function for checking that filesystem hasn't been unmounted
  */
-static int CheckFSDevice(  )
+static int CheckFSDevice( void )
 {
     struct stat    root_md;
 
@@ -2111,7 +2111,7 @@ out:
 /* ------------ Exported functions ------------ */
 
 /** Recompute trigger check interval as the GCD of all triggers */
-void ResMon_UpdateCheckInterval(  )
+void ResMon_UpdateCheckInterval( void )
 {
     unsigned int   i;
 
@@ -2244,7 +2244,7 @@ int Stop_ResourceMonitor()
 
 static int volatile waiting = 0;
 
-int Wait_ResourceMonitor()
+int Wait_ResourceMonitor( void )
 {
     void          *returned;
     int rc = 0;
@@ -2277,7 +2277,7 @@ int Wait_ResourceMonitor()
 }
 
 
-void Dump_ResourceMonitor_Stats(  )
+void Dump_ResourceMonitor_Stats( void )
 {
     unsigned int   status_tab[PURGE_ST_COUNT];
     unsigned long long feedback_tab[PURGE_FDBK_COUNT];

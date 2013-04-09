@@ -351,7 +351,7 @@ extern policies_t policies;
  *  Functions for applying policies to entries
  * ==============================================*/
 
-static inline int is_file_class_defined()
+static inline int is_file_class_defined(void)
 {
 #ifdef HAVE_PURGE_POLICY
     if ( !NO_POLICY( &policies.purge_policies ) )
@@ -365,7 +365,7 @@ static inline int is_file_class_defined()
     return FALSE;
 }
 
-static inline int is_dir_class_defined()
+static inline int is_dir_class_defined(void)
 {
 #ifdef HAVE_RMDIR_POLICY
     if ( !NO_DIR_POLICY( &policies.rmdir_policy) )

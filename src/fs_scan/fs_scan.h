@@ -67,26 +67,26 @@ typedef struct robinhood_fsscan_stat__
  *   -1 : unexpected error at initialization.
  *   EINVAL : a parameter from the config file is invalid.
  */
-int            Robinhood_InitScanModule(  );
+int            Robinhood_InitScanModule( void );
 
 
 /**
  * Stop audit module + wait for termination
  */
-int            Robinhood_StopScanModule(  );
+int            Robinhood_StopScanModule( void );
 
 
 /**
  * Wait for scan termination (one shot mode).
  */
-void           wait_scan_finished(  );
+void           wait_scan_finished( void );
 
 
 /**
  * Check if audit is to be started and thread hangs.
  * (called by the spooler)
  */
-int            Robinhood_CheckScanDeadlines(  );
+int            Robinhood_CheckScanDeadlines( void );
 
 /** 
  * Retrieve some statistics about current and terminated audits.

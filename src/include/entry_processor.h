@@ -290,7 +290,7 @@ void EntryProcessor_Release( entry_proc_op_t * p_op );
 /**
  * Dump info about pipeline stages 
  */
-void           EntryProcessor_DumpCurrentStages(  );
+void           EntryProcessor_DumpCurrentStages( void );
 
 #endif
 /**

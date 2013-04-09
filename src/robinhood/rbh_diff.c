@@ -236,7 +236,7 @@ static lmgr_t  lmgr;
 static int     lmgr_init = FALSE;
 static char    start_time_str[256];
 
-static inline int ensure_db_access()
+static inline int ensure_db_access( void )
 {
     if ( !lmgr_init )
     {

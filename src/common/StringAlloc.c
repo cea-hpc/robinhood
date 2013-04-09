@@ -117,7 +117,7 @@ static char   *IncrementalAlloc( unsigned int *size )
 }
 
 
-void InitStringAllocator(  )
+void InitStringAllocator( void )
 {
     unsigned int   u;
 
@@ -260,7 +260,7 @@ void StringAllocMemInfo( size_t * p_used, size_t * p_alloc )
 
 
 /* for debug */
-void DumpStringAllocMap(  )
+void DumpStringAllocMap( void )
 {
     int            i;
 
@@ -300,7 +300,7 @@ void DumpStringAllocMap(  )
 
 #else
 
-void InitStringAllocator(  )
+void InitStringAllocator( void )
 {
     /* do nothing */
     return;

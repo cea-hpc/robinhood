@@ -52,7 +52,7 @@ config_file_t  rh_config_ParseFile( char *file_path );
  * config_GetErrorMsg returns a detailled message
  * to indicate the reason for this error.
  */
-char          *rh_config_GetErrorMsg(  );
+char          *rh_config_GetErrorMsg( void );
 
 /**
  * config_Print:

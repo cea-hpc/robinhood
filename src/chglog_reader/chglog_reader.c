@@ -763,7 +763,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
 
 
 /** terminate ChangeLog Readers */
-int            ChgLogRdr_Terminate(  )
+int            ChgLogRdr_Terminate( void )
 {
     unsigned int i;
 
@@ -785,7 +785,7 @@ int            ChgLogRdr_Terminate(  )
 
 
 /** wait for ChangeLog Readers termination */
-int            ChgLogRdr_Wait(  )
+int            ChgLogRdr_Wait( void )
 {
     int i;
     void * ret;
@@ -803,7 +803,7 @@ int            ChgLogRdr_Wait(  )
 }
 
 /** dump changelog processing stats */
-int            ChgLogRdr_DumpStats(  )
+int            ChgLogRdr_DumpStats( void )
 {
     unsigned int i,j;
     char tmp_buff[256];

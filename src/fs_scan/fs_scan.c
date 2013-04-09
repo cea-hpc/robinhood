@@ -123,14 +123,14 @@ static pthread_cond_t special_db_op_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t special_db_op_lock = PTHREAD_MUTEX_INITIALIZER;
 static int     waiting_db_op = FALSE;
 
-static inline void set_db_wait_flag(  )
+static inline void set_db_wait_flag( void )
 {
     P( special_db_op_lock );
     waiting_db_op = TRUE;
     V( special_db_op_lock );
 }
 
-static void wait_for_db_callback(  )
+static void wait_for_db_callback( void )
 {
     P( special_db_op_lock );
     while ( waiting_db_op )
@@ -163,7 +163,7 @@ static int     scan_finished = FALSE;
 static pthread_cond_t one_shot_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t one_shot_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static inline void signal_scan_finished(  )
+static inline void signal_scan_finished( void )
 {
     P( one_shot_lock );
     scan_finished = TRUE;
@@ -171,7 +171,7 @@ static inline void signal_scan_finished(  )
     V( one_shot_lock );
 }
 
-static inline int all_threads_idle()
+static inline int all_threads_idle( void )
 {
     unsigned int i;
     for ( i = 0; i < fs_scan_config.nb_threads_scan ; i++ )
@@ -181,7 +181,7 @@ static inline int all_threads_idle()
     return TRUE;
 }
 
-void wait_scan_finished(  )
+void wait_scan_finished( void )
 {
     P( one_shot_lock );
     while ( !scan_finished )
@@ -193,7 +193,7 @@ void wait_scan_finished(  )
 /**
  * Reset Scan thread statistics (before and after a scan)
  */
-static void ResetScanStats(  )
+static void ResetScanStats( void )
 {
     int            i;
     for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
@@ -1198,7 +1198,7 @@ end_task:
  *   -1 : unexpected error at initialization.
  *   EINVAL : a parameter from the config file is invalid.
  */
-int Robinhood_InitScanModule(  )
+int Robinhood_InitScanModule( void )
 {
     int            st;
     int            rc, i;
@@ -1274,7 +1274,7 @@ int Robinhood_InitScanModule(  )
 /**
  * Stop scan module
  */
-int Robinhood_StopScanModule(  )
+int Robinhood_StopScanModule( void )
 {
     unsigned int   i;
     int            err = 0;
@@ -1359,7 +1359,7 @@ static unsigned int path_depth(const char * path)
  * @param partial_root NULL for full scan; subdir path for partial scan
  * @retval EBUSY if a scan is already running.
  */
-static int StartScan()
+static int StartScan( void )
 {
     robinhood_task_t *p_parent_task;
     char              timestamp[128];
@@ -1518,7 +1518,7 @@ static void   *Thr_scan_recovery( void *arg_thread )
 /**
  * Updates the max usage indicator (used for adaptive scan interval).
  */
-static void UpdateMaxUsage(  )
+static void UpdateMaxUsage( void )
 {
     char           tmpval[1024];
     double         val;
@@ -1549,7 +1549,7 @@ static void UpdateMaxUsage(  )
 /**
  * Check thread's activity or start a scan if its time.
  */
-int Robinhood_CheckScanDeadlines(  )
+int Robinhood_CheckScanDeadlines( void )
 {
     int            st;
     char           tmp_buff[256];

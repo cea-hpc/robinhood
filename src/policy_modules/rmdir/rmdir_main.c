@@ -1428,7 +1428,7 @@ int Start_Rmdir( rmdir_config_t * p_config, int flags )
 }
 
 
-int Wait_Rmdir(  )
+int Wait_Rmdir( void )
 {
     void          *returned;
     pthread_join( rmdir_thr_id, &returned );
@@ -1436,7 +1436,7 @@ int Wait_Rmdir(  )
 }
 
 
-void Dump_Rmdir_Stats(  )
+void Dump_Rmdir_Stats( void )
 {
     char           tmp_buff[256];
     struct tm      paramtm;

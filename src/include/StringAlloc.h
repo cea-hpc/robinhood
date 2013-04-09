@@ -20,7 +20,7 @@
 
 #include <sys/types.h>
 
-void           InitStringAllocator(  );
+void           InitStringAllocator( void );
 
 char          *GiveMeBufferFor( unsigned int strlength );
 
@@ -32,7 +32,7 @@ void           ReleaseBuffer( char *string );
 void           StringAllocMemInfo( size_t * p_used, size_t * p_alloc );
 
 /* for debug */
-void           DumpStringAllocMap(  );
+void           DumpStringAllocMap( void );
 #endif
 
 #endif

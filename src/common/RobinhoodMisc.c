@@ -190,18 +190,18 @@ const char          *get_mount_point( unsigned int * plen )
 }
 
 /* retrieve fsname from any module */
-const char          *get_fsname(  )
+const char          *get_fsname( void )
 {
     return fsname;
 }
 
 /* return Filesystem device id  */
-dev_t          get_fsdev()
+dev_t          get_fsdev( void )
 {
     return dev_id;
 }
 
-uint64_t       get_fskey()
+uint64_t       get_fskey( void )
 {
     return fs_key;
 }
@@ -779,7 +779,7 @@ int CheckFSInfo( char *path, char *expected_type,
  * - global_config must be set
  * - initialize mount_point, fsname and dev_id
  */
-int InitFS()
+int InitFS( void )
 {
     int rc;
 
@@ -812,7 +812,7 @@ int InitFS()
  * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
  * else, return -1
  */
-int ResetFS()
+int ResetFS( void )
 {
     char   name[RBH_PATH_MAX];
     dev_t  dev;
@@ -902,7 +902,7 @@ int ResetFS()
 /**
  *  Check that FS path is the same as the last time.
  */
-int CheckLastFS(  )
+int CheckLastFS( void )
 {
     int            rc;
     lmgr_t         lmgr;

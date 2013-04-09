@@ -247,7 +247,7 @@ static void HashInsertGrent( gr_cacheent_t * grentry )
 
 
 /* Initialization of pwent and grent caches */
-int InitUidGid_Cache(  )
+int InitUidGid_Cache( void )
 {
     unsigned int   i;
 

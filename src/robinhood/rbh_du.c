@@ -243,7 +243,7 @@ static void print_stats(const char * name, stats_du_t * stats)
 }
 
 /* build filters depending on program options */
-static int mkfilters()
+static int mkfilters( void )
 {
 #ifdef ATTR_INDEX_status
     filter_value_t fv;

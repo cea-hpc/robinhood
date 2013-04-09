@@ -42,7 +42,7 @@
 #define TAG_FIDPATH "FidPath"
 
 /** initialize access to lustre */
-int Lustre_Init(  )
+int Lustre_Init( void )
 {
 #ifdef HAVE_LLAPI_MSG_LEVEL
     llapi_msg_set_level( LLAPI_MSG_OFF );

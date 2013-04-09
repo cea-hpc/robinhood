@@ -23,7 +23,7 @@ extern entry_proc_config_t entry_proc_conf;
 extern int                 pipeline_flags;
 
 /** initialize id constraint manager */
-int            id_constraint_init(  );
+int            id_constraint_init( void );
 
 
 #define ID_OK                   0
@@ -55,6 +55,6 @@ int            id_constraint_unregister( entry_proc_op_t * p_op );
 
 
 /* display info about id constraints management */
-void           id_constraint_dump(  );
+void           id_constraint_dump( void );
 
 #endif
