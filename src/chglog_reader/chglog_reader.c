@@ -328,11 +328,11 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         case CL_SOFTLINK:
         case CL_MKDIR:
         case CL_RMDIR:
+        case CL_MKNOD:
             /* handle those events for non-HSM purposes */
             break;
 
         case CL_MARK:
-        case CL_MKNOD:
         case CL_IOCTL:
 #ifndef HAVE_SHOOK
         case CL_XATTR:
