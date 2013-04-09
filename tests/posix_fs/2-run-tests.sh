@@ -65,7 +65,7 @@ function error
 	((ERROR=$ERROR+1))
 
 	if (($junit)); then
-	 	grep -i "error" *.log | grep -v "(0 errors)" >> $TMPERR_FILE
+	 	grep -i "error" *.log | grep -v "(0 errors)" | grep -v "LastScanErrors" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
     fi
     # avoid displaying the same log many times
@@ -1649,10 +1649,10 @@ function test_diff
 
     # must get:
     # new entries dir.1/file.new and dir.new
-    egrep '^++' report.out | grep dir.1/file.new | grep type=file || error "missing create dir.1/file.new"
-    egrep '^++' report.out | grep dir.new | grep type=dir || error "missing create dir.new"
+    egrep '^++' report.out | grep -v '+++' | grep dir.1/file.new | grep type=file || error "missing create dir.1/file.new"
+    egrep '^++' report.out | grep -v '+++' | grep dir.new | grep type=dir || error "missing create dir.new"
     # rmd entries dir.1/b and dir.3
-    nbrm=$(egrep '^--' report.out | wc -l)
+    nbrm=$(egrep '^--' report.out | grep -v -- '---' | wc -l)
     [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
     # changes
     grep "^+[^ ]*"$(get_id "$ROOT/dir.1") report.out  | grep mode= || error "missing chmod $ROOT/dir.1"
