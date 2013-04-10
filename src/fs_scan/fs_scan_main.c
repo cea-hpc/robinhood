@@ -417,7 +417,7 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
         return rc;
 
     rc = GetStringParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "completion_command",
-                         STR_PARAM_ABSOLUTE_PATH, /* can contain wildcards: {cfg} or {fspath} */
+                         0, /* can contain wildcards: {cfg} or {fspath} */
                          conf->completion_command, RBH_PATH_MAX, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;

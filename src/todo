@@ -1,3 +1,8 @@
+non-reg:
+completion command OK
+completion command with unmatched {
+
+
 - db diff option: list changes since xxx
 - apply
 - bench diff

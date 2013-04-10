@@ -2094,8 +2094,9 @@ char * replace_cmd_parameters(const char * cmd_in)
         end_var = strchr( begin_var, '}' );
         if (!end_var)
         {
-           DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unmatched '{' in command parameters '%s'", cmd_in);
-           break;
+            DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unmatched '{' in command parameters '%s'", cmd_in);
+            free(pass_begin);
+            return NULL;
         }
 
         *end_var = '\0';
@@ -2111,7 +2112,8 @@ char * replace_cmd_parameters(const char * cmd_in)
         else
         {
             DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unknown parameter '%s' in command parameters '%s'", begin_var, cmd_in);
-            break;
+            free(pass_begin);
+            return NULL;
         }
 
         /* allocate a new string */

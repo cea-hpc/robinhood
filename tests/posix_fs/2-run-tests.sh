@@ -1663,6 +1663,42 @@ function test_diff
     grep "^+[^ ]*"$(get_id "$ROOT/fname") report.out | grep path= || error "missing path change $ROOT/fname"
 }
 
+function test_completion
+{
+	config_file=$1
+	flavor=$2
+	policy_str="$3"
+
+	clean_logs
+    # clean existing "out.*" files
+    rm -f out.1 out.2
+
+    # flavors: OK or KO
+
+    # populate filesystem
+    for i in `seq 1 10`; do
+        touch $ROOT/file.$i || error "creating entry"
+    done
+
+    # do the scan
+    echo "scan..."
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+
+    # if flavor is OK: completion command must have been called
+    if [ "$flavor" = "OK" ]; then
+        [ -f out.1 ] || error "file out.1 not found"
+        [ -f out.2 ] || error "file out.2 not found"
+        # out.1 contains cfg
+        grep $config_file out.1 || error "out.1 has unexpected content: $(cat out.1)"
+        # out.2 contains fspath
+        grep $ROOT out.2 || error "out.2 has unexpected content: $(cat out.2)"
+    else
+        # matching: CmdParams | ERROR: unmatched '{' in command parameters '../completion.sh {cfg'
+        grep "ERROR: unmatched '{' in command parameters" rh_scan.log || error "unreported cmd error"
+    fi
+
+    rm -f out.1 out.2
+}
 
 
 function test_logs
@@ -3576,6 +3612,8 @@ run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers crea
 run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 run_test 106     test_diff info_collect2.conf "rbh-diff"
+run_test 107a    test_completion test_completion.conf OK "scan completion command"
+run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion command"
 
 #### policy matching tests  ####
 
