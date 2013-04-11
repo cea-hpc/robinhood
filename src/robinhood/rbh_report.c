@@ -231,7 +231,7 @@ static const char *help_string =
 #endif
     "\n"
     _B "Filter options:" B_ "\n"
-    "The following filters can be speficied for reports:\n"
+    "The following filters can be specified for reports:\n"
     "    " _B "-P" B_ " " _U "path" U_ ", " _B "--filter-path" B_ " " _U "path" U_ "\n"
     "        Display the report only for objects in the given path.\n"
     "    " _B "-C" B_ " " _U "class" U_ ", " _B "--filter-class" B_ " " _U "class" U_ "\n"
