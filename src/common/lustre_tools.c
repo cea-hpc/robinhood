@@ -41,7 +41,7 @@
 int Lustre_Init(  )
 {
 #ifdef HAVE_LLAPI_MSG_LEVEL
-    llapi_msg_set_level( LLAPI_MSG_OFF ); 
+    llapi_msg_set_level( LLAPI_MSG_OFF );
 /*    llapi_msg_set_level( LLAPI_MSG_MAX ); */
 #endif
 
@@ -217,6 +217,43 @@ int File_GetStripeByDirFd( int dirfd, const char *fname,
 
     return fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
 
+}
+
+/**
+ * check if a file has data on the given OST.
+ */
+int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo, const stripe_items_t * sitems)
+{
+    unsigned int stripe_blocks, i;
+
+    /* if file is empty, the answer is obviously NO */
+    if (fsize == 0)
+        return FALSE;
+    /* if file size is > (stripe_count-1)*stripe_size, it has at least
+     * one byte on the last stripe, and a full stripe block on all previous OSTs.
+     * the answer is yes.
+     * Note: this test works if stripe count is 1, and file is > 0.
+     */
+    else if (fsize > (sinfo->stripe_count - 1) * sinfo->stripe_size)
+        return TRUE;
+
+    /* In the remaining cases, we must check stripe_items.
+     * First compute the number of full stripe blocks,
+     * and the remaining piece of data.
+     */
+    stripe_blocks = fsize/sinfo->stripe_size;
+    /* one more block? */
+    if (fsize % sinfo->stripe_size)
+        stripe_blocks++;
+
+    /* check if ost_index is in the first stripe_blocks */
+    for (i = 0; i < sinfo->stripe_count && i < stripe_blocks; i++)
+    {
+        if (sitems->stripe[i].ost_idx == ost_index)
+            return TRUE;
+    }
+    /* no matched OST */
+    return FALSE;
 }
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO

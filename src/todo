@@ -1,8 +1,3 @@
-non-reg:
-completion command OK
-completion command with unmatched {
-
-
 - db diff option: list changes since xxx
 - apply
 - bench diff
@@ -12,6 +7,7 @@ To be tested: diff for hardlinks
 
 - add rbh-report --get=<id>
 - add rbh-find --details
+- add rbh-find -print
 - refactoring lmgr_init
 
 - update TRAC

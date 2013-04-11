@@ -167,6 +167,11 @@ int            File_GetStripeByPath( const char *entry_path, stripe_info_t * p_s
 int File_GetStripeByDirFd(int dirfd, const char *fname,
                           stripe_info_t * p_stripe_info,
                           stripe_items_t * p_stripe_items);
+/**
+ * check if a file has data on the given OST.
+ */
+int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo, const stripe_items_t * sitems);
+
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 /** Create a file with the given stripe information */

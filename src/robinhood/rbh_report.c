@@ -1311,7 +1311,7 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
             else
                 return 10; /* 1024.21 GB */
         case ATTR_INDEX_stripe_info: return strlen(attrindex2name(ATTR_INDEX_stripe_info));
-        case ATTR_INDEX_stripe_items: return 10;
+        case ATTR_INDEX_stripe_items: return 30;
     }
     return 1;
 }
@@ -1709,11 +1709,14 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
     struct lmgr_iterator_t *it;
     attr_set_t     attrs;
     entry_id_t     id;
+    int custom_len = 0;
 
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
 
-    int list[] = {
+    /* list of attributes to be use for all dumps
+     * except ost dump */
+    static int list_std[] = {
                    ATTR_INDEX_type,
 #ifdef ATTR_INDEX_status
                    ATTR_INDEX_status,
@@ -1727,8 +1730,32 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
 #ifdef ATTR_INDEX_release_class
                    ATTR_INDEX_release_class,
 #endif
-                   ATTR_INDEX_fullpath };
-    int list_cnt = sizeof(list)/sizeof(int);
+                   ATTR_INDEX_fullpath
+                };
+    /* list of attributes to be used for OST dumps */
+    static int list_stripe[] = {
+                   ATTR_INDEX_type,
+#ifdef ATTR_INDEX_status
+                   ATTR_INDEX_status,
+#endif
+                   ATTR_INDEX_size,
+                   ATTR_INDEX_fullpath,
+                   ATTR_INDEX_stripe_info,
+                   ATTR_INDEX_stripe_items
+    };
+    int * list = NULL;
+    int list_cnt = 0;
+
+    if (type != DUMP_OST)
+    {
+        list = list_std;
+        list_cnt = sizeof(list_std)/sizeof(int);
+    }
+    else
+    {
+        list = list_stripe;
+        list_cnt = sizeof(list_stripe)/sizeof(int);
+    } 
 
     lmgr_simple_filter_init( &filter );
 
@@ -1785,15 +1812,48 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
     }
 
     if (!(NOHEADER(flags)))
-        print_attr_list(0, list, list_cnt, NULL, CSV(flags));
+    {
+        if (type != DUMP_OST)
+            print_attr_list(0, list, list_cnt, NULL, CSV(flags));
+        else
+        {
+            char tmp[128];
+            sprintf(tmp, "data_on_ost%d", int_arg);
+            custom_len = strlen(tmp);
+            /* if dump_ost is specified: add specific field
+             * to indicate if file really has data on the given OST
+             */
+            print_attr_list_custom(0, list, list_cnt, NULL, CSV(flags), tmp,
+                                   custom_len);
+        }
+    }
 
     while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
     {
         total_count ++ ;
         total_size += ATTR( &attrs, size );
 
-        print_attr_values(0, list, list_cnt, &attrs, &id,
-                          CSV(flags), FALSE);
+        if (type != DUMP_OST)
+            print_attr_values(0, list, list_cnt, &attrs, &id,
+                              CSV(flags), FALSE);
+        else
+        {
+            const char * has_data;
+
+            if (!ATTR_MASK_TEST(&attrs, size) || !ATTR_MASK_TEST(&attrs, stripe_info)
+                || !ATTR_MASK_TEST(&attrs, stripe_items))
+                has_data = "?";
+            else
+                has_data = DataOnOST(ATTR(&attrs, size), int_arg, &ATTR(&attrs,stripe_info),
+                          &ATTR(&attrs,stripe_items)) ? "yes":"no";
+
+            /* if dump_ost is specified: add specific field
+             * to indicate if file really has data on the given OST.
+             */
+            print_attr_values_custom(0, list, list_cnt, &attrs, &id,
+                              CSV(flags), FALSE, has_data, custom_len);
+        }
+
 
         ListMgr_FreeAttrs( &attrs );
 
