@@ -1,7 +1,7 @@
 AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 AM_LDFLAGS= -lpthread
 
-check_PROGRAMS=test_hash_func test_uidgidcache test_list_mgr test_entry_proc test_info_collector test_resource_monitor
+check_PROGRAMS=create_nostripe test_forcestripe test_hash_func test_uidgidcache test_list_mgr test_entry_proc test_info_collector test_resource_monitor
 
 all_libs=	../logs/liblogs.la \
 	        ../cfg_parsing/libconfigparsing.la \
@@ -34,6 +34,7 @@ all_libs += ../list_mgr/liblistmgr.la
 all_libs += ../common/libcommontools.la
 
 
+test_forcestripe_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
 
 test_list_mgr_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
 
