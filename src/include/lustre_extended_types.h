@@ -20,8 +20,18 @@
 #define _LUSTRE_EXTRA_TYPES_H
 
 #ifdef _LUSTRE
+#ifndef LPX64
 #define LPX64 "%#llx"
+#endif
+
+#ifndef LPX64i
 #define LPX64i "%llx"
+#endif
+
+#ifndef LPU64
+#define LPU64 "%llu"
+#endif
+
 #include <sys/types.h>
 #include <asm/types.h>
 #endif
