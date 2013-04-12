@@ -128,6 +128,7 @@ int            main_attr_set = 0;
 int            annex_attr_set = 0;
 int            stripe_attr_set = 0;
 int            dir_attr_set = 0;
+int            slink_attr_set = 0;
 int            readonly_attr_set = 0;
 int            gen_attr_set = 0;
 int            acct_attr_set = 0;
@@ -146,6 +147,7 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     acct_pk_attr_set = 0;
     acct_attr_set = 0;
     dir_attr_set = 0;
+    slink_attr_set = 0;
 
     if ( lmgr_config->user_acct )
         acct_pk_attr_set |= ATTR_MASK_owner;
@@ -180,6 +182,9 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
             stripe_attr_set |= mask;
         else if ( is_dirattr( i ) )
             dir_attr_set |= mask;
+
+        if ( is_slinkattr( i ) )
+            slink_attr_set |= mask;
     }
 
 }

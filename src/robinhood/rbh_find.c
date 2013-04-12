@@ -152,10 +152,10 @@ struct find_opt
 
 #ifdef ATTR_INDEX_status
 #define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
-                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_status)
+                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link | ATTR_MASK_status)
 #else
 #define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
-                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod)
+                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link )
 #endif
 static int disp_mask = ATTR_MASK_fullpath | ATTR_MASK_type;
 static int query_mask = 0;
@@ -706,10 +706,17 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
             strftime(date_str, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
         }
 
-        /* display all: id, type, owner, group, size, mtime, path */
-        printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
-               PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
-               ATTR(attrs, size), date_str, ATTR(attrs, fullpath));
+        if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
+            && ATTR_MASK_TEST(attrs, link))
+            /* display: id, type, owner, group, size, mtime, path -> link */
+            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s -> %s\n",
+                   PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, size), date_str, ATTR(attrs, fullpath), ATTR(attrs,link));
+        else
+            /* display all: id, type, owner, group, size, mtime, path */
+            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
+                   PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, size), date_str, ATTR(attrs, fullpath));
     }
 }
 

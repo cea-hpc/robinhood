@@ -33,6 +33,7 @@
 #include <shook_svr.h>
 #include <fnmatch.h>
 #endif
+#include <unistd.h>
 
 #define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
 
@@ -277,6 +278,29 @@ static inline int soft_remove_filter(struct entry_proc_op_t *p_op)
 
 
 #ifdef HAVE_CHANGELOGS
+
+/* does the CL record gives a clue about object type? */
+obj_type_t cl2type_clue(CL_REC_TYPE *logrec)
+{
+    switch(logrec->cr_type)
+    {
+        case CL_CREATE:
+        case CL_CLOSE:
+        case CL_TRUNC:
+        case CL_HSM:
+            return TYPE_FILE;
+        case CL_MKDIR:
+        case CL_RMDIR:
+            return TYPE_DIR;
+        case CL_SOFTLINK:
+            return TYPE_LINK;
+        case CL_MKNOD:
+            return TYPE_CHR; /* or other special type */
+        default:
+            return TYPE_NONE;
+    }
+}
+
 /**
  * Infer information from the changelog record (status, ...).
  * \return next pipeline step to be perfomed.
@@ -290,6 +314,9 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
     /* if this is a CREATE record, we know that its status is NEW. */
     if ( logrec->cr_type == CL_CREATE )
     {
+        /* not a link */
+        p_op->fs_attr_need &= ~ATTR_MASK_link;
+
         /* Sanity check: if the entry already exists in DB,
          * it could come from a previous filesystem that has been formatted.
          * In this case, force a full update of the entry.
@@ -366,6 +393,9 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         ATTR_MASK_SET( &p_op->fs_attrs, type );
         strcpy( ATTR( &p_op->fs_attrs, type ), STR_TYPE_DIR );
 
+        /* not a link */
+        p_op->fs_attr_need &= ~ATTR_MASK_link;
+
         /* no strip info for dirs */
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
@@ -374,9 +404,25 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         p_op->fs_attr_need &= ~ATTR_MASK_status; /* no status for directories (XXX all modes?) */
 #endif
     }
+    else if (logrec->cr_type == CL_SOFTLINK)
+    {
+        /* entry is a symlink */
+        ATTR_MASK_SET( &p_op->fs_attrs, type );
+        strcpy( ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK );
+
+        /* need to get symlink content */
+        p_op->fs_attr_need |= ATTR_MASK_link;
+
+        /* no strip info for symlinks */
+        p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
+        p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
+    }
 #ifdef _LUSTRE_HSM
     else if ( logrec->cr_type == CL_HSM )
     {
+        /* not a link */
+        p_op->fs_attr_need &= ~ATTR_MASK_link;
+
         switch ( hsm_get_cl_event( logrec->cr_flags ) )
         {
             case HE_ARCHIVE:
@@ -714,7 +760,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 
         /* we must get info that is not provided by the chglog */
         p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_fullpath
-                           | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+                           | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
+                           | ATTR_MASK_link;
 #ifdef ATTR_INDEX_status
         /* By default, get status for a new record.
          * This is overwritten by EntryProc_FillFromLogRec if the status
@@ -731,19 +778,28 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         {
             /* we know nothing about it... */
             p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_fullpath
-                               | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+                               | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
+                               | ATTR_MASK_link;
 #ifdef ATTR_INDEX_status
             p_op->fs_attr_need |= ATTR_MASK_status;
 #endif
         }
         else
         {
-            /* get missing info */
-            if (!ATTR_FSorDB_TEST(p_op, stripe_info))
+            /* get stripe info if missing (file only) */
+            if (!ATTR_FSorDB_TEST(p_op, stripe_info)
+                && (!ATTR_FSorDB_TEST(p_op, type)
+                    || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)))
             {
                 p_op->fs_attr_need |= ATTR_MASK_stripe_info
                                       | ATTR_MASK_stripe_items;
             }
+
+            /* get link content if missing (symlink only) */
+            if (!ATTR_FSorDB_TEST(p_op, link)
+                && (!ATTR_FSorDB_TEST(p_op, type)
+                    || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK)))
+                p_op->fs_attr_need |= ATTR_MASK_link;
 
 #ifdef ATTR_INDEX_status
             if (!ATTR_FSorDB_TEST(p_op, status))
@@ -788,7 +844,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* is this a changelog record? */
     if ( p_op->extra_info.is_changelog_record )
     {
+        obj_type_t type_clue = TYPE_NONE;
+
         CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
+
+        /* does the log record gives a clue about entry_type */
+        type_clue = cl2type_clue(logrec);
 
         /* what we need to get about this entry */
         p_op->db_attr_need = ATTR_MASK_fullpath | ATTR_MASK_name
@@ -806,8 +867,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             p_op->db_attr_need |= ATTR_MASK_md_update;
 
 #ifdef _LUSTRE
-        /* to check if stripe_info is set for this entry */
-        p_op->db_attr_need |= ATTR_MASK_stripe_info;
+        if (type_clue == TYPE_NONE || type_clue == TYPE_FILE)
+            /* to check if stripe_info is set for this entry */
+            p_op->db_attr_need |= ATTR_MASK_stripe_info;
 #endif
 #ifdef ATTR_INDEX_status
         p_op->db_attr_need |= ATTR_MASK_status;
@@ -816,6 +878,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         if (entry_proc_conf.detect_fake_mtime)
              p_op->db_attr_need |= ATTR_MASK_creation_time;
 #endif
+        if (type_clue == TYPE_NONE || type_clue == TYPE_LINK)
+            /* check if link content is set for this entry */
+            p_op->db_attr_need |= ATTR_MASK_link;
 
         if ( entry_proc_conf.match_file_classes )
         {
@@ -846,7 +911,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 #ifdef _HSM_LITE
         /* what info is needed to check backend status? */
-        rc = rbhext_status_needs( TYPE_NONE,
+        rc = rbhext_status_needs( type_clue,
                                   &attr_allow_cached,
                                   &attr_need_fresh );
         if ( rc != 0 )
@@ -910,7 +975,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
         DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "RECORD: %s "DFID" %#x %s => "
-                    "getstripe=%u, getattr=%u, getpath=%u"
+                    "getstripe=%u, getattr=%u, getpath=%u, readlink=%u"
 #ifdef ATTR_INDEX_status
                     ", getstatus=%u"
 #endif
@@ -918,7 +983,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     logrec->cr_flags & CLF_FLAGMASK, logrec->cr_namelen>0?
                     logrec->cr_name:"<null>",
                     NEED_GETSTRIPE(p_op)?1:0, NEED_GETATTR(p_op)?1:0,
-                    NEED_GETPATH(p_op)?1:0
+                    NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0
 #ifdef ATTR_INDEX_status
                     , NEED_GETSTATUS(p_op)?1:0
 #endif
@@ -975,9 +1040,22 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* no dircount for non-dirs */
         if (ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
-            !strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
+            strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
         {
             p_op->db_attr_need &= ~ATTR_MASK_dircount;
+        }
+
+        /* no readlink for non symlinks */
+        if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) /* likely */
+        {
+            if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK))
+            {
+                p_op->db_attr_need |= ATTR_MASK_link; /* check if it is known */
+                /* no stripe for symlinks */
+                p_op->db_attr_need &= ~ (ATTR_MASK_stripe_info|ATTR_MASK_stripe_items);
+            }
+            else
+                p_op->db_attr_need &= ~ATTR_MASK_link;
         }
 
         if ( entry_proc_conf.match_file_classes &&
@@ -1063,6 +1141,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
 #ifdef _LUSTRE
+            /* get stripe for files */
             if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
                 && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_FILE )
                 /* only if it was not retrieved during the scan */
@@ -1071,6 +1150,19 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
 #endif
 
+            /* readlink for symlinks (if not already known) */
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
+                && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK)
+                && !ATTR_MASK_TEST(&p_op->fs_attrs, link))
+            {
+                p_op->fs_attr_need |= ATTR_MASK_link;
+            }
+            else
+            {
+                p_op->fs_attr_need &= ~ATTR_MASK_link;
+            }
+
+            /* get status for archivable entries (file or non-dir, depending on the flavor) */
 #ifdef ATTR_INDEX_status
             if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
 #ifdef _LUSTRE_HSM
@@ -1117,6 +1209,30 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->fs_attr_need &= ~ATTR_MASK_status;
             }
 #endif
+
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) /* likely set */
+            {
+                if (strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK))
+                    /* non-link */
+                    p_op->fs_attr_need &= ~ATTR_MASK_link;
+                else
+                {
+                    /* link */
+#ifdef _LUSTRE
+                    /* already known (in DB or FS) */
+                    if (ATTR_FSorDB_TEST(p_op, link))
+                        p_op->fs_attr_need &= ~ATTR_MASK_link;
+                    else /* not known */
+                        p_op->fs_attr_need |= ATTR_MASK_link;
+#else
+                    /* For non-lustre filesystems, inodes may be recycled, so re-read link even if it is is DB */
+                    if (ATTR_MASK_TEST(&p_op->fs_attrs, link))
+                        p_op->fs_attr_need &= ~ATTR_MASK_link;
+                    else
+                        p_op->fs_attr_need |= ATTR_MASK_link;
+#endif
+                }
+            }
 
 #ifdef _LUSTRE
             /* get stripe only for files */
@@ -1201,12 +1317,13 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     SKIP_SPECIAL_OBJ(p_op, skip_record);
 
     DisplayLog( LVL_FULL, ENTRYPROC_TAG,
-        "Getattr=%u, Getpath=%u"
+        DFID": Getattr=%u, Getpath=%u, Readlink=%u"
 #ifdef ATTR_INDEX_status
         ", GetStatus=%u"
 #endif
         ", Getstripe=%u",
-         NEED_GETATTR(p_op)?1:0, NEED_GETPATH(p_op)?1:0,
+         PFID(&p_op->entry_id), NEED_GETATTR(p_op)?1:0,
+         NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
 #ifdef ATTR_INDEX_status
         NEED_GETSTATUS(p_op)?1:0,
 #endif
@@ -1443,6 +1560,23 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     } /* get_status needed */
 #endif
+
+    if (NEED_READLINK(p_op))
+    {
+        ssize_t len = readlink(path, ATTR(&p_op->fs_attrs, link), RBH_PATH_MAX);
+        if (len >= 0)
+        {
+            ATTR_MASK_SET(&p_op->fs_attrs, link);
+
+            /* add final '\0' on success */
+            if (len >= RBH_PATH_MAX)
+                ATTR(&p_op->fs_attrs, link)[len-1] = '\0';
+            else
+                ATTR(&p_op->fs_attrs, link)[len] = '\0';
+        }
+        else
+            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "readlink failed on %s: %s", path, strerror(errno));
+    }
 
     /* match fileclasses if specified in config */
 

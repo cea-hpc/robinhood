@@ -166,6 +166,19 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         db_result_free( &p_mgr->conn, &result );
     }
 
+    /* remove slink attrs if it is not a symlink */
+    if (slinkattr_fields(p_info->attr_mask) && ATTR_MASK_TEST(p_info, type)
+        && strcmp(ATTR(p_info, type), STR_TYPE_LINK) != 0)
+    {
+        p_info->attr_mask &= ~slink_attr_set;
+    }
+    /* remove stripe info if it is not a file */
+    if (stripe_fields(p_info->attr_mask) && ATTR_MASK_TEST(p_info, type)
+        && strcmp(ATTR(p_info, type), STR_TYPE_FILE) != 0)
+    {
+        p_info->attr_mask &= ~stripe_attr_set;
+    }
+
     if ( annex_table )
     {
         /* get annex info (if asked) */
@@ -235,7 +248,6 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
             p_info->attr_mask &= ~dir_attr_set;
         }
     }
-
 
     if (checkmain)
     {

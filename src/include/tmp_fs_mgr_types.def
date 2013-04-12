@@ -105,7 +105,7 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 %attrdef
 
 # /!\ Entry attribute type must fit with DB type
-# name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
+# name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS, ANNEX_INFO, DIR_ATTR or SLINK_ATTR)
 
 parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
 dircount, 	    unsigned int,  DB_UINT,        0, DIR_ATTR, type, NULL
@@ -129,6 +129,9 @@ invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
 # file classes and last update
 release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
 rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
+
+# link content in annex info
+link, char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
 
 #generated fields
 name,		char, DB_TEXT, RBH_NAME_MAX, GENERATED, fullpath, lmgr_gen_name

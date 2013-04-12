@@ -1624,17 +1624,33 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
         if (brief)
         {
             written +=
-                snprintf(out_str + written, strsize - written, "backendpath=%s,",
+                snprintf(out_str + written, strsize - written, "backendpath='%s',",
                          ATTR(p_attr_set, backendpath));
         }
         else
         {
             written +=
-                snprintf( out_str + written, strsize - written, "Backend path: %s\n",
+                snprintf( out_str + written, strsize - written, "Backend path: \"%s\"\n",
                          ATTR(p_attr_set, backendpath));
         }
     }
 #endif
+
+    if ( mask & ATTR_MASK_link )
+    {
+        if (brief)
+        {
+            written +=
+                snprintf(out_str + written, strsize - written, "lnk='%s',",
+                         ATTR(p_attr_set, link));
+        }
+        else
+        {
+            written +=
+                snprintf( out_str + written, strsize - written, "link: \"%s\"\n",
+                         ATTR(p_attr_set, link));
+        }
+    }
 
 
     if (brief && written) {

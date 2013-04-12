@@ -96,6 +96,7 @@ typedef int stripe_info_t; /* dummy type */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
 #define INDEXED      0x20000000 /* this field must be indexed */
 #define DIR_ATTR     0x40000000 /* need to aggregate directory info (specific DB request) */
+#define SLINK_ATTR   0x80000000 /* specific attr for symlinks */
 
 /** type of fields in database */
 typedef enum

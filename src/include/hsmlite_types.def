@@ -122,7 +122,7 @@ typedef enum
 %attrdef
 
 # /!\ Entry attribute type must fit with DB type
-# name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS or ANNEX_INFO)
+# name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS, ANNEX_INFO, DIR_ATTR or SLINK_ATTR)
 
 parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
 dircount, 	    unsigned int,  DB_UINT,        0, DIR_ATTR, type, NULL
@@ -148,6 +148,7 @@ fullpath,	char, DB_TEXT, RBH_PATH_MAX,         ANNEX_INFO
 backendpath,	char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO
 last_archive,   unsigned int, DB_UINT, 0, ANNEX_INFO
 last_restore,   unsigned int, DB_UINT, 0, ANNEX_INFO
+link,          char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
 
 # generated fields
 name,			char,		  DB_TEXT,   RBH_NAME_MAX,  GENERATED, fullpath, lmgr_gen_name

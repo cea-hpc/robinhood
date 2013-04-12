@@ -216,6 +216,7 @@ typedef struct entry_proc_op_t
 #define NEED_GETSTRIPE(_op) ((_op)->fs_attr_need & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ))
 #define NEED_GETPATH(_op) ((_op)->fs_attr_need & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth))
 #define NEED_GETATTR(_op) ((_op)->fs_attr_need & POSIX_ATTR_MASK )
+#define NEED_READLINK(_op) ((_op)->fs_attr_need & ATTR_MASK_link)
 
 
 /* ===== entry processor calls ===== */

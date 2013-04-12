@@ -293,6 +293,7 @@ struct __diffattr {
     { ATTR_MASK_stripe_info | ATTR_MASK_stripe_items, "stripe", 0 },
 #endif
     { ATTR_MASK_fullpath | POSIX_ATTR_MASK | ATTR_MASK_parent_id
+     | ATTR_MASK_link
 #ifdef ATTR_INDEX_creation_time
         | ATTR_MASK_creation_time
 #endif
