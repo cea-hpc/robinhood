@@ -1,4 +1,4 @@
-symlink support in recovery, diff_pipeline, ...
+symlink support in recovery
 option: archive symlinks
 /!\ symlink change if inode recycling
 

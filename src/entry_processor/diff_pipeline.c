@@ -33,6 +33,7 @@
 #include <shook_svr.h>
 #include <fnmatch.h>
 #endif
+#include <unistd.h>
 
 #define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
 
@@ -262,6 +263,19 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->db_attr_need &= ~ATTR_MASK_dircount;
     }
 
+    /* no readlink for non symlinks */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) /* likely */
+    {
+        if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK))
+        {
+            p_op->db_attr_need |= ATTR_MASK_link; /* check if it is known */
+            /* no stripe for symlinks */
+            p_op->db_attr_need &= ~ (ATTR_MASK_stripe_info|ATTR_MASK_stripe_items);
+        }
+        else
+            p_op->db_attr_need &= ~ATTR_MASK_link;
+    }
+
     if (p_op->db_attr_need)
     {
         p_op->db_attrs.attr_mask = p_op->db_attr_need;
@@ -314,6 +328,18 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
 #endif
 
+            /* readlink for symlinks (if not already known) */
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
+                && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK)
+                && !ATTR_MASK_TEST(&p_op->fs_attrs, link))
+            {
+                p_op->fs_attr_need |= ATTR_MASK_link;
+            }
+            else
+            {
+                p_op->fs_attr_need &= ~ATTR_MASK_link;
+            }
+
 #ifdef ATTR_INDEX_status
         if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
 #ifdef _LUSTRE_HSM
@@ -364,6 +390,33 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
         }
 #endif
+
+        if (entry_proc_conf.diff_mask & ATTR_MASK_link)
+        {
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) /* likely set */
+            {
+                if (strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK))
+                    /* non-link */
+                    p_op->fs_attr_need &= ~ATTR_MASK_link;
+                else
+                {
+                    /* link */
+#ifdef _LUSTRE
+                    /* already known (in DB or FS) */
+                    if (ATTR_FSorDB_TEST(p_op, link))
+                        p_op->fs_attr_need &= ~ATTR_MASK_link;
+                    else /* not known */
+                        p_op->fs_attr_need |= ATTR_MASK_link;
+#else
+                    /* For non-lustre filesystems, inodes may be recycled, so re-read link even if it is is DB */
+                    if (ATTR_MASK_TEST(&p_op->fs_attrs, link))
+                        p_op->fs_attr_need &= ~ATTR_MASK_link;
+                    else
+                        p_op->fs_attr_need |= ATTR_MASK_link;
+#endif
+                }
+            }
+        }
 
 #ifdef _LUSTRE
         /* only if stripe is in diff_mask */
@@ -447,12 +500,13 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     SKIP_SPECIAL_OBJ(p_op, skip_record);
 
     DisplayLog( LVL_FULL, ENTRYPROC_TAG,
-        "Getattr=%u, Getpath=%u"
+        DFID": Getattr=%u, Getpath=%u, Readlink=%u"
 #ifdef ATTR_INDEX_status
         ", GetStatus=%u"
 #endif
         ", Getstripe=%u",
-         NEED_GETATTR(p_op)?1:0, NEED_GETPATH(p_op)?1:0,
+         PFID(&p_op->entry_id), NEED_GETATTR(p_op)?1:0,
+         NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
 #ifdef ATTR_INDEX_status
         NEED_GETSTATUS(p_op)?1:0,
 #endif
@@ -583,6 +637,23 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     } /* get_status needed */
 #endif
+
+    if (NEED_READLINK(p_op))
+    {
+        ssize_t len = readlink(path, ATTR(&p_op->fs_attrs, link), RBH_PATH_MAX);
+        if (len >= 0)
+        {
+            ATTR_MASK_SET(&p_op->fs_attrs, link);
+
+            /* add final '\0' on success */
+            if (len >= RBH_PATH_MAX)
+                ATTR(&p_op->fs_attrs, link)[len-1] = '\0';
+            else
+                ATTR(&p_op->fs_attrs, link)[len] = '\0';
+        }
+        else
+            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "readlink failed on %s: %s", path, strerror(errno));
+    }
 
     /* later check using DB+FS info */
     SKIP_SPECIAL_OBJ(p_op, skip_record);
