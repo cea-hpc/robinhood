@@ -1836,6 +1836,7 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
         if (type != DUMP_OST)
             print_attr_values(0, list, list_cnt, &attrs, &id,
                               CSV(flags), FALSE);
+#ifdef _LUSTRE
         else
         {
             const char * has_data;
@@ -1853,6 +1854,7 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
             print_attr_values_custom(0, list, list_cnt, &attrs, &id,
                               CSV(flags), FALSE, has_data, custom_len);
         }
+#endif
 
 
         ListMgr_FreeAttrs( &attrs );
