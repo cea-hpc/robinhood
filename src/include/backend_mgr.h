@@ -24,6 +24,7 @@ typedef struct backend_config_t
     unsigned int copy_timeout; /* 0=disabled */
     unsigned int xattr_support:1;
     unsigned int check_mounted:1;
+    unsigned int archive_symlinks;
 } backend_config_t;
 
 int            SetDefault_Backend_Config( void *module_config, char *msg_out );

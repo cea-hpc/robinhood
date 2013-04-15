@@ -45,6 +45,7 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
     conf->copy_timeout = 21600; /* =6h (0=disabled) */
     conf->xattr_support = FALSE;
     conf->check_mounted = TRUE;
+    conf->archive_symlinks = TRUE;
     return 0;
 }
 
@@ -60,6 +61,7 @@ int Write_Backend_ConfigDefault( FILE * output )
     print_line( output, 1, "copy_timeout  : 6h" );
     print_line( output, 1, "xattr_support : FALSE");
     print_line( output, 1, "check_mounted : TRUE" );
+    print_line( output, 1, "archive_symlinks: TRUE" );
     print_end_block( output, 0 );
     return 0;
 }
@@ -74,7 +76,7 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
 #ifdef HAVE_SHOOK
         "shook_cfg",
 #endif
-        "xattr_support", "check_mounted", NULL };
+        "xattr_support", "check_mounted", "archive_symlinks", NULL };
 
     /* get Backend block */
 
@@ -153,6 +155,15 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
     else if ( rc != ENOENT )
         conf->check_mounted = tmpval;
 
+    /* /!\ archive_symlinks is part of a bit field, it should not be passed directly: using tmpval instead */
+    rc = GetBoolParam( block, BACKEND_BLOCK, "archive_symlinks",
+                       0, &tmpval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc != ENOENT )
+        conf->archive_symlinks = tmpval;
+
+
     CheckUnknownParameters( block, BACKEND_BLOCK, allowed_params );
 
     return 0;
@@ -178,6 +189,8 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line( output, 1, "xattr_support = FALSE;");
     print_line( output, 1, "# check if the backend is mounted on startup" );
     print_line( output, 1, "check_mounted = TRUE; " );
+    print_line( output, 1, "# archive symlinks to the backend?");
+    print_line( output, 1, "archive_symlinks = TRUE; " );
     print_end_block( output, 0 );
     return 0;
 }
@@ -189,15 +202,16 @@ int Backend_Start( backend_config_t * config, int flags )
 	unsigned int behav_flags, compat_flags;
 
     DisplayLog(LVL_DEBUG, BKL_TAG, "Backend extension config:");
-    DisplayLog(LVL_DEBUG, BKL_TAG, "root            =   \"%s\"", config->root );
-    DisplayLog(LVL_DEBUG, BKL_TAG, "mnt_type        =   %s", config->mnt_type );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "root             =   \"%s\"", config->root );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "mnt_type         =   %s", config->mnt_type );
 #ifdef HAVE_SHOOK
-    DisplayLog(LVL_DEBUG, BKL_TAG, "shook_cfg       =   \"%s\"", config->shook_cfg );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "shook_cfg        =   \"%s\"", config->shook_cfg );
 #endif
-    DisplayLog(LVL_DEBUG, BKL_TAG, "check_mounted   =   %s", bool2str(config->check_mounted));
-    DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd      =   \"%s\"", config->action_cmd );
-    DisplayLog(LVL_DEBUG, BKL_TAG, "copy_timeout    =   %us", config->copy_timeout );
-    DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support   =   %s",  bool2str(config->xattr_support) );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "check_mounted    =   %s", bool2str(config->check_mounted));
+    DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd       =   \"%s\"", config->action_cmd );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "copy_timeout     =   %us", config->copy_timeout );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support    =   %s",  bool2str(config->xattr_support) );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "archive_symlinks =   %s",  bool2str(config->archive_symlinks) );
 
     /* first check compatibility flags */
     compat_flags = rbhext_compat_flags();

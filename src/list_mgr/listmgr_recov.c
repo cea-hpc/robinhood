@@ -32,8 +32,8 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
-#define RECOV_LIST_FIELDS "status,last_mod,type,size,owner,gr_name,fullpath,backendpath,stripe_count,stripe_size,pool_name"
-#define RECOV_FIELD_COUNT 11
+#define RECOV_LIST_FIELDS "status,last_mod,type,mode,size,owner,gr_name,fullpath,backendpath,link,stripe_count,stripe_size,pool_name"
+#define RECOV_FIELD_COUNT 13
 
 
 /**
@@ -51,7 +51,7 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     if (rc)
         return rc;
 
-    /* @TODO manage dirs differently */
+    /* @TODO manage dirs and symlinks differently */
 
     p_stats->total = 0;
     for (i = 0; i < RS_COUNT; i++ )
@@ -82,7 +82,8 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
         {
             int st = str2int( status[0] );
 
-            if (strcasecmp(status[1], STR_TYPE_DIR) != 0) /* non directory */
+            /* archived entries: file and (optionally) symlinks  */
+            if (!strcasecmp(status[1], STR_TYPE_FILE))
             {
                 switch (st)
                 {
@@ -102,10 +103,22 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
                         break;
                 }
             }
-            else
+            else if (!strcasecmp(status[1], STR_TYPE_LINK))
+            {
+                /* symlinks always recoverable from DB */
+                p_stats->status_count[RS_OK] += cnt;
+                p_stats->status_size[RS_OK] += sz;
+            }
+            else if (!strcasecmp(status[1], STR_TYPE_DIR))
             {
                 p_stats->status_count[RS_OK] += cnt;
                 p_stats->status_size[RS_OK] += sz;
+            }
+            else
+            {
+                /* non recoverable : special entry like fifo, blk, ... */
+                p_stats->status_count[RS_NOBACKUP] += cnt;
+                p_stats->status_size[RS_NOBACKUP] += sz;
             }
         }
     }

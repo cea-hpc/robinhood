@@ -107,6 +107,9 @@ void           TestLockFile( time_t * p_last_action );
  */
 void           PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int size_info );
 
+/* convert file mode to DB type string */
+const char * mode2type(mode_t mode);
+
 /** Retrieve the name associated to a user (or the text representation of its uid if the user doesn't exist) */
 char          *uid2str( uid_t uid, char *username );
 /** Retrieve the name associated to a user (or the text representation of its uid if the user doesn't exist) */

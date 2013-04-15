@@ -325,13 +325,13 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         {
             if ( ATTR_MASK_TEST( &p_op->db_attrs, fullpath ) )
                 DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                            "WARNING: CREATE record on already existing entry fid="
-                            DFID", path=%s", PFID(&p_op->entry_id),
+                            "CREATE record on already existing entry fid="
+                            DFID", path=%s. This is normal if you scanned it previously.", PFID(&p_op->entry_id),
                             ATTR( &p_op->db_attrs, fullpath ) );
             else
                 DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                            "WARNING: CREATE record on already existing entry fid="
-                            DFID, PFID(&p_op->entry_id) );
+                            "CREATE record on already existing entry fid="
+                            DFID". This is normal if you scanned it previously.", PFID(&p_op->entry_id) );
 
 #ifdef ATTR_INDEX_creation_time
             /* set insertion time, like for a new entry */

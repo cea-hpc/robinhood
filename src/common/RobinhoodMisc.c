@@ -390,6 +390,26 @@ char          *gid2str( gid_t gid, char *groupname )
     return groupname;
 }
 
+const char * mode2type(mode_t mode)
+{
+    if ( S_ISREG( mode ) )
+        return STR_TYPE_FILE;
+    else if ( S_ISDIR( mode ) )
+        return STR_TYPE_DIR;
+    else if ( S_ISLNK( mode ) )
+        return STR_TYPE_LINK;
+    else if ( S_ISCHR( mode ) )
+        return STR_TYPE_CHR;
+    else if ( S_ISBLK( mode ) )
+        return STR_TYPE_BLK;
+    else if ( S_ISFIFO( mode ) )
+        return STR_TYPE_FIFO;
+    else if ( S_ISSOCK( mode ) )
+        return STR_TYPE_SOCK;
+    else
+        return NULL;
+}
+
 void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int size_info )
 {
     ATTR_MASK_SET( p_attr_set, owner );
@@ -439,40 +459,11 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
 #endif
 
 #ifdef ATTR_INDEX_type
-    if ( S_ISREG( p_inode->st_mode ) )
+    const char * type = mode2type(p_inode->st_mode);
+    if (type != NULL)
     {
         ATTR_MASK_SET( p_attr_set, type );
-        strcpy( ATTR( p_attr_set, type ), STR_TYPE_FILE );
-    }
-    else if ( S_ISDIR( p_inode->st_mode ) )
-    {
-        ATTR_MASK_SET( p_attr_set, type );
-        strcpy( ATTR( p_attr_set, type ), STR_TYPE_DIR );
-    }
-    else if ( S_ISCHR( p_inode->st_mode ) )
-    {
-        ATTR_MASK_SET( p_attr_set, type );
-        strcpy( ATTR( p_attr_set, type ), STR_TYPE_CHR );
-    }
-    else if ( S_ISBLK( p_inode->st_mode ) )
-    {
-        ATTR_MASK_SET( p_attr_set, type );
-        strcpy( ATTR( p_attr_set, type ), STR_TYPE_BLK );
-    }
-    else if ( S_ISFIFO( p_inode->st_mode ) )
-    {
-        ATTR_MASK_SET( p_attr_set, type );
-        strcpy( ATTR( p_attr_set, type ), STR_TYPE_FIFO );
-    }
-    else if ( S_ISLNK( p_inode->st_mode ) )
-    {
-        ATTR_MASK_SET( p_attr_set, type );
-        strcpy( ATTR( p_attr_set, type ), STR_TYPE_LINK );
-    }
-    else if ( S_ISSOCK( p_inode->st_mode ) )
-    {
-        ATTR_MASK_SET( p_attr_set, type );
-        strcpy( ATTR( p_attr_set, type ), STR_TYPE_SOCK );
+        strcpy(ATTR( p_attr_set, type ), type);
     }
 #endif
 
