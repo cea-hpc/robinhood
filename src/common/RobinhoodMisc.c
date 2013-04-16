@@ -2050,14 +2050,14 @@ int execute_shell_command( const char * cmd, int argc, ... )
         else
             str_error = "external command exited";
 
-        DisplayLog( LVL_MAJOR, SHCMD,
+        DisplayLog( LVL_CRIT, SHCMD,
                     "ERROR: %s, error %d (cmdline=%s)",
                     str_error, (signed char)exrc, cmdline );
         rc = -exrc;
     }
     else if (WIFSIGNALED(rc))
     {
-            DisplayLog( LVL_MAJOR, SHCMD,
+            DisplayLog( LVL_CRIT, SHCMD,
                         "ERROR: command terminated by signal %d. cmdline=%s",
                         WTERMSIG(rc), cmdline );
             rc = -EINTR;

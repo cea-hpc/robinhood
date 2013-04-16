@@ -915,14 +915,24 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         /* rmdir */
                         DisplayReport("%srmdir(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
                                       ATTR(&p_op->fs_attrs, fullpath));
-                        /* TODO: do it */
+                        if (!(pipeline_flags & FLAG_DRY_RUN))
+                        {
+                            if (rmdir(ATTR(&p_op->fs_attrs, fullpath)))
+                                DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "rmdir(%s) failed: %s",
+                                    ATTR(&p_op->fs_attrs, fullpath), strerror(errno));
+                        }
                     }
                     else
                     {
                         /* unlink */
                         DisplayReport("%sunlink(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
                                       ATTR(&p_op->fs_attrs, fullpath));
-                        /* TODO: do it */
+                        if (!(pipeline_flags & FLAG_DRY_RUN))
+                        {
+                            if (unlink(ATTR(&p_op->fs_attrs, fullpath)))
+                                DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "unlink(%s) failed: %s",
+                                    ATTR(&p_op->fs_attrs, fullpath), strerror(errno));
+                        }
                     }
                 }
                 else
@@ -937,6 +947,10 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                                 pipeline_flags & FLAG_DRY_RUN);
                 break;
 
+
+            default:
+                /* no attr update: insert or remove */
+                ;
         }
     }
 
@@ -956,6 +970,75 @@ static void no_tag_cb(const entry_id_t *p_id)
     else
         printf("--"DFID"\n", PFID(p_id));
 }
+
+#ifdef _HSM_LITE
+static int hsm_recover(lmgr_t * lmgr,
+                       const entry_id_t *p_id,
+                       attr_set_t *p_oldattr)
+{
+    recov_status_t st;
+    entry_id_t new_id;
+    attr_set_t new_attrs;
+    int rc;
+
+    /* try to recover from backend */
+    st = rbhext_recover(p_id, p_oldattr, &new_id, &new_attrs, NULL);
+    switch (st)
+    {
+        case RS_OK:
+        case RS_DELTA:
+
+            /* insert the new entry to the DB */
+            rc = ListMgr_Insert(lmgr, &new_id, &new_attrs, TRUE);
+            if (rc)
+            {
+                DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to insert new entry '%s' ("DFID") to the database",
+                           ATTR(&new_attrs, fullpath), PFID(&new_id));
+                goto clean_entry;
+            }
+
+            rc = ListMgr_Remove(lmgr, p_id);
+            if (rc)
+            {
+                DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to remove old reference "DFID" from the database",
+                           PFID(p_id));
+                goto clean_db;
+            }
+
+            DisplayReport("%s successfully recovered (%s)", ATTR(&new_attrs, fullpath),
+                          st==RS_OK?"up-to-date":"old data");
+            return 0;
+
+        case RS_NOBACKUP:
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "No backup available for entry '%s'",
+                       ATTR(p_oldattr, fullpath));
+            goto clean_entry;
+        case RS_ERROR:
+        default:
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to restore entry '%s' (status=%d)",
+                       ATTR(p_oldattr, fullpath), st);
+            goto clean_entry;
+    }
+
+clean_db:
+    rc = ListMgr_Remove(lmgr, &new_id);
+    if (rc)
+        DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "db cleanup: remove failed: error %d", rc);
+
+clean_entry:
+    /* clean new entry (inconsistent) */
+    if (!strcmp(ATTR(p_oldattr, type), STR_TYPE_DIR))
+        rc = rmdir(ATTR(p_oldattr, fullpath));
+    else
+        rc = unlink(ATTR(p_oldattr, fullpath));
+    if (rc)
+        DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "cleanup: unlink/rmdir failed: %s",
+                   strerror(errno));
+
+    /* failure */
+    return -1;
+}
+#endif
 
 int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
@@ -1045,9 +1128,16 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, 0, 1);
 
                         printf("++"DFID" %s\n", PFID(&id), attrnew);
-                        /* TODO: create or recover it */
+                        /* TODO: create or recover it (even without HSM mode) */
+#ifdef _HSM_LITE
+                        /* try to recover the entry from the backend */
+                        DisplayReport("%srecover(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                                      ATTR(&attrs, fullpath));
+                        if (!(pipeline_flags & FLAG_DRY_RUN))
+                            hsm_recover(lmgr, &id, &attrs);
+#endif
                     }
-                    else
+                    else /* apply=db */
                     {
                         if (ATTR_MASK_TEST(&attrs, fullpath))
                             printf("--"DFID" path=%s\n", PFID(&id), ATTR(&attrs, fullpath));
