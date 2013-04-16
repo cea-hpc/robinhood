@@ -97,7 +97,7 @@ int shook_special_obj( struct entry_proc_op_t *p_op )
                 /* skip the entry */
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook lock",
                            ATTR_FSorDB(p_op, fullpath));
-                /** @TODO raise special event for the file: LOCK/UNLOCK */
+                /** XXX raise special event for the file: LOCK/UNLOCK? */
                 return TRUE;
             }
         }
@@ -315,7 +315,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         if (!ATTR_MASK_TEST(&p_op->fs_attrs, creation_time))
         {
             ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
-            ATTR( &p_op->fs_attrs, creation_time ) = time(NULL); /* FIXME min(atime,mtime,ctime)? */
+            ATTR( &p_op->fs_attrs, creation_time ) = time(NULL); /* XXX min(atime,mtime,ctime)? */
         }
 #endif
 
@@ -694,7 +694,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* Only keep fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
-        /* FIXME keep md_update to avoid removing the entry from DB:
+        /* XXX keep md_update to avoid removing the entry from DB:
          * use DB tag instead?
          */
         int to_keep = ATTR_MASK_md_update;
@@ -997,7 +997,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* remove entries listed in previous scans */
         #ifdef HAVE_RM_POLICY
             if (policies.unlink_policy.hsm_remove)
-                /* @TODO fix for dirs */
+                /* @TODO fix for dirs, symlinks, ... */
                 rc = ListMgr_MassSoftRemove(lmgr, &filter,
                          time(NULL) + policies.unlink_policy.deferred_remove_delay, cb);
             else
@@ -1045,7 +1045,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, 0, 1);
 
                         printf("++"DFID" %s\n", PFID(&id), attrnew);
-                        /* TODO: create it */
+                        /* TODO: create or recover it */
                     }
                     else
                     {

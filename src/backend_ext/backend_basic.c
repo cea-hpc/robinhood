@@ -1306,7 +1306,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     entry_id_t  parent_id;
     mode_t mode_create;
     int set_mode = FALSE;
-    int stat_done = FALSE;
+    int stat_done = bkinfo ? TRUE : FALSE;
 
     if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
     {
@@ -1361,7 +1361,6 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             return RS_NOBACKUP;
         }
     }
-
 
     if (!strcasecmp(ATTR(p_attrs_old, type), STR_TYPE_DIR))
     {
@@ -1444,6 +1443,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                 else
                     return RS_ERROR;
             }
+            stat_done = TRUE;
         }
 
         if (!S_ISREG(st_bk.st_mode))
@@ -1663,17 +1663,6 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     PosixStat2EntryAttr( &st_dest, p_attrs_new, TRUE );
     strcpy( ATTR( p_attrs_new, fullpath ), fspath );
     ATTR_MASK_SET( p_attrs_new, fullpath );
-    /* status is always synchro or released after a recovery */
-#ifdef HAVE_SHOOK
-    /* only files remain released, others are synchro */
-    if (S_ISREG(st_dest.st_mode))
-        ATTR( p_attrs_new, status ) = STATUS_RELEASED;
-    else
-        ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
-#else
-    ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
-#endif
-    ATTR_MASK_SET( p_attrs_new, status );
 
 #ifdef _HAVE_FID
     /* get the new fid */
@@ -1715,6 +1704,20 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     {
         char tmp[RBH_PATH_MAX];
         char * destdir;
+
+#ifdef HAVE_SHOOK
+        /* only files remain released, others are synchro */
+        if (S_ISREG(st_dest.st_mode))
+        {
+            ATTR( p_attrs_new, status ) = STATUS_RELEASED;
+            ATTR_MASK_SET( p_attrs_new, status );
+        }
+        else
+#endif
+        {
+            ATTR( p_attrs_new, status ) = STATUS_SYNCHRO;
+            ATTR_MASK_SET( p_attrs_new, status );
+        }
 
         /* set the new entry path in backend, according to the new fid */
         entry2backend_path( p_new_id, p_attrs_new,
