@@ -1,4 +1,6 @@
 #!/bin/bash
+# -*- mode: c; c-basic-offset: 4; indent-tabs-mode: nil; -*-
+# vim:expandtab:shiftwidth=4:tabstop=4:
 
 ROOT="/mnt/lustre"
 
@@ -3506,174 +3508,228 @@ function test_cfg_parsing
 
 function recovery_test
 {
-	config_file=$1
-	flavor=$2
-	policy_str="$3"
+    config_file=$1
+    flavor=$2
+    arch_slink=$3
+    policy_str="$4"
 
-	if (( $is_hsmlite == 0 )); then
-		echo "Backup test only: skipped"
-		set_skipped
-		return 1
-	fi
+    if (( $is_hsmlite == 0 )); then
+        echo "Backup test only: skipped"
+        set_skipped
+        return 1
+    fi
 
-	clean_logs
+    clean_logs
 
-	# flavors:
-	# full: all entries fully recovered
-	# delta: all entries recovered but some with deltas
-	# rename: some entries have been renamed since they have been saved
-	# partial: some entries can't be recovered
-	# mixed: all of them
-	if [[ $flavor == "full" ]]; then
-		nb_full=20
-		nb_rename=0
-		nb_delta=0
-		nb_nobkp=0
-	elif [[ $flavor == "delta" ]]; then
-		nb_full=10
-		nb_rename=0
-		nb_delta=10
-		nb_nobkp=0
-	elif [[ $flavor == "rename" ]]; then
-		nb_full=10
-		nb_rename=10
-		nb_delta=0
-		nb_nobkp=0
-	elif [[ $flavor == "partial" ]]; then
-                nb_full=10
-		nb_rename=0
-                nb_delta=0
-                nb_nobkp=10
-	elif [[ $flavor == "mixed" ]]; then
-                nb_full=5
-		nb_rename=5
-                nb_delta=5
-                nb_nobkp=5
-	else
-		error "Invalid arg in recovery_test"
-		return 1
-	fi
-	# read logs
-	
+    # flavors:
+    # full: all entries fully recovered
+    # delta: all entries recovered but some with deltas
+    # rename: some entries have been renamed since they have been saved
+    # partial: some entries can't be recovered
+    # mixed: all of them
+    if [[ $flavor == "full" ]]; then
+        nb_full=20
+        nb_rename=0
+        nb_delta=0
+        nb_nobkp=0
+    elif [[ $flavor == "delta" ]]; then
+        nb_full=10
+        nb_rename=0
+        nb_delta=10
+        nb_nobkp=0
+    elif [[ $flavor == "rename" ]]; then
+        nb_full=10
+        nb_rename=10
+        nb_delta=0
+        nb_nobkp=0
+    elif [[ $flavor == "partial" ]]; then
+        nb_full=10
+        nb_rename=0
+        nb_delta=0
+        nb_nobkp=10
+    elif [[ $flavor == "mixed" ]]; then
+        nb_full=5
+        nb_rename=5
+        nb_delta=5
+        nb_nobkp=5
+    else
+        error "Invalid arg in recovery_test"
+        return 1
+    fi
+    # read logs
+    
 
-	# create files
-	((total=$nb_full + $nb_rename + $nb_delta + $nb_nobkp))
-	echo "1.1-creating files..."
-	for i in `seq 1 $total`; do
-		mkdir "$ROOT/dir.$i" || error "$? creating directory $ROOT/dir.$i"
-		if (( $i % 3 == 0 )); then
-			chmod 755 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
-		elif (( $i % 3 == 1 )); then
-			chmod 750 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
-		elif (( $i % 3 == 2 )); then
-			chmod 700 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
-		fi
+    # create files
+    ((total=$nb_full + $nb_rename + $nb_delta + $nb_nobkp))
+    echo "1.1-creating files..."
+    for i in `seq 1 $total`; do
+        mkdir "$ROOT/dir.$i" || error "$? creating directory $ROOT/dir.$i"
+        if (( $i % 3 == 0 )); then
+            chmod 755 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+        elif (( $i % 3 == 1 )); then
+            chmod 750 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+        elif (( $i % 3 == 2 )); then
+            chmod 700 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+        fi
 
-		dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
-	done
+        dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
+    done
 
-	# read changelogs
-	if (( $no_log )); then
-		echo "1.2-scan..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
-	else
-		echo "1.2-read changelog..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
-	fi
+    echo "1.2-creating symlinks..."
+    for i in `seq 1 $total`; do
+        ln -s "symlink_$i" $ROOT/dir.$i/link.$i  >/dev/null 2>/dev/null || error "$? creating symlink $ROOT/dir.$i/link.$"
+    done
 
-	sleep 2
+    # read changelogs
+    if (( $no_log )); then
+        echo "1.3-scan..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+    else
+        echo "1.3-read changelog..."
+        $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+    fi
 
-	# all files are new
-	new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep new | cut -d ',' -f 3`
-	echo "$new_cnt files are new"
-	(( $new_cnt == $total )) || error "20 new files expected"
+    sleep 2
 
-	echo "2.1-archiving files..."
-	# archive and modify files
-	for i in `seq 1 $total`; do
-		if (( $i <= $nb_full )); then
-			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
-				|| error "archiving $ROOT/dir.$i/file.$i"
-		elif (( $i <= $(($nb_full+$nb_rename)) )); then
-			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
-				|| error "archiving $ROOT/dir.$i/file.$i"
-			mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
-			mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
-		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
-				|| error "archiving $ROOT/dir.$i/file.$i"
-			touch "$ROOT/dir.$i/file.$i"
-		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-			# no backup
-			:
-		fi
-	done
+    # all files are new
+    new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep file | grep new | cut -d ',' -f 3`
+    echo "$new_cnt files are new"
+    (( $new_cnt == $total )) || error "20 new files expected"
 
-	if (( $no_log )); then
-		echo "2.2-scan..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
-	else
-		echo "2.2-read changelog..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
-	fi
+    na_link=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep symlink | grep "n/a" | cut -d ',' -f 3`
+    new_link=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep symlink | grep new | cut -d ',' -f 3`
+    [[ -z $new_link ]] && new_link=0
+    [[ -z $na_link ]] && na_link=0
+    echo "$new_link symlinks are new, $na_link are n/a"
+    if (( $arch_slink == 0 )); then
+        (( $na_link == $total )) || error "$total n/a symlinks expected"
+    else
+        (( $new_link == $total )) || error "$total new symlinks expected"
+    fi
 
-	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i > /tmp/report.$$
-	new_cnt=`grep "new" /tmp/report.$$ | cut -d ',' -f 3`
-	mod_cnt=`grep "modified" /tmp/report.$$ | cut -d ',' -f 3`
-	sync_cnt=`grep "synchro" /tmp/report.$$ | cut -d ',' -f 3`
-	[[ -z $new_cnt ]] && new_cnt=0
-	[[ -z $mod_cnt ]] && mod_cnt=0
-	[[ -z $sync_cnt ]] && sync_cnt=0
+    echo "2.1-archiving objects..."
+    # archive and modify files
+    for i in `seq 1 $total`; do
+        if (( $i <= $nb_full )); then
+            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $ROOT/dir.$i/file.$i"
+            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $ROOT/dir.$i/link.$i"
+            if (( $arch_slink == 0 )); then
+                grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
+                    || error "$ROOT/dir.$i/link.$i should not have been migrated"
+            fi
+        elif (( $i <= $(($nb_full+$nb_rename)) )); then
+            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $ROOT/dir.$i/file.$i"
+            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $ROOT/dir.$i/link.$i"
+            if (( $arch_slink == 0 )); then
+                grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
+                    || error "$ROOT/dir.$i/link.$i should not have been migrated"
+            fi
+            mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
+            mv "$ROOT/dir.$i/link.$i" "$ROOT/dir.$i/link_new.$i" || error "renaming link"
+            mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
+            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $ROOT/dir.$i/file.$i"
+            touch "$ROOT/dir.$i/file.$i"
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
+            # no backup
+            :
+        fi
+    done
 
-	echo "new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
-	(( $sync_cnt == $nb_full+$nb_rename )) || error "Nbr of synchro files doesn't match: $sync_cnt != $nb_full + $nb_rename"
-	(( $mod_cnt == $nb_delta )) || error "Nbr of modified files doesn't match: $mod_cnt != $nb_delta"
-	(( $new_cnt == $nb_nobkp )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp"
+    if (( $no_log )); then
+        echo "2.2-scan..."
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+    else
+        echo "2.2-read changelog..."
+        $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+    fi
 
-	# shots before disaster (time is only significant for files)
-	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
-	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
-	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -i > /tmp/report.$$
+    [ "$DEBUG" = "1" ] && cat  /tmp/report.$$
 
-	# FS disaster
-	if [[ -n "$ROOT" ]]; then
-		echo "3-Disaster: all FS content is lost"
-		rm  -rf $ROOT/*
-	fi
+    new_cnt=`grep "new" /tmp/report.$$ | grep file | cut -d ',' -f 3`
+    mod_cnt=`grep "modified" /tmp/report.$$ | grep file | cut -d ',' -f 3`
+    sync_cnt=`grep "synchro" /tmp/report.$$ | grep file | cut -d ',' -f 3`
+    [[ -z $new_cnt ]] && new_cnt=0
+    [[ -z $mod_cnt ]] && mod_cnt=0
+    [[ -z $sync_cnt ]] && sync_cnt=0
 
-	# perform the recovery
-	echo "4-Performing recovery..."
-	cp /dev/null recov.log
-	$RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
+    echo "files: new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
+    (( $sync_cnt == $nb_full+$nb_rename )) || error "Nbr of synchro files doesn't match: $sync_cnt != $nb_full + $nb_rename"
+    (( $mod_cnt == $nb_delta )) || error "Nbr of modified files doesn't match: $mod_cnt != $nb_delta"
+    (( $new_cnt == $nb_nobkp )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp"
 
-	$RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+    new_cnt=`grep "new" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
+    na_cnt=`grep "n/a" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
+    sync_cnt=`grep "synchro" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
+    [[ -z $new_cnt ]] && new_cnt=0
+    [[ -z $na_cnt ]] && na_cnt=0
+    [[ -z $sync_cnt ]] && sync_cnt=0
 
-	$RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+    echo "symlink: new: $new_cnt, synchro: $sync_cnt, n/a: $na_cnt"
+    if (( $arch_slink == 0 )); then
+        (( $na_cnt == $total )) || error "Nbr of links with no status doesn't match: $na_cnt != $total"
+    else
+        (( $sync_cnt == $nb_full+$nb_rename )) || error "Nbr of synchro links doesn't match: $sync_cnt != $nb_full + $nb_rename"
+        (( $new_cnt == $nb_nobkp+$nb_delta )) || error "Nbr of new links doesn't match: $new_cnt != $(($nb_nobkp+$nb_delta))"
+    fi
 
-	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
-	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
-	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 
-	diff  /tmp/before.$$ /tmp/after.$$ > /tmp/diff.$$
+    # shots before disaster (time is only significant for files)
+    find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
+    find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+    find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
 
-	# checking status and diff result
-	for i in `seq 1 $total`; do
-		if (( $i <= $nb_full )); then
-			grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
-			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
-		elif (( $i <= $(($nb_full+$nb_rename)) )); then
-			grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log	| egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
-			grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i NOT expected to differ"
-		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-			grep "Restoring $ROOT/dir.$i/file.$i" recov.log	| grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
-			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
-		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-			grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
-			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
-		fi
-	done
+    # FS disaster
+    if [[ -n "$ROOT" ]]; then
+        echo "3-Disaster: all FS content is lost"
+        rm  -rf $ROOT/*
+    fi
 
-	rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
+    # perform the recovery
+    echo "4-Performing recovery..."
+    cp /dev/null recov.log
+    $RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
+
+    $RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+
+    $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+
+    find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
+    find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+    find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+
+    diff  /tmp/before.$$ /tmp/after.$$ > /tmp/diff.$$
+    [ "$DEBUG" = "1" ] && cat  /tmp/diff.$$
+
+    # checking status and diff result
+    for i in `seq 1 $total`; do
+        if (( $i <= $nb_full )); then
+            grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+        elif (( $i <= $(($nb_full+$nb_rename)) )); then
+            grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log    | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+            grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i NOT expected to differ"
+            grep "$ROOT/dir.new$i/link_new.$i" /tmp/diff.$$ && error "$ROOT/dir_new.$i/link_new.$i NOT expected to differ"
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
+            grep "Restoring $ROOT/dir.$i/file.$i" recov.log    | grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
+            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+            # links are never expected to differ as they are stored in the database
+            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
+            grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
+            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+            # links are never expected to differ as they are stored in the database
+            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+        fi
+    done
+
+    rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
 }
 
 function import_test
@@ -6850,12 +6906,17 @@ run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert ba
 run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
 run_test 501b 	test_cfg_parsing detailed none		"parsing of detailed template"
 run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
-run_test 502a    recovery_test	test_recov.conf  full    "FS recovery"
-run_test 502b    recovery_test	test_recov.conf  delta   "FS recovery with delta"
-run_test 502c    recovery_test	test_recov.conf  rename  "FS recovery with renamed entries"
-run_test 502d    recovery_test	test_recov.conf  partial "FS recovery with missing backups"
-run_test 502e    recovery_test	test_recov.conf  mixed   "FS recovery (mixed status)"
-run_test 503     import_test    test_recov.conf "Import from backend"
+run_test 502a    recovery_test	test_recov.conf  full    1 "FS recovery"
+run_test 502b    recovery_test	test_recov.conf  delta   1 "FS recovery with delta"
+run_test 502c    recovery_test	test_recov.conf  rename  1 "FS recovery with renamed entries"
+run_test 502d    recovery_test	test_recov.conf  partial 1 "FS recovery with missing backups"
+run_test 502e    recovery_test	test_recov.conf  mixed   1 "FS recovery (mixed status)"
+run_test 503a    recovery_test	test_recov2.conf  full    0 "FS recovery (archive_symlinks=FALSE)"
+run_test 503b    recovery_test	test_recov2.conf  delta   0 "FS recovery with delta (archive_symlinks=FALSE)"
+run_test 503c    recovery_test	test_recov2.conf  rename  0 "FS recovery with renamed entries (archive_symlinks=FALSE)"
+run_test 503d    recovery_test	test_recov2.conf  partial 0 "FS recovery with missing backups (archive_symlinks=FALSE)"
+run_test 503e    recovery_test	test_recov2.conf  mixed   0 "FS recovery (mixed status, archive_symlinks=FALSE)"
+run_test 504     import_test    test_recov.conf "Import from backend"
 
 
 #### Tests by Sogeti ####

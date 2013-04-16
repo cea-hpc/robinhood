@@ -1,7 +1,6 @@
-symlink support in recovery
-option: archive symlinks
 /!\ symlink change if inode recycling
 
+- complete apply-fs (+using recover for backup system)
 
 - db diff option: list changes since xxx
 - apply
