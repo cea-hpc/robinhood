@@ -1293,7 +1293,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                                attr_set_t * p_attrs_new,
                                struct stat * bkinfo )
 {
-    char bkpath[RBH_PATH_MAX];
+    char bkpath[RBH_PATH_MAX] = "";
+    char link[RBH_PATH_MAX] = "";
     const char * backend_path = NULL;
     const char * fspath;
     int rc;
@@ -1397,18 +1398,9 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 
         /* restore from DB */
         if (ATTR_MASK_TEST(p_attrs_old, link))
-        {
-            if ( symlink(ATTR(p_attrs_old, link), fspath) != 0 )
-            {
-                rc = errno;
-                DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
-                            fspath, ATTR(p_attrs_old, link), strerror(rc) );
-                return RS_ERROR;
-            }
-        }
+            strcpy(link, ATTR(p_attrs_old, link));
         else /* restore from FS */
         {
-            char link[RBH_PATH_MAX] = "";
 
             /* read link content from backend */
             if ( readlink(backend_path, link, RBH_PATH_MAX) < 0 )
@@ -1421,13 +1413,16 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                 else
                     return RS_ERROR;
             }
-            if ( symlink(link, fspath) != 0 )
-            {
-                rc = errno;
-                DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
-                            fspath, link, strerror(rc) );
-                return RS_ERROR;
-            }
+            /* safety */
+            link[RBH_PATH_MAX-1] = '\0';
+        }
+
+        if ( symlink(link, fspath) != 0 )
+        {
+            rc = errno;
+            DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
+                        fspath, link, strerror(rc) );
+            return RS_ERROR;
         }
     }
     else if (!strcasecmp(ATTR(p_attrs_old, type), STR_TYPE_FILE))
@@ -1709,6 +1704,12 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         }
     }
 #endif
+
+    if (S_ISLNK(st_dest.st_mode))
+    {
+        strcpy(ATTR(p_attrs_new,link), link);
+        ATTR_MASK_SET(p_attrs_new, link);
+    }
 
     if (S_ISREG(st_dest.st_mode) || (S_ISLNK(st_dest.st_mode)&& config.archive_symlinks))
     {

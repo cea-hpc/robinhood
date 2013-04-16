@@ -288,7 +288,7 @@ struct __diffattr {
     int negate;     /* negate the given mask */
 } diffattrs[] = {
     { ATTR_MASK_fullpath | ATTR_MASK_parent_id, "path", 0 },
-    { POSIX_ATTR_MASK, "posix", 0 },
+    { POSIX_ATTR_MASK | ATTR_MASK_link, "posix", 0 },
 #ifdef _LUSTRE
     { ATTR_MASK_stripe_info | ATTR_MASK_stripe_items, "stripe", 0 },
 #endif
