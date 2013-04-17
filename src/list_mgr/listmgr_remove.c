@@ -38,6 +38,8 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     if (rc)
         return rc;
 
+    /* stripes are only managed for Lustre filesystems */
+#ifdef _LUSTRE
     /* First remove stripe info */
     sprintf( request, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
     rc = db_exec_sql( &p_mgr->conn, request, NULL );
@@ -48,6 +50,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     rc = db_exec_sql( &p_mgr->conn, request, NULL );
     if ( rc )
         return rc;
+#endif
 
     /* then remove in other tables */
     sprintf( request, "DELETE FROM " MAIN_TABLE " WHERE id="DPK, pk );
@@ -196,8 +199,10 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     char           query[2048];
     char           filter_str_main[1024];
     char           filter_str_annex[1024];
+#ifdef _LUSTRE
     char           filter_str_stripe_info[1024];
     char           filter_str_stripe_items[1024];
+#endif
     int            filter_main = 0;
     int            filter_annex = 0;
     int            filter_stripe_info = 0;
@@ -254,6 +259,8 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         DisplayLog( LVL_EVENT, LISTMGR_TAG,
                     "No filter is specified: removing entries from all tables." );
 
+        /* stripes are only managed for lustre filesystems */
+#ifdef _LUSTRE
         rc = db_exec_sql( &p_mgr->conn, "DELETE FROM " STRIPE_ITEMS_TABLE, NULL );
         if ( rc )
             goto rollback;
@@ -261,6 +268,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         rc = db_exec_sql( &p_mgr->conn, "DELETE FROM " STRIPE_INFO_TABLE, NULL );
         if ( rc )
             goto rollback;
+#endif
 
         if ( annex_table )
         {
@@ -287,10 +295,13 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     else
         filter_annex = 0;
 
+    /* stripes are only managed for Lustre filesystems */
+#ifdef _LUSTRE
     filter_stripe_info =
         filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO, FALSE, FALSE );
     filter_stripe_items =
         filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS, FALSE, FALSE );
+#endif
 
     if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0 )
     {
@@ -341,6 +352,8 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                      "CREATE TEMPORARY TABLE %s AS SELECT id FROM " ANNEX_TABLE
                      " WHERE %s", tmp_table_name, filter_str_annex );
     }
+    /* stripe are only managed for Lustre filesystems */
+#ifdef _LUSTRE
     else if ( filter_stripe_items && !( filter_main || filter_annex || filter_stripe_info ) )
     {
 #ifdef HAVE_RM_POLICY
@@ -374,6 +387,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                  "CREATE TEMPORARY TABLE %s AS SELECT id FROM "
                  STRIPE_INFO_TABLE " WHERE %s", tmp_table_name, filter_str_stripe_info );
     }
+#endif
     else if (filter_main && filter_annex && ! (filter_stripe_items || filter_stripe_info))
     {
         sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
@@ -515,6 +529,8 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
         /* delete all entries related to this id */
 
+        /* stripes are only managed for Lustre filesystems */
+#ifdef _LUSTRE
         sprintf( query, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
@@ -524,6 +540,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
             goto free_res;
+#endif
 
         if ( indirect_del_main )
         {

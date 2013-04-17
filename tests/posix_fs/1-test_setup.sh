@@ -23,6 +23,9 @@ if [[ ! -s $LOOP_FILE ]]; then
     dd if=/dev/zero of=$LOOP_FILE bs=1M count=400 || exit 1
     echo "formatting as ext3..."
     mkfs.ext3 -F $LOOP_FILE || exit 1
+else
+    # make sure it is consistent
+    mkfs.ext3 -F $LOOP_FILE || exit 1
 fi
     
 # mount it!

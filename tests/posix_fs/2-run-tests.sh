@@ -69,7 +69,8 @@ function error
 		echo "ERROR $@" >> $TMPERR_FILE
     fi
     # avoid displaying the same log many times
-    clean_logs
+    # but preserve log files for DEBUG mode
+    [ "$DEBUG" = "1" ] || clean_logs
 }
 
 function set_skipped
@@ -185,7 +186,7 @@ function test_rmdir
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_backup != 0 )); then
+	if [[ -n $is_backup ]] && (( $is_backup != 0 )); then
 		echo "No rmdir policy for hsm flavors: skipped"
 		set_skipped
 		return 1
@@ -768,7 +769,6 @@ function test_dircount_report
 		done
 	fi
 
-	# read changelogs
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	check_db_error rh_chglogs.log
@@ -1032,7 +1032,6 @@ function path_test
 	echo "1bis-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
-	# read changelogs
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
     	check_db_error rh_scan.log
@@ -1480,7 +1479,6 @@ function fileclass_test
 	echo "1bis-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
-	# read changelogs
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
     	check_db_error rh_scan.log
@@ -1518,7 +1516,7 @@ function test_info_collect
 
 	clean_logs
 
-	# test reading changelogs or scanning with strange names, etc...
+	# test scanning with strange names, etc...
 	mkdir $ROOT'/dir with blanks'
 	mkdir $ROOT'/dir with "quotes"'
 	mkdir "$ROOT/dir with 'quotes'"
@@ -1530,7 +1528,6 @@ function test_info_collect
 
 	sleep $sleep_time1
 
-	# read changelogs
 	echo "1-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
 	check_db_error rh_scan.log
@@ -1538,7 +1535,7 @@ function test_info_collect
 
 	sleep $sleep_time2
 
-	grep "DB query failed" rh_scan.log && error ": a DB query failed when reading changelogs"
+	grep "DB query failed" rh_scan.log && error ": a DB query failed when scanning"
 
 	nb_create=`grep ChangeLog rh_scan.log | grep 01CREAT | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
@@ -2638,7 +2635,7 @@ function trigger_purge_QUOTA_EXCEEDED
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
     done 
-    echo "2-Reading changelogs and Applying purge trigger policy..."
+    echo "2-Scanning and Applying purge trigger policy..."
 	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
 	
     countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
@@ -2698,7 +2695,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     done
     
     
-    echo "2-Reading changelogs and Applying purge trigger policy..."
+    echo "2-Scanning and Applying purge trigger policy..."
 	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
 	
     countMigrLog=`grep "$usage exceeds high threshold" rh_purge.log | wc -l`
@@ -2751,7 +2748,7 @@ function update_files_Purge
     for i in `seq 1 500`; do
 		echo "aaaaaaaaaaaaaaaaaaaa" >> $ROOT/dir2/file.8
 	done
-	more $ROOT/dir2/file.8 >/dev/null 2>/dev/null
+	cat $ROOT/dir2/file.8 >/dev/null 2>/dev/null
 }
 
 function test_purge
@@ -2787,7 +2784,7 @@ function test_purge
 	create_files_Purge
 	
 	sleep 1
-	echo "Reading changelogs..."
+	echo "Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
 		
 	if (($sleep_time != 0)); then
@@ -2798,7 +2795,7 @@ function test_purge
         update_files_Purge
 	fi    
     
-	echo "Reading changelogs and Applying purge policy..."
+	echo "Scanning and Applying purge policy..."
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log 
 	
 	nbError=0
@@ -2878,7 +2875,7 @@ function test_purge_tmp_fs_mgr
         update_files_Purge
     fi
     
-	echo "Reading changelogs and Applying purge policy..."
+	echo "Scanning and Applying purge policy..."
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log 
 	
 	nbError=0
@@ -3409,6 +3406,7 @@ function find_valueInCSVreport
 
     # get found value count for this value type
     foundCount=$(grep $typeValue $logFile | cut -d ',' -f $colSearch | tr -d ' ')
+    [[ -z $foundCount ]] && foundCount=0
     if (( $foundCount != $countValue )); then
 	    return 1
     else
