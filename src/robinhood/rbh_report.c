@@ -1408,6 +1408,11 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
 {
     time_t tt;
     struct tm stm;
+
+    if  (attr_index != ATTR_INDEX_fullpath /* specific case */
+         && (attrs->attr_mask & (1 << attr_index)) == 0)
+        return "";
+
     switch(attr_index)
     {
         case ATTR_INDEX_fullpath:
