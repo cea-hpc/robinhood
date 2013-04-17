@@ -55,9 +55,9 @@ typedef struct __entry_id__
 static int lmgr_gen_fullpath( void * tgt, const void * src )
 {
 #if 1
-    const char * fullpath = (char*)src;
-    char * name = (char*)tgt;
-	strcpy(name, fullpath);
+    const char * name = (char*)src;
+    char * fullpath = (char*)tgt;
+	strcpy(fullpath, name);
 	return 0;
 #else
     char * curr;

@@ -59,7 +59,7 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
         rc = -rc;
     else
         rc = 0;
-        
+
     db_result_free( &p_mgr->conn, &result );
     return rc;
 }
@@ -77,42 +77,78 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
 #ifdef ATTR_INDEX_dircount
     char            query[1024];
     result_handle_t result;
-    char            *str_info[2];
+    char            *str_info[1];
     int rc;
     int       tmp_val;
-    long long tmp_long; 
+    long long tmp_long;
 
-    sprintf( query, "SELECT %s, %s FROM "MAIN_TABLE" WHERE parent_id="DPK,
-             dirattr2str(ATTR_INDEX_dircount), dirattr2str(ATTR_INDEX_avgsize), dir_pk );
-    rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if ( rc )
-        return rc;
+    /* get child entry count from DNAMES_TABLE */
 
-    rc = db_next_record( &p_mgr->conn, &result, str_info, 2 );
-    if ( rc )
-        return rc;
-    if ((str_info[0] == NULL) || (str_info[1] == NULL))
-        return DB_REQUEST_FAILED;
-
-    tmp_val = str2int(str_info[0]);
-    if (tmp_val != -1)
+    if (ATTR_MASK_TEST(p_attrs, dircount))
     {
-        ATTR_MASK_SET(p_attrs, dircount);
-        ATTR( p_attrs, dircount ) = tmp_val;
-    }
-    else
-        ATTR_MASK_UNSET(p_attrs, dircount);
+        sprintf( query, "SELECT %s FROM "DNAMES_TABLE" WHERE parent_id="DPK,
+                 dirattr2str(ATTR_INDEX_dircount), dir_pk );
+        rc = db_exec_sql( &p_mgr->conn, query, &result );
+        if ( rc )
+            return rc;
+        rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
+        if (rc == DB_END_OF_LIST)
+            ATTR_MASK_UNSET(p_attrs, dircount);
+        else if (rc != DB_SUCCESS)
+            return rc;
+        else
+        {
+            if (str_info[0] == NULL)
+                /* count(*) should at least return 0 */
+                return DB_REQUEST_FAILED;
 
-    tmp_long = str2bigint(str_info[1]);
-    if (tmp_long != -1LL)
-    {
-        ATTR_MASK_SET(p_attrs, avgsize);
-        ATTR( p_attrs, avgsize ) = tmp_long;
+            tmp_val = str2int(str_info[0]);
+            if (tmp_val != -1)
+            {
+                ATTR_MASK_SET(p_attrs, dircount);
+                ATTR( p_attrs, dircount ) = tmp_val;
+            }
+            else
+                /* invalid output format */
+                return DB_REQUEST_FAILED;
+        }
     }
-    else
-        ATTR_MASK_UNSET(p_attrs, avgsize);
+
+    /* get avgsize of child entries from MAIN_TABLE */
+    if (ATTR_MASK_TEST(p_attrs, avgsize))
+    {
+        sprintf( query, "SELECT %s FROM "MAIN_TABLE" m, "DNAMES_TABLE" d WHERE m.id = d.id and type='file' and d.parent_id="DPK,
+                 dirattr2str(ATTR_INDEX_avgsize), dir_pk );
+        rc = db_exec_sql( &p_mgr->conn, query, &result );
+        if ( rc )
+            return rc;
+        rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
+        if (rc == DB_END_OF_LIST)
+            ATTR_MASK_UNSET(p_attrs, avgsize);
+        else if (rc != DB_SUCCESS)
+            return rc;
+        else
+        {
+            if (str_info[0] == NULL)
+            {
+                /* NULL if no entry matches the criteria */
+                ATTR_MASK_UNSET(p_attrs, avgsize);
+                return DB_SUCCESS;
+            }
+
+            tmp_long = str2bigint(str_info[0]);
+            if (tmp_long != -1LL)
+            {
+                ATTR_MASK_SET(p_attrs, avgsize);
+                ATTR( p_attrs, avgsize ) = tmp_long;
+            }
+            else
+                /* invalid output format */
+                return DB_REQUEST_FAILED;
+        }
+    }
 #endif
-    return 0;
+    return DB_SUCCESS;
 }
 
 /**
@@ -177,6 +213,44 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         && strcmp(ATTR(p_info, type), STR_TYPE_FILE) != 0)
     {
         p_info->attr_mask &= ~stripe_attr_set;
+    }
+
+    /* get info from NAMES table, if needed */
+    if (names_fields(p_info->attr_mask))
+    {
+        count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_DNAMES, FALSE, FALSE, "", "" );
+        if ( count < 0 )
+            return -count;
+
+        if ( count > 0 )
+        {
+            sprintf( query, "SELECT %s FROM " DNAMES_TABLE " WHERE id="DPK, fieldlist, pk );
+            rc = db_exec_sql( &p_mgr->conn, query, &result );
+            if ( rc )
+                return rc;
+
+            rc = db_next_record( &p_mgr->conn, &result, result_tab, count );
+
+            if (rc == 0)
+                checkmain = 0; /* entry exists */
+
+            if ( rc == DB_END_OF_LIST )
+            {
+                /* clear missing fields */
+                rc = result2attrset( T_DNAMES, NULL, count, p_info );
+                if ( rc )
+                    goto free_res;
+            }
+            else
+            {
+                /* set info from result */
+                rc = result2attrset( T_DNAMES, result_tab, count, p_info );
+                if ( rc )
+                    goto free_res;
+            }
+
+            db_result_free( &p_mgr->conn, &result );
+        }
     }
 
     if ( annex_table )

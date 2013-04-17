@@ -83,6 +83,7 @@ static int PurgeEntry_ByPath( const char *entry_path )
     {
         if ( unlink( entry_path ) != 0 )
             return errno;
+        /* @TODO handle other hardlinks to the same entry */
     }
     return 0;
 }

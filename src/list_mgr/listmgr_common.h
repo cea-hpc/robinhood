@@ -16,6 +16,7 @@
 
 #include "list_mgr.h"
 #include "listmgr_internal.h"
+#include "database.h"
 
 #define ASSIGN_UNION( _u, _type, _address ) do {            \
                     switch( _type )                         \
@@ -238,6 +239,26 @@ typedef enum
 #endif
 } table_enum;
 
+static inline const char * table2name(table_enum table)
+{
+    switch(table)
+    {
+        case T_NONE: return NULL;
+        case T_MAIN: return MAIN_TABLE;
+        case T_DNAMES: return DNAMES_TABLE;
+        case T_ANNEX: return ANNEX_TABLE;
+        case T_STRIPE_INFO: return STRIPE_INFO_TABLE;
+        case T_STRIPE_ITEMS: return STRIPE_ITEMS_TABLE;
+        case T_ACCT: return ACCT_TABLE;
+#ifdef HAVE_RM_POLICY
+        case T_SOFTRM: return SOFT_RM_TABLE;
+#endif
+#ifdef _HSM_LITE
+        case T_RECOV: return RECOV_TABLE;
+#endif
+   }
+}
+
 typedef enum {
     ADD,
     SUBSTRACT
@@ -284,7 +305,8 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 int            result2attrset( table_enum table, char **result_tab,
                                unsigned int res_count, attr_set_t * p_set );
 
-const char * dirattr2str( unsigned int attr_index );
+/* return the attr string for a dirattr */
+const char * dirattr2str(unsigned int attr_index);
 
 int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
                  PK_PARG_T p_pk );

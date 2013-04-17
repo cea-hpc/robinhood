@@ -689,8 +689,10 @@ char          *compar2str( filter_comparator_t compar )
 
 /**
  * return FILTERDIR_NONE if there is no filter on dirattrs
- * return FILTERDIR_EMPTY if the test is 'dircount == 0'
- * return FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, ...
+ * return FILTERDIR_EMPTY if the test is 'dircount == 0' (no junction needed)
+ * return FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, condition on avgsize 
+ *                           junction needed, depending on the filter
+ *                           test looks like "dirattr >= x"
  */
 filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str,
                         unsigned int * dir_attr_index)
@@ -707,13 +709,14 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* fi
             if (!is_dirattr(index))
                 continue;
 
-            /* condition about empty directory ? */
+            /* condition about empty directory (dircount == 0)? */
             if ((index == ATTR_INDEX_dircount)
                   && (p_filter->filter_simple.filter_value[i].value.val_uint == 0)
                   && (p_filter->filter_simple.filter_compar[i] == EQUAL))
             {
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on empty directory" );
-                strcpy( filter_str, "id NOT IN (SELECT distinct(parent_id) from ENTRIES)" );
+                /* empty directories are those with no parent_id in NAMES table */
+                strcpy( filter_str, "id NOT IN (SELECT distinct(parent_id) from "DNAMES_TABLE")" );
                 *dir_attr_index = index;
                 return FILTERDIR_EMPTY;
             }
@@ -916,7 +919,7 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
     return nbfields;
 }                               /* filter2str */
 
-const char * dirattr2str( unsigned int attr_index )
+const char * dirattr2str(unsigned int attr_index)
 {
     switch (attr_index)
     {
@@ -929,7 +932,6 @@ const char * dirattr2str( unsigned int attr_index )
             return NULL;
     }
 }
-
 
 /* special masks values for id2pk and pk2id */
 #define MASK_ID2PK  0
