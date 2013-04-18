@@ -498,6 +498,120 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     }
 
 
+    /*
+     * ====== CHECKING NAMES TABLE ==========
+     */
+
+    rc = db_list_table_fields( &conn, DNAMES_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
+
+    if ( rc == DB_SUCCESS )
+    {
+        int            curr_field_index = 0;
+
+        /* check primary key */
+        if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                        "Invalid primary key (%s) for table "
+                        DNAMES_TABLE, ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
+            return -1;
+        }
+        else
+        {
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
+            curr_field_index += 1;
+        }
+
+
+        for ( i = 0; i < ATTR_COUNT; i++ )
+        {
+            if ( is_names_field( i ) )
+            {
+                if ( check_field( i, &curr_field_index, DNAMES_TABLE, fieldtab ) )
+                    return -1;
+            }
+        }
+
+        /* is there any extra field ? */
+        if ( has_extra_field( curr_field_index, DNAMES_TABLE, fieldtab ) )
+            return -1;
+
+    }
+    else if ( rc == DB_NOT_EXISTS )
+    {
+        if ( report_only )
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "DNAMES_TABLE" table does not exist" );
+        }
+        else
+        {
+            DisplayLog( LVL_EVENT, LISTMGR_TAG, DNAMES_TABLE " does not exist: creating it." );
+
+            /* table does not exist */
+            //TODO wrong key - idem when checking above
+            strcpy( strbuf, "CREATE TABLE " DNAMES_TABLE " ( id "PK_TYPE );
+            next = strbuf + strlen( strbuf );
+
+            for ( i = 0; i < ATTR_COUNT; i++ )
+            {
+                if ( is_names_field( i ) )
+                {
+                    next += append_field_def( i, next, 0, NULL );
+                }
+            }
+            next += sprintf(next, ", PRIMARY KEY (parent_id, hname) )");
+
+#ifdef _MYSQL
+            if (lmgr_config.db_config.innodb)
+                strcat(strbuf, " ENGINE=InnoDB");
+#endif
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
+
+            rc = db_exec_sql( &conn, strbuf, NULL );
+            if ( rc )
+            {
+                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                            "Failed to create table: Error: %s",
+                            db_errmsg( &conn, errmsg_buf, 1024 ) );
+                return rc;
+            }
+
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " DNAMES_TABLE " created successfully" );
+
+            /* create indexes on this table */
+            for ( i = 0; i < ATTR_COUNT; i++ )
+            {
+                if ( is_names_field( i ) && is_indexed_field( i ) )
+                {
+                    sprintf( strbuf, "CREATE INDEX %s_index ON " DNAMES_TABLE "(%s)",
+                             field_infos[i].field_name, field_infos[i].field_name );
+
+                    DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
+
+                    rc = db_exec_sql( &conn, strbuf, NULL );
+                    if ( rc )
+                    {
+                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                                    "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                        return rc;
+                    }
+                    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " DNAMES_TABLE "(%s) created successfully",
+                                field_infos[i].field_name );
+                }
+            }
+        }
+    }
+    else
+    {
+        /* error */
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Error checking database schema: %s",
+                    db_errmsg( &conn, errmsg_buf, 1024 ) );
+        return rc;
+    }
+
+
+
 #ifdef _LUSTRE
     /*
      * ====== CHECKING STRIPE TABLES ==========
@@ -749,119 +863,6 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     }
 
 #endif
-
-    /*
-     * ====== CHECKING NAMES TABLE ==========
-     */
-
-    rc = db_list_table_fields( &conn, DNAMES_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-
-    if ( rc == DB_SUCCESS )
-    {
-        int            curr_field_index = 0;
-
-        /* check primary key */
-        if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid primary key (%s) for table "
-                        DNAMES_TABLE, ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
-            curr_field_index += 1;
-        }
-
-
-        for ( i = 0; i < ATTR_COUNT; i++ )
-        {
-            if ( is_names_field( i ) )
-            {
-                if ( check_field( i, &curr_field_index, DNAMES_TABLE, fieldtab ) )
-                    return -1;
-            }
-        }
-
-        /* is there any extra field ? */
-        if ( has_extra_field( curr_field_index, DNAMES_TABLE, fieldtab ) )
-            return -1;
-
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( report_only )
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "DNAMES_TABLE" table does not exist" );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, DNAMES_TABLE " does not exist: creating it." );
-
-            /* table does not exist */
-            //TODO wrong key - idem when checking above
-            strcpy( strbuf, "CREATE TABLE " DNAMES_TABLE " ( id "PK_TYPE );
-            next = strbuf + strlen( strbuf );
-
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if ( is_names_field( i ) )
-                {
-                    next += append_field_def( i, next, 0, NULL );
-                }
-            }
-            next += sprintf(next, ", PRIMARY KEY (parent_id, hname) )");
-
-#ifdef _MYSQL
-            if (lmgr_config.db_config.innodb)
-                strcat(strbuf, " ENGINE=InnoDB");
-#endif
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create table: Error: %s",
-                            db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " DNAMES_TABLE " created successfully" );
-
-            /* create indexes on this table */
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if ( is_names_field( i ) && is_indexed_field( i ) )
-                {
-                    sprintf( strbuf, "CREATE INDEX %s_index ON " DNAMES_TABLE "(%s)",
-                             field_infos[i].field_name, field_infos[i].field_name );
-
-                    DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-                    rc = db_exec_sql( &conn, strbuf, NULL );
-                    if ( rc )
-                    {
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                    "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                        return rc;
-                    }
-                    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " DNAMES_TABLE "(%s) created successfully",
-                                field_infos[i].field_name );
-                }
-            }
-        }
-    }
-    else
-    {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s",
-                    db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
-    }
-
 
     /*
      * ====== CHECKING ANNEX TABLE ==========

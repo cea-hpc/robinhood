@@ -132,7 +132,9 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
             return DB_NOT_SUPPORTED;
         }
 
-        /* TODO: is the filter always on T+MAIN, and not T_DNAMES ? */
+        /* There is always a filter on T_DNAMES, which is the parent condition.
+         * Look for optional filters:
+         */
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
                                   FALSE, TRUE );
 
@@ -186,32 +188,33 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     if (!pc)
         return DB_BUFFER_TOO_SMALL;
 
-    /* no annex table involved */
     curr = query;
-    if (!annex_attrs && !filter_annex)
-    {
-        /* Attributes can come from the MAIN table and DNAMES. */
-        curr += sprintf(curr, "SELECT "DNAMES_TABLE".id%s%s FROM "DNAMES_TABLE"%s WHERE %s%s",
-                        fieldlist_dnames,
-                        main_attrs?fieldlist_main:"",
-                        main_attrs?", "MAIN_TABLE:"",
-                        pc,
-                        main_attrs?" AND NAMES.id = ENTRIES.id":"");
 
-        if (filter_main)
-            curr +=  sprintf(curr, " AND %s", filter_str_main);
-    }
-    else
-    {
-        /* filter/attrs on annex */
-        curr += sprintf(curr, "SELECT "MAIN_TABLE".id%s%s FROM "MAIN_TABLE" LEFT JOIN "
-                        ANNEX_TABLE" ON "MAIN_TABLE".id="ANNEX_TABLE".id WHERE %s",
-                        fieldlist_main, fieldlist_annex, pc);
-        if (filter_main)
-            curr +=  sprintf(curr, " AND %s", filter_str_main);
-        if (filter_annex)
-            curr +=  sprintf(curr, " AND %s", filter_str_annex);
-    }
+    /* SELECT clause */
+    /* id + dname fields */
+    curr += sprintf(curr, "SELECT "DNAMES_TABLE".id%s", fieldlist_dnames);
+    /* main attrs */
+    if (main_attrs)
+        curr += sprintf(curr, "%s", fieldlist_main);
+    /* annex attrs */
+    if (annex_attrs)
+        curr += sprintf(curr, "%s", fieldlist_annex);
+
+    /* FROM clause */
+    curr += sprintf(curr, " FROM "DNAMES_TABLE);
+    if (main_attrs || filter_main)
+        curr += sprintf(curr, " LEFT JOIN "MAIN_TABLE
+                              " ON "DNAMES_TABLE".id="MAIN_TABLE".id");
+    if (annex_attrs || filter_annex)
+        curr += sprintf(curr, " LEFT JOIN "ANNEX_TABLE
+                              " ON "DNAMES_TABLE".id="ANNEX_TABLE".id");
+
+    /* WHERE clause */
+    curr += sprintf(curr, " WHERE %s", pc);
+    if (filter_main)
+        curr += sprintf(curr, " AND %s", filter_str_main);
+    if (filter_annex)
+        curr += sprintf(curr, " AND %s", filter_str_annex);
 
     rc = db_exec_sql(&p_mgr->conn, query, &result);
     if (rc)

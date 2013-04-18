@@ -854,6 +854,8 @@ static int list_content(char ** id_list, int id_count)
             }
 
             ids[i].fullname = id_list[i];
+            if (FINAL_SLASH(ids[i].fullname))
+                REMOVE_FINAL_SLASH(ids[i].fullname);
 
         } else {
             /* Take it as an FID. */
