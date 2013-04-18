@@ -40,6 +40,13 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     if (rc)
         return rc;
 
+    if (!p_attr_set || !ATTR_MASK_TEST(p_attr_set, parent_id) || !ATTR_MASK_TEST(p_attr_set, name))
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Missing mandatory attribute %s to ListMgr_Remove",
+                   !p_attr_set?"attr_set":ATTR_MASK_TEST(p_attr_set, parent_id)?"parent_id":"name");
+        return DB_INVALID_ARG;
+    }
+
     rc = entry_id2pk( p_mgr, &ATTR( p_attr_set, parent_id ), FALSE, PTR_PK(ppk) );
     if (rc)
         return rc;
