@@ -594,7 +594,6 @@ function test_rmdir
     	check_db_error rh_chglogs.log
 
 	echo "3-Applying rmdir policy ($policy_str)..."
-	# files should not be migrated this time: do not match policy
 	$RH -f ./cfg/$config_file --rmdir --once -l EVENT -L rh_purge.log 2>/dev/null
 
 	grep "Empty dir removal summary" rh_purge.log || error "did not file summary line in log"
@@ -1426,7 +1425,7 @@ function test_dircount_report
 		echo "FS root $ROOT was returned in top dircount (rank=$root_rank)"
 	fi
 	for i in `seq 1 $dircount`; do
-		line=`grep "$ROOT/dir.$i," report.out`
+		line=`grep "$ROOT/dir.$i," report.out` || error "$ROOT/dir.$i not found in report"
 		rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
 		count=`echo $line | cut -d ',' -f 3 | tr -d ' '`
 		avg=`echo $line | cut -d ',' -f 4 | tr -d ' '`
@@ -5868,6 +5867,7 @@ function test_rmdir_mix
 
     echo "3-Checking rmdir report"
 	$REPORT -f ./cfg/$config_file -l MAJOR -cq --top-rmdir > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
     # must report empty dirs (non ignored)
     grep "no_rm/dirempty," report.out && error "top-rmdir report whitelisted dir"
     grep "no_rm/dirempty_new," report.out && error "top-rmdir report whitelisted dir"
