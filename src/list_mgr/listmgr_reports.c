@@ -273,11 +273,13 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 
     int            main_table_flag = FALSE;
     int            annex_table_flag = FALSE;
+    int            names_table_flag = FALSE;
     int            acct_table_flag = FALSE;
     int            filter_main = 0;
     int            filter_annex = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
+    int            filter_names = 0;
     int            filter_acct = 0;
     int            full_acct = TRUE;
     lmgr_iter_opt_t opt;
@@ -514,6 +516,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
         }
         else
         {
+            /* filter on main table? */
             filter_main = filter2str( p_mgr, curr_where, p_filter, T_MAIN,
                                       ( where != curr_where ), TRUE );
             curr_where += strlen( curr_where );
@@ -521,6 +524,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             if ( filter_main )
                 main_table_flag = TRUE;
 
+            /* filter on names table? */
+            filter_names = filter2str( p_mgr, curr_where, p_filter, T_DNAMES,
+                                       ( filter_main + filter_annex > 0 ), TRUE );
+            curr_where += strlen( curr_where );
+
+            if ( filter_names )
+                names_table_flag = TRUE;
+
+            /* filter on annex table? */
             if ( annex_table )
             {
                 filter_annex = filter2str( p_mgr, curr_where, p_filter, T_ANNEX,
@@ -531,13 +543,11 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                     annex_table_flag = TRUE;
             }
 
-
             filter_stripe_info =
                 filter2str( p_mgr, curr_where, p_filter, T_STRIPE_INFO,
                             (where != curr_where), TRUE );
             curr_where += strlen( curr_where );
 
-            /* XXX caller must select distinct id in this case */
             filter_stripe_items =
                 filter2str( p_mgr, curr_where, p_filter, T_STRIPE_ITEMS,
                             (where != curr_where), TRUE );
@@ -545,7 +555,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
         }
     }
 
-    /* from clause */
+    /* FROM clause */
 
     if ( acct_table_flag )
         strcpy( from, ACCT_TABLE );
@@ -557,6 +567,19 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             strcpy(from, MAIN_TABLE);
             curr_from = from + strlen(from);
             first_table = MAIN_TABLE;
+        }
+
+        if ( names_table_flag )
+        {
+            if (first_table)
+                curr_from += sprintf(curr_from, " LEFT JOIN "DNAMES_TABLE" ON %s.id="DNAMES_TABLE".id",
+                                     first_table);
+            else
+            {
+                strcpy(from, DNAMES_TABLE);
+                curr_from = from + strlen(from);
+                first_table = DNAMES_TABLE;
+            }
         }
         if ( annex_table_flag )
         {
