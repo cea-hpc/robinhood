@@ -1417,7 +1417,8 @@ static int StartScan()
         strcpy( p_parent_task->path, global_config.fs_path );
 
     if (partial_scan_root)
-        p_parent_task->depth = path_depth(partial_scan_root);
+        /* depth of task /mnt/foo as depth entries in it /mnt are 0 */
+        p_parent_task->depth = path_depth(partial_scan_root) + 1;
     else
         p_parent_task->depth = 0;
 
