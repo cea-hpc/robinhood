@@ -922,6 +922,7 @@ static void   *Thr_Rmdir( void *arg )
 #else
         /* 1) Update full path */
         /* FIXME: we should get all paths of the directory to check if any of them match the policies */
+        /* TODO: also update parent_id+name */
         rc = Lustre_GetFullPath( &p_item->entry_id, ATTR(&p_item->entry_attr, fullpath), RBH_PATH_MAX );
         if ( rc )
         {
@@ -1175,8 +1176,9 @@ static void   *Thr_Rmdir( void *arg )
                                    strmod, (time_t)ATTR( &new_attr_set, last_mod ) );
 
                     /* remove it from database */
-                    /* no hardlinks for directories */
-                    rc = ListMgr_Remove( &lmgr, &p_item->entry_id, &new_attr_set, TRUE );
+                    rc = ListMgr_Remove( &lmgr, &p_item->entry_id,
+                                         &p_item->entry_attr, /* must be based on the DB content = old attrs */
+                                         TRUE ); /* no hardlinks for directories */
                     if ( rc )
                         DisplayLog( LVL_CRIT, RMDIR_TAG,
                                    "Error %d removing directory from database.",

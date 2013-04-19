@@ -94,6 +94,7 @@ typedef int stripe_info_t; /* dummy type */
 #define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
 #define DNAMES       0x01000000 /* field in DNAMES table. */
+#define NS_ATTR      0x02000000 /* special attr retrieved from DNAMES table */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
 #define INDEXED      0x20000000 /* this field must be indexed */
 #define DIR_ATTR     0x40000000 /* need to aggregate directory info (specific DB request) */

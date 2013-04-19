@@ -179,16 +179,20 @@ void           init_attrset_masks(  );
 /* ------------ */
 
 #define is_read_only_field( _attr_index ) \
-                ( (field_infos[_attr_index].flags & GENERATED) || (field_infos[_attr_index].flags & DIR_ATTR) )
+                ( (field_infos[_attr_index].flags & GENERATED) || \
+                  (field_infos[_attr_index].flags & DIR_ATTR) || \
+                  (field_infos[_attr_index].flags & NS_ATTR) )
 
 #define is_stripe_field( _attr_index ) \
-                ( ( field_infos[_attr_index].db_type == DB_STRIPE_INFO ) || ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS ) )
+                ( ( field_infos[_attr_index].db_type == DB_STRIPE_INFO ) || \
+                  ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS ) )
 
 #define is_main_field( _attr_index ) \
                 ( (!annex_table || ( field_infos[_attr_index].flags & FREQ_ACCESS )) \
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
                   && !(field_infos[_attr_index].flags & DIR_ATTR) \
+                  && !(field_infos[_attr_index].flags & NS_ATTR) \
                   && !(field_infos[_attr_index].flags & DNAMES) )
 
 #define is_gen_field( _attr_index ) \
@@ -201,7 +205,8 @@ void           init_attrset_masks(  );
                 ( annex_table && ( field_infos[_attr_index].flags & ( ANNEX_INFO | INIT_ONLY ) ) \
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
-                  && !(field_infos[_attr_index].flags & DIR_ATTR) )
+                  && !(field_infos[_attr_index].flags & DIR_ATTR) \
+                  && !(field_infos[_attr_index].flags & NS_ATTR) )
 
 #define is_names_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & DNAMES )

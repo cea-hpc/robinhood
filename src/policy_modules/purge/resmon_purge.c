@@ -282,6 +282,10 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
      * Retrieve last_mod and stripe_info for logs and reports.
      * Also retrieve info needed for blacklist/whitelist rules.
      */
+/* need parent_id and name for ListMgr_Remove() prototype */
+    ATTR_MASK_SET( p_attr_set, name );
+    ATTR_MASK_SET( p_attr_set, parent_id );
+
     ATTR_MASK_SET( p_attr_set, fullpath );
     ATTR_MASK_SET( p_attr_set, path_update );
     ATTR_MASK_SET( p_attr_set, last_access );
@@ -908,6 +912,9 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
     {
         if ( need_path_update(&p_item->entry_attr, NULL) )
         {
+            /* FIXME: we should get all paths of the entry to check any of them
+             * in policies */
+            /* TODO: also update parent_id+name */
             if ( Lustre_GetFullPath( &p_item->entry_id,
                                     ATTR( new_attr_set, fullpath ),
                                     1024 ) == 0 )
@@ -1059,6 +1066,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     unsigned long   blk_sav = 0;
 
     int update_fileclass = -1; /* not set */
+    int lastrm;
 
 /* acknowledging helper */
 #define Acknowledge( _q, _status, _fdbk1, _fdbk2 )  do {                \
@@ -1127,9 +1135,9 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     {
         /* status changed */
         DisplayLog( LVL_MAJOR, PURGE_TAG,
-                    "%s: entry status recently changed (%#x): skipping entry.",
+                    "%s: entry status recently changed (%s): skipping entry.",
                     ATTR(&new_attr_set,fullpath),
-                    ATTR( &new_attr_set, status ));
+                    db_status2str(ATTR(&new_attr_set, status),1));
 
         /* update DB and skip the entry */
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
@@ -1358,12 +1366,13 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         ATTR( &new_attr_set, status ) = STATUS_RELEASED;
     }
 #else
-    rc = PurgeEntry_ByPath( ATTR( &p_item->entry_attr, fullpath ) );
+    /* FIXME should remove all paths to the object */
+    rc = PurgeEntry_ByPath( ATTR( &new_attr_set, fullpath ) );
 #endif
     if ( rc )
     {
         DisplayLog( LVL_DEBUG, PURGE_TAG, "Error purging entry %s: %s",
-                    ATTR( &p_item->entry_attr, fullpath ), strerror( abs(rc) ) );
+                    ATTR( &new_attr_set, fullpath ), strerror( abs(rc) ) );
 
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
@@ -1431,12 +1440,17 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
 #else
+        /* if nlink is set, check if it the last unlink.
+         * else, consider it is (like version <= 2.4 did).
+        */
+        if (ATTR( &new_attr_set, nlink))
+            lastrm = (ATTR(&new_attr_set, nlink) == 1);
+        else
+            lastrm = 1;
         /* remove it from database */
-        /* TODO - no idea what is correct. was:
-         *   rc = ListMgr_Remove( lmgr, &p_item->entry_id );
-         */
-        abort();
-        rc = ListMgr_Remove( lmgr, &p_item->entry_id, &new_attr_set, 0 );
+        rc = ListMgr_Remove( lmgr, &p_item->entry_id,
+                             &p_item->entry_attr, /* must be based on the DB content = old attrs */
+                             lastrm );
         if ( rc )
             DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d removing entry from database.", rc );
 #endif
