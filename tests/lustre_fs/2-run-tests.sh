@@ -3529,27 +3529,37 @@ function recovery_test
     # mixed: all of them
     if [[ $flavor == "full" ]]; then
         nb_full=20
+        nb_empty=2
         nb_rename=0
+        nb_empty_rename=0
         nb_delta=0
         nb_nobkp=0
     elif [[ $flavor == "delta" ]]; then
         nb_full=10
+        nb_empty=2
         nb_rename=0
+        nb_empty_rename=2
         nb_delta=10
         nb_nobkp=0
     elif [[ $flavor == "rename" ]]; then
         nb_full=10
+        nb_empty=2
         nb_rename=10
+        nb_empty_rename=2
         nb_delta=0
         nb_nobkp=0
     elif [[ $flavor == "partial" ]]; then
         nb_full=10
+        nb_empty=2
         nb_rename=0
+        nb_empty_rename=0
         nb_delta=0
         nb_nobkp=10
     elif [[ $flavor == "mixed" ]]; then
         nb_full=5
+        nb_empty=2
         nb_rename=5
+        nb_empty_rename=2
         nb_delta=5
         nb_nobkp=5
     else
@@ -3560,8 +3570,10 @@ function recovery_test
     
 
     # create files
-    ((total=$nb_full + $nb_rename + $nb_delta + $nb_nobkp))
+    ((total=$nb_full + $nb_rename + $nb_delta + $nb_nobkp + $nb_empty + $nb_empty_rename))
+    ((total_empty=$nb_empty + $nb_empty_rename))
     echo "1.1-creating files..."
+
     for i in `seq 1 $total`; do
         mkdir "$ROOT/dir.$i" || error "$? creating directory $ROOT/dir.$i"
         if (( $i % 3 == 0 )); then
@@ -3572,11 +3584,16 @@ function recovery_test
             chmod 700 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
         fi
 
-        dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
+        if (($i > $total - $total_empty)); then
+            # last total_empty are empty...
+            touch $ROOT/dir.$i/file.$i || error "$? creating $ROOT/file.$i"
+        else
+            dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
+        fi
     done
 
     echo "1.2-creating symlinks..."
-    for i in `seq 1 $total`; do
+    for i in `seq 1 $(( $total - $total_empty))`; do
         ln -s "symlink_$i" $ROOT/dir.$i/link.$i  >/dev/null 2>/dev/null || error "$? creating symlink $ROOT/dir.$i/link.$"
     done
 
@@ -3602,9 +3619,9 @@ function recovery_test
     [[ -z $na_link ]] && na_link=0
     echo "$new_link symlinks are new, $na_link are n/a"
     if (( $arch_slink == 0 )); then
-        (( $na_link == $total )) || error "$total n/a symlinks expected"
+        (( $na_link == $total - $total_empty )) || error "$total n/a symlinks expected"
     else
-        (( $new_link == $total )) || error "$total new symlinks expected"
+        (( $new_link == $total - $total_empty )) || error "$total new symlinks expected"
     fi
 
     echo "2.1-archiving objects..."
@@ -3638,6 +3655,13 @@ function recovery_test
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
             # no backup
             :
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty)) )); then
+            # no backup
+            :
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty+$nb_empty_rename)) )); then
+            # no backup, just rename
+            mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
+            mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
         fi
     done
 
@@ -3662,7 +3686,7 @@ function recovery_test
     echo "files: new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
     (( $sync_cnt == $nb_full+$nb_rename )) || error "Nbr of synchro files doesn't match: $sync_cnt != $nb_full + $nb_rename"
     (( $mod_cnt == $nb_delta )) || error "Nbr of modified files doesn't match: $mod_cnt != $nb_delta"
-    (( $new_cnt == $nb_nobkp )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp"
+    (( $new_cnt == $nb_nobkp + $nb_empty + $nb_empty_rename )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp + $nb_empty + $nb_empty_rename"
 
     new_cnt=`grep "new" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
     na_cnt=`grep "n/a" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
@@ -3673,7 +3697,7 @@ function recovery_test
 
     echo "symlink: new: $new_cnt, synchro: $sync_cnt, n/a: $na_cnt"
     if (( $arch_slink == 0 )); then
-        (( $na_cnt == $total )) || error "Nbr of links with no status doesn't match: $na_cnt != $total"
+        (( $na_cnt == $total - $total_empty )) || error "Nbr of links with no status doesn't match: $na_cnt != $total - $total_empty"
     else
         (( $sync_cnt == $nb_full+$nb_rename )) || error "Nbr of synchro links doesn't match: $sync_cnt != $nb_full + $nb_rename"
         (( $new_cnt == $nb_nobkp+$nb_delta )) || error "Nbr of new links doesn't match: $new_cnt != $(($nb_nobkp+$nb_delta))"
@@ -3712,20 +3736,30 @@ function recovery_test
         if (( $i <= $nb_full )); then
             grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
             grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+            grep "Restoring $ROOT/dir.$i/link.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link.$i (non-file OK expected)"
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
             grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log    | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
             grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i NOT expected to differ"
             grep "$ROOT/dir.new$i/link_new.$i" /tmp/diff.$$ && error "$ROOT/dir_new.$i/link_new.$i NOT expected to differ"
+            grep "Restoring $ROOT/dir.new_$i/link_new.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link_new.$i (non-file OK expected)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
             grep "Restoring $ROOT/dir.$i/file.$i" recov.log    | grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
             grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
             grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+            grep "Restoring $ROOT/dir.$i/link.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link.$i (non-file OK expected)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-            grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
+            grep "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
             grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
             grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+            grep "Restoring $ROOT/dir.$i/link.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link.$i (non-file OK expected)"
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty)) )); then
+            grep "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "OK (empty file)" >/dev/null || error "Bad status for file.$i (empty file OK expected)"
+            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i is NOT expected to differ"
+        elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty+$nb_empty_rename)) )); then
+            grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log | grep "OK (empty file)" >/dev/null || error "Bad status for file.$i (empty file OK expected)"
+            grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i is NOT expected to differ"
         fi
     done
 

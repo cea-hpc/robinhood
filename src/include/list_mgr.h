@@ -547,10 +547,12 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
  */
 
 typedef enum {
-    RS_OK          = 0,
-    RS_DELTA       = 1,
-    RS_NOBACKUP    = 2,
-    RS_ERROR       = 3,
+    RS_FILE_OK     = 0, /* non-empty file/symlink can be recovered */
+    RS_FILE_DELTA  = 1, /* file recovered at previous version */
+    RS_FILE_EMPTY  = 2, /* empty file recovered */
+    RS_NON_FILE    = 3, /* non-file recovered */
+    RS_NOBACKUP    = 4, /* entry can't be recovered: no backup */
+    RS_ERROR       = 5, /* recovery error */
     RS_COUNT
 } recov_status_t;
 
@@ -567,13 +569,15 @@ typedef struct _lmgr_recov_stat
 
 /**
  *  Initialize a recovery process.
+ *  \param p_filter[in] (optional) filter partial filesystem recovery
  *  \retval DB_SUCCESS the recovery process successfully started;
  *          the stats indicate the recovery states we can expect.
  *  \retval DB_ALREADY_EXISTS a recovery process already started
  *          and was not properly completed.
  *  \retval error   another error occured.
  */
-int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
+int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                       lmgr_recov_stat_t * p_stats );
 
 /**
  * Clear the recovery table.

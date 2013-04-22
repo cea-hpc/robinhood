@@ -650,7 +650,7 @@ int rbhext_get_status( const entry_id_t * p_id,
         if ( (rc = readlink(bkpath, lnk1, RBH_PATH_MAX )) < 0 )
         {
             rc = -errno;
-            if ( rc == ENOENT )
+            if ( rc == -ENOENT )
             {
                 /* entry disapeared */
                 ATTR_MASK_SET( p_attrs_changed, status );
@@ -1299,14 +1299,16 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     const char * fspath;
     int rc;
     struct stat st_bk;
+
     struct stat st_dest;
-    int delta = FALSE;
+    recov_status_t success_status = RS_ERROR;
     attr_set_t attr_bk;
     int fd;
     entry_id_t  parent_id;
     mode_t mode_create;
     int set_mode = FALSE;
-    int stat_done = bkinfo ? TRUE : FALSE;
+    int stat_done = FALSE;
+    int no_copy = FALSE;
 
     if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
     {
@@ -1386,6 +1388,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         else if (rc == EEXIST)
             /* must set the mode */
             set_mode = TRUE;
+
+        success_status = RS_NON_FILE;
     }
     else if (!strcasecmp(ATTR(p_attrs_old, type), STR_TYPE_LINK))
     {
@@ -1407,7 +1411,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                 rc = errno;
                 DisplayLog( LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink content (%s): %s",
                             backend_path, strerror(rc) );
-                if (rc == -ENOENT )
+                if (rc == ENOENT)
                     return RS_NOBACKUP;
                 else
                     return RS_ERROR;
@@ -1423,6 +1427,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                         fspath, link, strerror(rc) );
             return RS_ERROR;
         }
+
+        success_status = RS_NON_FILE;
     }
     else if (!strcasecmp(ATTR(p_attrs_old, type), STR_TYPE_FILE))
     {
@@ -1432,31 +1438,51 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         if (!stat_done)
         {
             if (bkinfo)
+            {
                 st_bk=*bkinfo;
+                stat_done = TRUE;
+            }
             else if ( lstat( backend_path, &st_bk ) != 0 )
             {
                 rc = errno;
-                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
-                            backend_path, strerror(rc) );
-                if (rc == ENOENT )
-                    return RS_NOBACKUP;
-                else
+                if (rc != ENOENT)
+                {
+                    DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
+                                backend_path, strerror(rc) );
                     return RS_ERROR;
+                }
             }
-            stat_done = TRUE;
+            else
+                stat_done = TRUE;
         }
 
-        if (!S_ISREG(st_bk.st_mode))
+        if (!stat_done)
         {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: recovering file from non-file object %s", backend_path);
-            return RS_ERROR;
+            /* if no stat done and file != 0 => no backup */
+            if (!ATTR_MASK_TEST(p_attrs_old, size) || ATTR(p_attrs_old, size) != 0)
+            {
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s has no backup copy (%s not found)",
+                            fspath, backend_path);
+                return RS_NOBACKUP;
+            }
+            else
+                no_copy = TRUE;
         }
 
-        ATTR_MASK_INIT( &attr_bk );
-        /* merge missing posix attrs to p_attrs_old */
-        PosixStat2EntryAttr( &st_bk, &attr_bk, TRUE );
-        /* leave attrs unchanged if they are already set in p_attrs_old */
-        ListMgr_MergeAttrSets( p_attrs_old, &attr_bk, FALSE );
+        if (!no_copy) /* only if there is a copy in backend */
+        {
+            if (!S_ISREG(st_bk.st_mode))
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: recovering file from non-file object %s", backend_path);
+                return RS_ERROR;
+            }
+
+            ATTR_MASK_INIT( &attr_bk );
+            /* merge missing posix attrs to p_attrs_old */
+            PosixStat2EntryAttr( &st_bk, &attr_bk, TRUE );
+            /* leave attrs unchanged if they are already set in p_attrs_old */
+            ListMgr_MergeAttrSets( p_attrs_old, &attr_bk, FALSE );
+        }
 
         /* test if the target does not already exist */
         rc = lstat( ATTR(p_attrs_old, fullpath), &st_dest ) ? errno : 0;
@@ -1475,7 +1501,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 
         /* check that this is not a cross-device import or recovery (entry could not be moved
          * in that case) */
-        if (config.check_mounted && (backend_dev != st_bk.st_dev))
+        if (!no_copy && config.check_mounted && (backend_dev != st_bk.st_dev))
         {
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Source file %s is not in the same device as target %s",
                         backend_path, config.root );
@@ -1487,8 +1513,10 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 
         if (ATTR_MASK_TEST(p_attrs_old, mode))
             mode_create = ATTR(p_attrs_old, mode);
-        else
+        else if (!no_copy)
             mode_create = st_bk.st_mode;
+        else
+            mode_create = 0640; /* default */
 
 #ifdef _LUSTRE
         /* restripe the file in Lustre */
@@ -1513,48 +1541,76 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         }
 #endif
 
-#ifdef HAVE_PURGE_POLICY
-    /* this backend is restore/release capable.
-     * Recover the entry in released state (md only),
-     * so it will be recovered at first open.
-     */
-#ifdef HAVE_SHOOK
-        /* set the file in "released" state */
-        rc = shook_set_status(fspath, SS_RELEASED);
-        if (rc)
+        if (!no_copy)
         {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
-                        fspath, strerror(-rc));
-            return RS_ERROR;
+    #ifdef HAVE_PURGE_POLICY
+        /* this backend is restore/release capable.
+         * Recover the entry in released state (md only),
+         * so it will be recovered at first open.
+         */
+    #ifdef HAVE_SHOOK
+            /* set the file in "released" state */
+            rc = shook_set_status(fspath, SS_RELEASED);
+            if (rc)
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
+                            fspath, strerror(-rc));
+                return RS_ERROR;
+            }
+
+            rc = truncate( fspath, st_bk.st_size ) ? errno : 0;
+            if (rc)
+            {
+                DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
+                            st_bk.st_size, fspath, strerror(rc));
+                return RS_ERROR;
+            }
+    #else
+        #error "Unexpected case"
+    #endif
+    #else
+            /* full restore (even data) */
+            rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
+                                        backend_path, fspath );
+            if (rc)
+                return RS_ERROR;
+            /* TODO: remove partial copy */
+    #endif
         }
 
-        rc = truncate( fspath, st_bk.st_size ) ? errno : 0;
-        if (rc)
+        if (!no_copy)
         {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
-                        st_bk.st_size, fspath, strerror(rc));
-            return RS_ERROR;
-        }
-#else
-    #error "Unexpected case"
-#endif
-#else
-        /* full restore (even data) */
-        rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
-                                    backend_path, fspath );
-        if (rc)
-            return RS_ERROR;
-        /* TODO: remove partial copy */
-#endif
+            utb.actime = st_bk.st_atime;
+            utb.modtime = st_bk.st_mtime;
 
-        /* set the same mtime as in the backend */
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring times for '%s': atime=%lu, mtime=%lu",
-                    fspath, st_bk.st_atime, st_bk.st_mtime );
-        utb.actime = st_bk.st_atime;
-        utb.modtime = st_bk.st_mtime;
-        if ( utime( fspath, &utb ) )
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
-                        fspath, strerror(errno) );
+            /* set the same mtime as in the backend */
+            DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring times from backend for '%s': atime=%lu, mtime=%lu",
+                        fspath, utb.actime, utb.modtime );
+            if ( utime( fspath, &utb ) )
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
+                            fspath, strerror(errno) );
+        }
+        else if (ATTR_MASK_TEST(p_attrs_old, last_mod))
+        {
+            utb.modtime = ATTR(p_attrs_old, last_mod);
+
+            if (ATTR_MASK_TEST(p_attrs_old, last_access))
+                utb.actime = ATTR(p_attrs_old, last_access);
+            else
+                utb.actime = utb.modtime;
+
+            /* set the same mtime as in the DB */
+            DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring times from DB for '%s': atime=%lu, mtime=%lu",
+                        fspath, utb.actime, utb.modtime );
+            if ( utime( fspath, &utb ) )
+                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
+                            fspath, strerror(errno) );
+        }
+
+        if (no_copy)
+            success_status = RS_FILE_EMPTY;
+        else
+            success_status = RS_FILE_OK;
     }
     else
     {
@@ -1620,7 +1676,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         {
             rc = errno;
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: cannot set owner/group for '%s': %s",
-                        fspath, strerror(-rc) );
+                        fspath, strerror(rc) );
         }
     }
 
@@ -1642,7 +1698,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                         "different from the last known size in filesystem (%"PRIu64"): "
                         "it should have been modified in filesystem after the last backup.",
                         fspath, st_dest.st_size, ATTR(p_attrs_old, size) );
-            delta = TRUE;
+            success_status = RS_FILE_DELTA;
         }
     }
     /* only for files */
@@ -1654,7 +1710,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                         "different from the last time in filesystem (%u): "
                         "it may have been modified in filesystem after the last backup.",
                         fspath, st_dest.st_mtime, ATTR(p_attrs_old, last_mod) );
-            delta = TRUE;
+            success_status = RS_FILE_DELTA;
         }
     }
 
@@ -1700,7 +1756,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         ATTR_MASK_SET(p_attrs_new, link);
     }
 
-    if (S_ISREG(st_dest.st_mode) || (S_ISLNK(st_dest.st_mode)&& config.archive_symlinks))
+    if (!no_copy && (S_ISREG(st_dest.st_mode)
+         || (S_ISLNK(st_dest.st_mode)&& config.archive_symlinks)))
     {
         char tmp[RBH_PATH_MAX];
         char * destdir;
@@ -1765,10 +1822,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 #endif
     }
 
-    if (delta)
-        return RS_DELTA;
-    else
-        return RS_OK;
+    return success_status;
 }
 
 

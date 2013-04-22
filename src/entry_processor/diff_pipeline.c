@@ -980,13 +980,16 @@ static int hsm_recover(lmgr_t * lmgr,
     entry_id_t new_id;
     attr_set_t new_attrs;
     int rc;
+    const char * status_str;
 
     /* try to recover from backend */
     st = rbhext_recover(p_id, p_oldattr, &new_id, &new_attrs, NULL);
     switch (st)
     {
-        case RS_OK:
-        case RS_DELTA:
+        case RS_FILE_OK:
+        case RS_FILE_EMPTY:
+        case RS_NON_FILE:
+        case RS_FILE_DELTA:
 
             /* insert the new entry to the DB */
             rc = ListMgr_Insert(lmgr, &new_id, &new_attrs, TRUE);
@@ -1005,8 +1008,17 @@ static int hsm_recover(lmgr_t * lmgr,
                 goto clean_db;
             }
 
-            DisplayReport("%s successfully recovered (%s)", ATTR(&new_attrs, fullpath),
-                          st==RS_OK?"up-to-date":"old data");
+            status_str = "?";
+            if (st == RS_FILE_OK)
+                status_str = "up-to-date file";
+            else if (st == RS_FILE_EMPTY)
+                status_str = "empty file";
+            else if (st == RS_FILE_DELTA)
+                status_str = "old file data";
+            else if (st == RS_NON_FILE)
+                status_str = "non-file";
+
+            DisplayReport("%s successfully recovered (%s)", ATTR(&new_attrs, fullpath), status_str);
             return 0;
 
         case RS_NOBACKUP:

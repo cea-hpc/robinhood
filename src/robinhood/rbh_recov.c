@@ -48,6 +48,7 @@ static struct option option_tab[] =
     {"status", no_argument, NULL, 's'},
     {"reset", no_argument, NULL, 'Z'},
 
+    {"ost", required_argument, NULL, 'o'},
     {"dir", required_argument, NULL, 'D'},
     {"retry", no_argument, NULL, 'e'},
     {"yes", no_argument, NULL, 'y'},
@@ -57,7 +58,7 @@ static struct option option_tab[] =
 
     /* log options */
     {"log-level", required_argument, NULL, 'l'},
-    {"output-dir", required_argument, NULL, 'o'},
+//    {"output-dir", required_argument, NULL, 'o'},
 
     /* miscellaneous options */
     {"help", no_argument, NULL, 'h'},
@@ -73,8 +74,10 @@ static struct option option_tab[] =
 
 static lmgr_t  lmgr;
 static int terminate = FALSE; /* abort signal received */
+
 static char * path_filter = NULL;
 static char path_buff[RBH_PATH_MAX];
+static int ost_index = -1;
 
 /* special character sequences for displaying help */
 
@@ -103,22 +106,28 @@ static const char *help_string =
     "    " _B "--reset" B_ ", " _B "-Z" B_ "\n"
     "        Abort current recovery (/!\\ non-recovered entries are lost).\n"
     "\n"
-    _B "Recovery options:" B_ "\n"
+    _B "Start options:" B_ "\n"
+    "    " _B "--ost" B_ "=" _U "ost_index" U_ "\n"
+    "        Perform the recovery only for files striped on the given OST.\n"
+//    "    " _B "--with-data" B_ "\n"
+//    "        Used with --ost: only recover files that really have data on the OST.\n"
+    _B "Resume options:" B_ "\n"
     "    " _B "--dir" B_ "=" _U "path" U_ ", " _B "-D" B_ " " _U "path" U_ "\n"
-    "        (used with --resume action) only recover files in the given directory.\n"
+    "        Only recover files in the given directory.\n"
     "    " _B "--retry" B_ ", " _B "-e" B_ "\n"
-    "        (used with --resume action) recover entries even if previous recovery failed on them.\n"
+    "        Recover entries even if previous recovery failed on them.\n"
+    _B "Reset options:" B_ "\n"
     "    " _B "--yes" B_ ", " _B "-y" B_ "\n"
-    "        (used with --reset action) do not prompt for confirmation.\n"
+    "        Do not prompt for confirmation.\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Path to configuration file (or short name).\n"
     "\n"
-    _B "Output options:" B_ "\n"
-    "    " _B "-o" B_ " " _U "dir" U_ ", " _B "--output-dir=" B_ _U "dir" U_ "\n"
-    "        Directory where recovery reports will be written (default=current dir).\n"
-    "\n"
+//    _B "Output options:" B_ "\n"
+//    "    " _B "-o" B_ " " _U "dir" U_ ", " _B "--output-dir=" B_ _U "dir" U_ "\n"
+//    "        Directory where recovery reports will be written (default=current dir).\n"
+//    "\n"
     _B "Miscellaneous options:" B_ "\n"
     "    " _B "-l" B_ " " _U "level" U_ ", " _B "--log-level=" B_ _U "level" U_ "\n"
     "        Force the log verbosity level (overides configuration value).\n"
@@ -205,19 +214,25 @@ static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
     char buff[128];
     unsigned long long diff;
 
-    FormatFileSize( buff, 128, p_stat->status_size[RS_OK] );
+    FormatFileSize( buff, 128, p_stat->status_size[RS_FILE_OK]
+                    + p_stat->status_size[RS_FILE_EMPTY] );
     if (forecast)
-        printf( "   - full recovery:   %10Lu entries (%s)\n", p_stat->status_count[RS_OK], buff );
+        printf( "   - full recovery: %Lu files (%s), %Lu non-files\n",
+                p_stat->status_count[RS_FILE_OK] + p_stat->status_count[RS_FILE_EMPTY],
+                buff, p_stat->status_count[RS_NON_FILE] );
     else
-        printf( "   - successfully recovered: %3Lu entries (%s)\n", p_stat->status_count[RS_OK], buff );
+        printf( "   - successfully recovered: %Lu files (%s), %Lu non-files\n",
+                p_stat->status_count[RS_FILE_OK] + p_stat->status_count[RS_FILE_EMPTY], buff,
+                p_stat->status_count[RS_NON_FILE] );
 
-    FormatFileSize( buff, 128, p_stat->status_size[RS_DELTA] );
-    printf( "   - old version:     %10Lu entries (%s)\n", p_stat->status_count[RS_DELTA], buff );
+    FormatFileSize( buff, 128, p_stat->status_size[RS_FILE_DELTA] );
+    printf( "   - old version:     %10Lu entries (%s)\n", p_stat->status_count[RS_FILE_DELTA], buff );
     FormatFileSize( buff, 128, p_stat->status_size[RS_NOBACKUP] );
     printf( "   - not recoverable: %10Lu entries (%s)\n", p_stat->status_count[RS_NOBACKUP], buff );
 
-    diff = p_stat->total - p_stat->status_count[RS_OK] - p_stat->status_count[RS_DELTA]
-           - p_stat->status_count[RS_NOBACKUP] - p_stat->status_count[RS_ERROR];
+    diff = p_stat->total - p_stat->status_count[RS_FILE_OK] - p_stat->status_count[RS_FILE_DELTA]
+           - p_stat->status_count[RS_FILE_EMPTY] - p_stat->status_count[RS_NOBACKUP]
+             - p_stat->status_count[RS_NON_FILE] - p_stat->status_count[RS_ERROR];
 
     FormatFileSize( buff, 128, p_stat->status_size[RS_ERROR] );
 
@@ -235,7 +250,21 @@ int recov_start()
     lmgr_recov_stat_t stats;
     int rc;
 
-    rc = ListMgr_RecovInit( &lmgr, &stats );
+    if (ost_index != -1)
+    {
+        lmgr_filter_t  filter;
+        filter_value_t fv;
+
+        printf( "only recovering files striped on OST#%u\n", ost_index);
+
+        lmgr_simple_filter_init( &filter );
+        fv.val_int = ost_index;
+        lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
+
+        rc = ListMgr_RecovInit( &lmgr, &filter, &stats );
+    }
+    else
+        rc = ListMgr_RecovInit( &lmgr, NULL, &stats );
 
     if ( rc == 0 )
     {
@@ -249,7 +278,8 @@ int recov_start()
         printf( "\nERROR: a recovery is already in progress, or a previous recovery\n"
                 "was not completed properly (see --resume, --complete or --reset option).\n\n" );
 
-        unsigned long long total = stats.status_count[RS_OK] + stats.status_count[RS_DELTA]
+        unsigned long long total = stats.status_count[RS_FILE_OK] + stats.status_count[RS_FILE_DELTA]
+                           + stats.status_count[RS_NON_FILE]  + stats.status_count[RS_FILE_EMPTY]
                            + stats.status_count[RS_NOBACKUP] + stats.status_count[RS_ERROR];
         printf( "The progress of this recovery is %Lu/%Lu entries\n", total, stats.total );
         print_recov_stats( FALSE, &stats );
@@ -344,16 +374,11 @@ int recov_resume( int retry_errors )
         else
             printf("Restoring "DFID" (%s)...", PFID(&id), buff);
 
-        if ( ATTR_MASK_TEST( &attrs, status ) && (ATTR(&attrs, status ) == STATUS_NEW)
-             && !ATTR_MASK_TEST( &attrs, backendpath ) )
-        {
-            printf("\nThis entry is new and is probably not saved in backend. Trying anyway...");
-        }
-
         /* TODO process entries asynchronously, in parallel, in separate threads*/
         st = rbhext_recover( &id, &attrs, &new_id, &new_attrs, NULL );
 
-        if ( (st == RS_OK) || (st == RS_DELTA) )
+        if ((st == RS_FILE_OK) || (st == RS_FILE_EMPTY) || (st == RS_NON_FILE)
+            || (st == RS_FILE_DELTA))
         {
             /* insert the entry in the database, and update recovery status */
             rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
@@ -370,8 +395,10 @@ int recov_resume( int retry_errors )
 
         switch (st)
         {
-            case RS_OK: printf(" OK\n"); break;
-            case RS_DELTA: printf(" OK (old version)\n"); break;
+            case RS_FILE_OK: printf(" OK\n"); break;
+            case RS_FILE_DELTA: printf(" OK (old version)\n"); break;
+            case RS_NON_FILE: printf(" OK (non-file)\n"); break;
+            case RS_FILE_EMPTY: printf(" OK (empty file)\n"); break;
             case RS_NOBACKUP: printf(" No backup available\n"); break;
             case RS_ERROR: printf(" FAILED\n"); break;
             default: printf(" ERROR st=%d, rc=%d\n", st, rc ); break;
@@ -507,6 +534,22 @@ int main( int argc, char **argv )
             {
                 strncpy( path_buff, optarg, MAX_OPT_LEN );
                 path_filter = path_buff;
+            }
+            break;
+        case 'o':
+            if ( !optarg )
+            {
+                fprintf(stderr, "Missing mandatory argument <ost_index> for --ost\n");
+                exit(1);
+            }
+            else
+            {
+                ost_index = str2int(optarg);
+                if (ost_index == (unsigned int)-1)
+                {
+                    fprintf(stderr, "invalid ost index '%s': unsigned integer expected\n", optarg);
+                    exit(1);
+                }
             }
             break;
         case 'l':

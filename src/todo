@@ -1,9 +1,13 @@
+- use binary keyword for case sensitive requests
+
+- add filter for partial recovery
+- ostset for commands
+
 /!\ symlink change if inode recycling
 
 - complete apply-fs (+using recover for backup system)
 
 - db diff option: list changes since xxx
-- apply
 - bench diff
 
 To be tested: diff for hardlinks

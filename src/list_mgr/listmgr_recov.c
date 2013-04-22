@@ -43,11 +43,11 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
 {
     int  rc, i;
     result_handle_t result;
-    char * status[4];
+    char * status[5];
 
     /* test if a RECOVERY table already exist, and contains entries */
-    rc = db_exec_sql_quiet( &p_mgr->conn, "SELECT status,type,COUNT(*),SUM(size) FROM "RECOV_TABLE
-                            " GROUP BY status,type", &result );
+    rc = db_exec_sql_quiet( &p_mgr->conn, "SELECT status,type,COUNT(*),(size=0) as empty,SUM(size) FROM "RECOV_TABLE
+                            " GROUP BY status,type,empty", &result );
     if (rc)
         return rc;
 
@@ -60,11 +60,13 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
         p_stats->status_size[i] = 0;
     }
 
-    while ( (rc = db_next_record( &p_mgr->conn, &result, status, 4 ))
+    while ( (rc = db_next_record( &p_mgr->conn, &result, status, 5 ))
             != DB_END_OF_LIST )
     {
         long long cnt;
         uint64_t sz;
+        int isempty;
+
         if (rc)
             return rc;
 
@@ -72,7 +74,11 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
         if ( cnt == -1LL)
             return DB_INVALID_ARG;
 
-        sz = str2size(  status[3] );
+        isempty = str2int(  status[3] );
+        if ( isempty == -1)
+            return DB_INVALID_ARG;
+
+        sz = str2size(  status[4] );
         if ( sz == -1LL)
             return DB_INVALID_ARG;
 
@@ -85,34 +91,38 @@ static int expected_recov_status( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
             /* archived entries: file and (optionally) symlinks  */
             if (!strcasecmp(status[1], STR_TYPE_FILE))
             {
-                switch (st)
+                if (isempty)
                 {
-                    case STATUS_NEW:
-                        p_stats->status_count[RS_NOBACKUP] += cnt;
-                        p_stats->status_size[RS_NOBACKUP] += sz;
-                        break;
-                    case STATUS_MODIFIED:
-                    case STATUS_ARCHIVE_RUNNING:
-                        p_stats->status_count[RS_DELTA] += cnt;
-                        p_stats->status_size[RS_DELTA] += sz;
-                        break;
-                    case STATUS_SYNCHRO:
-                    case STATUS_RELEASED:
-                        p_stats->status_count[RS_OK] += cnt;
-                        p_stats->status_size[RS_OK] += sz;
-                        break;
+                     p_stats->status_count[RS_FILE_EMPTY] += cnt;
+                     p_stats->status_size[RS_FILE_EMPTY] += sz;
+                }
+                else
+                {
+                    switch (st)
+                    {
+                        case STATUS_NEW:
+                            p_stats->status_count[RS_NOBACKUP] += cnt;
+                            p_stats->status_size[RS_NOBACKUP] += sz;
+                            break;
+                        case STATUS_MODIFIED:
+                        case STATUS_ARCHIVE_RUNNING:
+                            p_stats->status_count[RS_FILE_DELTA] += cnt;
+                            p_stats->status_size[RS_FILE_DELTA] += sz;
+                            break;
+                        case STATUS_SYNCHRO:
+                        case STATUS_RELEASED:
+                            p_stats->status_count[RS_FILE_OK] += cnt;
+                            p_stats->status_size[RS_FILE_OK] += sz;
+                            break;
+                    }
                 }
             }
-            else if (!strcasecmp(status[1], STR_TYPE_LINK))
+            else if (!strcasecmp(status[1], STR_TYPE_LINK)
+                     || !strcasecmp(status[1], STR_TYPE_DIR))
             {
-                /* symlinks always recoverable from DB */
-                p_stats->status_count[RS_OK] += cnt;
-                p_stats->status_size[RS_OK] += sz;
-            }
-            else if (!strcasecmp(status[1], STR_TYPE_DIR))
-            {
-                p_stats->status_count[RS_OK] += cnt;
-                p_stats->status_size[RS_OK] += sz;
+                /* symlinks and dirs always recoverable from DB */
+                p_stats->status_count[RS_NON_FILE] += cnt;
+                p_stats->status_size[RS_NON_FILE] += sz;
             }
             else
             {
@@ -187,17 +197,37 @@ int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
 
 /**
  *  Initialize a recovery process.
+ *  \param p_filter[in] (optional) filter partial filesystem recovery
  *  \retval DB_SUCCESS the recovery process successfully started;
  *          the stats indicate the recovery states we can expect.
  *  \retval DB_ALREADY_EXISTS a recovery process already started
  *          and was not properly completed. stats indicate the current status.
  *  \retval error   another error occured.
  */
-int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
+int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_recov_stat_t * p_stats )
 {
     int  rc;
-    result_handle_t result;
-    char * str_count = NULL;
+    db_value_t report_val;
+    unsigned int nb;
+    struct lmgr_report_t * report;
+    report_field_descr_t report_count = {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}};
+
+    char           query[4096];
+    char           filter_str_main[2048];
+    char           filter_str_annex[2048];
+    char           filter_str_stripe_info[2048];
+    char           filter_str_stripe_items[2048];
+    char           filter_dir_str[512];
+    unsigned int   filter_dir_index = 0;
+    int            filter_main = 0;
+    int            filter_annex = 0;
+    int            filter_stripe_info = 0;
+    int            filter_stripe_items = 0;
+
+    filter_str_main[0] = '\0';
+    filter_str_annex[0] = '\0';
+    filter_str_stripe_info[0] = '\0';
+    filter_str_stripe_items[0] = '\0';
 
     rc = ListMgr_RecovStatus( p_mgr, p_stats );
     if (rc == 0)
@@ -217,16 +247,72 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
             return rc;
     }
 
+    if ( p_filter )
+    {
+        if (dir_filter(p_mgr, p_filter, filter_dir_str, &filter_dir_index) != FILTERDIR_NONE)
+        {
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Directory filter not supported for recovery");
+            return DB_INVALID_ARG;
+        }
+
+        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, TRUE );
+
+        if ( annex_table )
+            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
+                                       T_ANNEX, ( filter_main > 0 ), TRUE );
+        else
+            filter_annex = 0;
+
+        filter_stripe_info =
+            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
+                        ( filter_main > 0 ) || ( filter_annex > 0 ), TRUE );
+
+        filter_stripe_items =
+            filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
+                        ( filter_main > 0 ) || ( filter_annex > 0 )
+                        || ( filter_stripe_info > 0 ), TRUE );
+    }
+
+
     DisplayLog( LVL_EVENT, LISTMGR_TAG, "Populating "RECOV_TABLE" table (this can take a few minutes)..." );
+
     /* create the recovery table */
-    rc = db_exec_sql( &p_mgr->conn, "CREATE TABLE "RECOV_TABLE
-        " SELECT "MAIN_TABLE".id," RECOV_LIST_FIELDS
-        " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON ("MAIN_TABLE".id = "ANNEX_TABLE".id)"
-        " LEFT JOIN "STRIPE_INFO_TABLE" ON ("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id )",
-/*        " FROM "MAIN_TABLE" LEFT JOIN (ANNEX_INFO,STRIPE_INFO) ON "
-        "( "MAIN_TABLE".id = "ANNEX_TABLE".id AND "
-            MAIN_TABLE".id = "STRIPE_INFO_TABLE".id )",*/
-        NULL );
+    if (filter_stripe_items > 0)
+    {
+        /* need to select only 1 instance of each object when joining with STRIPE_ITEMS */
+        strcpy(query, "CREATE TABLE "RECOV_TABLE
+            " SELECT DISTINCT("MAIN_TABLE".id)," RECOV_LIST_FIELDS
+            " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
+            "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
+            " LEFT JOIN "STRIPE_INFO_TABLE" ON "
+            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)"
+            " LEFT JOIN "STRIPE_ITEMS_TABLE" ON "
+            "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)");
+    }
+    else
+    {
+        strcpy(query, "CREATE TABLE "RECOV_TABLE
+            " SELECT "MAIN_TABLE".id," RECOV_LIST_FIELDS
+            " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
+            "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
+            " LEFT JOIN "STRIPE_INFO_TABLE" ON "
+            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)");
+    }
+
+    if (filter_main > 0 || filter_annex > 0 || filter_stripe_info > 0 || filter_stripe_items > 0)
+    {
+        strcat(query, " WHERE ");
+        if (filter_main > 0)
+            strcat(query, filter_str_main);
+        if (filter_annex > 0)
+            strcat(query, filter_str_annex);
+        if (filter_stripe_info > 0)
+            strcat(query, filter_str_stripe_info);
+        if (filter_stripe_items > 0)
+            strcat(query, filter_str_stripe_items);
+    }
+
+    rc = db_exec_sql( &p_mgr->conn, query, NULL );
     if ( rc )
         return rc;
 
@@ -252,26 +338,36 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     /* count entries of each status */
     expected_recov_status( p_mgr, p_stats );
 
+    /* if there is a filter on OST, report distinct ids */
+//    if (filter_stripe_items)
+//        report_count.report_type = REPORT_COUNT_DISTINCT;
+
     /* double check entry count before deleting entries */
-    rc = db_exec_sql( &p_mgr->conn,  "SELECT COUNT(*) FROM "MAIN_TABLE, &result );
+    report = ListMgr_Report(p_mgr, &report_count, 1, NULL, p_filter, NULL);
+    if (report == NULL)
+        return DB_REQUEST_FAILED;
+
+    nb = 1;
+    rc = ListMgr_GetNextReportItem(report, &report_val, &nb, NULL);
+    ListMgr_CloseReport(report);
+
     if (rc)
         return rc;
-    rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
-    if ( rc )
-        return rc;
-    if ( str_count == NULL )
-        return -1;
-    /* result */
-    if ( str2bigint( str_count ) != p_stats->total )
+
+
+    if ( nb == 0 )
+        return DB_REQUEST_FAILED;
+
+    if ( report_val.value_u.val_biguint != p_stats->total )
     {
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: recovery count (%llu) is different from entry count in main table (%lld): preserving entries",
-                    p_stats->total,  str2bigint( str_count ) );
+                    p_stats->total,  report_val.value_u.val_biguint );
         return DB_REQUEST_FAILED;
     }
 
-    /* clean provious DB content */
+    /* clean previous DB content */
 
-    return ListMgr_MassRemove( p_mgr, NULL, NULL );
+    return ListMgr_MassRemove( p_mgr, p_filter, NULL );
 }
 
 /**
@@ -375,7 +471,8 @@ int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
     if (rc)
         return rc;
 
-    diff = p_stats->total - p_stats->status_count[RS_OK] - p_stats->status_count[RS_DELTA]
+    diff = p_stats->total - p_stats->status_count[RS_FILE_OK] - p_stats->status_count[RS_FILE_DELTA]
+            - p_stats->status_count[RS_FILE_EMPTY] - p_stats->status_count[RS_NON_FILE]
            - p_stats->status_count[RS_NOBACKUP] - p_stats->status_count[RS_ERROR];
     if (diff > 0)
     {

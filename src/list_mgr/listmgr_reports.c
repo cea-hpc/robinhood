@@ -275,6 +275,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     int            acct_table_flag = FALSE;
     int            filter_main = 0;
     int            filter_annex = 0;
+    int            filter_stripe_info = 0;
+    int            filter_stripe_items = 0;
     int            filter_acct = 0;
     int            full_acct = TRUE;
     lmgr_iter_opt_t opt;
@@ -375,7 +377,9 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 
         for ( i = 0; i < report_descr_count; i++ )
         {
-            if ( report_desc_array[i].report_type != REPORT_COUNT ) /* no field for count */
+            /* no field for count or distinct count */
+            if ( report_desc_array[i].report_type != REPORT_COUNT &&
+                 report_desc_array[i].report_type != REPORT_COUNT_DISTINCT )
             {
                 /* in what table is this field ? */
                 if ( is_main_field( report_desc_array[i].attr_index ) )
@@ -428,7 +432,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 break;
             case REPORT_COUNT_DISTINCT:
                 sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
-                         field_str( report_desc_array[i].attr_index ), attrname );
+                field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, curr_field, attrstring );
                 p_report->result_type_array[i] = DB_BIGUINT;
                 break;
@@ -512,35 +516,84 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             filter_main = filter2str( p_mgr, curr_where, p_filter, T_MAIN,
                                       ( where != curr_where ), TRUE );
             curr_where += strlen( curr_where );
-        
+
             if ( filter_main )
                 main_table_flag = TRUE;
+
             if ( annex_table )
             {
                 filter_annex = filter2str( p_mgr, curr_where, p_filter, T_ANNEX,
-                                           ( filter_main > 0 ), TRUE );
+                                           (where != curr_where), TRUE );
                 curr_where += strlen( curr_where );
 
                 if ( filter_annex )
                     annex_table_flag = TRUE;
             }
+
+
+            filter_stripe_info =
+                filter2str( p_mgr, curr_where, p_filter, T_STRIPE_INFO,
+                            (where != curr_where), TRUE );
+            curr_where += strlen( curr_where );
+
+            /* XXX caller must select distinct id in this case */
+            filter_stripe_items =
+                filter2str( p_mgr, curr_where, p_filter, T_STRIPE_ITEMS,
+                            (where != curr_where), TRUE );
+            curr_where += strlen( curr_where );
         }
-        /* XXX ignore filters on stripe for now */
     }
-    
 
     /* from clause */
 
     if ( acct_table_flag )
         strcpy( from, ACCT_TABLE );
-    else if ( main_table_flag && annex_table_flag )
-        strcpy( from, MAIN_TABLE " LEFT JOIN " ANNEX_TABLE " ON "
-                MAIN_TABLE ".id = " ANNEX_TABLE ".id" );
-    else if ( main_table_flag )
-        strcpy( from, MAIN_TABLE );
-    else if ( annex_table_flag )
-        strcpy( from, ANNEX_TABLE );
-
+    else
+    {
+        const char * first_table = NULL;
+        char * curr_from = from;
+        if ( main_table_flag ) {
+            strcpy(from, MAIN_TABLE);
+            curr_from = from + strlen(from);
+            first_table = MAIN_TABLE;
+        }
+        if ( annex_table_flag )
+        {
+            if (first_table)
+                curr_from += sprintf(curr_from, " LEFT JOIN "ANNEX_TABLE" ON %s.id="ANNEX_TABLE".id",
+                                     first_table);
+            else
+            {
+                strcpy(from, ANNEX_TABLE);
+                curr_from = from + strlen(from);
+                first_table = ANNEX_TABLE;
+            }
+        }
+        if ( filter_stripe_info )
+        {
+            if (first_table)
+                curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_INFO_TABLE" ON %s.id="STRIPE_INFO_TABLE".id",
+                                     first_table);
+            else
+            {
+                strcpy(from, STRIPE_INFO_TABLE);
+                curr_from = from + strlen(from);
+                first_table = STRIPE_INFO_TABLE;
+            }
+        }
+        if ( filter_stripe_items )
+        {
+            if (first_table)
+                curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_ITEMS_TABLE" ON %s.id="STRIPE_ITEMS_TABLE".id",
+                                     first_table);
+            else
+            {
+                strcpy(from, STRIPE_ITEMS_TABLE);
+                curr_from = from + strlen(from);
+                first_table = STRIPE_ITEMS_TABLE;
+            }
+        }
+    }
 
     /* Build the request */
 

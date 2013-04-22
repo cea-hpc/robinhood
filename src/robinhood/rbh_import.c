@@ -181,7 +181,7 @@ static inline int import_helper(const char       *backend_path,
     strcpy(tmp, backend_path);
     name = basename(tmp);
 
-    /* clean import path if it already as fid in it */
+    /* clean import path if it already has fid in it */
     if ((second = strrchr(name, '_')) && (second != name)
         && (*(first = second - 1) == '_')
         && (sscanf(second+1, SFID"%s", RFID(&old_id), dummy) >= 3))
@@ -218,7 +218,7 @@ static inline int import_helper(const char       *backend_path,
 
     /* create file in Lustre */
     st = rbhext_recover( &old_id, &attrs, &new_id, &new_attrs, src_md );
-    if ( (st == RS_OK) || (st == RS_DELTA) )
+    if ( (st == RS_FILE_OK) || (st == RS_FILE_DELTA) || (st == RS_FILE_EMPTY) || (st == RS_NON_FILE) )
     {
         printf("\tSuccess\n");
 
