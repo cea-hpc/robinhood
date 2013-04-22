@@ -582,7 +582,7 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
  *  Read variable from DB and allocate value.
  *  @param value must be of size 1024.
  **/
-int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
+static int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
 {
     int rc;
     rc = ListMgr_GetVar( &lmgr, varname, value);
@@ -605,7 +605,7 @@ int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
 /**
  * Manage fid2path resolution
  */
-int TryId2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
+static int TryId2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
 {
     static int is_init = 0;
     static int is_resolvable = 0;
@@ -679,7 +679,7 @@ static const char * ResolvName(const entry_id_t * p_id, attr_set_t * attrs,
 }
 
 
-void report_activity( int flags )
+static void report_activity( int flags )
 {
     char           value[1024];
     time_t         timestamp;
@@ -1705,7 +1705,7 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
 
 
 
-void dump_entries( type_dump type, int int_arg, char * str_arg, value_list_t * ost_list, int flags )
+static void dump_entries( type_dump type, int int_arg, char * str_arg, value_list_t * ost_list, int flags )
 {
     /* get basic information */
     int            mask_sav, rc;
@@ -1909,7 +1909,7 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, value_list_t * o
     }
 }
 
-void report_fs_info( int flags )
+static void report_fs_info( int flags )
 {
     unsigned int   result_count;
     struct lmgr_report_t *it;
@@ -2038,7 +2038,7 @@ static inline void set_report_rec_nofilter( report_field_descr_t* ent,
     ent->filter_compar = 0;
 }
 
-void report_usergroup_info( char *name, int flags )
+static void report_usergroup_info( char *name, int flags )
 {
     unsigned int   result_count;
     struct lmgr_report_t *it;
@@ -2203,7 +2203,7 @@ void report_usergroup_info( char *name, int flags )
 }
 
 #ifdef ATTR_INDEX_dircount
-void report_topdirs( unsigned int count, int flags )
+static void report_topdirs( unsigned int count, int flags )
 {
     /* To be retrieved for dirs:
      * fullpath, owner, dircount, last_mod
@@ -2296,7 +2296,7 @@ void report_topdirs( unsigned int count, int flags )
 }
 #endif
 
-void report_topsize( unsigned int count, int flags )
+static void report_topsize( unsigned int count, int flags )
 {
     /* To be retrieved for files
      * fullpath, owner, size, stripe_info, last_access, last_mod
@@ -2382,7 +2382,7 @@ void report_topsize( unsigned int count, int flags )
 }
 
 
-void report_toppurge( unsigned int count, int flags )
+static void report_toppurge( unsigned int count, int flags )
 {
     /* To be retrieved: non whitelisted, non directories, non invalid
      * fullpath, type, last_access, last_mod, size, stripe_info
@@ -2485,7 +2485,7 @@ void report_toppurge( unsigned int count, int flags )
 }
 
 #ifdef HAVE_RMDIR_POLICY
-void report_toprmdir( unsigned int count, int flags )
+static void report_toprmdir( unsigned int count, int flags )
 {
     /* To be retrieved for dirs:
      * fullpath, owner, last_mod
@@ -2605,7 +2605,7 @@ void report_toprmdir( unsigned int count, int flags )
 }
 #endif
 
-void report_topuser( unsigned int count, int flags )
+static void report_topuser( unsigned int count, int flags )
 {
     unsigned int   result_count;
     struct lmgr_report_t *it;
@@ -3008,7 +3008,8 @@ static void report_class_info( int flags )
     }
 }
 
-void maintenance_get( int flags )
+#ifdef HAVE_MIGR_POLICY
+static void maintenance_get( int flags )
 {
     char           value[1024];
     time_t         timestamp;
@@ -3050,7 +3051,7 @@ void maintenance_get( int flags )
     }
 }
 
-void maintenance_set( int flags, time_t when )
+static void maintenance_set( int flags, time_t when )
 {
     char           value[1024];
     int            rc;
@@ -3081,6 +3082,7 @@ void maintenance_set( int flags, time_t when )
                     "ERROR setting variable " NEXT_MAINT_VAR " in database" );
     }
 }
+#endif
 
 #define MAX_OPT_LEN 1024
 

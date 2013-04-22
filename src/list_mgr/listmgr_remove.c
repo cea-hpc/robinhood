@@ -585,6 +585,8 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     return listmgr_mass_remove( p_mgr, p_filter, FALSE, 0, cb_func );
 }
 
+#ifdef HAVE_RM_POLICY
+
 int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                             time_t real_remove_time, rm_cb_func_t cb_func )
 {
@@ -592,8 +594,6 @@ int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     return listmgr_mass_remove( p_mgr, p_filter, TRUE, real_remove_time, cb_func );
 }
 
-
-#ifdef HAVE_RM_POLICY
 /**
  * Remove an entry from the main database, and insert it to secondary table
  * for delayed removal.

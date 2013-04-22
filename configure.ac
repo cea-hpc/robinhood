@@ -42,7 +42,7 @@ AC_SYS_LARGEFILE
 
 # gcc options
 #CC_OPT="-Wall -Werror"
-CC_OPT="-Wall -Wstrict-prototypes"
+CC_OPT="-Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations"
 AC_SUBST(CC_OPT)
 
 AC_CHECK_SIZEOF([nlink_t])

@@ -280,7 +280,7 @@ static inline int soft_remove_filter(struct entry_proc_op_t *p_op)
 #ifdef HAVE_CHANGELOGS
 
 /* does the CL record gives a clue about object type? */
-obj_type_t cl2type_clue(CL_REC_TYPE *logrec)
+static obj_type_t cl2type_clue(CL_REC_TYPE *logrec)
 {
     switch(logrec->cr_type)
     {

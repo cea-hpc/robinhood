@@ -293,7 +293,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
  * Count entries in directory (excluding . and ..)
  * @return value > 0
  */
-int nb_dir_entries( const char *dirpath )
+static int nb_dir_entries( const char *dirpath )
 {
     DIR           *dirp;
     int            rc;
@@ -1281,7 +1281,7 @@ static void   *Thr_Rmdir( void *arg )
 }
 
 
-int start_rmdir_threads( unsigned int nb_threads )
+static int start_rmdir_threads( unsigned int nb_threads )
 {
     unsigned int   i;
 

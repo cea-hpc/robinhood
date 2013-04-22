@@ -33,8 +33,9 @@
  * print parent condition depending on parent list count:
  *      parent_id == xxx or parent_id IN ( xxx, yyy, zzz )
  */
-char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz, const wagon_t * parent_list, unsigned int parent_count,
-                   const char * prefix)
+static char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz,
+                          const wagon_t * parent_list, unsigned int parent_count,
+                          const char * prefix)
 {
     DEF_PK(pk);
 

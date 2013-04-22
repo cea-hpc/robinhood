@@ -31,7 +31,8 @@
  * e.g. SELECT parent_id, COUNT(*) as dirattr... FROM ...
  * \return number of bytes written (-1 on error)
  */
-int append_dirattr_select(char *outquery, unsigned int dirattr_index, const char *attrname)
+static int append_dirattr_select(char *outquery, unsigned int dirattr_index,
+                                 const char *attrname)
 {
     if (dirattr_index == ATTR_INDEX_dircount)
         /* group parent and count their children */
@@ -50,11 +51,11 @@ int append_dirattr_select(char *outquery, unsigned int dirattr_index, const char
 
 
 /* append a directory condition (sort or filter on dirattr) to an iterator request */
-void append_dir_req(char * outstr, const char * req_start, const char * table_filter,
-                    int sort_attr_index,
-                    filter_dir_e filter_dir, /* type of dir filter */
-                    unsigned int filter_dir_index, /* index of filter dirattr */
-                    const char * filter_dir_str) /* looks like dirattr >= X */
+static void append_dir_req(char * outstr, const char * req_start, const char * table_filter,
+                           int sort_attr_index,
+                           filter_dir_e filter_dir, /* type of dir filter */
+                           unsigned int filter_dir_index, /* index of filter dirattr */
+                           const char * filter_dir_str) /* looks like dirattr >= X */
 {
     char * currstr = outstr;
 

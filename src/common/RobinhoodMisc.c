@@ -152,7 +152,7 @@ static void _set_mount_point( char *mntpnt )
     }
 }
 
-void set_fs_info( char *name, char * mountp, dev_t dev, fsid_t fsid)
+static void set_fs_info( char *name, char * mountp, dev_t dev, fsid_t fsid)
 {
     P( mount_point_lock );
     _set_mount_point(mountp);

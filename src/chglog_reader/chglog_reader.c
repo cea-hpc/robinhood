@@ -109,7 +109,7 @@ int            ChgLogRdr_ReloadConfig( void *module_config )
 /**
  * Close the changelog for a thread.
  */
-int log_close( reader_thr_info_t * p_info )
+static int log_close( reader_thr_info_t * p_info )
 {
     int rc;
 
@@ -126,7 +126,7 @@ int log_close( reader_thr_info_t * p_info )
 /**
  * Free allocated structures in op_extra_info_t field.
  */
-void free_extra_info( void * ptr )
+static void free_extra_info( void * ptr )
 {
     op_extra_info_t * p_info = (op_extra_info_t*)ptr;
 
@@ -136,7 +136,7 @@ void free_extra_info( void * ptr )
     }
 }
 
-void free_extra_info2( void * ptr )
+static void free_extra_info2( void * ptr )
 {
     op_extra_info_t * p_info = (op_extra_info_t*)ptr;
 
@@ -153,7 +153,7 @@ void free_extra_info2( void * ptr )
  * DB callback function: this is called when a given ChangeLog record
  * has been successfully applied to the database.
  */
-int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void * param )
+static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void * param )
 {
     int rc;
     const char * mount_point = get_mount_point(NULL);
@@ -487,7 +487,7 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
 
 
 /** a thread that reads lines from a given changelog */
-void * chglog_reader_thr( void *  arg )
+static void * chglog_reader_thr( void *  arg )
 {
     reader_thr_info_t * info = (reader_thr_info_t*) arg;
     CL_REC_TYPE * p_rec = NULL;

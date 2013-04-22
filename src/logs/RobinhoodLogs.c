@@ -439,7 +439,7 @@ int str2debuglevel( char *str )
     return -1;
 }
 
-void display_line_log( log_stream_t * p_log, const char * tag,
+static void display_line_log( log_stream_t * p_log, const char * tag,
                        const char *format, va_list arglist )
 {
     char           line_log[MAX_LINE_LEN];

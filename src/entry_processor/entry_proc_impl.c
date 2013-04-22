@@ -482,7 +482,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
  * @param p_empty Output Boolean. In the case no entry is returned,
  *        this indicates if it is because the pipeline is empty.
  */
-entry_proc_op_t *next_work_avail( int *p_empty )
+static entry_proc_op_t *next_work_avail( int *p_empty )
 {
     entry_proc_op_t *p_curr;
     int            i;
@@ -1034,7 +1034,7 @@ entry_proc_op_t * EntryProcessor_Get( void )
 }
 
 /* helper for counting the number of operations in pipeline */
-unsigned int count_nb_ops( void )
+static unsigned int count_nb_ops( void )
 {
     int i;
     unsigned int total = 0;
