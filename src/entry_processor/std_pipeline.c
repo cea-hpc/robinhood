@@ -113,7 +113,7 @@ pipeline_stage_t std_pipeline[] = {
 
 
 #ifdef HAVE_SHOOK
-int shook_special_obj( struct entry_proc_op_t *p_op )
+static int shook_special_obj( struct entry_proc_op_t *p_op )
 {
     if (ATTR_FSorDB_TEST( p_op, fullpath )
         && ATTR_FSorDB_TEST( p_op, type))
