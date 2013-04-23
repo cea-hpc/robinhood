@@ -131,6 +131,7 @@ last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
 mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
+nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
 md_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
 path_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
 invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
@@ -147,5 +148,4 @@ link, char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
 # should be:
 # fullpath,   char, DB_TEXT, RBH_PATH_MAX, NS_ATTR
 fullpath,	char, DB_TEXT, RBH_PATH_MAX, GENERATED, name, lmgr_gen_fullpath
-nlink, unsigned int, DB_UINT, 0, NS_ATTR
 depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth

@@ -157,10 +157,10 @@ struct find_opt
 };
 
 #ifdef ATTR_INDEX_status
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link | ATTR_MASK_status)
 #else
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link )
 #endif
 static int disp_mask = ATTR_MASK_fullpath | ATTR_MASK_type;
@@ -743,14 +743,16 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
 
         if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
             && ATTR_MASK_TEST(attrs, link))
-            /* display: id, type, owner, group, size, mtime, path -> link */
-            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s -> %s\n",
-                   PFID(&id->id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
+            /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
+            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s -> %s\n",
+                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink) STATUS_VAL,
+                   ATTR(attrs, owner), ATTR(attrs, gr_name),
                    ATTR(attrs, size), date_str, id->fullname, ATTR(attrs,link));
         else
-            /* display all: id, type, owner, group, size, mtime, path */
-            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
-                   PFID(&id->id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
+            /* display all: id, type, mode, nlink, (status,) owner, group, size, mtime, path */
+            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
+                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink) STATUS_VAL,
+                   ATTR(attrs, owner), ATTR(attrs, gr_name),
                    ATTR(attrs, size), date_str, id->fullname);
     }
 }

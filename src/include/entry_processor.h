@@ -214,7 +214,8 @@ typedef struct entry_proc_op_t
 
 #define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
                          | ATTR_MASK_gr_name | ATTR_MASK_last_access \
-                         | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode)
+                         | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
+                         | ATTR_MASK_nlink )
 
 #define NEED_GETSTATUS(_op) ((_op)->fs_attr_need & ATTR_MASK_status)
 #define NEED_GETSTRIPE(_op) ((_op)->fs_attr_need & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ))
