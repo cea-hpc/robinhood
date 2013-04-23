@@ -906,7 +906,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             /* table does not exist */
             strcpy( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
-                    "fid VARCHAR(" TOSTRING(FID_LEN) ") PRIMARY KEY, "
+                    "fid VARCHAR(" TOSTRING(DB_FID_LEN) ") PRIMARY KEY, "
                     "fullpath VARCHAR(1023), "
                     "soft_rm_time INT UNSIGNED, "
                     "real_rm_time INT UNSIGNED  )" );
@@ -992,7 +992,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             /* table does not exist */
             strcpy( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
-                    "fid VARCHAR(" TOSTRING(FID_LEN) ") PRIMARY KEY, "
+                    "fid VARCHAR(" TOSTRING(DB_FID_LEN) ") PRIMARY KEY, "
                     "fullpath VARCHAR(1023), "
                     "backendpath VARCHAR(1023), "
                     "soft_rm_time INT UNSIGNED, "

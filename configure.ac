@@ -187,6 +187,16 @@ if test "x$support_lustre" = "xyes" ; then
                     #include <lustre/lustre_user.h>
         ])
         test "x$have_obj_seq" = "xyes" && AC_DEFINE(HAVE_OBJ_SEQ, 1, [lov_user_ost_data_v1 has l_object_seq field])
+
+        AC_CHECK_MEMBER([struct lov_user_ost_data_v1.l_object_id], [have_obj_id="yes"],  [have_obj_id="no"], [
+                    #define LPX64 "%#llx"
+                    #include <sys/types.h>
+                    #include <asm/types.h>
+                    #include <lustre/lustre_user.h>
+        ])
+        test "x$have_obj_id" = "xyes" && AC_DEFINE(HAVE_OBJ_ID, 1, [lov_user_ost_data_v1 has l_object_id field])
+
+
     fi
 
     AM_CONDITIONAL(CHANGELOGS,  test  "x$have_llapi_changelog_start" = "xyes" )

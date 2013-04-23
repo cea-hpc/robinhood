@@ -85,11 +85,16 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
                 {
                     p_stripe_items->stripe[i].ost_idx = p_lum->lmm_objects[i].l_ost_idx;
                     p_stripe_items->stripe[i].ost_gen = p_lum->lmm_objects[i].l_ost_gen;
+#ifdef HAVE_OBJ_ID
                     p_stripe_items->stripe[i].obj_id = p_lum->lmm_objects[i].l_object_id;
 #ifdef HAVE_OBJ_SEQ
                     p_stripe_items->stripe[i].obj_seq = p_lum->lmm_objects[i].l_object_seq;
 #else
                     p_stripe_items->stripe[i].obj_seq = p_lum->lmm_objects[i].l_object_gr;
+#endif
+#else /* new structure (union of fid and id/seq) */
+                    p_stripe_items->stripe[i].obj_id = p_lum->lmm_objects[i].l_ost_oi.oi.oi_id;
+                    p_stripe_items->stripe[i].obj_seq = p_lum->lmm_objects[i].l_ost_oi.oi.oi_seq;
 #endif
                 }
             }
@@ -130,11 +135,16 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
                 {
                     p_stripe_items->stripe[i].ost_idx = p_lum3->lmm_objects[i].l_ost_idx;
                     p_stripe_items->stripe[i].ost_gen = p_lum3->lmm_objects[i].l_ost_gen;
+#ifdef HAVE_OBJ_ID
                     p_stripe_items->stripe[i].obj_id = p_lum3->lmm_objects[i].l_object_id;
 #ifdef HAVE_OBJ_SEQ
                     p_stripe_items->stripe[i].obj_seq = p_lum3->lmm_objects[i].l_object_seq;
 #else
                     p_stripe_items->stripe[i].obj_seq = p_lum3->lmm_objects[i].l_object_gr;
+#endif
+#else /* new structure (union of fid and id/seq) */
+                    p_stripe_items->stripe[i].obj_id = p_lum3->lmm_objects[i].l_ost_oi.oi.oi_id;
+                    p_stripe_items->stripe[i].obj_seq = p_lum3->lmm_objects[i].l_ost_oi.oi.oi_seq;
 #endif
                 }
             }
@@ -500,7 +510,7 @@ const char * HSMAction2str( enum hsm_user_action action )
 
 /** Trigger a HSM action */
 int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
-                      const char * hints, unsigned int archive_num )
+                      const char * hints, unsigned int archive_id )
 {
     struct hsm_user_request * req;
     int data_len = 0;
@@ -521,7 +531,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
     }
 
     req->hur_request.hr_action = action;
-    req->hur_request.hr_archive_num = archive_num;
+    req->hur_request.hr_archive_id = archive_id;
 
     req->hur_user_item[0].hui_fid = *p_id;
     req->hur_user_item[0].hui_extent.offset = 0 ;

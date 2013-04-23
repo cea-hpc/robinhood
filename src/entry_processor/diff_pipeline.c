@@ -872,7 +872,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     #elif defined(_LUSTRE_HSM) /* Lustre-HSM */
             DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID", path=%s)",
                         PFID(&p_op->entry_id),
-                        ATTR_FSorDB_TEST( p_op, fullpath )?ATTR_FSorDB(p_op, fullpath):"",
+                        ATTR_FSorDB_TEST( p_op, fullpath )?ATTR_FSorDB(p_op, fullpath):"");
             rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id,
                     ATTR_FSorDB_TEST( p_op, fullpath )?ATTR_FSorDB(p_op, fullpath):NULL,
                     time(NULL) + policies.unlink_policy.deferred_remove_delay ) ;
