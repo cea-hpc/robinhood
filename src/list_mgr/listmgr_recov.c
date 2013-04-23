@@ -404,7 +404,13 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
         curr += sprintf( curr, "recov_status IS NULL" );
 
     if ( dir_path )
+#ifdef _MYSQL
+        /* MySQL is case insensitive.
+         * To force case-sensitivity, use BINARY keyword. */
+        curr += sprintf( curr, " AND fullpath LIKE BINARY '%s/%%'", dir_path );
+#else
         curr += sprintf( curr, " AND fullpath LIKE '%s/%%'", dir_path );
+#endif
 
     /* allocate a new iterator */
     it = ( lmgr_iterator_t * ) MemAlloc( sizeof( lmgr_iterator_t ) );

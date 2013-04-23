@@ -653,10 +653,19 @@ char          *compar2str( filter_comparator_t compar )
         return "<";
     case MORETHAN_STRICT:
         return ">";
+#ifdef _MYSQL
+    /* MySQL is case insensitive.
+     * To force case-sensitivity, use BINARY keyword. */
+    case LIKE:
+        return " LIKE BINARY ";
+    case UNLIKE:
+        return " NOT LIKE BINARY ";
+#else
     case LIKE:
         return " LIKE ";
     case UNLIKE:
         return " NOT LIKE ";
+#endif
     default:
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Default sign for filter: should never happen !!!" );
         return "=";

@@ -1,6 +1,3 @@
-- use binary keyword for case sensitive requests
-
-- add filter for partial recovery
 - ostset for commands
 
 /!\ symlink change if inode recycling
