@@ -137,6 +137,7 @@ int            dir_attr_set = 0;
 int            slink_attr_set = 0;
 int            readonly_attr_set = 0;
 int            gen_attr_set = 0;
+int            func_attr_set = 0;
 int            acct_attr_set = 0;
 int            acct_pk_attr_set = 0;
 
@@ -149,6 +150,7 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     names_attr_set = 0;
     annex_attr_set = 0;
     gen_attr_set = 0;
+    func_attr_set = 0;
     stripe_attr_set = 0;
     readonly_attr_set = 0;
     acct_pk_attr_set = 0;
@@ -179,7 +181,7 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
         if ( is_read_only_field( i ) )
             readonly_attr_set |= mask;
 
-        /* The ID field is both in NAMES and MAIN. */
+        /* The ID field is both in NAMES and MAIN. (XXX not an attribute) */
         if ( is_names_field( i ) )
             names_attr_set |= mask;
 
@@ -187,6 +189,8 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
             main_attr_set |= mask;
         else if ( is_gen_field( i ) )
             gen_attr_set |= mask;
+        else if ( is_funcattr( i ) )
+            func_attr_set |= mask;
         else if ( is_annex_field( i ) )
             annex_attr_set |= mask;
         else if ( is_stripe_field( i ) )
@@ -194,10 +198,10 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
         else if ( is_dirattr( i ) )
             dir_attr_set |= mask;
 
+        /* not mutually exclusive with previous */
         if ( is_slinkattr( i ) )
             slink_attr_set |= mask;
     }
-
 }
 
 

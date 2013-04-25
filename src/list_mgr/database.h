@@ -91,8 +91,9 @@ int            db_result_nb_records( db_conn_t * conn, result_handle_t * p_resul
 /* free result resources */
 int            db_result_free( db_conn_t * conn, result_handle_t * p_result );
 
-/* remove a trigger */
-int            db_drop_trigger( db_conn_t * conn, const char *name );
+typedef enum {DBOBJ_TABLE, DBOBJ_TRIGGER, DBOBJ_FUNCTION, DBOBJ_PROC } db_object_e;
+/* remove a database component (table, trigger, function, ...) */
+int            db_drop_component( db_conn_t * conn, db_object_e obj_type, const char *name );
 
 /* create a trigger */
 int            db_create_trigger( db_conn_t * conn, const char *name, const char *event,

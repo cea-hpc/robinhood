@@ -242,7 +242,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     {
         DisplayLog( LVL_EVENT, LISTMGR_TAG, "Dropping any previous "RECOV_TABLE" table" );
         /* start from clean state (no table, no indexes, no addl field) */
-        rc = db_exec_sql( &p_mgr->conn, "DROP TABLE IF EXISTS "RECOV_TABLE, NULL );
+        rc = db_drop_component(&p_mgr->conn, DBOBJ_TABLE, RECOV_TABLE);
         if ( rc )
             return rc;
     }
@@ -377,7 +377,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
 int ListMgr_RecovReset( lmgr_t * p_mgr )
 {
    DisplayLog( LVL_EVENT, LISTMGR_TAG, "Dropping any previous "RECOV_TABLE" table" );
-   return db_exec_sql( &p_mgr->conn, "DROP TABLE IF EXISTS "RECOV_TABLE, NULL );
+   return db_drop_component(&p_mgr->conn, DBOBJ_TABLE, RECOV_TABLE);
 }
 
 /**

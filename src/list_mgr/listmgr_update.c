@@ -503,8 +503,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
 
     if ( tmp_table_created )
     {
-        sprintf( query, "DROP TABLE %s", tmp_table_name );
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        rc = db_drop_component(&p_mgr->conn, DBOBJ_TABLE, tmp_table_name);
         if ( rc )
             goto rollback;
     }

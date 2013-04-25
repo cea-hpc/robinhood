@@ -560,8 +560,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                 "End of indirect removal: %u identifiers removed", rmcount );
 
     /* drop tmp table */
-    sprintf( query, "DROP TABLE %s", tmp_table_name );
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
+    rc = db_drop_component( &p_mgr->conn, DBOBJ_TABLE, tmp_table_name);
     if ( rc )
         goto rollback;
 
@@ -642,7 +641,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
 #endif
         }
     }
-        
+
     /* We want the removal sequence to be atomic */
     rc = lmgr_begin( p_mgr );
     if ( rc )

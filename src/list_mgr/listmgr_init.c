@@ -107,7 +107,10 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
         return sprintf( next, "%s %s "PK_TYPE, is_first ? "" : ",", field_infos[i].field_name );
         break;
     case DB_ENUM_FTYPE:
-        return sprintf( next, "%s %s ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')", is_first ? "" : ",", field_infos[i].field_name, STR_TYPE_LINK, STR_TYPE_DIR, STR_TYPE_FILE, STR_TYPE_CHR, STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK );
+        return sprintf( next, "%s %s ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')",
+                        is_first ? "" : ",", field_infos[i].field_name,
+                        STR_TYPE_LINK, STR_TYPE_DIR, STR_TYPE_FILE, STR_TYPE_CHR,
+                        STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK );
         break;
     }
     return 0;
@@ -508,20 +511,22 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     {
         int            curr_field_index = 0;
 
-        /* check primary key */
-        if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
+        /* check first fields: id and hname */
+        if (( fieldtab[0] == NULL ) || ( fieldtab[1] == NULL )
+            || strcmp( fieldtab[0], "id" ) || strcmp( fieldtab[1], "hname" ))
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid primary key (%s) for table "
-                        DNAMES_TABLE, ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
+                        "Invalid schema (%s, %s...) for table "
+                        DNAMES_TABLE,
+                        ( fieldtab[0] ? fieldtab[0] : "(null)" ),
+                        ( fieldtab[1] ? fieldtab[1] : "(null)" ) );
             return -1;
         }
         else
         {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
-            curr_field_index += 1;
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "id, hname OK");
+            curr_field_index += 2;
         }
-
 
         for ( i = 0; i < ATTR_COUNT; i++ )
         {
@@ -548,8 +553,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_EVENT, LISTMGR_TAG, DNAMES_TABLE " does not exist: creating it." );
 
             /* table does not exist */
-            //TODO wrong key - idem when checking above
-            strcpy( strbuf, "CREATE TABLE " DNAMES_TABLE " ( id "PK_TYPE );
+            strcpy( strbuf, "CREATE TABLE " DNAMES_TABLE " ( id "PK_TYPE", hname VARCHAR(40)");
             next = strbuf + strlen( strbuf );
 
             for ( i = 0; i < ATTR_COUNT; i++ )
@@ -599,6 +603,16 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                                 field_infos[i].field_name );
                 }
             }
+
+            /* this index is needed to build the fullpath of entries */
+            rc = db_exec_sql( &conn, "CREATE INDEX id_index ON "DNAMES_TABLE"(id)", NULL );
+            if ( rc )
+            {
+                DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                            "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                return rc;
+            }
+            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " DNAMES_TABLE "(id) created successfully");
         }
     }
     else
@@ -610,6 +624,41 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         return rc;
     }
 
+    /* drop previous versions of the function */
+    rc = db_drop_component( &conn, DBOBJ_FUNCTION, "one_path" );
+    if ( rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
+    {
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Failed to drop function 'one_path': Error: %s",
+                    db_errmsg( &conn, errmsg_buf, 1024 ) );
+        return rc;
+    }
+
+    /* creating function to get one path for a file */
+    snprintf(strbuf, 4096, "CREATE FUNCTION one_path(param "PK_TYPE") RETURNS VARCHAR(%u) READS SQL DATA"
+        " BEGIN"
+            " DECLARE p VARCHAR(%u) DEFAULT NULL;"
+            " DECLARE pid "PK_TYPE" DEFAULT NULL;"
+            " DECLARE n VARCHAR(%u) DEFAULT NULL;"
+            // returns path when parent is not found (NULL if id is not found)
+            " DECLARE EXIT HANDLER FOR NOT FOUND RETURN p;"
+            " SELECT parent_id, name INTO pid, p from NAMES where id=param LIMIT 1;"
+            " LOOP"
+                " SELECT parent_id, name INTO pid, n from NAMES where id=pid ;"
+                " SELECT CONCAT( n, '/', p) INTO p;"
+            " END LOOP;"
+        " END",
+        /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
+        /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
+        /* size of name */field_infos[ATTR_INDEX_name].db_type_size);
+
+    rc = db_exec_sql( &conn, strbuf, NULL );
+    if (rc )
+    {
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Failed to create function: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+        return rc;
+    }
 
 
 #ifdef _LUSTRE
@@ -1020,10 +1069,10 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             /* table does not exist */
             strcpy( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
-                    "fid VARCHAR(" TOSTRING(DB_FID_LEN) ") PRIMARY KEY, "
-                    "fullpath VARCHAR(1023), "
+                    "fid "PK_TYPE" PRIMARY KEY, "
+                    "fullpath VARCHAR(%u), "
                     "soft_rm_time INT UNSIGNED, "
-                    "real_rm_time INT UNSIGNED  )" );
+                    "real_rm_time INT UNSIGNED  )", field_infos[ATTR_INDEX_fullpath].db_type_size );
 #ifdef _MYSQL
         if (lmgr_config.db_config.innodb)
             strcat(strbuf, " ENGINE=InnoDB");
@@ -1105,12 +1154,14 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_EVENT, LISTMGR_TAG, SOFT_RM_TABLE " does not exist: creating it." );
 
             /* table does not exist */
-            strcpy( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
-                    "fid VARCHAR(" TOSTRING(DB_FID_LEN) ") PRIMARY KEY, "
-                    "fullpath VARCHAR(1023), "
-                    "backendpath VARCHAR(1023), "
+            sprintf( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
+                    "fid "PK_TYPE" PRIMARY KEY, "
+                    "fullpath VARCHAR(%u), "
+                    "backendpath VARCHAR(%u), "
                     "soft_rm_time INT UNSIGNED, "
-                    "real_rm_time INT UNSIGNED  )" );
+                    "real_rm_time INT UNSIGNED  )",
+                     field_infos[ATTR_INDEX_fullpath].db_type_size,
+                     field_infos[ATTR_INDEX_backendpath].db_type_size );
 #ifdef _MYSQL
         if (lmgr_config.db_config.innodb)
             strcat(strbuf, " ENGINE=InnoDB");
@@ -1345,7 +1396,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                                 "Failed to populate accounting table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
 
                     /* drop this table, to leave the db in a consistent state (if ACCT_TABLE exists, it must be populated */
-                    if (db_exec_sql( &conn, "DROP TABLE " ACCT_TABLE, NULL ))
+                    if (db_drop_component( &conn, DBOBJ_TABLE, ACCT_TABLE))
                         DisplayLog( LVL_CRIT, LISTMGR_TAG,
                                     "Failed to drop table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
 
@@ -1393,7 +1444,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             next += append_size_range_op(next, TRUE, "NEW.", "val", ADD);
 
             APPEND_TXT( next,";");
-            rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
+            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT );
             if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
@@ -1427,7 +1478,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             INCR_NEXT( next );
             APPEND_TXT( next, ";" );
 
-            rc = db_drop_trigger( &conn, ACCT_TRIGGER_DELETE );
+            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE );
             if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
@@ -1537,7 +1588,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             INCR_NEXT( next );
             APPEND_TXT( next, ";\nEND IF;\n" );
 
-            rc = db_drop_trigger( &conn, ACCT_TRIGGER_UPDATE );
+            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE );
             if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
@@ -1561,7 +1612,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
         if ( rc == DB_SUCCESS )
         {
-            rc = db_drop_trigger( &conn, ACCT_TRIGGER_INSERT );
+            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT );
             if ( rc == DB_NOT_SUPPORTED )
             {
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG,
@@ -1574,7 +1625,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            rc = db_drop_trigger( &conn, ACCT_TRIGGER_DELETE );
+            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE );
             if ( rc == DB_NOT_SUPPORTED )
             {
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG,
@@ -1587,7 +1638,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
                 return rc;
             }
-            rc = db_drop_trigger( &conn, ACCT_TRIGGER_UPDATE );
+            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE );
             if ( rc == DB_NOT_SUPPORTED )
             {
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG,
@@ -1601,8 +1652,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 return rc;
             }
 
-            strcpy( strbuf, "DROP TABLE " ACCT_TABLE );
-            rc = db_exec_sql( &conn, strbuf, NULL );
+            rc = db_drop_component( &conn, DBOBJ_TABLE, ACCT_TABLE );
             if ( rc )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,

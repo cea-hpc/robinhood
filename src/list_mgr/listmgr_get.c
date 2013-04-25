@@ -78,7 +78,7 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
     char            query[1024];
     result_handle_t result;
     char            *str_info[1];
-    int rc;
+    int rc = 0;
     int       tmp_val;
     long long tmp_long;
 
@@ -93,25 +93,32 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
             return rc;
         rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
         if (rc == DB_END_OF_LIST)
+        {
             ATTR_MASK_UNSET(p_attrs, dircount);
-        else if (rc != DB_SUCCESS)
-            return rc;
-        else
+            rc = DB_SUCCESS;
+        }
+        else if (rc == DB_SUCCESS)
         {
             if (str_info[0] == NULL)
                 /* count(*) should at least return 0 */
-                return DB_REQUEST_FAILED;
-
-            tmp_val = str2int(str_info[0]);
-            if (tmp_val != -1)
-            {
-                ATTR_MASK_SET(p_attrs, dircount);
-                ATTR( p_attrs, dircount ) = tmp_val;
-            }
+                rc = DB_REQUEST_FAILED;
             else
-                /* invalid output format */
-                return DB_REQUEST_FAILED;
+            {
+                tmp_val = str2int(str_info[0]);
+                if (tmp_val != -1)
+                {
+                    ATTR_MASK_SET(p_attrs, dircount);
+                    ATTR( p_attrs, dircount ) = tmp_val;
+                    rc = DB_SUCCESS;
+                }
+                else
+                    /* invalid output format */
+                    rc = DB_REQUEST_FAILED;
+            }
         }
+        db_result_free( &p_mgr->conn, &result );
+        if (rc)
+            return rc;
     }
 
     /* get avgsize of child entries from MAIN_TABLE */
@@ -125,31 +132,75 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
         rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
         if (rc == DB_END_OF_LIST)
             ATTR_MASK_UNSET(p_attrs, avgsize);
-        else if (rc != DB_SUCCESS)
-            return rc;
-        else
+        else if (rc == DB_SUCCESS)
         {
             if (str_info[0] == NULL)
             {
                 /* NULL if no entry matches the criteria */
                 ATTR_MASK_UNSET(p_attrs, avgsize);
-                return DB_SUCCESS;
-            }
-
-            tmp_long = str2bigint(str_info[0]);
-            if (tmp_long != -1LL)
-            {
-                ATTR_MASK_SET(p_attrs, avgsize);
-                ATTR( p_attrs, avgsize ) = tmp_long;
+                rc = DB_SUCCESS;
             }
             else
-                /* invalid output format */
-                return DB_REQUEST_FAILED;
+            {
+                tmp_long = str2bigint(str_info[0]);
+                if (tmp_long != -1LL)
+                {
+                    ATTR_MASK_SET(p_attrs, avgsize);
+                    ATTR( p_attrs, avgsize ) = tmp_long;
+                    rc = DB_SUCCESS;
+                }
+                else
+                    /* invalid output format */
+                    rc = DB_REQUEST_FAILED;
+            }
         }
+        db_result_free( &p_mgr->conn, &result );
     }
+
+    return rc;
 #endif
-    return DB_SUCCESS;
 }
+
+/** retrieve attributes generated using a DB function */
+int listmgr_get_funcattrs(lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info)
+{
+    char            query[1024];
+    result_handle_t result;
+    char            *str_info[1];
+    int rc = 0;
+
+    if (ATTR_MASK_TEST(p_info, fullpath))
+    {
+        sprintf( query, "SELECT one_path("DPK")", pk );
+        rc = db_exec_sql( &p_mgr->conn, query, &result );
+        if ( rc )
+            return rc;
+
+        rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
+        if (rc == DB_END_OF_LIST)
+        {
+            /* function: should return 1 value */
+            ATTR_MASK_UNSET(p_info, fullpath);
+            rc = DB_REQUEST_FAILED;
+        }
+        else if (rc == DB_SUCCESS)
+        {
+            if (str_info[0] == NULL)
+            {
+                ATTR_MASK_UNSET(p_info, fullpath);
+                rc = DB_SUCCESS;
+            }
+            else
+            {
+                snprintf(ATTR(p_info, fullpath), RBH_PATH_MAX, "%s/%s", global_config.fs_path, str_info[0]);
+                rc = DB_SUCCESS;
+            }
+        }
+        db_result_free( &p_mgr->conn, &result );
+    }
+    return rc;
+}
+
 
 /**
  *  Retrieve entry attributes from its primary key
@@ -320,6 +371,15 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattrs failed for "DPK, pk );
             p_info->attr_mask &= ~dir_attr_set;
+        }
+    }
+
+    if (funcattr_fields( p_info->attr_mask ))
+    {
+         if (listmgr_get_funcattrs(p_mgr, pk, p_info))
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_funcattrs failed for "DPK, pk );
+            p_info->attr_mask &= ~func_attr_set;
         }
     }
 
