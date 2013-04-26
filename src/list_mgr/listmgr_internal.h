@@ -40,7 +40,7 @@
 
 #else
 #ifdef FID_LEN
-#define DB_FID_LEN FID_LEN+1
+#define DB_FID_LEN FID_LEN
 #else
 #define DB_FID_LEN 128
 #endif
