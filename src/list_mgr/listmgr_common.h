@@ -264,9 +264,8 @@ static inline const char * table2name(table_enum table)
 #ifdef _HSM_LITE
         case T_RECOV: return RECOV_TABLE;
 #endif
-        default:
-            return NULL;
    }
+   return NULL;
 }
 
 typedef enum {
