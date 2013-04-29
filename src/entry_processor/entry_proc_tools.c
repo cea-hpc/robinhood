@@ -121,8 +121,6 @@ int id_constraint_register( entry_proc_op_t * p_op )
     /* compute id hash value */
     hash_index = hash_id( &p_op->entry_id, ID_HASH_SIZE );
 
-    P( id_hash[hash_index].lock );
-
     /* no constraint violation detected, register the entry */
     p_new = ( id_constraint_item_t * ) MemAlloc( sizeof( id_constraint_item_t ) );
 
@@ -130,6 +128,8 @@ int id_constraint_register( entry_proc_op_t * p_op )
 
     /* always insert in queue */
     p_new->p_next = NULL;
+
+    P( id_hash[hash_index].lock );
 
     if ( id_hash[hash_index].id_list_last )
         id_hash[hash_index].id_list_last->p_next = p_new;
