@@ -3138,7 +3138,7 @@ function test_rename
         grep -E " $o$" find.out > /dev/null || error "$o not found in report"
     done
     count_init=$(wc -l report.out | awk '{print $1}')
-    
+
     # rename entries
     echo "3. Renaming objects..."
     # 1) simple file rename
@@ -3149,6 +3149,9 @@ function test_rename
     mv -f $ROOT/dir.2/file.1 $ROOT/dir.2/file.2
     # 4) upper level directory rename
     mv $ROOT/dir.3 $ROOT/dir.3.rnm
+
+    # namespace GC needs 1s difference
+    [ "$flavor" = "scan" ] && sleep 1
 
     # readlog or re-scan
     if [ "$flavor" = "readlog" ]; then

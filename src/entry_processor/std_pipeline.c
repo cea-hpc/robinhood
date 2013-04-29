@@ -680,7 +680,11 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     {
         ATTR_MASK_SET( &p_op->fs_attrs, name );
         strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
+    }
 
+    /* consider the path as updated if both of them are updated */
+    if (!FID_IS_ZERO(&logrec->cr_pfid) && (logrec->cr_namelen > 0))
+    {
         ATTR_MASK_SET( &p_op->fs_attrs, path_update );
         ATTR(&p_op->fs_attrs, path_update) = time(NULL);
     }
@@ -896,11 +900,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             && (logrec->cr_namelen == 0))
             p_op->db_attr_need |= ATTR_MASK_path_update;
 
+#if 0 /* XXX not to be done systematically: only on specific events? (CL_LAYOUT...) */
 #ifdef _LUSTRE
         if ((type_clue == TYPE_NONE || type_clue == TYPE_FILE)
             && logrec->cr_type != CL_CREATE)
             /* to check if stripe_info is set for this entry (useless for CREATE)*/
             p_op->db_attr_need |= ATTR_MASK_stripe_info;
+#endif
 #endif
 #ifdef ATTR_INDEX_status
         p_op->db_attr_need |= ATTR_MASK_status;
@@ -1977,8 +1983,13 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         lmgr_simple_filter_init( &filter );
 
+        /* remove entries from all tables that have not been seen during the scan */
         val.value.val_uint = ATTR( &p_op->fs_attrs, md_update );
         lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN_STRICT, val, 0 );
+
+        /* use the same timestamp for cleaning paths that have not been seen during the scan */
+        val.value.val_uint = ATTR( &p_op->fs_attrs, md_update );
+        lmgr_simple_filter_add( &filter, ATTR_INDEX_path_update, LESSTHAN_STRICT, val, 0 );
 
         /* partial scan: remove non-updated entries from a subset of the namespace */
         if (ATTR_MASK_TEST( &p_op->fs_attrs, fullpath ))

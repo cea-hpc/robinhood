@@ -742,6 +742,37 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* fi
     return FILTERDIR_NONE;
 }
 
+/**
+ * build filter for stored FUNCTIONs
+ * \param str_id: filter for entry id string (eg. id, TABLE.id...)
+ * \return the number of filtered values
+ */
+int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, const char * str_id)
+{
+    int i;
+    filter_str[0] = '\0';
+
+    if ( p_filter->filter_type == FILTER_SIMPLE )
+    {
+        for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
+        {
+            unsigned int index = p_filter->filter_simple.filter_index[i];
+
+            if ( field_infos[index].flags & FUNC_ATTR )
+            {
+                if (index == ATTR_INDEX_fullpath)
+                {
+                    sprintf(filter_str, "one_path(%s)", str_id);
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+
+
 
 int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 table_enum table, int leading_and, int prefix_table )
@@ -770,6 +801,12 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
             if ( field_infos[index].flags & DIR_ATTR )
             {
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on dir attribute '%s'", field_infos[index].field_name );
+                continue;
+            }
+            else if ( field_infos[index].flags & FUNC_ATTR )
+            {
+                DisplayLog( LVL_FULL, LISTMGR_TAG, "Filtering on function return value: attribute '%s'",
+                            field_infos[index].field_name );
                 continue;
             }
             else if ( field_infos[index].flags & GENERATED )

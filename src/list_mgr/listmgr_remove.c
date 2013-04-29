@@ -83,6 +83,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
                 return rc;
         }
     }
+    /* XXX else update attributes according to attributes contents? */
 
     sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE parent_id="DPK" AND hname=sha1('%s') AND id="DPK, ppk, ATTR( p_attr_set, name ), pk );
     rc = db_exec_sql( &p_mgr->conn, request, NULL );
@@ -222,9 +223,11 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     int            rc;
     char           query[4096];
     char           filter_str[2048];
+    char           filter_str_names[1024];
     char           *curr_filter;
     int            filter_main = 0;
     int            filter_annex = 0;
+    int            filter_names = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
     char           from[1024];
@@ -303,6 +306,10 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         if ( rc )
             goto rollback;
 
+        rc = db_exec_sql( &p_mgr->conn, "DELETE FROM " DNAMES_TABLE, NULL );
+        if ( rc )
+            goto rollback;
+
         /* FIXME how many entries removed? */
         return lmgr_commit( p_mgr );
     }
@@ -311,6 +318,8 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     curr_filter = filter_str;
     filter_main = filter2str( p_mgr, curr_filter, p_filter, T_MAIN, FALSE /* no leading AND */, TRUE );
     curr_filter += strlen(curr_filter);
+
+    filter_names = filter2str( p_mgr, filter_str_names, p_filter, T_DNAMES, FALSE, FALSE );
 
     if ( annex_table )
     {
@@ -401,6 +410,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 #ifdef HAVE_RM_POLICY
     if ( soft_rm )
     {
+        /* FIXME fullpath: get all paths or one? */
         if (annex_table)
             sprintf( query,
                  "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS
@@ -510,6 +520,12 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
         /* delete all entries related to this id */
 
+        /* remove all paths to an entry if it has no longer info in ENTRIES */
+        sprintf( query, "DELETE FROM " DNAMES_TABLE " WHERE id="DPK, pk );
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( rc )
+            goto free_res;
+
         /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
         if (!direct_del_table || strcmp(direct_del_table, STRIPE_ITEMS_TABLE))
@@ -564,6 +580,16 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     if ( rc )
         goto rollback;
 
+
+    /* if there is a filter on names, clean them independantly, whatever the over filters */
+    if (filter_names)
+    {
+        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in " DNAMES_TABLE " table" );
+        sprintf( query, "DELETE FROM " DNAMES_TABLE " WHERE %s", filter_str_names );
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( rc )
+            goto rollback;
+    }
 
     rc = lmgr_commit( p_mgr );
     if (!rc)

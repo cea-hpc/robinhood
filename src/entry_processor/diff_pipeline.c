@@ -1128,7 +1128,7 @@ static int std_recover(lmgr_t * lmgr,
         goto clean_entry;
     }
 
-    rc = ListMgr_Remove(lmgr, p_id);
+    rc = ListMgr_Remove(lmgr, p_id, p_oldattr, TRUE);
     if (rc)
     {
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to remove old reference "DFID" from the database",
@@ -1139,7 +1139,7 @@ static int std_recover(lmgr_t * lmgr,
     return 0;
 
 clean_db:
-    rc = ListMgr_Remove(lmgr, &new_id);
+    rc = ListMgr_Remove(lmgr, &new_id, &new_attrs, TRUE);
     if (rc)
         DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "db cleanup: remove failed: error %d", rc);
 

@@ -308,7 +308,9 @@ typedef enum
  
 filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                         char* filter_str, unsigned int * dir_attr_index);
- 
+
+int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, const char * str_id);
+
 
 int            result2attrset( table_enum table, char **result_tab,
                                unsigned int res_count, attr_set_t * p_set );

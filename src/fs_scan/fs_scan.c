@@ -711,10 +711,8 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         /* set update time  */
         ATTR_MASK_SET( &op->fs_attrs, md_update );
         ATTR( &op->fs_attrs, md_update ) = time( NULL );
-#ifdef _HAVE_FID
         ATTR_MASK_SET( &op->fs_attrs, path_update );
         ATTR( &op->fs_attrs, path_update ) = time( NULL );
-#endif
 
         /* Set entry id */
 #ifndef _HAVE_FID
@@ -1133,10 +1131,8 @@ static void   *Thr_scan( void *arg_thread )
             /* set update time  */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
             ATTR( &op->fs_attrs, md_update ) = time( NULL );
-#ifdef _HAVE_FID
             ATTR_MASK_SET( &op->fs_attrs, path_update );
             ATTR( &op->fs_attrs, path_update ) = time( NULL );
-#endif
 
             op->extra_info_is_set = FALSE;
 

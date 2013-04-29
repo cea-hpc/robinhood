@@ -1,6 +1,7 @@
 - support ost sets in rbh_find
 - non reg test for OST sets
 - drop Lustre 2.0 support (non splitted TIME)
+- partial scan
 - ostset for commands
 
 - verifier comportement du pipeline dans le traitement des changelogs, etc...
