@@ -3093,6 +3093,91 @@ function test_completion
 }
 
 
+function test_rename
+{
+    config_file=$1
+    flavor=$2
+
+    clean_logs
+
+	if (( $no_log )) && [ "$flavor" = "readlog" ]; then
+            echo "Changelogs not supported on this config: skipped"
+            set_skipped
+            return 1
+    fi
+
+    dirs="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3"
+    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.3/file.1"
+
+    dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3.rnm"
+    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2 $ROOT/dir.3.rnm/file.1"
+
+    # create several files/dirs
+    echo "1. Creating initial objects..."
+    mkdir $dirs || error "mkdir"
+    touch $files || error "touch"
+
+    # readlog or scan
+    if [ "$flavor" = "readlog" ]; then
+        echo "2. Reading changelogs..."
+    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    else
+        echo "2. Scanning initial state..."
+    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    fi
+
+    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    [ "$DEBUG" = "1" ] && cat report.out
+
+    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    [ "$DEBUG" = "1" ] && cat find.out
+
+    # checking all objects in reports
+    for o in $dirs $files; do
+        grep -E " $o$" report.out > /dev/null || error "$o not found in report"
+        grep -E " $o$" find.out > /dev/null || error "$o not found in report"
+    done
+    count_init=$(wc -l report.out | awk '{print $1}')
+    
+    # rename entries
+    echo "3. Renaming objects..."
+    # 1) simple file rename
+    mv $ROOT/dir.1/file.1 $ROOT/dir.1/file.1.rnm
+    # 2) cross directory file rename
+    mv $ROOT/dir.1/file.2 $ROOT/dir.2/file.2.rnm
+    # 3) rename that deletes the target
+    mv -f $ROOT/dir.2/file.1 $ROOT/dir.2/file.2
+    # 4) upper level directory rename
+    mv $ROOT/dir.3 $ROOT/dir.3.rnm
+
+    # readlog or re-scan
+    if [ "$flavor" = "readlog" ]; then
+        echo "4. Reading changelogs..."
+    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    else
+        echo "4. Scanning again..."
+    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    fi
+
+    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    [ "$DEBUG" = "1" ] && cat report.out
+
+    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    [ "$DEBUG" = "1" ] && cat find.out
+
+    # checking all objects in reports
+    for o in $dirs_tgt $files_tgt; do
+        grep -E " $o$" report.out > /dev/null || error "$o not found in report"
+        grep -E " $o$" find.out > /dev/null || error "$o not found in report"
+    done
+    count_final=$(wc -l report.out | awk '{print $1}')
+    (( $count_final == $count_init - 1)) || error "One entry should have been removed (rename target)"
+
+    rm -f report.out find.out
+
+}
+
+
 function test_pools
 {
 	config_file=$1
@@ -6886,6 +6971,8 @@ run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/
 run_test 106     test_diff info_collect2.conf "rbh-diff"
 run_test 107a    test_completion test_completion.conf OK "scan completion command"
 run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion command"
+run_test 108a    test_rename info_collect.conf scan "rename cases (scan)"
+run_test 108b    test_rename info_collect.conf readlog "rename cases (readlog)"
 
 #### policy matching tests  ####
 
