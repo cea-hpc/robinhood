@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * Implementation of pipeline management 
+ * Implementation of pipeline management
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -440,7 +440,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     /* change entry count */
     pipeline[source_stage_index].nb_processed_entries -= count;
 
-    /* by default, insert stage is pipeline_stage_min 
+    /* by default, insert stage is pipeline_stage_min
      * except if there is a non empty stage before
      */
     insert_stage = pipeline_stage_min;
@@ -546,7 +546,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
 
 /**
  * Return an entry to be processed.
- * This entry is tagged "being_processed" and stage info is updated. 
+ * This entry is tagged "being_processed" and stage info is updated.
  * @param p_empty Output Boolean. In the case no entry is returned,
  *        this indicates if it is because the pipeline is empty.
  */
@@ -579,7 +579,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
         {
             /*
              * If there is already an operation being processed,
-             * nothing can be done at this stage. 
+             * nothing can be done at this stage.
              */
             if ( pipeline[i].nb_threads != 0 )
             {

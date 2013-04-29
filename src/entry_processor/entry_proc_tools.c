@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * Misc tools for managing entry processor pipeline 
+ * Misc tools for managing entry processor pipeline
  */
 
 #ifdef HAVE_CONFIG_H
@@ -112,14 +112,14 @@ int id_constraint_init(  )
  */
 int id_constraint_register( entry_proc_op_t * p_op )
 {
-    unsigned int   hash_index;
     id_constraint_item_t *p_new;
+    id_constraint_slot_t *slot;
 
     if ( !p_op->entry_id_is_set )
         return ID_MISSING;
 
     /* compute id hash value */
-    hash_index = hash_id( &p_op->entry_id, ID_HASH_SIZE );
+    slot = &id_hash[hash_id( &p_op->entry_id, ID_HASH_SIZE )];
 
     /* no constraint violation detected, register the entry */
     p_new = ( id_constraint_item_t * ) MemAlloc( sizeof( id_constraint_item_t ) );
@@ -129,19 +129,19 @@ int id_constraint_register( entry_proc_op_t * p_op )
     /* always insert in queue */
     p_new->p_next = NULL;
 
-    P( id_hash[hash_index].lock );
+    P( slot->lock );
 
-    if ( id_hash[hash_index].id_list_last )
-        id_hash[hash_index].id_list_last->p_next = p_new;
+    if ( slot->id_list_last )
+        slot->id_list_last->p_next = p_new;
     else
-        id_hash[hash_index].id_list_first = p_new;
+        slot->id_list_first = p_new;
 
-    id_hash[hash_index].id_list_last = p_new;
-    id_hash[hash_index].count++;
+    slot->id_list_last = p_new;
+    slot->count++;
 
     p_op->id_is_referenced = TRUE;
 
-    V( id_hash[hash_index].lock );
+    V( slot->lock );
     return ID_OK;
 
 }
@@ -151,20 +151,19 @@ int id_constraint_register( entry_proc_op_t * p_op )
  * Get the first operation for a given id.
  * @return an operation to be processed when it is possible.
  *         NULL else. 
- *        
  */
 entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 {
-    unsigned int   hash_index;
     id_constraint_item_t *p_curr;
     entry_proc_op_t *p_op = NULL;
+    id_constraint_slot_t *slot;
 
     /* compute id hash value */
-    hash_index = hash_id( p_id, ID_HASH_SIZE );
+    slot = &id_hash[hash_id( p_id, ID_HASH_SIZE )];
 
-    P( id_hash[hash_index].lock );
+    P( slot->lock );
 
-    for ( p_curr = id_hash[hash_index].id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
+    for ( p_curr = slot->id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
     {
         if ( entry_id_equal( p_id, &p_curr->op_ptr->entry_id ) )
         {
@@ -181,11 +180,11 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 
         printf( "no registered operation on "DFID"?\n", PFID(p_id));
         printf( "etat de la file %u:\n", hash_index );
-        for ( p_curr = id_hash[hash_index].id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
+        for ( p_curr = slot->id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
             printf( DFID"\n", PFID(&p_curr->op_ptr->entry_id) );
     }
 #endif
-    V( id_hash[hash_index].lock );
+    V( slot->lock );
     return p_op;
 
 }
@@ -199,6 +198,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
     unsigned int   hash_index;
     id_constraint_item_t *p_curr;
     id_constraint_item_t *p_prev;
+    id_constraint_slot_t *slot;
 
     if ( !p_op->entry_id_is_set )
         return ID_MISSING;
@@ -208,30 +208,31 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 
     /* compute id hash value */
     hash_index = hash_id( &p_op->entry_id, ID_HASH_SIZE );
+    slot = &id_hash[hash_index];
 
     /* check if the entry id exists and is a stage >= pipeline_stage */
-    P( id_hash[hash_index].lock );
+    P( slot->lock );
 
-    for ( p_curr = id_hash[hash_index].id_list_first, p_prev = NULL;
+    for ( p_curr = slot->id_list_first, p_prev = NULL;
           p_curr != NULL; p_prev = p_curr, p_curr = p_curr->p_next )
     {
         if ( p_curr->op_ptr == p_op )
         {
             /* found */
             if ( p_prev == NULL )
-                id_hash[hash_index].id_list_first = p_curr->p_next;
+                slot->id_list_first = p_curr->p_next;
             else
                 p_prev->p_next = p_curr->p_next;
 
             /* was it the last ? */
-            if ( id_hash[hash_index].id_list_last == p_curr )
-                id_hash[hash_index].id_list_last = p_prev;
+            if ( slot->id_list_last == p_curr )
+                slot->id_list_last = p_prev;
 
             p_curr->op_ptr->id_is_referenced = FALSE;
 
-            id_hash[hash_index].count--;
+            slot->count--;
 
-            V( id_hash[hash_index].lock );
+            V( slot->lock );
 
             /* free the slot */
             MemFree( p_curr );
@@ -240,7 +241,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
         }
     }
 
-    V( id_hash[hash_index].lock );
+    V( slot->lock );
 #ifdef _HAVE_FID
     DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
                 "id_constraint_unregister: op not found (list %u): id [%llu, %u] record %u",
@@ -262,17 +263,18 @@ void id_constraint_dump(  )
     double         avg;
 
     total = 0;
-    min = id_hash[0].count;
-    max = id_hash[0].count;
+    min = max = id_hash[0].count;
 
     for ( i = 0; i < ID_HASH_SIZE; i++ )
     {
-        total += id_hash[i].count;
+        const id_constraint_slot_t *slot = &id_hash[i];
 
-        if ( id_hash[i].count < min )
-            min = id_hash[i].count;
-        if ( id_hash[i].count > max )
-            max = id_hash[i].count;
+        total += slot->count;
+
+        if ( slot->count < min )
+            min = slot->count;
+        if ( slot->count > max )
+            max = slot->count;
     }
 
     avg = ( double ) total / ( 0.0 + ID_HASH_SIZE );
@@ -289,9 +291,11 @@ void id_constraint_dump(  )
 
         for ( i = 0; i < ID_HASH_SIZE; i++ )
         {
-            if ( id_hash[i].count == min )
+            const id_constraint_slot_t *slot = &id_hash[i];
+
+            if ( slot->count == min )
                 nb_min++;
-            else if ( id_hash[i].count == max )
+            else if ( slot->count == max )
                 nb_max++;
         }
         DisplayLog( LVL_MAJOR, "DebugHash", "nb slots with min/max count: %u/%u (total=%u)", nb_min,
