@@ -90,13 +90,26 @@ static int lmgr_gen_depth( void * tgt, const void * src )
 # /!\ Entry attribute type must fit with DB type
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS, ANNEX_INFO, DIR_ATTR, SLINK_ATTR, FUNC_ATTR)
 
+# path information
 parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED | DNAMES
+name,		char, DB_TEXT, RBH_NAME_MAX, FREQ_ACCESS | DNAMES
+path_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS | DNAMES
+
+# built from NAMES table
+fullpath,	char, DB_TEXT, RBH_PATH_MAX, FUNC_ATTR
+
+#generated from fullpath
+depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
+
+# directory meta-attributes
 dircount, 	    unsigned int,  DB_UINT,        0, DIR_ATTR, type, NULL
 avgsize, 	    uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 
+# stripe info
 stripe_info, 	stripe_info_t, DB_STRIPE_INFO, 0, INIT_ONLY
 stripe_items, stripe_items_t, DB_STRIPE_ITEMS, 0, INIT_ONLY
-name,		char, DB_TEXT, RBH_NAME_MAX, FREQ_ACCESS | DNAMES
+
+# info in main table
 owner, 	char, DB_TEXT, 128, FREQ_ACCESS
 gr_name, 	char, DB_TEXT, 128, FREQ_ACCESS
 size, 	uint64_t, DB_BIGUINT, 0, FREQ_ACCESS
@@ -108,7 +121,6 @@ type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
 mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
 nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
 md_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
-path_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
 invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
 
 # file classes and last update
@@ -117,8 +129,3 @@ rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
 # link content in annex info
 link, char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
-
-#generated fields
-# built from NAMES table
-fullpath,	char, DB_TEXT, RBH_PATH_MAX, FUNC_ATTR
-depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth

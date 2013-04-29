@@ -149,15 +149,9 @@ static int shook_special_obj( struct entry_proc_op_t *p_op )
         }
     }
 
-    /* set name from path */
-    if (ATTR_MASK_TEST(&p_op->db_attrs, fullpath))
-        ListMgr_GenerateFields( &p_op->db_attrs, ATTR_MASK_name );
-    if (ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
-        ListMgr_GenerateFields( &p_op->fs_attrs, ATTR_MASK_name );
-
     /* also match '.shook' directory */
     if (p_op && ATTR_FSorDB_TEST( p_op, name )
-        && ATTR_FSorDB_TEST( p_op, type))
+        && ATTR_FSorDB_TEST( p_op, type ))
     {
         if ( !strcmp(STR_TYPE_DIR, ATTR_FSorDB(p_op, type)) &&
              !strcmp(SHOOK_DIR, ATTR_FSorDB(p_op, name)) )
@@ -194,18 +188,32 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #ifdef _HAVE_FID
     int            rc;
     entry_id_t     tmp_id;
+    char buff[RBH_PATH_MAX];
+    char * path;
 
-    if ( !ATTR_MASK_TEST( &p_op->fs_attrs, fullpath ) )
+    /* 2 possible options: get fid using parent_fid/name or from fullpath */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, parent_id)
+        && ATTR_MASK_TEST(&p_op->fs_attrs, name))
+    {
+        BuildFidPath( &ATTR(&p_op->fs_attrs, parent_id), buff );
+        long len = strlen(buff);
+        sprintf(buff+len, "/%s", ATTR(&p_op->fs_attrs, name));
+        path = buff;
+    }
+    else if (ATTR_MASK_TEST( &p_op->fs_attrs, fullpath))
+    {
+        path = ATTR(&p_op->fs_attrs, fullpath);
+    }
+    else
     {
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                    "Error: entry full path is expected to be set"
-                    " in STAGE_GET_FID stage" );
+                    "Error: not enough information to get fid: parent_id/name or fullpath needed");
         EntryProcessor_Acknowledge( p_op, -1, TRUE );
         return EINVAL;
     }
 
     /* perform path2fid */
-    rc = Lustre_GetFidFromPath( ATTR( &p_op->fs_attrs, fullpath ), &tmp_id );
+    rc = Lustre_GetFidFromPath( path, &tmp_id );
     if ( rc )
     {
         /* remove the operation from pipeline */
@@ -301,12 +309,26 @@ static obj_type_t cl2type_clue(CL_REC_TYPE *logrec)
     }
 }
 
+/** displays a warning if parent/name is missing whereas it should not */
+static inline void check_path_info(struct entry_proc_op_t *p_op, const char *recname)
+{
+    /* name and parent should have been provided by the CREATE changelog record */
+    if (!ATTR_MASK_TEST(&p_op->fs_attrs, parent_id)
+        || !ATTR_MASK_TEST(&p_op->fs_attrs, name))
+    {
+        DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "WARNING: name and parent should be set by %s record",
+                   recname);
+        p_op->fs_attr_need |= ATTR_MASK_fullpath
+                              | ATTR_MASK_name
+                              | ATTR_MASK_parent_id;
+    }
+}
+
 /**
  * Infer information from the changelog record (status, ...).
  * \return next pipeline step to be perfomed.
  */
-static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
-                                     int allow_md_updt, int allow_path_updt )
+static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_updt )
 {
     /* alias to the log record */
     CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
@@ -314,24 +336,23 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
     /* if this is a CREATE record, we know that its status is NEW. */
     if ( logrec->cr_type == CL_CREATE )
     {
-        /* not a link */
+        /* not a symlink */
         p_op->fs_attr_need &= ~ATTR_MASK_link;
 
         /* Sanity check: if the entry already exists in DB,
-         * it could come from a previous filesystem that has been formatted.
+         * it could come from a previous filesystem that has been reformatted.
          * In this case, force a full update of the entry.
          */
         if ( p_op->db_exists )
         {
-            if ( ATTR_MASK_TEST( &p_op->db_attrs, fullpath ) )
-                DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                            "CREATE record on already existing entry fid="
-                            DFID", path=%s. This is normal if you scanned it previously.", PFID(&p_op->entry_id),
-                            ATTR( &p_op->db_attrs, fullpath ) );
-            else
-                DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                            "CREATE record on already existing entry fid="
-                            DFID". This is normal if you scanned it previously.", PFID(&p_op->entry_id) );
+                DisplayLog( LVL_EVENT, ENTRYPROC_TAG,
+                            "CREATE record on already existing entry "DFID"%s%s."
+                            " This is normal if you scanned it previously.",
+                            PFID(&p_op->entry_id),
+                            ATTR_MASK_TEST(&p_op->db_attrs, fullpath)?  ", path=":
+                                (ATTR_MASK_TEST(&p_op->db_attrs, name)?", name=":""),
+                            ATTR_MASK_TEST(&p_op->db_attrs, fullpath)? ATTR(&p_op->db_attrs, fullpath):
+                                (ATTR_MASK_TEST(&p_op->db_attrs, name)?ATTR(&p_op->db_attrs,name):""));
 
 #ifdef ATTR_INDEX_creation_time
             /* set insertion time, like for a new entry */
@@ -341,9 +362,9 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
 #endif
 
             /* force updating attributes */
-            p_op->fs_attr_need |= ATTR_MASK_fullpath |
-                                  POSIX_ATTR_MASK |
-                                  ATTR_MASK_stripe_info;
+            p_op->fs_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_stripe_info;
+            /* name and parent should have been provided by the CREATE changelog record */
+            check_path_info(p_op, "CREATE");
 #ifdef ATTR_INDEX_status
             p_op->fs_attr_need |= ATTR_MASK_status;
 #endif
@@ -379,9 +400,11 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
 #endif
     }
     else if ( logrec->cr_type == CL_HARDLINK ) {
-            /* The entry exists but not the name. We only have to
-             * create the name. */
-        p_op->fs_attr_need |= ATTR_MASK_name;        
+        /* The entry exists but not the name. We only have to
+         * create the name. */
+
+        /* name and parent should have been provided by the HARDLINK changelog record */
+        check_path_info(p_op, "HARDLINK");
     }
 #ifdef HAVE_SHOOK
     /* shook specific: xattrs on file indicate its current status */
@@ -408,6 +431,8 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
 #ifdef ATTR_INDEX_status
         p_op->fs_attr_need &= ~ATTR_MASK_status; /* no status for directories (XXX all modes?) */
 #endif
+        /* path info should be set */
+        check_path_info(p_op, changelog_type2str(logrec->cr_type));
     }
     else if (logrec->cr_type == CL_SOFTLINK)
     {
@@ -546,9 +571,8 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
 #endif
     else if (logrec->cr_type == CL_UNLINK)
     {
-        /* in any case, update the path because the stored path
-         * may be the removed one. */
-        p_op->fs_attr_need |= ATTR_MASK_fullpath | ATTR_MASK_name;
+        /* name and parent should have been provided by the UNLINK changelog record */
+        check_path_info(p_op, "UNLINK");
     }
     else if ( CL_MOD_TIME(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) ||
               (logrec->cr_type == CL_CLOSE))
@@ -591,59 +615,21 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
     /* if the entry is already in DB, try to determine if something changed */
     if ( p_op->db_exists )
     {
-        /* compare to the name in changelog */
-        if ( allow_path_updt && (logrec->cr_namelen > 0) )
-        {
-            /* if name is set, compare to name */
-            if ( ATTR_MASK_TEST( &p_op->db_attrs, name ) )
-            {
-                if ( strcmp(logrec->cr_name, ATTR( &p_op->db_attrs, name )) )
-                {
-                    p_op->fs_attr_need |= ATTR_MASK_fullpath;
-                    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                             "Getpath needed because name changed: '%s'->'%s'",
-                             ATTR( &p_op->db_attrs, name ), logrec->cr_name );
-
 #ifdef HAVE_SHOOK
-                    /* if the old name is a restripe file, also update the status */
-                    if (!strncmp(RESTRIPE_TGT_PREFIX, ATTR( &p_op->db_attrs, name ),
-                                 strlen(RESTRIPE_TGT_PREFIX)))
-                    {
-                        p_op->fs_attr_need |= ATTR_MASK_status;
-                        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                                    "Getstatus needed because rename source is a restripe target");
-                    }
-#endif
-                }
-            }
-            else if ( ATTR_MASK_TEST( &p_op->db_attrs, fullpath ) )
-            {
-                /* else, compare using full path */
-                char * basename;
-                basename = strrchr( ATTR( &p_op->db_attrs, fullpath ), '/' );
-                 if ( basename )
-                 {
-                    basename++;
-                    if ( strcmp( basename, logrec->cr_name ) )
-                    {
-                        p_op->fs_attr_need |= ATTR_MASK_fullpath;
-                        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                                    "Getpath needed because name from log record "
-                                    "(%s) doesn't match fullpath '%s'",
-                                    logrec->cr_name ,
-                                    ATTR( &p_op->db_attrs, fullpath ) );
-                    }
-                 }
-            }
-        }
-
-        /* in case of a rename, refresh the full path (after rename => rnm to only CL_EXT)*/
-        if ( allow_path_updt && (logrec->cr_type == CL_EXT) )
+        /* if the old name is a restripe file, update the status */
+        if (!strncmp(RESTRIPE_TGT_PREFIX, ATTR( &p_op->db_attrs, name ),
+                     strlen(RESTRIPE_TGT_PREFIX)))
         {
-            /* file was renamed */
-            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Getpath needed because it's "
-                        "a rename operation" );
-            p_op->fs_attr_need |= ATTR_MASK_fullpath;
+            p_op->fs_attr_need |= ATTR_MASK_status;
+            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                        "Getstatus needed because entry was a restripe target");
+        }
+#endif
+
+        if (logrec->cr_type == CL_EXT)
+        {
+            /* in case of a rename, the path info must be set */
+            check_path_info(p_op, "RENAME");
         }
 
         /* get the new attributes, in case of a SATTR, HSM... */
@@ -681,15 +667,22 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 
     /* allow event-driven update */
     int md_allow_event_updt = TRUE;
-    int path_allow_event_updt = TRUE;
 
-    /* TODO RMDIR */
-
-    /* is there parent_id in log rec ? */
-    if ( logrec->cr_namelen > 0 )
+    /* is there parent_id in log rec? */
+    if (!FID_IS_ZERO(&logrec->cr_pfid))
     {
         ATTR_MASK_SET( &p_op->fs_attrs, parent_id );
         ATTR( &p_op->fs_attrs, parent_id ) = logrec->cr_pfid;
+    }
+
+    /* is there entry name in log rec? */
+    if ( logrec->cr_namelen > 0 )
+    {
+        ATTR_MASK_SET( &p_op->fs_attrs, name );
+        strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
+
+        ATTR_MASK_SET( &p_op->fs_attrs, path_update );
+        ATTR(&p_op->fs_attrs, path_update) = time(NULL);
     }
 
     if ( logrec->cr_type == CL_UNLINK )
@@ -705,12 +698,6 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                     p_op->db_exists?"known":"unknown", PFID(&p_op->entry_id),
                     bool2str( logrec->cr_flags & CLF_UNLINK_LAST ) );
 #endif
-
-        /* Retrieve the name now, since we'll skip info retrieval
-         * later. */
-        p_op->fs_attr_need |= ATTR_MASK_name;
-        ATTR_MASK_SET( &p_op->fs_attrs, name );
-        strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
 
         /* it it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
@@ -737,17 +724,23 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             {
                 /* If the entry exists in DB, this moves it from main table
                  * to a remove queue, else, just insert it to remove queue. */
-
                 if (soft_remove_filter(p_op))
                     p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
                 else
-                    p_op->db_op_type = OP_TYPE_REMOVE;
+                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
                 return STAGE_DB_APPLY;
             }
 #endif
         }
         else if ( p_op->db_exists ) /* entry still exists and is known in DB */
         {
+            /* FIXME in Lustre2.2, CLF_UNLINK_LAST is not properly set in
+             * the changelog record when rename overwrites the target.
+             * In this case, we need to check if entry still exists.
+             * Maybe we should go to GET_INFO_FS step to determine
+             * if REMOVE_ONE or REMOVE_LAST must be perfomed.
+             */
+
             /* Remove the name only. Keep the inode information since
              * there is more file names refering to it. */
             p_op->db_op_type = OP_TYPE_REMOVE_ONE;
@@ -756,9 +749,31 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         /* else: is handled in the next part of the function */
 
     } /* end if UNLINK */
+    else if ( logrec->cr_type == CL_RENAME)
+    {
+        /* this is a source name event */
+        /* remove only the old name */
+        p_op->db_op_type = OP_TYPE_REMOVE_ONE;
+        return STAGE_DB_APPLY;
+    }
+    else if ( logrec->cr_type == CL_RMDIR )
+    {
+        if (p_op->db_exists)
+        {
+            p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+            return STAGE_DB_APPLY;
+        }
+        else
+        {
+            /* ignore the record */
+            return STAGE_CHGLOG_CLR;
+        }
+    } /* end if RMDIR */
 
     if ( !p_op->db_exists )
     {
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID"not in DB: INSERT", PFID(&p_op->entry_id));
+
         /* non-unlink (or non-destructive unlink) record on unknown entry:
          * insert entry to the DB */
         p_op->db_op_type = OP_TYPE_INSERT;
@@ -770,9 +785,9 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 #endif
 
         /* we must get info that is not provided by the chglog */
-        p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_name
-                           | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
-                           | ATTR_MASK_link;
+        p_op->fs_attr_need |= (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
+                               | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
+                               | ATTR_MASK_link) & ~ p_op->fs_attrs.attr_mask;
 #ifdef ATTR_INDEX_status
         /* By default, get status for a new record.
          * This is overwritten by EntryProc_FillFromLogRec if the status
@@ -782,54 +797,48 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     }
     else /* non-unlink record on known entry */
     {
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID": UPDATE", PFID(&p_op->entry_id));
+
         p_op->db_op_type = OP_TYPE_UPDATE;
 
-        /* check what information must be updated */
-        if (!p_op->db_attrs.attr_mask)
-        {
-            /* we know nothing about it... */
-            p_op->fs_attr_need |=   POSIX_ATTR_MASK | ATTR_MASK_name
-                               | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
-                               | ATTR_MASK_link;
-#ifdef ATTR_INDEX_status
-            p_op->fs_attr_need |= ATTR_MASK_status;
-#endif
-        }
-        else
-        {
-            /* get stripe info if missing (file only) */
-            if (!ATTR_FSorDB_TEST(p_op, stripe_info)
-                && (!ATTR_FSorDB_TEST(p_op, type)
-                    || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)))
-            {
-                p_op->fs_attr_need |= ATTR_MASK_stripe_info
-                                      | ATTR_MASK_stripe_items;
-            }
+        /* check what information must be updated.
+         * missing info = DB query - retrieved */
+        int db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
 
-            /* get link content if missing (symlink only) */
-            if (!ATTR_FSorDB_TEST(p_op, link)
-                && (!ATTR_FSorDB_TEST(p_op, type)
-                    || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK)))
+        /* get attrs if some is missing */
+        if ((db_missing & POSIX_ATTR_MASK) &&
+            (p_op->fs_attrs.attr_mask & POSIX_ATTR_MASK) != POSIX_ATTR_MASK)
+            p_op->fs_attr_need |= POSIX_ATTR_MASK;
+
+        /* get stripe info if missing (file only) */
+        if ((db_missing & ATTR_MASK_stripe_info) && !ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
+            && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)))
+        {
+            p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+        }
+
+        /* get link content if missing (symlink only) */
+        if ((db_missing & ATTR_MASK_link) && !ATTR_MASK_TEST(&p_op->fs_attrs, link)
+            && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK)))
                 p_op->fs_attr_need |= ATTR_MASK_link;
 
 #ifdef ATTR_INDEX_status
-            if (!ATTR_FSorDB_TEST(p_op, status))
-                p_op->fs_attr_need |= ATTR_MASK_status;
+        if ((db_missing & ATTR_MASK_status) && !ATTR_MASK_TEST(&p_op->fs_attrs, status))
+            p_op->fs_attr_need |= ATTR_MASK_status;
 #endif
 
-            /* Check md_update policy */
-            if (need_md_update(&p_op->db_attrs, &md_allow_event_updt))
-                p_op->fs_attr_need |= POSIX_ATTR_MASK;
-
-            /* check if path update is needed */
-            if (need_path_update(&p_op->db_attrs, &path_allow_event_updt))
-                p_op->fs_attr_need |= ATTR_MASK_fullpath;
-        }
+        /* Check md_update policy */
+        if (need_md_update(&p_op->db_attrs, &md_allow_event_updt))
+            p_op->fs_attr_need |= POSIX_ATTR_MASK;
+        /* check if path update is needed (only if it was not just updated) */
+        if ((!ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) || !ATTR_MASK_TEST(&p_op->fs_attrs, name))
+            && need_path_update(&p_op->db_attrs, NULL))
+            p_op->fs_attr_need |= ATTR_MASK_fullpath | ATTR_MASK_name
+                                  | ATTR_MASK_parent_id;
     }
 
     /* infer info from changelog record, then continue to next step */
-    return EntryProc_FillFromLogRec( p_op, md_allow_event_updt,
-                                     path_allow_event_updt );
+    return EntryProc_FillFromLogRec( p_op, md_allow_event_updt );
 }
 #endif /* CHANGELOG support */
 
@@ -862,24 +871,35 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* does the log record gives a clue about entry_type */
         type_clue = cl2type_clue(logrec);
 
-        /* what we need to get about this entry */
-        p_op->db_attr_need = ATTR_MASK_fullpath | ATTR_MASK_name
-                             | ATTR_MASK_type;
+        p_op->db_attr_need = 0;
 
-        /* add diff attrs for diff mode */
+        if (type_clue == TYPE_NONE)
+            /* type is a usefull information to take decisions (about getstripe, readlink, ...) */
+            p_op->db_attr_need |= ATTR_MASK_type;
+
+        /* add diff mask for diff mode */
         p_op->db_attr_need |= entry_proc_conf.diff_mask;
 
-        /* Only need to get md_update and path_update
-         * if the update policy != always */
-        /* retrieve last update time, if needed */
-        if (policies.updt_policy.path.policy != UPDT_ALWAYS)
-            p_op->db_attr_need |= ATTR_MASK_path_update;
+#ifdef HAVE_SHOOK
+        /* needed to check special objects, ... */
+        p_op->db_attr_need = ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id;
+#endif
+
+        /* Only need to get md_update if the update policy != always */
         if (policies.updt_policy.md.policy != UPDT_ALWAYS)
             p_op->db_attr_need |= ATTR_MASK_md_update;
 
+        /* Only need to get path_update if the update policy != always
+         * and if it is not provided in logrec
+         */
+        if ((policies.updt_policy.path.policy != UPDT_ALWAYS)
+            && (logrec->cr_namelen == 0))
+            p_op->db_attr_need |= ATTR_MASK_path_update;
+
 #ifdef _LUSTRE
-        if (type_clue == TYPE_NONE || type_clue == TYPE_FILE)
-            /* to check if stripe_info is set for this entry */
+        if ((type_clue == TYPE_NONE || type_clue == TYPE_FILE)
+            && logrec->cr_type != CL_CREATE)
+            /* to check if stripe_info is set for this entry (useless for CREATE)*/
             p_op->db_attr_need |= ATTR_MASK_stripe_info;
 #endif
 #ifdef ATTR_INDEX_status
@@ -1362,7 +1382,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             if ( ERR_MISSING(rc) )
             {
-                DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore", path );
+                DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s no longer exists", path );
                 /* schedule rm in the backend, if enabled */
                 if ((!p_op->db_exists)
 #ifdef HAVE_RM_POLICY
@@ -1393,17 +1413,22 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     if (NEED_GETPATH(p_op))
     {
-        /* get entry path (only for log records) */
-        if ( p_op->extra_info.is_changelog_record )
+        /* the log record did not provide name information and the path is needed:
+         * get parent_id and name (FIXME, just retrieve one for now).
+         */
+        rc = Lustre_GetNameParent(path, 0, &ATTR(&p_op->fs_attrs, parent_id),
+                                  ATTR(&p_op->fs_attrs, name), RBH_NAME_MAX);
+        if (rc == 0)
         {
-            CL_REC_TYPE * logrec = p_op->extra_info.log_record.p_log_rec;
-
-            /* FZ TODO - there was an HSM file removal here. It is
-             * correct now ? */
-            strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
-            ATTR_MASK_SET( &p_op->fs_attrs, name );
-            ATTR_MASK_SET( &p_op->fs_attrs, path_update );
-            ATTR( &p_op->fs_attrs, path_update ) = time( NULL );
+            ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
+            ATTR_MASK_SET(&p_op->fs_attrs, name);
+            ATTR_MASK_SET(&p_op->fs_attrs, path_update);
+            ATTR(&p_op->fs_attrs, path_update) = time(NULL);
+        }
+        else if (!ERR_MISSING(-rc))
+        {
+            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to get parent+name for "DFID": %s",
+                       PFID(&p_op->entry_id), strerror(-rc));
         }
     } /* getpath needed */
 #endif
@@ -1491,7 +1516,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
         if ( ERR_MISSING( abs( rc )) )
         {
-            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore",
+            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s no longer exists",
                         path );
             /* changelog: an UNLINK event will be raised, so we ignore current record
              * scan: entry will be garbage collected at the end of the scan */
@@ -1552,6 +1577,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     } /* get_status needed */
 #endif
+
+    /* readlink only for symlinks */
+    if ( NEED_READLINK(p_op) && ATTR_FSorDB_TEST( p_op, type )
+         && strcmp( ATTR_FSorDB( p_op, type), STR_TYPE_LINK ) != 0 )
+        p_op->fs_attr_need &= ~ATTR_MASK_link;
 
     if (NEED_READLINK(p_op))
     {
@@ -1614,10 +1644,17 @@ rm_record:
      * or not in DB.
      */
     if (!soft_remove_filter(p_op))
-        /* TODO: apparently we can get there with rmdir. Use
-         * OP_TYPE_REMOVE_LAST instead of OP_TYPE_REMOVE_ONE. But that
-         * choice might be buggy. */
+#ifdef _HAVE_FID
+        /* Lustre2: we are here because lstat (by fid) on the entry failed,
+         * which ensure the entry no longer exists. => REMOVE LAST.
+         */
         p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+#else
+        /* on other posix filesystems, the entry disappered between its
+         * scanning and its processing... skip it so it we be cleaned
+         * at the end of the scan. */
+        goto skip_record;
+#endif
     else if ( p_op->db_exists )
         p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
     else
@@ -1737,7 +1774,8 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
          */ 
 #ifdef _HAVE_FID
         if ((policies.updt_policy.path.policy == UPDT_ALWAYS)
-            && !ATTR_MASK_TEST( &p_op->fs_attrs, fullpath))
+            && !ATTR_MASK_TEST( &p_op->fs_attrs, parent_id)
+            && !ATTR_MASK_TEST( &p_op->fs_attrs, name))
             ATTR_MASK_UNSET(&p_op->fs_attrs, path_update);
 #endif
 
@@ -1808,27 +1846,19 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = 0;
         break;
     case OP_TYPE_INSERT:
-#ifdef _HAVE_FID
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Insert("DFID")", PFID(&p_op->entry_id) );
-#endif
         rc = ListMgr_Insert( lmgr, &p_op->entry_id, &p_op->fs_attrs, FALSE );
         break;
     case OP_TYPE_UPDATE:
-#ifdef _HAVE_FID
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Update("DFID")", PFID(&p_op->entry_id) );
-#endif
         rc = ListMgr_Update( lmgr, &p_op->entry_id, &p_op->fs_attrs );
         break;
     case OP_TYPE_REMOVE_ONE:
-#ifdef _HAVE_FID
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
-#endif
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "RemoveOne("DFID")", PFID(&p_op->entry_id) );
         rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, FALSE );
         break;
     case OP_TYPE_REMOVE_LAST:
-#ifdef _HAVE_FID
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
-#endif
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "RemoveLast("DFID")", PFID(&p_op->entry_id) );
         rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
         break;
     case OP_TYPE_SOFT_REMOVE:

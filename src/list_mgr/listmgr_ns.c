@@ -103,8 +103,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     char fieldlist_annex[1024] = "";
     char filter_str_main[1024] = "";
     char filter_str_annex[1024] = "";
-#define TMPBUFSZ 2048
-    char tmp[TMPBUFSZ];
+    char tmp[RBH_PATH_MAX];
     char * pc;
     int rc, i;
 
@@ -114,6 +113,9 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
      * try not to mess up the code. */
     if (parent_count != 1)
         abort();
+
+    /* always request for name to build fullpath in wagon */
+    attr_mask |= ATTR_MASK_name;
 
     /* request is always on the MAIN table (which contains [parent_id, id] relationship */
 
@@ -185,7 +187,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
         if (child_attr_list)
             *child_attr_list = NULL;
     }
-    pc = parent_cond(p_mgr, tmp, TMPBUFSZ, parent_list, parent_count, DNAMES_TABLE".");
+    pc = parent_cond(p_mgr, tmp, RBH_PATH_MAX, parent_list, parent_count, DNAMES_TABLE".");
     if (!pc)
         return DB_BUFFER_TOO_SMALL;
 
@@ -295,13 +297,10 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 
             generate_fields(&((*child_attr_list)[i]));
 
-            {
-                char tmppath[RBH_PATH_MAX];
-
-                snprintf(tmppath, sizeof(tmppath), "%s/%s", parent_list[0].fullname, (*child_attr_list)[i].attr_values.name);
-                tmppath[sizeof(tmppath)-1] = 0;
-                (*child_id_list)[i].fullname = strdup(tmppath);
-            }
+            snprintf(tmp, sizeof(tmp), "%s/%s", parent_list[0].fullname,
+                     (*child_attr_list)[i].attr_values.name);
+            tmp[sizeof(tmp)-1] = 0;
+            (*child_id_list)[i].fullname = strdup(tmp);
         }
     }
 

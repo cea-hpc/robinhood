@@ -492,7 +492,9 @@ static int set_default_update_policy( updt_policy_t *policy, char *msg_out )
 {
     policy->md.policy = UPDT_ALWAYS;
 #ifdef _HAVE_FID
-    policy->path.policy = UPDT_ALWAYS;
+    policy->path.policy = UPDT_ON_EVENT_PERIODIC;
+    policy->path.period_min = 0;
+    policy->path.period_max = 3600;
 #endif
     policy->fileclass.policy = UPDT_ALWAYS;
 
@@ -504,7 +506,7 @@ static int write_default_update_policy( FILE * output )
     print_begin_block( output, 0, UPDTPOLICY_BLOCK, NULL );
     print_line( output, 1, "md_update        : always;" );
 #ifdef _HAVE_FID
-    print_line( output, 1, "path_update      : always;" );
+    print_line( output, 1, "path_update      : on_event_periodic(0,1h);" );
 #endif
     print_line( output, 1, "fileclass_update : always;" );
     print_end_block( output, 0 );
@@ -526,7 +528,7 @@ static int write_update_policy_template( FILE * output )
     print_line( output, 1, "md_update = always ;" );
 #ifdef _HAVE_FID
     print_line( output, 1, "# Updating file path in database" );
-    print_line( output, 1, "path_update = always ;" );
+    print_line( output, 1, "path_update = on_event_periodic(0,1h) ;" );
 #endif
     print_line( output, 1, "# File classes matching"  );
     print_line( output, 1, "fileclass_update = always ;" );

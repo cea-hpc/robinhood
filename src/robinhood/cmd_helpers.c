@@ -314,13 +314,13 @@ struct __diffattr {
     char * name;    /* NULL for last */
     int negate;     /* negate the given mask */
 } diffattrs[] = {
-    { ATTR_MASK_fullpath | ATTR_MASK_parent_id, "path", 0 },
+    { ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name, "path", 0 },
     { POSIX_ATTR_MASK | ATTR_MASK_link, "posix", 0 },
 #ifdef _LUSTRE
     { ATTR_MASK_stripe_info | ATTR_MASK_stripe_items, "stripe", 0 },
 #endif
-    { ATTR_MASK_fullpath | POSIX_ATTR_MASK | ATTR_MASK_parent_id
-     | ATTR_MASK_link
+    { ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id
+     | POSIX_ATTR_MASK | ATTR_MASK_link
 #ifdef ATTR_INDEX_creation_time
         | ATTR_MASK_creation_time
 #endif

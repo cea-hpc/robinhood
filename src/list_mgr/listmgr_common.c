@@ -279,7 +279,6 @@ void           generate_fields( attr_set_t * p_set )
            else
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Field '%s' auto-generated",
                             field_infos[i].field_name );
-                            
 
         } /* end if generated */
     } /* end for attr list */
@@ -636,7 +635,8 @@ int result2attrset( table_enum table, char **result_tab,
             if ( !parsedbtype( result_tab[nbfields], field_infos[i].db_type, &typeu ) )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Error: cannot parse field value '%s'", result_tab[nbfields] );
+                            "Error: cannot parse field value '%s' (position %u) for %s",
+                            result_tab[nbfields], nbfields, field_infos[i].field_name );
                 p_set->attr_mask &= ~( 1 << i );
                 nbfields++;
                 continue;

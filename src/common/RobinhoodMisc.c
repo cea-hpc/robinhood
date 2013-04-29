@@ -1379,6 +1379,18 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, fullpath ) );
     }
+    /* this information is redundant with fullpath,
+     * so only display it if path is not known */
+    else if ( mask & ATTR_MASK_name )
+    {
+        if (brief)
+            format = "name='%s',";
+        else
+            format = "Name:     \"%s\"\n";
+        written +=
+            snprintf( out_str + written, strsize - written, format,
+                      ATTR( p_attr_set, name ) );
+    }
     if ( mask & ATTR_MASK_parent_id )
     {
         if (brief)
@@ -1388,16 +1400,6 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
         written +=
             snprintf( out_str + written, strsize - written, format,
                       PFID(&ATTR(p_attr_set, parent_id)) );
-    }
-    if ( mask & ATTR_MASK_name )
-    {
-        if (brief)
-            format = "name='%s',";
-        else
-            format = "Name:     \"%s\"\n";
-        written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, name ) );
     }
 #ifdef ATTR_INDEX_type
     if ( mask & ATTR_MASK_type )

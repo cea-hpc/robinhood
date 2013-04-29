@@ -292,6 +292,8 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
                 if ( rc )
                     goto free_res;
             }
+            else if (rc != DB_SUCCESS)
+                    goto free_res;
             else
             {
                 /* set info from result */
@@ -330,6 +332,8 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
                 if ( rc )
                     goto free_res;
             }
+            else if (rc != DB_SUCCESS)
+                    goto free_res;
             else
             {
                 /* set info from result */
@@ -376,7 +380,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 
     if (funcattr_fields( p_info->attr_mask ))
     {
-         if (listmgr_get_funcattrs(p_mgr, pk, p_info))
+        if (listmgr_get_funcattrs(p_mgr, pk, p_info))
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_funcattrs failed for "DPK, pk );
             p_info->attr_mask &= ~func_attr_set;

@@ -505,21 +505,25 @@ static void * chglog_reader_thr( void *  arg )
         /* extended record: 1 single RENME record per rename op */
         if ((p_rec->cr_type == CL_RENAME) && CHANGELOG_REC_EXTENDED(p_rec))
         {
+            struct changelog_ext_rec * p_rec2;
             if (!FID_IS_ZERO(&p_rec->cr_tfid))
             {
                 /* rename overwriting target entry */
-                struct changelog_ext_rec * p_rec2 = (CL_REC_TYPE*)malloc(CR_MAXSIZE);
+                p_rec2 = (CL_REC_TYPE*)malloc(CR_MAXSIZE);
+                if (!p_rec2)
+                    /* can process CL records, stop reading them */
+                    break;
 
                 p_rec2->cr_namelen = p_rec->cr_namelen;
                 p_rec2->cr_flags = p_rec->cr_flags; /* may contain CLF_UNLINK_LAST */
                 p_rec2->cr_type = CL_UNLINK;
                 p_rec2->cr_index = p_rec->cr_index - 1; /* we don't want to acknowledge
-                    this record as long as the 2 records are not processed.
+                    this record as long as the 3 records are not processed.
                     acknowledge n-1 instead */
                 p_rec2->cr_prev = p_rec->cr_prev;
                 p_rec2->cr_time = p_rec->cr_time;
-                p_rec2->cr_tfid = p_rec->cr_tfid; /* the same */
-                p_rec2->cr_pfid = p_rec->cr_pfid; /* the same */
+                p_rec2->cr_tfid = p_rec->cr_tfid; /* target fid (the removed one) */
+                p_rec2->cr_pfid = p_rec->cr_pfid; /* target parent */
                 strcpy(p_rec2->cr_name, p_rec->cr_name);
 
                 DisplayLog( LVL_DEBUG, CHGLOG_TAG,
@@ -531,12 +535,37 @@ static void * chglog_reader_thr( void *  arg )
             }
 
             DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                        "Rename: object="DFID", old_name=%s, new_name=%.*s",
-                        PFID(&p_rec->cr_sfid), changelog_rec_sname(p_rec),
-                        p_rec->cr_namelen, p_rec->cr_name );
-            /* change rename to RNMTO, to remain compatible with previous versions */
-            p_rec->cr_type = CL_EXT;
-            p_rec->cr_tfid = p_rec->cr_sfid;
+                        "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%.*s",
+                        PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),changelog_rec_sname(p_rec),
+                        PFID(&p_rec->cr_pfid), p_rec->cr_namelen, p_rec->cr_name );
+
+            /* Ensure compatibility with older Lustre versions:
+             * push RNMFRM to remove the old path from NAMES table.
+             * push RNMTO to add target path information.
+             */
+            /* 1) build & push RNMFRM */
+            p_rec2 = (CL_REC_TYPE*)malloc(CR_MAXSIZE);
+            if (!p_rec2)
+                /* can process CL records, stop reading them */
+                break;
+
+            p_rec2->cr_flags = 0; /* not used for RNMFRM */
+            p_rec2->cr_type = CL_RENAME;
+            p_rec2->cr_index = p_rec->cr_index - 1; /* we don't want to acknowledge
+                this record as long as the 2 records are not processed.
+                acknowledge n-1 instead */
+            p_rec2->cr_prev = p_rec->cr_prev;
+            p_rec2->cr_time = p_rec->cr_time;
+            p_rec2->cr_tfid = p_rec->cr_sfid; /* the renamed fid */
+            p_rec2->cr_pfid = p_rec->cr_spfid; /* the source parent */
+            p_rec2->cr_namelen = changelog_rec_snamelen(p_rec);
+            strcpy(p_rec2->cr_name, changelog_rec_sname(p_rec)); /* the source name */
+
+            process_log_rec( info, p_rec2, PLR_FLG_FREE2 );
+
+            /* 2) update RNMTO */
+            p_rec->cr_type = CL_EXT; /* CL_RENAME -> CL_RNMTO */
+            p_rec->cr_tfid = p_rec->cr_sfid; /* removed fid -> renamed fid */
             process_log_rec( info, p_rec, 0);
         }
         else /* other record or old-style RNMFM/RNMTO */
@@ -573,40 +602,51 @@ static void * chglog_reader_thr( void *  arg )
             }
             else
             {
-                /* The target FID is 0 in the 2nd record, so set it
-                 * right. If not, may be we should ensure that
-                 * p_rec2->cr_tfid == p_rec->cr_tfid. */
-                if (FID_IS_ZERO(&p_rec2->cr_tfid))
-                    p_rec2->cr_tfid = p_rec->cr_tfid;
+                /* If target fid is not zero: unlink the target.
+                 * e.g. "mv a b" and b exists => rm b.
+                 */
+                if (!FID_IS_ZERO(&p_rec2->cr_tfid))
+                {
+                    CL_REC_TYPE * p_rec3;
 
-                /* rename that removes a target entry.
-                 * push CL_UNLINK (as p_rec) + CL_EXT (as p_rec2) */
-                lustre_fid rename_fid = p_rec->cr_tfid; /* the renamed object */
-                lustre_fid remove_fid = p_rec2->cr_tfid; /* the removed object */
-                uint64_t idx1 = p_rec->cr_index;
-                uint64_t idx2 = p_rec2->cr_index;
+                    /* rename overwriting target entry */
+                    p_rec3 = (CL_REC_TYPE*)malloc(CR_MAXSIZE);
+                    if (!p_rec3)
+                        /* can process CL records, stop reading them */
+                        break;
 
-                /* duplicate 2nd changelog rec */
-                /* XXX /!\ this line is based on the fact that llapi_changelog_recv()
-                 * always allocate CR_MAXSIZE, so it is safe to copy the target name
-                 * in rec1 without overflow */
-                memcpy(p_rec, p_rec2, CR_MAXSIZE); /* both CL_EXT now */
-                p_rec->cr_index = idx1;
-                p_rec->cr_type = CL_UNLINK;
-                p_rec->cr_tfid = remove_fid;
-                p_rec2->cr_index = idx2;
-                p_rec2->cr_type = CL_EXT;
-                p_rec2->cr_tfid = rename_fid;
+                    p_rec3->cr_flags = p_rec2->cr_flags; /* may contain CLF_UNLINK_LAST */
+                    p_rec3->cr_type = CL_UNLINK;
+                    p_rec3->cr_index = p_rec->cr_index - 1; /* we don't want to acknowledge
+                        this record as long as the 3 records are not all processed.
+                        acknowledge n-1 instead */
+                    p_rec3->cr_prev = p_rec2->cr_prev;
+                    p_rec3->cr_time = p_rec2->cr_time;
+                    p_rec3->cr_tfid = p_rec2->cr_tfid; /* same as RNMTO: fid of the removed object */
+                    p_rec3->cr_pfid = p_rec2->cr_pfid; /* same as RNMTO */
+                    p_rec3->cr_namelen = p_rec2->cr_namelen; /* target name */
+                    strncpy(p_rec3->cr_name, p_rec2->cr_name, p_rec2->cr_namelen);
+                    p_rec3->cr_name[p_rec3->cr_namelen] = '\0';
+
+                    DisplayLog( LVL_DEBUG, CHGLOG_TAG,
+                               "Unlink: object="DFID", name=%.*s",
+                                PFID(&p_rec3->cr_tfid), p_rec3->cr_namelen,
+                                p_rec3->cr_name );
+
+                    process_log_rec( info, p_rec3, PLR_FLG_FREE2 );
+                }
+
+                /* push RNMFRM to remove the old path from NAMES table.
+                 * push RNMTO to add target path information.
+                 */
+                /* indicate the target fid as the renamed entry */
+                p_rec2->cr_tfid = p_rec->cr_tfid;
 
                 DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                           "Unlink: object="DFID", name=%.*s",
-                            PFID(&p_rec->cr_tfid), p_rec->cr_namelen,
-                            p_rec->cr_name );
-                DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                           "Rename: object="DFID", new name=%.*s",
-                            PFID(&p_rec2->cr_tfid), p_rec2->cr_namelen,
-                            p_rec2->cr_name );
-                /* process unlink before rename, to make sure there is no name conflict */
+                            "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%s",
+                            PFID(&p_rec->cr_tfid), PFID(&p_rec->cr_pfid),p_rec->cr_name,
+                            PFID(&p_rec2->cr_pfid), p_rec2->cr_name);
+
                 process_log_rec( info, p_rec, 0 );
                 process_log_rec( info, p_rec2, 0 );
             }
