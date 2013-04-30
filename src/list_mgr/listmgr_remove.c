@@ -434,6 +434,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                  " WHERE %s", tmp_table_name, first_table, from, filter_str );
 
     /* apply filters on function return val */
+    /* FIXME it must also match entries whose path is null (no path) */
     if (func_filter(p_mgr, p_filter, filter_str_func, query_tab, TRUE))
         sprintf( query+strlen(query), " AND %s", filter_str_func );
 

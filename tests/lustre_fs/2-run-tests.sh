@@ -3106,13 +3106,13 @@ function test_rename
             return 1
     fi
 
-    dirs="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3"
-    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.2/file.4 $ROOT/dir.3/file.1"
+    dirs="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir"
+    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.2/file.4 $ROOT/dir.3/subdir/file.1"
     hlink_ref="$ROOT/dir.2/file.3"
     hlink="$ROOT/dir.2/link_file" # initially points to file.3, then file.4
 
-    dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3.rnm"
-    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2  $ROOT/dir.2/file.3  $ROOT/dir.2/link_file $ROOT/dir.3.rnm/file.1"
+    dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir.rnm"
+    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2  $ROOT/dir.2/file.3  $ROOT/dir.2/link_file $ROOT/dir.3/subdir.rnm/file.1"
 
     # create several files/dirs
     echo "1. Creating initial objects..."
@@ -3126,7 +3126,7 @@ function test_rename
     	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
     else
         echo "2. Scanning initial state..."
-    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
     fi
 
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
@@ -3138,7 +3138,7 @@ function test_rename
     # checking all objects in reports
     for o in $dirs $files; do
         grep -E " $o$" report.out > /dev/null || error "$o not found in report"
-        grep -E " $o$" find.out > /dev/null || error "$o not found in report"
+        grep -E " $o$" find.out > /dev/null || error "$o not found in find"
     done
 
     # hlink_ref hlink must be in report.out
@@ -3159,7 +3159,7 @@ function test_rename
     # 3) rename that deletes the target
     mv -f $ROOT/dir.2/file.1 $ROOT/dir.2/file.2
     # 4) upper level directory rename
-    mv $ROOT/dir.3 $ROOT/dir.3.rnm
+    mv $ROOT/dir.3/subdir $ROOT/dir.3/subdir.rnm
     # 5) overwritting a hardlink
     mv -f $ROOT/dir.2/file.4 $hlink
 
@@ -3170,12 +3170,26 @@ function test_rename
     if [ "$flavor" = "readlog" ]; then
         echo "4. Reading changelogs..."
     	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-    else
+    elif [ "$flavor" = "scan" ]; then
         echo "4. Scanning again..."
-    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    elif [ "$flavor" = "partial" ]; then
+        i=0
+        for d in $dirs_tgt; do
+            # namespace GC needs 1s difference
+            sleep 1
+            ((i++))
+            echo "4.$i Partial scan ($d)..."
+        	$RH -f ./cfg/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
+        done
     fi
 
-    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    if [ "$flavor" = "partial" ]; then
+        # entries with no path may appear with partial scans
+        $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out || error "$REPORT"
+    else
+        $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    fi
     [ "$DEBUG" = "1" ] && cat report.out
 
     $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
@@ -3191,6 +3205,179 @@ function test_rename
 
     (( $count_nb_final == $count_nb_init - 1)) || error "1 entry should have been removed (rename target)"
     (( $count_path_final == $count_path_init - 2)) || error "2 paths should have been removed (rename target)"
+
+    rm -f report.out find.out
+}
+
+
+# test link/unlink/rename
+# flavors=readlog, scan, partial scan
+function test_hardlinks
+{
+    config_file=$1
+    flavor=$2
+
+    clean_logs
+
+	if (( $no_log )) && [ "$flavor" = "readlog" ]; then
+            echo "Changelogs not supported on this config: skipped"
+            set_skipped
+            return 1
+    fi
+
+    dirs="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir $ROOT/dir.4"
+    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.2/file.4 $ROOT/dir.3/subdir/file.1 $ROOT/dir.4/file.3"
+    hlink_refs=("$ROOT/dir.2/file.3" "$ROOT/dir.4/file.1" "$ROOT/dir.4/file.2")
+    hlinks=("$ROOT/dir.2/link_file" "$ROOT/dir.1/link.1 $ROOT/dir.2/link.1" "$ROOT/dir.2/link.2")
+    #[0] file.4 will over write it, [1] one more link will be created, [2]previous path ($ROOT/dir.4/file.2) will be removed 
+
+    dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir.rnm $ROOT/dir.4"
+    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2  $ROOT/dir.2/file.3  $ROOT/dir.2/link_file $ROOT/dir.3/subdir.rnm/file.1 $ROOT/dir.2/link.2 $ROOT/dir.1/new"
+    hlink_refs_tgt=("$ROOT/dir.4/file.1" "$ROOT/dir.2/new")
+    hlinks_tgt=("$ROOT/dir.1/link.1 $ROOT/dir.2/link.1 $ROOT/dir.4/link.1" "$ROOT/dir.4/link.new")
+        # only previous [1] remaining as [0], [1] is a new link
+
+    # create several files/dirs
+    echo "1. Creating initial objects..."
+    mkdir $dirs || error "mkdir $dirs"
+    touch $files ${hlink_refs[*]} || error "touch $files ${hlink_refs[*]}"
+    i=0
+    nb_ln=0
+    while [ -n "${hlink_refs[$i]}" ]; do
+        for l in ${hlinks[$i]}; do
+            ln ${hlink_refs[$i]} $l || error "hardlink ${hlink_refs[$i]} $l"
+            ((nb_ln++))
+        done
+        ((i++))
+    done
+
+    # readlog or scan
+    if [ "$flavor" = "readlog" ]; then
+        echo "2. Reading changelogs..."
+    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    else
+        echo "2. Scanning initial state..."
+    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    fi
+
+    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    [ "$DEBUG" = "1" ] && cat report.out
+
+    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    [ "$DEBUG" = "1" ] && cat find.out
+
+    # checking all objects in reports
+    for o in $dirs $files; do
+        grep -E " $o$" report.out > /dev/null || error "$o not found in report"
+        grep -E " $o$" find.out > /dev/null || error "$o not found in find"
+    done
+
+    i=0
+    while [ -n "${hlink_refs[$i]}" ]; do
+        file="${hlink_refs[$i]}"
+        ok=0
+        grep -E " $file$" find.out > /dev/null || error "$file must be in rbh-find output"
+        grep -E " $file$" report.out > /dev/null && ok=1
+        for l in ${hlinks[$i]}; do
+            grep -E " $l$" find.out > /dev/null || error "$l must be in rbh-find output"
+            grep -E " $l$" report.out  > /dev/null && ok=1
+        done
+        [ "$ok" = "0" ] && error "$file or its hardlinks (${hlinks[$i]}) must be in report output"
+        ((i++))
+    done
+
+    count_nb_init=$(wc -l report.out | awk '{print $1}')
+    count_path_init=$(grep -v "$ROOT$" find.out | wc -l)
+    echo "nbr_inodes=$count_nb_init, nb_paths=$count_path_init, nb_ln=$nb_ln"
+    (( $count_path_init == $count_nb_init + $nb_ln )) || error "nb path != nb_inode + nb_ln"
+
+    # rename entries
+    echo "3. Linking/unlinking/renaming objects..."
+    # 1) simple file rename
+    mv $ROOT/dir.1/file.1 $ROOT/dir.1/file.1.rnm
+    # 2) cross directory file rename
+    mv $ROOT/dir.1/file.2 $ROOT/dir.2/file.2.rnm
+    # 3) rename that deletes the target
+    mv -f $ROOT/dir.2/file.1 $ROOT/dir.2/file.2
+    # 4) upper level directory rename
+    mv $ROOT/dir.3/subdir $ROOT/dir.3/subdir.rnm
+    # 5) overwritting a hardlink
+    mv -f $ROOT/dir.2/file.4 ${hlinks[0]}
+    ((nb_ln--))
+    # 6) creating new link to "dir.4/file.1"
+    ln "$ROOT/dir.4/file.1" "$ROOT/dir.4/link.1"
+    ((nb_ln++))
+    # 7) removing 1 link (dir.2/link.2 remains)
+    rm "$ROOT/dir.4/file.2"
+    ((nb_ln--))
+    # 8) removing 1 file
+    rm "$ROOT/dir.4/file.3"
+    # 9) creating 1 file
+    touch "$ROOT/dir.1/new"
+    # 10) creating 1 file with hardlink
+    touch "$ROOT/dir.2/new"
+    ln "$ROOT/dir.2/new" "$ROOT/dir.4/link.new"
+    ((nb_ln++))
+
+    # namespace GC needs 1s difference
+    [ "$flavor" = "scan" ] && sleep 1
+
+    # readlog or re-scan
+    if [ "$flavor" = "readlog" ]; then
+        echo "4. Reading changelogs..."
+    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    elif [ "$flavor" = "scan" ]; then
+        echo "4. Scanning again..."
+    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    elif [ "$flavor" = "partial" ]; then
+        i=0
+        for d in $dirs_tgt; do
+            # namespace GC needs 1s difference
+            sleep 1
+            ((i++))
+            echo "4.$i Partial scan ($d)..."
+        	$RH -f ./cfg/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
+        done
+    fi
+
+    if [ "$flavor" = "partial" ]; then
+        # entries with no path may appear with partial scans
+        $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out || error "$REPORT"
+    else
+        $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    fi
+    [ "$DEBUG" = "1" ] && cat report.out
+
+    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    [ "$DEBUG" = "1" ] && cat find.out
+
+    
+
+    # checking all objects in reports
+    for o in $dirs_tgt $files_tgt; do
+        grep -E " $o$" report.out > /dev/null || error "$o not found in report"
+        grep -E " $o$" find.out > /dev/null || error "$o not found in find"
+    done
+
+    i=0
+    while [ -n "${hlink_refs_tgt[$i]}" ]; do
+        file="${hlink_refs_tgt[$i]}"
+        ok=0
+        grep -E " $file$" find.out > /dev/null || error "$file must be in rbh-find output"
+        grep -E " $file$" report.out > /dev/null && ok=1
+        for l in ${hlinks_tgt[$i]}; do
+            grep -E " $l$" find.out > /dev/null || error "$l must be in rbh-find output"
+            grep -E " $l$" report.out  > /dev/null && ok=1
+        done
+        [ "$ok" = "0" ] && error "$file or its hardlinks (${hlinks_tgt[$i]}) must be in report output"
+        ((i++))
+    done
+    count_nb_final=$(wc -l report.out | awk '{print $1}')
+    count_path_final=$(grep -v "$ROOT$" find.out | wc -l)
+
+    echo "nbr_inodes=$count_nb_final, nb_paths=$count_path_final, nb_ln=$nb_ln"
+    (( $count_nb_final == $count_nb_init)) || error "same entry count ($count_nb_init) expected (2 deleted, 2 created)"
+    (( $count_path_final == $count_nb_final + $nb_ln )) || error "nb path != nb_inode + nb_ln"
 
     rm -f report.out find.out
 }
@@ -6991,6 +7178,10 @@ run_test 107a    test_completion test_completion.conf OK "scan completion comman
 run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion command"
 run_test 108a    test_rename info_collect.conf scan "rename cases (scan)"
 run_test 108b    test_rename info_collect.conf readlog "rename cases (readlog)"
+run_test 108c    test_rename info_collect.conf partial "rename cases (partial scans)"
+run_test 109a    test_hardlinks info_collect.conf scan "hardlinks management (scan)"
+run_test 109b    test_hardlinks info_collect.conf readlog "hardlinks management (readlog)"
+run_test 109c    test_hardlinks info_collect.conf partial "hardlinks management (partial scans)"
 
 #### policy matching tests  ####
 

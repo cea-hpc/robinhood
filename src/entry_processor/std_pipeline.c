@@ -1271,6 +1271,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 }
             }
 
+            /* get parent_id+name, if not set during scan (eg. for root directory) */
+            if (!ATTR_MASK_TEST( &p_op->fs_attrs, name))
+                p_op->fs_attr_need |= ATTR_MASK_name;
+            if (!ATTR_MASK_TEST( &p_op->fs_attrs, parent_id))
+                p_op->fs_attr_need |= ATTR_MASK_parent_id;
+
 #ifdef _LUSTRE
             /* get stripe only for files */
             if ( ATTR_MASK_TEST( &p_op->fs_attrs, type )

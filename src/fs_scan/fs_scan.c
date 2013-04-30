@@ -50,6 +50,7 @@ int              fsscan_flags = 0;
 const char      *partial_scan_root = NULL;
 
 #define fsscan_once ( fsscan_flags & FLAG_ONCE )
+#define fsscan_nogc ( fsscan_flags & FLAG_NO_GC )
 
 static int     is_lustre_fs = FALSE;
 static int     is_first_scan = FALSE;
@@ -350,9 +351,9 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         /* NB: don't clean old entries for partial scan: dangerous if
          * files have been moved from one partition to another */
 #ifdef HAVE_RM_POLICY
-        if (is_first_scan || partial_scan_root)
+        if (fsscan_nogc || is_first_scan || partial_scan_root)
 #else
-        if (is_first_scan && !partial_scan_root)
+        if (fsscan_nogc || (is_first_scan && !partial_scan_root))
 #endif
             op->callback_param = ( void * ) "End of flush";
         else

@@ -1,6 +1,8 @@
 - support ost sets in rbh_find
 - non reg test for OST sets
 - partial scan (path and inode cleaning)
+- flavor partial scan for test 108
+- mass_soft_remove
 - drop Lustre 2.0 support (non splitted TIME)
 - ostset for commands
 

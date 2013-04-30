@@ -77,6 +77,7 @@ static time_t  boot_time;
 #define TEST_SYNTAX       282
 #define PARTIAL_SCAN      283
 #define SHOW_DIFF         284
+#define NO_GC             285
 
 #define ACTION_MASK_SCAN                0x00000001
 #define ACTION_MASK_PURGE               0x00000002
@@ -205,6 +206,7 @@ static struct option option_tab[] = {
     {"once", no_argument, NULL, 'O'},
     {"detach", no_argument, NULL, 'd'},
     {"no-limit", no_argument, NULL, NO_LIMIT},
+    {"no-gc", no_argument, NULL, NO_GC},
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -386,6 +388,8 @@ static const char *help_string =
     "        Daemonize the process (detach from parent process).\n"
     "    " _B "--no-limit"B_"\n"
     "        Don't limit the maximum number of migrations (per pass).\n"
+    "    " _B "--no-gc"B_"\n"
+    "        Don't clean removed entries in DB after a scan.\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -991,6 +995,9 @@ int main( int argc, char **argv )
             break;
         case NO_LIMIT:
             options.flags |= FLAG_NO_LIMIT;
+            break;
+        case NO_GC:
+            options.flags |= FLAG_NO_GC;
             break;
         case DRY_RUN:
             options.flags |= FLAG_DRY_RUN;
