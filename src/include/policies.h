@@ -215,7 +215,7 @@ typedef struct fileset_item_t
 #endif
 
 #ifdef _LUSTRE_HSM
-    unsigned int archive_num;
+    unsigned int archive_id;
 #endif
 
     /** @TODO aggregation policy */
@@ -247,7 +247,7 @@ typedef struct policy_item_t
 
     char           hints[HINTS_LEN];             /* for migration only */
 #ifdef _LUSTRE_HSM
-    unsigned int   archive_num;
+    unsigned int   archive_id;
 #endif
 
 } policy_item_t;

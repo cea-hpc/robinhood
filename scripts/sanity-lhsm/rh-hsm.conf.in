@@ -62,7 +62,7 @@ migration_policies
             last_mod > 15s
         }
 
-	    archive_num = 1;
+	    archive_id = 1;
     }
 }
 
