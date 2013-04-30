@@ -224,6 +224,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     char           query[4096];
     char           filter_str[2048];
     char           filter_str_names[1024];
+    char           filter_str_func[1024];
     char           *curr_filter;
     int            filter_main = 0;
     int            filter_annex = 0;
@@ -233,6 +234,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     char           from[1024];
     char           *curr_from;
     const char* first_table = NULL;
+    table_enum     query_tab;
     const char* direct_del_table = NULL;
     char           tmp_table_name[256];
     result_handle_t result;
@@ -355,6 +357,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         strcpy(curr_from, MAIN_TABLE);
         curr_from = curr_from + strlen(curr_from);
         first_table = MAIN_TABLE;
+        query_tab = T_MAIN;
     }
     if (filter_annex)
     {
@@ -366,6 +369,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
             strcpy(from, ANNEX_TABLE);
             curr_from = from + strlen(from);
             first_table = ANNEX_TABLE;
+            query_tab = T_ANNEX;
         }
     }
     if (filter_stripe_info)
@@ -378,6 +382,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
             strcpy(from, STRIPE_INFO_TABLE);
             curr_from = from + strlen(from);
             first_table = STRIPE_INFO_TABLE;
+            query_tab = T_STRIPE_INFO;
         }
     }
     if ( filter_stripe_items )
@@ -390,6 +395,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
             strcpy(from, STRIPE_ITEMS_TABLE);
             curr_from = from + strlen(from);
             first_table = STRIPE_ITEMS_TABLE;
+            query_tab = T_STRIPE_ITEMS;
         }
     }
 
@@ -427,6 +433,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                  "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id) FROM %s"
                  " WHERE %s", tmp_table_name, first_table, from, filter_str );
 
+    /* apply filters on function return val */
+    if (func_filter(p_mgr, p_filter, filter_str_func, query_tab, TRUE))
+        sprintf( query+strlen(query), " AND %s", filter_str_func );
 
     /* in autocommit mode, set the transaction level, just before the needed statement */
     if (lmgr_config.commit_behavior == 0)
@@ -450,11 +459,17 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
     /* if the filter is only a single table, entries can be directly deleted */
     if ((filter_main?1:0) + (filter_annex?1:0) + (filter_stripe_info?1:0) + (filter_stripe_items?1:0) == 1)
+
     {
         DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in %s table", first_table );
 
         /* if filter is on annex, we can directly use filter in WHERE clause */
         sprintf( query, "DELETE FROM %s WHERE %s", first_table, filter_str );
+
+        /* apply filters on function return val */
+        if (func_filter( p_mgr, p_filter, filter_str_func, query_tab, FALSE))
+            sprintf( query+strlen(query), " AND %s", filter_str_func );
+
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
             goto rollback;
@@ -586,6 +601,11 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     {
         DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in " DNAMES_TABLE " table" );
         sprintf( query, "DELETE FROM " DNAMES_TABLE " WHERE %s", filter_str_names );
+
+        /* apply filters on function return val */
+        if (func_filter( p_mgr, p_filter, filter_str_func, T_DNAMES, FALSE))
+            sprintf( query+strlen(query), " AND %s", filter_str_func );
+
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
             goto rollback;

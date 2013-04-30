@@ -14,6 +14,23 @@ BEGIN
     END LOOP;
 END//
 
+DROP FUNCTION IF EXISTS this_path;
+DELIMITER //
+CREATE FUNCTION this_path(pid_arg VARCHAR(128), n_arg VARCHAR(256)) RETURNS VARCHAR(1024) READS SQL DATA
+BEGIN
+    DECLARE p VARCHAR(1024) DEFAULT NULL;
+    DECLARE pid VARCHAR(128) DEFAULT NULL;
+    DECLARE n VARCHAR(256) DEFAULT NULL;
+    -- return '/p' when not found
+    DECLARE EXIT HANDLER FOR NOT FOUND RETURN p;
+    SET pid=pid_arg;
+    SET p=n_arg;
+    LOOP
+        SELECT parent_id, name INTO pid, n from NAMES where id=pid ;
+        SELECT CONCAT( n, '/', p) INTO p;
+    END LOOP;
+END//
+
 DROP PROCEDURE IF EXISTS all_paths;
 CREATE PROCEDURE all_paths(IN param VARCHAR(128)) READS SQL DATA
 BEGIN

@@ -747,9 +747,13 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* fi
  * \param str_id: filter for entry id string (eg. id, TABLE.id...)
  * \return the number of filtered values
  */
-int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, const char * str_id)
+int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, 
+                table_enum table, int prefix_table)
 {
     int i;
+    char param1[128];
+    char param2[128];
+
     filter_str[0] = '\0';
 
     if ( p_filter->filter_type == FILTER_SIMPLE )
@@ -760,9 +764,56 @@ int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str
 
             if ( field_infos[index].flags & FUNC_ATTR )
             {
+                char val[RBH_PATH_MAX];
+                db_type_u typeu;
+
+                param1[0] = '\0';
+                param2[0] = '\0';
+
                 if (index == ATTR_INDEX_fullpath)
                 {
-                    sprintf(filter_str, "one_path(%s)", str_id);
+                    char relative[RBH_PATH_MAX];
+                    /* one_path and this_path generates paths relatively to root dir,
+                     * so we extract the relative path */
+                    if (relative_path(p_filter->filter_simple.filter_value[i].value.val_str,
+                                      global_config.fs_path, relative))
+                    {
+                        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "fullpath filter %s is not under FS root %s: replacing filter by 'FALSE'",
+                                   val, global_config.fs_path);
+                        strcmp(filter_str, "FALSE");
+                        return 1;
+                    }
+                    typeu.val_str = relative;
+                    printdbtype( p_mgr, val, field_infos[index].db_type, &typeu );
+
+                    /* if the filter applies to DNAMES, exactly filter on each row,
+                     * else, filter on any path */
+                    if (table == T_DNAMES)
+                    {
+                        if ( prefix_table ) {
+                            sprintf(param1, "%s.parent_id", table2name(table));
+                            sprintf(param2, "%s.name", table2name(table));
+                        }
+                        else
+                        {
+                            strcpy(param1, "parent_id");
+                            strcpy(param2, "name");
+                        }
+                        sprintf(filter_str, "this_path(%s,%s)%s%s", param1, param2,
+                                compar2str( p_filter->filter_simple.filter_compar[i] ),
+                                val);
+                    }
+                    else
+                    {
+                        if ( prefix_table )
+                            sprintf(param1, "%s.id", table2name(table));
+                        else
+                            strcpy(param1, "id");
+
+                        sprintf(filter_str, "one_path(%s)%s%s", param1,
+                                compar2str( p_filter->filter_simple.filter_compar[i] ),
+                                val);
+                    }
                     return 1;
                 }
             }
@@ -851,12 +902,7 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
             if ( MATCH_TABLE( table, index ) )
             {
                 if ( prefix_table )
-                {
-                    if ( table == T_MAIN )
-                        sprintf(fname, "%s.", MAIN_TABLE );
-                    else if ( table == T_ANNEX )
-                        sprintf(fname, "%s.",  ANNEX_TABLE );
-                }
+                    sprintf(fname, "%s.", table2name(table));
 
                 strcat( fname, field_infos[index].field_name );
 

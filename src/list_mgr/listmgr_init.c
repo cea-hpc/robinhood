@@ -656,10 +656,47 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     if (rc )
     {
         DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to create function: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+                    "Failed to create function 'one_path': Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
         return rc;
     }
 
+    /* drop previous versions of the function */
+    rc = db_drop_component( &conn, DBOBJ_FUNCTION, "this_path" );
+    if ( rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
+    {
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Failed to drop function 'one_path': Error: %s",
+                    db_errmsg( &conn, errmsg_buf, 1024 ) );
+        return rc;
+    }
+
+    /* creating function to get a path for a file, for the given parent and name  */
+    snprintf(strbuf, 4096, "CREATE FUNCTION this_path(pid_arg "PK_TYPE", n_arg VARCHAR(%u)) RETURNS VARCHAR(%u) READS SQL DATA"
+        " BEGIN"
+            " DECLARE p VARCHAR(%u) DEFAULT NULL;"
+            " DECLARE pid "PK_TYPE" DEFAULT NULL;"
+            " DECLARE n VARCHAR(%u) DEFAULT NULL;"
+            // returns path when parent is not found (NULL if id is not found)
+            " DECLARE EXIT HANDLER FOR NOT FOUND RETURN p;"
+            " SET pid=pid_arg;"
+            " SET p=n_arg;"
+            " LOOP"
+                " SELECT parent_id, name INTO pid, n from NAMES where id=pid ;"
+                " SELECT CONCAT( n, '/', p) INTO p;"
+            " END LOOP;"
+        " END",
+        /* size of name */field_infos[ATTR_INDEX_name].db_type_size,
+        /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
+        /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
+        /* size of name */field_infos[ATTR_INDEX_name].db_type_size);
+
+    rc = db_exec_sql( &conn, strbuf, NULL );
+    if (rc )
+    {
+        DisplayLog( LVL_CRIT, LISTMGR_TAG,
+                    "Failed to create function 'this_path': Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+        return rc;
+    }
 
 #ifdef _LUSTRE
     /*

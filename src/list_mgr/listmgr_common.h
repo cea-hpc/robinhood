@@ -264,6 +264,8 @@ static inline const char * table2name(table_enum table)
 #ifdef _HSM_LITE
         case T_RECOV: return RECOV_TABLE;
 #endif
+        default:
+            return NULL;
    }
 }
 
@@ -309,7 +311,8 @@ typedef enum
 filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                         char* filter_str, unsigned int * dir_attr_index);
 
-int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, const char * str_id);
+int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, 
+                table_enum table, int prefix_table);
 
 
 int            result2attrset( table_enum table, char **result_tab,
