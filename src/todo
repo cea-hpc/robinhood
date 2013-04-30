@@ -1,7 +1,7 @@
 - support ost sets in rbh_find
 - non reg test for OST sets
+- partial scan (path and inode cleaning)
 - drop Lustre 2.0 support (non splitted TIME)
-- partial scan
 - ostset for commands
 
 - verifier comportement du pipeline dans le traitement des changelogs, etc...
@@ -9,7 +9,7 @@
 - recovery MDT with HSM: set status of files
 - recov-tools: must reset fid of OST objects after MDS recovery
 
-/!\ symlink change if inode recycling
+/!\ symlink can change in case of inode recycling (ext3/4, ...)
 
 - complete apply-fs (+using recover for backup system)
 

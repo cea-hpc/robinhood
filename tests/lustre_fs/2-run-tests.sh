@@ -3107,15 +3107,18 @@ function test_rename
     fi
 
     dirs="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3"
-    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.3/file.1"
+    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.2/file.4 $ROOT/dir.3/file.1"
+    hlink_ref="$ROOT/dir.2/file.3"
+    hlink="$ROOT/dir.2/link_file" # initially points to file.3, then file.4
 
     dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3.rnm"
-    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2 $ROOT/dir.3.rnm/file.1"
+    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2  $ROOT/dir.2/file.3  $ROOT/dir.2/link_file $ROOT/dir.3.rnm/file.1"
 
     # create several files/dirs
     echo "1. Creating initial objects..."
-    mkdir $dirs || error "mkdir"
-    touch $files || error "touch"
+    mkdir $dirs || error "mkdir $dirs"
+    touch $files $hlink_ref || error "touch $files $hlink_ref"
+    ln $hlink_ref $hlink || error "hardlink $hlink_ref $hlink"
 
     # readlog or scan
     if [ "$flavor" = "readlog" ]; then
@@ -3137,7 +3140,15 @@ function test_rename
         grep -E " $o$" report.out > /dev/null || error "$o not found in report"
         grep -E " $o$" find.out > /dev/null || error "$o not found in report"
     done
-    count_init=$(wc -l report.out | awk '{print $1}')
+
+    # hlink_ref hlink must be in report.out
+    grep -E " $hlink$" report.out > /dev/null ||  grep -E " $hlink_ref$" report.out > /dev/null || error "$hlink or $hlink_ref must be in report output"
+    # both hlink_ref hlink must be in find.out
+    grep -E " $hlink$" find.out > /dev/null || error "$hlink must be in rbh-find output"
+    grep -E " $hlink_ref$" find.out > /dev/null || error "$hlink must be in rbh-find output"
+
+    count_nb_init=$(wc -l report.out | awk '{print $1}')
+    count_path_init=$(wc -l find.out | awk '{print $1}')
 
     # rename entries
     echo "3. Renaming objects..."
@@ -3149,6 +3160,8 @@ function test_rename
     mv -f $ROOT/dir.2/file.1 $ROOT/dir.2/file.2
     # 4) upper level directory rename
     mv $ROOT/dir.3 $ROOT/dir.3.rnm
+    # 5) overwritting a hardlink
+    mv -f $ROOT/dir.2/file.4 $hlink
 
     # namespace GC needs 1s difference
     [ "$flavor" = "scan" ] && sleep 1
@@ -3173,11 +3186,13 @@ function test_rename
         grep -E " $o$" report.out > /dev/null || error "$o not found in report"
         grep -E " $o$" find.out > /dev/null || error "$o not found in report"
     done
-    count_final=$(wc -l report.out | awk '{print $1}')
-    (( $count_final == $count_init - 1)) || error "One entry should have been removed (rename target)"
+    count_nb_final=$(wc -l report.out | awk '{print $1}')
+    count_path_final=$(wc -l find.out | awk '{print $1}')
+
+    (( $count_nb_final == $count_nb_init - 1)) || error "1 entry should have been removed (rename target)"
+    (( $count_path_final == $count_path_init - 2)) || error "2 paths should have been removed (rename target)"
 
     rm -f report.out find.out
-
 }
 
 
