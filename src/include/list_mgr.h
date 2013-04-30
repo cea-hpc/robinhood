@@ -586,6 +586,14 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 int ListMgr_RecovReset( lmgr_t * p_mgr );
 
 /**
+ *  List entries by recovery status.
+ *  \param st type of entries to be listed
+ *  (done, failed, to be done, all)
+ */
+typedef enum {RT_ALL, RT_TODO, RT_DONE, RT_FAILED} recov_type_e;
+struct lmgr_iterator_t * ListMgr_RecovList( lmgr_t * p_mgr,recov_type_e st );
+
+/**
  *  Continue a recovery process (returns an iterator on entry list),
  *  possibly using the specified filter.
  *  \retval iterator must be release using ListMgr_CloseIterator()
@@ -598,7 +606,8 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
 
 int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
                           entry_id_t * p_id,
-                          attr_set_t * p_info );
+                          attr_set_t * p_info,
+                          recov_status_t * last_status ); /* last status of the entry (-1: not processed yet) */
 
 int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats );
 

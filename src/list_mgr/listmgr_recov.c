@@ -395,7 +395,7 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
     lmgr_iterator_t * it;
     int rc;
 
-    strcpy( query, "SELECT id,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
+    strcpy( query, "SELECT id,recov_status,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
     curr = query + strlen(query);
     if ( retry )
         curr += sprintf( curr, "(recov_status IS NULL OR recov_status=%u)",
@@ -428,12 +428,60 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
         return it;
 }
 
+/**
+ *  List entries by recovery status.
+ *  \param st type of entries to be listed
+ *  (done, failed, to be done, all)
+ */
+struct lmgr_iterator_t * ListMgr_RecovList( lmgr_t * p_mgr,recov_type_e st )
+{
+    char query[4096];
+    char * curr;
+    lmgr_iterator_t * it;
+    int rc;
+
+    strcpy( query, "SELECT id,recov_status,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE );
+    curr = query + strlen(query);
+    switch(st)
+    {
+        case RT_ALL:
+            /* add no filter */
+            break;
+        case RT_TODO:
+            strcpy(curr, " WHERE recov_status is NULL");
+            break;
+        case RT_DONE:
+            sprintf(curr, " WHERE recov_status in (%u, %u, %u, %u, %u)",
+                    RS_FILE_OK, RS_FILE_DELTA, RS_FILE_EMPTY, RS_NON_FILE, RS_NOBACKUP );
+            break;
+        case RT_FAILED:
+            sprintf(curr, " WHERE recov_status=%u", RS_ERROR);
+            break;
+    }
+
+    /* allocate a new iterator */
+    it = ( lmgr_iterator_t * ) MemAlloc( sizeof( lmgr_iterator_t ) );
+    it->p_mgr = p_mgr;
+
+    /* execute request */
+    rc = db_exec_sql( &p_mgr->conn, query, &it->select_result );
+
+    if ( rc )
+    {
+        MemFree( it );
+        return NULL;
+    }
+    else
+        return it;
+}
+
 int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
                           entry_id_t * p_id,
-                          attr_set_t * p_info )
+                          attr_set_t * p_info,
+                          recov_status_t * last_status )
 {
     int            rc = 0;
-    char          *result_tab[1+RECOV_FIELD_COUNT]; /* +1 for id */
+    char          *result_tab[2+RECOV_FIELD_COUNT]; /* +2 for id and recov_status */
     DEF_PK(pk);
     int entry_disappeared = FALSE;
 
@@ -442,7 +490,7 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
         entry_disappeared = FALSE;
 
         rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result,
-                             result_tab, RECOV_FIELD_COUNT+1 );
+                             result_tab, RECOV_FIELD_COUNT+2 );
 
         if ( rc )
             return rc;
@@ -451,6 +499,13 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
 
         if ( sscanf( result_tab[0], SPK, PTR_PK(pk) ) != 1 )
             return DB_REQUEST_FAILED;
+
+        if ( result_tab[1] == NULL ) { /* no status */
+            if (last_status)
+                *last_status = -1;
+        }
+        else if (last_status)
+            *last_status = str2int(result_tab[1]);
 
         /* retrieve entry id (except validator) */
         rc = pk2entry_id( p_iter->p_mgr, pk, p_id );
@@ -464,7 +519,7 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
     }
     while ( entry_disappeared );        /* goto next record if entry desappered */
 
-    return result2attrset( T_RECOV, result_tab + 1, RECOV_FIELD_COUNT, p_info );
+    return result2attrset( T_RECOV, result_tab + 2, RECOV_FIELD_COUNT, p_info );
 }
 
 int ListMgr_RecovComplete( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )

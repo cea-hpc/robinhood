@@ -44,9 +44,11 @@ static struct option option_tab[] =
     /* recovery options */
     {"start", no_argument, NULL, 'S'},
     {"resume", no_argument, NULL, 'r'},
+    {"run", no_argument, NULL, 'r'},
     {"complete", no_argument, NULL, 'c'},
     {"status", no_argument, NULL, 's'},
     {"reset", no_argument, NULL, 'Z'},
+    {"list", required_argument, NULL, 'L'},
 
     {"ost", required_argument, NULL, 'o'},
     {"dir", required_argument, NULL, 'D'},
@@ -68,7 +70,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "SrcZsD:eyf:l:o:hV"
+#define SHORT_OPT_STRING    "SrcZsD:eyf:l:o:hVL:"
 
 /* global variables */
 
@@ -97,12 +99,14 @@ static const char *help_string =
     _B "Disaster recovery actions:" B_ "\n"
     "    " _B "--start" B_ ", " _B "-S" B_ "\n"
     "        Initialize a disaster recovery process.\n"
-    "    " _B "--resume" B_ ", " _B "-r" B_ "\n"
+    "    "_B "--run" B_", " _B "--resume" B_ ", " _B "-r" B_ "\n"
     "        Run/resume the recovery process.\n"
     "    " _B "--complete" B_ ", " _B "-c" B_ "\n"
     "        Terminate the recovery.\n"
     "    " _B "--status" B_ ", " _B "-s" B_ "\n"
     "        Show current recovery progress.\n"
+    "    " _B "--list" B_ " "_U"state"U_", " _B "-L"B_" "_U"state"U_ "\n"
+    "        List entries for the given "_U"state"U_": all, done, failed, or todo.\n"
     "    " _B "--reset" B_ ", " _B "-Z" B_ "\n"
     "        Abort current recovery (/!\\ non-recovered entries are lost).\n"
     "\n"
@@ -358,7 +362,7 @@ int recov_resume( int retry_errors )
     attrs.attr_mask = RECOV_ATTR_MASK;
 
     while ( !terminate &&
-            ((rc = ListMgr_RecovGetNext( it, &id, &attrs )) != DB_END_OF_LIST) )
+            ((rc = ListMgr_RecovGetNext( it, &id, &attrs, NULL )) != DB_END_OF_LIST) )
     {
         if (rc)
         {
@@ -461,6 +465,76 @@ int recov_status()
     return 0;
 }
 
+int recov_list(recov_type_e state)
+{
+    struct lmgr_iterator_t * it;
+    int rc;
+    entry_id_t  id;
+    attr_set_t  attrs;
+    char buff[128];
+    recov_status_t st;
+    const char * status;
+
+    /* TODO iter opt */
+    it = ListMgr_RecovList( &lmgr, state );
+    if ( it == NULL )
+    {
+        fprintf( stderr, "ERROR: cannot get the list of entries\n");
+        return -1;
+    }
+
+    attrs.attr_mask = RECOV_ATTR_MASK;
+    printf("%-8s %-15s %-40s %s\n", "type", "state", "path", "size");
+
+    while ( !terminate &&
+            ((rc = ListMgr_RecovGetNext( it, &id, &attrs, &st )) != DB_END_OF_LIST) )
+    {
+        if (rc)
+        {
+            fprintf( stderr, "ERROR %d getting entry from recovery table\n", rc );
+            ListMgr_CloseIterator( it );
+            return rc;
+        }
+
+        FormatFileSize( buff, 128, ATTR( &attrs, size ) );
+        switch (st)
+        {
+            case RS_FILE_OK:
+                status = "done";
+                break;
+            case RS_FILE_DELTA:
+                status = "done_old_data";
+                break;
+            case RS_NON_FILE:
+                status = "done_non_file";
+                break;
+            case RS_FILE_EMPTY:
+                status = "done_empty";
+                break;
+            case RS_NOBACKUP:
+                status = "done_no_backup";
+                break;
+            case RS_ERROR:
+                status = "failed";
+                break;
+            case -1:
+                status = "todo";
+                break;
+            default:
+                status = "?";
+        }
+
+        printf("%-8s %-15s %-40s %s\n", ATTR(&attrs, type), status, ATTR(&attrs, fullpath), buff);
+
+        /* reset mask */
+        attrs.attr_mask = RECOV_ATTR_MASK;
+    }
+
+    return 0;
+}
+
+
+
 #define RETRY_ERRORS 0x00000001
 #define NO_CONFIRM   0x00000002
 
@@ -483,6 +557,7 @@ int main( int argc, char **argv )
     int            do_resume = FALSE;
     int            do_complete = FALSE;
     int            do_status = FALSE;
+    int            list_state = -1;
     int            force_log_level = FALSE;
 
     int            log_level = 0;
@@ -514,6 +589,21 @@ int main( int argc, char **argv )
             break;
         case 'r':
             do_resume = TRUE;
+            break;
+        case 'L':
+            if (!strcasecmp(optarg, "all"))
+                list_state = RT_ALL;
+            else if (!strcasecmp(optarg, "done"))
+                list_state = RT_DONE;
+            else if (!strcasecmp(optarg, "failed"))
+                list_state = RT_FAILED;
+            else if (!strcasecmp(optarg, "todo"))
+                list_state = RT_TODO;
+            else
+            {
+                fprintf(stderr, "Invalid parameter for option --list: all, done, failed or todo expected.\n");
+                exit(1);
+            }
             break;
         case 'e':
             local_flags |= RETRY_ERRORS;
@@ -683,6 +773,8 @@ int main( int argc, char **argv )
 
     if (do_status)
         rc = recov_status();
+    else if (list_state != -1)
+        rc = recov_list(list_state);
     else if (do_start)
         rc = recov_start();
     else if (do_reset)
@@ -691,9 +783,13 @@ int main( int argc, char **argv )
         rc = recov_resume( local_flags & RETRY_ERRORS );
     else if (do_complete)
         rc = recov_complete();
+    else
+    {
+        display_help( bin );
+        rc = 1;
+    }
 
     ListMgr_CloseAccess( &lmgr );
 
     return rc;
-
 }
