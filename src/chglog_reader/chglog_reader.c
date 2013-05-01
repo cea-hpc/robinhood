@@ -900,7 +900,7 @@ int            ChgLogRdr_DumpStats(  )
 
         tmp_buff[0] = '\0';
         ptr = tmp_buff;
-        for (j = 0; j < CL_LAST-1; j++)
+        for (j = 0; j < CL_LAST; j++)
         {
             /* flush full line */
             if (ptr - tmp_buff >= 80)
@@ -909,17 +909,15 @@ int            ChgLogRdr_DumpStats(  )
                 tmp_buff[0] = '\0';
                 ptr = tmp_buff;
             }
-            if (ptr == tmp_buff)
-                ptr += sprintf( ptr, "%s: %llu", changelog_type2str(j),
-                                reader_info[i].cl_counters[j] );
-            else
-                ptr += sprintf( ptr, ", %s: %llu", changelog_type2str(j),
-                                reader_info[i].cl_counters[j] );
+            if (ptr != tmp_buff)
+                ptr += sprintf( ptr, ", ");
+
+            ptr += sprintf( ptr, "%s: %llu", changelog_type2str(j),
+                            reader_info[i].cl_counters[j] );
         }
         /* last unflushed line */
         if (ptr != tmp_buff)
-            sprintf( ptr, ", %s: %llu", changelog_type2str(j),
-                     reader_info[i].cl_counters[j] );
+            DisplayLog( LVL_MAJOR, "STATS", "   %s", tmp_buff );
     }
 
     return 0;
