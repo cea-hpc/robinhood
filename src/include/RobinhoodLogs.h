@@ -55,6 +55,8 @@ typedef struct log_config__
 
 } log_config_t;
 
+extern log_config_t log_config;
+
 int            SetDefaultLogConfig( void *module_config, char *msg_out );
 int            ReadLogConfig( config_file_t config, void *module_config,
                               char *msg_out, int for_reload );
@@ -83,8 +85,13 @@ void           FlushLogs(void);
 
 
 /* Displays a log message */
-void           DisplayLog( int debug_level, const char *tag, const char *format, ... )
+void           DisplayLogFn( int debug_level, const char *tag, const char *format, ... )
                     __attribute__((format(printf, 3, 4))); /* 3=format 4=params */
+#define DisplayLog(dbg_level,tag,format...) \
+    do { if (log_config.debug_level >= (dbg_level))   \
+            DisplayLogFn((dbg_level), (tag), format); \
+    } while(0)
+
 
 /* Displays a line in the report file */
 void           DisplayReport( const char *format, ... )

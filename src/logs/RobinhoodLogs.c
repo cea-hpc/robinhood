@@ -62,7 +62,7 @@
 
 static int     log_initialized = FALSE;
 
-static log_config_t log_config = {
+log_config_t log_config = {
     .debug_level = LVL_EVENT, /* used for non-initialized logging */
     .syslog_facility = LOG_LOCAL1,
     .syslog_priority = LOG_INFO
@@ -544,7 +544,7 @@ static void display_line_log_( log_stream_t * p_log, const char * tag,
  *  If logs are not initialized, write to stderr.
  */
 
-void DisplayLog( int debug_level, const char *tag, const char *format, ... )
+void DisplayLogFn( int debug_level, const char *tag, const char *format, ... )
 {
     time_t         now = time( NULL );
     va_list        args;
