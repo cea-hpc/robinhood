@@ -51,7 +51,7 @@
 #define bool2str( _b_ )   ((_b_)?"TRUE":"FALSE")
 
 /**
- *  Other usefull definitions
+ *  Other useful definitions
  */
 
 #define MIN2( _a_, _b_ ) ( (_a_)<(_b_) ? (_a_) : (_b_) )

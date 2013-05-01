@@ -879,7 +879,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->db_attr_need = 0;
 
         if (type_clue == TYPE_NONE)
-            /* type is a usefull information to take decisions (about getstripe, readlink, ...) */
+            /* type is a useful information to take decisions (about getstripe, readlink, ...) */
             p_op->db_attr_need |= ATTR_MASK_type;
 
         /* add diff mask for diff mode */
@@ -1663,7 +1663,7 @@ rm_record:
          */
         p_op->db_op_type = OP_TYPE_REMOVE_LAST;
 #else
-        /* on other posix filesystems, the entry disappered between its
+        /* on other posix filesystems, the entry disappeared between its
          * scanning and its processing... skip it so it we be cleaned
          * at the end of the scan. */
         goto skip_record;

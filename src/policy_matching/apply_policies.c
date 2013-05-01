@@ -1109,7 +1109,7 @@ int WhitelistedClass( const char * class_id, policy_type_t policy_type )
 }
 
 
-/** @TODO XXX is this usefull? */
+/** @TODO XXX is this useful? */
 #if 0
 char          *FilesetMatch( const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr )
 {
