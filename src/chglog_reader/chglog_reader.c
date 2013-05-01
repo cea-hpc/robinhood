@@ -810,6 +810,8 @@ int            ChgLogRdr_Wait(  )
 
     Alert_EndBatching();
 
+    ChgLogRdr_DumpStats();
+
     return 0;
 }
 
