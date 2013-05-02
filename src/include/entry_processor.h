@@ -26,6 +26,7 @@
 #define _ENTRY_PROC_H
 
 #include "list_mgr.h"
+#include "list.h"
 #include "config_parsing.h"
 
 /* Tag for Logs */
@@ -192,8 +193,7 @@ typedef struct entry_proc_op_t
     struct timeval start_processing_time;
 
     /* double chained list for FIFO */
-    struct entry_proc_op_t *p_next;
-    struct entry_proc_op_t *p_prev;
+    struct list_head list;
 
 } entry_proc_op_t;
 

@@ -22,6 +22,7 @@
 #include "entry_proc_tools.h"
 #include "Memory.h"
 #include "RobinhoodLogs.h"
+#include "list.h"
 #include <semaphore.h>
 #include <pthread.h>
 #include <errno.h>
@@ -36,8 +37,7 @@ static sem_t pipeline_token;
 /* each stage of the pipeline consist of the following information: */
 typedef struct __list_by_stage__
 {
-    entry_proc_op_t *last_in_ptr;
-    entry_proc_op_t *first_in_ptr;
+    struct list_head entries;
     unsigned int   nb_threads;                   /* number of threads working on this stage */
     unsigned int   nb_unprocessed_entries;       /* number of entries to be processed in this list */
     unsigned int   nb_processed_entries;         /* number of entries processed in this list */
@@ -199,8 +199,7 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
 
     for ( i = 0; i < entry_proc_descr.stage_count; i++ )
     {
-        pipeline[i].last_in_ptr = NULL;
-        pipeline[i].first_in_ptr = NULL;
+        rh_list_init(&pipeline[i].entries);
         pipeline[i].nb_threads = 0;
         pipeline[i].nb_unprocessed_entries = 0;
         pipeline[i].nb_processed_entries = 0;
@@ -253,7 +252,6 @@ int EntryProcessor_Push( const entry_proc_op_t * p_new_op )
 
     /* fill its content (except p_prev because we need a lock) */
     *p_entry = *p_new_op;
-    p_entry->p_next = NULL;     /* insert as last */
     p_entry->being_processed = FALSE;
     p_entry->id_is_referenced = FALSE;
 
@@ -276,7 +274,7 @@ int EntryProcessor_Push( const entry_proc_op_t * p_new_op )
     {
         P( pipeline[i].stage_mutex );
 
-        if ( pipeline[i].last_in_ptr != NULL )
+        if ( !rh_list_empty(&pipeline[i].entries) )
         {
             insert_stage = i;
             break;
@@ -296,19 +294,7 @@ int EntryProcessor_Push( const entry_proc_op_t * p_new_op )
     }
 
     /* insert entry */
-    if ( pipeline[insert_stage].last_in_ptr == NULL )
-    {
-        /* first = last = new entry */
-        p_entry->p_prev = NULL;
-        pipeline[insert_stage].last_in_ptr = p_entry;
-        pipeline[insert_stage].first_in_ptr = p_entry;
-    }
-    else
-    {
-        p_entry->p_prev = pipeline[insert_stage].last_in_ptr;
-        pipeline[insert_stage].last_in_ptr->p_next = p_entry;
-        pipeline[insert_stage].last_in_ptr = p_entry;
-    }
+    rh_list_add_tail(&p_entry->list, &pipeline[insert_stage].entries);
 
     if ( insert_stage < p_entry->pipeline_stage )
         pipeline[insert_stage].nb_processed_entries++;
@@ -340,30 +326,14 @@ static inline void remove_entry_from_stage( unsigned int stage_index,
     if ( lock_stage )
         P( pipeline[stage_index].stage_mutex );
 
-    /* update stage info (the enrty is supposed to be in "processed" category) */
+    /* update stage info (the entry is supposed to be in "processed" category) */
     pipeline[stage_index].nb_processed_entries--;
 
-    /* update first_in_ptr, if this entry was first_in */
-    if ( p_op == pipeline[stage_index].first_in_ptr )
-        pipeline[stage_index].first_in_ptr = p_op->p_next;
-
-    /* update last_in_ptr, if this entry was last_in */
-    if ( p_op == pipeline[stage_index].last_in_ptr )
-        pipeline[stage_index].last_in_ptr = p_op->p_prev;
-
-    /* update neighbours pointer */
-    if ( p_op->p_next )
-        p_op->p_next->p_prev = p_op->p_prev;
-
-    if ( p_op->p_prev )
-        p_op->p_prev->p_next = p_op->p_next;
+    rh_list_del_init(&p_op->list);
 
     if ( lock_stage )
         V( pipeline[stage_index].stage_mutex );
 
-    /* this entry doesn't point to anything */
-    p_op->p_prev = NULL;
-    p_op->p_next = NULL;
 }
 
 /*
@@ -378,6 +348,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     int            i;
     unsigned int   pipeline_stage_min;
     unsigned int   insert_stage;
+    struct list_head rem;
 
     /* nothing to do if we are already at last step */
     if ( source_stage_index >= entry_proc_descr.stage_count - 1 )
@@ -387,10 +358,10 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
         P( pipeline[source_stage_index].stage_mutex );
 
     /* is there at least 1 entry to be moved ? */
-    if ( pipeline[source_stage_index].first_in_ptr == NULL )
+    if ( rh_list_empty(&pipeline[source_stage_index].entries))
         goto out;
 
-    p_first = pipeline[source_stage_index].first_in_ptr;
+    p_first = rh_list_first_entry(&pipeline[source_stage_index].entries, entry_proc_op_t, list);
     P( p_first->entry_lock );
     if ( p_first->being_processed || ( p_first->pipeline_stage <= source_stage_index ) )
     {
@@ -404,7 +375,9 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     count = 1;
 
     /* check next entries  */
-    for ( p_curr = p_first->p_next; p_curr != NULL; p_curr = p_curr->p_next )
+    for ( p_curr = rh_list_entry(p_first->list.next, entry_proc_op_t, list);
+          &p_curr->list != &pipeline[source_stage_index].entries;
+          p_curr = rh_list_entry(p_curr->list.next, entry_proc_op_t, list) )
     {
         P( p_curr->entry_lock );
         if ( !p_curr->being_processed && ( p_curr->pipeline_stage > source_stage_index ) )
@@ -422,20 +395,8 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
         }
     }
 
-    /* remove entries from current list: */
-
-    /* 1) remove the beginning of the list + update first_in_ptr */
-    if ( p_last->p_next )
-        p_last->p_next->p_prev = NULL;
-
-    pipeline[source_stage_index].first_in_ptr = p_last->p_next;
-
-    /* cut the list of entries to be moved */
-    p_last->p_next = NULL;
-
-    /* 2) update last_in_ptr if the last entry is last_in */
-    if ( pipeline[source_stage_index].last_in_ptr == p_last )
-        pipeline[source_stage_index].last_in_ptr = NULL;
+    /* remove entries from current list */
+    rh_list_cut_head(&pipeline[source_stage_index].entries, &p_last->list, &rem);
 
     /* change entry count */
     pipeline[source_stage_index].nb_processed_entries -= count;
@@ -451,10 +412,10 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
         P( pipeline[i].stage_mutex );
 
         /* make sure this stage has correctly been flushed */
-        if ( pipeline[i].last_in_ptr )
+        if ( !rh_list_empty(&pipeline[i].entries) )
             move_stage_entries( i, FALSE );
 
-        if ( pipeline[i].last_in_ptr != NULL )
+        if ( !rh_list_empty(&pipeline[i].entries) )
         {
             insert_stage = i;
             break;
@@ -478,7 +439,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     /* If the stage has an ID_CONSTRAINT, register entries */
     if ( entry_proc_pipeline[insert_stage].stage_flags & STAGE_FLAG_ID_CONSTRAINT )
     {
-        for ( p_curr = p_first; p_curr != NULL; p_curr = p_curr->p_next )
+        rh_list_for_each_entry( p_curr, &rem, list )
         {
 #ifdef _DEBUG_ENTRYPROC
             if ( p_curr->id_is_referenced || (!p_curr->entry_id_is_set && p_curr->pipeline_stage != 6) )
@@ -501,37 +462,22 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     DisplayLog( LVL_FULL, ENTRYPROC_TAG, "move_stage_entries: insert stage %u", insert_stage );
 #endif
 
-    /* insert entry list */
-    if ( pipeline[insert_stage].last_in_ptr == NULL )
-    {
-        /* list = new entries */
-        p_first->p_prev = NULL;
-        p_last->p_next = NULL;
-        pipeline[insert_stage].last_in_ptr = p_last;
-        pipeline[insert_stage].first_in_ptr = p_first;
-    }
-    else
-    {
-        /* put this list at the end of the existing one */
-        p_first->p_prev = pipeline[insert_stage].last_in_ptr;
-        p_last->p_next = NULL;
-        pipeline[insert_stage].last_in_ptr->p_next = p_first;
-        pipeline[insert_stage].last_in_ptr = p_last;
-    }
-
     /* check update info depending on this list */
-
-    for ( p_curr = p_first; p_curr != NULL; p_curr = p_curr->p_next )
+    /* TODO: can we merge that with the previous loop ? */
+    rh_list_for_each_entry( p_curr, &rem, list )
     {
         /* no need to take a lock to check 'p_curr->pipeline_stage',
          * because if we moved this entry, this means it is not in use.
-         * An no thread can process in for now because the list is locked.
+         * And no thread can process it for now because the list is locked.
          */
         if ( insert_stage < p_curr->pipeline_stage )
             pipeline[insert_stage].nb_processed_entries++;
         else
             pipeline[insert_stage].nb_unprocessed_entries++;
     }
+
+    /* insert entry list */
+    rh_list_splice_tail(&pipeline[insert_stage].entries, &rem);
 
     /* release all lists lock (except the source one) */
     for ( i = source_stage_index + 1; i <= insert_stage; i++ )
@@ -596,7 +542,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
             /* in case of a sequential operation, the only entry that can be processed
              * is the first entry in this stage.
              */
-            for ( p_curr = pipeline[i].first_in_ptr; p_curr != NULL; p_curr = p_curr->p_next )
+            rh_list_for_each_entry( p_curr, &pipeline[i].entries, list )
             {
                 /* the pipeline is not empty */
                 *p_empty = FALSE;
@@ -666,7 +612,7 @@ entry_proc_op_t *next_work_avail( int *p_empty )
             }
 
             /* check entries at this stage */
-            for ( p_curr = pipeline[i].first_in_ptr; p_curr != NULL; p_curr = p_curr->p_next )
+            rh_list_for_each_entry( p_curr, &pipeline[i].entries, list )
             {
                 /* the pipeline is not empty */
                 *p_empty = FALSE;
@@ -979,7 +925,7 @@ void EntryProcessor_DumpCurrentStages(  )
                         pipeline[i].nb_processed_entries, pipeline[i].total_processed, tpe );
             V( pipeline[i].stage_mutex );
 
-            if ( pipeline[i].first_in_ptr || pipeline[i].last_in_ptr )
+            if ( !rh_list_empty(&pipeline[i].entries) )
                 is_pending_op = TRUE;
         }
         nb_get = nb_ins =  nb_upd = nb_rm = 0;
@@ -1006,59 +952,61 @@ void EntryProcessor_DumpCurrentStages(  )
             for ( i = 0; i < entry_proc_descr.stage_count; i++ )
             {
                 P( pipeline[i].stage_mutex );
-                if ( pipeline[i].first_in_ptr )
+                if ( !rh_list_empty(&pipeline[i].entries) )
                 {
+                    entry_proc_op_t *op = rh_list_first_entry(&pipeline[i].entries, entry_proc_op_t, list);
     #ifdef HAVE_CHANGELOGS
-                    if ( pipeline[i].first_in_ptr->extra_info.is_changelog_record )
+                    if ( op->extra_info.is_changelog_record )
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: first: changelog record #%Lu, fid="DFID", status=%s",
                                     entry_proc_pipeline[i].stage_name,
-                                    pipeline[i].first_in_ptr->extra_info.log_record.p_log_rec->cr_index,
-                                    PFID(&pipeline[i].first_in_ptr->extra_info.log_record.p_log_rec->cr_tfid),
-                                    entry_status_str( pipeline[i].first_in_ptr, i) );
+                                    op->extra_info.log_record.p_log_rec->cr_index,
+                                    PFID(&op->extra_info.log_record.p_log_rec->cr_tfid),
+                                    entry_status_str( op, i) );
                     }
                     else
     #endif
-                    if ( ATTR_FSorDB_TEST( pipeline[i].first_in_ptr, fullpath) )
+                        if ( ATTR_FSorDB_TEST( op, fullpath) )
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: first: %s, status=%s",
                                     entry_proc_pipeline[i].stage_name,
-                                    ATTR_FSorDB( pipeline[i].first_in_ptr, fullpath ),
-                                    entry_status_str( pipeline[i].first_in_ptr, i) );
+                                    ATTR_FSorDB( op, fullpath ),
+                                    entry_status_str( op, i) );
                     }
                     else
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: first: special op %s",
                                     entry_proc_pipeline[i].stage_name,
-                                    entry_proc_pipeline[pipeline[i].first_in_ptr->pipeline_stage].stage_name );
+                                    entry_proc_pipeline[op->pipeline_stage].stage_name );
                     }
-                }
-                if ( pipeline[i].last_in_ptr )
-                {
+
+                    /* Now, get the last entry. */
+                    op = rh_list_last_entry(&pipeline[i].entries, entry_proc_op_t, list);
+
     #ifdef HAVE_CHANGELOGS
-                    if ( pipeline[i].last_in_ptr->extra_info.is_changelog_record )
+                    if ( op->extra_info.is_changelog_record )
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: last: changelog record #%Lu, fid="DFID", status=%s",
                                     entry_proc_pipeline[i].stage_name,
-                                    pipeline[i].last_in_ptr->extra_info.log_record.p_log_rec->cr_index,
-                                    PFID(&pipeline[i].last_in_ptr->extra_info.log_record.p_log_rec->cr_tfid),
-                                    entry_status_str( pipeline[i].last_in_ptr, i) );
+                                    op->extra_info.log_record.p_log_rec->cr_index,
+                                    PFID(&op->extra_info.log_record.p_log_rec->cr_tfid),
+                                    entry_status_str( op, i) );
                     }
                     else
     #endif
                     /* path is always set for scan mode... */
-                    if ( ATTR_FSorDB_TEST( pipeline[i].last_in_ptr, fullpath) )
+                    if ( ATTR_FSorDB_TEST( op, fullpath) )
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: last: %s, status=%s",
                                     entry_proc_pipeline[i].stage_name,
-                                        ATTR_FSorDB( pipeline[i].last_in_ptr, fullpath ),
-                                    entry_status_str( pipeline[i].last_in_ptr, i) );
+                                        ATTR_FSorDB( op, fullpath ),
+                                    entry_status_str( op, i) );
                     }
                     else /* else it is a special op */
                     {
                         DisplayLog( LVL_EVENT, "STATS", "%-20s: last: special op %s",
                                     entry_proc_pipeline[i].stage_name,
-                                    entry_proc_pipeline[pipeline[i].last_in_ptr->pipeline_stage].stage_name );
+                                    entry_proc_pipeline[op->pipeline_stage].stage_name );
                     }
                 }
                 V( pipeline[i].stage_mutex );
