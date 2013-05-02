@@ -780,7 +780,7 @@ int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str
                     {
                         DisplayLog(LVL_MAJOR, LISTMGR_TAG, "fullpath filter %s is not under FS root %s: replacing filter by 'FALSE'",
                                    val, global_config.fs_path);
-                        strcmp(filter_str, "FALSE");
+                        strcpy(filter_str, "FALSE");
                         return 1;
                     }
                     typeu.val_str = relative;
