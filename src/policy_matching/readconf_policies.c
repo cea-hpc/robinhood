@@ -2140,7 +2140,7 @@ static int read_policy( config_file_t config, policies_t * policies, char *msg_o
     }
 
     /* initialize output */
-    memset( policy_list, 0, sizeof( policy_list ) );
+    memset( policy_list, 0, sizeof( *policy_list ) );
 
     /* get policy section */
 
