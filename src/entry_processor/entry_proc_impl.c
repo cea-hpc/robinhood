@@ -22,17 +22,16 @@
 #include "entry_proc_tools.h"
 #include "Memory.h"
 #include "RobinhoodLogs.h"
-#include "SemN.h"
+#include <semaphore.h>
 #include <pthread.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 /* Dijkstra notation */
 #define P(_m_)  pthread_mutex_lock(&(_m_))
 #define V(_m_)  pthread_mutex_unlock(&(_m_))
 
-static semaphore_t pipeline_token;
+static sem_t pipeline_token;
 
 /* each stage of the pipeline consist of the following information: */
 typedef struct __list_by_stage__
@@ -196,7 +195,7 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
 
     /* If a limit of pending operations is specified, initialize a token */
     if ( entry_proc_conf.max_pending_operations > 0 )
-        semaphore_init( &pipeline_token, entry_proc_conf.max_pending_operations );
+        sem_init( &pipeline_token, 0, entry_proc_conf.max_pending_operations );
 
     for ( i = 0; i < entry_proc_descr.stage_count; i++ )
     {
@@ -260,7 +259,7 @@ int EntryProcessor_Push( const entry_proc_op_t * p_new_op )
 
     /* if a limit of pending operations is specified, wait for a token */
     if ( entry_proc_conf.max_pending_operations > 0 )
-        semaphore_P( &pipeline_token );
+        sem_wait( &pipeline_token );
 
     /* We must always insert it in the first stage, to keep
      * the good ordering of entries.
@@ -902,7 +901,7 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
 
         /* If a limit of pending operations is specified, release a token */
         if ( entry_proc_conf.max_pending_operations > 0 )
-            semaphore_V( &pipeline_token );
+            sem_post( &pipeline_token );
 
         /* @todo free entry_info */
 

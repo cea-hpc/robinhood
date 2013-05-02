@@ -6,7 +6,7 @@ TYPEGEN=$(top_srcdir)/scripts/type_gen.pl
 .def.h:
 	$(TYPEGEN) $< $*.h
 
-noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h SemN.h \
+noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h \
 		uidgidcache.h Memory.h rbh_const.h RobinhoodLogs.h \
 		RobinhoodConfig.h RobinhoodMisc.h config_parsing.h \
 		global_config.h entry_processor.h      \

@@ -23,7 +23,6 @@
 #include "queue.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
-#include "SemN.h"
 #include "Memory.h"
 
 #include <pthread.h>
@@ -77,11 +76,11 @@ int CreateQueue( entry_queue_t * p_queue, unsigned int queue_size,
     /* init locks */
     pthread_mutex_init( &p_queue->queue_lock, NULL );
 
-    rc = semaphore_init( &p_queue->sem_empty, queue_size );
+    rc = sem_init( &p_queue->sem_empty, 0, queue_size );
     if ( rc )
         return rc;
 
-    rc = semaphore_init( &p_queue->sem_full, 0 );
+    rc = sem_init( &p_queue->sem_full, 0, 0 );
     if ( rc )
         return rc;
 
@@ -140,7 +139,7 @@ int Queue_Insert( entry_queue_t * p_queue, void *entry )
     if ( p_queue == NULL )
         return EFAULT;
 
-    semaphore_P( &p_queue->sem_empty ); /* wait for free places */
+    sem_wait( &p_queue->sem_empty ); /* wait for free places */
 
     lockq( p_queue );           /* enter into the critical section */
 
@@ -165,7 +164,7 @@ int Queue_Insert( entry_queue_t * p_queue, void *entry )
 
     unlockq( p_queue );
 
-    semaphore_V( &p_queue->sem_full );  /* increase filled places */
+    sem_post( &p_queue->sem_full );  /* increase filled places */
 
     return 0;
 
@@ -185,7 +184,7 @@ int Queue_Get( entry_queue_t * p_queue, void **p_ptr )
     p_queue->nb_thr_waiting++;
     unlockq( p_queue );
 
-    semaphore_P( &p_queue->sem_full );  /* wait for filled places */
+    sem_wait( &p_queue->sem_full );  /* wait for filled places */
 
     lockq( p_queue );           /* enters into the critical section */
 
@@ -210,7 +209,7 @@ int Queue_Get( entry_queue_t * p_queue, void **p_ptr )
 
     unlockq( p_queue );
 
-    semaphore_V( &p_queue->sem_empty ); /* increase free places */
+    sem_post( &p_queue->sem_empty ); /* increase free places */
 
     return 0;
 

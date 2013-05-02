@@ -17,7 +17,7 @@
  * \brief Module for managing the queue of files to be purged.
  */
 
-#include "SemN.h"
+#include <semaphore.h>
 #include <time.h>
 #include <pthread.h>
 
@@ -39,9 +39,9 @@ typedef struct entry_queue_t
     pthread_mutex_t queue_lock;
 
     /* token for free slots */
-    semaphore_t    sem_empty;
+    sem_t          sem_empty;
     /* token for filled slots */
-    semaphore_t    sem_full;
+    sem_t          sem_full;
 
     /* ==== stats ==== */
 
