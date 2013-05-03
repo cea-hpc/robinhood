@@ -40,15 +40,14 @@ typedef struct id_constraint_item__
     entry_proc_op_t *op_ptr;
 
     /* for chained list */
-    struct id_constraint_item__ *p_next;
+    struct list_head list;
 
 } id_constraint_item_t;
 
 typedef struct id_constraint_slot__
 {
     pthread_mutex_t lock;
-    id_constraint_item_t *id_list_first;
-    id_constraint_item_t *id_list_last;
+    struct list_head list;
     unsigned int   count;
 } id_constraint_slot_t;
 
@@ -97,8 +96,7 @@ int id_constraint_init(  )
     for ( i = 0; i < ID_HASH_SIZE; i++ )
     {
         pthread_mutex_init( &id_hash[i].lock, NULL );
-        id_hash[i].id_list_first = NULL;
-        id_hash[i].id_list_last = NULL;
+        rh_list_init(&id_hash[i].list);
         id_hash[i].count = 0;
     }
     return 0;
@@ -126,19 +124,10 @@ int id_constraint_register( entry_proc_op_t * p_op )
 
     p_new->op_ptr = p_op;
 
-    /* always insert in queue */
-    p_new->p_next = NULL;
-
     P( slot->lock );
 
-    if ( slot->id_list_last )
-        slot->id_list_last->p_next = p_new;
-    else
-        slot->id_list_first = p_new;
-
-    slot->id_list_last = p_new;
+    rh_list_add_tail(&p_new->list, &slot->list);
     slot->count++;
-
     p_op->id_is_referenced = TRUE;
 
     V( slot->lock );
@@ -163,7 +152,7 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 
     P( slot->lock );
 
-    for ( p_curr = slot->id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
+    rh_list_for_each_entry( p_curr, &slot->list, list )
     {
         if ( entry_id_equal( p_id, &p_curr->op_ptr->entry_id ) )
         {
@@ -197,7 +186,6 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 {
     unsigned int   hash_index;
     id_constraint_item_t *p_curr;
-    id_constraint_item_t *p_prev;
     id_constraint_slot_t *slot;
 
     if ( !p_op->entry_id_is_set )
@@ -213,22 +201,14 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
     /* check if the entry id exists and is a stage >= pipeline_stage */
     P( slot->lock );
 
-    for ( p_curr = slot->id_list_first, p_prev = NULL;
-          p_curr != NULL; p_prev = p_curr, p_curr = p_curr->p_next )
+    rh_list_for_each_entry( p_curr, &slot->list, list )
     {
         if ( p_curr->op_ptr == p_op )
         {
             /* found */
-            if ( p_prev == NULL )
-                slot->id_list_first = p_curr->p_next;
-            else
-                p_prev->p_next = p_curr->p_next;
+            rh_list_del(&p_curr->list);
 
-            /* was it the last ? */
-            if ( slot->id_list_last == p_curr )
-                slot->id_list_last = p_prev;
-
-            p_curr->op_ptr->id_is_referenced = FALSE;
+            p_op->id_is_referenced = FALSE;
 
             slot->count--;
 
