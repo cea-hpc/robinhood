@@ -152,7 +152,7 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
         return rc;
 
     /* only get subdirs (for scanning) */
-    fv.val_str = STR_TYPE_DIR;
+    fv.value.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_init( &filter );
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 

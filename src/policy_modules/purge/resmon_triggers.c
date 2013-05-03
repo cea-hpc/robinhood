@@ -1179,7 +1179,7 @@ static int check_usergroup_trigger( unsigned trigger_index )
         info[1].sort_flag = SORT_NONE;
         info[1].filter = TRUE;
         info[1].filter_compar = MORETHAN_STRICT;
-        info[1].filter_value.val_biguint = p_trigger->hw_count;
+        info[1].filter_value.value.val_biguint = p_trigger->hw_count;
     }
     else /* volume based trigger */
     {
@@ -1189,7 +1189,7 @@ static int check_usergroup_trigger( unsigned trigger_index )
         info[1].sort_flag = SORT_NONE;
         info[1].filter = TRUE;
         info[1].filter_compar = MORETHAN_STRICT;
-        info[1].filter_value.val_biguint = max_blk512;
+        info[1].filter_value.value.val_biguint = max_blk512;
     }
 
     /* filtre non-invalid entries */
@@ -1197,14 +1197,14 @@ static int check_usergroup_trigger( unsigned trigger_index )
 
 #ifdef ATTR_INDEX_status
     /* don't consider released files in quota */
-    fv.val_int = STATUS_RELEASED;
+    fv.value.val_int = STATUS_RELEASED;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, NOTEQUAL, fv,
                             FILTER_FLAG_ALLOW_NULL);
 #endif
 
 #if 0
     /** @TODO if accounting is enabled, don't filter to take benefits of accounting table */
-    fv.val_bool = TRUE;
+    fv.value.val_bool = TRUE;
 #ifdef ATTR_INDEX_invalid
     lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0 );
 #endif
@@ -1220,23 +1220,23 @@ static int check_usergroup_trigger( unsigned trigger_index )
          */
         if ( p_trigger->list_size == 1 )
         {
-            fv.val_str = p_trigger->list[0];
+            fv.value.val_str = p_trigger->list[0];
             lmgr_simple_filter_add( &filter, what_index, LIKE, fv, 0 );
         }
         else
         {
             int i;
 
-            fv.val_str = p_trigger->list[0];
+            fv.value.val_str = p_trigger->list[0];
             lmgr_simple_filter_add( &filter, what_index, LIKE, fv,
                                     FILTER_FLAG_BEGIN );
             for ( i = 1; i < p_trigger->list_size-1; i++ )
             {
-                fv.val_str = p_trigger->list[i];
+                fv.value.val_str = p_trigger->list[i];
                 lmgr_simple_filter_add( &filter, what_index, LIKE, fv,
                                         FILTER_FLAG_OR );
             }
-            fv.val_str = p_trigger->list[i];
+            fv.value.val_str = p_trigger->list[i];
             lmgr_simple_filter_add( &filter, what_index, LIKE, fv,
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }

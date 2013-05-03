@@ -499,7 +499,7 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src );
  * \return -1 if this is not a criteria stored in DB.
  */
 int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
-                     filter_comparator_t * p_compar, db_type_u * p_value,
+                     filter_comparator_t * p_compar, filter_value_t * p_value,
                      int * p_must_release);
 
 #endif

@@ -450,7 +450,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
           return rc;
       }
     /* do not retrieve 'invalid' entries */
-    fval.val_bool = FALSE;
+    fval.value.val_bool = FALSE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
       {
@@ -459,7 +459,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
       }
 
     /* only consider directories */
-    fval.val_str = STR_TYPE_DIR;
+    fval.value.val_str = STR_TYPE_DIR;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fval, 0 );
     if ( rc )
       {
@@ -468,7 +468,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
       }
 
     /* only consider empty directories */
-    fval.val_uint = 0;
+    fval.value.val_uint = 0;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, EQUAL, fval, 0 );
     if ( rc )
       {
@@ -477,7 +477,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
       }
 
     /* only consider directories strictly older than (now - age_rm_empty_dirs) */
-    fval.val_uint = ( time( NULL ) - policies.rmdir_policy.age_rm_empty_dirs );
+    fval.value.val_uint = ( time( NULL ) - policies.rmdir_policy.age_rm_empty_dirs );
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_last_mod, LESSTHAN_STRICT,
                                  fval, 0 );
     if ( rc )
@@ -696,7 +696,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
           return rc;
       }
     /* do not retrieve 'invalid' entries */
-    fval.val_bool = FALSE;
+    fval.value.val_bool = FALSE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
       {
@@ -705,7 +705,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
       }
 
     /* only consider directories */
-    fval.val_str = STR_TYPE_DIR;
+    fval.value.val_str = STR_TYPE_DIR;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fval, 0 );
     if ( rc )
       {

@@ -427,7 +427,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
 #ifdef ATTR_INDEX_invalid
     /* do not retrieve 'invalid' entries */
-    fval.val_bool = FALSE;
+    fval.value.val_bool = FALSE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval,
                                  FILTER_FLAG_ALLOW_NULL );
     if ( rc )
@@ -436,7 +436,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
 #ifdef ATTR_INDEX_no_release
     /* do not retrieve entries with 'no_release' tag = 1 */
-    fval.val_bool = TRUE;
+    fval.value.val_bool = TRUE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_no_release, NOTEQUAL,
                                  fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
@@ -445,7 +445,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
 #ifdef ATTR_INDEX_status
     /* only get entries with HSM state SYNCHRO */
-    fval.val_int = STATUS_SYNCHRO;
+    fval.value.val_int = STATUS_SYNCHRO;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
     if ( rc )
         return rc;
@@ -458,11 +458,11 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
         /* only retrieve files */
-        fval.val_str = STR_TYPE_FILE;
+        fval.value.val_str = STR_TYPE_FILE;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fval, 0 );
 #else
         /* do not retrieve directories */
-        fval.val_str = STR_TYPE_DIR;
+        fval.value.val_str = STR_TYPE_DIR;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fval, 0 );
 #endif
         if ( rc )
@@ -489,7 +489,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
         /* We must retrieve files from this OST, sorted by atime */
 
-        fval.val_uint = p_purge_param->param_u.ost_index;
+        fval.value.val_uint = p_purge_param->param_u.ost_index;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items,
                                      EQUAL, fval, 0 );
         if ( rc )
@@ -508,7 +508,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
         /* We must retrieve files from these OSTs, sorted by atime */
 
-        fval.val_str = p_purge_param->param_u.pool_name;
+        fval.value.val_str = p_purge_param->param_u.pool_name;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_info,
                                      EQUAL, fval, 0 );
 
@@ -522,7 +522,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
         /* We must retrieve files for this user, sorted by atime */
 
-        fval.val_str = p_purge_param->param_u.user_name;
+        fval.value.val_str = p_purge_param->param_u.user_name;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_owner, EQUAL, fval, 0 );
 
         if ( rc )
@@ -535,7 +535,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
         /* We must retrieve files for this group, sorted by atime */
 
-        fval.val_str = p_purge_param->param_u.group_name;
+        fval.value.val_str = p_purge_param->param_u.group_name;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_gr_name, EQUAL, fval, 0 );
         if ( rc )
             return rc;
@@ -546,11 +546,11 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                     p_purge_param->param_u.class_name );
 
         if (!strcasecmp( p_purge_param->param_u.class_name, "default"))
-            fval.val_str = CLASS_DEFAULT;
+            fval.value.val_str = CLASS_DEFAULT;
         else if ( !strcasecmp( p_purge_param->param_u.class_name, "ignored"))
-            fval.val_str = CLASS_IGNORED;
+            fval.value.val_str = CLASS_IGNORED;
         else
-            fval.val_str = p_purge_param->param_u.class_name;
+            fval.value.val_str = p_purge_param->param_u.class_name;
 
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, LIKE,
                                      fval, 0 );
@@ -581,7 +581,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         if ( policies.updt_policy.fileclass.policy == UPDT_NEVER )
         {
             /* filter: release class != ignored */
-            fval.val_str = CLASS_IGNORED;
+            fval.value.val_str = CLASS_IGNORED;
             rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class,
                                          NOTEQUAL, fval, FILTER_FLAG_ALLOW_NULL );
             if ( rc )
@@ -590,11 +590,11 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         else if ( policies.updt_policy.fileclass.policy == UPDT_PERIODIC )
         {
             /* filter: release class != ignored OR update <= now - period */
-            fval.val_str = CLASS_IGNORED;
+            fval.value.val_str = CLASS_IGNORED;
             rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class,
                                          NOTEQUAL, fval, FILTER_FLAG_ALLOW_NULL
                                                         | FILTER_FLAG_BEGIN );
-            fval.val_uint = time(NULL) - policies.updt_policy.fileclass.period_max;
+            fval.value.val_uint = time(NULL) - policies.updt_policy.fileclass.period_max;
             rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_rel_cl_update,
                                          LESSTHAN, fval, FILTER_FLAG_ALLOW_NULL
                                                         | FILTER_FLAG_OR
@@ -697,7 +697,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
                 /* don't retrieve just-updated entries
                  * (update>=last_request_time) */
-                fval.val_int = last_request_time;
+                fval.value.val_int = last_request_time;
                 rc = lmgr_simple_filter_add_or_replace( &filter,
                                                         ATTR_INDEX_md_update,
                                                         LESSTHAN_STRICT, fval,
@@ -706,7 +706,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                     return rc;
 
                 /* filter on access time */
-                fval.val_int = last_entry_access;
+                fval.value.val_int = last_entry_access;
                 rc = lmgr_simple_filter_add_or_replace( &filter,
                                                         ATTR_INDEX_last_access,
                                                         MORETHAN, fval,
@@ -1558,7 +1558,7 @@ int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
      * is old enough (last_update <= now - timeout) or NULL*/
     if ( timeout > 0 )
     {
-        fval.val_int = time(NULL) - timeout;
+        fval.value.val_int = time(NULL) - timeout;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN,
                 fval, FILTER_FLAG_ALLOW_NULL );
         if ( rc )
@@ -1569,14 +1569,14 @@ int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
      * also check values with NULL status */
 
      /* '( status = RELEASE_PENDING' ... */
-    fval.val_int = STATUS_RELEASE_PENDING;
+    fval.value.val_int = STATUS_RELEASE_PENDING;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
                 FILTER_FLAG_BEGIN );
     if ( rc )
         return rc;
 
     /* ...' OR status = RESTORE_RUNNING OR status is NULL )' */
-    fval.val_int = STATUS_RESTORE_RUNNING;
+    fval.value.val_int = STATUS_RESTORE_RUNNING;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
                 FILTER_FLAG_OR | FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_END );
     if ( rc )
@@ -1584,7 +1584,7 @@ int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
 
 #ifdef ATTR_INDEX_invalid
     /* don't retrieve invalid entries (allow entries with invalid == NULL) */
-    fval.val_int = TRUE;
+    fval.value.val_int = TRUE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fval,
             FILTER_FLAG_ALLOW_NULL );
     if ( rc )

@@ -1182,12 +1182,12 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
         if ( path_filter[len-1] != '/' )
         {
             /* ( fullpath LIKE 'path' OR fullpath LIKE 'path/%' ) */
-            fv.val_str = path_filter;
+            fv.value.val_str = path_filter;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_BEGIN );
 
             snprintf( path_regexp, RBH_PATH_MAX, "%s/*", path_filter );
-            fv.val_str = path_regexp;
+            fv.value.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_OR | FILTER_FLAG_END ); 
         }
@@ -1196,12 +1196,12 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
             snprintf( path_regexp, RBH_PATH_MAX, "%s*", path_filter );
             /* directory or directory/% */
 
-            fv.val_str = path_regexp;
+            fv.value.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_BEGIN );
             /* remove last slash */
             path_filter[len-1] = '\0';
-            fv.val_str = path_filter;
+            fv.value.val_str = path_filter;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }
@@ -1218,7 +1218,7 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
         if ( do_display )
             printf("filter class: %s\n", class_format(class_filter) );
 
-        fv.val_str = class_filter;
+        fv.value.val_str = class_filter;
 
 #ifndef ATTR_INDEX_archive_class
         /* single test */
@@ -1774,20 +1774,30 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
             /* no filter */
             break;
         case DUMP_USR:
-            fv.val_str = str_arg;
+            fv.value.val_str = str_arg;
             lmgr_simple_filter_add( &filter, ATTR_INDEX_owner, LIKE, fv, 0 );
             break;
         case DUMP_GROUP:
-            fv.val_str = str_arg;
+            fv.value.val_str = str_arg;
             lmgr_simple_filter_add( &filter, ATTR_INDEX_gr_name, LIKE, fv, 0 );
             break;
         case DUMP_OST:
-            fv.val_int = int_arg;
+            fv.value.val_int = int_arg;
             lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
+#if 0 /* test with ost list */
+            {
+            db_type_u osts[2];
+            osts[0].val_uint = 0;
+            osts[1].val_uint = 1;
+            fv.list.count = 2;
+            fv.list.values = osts;
+            lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, IN, fv, 0 );
+            }
+#endif
             break;
 #ifdef ATTR_INDEX_status
        case DUMP_STATUS:
-                fv.val_int = int_arg;
+                fv.value.val_int = int_arg;
                 if ( MATCH_NULL_STATUS( flags ) )
                     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL,
                                             fv, FILTER_FLAG_ALLOW_NULL );
@@ -1913,14 +1923,14 @@ void report_fs_info( int flags )
      */
     report_field_descr_t fs_info[FSINFOCOUNT] = {
 #ifdef  ATTR_INDEX_status
-        {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+        {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
 #endif
-        {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
-        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}}, /* XXX ifdef STATUS ? */
-        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
+        {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
+        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL}, /* XXX ifdef STATUS ? */
+        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, FV_NULL},
     };
 
     unsigned long long total_size, total_count;
@@ -1935,7 +1945,7 @@ void report_fs_info( int flags )
     if (count_min) {
         fs_info[1+_SHIFT].filter = TRUE;
         fs_info[1+_SHIFT].filter_compar = MORETHAN;
-        fs_info[1+_SHIFT].filter_value.val_biguint = count_min;
+        fs_info[1+_SHIFT].filter_value.value.val_biguint = count_min;
     }
 
     /* no limit */
@@ -2088,7 +2098,7 @@ void report_usergroup_info( char *name, int flags )
     if (count_min) {
         user_info[field_count].filter = TRUE;
         user_info[field_count].filter_compar = MORETHAN;
-        user_info[field_count].filter_value.val_biguint = count_min;
+        user_info[field_count].filter_value.value.val_biguint = count_min;
     }
 
     field_count++;
@@ -2121,7 +2131,7 @@ void report_usergroup_info( char *name, int flags )
         lmgr_simple_filter_init( &filter );
         is_filter = TRUE;
 
-        fv.val_str = name;
+        fv.value.val_str = name;
 
         if ( WILDCARDS_IN( name ) )
             lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), LIKE, fv, 0 ); 
@@ -2207,12 +2217,12 @@ void report_topdirs( unsigned int count, int flags )
     lmgr_simple_filter_init( &filter );
 
     /* This filter is implicit when sorting dirs by count */
-//    fv.val_str = STR_TYPE_DIR;
+//    fv.value.val_str = STR_TYPE_DIR;
 //    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
     if (count_min) {
         /* @TODO Not supported by ListMgr yet */
-        fv.val_biguint = count_min;
+        fv.value.val_biguint = count_min;
         lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, MORETHAN, fv, 0 );
     }
 
@@ -2309,7 +2319,7 @@ void report_topsize( unsigned int count, int flags )
     int list_cnt = sizeof(list)/sizeof(int);
 
     /* select only files */
-    fv.val_str = STR_TYPE_FILE;
+    fv.value.val_str = STR_TYPE_FILE;
     lmgr_simple_filter_init( &filter );
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
@@ -2389,7 +2399,7 @@ void report_toppurge( unsigned int count, int flags )
     lmgr_simple_filter_init( &filter );
 
     /* select only non directories */
-    fv.val_str = STR_TYPE_DIR;
+    fv.value.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
 
     /* append global filters */
@@ -2397,24 +2407,24 @@ void report_toppurge( unsigned int count, int flags )
 
     /* select only non whitelisted */
 #ifdef ATTR_INDEX_release_class
-    fv.val_str = CLASS_IGNORED;
+    fv.value.val_str = CLASS_IGNORED;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, NOTEQUAL, fv,
                             FILTER_FLAG_ALLOW_NULL);
 #endif
 #if defined(ATTR_INDEX_no_release)
-    fv.val_bool = TRUE;
+    fv.value.val_bool = TRUE;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_no_release, NOTEQUAL, fv,
                             FILTER_FLAG_ALLOW_NULL);
 #endif
 
 #ifdef ATTR_INDEX_status
-    fv.val_int = STATUS_SYNCHRO;
+    fv.value.val_int = STATUS_SYNCHRO;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, 0);
 #endif
 
 #ifdef ATTR_INDEX_invalid
     /* select only non invalid */
-    fv.val_bool = TRUE;
+    fv.value.val_bool = TRUE;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0);
 #endif
 
@@ -2493,20 +2503,20 @@ void report_toprmdir( unsigned int count, int flags )
     lmgr_simple_filter_init( &filter );
 
     /* select only directories */
-    fv.val_str = STR_TYPE_DIR;
+    fv.value.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
 
     /* select only non ignored */
-    fv.val_str = CLASS_IGNORED;
+    fv.value.val_str = CLASS_IGNORED;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, NOTEQUAL, fv,
                             FILTER_FLAG_ALLOW_NULL);
 
     /* select only non invalid */
-    fv.val_bool = TRUE;
+    fv.value.val_bool = TRUE;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, FILTER_FLAG_ALLOW_NULL);
 
     /* only consider empty directories */
-    fv.val_uint = 0;
+    fv.value.val_uint = 0;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, EQUAL, fv, 0);
 
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
@@ -2605,12 +2615,12 @@ void report_topuser( unsigned int count, int flags )
      * - MIN/MAX/AVG size
      */
     report_field_descr_t user_info[TOPUSERCOUNT] = {
-        {ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_blocks, REPORT_SUM, SORT_DESC, FALSE, 0, {NULL}},
-        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
+        {ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_DESC, FALSE, 0, FV_NULL},
+        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, FV_NULL},
     };
 
     if (REVERSE(flags))
@@ -2629,7 +2639,7 @@ void report_topuser( unsigned int count, int flags )
     if (count_min) {
         user_info[2].filter = TRUE;
         user_info[2].filter_compar = MORETHAN;
-        user_info[2].filter_value.val_biguint = count_min;
+        user_info[2].filter_value.value.val_biguint = count_min;
     }
 
     /* select only the top users */
@@ -2647,7 +2657,7 @@ void report_topuser( unsigned int count, int flags )
     /* select only files */
     lmgr_simple_filter_init( &filter );
 
-    fv.val_str = STR_TYPE_FILE;
+    fv.value.val_str = STR_TYPE_FILE;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
     is_filter = TRUE;
 
@@ -2817,20 +2827,20 @@ static void report_class_info( int flags )
      * - MIN/MAX/AVG file size
      */
     report_field_descr_t class_info[CLASSINFO_FIELDS] = {
-        {0 /* archive or release class */, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+        {0 /* archive or release class */, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
 #ifdef ATTR_INDEX_status
-        {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, {NULL}},
+        {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
 #endif
-        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
-        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, {NULL}},
+        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, FV_NULL},
     };
 
     /* don't select dirs for policies */
-    fv.val_str = STR_TYPE_DIR;
+    fv.value.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_init( &filter );
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
 
@@ -2845,13 +2855,13 @@ static void report_class_info( int flags )
     /* display archive class */
     class_info[0].attr_index = ATTR_INDEX_archive_class;
 
-    fv.val_uint = STATUS_NEW;
+    fv.value.val_uint = STATUS_NEW;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_BEGIN | FILTER_FLAG_ALLOW_NULL );
-    fv.val_uint = STATUS_UNKNOWN;
+    fv.value.val_uint = STATUS_UNKNOWN;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.val_uint = STATUS_MODIFIED;
+    fv.value.val_uint = STATUS_MODIFIED;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.val_uint = STATUS_ARCHIVE_RUNNING;
+    fv.value.val_uint = STATUS_ARCHIVE_RUNNING;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR | FILTER_FLAG_END );
 
     it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
@@ -2886,20 +2896,20 @@ static void report_class_info( int flags )
     lmgr_simple_filter_free( &filter );
     lmgr_simple_filter_init( &filter );
 
-    fv.val_str = STR_TYPE_DIR;
+    fv.value.val_str = STR_TYPE_DIR;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
 
     /* display release class */
     printf("\n");
     class_info[0].attr_index = ATTR_INDEX_release_class;
 
-    fv.val_uint = STATUS_SYNCHRO;
+    fv.value.val_uint = STATUS_SYNCHRO;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_BEGIN );
-    fv.val_uint = STATUS_RELEASE_PENDING;
+    fv.value.val_uint = STATUS_RELEASE_PENDING;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.val_uint = STATUS_RESTORE_RUNNING;
+    fv.value.val_uint = STATUS_RESTORE_RUNNING;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.val_uint = STATUS_RELEASED;
+    fv.value.val_uint = STATUS_RELEASED;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR | FILTER_FLAG_END );
 
     mk_global_filters( &filter, !NOHEADER(flags), NULL );

@@ -262,7 +262,7 @@ int recov_start()
         printf( "only recovering files striped on OST#%u\n", ost_index);
 
         lmgr_simple_filter_init( &filter );
-        fv.val_int = ost_index;
+        fv.value.val_int = ost_index; /* support OST set */
         lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
 
         rc = ListMgr_RecovInit( &lmgr, &filter, &stats );

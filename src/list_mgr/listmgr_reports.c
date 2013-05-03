@@ -71,8 +71,9 @@ static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr,
     /* is this field filtered ? */
     if ( report_desc_array[i].filter )
     {
+        /* TODO support list filters (IN NOT and IN) */
         printdbtype( p_mgr, attrstring, p_report->result_type_array[i],
-                     &report_desc_array[i].filter_value );
+                     &report_desc_array[i].filter_value.value );
 
         if ( report_desc_array[i].report_type != REPORT_GROUP_BY )
         {

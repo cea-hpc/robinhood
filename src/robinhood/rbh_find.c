@@ -288,7 +288,7 @@ static int mkfilters(int exclude_dirs)
             prog_options.dir_only = 1;
             if (!exclude_dirs)
             {
-                fv.val_str = STR_TYPE_DIR;
+                fv.value.val_str = STR_TYPE_DIR;
                 lmgr_simple_filter_add(&entry_filter, ATTR_INDEX_type, EQUAL, fv, 0);
             }
         }
@@ -296,14 +296,14 @@ static int mkfilters(int exclude_dirs)
         {
             /* smthg different from dir */
             prog_options.no_dir = 1;
-            fv.val_str = prog_options.type;
+            fv.value.val_str = prog_options.type;
             lmgr_simple_filter_add(&entry_filter, ATTR_INDEX_type, EQUAL, fv, 0);
         }
     }
     else if (exclude_dirs) /* no specific type specified => exclude dirs if required */
     {
         /* filter non directories (directories are handled during recursive DB scan) */
-        fv.val_str = STR_TYPE_DIR;
+        fv.value.val_str = STR_TYPE_DIR;
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
     }
 
@@ -315,7 +315,7 @@ static int mkfilters(int exclude_dirs)
         else
             compflag = EQUAL;
         /* not part of user policies, only add it to DB filter */
-        fv.val_uint = prog_options.status;
+        fv.value.val_uint = prog_options.status;
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, compflag, fv, 0 );
     }
 #endif
@@ -324,7 +324,7 @@ static int mkfilters(int exclude_dirs)
     {
         char tmpstr[RBH_PATH_MAX];
         sprintf(tmpstr, "*/%s", prog_options.name);
-        fv.val_str = tmpstr;
+        fv.value.val_str = tmpstr;
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_fullpath, LIKE, fv, 0 );
     }
 

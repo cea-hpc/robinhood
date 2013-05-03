@@ -616,7 +616,7 @@ int main( int argc, char **argv )
             char tmp[RBH_PATH_MAX];
             strcpy(tmp, options.partial_scan_path);
             strcat(tmp, "/*");
-            val.val_str = tmp;
+            val.value.val_str = tmp;
             lmgr_simple_filter_add(&filter, ATTR_INDEX_fullpath, LIKE, val, 0);
 
             rc = ListMgr_CreateTag(&lmgr, tag_name, &filter, FALSE);

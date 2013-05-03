@@ -266,7 +266,7 @@ obj_type_t ListMgr2PolicyType( const char * str_type )
  * \return -1 if this is not a criteria stored in DB.
  */
 int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
-                     filter_comparator_t * p_compar, db_type_u * p_value,
+                     filter_comparator_t * p_compar, filter_value_t * p_value,
                      int * p_must_release)
 {
     int len;
@@ -318,7 +318,7 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         len++;
         new_str[len]='\0';
 
-        p_value->val_str = new_str;
+        p_value->value.val_str = new_str;
         break;
 
     case CRITERIA_PATH: /* fullpath 'path' */
@@ -333,10 +333,10 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
             new_str = MemAlloc( len + 1 ); /* +1 for \0 */
             *p_must_release = TRUE;
             sprintf(new_str, "%s/%s", global_config.fs_path, p_comp->val.str);
-            p_value->val_str = new_str;
+            p_value->value.val_str = new_str;
         }
         else
-            p_value->val_str = p_comp->val.str;
+            p_value->value.val_str = p_comp->val.str;
 
         break;
 
@@ -344,7 +344,7 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
 
         *p_attr_index = ATTR_INDEX_name;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_str = p_comp->val.str;
+        p_value->value.val_str = p_comp->val.str;
 
         break;
 
@@ -353,38 +353,38 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
 
         *p_attr_index = ATTR_INDEX_type;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_str = Policy2ListMgrType( p_comp->val.type );
+        p_value->value.val_str = Policy2ListMgrType( p_comp->val.type );
         break;
 #endif
     case CRITERIA_OWNER: /* owner like 'owner' */
         *p_attr_index = ATTR_INDEX_owner;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_str = p_comp->val.str;
+        p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_GROUP:
         *p_attr_index = ATTR_INDEX_gr_name;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_str = p_comp->val.str;
+        p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_SIZE:
         *p_attr_index = ATTR_INDEX_size;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_biguint = p_comp->val.size;
+        p_value->value.val_biguint = p_comp->val.size;
         break;
 
     case CRITERIA_DEPTH:
         *p_attr_index = ATTR_INDEX_depth;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_uint = p_comp->val.integer;
+        p_value->value.val_uint = p_comp->val.integer;
         break;
 
 #ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
         *p_attr_index = ATTR_INDEX_dircount;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_uint = p_comp->val.integer;
+        p_value->value.val_uint = p_comp->val.integer;
         break;
 #endif
     case CRITERIA_LAST_ACCESS:
@@ -393,7 +393,7 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
     /*   last_access > 2h <=> access_time < time(NULL) - 2h */
 
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
-        p_value->val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 
 
@@ -401,14 +401,14 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
     case CRITERIA_LAST_MOD:
         *p_attr_index = ATTR_INDEX_last_mod;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
-        p_value->val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 
 #ifdef ATTR_INDEX_last_archive
     case CRITERIA_LAST_ARCHIVE:
         *p_attr_index = ATTR_INDEX_last_archive;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
-        p_value->val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 #endif
 
@@ -416,7 +416,7 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
     case CRITERIA_LAST_RESTORE:
         *p_attr_index = ATTR_INDEX_last_restore;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
-        p_value->val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 #endif
 
@@ -424,7 +424,7 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
     case CRITERIA_CREATION:
         *p_attr_index = ATTR_INDEX_creation_time;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
-        p_value->val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 #endif
 
@@ -433,13 +433,14 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
     case CRITERIA_POOL:
         *p_attr_index = ATTR_INDEX_stripe_info;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_str = p_comp->val.str;
+        p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_OST:
         *p_attr_index = ATTR_INDEX_stripe_items;
         *p_compar = Policy2FilterComparator( p_comp->op );
-        p_value->val_uint = p_comp->val.integer;
+        p_value->value.val_uint = p_comp->val.integer;
+        /* TODO support sets of OSTs */
         break;
 
     case CRITERIA_XATTR:

@@ -666,6 +666,10 @@ char          *compar2str( filter_comparator_t compar )
     case UNLIKE:
         return " NOT LIKE ";
 #endif
+    case IN:
+        return " IN ";
+    case NOTIN:
+        return " NOT IN ";
     default:
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Default sign for filter: should never happen !!!" );
         return "=";
@@ -694,7 +698,7 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* fi
 
             /* condition about empty directory ? */
             if ((index == ATTR_INDEX_dircount)
-                  && (p_filter->filter_simple.filter_value[i].val_uint == 0)
+                  && (p_filter->filter_simple.filter_value[i].value.val_uint == 0)
                   && (p_filter->filter_simple.filter_compar[i] == EQUAL))
             {
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on empty directory" );
@@ -705,7 +709,8 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* fi
             else
             {
                 char val[1024];
-                db_type_u typeu = p_filter->filter_simple.filter_value[i];
+                /* single value (list only apply to OSTs XXX for now) */
+                db_type_u typeu = p_filter->filter_simple.filter_value[i].value;
                 printdbtype( p_mgr, val, field_infos[index].db_type, &typeu );
 
                 sprintf(filter_str, "dirattr%s%s", compar2str( p_filter->filter_simple.filter_compar[i] ),
@@ -804,7 +809,8 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                     sprintf( values_curr, "%s%s", fname,
                              compar2str( p_filter->filter_simple.filter_compar[i] ) );
 
-                typeu = p_filter->filter_simple.filter_value[i];
+                /* single value (list only apply to OSTs XXX for now) */
+                typeu = p_filter->filter_simple.filter_value[i].value;
 
                 values_curr += printdbtype( p_mgr, values_curr,
                                             field_infos[index].db_type, &typeu );
@@ -819,10 +825,30 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
 
                 strcat( fname, "ostidx" );
 
-                values_curr +=
-                    sprintf( values_curr, "%s%s%u", fname,
-                             compar2str( p_filter->filter_simple.filter_compar[i] ),
-                             p_filter->filter_simple.filter_value[i].val_uint );
+                /* single value or a list? */
+                if (p_filter->filter_simple.filter_compar[i] == IN
+                    || (p_filter->filter_simple.filter_compar[i] == NOTIN))
+                {
+                    values_curr += sprintf(values_curr, "%s%s(", fname,
+                                           compar2str( p_filter->filter_simple.filter_compar[i] ));
+                    unsigned int j;
+                    db_type_u * list = p_filter->filter_simple.filter_value[i].list.values;
+
+                    for (j = 0; j < p_filter->filter_simple.filter_value[i].list.count; j++)
+                    {
+                        values_curr +=
+                            sprintf( values_curr, "%s%u", j==0?"":",", list[j].val_uint );
+                    }
+                    strcpy(values_curr, ")");
+                    values_curr++;
+                }
+                else /* single value */
+                {
+                    values_curr +=
+                        sprintf( values_curr, "%s%s%u", fname,
+                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
+                                 p_filter->filter_simple.filter_value[i].value.val_uint );
+                }
 
                 nbfields++;
             }
@@ -840,7 +866,7 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 values_curr +=
                     sprintf( values_curr, "%s%s'%s'", fname,
                              compar2str( p_filter->filter_simple.filter_compar[i] ),
-                             p_filter->filter_simple.filter_value[i].val_str );
+                             p_filter->filter_simple.filter_value[i].value.val_str );
 
                 nbfields++;
             }

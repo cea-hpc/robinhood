@@ -1946,7 +1946,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         lmgr_simple_filter_init( &filter );
 
-        val.val_uint = ATTR( &p_op->fs_attrs, md_update );
+        val.value.val_uint = ATTR( &p_op->fs_attrs, md_update );
         lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN_STRICT, val, 0 );
 
         /* partial scan: remove non-updated entries from a subset of the namespace */
@@ -1955,7 +1955,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             char tmp[RBH_PATH_MAX];
             strcpy(tmp, ATTR(&p_op->fs_attrs, fullpath));
             strcat(tmp, "/*");
-            val.val_str = tmp;
+            val.value.val_str = tmp;
             lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, val, 0 );
         }
 

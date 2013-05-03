@@ -294,7 +294,7 @@ static int mkfilters()
     if (prog_options.match_status)
     {
         /* not part of user policies, only add it to DB filter */
-        fv.val_uint = prog_options.status;
+        fv.value.val_uint = prog_options.status;
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
         lmgr_simple_filter_add( &parent_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
     }
@@ -454,10 +454,10 @@ static int get_root_id(entry_id_t * root_id)
 
 #define REPCNT    4
 static report_field_descr_t dir_info[REPCNT] = {
-    {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_NONE, FALSE, 0, {NULL}},
-    {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
-    {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}},
-    {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, {NULL}}
+    {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_NONE, FALSE, 0, FV_NULL},
+    {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
+    {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL},
+    {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL}
 };
 
 /* directory callback */
@@ -476,7 +476,7 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
     for (i = 0; i < entry_count; i++)
     {
-        fv.val_id = id_list[i];
+        fv.value.val_id = id_list[i];
         rc = lmgr_simple_filter_add_or_replace( &parent_filter,
                                                 ATTR_INDEX_parent_id,
                                                 EQUAL,

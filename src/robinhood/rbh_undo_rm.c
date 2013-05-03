@@ -186,12 +186,12 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
         if ( path_filter[len-1] != '/' )
         {
             /* ( fullpath LIKE 'path' OR fullpath LIKE 'path/%' ) */
-            fv.val_str = path_filter;
+            fv.value.val_str = path_filter;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_BEGIN );
 
             snprintf( path_regexp, RBH_PATH_MAX, "%s/*", path_filter );
-            fv.val_str = path_regexp;
+            fv.value.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }
@@ -200,12 +200,12 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
             snprintf( path_regexp, RBH_PATH_MAX, "%s*", path_filter );
             /* directory or directory/% */
 
-            fv.val_str = path_regexp;
+            fv.value.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_BEGIN );
             /* remove last slash */
             path_filter[len-1] = '\0';
-            fv.val_str = path_filter;
+            fv.value.val_str = path_filter;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
                                     FILTER_FLAG_OR | FILTER_FLAG_END );
         }

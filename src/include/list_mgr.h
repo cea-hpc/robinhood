@@ -278,13 +278,23 @@ typedef enum
     LESSTHAN_STRICT,
     MORETHAN_STRICT,
     LIKE,
-    UNLIKE
+    UNLIKE,
+    IN,
+    NOTIN,
 } filter_comparator_t;
 
 /** filter values associated to db_type field in field_infos array */
 
-typedef db_type_u filter_value_t;
+typedef union filter_value
+{
+    db_type_u value;
+    struct {
+        db_type_u *values;
+        unsigned int count;
+    } list;
+} filter_value_t;
 
+#define FV_NULL {{NULL}}
 
 /** simple filter definition */
 typedef struct lmgr_simple_filter_t
@@ -906,7 +916,8 @@ int            lmgr_simple_filter_init( lmgr_filter_t * p_filter );
 #define FILTER_FLAG_END           0x00000008 /* ends a section with parenthesis */
 #define FILTER_FLAG_ALLOW_NULL    0x00000010 /* null value is allowed to match the condition */
 
-#define FILTER_FLAG_ALLOC_STR     0x10000000 /* for internal usage */
+#define FILTER_FLAG_ALLOC_STR     0x10000000 /* for internal usage: string in filter is allocated */
+#define FILTER_FLAG_ALLOC_LIST    0x20000000 /* for internal usage: list in filter is allocated */
 
 /** Add a criteria to a simple filter */
 int            lmgr_simple_filter_add( lmgr_filter_t * p_filter,

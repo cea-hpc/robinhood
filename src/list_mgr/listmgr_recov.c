@@ -210,7 +210,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     db_value_t report_val;
     unsigned int nb;
     struct lmgr_report_t * report;
-    report_field_descr_t report_count = {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}};
+    report_field_descr_t report_count = {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL};
 
     char           query[4096];
     char           filter_str_main[2048];

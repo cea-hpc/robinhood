@@ -510,7 +510,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     /* do not retrieve entries with 'no_archive' tag = 1.
      * get entrie with no_archive == NULL
      */
-    fval.val_bool = TRUE;
+    fval.value.val_bool = TRUE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_no_archive, NOTEQUAL,
                                  fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
@@ -519,7 +519,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
 #ifdef ATTR_INDEX_invalid
     /* don't retrieve invalid entries (allow entries with invalid == NULL) */
-    fval.val_int = TRUE;
+    fval.value.val_int = TRUE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fval,
             FILTER_FLAG_ALLOW_NULL );
     if ( rc )
@@ -531,13 +531,13 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     {
         /* retrieve entries with status MODIFIED or NEW or NULL */
 
-        fval.val_int = STATUS_MODIFIED;
+        fval.value.val_int = STATUS_MODIFIED;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
                                      FILTER_FLAG_BEGIN );
         if ( rc )
             return rc;
 
-        fval.val_int = STATUS_NEW;
+        fval.value.val_int = STATUS_NEW;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
                                      FILTER_FLAG_OR | FILTER_FLAG_END );
         if ( rc )
@@ -547,7 +547,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     {
 #endif
         /* only retrieve entries with status MODIFIED */
-        fval.val_int = STATUS_MODIFIED;
+        fval.value.val_int = STATUS_MODIFIED;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval, 0 );
         if ( rc )
             return rc;
@@ -572,7 +572,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
         /* We must retrieve files from this OST */
 
-        fval.val_uint = p_migr_param->param_u.ost_index;
+        fval.value.val_uint = p_migr_param->param_u.ost_index;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fval, 0 );
         if ( rc )
             return rc;
@@ -584,7 +584,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
         /* We must retrieve files for this user */
 
-        fval.val_str = p_migr_param->param_u.user_name;
+        fval.value.val_str = p_migr_param->param_u.user_name;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_owner, EQUAL, fval, 0 );
         if ( rc )
             return rc;
@@ -596,7 +596,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
         /* We must retrieve files for this group */
 
-        fval.val_str = p_migr_param->param_u.group_name;
+        fval.value.val_str = p_migr_param->param_u.group_name;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_gr_name, EQUAL,
                                      fval, 0 );
         if ( rc )
@@ -608,11 +608,11 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                     p_migr_param->param_u.class_name );
 
         if (!strcasecmp( p_migr_param->param_u.class_name, "default"))
-            fval.val_str = CLASS_DEFAULT;
+            fval.value.val_str = CLASS_DEFAULT;
         else if ( !strcasecmp( p_migr_param->param_u.class_name, "ignored"))
-            fval.val_str = CLASS_IGNORED;
+            fval.value.val_str = CLASS_IGNORED;
         else
-            fval.val_str = p_migr_param->param_u.class_name;
+            fval.value.val_str = p_migr_param->param_u.class_name;
 
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_archive_class, LIKE,
                                      fval, 0 );
@@ -644,7 +644,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         if ( policies.updt_policy.fileclass.policy == UPDT_NEVER )
         {
             /* filter: archive class != ignored */
-            fval.val_str = CLASS_IGNORED;
+            fval.value.val_str = CLASS_IGNORED;
             rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_archive_class,
                                          NOTEQUAL, fval, FILTER_FLAG_ALLOW_NULL );
             if ( rc )
@@ -653,11 +653,11 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         else if ( policies.updt_policy.fileclass.policy == UPDT_PERIODIC )
         {
             /* filter: archive class != ignored OR update <= now - period */
-            fval.val_str = CLASS_IGNORED;
+            fval.value.val_str = CLASS_IGNORED;
             rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_archive_class,
                                          NOTEQUAL, fval, FILTER_FLAG_ALLOW_NULL
                                                         | FILTER_FLAG_BEGIN );
-            fval.val_uint = time(NULL) - policies.updt_policy.fileclass.period_max;
+            fval.value.val_uint = time(NULL) - policies.updt_policy.fileclass.period_max;
             rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_arch_cl_update,
                                          LESSTHAN, fval, FILTER_FLAG_ALLOW_NULL
                                                         | FILTER_FLAG_OR
@@ -768,7 +768,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                  * (update>=last_request_time),
                  * allow entries with md_update == NULL.
                  */
-                fval.val_int = last_request_time;
+                fval.value.val_int = last_request_time;
                 rc = lmgr_simple_filter_add_or_replace(&filter,
                                                        ATTR_INDEX_md_update,
                                                        LESSTHAN_STRICT, fval,
@@ -777,7 +777,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                     return rc;
 
                 /* filter on modification time (allow NULL) */
-                fval.val_int = last_mod_time;
+                fval.value.val_int = last_mod_time;
                 rc = lmgr_simple_filter_add_or_replace(&filter,
                                                        ATTR_INDEX_last_mod,
                                                        MORETHAN, fval,
@@ -1818,7 +1818,7 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
      * is old enough (last_update <= now - timeout) or NULL*/
     if ( timeout > 0 )
     {
-        fval.val_int = time(NULL) - timeout;
+        fval.value.val_int = time(NULL) - timeout;
         rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN,
                 fval, FILTER_FLAG_ALLOW_NULL );
         if ( rc )
@@ -1826,7 +1826,7 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
     }
 
     /* filter on current status (also check values with NULL status) */
-    fval.val_int = STATUS_ARCHIVE_RUNNING;
+    fval.value.val_int = STATUS_ARCHIVE_RUNNING;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fval,
                 FILTER_FLAG_ALLOW_NULL );
     if ( rc )
@@ -1834,7 +1834,7 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
 
 #ifdef ATTR_INDEX_invalid
     /* don't retrieve invalid entries (allow entries with invalid == NULL) */
-    fval.val_int = TRUE;
+    fval.value.val_int = TRUE;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fval,
             FILTER_FLAG_ALLOW_NULL );
     if ( rc )
