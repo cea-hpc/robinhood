@@ -1,4 +1,5 @@
-- ostset for commands
+- support ost sets in rbh_find
+- non reg test for OST sets
 
 /!\ symlink change if inode recycling
 

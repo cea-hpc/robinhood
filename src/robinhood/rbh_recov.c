@@ -79,7 +79,8 @@ static int terminate = FALSE; /* abort signal received */
 
 static char * path_filter = NULL;
 static char path_buff[RBH_PATH_MAX];
-static int ost_index = -1;
+static value_list_t ost_list = {0, NULL};
+static char ost_range_str[256] = "";
 
 /* special character sequences for displaying help */
 
@@ -111,8 +112,9 @@ static const char *help_string =
     "        Abort current recovery (/!\\ non-recovered entries are lost).\n"
     "\n"
     _B "Start options:" B_ "\n"
-    "    " _B "--ost" B_ "=" _U "ost_index" U_ "\n"
-    "        Perform the recovery only for files striped on the given OST.\n"
+    "    "  _B "--ost" B_ " " _U "ost_index" U_ "|" _U "ost_set" U_"\n"
+    "        Perform the recovery only for files striped on the given OST \n"
+    "        or set of OSTs (e.g. 3,5-8).\n"
 //    "    " _B "--with-data" B_ "\n"
 //    "        Used with --ost: only recover files that really have data on the OST.\n"
     _B "Resume options:" B_ "\n"
@@ -254,16 +256,26 @@ int recov_start()
     lmgr_recov_stat_t stats;
     int rc;
 
-    if (ost_index != -1)
+    if (ost_list.count > 0)
     {
         lmgr_filter_t  filter;
         filter_value_t fv;
 
-        printf( "only recovering files striped on OST#%u\n", ost_index);
-
         lmgr_simple_filter_init( &filter );
-        fv.value.val_int = ost_index; /* support OST set */
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
+
+        if (ost_list.count == 1)
+        {
+            printf( "only recovering files striped on OST#%u\n", ost_list.values[0].val_uint);
+            fv.value.val_uint = ost_list.values[0].val_uint;
+            lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
+        }
+        else
+        {
+            printf( "only recovering files striped on OSTs[%s]\n", ost_range_str);
+            fv.list = ost_list;
+            lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, IN, fv,
+                                    FILTER_FLAG_ALLOC_LIST ); /* allow it to free ost_list->values */
+        }
 
         rc = ListMgr_RecovInit( &lmgr, &filter, &stats );
     }
@@ -632,15 +644,16 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Missing mandatory argument <ost_index> for --ost\n");
                 exit(1);
             }
-            else
+            /* parse it as a set */
+            if (lmgr_range2list(optarg, DB_UINT, &ost_list))
             {
-                ost_index = str2int(optarg);
-                if (ost_index == (unsigned int)-1)
-                {
-                    fprintf(stderr, "invalid ost index '%s': unsigned integer expected\n", optarg);
-                    exit(1);
-                }
+                fprintf( stderr,
+                         "Invalid value '%s' for --ost option: integer or set expected (e.g. 2 or 3,5-8,10-12).\n",
+                         optarg );
+                exit( 1 );
             }
+            /* copy arg to display it */
+            strncpy(ost_range_str, optarg, sizeof(ost_range_str));
             break;
         case 'l':
             force_log_level = TRUE;

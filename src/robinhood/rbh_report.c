@@ -3265,7 +3265,7 @@ int main( int argc, char **argv )
                 exit( 1 );
             }
             /* copy arg to display it */
-            strncpy(ost_set_str, optarg, 256);
+            strncpy(ost_set_str, optarg, sizeof(ost_set_str));
             break; 
 #endif
 
