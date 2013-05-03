@@ -222,8 +222,8 @@ static const char *help_string =
     "    "  _B "--dump-group" B_ " " _U "group" U_ "\n"
     "        Dump all entries for the given group.\n"
 #ifdef _LUSTRE
-    "    "  _B "--dump-ost" B_ " " _U "ost_index" U_ "\n"
-    "        Dump all entries on the given OST.\n"
+    "    "  _B "--dump-ost" B_ " " _U "ost_index" U_ "|" _U "ost_set" U_"\n"
+    "        Dump all entries on the given OST or set of OSTs (e.g. 3,5-8).\n"
 #endif
 #ifdef ATTR_INDEX_status
     "    "  _B "--dump-status" B_ " " _U "status" U_ "\n"
@@ -1705,7 +1705,7 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
 
 
 
-void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
+void dump_entries( type_dump type, int int_arg, char * str_arg, value_list_t * ost_list, int flags )
 {
     /* get basic information */
     int            mask_sav, rc;
@@ -1782,18 +1782,16 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
             lmgr_simple_filter_add( &filter, ATTR_INDEX_gr_name, LIKE, fv, 0 );
             break;
         case DUMP_OST:
-            fv.value.val_int = int_arg;
-            lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
-#if 0 /* test with ost list */
+            if (ost_list->count == 1)
             {
-            db_type_u osts[2];
-            osts[0].val_uint = 0;
-            osts[1].val_uint = 1;
-            fv.list.count = 2;
-            fv.list.values = osts;
-            lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, IN, fv, 0 );
+                fv.value.val_uint = ost_list->values[0].val_uint;
+                lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
             }
-#endif
+            else
+            {
+                fv.list = *ost_list;
+                lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, IN, fv, 0 );
+            }
             break;
 #ifdef ATTR_INDEX_status
        case DUMP_STATUS:
@@ -1833,7 +1831,11 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
         else
         {
             char tmp[128];
-            sprintf(tmp, "data_on_ost%d", int_arg);
+            if (ost_list->count == 1)
+                sprintf(tmp, "data_on_ost%u", ost_list->values[0].val_uint);
+            else
+                sprintf(tmp, "data_on_ost[%s]", str_arg);
+
             custom_len = strlen(tmp);
             /* if dump_ost is specified: add specific field
              * to indicate if file really has data on the given OST
@@ -1866,8 +1868,19 @@ void dump_entries( type_dump type, int int_arg, char * str_arg, int flags )
                 || !ATTR_MASK_TEST(&attrs, stripe_items))
                 has_data = "?";
             else
-                has_data = DataOnOST(ATTR(&attrs, size), int_arg, &ATTR(&attrs,stripe_info),
-                          &ATTR(&attrs,stripe_items)) ? "yes":"no";
+            {
+                int i;
+                has_data = "no";
+                for (i = 0; i < ost_list->count; i++)
+                {
+                    if (DataOnOST(ATTR(&attrs, size), ost_list->values[i].val_uint,
+                         &ATTR(&attrs,stripe_info), &ATTR(&attrs,stripe_items)))
+                    {
+                        has_data = "yes";
+                        break;
+                    }
+                }
+            }
 
             /* if dump_ost is specified: add specific field
              * to indicate if file really has data on the given OST.
@@ -3113,7 +3126,8 @@ int main( int argc, char **argv )
     char           dump_group_name[256]; 
 #ifdef _LUSTRE
     int            dump_ost = FALSE;
-    int            dump_ost_index = -1;
+    value_list_t   dump_ost_set = { 0, NULL };
+    char           ost_set_str[256] = "";
 #endif
 #ifdef ATTR_INDEX_status
     int            dump_status = FALSE;
@@ -3239,17 +3253,19 @@ int main( int argc, char **argv )
             dump_ost = TRUE;
             if ( !optarg )
             {
-                fprintf(stderr, "Missing mandatory argument <ost_index> for --dump-ost\n");
+                fprintf(stderr, "Missing mandatory argument <ost_index|ost_set> for --dump-ost\n");
                 exit(1);
             }
-            dump_ost_index = str2int( optarg );
-            if (dump_ost_index == -1)
+            /* parse it as a set */
+            if (lmgr_range2list(optarg, DB_UINT, &dump_ost_set))
             {
-                    fprintf( stderr,
-                             "Invalid value '%s' for --dump-ost option: integer expected\n",
-                             optarg );
-                    exit( 1 );
+                fprintf( stderr,
+                         "Invalid value '%s' for --dump-ost option: integer or set expected (e.g. 2 or 3,5-8,10-12).\n",
+                         optarg );
+                exit( 1 );
             }
+            /* copy arg to display it */
+            strncpy(ost_set_str, optarg, 256);
             break; 
 #endif
 
@@ -3604,22 +3620,26 @@ int main( int argc, char **argv )
 #endif
 
     if ( dump_all )
-        dump_entries( DUMP_ALL, 0, NULL, flags );
+        dump_entries( DUMP_ALL, 0, NULL, NULL, flags );
 
     if ( dump_user )
-        dump_entries( DUMP_USR, 0, dump_user_name, flags );
+        dump_entries( DUMP_USR, 0, dump_user_name, NULL, flags );
 
     if ( dump_group )
-        dump_entries( DUMP_GROUP, 0, dump_group_name, flags );
+        dump_entries( DUMP_GROUP, 0, dump_group_name, NULL, flags );
 
 #ifdef _LUSTRE
-    if ( dump_ost )
-        dump_entries( DUMP_OST, dump_ost_index, NULL, flags );
+    if ( dump_ost ) {
+        dump_entries( DUMP_OST, 0, ost_set_str, &dump_ost_set, flags );
+        /* free the list */
+        if (dump_ost_set.values)
+            MemFree(dump_ost_set.values);
+    }
 #endif
 
 #ifdef ATTR_INDEX_status
     if ( dump_status )
-        dump_entries( DUMP_STATUS, status_to_dump, NULL, flags );
+        dump_entries( DUMP_STATUS, status_to_dump, NULL, NULL, flags );
 #endif
 
 #ifdef HAVE_MIGR_POLICY

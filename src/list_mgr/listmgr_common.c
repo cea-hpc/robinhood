@@ -20,6 +20,8 @@
 #include "listmgr_common.h"
 #include "database.h"
 #include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
+#include "Memory.h"
 #include "listmgr_stripe.h"
 #include "xplatform_print.h"
 #include <stdio.h>
@@ -829,6 +831,8 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 if (p_filter->filter_simple.filter_compar[i] == IN
                     || (p_filter->filter_simple.filter_compar[i] == NOTIN))
                 {
+                    /* FIXME the length of this query can be very important,
+                     * so we may overflow the output string */
                     values_curr += sprintf(values_curr, "%s%s(", fname,
                                            compar2str( p_filter->filter_simple.filter_compar[i] ));
                     unsigned int j;
@@ -1203,6 +1207,80 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
         }
     }
     return;
+}
 
+/** Convert a set notation (eg. "3,5-8,12") to a list of values
+ * \param type[in] the type of output array (DB_INT, DB_UINT, ...)
+ * \param p_list[out] list of values (the function allocates a buffer for p_list->values)
+ */
+int lmgr_range2list(const char * set, db_type_t type, value_list_t * p_list)
+{
+    char *curr, *next;
+    char buffer[1024];
 
+    /* check args */
+    if (!p_list)
+        return -1;
+    /* only uint supported */
+    if (type != DB_UINT)
+        return -1;
+
+    /* local copy for strtok */
+    strncpy(buffer, set, 1024);
+
+    /* inialize list */
+    p_list->count = 0;
+    p_list->values = NULL;
+
+    /* tokenize by ',' */
+    curr = strtok_r(buffer, ",", &next);
+    while(curr)
+    {
+        /* check for range notation */
+        char * dash = strchr(curr, '-');
+        if (!dash)
+        {
+            /* single value */
+            int tmpval;
+            tmpval = str2int(curr);
+            if (tmpval == -1)
+                goto out_free;
+            p_list->values = MemRealloc(p_list->values, (1 + p_list->count) * sizeof(*(p_list->values)));
+            if (!p_list->values)
+                goto out_free;
+            p_list->values[p_list->count].val_uint = tmpval;
+            p_list->count++;
+        }
+        else
+        {
+            /* range */
+            int val_start, val_end, i;
+            unsigned int j;
+            *dash = '\0'; /* tokenize at '-' */
+            dash++; /*  points to end value */
+            val_start = str2int(curr);
+            val_end = str2int(dash);
+            if (val_start == -1 || val_end == -1 || val_end < val_start)
+                goto out_free;
+
+            p_list->values = MemRealloc(p_list->values, (val_end - val_start + 1 + p_list->count) * sizeof(*(p_list->values)));
+            if (!p_list->values)
+                goto out_free;
+            for (i = 0, j = val_start; j <= val_end; i++, j++)
+            {
+                p_list->values[p_list->count+i].val_uint = j;
+            }
+            p_list->count += val_end - val_start + 1;
+        }
+
+        curr = strtok_r(NULL, ",", &next);
+    }
+    return 0;
+
+out_free:
+    if (p_list->values)
+        MemFree(p_list->values);
+    p_list->values = NULL;
+    p_list->count = 0;
+    return -1;
 }

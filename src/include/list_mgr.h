@@ -284,14 +284,15 @@ typedef enum
 } filter_comparator_t;
 
 /** filter values associated to db_type field in field_infos array */
+typedef struct value_list {
+        unsigned int count;
+        db_type_u *values;
+} value_list_t;
 
 typedef union filter_value
 {
     db_type_u value;
-    struct {
-        db_type_u *values;
-        unsigned int count;
-    } list;
+    value_list_t list;
 } filter_value_t;
 
 #define FV_NULL {{NULL}}
@@ -952,6 +953,12 @@ int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool
 
 /** Check that all fields in filter are in the given mask of supported attributes */
 int lmgr_check_filter_fields( lmgr_filter_t * p_filter, unsigned int attr_mask );
+
+/** Convert a set notation (eg. "3,5-8,12") to a list of values
+ * \param type[in] the type of output array (DB_INT, DB_UINT, ...)
+ * \param p_list[out] list of values (the function allocates a buffer for p_list->values)
+ */
+int lmgr_range2list(const char * set, db_type_t type, value_list_t * p_list);
 
 
 /** @} */
