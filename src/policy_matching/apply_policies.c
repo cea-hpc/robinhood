@@ -1778,8 +1778,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
     {
        what = "POSIX path";
        pol = policies.updt_policy.path;
-       is_set = ( ATTR_MASK_TEST( p_attrs, fullpath )
-                && ATTR_MASK_TEST( p_attrs, path_update ) );
+       is_set = ATTR_MASK_TEST( p_attrs, path_update );
        if ( is_set )
            last = ATTR( p_attrs, path_update );
     }

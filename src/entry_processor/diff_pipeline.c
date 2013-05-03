@@ -122,12 +122,6 @@ static int shook_special_obj( struct entry_proc_op_t *p_op )
         }
     }
 
-    /* set name from path */
-    if (ATTR_MASK_TEST(&p_op->db_attrs, fullpath))
-        ListMgr_GenerateFields( &p_op->db_attrs, ATTR_MASK_name );
-    if (ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
-        ListMgr_GenerateFields( &p_op->fs_attrs, ATTR_MASK_name );
-
     /* also match '.shook' directory */
     if (p_op && ATTR_FSorDB_TEST( p_op, name )
         && ATTR_FSorDB_TEST( p_op, type))
@@ -167,18 +161,32 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #ifdef _HAVE_FID
     int            rc;
     entry_id_t     tmp_id;
+    char buff[RBH_PATH_MAX];
+    char * path;
 
-    if ( !ATTR_MASK_TEST( &p_op->fs_attrs, fullpath ) )
+    /* 2 possible options: get fid using parent_fid/name or from fullpath */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, parent_id)
+        && ATTR_MASK_TEST(&p_op->fs_attrs, name))
+    {
+        BuildFidPath( &ATTR(&p_op->fs_attrs, parent_id), buff );
+        long len = strlen(buff);
+        sprintf(buff+len, "/%s", ATTR(&p_op->fs_attrs, name));
+        path = buff;
+    }
+    else if (ATTR_MASK_TEST( &p_op->fs_attrs, fullpath))
+    {
+        path = ATTR(&p_op->fs_attrs, fullpath);
+    }
+    else
     {
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                    "Error: entry full path is expected to be set"
-                    " in STAGE_GET_FID stage" );
+                    "Error: not enough information to get fid: parent_id/name or fullpath needed");
         EntryProcessor_Acknowledge( p_op, -1, TRUE );
         return EINVAL;
     }
 
     /* perform path2fid */
-    rc = Lustre_GetFidFromPath( ATTR( &p_op->fs_attrs, fullpath ), &tmp_id );
+    rc = Lustre_GetFidFromPath( path, &tmp_id );
     if ( rc )
     {
         /* remove the operation from pipeline */

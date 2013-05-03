@@ -836,7 +836,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             p_op->fs_attr_need |= POSIX_ATTR_MASK;
         /* check if path update is needed (only if it was not just updated) */
         if ((!ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) || !ATTR_MASK_TEST(&p_op->fs_attrs, name))
-            && need_path_update(&p_op->db_attrs, NULL))
+            && (need_path_update(&p_op->db_attrs, NULL)
+                || (db_missing & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id))))
             p_op->fs_attr_need |= ATTR_MASK_fullpath | ATTR_MASK_name
                                   | ATTR_MASK_parent_id;
     }

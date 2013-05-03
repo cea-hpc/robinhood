@@ -2,6 +2,10 @@
 - non reg test for OST sets
 - partial scan (path and inode cleaning)
 - flavor partial scan for test 108
+- backport recent modes to std_pipeline to diff pipeline.
+- restore bulk search in rbh-find as a new option
+- test BACKUP and HSM modes
+- check how mknode'd entries and handled by backup mode and rbh-diff
 - mass_soft_remove
 - drop Lustre 2.0 support (non splitted TIME)
 - ostset for commands
@@ -28,7 +32,7 @@ To be tested: diff for hardlinks
 
 - update TRAC
 
-Voir pourquoi un update des stripe_info renvoie une duplicate entry error.
+-check why updating stripe_info complains about duplicate entry error.
 
 Replace:
     --dump-user user
@@ -37,7 +41,7 @@ Replace:
         Dump all entries for the given group.
     --dump-ost ost_index
         Dump all entries on the given OST.
-par
+by something like:
 --dump --user=
 --dump --group=
 --dump --ost=
@@ -47,13 +51,10 @@ repl.
 par
 --path=
 
-Release notes: attention "-P /mnt/dir" match the directory itself
-			 "-P /mnt/dir/*" match the subentries
-
 - support filter for softrm list
 - add signal handler to recovery function
-- command for retrieving softely removed entry
-- Put pdf doc in /usr/share/doc/robinhood
+- Put pdf doc to /usr/share/doc/robinhood
+- Generate man pages from --help 
 - Configuration template for different uses (stat and monitoring only,
 purge when fs usage reaches a threashold, purge at scheduled interval...)
 
@@ -77,17 +78,10 @@ lustre-HSM:
 	escape string in softrm function
 
 Finitions:
-- remplacer MAXPATHLEN par RBH_PATH_MAX
 - voir si les 1024 peuvent etre remplaces par RBH_PATH_MAX
-
-x- continuer a implementer critere sur l'OST
 - tests de non reg: verifier le CriteriaToFilter sur les OST
 
-Quick-feature:
 - criteria on stripe_count
-
-Gestion multi-chemin:
-- warning si nlink d'un fichier > 1
 
 - usage in db when there is no trigger on OST usage...
 - additional info in var table
@@ -98,69 +92,41 @@ Gestion multi-chemin:
 @TODO if the command is '--migrate-class', '--migrate-user', '--migrate-group',
       check that the entry still matches
 
-Push 220p2 to oracle repository
-
 Doc:
 * doc backend ext/backup
-x add doc about ost_index criteria => 2.3
-
-Commandes :
-* --migrate-class
-* --migrate-file
-* --purge-class
 
 Features:
 =========
-- live summaries: (stage?)
-	- enabled from config
-	- examples: user_usage (count, type, usage, size...), group_usage,
-		stats_by_type(count, size, usage...), stats_by_class (count, size, usage...)
-
 - backup:
 	tout flusher même si synchro
-- live summaries:
-	- enabled from config
-	- examples: user_usage (count, type, usage, size...), group_usage,
-		stats_by_type(count, size, usage...), stats_by_class (count, size, usage...)
 
 * take classes into account for directories
 * Daily report (migr, purge, ...)
 * possibilite de n'appliquer un trigger qu'a un sous-repertoire, un fileset ou autre...
 * 'Heriter' des parametres d'un parent
 * modules dynamiques
-* Scan antivirus parallelise sur plusieurs clients!
 
 Fixes:
 ======
-* verifier l'existence de CLF_UNLINK_LAST pour TMP_FS_MGR sur Lustre2
-* verifier utilisation de TerminateThread
 (* trigger sur nbr d'inodes: pas de sens pour Lustre-HSM)
 
 * evenement leves par un import??
 
 Optim:
 ======
-* ajout d'un masque des attributs modifies, pour savoir ce qu'on met a jour
-
 * filter les ignore_fileclass dans les applications de policy.
 
-* bench perf DB.
 * separer les adherences a chaque 'purpose' dans un module separe
 * statut special pour les fichiers avec erreur de migration?
 (* se rappeler des alertes deja envoyees.)
 
-* BUG FIX: considerer tous les chemins renvoyés par fid2path pour matcher les filesets et conditions
-
 * remettre le follow flag en fonctionnement par defaut lorsqu'il sera implemente correctement
-
-* pb <defunc> => bz 23120
-* report bug CL_TIME changelog => bz 23035 => fixed
 
 * ajout appel a la liblustreAPI pour recuperer le fid des parents + sanity correspondant
 
 Mise au point de benchs pour comparer la version actuelle au futures optimisations
  * duree de scan
- * creation rate soutenable en lecture de chglogs (sur un MESCA)
+ * creation rate soutenable en lecture de chglogs
  * nombre de RPC Lustre emises...
 
 Tests:
@@ -171,50 +137,11 @@ Alertes:
 * last_alert dans la table pour ne pas renvoyer une alerte?
 
 
-
-================ Resultats de tests avec erreurs =========================
-
-=> pb thread-safety chglogs
-
-Getpath needed because name changed 'file.0.3'->''
-Getpath needed because name changed 'file.10.3'->''
-Getpath needed because name changed 'file.10.2'->''
-Getpath needed because name changed 'file.10.1'->''
-Getpath needed because name changed 'file.200.3'->''
-Getpath needed because name changed 'file.200.2'->''
-Getpath needed because name changed 'file.200.1'->''
-
-2)
-copytool: catch ctrl+c ?
-
-* verifier qu'il n'y a plus de probleme 32/64 bits pours les lignes de rapport (SQLite notamment).
-BUGS:
-	2010/03/17 11:20:01 robinhood@fortoy131[3208/5]: Purged '/tmp/rh-report' using policy 'default', last access 4.3min ago | size=747716, last_access=1268820942, last_mod=46915196595150, storage_units=(none)
-
 ===============================================================================
 
-* Remise a jour de la doc: handle-events => readlog
-
-* Fournir des RPMs binaires
-
-
-* hsm_remove active par defaut ?
 * support si un OST est desactive
 
 * report: afficher le status d'une entree
-
-Plateformes de compilation:
-- Lustre 1.6.7.2, kernel 2.6.18-92.1.26.el5
-- Lustre 1.8.2, kernel 2.6.18-164.6.1.el5
-- Lustre 1.10.0.36, kernel 2.6.18-164.11.1.el5
-
-======================================
-* TODO LUSTRE: dans hsm_state: indiquer si l'entree est en cours de migration
-* TODO LUSTRE: dans llapi_changelog_start: virer le fork()
-
-======================================
-TODO copytool:
-* HPSS 7.3 sur petrea6
 
 =======================================
 

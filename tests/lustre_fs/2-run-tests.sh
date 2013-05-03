@@ -1805,7 +1805,8 @@ function update_test
 
 		nb_getpath=`grep getpath=1 $LOG | wc -l`
 		echo "nb path update: $nb_getpath"
-		(( $nb_getpath == 1 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
+        # no getpath expected as rename records provide name info
+		(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
 		# attributes may be retrieved at the first loop (at creation)
 		# but not during the next loop (as long as enlapsed time < update_period)
