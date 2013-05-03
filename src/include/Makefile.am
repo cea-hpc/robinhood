@@ -12,7 +12,8 @@ noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h \
 		global_config.h entry_processor.h      \
 		fs_scan_main.h chglog_reader.h resource_monitor.h \
 		xplatform_print.h lustre_extended_types.h \
-		policies.h rmdir.h queue.h StringAlloc.h hsm_rm.h migration.h
+		policies.h rmdir.h queue.h StringAlloc.h hsm_rm.h migration.h \
+		entry_proc_hash.h
 
 if LUSTRE_HSM
 noinst_HEADERS+=lustre_hsm_types.h lustre_hsm_types.def pipeline_types.h

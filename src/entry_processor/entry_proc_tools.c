@@ -20,6 +20,7 @@
 #endif
 
 #include "entry_proc_tools.h"
+#include "entry_proc_hash.h"
 #include "Memory.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodConfig.h"
@@ -32,64 +33,15 @@
 entry_proc_config_t entry_proc_conf;
 int                 pipeline_flags = 0;
 
-#define ID_HASH_SIZE 7919
-
-typedef struct id_constraint_slot__
-{
-    pthread_mutex_t lock;
-    struct list_head list;      /* list of ops */
-    unsigned int   count;
-} id_constraint_slot_t;
-
 /* hash table for storing references to ids */
-static id_constraint_slot_t id_hash[ID_HASH_SIZE];
-
-/**
- * @TODO use better hash functions (see http://burtleburtle.net/bob/c/lookup3.c)
- */
-static inline unsigned int hash_id( entry_id_t * p_id, unsigned int modulo )
-{
-#ifdef FID_PK
-    unsigned int   val = 1;
-    char          *buffer;
-    unsigned int   index;
-
-    buffer = ( char * ) &( p_id->f_seq );
-
-    for ( index = 0; index < sizeof( p_id->f_seq ); index++ )
-        val = ( val << 5 ) - val + ( unsigned int ) ( buffer[index] );
-
-    buffer = ( char * ) &( p_id->f_oid );
-
-    for ( index = 0; index < sizeof( p_id->f_oid ); index++ )
-        val = ( val << 5 ) - val + ( unsigned int ) ( buffer[index] );
-
-    return val % modulo;
-
-#else
-    unsigned long long lval;
-    /* polynom of prime numbers */
-    lval = 1873 * p_id->fs_key + 3511 * p_id->inode + 10267;
-
-    lval = lval % modulo;
-
-    return lval;
-
-#endif
-}
-
+#define ID_HASH_SIZE 7919
+static struct id_hash *id_constraint_hash;
 
 /** initialize id constraint manager */
 int id_constraint_init(  )
 {
-    unsigned int   i;
-    for ( i = 0; i < ID_HASH_SIZE; i++ )
-    {
-        pthread_mutex_init( &id_hash[i].lock, NULL );
-        rh_list_init(&id_hash[i].list);
-        id_hash[i].count = 0;
-    }
-    return 0;
+    id_constraint_hash = id_hash_init(ID_HASH_SIZE);
+    return id_constraint_hash == NULL;     /* TODO: this is not checked */
 }
 
 /**
@@ -100,13 +52,13 @@ int id_constraint_init(  )
  */
 int id_constraint_register( entry_proc_op_t * p_op )
 {
-    id_constraint_slot_t *slot;
+    struct id_hash_slot *slot;
 
     if ( !p_op->entry_id_is_set )
         return ID_MISSING;
 
     /* compute id hash value */
-    slot = &id_hash[hash_id( &p_op->entry_id, ID_HASH_SIZE )];
+    slot = get_hash_slot(id_constraint_hash, &p_op->entry_id);
 
     P( slot->lock );
 
@@ -129,10 +81,10 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 {
     entry_proc_op_t *p_op = NULL;
     entry_proc_op_t *op;
-    id_constraint_slot_t *slot;
+    struct id_hash_slot *slot;
 
     /* compute id hash value */
-    slot = &id_hash[hash_id( p_id, ID_HASH_SIZE )];
+    slot = get_hash_slot(id_constraint_hash, p_id);
 
     P( slot->lock );
 
@@ -168,8 +120,7 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
  */
 int id_constraint_unregister( entry_proc_op_t * p_op )
 {
-    unsigned int   hash_index;
-    id_constraint_slot_t *slot;
+    struct id_hash_slot *slot;
 
     if ( !p_op->entry_id_is_set )
         return ID_MISSING;
@@ -177,9 +128,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
     if ( !p_op->id_is_referenced )
         return ID_NOT_EXISTS;
 
-    /* compute id hash value */
-    hash_index = hash_id( &p_op->entry_id, ID_HASH_SIZE );
-    slot = &id_hash[hash_index];
+    slot = get_hash_slot(id_constraint_hash, &p_op->entry_id);
 
     /* Remove the entry */
     P( slot->lock );
@@ -196,50 +145,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 
 void id_constraint_dump(  )
 {
-    unsigned int   i, total, min, max;
-    double         avg;
-
-    total = 0;
-    min = max = id_hash[0].count;
-
-    for ( i = 0; i < ID_HASH_SIZE; i++ )
-    {
-        const id_constraint_slot_t *slot = &id_hash[i];
-
-        total += slot->count;
-
-        if ( slot->count < min )
-            min = slot->count;
-        if ( slot->count > max )
-            max = slot->count;
-    }
-
-    avg = ( double ) total / ( 0.0 + ID_HASH_SIZE );
-    DisplayLog( LVL_MAJOR, "STATS",
-                "Id constraints count: %u (hash min=%u/max=%u/avg=%.1f)", total, min, max,
-                avg );
-
-#ifdef _DEBUG_HASH
-    /* more than 50% of difference between hash lists ! Dump all values. */
-    if ( ( max - min ) > ( ( max + 1 ) / 2 ) )
-    {
-        unsigned int   nb_min = 0;
-        unsigned int   nb_max = 0;
-
-        for ( i = 0; i < ID_HASH_SIZE; i++ )
-        {
-            const id_constraint_slot_t *slot = &id_hash[i];
-
-            if ( slot->count == min )
-                nb_min++;
-            else if ( slot->count == max )
-                nb_max++;
-        }
-        DisplayLog( LVL_MAJOR, "DebugHash", "nb slots with min/max count: %u/%u (total=%u)", nb_min,
-                    nb_max, ID_HASH_SIZE );
-    }
-#endif
-
+    id_hash_dump(id_constraint_hash, "Id constraints count");
 }
 
 /* ------------ Config management functions --------------- */
