@@ -192,8 +192,11 @@ typedef struct entry_proc_op_t
 
     struct timeval start_processing_time;
 
-    /* double chained list for FIFO */
+    /* double chained list for pipeline */
     struct list_head list;
+
+    /* double chained list for hash storage (used by constraint) */
+    struct list_head hash_list;
 
 } entry_proc_op_t;
 

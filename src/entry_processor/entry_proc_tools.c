@@ -34,20 +34,10 @@ int                 pipeline_flags = 0;
 
 #define ID_HASH_SIZE 7919
 
-typedef struct id_constraint_item__
-{
-    /* operation associated to this id */
-    entry_proc_op_t *op_ptr;
-
-    /* for chained list */
-    struct list_head list;
-
-} id_constraint_item_t;
-
 typedef struct id_constraint_slot__
 {
     pthread_mutex_t lock;
-    struct list_head list;
+    struct list_head list;      /* list of ops */
     unsigned int   count;
 } id_constraint_slot_t;
 
@@ -110,7 +100,6 @@ int id_constraint_init(  )
  */
 int id_constraint_register( entry_proc_op_t * p_op )
 {
-    id_constraint_item_t *p_new;
     id_constraint_slot_t *slot;
 
     if ( !p_op->entry_id_is_set )
@@ -119,14 +108,9 @@ int id_constraint_register( entry_proc_op_t * p_op )
     /* compute id hash value */
     slot = &id_hash[hash_id( &p_op->entry_id, ID_HASH_SIZE )];
 
-    /* no constraint violation detected, register the entry */
-    p_new = ( id_constraint_item_t * ) MemAlloc( sizeof( id_constraint_item_t ) );
-
-    p_new->op_ptr = p_op;
-
     P( slot->lock );
 
-    rh_list_add_tail(&p_new->list, &slot->list);
+    rh_list_add_tail(&p_op->hash_list, &slot->list);
     slot->count++;
     p_op->id_is_referenced = TRUE;
 
@@ -143,8 +127,8 @@ int id_constraint_register( entry_proc_op_t * p_op )
  */
 entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 {
-    id_constraint_item_t *p_curr;
     entry_proc_op_t *p_op = NULL;
+    entry_proc_op_t *op;
     id_constraint_slot_t *slot;
 
     /* compute id hash value */
@@ -152,11 +136,11 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 
     P( slot->lock );
 
-    rh_list_for_each_entry( p_curr, &slot->list, list )
+    rh_list_for_each_entry( op, &slot->list, hash_list )
     {
-        if ( entry_id_equal( p_id, &p_curr->op_ptr->entry_id ) )
+        if ( entry_id_equal( p_id, &op->entry_id ) )
         {
-            p_op = p_curr->op_ptr;
+            p_op = op;
             break;
         }
     }
@@ -185,7 +169,6 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 int id_constraint_unregister( entry_proc_op_t * p_op )
 {
     unsigned int   hash_index;
-    id_constraint_item_t *p_curr;
     id_constraint_slot_t *slot;
 
     if ( !p_op->entry_id_is_set )
@@ -198,42 +181,16 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
     hash_index = hash_id( &p_op->entry_id, ID_HASH_SIZE );
     slot = &id_hash[hash_index];
 
-    /* check if the entry id exists and is a stage >= pipeline_stage */
+    /* Remove the entry */
     P( slot->lock );
 
-    rh_list_for_each_entry( p_curr, &slot->list, list )
-    {
-        if ( p_curr->op_ptr == p_op )
-        {
-            /* found */
-            rh_list_del(&p_curr->list);
-
-            p_op->id_is_referenced = FALSE;
-
-            slot->count--;
-
-            V( slot->lock );
-
-            /* free the slot */
-            MemFree( p_curr );
-
-            return ID_OK;
-        }
-    }
+    rh_list_del(&p_op->hash_list);
+    p_op->id_is_referenced = FALSE;
+    slot->count--;
 
     V( slot->lock );
-#ifdef _HAVE_FID
-    DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                "id_constraint_unregister: op not found (list %u): id [%llu, %u] record %u",
-                hash_index, p_op->entry_id.f_seq, p_op->entry_id.f_oid, p_op->entry_id.f_ver );
-#else
-    DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                "id_constraint_unregister: op not found (list %u): id [dev %llu, ino %llu]",
-                hash_index, ( unsigned long long ) p_op->entry_id.fs_key,
-                ( unsigned long long ) p_op->entry_id.inode );
-#endif
-    return ID_NOT_EXISTS;
 
+    return ID_OK;
 }
 
 
