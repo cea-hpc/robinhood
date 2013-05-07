@@ -1057,7 +1057,7 @@ char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration )
  * Convert a string to an integer
  * @return -1 on error.
  */
-int str2int( char *str )
+int str2int( const char *str )
 {
     char           suffix[256];
     int            nb_read, value;
@@ -1080,7 +1080,7 @@ int str2int( char *str )
  * Convert a string to a long integer
  * @return -1 on error.
  */
-long long str2bigint( char *str )
+long long str2bigint( const char *str )
 {
     char           suffix[256];
     int            nb_read;
@@ -1105,7 +1105,7 @@ long long str2bigint( char *str )
  * Convert a string to a boolean 
  * @return -1 on error. 
  */
-int str2bool( char *str )
+int str2bool( const char *str )
 {
     if ( str == NULL )
         return -1;
@@ -1163,7 +1163,7 @@ int str2duration( const char *str )
  * Convert a string to a size (in bytes)
  * @return -1 on error. 
  */
-uint64_t str2size( char *str )
+uint64_t str2size( const char *str )
 {
     int                   nb_read;
     unsigned long long    size;
@@ -1222,7 +1222,7 @@ static inline int extract_digits( const char * src, char * dest, unsigned int co
 }
 
 /** parse date/time yyyymmdd[HH[MM[SS]]] */
-time_t str2date( char *str )
+time_t str2date( const char *str )
 {
     struct tm datetime = {
         .tm_sec = 0,
@@ -1237,7 +1237,7 @@ time_t str2date( char *str )
     };
     char tmpstr[16];
     int  tmpint;
-    char * curr = str;
+    const char * curr = str;
     
     /* extract year */
     if (extract_digits(curr, tmpstr, 4) < 4)

@@ -269,19 +269,19 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
  * Convert a string to a boolean
  * @return -1 on error.
  */
-int            str2bool( char *str );
+int            str2bool( const char *str );
 
 /**
  * Convert a string to an integer
  * @return -1 on error.
  */
-int            str2int( char *str );
+int            str2int( const char *str );
 
 /**
  * Convert a string to a long integer
  * @return -1 on error.
  */
-long long str2bigint( char *str );
+long long str2bigint( const char *str );
 
 /**
  * Convert a string to a duration in seconds
@@ -293,11 +293,11 @@ int            str2duration( const char *str );
  * Convert a string to a size (in bytes)
  * @return -1 on error.
  */
-uint64_t str2size( char *str );
+uint64_t str2size( const char *str );
 
 
 /** parse date/time yyyymmdd[HH[MM[SS]]] */
-time_t str2date( char *str );
+time_t str2date( const char *str );
 
 /** convert mode to rwxrwxrwx string */
 const char *mode_string(mode_t mode, char *buf);
