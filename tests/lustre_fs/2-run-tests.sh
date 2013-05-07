@@ -1197,7 +1197,7 @@ function test_rh_report
 			echo "OK: $i MB in $ROOT/dir.$i"
 		fi
 	done
-	
+
 }
 
 #test report using accounting table
@@ -3037,7 +3037,7 @@ function test_diff
 
     # must get:
     # new entries dir.1/file.new and dir.new
-    egrep -e '^++' report.out | grep -v '+++' | grep dir.1/file.new | grep type=file || error "missing create dir.1/file.new"
+    egrep -e '^++' report.out | grep -v '+++' | grep file.new | grep type=file || error "missing create dir.1/file.new"
     egrep -e '^++' report.out | grep -v '+++' | grep dir.new | grep type=dir || error "missing create dir.new"
     # rmd entries dir.1/b and dir.3
     nbrm=$(egrep -e '^--' report.out | grep -v -- '---' | wc -l)
@@ -3047,8 +3047,21 @@ function test_diff
     grep "^+[^ ]*"$(get_id "$ROOT/dir.2") report.out | grep owner=testuser || error "missing chown $ROOT/dir.2"
     grep "^+[^ ]*"$(get_id "$ROOT/dir.1/a") report.out  | grep group=testgroup || error "missing chgrp $ROOT/dir.1/a"
     grep "^+[^ ]*"$(get_id "$ROOT/dir.1/c") report.out | grep size= || error "missing size change $ROOT/dir.1/c"
-    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | grep path= || error "missing path change $ROOT/dir.1/d"
-    grep "^+[^ ]*"$(get_id "$ROOT/fname") report.out | grep path= || error "missing path change $ROOT/fname"
+
+    # dir2/d -> dir1/d
+    old_parent=$(grep "^-[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
+    new_parent=$(grep "^+[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
+    [ -z $old_parent ] && error "cannot get old parent of $ROOT/dir.1/d"
+    [ -z $new_parent ] && error "cannot get new parent of $ROOT/dir.1/d"
+    [ $old_parent = $new_parent ] && error "$ROOT/dir.1/d still has the same parent"
+
+    # file -> fname
+    file_fid=$(get_id "$ROOT/fname")
+    old_file=$(grep "^-[^ ]*${file_fid}.*name='file'" report.out)
+    new_file=$(grep "^+[^ ]*${file_fid}.*name='fname'" report.out)
+    [ -z old_file ] && error "missing path change $ROOT/fname"
+    [ -z new_file ] && error "missing path change $ROOT/fname"
+
     if [ $has_swap -eq 1 ]; then
         grep "^+[^ ]*"$(get_id "$ROOT/dir.2/e") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/e"
         grep "^+[^ ]*"$(get_id "$ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/f"
