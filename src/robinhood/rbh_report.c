@@ -1618,7 +1618,7 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
 
 
 /**
- * Generic fucntion to display a report
+ * Generic function to display a report
  */
 static void display_report( const report_field_descr_t * descr, unsigned int field_count,
                             const db_value_t * result, unsigned int result_count,
