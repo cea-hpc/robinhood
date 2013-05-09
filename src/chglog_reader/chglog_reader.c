@@ -234,8 +234,7 @@ static const char * event_name[] = {
 static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int flags )
 {
     entry_proc_op_t *op;
-    int            opnum;
-    const char     *optype;
+    unsigned int opnum;
     char flag_buff[256] = "";
 
 #ifdef _LUSTRE_HSM
@@ -279,18 +278,8 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
                     PFID(&p_rec->cr_tfid) );
     }
 
-    opnum = p_rec->cr_type ;
-    optype = changelog_type2str(opnum);
-
-    if ( optype == NULL )
-    {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                    "Unsupported log record type %d. Skipping record.",
-                    opnum );
-        return EINVAL;
-    }
-
     /* update stats */
+    opnum = p_rec->cr_type ;
     if ((opnum >= 0) && (opnum < CL_LAST))
         p_info->cl_counters[opnum] ++;
     else {
@@ -352,7 +341,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
 #ifdef CL_SPLITTED_TIME
         case CL_ATIME:
 #endif
-            DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", optype );
+            DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
             /* free the record */
             llapi_changelog_free( &p_rec );
             return 0;
