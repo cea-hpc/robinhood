@@ -234,26 +234,14 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
 
 
 /**
- * This function adds a new operation to the queue
+ * This function adds a new operation, allocated through
+ * GetNewEntryProc_op(), to the queue. All fields have been set to 0
+ * or a proper value.
  */
-int EntryProcessor_Push( const entry_proc_op_t * p_new_op )
+void EntryProcessor_Push( entry_proc_op_t * p_entry )
 {
-    int            rc, i;
+    int            i;
     unsigned int   insert_stage;
-
-    /* allocate a new pipeline entry */
-    entry_proc_op_t *p_entry = ( entry_proc_op_t * ) MemAlloc( sizeof( entry_proc_op_t ) );
-
-    if ( !p_entry )
-        return ENOMEM;
-
-    if ( ( rc = pthread_mutex_init( &p_entry->entry_lock, NULL ) ) != 0 )
-        return rc;
-
-    /* fill its content (except p_prev because we need a lock) */
-    *p_entry = *p_new_op;
-    p_entry->being_processed = FALSE;
-    p_entry->id_is_referenced = FALSE;
 
     /* if a limit of pending operations is specified, wait for a token */
     if ( entry_proc_conf.max_pending_operations > 0 )
@@ -310,8 +298,6 @@ int EntryProcessor_Push( const entry_proc_op_t * p_new_op )
     if ( nb_waiting_threads > 0 )
         pthread_cond_signal( &work_avail_cond );
     V( work_avail_lock );
-
-    return 0;
 
 }                               /* EntryProcessor_Push */
 
@@ -757,6 +743,28 @@ static entry_proc_op_t *EntryProcessor_GetNextOp(void)
     return p_op;
 }
 
+/**
+ * Release an entry op.
+ */
+void EntryProcessor_Release( entry_proc_op_t * p_op )
+{
+    /* @todo free entry_info */
+
+    /* free specific info */
+
+    if ( p_op->extra_info_is_set && ( p_op->extra_info_free_func != NULL ) )
+    {
+        p_op->extra_info_free_func( &p_op->extra_info );
+    }
+
+    ListMgr_FreeAttrs( &p_op->fs_attrs );
+    ListMgr_FreeAttrs( &p_op->db_attrs );
+    
+    /* destroy the lock and free the memory */
+    pthread_mutex_destroy( &p_op->entry_lock );
+    MemFree( p_op );
+}
+
 
 /**
  * Advise that the entry is ready for next step of the pipeline.
@@ -849,22 +857,7 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
         if ( entry_proc_conf.max_pending_operations > 0 )
             sem_post( &pipeline_token );
 
-        /* @todo free entry_info */
-
-        /* free specific info */
-
-        if ( p_op->extra_info_is_set && ( p_op->extra_info_free_func != NULL ) )
-        {
-            p_op->extra_info_free_func( &p_op->extra_info );
-        }
-
-        ListMgr_FreeAttrs( &p_op->fs_attrs );
-        ListMgr_FreeAttrs( &p_op->db_attrs );
-
-        /* destroy the lock and free the memory */
-        V( p_op->entry_lock );
-        pthread_mutex_destroy( &p_op->entry_lock );
-        MemFree( p_op );
+        EntryProcessor_Release(p_op);
     }
 
     return 0;
@@ -1016,34 +1009,28 @@ void EntryProcessor_DumpCurrentStages(  )
     }
 }
 
-void InitEntryProc_op( entry_proc_op_t * p_op )
+entry_proc_op_t * EntryProcessor_Get( void )
 {
-    memset( p_op, 0, sizeof( entry_proc_op_t ) );
+    /* allocate a new pipeline entry */
+    entry_proc_op_t *p_entry;
 
-    p_op->pipeline_stage = 0;
+    p_entry = ( entry_proc_op_t * ) MemCalloc(1, sizeof( entry_proc_op_t ) );
 
-    p_op->entry_id_is_set = FALSE;
-    p_op->extra_info_is_set = FALSE;
-    p_op->db_exists = FALSE;
-
-    p_op->db_attr_need = 0;
-    p_op->fs_attr_need = 0;
+    if ( !p_entry )
+        return NULL;
 
     /* nothing is set */
-    ATTR_MASK_INIT( &p_op->db_attrs );
-    ATTR_MASK_INIT( &p_op->fs_attrs );
+    ATTR_MASK_INIT( &p_entry->db_attrs );
+    ATTR_MASK_INIT( &p_entry->fs_attrs );
 
-    extra_info_init( &p_op->extra_info );
+    extra_info_init( &p_entry->extra_info );
 
-    p_op->being_processed = FALSE;
-    p_op->id_is_referenced = FALSE;
+    if ( ( pthread_mutex_init( &p_entry->entry_lock, NULL ) ) != 0 ) {
+        MemFree(p_entry);
+        return NULL;
+    }
 
-    p_op->db_op_type = OP_TYPE_NONE;
-    p_op->callback_func = NULL;
-    p_op->callback_param = NULL;
-
-    p_op->extra_info_free_func = NULL;
-
+    return p_entry;
 }
 
 /* helper for counting the number of operations in pipeline */

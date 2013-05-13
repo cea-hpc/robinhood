@@ -233,9 +233,7 @@ static const char * event_name[] = {
 #define PLR_FLG_FREE2 0x0001 /* use gmalloc free */
 static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int flags )
 {
-    entry_proc_op_t op;
-    int            st;
-
+    entry_proc_op_t *op;
     int            opnum;
     const char     *optype;
     char flag_buff[256] = "";
@@ -362,45 +360,39 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
 
     /* build the record to be processed in the pipeline */
 
-    InitEntryProc_op( &op );
+    op = EntryProcessor_Get( );
+    if (!op) {
+        DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                    "CRITICAL ERROR: EntryProcessor_Get failed to allocate a new op" );
+        return -1;
+    }
 
     /* first, it will check if it already exists in database */
-    op.pipeline_stage = entry_proc_descr.GET_INFO_DB;
+    op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
 
     /* set log record */
-    op.extra_info_is_set = TRUE;
-    op.extra_info.is_changelog_record = TRUE;
-    op.extra_info.log_record.p_log_rec = p_rec;
+    op->extra_info_is_set = TRUE;
+    op->extra_info.is_changelog_record = TRUE;
+    op->extra_info.log_record.p_log_rec = p_rec;
 
     /* set mdt name */
-    op.extra_info.log_record.mdt =
+    op->extra_info.log_record.mdt =
         chglog_reader_config.mdt_def[p_info->thr_index].mdt_name;
 
     if (flags & PLR_FLG_FREE2)
-        op.extra_info_free_func = free_extra_info2;
+        op->extra_info_free_func = free_extra_info2;
     else
-        op.extra_info_free_func = free_extra_info;
+        op->extra_info_free_func = free_extra_info;
 
     /* set callback function + args */
-    op.callback_func = log_record_callback;
-    op.callback_param = p_info;
+    op->callback_func = log_record_callback;
+    op->callback_param = p_info;
 
     /* Set entry ID */
-    EntryProcessor_SetEntryId( &op, &p_rec->cr_tfid );
+    EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
 
     /* Push the entry to the pipeline */
-    st = EntryProcessor_Push( &op );
-
-    if ( st )
-    {
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
-            if (flags & PLR_FLG_FREE2)
-                free_extra_info2(&op.extra_info);
-            else
-                free_extra_info(&op.extra_info);
-            return st;
-    }
+    EntryProcessor_Push( op );
 
     return 0; 
 }

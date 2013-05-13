@@ -254,7 +254,7 @@ int EntryProcessor_Terminate( int flush_ops );
 /**
  * This function adds a new operation to the queue
  */
-int            EntryProcessor_Push( const entry_proc_op_t * p_new_op );
+void            EntryProcessor_Push( entry_proc_op_t * p_entry );
 
 /**
  * Advise that the entry is ready for next step of the pipeline.
@@ -277,9 +277,14 @@ static void inline EntryProcessor_SetEntryId( entry_proc_op_t * p_op, const entr
 }
 
 /**
- *  Initialize a entry_proc_op_t structure.
+ *  Returns a clean new entry_proc_op_t structure.
  */
-void           InitEntryProc_op( entry_proc_op_t * p_op );
+entry_proc_op_t * EntryProcessor_Get( void );
+
+/**
+ * Release an entry op.
+ */
+void EntryProcessor_Release( entry_proc_op_t * p_op );
 
 /**
  * Dump info about pipeline stages 

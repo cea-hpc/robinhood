@@ -52,13 +52,6 @@ typedef struct op_extra_info__
 
 static void inline extra_info_init( op_extra_info_t * p_extra_info )
 {
-#ifdef HAVE_CHANGELOGS
-   memset( &p_extra_info->log_record, 0, sizeof(changelog_record_t) );
-   p_extra_info->is_changelog_record = FALSE;
-   p_extra_info->getattr_needed = FALSE;
-   p_extra_info->getpath_needed = FALSE;
-#endif
-   p_extra_info->getstripe_needed = FALSE; 
 }
 
 /* pipeline stages */

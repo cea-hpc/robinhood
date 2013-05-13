@@ -194,33 +194,31 @@ int EntryProc_db_flag_op( struct entry_proc_op_t *p_op, lmgr_t * p_lmgr )
 void          *enqueue_thread( void *arg )
 {
     int            rc, i;
-    entry_proc_op_t new_op;
+    entry_proc_op_t *new_op;
 
     for ( i = 0; i < NB_OP_ENQUEUE; i++ )
     {
-        InitEntryProc_op( &new_op );
-
-        /* initial stage */
-        new_op.pipeline_stage = entry_proc_pipeline[0].stage_index;
-#ifdef _LUSTRE_HSM
-        new_op.extra_info.log_record.record_id = i;
-        DisplayLog( LVL_FULL, "EnqueueThr", "Enqueuing record #%u", i );
-#else
-        sprintf( ATTR( &new_op.entry_attr, fullpath ), "/dir%u/file%d",
-                 ( unsigned int ) time( NULL ), i );
-        DisplayLog( LVL_FULL, "EnqueueThr", "Enqueuing file %s",
-                    ATTR( &new_op.entry_attr, fullpath ) );
-#endif
-
-
-        rc = EntryProcessor_Push( &new_op );
-
-        if ( rc )
+        new_op = EntryProcessor_Get( );
+        if ( !new_op )
         {
-            printf( "Error %d in EntryProcessor_Push\n", rc );
+            printf( "Error in EntryProcessor_Get\n");
             return NULL;
         }
 
+        /* initial stage */
+        new_op->pipeline_stage = entry_proc_pipeline[0].stage_index;
+#ifdef _LUSTRE_HSM
+        new_op->extra_info.log_record.record_id = i;
+        DisplayLog( LVL_FULL, "EnqueueThr", "Enqueuing record #%u", i );
+#else
+        sprintf( ATTR( &new_op->entry_attr, fullpath ), "/dir%u/file%d",
+                 ( unsigned int ) time( NULL ), i );
+        DisplayLog( LVL_FULL, "EnqueueThr", "Enqueuing file %s",
+                    ATTR( &new_op->entry_attr, fullpath ) );
+#endif
+
+
+        EntryProcessor_Push( new_op );
     }
 }
 

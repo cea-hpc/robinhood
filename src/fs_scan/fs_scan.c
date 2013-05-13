@@ -273,7 +273,7 @@ static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct 
  */
 static int TerminateScan( int scan_complete, time_t date_fin )
 {
-    int     st, i;
+    int     i;
     time_t  last_action = 0;
     char    timestamp[128];
     char    tmp[1024];
@@ -329,17 +329,22 @@ static int TerminateScan( int scan_complete, time_t date_fin )
     /* if scan is erroneous and no entry was listed, don't flush pipeline. */
     if ((count > 0) || scan_complete)
     {
-        entry_proc_op_t op;
+        entry_proc_op_t *op;
 
         /* final DB operation: remove entries with md_update < scan_start_time */
-        InitEntryProc_op( &op );
-        op.pipeline_stage = entry_proc_descr.GC_OLDENT;
+        op = EntryProcessor_Get( );
+        if (!op) {
+            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: Failed to allocate a new op" );
+            return -1;
+        }
+
+        op->pipeline_stage = entry_proc_descr.GC_OLDENT;
 
         /* set callback */
-        op.callback_func = db_special_op_callback;
-        op.callback_param = ( void * ) "Remove obsolete entries";
+        op->callback_func = db_special_op_callback;
+        op->callback_param = ( void * ) "Remove obsolete entries";
 
-        ATTR_MASK_INIT( &op.fs_attrs );
+        ATTR_MASK_INIT( &op->fs_attrs );
 
         /* if this is an initial scan, don't rm old entries (but flush pipeline still) */
         /* NB: don't clean old entries for partial scan: dangerous if
@@ -349,12 +354,12 @@ static int TerminateScan( int scan_complete, time_t date_fin )
 #else
         if (is_first_scan && !partial_scan_root)
 #endif
-            op.callback_param = ( void * ) "End of flush";
+            op->callback_param = ( void * ) "End of flush";
         else
         {
             /* set the timestamp of scan in (md_update attribute) */
-            ATTR_MASK_SET( &op.fs_attrs, md_update );
-            ATTR( &op.fs_attrs, md_update ) = scan_start_time;
+            ATTR_MASK_SET( &op->fs_attrs, md_update );
+            ATTR( &op->fs_attrs, md_update ) = scan_start_time;
         }
 
     /* don't clean old entries for partial scan: dangerous if
@@ -363,21 +368,16 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         /* set root (if partial scan) */
         if (partial_scan_root)
         {
-            ATTR_MASK_SET( &op.fs_attrs, fullpath );
-            strcpy(ATTR(&op.fs_attrs, fullpath), partial_scan_root);
+            ATTR_MASK_SET( &op->fs_attrs, fullpath );
+            strcpy(ATTR(&op->fs_attrs, fullpath), partial_scan_root);
         }
 #endif
 
         /* set wait db flag */
         set_db_wait_flag(  );
 
-        st = EntryProcessor_Push( &op );
+        EntryProcessor_Push( op );
 
-        if ( st )
-        {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
-            return st;
-        }
         wait_for_db_callback(  );
     }
 
@@ -670,60 +670,63 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
      */
     if ( !S_ISDIR( inode.st_mode ) )
     {
-        entry_proc_op_t op;
+        entry_proc_op_t * op;
         int rc;
 
-        /* init the structure */
-        InitEntryProc_op( &op );
+        op = EntryProcessor_Get( );
+        if (!op) {
+            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: Failed to allocate a new op" );
+            return -1;
+        }
 
 #ifdef _HAVE_FID
-        op.pipeline_stage = entry_proc_descr.GET_ID;
+        op->pipeline_stage = entry_proc_descr.GET_ID;
 #else
-        op.pipeline_stage = entry_proc_descr.GET_INFO_DB;
+        op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
 #endif
-        ATTR_MASK_INIT( &op.fs_attrs );
+        ATTR_MASK_INIT( &op->fs_attrs );
 
-        ATTR_MASK_SET( &op.fs_attrs, parent_id );
-        ATTR( &op.fs_attrs, parent_id) = p_task->dir_id;
+        ATTR_MASK_SET( &op->fs_attrs, parent_id );
+        ATTR( &op->fs_attrs, parent_id) = p_task->dir_id;
 
-        ATTR_MASK_SET( &op.fs_attrs, name );
-        strcpy( ATTR( &op.fs_attrs, name ), entry_name );
+        ATTR_MASK_SET( &op->fs_attrs, name );
+        strcpy( ATTR( &op->fs_attrs, name ), entry_name );
 
-        ATTR_MASK_SET( &op.fs_attrs, fullpath );
-        strcpy( ATTR( &op.fs_attrs, fullpath ), entry_path );
+        ATTR_MASK_SET( &op->fs_attrs, fullpath );
+        strcpy( ATTR( &op->fs_attrs, fullpath ), entry_path );
 
 #ifdef ATTR_INDEX_invalid
-        ATTR_MASK_SET( &op.fs_attrs, invalid );
-        ATTR( &op.fs_attrs, invalid ) = FALSE;
+        ATTR_MASK_SET( &op->fs_attrs, invalid );
+        ATTR( &op->fs_attrs, invalid ) = FALSE;
 #endif
 
-        ATTR_MASK_SET( &op.fs_attrs, depth );
-        ATTR( &op.fs_attrs, depth ) = p_task->depth;  /* depth(/<mntpoint>/toto) = 0 */
+        ATTR_MASK_SET( &op->fs_attrs, depth );
+        ATTR( &op->fs_attrs, depth ) = p_task->depth;  /* depth(/<mntpoint>/toto) = 0 */
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-        PosixStat2EntryAttr( &inode, &op.fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
+        PosixStat2EntryAttr( &inode, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-        PosixStat2EntryAttr( &inode, &op.fs_attrs, TRUE );
+        PosixStat2EntryAttr( &inode, &op->fs_attrs, TRUE );
 #endif
         /* set update time  */
-        ATTR_MASK_SET( &op.fs_attrs, md_update );
-        ATTR( &op.fs_attrs, md_update ) = time( NULL );
+        ATTR_MASK_SET( &op->fs_attrs, md_update );
+        ATTR( &op->fs_attrs, md_update ) = time( NULL );
 #ifdef _HAVE_FID
-        ATTR_MASK_SET( &op.fs_attrs, path_update );
-        ATTR( &op.fs_attrs, path_update ) = time( NULL );
+        ATTR_MASK_SET( &op->fs_attrs, path_update );
+        ATTR( &op->fs_attrs, path_update ) = time( NULL );
 #endif
 
         /* Set entry id */
 #ifndef _HAVE_FID
-        op.entry_id.inode = inode.st_ino;
-        op.entry_id.fs_key = get_fskey();
-        op.entry_id.validator = inode.st_ctime;
-        op.entry_id_is_set = TRUE;
+        op->entry_id.inode = inode.st_ino;
+        op->entry_id.fs_key = get_fskey();
+        op->entry_id.validator = inode.st_ctime;
+        op->entry_id_is_set = TRUE;
 #else
-        op.entry_id_is_set = FALSE;
+        op->entry_id_is_set = FALSE;
 #endif
 
-        op.extra_info_is_set = FALSE;
+        op->extra_info_is_set = FALSE;
 
 #ifdef _LUSTRE
         if (S_ISREG(inode.st_mode) && is_first_scan)
@@ -737,36 +740,29 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 #ifndef _NO_AT_FUNC
             /* have a dir fd */
             rc = File_GetStripeByDirFd( parentfd, entry_name,
-                                        &ATTR( &op.fs_attrs, stripe_info ),
-                                        &ATTR( &op.fs_attrs, stripe_items ) );
+                                        &ATTR( &op->fs_attrs, stripe_info ),
+                                        &ATTR( &op->fs_attrs, stripe_items ) );
 #else
             rc = File_GetStripeByPath( entry_path,
-                                       &ATTR( &op.fs_attrs, stripe_info ),
-                                       &ATTR( &op.fs_attrs, stripe_items ) );
+                                       &ATTR( &op->fs_attrs, stripe_info ),
+                                       &ATTR( &op->fs_attrs, stripe_items ) );
 #endif
             if (rc)
             {
-                ATTR_MASK_UNSET( &op.fs_attrs, stripe_info );
-                ATTR_MASK_UNSET( &op.fs_attrs, stripe_items );
+                ATTR_MASK_UNSET( &op->fs_attrs, stripe_info );
+                ATTR_MASK_UNSET( &op->fs_attrs, stripe_items );
             }
             else
             {
-                ATTR_MASK_SET( &op.fs_attrs, stripe_info );
-                ATTR_MASK_SET( &op.fs_attrs, stripe_items );
+                ATTR_MASK_SET( &op->fs_attrs, stripe_info );
+                ATTR_MASK_SET( &op->fs_attrs, stripe_items );
             }
         }
 #endif
 
 #ifndef _BENCH_SCAN
         /* Push entry to the pipeline */
-        st = EntryProcessor_Push( &op );
-
-        if ( st )
-        {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                        "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
-            return st;
-        }
+        EntryProcessor_Push( op );
 #endif
 
     }
@@ -1089,67 +1085,64 @@ static void   *Thr_scan( void *arg_thread )
              * and possibly purge it if it is empty for a long time.
              */
 
-            entry_proc_op_t op;
+            entry_proc_op_t * op;
 
-            /* init the structure */
-            InitEntryProc_op( &op );
-            ATTR_MASK_INIT( &op.fs_attrs );
+            op = EntryProcessor_Get( );
+            if (!op) {
+                DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: Failed to allocate a new op" );
+                return NULL;
+            }
+
+            ATTR_MASK_INIT( &op->fs_attrs );
 
             /* set entry ID */
-            op.entry_id = p_task->dir_id;
-            op.entry_id_is_set = TRUE;
+            op->entry_id = p_task->dir_id;
+            op->entry_id_is_set = TRUE;
 
             /* Id already known */
-            op.pipeline_stage = entry_proc_descr.GET_INFO_DB;
+            op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
 
             if (p_task->parent_task)
             {
-                ATTR_MASK_SET( &op.fs_attrs, parent_id );
-                ATTR( &op.fs_attrs, parent_id ) = p_task->parent_task->dir_id;
+                ATTR_MASK_SET( &op->fs_attrs, parent_id );
+                ATTR( &op->fs_attrs, parent_id ) = p_task->parent_task->dir_id;
             }
 
-            ATTR_MASK_SET( &op.fs_attrs, name );
-            strcpy( ATTR( &op.fs_attrs, name ), basename( p_task->path ) );
+            ATTR_MASK_SET( &op->fs_attrs, name );
+            strcpy( ATTR( &op->fs_attrs, name ), basename( p_task->path ) );
 
-            ATTR_MASK_SET( &op.fs_attrs, fullpath );
-            strcpy( ATTR( &op.fs_attrs, fullpath ), p_task->path );
+            ATTR_MASK_SET( &op->fs_attrs, fullpath );
+            strcpy( ATTR( &op->fs_attrs, fullpath ), p_task->path );
 
 #ifdef ATTR_INDEX_invalid
-            ATTR_MASK_SET( &op.fs_attrs, invalid );
-            ATTR( &op.fs_attrs, invalid ) = FALSE;
+            ATTR_MASK_SET( &op->fs_attrs, invalid );
+            ATTR( &op->fs_attrs, invalid ) = FALSE;
 #endif
 
-            ATTR_MASK_SET( &op.fs_attrs, depth );
-            ATTR( &op.fs_attrs, depth ) = p_task->depth - 1;  /* depth(/tmp/toto) = 0 */
+            ATTR_MASK_SET( &op->fs_attrs, depth );
+            ATTR( &op->fs_attrs, depth ) = p_task->depth - 1;  /* depth(/tmp/toto) = 0 */
 
-            ATTR_MASK_SET( &op.fs_attrs, dircount );
-            ATTR( &op.fs_attrs, dircount ) = nb_entries;
+            ATTR_MASK_SET( &op->fs_attrs, dircount );
+            ATTR( &op->fs_attrs, dircount ) = nb_entries;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-            PosixStat2EntryAttr( &p_task->dir_md, &op.fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
+            PosixStat2EntryAttr( &p_task->dir_md, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-            PosixStat2EntryAttr( &p_task->dir_md, &op.fs_attrs, TRUE );
+            PosixStat2EntryAttr( &p_task->dir_md, &op->fs_attrs, TRUE );
 #endif
             /* set update time  */
-            ATTR_MASK_SET( &op.fs_attrs, md_update );
-            ATTR( &op.fs_attrs, md_update ) = time( NULL );
+            ATTR_MASK_SET( &op->fs_attrs, md_update );
+            ATTR( &op->fs_attrs, md_update ) = time( NULL );
 #ifdef _HAVE_FID
-            ATTR_MASK_SET( &op.fs_attrs, path_update );
-            ATTR( &op.fs_attrs, path_update ) = time( NULL );
+            ATTR_MASK_SET( &op->fs_attrs, path_update );
+            ATTR( &op->fs_attrs, path_update ) = time( NULL );
 #endif
 
-            op.extra_info_is_set = FALSE;
+            op->extra_info_is_set = FALSE;
 
 #ifndef _BENCH_SCAN
             /* Push directory to the pipeline */
-            st = EntryProcessor_Push( &op );
-
-            if ( st )
-            {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                            "CRITICAL ERROR: EntryProcessor_Push returned %d", st );
-                return NULL;
-            }
+            EntryProcessor_Push( op );
 #endif
         }
 
