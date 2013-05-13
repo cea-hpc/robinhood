@@ -98,7 +98,7 @@ int Write_Migration_ConfigTemplate( FILE * output )
     fprintf( output, "\n" );
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     print_line( output, 1, "# don't archive files that have never been archived before" );
-    print_line( output, 1, "backup_new_files      = FALSE ;" );
+    print_line( output, 1, "backup_new_files      = TRUE ;" );
     fprintf( output, "\n" );
 #endif
     print_line( output, 1, "# do we check status of outstanding migration requests on startup?" );

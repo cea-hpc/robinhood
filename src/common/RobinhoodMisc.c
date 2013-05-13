@@ -1454,6 +1454,16 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
             written += snprintf( out_str + written, strsize - written, "Size:     %s\n", tmpbuf );
         }
     }
+    if ( mask & ATTR_MASK_blocks )
+    {
+        if (brief)
+            format = "blocks=%Lu,";
+        else
+            format = "Blocks:   %Lu\n";
+        written +=
+            snprintf( out_str + written, strsize - written, format,
+                      ATTR( p_attr_set, blocks ) );
+    }
     if ( mask & ATTR_MASK_depth )
     {
         if (brief)

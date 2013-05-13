@@ -715,7 +715,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
         else if (p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
         {
-            char attrchg[RBH_PATH_MAX];
+            char attrchg[RBH_PATH_MAX] = "";
 
             /* revert change: reverse display */
             if (pipeline_flags & FLAG_APPLY_FS)
