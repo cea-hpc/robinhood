@@ -635,7 +635,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     }
 
     /* creating function to get one path for a file */
-    snprintf(strbuf, 4096, "CREATE FUNCTION one_path(param "PK_TYPE") RETURNS VARCHAR(%u) READS SQL DATA"
+    /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same id in a given request */
+    snprintf(strbuf, 4096, "CREATE FUNCTION one_path(param "PK_TYPE") RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
             " DECLARE p VARCHAR(%u) DEFAULT NULL;"
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"
@@ -671,7 +672,8 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     }
 
     /* creating function to get a path for a file, for the given parent and name  */
-    snprintf(strbuf, 4096, "CREATE FUNCTION this_path(pid_arg "PK_TYPE", n_arg VARCHAR(%u)) RETURNS VARCHAR(%u) READS SQL DATA"
+    /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same parent+name in a given request */
+    snprintf(strbuf, 4096, "CREATE FUNCTION this_path(pid_arg "PK_TYPE", n_arg VARCHAR(%u)) RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
             " DECLARE p VARCHAR(%u) DEFAULT NULL;"
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"

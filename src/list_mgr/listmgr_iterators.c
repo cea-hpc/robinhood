@@ -213,7 +213,13 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
     if ( p_filter )
     {
-        filter_dir_type = dir_filter(p_mgr, p_filter, filter_dir_str, &filter_dir_index);
+        if (func_filter(p_mgr, filter_dir_str, p_filter, T_MAIN, FALSE, FALSE))
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
+            return NULL;
+        }
+
+        filter_dir_type = dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index);
         /* XXX is sort dirattr the same as filter dirattr? */
 
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,

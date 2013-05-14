@@ -1,14 +1,11 @@
 - support ost sets in rbh_find
 - non reg test for OST sets
-- partial scan (path and inode cleaning)
-- flavor partial scan for test 108
 - backport recent modes to std_pipeline to diff pipeline.
 - restore bulk search in rbh-find as a new option
 - test BACKUP and HSM modes
 - check how mknode'd entries and handled by backup mode and rbh-diff
 - mass_soft_remove
 - drop Lustre 2.0 support (non splitted TIME)
-- ostset for commands
 
 - verifier comportement du pipeline dans le traitement des changelogs, etc...
 

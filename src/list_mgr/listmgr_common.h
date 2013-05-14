@@ -298,7 +298,8 @@ char          *compar2str( filter_comparator_t compar );
 int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                            table_enum table, int leading_and, int prefix_table );
 
-unsigned int  append_size_range_fields(char * str, int leading_comma, char *prefix);
+int            func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
+                           table_enum table, int leading_and, int prefix_table);
 
 typedef enum
 {
@@ -306,12 +307,11 @@ typedef enum
     FILTERDIR_EMPTY,       /* empty dir filter */
     FILTERDIR_OTHER,       /* other condition on directory attribute */
 } filter_dir_e;
- 
-filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                        char* filter_str, unsigned int * dir_attr_index);
 
-int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, 
-                table_enum table, int prefix_table);
+filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
+                        unsigned int * dir_attr_index);
+
+unsigned int  append_size_range_fields(char * str, int leading_comma, char *prefix);
 
 
 int            result2attrset( table_enum table, char **result_tab,

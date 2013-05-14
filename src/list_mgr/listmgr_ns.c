@@ -129,9 +129,14 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     {
         char           dummy_str[1024];
         unsigned int   dummy_uint;
-        if (dir_filter(p_mgr, p_filter, dummy_str, &dummy_uint) != FILTERDIR_NONE)
+        if (dir_filter(p_mgr, dummy_str, p_filter, &dummy_uint) != FILTERDIR_NONE)
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Directory filter not supported in %s()", __func__ );
+            return DB_NOT_SUPPORTED;
+        }
+        else if (func_filter(p_mgr, dummy_str, p_filter, T_MAIN, FALSE, FALSE))
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
             return DB_NOT_SUPPORTED;
         }
 

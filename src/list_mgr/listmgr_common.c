@@ -698,7 +698,7 @@ char          *compar2str( filter_comparator_t compar )
  *                           junction needed, depending on the filter
  *                           test looks like "dirattr >= x"
  */
-filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str,
+filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
                         unsigned int * dir_attr_index)
 {
     int i;
@@ -747,14 +747,16 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* fi
  * \param str_id: filter for entry id string (eg. id, TABLE.id...)
  * \return the number of filtered values
  */
-int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str, 
-                table_enum table, int prefix_table)
+int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
+                table_enum table, int leading_and, int prefix_table)
 {
     int i;
     char param1[128];
     char param2[128];
+    unsigned int nb_fields = 0;
+    char * curr = filter_str;
 
-    filter_str[0] = '\0';
+    curr[0] = '\0';
 
     if ( p_filter->filter_type == FILTER_SIMPLE )
     {
@@ -770,6 +772,28 @@ int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str
                 param1[0] = '\0';
                 param2[0] = '\0';
 
+                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL )
+                    /* not supported yet */
+                    abort();
+
+                /* add prefixes or parenthesis, etc. */
+                if ( leading_and || ( nb_fields > 0 ) )
+                {
+                    if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_OR )
+                        curr += sprintf( curr, " OR " );
+                    else
+                        curr += sprintf( curr, " AND " );
+                }
+
+                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN )
+                     curr += sprintf( curr, "( " );
+
+                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT )
+                {
+                    /* NOT (x <cmp> <val>) */
+                     curr += sprintf( curr, " NOT (" );
+                }
+
                 if (index == ATTR_INDEX_fullpath)
                 {
                     char relative[RBH_PATH_MAX];
@@ -780,7 +804,7 @@ int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str
                     {
                         DisplayLog(LVL_MAJOR, LISTMGR_TAG, "fullpath filter %s is not under FS root %s: replacing filter by 'FALSE'",
                                    val, global_config.fs_path);
-                        strcpy(filter_str, "FALSE");
+                        curr += sprintf(curr, "FALSE");
                         return 1;
                     }
                     typeu.val_str = relative;
@@ -799,7 +823,7 @@ int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str
                             strcpy(param1, "parent_id");
                             strcpy(param2, "name");
                         }
-                        sprintf(filter_str, "this_path(%s,%s)%s%s", param1, param2,
+                        curr += sprintf(curr, "this_path(%s,%s)%s%s", param1, param2,
                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
                                 val);
                     }
@@ -810,16 +834,27 @@ int func_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter, char* filter_str
                         else
                             strcpy(param1, "id");
 
-                        sprintf(filter_str, "one_path(%s)%s%s", param1,
+                        curr += sprintf(curr, "one_path(%s)%s%s", param1,
                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
                                 val);
                     }
-                    return 1;
                 }
+
+                /* add closing parenthesis, etc...*/
+                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT )
+                {
+                    /* NOT (x <cmp> <val>) */
+                    curr += sprintf( curr, ") " );
+                }
+
+                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END )
+                     curr += sprintf( curr, ") " );
+
+                nb_fields ++;
             }
         }
     }
-    return 0;
+    return nb_fields;
 }
 
 

@@ -340,10 +340,8 @@ static int mkfilters(int exclude_dirs)
 
     if (prog_options.match_name)
     {
-        char tmpstr[RBH_PATH_MAX];
-        sprintf(tmpstr, "*/%s", prog_options.name);
-        fv.value.val_str = tmpstr;
-        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_fullpath, LIKE, fv, 0 );
+        fv.value.val_str = prog_options.name;
+        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_name, LIKE, fv, 0 );
     }
 
     if (is_expr)

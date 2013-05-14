@@ -249,10 +249,15 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
 
     if ( p_filter )
     {
-        if (dir_filter(p_mgr, p_filter, filter_dir_str, &filter_dir_index) != FILTERDIR_NONE)
+        if (dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index) != FILTERDIR_NONE)
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Directory filter not supported for recovery");
-            return DB_INVALID_ARG;
+            return DB_NOT_SUPPORTED;
+        }
+        else if (func_filter(p_mgr, filter_dir_str, p_filter, FALSE, FALSE))
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
+            return DB_NOT_SUPPORTED;
         }
 
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, TRUE );

@@ -224,7 +224,6 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     char           query[4096];
     char           filter_str[2048];
     char           filter_str_names[1024];
-    char           filter_str_func[1024];
     char           *curr_filter;
     int            filter_main = 0;
     int            filter_annex = 0;
@@ -435,8 +434,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
     /* apply filters on function return val */
     /* FIXME it must also match entries whose path is null (no path) */
-    if (func_filter(p_mgr, p_filter, filter_str_func, query_tab, TRUE))
-        sprintf( query+strlen(query), " AND %s", filter_str_func );
+    func_filter(p_mgr, query + strlen(query), p_filter, query_tab, TRUE, TRUE);
 
     /* in autocommit mode, set the transaction level, just before the needed statement */
     if (lmgr_config.commit_behavior == 0)
@@ -460,7 +458,6 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
     /* if the filter is only a single table, entries can be directly deleted */
     if ((filter_main?1:0) + (filter_annex?1:0) + (filter_stripe_info?1:0) + (filter_stripe_items?1:0) == 1)
-
     {
         DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in %s table", first_table );
 
@@ -468,8 +465,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         sprintf( query, "DELETE FROM %s WHERE %s", first_table, filter_str );
 
         /* apply filters on function return val */
-        if (func_filter( p_mgr, p_filter, filter_str_func, query_tab, FALSE))
-            sprintf( query+strlen(query), " AND %s", filter_str_func );
+        func_filter(p_mgr, query + strlen(query), p_filter, query_tab, TRUE, FALSE);
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
@@ -604,8 +600,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         sprintf( query, "DELETE FROM " DNAMES_TABLE " WHERE %s", filter_str_names );
 
         /* apply filters on function return val */
-        if (func_filter( p_mgr, p_filter, filter_str_func, T_DNAMES, FALSE))
-            sprintf( query+strlen(query), " AND %s", filter_str_func );
+        func_filter(p_mgr, query + strlen(query), p_filter, T_DNAMES, TRUE, FALSE);
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )

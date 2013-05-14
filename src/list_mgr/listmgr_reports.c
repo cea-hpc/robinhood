@@ -271,6 +271,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     lmgr_report_t *p_report;
     int            rc;
 
+    table_enum     query_tab;
     int            main_table_flag = FALSE;
     int            annex_table_flag = FALSE;
     int            names_table_flag = FALSE;
@@ -552,13 +553,17 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 filter2str( p_mgr, curr_where, p_filter, T_STRIPE_ITEMS,
                             (where != curr_where), TRUE );
             curr_where += strlen( curr_where );
+
         }
     }
 
     /* FROM clause */
 
     if ( acct_table_flag )
+    {
         strcpy( from, ACCT_TABLE );
+        query_tab = T_ACCT;
+    }
     else
     {
         const char * first_table = NULL;
@@ -567,6 +572,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             strcpy(from, MAIN_TABLE);
             curr_from = from + strlen(from);
             first_table = MAIN_TABLE;
+            query_tab = T_MAIN;
         }
 
         if ( names_table_flag )
@@ -579,6 +585,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 strcpy(from, DNAMES_TABLE);
                 curr_from = from + strlen(from);
                 first_table = DNAMES_TABLE;
+                query_tab = T_DNAMES;
             }
         }
         if ( annex_table_flag )
@@ -591,6 +598,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 strcpy(from, ANNEX_TABLE);
                 curr_from = from + strlen(from);
                 first_table = ANNEX_TABLE;
+                query_tab = T_ANNEX;
             }
         }
         if ( filter_stripe_info )
@@ -603,6 +611,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 strcpy(from, STRIPE_INFO_TABLE);
                 curr_from = from + strlen(from);
                 first_table = STRIPE_INFO_TABLE;
+                query_tab = T_STRIPE_INFO;
             }
         }
         if ( filter_stripe_items )
@@ -615,9 +624,14 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 strcpy(from, STRIPE_ITEMS_TABLE);
                 curr_from = from + strlen(from);
                 first_table = STRIPE_ITEMS_TABLE;
+                query_tab = T_STRIPE_ITEMS;
             }
         }
     }
+
+    /* check if there is a filter on function return value */
+    if (p_filter)
+        func_filter(p_mgr, curr_where, p_filter, query_tab, where != curr_where, TRUE);
 
     /* Build the request */
 
