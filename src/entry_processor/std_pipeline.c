@@ -703,7 +703,15 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                     bool2str( logrec->cr_flags & CLF_UNLINK_LAST ) );
 #endif
 
-        /* it it the last reference to this file? */
+        if (p_op->check_if_last_entry) {
+            /* When inserting that entry, we didn't know whether the
+             * entry was the last one or not, so use the nlink
+             * attribute we requested earlier to determine. */
+            if (ATTR(&p_op->db_attrs, nlink) == 1)
+                logrec->cr_flags |= CLF_UNLINK_LAST;
+        }
+
+        /* is it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
         {
 #ifdef HAVE_RM_POLICY
@@ -738,13 +746,6 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         }
         else if ( p_op->db_exists ) /* entry still exists and is known in DB */
         {
-            /* FIXME in Lustre2.2, CLF_UNLINK_LAST is not properly set in
-             * the changelog record when rename overwrites the target.
-             * In this case, we need to check if entry still exists.
-             * Maybe we should go to GET_INFO_FS step to determine
-             * if REMOVE_ONE or REMOVE_LAST must be perfomed.
-             */
-
             /* Remove the name only. Keep the inode information since
              * there is more file names refering to it. */
             p_op->db_op_type = OP_TYPE_REMOVE_ONE;
@@ -757,6 +758,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     {
         /* this is a source name event */
         /* remove only the old name */
+        /* TODO: could be OP_TYPE_REMOVE_ONE or OP_TYPE_REMOVE_LAST. */
         p_op->db_op_type = OP_TYPE_REMOVE_ONE;
         return STAGE_DB_APPLY;
     }
@@ -889,6 +891,28 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* needed to check special objects, ... */
         p_op->db_attr_need = ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id;
 #endif
+
+#ifndef HAVE_LU543
+        /* It is possible this unlink was inserted by the changelog
+         * reader. Some Lustre server don't give the FID, so retrieve
+         * it now from the NAMES table, given the parent FID and the
+         * filename. */
+        if (logrec->cr_type == CL_UNLINK && p_op->get_fid_from_db) {
+            rc = ListMgr_Get_FID_from_Path( lmgr, &logrec->cr_pfid, logrec->cr_name, &p_op->entry_id );
+            if (rc) {
+                /* Not found. Skip the entry */
+                DisplayLog( LVL_FULL, ENTRYPROC_TAG,
+                            "Warning: parent/filename for UNLINK not found" );
+                next_stage = -1;
+                goto next_step;
+            }
+        }
+#endif
+
+        /* If this is an unlink and we don't know whether it is the
+         * last entry, use nlink. */
+        if (logrec->cr_type == CL_UNLINK && p_op->check_if_last_entry)
+            p_op->db_attr_need |= ATTR_MASK_nlink;
 
         /* Only need to get md_update if the update policy != always */
         if (policies.updt_policy.md.policy != UPDT_ALWAYS)

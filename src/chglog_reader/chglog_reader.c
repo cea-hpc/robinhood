@@ -3,6 +3,7 @@
  */
 /*
  * Copyright (C) 2009, 2010 CEA/DAM
+ * Copyright 2013 Cray Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -105,6 +106,11 @@ typedef struct reader_thr_info_t
     struct timeval last_report_record_time;
     unsigned long long last_report_record_id;
     unsigned int last_reopen;
+
+    /** On older versions of Lustre, a CL_RENAME is always followed by
+     * a CL_EXT. Temporarily store the CL_RENAME changelog until we
+     * get the CL_EXT. */
+    CL_REC_TYPE * cl_rename;
 
 } reader_thr_info_t;
 
@@ -291,6 +297,60 @@ static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
     }
 }
 
+#define PLR_FLG_FREE2       0x0001 /* must free changelog record on completion */
+#define CHECK_IF_LAST_ENTRY 0x0002 /* check whether the unlinked file is the last one. */
+#define GET_FID_FROM_DB     0x0004 /* fid is not valid, get it from DB */
+static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, unsigned int flags )
+{
+    entry_proc_op_t *op;
+    struct id_hash_slot *slot;
+
+    op = EntryProcessor_Get( );
+    if (!op) {
+        DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                    "CRITICAL ERROR: EntryProcessor_Get failed to allocate a new op" );
+        return -1;
+    }
+
+    /* first, it will check if it already exists in database */
+    op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
+
+    /* set log record */
+    op->extra_info_is_set = TRUE;
+    op->extra_info.is_changelog_record = TRUE;
+    op->extra_info.log_record.p_log_rec = p_rec;
+
+    /* set mdt name */
+    op->extra_info.log_record.mdt =
+        chglog_reader_config.mdt_def[p_info->thr_index].mdt_name;
+
+    if (flags & PLR_FLG_FREE2)
+        op->extra_info_free_func = free_extra_info2;
+    else
+        op->extra_info_free_func = free_extra_info;
+
+    op->check_if_last_entry = !!(flags & CHECK_IF_LAST_ENTRY);
+    op->get_fid_from_db = !!(flags & GET_FID_FROM_DB);
+
+    /* set callback function + args */
+    op->callback_func = log_record_callback;
+    op->callback_param = p_info;
+
+    /* Set entry ID */
+    EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
+
+    /* Add the entry on the pending queue ... */
+    op->changelog_inserted = time(NULL);
+    rh_list_add_tail(&op->list, &p_info->op_queue);
+    p_info->op_queue_count ++;
+
+    /* ... and the hash table. */
+    slot = get_hash_slot(p_info->id_hash, &op->entry_id);
+    rh_list_add_tail(&op->hash_list, &slot->list);
+
+    return 0;
+}
+
 /* Describes which records can be safely ignored. By default a record
  * is never ignored. It is only necessary to add an entry in this
  * table if the record may be skipped (and thus has a mask defined) or
@@ -316,7 +376,7 @@ static const struct {
     [CL_TRUNC] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE },
     [CL_CLOSE] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE },
     [CL_MTIME] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
-    
+
     /* Similar operations (metadata changes). */
     [CL_CTIME] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
     [CL_SETATTR] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
@@ -346,16 +406,16 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
      * changelog record must be set. All the changelog record with the
      * same FID will go into the same bucket, so parse that slot
      * instead of the whole op_queue list. */
-    slot = get_hash_slot(p_info->id_hash, &op->entry_id);
+    slot = get_hash_slot(p_info->id_hash, &logrec_in->cr_tfid);
     ignore_mask = record_filters[logrec_in->cr_type].ignore_mask;
 
     rh_list_for_each_entry_safe_reverse(op, t1, &slot->list, hash_list)
     {
         CL_REC_TYPE *logrec = op->extra_info.log_record.p_log_rec;
-        
+
         /* If the type of record matches what we're looking for, and
          * it's for the same FID, then we can ignore the new
-         * record. */ 
+         * record. */
         if ((ignore_mask & (1<<logrec->cr_type)) &&
             entry_id_equal(&logrec->cr_tfid, &logrec_in->cr_tfid)) {
             return TRUE;
@@ -366,15 +426,104 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
 }
 
 /**
+ * Create a fake unlink changelog record that will be used to remove a
+ * file that is overriden during a rename operation.
+ *
+ * This is only available if LU-543 or LU-1331 are present on the
+ * Lustre server.
+ */
+static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
+                                               CL_REC_TYPE *rec_in,
+                                               unsigned int *insert_flags)
+{
+    CL_REC_TYPE *rec;
+
+    /* rename overwriting target entry */
+    rec = MemAlloc(sizeof(CL_REC_TYPE) + rec_in->cr_namelen + 1);
+    if (rec) {
+        /* Copy the structure and fix a few fields. */
+        memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + rec_in->cr_namelen);
+
+        /* TODO: It is unclear whether cr_name is actually 0
+         * terminated, so add one just in case. */
+        rec->cr_name[rec->cr_namelen] = 0;
+
+        *insert_flags = PLR_FLG_FREE2;
+
+#ifndef HAVE_LU543
+        /* The server doesn't tell whether the rename operation will
+         * remove a file. */
+        *insert_flags |= GET_FID_FROM_DB;
+#endif
+
+#ifdef CLF_RENAME_LAST
+        rec->cr_flags = (p_rec->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
+#else
+        /* CLF_RENAME_LAST is not supported in this version of
+         * Lustre. The pipeline will have to decide whether this is
+         * the last entry or not. */
+        rec->cr_flags = 0;
+        *insert_flags |= CHECK_IF_LAST_ENTRY;
+#endif
+
+        rec->cr_type = CL_UNLINK;
+        rec->cr_index = rec_in->cr_index - 1;
+
+        DisplayLog( LVL_DEBUG, CHGLOG_TAG,
+                    "Unlink: object="DFID", name=%.*s",
+                    PFID(&rec->cr_tfid), rec->cr_namelen,
+                    rec->cr_name );
+    }
+
+    return rec;
+
+}
+
+#if defined(HAVE_CHANGELOG_EXTEND_REC)
+/**
+ * Create a fake rename record to ensure compatibility with older
+ * Lustre records.
+ *
+ * This is only available LU-1331 is present on the Lustre server.
+ */
+static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
+                                               CL_REC_TYPE *rec_in)
+{
+    CL_REC_TYPE *rec;
+
+    /* rename overwriting target entry */
+    rec = MemAlloc(sizeof(CL_REC_TYPE) + rec_in->cr_namelen + 1);
+    if (rec) {
+        /* Copy the structure and fix a few fields. */
+        memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + rec_in->cr_namelen);
+
+        /* TODO: It is unclear whether cr_name is actually 0
+         * terminated, so add one just in case. */
+        rec->cr_name[rec->cr_namelen] = 0;
+
+        rec->cr_flags = 0; /* not used for RNMFRM */
+        rec->cr_type = CL_RENAME;
+
+        /* we don't want to acknowledge this record as long as the 2
+         * records are not processed. acknowledge n-1 instead */
+        rec->cr_index = rec_in->cr_index - 1;
+
+        rec->cr_tfid = rec_in->cr_sfid; /* the renamed fid */
+        rec->cr_pfid = rec_in->cr_spfid; /* the source parent */
+    }
+
+    return rec;
+
+}
+#endif
+
+/**
  * This handles a single log record.
  */
-#define PLR_FLG_FREE2 0x0001 /* use gmalloc free */
 static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int flags )
 {
-    entry_proc_op_t *op;
     unsigned int opnum;
     char flag_buff[256] = "";
-    struct id_hash_slot *slot;
 
 #ifdef _LUSTRE_HSM
     if ( p_rec->cr_type == CL_HSM )
@@ -410,7 +559,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         /* no 'name' field. */
         DisplayLog( LVL_DEBUG, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID,
                     p_rec->cr_index, p_rec->cr_type,
-                    changelog_type2str(p_rec->cr_type), 
+                    changelog_type2str(p_rec->cr_type),
                     (uint32_t)cltime2sec(p_rec->cr_time),
                     cltime2nsec(p_rec->cr_time),
                     p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
@@ -434,54 +583,123 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
         p_info->suppressed_records ++;
         llapi_changelog_free( &p_rec );
-        return 0;
+        goto done;
     }
 
     p_info->interesting_records ++;
 
-    /* build the record to be processed in the pipeline */
+    if (p_rec->cr_type == CL_RENAME) {
+        /* Ensure there is no pending rename. */
+        if (p_info->cl_rename) {
+            /* Should not happen. */
+            DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                        "Got 2 CL_RENAME in a row without a CL_EXT." );
+            insert_into_hash(p_info, p_info->cl_rename, flags);
+        }
 
-    op = EntryProcessor_Get( );
-    if (!op) {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                    "CRITICAL ERROR: EntryProcessor_Get failed to allocate a new op" );
-        return -1;
+#ifdef HAVE_CHANGELOG_EXTEND_REC
+        /* extended record: 1 single RENME record per rename op */
+        if ((p_rec->cr_type == CL_RENAME) && CHANGELOG_REC_EXTENDED(p_rec))
+        {
+            struct changelog_ext_rec * p_rec2;
+
+            if (!FID_IS_ZERO(&p_rec->cr_tfid))
+            {
+                CL_REC_TYPE * unlink;
+                unsigned int insert_flags;
+
+                unlink = create_fake_unlink_record(p_info,
+                                                   p_rec,
+                                                   &insert_flags);
+                if (unlink) {
+                    insert_into_hash(p_info, unlink, insert_flags);
+                } else {
+                    DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                                "Could not allocate an UNLINK record." );
+                }
+            }
+
+            DisplayLog( LVL_DEBUG, CHGLOG_TAG,
+                        "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%.*s",
+                        PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),changelog_rec_sname(p_rec),
+                        PFID(&p_rec->cr_pfid), p_rec->cr_namelen, p_rec->cr_name );
+
+            /* Ensure compatibility with older Lustre versions:
+             * push RNMFRM to remove the old path from NAMES table.
+             * push RNMTO to add target path information.
+             */
+            /* 1) build & push RNMFRM */
+            p_rec2 = create_fake_rename_record(p_info, p_rec);
+            insert_into_hash(p_info, p_rec2, PLR_FLG_FREE2);
+
+            /* 2) update RNMTO */
+            p_rec->cr_type = CL_EXT; /* CL_RENAME -> CL_RNMTO */
+            p_rec->cr_tfid = p_rec->cr_sfid; /* removed fid -> renamed fid */
+            insert_into_hash(p_info, p_rec, 0);
+        }
+        else /* other record or old-style RNMFM/RNMTO */
+#endif
+        {
+            /* This CL_RENAME is followed by CL_EXT, so keep it until
+             * then. */
+            p_info->cl_rename = p_rec;
+        }
+    }
+    else if (p_rec->cr_type == CL_EXT) {
+
+        if (!p_info->cl_rename) {
+            /* Should not happen. */
+            DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                        "Got CL_EXT without a CL_RENAME." );
+            insert_into_hash(p_info, p_rec, flags);
+            goto done;
+        }
+
+        /* We now have a CL_RENAME and a CL_EXT. */
+        /* If target fid is not zero: unlink the target.
+         * e.g. "mv a b" and b exists => rm b.
+         */
+        if (!FID_IS_ZERO(&p_rec->cr_tfid)) {
+            CL_REC_TYPE * unlink;
+            unsigned int insert_flags;
+
+            /* Push an unlink. */
+            unlink = create_fake_unlink_record(p_info, p_rec, &insert_flags);
+
+            if (unlink) {
+                insert_into_hash(p_info, unlink, insert_flags);
+            } else {
+                DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                            "Could not allocate an UNLINK record." );
+            }
+        }
+
+        /* Push a rename and ext. */
+        /* TODO: we should be able to push only one of these now. */
+
+        /* indicate the target fid as the renamed entry */
+        p_rec->cr_tfid = p_info->cl_rename->cr_tfid;
+
+        insert_into_hash(p_info, p_info->cl_rename, flags);
+        p_info->cl_rename = NULL;
+        insert_into_hash(p_info, p_rec, flags);
+    }
+    else {
+        if (p_info->cl_rename) {
+            /* Should not happen. However there was a Lustre version
+             * with that bug. */
+            DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                        "Got a CL_RENAME not followed by a CL_EXT." );
+            insert_into_hash(p_info, p_info->cl_rename, flags);
+            p_info->cl_rename = NULL;
+        }
+
+        /* build the record to be processed in the pipeline */
+        insert_into_hash(p_info, p_rec, flags);
     }
 
-    /* first, it will check if it already exists in database */
-    op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
-
-    /* set log record */
-    op->extra_info_is_set = TRUE;
-    op->extra_info.is_changelog_record = TRUE;
-    op->extra_info.log_record.p_log_rec = p_rec;
-
-    /* set mdt name */
-    op->extra_info.log_record.mdt =
-        chglog_reader_config.mdt_def[p_info->thr_index].mdt_name;
-
-    if (flags & PLR_FLG_FREE2)
-        op->extra_info_free_func = free_extra_info2;
-    else
-        op->extra_info_free_func = free_extra_info;
-
-    /* set callback function + args */
-    op->callback_func = log_record_callback;
-    op->callback_param = p_info;
-
-    /* Set entry ID */
-    EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
-
-    /* Add the entry on the pending queue ... */
-    op->changelog_inserted = time(NULL);
-    rh_list_add_tail(&op->list, &p_info->op_queue);
-    p_info->op_queue_count ++;
-    
-    /* ... and the hash table. */
-    slot = get_hash_slot(p_info->id_hash, &op->entry_id);
-    rh_list_add_tail(&op->hash_list, &slot->list);
-
-    return 0; 
+done:
+    return 0;
 }
 
 static inline void cl_update_stats(reader_thr_info_t * info, CL_REC_TYPE * p_rec)
@@ -599,175 +817,6 @@ static void * chglog_reader_thr( void *  arg )
     /* loop until a TERM signal is caught */
     while ( !info->force_stop )
     {
-        st = cl_get_one(info, &p_rec); 
-        if (st == cl_continue )
-            continue;
-        else if (st == cl_stop)
-            break;
-
-#ifdef HAVE_CHANGELOG_EXTEND_REC
-        /* extended record: 1 single RENME record per rename op */
-        if ((p_rec->cr_type == CL_RENAME) && CHANGELOG_REC_EXTENDED(p_rec))
-        {
-            struct changelog_ext_rec * p_rec2;
-            if (!FID_IS_ZERO(&p_rec->cr_tfid))
-            {
-                /* rename overwriting target entry */
-                p_rec2 = (CL_REC_TYPE*)malloc(CR_MAXSIZE);
-                if (!p_rec2)
-                    /* can process CL records, stop reading them */
-                    break;
-
-                p_rec2->cr_namelen = p_rec->cr_namelen;
-                p_rec2->cr_flags = p_rec->cr_flags; /* may contain CLF_UNLINK_LAST */
-                p_rec2->cr_type = CL_UNLINK;
-                p_rec2->cr_index = p_rec->cr_index - 1; /* we don't want to acknowledge
-                    this record as long as the 3 records are not processed.
-                    acknowledge n-1 instead */
-                p_rec2->cr_prev = p_rec->cr_prev;
-                p_rec2->cr_time = p_rec->cr_time;
-                p_rec2->cr_tfid = p_rec->cr_tfid; /* target fid (the removed one) */
-                p_rec2->cr_pfid = p_rec->cr_pfid; /* target parent */
-                strcpy(p_rec2->cr_name, p_rec->cr_name);
-
-                DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                           "Unlink: object="DFID", name=%.*s",
-                            PFID(&p_rec->cr_tfid), p_rec->cr_namelen,
-                            p_rec->cr_name );
-
-                process_log_rec( info, p_rec2, PLR_FLG_FREE2 );
-            }
-
-            DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                        "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%.*s",
-                        PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),changelog_rec_sname(p_rec),
-                        PFID(&p_rec->cr_pfid), p_rec->cr_namelen, p_rec->cr_name );
-
-            /* Ensure compatibility with older Lustre versions:
-             * push RNMFRM to remove the old path from NAMES table.
-             * push RNMTO to add target path information.
-             */
-            /* 1) build & push RNMFRM */
-            p_rec2 = (CL_REC_TYPE*)malloc(CR_MAXSIZE);
-            if (!p_rec2)
-                /* can process CL records, stop reading them */
-                break;
-
-            p_rec2->cr_flags = 0; /* not used for RNMFRM */
-            p_rec2->cr_type = CL_RENAME;
-            p_rec2->cr_index = p_rec->cr_index - 1; /* we don't want to acknowledge
-                this record as long as the 2 records are not processed.
-                acknowledge n-1 instead */
-            p_rec2->cr_prev = p_rec->cr_prev;
-            p_rec2->cr_time = p_rec->cr_time;
-            p_rec2->cr_tfid = p_rec->cr_sfid; /* the renamed fid */
-            p_rec2->cr_pfid = p_rec->cr_spfid; /* the source parent */
-            p_rec2->cr_namelen = changelog_rec_snamelen(p_rec);
-            strcpy(p_rec2->cr_name, changelog_rec_sname(p_rec)); /* the source name */
-
-            process_log_rec( info, p_rec2, PLR_FLG_FREE2 );
-
-            /* 2) update RNMTO */
-            p_rec->cr_type = CL_EXT; /* CL_RENAME -> CL_RNMTO */
-            p_rec->cr_tfid = p_rec->cr_sfid; /* removed fid -> renamed fid */
-            process_log_rec( info, p_rec, 0);
-        }
-        else /* other record or old-style RNMFM/RNMTO */
-        {
-#endif
-#if defined(_CL_RNM_OVER) || defined(HAVE_CHANGELOG_EXTEND_REC)
-        /* First rename record indicates the renamed entry.
-         * Second rename record eventually indicates the overwritten entry, 
-         * and the target name.
-         * if record is CL_RENAME => read the next one
-         *  - only push the target CL_EXT event (rename target)
-         *    with old fashion format (t=renamed entry)
-         *  - if the rename removes another entry,
-         *    push an dummy unlink record.
-         */
-        if (p_rec->cr_type == CL_RENAME)
-        {
-            /* read next record */
-            CL_REC_TYPE * p_rec2 = NULL;
-
-            st = cl_get_one(info, &p_rec2); 
-            if (st == cl_continue)
-                continue;
-            else if (st == cl_stop)
-                break;
-
-            if (p_rec2->cr_type != CL_EXT)
-            {
-                DisplayLog( LVL_MAJOR, CHGLOG_TAG,
-                           "CL_RENAME record not immediatly followed by CL_EXT" );
-                /* process record(s) as usual... */
-                process_log_rec( info, p_rec, 0 );
-                process_log_rec( info, p_rec2, 0 );
-            }
-            else
-            {
-                /* If target fid is not zero: unlink the target.
-                 * e.g. "mv a b" and b exists => rm b.
-                 */
-                if (!FID_IS_ZERO(&p_rec2->cr_tfid))
-                {
-                    CL_REC_TYPE * p_rec3;
-
-                    /* rename overwriting target entry */
-                    p_rec3 = (CL_REC_TYPE*)malloc(CR_MAXSIZE);
-                    if (!p_rec3)
-                        /* can process CL records, stop reading them */
-                        break;
-
-                    p_rec3->cr_flags = p_rec2->cr_flags; /* may contain CLF_UNLINK_LAST */
-                    p_rec3->cr_type = CL_UNLINK;
-                    p_rec3->cr_index = p_rec->cr_index - 1; /* we don't want to acknowledge
-                        this record as long as the 3 records are not all processed.
-                        acknowledge n-1 instead */
-                    p_rec3->cr_prev = p_rec2->cr_prev;
-                    p_rec3->cr_time = p_rec2->cr_time;
-                    p_rec3->cr_tfid = p_rec2->cr_tfid; /* same as RNMTO: fid of the removed object */
-                    p_rec3->cr_pfid = p_rec2->cr_pfid; /* same as RNMTO */
-                    p_rec3->cr_namelen = p_rec2->cr_namelen; /* target name */
-                    strncpy(p_rec3->cr_name, p_rec2->cr_name, p_rec2->cr_namelen);
-                    p_rec3->cr_name[p_rec3->cr_namelen] = '\0';
-
-                    DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                               "Unlink: object="DFID", name=%.*s",
-                                PFID(&p_rec3->cr_tfid), p_rec3->cr_namelen,
-                                p_rec3->cr_name );
-
-                    process_log_rec( info, p_rec3, PLR_FLG_FREE2 );
-                }
-
-                /* push RNMFRM to remove the old path from NAMES table.
-                 * push RNMTO to add target path information.
-                 */
-                /* indicate the target fid as the renamed entry */
-                p_rec2->cr_tfid = p_rec->cr_tfid;
-
-                DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                            "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%s",
-                            PFID(&p_rec->cr_tfid), PFID(&p_rec->cr_pfid),p_rec->cr_name,
-                            PFID(&p_rec2->cr_pfid), p_rec2->cr_name);
-
-                process_log_rec( info, p_rec, 0 );
-                process_log_rec( info, p_rec2, 0 );
-            }
-        }
-        else
-        {
-            /* single record */
-#endif
-            /* handle the line and push it to the pipeline */
-            process_log_rec( info, p_rec, 0 );
-#if defined(_CL_RNM_OVER) || defined(HAVE_CHANGELOG_EXTEND_REC)
-        }
-#endif
-#if defined(HAVE_CHANGELOG_EXTEND_REC)
-        }
-#endif
-
         /* Is it time to flush? */
         if (info->op_queue_count >= chglog_reader_config.queue_max_size ||
             next_push_time <= time(NULL)) {
@@ -837,7 +886,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
     }
     else if ( p_config->mdt_count > 1 )
     {
-        DisplayLog(LVL_CRIT, CHGLOG_TAG,  
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
                    "ERROR: multi-MDT filesystems are not supported in the current version");
           return ENOTSUP;
     }
@@ -846,7 +895,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
     chglog_reader_config = *p_config;
     behavior_flags = flags;
 
-    /* create thread params */    
+    /* create thread params */
     reader_info = (reader_thr_info_t*)MemCalloc(p_config->mdt_count,
                                                 sizeof( reader_thr_info_t ));
     if ( reader_info == NULL )
@@ -864,7 +913,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
                    strerror(errno) );
         return errno;
     }
-    DisplayLog(LVL_DEBUG, CHGLOG_TAG,  
+    DisplayLog(LVL_DEBUG, CHGLOG_TAG,
                "Ready to trap SIGCHLD from liblustreapi child process" );
 #endif
 
@@ -914,7 +963,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
                 strerror(err) );
             return err;
         }
-        
+
     }
 
     return 0;

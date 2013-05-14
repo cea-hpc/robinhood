@@ -429,3 +429,36 @@ int ListMgr_Get( lmgr_t * p_mgr, const entry_id_t * p_id, attr_set_t * p_info )
     return listmgr_get_by_pk( p_mgr, pk, p_info );
 }
 
+
+/* Retrieve the FID from the database given the parent FID and the file name. */
+int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
+                               const char *name, entry_id_t * fid)
+{
+    result_handle_t result;
+    char           query[4096];
+    DEF_PK(pk);
+    int rc;
+    char            *str_info[1];
+
+    rc = entry_id2pk( p_mgr, parent_fid, FALSE, PTR_PK(pk) );
+    if (rc)
+        return rc;
+
+    sprintf( query, "SELECT id FROM " DNAMES_TABLE " WHERE parent_id=" DPK " AND hname=sha1('%s')",
+             pk, name);
+             
+    rc = db_exec_sql( &p_mgr->conn, query, &result );
+    if ( rc )
+        return rc;
+
+    rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
+        
+    if (rc != DB_SUCCESS)
+        goto free_res;
+
+    rc = pk2entry_id(p_mgr, str_info[0], fid);
+
+  free_res:
+    db_result_free( &p_mgr->conn, &result );
+    return rc;
+}

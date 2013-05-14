@@ -419,6 +419,13 @@ int            ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
 int            ListMgr_Get( lmgr_t * p_mgr, const entry_id_t * p_id, attr_set_t * p_info );
 
 /**
+ * Retrieve the FID from the database given the parent FID and the
+ * file name.
+ */
+int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
+                               const char *name, entry_id_t * fid);
+
+/**
  * Releases resources of an attr set.
  */
 void           ListMgr_FreeAttrs( attr_set_t * p_attrs );
