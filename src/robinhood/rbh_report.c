@@ -905,7 +905,7 @@ void report_activity( int flags )
 
 #ifdef HAVE_CHANGELOGS
     /* changelog stats */
-    rc = ListMgr_GetVar( &lmgr, CL_LAST_READ_ID, value );
+    rc = ListMgr_GetVar( &lmgr, CL_LAST_READ_REC_ID, value );
     if ( rc == DB_SUCCESS )
     {
         int i;
@@ -919,12 +919,20 @@ void report_activity( int flags )
             printf( "        Last read record id:      %s\n", value );
         }
 
+        if ( ListMgr_GetVar( &lmgr, CL_LAST_READ_REC_TIME, value ) == DB_SUCCESS )
+        {
+            if ( CSV(flags) )
+                printf( "changelog_last_record_time, %s\n", value );
+            else
+                printf( "        Last read record time:    %s\n", value );
+        }
+
         if ( ListMgr_GetVar( &lmgr, CL_LAST_READ_TIME, value ) == DB_SUCCESS )
         {
             if ( CSV(flags) )
-                printf( "changelog_last_time, %s\n", value );
+                printf( "changelog_cl_recv_time, %s\n", value );
             else
-                printf( "        Last record read time:    %s\n", value );
+                printf( "        Last receive time:        %s\n", value );
         }
 
         if ( ListMgr_GetVar( &lmgr, CL_LAST_COMMITTED, value ) == DB_SUCCESS )

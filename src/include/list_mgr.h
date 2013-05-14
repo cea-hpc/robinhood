@@ -802,7 +802,8 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 #define SCAN_STATUS_PARTIAL    "partial"
 
 // Changelog statitics
-#define CL_LAST_READ_ID       "ChangelogLastId"
+#define CL_LAST_READ_REC_ID    "ChangelogLastId"
+#define CL_LAST_READ_REC_TIME  "ChangelogLastRecTime"
 #define CL_LAST_READ_TIME     "ChangelogLastTime"
 #define CL_LAST_COMMITTED     "ChangelogLastCommit"
 #define CL_COUNT_PREFIX       "ChangelogCount" /* variable is <prefix>_<event_name> */

@@ -61,11 +61,17 @@ typedef struct reader_thr_info_t
     /** time when the last line was read */
     time_t  last_read_time;
 
+    /** time of the last read record */
+    struct timeval last_read_record_time;
+
     /** last read record id */
     unsigned long long last_read_record;
 
     /** last record id committed to database */
     unsigned long long last_committed_record;
+
+    /* number of times the changelog has been reopened */
+    unsigned int nb_reopen;
 
     /** thread was asked to stop */
     unsigned int force_stop : 1;
@@ -73,9 +79,14 @@ typedef struct reader_thr_info_t
     /** log handler */
     void * chglog_hdlr;
 
-    unsigned long long cl_counters[CL_LAST]; /* from boot time */
+    unsigned long long cl_counters[CL_LAST]; /* since program start time */
     unsigned long long cl_reported[CL_LAST]; /* last reported stat (for incremental diff) */
     time_t last_report;
+
+    /* to compute relative changelog speed (timeframe of read changelog since the last report) */
+    struct timeval last_report_record_time;
+    unsigned long long last_report_record_id;
+    unsigned int last_reopen;
 
 } reader_thr_info_t;
 
@@ -408,6 +419,15 @@ static inline void cl_update_stats(reader_thr_info_t * info, CL_REC_TYPE * p_rec
         info->last_read_time = time(NULL);
         info->nb_read ++;
         info->last_read_record =  p_rec->cr_index;
+        info->last_read_record_time.tv_sec = (time_t)cltime2sec(p_rec->cr_time);
+        info->last_read_record_time.tv_usec = cltime2nsec(p_rec->cr_time)/1000;
+
+        /* if no record has been read, save it as the previous last */
+        if (info->last_report_record_id == 0)
+        {
+            info->last_report_record_id = info->last_read_record - 1;
+            info->last_report_record_time = info->last_read_record_time;
+        }
 }
 
 
@@ -451,6 +471,7 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
                     rh_sleep( 1 );
                     flags = CHANGELOG_FLAG_BLOCK | CHANGELOG_FLAG_FOLLOW;
             }
+            info->nb_reopen ++;
             /* opening the log again (from last_read_record + 1) */
             rc = llapi_changelog_start( &info->chglog_hdlr, flags,
                                         mdtdevice, info->last_read_record + 1 );
@@ -678,7 +699,7 @@ static void action_sigchld( int sig )
 /** start ChangeLog Reader module */
 int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
 {
-    int i, j, rc;
+    int i, rc;
     char mdtdevice[128];
 #ifdef _LLAPI_FORKS
     struct sigaction act_sigchld ;
@@ -738,19 +759,9 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
         /* retrieve from the first unacknowledged record */
         unsigned long long last_rec = 0;
 
+        memset(&reader_info[i], 0, sizeof(sizeof( reader_thr_info_t )));
+
         reader_info[i].thr_index = i;
-        reader_info[i].thr_id = (pthread_t)NULL;
-        reader_info[i].nb_read = 0;
-        reader_info[i].last_read_time = 0;
-        reader_info[i].last_read_record = 0;
-        reader_info[i].last_committed_record = 0;
-        reader_info[i].chglog_hdlr = NULL;
-        reader_info[i].force_stop = FALSE;
-        for (j = 0; j < CL_LAST; j++)
-        {
-            reader_info[i].cl_counters[j] = 0;
-            reader_info[i].cl_reported[j] = 0;
-        }
         reader_info[i].last_report = time(NULL);
 
         snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
@@ -841,6 +852,9 @@ int            ChgLogRdr_DumpStats(  )
 
     for ( i = 0; i < chglog_reader_config.mdt_count; i++ )
     {
+        double speed, speed2;
+        unsigned int interval, interval2 = 0;
+
         DisplayLog( LVL_MAJOR, "STATS", "ChangeLog reader #%u:", i );
 
         DisplayLog( LVL_MAJOR, "STATS", "   fs_name    =   %s",
@@ -849,20 +863,65 @@ int            ChgLogRdr_DumpStats(  )
                     chglog_reader_config.mdt_def[i].mdt_name );
         DisplayLog( LVL_MAJOR, "STATS", "   reader_id  =   %s",
                     chglog_reader_config.mdt_def[i].reader_id );
+
         DisplayLog( LVL_MAJOR, "STATS", "   lines read =   %llu",
                     reader_info[i].nb_read );
 
-        strftime( tmp_buff, 256, "%Y/%m/%d %T",
-                  localtime_r( &reader_info[i].last_read_time, &paramtm ) );
-        DisplayLog( LVL_MAJOR, "STATS", "   last line read  =   %s", tmp_buff );
+        if (reader_info[i].nb_read)
+        {
+            time_t now = time(NULL);
 
-        DisplayLog( LVL_MAJOR, "STATS", "   last read record id      = %llu",
-                    reader_info[i].last_read_record );
-        DisplayLog( LVL_MAJOR, "STATS", "   last committed record id = %llu",
-                    reader_info[i].last_committed_record );
+            strftime( tmp_buff, 256, "%Y/%m/%d %T",
+                      localtime_r( &reader_info[i].last_read_time, &paramtm ) );
+            DisplayLog( LVL_MAJOR, "STATS", "   last received            = %s", tmp_buff );
+
+            strftime( tmp_buff, 256, "%Y/%m/%d %T",
+                      localtime_r( &reader_info[i].last_read_record_time.tv_sec, &paramtm ) );
+            DisplayLog( LVL_MAJOR, "STATS", "   last read record time    = %s.%06u",
+                        tmp_buff, (unsigned int)reader_info[i].last_read_record_time.tv_usec );
+
+            DisplayLog( LVL_MAJOR, "STATS", "   last read record id      = %llu",
+                        reader_info[i].last_read_record );
+            DisplayLog( LVL_MAJOR, "STATS", "   last committed record id = %llu",
+                        reader_info[i].last_committed_record );
+
+            if (reader_info[i].last_report_record_id && (now > reader_info[i].last_report))
+            {
+                interval = now - reader_info[i].last_report;
+                /* interval except time for reopening */
+                interval2 = interval - (reader_info[i].nb_reopen - reader_info[i].last_reopen)
+                            * chglog_reader_config.polling_interval;
+
+                /* compute speed (rec/sec) */
+                speed = (double)(reader_info[i].last_read_record - reader_info[i].last_report_record_id)/(double)interval;
+                if ((interval2 != 0) && (interval2 != interval))
+                {
+                    speed2 = (double)(reader_info[i].last_read_record - reader_info[i].last_report_record_id)/(double)interval2;
+                    DisplayLog( LVL_MAJOR, "STATS", "   read speed               = %.2f record/sec (%.2f incl. idle time)", speed2, speed );
+                }
+                else
+                    DisplayLog( LVL_MAJOR, "STATS", "   read speed               = %.2f record/sec", speed );
+
+                /* compute relative speed (sec/sec) or (h/h) or (d/d) */
+                speed = (double)(reader_info[i].last_read_record_time.tv_sec + reader_info[i].last_read_record_time.tv_usec*0.000001
+                                 - reader_info[i].last_report_record_time.tv_sec - reader_info[i].last_report_record_time.tv_usec*0.000001)/(double)interval;
+                DisplayLog( LVL_MAJOR, "STATS", "   processing speed ratio   = %.2f", speed );
+            }
+
+        }
 
         if ( reader_info[i].force_stop )
-            DisplayLog( LVL_MAJOR, "STATS", "   status = terminating");
+            DisplayLog( LVL_MAJOR, "STATS", "   status                   = terminating");
+        else if (interval2 == 0) /* spends its time polling */
+        {
+            /* more than a single record read? */
+            if (reader_info[i].last_read_record - reader_info[i].last_report_record_id > 1)
+                DisplayLog( LVL_MAJOR, "STATS", "   status                   = almost idle");
+            else
+                DisplayLog( LVL_MAJOR, "STATS", "   status                   = idle");
+        }
+        else if (reader_info[i].nb_reopen == reader_info[i].last_reopen) /* no reopen: it is busy reading changelogs */
+            DisplayLog( LVL_MAJOR, "STATS", "   status                   = busy");
 
         DisplayLog( LVL_MAJOR, "STATS", "   ChangeLog stats:");
 
@@ -908,7 +967,14 @@ int            ChgLogRdr_StoreStats( lmgr_t * lmgr )
         return ENOENT; /* nothing to be stored */
 
     sprintf( tmp_buff, "%llu", reader_info[0].last_read_record );
-    ListMgr_SetVar( lmgr, CL_LAST_READ_ID, tmp_buff );
+    ListMgr_SetVar( lmgr, CL_LAST_READ_REC_ID, tmp_buff );
+    reader_info[0].last_report_record_id = reader_info[0].last_read_record;
+
+    strftime( tmp_buff, 256, "%Y/%m/%d %T",
+              localtime_r( &reader_info[0].last_read_record_time.tv_sec, &paramtm ) );
+    sprintf( tmp_buff, "%s.%06u", tmp_buff, (unsigned int)reader_info[0].last_read_record_time.tv_usec );
+    ListMgr_SetVar( lmgr, CL_LAST_READ_REC_TIME, tmp_buff );
+    reader_info[0].last_report_record_time = reader_info[0].last_read_record_time;
 
     strftime( tmp_buff, 256, "%Y/%m/%d %T",
               localtime_r( &reader_info[0].last_read_time, &paramtm ) );
@@ -950,6 +1016,8 @@ int            ChgLogRdr_StoreStats( lmgr_t * lmgr )
     sprintf( tmp_buff, "%lu", time(NULL) - reader_info[0].last_report );
     ListMgr_SetVar( lmgr, CL_DIFF_INTERVAL, tmp_buff );
     reader_info[0].last_report = time(NULL);
+
+    reader_info[0].last_reopen = reader_info[0].nb_reopen;
 
     return 0;
 }
