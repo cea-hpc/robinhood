@@ -40,7 +40,7 @@ static struct id_hash *id_constraint_hash;
 /** initialize id constraint manager */
 int id_constraint_init( void )
 {
-    id_constraint_hash = id_hash_init(ID_HASH_SIZE);
+    id_constraint_hash = id_hash_init(ID_HASH_SIZE, TRUE);
     return id_constraint_hash == NULL;     /* TODO: this is not checked */
 }
 

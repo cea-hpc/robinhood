@@ -26,6 +26,7 @@
 #include "Memory.h"
 #include "RobinhoodLogs.h"
 #include "entry_processor.h"
+#include "entry_proc_hash.h"
 #include "RobinhoodMisc.h"
 #include "global_config.h"
 #include "RobinhoodConfig.h"
@@ -87,6 +88,12 @@ typedef struct reader_thr_info_t
     struct list_head op_queue;
     unsigned int op_queue_count;
 
+    /** Store the ops for easier access. Each element in the hash
+     * table is also in the op_queue list. This hash table doesn't
+     * need a lock per slot since there is only one reader. The
+     * slot counts won't be used either. */
+    struct id_hash * id_hash;
+
     unsigned long long cl_counters[CL_LAST]; /* since program start time */
     unsigned long long cl_reported[CL_LAST]; /* last reported stat (for incremental diff) */
     time_t last_report;
@@ -98,6 +105,8 @@ typedef struct reader_thr_info_t
 
 } reader_thr_info_t;
 
+/* Number of entries in each readers' op hash table. */
+#define ID_CHGLOG_HASH_SIZE 7919
 
 chglog_reader_config_t chglog_reader_config;
 static int behavior_flags = 0;
@@ -240,12 +249,15 @@ static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
     while(!rh_list_empty(&p_info->op_queue)) {
         entry_proc_op_t *op = rh_list_first_entry(&p_info->op_queue, entry_proc_op_t, list);
 
+        /* Stop when the queue is below our limit, and when the oldest
+         * element is still new enough. */
         if (push_all == FALSE &&
             p_info->op_queue_count < chglog_reader_config.queue_max_size &&
             op->changelog_inserted > oldest)
             break;
 
         rh_list_del(&op->list);
+        rh_list_del(&op->hash_list);
 
         /* Push the entry to the pipeline */
         EntryProcessor_Push( op );
@@ -297,6 +309,7 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
 {
     entry_proc_op_t *op, *t1;
     unsigned int ignore_mask;
+    struct id_hash_slot *slot;
 
     if (record_filters[logrec_in->cr_type].ignore == IGNORE_NEVER)
         return FALSE;
@@ -305,16 +318,13 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
         return TRUE;
 
     /* The ignore field is IGNORE_MASK. At that point, the FID in the
-     * changelog record must be set. */
-
-    /* This a horrible O(n^2) algorithm. We try to find each new
-     * element in the list. Since we really only need to find files
-     * with the same FID, we could have some other sorted structure
-     * (table, hash, tree, ...) */
-
+     * changelog record must be set. All the changelog record with the
+     * same FID will go into the same bucket, so parse that slot
+     * instead of the whole op_queue list. */
+    slot = get_hash_slot(p_info->id_hash, &op->entry_id);
     ignore_mask = record_filters[logrec_in->cr_type].ignore_mask;
 
-    rh_list_for_each_entry_safe_reverse(op, t1, &p_info->op_queue, list)
+    rh_list_for_each_entry_safe_reverse(op, t1, &slot->list, hash_list)
     {
         CL_REC_TYPE *logrec = op->extra_info.log_record.p_log_rec;
         
@@ -339,6 +349,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
     entry_proc_op_t *op;
     unsigned int opnum;
     char flag_buff[256] = "";
+    struct id_hash_slot *slot;
 
 #ifdef _LUSTRE_HSM
     if ( p_rec->cr_type == CL_HSM )
@@ -436,10 +447,14 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
     /* Set entry ID */
     EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
 
-    /* Add the entry on the pending queue. */
+    /* Add the entry on the pending queue ... */
     op->changelog_inserted = time(NULL);
     rh_list_add_tail(&op->list, &p_info->op_queue);
     p_info->op_queue_count ++;
+    
+    /* ... and the hash table. */
+    slot = get_hash_slot(p_info->id_hash, &op->entry_id);
+    rh_list_add_tail(&op->hash_list, &slot->list);
 
     return 0; 
 }
@@ -835,6 +850,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
         reader_info[i].thr_index = i;
         rh_list_init(&reader_info[i].op_queue);
         reader_info[i].last_report = time(NULL);
+        reader_info->id_hash = id_hash_init( ID_CHGLOG_HASH_SIZE, FALSE );
 
         snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
                   p_config->mdt_def[i].mdt_name );

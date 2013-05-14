@@ -32,7 +32,7 @@
 #include <stdio.h>
 
 /** Creates and return a new hash table */
-struct id_hash * id_hash_init( const unsigned int hash_size )
+struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock  )
 {
     unsigned int i;
 	struct id_hash *hash;
@@ -46,7 +46,8 @@ struct id_hash * id_hash_init( const unsigned int hash_size )
     {
 		struct id_hash_slot *slot = &hash->slot[i];
 
-        pthread_mutex_init( &slot->lock, NULL );
+        if (use_lock)
+            pthread_mutex_init( &slot->lock, NULL );
         rh_list_init(&slot->list);
 		slot->count = 0;
     }

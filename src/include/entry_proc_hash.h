@@ -36,10 +36,10 @@ struct id_hash
 };
 
 /**
- * Creates a new hash table for operatiopn entries.
+ * Creates a new hash table for operation entries.
  * @return the new hash table.
  */
-struct id_hash * id_hash_init( const unsigned int hash_size );
+struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock );
 
 
 /**
