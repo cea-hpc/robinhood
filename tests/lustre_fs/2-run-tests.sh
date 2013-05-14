@@ -2839,9 +2839,14 @@ function test_info_collect
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
     # (directories are always inserted with robinhood 2.4)
-    # + all close
-    # 4 file + 3 dirs
-    ((db_expect=7+$nb_close))
+    # 4 file + 3 dirs -> 7 changelogs
+    # (all close are suppressed)
+    ((db_expect=7))
+
+    if (( $nb_close != 4 )); then
+		error ": unexpected number of close: $nb_close / 4"
+        return 1
+    fi
 
 	if (( $nb_create == $nb_cr && $nb_db_apply == $db_expect )); then
 		echo "OK: $nb_cr files created, $db_expect database operations"
@@ -2859,8 +2864,7 @@ function test_info_collect
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-	# 4 db operations expected (1 for each file - close operations)
-    ((db_expect=$db_expect - $nb_close))
+	# 7 db operations expected (1 for each file and dir)
 	if (( $nb_db_apply == $db_expect )); then
 		echo "OK: $db_expect database operations"
 	else
@@ -6733,6 +6737,54 @@ function report_generation2
 ############### End report generation Functions ###################
 ###################################################################
 
+#######################################################
+############### Changelog functions ###################
+#######################################################
+
+function test_changelog
+{
+    config_file=$1
+
+    clean_logs
+
+	if (( $no_log )); then
+            echo "Changelogs not supported on this config: skipped"
+            set_skipped
+            return 1
+    fi
+
+    # create a single file and do several operations on it
+    # This will generate a CREATE+CLOSE+CLOSE+SATTR records
+    echo "1. Creating initial objects..."
+    touch $ROOT/file.1 || error "touch file.1"
+	touch $ROOT/file.1 || error "touch file.1"
+	chmod +x $ROOT/file.1 || error "chmod file.1"
+    
+    # Reading changelogs                                                  
+    echo "2. Scanning ..."
+   	$RH -f ./cfg/$config_file --readlog --once -l FULL -L rh_scan.log || error "reading changelog"
+	grep ChangeLog rh_scan.log
+
+    # check that the MARK, CLOSE and SATTR have been ignored, but
+    # CREAT was processed
+    echo "3. Checking ignored records..."
+    ignore_mark=$(grep -E "Ignoring event MARK" rh_scan.log | wc -l)
+    ignore_creat=$(grep -E "Ignoring event CREAT" rh_scan.log | wc -l)
+    ignore_close=$(grep -E "Ignoring event CLOSE" rh_scan.log | wc -l)
+    ignore_sattr=$(grep -E "Ignoring event SATTR" rh_scan.log | wc -l)
+
+    (( $ignore_mark == 1 ))  || error "MARK record not ignored"
+    (( $ignore_creat == 0 )) || error "CREATE record ignored"
+    (( $ignore_close == 2 )) || error "CLOSE record not ignored"
+    (( $ignore_sattr == 1 )) || error "SATTR record not ignored"
+
+    rm -f report.out find.out
+}
+
+###########################################################
+############### End changelog functions ###################
+###########################################################
+
 ##############################################################
 ############### Other Parameters Functions ###################
 ##############################################################
@@ -7352,6 +7404,8 @@ run_test 669 TEST_OTHER_PARAMETERS_2 OtherParameters_2.conf "TEST_OTHER_PARAMETE
 run_test 670 TEST_OTHER_PARAMETERS_3 OtherParameters_3.conf "TEST_OTHER_PARAMETERS_3"
 run_test 671 TEST_OTHER_PARAMETERS_4 OtherParameters_4.conf "TEST_OTHER_PARAMETERS_4"
 run_test 672 TEST_OTHER_PARAMETERS_5 OtherParameters_5.conf "TEST_OTHER_PARAMETERS_5"
+
+run_test 700 test_changelog common.conf "Changelog record suppression"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="

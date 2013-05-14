@@ -51,6 +51,17 @@ typedef struct chglog_reader_config_t
     int   force_polling;
     int   polling_interval;
 
+    /* Maximum number of operations to keep in the internal queue. */
+    int queue_max_size;
+
+    /* Age of the opration we keep in the internal queue before we
+     * push them to thepipeline. */
+    int queue_max_age;
+
+    /* Interval at which we have to check whether operation in the
+     * internal queue have aged. */
+    int queue_check_interval;
+
 } chglog_reader_config_t;
 
 /* type if a log record is a ctime or mtime ? */

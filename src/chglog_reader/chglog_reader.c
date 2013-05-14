@@ -56,6 +56,12 @@ typedef struct reader_thr_info_t
     /** nbr of records read by this thread */
     unsigned long long nb_read;
 
+    /** number of records of interest (ie. not MARK, IOCTL, ...) */
+    unsigned long long interesting_records;
+
+    /** number of suppressed/merged records */
+    unsigned long long suppressed_records;
+
     /** time when the last line was read */
     time_t  last_read_time;
 
@@ -76,6 +82,10 @@ typedef struct reader_thr_info_t
 
     /** log handler */
     void * chglog_hdlr;
+
+    /** Queue of pending changelogs to push to the pipeline. */
+    struct list_head op_queue;
+    unsigned int op_queue_count;
 
     unsigned long long cl_counters[CL_LAST]; /* since program start time */
     unsigned long long cl_reported[CL_LAST]; /* last reported stat (for incremental diff) */
@@ -222,6 +232,103 @@ static const char * event_name[] = {
 #define CL_EVENT_MAX 5
 #endif
 
+/* Push the oldest (all=FALSE) or all (all=TRUE) entries into the pipeline. */
+static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
+{
+    time_t oldest = time(NULL) - chglog_reader_config.queue_max_age;
+
+    while(!rh_list_empty(&p_info->op_queue)) {
+        entry_proc_op_t *op = rh_list_first_entry(&p_info->op_queue, entry_proc_op_t, list);
+
+        if (push_all == FALSE &&
+            p_info->op_queue_count < chglog_reader_config.queue_max_size &&
+            op->changelog_inserted > oldest)
+            break;
+
+        rh_list_del(&op->list);
+
+        /* Push the entry to the pipeline */
+        EntryProcessor_Push( op );
+
+        p_info->op_queue_count --;
+    }
+}
+
+/* Describes which records can be safely ignored. By default a record
+ * is never ignored. It is only necessary to add an entry in this
+ * table if the record may be skipped (and thus has a mask defined) or
+ * if it can be skipped altogether. */
+static const struct {
+    enum { IGNORE_NEVER = 0,    /* default */
+           IGNORE_MASK,         /* mask must be set, and record has a FID */
+           IGNORE_ALWAYS
+    } ignore;
+    unsigned int ignore_mask;
+} record_filters[CL_LAST] = {
+
+    /* Record we don't care about. */
+    [CL_MARK] = { .ignore = IGNORE_ALWAYS },
+    [CL_IOCTL] = { .ignore = IGNORE_ALWAYS },
+#ifndef HAVE_SHOOK
+    [CL_XATTR] = { .ignore = IGNORE_ALWAYS },
+#endif
+
+    /* Similar operation (data changes). For instance, if the current
+     * operation is a CLOSE, drop it if we find a previous
+     * TRUNC/CLOSE/MTIME or CREATE for the same FID. */
+    [CL_TRUNC] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE },
+    [CL_CLOSE] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE },
+    [CL_MTIME] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
+    
+    /* Similar operations (metadata changes). */
+    [CL_CTIME] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
+    [CL_SETATTR] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
+};
+
+/* Decides whether a new changelog record can be ignored. Ignoring a
+ * record should not impact the database state, however the gain is to:
+ *  - reduce contention on pipeline stages with constraints,
+ *  - reduce the number of DB and FS requests.
+ *
+ * Returns TRUE or FALSE.
+ */
+static int can_ignore_record(const reader_thr_info_t *p_info,
+                             const CL_REC_TYPE *logrec_in)
+{
+    entry_proc_op_t *op, *t1;
+    unsigned int ignore_mask;
+
+    if (record_filters[logrec_in->cr_type].ignore == IGNORE_NEVER)
+        return FALSE;
+
+    if (record_filters[logrec_in->cr_type].ignore == IGNORE_ALWAYS)
+        return TRUE;
+
+    /* The ignore field is IGNORE_MASK. At that point, the FID in the
+     * changelog record must be set. */
+
+    /* This a horrible O(n^2) algorithm. We try to find each new
+     * element in the list. Since we really only need to find files
+     * with the same FID, we could have some other sorted structure
+     * (table, hash, tree, ...) */
+
+    ignore_mask = record_filters[logrec_in->cr_type].ignore_mask;
+
+    rh_list_for_each_entry_safe_reverse(op, t1, &p_info->op_queue, list)
+    {
+        CL_REC_TYPE *logrec = op->extra_info.log_record.p_log_rec;
+        
+        /* If the type of record matches what we're looking for, and
+         * it's for the same FID, then we can ignore the new
+         * record. */ 
+        if ((ignore_mask & (1<<logrec->cr_type)) &&
+            entry_id_equal(&logrec->cr_tfid, &logrec_in->cr_tfid)) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
 
 /**
  * This handles a single log record.
@@ -285,63 +392,16 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         return EINVAL;
     }
 
-    /* is this record interesting? */
-    switch ( opnum )
-    {
-        /* The following events are interesting
-         * for HSM purpose or policy application:
-         * - CREATE: a file is created
-         * - OPEN/CLOSE: a file is accessed
-         * - UNLINK: a file may need to be removed from HSM
-         * - TIME: file mtime has changed
-         * - SETATTR: a file attribute has changed
-         * - TRUNC: file content is modified
-         * - HSM: HSM flags/status have changed
-         * - RENAME and EXT: a file has been renamed
-         *   (its fileclass could have changed)
-         */
-        case CL_CREATE:
-        case CL_OPEN:
-        case CL_CLOSE:
-        case CL_UNLINK:
-        case CL_SETATTR:
-#ifdef CL_SPLITTED_TIME
-        case CL_MTIME:
-        case CL_CTIME:
-#else
-        case CL_TIME:
-#endif
-        case CL_TRUNC:
-        case CL_HSM:
-        case CL_EXT:
-        case CL_RENAME:
-#ifdef HAVE_SHOOK
-        case CL_XATTR:
-#endif
-        case CL_HARDLINK:
-#ifdef CL_SPLITTED_TIME
-        case CL_ATIME:
-#endif
-            /* OK */
-            break;
-
-        case CL_SOFTLINK:
-        case CL_MKDIR:
-        case CL_RMDIR:
-        case CL_MKNOD:
-            /* handle those events for non-HSM purposes */
-            break;
-
-        case CL_MARK:
-        case CL_IOCTL:
-#ifndef HAVE_SHOOK
-        case CL_XATTR:
-#endif
-            DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
-            /* free the record */
-            llapi_changelog_free( &p_rec );
-            return 0;
+    /* This record might be of interest. But try to check whether it
+     * might create a duplicate operation anyway. */
+    if (can_ignore_record(p_info, p_rec)) {
+        DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
+        p_info->suppressed_records ++;
+        llapi_changelog_free( &p_rec );
+        return 0;
     }
+
+    p_info->interesting_records ++;
 
     /* build the record to be processed in the pipeline */
 
@@ -376,8 +436,10 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
     /* Set entry ID */
     EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
 
-    /* Push the entry to the pipeline */
-    EntryProcessor_Push( op );
+    /* Add the entry on the pending queue. */
+    op->changelog_inserted = time(NULL);
+    rh_list_add_tail(&op->list, &p_info->op_queue);
+    p_info->op_queue_count ++;
 
     return 0; 
 }
@@ -492,6 +554,7 @@ static void * chglog_reader_thr( void *  arg )
     reader_thr_info_t * info = (reader_thr_info_t*) arg;
     CL_REC_TYPE * p_rec = NULL;
     cl_status_e st;
+    time_t next_push_time = time(NULL) + chglog_reader_config.queue_check_interval; /* Next time we will have to push. */
 
     do
     {
@@ -664,13 +727,22 @@ static void * chglog_reader_thr( void *  arg )
         }
 #endif
 
+        /* Is it time to flush? */
+        if (info->op_queue_count >= chglog_reader_config.queue_max_size ||
+            next_push_time <= time(NULL)) {
+            process_op_queue(info, FALSE);
+
+            next_push_time = time(NULL) + chglog_reader_config.queue_check_interval;
+        }
+
     } while ( !info->force_stop );
      /* loop until a TERM signal is caught */
 
     log_close(info);
 
-//end_of_thr:
-
+    /* Stopping. Flush the internal queue. */
+    process_op_queue(info, TRUE);
+            
     DisplayLog(LVL_CRIT, CHGLOG_TAG, "Changelog reader thread terminating");
     return NULL;
 
@@ -760,8 +832,8 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
         unsigned long long last_rec = 0;
 
         memset(&reader_info[i], 0, sizeof(sizeof( reader_thr_info_t )));
-
         reader_info[i].thr_index = i;
+        rh_list_init(&reader_info[i].op_queue);
         reader_info[i].last_report = time(NULL);
 
         snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
@@ -868,6 +940,12 @@ int            ChgLogRdr_DumpStats( void )
 
         DisplayLog( LVL_MAJOR, "STATS", "   lines read =   %llu",
                     reader_info[i].nb_read );
+        DisplayLog( LVL_MAJOR, "STATS", "   interesting records = %llu",
+                    reader_info[i].interesting_records );
+        DisplayLog( LVL_MAJOR, "STATS", "   suppressed records  = %llu",
+                    reader_info[i].suppressed_records );
+        DisplayLog( LVL_MAJOR, "STATS", "   queue size = %u",
+                    reader_info[i].op_queue_count );
 
         if (reader_info[i].nb_read)
         {

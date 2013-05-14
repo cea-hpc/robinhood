@@ -191,7 +191,10 @@ typedef struct entry_proc_op_t
      */
     pthread_mutex_t entry_lock;
 
-    struct timeval start_processing_time;
+    union {
+        time_t changelog_inserted; /* used by changelog reader */
+        struct timeval start_processing_time; /* used by pipeline */
+    };
 
     /* double chained list for pipeline */
     struct list_head list;
