@@ -75,6 +75,9 @@ typedef struct reader_thr_info_t
     /** last record id committed to database */
     unsigned long long last_committed_record;
 
+    /** last record id cleared with changelog */
+    unsigned long long last_cleared_record;
+
     /* number of times the changelog has been reopened */
     unsigned int nb_reopen;
 
@@ -167,6 +170,47 @@ static void free_extra_info2( void * ptr )
     }
 }
 
+/**
+ * Clear the changelogs up to the last commited number seen.
+ */
+static int clear_changelog_records(reader_thr_info_t * p_info)
+{
+    int rc;
+    const char * mount_point = get_mount_point(NULL);
+
+    if (p_info->last_committed_record == 0) {
+        /* No record was ever commited. Stop here because calling
+         * llapi_changelog_clear() with record 0 will clear all
+         * records, leading to a potential record loss. */
+        return 0;
+    }
+
+    DisplayLog( LVL_DEBUG, CHGLOG_TAG, "Acknowledging ChangeLog records up to #%llu",
+                p_info->last_committed_record );
+
+    DisplayLog( LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %llu)",
+                mount_point,
+                chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
+                p_info->last_committed_record );
+
+    rc = llapi_changelog_clear( mount_point,
+                    chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
+                    p_info->last_committed_record );
+
+    if (rc)
+    {
+            DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                        "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %llu) returned %d",
+                        mount_point,
+                        chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
+                        p_info->last_committed_record, rc );
+    } else {
+        p_info->last_cleared_record = p_info->last_committed_record;
+    }
+
+    return rc;
+
+}
 
 /**
  * DB callback function: this is called when a given ChangeLog record
@@ -175,7 +219,6 @@ static void free_extra_info2( void * ptr )
 static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void * param )
 {
     int rc;
-    const char * mount_point = get_mount_point(NULL);
     reader_thr_info_t * p_info = (reader_thr_info_t *) param;
     CL_REC_TYPE * logrec = pop->extra_info.log_record.p_log_rec;
 
@@ -189,45 +232,27 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
         return EINVAL;
     }
 
+    /* New highest commited record so far. */
+    p_info->last_committed_record = logrec->cr_index;
 
     /* batching llapi_changelog_clear() calls.
-     * If we reached the last read record, we acknowledge anyway. */
-    if ( (chglog_reader_config.batch_ack_count > 1) && (logrec->cr_index < p_info->last_read_record) )
+     * clear the record in any of those cases:
+     *      - batch_ack_count = 1 (i.e. acknowledge every record).
+     *      - we reached the last read record.
+     *      - if the delta to last cleared record is high enough.
+     * do nothing in all other cases:
+     */
+    if ((chglog_reader_config.batch_ack_count > 1)
+         && (logrec->cr_index < p_info->last_read_record)
+         && ((logrec->cr_index - p_info->last_cleared_record)
+             < chglog_reader_config.batch_ack_count))
     {
-       if ( (logrec->cr_index - p_info->last_committed_record)
-                < chglog_reader_config.batch_ack_count )
-       {
-            /* do nothing, don't clear log now */
-            return 0;
-       }
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %llu %llu\n", logrec->cr_index, p_info->last_cleared_record);
+        /* do nothing, don't clear log now */
+        return 0;
     }
 
-    DisplayLog( LVL_DEBUG, CHGLOG_TAG, "Acknowledging ChangeLog records up to #%llu",
-                logrec->cr_index );
-
-    DisplayLog( LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %llu)",
-                mount_point,
-                chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
-                logrec->cr_index );
-
-    /* entry has been commited, acknowledge it in llog */
-    rc = llapi_changelog_clear( mount_point,
-                    chglog_reader_config.mdt_def[p_info->thr_index].reader_id, 
-                    logrec->cr_index );
-
-    if (rc)
-    {
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %llu) returned %d", 
-                        mount_point,
-                        chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
-                        logrec->cr_index, rc );
-    }
-    else
-    {
-        /* update thread stats */
-        p_info->last_committed_record = logrec->cr_index;
-    }
+    rc = clear_changelog_records(p_info);
 
     return rc;
 
@@ -571,7 +596,8 @@ static void * chglog_reader_thr( void *  arg )
     cl_status_e st;
     time_t next_push_time = time(NULL) + chglog_reader_config.queue_check_interval; /* Next time we will have to push. */
 
-    do
+    /* loop until a TERM signal is caught */
+    while ( !info->force_stop )
     {
         st = cl_get_one(info, &p_rec); 
         if (st == cl_continue )
@@ -750,14 +776,19 @@ static void * chglog_reader_thr( void *  arg )
             next_push_time = time(NULL) + chglog_reader_config.queue_check_interval;
         }
 
-    } while ( !info->force_stop );
-     /* loop until a TERM signal is caught */
+        st = cl_get_one(info, &p_rec);
+        if (st == cl_continue )
+            continue;
+        else if (st == cl_stop)
+            break;
 
-    log_close(info);
+        /* handle the line and push it to the pipeline */
+        process_log_rec( info, p_rec, 0 );
+    }
 
     /* Stopping. Flush the internal queue. */
     process_op_queue(info, TRUE);
-            
+
     DisplayLog(LVL_CRIT, CHGLOG_TAG, "Changelog reader thread terminating");
     return NULL;
 
@@ -904,9 +935,7 @@ int            ChgLogRdr_Terminate( void )
     DisplayLog( LVL_EVENT, CHGLOG_TAG,
                 "Stop request has been sent to all ChangeLog reader threads" );
 
-    /** wannot wait for thread to stop because they are stuck in llapi_chglog_recv()? */
-    /** @TODO check if chglog recv return EINTR? */
-    /*  ChgLogRdr_Wait(  ); */
+    ChgLogRdr_Wait(  );
 
     return 0;
 }
@@ -924,6 +953,24 @@ int            ChgLogRdr_Wait( void )
     }
 
     Alert_EndBatching();
+
+    return 0;
+}
+
+/** Release last changelog records, and dump the final stats. */
+int            ChgLogRdr_Done( void )
+{
+    int i;
+
+    for ( i = 0; i < chglog_reader_config.mdt_count; i++ )
+    {
+        reader_thr_info_t * info = &reader_info[i];
+
+        /* Clear the records that are still batched for clearing. */
+        clear_changelog_records(info);
+
+        log_close(info);
+    }
 
     ChgLogRdr_DumpStats();
 
@@ -953,14 +1000,13 @@ int            ChgLogRdr_DumpStats( void )
                     chglog_reader_config.mdt_def[i].mdt_name );
         DisplayLog( LVL_MAJOR, "STATS", "   reader_id  =   %s",
                     chglog_reader_config.mdt_def[i].reader_id );
-
-        DisplayLog( LVL_MAJOR, "STATS", "   lines read =   %llu",
+        DisplayLog( LVL_MAJOR, "STATS", "   records read        = %llu",
                     reader_info[i].nb_read );
         DisplayLog( LVL_MAJOR, "STATS", "   interesting records = %llu",
                     reader_info[i].interesting_records );
         DisplayLog( LVL_MAJOR, "STATS", "   suppressed records  = %llu",
                     reader_info[i].suppressed_records );
-        DisplayLog( LVL_MAJOR, "STATS", "   queue size = %u",
+        DisplayLog( LVL_MAJOR, "STATS", "   records pending     = %u",
                     reader_info[i].op_queue_count );
 
         if (reader_info[i].nb_read)
@@ -980,6 +1026,8 @@ int            ChgLogRdr_DumpStats( void )
                         reader_info[i].last_read_record );
             DisplayLog( LVL_MAJOR, "STATS", "   last committed record id = %llu",
                         reader_info[i].last_committed_record );
+            DisplayLog( LVL_MAJOR, "STATS", "   last cleared record id   = %llu",
+                        reader_info[i].last_cleared_record );
 
             if (reader_info[i].last_report_record_id && (now > reader_info[i].last_report))
             {

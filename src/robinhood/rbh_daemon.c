@@ -721,6 +721,15 @@ static void   *signal_handler_thr( void *arg )
             {
                 /* drop pipeline waiting operations and terminate threads */
                 EntryProcessor_Terminate( FALSE );
+
+#ifdef HAVE_CHANGELOGS
+                if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
+                {
+                    /* Ack last changelog records. */
+                    ChgLogRdr_Done( );
+                }
+#endif
+
                 FlushLogs(  );
             }
 
@@ -1445,6 +1454,14 @@ int main( int argc, char **argv )
     {
         /* Pipeline must be flushed */
         EntryProcessor_Terminate( TRUE );
+
+#ifdef HAVE_CHANGELOGS
+        if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
+        {
+            /* Ack last changelog records. */
+            ChgLogRdr_Done( );
+        }
+#endif
     }
 
 #ifdef HAVE_MIGR_POLICY

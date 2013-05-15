@@ -83,6 +83,9 @@ int            ChgLogRdr_Terminate( void );
 /** wait for ChangeLog Readers termination */
 int            ChgLogRdr_Wait( void );
 
+/** Release last changelog records, and dump the final stats. */
+int            ChgLogRdr_Done( void );
+
 /** dump changelog processing stats */
 int            ChgLogRdr_DumpStats( void );
 
