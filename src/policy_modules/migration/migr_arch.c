@@ -50,6 +50,7 @@ migration_config_t migr_config;
 static int migr_flags = 0;
 static int migr_abort = FALSE;
 
+static time_t first_eligible = 0;
 
 struct __migr_info {
     time_t  migr_start;
@@ -288,6 +289,22 @@ static int set_migr_optimization_filters(lmgr_filter_t * p_filter)
             DisplayLog( LVL_FULL, MIGR_TAG, "Could not convert migration policy '%s' to simple filter.",
                 policies.migr_policies.policy_list[0].policy_id );
         }
+    }
+
+    /* avoid re-checking all old whitelisted entries at the beginning of the list,
+     * so start from the first non-whitelisted file.
+     * restart from initial file when no migration could be done. */
+    if (first_eligible)
+    {
+        filter_value_t fval;
+        char datestr[128];
+        struct tm ts;
+
+        fval.val_uint = first_eligible;
+        lmgr_simple_filter_add( p_filter, ATTR_INDEX_last_mod, MORETHAN, fval, 0 );
+
+        strftime( datestr, 128, "%Y/%m/%d %T", localtime_r( &first_eligible, &ts ) );
+        DisplayLog( LVL_EVENT, MIGR_TAG, "Optimization: considering entries newer than %s", datestr );
     }
 
     return 0;
@@ -868,6 +885,10 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         *p_nb_migr = migration_info.migr_count;
     if ( p_migr_vol )
         *p_migr_vol = migration_info.migr_vol;
+
+    /* restart from initial file when no migration could be done. */
+    if (first_eligible && migration_info.migr_count == 0)
+        first_eligible = 0;
 
     return 0;
 }
@@ -1513,6 +1534,13 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             goto end;
         }
     } /* end if don't ignore policies */
+
+    /* we found an eligible entry! */
+
+    /* it is the first? */
+    if (ATTR_MASK_TEST(&p_item->entry_attr, last_mod)
+        && (!first_eligible || (ATTR(&p_item->entry_attr, last_mod) < first_eligible)))
+        first_eligible = ATTR(&p_item->entry_attr, last_mod);
 
     /* build hints */
     hints = build_migration_hints( policy_case, p_fileset, &p_item->entry_id, &new_attr_set );
