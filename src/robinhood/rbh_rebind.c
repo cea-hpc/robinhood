@@ -57,10 +57,6 @@ static struct option option_tab[] =
 
 #define SHORT_OPT_STRING    "f:l:hV"
 
-/* global variables */
-
-static lmgr_t  lmgr;
-
 /* special character sequences for displaying help */
 
 /* Bold start character sequence */

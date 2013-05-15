@@ -56,6 +56,8 @@ struct __migr_info {
     time_t  last_report;
     unsigned int migr_count;
     unsigned long migr_vol;
+    unsigned int skipped;
+    unsigned int errors;
 } migration_info;
 
 static const policy_modifier_t * migr_pol_mod = NULL;
@@ -291,14 +293,35 @@ static int set_migr_optimization_filters(lmgr_filter_t * p_filter)
     return 0;
 }
 
-static void report_progress(const unsigned long long * pass_begin, const unsigned long long * pass_current)
+static void report_progress(const unsigned long long * pass_begin, const unsigned long long * pass_current,
+                            const unsigned int * status_tab_begin, const unsigned int * status_tab_current)
 {
+    /* migration_info contains the stats for the last pass */
     unsigned int migr_count = migration_info.migr_count;
     unsigned long migr_vol = migration_info.migr_vol;
+    unsigned int nb_skipped = migration_info.skipped;
+    unsigned int nb_errors = migration_info.errors;
+    int i;
+
+    /* add stats for the current pass */
     if (pass_begin && pass_current)
     {
         migr_vol += pass_current[MIGR_FDBK_VOL] - pass_begin[MIGR_FDBK_VOL];
         migr_count += pass_current[MIGR_FDBK_NBR] - pass_begin[MIGR_FDBK_NBR];
+    }
+    if (status_tab_begin && status_tab_current)
+    {
+        /* skipped if it has changed, is whitelisted, matches no policy, is in use, already archiving,
+         * type not supported for archiving...
+         * i.e. status in MIGR_ENTRY_MOVED, MIGR_ENTRY_WHITELISTED, MIGR_STATUS_CHGD, MIGR_NO_POLICY,
+         * MIGR_BAD_TYPE, MIGR_BUSY, MIGR_ALREADY
+         */
+        for (i = MIGR_ENTRY_MOVED ; i <= MIGR_ALREADY; i++)
+            nb_skipped += status_tab_current[i] - status_tab_begin[i];
+
+        /* these statuses are more erroneous */
+        for (i = MIGR_PARTIAL_MD ; i <= MIGR_ERROR; i++)
+            nb_errors += status_tab_current[i] - status_tab_begin[i];
     }
 
     /* say hello every runtime interval */
@@ -313,9 +336,9 @@ static void report_progress(const unsigned long long * pass_begin, const unsigne
         FormatFileSize(buf3, 128, migr_vol/spent);
 
         DisplayLog(LVL_EVENT, MIGR_TAG, "Migration is running (started %s ago): %u files migrated (%.2f/sec); "
-                   "volume: %s (%s/sec)", buf1, migr_count,
-                   (float)migr_count/(float)spent,
-                   buf2, buf3);
+                   "volume: %s (%s/sec); skipped: %u; errors: %u", buf1,
+                   migr_count, (float)migr_count/(float)spent, buf2, buf3,
+                   nb_skipped, nb_errors);
         migration_info.last_report = time(NULL);
     }
 }
@@ -363,7 +386,7 @@ static int wait_queue_empty( unsigned int nb_submitted,
                 return ETIME;
             }
 
-            report_progress(feedback_init, feedback_after);
+            report_progress(feedback_init, feedback_after, status_tab_init, status_tab);
 
             DisplayLog( LVL_DEBUG, MIGR_TAG,
                         "Waiting for the end of this migr pass: "
@@ -667,6 +690,8 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
     migration_info.migr_count = 0;
     migration_info.migr_vol = 0;
+    migration_info.skipped = 0;
+    migration_info.errors = 0;
     migration_info.last_report = migration_info.migr_start = last_request_time
         = time(NULL);
 
@@ -674,7 +699,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     do
     {
         /* check if progress must be reported */
-        report_progress(NULL, NULL);
+        report_progress(NULL, NULL, NULL, NULL);
 
         /* Retrieve stats before starting migr,
          * for computing a delta later.
@@ -825,7 +850,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         wait_queue_empty( nb_submitted, feedback_before, status_tab,
                           feedback_after, TRUE );
 
-        /* how much entries have been migrated ? */
+        /* add stats for this pass */
         migration_info.migr_vol += feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL];
         migration_info.migr_count += feedback_after[MIGR_FDBK_NBR] - feedback_before[MIGR_FDBK_NBR];
 
