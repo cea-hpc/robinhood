@@ -65,6 +65,9 @@ static int mysql_error_convert( int err )
          */
     case ER_UNKNOWN_ERROR:
 
+    /* query may be interrupted for a connexion shutdown */
+    case ER_QUERY_INTERRUPTED:
+
         /* These are really connection errors: */
     case ER_SERVER_SHUTDOWN:
     case CR_CONNECTION_ERROR:
