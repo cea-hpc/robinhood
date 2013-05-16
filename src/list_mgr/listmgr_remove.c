@@ -196,20 +196,18 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                                 time_t real_remove_time, rm_cb_func_t cb_func )
 {
     int            rc;
-    char           query[2048];
-    char           filter_str_main[1024];
-    char           filter_str_annex[1024];
-#ifdef _LUSTRE
-    char           filter_str_stripe_info[1024];
-    char           filter_str_stripe_items[1024];
-#endif
+    char           query[4096];
+    char           filter_str[2048];
+    char           *curr_filter;
     int            filter_main = 0;
     int            filter_annex = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
+    char           from[1024];
+    char           *curr_from;
+    const char* first_table = NULL;
+    const char* direct_del_table = NULL;
     char           tmp_table_name[256];
-    int            indirect_del_main = FALSE;
-    int            indirect_del_annex = FALSE;
     result_handle_t result;
     char          *field_tab[3]; /* 3 max: id, fullpath, backendpath */
     DEF_PK(pk);
@@ -285,22 +283,27 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         return lmgr_commit( p_mgr );
     }
 
-    /* on which table is the filter ?
-     * for soft rm, need to prefix table for joining with annex table
-     */
-    filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, soft_rm && annex_table );
+    /* on which table are the filters ?  */
+    curr_filter = filter_str;
+    filter_main = filter2str( p_mgr, curr_filter, p_filter, T_MAIN, FALSE /* no leading AND */, TRUE );
+    curr_filter += strlen(curr_filter);
 
     if ( annex_table )
-        filter_annex = filter2str( p_mgr, filter_str_annex, p_filter, T_ANNEX, FALSE, FALSE );
+    {
+        filter_annex = filter2str( p_mgr, curr_filter, p_filter, T_ANNEX, (curr_filter != filter_str), TRUE );
+        curr_filter += strlen(curr_filter);
+    }
     else
         filter_annex = 0;
 
     /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
     filter_stripe_info =
-        filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO, FALSE, FALSE );
+        filter2str( p_mgr, curr_filter, p_filter, T_STRIPE_INFO, (curr_filter != filter_str), TRUE );
+    curr_filter += strlen(curr_filter);
     filter_stripe_items =
-        filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS, FALSE, FALSE );
+        filter2str( p_mgr, curr_filter, p_filter, T_STRIPE_ITEMS, (curr_filter != filter_str), TRUE );
+    curr_filter += strlen(curr_filter);
 #endif
 
     if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0 )
@@ -313,108 +316,75 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Creating temporary table" );
 
-    /* create id table depending on filter */
-    if ( filter_main && !( filter_annex || filter_stripe_info || filter_stripe_items ) )
+    curr_from = from;
+    if (filter_main)
     {
-        sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
-                 ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-#ifdef HAVE_RM_POLICY
-        if ( soft_rm )
-        {
-            if ( annex_table )
-                sprintf( query,
-                         "CREATE TEMPORARY TABLE %s AS SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS" FROM " MAIN_TABLE
-                         " LEFT JOIN "ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id"
-                         " WHERE %s", tmp_table_name, filter_str_main );
-            else
-                sprintf( query,
-                         "CREATE TEMPORARY TABLE %s AS SELECT id, "SOFTRM_SAVED_FIELDS" FROM " MAIN_TABLE
-                         " WHERE %s", tmp_table_name, filter_str_main );
-        }
+        strcpy(curr_from, MAIN_TABLE);
+        curr_from = curr_from + strlen(curr_from);
+        first_table = MAIN_TABLE;
+    }
+    if (filter_annex)
+    {
+        if (first_table)
+            curr_from += sprintf(curr_from, " LEFT JOIN "ANNEX_TABLE" ON %s.id="ANNEX_TABLE".id",
+                                 first_table);
         else
-#endif
-            sprintf( query,
-                     "CREATE TEMPORARY TABLE %s AS SELECT id FROM " MAIN_TABLE
-                     " WHERE %s", tmp_table_name, filter_str_main );
+        {
+            strcpy(from, ANNEX_TABLE);
+            curr_from = from + strlen(from);
+            first_table = ANNEX_TABLE;
+        }
     }
-    else if ( filter_annex && !( filter_main || filter_stripe_info || filter_stripe_items ) )
+    if (filter_stripe_info)
     {
-        sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
-                 ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-#ifdef HAVE_RM_POLICY
-        if ( soft_rm )
-            sprintf( query,
-                     "CREATE TEMPORARY TABLE %s AS SELECT id, "SOFTRM_SAVED_FIELDS
-                     " FROM " ANNEX_TABLE " WHERE %s", tmp_table_name, filter_str_annex );
+        if (first_table)
+            curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_INFO_TABLE" ON %s.id="STRIPE_INFO_TABLE".id",
+                                 first_table);
         else
-#endif
-            sprintf( query,
-                     "CREATE TEMPORARY TABLE %s AS SELECT id FROM " ANNEX_TABLE
-                     " WHERE %s", tmp_table_name, filter_str_annex );
-    }
-    /* stripe are only managed for Lustre filesystems */
-#ifdef _LUSTRE
-    else if ( filter_stripe_items && !( filter_main || filter_annex || filter_stripe_info ) )
-    {
-#ifdef HAVE_RM_POLICY
-        if (soft_rm)
         {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Mass SoftRemove is not supported with stripe item filter" );
-            rc = DB_NOT_SUPPORTED;
-            goto rollback;
+            strcpy(from, STRIPE_INFO_TABLE);
+            curr_from = from + strlen(from);
+            first_table = STRIPE_INFO_TABLE;
         }
-#endif
-        sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
-                 ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-        sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT id FROM "
-                 STRIPE_ITEMS_TABLE " WHERE %s", tmp_table_name, filter_str_stripe_items );
     }
-    else if ( filter_stripe_info && !( filter_main || filter_annex || filter_stripe_items ) )
+    if ( filter_stripe_items )
     {
-#ifdef HAVE_RM_POLICY
-        if (soft_rm)
+        if (first_table)
+            curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_ITEMS_TABLE" ON %s.id="STRIPE_ITEMS_TABLE".id",
+                                 first_table);
+        else
         {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Mass SoftRemove is not supported with stripe item filter" );
-            rc = DB_NOT_SUPPORTED;
-            goto rollback;
+            strcpy(from, STRIPE_ITEMS_TABLE);
+            curr_from = from + strlen(from);
+            first_table = STRIPE_ITEMS_TABLE;
         }
-#endif
+    }
 
-        sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
-                 ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-        sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT id FROM "
-                 STRIPE_INFO_TABLE " WHERE %s", tmp_table_name, filter_str_stripe_info );
-    }
-#endif
-    else if (filter_main && filter_annex && ! (filter_stripe_items || filter_stripe_info))
-    {
-        sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
-                 ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
-#ifdef HAVE_RM_POLICY
-        if (soft_rm)
-            sprintf( query,
-             "CREATE TEMPORARY TABLE %s AS SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS" FROM " MAIN_TABLE
-             " LEFT JOIN "ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id"
-             " WHERE %s AND %s", tmp_table_name, filter_str_main, filter_str_annex );
-        else
-#endif
-            sprintf( query,
-             "CREATE TEMPORARY TABLE %s AS SELECT "MAIN_TABLE".id FROM " MAIN_TABLE
-             " LEFT JOIN "ANNEX_TABLE " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id"
-             " WHERE %s AND %s", tmp_table_name, filter_str_main, filter_str_annex );
-    }
-    else
+    if (first_table == NULL)
     {
         DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error: Filter on several tables not supported: "
-                    MAIN_TABLE ":%d, " ANNEX_TABLE ":%d, "
-                    STRIPE_ITEMS_TABLE ":%d, " STRIPE_INFO_TABLE ":%d",
-                    filter_main, filter_annex, filter_stripe_items, filter_stripe_info );
-        rc = DB_NOT_SUPPORTED;
+                        "Error: unexpected case: filters= "
+                        MAIN_TABLE ":%d, " ANNEX_TABLE ":%d, "
+                        STRIPE_ITEMS_TABLE ":%d, " STRIPE_INFO_TABLE ":%d",
+                        filter_main, filter_annex, filter_stripe_items, filter_stripe_info );
+        rc = DB_REQUEST_FAILED;
         goto rollback;
     }
+
+    sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
+       ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
+
+#ifdef HAVE_RM_POLICY
+    if ( soft_rm )
+        sprintf( query,
+             "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS" FROM %s"
+             " WHERE %s", tmp_table_name, first_table, from, filter_str );
+    else
+#endif
+        sprintf( query,
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id) FROM %s"
+                 " WHERE %s", tmp_table_name, first_table, from, filter_str );
+
 
     /* in autocommit mode, set the transaction level, just before the needed statement */
     if (lmgr_config.commit_behavior == 0)
@@ -436,43 +406,22 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     if ( rc )
         goto rollback;
 
-    /* delete what can be directly deleted */
-    if ( annex_table )
+    /* if the filter is only a single table, entries can be directly deleted */
+    if ((filter_main?1:0) + (filter_annex?1:0) + (filter_stripe_info?1:0) + (filter_stripe_items?1:0) == 1)
     {
-        if ( filter_annex && !filter_main )
-        {
-            DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in " ANNEX_TABLE " table" );
+        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in %s table", first_table );
 
-            /* if filter is on annex, we can directly use filter in WHERE clause */
-            sprintf( query, "DELETE FROM " ANNEX_TABLE " WHERE %s", filter_str_annex );
-            rc = db_exec_sql( &p_mgr->conn, query, NULL );
-            if ( rc )
-                goto rollback;
-        }
-        else
-        {
-            indirect_del_annex = TRUE;
-        }
-    }
-
-    if ( filter_main  && !filter_annex )
-    {
-        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in " MAIN_TABLE " table" );
-
-        /* if filter is on main table, we can directly use filter in WHERE clause */
-        sprintf( query, "DELETE FROM " MAIN_TABLE " WHERE %s", filter_str_main );
+        /* if filter is on annex, we can directly use filter in WHERE clause */
+        sprintf( query, "DELETE FROM %s WHERE %s", first_table, filter_str );
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
             goto rollback;
-    }
-    else
-    {
-        indirect_del_main = TRUE;
+        else
+            direct_del_table = first_table;
     }
 
+    /* do the cleaning in other tables */
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal" );
-
-    /* Now, make indirect deletion (and softrm insertion) */
 
 #ifdef HAVE_RM_POLICY
     if ( soft_rm )
@@ -531,18 +480,24 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
         /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
-        sprintf( query, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
-            goto free_res;
+        if (!direct_del_table || strcmp(direct_del_table, STRIPE_ITEMS_TABLE))
+        {
+            sprintf( query, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
+            rc = db_exec_sql( &p_mgr->conn, query, NULL );
+            if ( rc )
+                goto free_res;
+        }
 
-        sprintf( query, "DELETE FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
-            goto free_res;
+        if (!direct_del_table || strcmp(direct_del_table, STRIPE_INFO_TABLE))
+        {
+            sprintf( query, "DELETE FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
+            rc = db_exec_sql( &p_mgr->conn, query, NULL );
+            if ( rc )
+                goto free_res;
+        }
 #endif
 
-        if ( indirect_del_main )
+        if (!direct_del_table || strcmp(direct_del_table, MAIN_TABLE))
         {
             sprintf( query, "DELETE FROM " MAIN_TABLE " WHERE id="DPK, pk );
             rc = db_exec_sql( &p_mgr->conn, query, NULL );
@@ -550,7 +505,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                 goto free_res;
         }
 
-        if ( indirect_del_annex )
+        if (!direct_del_table || strcmp(direct_del_table, ANNEX_TABLE))
         {
             sprintf( query, "DELETE FROM " ANNEX_TABLE " WHERE id="DPK, pk );
             rc = db_exec_sql( &p_mgr->conn, query, NULL );

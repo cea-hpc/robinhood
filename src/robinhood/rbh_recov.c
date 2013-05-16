@@ -51,6 +51,8 @@ static struct option option_tab[] =
     {"list", required_argument, NULL, 'L'},
 
     {"ost", required_argument, NULL, 'o'},
+    {"since", required_argument, NULL, 'b'},
+
     {"dir", required_argument, NULL, 'D'},
     {"retry", no_argument, NULL, 'e'},
     {"yes", no_argument, NULL, 'y'},
@@ -70,7 +72,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "SrcZsD:eyf:l:o:hVL:"
+#define SHORT_OPT_STRING    "SrcZsD:eyf:l:o:b:hVL:"
 
 /* global variables */
 
@@ -81,6 +83,7 @@ static char * path_filter = NULL;
 static char path_buff[RBH_PATH_MAX];
 static value_list_t ost_list = {0, NULL};
 static char ost_range_str[256] = "";
+static time_t since_time = 0;
 
 /* special character sequences for displaying help */
 
@@ -115,6 +118,9 @@ static const char *help_string =
     "    "  _B "--ost" B_ " " _U "ost_index" U_ "|" _U "ost_set" U_"\n"
     "        Perform the recovery only for files striped on the given OST \n"
     "        or set of OSTs (e.g. 3,5-8).\n"
+    "    "  _B "--since" B_ " " _U "date_time" U_ "\n"
+    "        Perform the recovery only for files updated after the given "_U"date_time"U_".\n"
+    "        The expected date/time format is yymmdd[HHMM[SS]].\n"
 //    "    " _B "--with-data" B_ "\n"
 //    "        Used with --ost: only recover files that really have data on the OST.\n"
     _B "Resume options:" B_ "\n"
@@ -256,25 +262,39 @@ int recov_start()
     lmgr_recov_stat_t stats;
     int rc;
 
-    if (ost_list.count > 0)
+    /* is there a filter to be applied? */
+    if (ost_list.count > 0 || since_time != 0)
     {
         lmgr_filter_t  filter;
         filter_value_t fv;
 
         lmgr_simple_filter_init( &filter );
 
+        /* ost filter? */
         if (ost_list.count == 1)
         {
             printf( "only recovering files striped on OST#%u\n", ost_list.values[0].val_uint);
             fv.value.val_uint = ost_list.values[0].val_uint;
             lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
         }
-        else
+        else if (ost_list.count > 1)
         {
             printf( "only recovering files striped on OSTs[%s]\n", ost_range_str);
             fv.list = ost_list;
             lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, IN, fv,
                                     FILTER_FLAG_ALLOC_LIST ); /* allow it to free ost_list->values */
+        }
+
+        /* update time filter */
+        if (since_time)
+        {
+            char date[128];
+            struct tm t;
+            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &since_time, &t ) );
+            printf( "only recovering files updated after %s (timestamp: %lu)\n", date, since_time);
+            fv.value.val_uint = since_time;
+
+            lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, MORETHAN, fv, 0 );
         }
 
         rc = ListMgr_RecovInit( &lmgr, &filter, &stats );
@@ -654,6 +674,19 @@ int main( int argc, char **argv )
             }
             /* copy arg to display it */
             strncpy(ost_range_str, optarg, sizeof(ost_range_str));
+            break;
+        case 'b':
+            if ( !optarg )
+            {
+                fprintf(stderr, "Missing mandatory argument <date_time> for --since\n");
+                exit(1);
+            }
+            since_time = str2date(optarg);
+            if (since_time == (time_t)-1) {
+                fprintf( stderr,
+                         "Invalid date format: yyyymmdd[HH[MM[SS]]] expected\n" );
+                exit(1);
+            }
             break;
         case 'l':
             force_log_level = TRUE;
