@@ -5,7 +5,7 @@
 AC_PREREQ(2.59)
 
 AC_INIT( [robinhood], [2.4.99], [robinhood-support@lists.sourceforge.net])
-RELEASE="1"
+RELEASE="2"
 AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info] )
 AC_SUBST(RELEASE)
 
@@ -400,6 +400,7 @@ AC_CONFIG_FILES([Makefile
          src/policy_modules/rmdir/Makefile
          src/backend_ext/Makefile
          src/robinhood/Makefile
+         src/tools/Makefile
          src/tests/Makefile
          scripts/Makefile
          scripts/robinhood.init

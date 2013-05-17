@@ -1,6 +1,8 @@
 - support ost sets in rbh_find
 - non reg test for OST sets
 
+- recov-tools: must reset fid of OST objects after MDS recovery
+
 /!\ symlink change if inode recycling
 
 - complete apply-fs (+using recover for backup system)

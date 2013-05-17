@@ -751,7 +751,7 @@ static int get_orig_dir_md( const char * target_dir, struct stat * st,
 /**
  *  Ensure POSIX directory exists
  */
-static int mkdir_recurse( const char * full_path, mode_t default_mode,
+static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mode,
                           target_e target )
 {
     char path_copy[MAXPATHLEN];
@@ -1017,7 +1017,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         return -EINVAL; 
     }
     /* 2) create it recursively */
-    rc = mkdir_recurse( destdir, 0750, TO_BACKEND );
+    rc = mkdir_recurse_clone_attrs( destdir, 0750, TO_BACKEND );
     if ( rc )
         return rc;
 
@@ -1241,7 +1241,7 @@ int rbhext_remove( const entry_id_t * p_id, const char * backend_path )
     return 0;
 }
 
-static inline int create_parent_of(const char * child_path, entry_id_t * p_parent_id)
+static inline int create_parent_of_clone_attrs(const char * child_path, entry_id_t * p_parent_id)
 {
     char tmp[RBH_PATH_MAX];
     char * destdir;
@@ -1258,7 +1258,7 @@ static inline int create_parent_of(const char * child_path, entry_id_t * p_paren
     }
 
     /* create the directory */
-    rc = mkdir_recurse(destdir, 0750, TO_FS);
+    rc = mkdir_recurse_clone_attrs(destdir, 0750, TO_FS);
     if (rc)
         return rc;
 
@@ -1369,7 +1369,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         /* entry is a directory */
 
         /* create parent dir if it does not exist */
-        if (create_parent_of(fspath, &parent_id))
+        if (create_parent_of_clone_attrs(fspath, &parent_id))
             return RS_ERROR;
 
         if (ATTR_MASK_TEST(p_attrs_old,mode))
@@ -1396,7 +1396,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         /* entry is a symlink */
 
         /* create parent dir if it does not exist */
-        if (create_parent_of(fspath, &parent_id))
+        if (create_parent_of_clone_attrs(fspath, &parent_id))
             return RS_ERROR;
 
         /* restore from DB */
@@ -1508,7 +1508,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             return RS_ERROR;
         }
 
-        if (create_parent_of(fspath, &parent_id))
+        if (create_parent_of_clone_attrs(fspath, &parent_id))
             return RS_ERROR;
 
         if (ATTR_MASK_TEST(p_attrs_old, mode))
@@ -1522,7 +1522,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         /* restripe the file in Lustre */
         if (ATTR_MASK_TEST(p_attrs_old, stripe_info))
         {
-            File_CreateSetStripe( fspath, &ATTR( p_attrs_old, stripe_info ) );
+            CreateStriped( fspath, &ATTR( p_attrs_old, stripe_info ), FALSE );
             set_mode= TRUE;
         }
         else {
@@ -1793,7 +1793,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             return -EINVAL;
         }
 
-        rc = mkdir_recurse( destdir, 0750, TO_BACKEND );
+        rc = mkdir_recurse_clone_attrs( destdir, 0750, TO_BACKEND );
         if (rc)
             return RS_ERROR;
 
@@ -1878,7 +1878,7 @@ int rbhext_rebind(const char *fs_path, const char *old_bk_path,
         return -EINVAL;
     }
 
-    rc = mkdir_recurse(destdir, 0750, TO_BACKEND);
+    rc = mkdir_recurse_clone_attrs(destdir, 0750, TO_BACKEND);
     if (rc)
         return rc;
 

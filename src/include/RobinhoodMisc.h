@@ -157,6 +157,10 @@ uint64_t       get_fskey();
  */
 int relative_path( const char * fullpath, const char * root, char * rel_path );
 
+/* create an object with the given attributes */
+int create_from_attrs(const attr_set_t * attrs_in,
+                      attr_set_t * attrs_out,
+                      entry_id_t *new_id, int overwrite, int setstripe);
 
 #ifdef _LUSTRE
 
@@ -178,7 +182,8 @@ int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 /** Create a file with the given stripe information */
-int File_CreateSetStripe( const char * path, const stripe_info_t * stripe );
+int CreateStriped( const char * path, const stripe_info_t * old_stripe, int overwrite );
+int CreateWithoutStripe( const char * path, mode_t mode, int overwrite );
 #endif
 
 #ifdef _HAVE_FID
@@ -232,7 +237,12 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode );
 #endif
 #endif
 
-#endif
+/**
+ * build LOVEA buffer from stripe information
+ * @return size of significant information in buffer.
+ */
+ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * buff, size_t buf_sz);
+#endif /* lustre */
 
 #ifdef HAVE_SHOOK
 int ShookGetStatus(const char * path, file_status_t * p_status);
@@ -259,6 +269,7 @@ char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration )
 #ifdef _LUSTRE
 char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items,
                                  int brief );
+
 #endif
 
 /*
@@ -314,7 +325,8 @@ int            PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_a
  *  Apply attribute changes
  *  \param change_mask mask of attributes to be changed
  */
-int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_attr_old,
+int            ApplyAttrs(const entry_id_t * p_id,
+                          const attr_set_t * p_attr_new, const attr_set_t * p_attr_old,
                           int change_mask, int dry_run);
 
 

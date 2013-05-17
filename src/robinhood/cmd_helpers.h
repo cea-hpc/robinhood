@@ -51,6 +51,6 @@ int rbh_scrub(lmgr_t   * p_mgr, entry_id_t * id_list,
 int Path2Id(const char *path, entry_id_t * id);
 
 /* parse attrset for --diff option */
-int parse_diff_mask(char * arg, int * diff_mask, char * msg);
+int parse_diff_mask(const char * arg, int * diff_mask, char * msg);
 
 #endif

@@ -26,6 +26,10 @@
 #include <dirent.h>             /* for DIR */
 #include <sys/ioctl.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "lustre_extended_types.h"
 
@@ -267,33 +271,60 @@ int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
 }
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
-int File_CreateSetStripe( const char * path, const stripe_info_t * old_stripe )
+int CreateStriped( const char * path, const stripe_info_t * old_stripe, int overwrite )
 {
     int rc;
 
     /* try to restripe using previous pool name */
     if ( !EMPTY_STRING( old_stripe->pool_name ) )
-    {
         rc = llapi_file_create_pool( path, old_stripe->stripe_size,
                                      -1, old_stripe->stripe_count, 0,
                                      (char *)old_stripe->pool_name );
-        if ( rc == 0 || rc == -EEXIST )
+    else
+        rc = llapi_file_create( path, old_stripe->stripe_size,
+                                -1, old_stripe->stripe_count, 0 );
+    if ((rc == -EEXIST) && overwrite)
+    {
+        if (unlink(path)) {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Can't remove previous entry %s: %s",
+                        path, strerror(-rc));
             return rc;
-        else
-        {
-            DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Error %d creating '%s' in pool '%s': %s",
-                        rc, path, old_stripe->pool_name, strerror(-rc) );
-            DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Trying to create it without pool information..." );
         }
+        return CreateStriped(path, old_stripe, FALSE /*target not expected to exist*/);
     }
-
-    rc = llapi_file_create( path, old_stripe->stripe_size,
-                            -1, old_stripe->stripe_count, 0 );
-    if ( rc != 0 || rc == -EEXIST )
-        DisplayLog( LVL_MAJOR, TAG_CR_STRIPE,
-                    "Error %d creating '%s' with stripe. Trying to create it without specific stripe...",
+    else if ( rc != 0 || rc != -EEXIST )
+    {
+        DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Error %d creating '%s' with stripe.",
                     rc, path );
+    }
     return rc;
+}
+
+/* create a file with no stripe information */
+int CreateWithoutStripe( const char * path, mode_t mode, int overwrite )
+{
+    int rc;
+    int fd = open(path, O_CREAT | O_LOV_DELAY_CREATE, mode);
+    if (fd < 0)
+    {
+        rc = -errno;
+        if (rc == -EEXIST && overwrite)
+        {
+            if (unlink(path)) {
+                rc = -errno;
+                DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Can't remove previous entry %s: %s",
+                            path, strerror(-rc));
+                return rc;
+            }
+            return CreateWithoutStripe(path, mode, FALSE /*target not expected to exist*/);
+        }
+        DisplayLog(LVL_MAJOR, TAG_CR_STRIPE, "Failed to create %s without striping information: %s",
+                   path, strerror(-rc));
+        return rc;
+    }
+    close(fd);
+    return 0;
 }
 #endif
 
@@ -869,4 +900,103 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
     return buff;
 }
 
+/**
+ * build LOVEA buffer from stripe information
+ * @return size of significant information in buffer.
+ */
+ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * buff, size_t buf_sz)
+{
+    int i;
+    size_t len = 0;
 
+    if (!ATTR_MASK_TEST(p_attrs, stripe_info)) /* no stripe info */
+        return 0;
+
+    /* check inconsistent values */
+    if (!ATTR_MASK_TEST(p_attrs, stripe_items) || 
+        (ATTR(p_attrs, stripe_items).count != ATTR(p_attrs, stripe_info).stripe_count))
+    {
+        DisplayLog(LVL_MAJOR, "BuildLovEA", "ERROR: inconsistent stripe info for "DFID, PFID(p_id));
+        return -1;
+    }
+
+    /* is there a pool? */
+    if (EMPTY_STRING(ATTR(p_attrs, stripe_info).pool_name))
+    {
+        /* no => build lov_user_md_v1 */
+        struct lov_user_md_v1 * p_lum = (struct lov_user_md_v1 *) buff;
+        len = sizeof(struct lov_user_md_v1) +
+            ATTR(p_attrs, stripe_info).stripe_count * sizeof(struct lov_user_ost_data_v1);
+
+        /* check buffer size */
+        if (buf_sz < len)
+            return -1;
+
+        p_lum->lmm_magic = LOV_USER_MAGIC_V1;
+        p_lum->lmm_pattern = LOV_PATTERN_RAID0; /* the only supported for now */
+        p_lum->lmm_object_id = p_id->f_oid;
+        p_lum->lmm_object_seq = p_id->f_seq;
+        p_lum->lmm_stripe_size = ATTR(p_attrs, stripe_info).stripe_size;
+        p_lum->lmm_stripe_count = ATTR(p_attrs, stripe_info).stripe_count;
+        p_lum->lmm_stripe_offset = 0;
+
+        /* set stripe items */
+        for ( i = 0; i < ATTR(p_attrs, stripe_items).count; i++ )
+        {
+            p_lum->lmm_objects[i].l_ost_idx = ATTR(p_attrs, stripe_items).stripe[i].ost_idx;
+            p_lum->lmm_objects[i].l_ost_gen = ATTR(p_attrs, stripe_items).stripe[i].ost_gen;
+#ifdef HAVE_OBJ_ID
+            p_lum->lmm_objects[i].l_object_id = ATTR(p_attrs, stripe_items).stripe[i].obj_id;
+#ifdef HAVE_OBJ_SEQ
+            p_lum->lmm_objects[i].l_object_seq = ATTR(p_attrs, stripe_items).stripe[i].obj_seq;
+#else
+            p_lum->lmm_objects[i].l_object_gr = ATTR(p_attrs, stripe_items).stripe[i].obj_seq;
+#endif
+#else /* new structure (union of fid and id/seq) */
+            p_lum->lmm_objects[i].l_ost_oi.oi.oi_id = ATTR(p_attrs, stripe_items).obj_id;
+            p_lum->lmm_objects[i].l_ost_oi.oi.oi_seq = ATTR(p_attrs, stripe_items).stripe[i].obj_seq;
+#endif
+        }
+        return len;
+    }
+    else
+    {
+        /* yes => build lov_user_md_v3 */
+        struct lov_user_md_v3 * p_lum = (struct lov_user_md_v3 *) buff;
+        len = sizeof(struct lov_user_md_v3) +
+            ATTR(p_attrs, stripe_info).stripe_count * sizeof(struct lov_user_ost_data_v1);
+
+        /* check buffer size */
+        if (buf_sz < len)
+            return (size_t)-1;
+
+        p_lum->lmm_magic = LOV_USER_MAGIC_V3;
+        p_lum->lmm_pattern = LOV_PATTERN_RAID0; /* the only supported for now */
+        p_lum->lmm_object_id = p_id->f_oid;
+        p_lum->lmm_object_seq = p_id->f_seq;
+        p_lum->lmm_stripe_size = ATTR(p_attrs, stripe_info).stripe_size;
+        p_lum->lmm_stripe_count = ATTR(p_attrs, stripe_info).stripe_count;
+        p_lum->lmm_stripe_offset = 0;
+        /* pool name */
+        strncpy(p_lum->lmm_pool_name, ATTR(p_attrs, stripe_info).pool_name, LOV_MAXPOOLNAME);
+
+        /* set stripe items */
+        for ( i = 0; i < ATTR(p_attrs, stripe_items).count; i++ )
+        {
+            p_lum->lmm_objects[i].l_ost_idx = ATTR(p_attrs, stripe_items).stripe[i].ost_idx;
+            p_lum->lmm_objects[i].l_ost_gen = ATTR(p_attrs, stripe_items).stripe[i].ost_gen;
+#ifdef HAVE_OBJ_ID
+            p_lum->lmm_objects[i].l_object_id = ATTR(p_attrs, stripe_items).stripe[i].obj_id;
+#ifdef HAVE_OBJ_SEQ
+            p_lum->lmm_objects[i].l_object_seq = ATTR(p_attrs, stripe_items).stripe[i].obj_seq;
+#else
+            p_lum->lmm_objects[i].l_object_gr = ATTR(p_attrs, stripe_items).stripe[i].obj_seq;
+#endif
+#else /* new structure (union of fid and id/seq) */
+            p_lum->lmm_objects[i].l_ost_oi.oi.oi_id = ATTR(p_attrs, stripe_items).obj_id;
+            p_lum->lmm_objects[i].l_ost_oi.oi.oi_seq = ATTR(p_attrs, stripe_items).stripe[i].obj_seq;
+#endif
+        }
+        return len;
+    }
+}

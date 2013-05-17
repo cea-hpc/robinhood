@@ -146,8 +146,6 @@ extern char *process_config_file;
 #define FLAG_ONCE       0x00000004
 #define FLAG_NO_LIMIT   0x00000008
 #define FLAG_CHECK_ONLY 0x00000010 /* only check triggers, don't purge */
-#define FLAG_APPLY_DB   0x00000020 /* for diff pipeline, apply to DB */
-#define FLAG_APPLY_FS   0x00000040 /* for diff pipeline, apply to FS */
 
 /* Config module masks:
  * Global, Log, and List Manager are always initialized.

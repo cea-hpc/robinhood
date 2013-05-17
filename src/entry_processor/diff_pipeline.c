@@ -37,6 +37,8 @@
 
 #define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
 
+#define diff_arg ((diff_arg_t*)(entry_proc_arg))
+
 /* forward declaration of EntryProc functions of pipeline */
 static int  EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
@@ -718,7 +720,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             char attrchg[RBH_PATH_MAX] = "";
 
             /* revert change: reverse display */
-            if (pipeline_flags & FLAG_APPLY_FS)
+            if (diff_arg->apply == APPLY_FS)
             {
                 /* attr from FS */
                 PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
@@ -763,7 +765,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     {
         if (p_op->db_op_type == OP_TYPE_INSERT)
         {
-            if (pipeline_flags & FLAG_APPLY_FS)
+            if (diff_arg->apply == APPLY_FS)
             {
                 /* revert change: reverse display */
                 if (ATTR_FSorDB_TEST(p_op, fullpath))
@@ -785,7 +787,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             /* actually: never happens */
 
-            if (pipeline_flags & FLAG_APPLY_FS)
+            if (diff_arg->apply == APPLY_FS)
             {
                 /* revert change: reverse display */
                 char attrnew[RBH_PATH_MAX];
@@ -831,7 +833,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
-    if ((pipeline_flags & FLAG_APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
+    if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
     {
         /* insert to DB */
         switch ( p_op->db_op_type )
@@ -889,15 +891,15 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation.", rc );
     }
-    else if (entry_proc_db_tag)
+    else if (diff_arg->db_tag)
     {
         /* tag the entry in the DB */
-        rc = ListMgr_TagEntry(lmgr, entry_proc_db_tag, &p_op->entry_id);
+        rc = ListMgr_TagEntry(lmgr, diff_arg->db_tag, &p_op->entry_id);
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation.", rc );
     }
 
-    if (pipeline_flags & FLAG_APPLY_FS)
+    if (diff_arg->apply == APPLY_FS)
     {
         /* all changes must be reverted. So, insert=>rm, rm=>create, ... */
         /* FIXME as this step is parallel, how to manage file creation while
@@ -942,7 +944,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 break;
             case OP_TYPE_UPDATE:
                 /*attributes to be changed: p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask */
-                rc = ApplyAttrs(&p_op->db_attrs, &p_op->fs_attrs,
+                rc = ApplyAttrs(&p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
                                 p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask,
                                 pipeline_flags & FLAG_DRY_RUN);
                 break;
@@ -964,7 +966,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 /* called for each untagged entry */
 static void no_tag_cb(const entry_id_t *p_id)
 {
-    if (pipeline_flags & FLAG_APPLY_FS)
+    if (diff_arg->apply == APPLY_FS)
         /* XXX no rm callback is supposed to be called for FS apply */
         printf("++"DFID"\n", PFID(p_id));
     else
@@ -1052,6 +1054,103 @@ clean_entry:
 }
 #endif
 
+static int std_recover(lmgr_t * lmgr,
+                       const entry_id_t *p_id,
+                       attr_set_t *p_oldattr)
+{
+    entry_id_t new_id;
+    attr_set_t new_attrs;
+    int rc;
+
+    rc = create_from_attrs(p_oldattr, &new_attrs, &new_id, FALSE, FALSE);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to create entry '%s' (status=%d)",
+                       ATTR(p_oldattr, fullpath), rc);
+        goto clean_entry;
+    }
+
+#ifdef _LUSTRE
+    if (diff_arg->lovea_file)
+    {
+        if (!ATTR_MASK_TEST(&new_attrs, fullpath))
+        {
+            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Fullpath needed to write into lovea_file");
+        }
+        else
+        {
+            /* associate old stripe objects to new object id */
+            char buff[4096];
+            ssize_t sz = BuildLovEA(&new_id, p_oldattr, buff, 4096);
+            if (sz > 0)
+            {
+                int i;
+                char output[4096];
+                char relpath[RBH_PATH_MAX];
+                char * curr = output;
+
+                if (relative_path(ATTR(&new_attrs, fullpath), global_config.fs_path,
+                              relpath) == 0)
+                {
+
+                    /* write as a single line to avoid mixing them */
+                    curr += sprintf(curr, "%s ", relpath);
+
+                    /* write output for set_lovea tool */
+                    for (i = 0 ; i < sz; i++ )
+                        curr += sprintf(curr, "%02hhx", buff[i]);
+                    sprintf(curr, "\n");
+
+                    fprintf(diff_arg->lovea_file, output);
+
+                    /* XXX overwrite stripe info in new attrs? */
+        //            ATTR(&new_attrs, stripe_info) = ATTR(p_oldattr, stripe_info);
+        //            ATTR(&new_attrs, stripe_items) = ATTR(p_oldattr, stripe_items);
+                }
+            }
+        }
+    }
+#endif
+
+    /* insert the new entry to the DB */
+    rc = ListMgr_Insert(lmgr, &new_id, &new_attrs, TRUE);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to insert new entry '%s' ("DFID") to the database",
+                   ATTR(&new_attrs, fullpath), PFID(&new_id));
+        goto clean_entry;
+    }
+
+    rc = ListMgr_Remove(lmgr, p_id);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to remove old reference "DFID" from the database",
+                   PFID(p_id));
+        goto clean_db;
+    }
+
+    return 0;
+
+clean_db:
+    rc = ListMgr_Remove(lmgr, &new_id);
+    if (rc)
+        DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "db cleanup: remove failed: error %d", rc);
+
+clean_entry:
+    /* clean new entry (inconsistent) */
+    if (!strcmp(ATTR(p_oldattr, type), STR_TYPE_DIR))
+        rc = rmdir(ATTR(p_oldattr, fullpath));
+    else
+        rc = unlink(ATTR(p_oldattr, fullpath));
+    if (rc)
+        DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "cleanup: unlink/rmdir failed: %s",
+                   strerror(errno));
+
+    /* failure */
+    return -1;
+}
+
+
 int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
@@ -1069,7 +1168,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (ATTR_MASK_TEST(&p_op->fs_attrs, md_update))
     {
         /* call MassRemove only if APPLY_DB is set */
-        if ((pipeline_flags & FLAG_APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
+        if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
         {
             lmgr_simple_filter_init( &filter );
 
@@ -1107,14 +1206,14 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                             "Error: ListMgr MassRemove operation failed with code %d.", rc );
         }
-        else if (entry_proc_db_tag)
+        else if (diff_arg->db_tag)
         {
             /* list untagged entries (likely removed from filesystem) */
             struct lmgr_iterator_t *it;
             entry_id_t id;
             attr_set_t attrs;
 
-            it = ListMgr_ListUntagged(lmgr, entry_proc_db_tag, NULL);
+            it = ListMgr_ListUntagged(lmgr, diff_arg->db_tag, NULL);
 
             if (it == NULL)
             {
@@ -1125,7 +1224,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             {
                 int getattr_mask;
 
-                if (pipeline_flags & FLAG_APPLY_FS)
+                if (diff_arg->apply == APPLY_FS)
                     getattr_mask = 0xFFFFFFFF; /* all possible info */
                 else
                     getattr_mask = ATTR_MASK_fullpath;
@@ -1133,21 +1232,32 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 attrs.attr_mask = getattr_mask;
                 while ((rc = ListMgr_GetNext(it, &id, &attrs )) == DB_SUCCESS)
                 {
-                    if (pipeline_flags & FLAG_APPLY_FS)
+                    if (diff_arg->apply == APPLY_FS)
                     {
                         /* FS apply: reverse display */
                         char attrnew[RBH_PATH_MAX];
                         PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, 0, 1);
 
                         printf("++"DFID" %s\n", PFID(&id), attrnew);
-                        /* TODO: create or recover it (even without HSM mode) */
+                        /* create or recover it (even without HSM mode) */
 #ifdef _HSM_LITE
-                        /* try to recover the entry from the backend */
-                        DisplayReport("%srecover(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
-                                      ATTR(&attrs, fullpath));
-                        if (!(pipeline_flags & FLAG_DRY_RUN))
-                            hsm_recover(lmgr, &id, &attrs);
+                        if (diff_arg->recov_from_backend)
+                        {
+                            /* try to recover the entry from the backend */
+                            DisplayReport("%srecover(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                                          ATTR(&attrs, fullpath));
+                            if (!(pipeline_flags & FLAG_DRY_RUN))
+                                hsm_recover(lmgr, &id, &attrs);
+                        }
+                        else
 #endif
+                        {
+                            /* create the file with no stripe and generate lovea information to be set on MDT */
+                            DisplayReport("%screate(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                                          ATTR(&attrs, fullpath));
+                            if (!(pipeline_flags & FLAG_DRY_RUN))
+                                std_recover(lmgr, &id, &attrs);
+                        }
                     }
                     else /* apply=db */
                     {
@@ -1167,7 +1277,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
 
             /* can now destroy the tag */
-            rc = ListMgr_DestroyTag(lmgr, entry_proc_db_tag);
+            rc = ListMgr_DestroyTag(lmgr, diff_arg->db_tag);
             if (rc)
                 DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error: ListMgr_DestroyTag operation failed (rc=%d)", rc);
         }

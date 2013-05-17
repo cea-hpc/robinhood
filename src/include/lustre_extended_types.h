@@ -48,6 +48,9 @@
 #ifndef DFID_NOBRACE
 #define DFID_NOBRACE SFID
 #endif
+#ifndef XATTR_NAME_LOV
+#define XATTR_NAME_LOV "trusted.lov"
+#endif
 
 /* missing prototypes in lustre1.8 */
 #if defined(HAVE_LLAPI_GETPOOL_INFO) && !defined(_HAVE_FID)

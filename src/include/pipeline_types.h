@@ -64,6 +64,13 @@ typedef enum {
     DIFF_PIPELINE,
 } pipeline_flavor_e ;
 
-
+/* specific argument for diff pipeline (accessible as entry_proc_arg) */
+typedef struct _diff_arg
+{
+    enum {NO_APPLY = 0, APPLY_FS, APPLY_DB} apply;
+    const char * db_tag;
+    FILE * lovea_file;
+    unsigned int recov_from_backend:1;
+} diff_arg_t;
 
 #endif

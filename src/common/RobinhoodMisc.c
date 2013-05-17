@@ -32,6 +32,9 @@
 #include <fnmatch.h>
 #include <sys/types.h>
 #include <utime.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
@@ -1677,20 +1680,33 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
  *  Apply attribute changes
  *  \param change_mask mask of attributes to be changed
  */
-int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_attr_old,
+int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
+                          const attr_set_t * p_attr_old,
                           int change_mask, int dry_run)
 {
     int  mask = p_attr_new->attr_mask & change_mask;
     int rc, err = 0;
-
-    if (!ATTR_MASK_TEST(p_attr_new, fullpath))
-    {
-        DisplayLog(LVL_CRIT, APPLYTAG, "No path: cannot apply changes to entry");
-        return -EINVAL;
-    }
+    const char *chattr_path = NULL;
+#ifdef _HAVE_FID
+    char fid_path[RBH_PATH_MAX];
+#endif
 
     if (!mask)
         return 0;
+
+    if (!ATTR_MASK_TEST(p_attr_new, fullpath))
+    {
+#ifdef _HAVE_FID
+        /* build fid path */
+        BuildFidPath( p_id, fid_path );
+        chattr_path = fid_path;
+#else
+        DisplayLog(LVL_CRIT, APPLYTAG, "No path: cannot apply changes to entry");
+        return -EINVAL;
+#endif
+    }
+    else
+        chattr_path = ATTR(p_attr_new, fullpath);
 
     if ( mask & ATTR_MASK_fullpath )
     {
@@ -1729,13 +1745,13 @@ int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_at
     if ( mask & ATTR_MASK_mode )
     {
 
-        if (!dry_run && chmod(ATTR(p_attr_new, fullpath),  ATTR(p_attr_new, mode)))
+        if (!dry_run && chmod(chattr_path,  ATTR(p_attr_new, mode)))
            rc = errno;
         else
            rc = 0;
 
         LOG_ATTR_CHANGE("chmod", "%s, %#o", dry_run, rc,
-                        ATTR(p_attr_new, fullpath),  ATTR(p_attr_new, mode));
+                        chattr_path,  ATTR(p_attr_new, mode));
     }
 #endif
 
@@ -1771,13 +1787,13 @@ int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_at
         if (u != -1 || g != -1)
         {
 
-            if (!dry_run && lchown(ATTR(p_attr_new, fullpath), u, g))
+            if (!dry_run && lchown(chattr_path, u, g))
                rc = errno;
             else
                rc = 0;
 
             LOG_ATTR_CHANGE("lchown", "%s, u=%d, g=%d", dry_run, rc,
-                            ATTR(p_attr_new, fullpath), u, g);
+                            chattr_path, u, g);
         }
     }
 
@@ -1839,7 +1855,7 @@ int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_at
         if (get_stat)
         {
             struct stat st;
-            if (lstat(ATTR(p_attr_new, fullpath), &st) == 0)
+            if (lstat(chattr_path, &st) == 0)
             {
                 if (t.modtime == -1)
                     t.modtime = st.st_mtime;
@@ -1848,13 +1864,13 @@ int            ApplyAttrs(const attr_set_t * p_attr_new, const attr_set_t * p_at
             }
         }
 
-        if (!dry_run && utime(ATTR(p_attr_new, fullpath), &t))
+        if (!dry_run && utime(chattr_path, &t))
            rc = errno;
         else
            rc = 0;
 
         LOG_ATTR_CHANGE("utime", "%s, a=%ld, m=%ld", dry_run, rc,
-                        ATTR(p_attr_new, fullpath), t.actime, t.modtime);
+                        chattr_path, t.actime, t.modtime);
     }
 
     return err;
@@ -2239,3 +2255,386 @@ const char * allowed_status()
 
 #endif /* status attr exists */
 
+static int path2id(const char *path, entry_id_t *id)
+{
+    int rc;
+#ifdef _HAVE_FID
+    rc = Lustre_GetFidFromPath( path, id );
+    if (rc)
+        return rc;
+#else
+    struct stat st;
+    if (lstat(path, &st))
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT,"path2id", "ERROR: cannot stat '%s': %s",
+                    path, strerror(-rc) );
+        return rc;
+    }
+    /* build id from dev/inode*/
+    id->inode = st.st_ino;
+    id->fs_key = get_fskey();
+    id->validator = st.st_ctime;
+#endif
+    return 0;
+}
+
+#define MKDIR_TAG "MkDir"
+int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id)
+{
+    char path_copy[MAXPATHLEN];
+    const char * curr;
+    int rc;
+    int exists = 0;
+
+    if ( strncmp(global_config.fs_path, full_path, strlen(global_config.fs_path)) != 0 )
+    {
+        DisplayLog( LVL_MAJOR, MKDIR_TAG, "Error: '%s' in not under filesystem root '%s'",
+                    full_path, global_config.fs_path );
+        return -EINVAL;
+    }
+    /* skip fs root */
+    curr = full_path + strlen(global_config.fs_path);
+
+    if ( *curr == '\0' ) /* full_path is root dir */
+        return 0;
+    else if ( *curr != '/' ) /* slash expected */
+    {
+        DisplayLog( LVL_MAJOR, MKDIR_TAG, "Error: '%s' in not under filesystem root '%s'",
+                    full_path, global_config.fs_path );
+        return -EINVAL;
+    }
+
+    /* skip first slash */
+    curr ++;
+
+    while( (curr = strchr( curr, '/' )) != NULL )
+    {
+         /* if fullpath = '/a/b',
+         * curr = &(fullpath[2]);
+         * so, copy 2 chars to get '/a'.
+         * and set fullpath[2] = '\0'
+         */
+        int path_len = curr - full_path;
+
+        /* extract directory name */
+        strncpy( path_copy, full_path, path_len );
+        path_copy[path_len]='\0';
+
+        DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", path_copy );
+        if ( (mkdir( path_copy, mode ) != 0) && (errno != EEXIST) )
+        {
+            rc = -errno;
+            DisplayLog( LVL_CRIT, MKDIR_TAG, "mkdir(%s) failed: %s",
+                        path_copy, strerror(-rc) );
+            return rc;
+        }
+
+        curr++;
+    }
+
+    /* finaly create last level of dir */
+    DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", full_path );
+    if ( (mkdir( full_path, mode ) != 0) && (errno != EEXIST) )
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, MKDIR_TAG, "mkdir(%s) failed: %s", full_path, strerror(-rc) );
+        return rc;
+    }
+    else if (errno == EEXIST)
+        exists = 1;
+
+    /* must return directory id */
+    if (dir_id)
+    {
+        rc = path2id(full_path, dir_id);
+        if (rc)
+            return rc;
+    }
+
+    if (exists)
+        return -EEXIST;
+    else
+        return 0;
+}
+
+/* create parent directory, and return its id (even if it already exists) */
+static inline int create_parent_of(const char * child_path, entry_id_t * p_parent_id)
+{
+    char tmp[RBH_PATH_MAX];
+    char * destdir;
+
+    /* copy to tmp buffer as dirname modifies its argument */
+    strcpy( tmp, child_path );
+    /* extract parent dir path */
+    destdir = dirname( tmp );
+    if (destdir == NULL)
+    {
+        DisplayLog( LVL_CRIT, MKDIR_TAG, "Error extracting directory path of '%s'",
+                    child_path );
+        return -EINVAL;
+    }
+
+    /* create the directory */
+    return mkdir_recurse(destdir, 0750, p_parent_id);
+}
+
+
+#define CREAT_TAG "Create"
+/* create an object with the given attributes */
+int create_from_attrs(const attr_set_t * attrs_in,
+                      attr_set_t * attrs_out,
+                      entry_id_t *new_id, int overwrite, int setstripe)
+{
+    char link[RBH_PATH_MAX] = "";
+    const char * fspath;
+    int rc;
+    struct stat st_dest;
+    int fd;
+    mode_t mode_create;
+    int set_mode = FALSE;
+
+    if (!ATTR_MASK_TEST( attrs_in, fullpath ) || !ATTR_MASK_TEST(attrs_in, type))
+    {
+        DisplayLog( LVL_MAJOR, CREAT_TAG, "Missing mandatory attribute to create entry");
+        return -EINVAL;
+    }
+    fspath = ATTR(attrs_in, fullpath);
+
+    /* initialize out attrs */
+    ATTR_MASK_INIT( attrs_out );
+
+    /* first create parent and retrieve parent id */
+    rc = create_parent_of(fspath, &ATTR(attrs_out, parent_id));
+    if (rc != 0 && rc != -EEXIST)
+        return rc;
+    else
+        ATTR_MASK_SET(attrs_out, parent_id);
+
+    if (!strcasecmp(ATTR(attrs_in, type), STR_TYPE_DIR))
+    {
+        /* entry is a directory */
+        if (ATTR_MASK_TEST(attrs_in,mode))
+            mode_create = ATTR(attrs_in, mode);
+        else
+            mode_create = 750;
+
+        /* then create the directory itself */
+        rc = mkdir(fspath, mode_create)?-errno:0;
+        if (rc != 0 && rc != -EEXIST)
+            return rc;
+        else if (rc == -EEXIST)
+            set_mode = TRUE;
+    }
+    else if (!strcasecmp(ATTR(attrs_in, type), STR_TYPE_LINK))
+    {
+        /* entry is a symlink */
+
+        if (!ATTR_MASK_TEST(attrs_in, link))
+        {
+            DisplayLog( LVL_MAJOR, CREAT_TAG, "Missing mandatory attribute 'link' to create link");
+            return -EINVAL;
+        }
+
+        if ( symlink(ATTR(attrs_in, link), fspath) != 0 )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR,  CREAT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
+                        fspath, link, strerror(-rc) );
+            return rc;
+        }
+        /* can't set mode on a symlink */
+    }
+    else if (!strcasecmp(ATTR(attrs_in, type), STR_TYPE_FILE))
+    {
+        int created = FALSE;
+
+        if (ATTR_MASK_TEST(attrs_in, mode))
+            mode_create = ATTR(attrs_in, mode);
+        else
+            mode_create = 0640; /* default */
+
+#ifdef _LUSTRE
+        if (setstripe)
+        {
+            /* create the file with the appropriate stripe in Lustre */
+            if (ATTR_MASK_TEST(attrs_in, stripe_info))
+            {
+                rc = CreateStriped( fspath, &ATTR(attrs_in, stripe_info), overwrite );
+                if (rc == 0 || rc == -EEXIST)
+                {
+                    created = TRUE;
+                    set_mode= TRUE;
+                }
+                else
+                    DisplayLog(LVL_MAJOR, CREAT_TAG, "setstripe failed: trying to create file with default striping");
+            }
+        }
+        else
+        {
+            /* create with no stripe */
+            rc = CreateWithoutStripe( fspath, mode_create & 07777, overwrite );
+            if (rc == 0)
+            {
+                created = TRUE;
+                set_mode = FALSE;
+            }
+            else if (rc == -EEXIST)
+            {
+                created = TRUE;
+                set_mode = TRUE;
+            }
+            else
+                DisplayLog(LVL_MAJOR, CREAT_TAG, "create(O_LOV_DELAY_CREATE) failed: trying to create file with default striping");
+        }
+#endif
+        if (!created)
+        {
+            fd = creat(fspath, mode_create & 07777);
+            if (fd < 0)
+            {
+                rc = -errno;
+                DisplayLog( LVL_CRIT, CREAT_TAG, "ERROR: couldn't create '%s': %s",
+                            fspath, strerror(-rc) );
+                return rc;
+            }
+            else
+                close(fd);
+        }
+
+        /* set times */
+        if (ATTR_MASK_TEST(attrs_in, last_mod))
+        {
+            struct utimbuf utb;
+            utb.modtime = ATTR(attrs_in, last_mod);
+
+            if (ATTR_MASK_TEST(attrs_in, last_access))
+                utb.actime = ATTR(attrs_in, last_access);
+            else
+                utb.actime = utb.modtime;
+
+            /* set the same mtime as in the DB */
+            DisplayLog( LVL_FULL, CREAT_TAG, "Restoring times for '%s': atime=%lu, mtime=%lu",
+                        fspath, utb.actime, utb.modtime );
+            if ( utime( fspath, &utb ) )
+                DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't restore times for '%s': %s",
+                            fspath, strerror(errno) );
+        }
+    }
+    else
+    {
+        /* type not supported */
+        DisplayLog( LVL_CRIT, CREAT_TAG, "Error: cannot restore entries of type '%s' (%s)",
+                    ATTR(attrs_in,type), fspath );
+        return -ENOTSUP;
+    }
+
+    if (set_mode)
+    {
+        /* set the same mode as in the backend */
+        DisplayLog( LVL_FULL, CREAT_TAG, "Restoring mode for '%s': mode=%#o",
+                    fspath, mode_create & 07777 );
+        if ( chmod( fspath, mode_create & 07777 ) )
+            DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't restore mode for '%s': %s",
+                        fspath, strerror(errno) );
+
+    }
+
+    /* set owner, group */
+    if ( ATTR_MASK_TEST( attrs_in, owner ) || ATTR_MASK_TEST( attrs_in, gr_name ) )
+    {
+        uid_t uid = -1;
+        gid_t gid = -1;
+        char buff[4096];
+
+        if ( ATTR_MASK_TEST( attrs_in, owner ) )
+        {
+            struct passwd pw;
+            struct passwd * p_pw;
+
+            if ((getpwnam_r( ATTR(attrs_in, owner ), &pw, buff, 4096, &p_pw ) != 0)
+                 || (p_pw == NULL))
+            {
+                DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve uid for user '%s'",
+                            ATTR(attrs_in, owner ));
+                uid = -1;
+            }
+            else
+                uid = p_pw->pw_uid;
+        }
+
+        if ( ATTR_MASK_TEST( attrs_in, gr_name ) )
+        {
+            struct group gr;
+            struct group * p_gr;
+            if ((getgrnam_r( ATTR(attrs_in, gr_name ), &gr, buff, 4096, &p_gr ) != 0)
+                 || (p_gr == NULL))
+            {
+                DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve gid for group '%s'",
+                            ATTR(attrs_in, gr_name ) );
+                gid = -1;
+            }
+            else
+                gid = p_gr->gr_gid;
+        }
+
+        DisplayLog( LVL_FULL, CREAT_TAG, "Restoring owner/group for '%s': uid=%u, gid=%u",
+                    fspath, uid, gid );
+
+        if ( lchown( fspath, uid, gid ) )
+        {
+            rc = -errno;
+            DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: cannot set owner/group for '%s': %s",
+                        fspath, strerror(-rc) );
+        }
+    }
+
+    if ( lstat( fspath, &st_dest ) )
+    {
+        rc = -errno;
+        DisplayLog( LVL_CRIT, CREAT_TAG, "ERROR: lstat() failed on restored entry '%s': %s",
+                    fspath, strerror(-rc) );
+        return rc;
+    }
+
+#ifdef _HAVE_FID
+    /* get the new fid */
+    rc = Lustre_GetFidFromPath( fspath, new_id );
+    if (rc)
+        return rc;
+#else
+    /* build id from dev/inode*/
+    new_id->inode =  st_dest.st_ino;
+    new_id->fs_key = get_fskey();
+    new_id->validator =  st_dest.st_ctime;
+#endif
+
+    /* update with the new attributes */
+    PosixStat2EntryAttr(&st_dest, attrs_out, TRUE);
+
+    /* copy missing info: path, link, ...*/
+    strcpy( ATTR( attrs_out, fullpath ), fspath );
+    ATTR_MASK_SET( attrs_out, fullpath );
+
+    if (S_ISLNK(st_dest.st_mode))
+    {
+        strcpy(ATTR(attrs_out,link), link);
+        ATTR_MASK_SET(attrs_out, link);
+    }
+
+#ifdef _LUSTRE
+    /* get new stripe */
+    if (S_ISREG(st_dest.st_mode))
+    {
+        /* get the new stripe info */
+        if ( File_GetStripeByPath( fspath,
+                                   &ATTR( attrs_out, stripe_info ),
+                                   &ATTR( attrs_out, stripe_items ) ) == 0 )
+        {
+            ATTR_MASK_SET( attrs_out, stripe_info );
+            ATTR_MASK_SET( attrs_out, stripe_items );
+        }
+    }
+#endif
+    return 0;
+}

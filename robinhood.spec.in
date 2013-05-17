@@ -98,6 +98,16 @@ Requires: php, php-mysql, php-xml, php-gd, php-pdo
 Web interface to vizualize filesystems stats.
 This uses robinhood database to display misc. user and group stats.
 
+%if %{with lustre}
+%package recov-tools
+Summary: Tools for MDS recovery.
+Group: Applications/System
+
+%description recov-tools
+Tools for MDS recovery.
+%endif
+
+
 #summary, description and dependencies of each purpose
 %if %{with hsm}
 
@@ -262,6 +272,11 @@ fi
 %files adm
 %{_sbindir}/rbh-config
 
+%if %{with lustre}
+%files recov-tools
+%{_sbindir}/*lovea
+%endif
+
 %if %{with shook}
 %files %{purpose}-annex
 %{_sbindir}/%{purpose_bin}-rebind
@@ -283,7 +298,7 @@ fi
 %if %{with shook}
 %exclude %{_sbindir}/%{purpose_bin}-rebind
 %endif
-%{_sbindir}/%{purpose_bin}*
+%{_sbindir}/%{purpose_bin}
 %{_sbindir}/*-report
 %{_sbindir}/*-diff
 %{_bindir}/*-du

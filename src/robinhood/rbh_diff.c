@@ -68,6 +68,10 @@ static struct option option_tab[] = {
     {"diff", required_argument, NULL, 'd'}, /* list of diff attrs (default is all) */
 
     {"dry-run", no_argument, NULL, 'D'}, /* dry-run */
+#ifdef _HSM_LITE
+    {"from-backend", no_argument, NULL, 'b'}, /* recover lost files from backend */
+#endif
+    {"lovea-file", required_argument, NULL, 'o'}, /* output file for lov EA */
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -82,7 +86,7 @@ static struct option option_tab[] = {
     {NULL, 0, NULL, 0}
 };
 
-#define SHORT_OPT_STRING    "s:a:d:f:l:hVD"
+#define SHORT_OPT_STRING    "s:a:d:f:l:hVDbo:"
 
 #define MAX_OPT_LEN 1024
 #define MAX_TYPE_LEN 256
@@ -90,11 +94,15 @@ static struct option option_tab[] = {
 typedef struct diff_options {
     int            flags;
     char           config_file[MAX_OPT_LEN];
-    int            force_log_level;
     int            log_level;
     int            partial_scan;
     char           partial_scan_path[RBH_PATH_MAX];
     int            diff_mask;
+    diff_arg_t     diff_arg;
+    char           lovea_file[MAX_OPT_LEN];
+
+    /* bit field */
+    unsigned int            force_log_level:1;
 } diff_options;
 
 static inline void zero_options(struct diff_options * opts)
@@ -131,12 +139,19 @@ static const char *help_string =
     "        Display changes for the given set of attributes.\n"
     "        "_U"attrset"U_" is a list of options in: path,posix,stripe,all,notimes,noatime.\n"
     "    " _B "-a" B_" {fs|db}, " _B "--apply" B_ "[={fs|db}]\n"
-    "        "_B"db"B_": apply changes to the database using the filesystem as the reference.\n"
+    "        "_B"db"B_" (default): apply changes to the database using the filesystem as the reference.\n"
     "        "_B"fs"B_": revert changes in the filesystem using the database as the reference.\n"
-    "        If no argument is specified, apply to the database.\n"
     "\n"
     "    " _B "--dry-run" B_"\n"
     "        If --apply=fs, display operations on filesystem without performing them.\n"
+#ifdef _HSM_LITE
+    "    " _B  "-b"B_", "_B"--from-backend" B_"\n"
+    "        When applying changes to the filesystem (--apply=fs), recover objects from the backend storage\n"
+    "        (otherwise, recover orphaned objects on OSTs).\n"
+#endif
+    "    " _B  "-o"B_" "_U"output_file"U_", --lovea-file" B_"="_U"output_file"U_"\n"
+    "        For MDS disaster recovery, write lovea values to "_U"output_file"U_",\n"
+    "        so they can be set on MDT objects using "_B"set_lovea"B_" tool.\n"
     "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Path to configuration file (or short name).\n"
@@ -209,9 +224,6 @@ static inline void display_version( char *bin_name )
     printf( "Report bugs to: <" PACKAGE_BUGREPORT ">\n" );
     printf( "\n" );
 }
-
-/* must be global so termination on signal handler can clear tag resources */
-const char     *db_tag = NULL;
 
 static pthread_t stat_thread;
 
@@ -302,10 +314,10 @@ static void   *signal_handler_thr( void *arg )
         DisplayLog( LVL_CRIT, SIGHDL_TAG,
                     "Error while setting signal handlers for SIGTERM and SIGINT: %s",
                     strerror( errno ) );
-        if (db_tag != NULL && ensure_db_access())
+        if (options.diff_arg.db_tag != NULL && ensure_db_access())
         {
             fprintf(stderr, "Cleaning diff table...\n");
-            ListMgr_DestroyTag(&lmgr, db_tag);
+            ListMgr_DestroyTag(&lmgr, options.diff_arg.db_tag);
         }
         exit( 1 );
     }
@@ -320,10 +332,14 @@ static void   *signal_handler_thr( void *arg )
     {
         DisplayLog( LVL_CRIT, SIGHDL_TAG, "Error while setting signal handlers for SIGUSR1: %s",
                     strerror( errno ) );
-        if (db_tag != NULL && ensure_db_access())
+        if (options.diff_arg.db_tag != NULL && ensure_db_access())
         {
             fprintf(stderr, "Cleaning diff table...\n");
-            ListMgr_DestroyTag(&lmgr, db_tag);
+            ListMgr_DestroyTag(&lmgr, options.diff_arg.db_tag);
+
+            /* make sure written data is flushed */
+            if (options.diff_arg.lovea_file)
+                fflush(options.diff_arg.lovea_file);
         }
         exit( 1 );
     }
@@ -362,10 +378,14 @@ static void   *signal_handler_thr( void *arg )
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
             FlushLogs(  );
 
-            if (db_tag != NULL && ensure_db_access())
+            if (options.diff_arg.db_tag != NULL && ensure_db_access())
             {
                 fprintf(stderr, "Cleaning diff table...\n");
-                ListMgr_DestroyTag(&lmgr, db_tag);
+                ListMgr_DestroyTag(&lmgr, options.diff_arg.db_tag);
+
+                /* make sure written data is flushed */
+                if (options.diff_arg.lovea_file)
+                    fflush(options.diff_arg.lovea_file);
             }
 
             /* indicate the process terminated due to a signal */
@@ -430,9 +450,9 @@ int main( int argc, char **argv )
             if (optarg)
             {
                 if (!strcasecmp(optarg,"fs"))
-                    options.flags |= FLAG_APPLY_FS;
+                    options.diff_arg.apply = APPLY_FS;
                 else if (!strcasecmp(optarg,"db"))
-                    options.flags |= FLAG_APPLY_DB;
+                    options.diff_arg.apply = APPLY_DB;
                 else
                 {
                     fprintf(stderr, "Invalid argument for --apply: '%s' (fs or db expected)\n",
@@ -441,7 +461,7 @@ int main( int argc, char **argv )
                 }
             }
             else
-                options.flags |= FLAG_APPLY_DB;
+                options.diff_arg.apply = APPLY_DB;
             break;
 
         case 'D':
@@ -450,6 +470,14 @@ int main( int argc, char **argv )
 
         case 'f':
             strncpy( options.config_file, optarg, MAX_OPT_LEN );
+            break;
+#ifdef _HSM_LITE
+        case 'b':
+            options.diff_arg.recov_from_backend  = 1;
+            break;
+#endif
+        case 'o':
+            strncpy( options.lovea_file, optarg, MAX_OPT_LEN );
             break;
         case 'l':
             options.force_log_level = TRUE;
@@ -589,9 +617,24 @@ int main( int argc, char **argv )
         }
     }
 
+    if (options.diff_arg.apply == APPLY_FS && !(options.flags & FLAG_DRY_RUN))
+    {
+        /* open the file to write LOV EA */
+        if (!EMPTY_STRING(options.lovea_file))
+        {
+            options.diff_arg.lovea_file = fopen(options.lovea_file, "w");
+            if (options.diff_arg.lovea_file == NULL)
+            {
+                DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to open %s for writting: %s",
+                           options.lovea_file, strerror(errno));
+                exit(1);
+            }
+        }
+    }
+
     /* if no DB apply action is specified, can't use md_update field for checking
      * removed entries. So, create a special tag for that. */
-    if (!(options.flags & FLAG_APPLY_DB) || (options.flags & FLAG_DRY_RUN))
+    if ((options.diff_arg.apply != APPLY_DB) || (options.flags & FLAG_DRY_RUN))
     {
         fprintf(stderr, "Preparing diff table...\n");
 
@@ -604,7 +647,7 @@ int main( int argc, char **argv )
         /* There could be several diff running in parallel,
          * so set a suffix to avoid conflicts */
         sprintf(tag_name, "DIFF_%u", (unsigned int) getpid());
-        db_tag = tag_name;
+        options.diff_arg.db_tag = tag_name;
 
         /* add filter for partial scan */
         if (options.partial_scan)
@@ -631,7 +674,7 @@ int main( int argc, char **argv )
 
     /* Initialise Pipeline */
     rc = EntryProcessor_Init(&rh_config.entry_proc_config, DIFF_PIPELINE,
-                             options.flags, db_tag);
+                             options.flags, &options.diff_arg);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, DIFF_TAG, "Error %d initializing EntryProcessor pipeline", rc );
@@ -648,10 +691,9 @@ int main( int argc, char **argv )
      * +++db
      */
     for (i = 0; i < argc; i++)
-        /* FIXME: diff options are modified by parsing */
         printf("%s%s", i==0?"# ":" ", argv[i]);
     printf("\n");
-    if (options.flags & FLAG_APPLY_FS)
+    if (options.diff_arg.apply == APPLY_FS)
     {
         if (options.partial_scan)
             printf("---fs=%s\n",options.partial_scan_path);
@@ -708,18 +750,21 @@ int main( int argc, char **argv )
     /* Pipeline must be flushed */
     EntryProcessor_Terminate( TRUE );
 
+    /* flush the lovea file */
+    if (options.diff_arg.lovea_file)
+        fclose(options.diff_arg.lovea_file);
+
     fprintf(stderr, "End of scan\n");
 
     DisplayLog( LVL_MAJOR, DIFF_TAG, "All tasks done! Exiting." );
     rc = 0;
 
-
 clean_tag:
     /* destroy the tag before exit */
-    if (db_tag != NULL && ensure_db_access())
+    if (options.diff_arg.db_tag != NULL && ensure_db_access())
     {
         fprintf(stderr, "Cleaning diff table...\n");
-        ListMgr_DestroyTag(&lmgr, db_tag);
+        ListMgr_DestroyTag(&lmgr, options.diff_arg.db_tag);
     }
 
     exit(rc);

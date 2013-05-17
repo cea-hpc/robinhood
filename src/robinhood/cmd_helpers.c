@@ -315,13 +315,17 @@ struct __diffattr {
 };
 
 /* parse attrset for --diff option */
-int parse_diff_mask(char * arg, int * diff_mask, char * msg)
+int parse_diff_mask(const char * arg, int * diff_mask, char * msg)
 {
     int mask_pos = 0;
     int mask_neg = 0;
-    char * init = arg;
-    char * curr;
     struct __diffattr *attr;
+    char buff[4096];
+    char *curr, *init;
+
+    /* tmp copy of argument */
+    strncpy(buff, arg, 4096);
+    init = buff;
 
     while ((curr = strtok(init, ",")) != NULL)
     {
