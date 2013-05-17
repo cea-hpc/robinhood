@@ -934,8 +934,13 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
 
         p_lum->lmm_magic = LOV_USER_MAGIC_V1;
         p_lum->lmm_pattern = LOV_PATTERN_RAID0; /* the only supported for now */
+#ifdef _HAVE_FID
         p_lum->lmm_object_id = p_id->f_oid;
         p_lum->lmm_object_seq = p_id->f_seq;
+#else /* lmm_object_gr for Lustre 1.x */
+        p_lum->lmm_object_id = p_id->inode;
+        p_lum->lmm_object_gr = 0;
+#endif
         p_lum->lmm_stripe_size = ATTR(p_attrs, stripe_info).stripe_size;
         p_lum->lmm_stripe_count = ATTR(p_attrs, stripe_info).stripe_count;
         p_lum->lmm_stripe_offset = 0;
@@ -972,8 +977,13 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
 
         p_lum->lmm_magic = LOV_USER_MAGIC_V3;
         p_lum->lmm_pattern = LOV_PATTERN_RAID0; /* the only supported for now */
+#ifdef _HAVE_FID
         p_lum->lmm_object_id = p_id->f_oid;
         p_lum->lmm_object_seq = p_id->f_seq;
+#else /* lmm_object_gr for Lustre 1.x */
+        p_lum->lmm_object_id = p_id->inode;
+        p_lum->lmm_object_gr = 0;
+#endif
         p_lum->lmm_stripe_size = ATTR(p_attrs, stripe_info).stripe_size;
         p_lum->lmm_stripe_count = ATTR(p_attrs, stripe_info).stripe_count;
         p_lum->lmm_stripe_offset = 0;

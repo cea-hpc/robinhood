@@ -71,7 +71,9 @@ static struct option option_tab[] = {
 #ifdef _HSM_LITE
     {"from-backend", no_argument, NULL, 'b'}, /* recover lost files from backend */
 #endif
+#ifdef _HAVE_FID /* only for lustre 2.x */
     {"lovea-file", required_argument, NULL, 'o'}, /* output file for lov EA */
+#endif
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -149,9 +151,11 @@ static const char *help_string =
     "        When applying changes to the filesystem (--apply=fs), recover objects from the backend storage\n"
     "        (otherwise, recover orphaned objects on OSTs).\n"
 #endif
+#ifdef _HAVE_FID /* only for lustre 2.x */
     "    " _B  "-o"B_" "_U"output_file"U_", --lovea-file" B_"="_U"output_file"U_"\n"
     "        For MDS disaster recovery, write lovea values to "_U"output_file"U_",\n"
     "        so they can be set on MDT objects using "_B"set_lovea"B_" tool.\n"
+#endif
     "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
     "        Path to configuration file (or short name).\n"
@@ -476,9 +480,11 @@ int main( int argc, char **argv )
             options.diff_arg.recov_from_backend  = 1;
             break;
 #endif
+#ifdef _HAVE_FID /* only for lustre 2.x */
         case 'o':
             strncpy( options.lovea_file, optarg, MAX_OPT_LEN );
             break;
+#endif
         case 'l':
             options.force_log_level = TRUE;
             options.log_level = str2debuglevel( optarg );
