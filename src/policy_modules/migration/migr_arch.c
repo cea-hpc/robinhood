@@ -280,7 +280,7 @@ static int set_migr_optimization_filters(lmgr_filter_t * p_filter)
         char datestr[128];
         struct tm ts;
 
-        fval.val_uint = first_eligible;
+        fval.value.val_uint = first_eligible;
         lmgr_simple_filter_add( p_filter, ATTR_INDEX_last_mod, MORETHAN, fval, 0 );
 
         strftime( datestr, 128, "%Y/%m/%d %T", localtime_r( &first_eligible, &ts ) );
