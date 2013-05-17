@@ -297,7 +297,18 @@ fi
 # everythink in sbin, except rbh-config which is in adm
 %if %{with shook}
 %exclude %{_sbindir}/%{purpose_bin}-rebind
+%{_sbindir}/%{purpose_bin}-import
+%{_sbindir}/%{purpose_bin}-recov
+%{_sbindir}/%{purpose_bin}-undo-rm
 %endif
+
+%if %{with backup}
+%{_sbindir}/%{purpose_bin}-import
+%{_sbindir}/%{purpose_bin}-recov
+%{_sbindir}/%{purpose_bin}-rebind
+%{_sbindir}/%{purpose_bin}-undo-rm
+%endif
+
 %{_sbindir}/%{purpose_bin}
 %{_sbindir}/*-report
 %{_sbindir}/*-diff
