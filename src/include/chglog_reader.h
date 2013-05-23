@@ -62,7 +62,15 @@ typedef struct chglog_reader_config_t
      * internal queue have aged. */
     int queue_check_interval;
 
+    /* Options suported by the MDS. LU-543 and LU-1331 are related to
+     * events in changelog, where a rename is overriding a destination
+     * file. */
+    int mds_has_lu543;
+    int mds_has_lu1331;
+
 } chglog_reader_config_t;
+
+extern chglog_reader_config_t chglog_reader_config;
 
 /* type if a log record is a ctime or mtime ? */
 #ifdef CL_SPLITTED_TIME

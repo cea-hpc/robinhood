@@ -902,12 +902,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->db_attr_need = ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id;
 #endif
 
-#ifndef HAVE_LU543
-        /* It is possible this unlink was inserted by the changelog
-         * reader. Some Lustre server don't give the FID, so retrieve
-         * it now from the NAMES table, given the parent FID and the
-         * filename. */
-        if (logrec->cr_type == CL_UNLINK && p_op->get_fid_from_db) {
+        if (!chglog_reader_config.mds_has_lu543 &&
+            logrec->cr_type == CL_UNLINK &&
+            p_op->get_fid_from_db) {
+            /* It is possible this unlink was inserted by the changelog
+             * reader. Some Lustre server don't give the FID, so retrieve
+             * it now from the NAMES table, given the parent FID and the
+             * filename. */
             rc = ListMgr_Get_FID_from_Path( lmgr, &logrec->cr_pfid, logrec->cr_name, &p_op->entry_id );
             if (rc) {
                 /* Not found. Skip the entry */
@@ -917,7 +918,6 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 goto next_step;
             }
         }
-#endif
 
         /* If this is an unlink and we don't know whether it is the
          * last entry, use nlink. */

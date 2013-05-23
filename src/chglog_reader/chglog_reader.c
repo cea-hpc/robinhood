@@ -450,21 +450,26 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
 
         *insert_flags = PLR_FLG_FREE2;
 
-#ifndef HAVE_LU543
-        /* The server doesn't tell whether the rename operation will
-         * remove a file. */
-        *insert_flags |= GET_FID_FROM_DB;
-#endif
+        if (!chglog_reader_config.mds_has_lu543) {
+            /* The server doesn't tell whether the rename operation will
+             * remove a file. */
+            *insert_flags |= GET_FID_FROM_DB;
+        }
 
 #ifdef CLF_RENAME_LAST
-        rec->cr_flags = (rec->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
-#else
-        /* CLF_RENAME_LAST is not supported in this version of
-         * Lustre. The pipeline will have to decide whether this is
-         * the last entry or not. */
-        rec->cr_flags = 0;
-        *insert_flags |= CHECK_IF_LAST_ENTRY;
+        /* The client support LU-1331 (since CLF_RENAME_LAST is
+         * defined) but that may not be the case of the server. */
+        if (chglog_reader_config.mds_has_lu1331) {
+            rec->cr_flags = (rec_in->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
+        } else
 #endif
+        {
+            /* CLF_RENAME_LAST is not supported in this version of the
+             * client and/or the server. The pipeline will have to
+             * decide whether this is the last entry or not. */
+            rec->cr_flags = 0;
+            *insert_flags |= CHECK_IF_LAST_ENTRY;
+        }
 
         rec->cr_type = CL_UNLINK;
         rec->cr_index = rec_in->cr_index - 1;
@@ -604,6 +609,17 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         {
             struct changelog_ext_rec * p_rec2;
 
+            /* The MDS sent an extended record, so we have both LU-543
+             * and LU-1331. */
+            if (!chglog_reader_config.mds_has_lu543 ||
+                !chglog_reader_config.mds_has_lu1331) {
+                DisplayLog( LVL_EVENT, CHGLOG_TAG,
+                            "Detected LU-1331." );
+
+                chglog_reader_config.mds_has_lu543 = 1;
+                chglog_reader_config.mds_has_lu1331 = 1;
+            }
+
             if (!FID_IS_ZERO(&p_rec->cr_tfid))
             {
                 CL_REC_TYPE * unlink;
@@ -654,6 +670,15 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
                         "Got CL_EXT without a CL_RENAME." );
             insert_into_hash(p_info, p_rec, flags);
             goto done;
+        }
+
+        if (!chglog_reader_config.mds_has_lu543 &&
+            (FID_IS_ZERO(&p_rec->cr_tfid) ||
+             !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
+            /* tfid if 0, or the two fids are different, so we have LU-543. */
+            chglog_reader_config.mds_has_lu543 = 1;
+            DisplayLog( LVL_EVENT, CHGLOG_TAG,
+                        "Detected LU-543." );
         }
 
         /* We now have a CL_RENAME and a CL_EXT. */

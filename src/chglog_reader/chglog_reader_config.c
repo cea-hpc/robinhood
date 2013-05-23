@@ -57,6 +57,8 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
    p_config->queue_max_size = 1000;
    p_config->queue_max_age = 5; /* 5s */
    p_config->queue_check_interval = 1; /* every second */
+   p_config->mds_has_lu543 = FALSE;
+   p_config->mds_has_lu1331 = FALSE;
 
    /* acknowledge 100 records at once */
    p_config->batch_ack_count = 1024;
@@ -79,6 +81,8 @@ int            ChgLogRdr_WriteDefaultConfig( FILE * output )
     print_line( output, 1, "queue_max_size   : 1000" );
     print_line( output, 1, "queue_max_age    : 5s" );
     print_line( output, 1, "queue_check_interval : 1s" );
+    print_line( output, 1, "mds_has_lu543 : FALSE" );
+    print_line( output, 1, "mds_has_lu1331 : FALSE" );
 
     print_end_block( output, 0 );
 
@@ -242,6 +246,16 @@ int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
     rc = GetDurationParam( chglog_block, CHGLOG_CFG_BLOCK,
                       "queue_check_interval", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
                         &p_config->queue_check_interval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetBoolParam( chglog_block, CHGLOG_CFG_BLOCK,
+                       "mds_has_lu543",0, &p_config->mds_has_lu543, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetBoolParam( chglog_block, CHGLOG_CFG_BLOCK,
+                       "mds_has_lu1331",0, &p_config->mds_has_lu1331, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
