@@ -523,7 +523,7 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
 
         if ( rc )
             return rc;
-        if ( idstr == NULL )
+        if ( idstr[0] == NULL )
             return DB_REQUEST_FAILED;
 
         if ( sscanf( idstr[0], SPK, PTR_PK(pk) ) != 1 )

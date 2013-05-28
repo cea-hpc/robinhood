@@ -275,6 +275,7 @@ fi
 %if %{with lustre}
 %files recov-tools
 %{_sbindir}/*lovea
+%{_sbindir}/gen_lov_objid
 %endif
 
 %if %{with shook}
