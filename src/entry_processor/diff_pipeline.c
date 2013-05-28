@@ -1101,7 +1101,7 @@ static int std_recover(lmgr_t * lmgr,
                         curr += sprintf(curr, "%02hhx", buff[i]);
                     sprintf(curr, "\n");
 
-                    fprintf(diff_arg->lovea_file, output);
+                    fprintf(diff_arg->lovea_file, "%s", output);
 
                     /* XXX overwrite stripe info in new attrs? */
         //            ATTR(&new_attrs, stripe_info) = ATTR(p_oldattr, stripe_info);
