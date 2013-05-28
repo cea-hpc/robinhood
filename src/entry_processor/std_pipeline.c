@@ -1691,17 +1691,15 @@ rm_record:
      * or not in DB.
      */
     if (!soft_remove_filter(p_op))
-#ifdef _HAVE_FID
-        /* Lustre2: we are here because lstat (by fid) on the entry failed,
-         * which ensure the entry no longer exists. => REMOVE LAST.
-         */
-        p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-#else
-        /* on other posix filesystems, the entry disappeared between its
-         * scanning and its processing... skip it so it we be cleaned
-         * at the end of the scan. */
+        /* Lustre 2 with changelog: we are here because lstat (by fid)
+         * on the entry failed, which ensure the entry no longer
+         * exists. Skip it. The entry will be removed by a subsequent
+         * UNLINK record.
+         *
+         * On other posix filesystems, the entry disappeared between
+         * its scanning and its processing... skip it so it will be
+         * cleaned at the end of the scan. */
         goto skip_record;
-#endif
     else if ( p_op->db_exists )
         p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
     else
