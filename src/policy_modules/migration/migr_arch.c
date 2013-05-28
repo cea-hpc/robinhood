@@ -1555,7 +1555,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         char           strmod[256];
         char           strarchive[256];
         char           strsize[256];
-        char           strstorage[1024]="";
+        char           strstorage[24576]="";
 
         int            is_copy = TRUE;
         int            is_stor = TRUE;
@@ -1589,7 +1589,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         FormatFileSize( strsize, 256, ATTR( &new_attr_set, size ) );
 
         if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
-            FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ), 0);
+            FormatStripeList( strstorage, sizeof(strstorage), &ATTR( &p_item->entry_attr, stripe_items ), 0);
         else
             is_stor = FALSE;
 

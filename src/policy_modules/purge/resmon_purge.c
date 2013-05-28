@@ -1383,7 +1383,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         char           straccess[256];
         char           strsize[256];
 #ifdef _LUSTRE
-        char           strstorage[1024];
+        char           strstorage[24576];
 #endif
 
         /* Entry has been successfully purged */
@@ -1395,7 +1395,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
 
 #ifdef _LUSTRE
         if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
-            FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ), 0 );
+            FormatStripeList( strstorage, sizeof(strstorage), &ATTR( &p_item->entry_attr, stripe_items ), 0 );
         else
             strcpy( strstorage, "(none)" );
 #endif

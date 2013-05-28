@@ -1404,7 +1404,8 @@ static inline void print_attr_list(int rank_field, int * attr_list, int attr_cou
 
 
 static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
-                int attr_index, int csv, int resolv_id, char * out)
+                             int attr_index, int csv, int resolv_id,
+                             char * out, const size_t out_sz)
 {
     time_t tt;
     struct tm stm;
@@ -1491,7 +1492,7 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
             return out;
 
         case ATTR_INDEX_stripe_items:
-            FormatStripeList(out, 1024, &ATTR( attrs, stripe_items ), csv);
+            FormatStripeList(out, out_sz, &ATTR( attrs, stripe_items ), csv);
             return out;
 #endif
     }
@@ -1504,7 +1505,7 @@ static void print_attr_values_custom(int rank, int * attr_list, int attr_count,
                               const char * custom, int custom_len)
 {
     int i, coma = 0;
-    char str[1024];
+    char str[24576];
     if (rank)
     {
         printf("%4d", rank);
@@ -1514,11 +1515,11 @@ static void print_attr_values_custom(int rank, int * attr_list, int attr_count,
     {
         if (coma)
             printf(", %*s", attrindex2len(attr_list[i], csv),
-                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str));
+                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str, sizeof(str)));
         else
         {
             printf("%*s", attrindex2len(attr_list[i], csv),
-                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str));
+                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str, sizeof(str)));
             coma = 1;
         }
     }

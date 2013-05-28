@@ -1363,7 +1363,7 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
 {
     int            mask = p_attr_set->attr_mask;
     size_t         written = 0;
-    char           tmpbuf[256];
+    char           tmpbuf[24576];
     const char *   format;
 
     if ( overide_mask )
@@ -1455,7 +1455,7 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
         }
         else
         {
-            FormatFileSize( tmpbuf, 256, ATTR( p_attr_set, size ) );
+            FormatFileSize( tmpbuf, sizeof(tmpbuf), ATTR( p_attr_set, size ) );
             written += snprintf( out_str + written, strsize - written, "Size:     %s\n", tmpbuf );
         }
     }
@@ -1559,7 +1559,7 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
             format = "Stripes: %s\n";
         written +=
             snprintf( out_str + written, strsize - written, format,
-                      FormatStripeList( tmpbuf, 256, &ATTR( p_attr_set, stripe_items), brief));
+                      FormatStripeList( tmpbuf, sizeof(tmpbuf), &ATTR( p_attr_set, stripe_items), brief));
     }
 
     if (mask & ATTR_MASK_stripe_info)

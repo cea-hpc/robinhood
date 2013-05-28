@@ -947,6 +947,8 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
                       p_stripe_items->stripe[i].obj_id );
     }
 
+    buff[sz-1] = '\0';
+
     return buff;
 }
 
