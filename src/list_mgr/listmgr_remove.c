@@ -82,8 +82,17 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
             if ( rc )
                 return rc;
         }
+    } else {
+        /* XXX else update attributes according to attributes contents? */
+
+#ifdef ATTR_INDEX_nlink
+        /* Since we're removing one entry but not the file, decrement nlink. */
+        sprintf( request, "UPDATE " MAIN_TABLE " set nlink=nlink-1 where id="DPK, pk);
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+#endif
     }
-    /* XXX else update attributes according to attributes contents? */
 
     sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE parent_id="DPK" AND hname=sha1('%s') AND id="DPK, ppk, ATTR( p_attr_set, name ), pk );
     rc = db_exec_sql( &p_mgr->conn, request, NULL );

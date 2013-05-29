@@ -3227,6 +3227,52 @@ function test_rename
     rm -f report.out find.out
 }
 
+function test_unlink
+{
+    config_file=$1
+    flavor=$2
+
+    clean_logs
+
+	if (( $no_log )); then
+            echo "Changelogs not supported on this config: skipped"
+            set_skipped
+            return 1
+    fi
+
+	# Create one file and a hardlink
+    touch "$ROOT/foo1"
+	ln "$ROOT/foo1" "$ROOT/foo2"
+
+	# Check nlink == 2
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	nlink=$( cat report.out | awk '{ print $4; }' )
+	(( $nlink == 2 )) || error "nlink should be 2 instead of $nlink"
+
+	# Remove one file and check nlink == 1
+	rm "$ROOT/foo2"
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	nlink=$( cat report.out | awk '{ print $4; }' )
+	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
+
+	# Add a new hard link and check nlink == 2
+	ln "$ROOT/foo1" "$ROOT/foo3"
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	nlink=$( cat report.out | awk '{ print $4; }' )
+	(( $nlink == 2 )) || error "nlink should be 1 instead of $nlink"
+
+	# Remove one file and check nlink == 1
+	rm "$ROOT/foo3"
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	nlink=$( cat report.out | awk '{ print $4; }' )
+	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
+
+    rm -f report.out find.out
+}
 
 # test link/unlink/rename
 # flavors=readlog, scan, partial scan
@@ -7248,6 +7294,7 @@ run_test 108c    test_rename info_collect.conf partial "rename cases (partial sc
 run_test 109a    test_hardlinks info_collect.conf scan "hardlinks management (scan)"
 run_test 109b    test_hardlinks info_collect.conf readlog "hardlinks management (readlog)"
 run_test 109c    test_hardlinks info_collect.conf partial "hardlinks management (partial scans)"
+run_test 110     test_unlink info_collect.conf "unlink (readlog)"
 
 #### policy matching tests  ####
 
