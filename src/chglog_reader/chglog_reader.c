@@ -107,8 +107,9 @@ typedef struct reader_thr_info_t
     unsigned long long last_report_record_id;
     unsigned int last_reopen;
 
-    /** On older versions of Lustre, a CL_RENAME is always followed by
-     * a CL_EXT. Temporarily store the CL_RENAME changelog until we
+    /** On pre LU-1331 versions of Lustre, a CL_RENAME is always
+     * followed by a CL_EXT, however these may not be
+     * contiguous. Temporarily store the CL_RENAME changelog until we
      * get the CL_EXT. */
     CL_REC_TYPE * cl_rename;
 
@@ -297,9 +298,12 @@ static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
     }
 }
 
+/* Flags to insert_into_hash. */
 #define PLR_FLG_FREE2       0x0001 /* must free changelog record on completion */
 #define CHECK_IF_LAST_ENTRY 0x0002 /* check whether the unlinked file is the last one. */
 #define GET_FID_FROM_DB     0x0004 /* fid is not valid, get it from DB */
+
+/* Insert the operation into the internal hash table. */
 static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, unsigned int flags )
 {
     entry_proc_op_t *op;
@@ -526,7 +530,7 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
 /**
  * This handles a single log record.
  */
-static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int flags )
+static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
 {
     unsigned int opnum;
     char flag_buff[256] = "";
@@ -597,15 +601,19 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
     if (p_rec->cr_type == CL_RENAME) {
         /* Ensure there is no pending rename. */
         if (p_info->cl_rename) {
-            /* Should not happen. */
+            /* Should never happen. */
             DisplayLog( LVL_CRIT, CHGLOG_TAG,
                         "Got 2 CL_RENAME in a row without a CL_EXT." );
-            insert_into_hash(p_info, p_info->cl_rename, flags);
+
+            /* Discarding bogus entry. */
+            llapi_changelog_free( &p_info->cl_rename );
+            p_info->cl_rename = NULL;
         }
 
 #ifdef HAVE_CHANGELOG_EXTEND_REC
-        /* extended record: 1 single RENME record per rename op */
-        if ((p_rec->cr_type == CL_RENAME) && CHANGELOG_REC_EXTENDED(p_rec))
+        /* extended record: 1 single RENAME record per rename op;
+         * there is no EXT. */
+        if (CHANGELOG_REC_EXTENDED(p_rec))
         {
             struct changelog_ext_rec * p_rec2;
 
@@ -654,7 +662,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
             p_rec->cr_tfid = p_rec->cr_sfid; /* removed fid -> renamed fid */
             insert_into_hash(p_info, p_rec, 0);
         }
-        else /* other record or old-style RNMFM/RNMTO */
+        else
 #endif
         {
             /* This CL_RENAME is followed by CL_EXT, so keep it until
@@ -665,10 +673,13 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
     else if (p_rec->cr_type == CL_EXT) {
 
         if (!p_info->cl_rename) {
-            /* Should not happen. */
+            /* Should never happen. */
             DisplayLog( LVL_CRIT, CHGLOG_TAG,
                         "Got CL_EXT without a CL_RENAME." );
-            insert_into_hash(p_info, p_rec, flags);
+
+            /* Discarding bogus entry. */
+            llapi_changelog_free( &p_rec );
+
             goto done;
         }
 
@@ -700,28 +711,29 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
             }
         }
 
-        /* Push a rename and ext. */
-        /* TODO: we should be able to push only one of these now. */
+        /* Push the rename and the ext.
+         *
+         * TODO: we should be able to push only one RENAME/EXT now.
+         *
+         * This is a little racy if CL_RENAME and CL_EXT were not
+         * consecutive, because we are re-ordering the
+         * CL_RENAME. Clearing one of the record in the middle will
+         * also clear the RENAME with Lustre, however the RENAME
+         * hasn't been processed yet. To hit the race, that
+         * non-contiguous case should also happen while the changelog
+         * is shutting down. The chance of that happening in the real
+         * world should be rather slim to non-existent. */
 
         /* indicate the target fid as the renamed entry */
         p_rec->cr_tfid = p_info->cl_rename->cr_tfid;
 
-        insert_into_hash(p_info, p_info->cl_rename, flags);
+        insert_into_hash(p_info, p_info->cl_rename, 0);
         p_info->cl_rename = NULL;
-        insert_into_hash(p_info, p_rec, flags);
+        insert_into_hash(p_info, p_rec, 0);
     }
     else {
-        if (p_info->cl_rename) {
-            /* Should not happen. However there was a Lustre version
-             * with that bug. */
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "Got a CL_RENAME not followed by a CL_EXT." );
-            insert_into_hash(p_info, p_info->cl_rename, flags);
-            p_info->cl_rename = NULL;
-        }
-
         /* build the record to be processed in the pipeline */
-        insert_into_hash(p_info, p_rec, flags);
+        insert_into_hash(p_info, p_rec, 0);
     }
 
 done:
@@ -858,7 +870,7 @@ static void * chglog_reader_thr( void *  arg )
             break;
 
         /* handle the line and push it to the pipeline */
-        process_log_rec( info, p_rec, 0 );
+        process_log_rec( info, p_rec );
     }
 
     /* Stopping. Flush the internal queue. */
