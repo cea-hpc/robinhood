@@ -424,7 +424,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         /* not a link */
         p_op->fs_attr_need &= ~ATTR_MASK_link;
 
-        /* no strip info for dirs */
+        /* no stripe info for dirs */
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
 
@@ -443,7 +443,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         /* need to get symlink content */
         p_op->fs_attr_need |= ATTR_MASK_link;
 
-        /* no strip info for symlinks */
+        /* no stripe info for symlinks */
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
     }

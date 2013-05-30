@@ -198,7 +198,7 @@ int            Lustre_GetNameParent(const char *path, int linkno,
 #endif
 
 #ifdef HAVE_CHANGELOGS
-/* if the FS has changelogs, define fonction for converting changelog time */
+/* if the FS has changelogs, define function for converting changelog time */
 static inline time_t cltime2sec( uint64_t cltime )
 {
    /* extract secs from time field */

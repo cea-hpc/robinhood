@@ -1438,7 +1438,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
 
 
 /** 
- *  Recursive fonction for building boolean expression.
+ *  Recursive function for building boolean expression.
  */
 static int build_bool_expr( type_bool_expr * p_in_bool_expr, bool_node_t * p_out_node,
                             int *p_attr_mask, char *err_msg )
@@ -1663,7 +1663,7 @@ int GetBoolExpr( config_item_t block, const char *block_name,
 }
 
 /** 
- *  Recursive fonction for freeing boolean expression.
+ *  Recursive function for freeing boolean expression.
  *  TODO: check these functions, in particular the 'owner'
  *        system, when an expression is a sub-part of another.
  */
@@ -1699,7 +1699,7 @@ int FreeBoolExpr( bool_node_t * p_expr, int free_top_node )
 }
 
 /** 
- *  Recursive fonction for building boolean expression, from a union/intersection
+ *  Recursive function for building boolean expression, from a union/intersection
  *  of defined classes.
  */
 static int build_set_expr( type_set * p_in_set,
