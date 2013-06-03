@@ -761,7 +761,14 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             p_op->db_op_type = OP_TYPE_REMOVE_ONE;
             return STAGE_DB_APPLY;
         }
-        /* else: is handled in the next part of the function */
+        else {
+            /* UNLINK with unknown file in database -> ignore the
+             * record. This case can happen on systems without LU-543
+             * when we insert a fake UNLINK (with an unknow FID at the
+             * time), but an application has already issued an UNLINK
+             * before the rename operation. */
+            return STAGE_CHGLOG_CLR;
+        }
 
     } /* end if UNLINK */
     else if ( logrec->cr_type == CL_RENAME)
