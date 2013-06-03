@@ -293,7 +293,7 @@ int CreateStriped( const char * path, const stripe_info_t * old_stripe, int over
         }
         return CreateStriped(path, old_stripe, FALSE /*target not expected to exist*/);
     }
-    else if ( rc != 0 || rc != -EEXIST )
+    else if ( rc != 0 && rc != -EEXIST )
     {
         DisplayLog( LVL_MAJOR, TAG_CR_STRIPE, "Error %d creating '%s' with stripe.",
                     rc, path );
