@@ -139,7 +139,7 @@ int Queue_Insert( entry_queue_t * p_queue, void *entry )
     if ( p_queue == NULL )
         return EFAULT;
 
-    sem_wait( &p_queue->sem_empty ); /* wait for free places */
+    sem_wait_safe( &p_queue->sem_empty ); /* wait for free places */
 
     lockq( p_queue );           /* enter into the critical section */
 
@@ -164,7 +164,7 @@ int Queue_Insert( entry_queue_t * p_queue, void *entry )
 
     unlockq( p_queue );
 
-    sem_post( &p_queue->sem_full );  /* increase filled places */
+    sem_post_safe( &p_queue->sem_full );  /* increase filled places */
 
     return 0;
 
@@ -184,7 +184,7 @@ int Queue_Get( entry_queue_t * p_queue, void **p_ptr )
     p_queue->nb_thr_waiting++;
     unlockq( p_queue );
 
-    sem_wait( &p_queue->sem_full );  /* wait for filled places */
+    sem_wait_safe( &p_queue->sem_full );  /* wait for filled places */
 
     lockq( p_queue );           /* enters into the critical section */
 
@@ -209,7 +209,7 @@ int Queue_Get( entry_queue_t * p_queue, void **p_ptr )
 
     unlockq( p_queue );
 
-    sem_post( &p_queue->sem_empty ); /* increase free places */
+    sem_post_safe( &p_queue->sem_empty ); /* increase free places */
 
     return 0;
 

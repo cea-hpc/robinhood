@@ -338,6 +338,13 @@ unsigned int   gcd( unsigned int x, unsigned int y );
  */
 void rh_sleep( unsigned int seconds );
 
+/* signal safe semaphore ops with error logging */
+/* man (3) sem_wait/sem_post: on error, the value of the semaphore is left unchanged */
+#define sem_wait_safe(_s) while(sem_wait(_s)) if (errno != EINTR && errno != EAGAIN) \
+                              DisplayLog(LVL_CRIT,"sem","ERROR: sem_wait operation failed: %s", strerror(errno))
+#define sem_post_safe(_s) while(sem_post(_s)) if (errno != EINTR && errno != EAGAIN) \
+                              DisplayLog(LVL_CRIT,"sem","ERROR: sem_post operation failed: %s", strerror(errno))
+
 /**
  * Interuptible sleep.
  * returns when _v != 0.

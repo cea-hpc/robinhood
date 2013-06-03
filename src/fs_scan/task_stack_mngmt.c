@@ -23,6 +23,7 @@
 #include "fs_scan.h"
 #include "task_stack_mngmt.h"
 #include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
 
 #define P( _mutex_ )  pthread_mutex_lock( &(_mutex_) )
 #define V( _mutex_ )  pthread_mutex_unlock( &(_mutex_) )
@@ -83,7 +84,7 @@ int InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task )
     V( p_stack->stack_lock );
 
     /* unblock waiting worker threads */
-    sem_post( &p_stack->sem_tasks );
+    sem_post_safe( &p_stack->sem_tasks );
 
     return 0;
 
@@ -99,7 +100,7 @@ robinhood_task_t *GetTask_from_Stack( task_stack_t * p_stack )
     int            index;
 
     /* wait for a task */
-    sem_wait( &p_stack->sem_tasks );
+    sem_wait_safe( &p_stack->sem_tasks );
 
     /* lock the stack */
     P( p_stack->stack_lock );
