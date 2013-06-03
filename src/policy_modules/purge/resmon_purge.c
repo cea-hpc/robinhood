@@ -1198,7 +1198,17 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
          *   - Else, perform purge, and remove entry from database /!\ nlink ?.
          */
 
-        if ( !ATTR_MASK_TEST( &p_item->entry_attr, last_access )
+        int atime_check = TRUE;
+
+        /* for directories or links, don't check access time as it is modified
+         * by robinhood itself will collecting info about entry.
+         */
+        if (ATTR_MASK_TEST(&p_item->entry_attr, type) &&
+            (!strcmp(ATTR(&p_item->entry_attr, type), STR_TYPE_LINK)
+             || !strcmp(ATTR(&p_item->entry_attr, type), STR_TYPE_DIR)))
+            atime_check = FALSE;
+
+        if ((atime_check && !ATTR_MASK_TEST( &p_item->entry_attr, last_access ))
              || !ATTR_MASK_TEST( &p_item->entry_attr, size ) )
         {
             /* cannot determine if entry has been accessed: update and skip it */
@@ -1214,11 +1224,11 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
             goto end;
         }
 
-        if ( ( ATTR( &p_item->entry_attr, last_access ) < ATTR( &new_attr_set, last_access ) )
+        if ( (atime_check && (ATTR( &p_item->entry_attr, last_access ) < ATTR( &new_attr_set, last_access )))
              || ( ATTR( &p_item->entry_attr, size ) != ATTR( &new_attr_set, size ) ) )
         {
             DisplayLog( LVL_DEBUG, PURGE_TAG,
-                        "%s has been accessed since it was updated. Skipping entry.",
+                        "%s has been accessed or modified since it was updated. Skipping entry.",
                         ATTR( &p_item->entry_attr, fullpath ) );
             DisplayLog( LVL_FULL, PURGE_TAG,
                         "atime before=%d, after=%d | size before=%llu, after=%llu",
