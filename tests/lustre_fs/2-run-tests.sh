@@ -5265,14 +5265,19 @@ function trigger_purge_QUOTA_EXCEEDED
 	echo "1-Create Files ..."	
 	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
+    limit_init=$limit
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>/dev/null
+        # write 2M to fullfill 2 stripes
+        dd if=/dev/zero of=$ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>/dev/null
         if (( $? != 0 )); then
             echo "WARNING: failed to write $ROOT/file.$indice"
             # give it a chance to end the loop
             ((limit=$limit-1))
+        else
+            # reinitialize the limit on success
+            limit=$limit_init
         fi
         
         unset elem
@@ -5367,6 +5372,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 		
 	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
+    limit_init=$limit
 	indice=1
     last=1
     dd_out=/tmp/dd.out.$$
@@ -5374,11 +5380,15 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     dd_err_count=0
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>$dd_out
+        # write 2M to fullfill 2 stripes 
+        dd if=/dev/zero of=$ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>$dd_out
         if (( $? != 0 )); then
             [[ -z "$one_error" ]] && one_error="failed to write $ROOT/file.$indice: $(cat $dd_out)"
             ((dd_err_count++))
             ((limit=$limit-1))
+        else
+            # on success, reinitialize limit
+            limit=$limit_init
         fi
             
         if [[ -s $ROOT/file.$indice ]]; then
