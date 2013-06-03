@@ -25,9 +25,6 @@
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
 
-#define P( _mutex_ )  pthread_mutex_lock( &(_mutex_) )
-#define V( _mutex_ )  pthread_mutex_unlock( &(_mutex_) )
-
 /* Initialize a stack of tasks */
 int InitTaskStack( task_stack_t * p_stack )
 {
