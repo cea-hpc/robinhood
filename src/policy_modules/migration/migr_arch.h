@@ -55,11 +55,11 @@ static const char __attribute__(( __unused__ )) *migr_status_descr[MIGR_ST_COUNT
     "whitelisted/ignored",
     "status flags have changed",
     "no matching policy",
+    "bad type for migration",
     "entry is in use/busy",
     "migration already running",
     "incomplete metadata",
     "stat failure",
-    "bad type for migration",
     "migration error",
     "migration aborted"
 };
