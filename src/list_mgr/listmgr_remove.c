@@ -376,9 +376,17 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
 #ifdef HAVE_RM_POLICY
     if ( soft_rm )
-        sprintf( query,
-             "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS" FROM %s"
-             " WHERE %s", tmp_table_name, first_table, from, filter_str );
+    {
+        if (annex_table)
+            sprintf( query,
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS
+                 " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id = "ANNEX_TABLE".id"
+                 " WHERE %s", tmp_table_name, first_table, filter_str );
+        else
+            sprintf( query,
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS" FROM %s"
+                 " WHERE %s", tmp_table_name, first_table, from, filter_str );
+    }
     else
 #endif
         sprintf( query,
