@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <attr/xattr.h>
 
 #include "lustre_extended_types.h"
 
@@ -422,6 +423,55 @@ int Lustre_GetFidFromPath( const char *fullpath, entry_id_t * p_id )
     return rc;
 }
 
+/** get (name+parent_id) for an entry
+ * \param linkno hardlink index
+ * \retval -ENODATA after last link
+ * \retval -ERANGE if namelen is too small
+ */
+int Lustre_GetNameParent(const char *path, int linkno,
+                         lustre_fid *pfid, char *name,
+                         int namelen)
+{
+    int rc, i, len;
+    char buf[4096];
+    struct linkea_data     ldata      = { 0 };
+    struct lu_buf          lb = { 0 };
+
+    rc = lgetxattr(path, XATTR_NAME_LINK, buf, sizeof(buf));
+    if (rc < 0)
+        return -errno;
+
+    lb.lb_buf = buf;
+    lb.lb_len = 4096;
+    ldata.ld_buf = &lb;
+    ldata.ld_leh = (struct link_ea_header *)buf;
+
+    ldata.ld_lee = LINKEA_FIRST_ENTRY(ldata);
+    ldata.ld_reclen = (ldata.ld_lee->lee_reclen[0] << 8)
+               | ldata.ld_lee->lee_reclen[1];
+
+    if (linkno >= ldata.ld_leh->leh_reccount)
+        /* beyond last link */
+        return -ENODATA;
+
+    for (i = 0; i < linkno; i++) {
+        ldata.ld_lee = LINKEA_NEXT_ENTRY(ldata);
+        ldata.ld_reclen = (ldata.ld_lee->lee_reclen[0] << 8)
+                   | ldata.ld_lee->lee_reclen[1];
+    }
+
+    memcpy(pfid, &ldata.ld_lee->lee_parent_fid, sizeof(*pfid));
+    fid_be_to_cpu(pfid, pfid);
+
+    len = ldata.ld_reclen - sizeof(struct link_ea_entry);
+
+    if (len > namelen)
+        return -ERANGE;
+
+    strncpy(name, ldata.ld_lee->lee_name, len);
+    name[len] = '\0';
+    return 0;
+}
 #endif
 
 #ifdef _LUSTRE_HSM
