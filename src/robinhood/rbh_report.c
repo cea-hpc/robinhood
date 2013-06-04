@@ -2097,7 +2097,13 @@ void report_usergroup_info( char *name, int flags )
         display_header = 0; /* just display it once */
 
         total_count += result[1+shift].value_u.val_biguint;
+#if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
+        /* this is a sum(size) => keep it as is */
+        total_size += result[2+shift].value_u.val_biguint;
+#else
+        /* this is a block count => multiply by 512 to get the space in bytes */
         total_size += (result[2+shift].value_u.val_biguint * DEV_BSIZE);
+#endif
     }
 
     ListMgr_CloseReport( it );
