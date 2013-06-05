@@ -497,9 +497,10 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
         /* Copy the structure and fix a few fields. */
         memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + rec_in->cr_namelen);
 
-        /* TODO: It is unclear whether cr_name is actually 0
-         * terminated, so add one just in case. */
-        rec->cr_name[rec->cr_namelen] = 0;
+        /* copy source name to RNMFRM */
+        rec->cr_namelen = changelog_rec_snamelen(rec_in);
+        strncpy(rec->cr_name, changelog_rec_sname(rec_in), rec->cr_namelen);
+        rec->cr_name[rec->cr_namelen] = '\0';
 
         rec->cr_flags = 0; /* not used for RNMFRM */
         rec->cr_type = CL_RENAME;
