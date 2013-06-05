@@ -21,7 +21,7 @@ lustre_hsm_types.h: lustre_hsm_types.def $(TYPEGEN)
 all: lustre_hsm_types.h
 endif
 if TMP_FS_MGR
-noinst_HEADERS+=tmp_fs_mgr_pipeline.h tmp_fs_mgr_types.def pipeline_types.h
+noinst_HEADERS+=tmp_fs_mgr_types.def pipeline_types.h
 tmp_fs_mgr_types.h: tmp_fs_mgr_types.def $(TYPEGEN)
 all: tmp_fs_mgr_types.h
 endif
