@@ -1441,7 +1441,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
 
 #else
         /* if nlink is set, check if it the last unlink.
-         * else, consider it is (like version <= 2.4 did).
+         * else, consider it is (like robinhood version <= 2.4 did).
         */
         if (ATTR( &new_attr_set, nlink))
             lastrm = (ATTR(&new_attr_set, nlink) == 1);

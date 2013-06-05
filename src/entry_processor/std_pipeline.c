@@ -214,6 +214,16 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* perform path2fid */
     rc = Lustre_GetFidFromPath( path, &tmp_id );
+
+    /* Workaround for Lustre 2.3: if parent is root, llapi_path2fid returns EINVAL (see LU-3245).
+     * In this case, get fid from full path.
+     */
+    if ((rc == -EINVAL) && ATTR_MASK_TEST( &p_op->fs_attrs, fullpath))
+    {
+        path = ATTR(&p_op->fs_attrs, fullpath);
+        rc =  Lustre_GetFidFromPath( path, &tmp_id );
+    }
+
     if ( rc )
     {
         /* remove the operation from pipeline */
