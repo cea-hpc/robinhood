@@ -457,7 +457,7 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
 #endif
 
 #ifdef CLF_RENAME_LAST
-        rec->cr_flags = (p_rec->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
+        rec->cr_flags = (rec->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
 #else
         /* CLF_RENAME_LAST is not supported in this version of
          * Lustre. The pipeline will have to decide whether this is
