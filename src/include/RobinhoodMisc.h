@@ -376,6 +376,9 @@ int execute_shell_command( const char * cmd, int argc, ... );
  */
 char * replace_cmd_parameters(const char * cmd_in);
 
+/** recursively create a directoy and return its id */
+int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
+
 #ifdef ATTR_INDEX_status
 /** status conversion functions */
 const char * db_status2str( file_status_t status, int csv );
