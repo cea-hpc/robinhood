@@ -341,7 +341,8 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
     op->callback_param = p_info;
 
     /* Set entry ID */
-    EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
+    if (!op->get_fid_from_db)
+        EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
 
     /* Add the entry on the pending queue ... */
     op->changelog_inserted = time(NULL);

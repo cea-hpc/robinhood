@@ -916,7 +916,21 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
              * reader. Some Lustre server don't give the FID, so retrieve
              * it now from the NAMES table, given the parent FID and the
              * filename. */
+            p_op->get_fid_from_db = 0;
             rc = ListMgr_Get_FID_from_Path( lmgr, &logrec->cr_pfid, logrec->cr_name, &p_op->entry_id );
+
+            if (!rc) {
+                /* The FID is now set, so we can register it with the
+                 * constraint engine. Since this operation is at the
+                 * very top of the queue, we register it at the head
+                 * of the constraint list, not at the tail. */
+                p_op->entry_id_is_set = TRUE;
+                id_constraint_register( p_op, TRUE );
+            }
+
+            /* Unblock the pipeline stage. */
+            EntryProcessor_Unblock( STAGE_GET_INFO_DB );
+
             if (rc) {
                 /* Not found. Skip the entry */
                 DisplayLog( LVL_FULL, ENTRYPROC_TAG,
@@ -924,6 +938,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 next_stage = -1;
                 goto next_step;
             }
+
         }
 
         /* If this is an unlink and we don't know whether it is the

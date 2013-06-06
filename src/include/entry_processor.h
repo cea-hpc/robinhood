@@ -63,8 +63,9 @@ typedef struct entry_proc_config_t
 
 /* paralellism */
 #define STAGE_FLAG_SEQUENTIAL    0x00000001
-#define STAGE_FLAG_MAX_THREADS   0x00000002     /* hard coded limit */
-#define STAGE_FLAG_PARALLEL      0x00000004     /* if set, refer to max threads in configuration */
+#define STAGE_FLAG_FORCE_SEQ     0x00000002     /* temporarily force sequential */
+#define STAGE_FLAG_MAX_THREADS   0x00000004     /* hard coded limit */
+#define STAGE_FLAG_PARALLEL      0x00000008     /* if set, refer to max threads in configuration */
 
 /* synchronism */
 #define STAGE_FLAG_SYNC          0x00000010
@@ -305,6 +306,11 @@ void EntryProcessor_Release( entry_proc_op_t * p_op );
  * Dump info about pipeline stages
  */
 void           EntryProcessor_DumpCurrentStages( void );
+
+/**
+ * Unblock processing in a stage.
+ */
+void EntryProcessor_Unblock( int stage );
 
 #endif
 /**

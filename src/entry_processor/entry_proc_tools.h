@@ -36,7 +36,7 @@ int            id_constraint_init( void );
  * @return ID_OK if the entry can be processed.
  *         ID_MISSING if the ID is not set in p_op structure
  */
-int            id_constraint_register( entry_proc_op_t * p_op );
+int            id_constraint_register( entry_proc_op_t * p_op, int at_head );
 
 
 /**

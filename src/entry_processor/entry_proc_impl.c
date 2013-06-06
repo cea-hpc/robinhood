@@ -278,7 +278,7 @@ void EntryProcessor_Push( entry_proc_op_t * p_entry )
     if ( ( entry_proc_pipeline[insert_stage].stage_flags & STAGE_FLAG_ID_CONSTRAINT )
          && p_entry->entry_id_is_set )
     {
-        id_constraint_register( p_entry );
+        id_constraint_register( p_entry, FALSE );
     }
 
     /* insert entry */
@@ -437,7 +437,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
 #endif
             if ( !p_curr->id_is_referenced && p_curr->entry_id_is_set )
             {
-                id_constraint_register( p_curr );
+                id_constraint_register( p_curr, FALSE );
             }
         }
     }
@@ -486,6 +486,7 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
 {
     entry_proc_op_t *p_curr;
     int            i;
+    int tot_entries = 0;
 
     if (terminate_flag == BREAK)
         return NULL;
@@ -497,6 +498,9 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
     {
         /* entries have not been processed at this stage. */
         P( pipeline[i].stage_mutex );
+
+        /* Accumulate the number of entries in the upper stages. */
+        tot_entries += pipeline[i].nb_threads + pipeline[i].nb_unprocessed_entries + pipeline[i].nb_processed_entries;
 
         if ( pipeline[i].nb_unprocessed_entries == 0 )
         {
@@ -597,6 +601,13 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                 continue;
             }
 
+            if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_FORCE_SEQ ) {
+                /* One thread is processing an operation, and that one
+                 * must be the only one in this stage. */
+                V( pipeline[i].stage_mutex );
+                continue;
+            }
+
             /* check entries at this stage */
             rh_list_for_each_entry( p_curr, &pipeline[i].entries, list )
             {
@@ -604,6 +615,26 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                 *p_empty = FALSE;
 
                 P( p_curr->entry_lock );
+
+                /* Special case when the op doesn't have an ID, but
+                 * the stage has a constraint. */
+                if ( !p_curr->entry_id_is_set &&
+                     entry_proc_pipeline[i].stage_flags & STAGE_FLAG_ID_CONSTRAINT) {
+                    /* Do not process past this entry, unless it's the
+                     * first in list and the rest of the pipeline is
+                     * empty. */
+                    if (p_curr == rh_list_first_entry(&pipeline[i].entries, entry_proc_op_t, list) &&
+                        tot_entries - pipeline[i].nb_unprocessed_entries == 0) {
+                        /* This is the first entry, and there is no
+                         * other entry being processed in this or the
+                         * upper stages. So we can process it */
+                        entry_proc_pipeline[i].stage_flags |= STAGE_FLAG_FORCE_SEQ;
+                    } else {
+                        V( p_curr->entry_lock );
+
+                        break;
+                    }
+                }
 
                 /* manage id constraints (except for special operations) */
                 if ( ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_ID_CONSTRAINT )
@@ -616,7 +647,7 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                         {
                             DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
                                         "WARNING: Unregistered operation at higher stage" );
-                            id_constraint_register( p_curr );
+                            id_constraint_register( p_curr, FALSE );
                         }
 
                         V( p_curr->entry_lock );
@@ -1097,4 +1128,18 @@ int EntryProcessor_Terminate( int flush_ops )
     EntryProcessor_DumpCurrentStages(  );
 
     return 0;
+}
+
+/*
+ * A stage was blocked waiting for an operation to get its FID. This
+ * is now done, so unblock the stage.
+ */
+void EntryProcessor_Unblock(int stage)
+{
+    P( pipeline[stage].stage_mutex );
+
+    /* and unset the block. */
+    entry_proc_pipeline[stage].stage_flags &= ~STAGE_FLAG_FORCE_SEQ;
+
+    V( pipeline[stage].stage_mutex );
 }
