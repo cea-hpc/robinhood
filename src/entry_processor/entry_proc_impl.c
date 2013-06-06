@@ -325,7 +325,7 @@ static inline void remove_entry_from_stage( unsigned int stage_index,
 /*
  * Move terminated operations to next stage
  */
-static int move_stage_entries( unsigned int source_stage_index, int lock_src_stage )
+static int move_stage_entries( const unsigned int source_stage_index, int lock_src_stage )
 {
     entry_proc_op_t *p_first = NULL;
     entry_proc_op_t *p_last = NULL;
@@ -335,19 +335,22 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     unsigned int   pipeline_stage_min;
     unsigned int   insert_stage;
     struct list_head rem;
+    list_by_stage_t *pl;
 
     /* nothing to do if we are already at last step */
     if ( source_stage_index >= entry_proc_descr.stage_count - 1 )
         return 0;
 
+    pl = &pipeline[source_stage_index];
+
     if ( lock_src_stage )
-        P( pipeline[source_stage_index].stage_mutex );
+        P( pl->stage_mutex );
 
     /* is there at least 1 entry to be moved ? */
-    if ( rh_list_empty(&pipeline[source_stage_index].entries))
+    if ( rh_list_empty(&pl->entries))
         goto out;
 
-    p_first = rh_list_first_entry(&pipeline[source_stage_index].entries, entry_proc_op_t, list);
+    p_first = rh_list_first_entry(&pl->entries, entry_proc_op_t, list);
     P( p_first->entry_lock );
     if ( p_first->being_processed || ( p_first->pipeline_stage <= source_stage_index ) )
     {
@@ -362,7 +365,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
 
     /* check next entries  */
     for ( p_curr = rh_list_entry(p_first->list.next, entry_proc_op_t, list);
-          &p_curr->list != &pipeline[source_stage_index].entries;
+          &p_curr->list != &pl->entries;
           p_curr = rh_list_entry(p_curr->list.next, entry_proc_op_t, list) )
     {
         P( p_curr->entry_lock );
@@ -382,10 +385,10 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
     }
 
     /* remove entries from current list */
-    rh_list_cut_head(&pipeline[source_stage_index].entries, &p_last->list, &rem);
+    rh_list_cut_head(&pl->entries, &p_last->list, &rem);
 
     /* change entry count */
-    pipeline[source_stage_index].nb_processed_entries -= count;
+    pl->nb_processed_entries -= count;
 
     /* by default, insert stage is pipeline_stage_min
      * except if there is a non empty stage before
@@ -471,7 +474,7 @@ static int move_stage_entries( unsigned int source_stage_index, int lock_src_sta
 
   out:
     if ( lock_src_stage )
-        P( pipeline[source_stage_index].stage_mutex );
+        P( pl->stage_mutex );
     return count;
 }                               /* move_stage_entries */
 
@@ -496,15 +499,17 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
     /* check every stage from the last to the first */
     for ( i = entry_proc_descr.stage_count - 1; i >= 0; i-- )
     {
+        list_by_stage_t *pl = &pipeline[i];
+
         /* entries have not been processed at this stage. */
-        P( pipeline[i].stage_mutex );
+        P( pl->stage_mutex );
 
         /* Accumulate the number of entries in the upper stages. */
-        tot_entries += pipeline[i].nb_threads + pipeline[i].nb_unprocessed_entries + pipeline[i].nb_processed_entries;
+        tot_entries += pl->nb_threads + pl->nb_unprocessed_entries + pl->nb_processed_entries;
 
-        if ( pipeline[i].nb_unprocessed_entries == 0 )
+        if ( pl->nb_unprocessed_entries == 0 )
         {
-            V( pipeline[i].stage_mutex );
+            V( pl->stage_mutex );
 #ifdef _DEBUG_ENTRYPROC
             printf( "Stage[%u] - thread %#lx - no waiting entries\n", i, pthread_self(  ) );
 #endif
@@ -517,10 +522,10 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
              * If there is already an operation being processed,
              * nothing can be done at this stage.
              */
-            if ( pipeline[i].nb_threads != 0 )
+            if ( pl->nb_threads != 0 )
             {
                 *p_empty = FALSE;
-                V( pipeline[i].stage_mutex );
+                V( pl->stage_mutex );
 #ifdef _DEBUG_ENTRYPROC
                 printf
                     ( "Stage[%u] - thread %#lx - a thread is already working on this sequential stage\n",
@@ -532,7 +537,7 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
             /* in case of a sequential operation, the only entry that can be processed
              * is the first entry in this stage.
              */
-            rh_list_for_each_entry( p_curr, &pipeline[i].entries, list )
+            rh_list_for_each_entry( p_curr, &pl->entries, list )
             {
                 /* the pipeline is not empty */
                 *p_empty = FALSE;
@@ -554,7 +559,7 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                                         "=============== Not the first  unprocessed operation for this id ============" );
                             /* this is not the first unprocessed operation for this id */
                             V( p_curr->entry_lock );
-                            V( pipeline[i].stage_mutex );
+                            V( pl->stage_mutex );
                             return NULL;
                         }
                         /* entry can be added */
@@ -566,17 +571,17 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                         DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
                                     "Error: INCONSISTENCY: nb_threads running this step is 0 whereas an entry is being processed !!!" );
                         V( p_curr->entry_lock );
-                        V( pipeline[i].stage_mutex );
+                        V( pl->stage_mutex );
                         return NULL;
                     }
 
                     /* tag the entry and update stage info */
-                    pipeline[i].nb_unprocessed_entries--;
-                    pipeline[i].nb_threads++;
+                    pl->nb_unprocessed_entries--;
+                    pl->nb_threads++;
                     p_curr->being_processed = TRUE;
 
                     V( p_curr->entry_lock );
-                    V( pipeline[i].stage_mutex );
+                    V( pl->stage_mutex );
 
                     return p_curr;
                 }
@@ -588,11 +593,11 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                   || ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL ) )
         {
             if ( ( entry_proc_pipeline[i].max_thread_count != 0 )
-                 && ( pipeline[i].nb_threads >= entry_proc_pipeline[i].max_thread_count ) )
+                 && ( pl->nb_threads >= entry_proc_pipeline[i].max_thread_count ) )
             {
                 *p_empty = FALSE;
                 /* thread quota for this stage is at maximum */
-                V( pipeline[i].stage_mutex );
+                V( pl->stage_mutex );
 
 #ifdef _DEBUG_ENTRYPROC
                 printf( "Stage[%u] - thread %#lx - thread quota reached (%u)\n", i,
@@ -604,12 +609,12 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
             if ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_FORCE_SEQ ) {
                 /* One thread is processing an operation, and that one
                  * must be the only one in this stage. */
-                V( pipeline[i].stage_mutex );
+                V( pl->stage_mutex );
                 continue;
             }
 
             /* check entries at this stage */
-            rh_list_for_each_entry( p_curr, &pipeline[i].entries, list )
+            rh_list_for_each_entry( p_curr, &pl->entries, list )
             {
                 /* the pipeline is not empty */
                 *p_empty = FALSE;
@@ -623,8 +628,8 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                     /* Do not process past this entry, unless it's the
                      * first in list and the rest of the pipeline is
                      * empty. */
-                    if (p_curr == rh_list_first_entry(&pipeline[i].entries, entry_proc_op_t, list) &&
-                        tot_entries - pipeline[i].nb_unprocessed_entries == 0) {
+                    if (p_curr == rh_list_first_entry(&pl->entries, entry_proc_op_t, list) &&
+                        tot_entries - pl->nb_unprocessed_entries == 0) {
                         /* This is the first entry, and there is no
                          * other entry being processed in this or the
                          * upper stages. So we can process it */
@@ -698,12 +703,12 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
 
                 /* this entry can be processed */
                 /* tag the entry and update stage info */
-                pipeline[i].nb_unprocessed_entries--;
-                pipeline[i].nb_threads++;
+                pl->nb_unprocessed_entries--;
+                pl->nb_threads++;
                 p_curr->being_processed = TRUE;
 
                 V( p_curr->entry_lock );
-                V( pipeline[i].stage_mutex );
+                V( pl->stage_mutex );
                 return p_curr;
             }
 
@@ -712,12 +717,12 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
         {
             /* unspecified stage flag */
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error: stage flag not specified !!!" );
-            V( pipeline[i].stage_mutex );
+            V( pl->stage_mutex );
             return NULL;
         }
 
         /* end of current stage */
-        V( pipeline[i].stage_mutex );
+        V( pl->stage_mutex );
 
     }                           /*end for */
 
@@ -806,6 +811,8 @@ void EntryProcessor_Release( entry_proc_op_t * p_op )
 int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage, int remove )
 {
     unsigned int   curr_stage = p_op->pipeline_stage;
+    list_by_stage_t *pl = &pipeline[curr_stage];
+
     int            nb_moved;
     struct timeval now, diff;
 
@@ -813,14 +820,14 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     timersub( &now, &p_op->start_processing_time, &diff );
 
     /* lock current stage */
-    P( pipeline[curr_stage].stage_mutex );
+    P( pl->stage_mutex );
 
     /* update stats */
-    pipeline[curr_stage].nb_processed_entries++;
-    pipeline[curr_stage].total_processed++;
-    pipeline[curr_stage].nb_threads--;
-    timeradd( &diff, &pipeline[curr_stage].total_processing_time,
-              &pipeline[curr_stage].total_processing_time );
+    pl->nb_processed_entries++;
+    pl->total_processed++;
+    pl->nb_threads--;
+    timeradd( &diff, &pl->total_processing_time,
+              &pl->total_processing_time );
 
     /* lock entry */
     P( p_op->entry_lock );
@@ -831,7 +838,7 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
                     p_op->pipeline_stage, next_stage );
 
         V( p_op->entry_lock );
-        V( pipeline[curr_stage].stage_mutex );
+        V( pl->stage_mutex );
 
         return -EINVAL;
     }
@@ -862,7 +869,7 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     nb_moved = move_stage_entries( curr_stage, FALSE );
 
     /* unlock current stage */
-    V( pipeline[curr_stage].stage_mutex );
+    V( pl->stage_mutex );
 
     /* There may have some work to do in any case:
      * - if current entry has been removed (it may block other operations)
