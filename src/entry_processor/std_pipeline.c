@@ -49,20 +49,19 @@ static int  EntryProc_chglog_clr( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_rm_old_entries( struct entry_proc_op_t *, lmgr_t * );
 
 /* pipeline stages */
-#define STAGE_GET_FID       0
-#define STAGE_GET_INFO_DB   1
-#define STAGE_GET_INFO_FS   2
-#define STAGE_REPORTING     3
-#define STAGE_DB_APPLY      4
+enum {
+    STAGE_GET_FID,
+    STAGE_GET_INFO_DB,
+    STAGE_GET_INFO_FS,
+    STAGE_REPORTING,
+    STAGE_DB_APPLY,
 #ifdef HAVE_CHANGELOGS
-#define STAGE_CHGLOG_CLR      5
-#define STAGE_RM_OLD_ENTRIES  6 /* special stage at the end of FS scan */
-#else
-#define STAGE_RM_OLD_ENTRIES  5 /* special stage at the end of FS scan */
+    STAGE_CHGLOG_CLR,
 #endif
+    STAGE_RM_OLD_ENTRIES,   /* special stage at the end of FS scan */
 
-#define PIPELINE_STAGE_COUNT (STAGE_RM_OLD_ENTRIES+1)
-
+    PIPELINE_STAGE_COUNT    /* keep last */
+};
 
 const pipeline_descr_t std_pipeline_descr =
 {
