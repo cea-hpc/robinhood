@@ -356,7 +356,7 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
     migr_config = *p_config;
     module_args = options;
 
-    if ( NO_POLICY( &policies.migr_policies ) && 
+    if ( NO_POLICY( &policies.migr_policies ) &&
         !(module_args.flags & FLAG_IGNORE_POL) )
     {
         DisplayLog( LVL_CRIT, MIGR_TAG,

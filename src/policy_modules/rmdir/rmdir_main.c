@@ -1247,13 +1247,13 @@ static void   *Thr_Rmdir( void *arg )
                                      "Recursively removed directory %s (content: %u entries, volume: %s)",
                                      ATTR( &p_item->entry_attr, fullpath ), nb_entries,
                                      FormatFileSize( volstr, 256, DEV_BSIZE*blocks ) );
-  
+
                          DisplayReport( "Recursively removed dir %s | nb_entries=%u, volume=%s (%llu blocks)",
                                         ATTR( &p_item->entry_attr, fullpath ), nb_entries, volstr, blocks );
 
                          rmdir_stats[RMDIR_FDBK_NBR] = nb_entries;
                          rmdir_stats[RMDIR_FDBK_VOL] = blocks*DEV_BSIZE;
-  
+
                          /* ack to queue manager */
                          Queue_Acknowledge( &rmdir_queue, RMDIR_OK, rmdir_stats, RMDIR_FDBK_COUNT );
                          /* free entry resources */
@@ -1274,7 +1274,7 @@ static void   *Thr_Rmdir( void *arg )
                 /* free entry resources */
                 FreeRmdirItem( p_item );
             }
-            
+
       }                         /* end of infinite loop en Queue_Get */
 
     return NULL;

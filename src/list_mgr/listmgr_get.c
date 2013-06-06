@@ -446,13 +446,13 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
 
     sprintf( query, "SELECT id FROM " DNAMES_TABLE " WHERE parent_id=" DPK " AND hname=sha1('%s')",
              pk, name);
-             
+
     rc = db_exec_sql( &p_mgr->conn, query, &result );
     if ( rc )
         return rc;
 
     rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
-        
+
     if (rc != DB_SUCCESS)
         goto free_res;
 

@@ -462,7 +462,7 @@ static inline time_t time_modify( time_t orig, const policy_modifier_t *p_pol_mo
 
     /* if orig is already under time_min, keep it */
     if (orig <= p_pol_mod->time_min)
-        return orig; 
+        return orig;
 
     newtime = orig * p_pol_mod->time_factor;
     if (newtime < p_pol_mod->time_min)
@@ -732,7 +732,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
             /* use fid path */
             rc = BuildFidPath( p_entry_id, tmpbuff );
             if ( rc )
-               return POLICY_ERR; 
+               return POLICY_ERR;
             entry_path = tmpbuff;
         }
         else if (ATTR_MASK_TEST(p_entry_attr, fullpath))
@@ -758,7 +758,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
                 strcpy( value, "" );
             else if  (errno == ENOTSUP )
             {
-                DisplayLog(LVL_CRIT, POLICY_TAG, "Error: condition on extended attribute " 
+                DisplayLog(LVL_CRIT, POLICY_TAG, "Error: condition on extended attribute "
                            "whereas this feature is not supported by the filesystem");
                 return POLICY_ERR;
             }
@@ -813,7 +813,7 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 /* function for testing a boolean expression on a given entry */
 static policy_match_t _EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr,
                                      bool_node_t * p_node, const policy_modifier_t * p_pol_mod,
-                                     int no_warning ) 
+                                     int no_warning )
 {
     policy_match_t rc;
 
@@ -1924,7 +1924,7 @@ char * analyze_hints_params(  char * hints,
                 error = TRUE;
                 break;
            }
-           value = ATTR(p_entry_attr, fullpath); 
+           value = ATTR(p_entry_attr, fullpath);
         }
         else if (!strcasecmp( begin_var, "name" ) )
         {
@@ -1934,7 +1934,7 @@ char * analyze_hints_params(  char * hints,
                 error = TRUE;
                 break;
            }
-           value = ATTR(p_entry_attr, name); 
+           value = ATTR(p_entry_attr, name);
         }
         else if (!strcasecmp( begin_var, "ost_pool" ) )
         {
@@ -1944,7 +1944,7 @@ char * analyze_hints_params(  char * hints,
                 error = TRUE;
                 break;
            }
-           value = ATTR(p_entry_attr, stripe_info).pool_name; 
+           value = ATTR(p_entry_attr, stripe_info).pool_name;
         }
         else
         {

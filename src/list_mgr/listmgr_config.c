@@ -205,7 +205,7 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
     rc = GetBoolParam( lmgr_block, LMGR_CONFIG_BLOCK,
                        "group_acct", 0, &conf->group_acct, NULL, NULL, msg_out);
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;      
+        return rc;
 
     CheckUnknownParameters( lmgr_block, LMGR_CONFIG_BLOCK, lmgr_allowed );
 

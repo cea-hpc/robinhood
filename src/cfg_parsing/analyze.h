@@ -15,7 +15,7 @@
  * \file    analyze.h
  * \author  $Author: leibovic $
  * \date    $Date: 2008/07/04 07:57:35 $
- * \version	$Revision: 1.2 $ 
+ * \version	$Revision: 1.2 $
  * \brief   Building the syntax tree.
  *
  * Build the structure that represents a config file.

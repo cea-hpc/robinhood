@@ -52,7 +52,7 @@ static int purge_abort = FALSE;
 /* queue of entries to be checked/purged */
 entry_queue_t  purge_queue;
 
-/** 
+/**
  * Purge helpers (depending on purpose)
  * @return posix error code (from errno)
  */
@@ -206,7 +206,7 @@ static int set_purge_optimization_filters(lmgr_filter_t * p_filter)
                 policies.purge_policies.policy_list[0].policy_id );
         }
     }
-    
+
     return 0;
 }
 
@@ -665,7 +665,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
             }
             else if ( rc == DB_END_OF_LIST )
             {
-                total_returned += nb_returned; 
+                total_returned += nb_returned;
 
                 /* if limit = inifinite => END OF LIST */
                 if ( ( nb_returned == 0 )
@@ -768,7 +768,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                          * take round.sup of block/OST
                          */
                         if ( (ATTR(&attr_set, blocks) % strp_cnt) != 0 )
-                            tgt_count++; 
+                            tgt_count++;
                     }
 #else
                     DisplayLog( LVL_CRIT, PURGE_TAG, "Purge by OST is not supported in this mode" );
@@ -1691,6 +1691,6 @@ int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
         return -1;
     }
 
-    return 0; 
+    return 0;
 }
 #endif

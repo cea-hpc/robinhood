@@ -66,7 +66,7 @@ typedef struct entry_queue_t
 
 /**
  * Queue initialization.
- * @param queue_size: buffer size (over this count, inserts are blocking). 
+ * @param queue_size: buffer size (over this count, inserts are blocking).
  * @param max_status: the max value for status (will keep track of acknowledgments from 0 to this value)
  * @param feedback_count: the number of feedback values from workers
  */

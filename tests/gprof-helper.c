@@ -116,4 +116,4 @@ int pthread_create(pthread_t *__restrict thread,
     pthread_cond_destroy(&wrapper_data.wait);
 
     return i_return;
-} 
+}

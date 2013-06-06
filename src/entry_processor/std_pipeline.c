@@ -1793,7 +1793,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 
 /**
- * Perform an operation on database. 
+ * Perform an operation on database.
  */
 int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
@@ -1818,7 +1818,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* SQL req optimizations:
          * if update policy == always and path is not changed, don't set path_update
          * idem for fileclasses and md.
-         */ 
+         */
 #ifdef _HAVE_FID
         if ((policies.updt_policy.path.policy == UPDT_ALWAYS)
             && !ATTR_MASK_TEST( &p_op->fs_attrs, parent_id)

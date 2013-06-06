@@ -759,7 +759,7 @@ void EntryProcessor_Release( entry_proc_op_t * p_op )
 
     ListMgr_FreeAttrs( &p_op->fs_attrs );
     ListMgr_FreeAttrs( &p_op->db_attrs );
-    
+
     /* destroy the lock and free the memory */
     pthread_mutex_destroy( &p_op->entry_lock );
     MemFree( p_op );

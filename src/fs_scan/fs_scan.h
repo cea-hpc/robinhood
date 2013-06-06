@@ -61,7 +61,7 @@ typedef struct robinhood_fsscan_stat__
  *
  * The function looks at the content of the configuration structure
  * that have been previously parsed.
- * 
+ *
  * It returns a status code:
  *   0 : initialization successful
  *   -1 : unexpected error at initialization.
@@ -88,10 +88,10 @@ void           wait_scan_finished( void );
  */
 int            Robinhood_CheckScanDeadlines( void );
 
-/** 
+/**
  * Retrieve some statistics about current and terminated audits.
  * (called by the statistic collector)
- * 
+ *
  * Take as parameter a structure of statistics to be filled.
  *
  * It returns a status code:

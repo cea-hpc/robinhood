@@ -1196,7 +1196,7 @@ int WriteLogConfigTemplate( FILE * output )
     print_line( output, 1, "stats_interval = 20min ;" );
     fprintf( output, "\n" );
     print_line( output, 1, "# Alert batching (to send a digest instead of 1 alert per file)" );
-    print_line( output, 1, "# 0: unlimited batch size, 1: no batching (1 alert per file)," ); 
+    print_line( output, 1, "# 0: unlimited batch size, 1: no batching (1 alert per file)," );
     print_line( output, 1, "# N>1: batch N alerts per digest" );
     print_line( output, 1, "batch_alert_max = 5000 ;" );
     print_line( output, 1, "# Give the detail of entry attributes for each alert?" );

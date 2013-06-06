@@ -79,7 +79,7 @@ typedef struct entry_proc_config_t
 struct entry_proc_op_t;
 
 /**
- * Definition of pipeline stage functions 
+ * Definition of pipeline stage functions
  */
 typedef int    ( *step_function_t ) ( struct entry_proc_op_t *, lmgr_t * lmgr );
 
@@ -302,7 +302,7 @@ entry_proc_op_t * EntryProcessor_Get( void );
 void EntryProcessor_Release( entry_proc_op_t * p_op );
 
 /**
- * Dump info about pipeline stages 
+ * Dump info about pipeline stages
  */
 void           EntryProcessor_DumpCurrentStages( void );
 

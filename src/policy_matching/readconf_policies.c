@@ -13,7 +13,7 @@
 */
 
 /**
- * policy management 
+ * policy management
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -79,7 +79,7 @@ policies_t     policies = {
                                 } while (0)
 
 
-/** 
+/**
  * Compare 2 boolean expressions
  * @return TRUE if expression structure changed.
  * @return FALSE if they have the same structure,
@@ -124,7 +124,7 @@ int compare_boolexpr( const bool_node_t * expr1, const bool_node_t * expr2 )
 }                               /* compare_boolexpr */
 
 
-/** 
+/**
  * Update the numerical values of a boolean expression.
  * /!\ compare_boolexpr() must have returned 0 (else, unguarantied behavior).
  * @param tgt Boolean expression to be updated
@@ -261,7 +261,7 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src )
             return FALSE;
 
         case CRITERIA_XATTR:
-            if ( strcmp( p_triplet1->val.str, p_triplet2->val.str ) 
+            if ( strcmp( p_triplet1->val.str, p_triplet2->val.str )
                  || strcmp( p_triplet1->xattr_name, p_triplet2->xattr_name ) )
             {
                 DisplayLog( LVL_MAJOR, RELOAD_TAG,
@@ -285,7 +285,7 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src )
 
 /** Update whitelist rules */
 /* @TODO support whitelist rules update on SIGHUP */
-static void __attribute__(( __unused__ )) 
+static void __attribute__(( __unused__ ))
             update_whitelist( whitelist_item_t * old_items, unsigned int old_count,
                               whitelist_item_t * new_items, unsigned int new_count,
                               const char *block_name )
@@ -520,7 +520,7 @@ static int write_update_policy_template( FILE * output )
     print_line( output, 1, "# possible policies for refreshing metadata and path in database:" );
     print_line( output, 1, "#   never: get the information once, then never refresh it" );
     print_line( output, 1, "#   always: always update entry info when processing it" );
-    print_line( output, 1, "#   on_event: only update on related event" ); 
+    print_line( output, 1, "#   on_event: only update on related event" );
     print_line( output, 1, "#   periodic(interval): only update periodically");
     print_line( output, 1, "#   on_event_periodic(min_interval,max_interval)= on_event + periodic" );
     fprintf( output, "\n" );
@@ -643,7 +643,7 @@ static int read_update_policy( config_file_t config,  updt_policy_t *policy, cha
 
     static const char *update_expect[] =
     {
-        "md_update", 
+        "md_update",
 #ifdef _HAVE_FID
         "path_update",
 #endif
@@ -1384,7 +1384,7 @@ static int hints_mask(  char * hints )
            DisplayLog(LVL_CRIT,CHK_TAG, "ERROR: unmatched '{' in migration hints '%s'", hints);
            return -1;
         }
-        
+
         memset( varname, 0, sizeof(varname) );
         strncpy( varname, begin_var+1, end_var-begin_var-1 );
 
@@ -1394,7 +1394,7 @@ static int hints_mask(  char * hints )
            mask |= ATTR_MASK_name;
         else if (!strcasecmp( varname, "ost_pool" ) )
            mask |= ATTR_MASK_stripe_info;
-        else if (strcasecmp( varname, "policy" ) && 
+        else if (strcasecmp( varname, "policy" ) &&
                  strcasecmp( varname, "fileclass" ) )
         {
             DisplayLog(LVL_CRIT,CHK_TAG, "ERROR: unknown parameter '%s' in hints '%s'", varname, hints);
@@ -1708,7 +1708,7 @@ static int read_filesets( config_file_t config, fileset_list_t * fileset_list,
             goto clean_filesets;
         }
 
-        
+
     }                           /* end of "filesets" section */
 
     return 0;

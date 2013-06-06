@@ -16,7 +16,7 @@
  * \file    analyze.c
  * \author  $Author: leibovic $
  * \date    $Date: 2008/07/04 08:15:29 $
- * \version	$Revision: 1.3 $ 
+ * \version	$Revision: 1.3 $
  * \brief   Building the syntax tree.
  *
  */
@@ -352,7 +352,7 @@ generic_item  *rh_config_CreateSet_Binary( set_operator_t op,
     new->item.set.set_u.op.set2 =
         ( type_set * ) malloc( sizeof( type_set ) );
 
-    if ((new->item.set.set_u.op.set1 == NULL) || 
+    if ((new->item.set.set_u.op.set1 == NULL) ||
         (new->item.set.set_u.op.set2 == NULL))
     {
         fprintf( stderr, "Missing memory\n" );

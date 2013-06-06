@@ -191,7 +191,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
 
     /* /!\ possible cases:
      * - simplest: the fields of the filter and the attributes to be changed are in the same table
-     * - harder: the fields of the filter are in the same table and attributes are in another different table 
+     * - harder: the fields of the filter are in the same table and attributes are in another different table
      */
 
     /* 1) check the location of filters */

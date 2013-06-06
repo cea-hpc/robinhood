@@ -586,7 +586,7 @@ const char * HSMAction2str( enum hsm_user_action action )
         case HUA_CANCEL: return "CANCEL";
         default: return "Unknown";
     }
-    
+
 }
 
 /** Trigger a HSM action */
@@ -965,7 +965,7 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
         return 0;
 
     /* check inconsistent values */
-    if (!ATTR_MASK_TEST(p_attrs, stripe_items) || 
+    if (!ATTR_MASK_TEST(p_attrs, stripe_items) ||
         (ATTR(p_attrs, stripe_items).count != ATTR(p_attrs, stripe_info).stripe_count))
     {
         DisplayLog(LVL_MAJOR, "BuildLovEA", "ERROR: inconsistent stripe info for "DFID, PFID(p_id));

@@ -71,11 +71,11 @@ static int convert_regexp( const char * in_string, char * db_string )
         strcpy( p_wild+1, p_end+1);
         *p_wild = '_';
     }
-    
+
 
    while ( (p_wild = strchr(db_string,'*')) != NULL )
         *p_wild = '%';
-    
+
     while ( (p_wild = strchr(db_string,'?')) != NULL )
         *p_wild = '_';
 
@@ -94,7 +94,7 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t * p_filter, unsigned int
     if ( (comparator == LIKE) || (comparator == UNLIKE) )
     {
         int rc;
-        char * newstr = MemAlloc( strlen(p_value->value.val_str)+1 ); 
+        char * newstr = MemAlloc( strlen(p_value->value.val_str)+1 );
 
         rc = convert_regexp( p_value->value.val_str, newstr );
         if ( rc )
@@ -299,15 +299,15 @@ static int is_simple_AND_expr( bool_node_t * boolexpr )
                          && is_simple_AND_expr(  boolexpr->content_u.bool_expr.expr2 ) );
             else
                 return FALSE;
-                
+
         case NODE_CONDITION:
             /* If attribute is in DB, it can be filtered
              * If attribute is not in DB, we ignore it and get all entries (~ AND TRUE)
-             */ 
+             */
             return TRUE;
 
         default:
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression in %s()", __FUNCTION__ );            
+            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression in %s()", __FUNCTION__ );
             return FALSE;
     }
 
@@ -358,7 +358,7 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
          case NODE_CONDITION:
             /* If attribute is in DB, it can be filtered
              * If attribute is not in DB, we ignore it and get all entries (~ AND TRUE)
-             */ 
+             */
             /* get info about condition */
             rc = CriteriaToFilter( boolexpr->content_u.condition,
                                    &index, &comp, &val, &must_free );
@@ -433,5 +433,5 @@ int lmgr_check_filter_fields( lmgr_filter_t * p_filter, unsigned int attr_mask )
     }
 
     return DB_SUCCESS;
- 
+
 }

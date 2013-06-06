@@ -121,7 +121,7 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
 
 /**
  * Check table fields.
- * @param i 
+ * @param i
  * @param curr_field_index [in,out] filed index in currently checked schema
  * @return 0 on success
  * @return -1 on error
@@ -133,11 +133,11 @@ static inline int check_field( int i, int * curr_field_index, char *table, char 
     {
         if (!strcmp(table, ACCT_TABLE))
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (missing field '%s' in table %s):" 
+                        "Incompatible database schema (missing field '%s' in table %s):"
                         " "DROP_ACCT_MSG, field_infos[i].field_name, table );
         else
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (missing field '%s' in table %s):" 
+                        "Incompatible database schema (missing field '%s' in table %s):"
                         " "DROP_MESSAGE, field_infos[i].field_name, table );
         return -1;
     }
@@ -175,7 +175,7 @@ static inline int has_extra_field( int curr_field_index, char *table, char **fie
             return 1;
         }
         else
-            return 0; 
+            return 0;
 }
 
 /**
@@ -205,7 +205,7 @@ static unsigned int append_size_range_val(char * str, int leading_comma, char *p
 /**
  * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
  */
-static unsigned int append_size_range_op(char * str, int leading_comma, char *prefix, 
+static unsigned int append_size_range_op(char * str, int leading_comma, char *prefix,
                                          const char * op_subs, operation_type optype )
 {
     unsigned int i, l;
@@ -285,7 +285,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: Accounting field not in "MAIN_TABLE" or "ANNEX_TABLE" table" );
                     return -1;
                 }
-            } 
+            }
         }
         if ( acct_on_annex && acct_on_main )
         {
@@ -405,7 +405,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             }
         }
 
-        /* is there any extra field ? */ 
+        /* is there any extra field ? */
         if ( has_extra_field( curr_field_index, MAIN_TABLE, fieldtab ) )
             return -1;
 
@@ -1274,7 +1274,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             /* check count field*/
             if ( ( fieldtab[curr_field_index] == NULL ) || strcmp( fieldtab[curr_field_index], ACCT_FIELD_COUNT ) )
-            { 
+            {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Incompatible database schema (missing field '" ACCT_FIELD_COUNT  "' in table "
                             ACCT_TABLE"): "DROP_ACCT_MSG );
@@ -1346,7 +1346,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     if ( is_acct_field( i ) )
                     {
                         next += append_field_def( i, next, is_first_acct_field, NULL );
-                    } 
+                    }
                 }
 
                 /* count field */
@@ -1375,7 +1375,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                             first_acct_pk = 0;
                         }
                     }
-                } 
+                }
 
                 strcpy( next, " ))" );
 #ifdef _MYSQL
@@ -1395,7 +1395,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " created successfully" );
 
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB content. This can take a while..." );
-                FlushLogs(); 
+                FlushLogs();
 
                 /* Initial table population for already existing entries */
                 next = strbuf;
@@ -1417,7 +1417,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                 next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
 
                 next += sprintf( next, " FROM %s  GROUP BY ", acct_info_table );
-                attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" ); 
+                attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
                 next = next + strlen( next );
 
                 /* set READ COMMITTED isolation level for the next (big!) request
@@ -1513,7 +1513,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             next += append_size_range_op(next, TRUE, "OLD.", "val", SUBSTRACT);
 
             APPEND_TXT( next, " WHERE " );
-            attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" ); 
+            attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
             INCR_NEXT( next );
             APPEND_TXT( next, ";" );
 

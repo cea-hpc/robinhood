@@ -729,7 +729,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
             if ( rc == DB_END_OF_LIST )
             {
-                total_returned += nb_returned; 
+                total_returned += nb_returned;
 
                 /* if limit = inifinite => END OF LIST */
                 if ( ( nb_returned == 0 )
@@ -764,7 +764,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                  * only replace it, do not add a new filter.
                  */
 
-                /* don't retrieve just-updated entries 
+                /* don't retrieve just-updated entries
                  * (update>=last_request_time),
                  * allow entries with md_update == NULL.
                  */
@@ -1219,7 +1219,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item,
             return MIGR_ENTRY_MOVED;
         case do_update:
             /* OK, continue */
-            break; 
+            break;
     }
 
     /* entry is valid */
@@ -1608,7 +1608,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                        policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_mod ),
                        is_copy ? (time_t)ATTR( &p_item->entry_attr, last_archive ) : 0,
-                       ( is_stor ? ", storage_units=" : "" ), 
+                       ( is_stor ? ", storage_units=" : "" ),
                        ( is_stor ? strstorage : "" ) );
 #else
    DisplayReport( "%s '%s' using policy '%s', last mod %s ago | size=%"
@@ -1906,5 +1906,5 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
         return -1;
     }
 
-    return 0; 
+    return 0;
 }

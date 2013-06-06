@@ -1189,7 +1189,7 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
             snprintf( path_regexp, RBH_PATH_MAX, "%s/*", path_filter );
             fv.value.val_str = path_regexp;
             lmgr_simple_filter_add( filter, ATTR_INDEX_fullpath, LIKE, fv,
-                                    FILTER_FLAG_OR | FILTER_FLAG_END ); 
+                                    FILTER_FLAG_OR | FILTER_FLAG_END );
         }
         else /* ends with slash */
         {
@@ -1367,7 +1367,7 @@ static void print_attr_list_custom(int rank_field, int * attr_list, int attr_cou
                 else
                 {
                     printf("%*s", PROF_CNT_LEN, size_range[i].title);
-                    coma = 1; 
+                    coma = 1;
                 }
             }
             if (p_profile->range_ratio_len > 0)
@@ -1378,7 +1378,7 @@ static void print_attr_list_custom(int rank_field, int * attr_list, int attr_cou
                 if (p_profile->range_ratio_start + p_profile->range_ratio_len == SZ_PROFIL_COUNT)
                     sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1));
                 else
-                    sprintf(tmp, "ratio(%s..%s-)", 
+                    sprintf(tmp, "ratio(%s..%s-)",
                             print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1),
                             print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start + p_profile->range_ratio_len), tmp2));
 
@@ -1430,7 +1430,7 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
                 FormatFileSize(out, 128, ATTR(attrs, avgsize));
             return out;
 #ifdef ATTR_INDEX_dircount
-        case ATTR_INDEX_dircount: 
+        case ATTR_INDEX_dircount:
             sprintf(out, "%u", ATTR(attrs, dircount));
             return out;
 #endif
@@ -1654,7 +1654,7 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
                     if (prof_descr->range_ratio_start + prof_descr->range_ratio_len == SZ_PROFIL_COUNT)
                         sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1));
                     else
-                        sprintf(tmp, "ratio(%s..%s)", 
+                        sprintf(tmp, "ratio(%s..%s)",
                                 print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1),
                                 print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start + prof_descr->range_ratio_len) -1, tmp2));
 
@@ -1761,7 +1761,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     {
         list = list_stripe;
         list_cnt = sizeof(list_stripe)/sizeof(int);
-    } 
+    }
 
     lmgr_simple_filter_init( &filter );
 
@@ -2148,9 +2148,9 @@ static void report_usergroup_info( char *name, int flags )
         fv.value.val_str = name;
 
         if ( WILDCARDS_IN( name ) )
-            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), LIKE, fv, 0 ); 
+            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), LIKE, fv, 0 );
         else
-            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), EQUAL, fv, 0 ); 
+            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), EQUAL, fv, 0 );
     }
 
     /* append global filters */
@@ -3124,9 +3124,9 @@ int main( int argc, char **argv )
 
     int            dump_all = FALSE;
     int            dump_user = FALSE;
-    char           dump_user_name[256]; 
+    char           dump_user_name[256];
     int            dump_group = FALSE;
-    char           dump_group_name[256]; 
+    char           dump_group_name[256];
 #ifdef _LUSTRE
     int            dump_ost = FALSE;
     value_list_t   dump_ost_set = { 0, NULL };
@@ -3239,7 +3239,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             strncpy( dump_user_name, optarg, 256 );
-            break; 
+            break;
 
         case OPT_DUMP_GROUP:
             dump_group = TRUE;
@@ -3249,7 +3249,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             strncpy( dump_group_name, optarg, 256 );
-            break; 
+            break;
 
 #ifdef _LUSTRE
         case OPT_DUMP_OST:
@@ -3269,7 +3269,7 @@ int main( int argc, char **argv )
             }
             /* copy arg to display it */
             strncpy(ost_set_str, optarg, sizeof(ost_set_str));
-            break; 
+            break;
 #endif
 
 #ifdef ATTR_INDEX_status

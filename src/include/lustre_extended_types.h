@@ -13,7 +13,7 @@
  */
 
 /**
- * \file   lustre_extended_types.h 
+ * \file   lustre_extended_types.h
  * \brief  Specific types for handling lustre data.
  */
 #ifndef _LUSTRE_EXTRA_TYPES_H

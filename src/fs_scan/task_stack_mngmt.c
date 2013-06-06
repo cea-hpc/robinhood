@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * Module for managing FS scan tasks as a stack 
+ * Module for managing FS scan tasks as a stack
  * with priorities on entry depth.
  */
 
@@ -117,7 +117,7 @@ robinhood_task_t *GetTask_from_Stack( task_stack_t * p_stack )
 
     /* if the list at current depth is empty, we need to
      * update max_task_depth.
-     */ 
+     */
     if ( p_task->next_task == NULL )
     {
         for ( index = p_stack->max_task_depth; index >= 0; index-- )

@@ -816,7 +816,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
             }
             else
-            { 
+            {
                 if (ATTR_FSorDB_TEST(p_op, fullpath))
                     printf("--"DFID" path=%s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
                 else
@@ -845,7 +845,7 @@ skip_record:
 
 
 /**
- * Perform an operation on database. 
+ * Perform an operation on database.
  */
 int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {

@@ -38,7 +38,7 @@ chglog_reader_config_t chglog_reader_config;
 static mdt_def_t default_mdt_def =
     {
         .mdt_name  = "MDT0000",
-        .reader_id = "cl0" 
+        .reader_id = "cl0"
     };
 
 
@@ -64,7 +64,7 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
    return 0;
 }
 
-/** Write default parameters for changelog readers */ 
+/** Write default parameters for changelog readers */
 int            ChgLogRdr_WriteDefaultConfig( FILE * output )
 {
     print_begin_block( output, 0, CHGLOG_CFG_BLOCK, NULL );
@@ -85,7 +85,7 @@ int            ChgLogRdr_WriteDefaultConfig( FILE * output )
     return 0;
 }
 
-/** Write a configuration template for changelog readers */ 
+/** Write a configuration template for changelog readers */
 int            ChgLogRdr_WriteConfigTemplate( FILE * output )
 {
     print_line( output, 0, "# Parameters for processing MDT changelogs :");
@@ -277,10 +277,10 @@ int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
                    p_config->mdt_count ++;
 
                    p_config->mdt_def = (mdt_def_t*)realloc( p_config->mdt_def,
-                                         p_config->mdt_count * sizeof( mdt_def_t ) ); 
+                                         p_config->mdt_count * sizeof( mdt_def_t ) );
                    if ( !p_config->mdt_def ) return ENOMEM;
                 }
-                
+
                 /* fill the structure */
                 rc = parse_mdt_block( curr_item, MDT_DEF_BLOCK, &p_config->mdt_def[p_config->mdt_count-1], msg_out );
                 if ( rc ) return rc;

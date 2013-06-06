@@ -103,7 +103,7 @@ void           TestLockFile( time_t * p_last_action );
 /**
  * Convert a Posix attributes structure (returned by lstat)
  * to an attribute set.
- * @param size_info indicates if size info is set in the stat structure. 
+ * @param size_info indicates if size info is set in the stat structure.
  */
 void           PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int size_info );
 

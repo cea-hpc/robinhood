@@ -1105,8 +1105,8 @@ long long str2bigint( const char *str )
 
 
 /**
- * Convert a string to a boolean 
- * @return -1 on error. 
+ * Convert a string to a boolean
+ * @return -1 on error.
  */
 int str2bool( const char *str )
 {
@@ -1126,8 +1126,8 @@ int str2bool( const char *str )
 
 
 /**
- * Convert a string to a duration in seconds 
- * @return -1 on error. 
+ * Convert a string to a duration in seconds
+ * @return -1 on error.
  */
 int str2duration( const char *str )
 {
@@ -1164,7 +1164,7 @@ int str2duration( const char *str )
 
 /**
  * Convert a string to a size (in bytes)
- * @return -1 on error. 
+ * @return -1 on error.
  */
 uint64_t str2size( const char *str )
 {
@@ -1241,7 +1241,7 @@ time_t str2date( const char *str )
     char tmpstr[16];
     int  tmpint;
     const char * curr = str;
-    
+
     /* extract year */
     if (extract_digits(curr, tmpstr, 4) < 4)
         return (time_t)-1;
@@ -1257,7 +1257,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) <= 0)
         return (time_t)-1;
     else if (tmpint > 12)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_mon = tmpint - 1; /* January => 0 */
 
     /* extract day */
@@ -1267,7 +1267,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) <= 0)
         return (time_t)-1;
     else if (tmpint > 31)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_mday = tmpint; /* 1st => 1 */
 
     /* extract hours */
@@ -1280,7 +1280,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) == -1)
         return (time_t)-1;
     else if (tmpint > 23)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_hour = tmpint;
 
     /* extract minutes */
@@ -1293,7 +1293,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) == -1)
         return (time_t)-1;
     else if (tmpint > 59)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_min = tmpint;
 
     /* extract seconds */
@@ -1306,7 +1306,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) == -1)
         return (time_t)-1;
     else if (tmpint > 59)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_sec = tmpint;
 
     if (*curr != '\0')
@@ -1911,7 +1911,7 @@ void rh_sleep( unsigned int seconds )
        remain = sleep( remain );
        if ( remain <= 0 )
        {
-           spent = time(NULL)-start; 
+           spent = time(NULL)-start;
            if ( spent < seconds )
                remain = seconds - spent;
        }

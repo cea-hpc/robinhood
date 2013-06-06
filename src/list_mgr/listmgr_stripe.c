@@ -46,7 +46,7 @@ static int delete_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk )
 }
 
 
-int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, 
+int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                         int validator, const stripe_info_t * p_stripe,
                         const stripe_items_t * p_items,
                         int update_if_exists )

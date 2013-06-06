@@ -111,7 +111,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
                                 ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
                                 ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
 
-#elif defined( HAVE_RM_POLICY ) 
+#elif defined( HAVE_RM_POLICY )
 #define MATCH_TABLE( _t, _i )   ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
                                 ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
                                 ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
@@ -264,7 +264,7 @@ void           generate_fields( attr_set_t * p_set )
                     continue;
                 }
 
-                src_data = ( char * ) &p_set->attr_values + field_infos[field_infos[i].gen_index].offset; 
+                src_data = ( char * ) &p_set->attr_values + field_infos[field_infos[i].gen_index].offset;
            }
            else
            {
@@ -303,7 +303,7 @@ int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask )
         /* still missing? */
         if ( target_mask & ~p_set->attr_mask )
         {
-               DisplayLog( LVL_VERB, LISTMGR_TAG, "Field still missing (can't be generated): %#X", 
+               DisplayLog( LVL_VERB, LISTMGR_TAG, "Field still missing (can't be generated): %#X",
                            target_mask & ~p_set->attr_mask );
                /* never leave the function with less info than when entering! */
                p_set->attr_mask |= save_mask;
@@ -315,7 +315,7 @@ int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask )
     p_set->attr_mask |= save_mask;
 
     return DB_SUCCESS;
-    
+
 }
 
 
@@ -372,7 +372,7 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
 
 /**
  * Generate operation like incrementation or decrementation on fields.
- * @param str 
+ * @param str
  * @param attr_mask
  * @param table T_MAIN, T_ANNEX, T_ACCT
  * @param prefix
@@ -399,11 +399,11 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
             if ( MATCH_TABLE( table, i ) )
             {
                 if ( nbfields == 0 )
-                    fields_curr += 
+                    fields_curr +=
                         sprintf( fields_curr, "%s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ", field_infos[i].field_name,
                                 field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
                 else
-                    fields_curr += 
+                    fields_curr +=
                         sprintf( fields_curr, ", %s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ", field_infos[i].field_name,
                                 field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
                 nbfields++;
@@ -415,7 +415,7 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
 
 /**
  * Generate comparaison on fields.
- * @param str 
+ * @param str
  * @param attr_mask
  * @param table T_MAIN, T_ANNEX, T_ACCT
  * @param left_prefix
@@ -694,7 +694,7 @@ char          *compar2str( filter_comparator_t compar )
 /**
  * return FILTERDIR_NONE if there is no filter on dirattrs
  * return FILTERDIR_EMPTY if the test is 'dircount == 0' (no junction needed)
- * return FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, condition on avgsize 
+ * return FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, condition on avgsize
  *                           junction needed, depending on the filter
  *                           test looks like "dirattr >= x"
  */

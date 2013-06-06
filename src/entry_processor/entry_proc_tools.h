@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * Misc tools for managing entry processor pipeline 
+ * Misc tools for managing entry processor pipeline
  */
 #ifndef _ENTRY_PROC_TOOLS_H
 #define _ENTRY_PROC_TOOLS_H
@@ -32,7 +32,7 @@ int            id_constraint_init( void );
 #define ID_NOT_EXISTS           3
 
 /**
- * This is called to register the operation (with the ordering of pipeline) 
+ * This is called to register the operation (with the ordering of pipeline)
  * @return ID_OK if the entry can be processed.
  *         ID_MISSING if the ID is not set in p_op structure
  */
@@ -42,8 +42,8 @@ int            id_constraint_register( entry_proc_op_t * p_op );
 /**
  * Get the first operation for a given id.
  * @return an operation to be processed when it is possible.
- *         NULL else. 
- *        
+ *         NULL else.
+ *
  */
 entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id );
 

@@ -251,7 +251,7 @@ static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
     if ( forecast )
         printf( "   - other/errors:    %10Lu/%Lu (%s)\n", diff, p_stat->status_count[RS_ERROR], buff );
     else {
-        printf( "   - errors:          %10Lu entries (%s)\n", p_stat->status_count[RS_ERROR], buff ); 
+        printf( "   - errors:          %10Lu entries (%s)\n", p_stat->status_count[RS_ERROR], buff );
         printf( "   - still to be recovered: %4Lu entries\n", diff );
     }
 }

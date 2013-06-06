@@ -92,7 +92,7 @@ int            ChgLogRdr_DumpStats( void );
 /** store changelog stats to db */
 int            ChgLogRdr_StoreStats( lmgr_t * lmgr );
 
-/** 
+/**
  * \addtogroup MODULE_CONFIG_FUNCTIONS
  * @{
  */

@@ -1014,7 +1014,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     {
         DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
                     bkpath );
-        return -EINVAL; 
+        return -EINVAL;
     }
     /* 2) create it recursively */
     rc = mkdir_recurse_clone_attrs( destdir, 0750, TO_BACKEND );

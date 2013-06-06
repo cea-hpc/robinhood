@@ -16,7 +16,7 @@
  * \file    verif_syntaxe.c
  * \author  $Author: leibovic $
  * \date    $Date: 2008/07/04 08:15:29 $
- * \version	$Revision: 1.2 $ 
+ * \version	$Revision: 1.2 $
  * \brief   Build syntax tree
  *
  * Test config file syntax

@@ -192,7 +192,7 @@ static inline int import_helper(const char       *backend_path,
             /* clean fid in target path */
             tgt_path[strlen(tgt_path)-strlen(first)] = '\0';
         } else {
-            DisplayLog(LVL_MAJOR, LOGTAG, "'%s' has garbage ('%s') after fid ("DFID_NOBRACE")", 
+            DisplayLog(LVL_MAJOR, LOGTAG, "'%s' has garbage ('%s') after fid ("DFID_NOBRACE")",
                        name, dummy, PFID(&old_id));
             memset(&old_id, 0, sizeof(old_id));
         }

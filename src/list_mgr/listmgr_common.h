@@ -238,7 +238,7 @@ typedef enum
     T_ANNEX,                                     /* fiels in annex table */
     T_STRIPE_INFO,                               /* field in stripe info table */
     T_STRIPE_ITEMS,                              /* field in stripe items table */
-    T_ACCT,                                      /* fields in accounting table */   
+    T_ACCT,                                      /* fields in accounting table */
 #ifdef HAVE_RM_POLICY
     T_SOFTRM,                                    /* fields in softrm table */
 #endif
@@ -279,7 +279,7 @@ void           generate_fields( attr_set_t * p_set );
 int            attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_comma,
                                    int for_update, char *prefix, char *postfix );
 
-int            attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix, 
+int            attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix,
                                    const char *right_prefix, const char *comparator, const char *separator );
 
 int            attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix,

@@ -28,7 +28,7 @@
 #include <pthread.h>
 
 
-static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id, 
+static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id,
                                           const attr_set_t * p_attr_set, int last )
 {
     char           request[4096];
@@ -179,7 +179,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
     char escaped[RBH_PATH_MAX];
     char * curr = query;
     int rc;
- 
+
     curr += sprintf( query,
                      "INSERT IGNORE INTO " SOFT_RM_TABLE
                      "(fid, " );

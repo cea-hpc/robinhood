@@ -58,7 +58,7 @@ static void copy_arrays(const wagon_t *src,
                         int count)
 {
     int src_first = 0;
- 
+
     while(count) {
         dest[dst_first].id = src[src_first].id;
         dest[dst_first].fullname = strdup(src[src_first].fullname);

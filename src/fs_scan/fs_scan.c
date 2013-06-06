@@ -82,7 +82,7 @@ typedef struct thread_scan_info__
 
 
 /**
- * internal variables 
+ * internal variables
  */
 
 static thread_scan_info_t *thread_list = NULL;
@@ -1007,7 +1007,7 @@ static void   *Thr_scan( void *arg_thread )
                   DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation (in '%s')", p_task->path );
                   goto end_task;
               }
- 
+
               if (!strcmp( dp->d_name, "." ) || !strcmp( dp->d_name, ".." ))
                     continue;
               nb_entries++;
@@ -1189,7 +1189,7 @@ end_task:
  *
  * The function looks at the content of the configuration structure
  * that have been previously parsed.
- * 
+ *
  * It returns a status code:
  *   0 : initialization successful
  *   -1 : unexpected error at initialization.
@@ -1351,7 +1351,7 @@ static unsigned int path_depth(const char * path)
 
 
 
-/* Start a scan of the filesystem. 
+/* Start a scan of the filesystem.
  * This creates a root task and push it to the stack of tasks.
  * @param partial_root NULL for full scan; subdir path for partial scan
  * @retval EBUSY if a scan is already running.
@@ -1785,10 +1785,10 @@ int Robinhood_CheckScanDeadlines( void )
 
 
 
-/** 
+/**
  * Retrieve some statistics about current and terminated audits.
  * (called by the statistic collector)
- * 
+ *
  * Take as parameter a structure of statistics to be filled.
  *
  * It returns a status code:

@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * FS scan stop/start routines 
+ * FS scan stop/start routines
  */
 
 #ifdef HAVE_CONFIG_H
@@ -487,7 +487,7 @@ static void update_ignore( whitelist_item_t * old_items, unsigned int old_count,
         if ( (old_items[i].attr_mask != new_items[i].attr_mask)
              || compare_boolexpr( &old_items[i].bool_expr, &new_items[i].bool_expr) )
         {
-           DisplayLog( LVL_MAJOR, RELOAD_TAG, "Ignore expression #%u changed in block '%s'. Only numerical values can be modified dynamically. Ignore update cancelled", i, block_name ); 
+           DisplayLog( LVL_MAJOR, RELOAD_TAG, "Ignore expression #%u changed in block '%s'. Only numerical values can be modified dynamically. Ignore update cancelled", i, block_name );
            return;
         }
    }
@@ -501,7 +501,7 @@ static void update_ignore( whitelist_item_t * old_items, unsigned int old_count,
             char criteriastr[2048];
             BoolExpr2str( &old_items[i].bool_expr, criteriastr, 2048 );
             DisplayLog( LVL_EVENT, RELOAD_TAG, "Ignore expression #%u in block '%s' has been updated and is now: %s",
-                i, block_name, criteriastr ); 
+                i, block_name, criteriastr );
        }
    }
 
@@ -576,7 +576,7 @@ int FSScan_ReloadConfig( void *module_config )
     }
 
     if ( strcmp( conf->completion_command, fs_scan_config.completion_command ) )
-    {   
+    {
         DisplayLog( LVL_EVENT, "FS_Scan_Config",
                     FSSCAN_CONFIG_BLOCK "::completion_command updated: '%s'->'%s'",
                     fs_scan_config.completion_command, conf->completion_command );
@@ -602,7 +602,7 @@ int FSScan_ReloadConfig( void *module_config )
                    conf->ignore_list, conf->ignore_count, FSSCAN_CONFIG_BLOCK );
 
     /* free conf structure */
-    free_ignore( conf->ignore_list, conf->ignore_count ); 
+    free_ignore( conf->ignore_list, conf->ignore_count );
 
     return 0;
 }

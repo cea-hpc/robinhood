@@ -452,7 +452,7 @@ static int check_periodic_trigger( unsigned trigger_index )
         DisplayLog( LVL_CRIT, RESMON_TAG,
                     "Purge aborted after releasing %Lu entries, %Lu blocks in %s.",
                     nbr_purged, blocks_purged, global_config.fs_path );
-                    
+
         snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
                  global_config.fs_path, nbr_purged, blocks_purged);
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -606,7 +606,7 @@ static int check_global_trigger( unsigned trigger_index )
                 DisplayLog( LVL_CRIT, RESMON_TAG,
                             "Purge aborted after releasing %Lu entries (%Lu blocks) in %s.",
                             spec, purged, global_config.fs_path );
-                            
+
                 snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
                          global_config.fs_path, spec, purged);
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -669,7 +669,7 @@ static int check_global_trigger( unsigned trigger_index )
                 DisplayLog( LVL_CRIT, RESMON_TAG,
                             "Purge aborted after releasing %Lu blocks in %s.",
                             purged, global_config.fs_path );
-                            
+
                 snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu blocks)",
                          global_config.fs_path, purged);
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -1391,7 +1391,7 @@ static int check_usergroup_trigger( unsigned trigger_index )
                     DisplayLog( LVL_CRIT, RESMON_TAG,
                                 "Purge aborted after releasing %Lu entries (%Lu blocks) for %s %s.",
                                 nb_purged, blocks_purged, what, result[0].value_u.val_str );
-                                
+
                     snprintf(status_str, 1024, "Purge on %s %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
                              what, result[0].value_u.val_str, nb_purged, blocks_purged);
                     ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -1794,7 +1794,7 @@ static void   *force_fs_trigger_thr( void *arg )
             DisplayLog( LVL_CRIT, RESMON_TAG,
                         "Purge aborted after releasing %Lu blocks in %s.",
                         purged, global_config.fs_path );
-                        
+
             snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu blocks)",
                      global_config.fs_path, purged);
             ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -1912,7 +1912,7 @@ static void * force_purge_class_thr( void *arg )
         DisplayLog( LVL_CRIT, RESMON_TAG,
                     "Purge aborted after releasing %Lu entries, %Lu blocks in %s.",
                     nbr_purged, blocks_purged, descr );
-                    
+
         snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
                  descr, nbr_purged, blocks_purged );
         ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
@@ -2167,7 +2167,7 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
     if ( options.mode == RESMON_DAEMON )
         ResMon_UpdateCheckInterval(  );
     else
-       trigger_check_interval = 1; 
+       trigger_check_interval = 1;
 
     /* alloc and initialize trigger status array (except for FORCE_PURGE modes) */
     if ( ( module_args.mode != RESMON_PURGE_OST )

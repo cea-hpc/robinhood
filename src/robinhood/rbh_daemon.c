@@ -258,7 +258,7 @@ typedef struct rbh_options {
     double         usage_target;
     int            purge_class;
     char           purge_target_class[128];
-    int            partial_scan; 
+    int            partial_scan;
     char           partial_scan_path[RBH_PATH_MAX];
     int            diff_mask;
 
@@ -966,7 +966,7 @@ int main( int argc, char **argv )
 #elif HAVE_RM_POLICY
             SET_ACTION_FLAG( ACTION_MASK_UNLINK );
 #else
-            fprintf( stderr, "-R option is not supported.\n" ); 
+            fprintf( stderr, "-R option is not supported.\n" );
             exit(1);
 #endif
             break;
@@ -1193,7 +1193,7 @@ int main( int argc, char **argv )
     }
 
 #ifdef HAVE_MIGR_POLICY
-    if ( options.migrate_user + options.migrate_group 
+    if ( options.migrate_user + options.migrate_group
 #ifdef _LUSTRE
         + options.migrate_ost
 #endif
@@ -1516,7 +1516,7 @@ int main( int argc, char **argv )
         rc = Start_Migration( &rh_config.migr_config, migr_opt );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_MIGRATION;
             action_mask &= ~ACTION_MASK_MIGRATE;
@@ -1581,7 +1581,7 @@ int main( int argc, char **argv )
         rc = Start_ResourceMonitor( &rh_config.res_mon_config, resmon_opt );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_RES_MONITOR;
             action_mask &= ~ACTION_MASK_PURGE;
@@ -1614,7 +1614,7 @@ int main( int argc, char **argv )
         rc = Start_Rmdir( &rh_config.rmdir_config, options.flags );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_RMDIR;
             action_mask &= ~ACTION_MASK_RMDIR;
@@ -1647,7 +1647,7 @@ int main( int argc, char **argv )
         rc = Start_HSMRm( &rh_config.hsm_rm_config, options.flags );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_UNLINK;
             action_mask &= ~ACTION_MASK_UNLINK;

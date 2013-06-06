@@ -453,7 +453,7 @@ int            ListMgr_MassUpdate( lmgr_t * p_mgr, const lmgr_filter_t * p_filte
 typedef void    ( *rm_cb_func_t ) (const entry_id_t *);
 
 /**
- * Removes a name from the database. Remove the entry if last is TRUE. 
+ * Removes a name from the database. Remove the entry if last is TRUE.
  */
 int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
                                const attr_set_t * p_attr_set, int last );
@@ -653,7 +653,7 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 
 /**
  * Function for handling iterators.
- * 
+ *
  * \addtogroup ITERATOR_FUNCTIONS
  * @{
  */
@@ -728,7 +728,7 @@ typedef enum
 typedef struct report_field_descr_t
 {
     unsigned int   attr_index;
-    report_type_t  report_type; 
+    report_type_t  report_type;
     sort_order_t   sort_flag;
 
     int            filter;      /**< is there a filter on this value ? */

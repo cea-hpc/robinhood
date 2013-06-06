@@ -75,7 +75,7 @@ int id_constraint_register( entry_proc_op_t * p_op )
 /**
  * Get the first operation for a given id.
  * @return an operation to be processed when it is possible.
- *         NULL else. 
+ *         NULL else.
  */
 entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 {
