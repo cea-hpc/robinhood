@@ -583,7 +583,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         /* name and parent should have been provided by the UNLINK changelog record */
         check_path_info(p_op, "UNLINK");
     }
-    else if ( CL_MOD_TIME(logrec->cr_type) || (logrec->cr_type == CL_TRUNC) ||
+    else if ( logrec->cr_type == CL_MTIME || logrec->cr_type == CL_TRUNC ||
               (logrec->cr_type == CL_CLOSE))
     {
 #ifdef ATTR_INDEX_status
@@ -603,7 +603,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         }
 #endif
     }
-    else if (CL_CHG_TIME(logrec->cr_type) || (logrec->cr_type == CL_SETATTR))
+    else if (logrec->cr_type == CL_CTIME || (logrec->cr_type == CL_SETATTR))
     {
         /* need to update attrs */
         p_op->fs_attr_need |= POSIX_ATTR_MASK;
@@ -642,8 +642,8 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         }
 
         /* get the new attributes, in case of a SATTR, HSM... */
-        if ( allow_md_updt && (CL_MOD_TIME(logrec->cr_type)
-                               || CL_CHG_TIME(logrec->cr_type)
+        if ( allow_md_updt && (   ( logrec->cr_type == CL_MTIME )
+                               || ( logrec->cr_type == CL_CTIME )
                                || ( logrec->cr_type == CL_CLOSE )
                                || ( logrec->cr_type == CL_TRUNC )
                                || ( logrec->cr_type == CL_HSM )

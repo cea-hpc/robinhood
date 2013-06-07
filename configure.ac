@@ -143,12 +143,6 @@ if test "x$support_lustre" = "xyes" ; then
 	    	AC_CHECK_LIB([lustreapi],[llapi_changelog_start],[have_llapi_changelog_start="yes"])
 		    if test "x$have_llapi_changelog_start" = "xyes"; then 
 		        AC_DEFINE(HAVE_CHANGELOGS, 1, [Lustre changelogs records are structures])
-                AC_CHECK_DECL([CL_MTIME],AC_DEFINE(CL_SPLITTED_TIME,1,[Changelog time events are splitted]),[],[
-                    #define LPX64 "%#llx"
-                    #include <sys/types.h>
-                    #include <asm/types.h>
-                    #include <lustre/lustre_user.h>
-                ])
             fi
 
             if test "x$have_llapi_changelog_start" = "xyes" && \

@@ -265,11 +265,11 @@ function enable_changelogs
     echo "Checking event mask..."
 
     if [[ -z "$PURPOSE" || $PURPOSE = LUSTRE_HSM ]]; then
-	EVENT_LIST="HSM CREAT UNLNK TRUNC SATTR MTIME TIME CLOSE"
+	EVENT_LIST="HSM CREAT UNLNK TRUNC SATTR MTIME CLOSE"
     elif [[ $PURPOSE = SHOOK ]]; then
-    EVENT_LIST="CREAT UNLNK TRUNC XATTR SATTR MTIME TIME CLOSE"
+    EVENT_LIST="CREAT UNLNK TRUNC XATTR SATTR MTIME CLOSE"
     else
-	EVENT_LIST="CREAT UNLNK TRUNC SATTR MTIME TIME CLOSE"
+	EVENT_LIST="CREAT UNLNK TRUNC SATTR MTIME CLOSE"
     fi
     for event in $EVENT_LIST; do
         missing=0
@@ -282,7 +282,7 @@ function enable_changelogs
             echo "event $event OK"
         fi
     done
-    #lctl set_param mdd.*.changelog_mask "CREAT UNLNK OPEN CLOSE TRUNC TIME HSM"
+    #lctl set_param mdd.*.changelog_mask "CREAT UNLNK OPEN CLOSE TRUNC HSM"
 }
 
 function select_db

@@ -5,7 +5,6 @@
 - test BACKUP and HSM modes
 - check how mknode'd entries and handled by backup mode and rbh-diff
 - mass_soft_remove
-- drop Lustre 2.0 support (non splitted TIME)
 
 - verifier comportement du pipeline dans le traitement des changelogs, etc...
 
