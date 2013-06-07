@@ -257,7 +257,7 @@ static inline void display_rm_entry(entry_id_t * id, const char *last_known_path
 }
 
 
-int list_rm()
+static int list_rm( void )
 {
     int            rc, index;
     struct lmgr_rm_list_t * list;
@@ -401,7 +401,7 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
 }
 
 
-int undo_rm()
+static int undo_rm( void )
 {
     int            rc;
     struct lmgr_rm_list_t * list;

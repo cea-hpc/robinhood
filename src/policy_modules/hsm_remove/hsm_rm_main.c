@@ -393,7 +393,7 @@ static void   *Thr_Rm( void *arg )
 }
 
 
-int start_hsm_rm_threads( unsigned int nb_threads )
+static int start_hsm_rm_threads( unsigned int nb_threads )
 {
     unsigned int   i;
 

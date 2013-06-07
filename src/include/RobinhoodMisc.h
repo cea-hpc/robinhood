@@ -383,7 +383,7 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
 /** status conversion functions */
 const char * db_status2str( file_status_t status, int csv );
 file_status_t status2dbval( char * status_str );
-const char * allowed_status();
+const char * allowed_status( void );
 #endif
 
 #endif

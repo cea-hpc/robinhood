@@ -66,7 +66,7 @@ static migr_state_t migr_state = MS_OFF;
 /**
  * Function for checking that filesystem hasn't been unmounted
  */
-static int CheckFSDevice(  )
+static int CheckFSDevice( void )
 {
     struct stat    root_md;
 
@@ -150,7 +150,7 @@ static int check_maintenance_mode(policy_modifier_t * p_mod)
 }
 
 
-static int start_migration_pass(  )
+static int start_migration_pass( void )
 {
     int            rc;
     char           tmpstr[128];

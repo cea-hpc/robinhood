@@ -107,7 +107,7 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
                                unsigned int * p_nb_total,
                                time_t timeout );
 
-void abort_migration();
+void abort_migration( void );
 
 int            migrate_one_file( const char * file, int flags );
 

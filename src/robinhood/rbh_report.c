@@ -2708,7 +2708,7 @@ static void report_topuser( unsigned int count, int flags )
 }
 
 #ifdef HAVE_RM_POLICY
-void report_deferred_rm( int flags )
+static void report_deferred_rm( int flags )
 {
     int            rc, index;
     struct lmgr_rm_list_t * list;

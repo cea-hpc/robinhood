@@ -408,7 +408,7 @@ static int move_orphan(const char * path)
  * 0 if no copy is running
  * 1 if a copy is already running
  * */
-int check_running_copy(const char * bkpath)
+static int check_running_copy(const char * bkpath)
 {
     int rc;
     /* is a copy running for this entry? */

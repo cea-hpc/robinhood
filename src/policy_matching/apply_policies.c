@@ -1871,7 +1871,7 @@ static const char *empty_str = "";
  * \param hints malloc'ated string.
  *        It can be reallocated or freed in this function.
  */
-char * analyze_hints_params(  char * hints,
+static char * analyze_hints_params(  char * hints,
                           const policy_item_t * policy,
                           const fileset_item_t * fileset,
                           const entry_id_t * p_entry_id,

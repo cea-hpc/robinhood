@@ -257,7 +257,7 @@ static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
 }
 
 
-int recov_start()
+static int recov_start( void )
 {
     lmgr_recov_stat_t stats;
     int rc;
@@ -329,7 +329,7 @@ int recov_start()
     }
 }
 
-int recov_reset(int force)
+static int recov_reset(int force)
 {
     int rc;
 
@@ -374,7 +374,7 @@ int recov_reset(int force)
     return ListMgr_RecovReset( &lmgr );
 }
 
-int recov_resume( int retry_errors )
+static int recov_resume( int retry_errors )
 {
     struct lmgr_iterator_t * it;
     int rc, st;
@@ -447,7 +447,7 @@ int recov_resume( int retry_errors )
     return 0;
 }
 
-int recov_complete()
+static int recov_complete( void )
 {
     int rc;
     lmgr_recov_stat_t stats;
@@ -478,7 +478,7 @@ int recov_complete()
     }
 }
 
-int recov_status()
+static int recov_status( void )
 {
     int rc;
     lmgr_recov_stat_t stats;
@@ -497,7 +497,7 @@ int recov_status()
     return 0;
 }
 
-int recov_list(recov_type_e state)
+static int recov_list(recov_type_e state)
 {
     struct lmgr_iterator_t * it;
     int rc;
