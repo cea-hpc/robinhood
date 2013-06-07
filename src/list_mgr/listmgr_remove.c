@@ -669,8 +669,11 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     if ( last_known_path )
         entry_path = last_known_path;
     else
-        /* check if the previous entry had a path */
-        ATTR_MASK_SET( &missing_attrs, fullpath );
+    {
+        /* check if the previous entry had a parent+name */
+        ATTR_MASK_SET( &missing_attrs, parent_id );
+        ATTR_MASK_SET( &missing_attrs, name );
+    }
 
 #ifdef _HSM_LITE
     if ( bkpath )
@@ -710,7 +713,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     }
 
     /* remove the entry from main tables, if it exists */
-    rc = listmgr_remove_no_transaction( p_mgr, p_id );
+    rc = listmgr_remove_no_transaction( p_mgr, p_id, &missing_attrs, TRUE );
     if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
     {
         lmgr_rollback( p_mgr );

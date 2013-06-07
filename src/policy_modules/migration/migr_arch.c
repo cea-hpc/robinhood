@@ -1176,55 +1176,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
 #endif /* switch Lustre_HSM/HSM_LITE */
 
 #else  /* no fid support (no mode support it for now) */
-
-#error "FID support must be activated for Lustre-HSM"
-
-/**
- * Check that entry exists with the good path and its id is consistent.
- * @param fill entry MD if entry is valid
- */
-static int check_entry( lmgr_t * lmgr, migr_item_t * p_item,
-                        attr_set_t * new_attr_set )
-{
-    struct stat    entry_md;
-
-    /* 1) Check if fullpath is set */
-
-    if ( !ATTR_MASK_TEST( &p_item->entry_attr, fullpath ) )
-    {
-        DisplayLog( LVL_DEBUG, MIGR_TAG, "Warning: entry fullpath is not set. Tag it invalid." );
-        invalidate_entry( lmgr, &p_item->entry_id );
-
-        /* not enough metadata */
-        return MIGR_PARTIAL_MD;
-    }
-
-    DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry %s", ATTR( &p_item->entry_attr, fullpath ) );
-
-    /* we must have at least its full path, if we are not using fids */
-    if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath )
-         && !ATTR_MASK_TEST( new_attr_set, fullpath ) )
-    {
-        strcpy( ATTR( new_attr_set, fullpath ), ATTR( &p_item->entry_attr, fullpath ) );
-        ATTR_MASK_SET( new_attr_set, fullpath );
-    }
-
-    /* get info about this entry and check policies about the entry. */
-    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set, FALSE ) )
-    {
-        case do_skip:
-        case do_rm:
-            /* invalidate entry if it is not OK */
-            invalidate_entry( lmgr, &p_item->entry_id );
-            return MIGR_ENTRY_MOVED;
-        case do_update:
-            /* OK, continue */
-            break;
-    }
-
-    /* entry is valid */
-    return MIGR_OK;
-}
+#error "FID support must be activated for migration modes"
 #endif /* no fid support */
 
 

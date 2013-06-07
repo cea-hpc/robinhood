@@ -32,7 +32,8 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
-#define RECOV_LIST_FIELDS "status,last_mod,type,mode,size,owner,gr_name,fullpath,backendpath,link,stripe_count,stripe_size,pool_name"
+#define BUILD_RECOV_LIST_FIELDS "one_path(id) as fullpath,owner,gr_name,size,last_mod,type,mode,status,backendpath,link,stripe_count,stripe_size,pool_name"
+#define GET_RECOV_LIST_FIELDS "fullpath,owner,gr_name,size,last_mod,type,mode,status,backendpath,link,stripe_count,stripe_size,pool_name"
 #define RECOV_FIELD_COUNT 13
 
 
@@ -254,7 +255,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Directory filter not supported for recovery");
             return DB_NOT_SUPPORTED;
         }
-        else if (func_filter(p_mgr, filter_dir_str, p_filter, FALSE, FALSE))
+        else if (func_filter(p_mgr, filter_dir_str, p_filter, T_MAIN, FALSE, FALSE))
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
             return DB_NOT_SUPPORTED;
@@ -286,7 +287,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     {
         /* need to select only 1 instance of each object when joining with STRIPE_ITEMS */
         strcpy(query, "CREATE TABLE "RECOV_TABLE
-            " SELECT DISTINCT("MAIN_TABLE".id)," RECOV_LIST_FIELDS
+            " SELECT DISTINCT("MAIN_TABLE".id)," BUILD_RECOV_LIST_FIELDS
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
@@ -297,7 +298,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     else
     {
         strcpy(query, "CREATE TABLE "RECOV_TABLE
-            " SELECT "MAIN_TABLE".id," RECOV_LIST_FIELDS
+            " SELECT "MAIN_TABLE".id," BUILD_RECOV_LIST_FIELDS
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
@@ -400,7 +401,7 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
     lmgr_iterator_t * it;
     int rc;
 
-    strcpy( query, "SELECT id,recov_status,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
+    strcpy( query, "SELECT id,recov_status,"GET_RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
     curr = query + strlen(query);
     if ( retry )
         curr += sprintf( curr, "(recov_status IS NULL OR recov_status=%u)",
@@ -445,7 +446,7 @@ struct lmgr_iterator_t * ListMgr_RecovList( lmgr_t * p_mgr,recov_type_e st )
     lmgr_iterator_t * it;
     int rc;
 
-    strcpy( query, "SELECT id,recov_status,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE );
+    strcpy( query, "SELECT id,recov_status,"GET_RECOV_LIST_FIELDS" FROM "RECOV_TABLE );
     curr = query + strlen(query);
     switch(st)
     {
