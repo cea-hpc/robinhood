@@ -329,14 +329,9 @@ static int move_stage_entries( const unsigned int source_stage_index )
         goto out;
 
     p_first = rh_list_first_entry(&pl->entries, entry_proc_op_t, list);
-    P( p_first->entry_lock );
     if ( p_first->being_processed || ( p_first->pipeline_stage <= source_stage_index ) )
-    {
-        V( p_first->entry_lock );
         goto out;
-    }
     pipeline_stage_min = p_first->pipeline_stage;
-    V( p_first->entry_lock );
 
     p_last = p_first;
     count = 1;
@@ -346,18 +341,15 @@ static int move_stage_entries( const unsigned int source_stage_index )
           &p_curr->list != &pl->entries;
           p_curr = rh_list_entry(p_curr->list.next, entry_proc_op_t, list) )
     {
-        P( p_curr->entry_lock );
         if ( !p_curr->being_processed && ( p_curr->pipeline_stage > source_stage_index ) )
         {
             if ( p_curr->pipeline_stage < pipeline_stage_min )
                 pipeline_stage_min = p_curr->pipeline_stage;
-            V( p_curr->entry_lock );
             count++;
             p_last = p_curr;
         }
         else
         {
-            V( p_curr->entry_lock );
             break;
         }
     }
@@ -518,8 +510,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                 /* the pipeline is not empty */
                 *p_empty = FALSE;
 
-                P( p_curr->entry_lock );
-
                 if ( p_curr->pipeline_stage == i )
                 {
 
@@ -534,7 +524,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                             DisplayLog( LVL_FULL, ENTRYPROC_TAG,
                                         "=============== Not the first  unprocessed operation for this id ============" );
                             /* this is not the first unprocessed operation for this id */
-                            V( p_curr->entry_lock );
                             V( pl->stage_mutex );
                             return NULL;
                         }
@@ -546,7 +535,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                     {
                         DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
                                     "Error: INCONSISTENCY: nb_threads running this step is 0 whereas an entry is being processed !!!" );
-                        V( p_curr->entry_lock );
                         V( pl->stage_mutex );
                         return NULL;
                     }
@@ -556,12 +544,10 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                     pl->nb_threads++;
                     p_curr->being_processed = TRUE;
 
-                    V( p_curr->entry_lock );
                     V( pl->stage_mutex );
 
                     return p_curr;
                 }
-                V( p_curr->entry_lock );
             }
         }
         /* @TODO check configuration for max threads */
@@ -595,8 +581,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                 /* the pipeline is not empty */
                 *p_empty = FALSE;
 
-                P( p_curr->entry_lock );
-
                 /* Special case when the op doesn't have an ID, but
                  * the stage has a constraint. */
                 if ( !p_curr->entry_id_is_set &&
@@ -611,8 +595,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                          * upper stages. So we can process it */
                         entry_proc_pipeline[i].stage_flags |= STAGE_FLAG_FORCE_SEQ;
                     } else {
-                        V( p_curr->entry_lock );
-
                         break;
                     }
                 }
@@ -631,7 +613,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                             id_constraint_register( p_curr, FALSE );
                         }
 
-                        V( p_curr->entry_lock );
 #ifdef _DEBUG_ENTRYPROC
                         printf
                             ( "Stage[%u] - thread %#lx - entry at higher stage (%u) or is being processed (%s) \n",
@@ -646,9 +627,7 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                     {
 #ifdef _DEBUG_ENTRYPROC
                         entry_proc_op_t * other_op = id_constraint_get_first_op( &p_curr->entry_id );
-#endif
-                        V( p_curr->entry_lock );
-#ifdef _DEBUG_ENTRYPROC
+
                         printf( "Stage[%u] - thread %#lx - not the first operation with this id ("DFID")\n",
                                 i, pthread_self(  ), PFID(&p_curr->entry_id) );
                         if ( other_op == NULL )
@@ -668,7 +647,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                 }
                 else if ( p_curr->being_processed || p_curr->pipeline_stage > i )
                 {
-                    V( p_curr->entry_lock );
                     /* check next entry */
 #ifdef _DEBUG_ENTRYPROC
                     printf( "Stage[%u] - thread %#lx - entry being processed or at higher stage\n",
@@ -683,7 +661,6 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                 pl->nb_threads++;
                 p_curr->being_processed = TRUE;
 
-                V( p_curr->entry_lock );
                 V( pl->stage_mutex );
                 return p_curr;
             }
@@ -772,8 +749,7 @@ void EntryProcessor_Release( entry_proc_op_t * p_op )
     ListMgr_FreeAttrs( &p_op->fs_attrs );
     ListMgr_FreeAttrs( &p_op->db_attrs );
 
-    /* destroy the lock and free the memory */
-    pthread_mutex_destroy( &p_op->entry_lock );
+    /* free the memory */
     MemFree( p_op );
 }
 
@@ -804,15 +780,11 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     timeradd( &diff, &pl->total_processing_time,
               &pl->total_processing_time );
 
-    /* lock entry */
-    P( p_op->entry_lock );
-
     if ( (!remove) && (p_op->pipeline_stage >= next_stage) )
     {
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "CRITICAL: entry is already at a higher pipeline stage %u >= %u !!!",
                     p_op->pipeline_stage, next_stage );
 
-        V( p_op->entry_lock );
         V( pl->stage_mutex );
 
         return -EINVAL;
@@ -837,11 +809,7 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
         }
     }
 
-    /* Entry can be unlocked now, because its current list is locked
-     * so it won't be accessed anyway.
-     * And we have all done with it, so it can be accessed in its future stage.
-     */
-    V( p_op->entry_lock );
+    /* We're done with the entry in that stage. */
 
     /* check if entries are to be moved from this stage */
     nb_moved = move_stage_entries( curr_stage );
@@ -1040,11 +1008,6 @@ entry_proc_op_t * EntryProcessor_Get( void )
     ATTR_MASK_INIT( &p_entry->fs_attrs );
 
     extra_info_init( &p_entry->extra_info );
-
-    if ( ( pthread_mutex_init( &p_entry->entry_lock, NULL ) ) != 0 ) {
-        MemFree(p_entry);
-        return NULL;
-    }
 
     return p_entry;
 }

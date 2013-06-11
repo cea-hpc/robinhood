@@ -196,12 +196,6 @@ typedef struct entry_proc_op_t
 
     /* ========================= */
 
-    /**
-     * internal entry lock for pipeline management:
-     * lock for entry status (being_processed) and pipeline stage
-     */
-    pthread_mutex_t entry_lock;
-
     union {
         time_t changelog_inserted; /* used by changelog reader */
         struct timeval start_processing_time; /* used by pipeline */
