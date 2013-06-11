@@ -302,26 +302,6 @@ void EntryProcessor_Push( entry_proc_op_t * p_entry )
 }                               /* EntryProcessor_Push */
 
 
-
-/*
- * Remove an entry from a stage
- */
-static inline void remove_entry_from_stage( unsigned int stage_index,
-                                            entry_proc_op_t * p_op, int lock_stage )
-{
-    if ( lock_stage )
-        P( pipeline[stage_index].stage_mutex );
-
-    /* update stage info (the entry is supposed to be in "processed" category) */
-    pipeline[stage_index].nb_processed_entries--;
-
-    rh_list_del_init(&p_op->list);
-
-    if ( lock_stage )
-        V( pipeline[stage_index].stage_mutex );
-
-}
-
 /*
  * Move terminated operations to next stage
  */
@@ -810,9 +790,8 @@ void EntryProcessor_Release( entry_proc_op_t * p_op )
  */
 int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage, int remove )
 {
-    unsigned int   curr_stage = p_op->pipeline_stage;
+    const unsigned int   curr_stage = p_op->pipeline_stage;
     list_by_stage_t *pl = &pipeline[curr_stage];
-
     int            nb_moved;
     struct timeval now, diff;
 
@@ -850,7 +829,10 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     /* remove entry, if it must be */
     if ( remove )
     {
-        remove_entry_from_stage( curr_stage, p_op, FALSE );
+        /* update stage info. */
+        pl->nb_processed_entries--;
+
+        rh_list_del_init(&p_op->list);
 
         /* remove entry constraints on this id */
         if ( p_op->id_is_referenced )
