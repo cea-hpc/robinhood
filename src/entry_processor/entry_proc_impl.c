@@ -303,9 +303,10 @@ void EntryProcessor_Push( entry_proc_op_t * p_entry )
 
 
 /*
- * Move terminated operations to next stage
+ * Move terminated operations to next stage.
+ * The source stage is locked.
  */
-static int move_stage_entries( const unsigned int source_stage_index, int lock_src_stage )
+static int move_stage_entries( const unsigned int source_stage_index )
 {
     entry_proc_op_t *p_first = NULL;
     entry_proc_op_t *p_last = NULL;
@@ -322,9 +323,6 @@ static int move_stage_entries( const unsigned int source_stage_index, int lock_s
         return 0;
 
     pl = &pipeline[source_stage_index];
-
-    if ( lock_src_stage )
-        P( pl->stage_mutex );
 
     /* is there at least 1 entry to be moved ? */
     if ( rh_list_empty(&pl->entries))
@@ -382,7 +380,7 @@ static int move_stage_entries( const unsigned int source_stage_index, int lock_s
 
         /* make sure this stage has correctly been flushed */
         if ( !rh_list_empty(&pipeline[i].entries) )
-            move_stage_entries( i, FALSE );
+            move_stage_entries( i );
 
         if ( !rh_list_empty(&pipeline[i].entries) )
         {
@@ -453,8 +451,6 @@ static int move_stage_entries( const unsigned int source_stage_index, int lock_s
         V( pipeline[i].stage_mutex );
 
   out:
-    if ( lock_src_stage )
-        P( pl->stage_mutex );
     return count;
 }                               /* move_stage_entries */
 
@@ -848,7 +844,7 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
     V( p_op->entry_lock );
 
     /* check if entries are to be moved from this stage */
-    nb_moved = move_stage_entries( curr_stage, FALSE );
+    nb_moved = move_stage_entries( curr_stage );
 
     /* unlock current stage */
     V( pl->stage_mutex );
