@@ -695,15 +695,7 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
     }
 #endif
 
-    if (!prog_options.ls)
-    {
-        /* just display name */
-        if (id->fullname)
-            printf("%s\n", id->fullname);
-        else
-            printf(DFID"\n", PFID(&id->id));
-    }
-    else
+    if (prog_options.ls)
     {
         const char * type;
         char date_str[128];
@@ -754,6 +746,15 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
                    ATTR(attrs, owner), ATTR(attrs, gr_name),
                    ATTR(attrs, size), date_str, id->fullname);
     }
+    else
+    {
+        /* just display name */
+        if (id->fullname)
+            printf("%s\n", id->fullname);
+        else
+            printf(DFID"\n", PFID(&id->id));
+    }
+
 }
 
 /* directory callback */
