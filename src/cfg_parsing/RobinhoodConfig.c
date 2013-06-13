@@ -1138,7 +1138,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
             return EINVAL;
         }
 
-        /* in case the string containts regexpr, those comparators are changed to LIKE / UNLIKE */
+        /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
         if ( WILDCARDS_IN( p_triplet->val.str ) )
         {
             if ( p_triplet->op == COMP_EQUAL )

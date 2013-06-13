@@ -453,7 +453,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
     /* notify of current action (for watchdog) */
     p_info->last_action = time( NULL );
 
-    /* tag itself at terminated */
+    /* tag itself as terminated */
     st = FlagTaskAsFinished( current_task, &bool_termine );
 
     if ( st )
@@ -1551,7 +1551,7 @@ static void UpdateMaxUsage( void )
 
 
 /**
- * Check thread's activity or start a scan if its time.
+ * Check thread's activity or start a scan if it's time.
  */
 int Robinhood_CheckScanDeadlines( void )
 {
@@ -1639,7 +1639,7 @@ int Robinhood_CheckScanDeadlines( void )
     {
         FormatDuration( tmp_buff, 256, scan_interval );
 
-        /* starting a new scan, if its time */
+        /* starting a new scan, if it's time */
 
         DisplayLog( LVL_MAJOR, FSSCAN_TAG,
                     "Starting scan of %s (current scan interval is %s)",

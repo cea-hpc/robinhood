@@ -122,7 +122,7 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
 /**
  * Check table fields.
  * @param i
- * @param curr_field_index [in,out] filed index in currently checked schema
+ * @param curr_field_index [in,out] field index in currently checked schema
  * @return 0 on success
  * @return -1 on error
  */

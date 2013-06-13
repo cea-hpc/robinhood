@@ -987,7 +987,7 @@ void           ListMgr_MergeAttrSets( attr_set_t * p_target_attrset,
                                       attr_set_t * p_source_attrset,
                                       int update );
 
-/** only keep in target attrset the filed that are different from source */
+/** only keep in target attrset the fields that are different from source */
 void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src);
 
 /**
