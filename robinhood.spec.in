@@ -30,9 +30,9 @@ Requires: %{lpackage} >= %{lversion}         \
 BuildRequires: %{lpackage} >= %{lversion}    \
 %endif \
 %endif \
-%if %{with mysql}                    \
-Requires: mysql >= %{dbversion}      \
-BuildRequires: mysql-devel >= 4.1    \
+%if %{with mysql}                            \
+Requires: libmysqlclient_r.so                \
+BuildRequires: /usr/include/mysql/mysql.h    \
 %endif \
 %{nil}
 
