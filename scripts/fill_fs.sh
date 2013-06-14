@@ -19,7 +19,7 @@ SUBDIRS=30 # subdirs at each level
 LEAVES=30 # nbr of files at lower level
 FILE_KB_MAX=4 # file size max +1
 
-# give a set of users here 
+# give a set of users here
 USERS="root foo charlie"
 NB_USERS=`echo $USERS | wc -w`
 
@@ -46,7 +46,7 @@ last=0
 function mksubtree
 {
     local DIR=$1
-    local LVL=$2 
+    local LVL=$2
     local d
     local f
 
@@ -62,7 +62,7 @@ function mksubtree
 	   if (( $? != 0 )); then
 		echo "ERROR $!"
            fi
-	   
+
 	   ((TOTAL_FILES=$TOTAL_FILES+1))
 
         uindex=$(( `random256` % $NB_USERS ))
@@ -79,10 +79,10 @@ function mksubtree
 		else
 			speed=`echo "1000/$sec" | bc -l | xargs printf "%.2f"`
 		fi
-			
+
 		echo "$TOTAL_FILES files created in $sec s ($speed files/sec)"
 	    fi
-        done 
+        done
     else
         for d in `seq 1 $SUBDIRS`; do
 	    check_usage || exit 1

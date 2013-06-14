@@ -12,7 +12,7 @@ if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 fi
 
 if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
-	
+
 	echo -n "checking coordinator status: "
 	status=`cat /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control`
 	echo $status

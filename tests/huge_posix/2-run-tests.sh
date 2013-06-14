@@ -80,7 +80,7 @@ function clean_db
 		kill `cat rh.pid`
 		rm -f rh.pid
 	fi
-	
+
 	sleep 1
 	echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db $DB > /dev/null
@@ -90,7 +90,7 @@ function clean_db
 
 function scan_progress
 {
-	cfg=$1	
+	cfg=$1
 	# wait for command to start
 	sleep 1
 	while pgrep $CMD >/dev/null ; do
@@ -241,7 +241,7 @@ function junit_write_xml # (time, nb_failure, tests)
 	time=$1
 	failure=$2
 	tests=$3
-	
+
 	cp /dev/null $XML
 #	echo "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" > $XML
 	echo "<?xml version=\"1.0\" encoding=\"ISO8859-2\" ?>" > $XML
@@ -308,7 +308,7 @@ function run_test
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
 			RC=$(($RC+1))
 			if (( $junit )); then
-				junit_report_failure "robinhood.$PURPOSE.Posix" "Test #$index: $desc" "$dur" "ERROR" 
+				junit_report_failure "robinhood.$PURPOSE.Posix" "Test #$index: $desc" "$dur" "ERROR"
 			fi
 		else
 			echo "TEST #$index : OK" >> $SUMMARY

@@ -16,7 +16,7 @@ echo "Compilation using $NB_PROC processors"
 ERRORS=""
 
 for purp in $purp_list; do
-for lustre in "--enable-lustre" "--disable-lustre"; do 
+for lustre in "--enable-lustre" "--disable-lustre"; do
 
 # default per purpose and DB
 config_cmd="./configure --with-purpose=$purp $lustre"
@@ -24,7 +24,7 @@ config_cmd="./configure --with-purpose=$purp $lustre"
 if [[ $purp = "LUSTRE_HSM" && $lustre = "--disable-lustre" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 
 echo "TEST: $config_cmd"
- 
+
 (CFLAGS="$CFLAGS_OPT" $config_cmd && make -j $NB_PROC ) 2>&1 | grep -v Werror | grep -v "unused variable" | grep -v "not used" | egrep -i 'error|warning' \
 		&& ( echo FAILED; ERRORS="$ERRORS Error using compilation switches:$config_cmd\n" )
 
@@ -43,7 +43,7 @@ echo "Building rpms"
 ERRORS=""
 
 for purp in $purp_list; do
-for lustre in "--enable-lustre" "--disable-lustre"; do 
+for lustre in "--enable-lustre" "--disable-lustre"; do
 
 # default per purpose and DB
 config_cmd="./configure --with-purpose=$purp $lustre"
@@ -51,7 +51,7 @@ config_cmd="./configure --with-purpose=$purp $lustre"
 if [[ $purp = "LUSTRE_HSM" && $lustre = "--disable-lustre" ]]; then echo "skipping conflicting switches: $config_cmd"; continue; fi
 
 echo "TEST: $config_cmd"
- 
+
 (CFLAGS="$CFLAGS_OPT" $config_cmd && make rpm ) 2>&1 | grep -v Werror | grep -v "unused variable" |  grep -v "not used" | egrep -i 'error|warning' \
 		&& ( echo FAILED; ERRORS="$ERRORS Error using compilation switches:$config_cmd\n" )
 
@@ -71,10 +71,10 @@ echo "Now testing advanced compilation switches"
 # advanced switches
 
 for purp in $purp_list; do
-for lustre in "--enable-lustre" "--disable-lustre"; do 
-for fid in "--disable-fid-support" "--enable-fid-support"; do 
-for chglog in "--disable-changelogs" "--enable-changelogs"; do 
-for db in MYSQL SQLITE; do 
+for lustre in "--enable-lustre" "--disable-lustre"; do
+for fid in "--disable-fid-support" "--enable-fid-support"; do
+for chglog in "--disable-changelogs" "--enable-changelogs"; do
+for db in MYSQL SQLITE; do
 for mdsstat in "--disable-mds-stat" "--enable-mds-stat"; do
 
 config_cmd="./configure --with-db=$db --with-purpose=$purp $lustre $fid $chglog $mdsstat"

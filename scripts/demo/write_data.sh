@@ -22,7 +22,7 @@ FILE_SZ_MB=2 # file size
 function mksubtree
 {
     local DIR=$1
-    local LVL=$2 
+    local LVL=$2
     local d
     local f
 
@@ -34,7 +34,7 @@ function mksubtree
 		echo "ERROR $!"
            fi
            sleep 1
-        done 
+        done
     else
         for d in `seq 1 $SUBDIRS`; do
             mkdir -p $DIR/dir.$d

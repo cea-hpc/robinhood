@@ -25,7 +25,7 @@ TIME_START=`date +%s.%N`
 function mksubtree
 {
     local DIR=$1
-    local LVL=$2 
+    local LVL=$2
     local d
     local f
 
@@ -42,7 +42,7 @@ function mksubtree
 		sec=`echo $now - $TIME_START | bc -l`
 		echo "$TOTAL_FILES files created in $sec s"
 	    fi
-        done 
+        done
     else
         for d in `seq 1 $SUBDIRS`; do
             mkdir -p $DIR/dir.$d

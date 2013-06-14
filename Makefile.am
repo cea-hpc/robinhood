@@ -77,4 +77,4 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 
 
 
-#	goodies/vim/robinhood.vim cfg_templates/example.conf 
+#	goodies/vim/robinhood.vim cfg_templates/example.conf

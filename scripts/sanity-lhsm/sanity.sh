@@ -34,7 +34,7 @@ function rh_setup
    LOGIN="robinhood"
    PASS="robinhood"
    rh_prereq_check
-   
+
    # database setup
    mysqladmin create $RH_DB || error "Error creating robinhood DB"
    mysql $RH_DB > /dev/null << EOF
@@ -84,19 +84,19 @@ function test1
     # create new files in lustre
     for i in $(seq 1 10); do
        dd if=/dev/zero of=/mnt/lustre/file.$i bs=1M count=10
-    done 
+    done
     sleep 1
     # read changelogs
     $RH -f $RH_CFG --readlog --once || error "Error reading events"
     # check their status in database
     nb_new=$($RH-report -f $RH_CFG --dump-status=new -P "/mnt/lustre" | tee /dev/tty \
          | grep file| wc -l)
-    [ $nb_new -eq 10 ] || error "10 new files expected, $nb_new found" 
+    [ $nb_new -eq 10 ] || error "10 new files expected, $nb_new found"
     # now archive them
     $RH -f $RH_CFG --sync || error "Error archiving files"
     nb_migr=$($RH-report -f $RH_CFG --dump-status=archiving -P "/mnt/lustre" |\
               tee /dev/tty | grep file| wc -l)
-    [ $nb_migr -eq 10 ] || error "10 files copy running expected, $nb_migr found" 
+    [ $nb_migr -eq 10 ] || error "10 files copy running expected, $nb_migr found"
     # wait for archiving operations to complete (timeout=30s)
     for timeo in $(seq 1 30); do
     	# check for HSM records (without clearing the log)
@@ -106,12 +106,12 @@ function test1
     done
     hsm_cnt=$(lfs changelog lustre | grep HSM | wc -l)
     [ $hsm_cnt -ge 10 ] || error "timeout reached, not enough HSM events"
-    
+
     # 'HSM' events should have been raised
     $RH -f $RH_CFG --readlog --once || error "Error reading events"
     nb_done=$($RH-report -f $RH_CFG --dump-status=sync -P "/mnt/lustre" \
               | tee /dev/tty | grep file| wc -l)
-    [ $nb_done -eq 10 ] || error "10 archived files expected, $nb_done found" 
+    [ $nb_done -eq 10 ] || error "10 archived files expected, $nb_done found"
 
     # now purge archived entries
     $RH -f $RH_CFG --purge-fs=0 --ignore-policies || error "Error purging entries"

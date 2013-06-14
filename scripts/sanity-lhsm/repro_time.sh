@@ -107,7 +107,7 @@ function test1
     echo "Log content after hsm_release:"
     lfs changelog lustre
     echo "=========================="
-   
+
 }
 
 rm -rf /mnt/lustre/*
