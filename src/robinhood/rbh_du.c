@@ -614,9 +614,16 @@ static int list_content(char ** id_list, int id_count)
 
             ids[i].fullname = id_list[i];
         } else {
-            /* TODO: if it's an ID, get the path. And may need to remove
-             * trailing slashes, like find does. */
-            abort();
+            /* Take it as an FID. */
+            char path[RBH_PATH_MAX];
+            rc = Lustre_GetFullPath( &ids[i].id, path, sizeof(path));
+            if (rc) {
+                DisplayLog(LVL_MAJOR, DU_TAG, "Invalid parameter: %s: %s",
+                           id_list[i], strerror(-rc));
+                goto out;
+            }
+
+            ids[i].fullname = strdup(path);
         }
 
         if (entry_id_equal(&ids[i].id, &root_id))
