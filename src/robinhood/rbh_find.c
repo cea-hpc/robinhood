@@ -1201,9 +1201,10 @@ int main( int argc, char **argv )
 
     if (argc == optind)
     {
-        /* TODO: find will start from then local dir. Older version of
-         * RH would dump the whole database, which we can't do. */
-        abort();
+        char *id = config.global_config.fs_path;
+        mkfilters(TRUE); /* exclude dirs */
+        /* no path specified, list all entries */
+        rc = list_content(&id, 1);
     }
     else
     {
