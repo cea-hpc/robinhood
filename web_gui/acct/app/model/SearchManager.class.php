@@ -34,6 +34,13 @@ class SearchManager
     */
     public function getStatistics( $user, $group, $path )
     {
+        # added by azet@azet.org (18.6.2013):
+        # escape _POST input to prevent SQL injection. 
+        # using PDO::quote would be nice, but look at that select function m(
+        $user_safe  = mysql_real_escape_string($user);
+        $group_safe = mysql_real_escape_string($group);
+        $path_safe  = mysql_real_escape_string($path);
+
         $db_result = $this->db_request->select( array( OWNER => $user, GROUP => $group, PATH => $path), MAIN_TABLE, null, null, null, MAX_SEARCH_RESULT );
         $this->rowNumber = $this->db_request->getRowNumber();
         return $db_result;
