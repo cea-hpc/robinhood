@@ -3340,6 +3340,15 @@ function test_unlink
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
+    # Now create one hardlink, then remove it, but do not run RH in between.
+	ln "$ROOT/foo1" "$ROOT/foo2"
+	rm "$ROOT/foo2"
+	# check nlink == 1
+	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	nlink=$( cat report.out | awk '{ print $4; }' )
+	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
+
     rm -f report.out find.out
 }
 

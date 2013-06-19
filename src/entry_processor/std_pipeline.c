@@ -945,6 +945,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         if (logrec->cr_type == CL_UNLINK && p_op->check_if_last_entry)
             p_op->db_attr_need |= ATTR_MASK_nlink;
 
+        /* If it's a hard link, we will need the hlink so we can
+         * increment it. Will override the fs value. */
+        if ( logrec->cr_type == CL_HARDLINK ) {
+            p_op->db_attr_need |= ATTR_MASK_nlink;
+        }
+
         /* Only need to get md_update if the update policy != always */
         if (policies.updt_policy.md.policy != UPDT_ALWAYS)
             p_op->db_attr_need |= ATTR_MASK_md_update;
@@ -1833,6 +1839,27 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR_MASK_UNSET( &p_op->fs_attrs, creation_time );
 #endif
     p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
+
+    /* handle nlink. We don't want the values from the filesystem if
+     * we're not doing a scan. */
+    if ( p_op->extra_info.is_changelog_record ) {
+        CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
+
+        if (logrec->cr_type == CL_CREATE) {
+            /* New file. Hardlink is always 1. */
+            ATTR_MASK_SET(&p_op->fs_attrs, nlink);
+            ATTR(&p_op->fs_attrs, nlink) = 1;
+        }
+#ifdef ATTR_INDEX_nlink
+        else if ((logrec->cr_type == CL_HARDLINK) &&
+                 (ATTR_MASK_TEST(&p_op->db_attrs, nlink))) {
+            /* New hardlink. Add 1 to existing value. Ignore what came
+             * from the FS, since it can be out of sync by now. */
+            ATTR_MASK_SET(&p_op->fs_attrs, nlink);
+            ATTR(&p_op->fs_attrs, nlink) = ATTR(&p_op->db_attrs, nlink) + 1;
+        }
+#endif
+    }
 
     /* Only update fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
