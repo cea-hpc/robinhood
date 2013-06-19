@@ -348,31 +348,38 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         ATTR_MASK_INIT( &op->fs_attrs );
 
         /* if this is an initial scan, don't rm old entries (but flush pipeline still) */
-        /* NB: don't clean old entries for partial scan: dangerous if
-         * files have been moved from one partition to another */
-#ifdef HAVE_RM_POLICY
-        if (fsscan_nogc || is_first_scan || partial_scan_root)
-#else
         if (fsscan_nogc || (is_first_scan && !partial_scan_root))
-#endif
+        {
+            op->gc_entries = FALSE;
+            op->gc_names = FALSE;
             op->callback_param = ( void * ) "End of flush";
+        }
         else
         {
+            op->gc_names = TRUE;
+
+#ifdef HAVE_RM_POLICY
+            /* Don't clean old entries for partial scan: dangerous if
+             * files have been moved from one part of the namespace to another.
+             * Clean names, however.
+             */
+            if (partial_scan_root)
+                op->gc_entries = FALSE;
+            else
+#endif
+            op->gc_entries = TRUE;
+
             /* set the timestamp of scan in (md_update attribute) */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
             ATTR( &op->fs_attrs, md_update ) = scan_start_time;
         }
 
-    /* don't clean old entries for partial scan: dangerous if
-     * files have been moved from one partition to another */
-#ifndef HAVE_RM_POLICY
         /* set root (if partial scan) */
         if (partial_scan_root)
         {
             ATTR_MASK_SET( &op->fs_attrs, fullpath );
             strcpy(ATTR(&op->fs_attrs, fullpath), partial_scan_root);
         }
-#endif
 
         /* set wait db flag */
         set_db_wait_flag(  );

@@ -32,8 +32,8 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
-#define BUILD_RECOV_LIST_FIELDS "one_path(id) as fullpath,owner,gr_name,size,last_mod,type,mode,status,backendpath,link,stripe_count,stripe_size,pool_name"
-#define GET_RECOV_LIST_FIELDS "fullpath,owner,gr_name,size,last_mod,type,mode,status,backendpath,link,stripe_count,stripe_size,pool_name"
+#define BUILD_RECOV_LIST_FIELDS "CONCAT_WS('/','%s',one_path(%s.id)) as fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
+#define GET_RECOV_LIST_FIELDS "fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define RECOV_FIELD_COUNT 13
 
 
@@ -286,23 +286,25 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     if (filter_stripe_items > 0)
     {
         /* need to select only 1 instance of each object when joining with STRIPE_ITEMS */
-        strcpy(query, "CREATE TABLE "RECOV_TABLE
+        sprintf(query, "CREATE TABLE "RECOV_TABLE
             " SELECT DISTINCT("MAIN_TABLE".id)," BUILD_RECOV_LIST_FIELDS
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
             "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)"
             " LEFT JOIN "STRIPE_ITEMS_TABLE" ON "
-            "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)");
+            "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)",
+            global_config.fs_path, MAIN_TABLE);
     }
     else
     {
-        strcpy(query, "CREATE TABLE "RECOV_TABLE
+        sprintf(query, "CREATE TABLE "RECOV_TABLE
             " SELECT "MAIN_TABLE".id," BUILD_RECOV_LIST_FIELDS
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
-            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)");
+            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)",
+            global_config.fs_path, MAIN_TABLE);
     }
 
     if (filter_main > 0 || filter_annex > 0 || filter_stripe_info > 0 || filter_stripe_items > 0)
@@ -410,6 +412,9 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
         curr += sprintf( curr, "recov_status IS NULL" );
 
     if ( dir_path )
+    {
+        /* FIXME recovery table contains relative path,
+         * and dirpath is aboslute. Change it to relative. */
 #ifdef _MYSQL
         /* MySQL is case insensitive.
          * To force case-sensitivity, use BINARY keyword. */
@@ -417,6 +422,7 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
 #else
         curr += sprintf( curr, " AND fullpath LIKE '%s/%%'", dir_path );
 #endif
+    }
 
     /* allocate a new iterator */
     it = ( lmgr_iterator_t * ) MemAlloc( sizeof( lmgr_iterator_t ) );

@@ -1415,7 +1415,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* early check using DB info */
     SKIP_SPECIAL_OBJ(p_op, skip_record);
 
-    DisplayLog( LVL_FULL, ENTRYPROC_TAG,
+    DisplayLog(LVL_FULL, ENTRYPROC_TAG,
         DFID": Getattr=%u, Getpath=%u, Readlink=%u"
 #ifdef ATTR_INDEX_status
         ", GetStatus=%u"
@@ -1571,12 +1571,17 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (NEED_GETSTATUS(p_op))
     {
 #ifdef _HSM_LITE
-        attr_set_t new_attrs;
+        attr_set_t merged_attrs; /* attrs from FS+DB */
+        attr_set_t new_attrs; /* attrs from backend */
+
+        ATTR_MASK_INIT(&merged_attrs);
         ATTR_MASK_INIT(&new_attrs);
 
+        ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
+        ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
+
         /* get entry status */
-        rc = rbhext_get_status( &p_op->entry_id, &p_op->fs_attrs,
-                                &new_attrs );
+        rc = rbhext_get_status( &p_op->entry_id, &merged_attrs, &new_attrs );
 #elif defined(_LUSTRE_HSM)
         rc = LustreHSM_GetStatus( path, &ATTR( &p_op->fs_attrs, status ),
                                   &ATTR( &p_op->fs_attrs, no_release ),
@@ -1928,26 +1933,21 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
         break;
     case OP_TYPE_SOFT_REMOVE:
+
+        if (log_config.debug_level >= LVL_DEBUG) {
+            char buff[2*RBH_PATH_MAX];
+            PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs,
+                       ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name
 #ifdef _HSM_LITE
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID", path=%s, bkpath=%s)",
-                    PFID(&p_op->entry_id),
-                    ATTR_FSorDB_TEST( p_op, fullpath )?ATTR_FSorDB(p_op, fullpath):"",
-                    ATTR_FSorDB_TEST( p_op, backendpath )?ATTR_FSorDB(p_op, backendpath):"" );
-        rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id,
-                ATTR_FSorDB_TEST( p_op, fullpath )?ATTR_FSorDB(p_op, fullpath):NULL,
-                ATTR_FSorDB_TEST( p_op, backendpath )?ATTR_FSorDB(p_op, backendpath):NULL,
-                time(NULL) + policies.unlink_policy.deferred_remove_delay ) ;
-#elif defined(_LUSTRE_HSM) /* Lustre-HSM */
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID", path=%s)",
-                    PFID(&p_op->entry_id),
-                    ATTR_FSorDB_TEST( p_op, fullpath )?ATTR_FSorDB(p_op, fullpath):"");
-        rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id,
-                ATTR_FSorDB_TEST( p_op, fullpath )?ATTR_FSorDB(p_op, fullpath):NULL,
-                time(NULL) + policies.unlink_policy.deferred_remove_delay ) ;
-#else
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "SoftRemove operation not supported in this mode!" );
-        rc = -1;
+                       | ATTR_MASK_backendpath
 #endif
+                    , 1);
+            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
+                        PFID(&p_op->entry_id), buff);
+        }
+
+        rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id, &p_op->fs_attrs,
+                                 time(NULL) + policies.unlink_policy.deferred_remove_delay );
         break;
     default:
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type );
@@ -2036,20 +2036,26 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (entry_proc_conf.diff_mask)
         cb = mass_rm_cb;
 
-    /* if md_update is not set, this is just an empty op to wait for
-     * pipeline flush => don't rm old entries */
-    if (ATTR_MASK_TEST(&p_op->fs_attrs, md_update))
+    /* If gc_entries or gc_names are not set,
+     * this is just a special op to wait for pipeline flush.
+     * => don't clean old entries */
+    if (p_op->gc_entries || p_op->gc_names)
     {
-
         lmgr_simple_filter_init( &filter );
 
-        /* remove entries from all tables that have not been seen during the scan */
-        val.value.val_uint = ATTR( &p_op->fs_attrs, md_update );
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN_STRICT, val, 0 );
+        if (p_op->gc_entries)
+        {
+            /* remove entries from all tables that have not been seen during the scan */
+            val.value.val_uint = ATTR( &p_op->fs_attrs, md_update );
+            lmgr_simple_filter_add( &filter, ATTR_INDEX_md_update, LESSTHAN_STRICT, val, 0 );
+        }
 
-        /* use the same timestamp for cleaning paths that have not been seen during the scan */
-        val.value.val_uint = ATTR( &p_op->fs_attrs, md_update );
-        lmgr_simple_filter_add( &filter, ATTR_INDEX_path_update, LESSTHAN_STRICT, val, 0 );
+        if (p_op->gc_names)
+        {
+            /* use the same timestamp for cleaning paths that have not been seen during the scan */
+            val.value.val_uint = ATTR( &p_op->fs_attrs, md_update );
+            lmgr_simple_filter_add( &filter, ATTR_INDEX_path_update, LESSTHAN_STRICT, val, 0 );
+        }
 
         /* partial scan: remove non-updated entries from a subset of the namespace */
         if (ATTR_MASK_TEST( &p_op->fs_attrs, fullpath ))
@@ -2073,8 +2079,6 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         else
     #endif
             rc = ListMgr_MassRemove(lmgr, &filter, cb);
-
-        /* /!\ TODO : entries must be removed from backend too */
 
         lmgr_simple_filter_free( &filter );
 

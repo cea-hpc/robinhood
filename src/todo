@@ -2,11 +2,8 @@
 - non reg test for OST sets
 - backport recent modes to std_pipeline to diff pipeline.
 - restore bulk search in rbh-find as a new option
-- test BACKUP and HSM modes
+- hardlink management in policies, recovery, etc.
 - check how mknode'd entries and handled by backup mode and rbh-diff
-- mass_soft_remove
-
-- verifier comportement du pipeline dans le traitement des changelogs, etc...
 
 - recovery MDT with HSM: set status of files
 - recov-tools: must reset fid of OST objects after MDS recovery

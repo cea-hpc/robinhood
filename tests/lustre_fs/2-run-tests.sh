@@ -133,7 +133,7 @@ function error_reset
 function error
 {
 	echo "ERROR $@"
- 	grep -i error *.log | grep -v "(0 errors)"
+ 	grep -i error *.log | grep -v "(0 errors)" | grep -v "LastScanErrors"
 	NB_ERROR=$(($NB_ERROR+1))
 
 	if (($junit)); then
@@ -734,6 +734,7 @@ function link_unlink_remove_test
 	expected_rm=$2
 	sleep_time=$3
 	policy_str="$4"
+    cl_delay=6 # time between action and its impact on rbh-report
 
 	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
@@ -758,7 +759,7 @@ function link_unlink_remove_test
 	echo "2-Writing data to file.1..."
 	dd if=/dev/zero of=$ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.1"
 
-	sleep 1
+	sleep $cl_delay
 
 	if (( $is_lhsm != 0 )); then
 		echo "3-Archiving file....1"
@@ -782,7 +783,7 @@ function link_unlink_remove_test
         echo "5-Removing all links to file.1..."
 	rm -f $ROOT/link.* $ROOT/file.1 
 
-	sleep 2
+	sleep $cl_delay
 	
 	echo "Checking report..."
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
@@ -2230,6 +2231,7 @@ function test_size_updt
 	config_file=$1
 	event_read_delay=$2
 	policy_str="$3"
+    cl_delay=6 # time between action and its impact on rbh-report
 
 	init=`date "+%s"`
 
@@ -2252,8 +2254,8 @@ function test_size_updt
     [ "$DEBUG" = "1" ] && $FIND $ROOT/file -f ./cfg/$config_file -ls
     size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
     if [ -z "$size" ]; then
-       echo "db not yet updated, waiting one more second..." 
-       sleep 1
+       echo "db not yet updated, waiting changelog processing delay ($cl_delay sec)..." 
+       sleep $cl_delay
        size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
     fi
 
@@ -2893,6 +2895,17 @@ function scan_chk
 	clean_logs
 }
 
+function diff_chk
+{
+    config_file=$1
+
+    echo "Scanning with rbh-diff..."
+    $DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_chglogs.log  2>&1 || error "scanning filesystem"
+    grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
+    clean_logs
+}
+
+
 function test_info_collect2
 {
 	config_file=$1
@@ -2914,6 +2927,7 @@ function test_info_collect2
 	# flavor 2: mixed (readlog/scan/readlog/scan)
 	# flavor 3: mixed (readlog/readlog/scan/scan)
 	# flavor 4: mixed (scan/scan/readlog/readlog)
+	# flavor 5: diff --apply=db x2
 
 	if (( $flavor == 1 )); then
 		scan_chk $config_file
@@ -2940,6 +2954,9 @@ function test_info_collect2
 		# touch entries before reading log again
 		../fill_fs.sh $ROOT 10000 >/dev/null
 		readlog_chk $config_file
+	elif (( $flavor == 5 )); then
+        diff_chk $config_file
+        diff_chk $config_file
 	else
 		error "Unexpexted test flavor '$flavor'"
 	fi
@@ -3131,6 +3148,7 @@ function test_rename
 
     dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir.rnm"
     files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2  $ROOT/dir.2/file.3  $ROOT/dir.2/link_file $ROOT/dir.3/subdir.rnm/file.1"
+    deleted="$ROOT/dir.2/file.2"
 
     # create several files/dirs
     echo "1. Creating initial objects..."
@@ -3138,14 +3156,33 @@ function test_rename
     touch $files $hlink_ref || error "touch $files $hlink_ref"
     ln $hlink_ref $hlink || error "hardlink $hlink_ref $hlink"
 
+    # get fid of deleted entries
+    rmid=`get_id "$deleted"`
+
     # readlog or scan
     if [ "$flavor" = "readlog" ]; then
         echo "2. Reading changelogs..."
     	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    elif [ "$flavor" = "diff" ]; then
+        echo "2. Diff..."
+    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     else
         echo "2. Scanning initial state..."
     	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
     fi
+
+	if (( $is_lhsm != 0 )); then
+		echo "  -archiving all data"
+		flush_data
+		lfs hsm_archive $files || error "executing lfs hsm_archive"
+		echo "  -Waiting for end of data migration..."
+		wait_done 60 || error "Migration timeout"
+	elif (( $is_hsmlite != 0 )); then
+		echo "  -archiving all data"
+		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
+        [ "$DEBUG" = "1" ] && find $BKROOT -type f -ls
+	fi
+
 
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
@@ -3182,7 +3219,7 @@ function test_rename
     mv -f $ROOT/dir.2/file.4 $hlink
 
     # namespace GC needs 1s difference
-    [ "$flavor" = "scan" ] && sleep 1
+    sleep 1
 
     # readlog or re-scan
     if [ "$flavor" = "readlog" ]; then
@@ -3191,6 +3228,9 @@ function test_rename
     elif [ "$flavor" = "scan" ]; then
         echo "4. Scanning again..."
     	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    elif [ "$flavor" = "diff" ]; then
+        echo "4. Diffing again..."
+    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     elif [ "$flavor" = "partial" ]; then
         i=0
         for d in $dirs_tgt; do
@@ -3200,9 +3240,18 @@ function test_rename
             echo "4.$i Partial scan ($d)..."
         	$RH -f ./cfg/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
         done
+    elif [ "$flavor" = "partdiff" ]; then
+        i=0
+        for d in $dirs_tgt; do
+            # namespace GC needs 1s difference
+            sleep 1
+            ((i++))
+            echo "4.$i Partial diff+apply ($d)..."
+        	$DIFF -f ./cfg/$config_file --scan=$d --apply=db -l DEBUG  > rh_scan.log 2>&1 || error "scanning $d"
+        done
     fi
 
-    if [ "$flavor" = "partial" ]; then
+    if [ "$flavor" = "partial" ] || [ "$flavor" = "diffpart" ]; then
         # entries with no path may appear with partial scans
         $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out || error "$REPORT"
     else
@@ -3218,6 +3267,26 @@ function test_rename
         grep -E " $o$" report.out > /dev/null || error "$o not found in report"
         grep -E " $o$" find.out > /dev/null || error "$o not found in report"
     done
+
+    grep "\[$rmid\]" find.out && error "id of deleted file ($rmid) found in rbh-find output"
+	if (( $is_lhsm + $is_hsmlite == 1 )); then
+		# additionally check that the entry is scheduled for deferred rm (and only this one)
+	    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+
+        # The following test is not critical for partial scanning
+        # In the worst case, the deleted entry remains in the archive.
+        if [ "$flavor" = "partial" ] || [ "$flavor" = "diffpart" ]; then
+            grep "\[$rmid\]" rh_report.log > /dev/null || echo "WARNING: $rmid should be in HSM rm list"
+        else
+            # in the other cases, raise an error
+            grep "\[$rmid\]" rh_report.log > /dev/null || error "$rmid should be in HSM rm list"
+        fi
+
+        # the following is the most CRITICAL, as this would result in removing archived entries
+        # for existing file!
+        grep -v "\[$rmid\]" rh_report.log && error "Existing entries are in HSM rm list!!!"
+	fi
+
     count_nb_final=$(wc -l report.out | awk '{print $1}')
     count_path_final=$(wc -l find.out | awk '{print $1}')
 
@@ -3301,6 +3370,8 @@ function test_hardlinks
     hlinks_tgt=("$ROOT/dir.1/link.1 $ROOT/dir.2/link.1 $ROOT/dir.4/link.1" "$ROOT/dir.4/link.new")
         # only previous [1] remaining as [0], [1] is a new link
 
+    deleted="$ROOT/dir.2/file.2 $ROOT/dir.4/file.3"
+
     # create several files/dirs
     echo "1. Creating initial objects..."
     mkdir $dirs || error "mkdir $dirs"
@@ -3315,14 +3386,36 @@ function test_hardlinks
         ((i++))
     done
 
+    # get id of deleted entries
+    rmids=""
+    for f in $deleted; do
+        rmids="$rmids `get_id $f`"
+    done
+    [ "$DEBUG" = "1" ] && echo "ids to be deleted: $rmids"
+
     # readlog or scan
     if [ "$flavor" = "readlog" ]; then
         echo "2. Reading changelogs..."
     	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    elif [ "$flavor" = "diff" ]; then
+        echo "2. Diff..."
+    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     else
         echo "2. Scanning initial state..."
     	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
     fi
+
+	if (( $is_lhsm != 0 )); then
+		echo "  -archiving all data"
+		flush_data
+		lfs hsm_archive $files || error "executing lfs hsm_archive"
+		echo "  -Waiting for end of data migration..."
+		wait_done 60 || error "Migration timeout"
+	elif (( $is_hsmlite != 0 )); then
+		echo "  -archiving all data"
+		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
+        [ "$DEBUG" = "1" ] && find $BKROOT -type f -ls
+	fi
 
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
@@ -3384,7 +3477,7 @@ function test_hardlinks
     ((nb_ln++))
 
     # namespace GC needs 1s difference
-    [ "$flavor" = "scan" ] && sleep 1
+    sleep 1
 
     # readlog or re-scan
     if [ "$flavor" = "readlog" ]; then
@@ -3393,6 +3486,9 @@ function test_hardlinks
     elif [ "$flavor" = "scan" ]; then
         echo "4. Scanning again..."
     	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    elif [ "$flavor" = "scan" ]; then
+        echo "4. Diffing again..."
+    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     elif [ "$flavor" = "partial" ]; then
         i=0
         for d in $dirs_tgt; do
@@ -3402,9 +3498,18 @@ function test_hardlinks
             echo "4.$i Partial scan ($d)..."
         	$RH -f ./cfg/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
         done
+    elif [ "$flavor" = "partdiff" ]; then
+        i=0
+        for d in $dirs_tgt; do
+            # namespace GC needs 1s difference
+            sleep 1
+            ((i++))
+            echo "4.$i Partial diff+apply ($d)..."
+        	$DIFF -f ./cfg/$config_file --scan=$d --apply=db -l DEBUG  > rh_scan.log 2>&1 || error "scanning $d"
+        done
     fi
 
-    if [ "$flavor" = "partial" ]; then
+    if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ] ; then
         # entries with no path may appear with partial scans
         $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out || error "$REPORT"
     else
@@ -3422,6 +3527,35 @@ function test_hardlinks
         grep -E " $o$" report.out > /dev/null || error "$o not found in report"
         grep -E " $o$" find.out > /dev/null || error "$o not found in find"
     done
+
+    for f in $rmids; do
+        grep "\[$f\]" find.out && error "deleted id ($f) found in find output"
+    done
+
+    if (( $is_lhsm + $is_hsmlite == 1 )); then
+        # check that removed entries are scheduled for HSM rm
+        $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+        for f in $rmids; do
+
+            # The following test is not critical for partial scanning
+            # In the worst case, the deleted entry remains in the archive.
+            if [ "$flavor" = "partial" ] || [ "$flavor" = "diffpart" ]; then
+                grep "\[$f\]" rh_report.log > /dev/null || echo "WARNING: $f should be in HSM rm list"
+            else
+                # in the other cases, raise an error
+                grep "\[$f\]" rh_report.log > /dev/null || error "$f should be in HSM rm list"
+            fi
+
+            grep -v "\[$f\]" rh_report.log > rh_report.log.1
+            mv rh_report.log.1 rh_report.log
+        done
+        left=$(wc -l rh_report.log | awk '{print $1}')
+        if (($left > 0)); then
+            error "Some existing entries are scheduled for HSM rm!!!"
+            cat rh_report.log
+        fi
+    fi
+    
 
     i=0
     while [ -n "${hlink_refs_tgt[$i]}" ]; do
@@ -3859,6 +3993,16 @@ function test_cfg_parsing
 
 }
 
+function check_recov_status
+{
+    local log="$1"
+    local p="$2"
+    local exp="$3"
+
+    grep "Restoring $p" $log | egrep -e "$exp" > /dev/null || error "Bad status for $p (expected: <$exp> in <$(grep "Restoring $p" $log)>)"
+    return $?
+}
+
 function recovery_test
 {
     config_file=$1
@@ -4087,31 +4231,30 @@ function recovery_test
     # checking status and diff result
     for i in `seq 1 $total`; do
         if (( $i <= $nb_full )); then
-            grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "OK\$"
             grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
-            grep "Restoring $ROOT/dir.$i/link.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link.$i (non-file OK expected)"
+            check_recov_status recov.log "$ROOT/dir.$i/link.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
-            grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log    | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
-            grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i NOT expected to differ"
+            check_recov_status recov.log "$ROOT/dir.new_$i/file_new.$i" "OK\$"
             grep "$ROOT/dir.new$i/link_new.$i" /tmp/diff.$$ && error "$ROOT/dir_new.$i/link_new.$i NOT expected to differ"
-            grep "Restoring $ROOT/dir.new_$i/link_new.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link_new.$i (non-file OK expected)"
+            check_recov_status recov.log "$ROOT/dir.new_$i/link_new.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-            grep "Restoring $ROOT/dir.$i/file.$i" recov.log    | grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
+            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "OK \(old version\)"
             grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
-            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i NOT expected to differ"
-            grep "Restoring $ROOT/dir.$i/link.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link.$i (non-file OK expected)"
+            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/link.$i NOT expected to differ"
+            check_recov_status recov.log "$ROOT/dir.$i/link.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-            grep "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
+            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "No backup"
             grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
-            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i NOT expected to differ"
-            grep "Restoring $ROOT/dir.$i/link.$i" recov.log | grep "OK (non-file)" >/dev/null || error "Bad status for link.$i (non-file OK expected)"
+            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/link.$i NOT expected to differ"
+            check_recov_status recov.log "$ROOT/dir.$i/link.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty)) )); then
-            grep "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "OK (empty file)" >/dev/null || error "Bad status for file.$i (empty file OK expected)"
+            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "OK \(empty file\)"
             grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i is NOT expected to differ"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty+$nb_empty_rename)) )); then
-            grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log | grep "OK (empty file)" >/dev/null || error "Bad status for file.$i (empty file OK expected)"
+            check_recov_status recov.log "$ROOT/dir.new_$i/file_new.$i" "OK \(empty file\)"
             grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i is NOT expected to differ"
         fi
     done
@@ -7278,12 +7421,13 @@ run_test 101a    test_info_collect2  info_collect2.conf  1 "scan x3"
 run_test 101b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
 run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
 run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
+run_test 101e 	test_info_collect2  info_collect2.conf	5 "diff+apply x2"
 run_test 102	update_test test_updt.conf 5 30 "db update policy"
 run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
 run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
 run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
-run_test 104     test_size_updt common.conf 1 "test size update"
+run_test 104     test_size_updt test_updt.conf 1 "test size update"
 run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/unlink"
 run_test 106     test_diff info_collect2.conf "rbh-diff"
 run_test 107a    test_completion test_completion.conf OK "scan completion command"
@@ -7291,9 +7435,13 @@ run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion
 run_test 108a    test_rename info_collect.conf scan "rename cases (scan)"
 run_test 108b    test_rename info_collect.conf readlog "rename cases (readlog)"
 run_test 108c    test_rename info_collect.conf partial "rename cases (partial scans)"
+run_test 108d    test_rename info_collect.conf diff "rename cases (diff+apply)"
+run_test 108e    test_rename info_collect.conf partdiff "rename cases (partial diffs+apply)"
 run_test 109a    test_hardlinks info_collect.conf scan "hardlinks management (scan)"
 run_test 109b    test_hardlinks info_collect.conf readlog "hardlinks management (readlog)"
 run_test 109c    test_hardlinks info_collect.conf partial "hardlinks management (partial scans)"
+run_test 109d    test_hardlinks info_collect.conf diff "hardlinks management (diff+apply)"
+run_test 109e    test_hardlinks info_collect.conf partdiff "hardlinks management (partial diffs+apply)"
 run_test 110     test_unlink info_collect.conf "unlink (readlog)"
 
 #### policy matching tests  ####

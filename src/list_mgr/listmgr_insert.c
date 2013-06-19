@@ -116,6 +116,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
     attrmask2fieldlist( fields_curr, p_info->attr_mask, T_DNAMES, TRUE, FALSE, "", "" );
     attrset2valuelist( p_mgr, values_curr, p_info, T_DNAMES, TRUE );
 
+    // FIXME this update operation may delete column info if some are not specified
     static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), hname=sha1(name), path_update=VALUES(path_update)";
     sprintf( query, "INSERT INTO " DNAMES_TABLE "(%s, hname) VALUES (%s, sha1(name)) ON DUPLICATE KEY UPDATE %s", fields, values, set );
 

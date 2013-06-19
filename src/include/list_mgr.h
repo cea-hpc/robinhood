@@ -478,10 +478,7 @@ int            ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filte
  * \param real_remove_time time when the entry must be really removed.
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                   const char * last_known_path,
-#ifdef _HSM_LITE
-                                   const char * bkpath,
-#endif
+                                   attr_set_t * p_old_attrs,
                                    time_t real_remove_time );
 
 /**

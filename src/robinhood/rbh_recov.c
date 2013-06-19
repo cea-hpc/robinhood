@@ -416,6 +416,9 @@ static int recov_resume( int retry_errors )
         if ((st == RS_FILE_OK) || (st == RS_FILE_EMPTY) || (st == RS_NON_FILE)
             || (st == RS_FILE_DELTA))
         {
+            /* don't insert readonly attrs */
+            new_attrs.attr_mask &= ~readonly_attr_set;
+
             /* insert the entry in the database, and update recovery status */
             rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
             if (rc)

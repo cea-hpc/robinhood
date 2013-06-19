@@ -212,6 +212,22 @@ static inline int import_helper(const char       *backend_path,
     /* merge with source MD (but don't override) */
     if (src_md)
     {
+        /* if the entry is a symlink, get its content */
+        if (S_ISLNK(src_md->st_mode))
+        {
+            const size_t bufflen = sizeof(ATTR(&attrs, link));
+            rc = readlink(backend_path, ATTR(&attrs, link), bufflen);
+            if (rc >= 0)
+            {
+                if (rc >= bufflen)
+                    ATTR(&attrs, link)[bufflen-1] = '\0';
+                else
+                    ATTR(&attrs, link)[rc] = '\0';
+
+                ATTR_MASK_SET(&attrs, link);
+            }
+        }
+
         PosixStat2EntryAttr(src_md, &src_attrs, TRUE);
         ListMgr_MergeAttrSets( &attrs, &src_attrs, FALSE);
     }
@@ -221,6 +237,9 @@ static inline int import_helper(const char       *backend_path,
     if ( (st == RS_FILE_OK) || (st == RS_FILE_DELTA) || (st == RS_FILE_EMPTY) || (st == RS_NON_FILE) )
     {
         printf("\tSuccess\n");
+
+        /* don't insert readonly attrs */
+        new_attrs.attr_mask &= ~readonly_attr_set;
 
         /* insert or update it in the db */
         rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );

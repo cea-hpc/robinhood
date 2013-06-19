@@ -593,9 +593,10 @@ int result2attrset( table_enum table, char **result_tab,
     {
         if ( ( p_set->attr_mask & mask ) && ( MATCH_TABLE( table, i ) ) )
         {
-#ifdef _DEBUG_DB
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "result[%u] =  %s", nbfields, result_tab[nbfields] );
-#endif
+            if (result_tab)
+                DisplayLog(LVL_FULL, LISTMGR_TAG, "result[%u]: %s = %s", nbfields,
+                           field_infos[i].field_name?field_infos[i].field_name:"<null>",
+                           result_tab[nbfields]?result_tab[nbfields]:"<null>");
 
             /* Parse nbfield'th value */
             if ( nbfields >= res_count )
@@ -603,20 +604,15 @@ int result2attrset( table_enum table, char **result_tab,
                 return DB_BUFFER_TOO_SMALL;
             }
 
-            if ( (result_tab == NULL) || (result_tab[nbfields] == NULL) )
-            {
-                p_set->attr_mask &= ~( 1 << i );
-                nbfields++;
-                continue;
-            }
-
 #ifdef _LUSTRE
             if ( field_infos[i].db_type == DB_STRIPE_INFO )
             {
-                if ( result_tab[nbfields] == NULL
-                     || result_tab[nbfields+1] == NULL
-                     || result_tab[nbfields+2] == NULL )
+                if ((result_tab == NULL)
+                    || (result_tab[nbfields] == NULL)
+                    || (result_tab[nbfields+1] == NULL)
+                    || (result_tab[nbfields+2] == NULL))
                 {
+                    /* must skip 3 columns in this case */
                     p_set->attr_mask &= ~( 1 << i );
                     nbfields+=3;
                     continue;
@@ -632,11 +628,18 @@ int result2attrset( table_enum table, char **result_tab,
             }
             else
 #endif
-            if ( !parsedbtype( result_tab[nbfields], field_infos[i].db_type, &typeu ) )
+            if ((result_tab == NULL) || (result_tab[nbfields] == NULL))
+            {
+                p_set->attr_mask &= ~( 1 << i );
+                nbfields++;
+                continue;
+            }
+            else if ( !parsedbtype( result_tab[nbfields], field_infos[i].db_type, &typeu ) )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Error: cannot parse field value '%s' (position %u) for %s",
                             result_tab[nbfields], nbfields, field_infos[i].field_name );
+                abort();
                 p_set->attr_mask &= ~( 1 << i );
                 nbfields++;
                 continue;

@@ -128,10 +128,13 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
 
 /* macro for clarifying the code */
 #ifdef HAVE_RM_POLICY
+/* path is retrieved only for information: just get one of them */
 #ifdef _HSM_LITE
-#define SOFTRM_SAVED_FIELDS "fullpath, backendpath"
+#define BUILD_SOFTRM_FIELDS "one_path(%s.id) as fullpath, backendpath"
+#define GET_SOFTRM_FIELDS "fullpath, backendpath"
 #else
-#define SOFTRM_SAVED_FIELDS "fullpath"
+#define BUILD_SOFTRM_FIELDS "one_path(%s.id) as fullpath"
+#define GET_SOFTRM_FIELDS "fullpath"
 #endif
 
 /**
@@ -146,18 +149,20 @@ static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
     if ( annex_table )
     {
         sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-                 SOFTRM_SAVED_FIELDS ", soft_rm_time, real_rm_time) "
-                "(SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS", "
+                 GET_SOFTRM_FIELDS ", soft_rm_time, real_rm_time) "
+                "(SELECT "MAIN_TABLE".id, "BUILD_SOFTRM_FIELDS", "
                  "%u, %u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
                  " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
+                 MAIN_TABLE,
                  (unsigned int)time(NULL),
                  (unsigned int)due_time );
     }
     else
     {
        sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-                 SOFTRM_SAVED_FIELDS ", soft_rm_time, real_rm_time) "
-                 "(SELECT id, "SOFTRM_SAVED_FIELDS", %u, %u FROM "MAIN_TABLE")",
+                 GET_SOFTRM_FIELDS ", soft_rm_time, real_rm_time) "
+                 "(SELECT id, "BUILD_SOFTRM_FIELDS", %u, %u FROM "MAIN_TABLE")",
+                 MAIN_TABLE,
                  (unsigned int)time(NULL),
                  (unsigned int)due_time );
     }
@@ -248,7 +253,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     result_handle_t result;
     char          *field_tab[3]; /* 3 max: id, fullpath, backendpath */
     DEF_PK(pk);
-    unsigned int   rmcount;
+    unsigned int   rmcount = 0;
 
     /* This is needed for creating big temporary table.
      * Set READ COMMITTED isolation level for the next transaction
@@ -349,13 +354,18 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     curr_filter += strlen(curr_filter);
 #endif
 
-    if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0 )
+    /* sanity check */
+    if (filter_main + filter_annex + filter_stripe_info + filter_stripe_items
+        + filter_names == 0)
     {
         /* should have been detected in the beginning of this function ! */
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "How come empty filter has not been detected" );
         rc = DB_REQUEST_FAILED;
         goto rollback;
     }
+    else if (filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0)
+        /* its about names only */
+        goto clean_names;
 
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Creating temporary table" );
 
@@ -424,16 +434,15 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 #ifdef HAVE_RM_POLICY
     if ( soft_rm )
     {
-        /* FIXME fullpath: get all paths or one? */
         if (annex_table)
             sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "BUILD_SOFTRM_FIELDS
                  " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id = "ANNEX_TABLE".id"
-                 " WHERE %s", tmp_table_name, first_table, filter_str );
+                 " WHERE %s", tmp_table_name, first_table, first_table, filter_str );
         else
             sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS" FROM %s"
-                 " WHERE %s", tmp_table_name, first_table, from, filter_str );
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "BUILD_SOFTRM_FIELDS" FROM %s"
+                 " WHERE %s", tmp_table_name, first_table, first_table, from, filter_str );
     }
     else
 #endif
@@ -488,7 +497,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
 #ifdef HAVE_RM_POLICY
     if ( soft_rm )
-        sprintf( query, "SELECT id, "SOFTRM_SAVED_FIELDS" FROM %s", tmp_table_name );
+        sprintf( query, "SELECT id, "GET_SOFTRM_FIELDS" FROM %s", tmp_table_name );
     else
 #endif
         sprintf( query, "SELECT id FROM %s", tmp_table_name );
@@ -601,7 +610,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     if ( rc )
         goto rollback;
 
-
+clean_names:
     /* if there is a filter on names, clean them independantly, whatever the over filters */
     if (filter_names)
     {
@@ -621,9 +630,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         p_mgr->nbop[OPIDX_RM]+=rmcount;
     return rc;
 
-  free_res:
+free_res:
     db_result_free( &p_mgr->conn, &result );
-  rollback:
+rollback:
     lmgr_rollback( p_mgr );
     return rc;
 }
@@ -648,14 +657,11 @@ int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
  * Remove an entry from the main database, and insert it to secondary table
  * for delayed removal.
  * \param real_remove_time time when the entry must be really removed.
- * \param last_known_path last known path for this entry.
+ * \param p_old_attrs contains old attributes, parent+name and backendpath must be set.
  *        If NULL, it is retrieved from the database.
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                   const char * last_known_path,
-#ifdef _HSM_LITE
-                                   const char * bkpath,
-#endif
+                                   attr_set_t * p_old_attrs,
                                    time_t real_remove_time )
 {
     int rc;
@@ -666,18 +672,23 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     attr_set_t missing_attrs;
     ATTR_MASK_INIT( &missing_attrs );
 
-    if ( last_known_path )
-        entry_path = last_known_path;
+    /* last known path is needed for insertion in SOFT_RM table */
+    if (ATTR_MASK_TEST( p_old_attrs, fullpath ))
+        entry_path = ATTR(p_old_attrs, fullpath);
     else
+        ATTR_MASK_SET( &missing_attrs, fullpath );
+
+    /* this is needed for remove function */
+    if (!ATTR_MASK_TEST( p_old_attrs, parent_id)
+        || !ATTR_MASK_TEST( p_old_attrs, name))
     {
-        /* check if the previous entry had a parent+name */
         ATTR_MASK_SET( &missing_attrs, parent_id );
         ATTR_MASK_SET( &missing_attrs, name );
     }
 
 #ifdef _HSM_LITE
-    if ( bkpath )
-        backendpath = bkpath;
+    if (ATTR_MASK_TEST( p_old_attrs, backendpath ))
+        backendpath = ATTR(p_old_attrs, backendpath);
     else
         /* check if the previous entry had a path in backend */
         ATTR_MASK_SET( &missing_attrs, backendpath );
@@ -687,10 +698,10 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     {
         if ( ListMgr_Get( p_mgr, p_id, &missing_attrs ) == DB_SUCCESS )
         {
-            if ( ATTR_MASK_TEST( &missing_attrs, fullpath ) )
+            if ((entry_path == NULL) && ATTR_MASK_TEST(&missing_attrs, fullpath))
                 entry_path = ATTR(&missing_attrs, fullpath);
 #ifdef _HSM_LITE
-            if ( ATTR_MASK_TEST( &missing_attrs, backendpath ) )
+            if ((backendpath == NULL) && ATTR_MASK_TEST( &missing_attrs, backendpath ))
                 backendpath = ATTR(&missing_attrs, backendpath);
 #endif
         }
@@ -711,6 +722,9 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
         lmgr_rollback( p_mgr );
         return rc;
     }
+
+    /* merge old attrs to missing attrs (can overwrite) */
+    ListMgr_MergeAttrSets(&missing_attrs, p_old_attrs, TRUE);
 
     /* remove the entry from main tables, if it exists */
     rc = listmgr_remove_no_transaction( p_mgr, p_id, &missing_attrs, TRUE );

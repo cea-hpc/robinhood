@@ -174,6 +174,12 @@ typedef struct entry_proc_op_t
      * (extended records/CLF_RENAME_LAST). */
     unsigned int      check_if_last_entry:1;
 
+    /* for pipeline flush: indicate if not seen entries must be cleaned */
+    unsigned int      gc_entries:1;
+    /* for pipeline flush: indicate if not seen paths must be cleaned
+     * (preserve entries). Used for partial scans. */
+    unsigned int      gc_names:1;
+
     operation_type_t db_op_type;
     callback_func_t callback_func;
     void          *callback_param;

@@ -1736,6 +1736,14 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     ATTR_MASK_SET( p_attrs_new, parent_id );
     ATTR( p_attrs_new, parent_id ) = parent_id;
 
+    /* set name */
+    char * name = strrchr(ATTR(p_attrs_new, fullpath), '/');
+    if (name && *(name + 1) != '\0')
+    {
+        strncpy(ATTR( p_attrs_new, name ), name+1, RBH_NAME_MAX);
+        ATTR_MASK_SET(p_attrs_new, name);
+    }
+
 #ifdef _LUSTRE
     if (!ATTR_MASK_TEST( p_attrs_new, type) || !strcmp(ATTR(p_attrs_new, type), STR_TYPE_FILE))
     {
