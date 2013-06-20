@@ -40,17 +40,6 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     if (rc)
         return rc;
 
-    if (!p_attr_set || !ATTR_MASK_TEST(p_attr_set, parent_id) || !ATTR_MASK_TEST(p_attr_set, name))
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Missing mandatory attribute %s to ListMgr_Remove",
-                   !p_attr_set?"attr_set":ATTR_MASK_TEST(p_attr_set, parent_id)?"parent_id":"name");
-        return DB_INVALID_ARG;
-    }
-
-    rc = entry_id2pk( p_mgr, &ATTR( p_attr_set, parent_id ), FALSE, PTR_PK(ppk) );
-    if (rc)
-        return rc;
-
     if (last)
     {
         /* stripes are only managed for Lustre filesystems */
@@ -94,10 +83,20 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
 #endif
     }
 
-    sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE parent_id="DPK" AND hname=sha1('%s') AND id="DPK, ppk, ATTR( p_attr_set, name ), pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
-        return rc;
+    /* Allow removing entry from MAIN_TABLE without removing it from NAMES */
+    if (p_attr_set && ATTR_MASK_TEST(p_attr_set, parent_id) && ATTR_MASK_TEST(p_attr_set, name))
+    {
+        rc = entry_id2pk( p_mgr, &ATTR( p_attr_set, parent_id ), FALSE, PTR_PK(ppk) );
+        if (rc)
+            return rc;
+
+        sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE parent_id="DPK" AND hname=sha1('%s') AND id="DPK, ppk, ATTR( p_attr_set, name ), pk );
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+    }
+    else if (!p_attr_set || !ATTR_MASK_TEST(p_attr_set, parent_id) || !ATTR_MASK_TEST(p_attr_set, name))
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to delete entry from "DNAMES_TABLE);
 
     return rc;
 }

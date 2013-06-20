@@ -99,7 +99,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     }
 
     /* update names table */
-    if ( ATTR_MASK_TEST(p_update_set, name) )
+    if (ATTR_MASK_TEST(p_update_set, name) && ATTR_MASK_TEST(p_update_set, parent_id))
     {
         char          *fields_curr;
         char          *values_curr;
@@ -114,7 +114,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
         attrmask2fieldlist( fields_curr, p_update_set->attr_mask, T_DNAMES, TRUE, FALSE, "", "" );
         attrset2valuelist( p_mgr, values_curr, p_update_set, T_DNAMES, TRUE );
 
-        // FIXME this update operation may delete column info if some are not specified
+        // FIXME this update operation may zero column content if some values are not specified
         static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), hname=sha1(name), path_update=VALUES(path_update)";
         sprintf( query, "INSERT INTO " DNAMES_TABLE "(%s, hname) VALUES (%s, sha1(name)) ON DUPLICATE KEY UPDATE %s", fields, values, set );
 
@@ -122,6 +122,9 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
         if ( rc )
             goto rollback;
     }
+    else if (ATTR_MASK_TEST(p_update_set, name) || ATTR_MASK_TEST(p_update_set, parent_id))
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to update name information");
+
 
     /* update annex table (if any) */
     if ( annex_count > 0 )
