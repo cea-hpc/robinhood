@@ -919,6 +919,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
         rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
         break;
+#ifdef HAVE_RM_POLICY
         case OP_TYPE_SOFT_REMOVE:
             if (log_config.debug_level >= LVL_DEBUG) {
                 char buff[2*RBH_PATH_MAX];
@@ -935,6 +936,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id, &p_op->fs_attrs,
                                      time(NULL) + policies.unlink_policy.deferred_remove_delay );
             break;
+#endif
         default:
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type );
             rc = -1;

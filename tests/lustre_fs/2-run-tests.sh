@@ -4886,6 +4886,7 @@ function run_test
 		error_reset
 	
 		t0=`date "+%s.%N"`
+        echo "Test start: `date +'%F %H:%M:%S.%N'`"
 
 		if (($junit == 1)); then
 			# markup in log
@@ -4901,6 +4902,7 @@ function run_test
 
 		t1=`date "+%s.%N"`
 		dur=`echo "($t1-$t0)" | bc -l`
+        echo "Test end: `date +'%F %H:%M:%S.%N'`"
 		echo "duration: $dur sec"
 
 		if (( $DO_SKIP )); then

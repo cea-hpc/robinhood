@@ -1932,6 +1932,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "RemoveLast("DFID")", PFID(&p_op->entry_id) );
         rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
         break;
+#ifdef HAVE_RM_POLICY
     case OP_TYPE_SOFT_REMOVE:
 
         if (log_config.debug_level >= LVL_DEBUG) {
@@ -1949,6 +1950,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id, &p_op->fs_attrs,
                                  time(NULL) + policies.unlink_policy.deferred_remove_delay );
         break;
+#endif
     default:
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type );
         rc = -1;
