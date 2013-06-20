@@ -113,12 +113,12 @@ struct lu_buf {
 
 struct linkea_data {
         /**
- *          * Buffer to keep link EA body.
- *                   */
+         ** Buffer to keep link EA body.
+         **/
         struct lu_buf           *ld_buf;
         /**
- *          * The matched header, entry and its lenght in the EA
- *                   */
+         ** The matched header, entry and its lenght in the EA
+         **/
         struct link_ea_header   *ld_leh;
         struct link_ea_entry    *ld_lee;
         int                     ld_reclen;
@@ -130,7 +130,7 @@ struct linkea_data {
 #define LINKEA_FIRST_ENTRY(ldata)       \
         (struct link_ea_entry *)(ldata.ld_leh + 1)
 
-#endif /* end if have fid */
+#endif /* _HAVE_FID */
 
 
 #endif
