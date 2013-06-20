@@ -108,6 +108,7 @@ robinhood_task_t *GetTask_from_Stack( task_stack_t * p_stack )
     /* sanity check */
     if ( p_task == NULL )
     {
+        V( p_stack->stack_lock );
         DisplayLog( LVL_CRIT, FSSCAN_TAG, "UNEXPECTED ERROR: NO TASK FOUND" );
         return NULL;
     }
