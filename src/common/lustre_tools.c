@@ -442,7 +442,7 @@ int Lustre_GetNameParent(const char *path, int linkno,
         return -errno;
 
     lb.lb_buf = buf;
-    lb.lb_len = 4096;
+    lb.lb_len = sizeof(buf);
     ldata.ld_buf = &lb;
     ldata.ld_leh = (struct link_ea_header *)buf;
 
@@ -464,8 +464,7 @@ int Lustre_GetNameParent(const char *path, int linkno,
     fid_be_to_cpu(pfid, pfid);
 
     len = ldata.ld_reclen - sizeof(struct link_ea_entry);
-
-    if (len > namelen)
+    if (len >= namelen)
         return -ERANGE;
 
     strncpy(name, ldata.ld_lee->lee_name, len);
