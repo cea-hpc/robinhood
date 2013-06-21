@@ -1741,20 +1741,6 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
         /* can't change entry type without creating/removing it */
     }
 #endif
-#ifdef ATTR_INDEX_mode
-    if ( mask & ATTR_MASK_mode )
-    {
-
-        if (!dry_run && chmod(chattr_path,  ATTR(p_attr_new, mode)))
-           rc = errno;
-        else
-           rc = 0;
-
-        LOG_ATTR_CHANGE("chmod", "%s, %#o", dry_run, rc,
-                        chattr_path,  ATTR(p_attr_new, mode));
-    }
-#endif
-
     if ( mask & (ATTR_MASK_owner | ATTR_MASK_gr_name))
     {
         uid_t u = -1;
@@ -1796,6 +1782,22 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
                             chattr_path, u, g);
         }
     }
+
+#ifdef ATTR_INDEX_mode
+    /* always set mode after chown, as it can be changed by chown */
+    if ( mask & ATTR_MASK_mode )
+    {
+
+        if (!dry_run && chmod(chattr_path,  ATTR(p_attr_new, mode)))
+           rc = errno;
+        else
+           rc = 0;
+
+        LOG_ATTR_CHANGE("chmod", "%s, %#o", dry_run, rc,
+                        chattr_path,  ATTR(p_attr_new, mode));
+    }
+#endif
+
 
 #ifdef _LUSTRE
     if ( mask & ATTR_MASK_stripe_items)
@@ -2391,7 +2393,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
     int rc;
     struct stat st_dest;
     int fd;
-    mode_t mode_create;
+    mode_t mode_create = 0;
     int set_mode = FALSE;
 
     if (!ATTR_MASK_TEST( attrs_in, fullpath ) || !ATTR_MASK_TEST(attrs_in, type))
@@ -2529,17 +2531,6 @@ int create_from_attrs(const attr_set_t * attrs_in,
         return -ENOTSUP;
     }
 
-    if (set_mode)
-    {
-        /* set the same mode as in the backend */
-        DisplayLog( LVL_FULL, CREAT_TAG, "Restoring mode for '%s': mode=%#o",
-                    fspath, mode_create & 07777 );
-        if ( chmod( fspath, mode_create & 07777 ) )
-            DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't restore mode for '%s': %s",
-                        fspath, strerror(errno) );
-
-    }
-
     /* set owner, group */
     if ( ATTR_MASK_TEST( attrs_in, owner ) || ATTR_MASK_TEST( attrs_in, gr_name ) )
     {
@@ -2587,6 +2578,23 @@ int create_from_attrs(const attr_set_t * attrs_in,
             DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: cannot set owner/group for '%s': %s",
                         fspath, strerror(-rc) );
         }
+        else
+        {
+            /* According to chown(2) manual: chown may clear sticky bits even if root does it,
+             * so, we must set the mode again if it contains special bits */
+            if (!set_mode && (mode_create & 07000))
+                set_mode = TRUE;
+        }
+    }
+
+    if (set_mode)
+    {
+        /* set the same mode as in the backend */
+        DisplayLog( LVL_FULL, CREAT_TAG, "Restoring mode for '%s': mode=%#o",
+                    fspath, mode_create & 07777 );
+        if ( chmod( fspath, mode_create & 07777 ) )
+            DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't restore mode for '%s': %s",
+                        fspath, strerror(errno) );
     }
 
     if ( lstat( fspath, &st_dest ) )

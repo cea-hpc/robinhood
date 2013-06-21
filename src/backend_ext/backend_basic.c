@@ -884,7 +884,7 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
         if ( lchown( full_path, st.st_uid, st.st_gid ) )
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error setting owner/group for '%s': %s",
                         full_path, strerror(errno) );
-        /* mode is set by mkdir */
+        /* mode is set by mkdir (FIXME but can be cleared by chown) */
     }
 
     return 0;
@@ -1305,7 +1305,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     attr_set_t attr_bk;
     int fd;
     entry_id_t  parent_id;
-    mode_t mode_create;
+    mode_t mode_create = 0;
     int set_mode = FALSE;
     int stat_done = FALSE;
     int no_copy = FALSE;
@@ -1620,17 +1620,6 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         return RS_NOBACKUP;
     }
 
-    if (set_mode)
-    {
-        /* set the same mode as in the backend */
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
-                    fspath, mode_create & 07777 );
-        if ( chmod( fspath, mode_create & 07777 ) )
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore mode for '%s': %s",
-                        fspath, strerror(errno) );
-
-    }
-
     /* set owner, group */
     if ( ATTR_MASK_TEST( p_attrs_old, owner ) || ATTR_MASK_TEST( p_attrs_old, gr_name ) )
     {
@@ -1678,6 +1667,24 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: cannot set owner/group for '%s': %s",
                         fspath, strerror(rc) );
         }
+        else
+        {
+            /* According to chown(2) manual: chown may clear sticky bits even if root does it,
+             * so, we must set the mode again if it contains special bits */
+            if (!set_mode && (mode_create & 07000))
+                set_mode = TRUE;
+        }
+    }
+
+    if (set_mode)
+    {
+        /* set the same mode as in the backend */
+        DisplayLog( LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
+                    fspath, mode_create & 07777 );
+        if ( chmod( fspath, mode_create & 07777 ) )
+            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore mode for '%s': %s",
+                        fspath, strerror(errno) );
+
     }
 
     if ( lstat( fspath, &st_dest ) )
