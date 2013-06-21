@@ -788,10 +788,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         p_scan_task->task_finished = FALSE;
 
         /* add the task to the parent's subtask list */
-        st = AddChildTask( p_task, p_scan_task );
-
-        if ( st )
-            return st;
+        AddChildTask( p_task, p_scan_task );
 
         /* insert task to the stack */
         st = InsertTask_to_Stack( &tasks_stack, p_scan_task );

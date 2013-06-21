@@ -36,7 +36,7 @@ int            FreeTask( robinhood_task_t * p_task );
 
 
 /* Add a child task (called by the parent) */
-int            AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task );
+void           AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task );
 
 /* Remove a child task from a parent task.
  * This is called by a child task, when it finishes.

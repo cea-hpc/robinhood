@@ -88,7 +88,7 @@ int FreeTask( robinhood_task_t * p_task )
 
 
 /* Add a child task (must be called by parent task) */
-int AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task )
+void AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task )
 {
     /* set parent task for this sub-task */
     p_child_task->parent_task = p_parent_task;
@@ -111,8 +111,6 @@ int AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_t
         p_parent_task->child_list = p_child_task;
     }
     V( p_parent_task->child_list_lock );
-
-    return 0;
 
 }
 
