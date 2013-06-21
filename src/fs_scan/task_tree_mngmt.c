@@ -26,8 +26,8 @@
 #include <stdio.h>
 
 
-#define P( _mutex_ )  pthread_mutex_lock( &(_mutex_) )
-#define V( _mutex_ )  pthread_mutex_unlock( &(_mutex_) )
+#define P( _lock_ )  pthread_spin_lock( &(_lock_) )
+#define V( _lock_ )  pthread_spin_unlock( &(_lock_) )
 
 #ifdef _ONE_SHOT
 #   define TIME_NOT_SET ((unsigned int)-1)
@@ -64,7 +64,7 @@ robinhood_task_t *CreateTask(  )
         memset( p_task, 0, sizeof( robinhood_task_t ) );
 
         /* initialization of child task list */
-        pthread_mutex_init( &p_task->child_list_lock, NULL );
+        pthread_spin_init( &p_task->child_list_lock, 0 );
 
         p_task->child_list = NULL;
         p_task->task_finished = FALSE;
@@ -78,7 +78,7 @@ robinhood_task_t *CreateTask(  )
 /* Free task resources */
 int FreeTask( robinhood_task_t * p_task )
 {
-    pthread_mutex_destroy( &p_task->child_list_lock );
+    pthread_spin_destroy( &p_task->child_list_lock );
 
     /* put it back to the allocation pool */
     RELEASE_PREALLOC( p_task, tasks_pool, next_task, mutex_spool, stat_mem_tach );
