@@ -99,10 +99,9 @@ int FSScan_Start( fs_scan_config_t *module_config, int flags, const char * parti
 }
 
 /** Wait for scan termination */
-int FSScan_Wait( void )
+void FSScan_Wait( void )
 {
     wait_scan_finished(  );
-    return 0;
 }
 
 

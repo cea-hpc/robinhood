@@ -65,7 +65,7 @@ int            FSScan_Start( fs_scan_config_t * module_config, int flags, const 
 void           FSScan_Terminate( void );
 
 /** wait for scan termination */
-int            FSScan_Wait( void );
+void           FSScan_Wait( void );
 
 /** dump scan stats */
 void           FSScan_DumpStats( void );
