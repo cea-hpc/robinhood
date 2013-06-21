@@ -68,10 +68,10 @@ int            FSScan_Terminate( void );
 int            FSScan_Wait( void );
 
 /** dump scan stats */
-int            FSScan_DumpStats( void );
+void           FSScan_DumpStats( void );
 
 /** store scan stats in db */
-int            FSScan_StoreStats( lmgr_t * lmgr );
+void           FSScan_StoreStats( lmgr_t * lmgr );
 
 /**
  * \addtogroup MODULE_CONFIG_FUNCTIONS

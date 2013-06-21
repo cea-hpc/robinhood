@@ -1773,12 +1773,8 @@ int Robinhood_CheckScanDeadlines( void )
  * (called by the statistic collector)
  *
  * Take as parameter a structure of statistics to be filled.
- *
- * It returns a status code:
- *   0 : statistics collected successfully
- *   -1 : unexpected problem stats collection
  */
-int Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
+void Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
 {
     /* lock scan info */
     P( lock_scan );
@@ -1853,7 +1849,5 @@ int Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
     p_stats->nb_hang = nb_hang_total;
 
     V( lock_scan );
-
-    return 0;
 
 }

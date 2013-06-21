@@ -118,14 +118,12 @@ int FSScan_Terminate( void )                         /* @TODO */
 }
 
 /** Store FS Scan into database */
-int FSScan_StoreStats( lmgr_t * lmgr )
+void FSScan_StoreStats( lmgr_t * lmgr )
 {
-    int            rc;
     robinhood_fsscan_stat_t stats;
     char           tmp_buff[256];
 
-    if ( ( rc = Robinhood_StatsScan( &stats ) ) )
-        return rc;
+    Robinhood_StatsScan( &stats );
 
     /* store the number of scanning threads */
     sprintf( tmp_buff, "%i", fs_scan_config.nb_threads_scan );
@@ -154,22 +152,18 @@ int FSScan_StoreStats( lmgr_t * lmgr )
     sprintf(tmp_buff, "%u", stats.nb_hang);
     ListMgr_SetVar( lmgr, LAST_SCAN_TIMEOUTS, tmp_buff);
 
-    return 0;
-
 }
 
 
 /** Dump FS Scan stats to log file */
-int FSScan_DumpStats( void )
+void FSScan_DumpStats( void )
 {
-    int            rc;
     robinhood_fsscan_stat_t stats;
     struct tm      paramtm;
     char           tmp_buff[256];
     char           tmp_buff2[256];
 
-    if ( ( rc = Robinhood_StatsScan( &stats ) ) )
-        return rc;
+    Robinhood_StatsScan( &stats );
 
     DisplayLog( LVL_MAJOR, "STATS", "======== FS scan statistics =========" );
 
@@ -237,8 +231,6 @@ int FSScan_DumpStats( void )
 
     if (stats.nb_hang > 0)
         DisplayLog( LVL_MAJOR, "STATS", "scan operation timeouts = %u", stats.nb_hang );
-
-    return 0;
 
 }
 
