@@ -156,21 +156,23 @@ int RemoveChildTask( robinhood_task_t * p_parent_task,
 
 /* Tag a task as completed i.e. finished its own work
  * (but it can possibly still have sub-tasks running).
- * If all sub-tasks are terminated too,
- * do_finish is set to TRUE.
+ * Return TRUE if all sub-tasks are terminated too,
+ * FALSE otherwise.
  */
-int FlagTaskAsFinished( robinhood_task_t * p_task, int *do_finish )
+int FlagTaskAsFinished( robinhood_task_t * p_task )
 {
+    int done;
+
     /* take the lock */
     P( p_task->child_list_lock );
 
     p_task->task_finished = TRUE;
 
-    *do_finish = ( p_task->child_list == NULL );
+    done = ( p_task->child_list == NULL );
 
     V( p_task->child_list_lock );
 
-    return 0;
+    return done;
 
 }
 

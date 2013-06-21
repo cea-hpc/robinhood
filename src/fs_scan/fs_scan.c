@@ -454,14 +454,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
     p_info->last_action = time( NULL );
 
     /* tag itself as terminated */
-    st = FlagTaskAsFinished( current_task, &bool_termine );
-
-    if ( st )
-    {
-        DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: FlagTaskAsFinished returned %d", st );
-        return st;
-    }
-
+    bool_termine = FlagTaskAsFinished( current_task );
 
     if ( bool_termine )
     {
