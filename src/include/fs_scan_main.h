@@ -62,7 +62,7 @@ typedef struct fs_scan_config_t
 int            FSScan_Start( fs_scan_config_t * module_config, int flags, const char * partial_root );
 
 /** terminate scanning module */
-int            FSScan_Terminate( void );
+void           FSScan_Terminate( void );
 
 /** wait for scan termination */
 int            FSScan_Wait( void );

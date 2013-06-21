@@ -1254,14 +1254,12 @@ int Robinhood_InitScanModule( void )
 /**
  * Stop scan module
  */
-int Robinhood_StopScanModule( void )
+void Robinhood_StopScanModule( void )
 {
     unsigned int   i;
-    int            err = 0;
     int            running = 0;
     char           timestamp[128];
     lmgr_t  lmgr;
-
 
     P( lock_scan );
     /* is a scan really running ? */
@@ -1296,7 +1294,6 @@ int Robinhood_StopScanModule( void )
         }
     }
 
-    return err;
 }
 
 

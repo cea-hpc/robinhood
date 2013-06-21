@@ -73,7 +73,7 @@ int            Robinhood_InitScanModule( void );
 /**
  * Stop audit module + wait for termination
  */
-int            Robinhood_StopScanModule( void );
+void           Robinhood_StopScanModule( void );
 
 
 /**

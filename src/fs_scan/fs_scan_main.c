@@ -107,14 +107,11 @@ int FSScan_Wait( void )
 
 
 /** Stop FS Scan info collector */
-int FSScan_Terminate( void )                         /* @TODO */
+void FSScan_Terminate( void )                         /* @TODO */
 {
-    int            rc;
-
     terminate = TRUE;
 
-    rc = Robinhood_StopScanModule( );
-    return rc;
+    Robinhood_StopScanModule( );
 }
 
 /** Store FS Scan into database */
