@@ -38,13 +38,13 @@ int            FreeTask( robinhood_task_t * p_task );
 /* Add a child task (called by the parent) */
 int            AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task );
 
-/* Remove a child task from its parent
- * (called by the child task itself).
- * If the parent task is finished, and all its children too,
- * the 'do_finish_parent' boolean is set to TRUE.
+/* Remove a child task from a parent task.
+ * This is called by a child task, when it finishes.
+ * Return TRUE if the parent task and all its children are completed,
+ * FALSE otherwise.
  */
 int            RemoveChildTask( robinhood_task_t * p_parent_task,
-                                robinhood_task_t * p_child_task, int *do_finish_parent );
+                                robinhood_task_t * p_child_task );
 
 
 /* Tag a task as completed i.e. finished its own work

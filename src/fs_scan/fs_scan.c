@@ -468,7 +468,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
                         current_task->path );
 
             /* No chance that another thread has a lock on the current task,
-             * because all the child tasks are terminated.
+             * because all the children tasks are terminated.
              * We are the last thread to handle it.
              */
             maman = current_task->parent_task;
@@ -476,15 +476,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
             if ( maman != NULL )
             {
                 /* removes this task from parent's sub-task list */
-                st = RemoveChildTask( maman, current_task, &bool_termine_mere );
-
-                if ( st )
-                {
-                    DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                                "CRITICAL ERROR: RemoveChildTask returned %d", st );
-                    return st;
-                }
-
+                bool_termine_mere = RemoveChildTask( maman, current_task );
             }
             else                /* manage parent task */
             {
@@ -497,7 +489,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
                 timersub( &fin_precise, &accurate_start_time, &duree_precise );
 
                 /* End of mother task, compute and display summary */
-
+                bool_termine_mere = TRUE;
                 count = 0;
                 err_count = 0;
 

@@ -119,15 +119,13 @@ int AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_t
 
 /* Remove a child task from a parent task.
  * This is called by a child task, when it finishes.
- * If the parent task and all its children are completed,
- * do_finish_parent is set to TRUE.
+ * Return TRUE if the parent task and all its children are completed,
+ * FALSE otherwise.
  */
 int RemoveChildTask( robinhood_task_t * p_parent_task,
-                     robinhood_task_t * p_child_task, int *do_finish_parent )
+                     robinhood_task_t * p_child_task )
 {
-
-    if ( p_child_task->parent_task != p_parent_task )
-        return -1;
+    int done;
 
     /* take the lock on sub-task list */
     P( p_parent_task->child_list_lock );
@@ -142,14 +140,14 @@ int RemoveChildTask( robinhood_task_t * p_parent_task,
         /* it was the head item */
         p_parent_task->child_list = p_child_task->next_child;
 
-    *do_finish_parent = ( p_parent_task->child_list == NULL ) && ( p_parent_task->task_finished );
+    done = ( p_parent_task->child_list == NULL ) && ( p_parent_task->task_finished );
 
     V( p_parent_task->child_list_lock );
 
     /* this task is now orphan */
     p_child_task->parent_task = NULL;
 
-    return 0;
+    return done;
 
 }
 
