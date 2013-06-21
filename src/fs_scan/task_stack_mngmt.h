@@ -27,7 +27,7 @@
 int            InitTaskStack( task_stack_t * p_stack );
 
 /* insert a task in the stack */
-int            InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task );
+void           InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task );
 
 /* take a task in the stack (block until there is a task available) */
 robinhood_task_t *GetTask_from_Stack( task_stack_t * p_stack );

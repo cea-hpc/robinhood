@@ -58,7 +58,7 @@ int InitTaskStack( task_stack_t * p_stack )
 
 
 /* insert a task in the stack */
-int InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task )
+void InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task )
 {
     unsigned int   prof = p_task->depth;
 
@@ -82,8 +82,6 @@ int InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task )
 
     /* unblock waiting worker threads */
     sem_post_safe( &p_stack->sem_tasks );
-
-    return 0;
 
 }
 

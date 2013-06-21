@@ -791,13 +791,7 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         AddChildTask( p_task, p_scan_task );
 
         /* insert task to the stack */
-        st = InsertTask_to_Stack( &tasks_stack, p_scan_task );
-
-        if ( st )
-        {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: InsertCandidate returned %d", st );
-            return st;
-        }
+        InsertTask_to_Stack( &tasks_stack, p_scan_task );
     }
 
     return 0;
