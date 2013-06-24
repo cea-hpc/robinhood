@@ -148,6 +148,7 @@ int            CheckLastFS( void );
 
 /* retrieve FS info */
 const char    *get_mount_point( unsigned int * plen );
+const char    *get_fid_dir( void );
 const char    *get_fsname( void );
 dev_t          get_fsdev( void );
 uint64_t       get_fskey( void );

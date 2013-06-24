@@ -80,7 +80,7 @@ void Exit( int error_code )
 }
 
 /* global info about the filesystem to be managed */
-static char    mount_point[RBH_PATH_MAX] = "";
+static char   *mount_point;
 static char    fsname[RBH_PATH_MAX] = "";
 static dev_t   dev_id = 0;
 static uint64_t fs_key = 0;
@@ -88,6 +88,10 @@ static uint64_t fs_key = 0;
 /* to optimize string concatenation */
 static unsigned int mount_len = 0;
 
+#ifdef _HAVE_FID
+#define FIDDIR      "/.lustre/fid/"
+static char *fid_dir;
+#endif
 
 /* used at initialization time, to avoid several modules
  * that start in parallel to check it several times.
@@ -137,18 +141,27 @@ static uint64_t fsidto64(fsid_t fsid)
  */
 static void _set_mount_point( char *mntpnt )
 {
+    char path[RBH_PATH_MAX + 100];
+
     /* cannot change during a run */
     if (mount_len == 0)
     {
-        strcpy( mount_point, mntpnt );
-        mount_len = strlen( mntpnt );
+        strcpy(path, mntpnt );
 
         /* remove final slash, if any */
-        if ( (mount_len > 1) && (mount_point[mount_len-1] == '/') )
+        if ( (mount_len > 1) && (path[mount_len-1] == '/') )
         {
-            mount_point[mount_len-1] = '\0';
-            mount_len --;
+            path[mount_len-1] = '\0';
         }
+
+        mount_point = strdup( path );
+        mount_len = strlen( mount_point );
+
+#ifdef _HAVE_FID
+        /* Now, the .fid directory */
+        strcat(path, FIDDIR);
+        fid_dir = strdup(path);
+#endif
     }
 }
 
@@ -188,6 +201,14 @@ const char          *get_mount_point( unsigned int * plen )
     if (plen) (*plen) = mount_len;
     return mount_point;
 }
+
+#if _HAVE_FID
+/* Retrieve the .fid directory */
+const char          *get_fid_dir( void )
+{
+    return fid_dir;
+}
+#endif
 
 /* retrieve fsname from any module */
 const char          *get_fsname( void )

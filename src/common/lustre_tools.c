@@ -332,8 +332,6 @@ int CreateWithoutStripe( const char * path, mode_t mode, int overwrite )
 #ifdef _HAVE_FID
 
 #define FIDDIR      ".lustre/fid"
-#define FIDDIRLEN   11 /* to optimize string concatenation */
-
 
 /**
  * Build .lustre/fid path associated to a handle.
@@ -341,22 +339,10 @@ int CreateWithoutStripe( const char * path, mode_t mode, int overwrite )
 int BuildFidPath( const entry_id_t * p_id,       /* IN */
                   char *path )                   /* OUT */
 {
-    char          *curr = path;
-    unsigned int  mlen = 0;
-
     if ( !p_id || !path )
         return EFAULT;
 
-    /* filesystem root */
-    strcpy( path, get_mount_point(&mlen) );
-    curr += mlen;
-
-    /* fid directory */
-    strcpy( curr, "/" FIDDIR "/" );
-    curr += FIDDIRLEN + 2;
-
-    /* add fid string */
-    curr += sprintf( curr, DFID, PFID(p_id) );
+    sprintf(path, "%s"DFID, get_fid_dir(), PFID(p_id));
 
 #ifdef _DEBUG
     DisplayLog( LVL_FULL, TAG_FIDPATH, "FidPath=%s", path );
