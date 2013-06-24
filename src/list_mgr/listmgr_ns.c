@@ -103,7 +103,9 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     char fieldlist_annex[1024] = "";
     char filter_str_main[1024] = "";
     char filter_str_annex[1024] = "";
-    char tmp[RBH_PATH_MAX];
+    char tmp[2048];
+    char *path = NULL;
+    int path_len;
     char * pc;
     int rc, i;
 
@@ -192,7 +194,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
         if (child_attr_list)
             *child_attr_list = NULL;
     }
-    pc = parent_cond(p_mgr, tmp, RBH_PATH_MAX, parent_list, parent_count, DNAMES_TABLE".");
+    pc = parent_cond(p_mgr, tmp, sizeof(tmp), parent_list, parent_count, DNAMES_TABLE".");
     if (!pc)
         return DB_BUFFER_TOO_SMALL;
 
@@ -244,6 +246,17 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
             rc = DB_NO_MEMORY;
             goto array_free;
         }
+    }
+
+    /* Allocate a string long enough to contain the parent path and a
+     * child name. */
+    path_len = strlen(parent_list[0].fullname) + RBH_NAME_MAX + 2;
+    path = malloc(path_len);
+    if (!path) {
+        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Can't alloc enough memory (%d bytes)",
+                    path_len );
+        rc = DB_NO_MEMORY;
+        goto array_free;
     }
 
     for (i = 0; i < *child_count; i++)
@@ -302,17 +315,21 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 
             generate_fields(&((*child_attr_list)[i]));
 
-            snprintf(tmp, sizeof(tmp), "%s/%s", parent_list[0].fullname,
-                     (*child_attr_list)[i].attr_values.name);
-            tmp[sizeof(tmp)-1] = 0;
-            (*child_id_list)[i].fullname = strdup(tmp);
+            /* Note: path is properly sized already to not overflow. */
+            sprintf(path, "%s/%s", parent_list[0].fullname,
+                    (*child_attr_list)[i].attr_values.name);
+            (*child_id_list)[i].fullname = strdup(path);
         }
     }
 
+    if (path)
+        free(path);
     db_result_free( &p_mgr->conn, &result );
     return 0;
 
 array_free:
+    if (path)
+        free(path);
     if (child_attr_list && *child_attr_list)
     {
         MemFree(*child_attr_list);
