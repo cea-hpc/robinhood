@@ -258,19 +258,10 @@ int SendMail( const char *recipient, const char *subject, const char *message )
  */
 int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unmatched )
 {
-    static const char * default_cfg_paths[] =
-    {
-       "/etc/robinhood.d/"PURPOSE_EXT,
-       "/etc/robinhood.d",
-       "/etc/robinhood",
-       ".",
-       NULL
-    };
-    const char * current_path;
-    int i;
+    static const char * default_cfg_path = "/etc/robinhood.d/"PURPOSE_EXT;
     DIR * dir;
     struct dirent * ent;
-    struct stat stbuf;
+
     *changed = 1; /* most of the cases */
 
     if (cfg_in == NULL || EMPTY_STRING(cfg_in))
@@ -284,20 +275,15 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
         if (cfg_in)
             strcpy(unmatched, cfg_in);
         else
-            sprintf(unmatched, "%s/*.conf", default_cfg_paths[0]);
+            sprintf(unmatched, "%s/*.conf", default_cfg_path);
     }
 
-    if (cfg_in == NULL || EMPTY_STRING(cfg_in))
-    {
-       for ( i = 0, current_path = default_cfg_paths[0];
-             current_path != NULL;
-             i++, current_path = default_cfg_paths[i] )
-       {
-            /* look for files in current path */
-            dir = opendir( current_path );
-            if ( !dir )
-                continue;
+    if (cfg_in == NULL || EMPTY_STRING(cfg_in)) {
+        int found = 0;
 
+        /* look for files in default config path */
+        dir = opendir( default_cfg_path );
+        if ( dir ) {
             while ( (ent = readdir(dir)) != NULL )
             {
                 /* ignore .xxx files */
@@ -307,17 +293,23 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
                     /* not a config file */
                     continue;
 
-                sprintf( cfg_out, "%s/%s", current_path, ent->d_name );
-                if ( (stat( cfg_out, &stbuf ) == 0)
-                     && S_ISREG(stbuf.st_mode) )
-                {
-                    /* file found: OK */
-                    closedir(dir);
-                    return 0;
+                sprintf( cfg_out, "%s/%s", default_cfg_path, ent->d_name );
+                if ( access(cfg_out, F_OK) == 0 ) {
+                    /* that file matches. */
+                    found ++;
+                    if (found >= 2)
+                        /* No need to continue. */
+                        break;
                 }
             }
 
             closedir(dir);
+       }
+
+       if (found == 1) {
+           /* Only one file found. cfg_out is already set. We're
+            * good. */
+           return 0;
        }
     }
     else if (access(cfg_in, F_OK) == 0)
@@ -342,27 +334,22 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
 
         strcpy(cfg_cp, cfg_in);
 
-        for ( i = 0, current_path = default_cfg_paths[0];
-             current_path != NULL;
-             i++, current_path = default_cfg_paths[i] )
+        /* if the file already has an extension, try path/name */
+        if (has_ext)
         {
-            /* if the file already has an extension, try path/name */
-            if (has_ext)
-            {
-                sprintf(cfg_out, "%s/%s", current_path, cfg_cp);
-                if (access(cfg_out, F_OK) == 0)
-                    return 0;
-            }
-
-            /* try path/name.cfg, path/name.conf */
-            sprintf(cfg_out, "%s/%s.conf", current_path, cfg_cp);
-            if (access(cfg_out, F_OK) == 0)
-                return 0;
-
-            sprintf(cfg_out, "%s/%s.cfg", current_path, cfg_cp);
+            sprintf(cfg_out, "%s/%s", default_cfg_path, cfg_cp);
             if (access(cfg_out, F_OK) == 0)
                 return 0;
         }
+
+        /* try path/name.cfg, path/name.conf */
+        sprintf(cfg_out, "%s/%s.conf", default_cfg_path, cfg_cp);
+        if (access(cfg_out, F_OK) == 0)
+            return 0;
+
+        sprintf(cfg_out, "%s/%s.cfg", default_cfg_path, cfg_cp);
+        if (access(cfg_out, F_OK) == 0)
+            return 0;
     }
 
 notfound:
