@@ -1840,6 +1840,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
     p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
+#ifdef HAVE_CHANGELOGS
     /* handle nlink. We don't want the values from the filesystem if
      * we're not doing a scan. */
     if ( p_op->extra_info.is_changelog_record ) {
@@ -1860,6 +1861,7 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 #endif
     }
+#endif
 
     /* Only update fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)

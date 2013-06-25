@@ -605,25 +605,23 @@ static int list_content(char ** id_list, int id_count)
             is_id = FALSE;
             /* take it as a path */
             rc = Path2Id(id_list[i], &ids[i].id);
-            if (rc)
-            {
-                DisplayLog(LVL_MAJOR, DU_TAG, "Invalid parameter: %s: %s",
-                           id_list[i], strerror(-rc));
-                goto out;
-            }
-
-            ids[i].fullname = id_list[i];
+            if (!rc)
+                ids[i].fullname = id_list[i];
         } else {
+#if _HAVE_FID
             /* Take it as an FID. */
             char path[RBH_PATH_MAX];
             rc = Lustre_GetFullPath( &ids[i].id, path, sizeof(path));
-            if (rc) {
-                DisplayLog(LVL_MAJOR, DU_TAG, "Invalid parameter: %s: %s",
-                           id_list[i], strerror(-rc));
-                goto out;
-            }
+            if (!rc)
+                ids[i].fullname = strdup(path);
+#endif
+        }
 
-            ids[i].fullname = strdup(path);
+        if (rc)
+        {
+            DisplayLog(LVL_MAJOR, DU_TAG, "Invalid parameter: %s: %s",
+                       id_list[i], strerror(-rc));
+            goto out;
         }
 
         if (entry_id_equal(&ids[i].id, &root_id))
