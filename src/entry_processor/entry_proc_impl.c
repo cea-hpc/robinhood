@@ -96,7 +96,7 @@ static void dump_entry_op( entry_proc_op_t * p_op )
             p_op->id_is_referenced, p_op->db_op_type );
     printf("start proc time=%u.%06u\n", (unsigned int)p_op->start_processing_time.tv_sec,
             (unsigned int)p_op->start_processing_time.tv_usec );
-    printf("next=%p, prev=%p\n", p_op->p_next, p_op->p_prev );
+    printf("next=%p, prev=%p\n", p_op->list.next, p_op->list.prev );
 }
 #endif
 
@@ -387,11 +387,11 @@ static int move_stage_entries( const unsigned int source_stage_index )
         printf( "Entries to be moved: %u\n", count );
         printf( "INSERT STAGE (%u) != NEXT STAGE MIN(%u)\n", insert_stage, pipeline_stage_min );
         printf( "STAGE[%u].FIRST=%s, stage=%u\n", insert_stage,
-                ATTR( &pipeline[insert_stage].first_in_ptr->entry_attr, fullpath ),
-                pipeline[insert_stage].first_in_ptr->pipeline_stage );
+                ATTR( &rh_list_first_entry(&pipeline[insert_stage].entries, entry_proc_op_t, list)->fs_attrs, fullpath ),
+                rh_list_first_entry(&pipeline[insert_stage].entries, entry_proc_op_t, list)->pipeline_stage );
         printf( "STAGE[%u].LAST=%s, stage=%u\n", insert_stage,
-                ATTR( &pipeline[insert_stage].last_in_ptr->entry_attr, fullpath ),
-                pipeline[insert_stage].last_in_ptr->pipeline_stage );
+                ATTR( &rh_list_last_entry(&pipeline[insert_stage].entries, entry_proc_op_t, list)->fs_attrs, fullpath ),
+                rh_list_last_entry(&pipeline[insert_stage].entries, entry_proc_op_t, list)->pipeline_stage );
     }
 #endif
 
