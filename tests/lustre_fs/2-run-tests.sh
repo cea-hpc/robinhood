@@ -86,6 +86,8 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	fi
 fi
 
+LVERSION=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}"`
+
 function flush_data
 {
 	if [[ -n "$SYNC" ]]; then
@@ -2840,14 +2842,22 @@ function test_info_collect
 	nb_close=`grep ChangeLog rh_chglogs.log | grep 11CLOSE | wc -l`
 	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
-    # (directories are always inserted with robinhood 2.4)
+    # (directories are always inserted since robinhood 2.4)
     # 4 file + 3 dirs -> 7 changelogs
     # (all close are suppressed)
     ((db_expect=7))
 
-    if (( $nb_close != 4 )); then
-		error ": unexpected number of close: $nb_close / 4"
-        return 1
+	if (( $no_log == 0 )); then
+        if (( $nb_close != 4 )); then
+            if [[ $LVERSION = 2.[01]* ]] ; then
+                # CLOSE record is only expected since Lustre 2.2
+                # for previous versions, just display a warning
+                echo "warning: no close record (lustre version $LVERSION)"
+            else
+                error ": unexpected number of close: $nb_close / 4"
+            fi
+            return 1
+        fi
     fi
 
 	if (( $nb_create == $nb_cr && $nb_db_apply == $db_expect )); then
