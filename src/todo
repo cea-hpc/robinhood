@@ -4,28 +4,30 @@
 - restore bulk search in rbh-find as a new option
 - hardlink management in policies, recovery, etc.
 - check how mknode'd entries and handled by backup mode and rbh-diff
-
+- partial scan: update directories between root and partial dir
+- fix name update warnings
+- optimize "get" operation using JOIN (check performance impact)
+- 
 - recovery MDT with HSM: set status of files
 - recov-tools: must reset fid of OST objects after MDS recovery
 
 /!\ symlink can change in case of inode recycling (ext3/4, ...)
 
-- complete apply-fs (+using recover for backup system)
-
 - db diff option: list changes since xxx
 - bench diff
-
-To be tested: diff for hardlinks
-* hardlinks
+- test diff for hardlinks
 
 - add rbh-report --get=<id>
 - add rbh-find --details
 - add rbh-find -print
 - refactoring lmgr_init
 
-- update TRAC
+- change code formatting to GNU
+- add code format check as git hook
 
--check why updating stripe_info complains about duplicate entry error.
+- update TRAC/wiki/...
+
+-check why updating stripe_info complains about duplicate entry error
 
 Replace:
     --dump-user user
@@ -34,15 +36,8 @@ Replace:
         Dump all entries for the given group.
     --dump-ost ost_index
         Dump all entries on the given OST.
-by something like:
---dump --user=
---dump --group=
---dump --ost=
-
-repl.
---filter-path=
-par
---path=
+    --filter-path
+by a find-like syntax.
 
 - support filter for softrm list
 - add signal handler to recovery function
@@ -59,8 +54,6 @@ BACKUP:
  (- affichage de la cos choisie dans les logs)
  (- mapping chemin_montage/commande copie)
  - mise a jour du delai de suppression dans le backend
- x commande de recovery
- - new nonreg tests for recovery
  - commande de resync que des md
 
 lustre-HSM:
