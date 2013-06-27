@@ -135,7 +135,8 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         }
     }
     else
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: entry "DFID" created without name information", PFID(p_id));
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: entry "DPK" created "
+                   "without name information", pk);
 
 
     /* insert all info in annex table, if any */
