@@ -25,7 +25,7 @@
 #include "list_mgr.h"
 #include "RobinhoodMisc.h"
 
-ssize_t hex2bin(const char * hex, void * buff)
+static ssize_t hex2bin(const char * hex, void * buff)
 {
     const char *currh = hex;
     unsigned char *currb = buff;
@@ -42,7 +42,7 @@ ssize_t hex2bin(const char * hex, void * buff)
     return (currb-(unsigned char*)buff);
 }
 
-int set_lov_ea(struct lov_user_md * p_lum, size_t sz_in, const char * path)
+static int set_lov_ea(struct lov_user_md * p_lum, size_t sz_in, const char * path)
 {
     if (p_lum->lmm_magic == LOV_USER_MAGIC_V1)
     {

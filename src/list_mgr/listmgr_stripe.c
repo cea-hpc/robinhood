@@ -25,7 +25,7 @@
 #include <stdlib.h>
 
 
-int delete_stipe_info( lmgr_t * p_mgr, PK_ARG_T pk )
+static int delete_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk )
 {
     int            rc;
     char           query[4096];
@@ -46,7 +46,7 @@ int delete_stipe_info( lmgr_t * p_mgr, PK_ARG_T pk )
 }
 
 
-int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, 
+int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                         int validator, const stripe_info_t * p_stripe,
                         const stripe_items_t * p_items,
                         int update_if_exists )
@@ -84,7 +84,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
             /* remove previous stripe info */
             DisplayLog( LVL_EVENT, LISTMGR_TAG,
                         "A stripe info already exists with this identifier, removing it" );
-            rc = delete_stipe_info( p_mgr, pk );
+            rc = delete_stripe_info( p_mgr, pk );
         }
 
         if ( rc != 0 )
@@ -328,7 +328,7 @@ int ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id )
 
     if ( atoi( res ) != VALID(p_id) )
     {
-        delete_stipe_info( p_mgr, pk );
+        delete_stripe_info( p_mgr, pk );
         rc = DB_OUT_OF_DATE;
     }
     else

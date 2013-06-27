@@ -1,7 +1,7 @@
 ##
 # rpm macros for old systems < el5
 # (defined if bcond_with does not already exist)
-# 
+#
 %if %{?bcond_with:0}%{!?bcond_with:1}
 %define nil                    %{!?nil}
 %define defined()      %{expand:%%{?%{1}:1}%%{!?%{1}:0}}
@@ -30,9 +30,9 @@ Requires: %{lpackage} >= %{lversion}         \
 BuildRequires: %{lpackage} >= %{lversion}    \
 %endif \
 %endif \
-%if %{with mysql}                    \
-Requires: mysql >= %{dbversion}      \
-BuildRequires: mysql-devel >= 4.1    \
+%if %{with mysql}                            \
+Requires: libmysqlclient_r.so                \
+BuildRequires: /usr/include/mysql/mysql.h    \
 %endif \
 %{nil}
 
@@ -42,7 +42,7 @@ BuildRequires: mysql-devel >= 4.1    \
 ###### end of macro definitions #####
 
 Name: @PACKAGE@
-Version: @VERSION@ 
+Version: @VERSION@
 
 Vendor: CEA, HPC department <http://www-hpc.cea.fr>
 Prefix: %{_prefix}
@@ -63,14 +63,14 @@ Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
 Summary: Robinhood - Policy engine and accounting tool for large filesystems
-License: CeCILL 
+License: CeCILL
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
 Source0: @PACKAGE@-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %description
-Robinhood is a tool for monitoring and purging file systems. It is designed to 
+Robinhood is a tool for monitoring and purging file systems. It is designed to
 process all its tasks in parallel, so it is particulary adapted for managing
 large file systems with millions of entries and petabytes of data.
 
@@ -292,7 +292,7 @@ fi
 %files %{purpose}
 %defattr(-,root,root,-)
 #%doc README
-#%doc COPYING 
+#%doc COPYING
 #%doc ChangeLog
 
 # everythink in sbin, except rbh-config which is in adm
@@ -521,7 +521,7 @@ fi
 - [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
 - [feature] quota-like purge triggers fully implemented (on group or user)
 - [feature] triggers on used inode count in filesystem
-- [feature] '--check-triggers' option to check triggers without purging files 
+- [feature] '--check-triggers' option to check triggers without purging files
 - [feature] notification can be sent when a high watermark is reached (for triggers)
 - [feature] rbh-config helper now supports batch commands
 - [feature] Lustre 2.0 ready
@@ -592,7 +592,7 @@ in Lustre yet).
 - Display warning for unknown parameters in config file
 - Cosmetic fixes in config parsing
 - Clean shutdown on SIGTERM or SIGINT
-- Reloading dynamic parameters on SIGHUP (including numerical values in policy definition) 
+- Reloading dynamic parameters on SIGHUP (including numerical values in policy definition)
 
 * Mon Mar 2 2009 Thomas Leibovici <thomas.leibovici@cea.fr> 2.0.0-beta1
 - Reporting tool

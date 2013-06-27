@@ -257,7 +257,7 @@ static inline void display_rm_entry(entry_id_t * id, const char *last_known_path
 }
 
 
-int list_rm()
+static int list_rm( void )
 {
     int            rc, index;
     struct lmgr_rm_list_t * list;
@@ -401,7 +401,7 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
 }
 
 
-int undo_rm()
+static int undo_rm( void )
 {
     int            rc;
     struct lmgr_rm_list_t * list;
@@ -556,7 +556,7 @@ int main( int argc, char **argv )
     /* get default config file, if not specified */
     if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
     {
-        fprintf(stderr, "No config file found matching %s\n", badcfg);
+        fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);
     }
     else if (chgd)

@@ -13,7 +13,7 @@
  * accept its terms.
  */
 /**
- * Misc tools for managing entry processor pipeline 
+ * Misc tools for managing entry processor pipeline
  */
 #ifndef _ENTRY_PROC_HASH_H
 #define _ENTRY_PROC_HASH_H
@@ -36,14 +36,14 @@ struct id_hash
 };
 
 /**
- * Creates a new hash table for operatiopn entries.
+ * Creates a new hash table for operation entries.
  * @return the new hash table.
  */
-struct id_hash * id_hash_init( const unsigned int hash_size );
+struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock );
 
 
 /**
- * This is called to register the operation (with the ordering of pipeline) 
+ * This is called to register the operation (with the ordering of pipeline)
  * @return ID_OK if the entry can be processed.
  *         ID_MISSING if the ID is not set in p_op structure
  */

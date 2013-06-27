@@ -76,9 +76,9 @@ typedef struct migr_opt_t
 
 
 int            Start_Migration( migration_config_t * p_config, migr_opt_t options );
-int            Stop_Migration();
-int            Wait_Migration();
-void           Dump_Migration_Stats(  );
+int            Stop_Migration( void );
+int            Wait_Migration( void );
+void           Dump_Migration_Stats( void );
 
 int MigrateSingle( migration_config_t * p_config, const char * file, int flags );
 

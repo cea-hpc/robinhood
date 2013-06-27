@@ -37,7 +37,7 @@ int            Write_HSMRm_ConfigTemplate( FILE * output );
 int            Write_HSMRm_ConfigDefault( FILE * output );
 
 int            Start_HSMRm( hsm_rm_config_t * config, int flags );
-int            Wait_HSMRm(  );
-void           Dump_HSMRm_Stats(  );
+int            Wait_HSMRm( void );
+void           Dump_HSMRm_Stats( void );
 
 #endif

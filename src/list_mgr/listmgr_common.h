@@ -16,6 +16,7 @@
 
 #include "list_mgr.h"
 #include "listmgr_internal.h"
+#include "database.h"
 
 #define ASSIGN_UNION( _u, _type, _address ) do {            \
                     switch( _type )                         \
@@ -147,8 +148,10 @@
 
 /* precomputed masks for testing attr sets efficiently */
 extern int     main_attr_set;
+extern int     names_attr_set;
 extern int     annex_attr_set;
 extern int     gen_attr_set;
+extern int     func_attr_set;
 extern int     stripe_attr_set;
 extern int     dir_attr_set;
 extern int     slink_attr_set;
@@ -157,11 +160,13 @@ extern int     acct_pk_attr_set;
 
 /* extern int     readonly_attr_set; => moved to listmgr.h */
 
-void           init_attrset_masks(  );
+void           init_attrset_masks( const lmgr_config_t *lmgr_config );
 
 #define main_fields( _attr_mask )      ( (_attr_mask) & main_attr_set )
+#define names_fields( _attr_mask )      ( (_attr_mask) & names_attr_set )
 #define annex_fields( _attr_mask )     ( (_attr_mask) & annex_attr_set )
 #define gen_fields( _attr_mask )       ( (_attr_mask) & gen_attr_set )
+#define funcattr_fields( _attr_mask )   ( (_attr_mask) & func_attr_set )
 #define stripe_fields( _attr_mask )    ( (_attr_mask) & stripe_attr_set )
 #define readonly_fields( _attr_mask )  ( (_attr_mask) & readonly_attr_set )
 #define dirattr_fields( _attr_mask )   ( (_attr_mask) & dir_attr_set )
@@ -176,16 +181,21 @@ void           init_attrset_masks(  );
 /* ------------ */
 
 #define is_read_only_field( _attr_index ) \
-                ( (field_infos[_attr_index].flags & GENERATED) || (field_infos[_attr_index].flags & DIR_ATTR) )
+                ( (field_infos[_attr_index].flags & GENERATED) || \
+                  (field_infos[_attr_index].flags & DIR_ATTR) || \
+                  (field_infos[_attr_index].flags & FUNC_ATTR) )
 
 #define is_stripe_field( _attr_index ) \
-                ( ( field_infos[_attr_index].db_type == DB_STRIPE_INFO ) || ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS ) )
+                ( ( field_infos[_attr_index].db_type == DB_STRIPE_INFO ) || \
+                  ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS ) )
 
 #define is_main_field( _attr_index ) \
                 ( (!annex_table || ( field_infos[_attr_index].flags & FREQ_ACCESS )) \
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
-                  && !(field_infos[_attr_index].flags & DIR_ATTR) )
+                  && !(field_infos[_attr_index].flags & DIR_ATTR) \
+                  && !(field_infos[_attr_index].flags & FUNC_ATTR) \
+                  && !(field_infos[_attr_index].flags & DNAMES) )
 
 #define is_gen_field( _attr_index ) \
                 ( field_infos[_attr_index].flags & GENERATED )
@@ -197,8 +207,13 @@ void           init_attrset_masks(  );
                 ( annex_table && ( field_infos[_attr_index].flags & ( ANNEX_INFO | INIT_ONLY ) ) \
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
-                  && !(field_infos[_attr_index].flags & DIR_ATTR) )
+                  && !(field_infos[_attr_index].flags & DIR_ATTR) \
+                  && !(field_infos[_attr_index].flags & FUNC_ATTR) )
 
+#define is_names_field( _attr_index ) \
+                ( field_infos[_attr_index].flags & DNAMES )
+
+#define is_funcattr( _attr_index )  ( field_infos[_attr_index].flags & FUNC_ATTR )
 #define is_dirattr( _attr_index )  ( field_infos[_attr_index].flags & DIR_ATTR )
 #define is_slinkattr( _attr_index )  ( field_infos[_attr_index].flags & SLINK_ATTR )
 
@@ -219,10 +234,11 @@ typedef enum
 {
     T_NONE = 0,                                  /* not set */
     T_MAIN,                                      /* fields in main table */
+    T_DNAMES,                                    /* files in dir names table */
     T_ANNEX,                                     /* fiels in annex table */
     T_STRIPE_INFO,                               /* field in stripe info table */
     T_STRIPE_ITEMS,                              /* field in stripe items table */
-    T_ACCT,                                      /* fields in accounting table */   
+    T_ACCT,                                      /* fields in accounting table */
 #ifdef HAVE_RM_POLICY
     T_SOFTRM,                                    /* fields in softrm table */
 #endif
@@ -230,6 +246,27 @@ typedef enum
     T_RECOV,                                     /* fields in recov table */
 #endif
 } table_enum;
+
+static inline const char * table2name(table_enum table)
+{
+    switch(table)
+    {
+        case T_NONE: return NULL;
+        case T_MAIN: return MAIN_TABLE;
+        case T_DNAMES: return DNAMES_TABLE;
+        case T_ANNEX: return ANNEX_TABLE;
+        case T_STRIPE_INFO: return STRIPE_INFO_TABLE;
+        case T_STRIPE_ITEMS: return STRIPE_ITEMS_TABLE;
+        case T_ACCT: return ACCT_TABLE;
+#ifdef HAVE_RM_POLICY
+        case T_SOFTRM: return SOFT_RM_TABLE;
+#endif
+#ifdef _HSM_LITE
+        case T_RECOV: return RECOV_TABLE;
+#endif
+   }
+   return NULL;
+}
 
 typedef enum {
     ADD,
@@ -242,7 +279,7 @@ void           generate_fields( attr_set_t * p_set );
 int            attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_comma,
                                    int for_update, char *prefix, char *postfix );
 
-int            attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix, 
+int            attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix,
                                    const char *right_prefix, const char *comparator, const char *separator );
 
 int            attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix,
@@ -261,7 +298,8 @@ char          *compar2str( filter_comparator_t compar );
 int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                            table_enum table, int leading_and, int prefix_table );
 
-unsigned int  append_size_range_fields(char * str, int leading_comma, char *prefix);
+int            func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
+                           table_enum table, int leading_and, int prefix_table);
 
 typedef enum
 {
@@ -269,15 +307,18 @@ typedef enum
     FILTERDIR_EMPTY,       /* empty dir filter */
     FILTERDIR_OTHER,       /* other condition on directory attribute */
 } filter_dir_e;
- 
-filter_dir_e dir_filter(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                        char* filter_str, unsigned int * dir_attr_index);
- 
+
+filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
+                        unsigned int * dir_attr_index);
+
+unsigned int  append_size_range_fields(char * str, int leading_comma, char *prefix);
+
 
 int            result2attrset( table_enum table, char **result_tab,
                                unsigned int res_count, attr_set_t * p_set );
 
-const char * dirattr2str( unsigned int attr_index );
+/* return the attr string for a dirattr */
+const char * dirattr2str(unsigned int attr_index);
 
 int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
                  PK_PARG_T p_pk );

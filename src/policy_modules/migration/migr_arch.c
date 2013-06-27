@@ -729,7 +729,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
             if ( rc == DB_END_OF_LIST )
             {
-                total_returned += nb_returned; 
+                total_returned += nb_returned;
 
                 /* if limit = inifinite => END OF LIST */
                 if ( ( nb_returned == 0 )
@@ -764,7 +764,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                  * only replace it, do not add a new filter.
                  */
 
-                /* don't retrieve just-updated entries 
+                /* don't retrieve just-updated entries
                  * (update>=last_request_time),
                  * allow entries with md_update == NULL.
                  */
@@ -1176,55 +1176,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
 #endif /* switch Lustre_HSM/HSM_LITE */
 
 #else  /* no fid support (no mode support it for now) */
-
-#error "FID support must be activated for Lustre-HSM"
-
-/**
- * Check that entry exists with the good path and its id is consistent.
- * @param fill entry MD if entry is valid
- */
-static int check_entry( lmgr_t * lmgr, migr_item_t * p_item,
-                        attr_set_t * new_attr_set )
-{
-    struct stat    entry_md;
-
-    /* 1) Check if fullpath is set */
-
-    if ( !ATTR_MASK_TEST( &p_item->entry_attr, fullpath ) )
-    {
-        DisplayLog( LVL_DEBUG, MIGR_TAG, "Warning: entry fullpath is not set. Tag it invalid." );
-        invalidate_entry( lmgr, &p_item->entry_id );
-
-        /* not enough metadata */
-        return MIGR_PARTIAL_MD;
-    }
-
-    DisplayLog( LVL_FULL, MIGR_TAG, "Considering entry %s", ATTR( &p_item->entry_attr, fullpath ) );
-
-    /* we must have at least its full path, if we are not using fids */
-    if ( ATTR_MASK_TEST( &p_item->entry_attr, fullpath )
-         && !ATTR_MASK_TEST( new_attr_set, fullpath ) )
-    {
-        strcpy( ATTR( new_attr_set, fullpath ), ATTR( &p_item->entry_attr, fullpath ) );
-        ATTR_MASK_SET( new_attr_set, fullpath );
-    }
-
-    /* get info about this entry and check policies about the entry. */
-    switch( SherpaManageEntry( &p_item->entry_id, new_attr_set, FALSE ) )
-    {
-        case do_skip:
-        case do_rm:
-            /* invalidate entry if it is not OK */
-            invalidate_entry( lmgr, &p_item->entry_id );
-            return MIGR_ENTRY_MOVED;
-        case do_update:
-            /* OK, continue */
-            break; 
-    }
-
-    /* entry is valid */
-    return MIGR_OK;
-}
+#error "FID support must be activated for migration modes"
 #endif /* no fid support */
 
 
@@ -1555,7 +1507,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         char           strmod[256];
         char           strarchive[256];
         char           strsize[256];
-        char           strstorage[1024]="";
+        char           strstorage[24576]="";
 
         int            is_copy = TRUE;
         int            is_stor = TRUE;
@@ -1589,7 +1541,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         FormatFileSize( strsize, 256, ATTR( &new_attr_set, size ) );
 
         if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
-            FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ), 0);
+            FormatStripeList( strstorage, sizeof(strstorage), &ATTR( &p_item->entry_attr, stripe_items ), 0);
         else
             is_stor = FALSE;
 
@@ -1608,7 +1560,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                        policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
                        (time_t)ATTR( &new_attr_set, last_mod ),
                        is_copy ? (time_t)ATTR( &p_item->entry_attr, last_archive ) : 0,
-                       ( is_stor ? ", storage_units=" : "" ), 
+                       ( is_stor ? ", storage_units=" : "" ),
                        ( is_stor ? strstorage : "" ) );
 #else
    DisplayReport( "%s '%s' using policy '%s', last mod %s ago | size=%"
@@ -1906,5 +1858,5 @@ int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
         return -1;
     }
 
-    return 0; 
+    return 0;
 }

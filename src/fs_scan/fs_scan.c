@@ -50,6 +50,7 @@ int              fsscan_flags = 0;
 const char      *partial_scan_root = NULL;
 
 #define fsscan_once ( fsscan_flags & FLAG_ONCE )
+#define fsscan_nogc ( fsscan_flags & FLAG_NO_GC )
 
 static int     is_lustre_fs = FALSE;
 static int     is_first_scan = FALSE;
@@ -81,7 +82,7 @@ typedef struct thread_scan_info__
 
 
 /**
- * internal variables 
+ * internal variables
  */
 
 static thread_scan_info_t *thread_list = NULL;
@@ -123,14 +124,14 @@ static pthread_cond_t special_db_op_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t special_db_op_lock = PTHREAD_MUTEX_INITIALIZER;
 static int     waiting_db_op = FALSE;
 
-static inline void set_db_wait_flag(  )
+static inline void set_db_wait_flag( void )
 {
     P( special_db_op_lock );
     waiting_db_op = TRUE;
     V( special_db_op_lock );
 }
 
-static void wait_for_db_callback(  )
+static void wait_for_db_callback( void )
 {
     P( special_db_op_lock );
     while ( waiting_db_op )
@@ -163,7 +164,7 @@ static int     scan_finished = FALSE;
 static pthread_cond_t one_shot_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t one_shot_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static inline void signal_scan_finished(  )
+static inline void signal_scan_finished( void )
 {
     P( one_shot_lock );
     scan_finished = TRUE;
@@ -171,7 +172,7 @@ static inline void signal_scan_finished(  )
     V( one_shot_lock );
 }
 
-static inline int all_threads_idle()
+static inline int all_threads_idle( void )
 {
     unsigned int i;
     for ( i = 0; i < fs_scan_config.nb_threads_scan ; i++ )
@@ -181,7 +182,7 @@ static inline int all_threads_idle()
     return TRUE;
 }
 
-void wait_scan_finished(  )
+void wait_scan_finished( void )
 {
     P( one_shot_lock );
     while ( !scan_finished )
@@ -193,7 +194,7 @@ void wait_scan_finished(  )
 /**
  * Reset Scan thread statistics (before and after a scan)
  */
-static void ResetScanStats(  )
+static void ResetScanStats( void )
 {
     int            i;
     for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
@@ -347,31 +348,38 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         ATTR_MASK_INIT( &op->fs_attrs );
 
         /* if this is an initial scan, don't rm old entries (but flush pipeline still) */
-        /* NB: don't clean old entries for partial scan: dangerous if
-         * files have been moved from one partition to another */
-#ifdef HAVE_RM_POLICY
-        if (is_first_scan || partial_scan_root)
-#else
-        if (is_first_scan && !partial_scan_root)
-#endif
+        if (fsscan_nogc || (is_first_scan && !partial_scan_root))
+        {
+            op->gc_entries = FALSE;
+            op->gc_names = FALSE;
             op->callback_param = ( void * ) "End of flush";
+        }
         else
         {
+            op->gc_names = TRUE;
+
+#ifdef HAVE_RM_POLICY
+            /* Don't clean old entries for partial scan: dangerous if
+             * files have been moved from one part of the namespace to another.
+             * Clean names, however.
+             */
+            if (partial_scan_root)
+                op->gc_entries = FALSE;
+            else
+#endif
+            op->gc_entries = TRUE;
+
             /* set the timestamp of scan in (md_update attribute) */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
             ATTR( &op->fs_attrs, md_update ) = scan_start_time;
         }
 
-    /* don't clean old entries for partial scan: dangerous if
-     * files have been moved from one partition to another */
-#ifndef HAVE_RM_POLICY
         /* set root (if partial scan) */
         if (partial_scan_root)
         {
             ATTR_MASK_SET( &op->fs_attrs, fullpath );
             strcpy(ATTR(&op->fs_attrs, fullpath), partial_scan_root);
         }
-#endif
 
         /* set wait db flag */
         set_db_wait_flag(  );
@@ -445,15 +453,8 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
     /* notify of current action (for watchdog) */
     p_info->last_action = time( NULL );
 
-    /* tag itself at terminated */
-    st = FlagTaskAsFinished( current_task, &bool_termine );
-
-    if ( st )
-    {
-        DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: FlagTaskAsFinished returned %d", st );
-        return st;
-    }
-
+    /* tag itself as terminated */
+    bool_termine = FlagTaskAsFinished( current_task );
 
     if ( bool_termine )
     {
@@ -467,7 +468,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
                         current_task->path );
 
             /* No chance that another thread has a lock on the current task,
-             * because all the child tasks are terminated.
+             * because all the children tasks are terminated.
              * We are the last thread to handle it.
              */
             maman = current_task->parent_task;
@@ -475,15 +476,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
             if ( maman != NULL )
             {
                 /* removes this task from parent's sub-task list */
-                st = RemoveChildTask( maman, current_task, &bool_termine_mere );
-
-                if ( st )
-                {
-                    DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                                "CRITICAL ERROR: RemoveChildTask returned %d", st );
-                    return st;
-                }
-
+                bool_termine_mere = RemoveChildTask( maman, current_task );
             }
             else                /* manage parent task */
             {
@@ -496,7 +489,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
                 timersub( &fin_precise, &accurate_start_time, &duree_precise );
 
                 /* End of mother task, compute and display summary */
-
+                bool_termine_mere = TRUE;
                 count = 0;
                 err_count = 0;
 
@@ -711,10 +704,8 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         /* set update time  */
         ATTR_MASK_SET( &op->fs_attrs, md_update );
         ATTR( &op->fs_attrs, md_update ) = time( NULL );
-#ifdef _HAVE_FID
         ATTR_MASK_SET( &op->fs_attrs, path_update );
         ATTR( &op->fs_attrs, path_update ) = time( NULL );
-#endif
 
         /* Set entry id */
 #ifndef _HAVE_FID
@@ -797,19 +788,10 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
         p_scan_task->task_finished = FALSE;
 
         /* add the task to the parent's subtask list */
-        st = AddChildTask( p_task, p_scan_task );
-
-        if ( st )
-            return st;
+        AddChildTask( p_task, p_scan_task );
 
         /* insert task to the stack */
-        st = InsertTask_to_Stack( &tasks_stack, p_scan_task );
-
-        if ( st )
-        {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: InsertCandidate returned %d", st );
-            return st;
-        }
+        InsertTask_to_Stack( &tasks_stack, p_scan_task );
     }
 
     return 0;
@@ -1008,7 +990,7 @@ static void   *Thr_scan( void *arg_thread )
                   DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation (in '%s')", p_task->path );
                   goto end_task;
               }
- 
+
               if (!strcmp( dp->d_name, "." ) || !strcmp( dp->d_name, ".." ))
                     continue;
               nb_entries++;
@@ -1133,10 +1115,8 @@ static void   *Thr_scan( void *arg_thread )
             /* set update time  */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
             ATTR( &op->fs_attrs, md_update ) = time( NULL );
-#ifdef _HAVE_FID
             ATTR_MASK_SET( &op->fs_attrs, path_update );
             ATTR( &op->fs_attrs, path_update ) = time( NULL );
-#endif
 
             op->extra_info_is_set = FALSE;
 
@@ -1192,13 +1172,13 @@ end_task:
  *
  * The function looks at the content of the configuration structure
  * that have been previously parsed.
- * 
+ *
  * It returns a status code:
  *   0 : initialization successful
  *   -1 : unexpected error at initialization.
  *   EINVAL : a parameter from the config file is invalid.
  */
-int Robinhood_InitScanModule(  )
+int Robinhood_InitScanModule( void )
 {
     int            st;
     int            rc, i;
@@ -1274,14 +1254,12 @@ int Robinhood_InitScanModule(  )
 /**
  * Stop scan module
  */
-int Robinhood_StopScanModule(  )
+void Robinhood_StopScanModule( void )
 {
     unsigned int   i;
-    int            err = 0;
     int            running = 0;
     char           timestamp[128];
     lmgr_t  lmgr;
-
 
     P( lock_scan );
     /* is a scan really running ? */
@@ -1316,7 +1294,6 @@ int Robinhood_StopScanModule(  )
         }
     }
 
-    return err;
 }
 
 
@@ -1354,12 +1331,12 @@ static unsigned int path_depth(const char * path)
 
 
 
-/* Start a scan of the filesystem. 
+/* Start a scan of the filesystem.
  * This creates a root task and push it to the stack of tasks.
  * @param partial_root NULL for full scan; subdir path for partial scan
  * @retval EBUSY if a scan is already running.
  */
-static int StartScan()
+static int StartScan( void )
 {
     robinhood_task_t *p_parent_task;
     char              timestamp[128];
@@ -1518,7 +1495,7 @@ static void   *Thr_scan_recovery( void *arg_thread )
 /**
  * Updates the max usage indicator (used for adaptive scan interval).
  */
-static void UpdateMaxUsage(  )
+static void UpdateMaxUsage( void )
 {
     char           tmpval[1024];
     double         val;
@@ -1547,9 +1524,9 @@ static void UpdateMaxUsage(  )
 
 
 /**
- * Check thread's activity or start a scan if its time.
+ * Check thread's activity or start a scan if it's time.
  */
-int Robinhood_CheckScanDeadlines(  )
+int Robinhood_CheckScanDeadlines( void )
 {
     int            st;
     char           tmp_buff[256];
@@ -1635,7 +1612,7 @@ int Robinhood_CheckScanDeadlines(  )
     {
         FormatDuration( tmp_buff, 256, scan_interval );
 
-        /* starting a new scan, if its time */
+        /* starting a new scan, if it's time */
 
         DisplayLog( LVL_MAJOR, FSSCAN_TAG,
                     "Starting scan of %s (current scan interval is %s)",
@@ -1788,17 +1765,13 @@ int Robinhood_CheckScanDeadlines(  )
 
 
 
-/** 
+/**
  * Retrieve some statistics about current and terminated audits.
  * (called by the statistic collector)
- * 
- * Take as parameter a structure of statistics to be filled.
  *
- * It returns a status code:
- *   0 : statistics collected successfully
- *   -1 : unexpected problem stats collection
+ * Take as parameter a structure of statistics to be filled.
  */
-int Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
+void Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
 {
     /* lock scan info */
     P( lock_scan );
@@ -1873,7 +1846,5 @@ int Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
     p_stats->nb_hang = nb_hang_total;
 
     V( lock_scan );
-
-    return 0;
 
 }

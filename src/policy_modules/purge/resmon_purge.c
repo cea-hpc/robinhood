@@ -52,7 +52,7 @@ static int purge_abort = FALSE;
 /* queue of entries to be checked/purged */
 entry_queue_t  purge_queue;
 
-/** 
+/**
  * Purge helpers (depending on purpose)
  * @return posix error code (from errno)
  */
@@ -83,6 +83,7 @@ static int PurgeEntry_ByPath( const char *entry_path )
     {
         if ( unlink( entry_path ) != 0 )
             return errno;
+        /* @TODO handle other hardlinks to the same entry */
     }
     return 0;
 }
@@ -205,7 +206,7 @@ static int set_purge_optimization_filters(lmgr_filter_t * p_filter)
                 policies.purge_policies.policy_list[0].policy_id );
         }
     }
-    
+
     return 0;
 }
 
@@ -281,6 +282,10 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
      * Retrieve last_mod and stripe_info for logs and reports.
      * Also retrieve info needed for blacklist/whitelist rules.
      */
+/* need parent_id and name for ListMgr_Remove() prototype */
+    ATTR_MASK_SET( p_attr_set, name );
+    ATTR_MASK_SET( p_attr_set, parent_id );
+
     ATTR_MASK_SET( p_attr_set, fullpath );
     ATTR_MASK_SET( p_attr_set, path_update );
     ATTR_MASK_SET( p_attr_set, last_access );
@@ -660,7 +665,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
             }
             else if ( rc == DB_END_OF_LIST )
             {
-                total_returned += nb_returned; 
+                total_returned += nb_returned;
 
                 /* if limit = inifinite => END OF LIST */
                 if ( ( nb_returned == 0 )
@@ -763,7 +768,7 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
                          * take round.sup of block/OST
                          */
                         if ( (ATTR(&attr_set, blocks) % strp_cnt) != 0 )
-                            tgt_count++; 
+                            tgt_count++;
                     }
 #else
                     DisplayLog( LVL_CRIT, PURGE_TAG, "Purge by OST is not supported in this mode" );
@@ -907,6 +912,9 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
     {
         if ( need_path_update(&p_item->entry_attr, NULL) )
         {
+            /* FIXME: we should get all paths of the entry to check any of them
+             * in policies */
+            /* TODO: also update parent_id+name */
             if ( Lustre_GetFullPath( &p_item->entry_id,
                                     ATTR( new_attr_set, fullpath ),
                                     1024 ) == 0 )
@@ -1058,6 +1066,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     unsigned long   blk_sav = 0;
 
     int update_fileclass = -1; /* not set */
+    int lastrm;
 
 /* acknowledging helper */
 #define Acknowledge( _q, _status, _fdbk1, _fdbk2 )  do {                \
@@ -1126,9 +1135,9 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
     {
         /* status changed */
         DisplayLog( LVL_MAJOR, PURGE_TAG,
-                    "%s: entry status recently changed (%#x): skipping entry.",
+                    "%s: entry status recently changed (%s): skipping entry.",
                     ATTR(&new_attr_set,fullpath),
-                    ATTR( &new_attr_set, status ));
+                    db_status2str(ATTR(&new_attr_set, status),1));
 
         /* update DB and skip the entry */
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
@@ -1357,12 +1366,13 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         ATTR( &new_attr_set, status ) = STATUS_RELEASED;
     }
 #else
-    rc = PurgeEntry_ByPath( ATTR( &p_item->entry_attr, fullpath ) );
+    /* FIXME should remove all paths to the object */
+    rc = PurgeEntry_ByPath( ATTR( &new_attr_set, fullpath ) );
 #endif
     if ( rc )
     {
         DisplayLog( LVL_DEBUG, PURGE_TAG, "Error purging entry %s: %s",
-                    ATTR( &p_item->entry_attr, fullpath ), strerror( abs(rc) ) );
+                    ATTR( &new_attr_set, fullpath ), strerror( abs(rc) ) );
 
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
@@ -1373,7 +1383,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         char           straccess[256];
         char           strsize[256];
 #ifdef _LUSTRE
-        char           strstorage[1024];
+        char           strstorage[24576];
 #endif
 
         /* Entry has been successfully purged */
@@ -1385,7 +1395,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
 
 #ifdef _LUSTRE
         if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
-            FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ), 0 );
+            FormatStripeList( strstorage, sizeof(strstorage), &ATTR( &p_item->entry_attr, stripe_items ), 0 );
         else
             strcpy( strstorage, "(none)" );
 #endif
@@ -1430,8 +1440,17 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
 #else
+        /* if nlink is set, check if it the last unlink.
+         * else, consider it is (like robinhood version <= 2.4 did).
+        */
+        if (ATTR( &new_attr_set, nlink))
+            lastrm = (ATTR(&new_attr_set, nlink) == 1);
+        else
+            lastrm = 1;
         /* remove it from database */
-        rc = ListMgr_Remove( lmgr, &p_item->entry_id );
+        rc = ListMgr_Remove( lmgr, &p_item->entry_id,
+                             &p_item->entry_attr, /* must be based on the DB content = old attrs */
+                             lastrm );
         if ( rc )
             DisplayLog( LVL_CRIT, PURGE_TAG, "Error %d removing entry from database.", rc );
 #endif
@@ -1672,6 +1691,6 @@ int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
         return -1;
     }
 
-    return 0; 
+    return 0;
 }
 #endif

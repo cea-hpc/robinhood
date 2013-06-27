@@ -50,7 +50,7 @@
 #define PK_PARG_T char *
 #define PTR_PK(_p) (_p)
 #define DEF_PK(_p) char _p[DB_FID_LEN]
-#define PK_DB_TYPE DB_TEXT 
+#define PK_DB_TYPE DB_TEXT
 #define DPK      "'%s'"
 #define SPK      "%s"
 #define VALID( _p ) (0)
@@ -60,6 +60,7 @@
 
 int            listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info );
 int            listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs );
+int            listmgr_get_funcattrs(lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_attrs);
 
 
 typedef struct lmgr_iterator_t

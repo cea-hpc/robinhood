@@ -62,18 +62,18 @@ typedef struct fs_scan_config_t
 int            FSScan_Start( fs_scan_config_t * module_config, int flags, const char * partial_root );
 
 /** terminate scanning module */
-int            FSScan_Terminate(  );
+void           FSScan_Terminate( void );
 
 /** wait for scan termination */
-int            FSScan_Wait(  );
+void           FSScan_Wait( void );
 
 /** dump scan stats */
-int            FSScan_DumpStats(  );
+void           FSScan_DumpStats( void );
 
 /** store scan stats in db */
-int            FSScan_StoreStats( lmgr_t * lmgr );
+void           FSScan_StoreStats( lmgr_t * lmgr );
 
-/** 
+/**
  * \addtogroup MODULE_CONFIG_FUNCTIONS
  * @{
  */

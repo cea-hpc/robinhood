@@ -6,7 +6,7 @@ NB_CONT=10          # 10    containers
 GROUP_PER_CONT=20   # 200   groups
 USER_PER_GROUP=50   # 10000 users
 STUDY_PER_USER=1000 # 10M   studies
-SUBDIR=10           # 100M  directories in studies 
+SUBDIR=10           # 100M  directories in studies
 FCOUNT=15           # 1.5G files
 LCOUNT=1            # 100M symlinks
 
@@ -50,7 +50,7 @@ function mk_cont
                 t_remain=`echo "($reste/$speed)/86400" | bc -l | xargs printf "%.2f days"`
             elif (( $approx_remain > 3600 )); then
                 t_remain=`echo "($reste/$speed)/3600" | bc -l | xargs printf "%.2f hours"`
-            else 
+            else
                 t_remain=`echo "($reste/$speed)" | bc -l | xargs printf "%.2f sec"`
             fi
             ((last=$fcount+$lcount))

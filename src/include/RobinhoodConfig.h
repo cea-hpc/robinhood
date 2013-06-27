@@ -84,7 +84,7 @@ typedef struct module_config_def_t
     unsigned int   flags;
 } module_config_def_t;
 
-/** 
+/**
  * This structure groups the configuration of all modules
  */
 typedef struct robinhood_config_t
@@ -146,11 +146,12 @@ extern char *process_config_file;
 #define FLAG_ONCE       0x00000004
 #define FLAG_NO_LIMIT   0x00000008
 #define FLAG_CHECK_ONLY 0x00000010 /* only check triggers, don't purge */
+#define FLAG_NO_GC      0x00000020 /* don't clean orphan entries after scan */
 
 /* Config module masks:
  * Global, Log, and List Manager are always initialized.
  * Entry processor, Info Collector, Purge and migration
- * are optionnal. 
+ * are optionnal.
  */
 #define MODULE_MASK_ENTRY_PROCESSOR 0x00000001
 #define MODULE_MASK_FS_SCAN         0x00000002
@@ -304,7 +305,7 @@ void           print_line( FILE * output, unsigned int indent, const char *forma
 
 
 /**
- *  Retrieve a string parameter and check its format 
+ *  Retrieve a string parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
@@ -314,7 +315,7 @@ int            GetStringParam( config_item_t block,
                                char *target, unsigned int target_size,
                                char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
 /**
- *  Retrieve a boolean parameter and check its format 
+ *  Retrieve a boolean parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
@@ -324,7 +325,7 @@ int            GetBoolParam( config_item_t block,
                              char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
 
 /**
- *  Retrieve a duration parameter and check its format 
+ *  Retrieve a duration parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
@@ -334,7 +335,7 @@ int            GetDurationParam( config_item_t block,
                                  char ***extra_args_tab, unsigned int *nb_extra_args,
                                  char *err_msg );
 /**
- *  Retrieve a size parameter and check its format 
+ *  Retrieve a size parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
@@ -347,7 +348,7 @@ int            GetSizeParam( config_item_t block,
 
 
 /**
- *  Retrieve an integer parameter and check its format 
+ *  Retrieve an integer parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
@@ -357,7 +358,7 @@ int            GetIntParam( config_item_t block,
                             char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
 
 /**
- *  Retrieve a 64 bits integer parameter and check its format. 
+ *  Retrieve a 64 bits integer parameter and check its format.
  *  (a suffix can be used in config file).
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
@@ -370,7 +371,7 @@ int GetInt64Param( config_item_t block,
                    char *err_msg );
 
 /**
- *  Retrieve a float parameter and check its format 
+ *  Retrieve a float parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
@@ -428,7 +429,7 @@ int            BoolExpr2str( bool_node_t * p_bool_node, char *out_str, size_t st
 
 
 /**
- * Check that no unknown parameter or block is found. 
+ * Check that no unknown parameter or block is found.
  * @param param_array NULL terminated array of allowed parameters.
  */
 void           CheckUnknownParameters( config_item_t block, const char *block_name,

@@ -219,7 +219,7 @@ int main( int argc, char **argv )
     /* reinsert again */
     rc = ListMgr_Insert( &lmgr, &id, &set, FALSE );
     test_rc( rc );
-    
+
     /* soft remove */
     rc = ListMgr_SoftRemove( &lmgr, &id, NULL,
 #ifdef _HSM_LITE

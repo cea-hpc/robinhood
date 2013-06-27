@@ -1,5 +1,5 @@
 /**
- * This file has been extracted from FreeBSD fam package. 
+ * This file has been extracted from FreeBSD fam package.
  */
 #ifdef HAVE_MNTENT_H
 #include <mntent.h>

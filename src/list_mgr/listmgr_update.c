@@ -60,6 +60,9 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     else
         main_count = 0;
 
+    /* For the NAMES tables. */
+    nb_tables++;
+
     if ( annex_table && annex_fields( p_update_set->attr_mask ) )
     {
         annex_count = attrset2updatelist( p_mgr, annex_fields, p_update_set, T_ANNEX, FALSE );
@@ -94,6 +97,34 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
         if ( rc )
             goto rollback;
     }
+
+    /* update names table */
+    if (ATTR_MASK_TEST(p_update_set, name) && ATTR_MASK_TEST(p_update_set, parent_id))
+    {
+        char          *fields_curr;
+        char          *values_curr;
+        char           values[4096];
+
+        strcpy( fields, "id" );
+        sprintf( values, DPK, pk );
+        fields_curr = fields + strlen( fields );
+        values_curr = values + strlen( values );
+
+        /* create field and values lists */
+        attrmask2fieldlist( fields_curr, p_update_set->attr_mask, T_DNAMES, TRUE, FALSE, "", "" );
+        attrset2valuelist( p_mgr, values_curr, p_update_set, T_DNAMES, TRUE );
+
+        // FIXME this update operation may zero column content if some values are not specified
+        static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), hname=sha1(name), path_update=VALUES(path_update)";
+        sprintf( query, "INSERT INTO " DNAMES_TABLE "(%s, hname) VALUES (%s, sha1(name)) ON DUPLICATE KEY UPDATE %s", fields, values, set );
+
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( rc )
+            goto rollback;
+    }
+    else if (ATTR_MASK_TEST(p_update_set, name) || ATTR_MASK_TEST(p_update_set, parent_id))
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to update name information");
+
 
     /* update annex table (if any) */
     if ( annex_count > 0 )
@@ -164,7 +195,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
 
     /* /!\ possible cases:
      * - simplest: the fields of the filter and the attributes to be changed are in the same table
-     * - harder: the fields of the filter are in the same table and attributes are in another different table 
+     * - harder: the fields of the filter are in the same table and attributes are in another different table
      */
 
     /* 1) check the location of filters */
@@ -476,8 +507,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
 
     if ( tmp_table_created )
     {
-        sprintf( query, "DROP TABLE %s", tmp_table_name );
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        rc = db_drop_component(&p_mgr->conn, DBOBJ_TABLE, tmp_table_name);
         if ( rc )
             goto rollback;
     }

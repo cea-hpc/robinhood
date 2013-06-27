@@ -154,13 +154,13 @@
     extern char * yytext;
 
     list_items * program_result=NULL;
-    
+
 	/* stock le message d'erreur donne par le lexer */
     char local_errormsg[1024]="";
-	
+
     /* stock le message d'erreur complet */
     char extern_errormsg[1024]="";
-    
+
 #ifdef _DEBUG_PARSING
 #define DEBUG_YACC   rh_config_print_list
 #else
@@ -168,7 +168,7 @@
 static void DEBUG_YACC( FILE * output, list_items * list ) { return ;}
 #endif
 
-    
+
 
 
 /* Enabling traces.  */
@@ -1238,7 +1238,7 @@ yyparse ()
 #endif
 #endif
 {
-  
+
   int yystate;
   int yyn;
   int yyresult;
@@ -1906,7 +1906,7 @@ yyreturn:
 		else
 			snprintf(extern_errormsg,1024,"Syntax error at '%s' line %d in '%s'",(yytext?yytext:"???"), yylineno, current_file);
     }
-    
+
 
     void set_error(char * s){
         strncpy(local_errormsg,s,1024);

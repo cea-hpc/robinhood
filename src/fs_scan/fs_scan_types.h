@@ -54,7 +54,7 @@ typedef struct robinhood_task__
     /* lock for protecting the child list
      * and the task_finished boolean.
      */
-    pthread_mutex_t child_list_lock;
+    pthread_spinlock_t child_list_lock;
 
     /* list of child tasks running */
 

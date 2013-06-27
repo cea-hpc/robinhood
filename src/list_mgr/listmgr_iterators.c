@@ -26,21 +26,46 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* generate a select query that defines the given dirattr with the given name.
+ * (for FILTERDIR_OTHER types)
+ * e.g. SELECT parent_id, COUNT(*) as dirattr... FROM ...
+ * \return number of bytes written (-1 on error)
+ */
+static int append_dirattr_select(char *outquery, unsigned int dirattr_index,
+                                 const char *attrname)
+{
+    if (dirattr_index == ATTR_INDEX_dircount)
+        /* group parent and count their children */
+        return sprintf(outquery, "SELECT parent_id, %s as %s "
+                                 "FROM "DNAMES_TABLE" GROUP BY parent_id",
+                                 dirattr2str(ATTR_INDEX_dircount), attrname);
+    else if (dirattr_index == ATTR_INDEX_avgsize)
+        /* join all entries and avg their size when grouping by parent */
+        return sprintf(outquery, "SELECT parent_id, %s as %s from "DNAMES_TABLE" d,"
+                                 MAIN_TABLE" m WHERE d.id=m.id and m.type='file' GROUP BY parent_id",
+                                 dirattr2str(ATTR_INDEX_avgsize), attrname);
+    else return -1;
+}
+
+#define append_dir_filter( _a1, _a2, _a3, _a4, _a5, _a6) append_dir_req(_a1, _a2, _a3, -1, _a4, _a5, _a6)
+
 
 /* append a directory condition (sort or filter on dirattr) to an iterator request */
-void append_dir_req(char * outstr, const char * req_start, const char * table_filter,
-                    const char * sort_dirattr_str, filter_dir_e filter_dir,
-                    const char * filter_dir_str, unsigned int filter_dir_index)
+static void append_dir_req(char * outstr, const char * req_start, const char * table_filter,
+                           int sort_attr_index,
+                           filter_dir_e filter_dir, /* type of dir filter */
+                           unsigned int filter_dir_index, /* index of filter dirattr */
+                           const char * filter_dir_str) /* looks like dirattr >= X */
 {
     char * currstr = outstr;
 
-    if (sort_dirattr_str == NULL)
+    if (sort_attr_index < 0)
     {
         switch (filter_dir)
         {
             case FILTERDIR_NONE:
                 /* no dirattr involved */
-                strcpy(outstr, req_start); /* no "where" needed */
+                strcpy(outstr, req_start); /* no "where" needed for dirattr */
                 currstr += strlen(outstr);
                 if (table_filter)
                     sprintf( currstr, " WHERE %s", table_filter );
@@ -52,11 +77,12 @@ void append_dir_req(char * outstr, const char * req_start, const char * table_fi
                     sprintf( currstr, " AND %s", table_filter );
                 break;
             case FILTERDIR_OTHER:
-                /* must join on dirattr_filter */
-                currstr += sprintf( outstr, "%s LEFT JOIN (SELECT parent_id, %s as dirattr from ENTRIES "
-                             "GROUP BY parent_id) as da ON id=da.parent_id "
-                             "WHERE %s", req_start, dirattr2str(filter_dir_index),
-                             filter_dir_str );
+
+                /* join dir entry attributes from main table with special dir attrs */
+                currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
+                currstr += append_dirattr_select(currstr, filter_dir_index, "dirattr");
+                currstr += sprintf(currstr, ") as da ON id=da.parent_id WHERE %s", filter_dir_str);
+
                 if (table_filter)
                     sprintf( currstr, " AND %s", table_filter );
                 break;
@@ -64,8 +90,7 @@ void append_dir_req(char * outstr, const char * req_start, const char * table_fi
                 DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected filter on directory attribute in %s(): %#x",
                             __func__, filter_dir );
                 /* ignore dir filter */
-                append_dir_req( outstr, req_start, table_filter, sort_dirattr_str,
-                                FILTERDIR_NONE, NULL, 0);
+                append_dir_filter( outstr, req_start, table_filter, FILTERDIR_NONE, 0, NULL);
                 break;
         }
     }
@@ -76,29 +101,33 @@ void append_dir_req(char * outstr, const char * req_start, const char * table_fi
         {
             case FILTERDIR_NONE:
                 /* left join with dirattr_sort */
-                /* @TODO directly perform request on parent_id if no table_filter? */
-                currstr += sprintf( outstr, "%s LEFT JOIN (SELECT parent_id, %s as dirattr_sort "
-                                    "FROM ENTRIES GROUP BY parent_id) as da ON id=da.parent_id",
-                                    req_start, sort_dirattr_str );
+                /* @TODO optim: directly perform request on parent_id if no table_filter? */
+                currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
+                currstr += append_dirattr_select(currstr, sort_attr_index, "dirattr_sort");
+                currstr += sprintf(currstr, "as ds ON id=ds.parent_id");
+
                 if (table_filter)
                     sprintf( currstr, " WHERE %s", table_filter );
                 break;
             case FILTERDIR_EMPTY:
                 /* left join with dirattr_sort + add empty dir filter */
-                currstr += sprintf( outstr, "%s LEFT JOIN (SELECT parent_id, %s as dirattr_sort "
-                                   "FROM ENTRIES GROUP BY parent_id) as da ON id=da.parent_id "
-                                   "WHERE %s", req_start, sort_dirattr_str, filter_dir_str );
+                currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
+                currstr += append_dirattr_select(currstr, sort_attr_index, "dirattr_sort");
+                currstr += sprintf(currstr, "as ds ON id=ds.parent_id WHERE %s", filter_dir_str);
+
                 if (table_filter)
                     sprintf( currstr, " AND %s", table_filter );
                 break;
             case FILTERDIR_OTHER:
-                /* must join on dirattr_filter */
-                /* @TODO: optimize if dirattr_sort is the same as dirattr */
-                currstr += sprintf( outstr, "%s LEFT JOIN (SELECT parent_id, %s as dirattr, "
-                               "%s as dirattr_sort FROM ENTRIES GROUP BY parent_id) "
-                               "as da ON id=da.parent_id WHERE %s", req_start,
-                               dirattr2str(filter_dir_index), sort_dirattr_str,
-                               filter_dir_str);
+
+                /* left join with dirattr_sort + left join on filter */
+                currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
+                currstr += append_dirattr_select(currstr, sort_attr_index, "dirattr_sort");
+                currstr += sprintf(currstr, ") ds ON id=ds.parent_id LEFT JOIN (");
+                currstr += append_dirattr_select(currstr, filter_dir_index, "dirattr");
+                currstr += sprintf(currstr, ") da ON id=da.parent_id WHERE %s",
+                                   filter_dir_str);
+
                 if (table_filter)
                     sprintf( currstr, " AND %s", table_filter );
                 break;
@@ -106,8 +135,8 @@ void append_dir_req(char * outstr, const char * req_start, const char * table_fi
                 DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected filter on directory attribute in %s(): %#x",
                             __func__, filter_dir );
                 /* ignore dir filter */
-                append_dir_req( outstr, req_start, table_filter, sort_dirattr_str,
-                                FILTERDIR_NONE, NULL, 0);
+                append_dir_req(outstr, req_start, table_filter, sort_attr_index,
+                               FILTERDIR_NONE, 0, NULL);
                 break;
         }
     }
@@ -136,7 +165,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
     char           tables[2048];
     lmgr_iterator_t *it;
     table_enum     sort_table = T_NONE;
-    int            sort_dirattr = 0;
+    int            sort_dirattr = -1;
     int            do_sort = 0;
 
     filter_str_main[0] = '\0';
@@ -165,7 +194,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
         else if ( field_infos[p_sort_type->attr_index].db_type == DB_STRIPE_ITEMS )
             sort_table = T_STRIPE_ITEMS;
         else if ( is_dirattr(p_sort_type->attr_index) )
-            sort_dirattr = 1;
+            sort_dirattr = p_sort_type->attr_index;
         else
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid field for sort order (index=%d)", p_sort_type->attr_index );
@@ -177,15 +206,21 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
     /* /!\ possible cases:
      * - simplest: the fields of the filter and the attributes to be changed are in the same table
-     * - harder: the fields of the filter are in the same table and attributes are in another different table 
+     * - harder: the fields of the filter are in the same table and attributes are in another different table
      */
 
     /* 1) check the location of filters */
 
     if ( p_filter )
     {
-        filter_dir_type = dir_filter(p_mgr, p_filter, filter_dir_str, &filter_dir_index);
-        /* is sort dirattr the same as filter dirattr? */
+        if (func_filter(p_mgr, filter_dir_str, p_filter, T_MAIN, FALSE, FALSE))
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
+            return NULL;
+        }
+
+        filter_dir_type = dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index);
+        /* XXX is sort dirattr the same as filter dirattr? */
 
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
                                   FALSE, TRUE );
@@ -219,49 +254,59 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             {
                 /* entries must be selected depending on sort order */
                 if ( sort_table == T_MAIN )
-                    append_dir_req(query, "SELECT id FROM " MAIN_TABLE, NULL,
-                                   sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                                   filter_dir_type, filter_dir_str, filter_dir_index);
+                    append_dir_filter(query, "SELECT id FROM " MAIN_TABLE, NULL,
+                                   filter_dir_type, filter_dir_index, filter_dir_str);
                 else if ( sort_table == T_ANNEX )
-                    append_dir_req(query, "SELECT id FROM " ANNEX_TABLE, NULL,
-                                   sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                                   filter_dir_type, filter_dir_str, filter_dir_index);
+                    append_dir_filter(query, "SELECT id FROM " ANNEX_TABLE, NULL,
+                                   filter_dir_type, filter_dir_index, filter_dir_str);
                 else if ( sort_table == T_STRIPE_INFO )
-                    append_dir_req(query, "SELECT id FROM " STRIPE_INFO_TABLE, NULL,
-                                   sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                                   filter_dir_type, filter_dir_str, filter_dir_index);
+                    append_dir_filter(query, "SELECT id FROM " STRIPE_INFO_TABLE, NULL,
+                                   filter_dir_type, filter_dir_index, filter_dir_str);
                 else if ( sort_table == T_STRIPE_ITEMS )
-                    append_dir_req(query, "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE, NULL,
-                                   sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                                   filter_dir_type, filter_dir_str, filter_dir_index);
-                else if ( sort_dirattr )
+                    append_dir_filter(query, "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE, NULL,
+                                   filter_dir_type, filter_dir_index, filter_dir_str);
+                else if ( sort_dirattr != -1 )
                 {
                     if (filter_dir_type == FILTERDIR_NONE)
-                        sprintf( query, "SELECT parent_id, %s as dirattr_sort FROM "MAIN_TABLE" GROUP BY parent_id",
-                                 dirattr2str(p_sort_type->attr_index) );
+                    {
+                        append_dirattr_select(query, sort_dirattr, "dirattr_sort");
+                    }
                     else if (filter_dir_type == FILTERDIR_EMPTY)
                     {
                         DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected case: sort %s for empty directories",
-                                    dirattr2str(p_sort_type->attr_index) );
+                                    dirattr2str(p_sort_type->attr_index));
                         return NULL;
                     }
                     else
                     {
-                        sprintf( query, "SELECT parent_id, %s as dirattr, %s as dirattr_sort FROM "MAIN_TABLE
-                                 " GROUP BY parent_id HAVING %s",
-                                 dirattr2str(filter_dir_index), dirattr2str(p_sort_type->attr_index),
-                                 filter_dir_str);
+                        /* both filter and sort order */
+                        /* @TODO optim if both filter and sort order are on the same field */
+                        if (filter_dir_index == sort_dirattr)
+                        {
+                            query_end = query + append_dirattr_select(query, filter_dir_index, "dirattr");
+                            query_end += sprintf(query_end, " HAVING %s", filter_dir_str);
+                            /* -2 for this optim */
+                            sort_dirattr = -2;
+                        }
+                        else
+                        {
+                            query_end = query + sprintf(query, "SELECT da.parent_id FROM (");
+                            query_end += append_dirattr_select(query_end, filter_dir_index, "dirattr");
+                            query_end += sprintf(query_end, " HAVING %s) da LEFT JOIN (", filter_dir_str);
+                            query_end += append_dirattr_select(query_end, sort_dirattr, "dirattr_sort");
+                            query_end += sprintf(query_end, ") ds ON ds.parent_id = da.parent_id");
+                        }
                     }
                 }
             }
             else
             {
-                append_dir_req(query, "SELECT id FROM " MAIN_TABLE, NULL, NULL,
-                               filter_dir_type, filter_dir_str, filter_dir_index);
+                append_dir_filter(query, "SELECT id FROM " MAIN_TABLE, NULL,
+                               filter_dir_type, filter_dir_index, filter_dir_str);
             }
         }
         else if ( filter_main && !( filter_annex || filter_stripe_items || filter_stripe_info )
-                  && ( !do_sort || ( sort_table == T_MAIN ) || sort_dirattr ) )
+                  && ( !do_sort || ( sort_table == T_MAIN ) || sort_dirattr != -1 ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " MAIN_TABLE " table" );
 
@@ -269,35 +314,31 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
              * + optionally filter/sort on dirattrs
              */
             append_dir_req(query, "SELECT id FROM " MAIN_TABLE, filter_str_main,
-                           sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                           filter_dir_type, filter_dir_str, filter_dir_index);
+                           sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
         }
         else if ( filter_annex && !( filter_main || filter_stripe_items || filter_stripe_info )
-                  && ( !do_sort || ( sort_table == T_ANNEX ) || sort_dirattr ) )
+                  && ( !do_sort || ( sort_table == T_ANNEX ) || sort_dirattr != -1) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " ANNEX_TABLE " table" );
 
             append_dir_req(query, "SELECT id FROM " ANNEX_TABLE, filter_str_annex,
-                           sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                           filter_dir_type, filter_dir_str, filter_dir_index);
+                           sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
         }
         else if ( filter_stripe_info && !( filter_main || filter_annex || filter_stripe_items )
-                  && ( !do_sort || ( sort_table == T_STRIPE_INFO ) || sort_dirattr ) )
+                  && ( !do_sort || ( sort_table == T_STRIPE_INFO ) || sort_dirattr != -1 ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_INFO_TABLE " table" );
 
             append_dir_req(query, "SELECT id FROM " STRIPE_INFO_TABLE, filter_str_stripe_info,
-                           sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                           filter_dir_type, filter_dir_str, filter_dir_index);
+                           sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
         }
         else if ( filter_stripe_items && !( filter_main || filter_annex || filter_stripe_info )
-                  && ( !do_sort || ( sort_table == T_STRIPE_ITEMS ) || sort_dirattr ) )
+                  && ( !do_sort || ( sort_table == T_STRIPE_ITEMS ) || sort_dirattr != -1 ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_ITEMS_TABLE " table" );
 
             append_dir_req(query, "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE, filter_str_stripe_items,
-                           sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                           filter_dir_type, filter_dir_str, filter_dir_index);
+                           sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
         }
         else /* filter or sort on several tables */
         {
@@ -405,9 +446,8 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
             char tmp[1024];
             sprintf( tmp, "SELECT %s.id AS id FROM %s", first_table, tables );
-            append_dir_req( query, tmp, fields,
-                            sort_dirattr ? dirattr2str(p_sort_type->attr_index) : NULL,
-                            filter_dir_type, filter_dir_str, filter_dir_index );
+            append_dir_req( query, tmp, fields, sort_dirattr,
+                            filter_dir_type, filter_dir_index, filter_dir_str);
         }
     }
     else if ( do_sort )
@@ -422,9 +462,8 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             strcpy( query, "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE );
         else if ( sort_table == T_STRIPE_INFO )
             strcpy( query, "SELECT id FROM " STRIPE_INFO_TABLE );
-        else if (sort_dirattr)
-            sprintf( query, "SELECT parent_id, %s as dirattr_sort FROM "MAIN_TABLE" GROUP BY parent_id",
-                    dirattr2str(p_sort_type->attr_index) );
+        else if (sort_dirattr != -1)
+            append_dirattr_select(query, sort_dirattr, "dirattr_sort");
     }
     else
     {
@@ -457,7 +496,11 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
         {
             query_end += sprintf( query_end, " ORDER BY " STRIPE_INFO_TABLE ".pool_name " );
         }
-        else if ( sort_dirattr )
+        else if ( sort_dirattr == -2 )
+        {
+            query_end += sprintf( query_end, " ORDER BY dirattr " );
+        }
+        else if ( sort_dirattr != -1 )
         {
             query_end += sprintf( query_end, " ORDER BY dirattr_sort " );
         }

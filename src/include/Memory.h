@@ -72,7 +72,7 @@ typedef struct mem_stat_t
  * @param type the type of the entries to be allocated.
  * @param name_next the name of the field, in structure of type 'type' which pointer to the next entry.
  *
- * @return  nothing (this is a macro), but pool will be NULL if an error occures. 
+ * @return  nothing (this is a macro), but pool will be NULL if an error occures.
  *
  */
 
@@ -102,11 +102,11 @@ do                                                                        \
 
 /**
  *
- * GET_PREALLOC: Gets an entry in a preallocated pool. 
+ * GET_PREALLOC: Gets an entry in a preallocated pool.
  *
  * This macro is used to get an entry from a pre-allocated pool. If the pool is empty,
- * the macro STUFF_PREALLOC will be called with the same last four arguments to extend 
- * the pool. If nb is set to zero during this call, STUFF_PREALLOC is not called and no 
+ * the macro STUFF_PREALLOC will be called with the same last four arguments to extend
+ * the pool. If nb is set to zero during this call, STUFF_PREALLOC is not called and no
  * entry is get from the pool that is empty.
  *
  * @param entry the entry we need.
@@ -115,7 +115,7 @@ do                                                                        \
  * @param type the type of the entries to be allocated.
  * @param name_next the name of the field, in structure of type 'type' which pointer to the next entry.
  *
- * @return  nothing (this is a macro), but entry will be NULL if an error occures. 
+ * @return  nothing (this is a macro), but entry will be NULL if an error occures.
  *
  */
 #define GET_PREALLOC( entry, pool, nb, type, name_next, mutex, memstats ) \
@@ -142,8 +142,8 @@ do                                                                        \
  *
  * RELEASE_PREALLOC: Releases an entry and puts it back to the pool.
  *
- * When an entry is no used any more, this macro is used to put it 
- * back to the pool, so that it could be reuse later. The released 
+ * When an entry is no used any more, this macro is used to put it
+ * back to the pool, so that it could be reuse later. The released
  * entry is chained to the pool, through the 'name_next' field.
  *
  * @param entry the entry to be released.

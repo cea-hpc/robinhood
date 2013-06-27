@@ -52,7 +52,7 @@ config_file_t  rh_config_ParseFile( char *file_path );
  * config_GetErrorMsg returns a detailled message
  * to indicate the reason for this error.
  */
-char          *rh_config_GetErrorMsg(  );
+char          *rh_config_GetErrorMsg( void );
 
 /**
  * config_Print:
@@ -112,7 +112,7 @@ int rh_config_CountBlockNames( config_file_t cfg, const char *name );
  */
 config_item_t  rh_config_GetItemByIndex( config_item_t block, unsigned int item_no );
 
-/** 
+/**
  * Indicates which type of item it is
  */
 config_item_type rh_config_ItemType( config_item_t item );

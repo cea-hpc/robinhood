@@ -93,6 +93,8 @@ typedef int stripe_info_t; /* dummy type */
 #define INIT_ONLY    0x00000001 /* set at insert only: stored in an annex table (can't be modified) */
 #define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
+#define DNAMES       0x01000000 /* field in DNAMES table. */
+#define FUNC_ATTR    0x02000000 /* special attr built using a DB function */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
 #define INDEXED      0x20000000 /* this field must be indexed */
 #define DIR_ATTR     0x40000000 /* need to aggregate directory info (specific DB request) */
@@ -118,8 +120,9 @@ typedef enum
 
 #define DB_IS_NULL( _p_v ) ( ((_p_v)->type == DB_TEXT) && ((_p_v)->value_u.val_str == NULL) )
 
-/** generic function from generating fields: 1rst parameter points to the field
- * to be generated. 2nd parameter is the source field.
+/** generic function from generating fields:
+ * 1st parameter points to the field to be generated.
+ * 2nd parameter is the source field.
  */
 typedef int    ( *gen_func_t ) ( void *, const void * );
 
@@ -230,6 +233,12 @@ typedef struct lmgr_config_t
     int user_acct;
     int group_acct;
 } lmgr_config_t;
+
+/** Container to associate an ID with its pathname. */
+typedef struct wagon {
+    entry_id_t id;
+    char *fullname;
+} wagon_t;
 
 /**
  * Configuration management routines
@@ -410,6 +419,13 @@ int            ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
 int            ListMgr_Get( lmgr_t * p_mgr, const entry_id_t * p_id, attr_set_t * p_info );
 
 /**
+ * Retrieve the FID from the database given the parent FID and the
+ * file name.
+ */
+int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
+                               const char *name, entry_id_t * fid);
+
+/**
  * Releases resources of an attr set.
  */
 void           ListMgr_FreeAttrs( attr_set_t * p_attrs );
@@ -437,9 +453,10 @@ int            ListMgr_MassUpdate( lmgr_t * p_mgr, const lmgr_filter_t * p_filte
 typedef void    ( *rm_cb_func_t ) (const entry_id_t *);
 
 /**
- * Removes an entry from the database.
+ * Removes a name from the database. Remove the entry if last is TRUE.
  */
-int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id );
+int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
+                               const attr_set_t * p_attr_set, int last );
 
 /**
  * Removes all entries that match the specified filter.
@@ -461,10 +478,7 @@ int            ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filte
  * \param real_remove_time time when the entry must be really removed.
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                   const char * last_known_path,
-#ifdef _HSM_LITE
-                                   const char * bkpath,
-#endif
+                                   attr_set_t * p_old_attrs,
                                    time_t real_remove_time );
 
 /**
@@ -636,7 +650,7 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 
 /**
  * Function for handling iterators.
- * 
+ *
  * \addtogroup ITERATOR_FUNCTIONS
  * @{
  */
@@ -679,10 +693,10 @@ void           ListMgr_CloseIterator( struct lmgr_iterator_t *p_iter );
  * and child_id_list and child_attr_list must be freed with MemFree()
  */
 int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                      const entry_id_t * parent_list, unsigned int parent_count,
+                      const wagon_t * parent_list, unsigned int parent_count,
                       int attr_mask,
-                      entry_id_t ** child_id_list, attr_set_t ** child_attr_list,
-                      unsigned int * child_count );
+                      wagon_t ** child, attr_set_t ** child_attr_list,
+                      unsigned int * child_count);
 
 
 /** @} */
@@ -711,7 +725,7 @@ typedef enum
 typedef struct report_field_descr_t
 {
     unsigned int   attr_index;
-    report_type_t  report_type; 
+    report_type_t  report_type;
     sort_order_t   sort_flag;
 
     int            filter;      /**< is there a filter on this value ? */
@@ -973,7 +987,7 @@ void           ListMgr_MergeAttrSets( attr_set_t * p_target_attrset,
                                       attr_set_t * p_source_attrset,
                                       int update );
 
-/** only keep in target attrset the filed that are different from source */
+/** only keep in target attrset the fields that are different from source */
 void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src);
 
 /**

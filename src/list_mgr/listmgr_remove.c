@@ -28,49 +28,82 @@
 #include <pthread.h>
 
 
-static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id )
+static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id,
+                                          const attr_set_t * p_attr_set, int last )
 {
     char           request[4096];
     int            rc;
     DEF_PK(pk);
+    DEF_PK(ppk);
 
     rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
     if (rc)
         return rc;
 
-    /* stripes are only managed for Lustre filesystems */
-#ifdef _LUSTRE
-    /* First remove stripe info */
-    sprintf( request, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
-        return rc;
-
-    sprintf( request, "DELETE FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
-        return rc;
-#endif
-
-    /* then remove in other tables */
-    sprintf( request, "DELETE FROM " MAIN_TABLE " WHERE id="DPK, pk );
-    rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
-        return rc;
-
-    if ( annex_table )
+    if (last)
     {
-        sprintf( request, "DELETE FROM " ANNEX_TABLE " WHERE id="DPK, pk );
+        /* stripes are only managed for Lustre filesystems */
+    #ifdef _LUSTRE
+
+        /* First remove stripe info */
+        sprintf( request, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+
+        sprintf( request, "DELETE FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+
+    #endif
+
+        /* then remove in other tables */
+        sprintf( request, "DELETE FROM " MAIN_TABLE " WHERE id="DPK, pk );
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+
+        if ( annex_table )
+        {
+            sprintf( request, "DELETE FROM " ANNEX_TABLE " WHERE id="DPK, pk );
+            rc = db_exec_sql( &p_mgr->conn, request, NULL );
+            if ( rc )
+                return rc;
+        }
+    } else {
+        /* XXX else update attributes according to attributes contents? */
+
+#ifdef ATTR_INDEX_nlink
+        /* Since we're removing one entry but not the file, decrement nlink. */
+        sprintf( request, "UPDATE " MAIN_TABLE " set nlink=nlink-1 where id="DPK, pk);
+        rc = db_exec_sql( &p_mgr->conn, request, NULL );
+        if ( rc )
+            return rc;
+#endif
+    }
+
+    /* Allow removing entry from MAIN_TABLE without removing it from NAMES */
+    if (p_attr_set && ATTR_MASK_TEST(p_attr_set, parent_id) && ATTR_MASK_TEST(p_attr_set, name))
+    {
+        rc = entry_id2pk( p_mgr, &ATTR( p_attr_set, parent_id ), FALSE, PTR_PK(ppk) );
+        if (rc)
+            return rc;
+
+        sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE parent_id="DPK" AND hname=sha1('%s') AND id="DPK, ppk, ATTR( p_attr_set, name ), pk );
         rc = db_exec_sql( &p_mgr->conn, request, NULL );
         if ( rc )
             return rc;
     }
+    else if (!p_attr_set || !ATTR_MASK_TEST(p_attr_set, parent_id) || !ATTR_MASK_TEST(p_attr_set, name))
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to delete entry from "DNAMES_TABLE);
 
     return rc;
 }
 
 
-int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
+int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
+                    const attr_set_t * p_attr_set, int last )
 {
     int rc;
 
@@ -79,7 +112,7 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
     if ( rc )
         return rc;
 
-    rc = listmgr_remove_no_transaction( p_mgr, p_id );
+    rc = listmgr_remove_no_transaction( p_mgr, p_id, p_attr_set, last );
     if (rc)
     {
         lmgr_rollback( p_mgr );
@@ -94,10 +127,13 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id )
 
 /* macro for clarifying the code */
 #ifdef HAVE_RM_POLICY
+/* path is retrieved only for information: just get one of them */
 #ifdef _HSM_LITE
-#define SOFTRM_SAVED_FIELDS "fullpath, backendpath"
+#define BUILD_SOFTRM_FIELDS "one_path(%s.id) as fullpath, backendpath"
+#define GET_SOFTRM_FIELDS "fullpath, backendpath"
 #else
-#define SOFTRM_SAVED_FIELDS "fullpath"
+#define BUILD_SOFTRM_FIELDS "one_path(%s.id) as fullpath"
+#define GET_SOFTRM_FIELDS "fullpath"
 #endif
 
 /**
@@ -112,18 +148,20 @@ static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
     if ( annex_table )
     {
         sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-                 SOFTRM_SAVED_FIELDS ", soft_rm_time, real_rm_time) "
-                "(SELECT "MAIN_TABLE".id, "SOFTRM_SAVED_FIELDS", "
+                 GET_SOFTRM_FIELDS ", soft_rm_time, real_rm_time) "
+                "(SELECT "MAIN_TABLE".id, "BUILD_SOFTRM_FIELDS", "
                  "%u, %u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
                  " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
+                 MAIN_TABLE,
                  (unsigned int)time(NULL),
                  (unsigned int)due_time );
     }
     else
     {
        sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-                 SOFTRM_SAVED_FIELDS ", soft_rm_time, real_rm_time) "
-                 "(SELECT id, "SOFTRM_SAVED_FIELDS", %u, %u FROM "MAIN_TABLE")",
+                 GET_SOFTRM_FIELDS ", soft_rm_time, real_rm_time) "
+                 "(SELECT id, "BUILD_SOFTRM_FIELDS", %u, %u FROM "MAIN_TABLE")",
+                 MAIN_TABLE,
                  (unsigned int)time(NULL),
                  (unsigned int)due_time );
     }
@@ -145,7 +183,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
     char escaped[RBH_PATH_MAX];
     char * curr = query;
     int rc;
- 
+
     curr += sprintf( query,
                      "INSERT IGNORE INTO " SOFT_RM_TABLE
                      "(fid, " );
@@ -198,20 +236,23 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     int            rc;
     char           query[4096];
     char           filter_str[2048];
+    char           filter_str_names[1024];
     char           *curr_filter;
     int            filter_main = 0;
     int            filter_annex = 0;
+    int            filter_names = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
     char           from[1024];
     char           *curr_from;
     const char* first_table = NULL;
+    table_enum     query_tab;
     const char* direct_del_table = NULL;
     char           tmp_table_name[256];
     result_handle_t result;
     char          *field_tab[3]; /* 3 max: id, fullpath, backendpath */
     DEF_PK(pk);
-    unsigned int   rmcount;
+    unsigned int   rmcount = 0;
 
     /* This is needed for creating big temporary table.
      * Set READ COMMITTED isolation level for the next transaction
@@ -279,6 +320,10 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         if ( rc )
             goto rollback;
 
+        rc = db_exec_sql( &p_mgr->conn, "DELETE FROM " DNAMES_TABLE, NULL );
+        if ( rc )
+            goto rollback;
+
         /* FIXME how many entries removed? */
         return lmgr_commit( p_mgr );
     }
@@ -287,6 +332,8 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     curr_filter = filter_str;
     filter_main = filter2str( p_mgr, curr_filter, p_filter, T_MAIN, FALSE /* no leading AND */, TRUE );
     curr_filter += strlen(curr_filter);
+
+    filter_names = filter2str( p_mgr, filter_str_names, p_filter, T_DNAMES, FALSE, FALSE );
 
     if ( annex_table )
     {
@@ -306,13 +353,18 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     curr_filter += strlen(curr_filter);
 #endif
 
-    if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0 )
+    /* sanity check */
+    if (filter_main + filter_annex + filter_stripe_info + filter_stripe_items
+        + filter_names == 0)
     {
         /* should have been detected in the beginning of this function ! */
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "How come empty filter has not been detected" );
         rc = DB_REQUEST_FAILED;
         goto rollback;
     }
+    else if (filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0)
+        /* its about names only */
+        goto clean_names;
 
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Creating temporary table" );
 
@@ -322,6 +374,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         strcpy(curr_from, MAIN_TABLE);
         curr_from = curr_from + strlen(curr_from);
         first_table = MAIN_TABLE;
+        query_tab = T_MAIN;
     }
     if (filter_annex)
     {
@@ -333,6 +386,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
             strcpy(from, ANNEX_TABLE);
             curr_from = from + strlen(from);
             first_table = ANNEX_TABLE;
+            query_tab = T_ANNEX;
         }
     }
     if (filter_stripe_info)
@@ -345,6 +399,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
             strcpy(from, STRIPE_INFO_TABLE);
             curr_from = from + strlen(from);
             first_table = STRIPE_INFO_TABLE;
+            query_tab = T_STRIPE_INFO;
         }
     }
     if ( filter_stripe_items )
@@ -357,6 +412,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
             strcpy(from, STRIPE_ITEMS_TABLE);
             curr_from = from + strlen(from);
             first_table = STRIPE_ITEMS_TABLE;
+            query_tab = T_STRIPE_ITEMS;
         }
     }
 
@@ -379,13 +435,13 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     {
         if (annex_table)
             sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "BUILD_SOFTRM_FIELDS
                  " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id = "ANNEX_TABLE".id"
-                 " WHERE %s", tmp_table_name, first_table, filter_str );
+                 " WHERE %s", tmp_table_name, first_table, first_table, filter_str );
         else
             sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "SOFTRM_SAVED_FIELDS" FROM %s"
-                 " WHERE %s", tmp_table_name, first_table, from, filter_str );
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "BUILD_SOFTRM_FIELDS" FROM %s"
+                 " WHERE %s", tmp_table_name, first_table, first_table, from, filter_str );
     }
     else
 #endif
@@ -393,6 +449,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                  "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id) FROM %s"
                  " WHERE %s", tmp_table_name, first_table, from, filter_str );
 
+    /* apply filters on function return val */
+    /* FIXME it must also match entries whose path is null (no path) */
+    func_filter(p_mgr, query + strlen(query), p_filter, query_tab, TRUE, TRUE);
 
     /* in autocommit mode, set the transaction level, just before the needed statement */
     if (lmgr_config.commit_behavior == 0)
@@ -421,6 +480,10 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
         /* if filter is on annex, we can directly use filter in WHERE clause */
         sprintf( query, "DELETE FROM %s WHERE %s", first_table, filter_str );
+
+        /* apply filters on function return val */
+        func_filter(p_mgr, query + strlen(query), p_filter, query_tab, TRUE, FALSE);
+
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
             goto rollback;
@@ -433,7 +496,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
 #ifdef HAVE_RM_POLICY
     if ( soft_rm )
-        sprintf( query, "SELECT id, "SOFTRM_SAVED_FIELDS" FROM %s", tmp_table_name );
+        sprintf( query, "SELECT id, "GET_SOFTRM_FIELDS" FROM %s", tmp_table_name );
     else
 #endif
         sprintf( query, "SELECT id FROM %s", tmp_table_name );
@@ -486,6 +549,12 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
         /* delete all entries related to this id */
 
+        /* remove all paths to an entry if it has no longer info in ENTRIES */
+        sprintf( query, "DELETE FROM " DNAMES_TABLE " WHERE id="DPK, pk );
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( rc )
+            goto free_res;
+
         /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
         if (!direct_del_table || strcmp(direct_del_table, STRIPE_ITEMS_TABLE))
@@ -536,20 +605,33 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                 "End of indirect removal: %u identifiers removed", rmcount );
 
     /* drop tmp table */
-    sprintf( query, "DROP TABLE %s", tmp_table_name );
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
+    rc = db_drop_component( &p_mgr->conn, DBOBJ_TABLE, tmp_table_name);
     if ( rc )
         goto rollback;
 
+clean_names:
+    /* if there is a filter on names, clean them independantly, whatever the over filters */
+    if (filter_names)
+    {
+        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in " DNAMES_TABLE " table" );
+        sprintf( query, "DELETE FROM " DNAMES_TABLE " WHERE %s", filter_str_names );
+
+        /* apply filters on function return val */
+        func_filter(p_mgr, query + strlen(query), p_filter, T_DNAMES, TRUE, FALSE);
+
+        rc = db_exec_sql( &p_mgr->conn, query, NULL );
+        if ( rc )
+            goto rollback;
+    }
 
     rc = lmgr_commit( p_mgr );
     if (!rc)
         p_mgr->nbop[OPIDX_RM]+=rmcount;
     return rc;
 
-  free_res:
+free_res:
     db_result_free( &p_mgr->conn, &result );
-  rollback:
+rollback:
     lmgr_rollback( p_mgr );
     return rc;
 }
@@ -561,6 +643,8 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     return listmgr_mass_remove( p_mgr, p_filter, FALSE, 0, cb_func );
 }
 
+#ifdef HAVE_RM_POLICY
+
 int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                             time_t real_remove_time, rm_cb_func_t cb_func )
 {
@@ -568,20 +652,15 @@ int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     return listmgr_mass_remove( p_mgr, p_filter, TRUE, real_remove_time, cb_func );
 }
 
-
-#ifdef HAVE_RM_POLICY
 /**
  * Remove an entry from the main database, and insert it to secondary table
  * for delayed removal.
  * \param real_remove_time time when the entry must be really removed.
- * \param last_known_path last known path for this entry.
+ * \param p_old_attrs contains old attributes, parent+name and backendpath must be set.
  *        If NULL, it is retrieved from the database.
  */
 int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                   const char * last_known_path,
-#ifdef _HSM_LITE
-                                   const char * bkpath,
-#endif
+                                   attr_set_t * p_old_attrs,
                                    time_t real_remove_time )
 {
     int rc;
@@ -592,15 +671,23 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     attr_set_t missing_attrs;
     ATTR_MASK_INIT( &missing_attrs );
 
-    if ( last_known_path )
-        entry_path = last_known_path;
+    /* last known path is needed for insertion in SOFT_RM table */
+    if (ATTR_MASK_TEST( p_old_attrs, fullpath ))
+        entry_path = ATTR(p_old_attrs, fullpath);
     else
-        /* check if the previous entry had a path */
         ATTR_MASK_SET( &missing_attrs, fullpath );
 
+    /* this is needed for remove function */
+    if (!ATTR_MASK_TEST( p_old_attrs, parent_id)
+        || !ATTR_MASK_TEST( p_old_attrs, name))
+    {
+        ATTR_MASK_SET( &missing_attrs, parent_id );
+        ATTR_MASK_SET( &missing_attrs, name );
+    }
+
 #ifdef _HSM_LITE
-    if ( bkpath )
-        backendpath = bkpath;
+    if (ATTR_MASK_TEST( p_old_attrs, backendpath ))
+        backendpath = ATTR(p_old_attrs, backendpath);
     else
         /* check if the previous entry had a path in backend */
         ATTR_MASK_SET( &missing_attrs, backendpath );
@@ -610,15 +697,15 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     {
         if ( ListMgr_Get( p_mgr, p_id, &missing_attrs ) == DB_SUCCESS )
         {
-            if ( ATTR_MASK_TEST( &missing_attrs, fullpath ) )
+            if ((entry_path == NULL) && ATTR_MASK_TEST(&missing_attrs, fullpath))
                 entry_path = ATTR(&missing_attrs, fullpath);
 #ifdef _HSM_LITE
-            if ( ATTR_MASK_TEST( &missing_attrs, backendpath ) )
+            if ((backendpath == NULL) && ATTR_MASK_TEST( &missing_attrs, backendpath ))
                 backendpath = ATTR(&missing_attrs, backendpath);
 #endif
         }
     }
-        
+
     /* We want the removal sequence to be atomic */
     rc = lmgr_begin( p_mgr );
     if ( rc )
@@ -635,8 +722,11 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
         return rc;
     }
 
+    /* merge old attrs to missing attrs (can overwrite) */
+    ListMgr_MergeAttrSets(&missing_attrs, p_old_attrs, TRUE);
+
     /* remove the entry from main tables, if it exists */
-    rc = listmgr_remove_no_transaction( p_mgr, p_id );
+    rc = listmgr_remove_no_transaction( p_mgr, p_id, &missing_attrs, TRUE );
     if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
     {
         lmgr_rollback( p_mgr );

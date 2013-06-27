@@ -3,6 +3,7 @@
  */
 /*
  * Copyright (C) 2009, 2010 CEA/DAM
+ * Copyright 2013 Cray Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -46,6 +47,7 @@ static struct option option_tab[] =
     {"size", required_argument, NULL, 's'},
     {"name", required_argument, NULL, 'n'},
     {"mtime", required_argument, NULL, 'M'},
+    {"ctime", required_argument, NULL, 'C'},
     {"mmin", required_argument, NULL, 'm'},
     {"msec", required_argument, NULL, 'z'},
     {"atime", required_argument, NULL, 'A'},
@@ -96,6 +98,10 @@ struct find_opt
     const char * name;
     unsigned int ost_idx;
 
+    // ctime cond: gt/eq/lt <time>
+    compare_direction_t crt_compar;
+    time_t              crt_val;
+
     // mtime cond: gt/eq/lt <time>
     compare_direction_t mod_compar;
     time_t              mod_val;
@@ -116,6 +122,7 @@ struct find_opt
     unsigned int match_type:1;
     unsigned int match_size:1;
     unsigned int match_name:1;
+    unsigned int match_ctime:1;
     unsigned int match_mtime:1;
     unsigned int match_atime:1;
 #ifdef _LUSTRE
@@ -142,7 +149,7 @@ struct find_opt
 #endif
     .ls = 0, .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
-    .match_mtime = 0, .match_atime = 0,
+    .match_ctime = 0, .match_mtime = 0, .match_atime = 0,
 #ifdef ATTR_INDEX_status
     .match_status = 0, .statusneg = 0,
 #endif
@@ -151,10 +158,10 @@ struct find_opt
 };
 
 #ifdef ATTR_INDEX_status
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_name | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link | ATTR_MASK_status)
 #else
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_mode | ATTR_MASK_fullpath | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_name | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link )
 #endif
 static int disp_mask = ATTR_MASK_fullpath | ATTR_MASK_type;
@@ -236,6 +243,18 @@ static int mkfilters(int exclude_dirs)
             AppendBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val);
         is_expr = 1;
         query_mask |= ATTR_MASK_size;
+    }
+
+    if (prog_options.match_ctime)
+    {
+        compare_value_t val;
+        val.duration = prog_options.crt_val;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val);
+        else
+            AppendBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_creation_time;
     }
 
     if (prog_options.match_mtime)
@@ -322,10 +341,8 @@ static int mkfilters(int exclude_dirs)
 
     if (prog_options.match_name)
     {
-        char tmpstr[RBH_PATH_MAX];
-        sprintf(tmpstr, "*/%s", prog_options.name);
-        fv.value.val_str = tmpstr;
-        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_fullpath, LIKE, fv, 0 );
+        fv.value.val_str = prog_options.name;
+        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_name, LIKE, fv, 0 );
     }
 
     if (is_expr)
@@ -353,6 +370,8 @@ static const char *help_string =
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       "SIZE_HELP"\n"
     "    " _B "-name" B_ " " _U "filename" U_ "\n"
+    "    " _B "-ctime" B_ " " _U "time_crit" U_ "\n"
+    "       "TIME_HELP"\n"
     "    " _B "-mtime" B_ " " _U "time_crit" U_ "\n"
     "       "TIME_HELP"\n"
     "    " _B "-mmin" B_ " " _U "minute_crit" U_ "\n"
@@ -565,7 +584,7 @@ static int set_size_filter(char * str)
     return 0;
 }
 
-typedef enum {atime, mtime} e_time;
+typedef enum {atime, rh_ctime, mtime} e_time;
 /* parse time filter and set prog_options struct */
 static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix, e_time what)
 {
@@ -593,6 +612,15 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
 
     if ((n == 1) || !strcmp(suffix, ""))
     {
+        if ( what == rh_ctime )
+        {
+            prog_options.crt_compar = comp;
+            if (multiplier != 0)
+                prog_options.crt_val = val * multiplier;
+            else /* default multiplier is days */
+                prog_options.crt_val =  val * 86400;
+        }
+        else
         if ( what == mtime )
         {
             prog_options.mod_compar = comp;
@@ -633,6 +661,12 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
                 fprintf(stderr, "Invalid suffix for time: '%s'. Expected time format: "TIME_HELP"\n", str);
                 return -EINVAL;
         }
+        if ( what == rh_ctime )
+        {
+            prog_options.crt_compar = comp;
+            prog_options.crt_val = val;
+        }
+        else
         if ( what == mtime )
         {
             prog_options.mod_compar = comp;
@@ -648,7 +682,7 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
 }
 
 
-static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
+static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
 {
 #ifdef ATTR_INDEX_status
     if (prog_options.match_status)
@@ -661,15 +695,7 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
     }
 #endif
 
-    if (!prog_options.ls)
-    {
-        /* just display name */
-        if (ATTR_MASK_TEST(attrs, fullpath))
-            printf("%s\n", ATTR(attrs, fullpath));
-        else
-            printf(DFID"\n", PFID(id));
-    }
-    else
+    if (prog_options.ls)
     {
         const char * type;
         char date_str[128];
@@ -708,20 +734,31 @@ static inline void print_entry(const entry_id_t * id, const attr_set_t * attrs)
 
         if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
             && ATTR_MASK_TEST(attrs, link))
-            /* display: id, type, owner, group, size, mtime, path -> link */
-            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s -> %s\n",
-                   PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, ATTR(attrs, fullpath), ATTR(attrs,link));
+            /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
+            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s -> %s\n",
+                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink) STATUS_VAL,
+                   ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, size), date_str, id->fullname, ATTR(attrs,link));
         else
-            /* display all: id, type, owner, group, size, mtime, path */
-            printf(DFID" %-4s %s  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
-                   PFID(id), type, mode_str STATUS_VAL, ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, ATTR(attrs, fullpath));
+            /* display all: id, type, mode, nlink, (status,) owner, group, size, mtime, path */
+            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
+                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink) STATUS_VAL,
+                   ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, size), date_str, id->fullname);
     }
+    else
+    {
+        /* just display name */
+        if (id->fullname)
+            printf("%s\n", id->fullname);
+        else
+            printf(DFID"\n", PFID(&id->id));
+    }
+
 }
 
 /* directory callback */
-static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
+static int dircb(wagon_t * id_list, attr_set_t * attr_list,
                  unsigned int entry_count, void * dummy )
 {
     /* retrieve child entries for all directories */
@@ -729,13 +766,13 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
     for (i = 0; i < entry_count; i++)
     {
-        entry_id_t * chids = NULL;
+        wagon_t * chids = NULL;
         attr_set_t * chattrs = NULL;
         unsigned int chcount = 0;
         int j;
 
         /* match condition on dirs parent */
-        if (!is_expr || (EntryMatches(&id_list[i], &attr_list[i],
+        if (!is_expr || (EntryMatches(&id_list[i].id, &attr_list[i],
                          &match_expr, NULL) == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
@@ -748,7 +785,7 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
         {
             rc = ListMgr_GetChild( &lmgr, &entry_filter, id_list+i, 1,
                                    disp_mask | query_mask,
-                                   &chids, &chattrs, &chcount );
+                                   &chids, &chattrs, &chcount);
             if (rc)
             {
                 DisplayLog(LVL_MAJOR, FIND_TAG, "ListMgr_GetChild() failed with error %d", rc);
@@ -757,11 +794,12 @@ static int dircb(entry_id_t * id_list, attr_set_t * attr_list,
 
             for (j = 0; j < chcount; j++)
             {
-                if (!is_expr || (EntryMatches(&chids[j], &chattrs[j],
+                if (!is_expr || (EntryMatches(&chids[j].id, &chattrs[j],
                                  &match_expr, NULL) == POLICY_MATCH))
                     print_entry(&chids[j], &chattrs[j]);
             }
 
+            free_wagon(chids, 0, chcount);
             MemFree(chids);
             MemFree(chattrs);
         }
@@ -783,88 +821,11 @@ static int get_root_id(entry_id_t * root_id)
 }
 
 /**
- * List the content of all the DB
- */
-static int list_all()
-{
-    attr_set_t  root_attrs, attrs;
-    entry_id_t  root_id, id;
-    int rc;
-    struct stat st;
-    struct lmgr_iterator_t *it;
-
-    ATTR_MASK_INIT( &root_attrs );
-
-    rc = get_root_id(&root_id);
-    if (rc)
-        return rc;
-
-    /* root is not a part of the DB: print it now */
-    ATTR_MASK_SET(&root_attrs, fullpath);
-    strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
-
-    if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
-    {
-        PosixStat2EntryAttr(&st, &root_attrs, TRUE);
-        ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
-    }
-
-    /* match condition on dirs parent */
-    if (!is_expr || (EntryMatches(&root_id, &root_attrs,
-                     &match_expr, NULL) == POLICY_MATCH))
-    {
-        /* don't display dirs if no_dir is specified */
-        if (! (prog_options.no_dir && ATTR_MASK_TEST(&root_attrs, type)
-               && !strcasecmp(ATTR(&root_attrs, type), STR_TYPE_DIR)) )
-            print_entry(&root_id, &root_attrs);
-    }
-
-    /* list all, including dirs */
-    it = ListMgr_Iterator( &lmgr, &entry_filter, NULL, NULL );
-    if (!it)
-    {
-        DisplayLog(LVL_MAJOR, FIND_TAG, "ERROR: cannot retrieve entry list from database");
-        return -1;
-    }
-
-    attrs.attr_mask = disp_mask | query_mask;
-    while ((rc = ListMgr_GetNext( it, &id, &attrs )) == DB_SUCCESS)
-    {
-        if (!is_expr || (EntryMatches(&id, &attrs, &match_expr, NULL)
-                                      == POLICY_MATCH))
-        {
-            /* don't display dirs if no_dir is specified */
-            if (! (prog_options.no_dir && ATTR_MASK_TEST(&attrs, type)
-                   && !strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)) )
-                print_entry(&id, &attrs);
-            /* don't display non dirs is dir_only is specified */
-            else if (! (prog_options.dir_only && ATTR_MASK_TEST(&attrs, type)
-                   && strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR)))
-                print_entry(&id, &attrs);
-            else
-                /* return entry don't match? */
-                DisplayLog(LVL_DEBUG, FIND_TAG, "Warning: returned DB entry doesn't match filter: %s",
-                           ATTR(&attrs, fullpath));
-        }
-        ListMgr_FreeAttrs( &attrs );
-
-        /* prepare next call */
-        attrs.attr_mask = disp_mask | query_mask;
-    }
-    ListMgr_CloseIterator( it );
-
-
-
-    return 0;
-
-}
-
-/**
  * List the content of the given id/path list
  */
 static int list_content(char ** id_list, int id_count)
 {
-    entry_id_t * ids;
+    wagon_t *ids;
     int i, rc;
     attr_set_t root_attrs;
     entry_id_t root_id;
@@ -874,7 +835,7 @@ static int list_content(char ** id_list, int id_count)
     if (rc)
         return rc;
 
-    ids = MemCalloc(id_count, sizeof(entry_id_t));
+    ids = MemCalloc(id_count, sizeof(wagon_t));
     if (!ids)
         return -ENOMEM;
 
@@ -882,31 +843,35 @@ static int list_content(char ** id_list, int id_count)
     {
         is_id = TRUE;
         /* is it a path or fid? */
-        if (sscanf(id_list[i], SFID, RFID(&ids[i])) != FID_SCAN_CNT)
+        if (sscanf(id_list[i], SFID, RFID(&ids[i].id)) != FID_SCAN_CNT)
         {
             is_id = FALSE;
             /* take it as a path */
-            rc = Path2Id(id_list[i], &ids[i]);
-            if (rc)
-            {
-                DisplayLog(LVL_MAJOR, FIND_TAG, "Invalid parameter: %s: %s",
-                           id_list[i], strerror(-rc));
-                goto out;
+            rc = Path2Id(id_list[i], &ids[i].id);
+            if (!rc) {
+                ids[i].fullname = id_list[i];
+                if (FINAL_SLASH(ids[i].fullname))
+                    REMOVE_FINAL_SLASH(ids[i].fullname);
             }
+        } else {
+#if _HAVE_FID
+            /* Take it as an FID. */
+            char path[RBH_PATH_MAX];
+            rc = Lustre_GetFullPath( &ids[i].id, path, sizeof(path));
+            if (!rc)
+                ids[i].fullname = strdup(path);
+#endif
         }
 
-        if ((id_count == 1) && entry_id_equal(&ids[i], &root_id))
-        {
-            /* the ID is FS root: use list_all instead */
-            DisplayLog(LVL_DEBUG, FIND_TAG, "Optimization: command argument is filesystem's root: performing bulk DB dump");
-
-            mkfilters(FALSE); /* keep dirs */
-            return list_all();
+        if (rc) {
+            DisplayLog(LVL_MAJOR, FIND_TAG, "Invalid parameter: %s: %s",
+                       id_list[i], strerror(-rc));
+            goto out;
         }
 
         /* get root attrs to print it (if it matches program options) */
         root_attrs.attr_mask = disp_mask | query_mask;
-        rc = ListMgr_Get(&lmgr, &ids[i], &root_attrs);
+        rc = ListMgr_Get(&lmgr, &ids[i].id, &root_attrs);
         if (rc == 0)
             dircb(&ids[i], &root_attrs, 1, NULL);
         else
@@ -925,7 +890,7 @@ static int list_content(char ** id_list, int id_count)
                     ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
                 }
             }
-            else if (entry_id_equal(&ids[i], &root_id))
+            else if (entry_id_equal(&ids[i].id, &root_id))
             {
                 /* this is root id */
                 struct stat st;
@@ -941,9 +906,9 @@ static int list_content(char ** id_list, int id_count)
 
             dircb(&ids[i], &root_attrs, 1, NULL);
         }
-    }
 
-    rc = rbh_scrub(&lmgr, ids, id_count, disp_mask | query_mask, dircb, NULL);
+        rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask | query_mask, dircb, NULL);
+    }
 
 out:
     /* ids have been processed, free them */
@@ -1064,6 +1029,16 @@ int main( int argc, char **argv )
             }
             break;
 
+        case 'C':
+            toggle_option(match_ctime, "ctime");
+            if (set_time_filter(optarg, 0, TRUE, rh_ctime))
+                exit(1);
+            if (neg) {
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
+                exit(1);
+            }
+            break;
+
         case 'M':
             toggle_option(match_mtime, "mtime/mmin/msec");
             if (set_time_filter(optarg, 0, TRUE, mtime))
@@ -1159,7 +1134,7 @@ int main( int argc, char **argv )
     /* get default config file, if not specified */
     if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
     {
-        fprintf(stderr, "No config file found matching %s\n", badcfg);
+        fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);
     }
     else if (chgd)
@@ -1229,9 +1204,10 @@ int main( int argc, char **argv )
 
     if (argc == optind)
     {
-        mkfilters(FALSE); /* keep dirs */
-        /* no path speficied, list all entries */
-        rc = list_all();
+        char *id = config.global_config.fs_path;
+        mkfilters(TRUE); /* exclude dirs */
+        /* no path specified, list all entries */
+        rc = list_content(&id, 1);
     }
     else
     {

@@ -14,7 +14,7 @@
 
 /**
  * \file  policies.h
- * \brief policies management. 
+ * \brief policies management.
  */
 
 #ifndef _POLICIES_H
@@ -315,7 +315,7 @@ typedef struct updt_policy_t
 } updt_policy_t;
 
 
-/* ====================================================================== 
+/* ======================================================================
  * Function for managing all policy configuration (migration, purge, unlink)
  * ======================================================================*/
 
@@ -351,7 +351,7 @@ extern policies_t policies;
  *  Functions for applying policies to entries
  * ==============================================*/
 
-static inline int is_file_class_defined()
+static inline int is_file_class_defined(void)
 {
 #ifdef HAVE_PURGE_POLICY
     if ( !NO_POLICY( &policies.purge_policies ) )
@@ -365,7 +365,7 @@ static inline int is_file_class_defined()
     return FALSE;
 }
 
-static inline int is_dir_class_defined()
+static inline int is_dir_class_defined(void)
 {
 #ifdef HAVE_RMDIR_POLICY
     if ( !NO_DIR_POLICY( &policies.rmdir_policy) )
@@ -469,7 +469,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_on_event,
 #define need_path_update( _pa, _pu )    need_info_update( (_pa), (_pu), UPDT_PATH )
 #define need_md_update( _pa, _pu )    need_info_update( (_pa), (_pu), UPDT_MD )
 
-/** 
+/**
  * Compare 2 boolean expressions
  * @return TRUE if expression structure changed.
  * @return FALSE if they have the same structure,

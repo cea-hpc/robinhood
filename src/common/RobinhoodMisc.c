@@ -80,7 +80,7 @@ void Exit( int error_code )
 }
 
 /* global info about the filesystem to be managed */
-static char    mount_point[RBH_PATH_MAX] = "";
+static char   *mount_point;
 static char    fsname[RBH_PATH_MAX] = "";
 static dev_t   dev_id = 0;
 static uint64_t fs_key = 0;
@@ -88,6 +88,10 @@ static uint64_t fs_key = 0;
 /* to optimize string concatenation */
 static unsigned int mount_len = 0;
 
+#ifdef _HAVE_FID
+#define FIDDIR      "/.lustre/fid/"
+static char *fid_dir;
+#endif
 
 /* used at initialization time, to avoid several modules
  * that start in parallel to check it several times.
@@ -137,22 +141,31 @@ static uint64_t fsidto64(fsid_t fsid)
  */
 static void _set_mount_point( char *mntpnt )
 {
+    char path[RBH_PATH_MAX + 100];
+
     /* cannot change during a run */
     if (mount_len == 0)
     {
-        strcpy( mount_point, mntpnt );
-        mount_len = strlen( mntpnt );
+        strcpy(path, mntpnt );
 
         /* remove final slash, if any */
-        if ( (mount_len > 1) && (mount_point[mount_len-1] == '/') )
+        if ( (mount_len > 1) && (path[mount_len-1] == '/') )
         {
-            mount_point[mount_len-1] = '\0';
-            mount_len --;
+            path[mount_len-1] = '\0';
         }
+
+        mount_point = strdup( path );
+        mount_len = strlen( mount_point );
+
+#ifdef _HAVE_FID
+        /* Now, the .fid directory */
+        strcat(path, FIDDIR);
+        fid_dir = strdup(path);
+#endif
     }
 }
 
-void set_fs_info( char *name, char * mountp, dev_t dev, fsid_t fsid)
+static void set_fs_info( char *name, char * mountp, dev_t dev, fsid_t fsid)
 {
     P( mount_point_lock );
     _set_mount_point(mountp);
@@ -189,19 +202,27 @@ const char          *get_mount_point( unsigned int * plen )
     return mount_point;
 }
 
+#if _HAVE_FID
+/* Retrieve the .fid directory */
+const char          *get_fid_dir( void )
+{
+    return fid_dir;
+}
+#endif
+
 /* retrieve fsname from any module */
-const char          *get_fsname(  )
+const char          *get_fsname( void )
 {
     return fsname;
 }
 
 /* return Filesystem device id  */
-dev_t          get_fsdev()
+dev_t          get_fsdev( void )
 {
     return dev_id;
 }
 
-uint64_t       get_fskey()
+uint64_t       get_fskey( void )
 {
     return fs_key;
 }
@@ -237,19 +258,10 @@ int SendMail( const char *recipient, const char *subject, const char *message )
  */
 int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unmatched )
 {
-    static const char * default_cfg_paths[] =
-    {
-       "/etc/robinhood.d/"PURPOSE_EXT,
-       "/etc/robinhood.d",
-       "/etc/robinhood",
-       ".",
-       NULL
-    };
-    const char * current_path;
-    int i;
+    static const char * default_cfg_path = "/etc/robinhood.d/"PURPOSE_EXT;
     DIR * dir;
     struct dirent * ent;
-    struct stat stbuf;
+
     *changed = 1; /* most of the cases */
 
     if (cfg_in == NULL || EMPTY_STRING(cfg_in))
@@ -263,20 +275,15 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
         if (cfg_in)
             strcpy(unmatched, cfg_in);
         else
-            sprintf(unmatched, "%s/*.conf", default_cfg_paths[0]);
+            sprintf(unmatched, "%s/*.conf", default_cfg_path);
     }
 
-    if (cfg_in == NULL || EMPTY_STRING(cfg_in))
-    {
-       for ( i = 0, current_path = default_cfg_paths[0];
-             current_path != NULL;
-             i++, current_path = default_cfg_paths[i] )
-       {
-            /* look for files in current path */
-            dir = opendir( current_path );
-            if ( !dir )
-                continue;
+    if (cfg_in == NULL || EMPTY_STRING(cfg_in)) {
+        int found = 0;
 
+        /* look for files in default config path */
+        dir = opendir( default_cfg_path );
+        if ( dir ) {
             while ( (ent = readdir(dir)) != NULL )
             {
                 /* ignore .xxx files */
@@ -286,17 +293,23 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
                     /* not a config file */
                     continue;
 
-                sprintf( cfg_out, "%s/%s", current_path, ent->d_name );
-                if ( (stat( cfg_out, &stbuf ) == 0)
-                     && S_ISREG(stbuf.st_mode) )
-                {
-                    /* file found: OK */
-                    closedir(dir);
-                    return 0;
+                sprintf( cfg_out, "%s/%s", default_cfg_path, ent->d_name );
+                if ( access(cfg_out, F_OK) == 0 ) {
+                    /* that file matches. */
+                    found ++;
+                    if (found >= 2)
+                        /* No need to continue. */
+                        break;
                 }
             }
 
             closedir(dir);
+       }
+
+       if (found == 1) {
+           /* Only one file found. cfg_out is already set. We're
+            * good. */
+           return 0;
        }
     }
     else if (access(cfg_in, F_OK) == 0)
@@ -321,27 +334,22 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
 
         strcpy(cfg_cp, cfg_in);
 
-        for ( i = 0, current_path = default_cfg_paths[0];
-             current_path != NULL;
-             i++, current_path = default_cfg_paths[i] )
+        /* if the file already has an extension, try path/name */
+        if (has_ext)
         {
-            /* if the file already has an extension, try path/name */
-            if (has_ext)
-            {
-                sprintf(cfg_out, "%s/%s", current_path, cfg_cp);
-                if (access(cfg_out, F_OK) == 0)
-                    return 0;
-            }
-
-            /* try path/name.cfg, path/name.conf */
-            sprintf(cfg_out, "%s/%s.conf", current_path, cfg_cp);
-            if (access(cfg_out, F_OK) == 0)
-                return 0;
-
-            sprintf(cfg_out, "%s/%s.cfg", current_path, cfg_cp);
+            sprintf(cfg_out, "%s/%s", default_cfg_path, cfg_cp);
             if (access(cfg_out, F_OK) == 0)
                 return 0;
         }
+
+        /* try path/name.cfg, path/name.conf */
+        sprintf(cfg_out, "%s/%s.conf", default_cfg_path, cfg_cp);
+        if (access(cfg_out, F_OK) == 0)
+            return 0;
+
+        sprintf(cfg_out, "%s/%s.cfg", default_cfg_path, cfg_cp);
+        if (access(cfg_out, F_OK) == 0)
+            return 0;
     }
 
 notfound:
@@ -779,7 +787,7 @@ int CheckFSInfo( char *path, char *expected_type,
  * - global_config must be set
  * - initialize mount_point, fsname and dev_id
  */
-int InitFS()
+int InitFS( void )
 {
     int rc;
 
@@ -812,7 +820,7 @@ int InitFS()
  * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
  * else, return -1
  */
-int ResetFS()
+int ResetFS( void )
 {
     char   name[RBH_PATH_MAX];
     dev_t  dev;
@@ -902,7 +910,7 @@ int ResetFS()
 /**
  *  Check that FS path is the same as the last time.
  */
-int CheckLastFS(  )
+int CheckLastFS( void )
 {
     int            rc;
     lmgr_t         lmgr;
@@ -1105,8 +1113,8 @@ long long str2bigint( const char *str )
 
 
 /**
- * Convert a string to a boolean 
- * @return -1 on error. 
+ * Convert a string to a boolean
+ * @return -1 on error.
  */
 int str2bool( const char *str )
 {
@@ -1126,8 +1134,8 @@ int str2bool( const char *str )
 
 
 /**
- * Convert a string to a duration in seconds 
- * @return -1 on error. 
+ * Convert a string to a duration in seconds
+ * @return -1 on error.
  */
 int str2duration( const char *str )
 {
@@ -1164,7 +1172,7 @@ int str2duration( const char *str )
 
 /**
  * Convert a string to a size (in bytes)
- * @return -1 on error. 
+ * @return -1 on error.
  */
 uint64_t str2size( const char *str )
 {
@@ -1241,7 +1249,7 @@ time_t str2date( const char *str )
     char tmpstr[16];
     int  tmpint;
     const char * curr = str;
-    
+
     /* extract year */
     if (extract_digits(curr, tmpstr, 4) < 4)
         return (time_t)-1;
@@ -1257,7 +1265,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) <= 0)
         return (time_t)-1;
     else if (tmpint > 12)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_mon = tmpint - 1; /* January => 0 */
 
     /* extract day */
@@ -1267,7 +1275,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) <= 0)
         return (time_t)-1;
     else if (tmpint > 31)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_mday = tmpint; /* 1st => 1 */
 
     /* extract hours */
@@ -1280,7 +1288,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) == -1)
         return (time_t)-1;
     else if (tmpint > 23)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_hour = tmpint;
 
     /* extract minutes */
@@ -1293,7 +1301,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) == -1)
         return (time_t)-1;
     else if (tmpint > 59)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_min = tmpint;
 
     /* extract seconds */
@@ -1306,7 +1314,7 @@ time_t str2date( const char *str )
     if ((tmpint = str2int(tmpstr)) == -1)
         return (time_t)-1;
     else if (tmpint > 59)
-        return (time_t)-1; 
+        return (time_t)-1;
     datetime.tm_sec = tmpint;
 
     if (*curr != '\0')
@@ -1363,7 +1371,7 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
 {
     int            mask = p_attr_set->attr_mask;
     size_t         written = 0;
-    char           tmpbuf[256];
+    char           tmpbuf[24576];
     const char *   format;
 
     if ( overide_mask )
@@ -1379,6 +1387,18 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, fullpath ) );
     }
+    /* this information is redundant with fullpath,
+     * so only display it if path is not known */
+    else if ( mask & ATTR_MASK_name )
+    {
+        if (brief)
+            format = "name='%s',";
+        else
+            format = "Name:     \"%s\"\n";
+        written +=
+            snprintf( out_str + written, strsize - written, format,
+                      ATTR( p_attr_set, name ) );
+    }
     if ( mask & ATTR_MASK_parent_id )
     {
         if (brief)
@@ -1388,16 +1408,6 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
         written +=
             snprintf( out_str + written, strsize - written, format,
                       PFID(&ATTR(p_attr_set, parent_id)) );
-    }
-    if ( mask & ATTR_MASK_name )
-    {
-        if (brief)
-            format = "name='%s',";
-        else
-            format = "Name:     \"%s\"\n";
-        written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, name ) );
     }
 #ifdef ATTR_INDEX_type
     if ( mask & ATTR_MASK_type )
@@ -1453,7 +1463,7 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
         }
         else
         {
-            FormatFileSize( tmpbuf, 256, ATTR( p_attr_set, size ) );
+            FormatFileSize( tmpbuf, sizeof(tmpbuf), ATTR( p_attr_set, size ) );
             written += snprintf( out_str + written, strsize - written, "Size:     %s\n", tmpbuf );
         }
     }
@@ -1521,8 +1531,8 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
     {
         if (brief)
         {
-            written += snprintf( out_str + written, strsize - written, "creation=%u,",
-                    ATTR( p_attr_set, creation_time ));
+            written += snprintf( out_str + written, strsize - written, "creation=%lu,",
+                                 (unsigned long)ATTR( p_attr_set, creation_time ));
         }
         else
         {
@@ -1557,7 +1567,7 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
             format = "Stripes: %s\n";
         written +=
             snprintf( out_str + written, strsize - written, format,
-                      FormatStripeList( tmpbuf, 256, &ATTR( p_attr_set, stripe_items), brief));
+                      FormatStripeList( tmpbuf, sizeof(tmpbuf), &ATTR( p_attr_set, stripe_items), brief));
     }
 
     if (mask & ATTR_MASK_stripe_info)
@@ -1911,7 +1921,7 @@ void rh_sleep( unsigned int seconds )
        remain = sleep( remain );
        if ( remain <= 0 )
        {
-           spent = time(NULL)-start; 
+           spent = time(NULL)-start;
            if ( spent < seconds )
                remain = seconds - spent;
        }

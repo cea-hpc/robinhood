@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2013, Cray Inc.
+ * Copyright 2013 Cray Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -119,6 +119,13 @@ static inline int rh_list_empty(const struct list_head *head)
          &l->member != (head);                               \
          l = rh_list_entry(l->member.next, typeof(*l), member))
 
-
+/* Iterate over a list in reverse. l is the cursor, tmp stores the
+ * next entry. l can be removed during the iteration. */
+#define rh_list_for_each_entry_safe_reverse(l, tmp, head, member)       \
+    for (l = rh_list_entry((head)->prev, typeof(*l), member),           \
+             tmp = rh_list_entry(l->member.prev, typeof(*l), member);   \
+         &l->member != (head);                                          \
+         l = tmp,                                                       \
+             tmp = rh_list_entry(l->member.prev, typeof(*l), member))
 
 #endif  /* _RH_LIST_H */

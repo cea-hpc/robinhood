@@ -110,7 +110,7 @@ function clean_fs
 		kill `cat rh.pid`
 		rm -f rh.pid
 	fi
-	
+
 	sleep 1
 #	echo "Impacting rm in HSM..."
 #	$RH -f ./cfg/immediate_rm.conf --scan --hsm-remove -l DEBUG -L rh_rm.log --once || error "deferred rm"
@@ -127,7 +127,7 @@ function check_db_error
 {
 	grep DB_REQUEST_FAILED $1 && error "DB request error"
 }
-    
+
 function migration_test
 {
 	config_file=$1
@@ -209,7 +209,7 @@ function test_rmdir
 	mkdir "$ROOT/$RECURSE.1"  "$ROOT/$RECURSE.2" || error "creating directories"
 	mkdir "$ROOT/$RECURSE.1/subdir.1" "$ROOT/$RECURSE.1/subdir.2" || error "creating directories"
 	touch "$ROOT/$RECURSE.1/subdir.1/file.1" "$ROOT/$RECURSE.1/subdir.1/file.2" "$ROOT/$RECURSE.1/subdir.2/file" || error "populating directories"
-	
+
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning filesystem"
 	check_db_error rh_chglogs.log
@@ -340,7 +340,7 @@ function xattr_test
 			fi
 		fi
 	fi
-	
+
 }
 
 function link_unlink_remove_test
@@ -374,7 +374,7 @@ function link_unlink_remove_test
 
 	# removing all files
     echo "3-Removing all links to file.1..."
-	rm -f $ROOT/link.* $ROOT/file.1 
+	rm -f $ROOT/link.* $ROOT/file.1
 
 	# deferred remove delay is not reached: nothing should be removed
 	echo "4-Performing HSM remove requests (before delay expiration)..."
@@ -421,7 +421,7 @@ function purge_test
 	clean_logs
 
 	# initial scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log 
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
 	check_db_error rh_scan.log
 
 	# fill 10 files and mark them archived+non dirty
@@ -430,7 +430,7 @@ function purge_test
 	for i in a `seq 1 10`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
-	
+
 	sleep 1
 	echo "2-Scanning the FS again to update file status (after 1sec)..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
@@ -482,7 +482,7 @@ function purge_size_filesets
 	clean_logs
 
 	# initial scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log 
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
 	check_db_error rh_scan.log
 
 	# fill 3 files of different sizes and mark them archived non-dirty
@@ -495,7 +495,7 @@ function purge_size_filesets
 			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || error "writing file.$size.$i"
 		done
 	done
-	
+
 	sleep 1
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
@@ -562,7 +562,7 @@ function test_rh_report
 			echo "OK: space used by files in $ROOT/dir.$i is $real bytes"
 		fi
 	done
-	
+
 }
 
 #test report using accounting table
@@ -711,7 +711,7 @@ function test_acct_table
 	config_file_scan=$1
         dircount=$2
         descr_str="$3"
-	
+
 	clean_logs
 
         for i in `seq 1 $dircount`; do
@@ -805,7 +805,7 @@ function test_dircount_report
 		(($count == $(( 10 * $i )) )) || error "Invalid dircount $count for dir.$i"
         (($avg == $i)) || error "Invalid avg size $avg for dir.$i ($i expected)"
 	done
-	
+
 	if [ $PURPOSE = "TMP_FS_MGR" ]; then
 		echo "4. Check empty dirs..."
 		# check empty dirs
@@ -967,7 +967,7 @@ function path_test
 	# unmatching files for fileclass tree_depth2
 	echo "data" > $ROOT/dir4/X
 	echo "data" > $ROOT/one_dir/one_dir/dir4/X
-	
+
 	mkdir -p $ROOT/dir5
 	mkdir -p $ROOT/subdir/dir5
 	# 2 matching files for fileclass relative_path
@@ -1129,7 +1129,7 @@ function periodic_class_match_migr
 
         (( $nb_updt == 0 )) && (( $nb_default_valid == 1 )) && (( $nb_migr_valid == 1 )) \
 		&& echo "OK: fileclasses do not need update"
-	
+
 	echo "Waiting $update_period sec..."
 	sleep $update_period
 
@@ -1335,7 +1335,7 @@ function test_trigger_check
 
 	cnt_user_trig=`grep " files must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	[ -n "$cnt_user_trig" ] || cnt_user_trig=0
-	
+
 	echo "triggers reported: $count_trig entries (global), $cnt_user_trig entries (user), $vol_fs_trig_mb MB (global), $vol_user_trig_mb MB (user)"
 
 	# check then was no actual purge
@@ -1385,7 +1385,7 @@ function test_periodic_trigger
 	# start periodic trigger in background
 	$RH -f ./cfg/$config_file --purge -l DEBUG -L rh_purge.log &
 	sleep 2
-	
+
 	# it first must have purged *.1 files (not others)
 	[ -f $ROOT/file.1 ] && error "$ROOT/file.1 should have been removed"
 	[ -f $ROOT/foo.1 ] && error "$ROOT/foo.1 should have been removed"
@@ -1559,7 +1559,7 @@ function test_info_collect
 	echo "2-Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
 	check_db_error rh_scan.log
- 
+
 	grep "DB query failed" rh_scan.log && error ": a DB query failed when scanning"
 	nb_db_apply=`grep STAGE_DB_APPLY rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
 
@@ -1630,7 +1630,7 @@ function test_diff
     # rm'd entry (file & dir)
     rm -f $ROOT/dir.1/b	|| error "rm"
     rmdir $ROOT/dir.3	|| error "rmdir"
-    
+
     # apply various changes
     chmod 0700 $ROOT/dir.1 		|| error "chmod"
     chown testuser $ROOT/dir.2		|| error "chown"
@@ -1784,7 +1784,7 @@ function test_logs
 		error ": unsupported test option"
 		return 1
 	fi
-	
+
 	# check if there is something written in the log
 	if (( `wc -l $log | awk '{print $1}'` > 0 )); then
 		echo "OK: log file is not empty"
@@ -1836,7 +1836,7 @@ function test_logs
                 error ": there are reported actions after a scan"
 		cat $report
         fi
-	
+
 	if (( $is_hsmlite == 0 )); then
 
 		# reinit msg idx
@@ -1889,7 +1889,7 @@ function test_logs
 			error ": unexpected count of actions"
 			cat $report
 		fi
-		
+
 	fi
 	(($files==1)) || return 0
 
@@ -1928,7 +1928,7 @@ function test_logs
 		cat /tmp/test_alert.1
 	fi
 
-	# no purge during scan 
+	# no purge during scan
 	if (( `wc -l /tmp/test_report.1 | awk '{print $1}'` == 0 )); then
                 echo "OK: no action reported"
         else
@@ -2215,7 +2215,7 @@ function check_disabled
 			cmd='--migrate'
 			match='Migration module is disabled'
 			;;
-		hsm_remove) 
+		hsm_remove)
 			if (( $is_hsmlite == 0 )); then
 				echo "hsmlite test only: skipped"
 				set_skipped
@@ -2224,7 +2224,7 @@ function check_disabled
 			cmd='--hsm-remove'
                         match='HSM removal successfully initialized' # enabled by default
 			;;
-		rmdir) 
+		rmdir)
 			if (( $is_hsmlite != 0 )); then
 				echo "No rmdir policy for hsmlite purpose: skipped"
 				set_skipped
@@ -2263,7 +2263,7 @@ function check_disabled
         $RH -f ./cfg/$config_file $cmd --once -l DEBUG -L rh_scan.log
 
 	grep "$match" rh_scan.log || error "log should contain \"$match\""
-	
+
 }
 
 only_test=""
@@ -2332,7 +2332,7 @@ function junit_write_xml # (time, nb_failure, tests)
 	time=$1
 	failure=$2
 	tests=$3
-	
+
 	cp /dev/null $XML
 #	echo "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" > $XML
 	echo "<?xml version=\"1.0\" encoding=\"ISO8859-2\" ?>" > $XML
@@ -2377,6 +2377,7 @@ function run_test
 		error_reset
 
 		t0=`date "+%s.%N"`
+        echo "Test start: `date +'%F %H:%M:%S.%N'`"
 
 		if (($junit == 1)); then
 			# markup in log
@@ -2392,6 +2393,7 @@ function run_test
 
 		t1=`date "+%s.%N"`
 		dur=`echo "($t1-$t0)" | bc -l`
+        echo "Test end: `date +'%F %H:%M:%S.%N'`"
 		echo "duration: $dur sec"
 
 		if (( $DO_SKIP )); then
@@ -2402,7 +2404,7 @@ function run_test
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
 			RC=$(($RC+1))
 			if (( $junit )); then
-				junit_report_failure "robinhood.$PURPOSE.Posix" "Test #$index: $title" "$dur" "ERROR" 
+				junit_report_failure "robinhood.$PURPOSE.Posix" "Test #$index: $title" "$dur" "ERROR"
 			fi
 		else
 			grep "Failed" $CLEAN 2>/dev/null
@@ -2427,12 +2429,12 @@ function test_alerts
 	# send an alert in accordance to the input file and configuration
 	# 	test_alerts config_file testKey sleepTime
 	#=>
-	# config_file == config file name	
+	# config_file == config file name
 	# testKey == 'extAttributes' for testing extended attributes
 	# 	     'lastAccess' for testing last access
 	# 	     'lastModif' for testing last modification
 	# sleepTime == expected time in second to sleep for the test, if=0 no sleep
-	
+
 	# get input parameters ....................
 	config_file=$1
 	testKey=$2  #== key word for specific tests
@@ -2444,12 +2446,12 @@ function test_alerts
 		set_skipped
 		return 1
 	fi
-	
+
 	clean_logs
-	
+
 	# create specific file if it does not exist
 	test -f "/tmp/rh_alert.log" || touch "/tmp/rh_alert.log"
-	
+
 	echo "1-Preparing Filesystem..."
 	if [ $testKey == "extAttributes" ]; then
 		echo " is for extended attributes"
@@ -2463,13 +2465,13 @@ function test_alerts
 	else
 		mkdir -p $ROOT/dir1
 		dd if=/dev/zero of=$ROOT/dir1/file.1 bs=1k count=11 >/dev/null 2>/dev/null || error "writing file.1"
-	 	
+
 		mkdir -p $ROOT/dir2
 		dd if=/dev/zero of=$ROOT/dir2/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
   		chown testuser $ROOT/dir2/file.2 || error "invalid chown on user 'testuser' for $ROOT/dir2/file.2"
 		dd if=/dev/zero of=$ROOT/dir2/file.3 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.3"
 		ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1 || error "creating hardlink $ROOT/dir1/link.1"
-		
+
 		if  [ $testKey == "dircount" ]; then
 			mkdir -p $ROOT/dir3
 		    dd if=/dev/zero of=$ROOT/dir3/file.4 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.4"
@@ -2486,11 +2488,11 @@ function test_alerts
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
 	fi
-	
+
 	# launch the scan ..........................
 	echo -e "\n 2-Scanning filesystem ..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
-	
+
 	# check the scan
 	echo -e "\n 3-Checking results ..."
 	logFile=/tmp/rh_alert.log
@@ -2529,7 +2531,7 @@ function test_alerts
 			alertKey=Alert_Dircount
 			expectedEntry="dir1;dir2"
 			occur=2
-			;;	
+			;;
 		extAttributes)
 			alertKey=Alert_ExtendedAttribut
 			expectedEntry="file.1"
@@ -2543,30 +2545,30 @@ function test_alerts
 	check_alert $alertKey $expectedEntry $occur $logFile || error "Test for $alertKey failed"
 }
 
-function check_alert 
+function check_alert
 {
-# return 0 if the $alertKey is found $occur times in the log $logFile; and if each entry of 
+# return 0 if the $alertKey is found $occur times in the log $logFile; and if each entry of
 # $expectedEntries is found at least one time
 # return 1 otherwise and print an error message
 #    check_alert $alertKey $expectedEntry $occur $logFile
-# =>    
+# =>
 #	alertKey = alert name which is the string to find $occur times
 #	expectedEntries = list of word to find at least one time if alertKey is found
 #		ex: expectedEntry="file.1;file.2;file.3", expectedEntry="file.1" ...
 #	occur = expected nb of occurences for alertKey
 #	logFile = name of the file to scan
-	
+
 	# get input parameters ......................
 	alertKey=$1
 	expectedEntries=$2
 	occur=$3
 	logFile=$4
-	
+
 	# set default output value .................
 	out=1
 	# get all entries separated by ';' ..........
 	splitEntries=$(echo $expectedEntries | tr ";" "\n")
-	
+
 	# get the nb of alertKey found in log ........
 	nbOccur=`grep -c $alertKey $logFile`
 	if [ $nbOccur == $occur ]; then
@@ -2583,13 +2585,13 @@ function check_alert
 				return 1
 			fi
     		done
-		
+
 	else
 		# the alertKey has been not found as expected
 		echo "ERROR in check_alert: Bad number of occurences for $alertKey: expected=$occur & found=$nbOccur"
 		return 1
 	fi
-	
+
 	return $out
 }
 
@@ -2610,7 +2612,7 @@ function trigger_purge_QUOTA_EXCEEDED
 	# config_file == config file name
 
 	config_file=$1
-    
+
    	if (( $is_hsmlite != 0 )); then
 		echo "No Purge trigger for this purpose: skipped"
 		set_skipped
@@ -2618,14 +2620,14 @@ function trigger_purge_QUOTA_EXCEEDED
 	fi
 
 	clean_logs
-	
-	echo "1-Create Files ..."	
+
+	echo "1-Create Files ..."
 	elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null 
+        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 >/dev/null 2>/dev/null
         if (( $? != 0 )); then
             echo "WARNING: fail writting $ROOT/file.$indice (usage: $elem/$limit)"
             # give it a chance to end the loop
@@ -2634,10 +2636,10 @@ function trigger_purge_QUOTA_EXCEEDED
         unset elem
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
-    done 
+    done
     echo "2-Scanning and Applying purge trigger policy..."
 	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
-	
+
     countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
         error "********** TEST FAILED **********"
@@ -2656,7 +2658,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
 	config_file=$1
 	usage=$2
-    
+
    	if (( $is_hsmlite != 0 )); then
 		echo "No Purge trigger for this purpose: skipped"
 		set_skipped
@@ -2664,9 +2666,9 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	fi
 
 	clean_logs
-		
+
 	echo "1-Create Files ..."
-		
+
 	elem=` df $ROOT |  grep "/"  | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
 	indice=1
@@ -2682,7 +2684,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
     done
-    
+
     ((limit=$indice/2))
     ((limit=$limit-1))
     echo "$indice files created, changing $limit files to testuser:testgroup"
@@ -2693,11 +2695,11 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
         chown testuser:testgroup $ROOT/file.$indice
         ((indice++))
     done
-    
-    
+
+
     echo "2-Scanning and Applying purge trigger policy..."
 	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
-	
+
     countMigrLog=`grep "$usage exceeds high threshold" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
         error "********** TEST FAILED **********"
@@ -2725,7 +2727,7 @@ function create_files_Purge
     for i in `seq 1 5` ; do
     	dd if=/dev/zero of=$ROOT/dir1/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir1/file.$i"
 	done
-    
+
 	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1
 	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.2
 
@@ -2761,50 +2763,50 @@ function test_purge
 	# countFinal == number of files not purged at the end
 	# purge_list == list of purged files at the end : "file.1;file.2;link.2"
 	# purgeOpt == an migrate option of robinhood : "--purge" "--purge-ost=1"
-	
+
     config_file=$1
     sleep_time=$2
     countFinal=$3
     purge_list=$4
     purge_arr=$(echo $purge_list | tr ";" "\n")
     purgeOpt=$5
-    
+
    	if (( $is_hsmlite != 0 )); then
 		echo "No Purge for this purpose: skipped"
 		set_skipped
 		return 1
 	fi
-    
+
 	needPurge=0
 	((needPurge=10-countFinal))
 
 	clean_logs
-	
+
 	echo "Create Files ..."
 	create_files_Purge
-	
+
 	sleep 1
 	echo "Scanning..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-		
+
 	if (($sleep_time != 0)); then
 	    echo "Sleep $sleep_time"
         sleep $sleep_time
-        
+
 	    echo "update Files"
         update_files_Purge
-	fi    
-    
+	fi
+
 	echo "Scanning and Applying purge policy..."
-	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log 
-	
+	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
+
 	nbError=0
 	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
         ((nbError++))
 	fi
-	
+
 	# If we are in tmp_fs_mgr mod, we can test if files are removed in file system
     if (( ($is_hsmlite == 0) )); then
         countFileDir1=`find $ROOT/dir1 -type f | wc -l`
@@ -2815,7 +2817,7 @@ function test_purge
             error "********** TEST FAILED (File System): $count files stayed in filesystem, but $countFinal expected"
             ((nbError++))
         fi
-        
+
         for x in $purge_arr
         do
             if [ -e "$ROOT/dir1/$x" -o -e "$ROOT/dir2/$x" ]; then
@@ -2824,7 +2826,7 @@ function test_purge
             fi
         done
     fi
-    
+
     if (($nbError == 0 )); then
         echo "OK: test successful"
     else
@@ -2842,49 +2844,49 @@ function test_purge_tmp_fs_mgr
 	# countFinal == number of files not purged at the end
 	# purge_list == list of purged files at the end : "file.1;file.2;link.2"
 	# purgeOpt == an migrate option of robinhood : "--purge" "--purge-ost=1"
-	
+
     config_file=$1
     sleep_time=$2
     countFinal=$3
 	purge_list=$4
     purge_arr=$(echo $purge_list | tr ";" "\n")
     purgeOpt=$5
-    
+
     if (( $is_hsmlite != 0 )); then
 		echo "No Purge for this purpose: skipped"
 		set_skipped
 		return 1
 	fi
-    
+
 	needPurge=0
 	((needPurge=10-countFinal))
 
 	clean_logs
-	
+
 	echo "Create Files ..."
 	create_files_Purge
-	
+
 	sleep 1
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-	
+
 	if(($sleep_time != 0)); then
 	    echo "Sleep $sleep_time"
         sleep $sleep_time
-        
+
 	    echo "update Files"
         update_files_Purge
     fi
-    
+
 	echo "Scanning and Applying purge policy..."
-	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log 
-	
+	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
+
 	nbError=0
 	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
         ((nbError++))
 	fi
-	    
+
     countFileDir1=`find $ROOT/dir1 -type f | wc -l`
     countFileDir2=`find $ROOT/dir2 -type f | wc -l`
     countLink=`find $ROOT/dir1 -type l | wc -l`
@@ -2893,7 +2895,7 @@ function test_purge_tmp_fs_mgr
         error "********** TEST FAILED (File System): $count files stayed in filesystem, but $countFinal expected"
         ((nbError++))
     fi
-    
+
     for x in $purge_arr
     do
         if [ -e "$ROOT/dir1/$x" -o -e "$ROOT/dir2/$x" ]; then
@@ -2901,7 +2903,7 @@ function test_purge_tmp_fs_mgr
             ((nbError++))
         fi
     done
-    
+
     if (($nbError == 0 )); then
         echo "OK: test successful"
     else
@@ -2921,36 +2923,36 @@ function test_purge_tmp_fs_mgr
 function test_removing
 {
 	# remove directory/ies in accordance to the input file and configuration
-	# 	test_removing config_file forExtAttributes sleepTime 
+	# 	test_removing config_file forExtAttributes sleepTime
 	#=>
-	# config_file == config file name	
+	# config_file == config file name
 	# testKey == 'emptyDir' for testing extended attributes
 	# 	     'lastAction' for testing last access or modification
 	# sleepTime == expected time in second to sleep for the test, if=0 no sleep
-	
+
 	# get input parameters ....................
 	config_file=$1
 	testKey=$2  #== key word for specific tests
 	sleepTime=$3
-	
+
 	# check available modes ...................
 	if (( $is_hsmlite != 0 )); then
 		echo "No Removing for HSM_LITE purpose: skipped"
 		set_skipped
 		return 1
 	fi
-	
+
 	#  clean logs ..............................
 	clean_logs
-	
+
 	# prepare data..............................
 	echo -e "\n 1-Preparing Filesystem..."
 	mkdir -p $ROOT/dir1
 	mkdir -p $ROOT/dir5
 	echo "data" > $ROOT/dir5/file.5
-	
+
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
-		
+
 	if [ $testKey == "emptyDir" ]; then
 		# wait and write more data
 		if [ $sleepTime != 0 ]; then
@@ -2961,7 +2963,7 @@ function test_removing
 		mkdir -p $ROOT/dir6
 		mkdir -p $ROOT/dir7
 		echo "data" > $ROOT/dir7/file.7
-	
+
 	else
 		# in dir1: manage folder owner and attributes
 		chown testuser $ROOT/dir1 || error "invalid chown on user 'testuser' for $ROOT/dir1 "  #change owner
@@ -2975,16 +2977,16 @@ function test_removing
 		chown testuser $ROOT/dir1/dir4 || error "invalid chown on user 'testuser' for $ROOT/dir4" #change owner
 		echo "data" > $ROOT/dir1/dir4/file.41
 		echo "data" > $ROOT/dir1/dir4/file.42
-		
-		# in dir5: 
+
+		# in dir5:
 		setfattr -n user.bar -v "abc.1.test" $ROOT/dir5
 		echo "data" > $ROOT/dir5/file.5
-		
+
 		# in dir6:
 		mkdir -p $ROOT/dir6
 		chown testuser $ROOT/dir6 || error "invalid chown on user 'testuser' for $ROOT/dir6" #change owner
 	fi
-	
+
 	# launch the rmdir ..........................
 	echo -e "\n 2-Scanning directories in filesystem ..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "performing FS removing"
@@ -3000,11 +3002,11 @@ function test_removing
 	elif [ $testKey == "lastModif" ]; then
 		echo "data" > $ROOT/dir1/file.12 || error "writing in $ROOT/dir1/file.12"
 	fi
-	
+
 	# launch the rmdir ..........................
 	echo -e "\n 3-Removing directories in filesystem ..."
 	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
-	
+
 	# launch the validation ..........................
 	echo -e "\n 3-Checking results ..."
 	logFile=/tmp/rh_alert.log
@@ -3032,7 +3034,7 @@ function test_removing
 		dircount)
 			existedDirs="$ROOT/dir5;$ROOT/dir6"
 			notExistedDirs="$ROOT/dir1"
-			;;	
+			;;
 		extAttributes)
 			existedDirs="$ROOT/dir5;$ROOT/dir6"
 			notExistedDirs="$ROOT/dir1"
@@ -3053,7 +3055,7 @@ function exist_dirs_or_not
     #If the both conditions are realized, then the function returns 0, otherwise 1.
     # 	exist_dirs_or_not $existedDirs $notExistedDirs
     #=> existedDirs & notExistedDirs list of dirs to check separated by ';'
-    # ex: "$ROOT/dir1;$ROOT/dir5" 
+    # ex: "$ROOT/dir1;$ROOT/dir5"
     # ex: Use "/" for giving an empty list
 
 
@@ -3072,7 +3074,7 @@ function exist_dirs_or_not
 		    echo "error for $notExistedDirs"
 		    return 1
 	    fi
-    fi	
+    fi
 }
 
 function check_cmd
@@ -3080,8 +3082,8 @@ function check_cmd
     # check if each dir respects the reverse of the given command.
     # return 0 if it repects, 1 otherwise
     # check_cmd $listDirs $commande
-    # => 
-    # 	$listDirs = list of dirs separated by ';' 
+    # =>
+    # 	$listDirs = list of dirs separated by ';'
     #	ex: "$ROOT/dir1;$ROOT/dir5"  or "/" to no check command
     #	$commande = "-d" or "! -d"
     #	ex: check_cmd $notExistedDirs "-d": checks that all dirs does not exist
@@ -3096,7 +3098,7 @@ function check_cmd
 	    splitExDirs=$(echo $existedDirs | tr ";" "\n")
 	    for entry in $splitExDirs
         	do
-		    # for each dir check the existence, otherwise return 1 
+		    # for each dir check the existence, otherwise return 1
 		    if [ $cmd $entry ]; then
 			    return 1
 		    fi
@@ -3115,23 +3117,23 @@ function check_cmd
 function test_report_generation_1
 {
 	# report many statistics in accordance to the input file and configuration
-	# 	test_report_generation_1 config_file 
+	# 	test_report_generation_1 config_file
 	#=>
 	# config_file == config file name
-	
+
 	# get input parameters ....................
 	config_file=$1
-	
+
 	# check available modes ..............
 	if (( $is_hsmlite != 0 )); then
 		echo "No Report Generation for HSM_LITE purpose: skipped"
 		set_skipped
 		return 1
 	fi
-	
+
 	#  clean logs ..............................
 	clean_logs
-	
+
 	# prepare data..............................
 	echo -e "\n 1-Preparing Filesystem..."
 	# dir1:
@@ -3153,7 +3155,7 @@ function test_report_generation_1
 	mkdir -p $ROOT/dir1/dir3
 	sleep 1
 	#dir4:
-	mkdir -p $ROOT/dir4	
+	mkdir -p $ROOT/dir4
 	sleep 1
 	#dir5:
 	mkdir -p $ROOT/dir5
@@ -3165,17 +3167,17 @@ function test_report_generation_1
 	dd if=/dev/zero of=$ROOT/dir5/file.6 bs=1k count=21 >/dev/null 2>/dev/null || error "writing file.6"
 	sleep 1
 	ln -s $ROOT/dir1/file.2 $ROOT/dir5/link.3 || error "creating symbolic link $ROOT/dir5/link.3"
-	sleep 1	
+	sleep 1
 	#dir6 inside dir5:
 	mkdir -p $ROOT/dir5/dir6
-	sleep 1	
+	sleep 1
 	# dir7:
 	mkdir -p $ROOT/dir7
 	sleep 1
 	#link in dir.1
 	ln -s $ROOT/dir1 $ROOT/dir1/link.0 || error "creating symbolic link $ROOT/dir1/link.0"
 	sleep 1
-	
+
 	# manage owner and group
 	filesList="$ROOT/link.1 $ROOT/dir1/dir2/link.2"
 	chgrp -h testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
@@ -3184,11 +3186,11 @@ function test_report_generation_1
 	chown testuser:testgroup $filesList || error "invalid chown on user 'testuser' for $filesList "
 	filesList="$ROOT/dir1/file.1 $ROOT/dir5/file.6"
 	chgrp testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
-	
+
 	# launch the scan ..........................
 	echo -e "\n 2-Scanning Filesystem..."
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
-	
+
 	# launch another scan ..........................
 	echo -e "\n 3-Filesystem content statistics..."
 	#$REPORT -f ./cfg/$config_file --fs-info -c || error "performing FS statistics (--fs)"
@@ -3198,8 +3200,8 @@ function test_report_generation_1
 	countValues="7;6;4"
 	colSearch=2
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs)"
-	
-	
+
+
 	# launch another scan ..........................
 	echo -e "\n 4-FileClasses summary..."
 	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
@@ -3217,7 +3219,7 @@ function test_report_generation_1
 	countValues="2;5;2"
 	colSearch=3
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
-	
+
 	# launch another scan ..........................
 	echo -e "\n 6-Group statistics of testgroup..."
 	$REPORT -f ./cfg/$config_file --group-info -g testgroup --csv > report.out || error "performing Group statistics (--group)"
@@ -3225,7 +3227,7 @@ function test_report_generation_1
 	countValues="5;3;2"
 	colSearch=3
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group statistics (--group)"
-	
+
 	# launch another scan ..........................
 	echo -e "\n 7-Largest files of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-size=3 --csv > report.out || error "performing Largest files list (--top-size)"
@@ -3233,7 +3235,7 @@ function test_report_generation_1
 	countValues="1;2;3"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"
-	
+
 	# launch another scan ..........................
 	echo -e "\n 8-Largest directories of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-dirs=3 --csv > report.out || error "performing Largest folders list (--top-dirs)"
@@ -3245,18 +3247,18 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || \
 	find_allValuesinCSVreport $logFile $typeValuesAlt $countValues $colSearch || \
 	error "validating Largest folders list (--top-dirs)"
-	
+
 	# launch another scan ..........................
 	echo -e "\n 9-Four oldest entries of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
 	typeValues="file\.3;file\.4;file\.5;link\.3"
 	countValues="1;2;3;4"
 	colSearch=1
-	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--top-purge)"	
-	
+	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--top-purge)"
+
 	# launch another scan ..........................
 	echo -e "\n 10-Oldest and empty directories of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-rmdir --csv > report.out || error "performing Oldest and empty folders list (--top-rmdir)"	
+	$REPORT -f ./cfg/$config_file --top-rmdir --csv > report.out || error "performing Oldest and empty folders list (--top-rmdir)"
 	nb_dir3=`grep "dir3" $logFile | wc -l`
 	if (( nb_dir3==0 )); then
 	    error "validating Oldest and empty folders list (--top-rmdir) : dir3 not found"
@@ -3273,7 +3275,7 @@ function test_report_generation_1
 	if (( nb_dir7==0 )); then
 	    error "validating Oldest and empty folders list (--top-rmdir) : dir7 not found"
 	fi
-	
+
 	# launch another scan ..........................
 	echo -e "\n 11-Top disk space consumers of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-users --csv > report.out || error "performing disk space consumers (--top-users)"
@@ -3281,7 +3283,7 @@ function test_report_generation_1
 	countValues="1;2"
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating disk space consumers (--top-users)"
-	
+
 	# launch another scan ..........................
 	echo -e "\n 12-Dump entries for one user of Filesystem..."
 	$REPORT -f ./cfg/$config_file --dump-user root --csv > report.out || error "dumping entries for one user 'root'(--dump-user)"
@@ -3297,7 +3299,7 @@ function test_report_generation_1
 	if (( $(grep $typeValue $logFile | wc -l) != 9 )) ; then
 		 error "validating entries for one user 'root'(--dump-user)"
 	fi
-		
+
 	# launch another scan ..........................
 	echo -e "\n 13-Dump entries for one group of Filesystem..."
 	$REPORT -f ./cfg/$config_file --dump-group testgroup --csv > report.out || error "dumping entries for one group 'testgroup'(--dump-group)"
@@ -3318,7 +3320,7 @@ function test_report_generation_1
 
 function find_allValuesinCSVreport
 {
-    # The research is based on file CSV format generated by the report Robinhood method (--csv): 
+    # The research is based on file CSV format generated by the report Robinhood method (--csv):
     # one line per information; informations separeted by ','
     # Search in the file logFile the given series (typeValue & countValue) in the column
     # colSearch.
@@ -3367,7 +3369,7 @@ function find_allValuesinCSVreport
 	    # get current typeValue & countvalue
 	    typeValue=${tabTypes[$iData]}
 	    countValue=${tabValues[$iData]}
-	
+
 	    find_valueInCSVreport $logFile $typeValue $countValue $colSearch
 	    res=$?
 	    if (( $res == 1 )); then
@@ -3381,7 +3383,7 @@ function find_allValuesinCSVreport
 
 function find_valueInCSVreport
 {
-    # The research is based on file CSV format generated by the report Robinhood method (--csv): 
+    # The research is based on file CSV format generated by the report Robinhood method (--csv):
     # one line per information; informations separeted by ','
     # Search in the same line the given words typeValue & countValue in the column
     # colSearch in the file logFile.
@@ -3430,7 +3432,7 @@ function TEST_OTHER_PARAMETERS_1
 	# config_file == config file name
 
 	config_file=$1
-	
+
 	if (( $is_hsmlite != 0 )); then
 		echo "No TEST_OTHER_PARAMETERS_1 for this purpose: skipped"
 		set_skipped
@@ -3444,20 +3446,20 @@ function TEST_OTHER_PARAMETERS_1
     	dd if=/dev/zero of=$ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
 	    setfattr -n user.foo -v $i $ROOT/file.$i
 	done
-	
+
 	echo "Scan Filesystem"
 	sleep 1
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-	
+
 	# use robinhood for flushing
 	if (( $is_hsmlite != 0 )); then
 		echo "Archiving files"
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
-	
+
 	echo "Report : --dump --filter-class test_purge"
 	$REPORT -f ./cfg/$config_file --dump --filter-class test_purge > report.out
-	
+
 	nbError=0
 	nb_entries=`grep "0 entries" report.out | wc -l`
 	if (( $nb_entries != 1 )); then
@@ -3467,35 +3469,35 @@ function TEST_OTHER_PARAMETERS_1
 
     echo "Create /var/lock/rbh.lock"
 	touch "/var/lock/rbh.lock"
-	
+
 	# Launch in background
 	echo "Launch Purge in background"
 	$RH -f ./cfg/$config_file --scan --purge -l DEBUG -L rh_purge.log --once &
-	
+
 	sleep 5
-	
+
 	echo "Count purged files number"
 	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
 	if (( $nb_purge != 0 )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but 0 expected"
         ((nbError++))
 	fi
-	
+
     echo "Remove /var/lock/rbh.lock"
 	rm "/var/lock/rbh.lock"
-	
+
 	echo "wait robinhood"
 	wait
-	
+
 	echo "Count purged files number"
 	nb_purge2=`grep $REL_STR rh_purge.log | wc -l`
 	((nb_purge2=nb_purge2-nb_purge))
-	
+
 	if (( $nb_purge2 != 10 )); then
 	    error "********** TEST FAILED (Log): $nb_purge2 files purged, but 10 expected"
         ((nbError++))
 	fi
-	
+
 	if (($nbError == 0 )); then
         echo "OK: test successful"
     else
@@ -3513,7 +3515,7 @@ function TEST_OTHER_PARAMETERS_5
 	# config_file == config file name
 
 	config_file=$1
-    
+
     if (( $is_hsmlite != 0 )); then
 		echo "No TEST_OTHER_PARAMETERS_5 for this purpose: skipped"
 		set_skipped
@@ -3527,17 +3529,17 @@ function TEST_OTHER_PARAMETERS_5
 	pid=$!
 
 	sleep 2
-	
+
 	nbError=0
 	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
 	if (( $nb_scan != 1 )); then
         error "********** TEST FAILED (LOG): $nb_scan scan detected, but 1 expected"
         ((nbError++))
     fi
-	
+
 	echo "sleep 60 seconds"
 	sleep 60
-	
+
     echo "Create files"
 	elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
 	limit=95
@@ -3554,26 +3556,26 @@ function TEST_OTHER_PARAMETERS_5
 	    elem=`df $ROOT | grep "/" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
     done
-    
+
        #echo "Launch scan in background..."
 #$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_scan.log &
 #pid=$!
 
 	echo "sleep 60 seconds"
 	sleep 60
-	
+
 	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
 	if (( $nb_scan != 3 )); then
         error "********** TEST FAILED (LOG): $nb_scan scan detected, but 3 expected"
         ((nbError++))
     fi
-	
+
 	if (($nbError == 0 )); then
         echo "OK: test successful"
     else
         error "********** TEST FAILED **********"
     fi
-    
+
     kill -9 $pid
 }
 
@@ -3716,7 +3718,7 @@ run_test 666  test_report_generation_1 Generation_Report_1.conf "TEST_REPORT_GEN
 
 run_test 668 TEST_OTHER_PARAMETERS_1 OtherParameters_1.conf "TEST_OTHER_PARAMETERS_1"
 run_test 672 TEST_OTHER_PARAMETERS_5 OtherParameters_5.conf "TEST_OTHER_PARAMETERS_5"
- 
+
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
 cat $SUMMARY

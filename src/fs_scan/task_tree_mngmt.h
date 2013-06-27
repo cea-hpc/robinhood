@@ -28,7 +28,7 @@ void           SetNbPreallocTasks( size_t nb_prealloc );
 
 
 /* Create and initialize a task */
-robinhood_task_t *CreateTask(  );
+robinhood_task_t *CreateTask( void );
 
 
 /* Free the resources of a task */
@@ -36,23 +36,23 @@ int            FreeTask( robinhood_task_t * p_task );
 
 
 /* Add a child task (called by the parent) */
-int            AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task );
+void           AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task );
 
-/* Remove a child task from its parent
- * (called by the child task itself).
- * If the parent task is finished, and all its children too,
- * the 'do_finish_parent' boolean is set to TRUE.
+/* Remove a child task from a parent task.
+ * This is called by a child task, when it finishes.
+ * Return TRUE if the parent task and all its children are completed,
+ * FALSE otherwise.
  */
 int            RemoveChildTask( robinhood_task_t * p_parent_task,
-                                robinhood_task_t * p_child_task, int *do_finish_parent );
+                                robinhood_task_t * p_child_task );
 
 
-/* Flag the task as finished, i.e. the parent has finished
- * its part of the job (but not necessary its children).
- * In case all its children are terminated too,
- * the boolean 'do_finish' is set to TRUE.
+/* Tag a task as completed i.e. finished its own work
+ * (but it can possibly still have sub-tasks running).
+ * Return TRUE if all sub-tasks are terminated too,
+ * FALSE otherwise.
  */
-int            FlagTaskAsFinished( robinhood_task_t * p_task, int *do_finish );
+int            FlagTaskAsFinished( robinhood_task_t * p_task );
 
 /* Test if a task is totally finished (i.e. the parent task
  * is finished, and all its children too )

@@ -96,18 +96,27 @@ static int Rmdir_ByPath( const char *dir_path )
 /**
  * Remove a directory recursively
  */
-static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
+static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
+                                   const entry_id_t * dir_id,
+                                   const attr_set_t * dir_attrs,
                                    unsigned long long * p_blocks,
-                                   unsigned int * p_count,
-                                   const entry_id_t * dir_id )
+                                   unsigned int * p_count )
 {
     DIR *dirp;
     int rc;
     struct dirent entry;
     struct dirent * cookie;
-    char tmp_path[RBH_PATH_MAX];
     int err = 0;
     entry_id_t id;
+    const char * dir_path;
+
+    if (!ATTR_MASK_TEST(dir_attrs, fullpath))
+    {
+        DisplayLog( LVL_CRIT, RMDIR_TAG, "Missing mandatory attribute 'fullpath'" );
+        return EINVAL;
+    }
+    else
+        dir_path = ATTR(dir_attrs, fullpath);
 
     if ((dirp = opendir(dir_path)) == NULL)
     {
@@ -119,31 +128,43 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
 
     do
     {
-       struct stat stat_buf;
-       rc = readdir_r(dirp, &entry, &cookie);
+        struct stat stat_buf;
+        attr_set_t  attr_set;
 
-       if ( rc != 0 || ( rc == 0 && cookie == NULL ) )
+        rc = readdir_r(dirp, &entry, &cookie);
+
+        if ( rc != 0 || ( rc == 0 && cookie == NULL ) )
             /* end of directory */
             break;
 
-       /* ignore . and .. */
-       if ( !strcmp( entry.d_name, "." ) || !strcmp( entry.d_name, ".." ) )
+        /* ignore . and .. */
+        if ( !strcmp( entry.d_name, "." ) || !strcmp( entry.d_name, ".." ) )
             continue;
 
-       sprintf(tmp_path, "%s/%s", dir_path, entry.d_name);
+        ATTR_MASK_INIT( &attr_set );
 
-       if (lstat(tmp_path, &stat_buf) == -1)
-       {
+        sprintf(ATTR(&attr_set, fullpath), "%s/%s", dir_path, entry.d_name);
+        ATTR_MASK_SET( &attr_set, fullpath );
+        strcpy(ATTR(&attr_set, name), entry.d_name);
+        ATTR_MASK_SET( &attr_set, name );
+        ATTR(&attr_set, parent_id) = *dir_id;
+        ATTR_MASK_SET( &attr_set, parent_id );
+
+        if (lstat(ATTR(&attr_set, fullpath), &stat_buf) == -1)
+        {
             rc = errno;
             DisplayLog( LVL_CRIT, RMDIR_TAG,
-                        "lstat failed on %s (skipped): %s", tmp_path,
+                        "lstat failed on %s (skipped): %s", ATTR(&attr_set, fullpath),
                         strerror(rc) );
             err = rc;
             continue;
-       }
+        }
 
-       if ( fsdev != stat_buf.st_dev )
-       {
+        /* set posix attrs in attr struct */
+        PosixStat2EntryAttr( &stat_buf, &attr_set, TRUE );
+
+        if ( fsdev != stat_buf.st_dev )
+        {
             /* check if filesystem was remounted */
             struct stat root_md;
             /* is the FS root changed: file system may have been remounted.
@@ -176,19 +197,19 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
             if ( global_config.stay_in_fs && (fsdev != stat_buf.st_dev))
             {
                 DisplayLog( LVL_CRIT, RMDIR_TAG, "%s is not in the same filesystem as %s, skipping it",
-                            tmp_path, global_config.fs_path );
+                            ATTR(&attr_set, fullpath), global_config.fs_path );
                 err = EXDEV;
                 continue;
             }
-       }
+        }
 
 #ifdef _HAVE_FID
        /* get id for this entry */
-       rc = Lustre_GetFidFromPath( tmp_path, &id );
+       rc = Lustre_GetFidFromPath( ATTR(&attr_set, fullpath), &id );
        if (rc)
        {
             DisplayLog( LVL_CRIT, RMDIR_TAG, "Failed to retrieve id for %s, skipping entry: %s",
-                        tmp_path, strerror(-rc) );
+                        ATTR(&attr_set, fullpath), strerror(-rc) );
             continue;
        }
 #else
@@ -199,24 +220,23 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
 
        if (S_ISDIR(stat_buf.st_mode))
        {
-           rc = Recursive_Rmdir_ByPath( lmgr,tmp_path, p_blocks, p_count, &id );
+           rc = Recursive_Rmdir_ByPath( lmgr, &id, &attr_set, p_blocks, p_count );
            if (rc)
            {
                 DisplayLog( LVL_CRIT, RMDIR_TAG,
                             "recursive rmdir failed on %s (skipped): %s",
-                            tmp_path, strerror(rc) );
+                            ATTR(&attr_set, fullpath), strerror(rc) );
                 err = rc;
-                continue;
            }
        }
        else /* non directory entry */
        {
             if (!dry_run)
             {
-                if ( unlink( tmp_path ) )
+                if (unlink(ATTR(&attr_set, fullpath)))
                 {
                     DisplayLog( LVL_CRIT, RMDIR_TAG,
-                                "rmdir failed on %s (skipped): %s", tmp_path,
+                                "rmdir failed on %s (skipped): %s", ATTR(&attr_set, fullpath),
                                 strerror(rc) );
                     err = rc;
                     continue;
@@ -225,16 +245,15 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
 
            *p_blocks += stat_buf.st_blocks;
            (*p_count) += 1;
-       }
 
-       /* remove entry from database */
-       rc = ListMgr_Remove( lmgr, &id );
-       if (rc)
-       {
-            DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
-                        rc, tmp_path );
+           /* this is the last removal if nlink was 1 */
+           rc = ListMgr_Remove( lmgr, &id, &attr_set, stat_buf.st_nlink == 1 );
+           if (rc)
+           {
+                DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
+                            rc, ATTR(&attr_set, fullpath) );
+           }
        }
-
     } while( 1 );
 
    closedir(dirp);
@@ -243,7 +262,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
    rc = Rmdir_ByPath( dir_path );
    if (rc)
    {
-        DisplayLog( LVL_CRIT, RMDIR_TAG, "rmdir failed on %s: %s", tmp_path,
+        DisplayLog( LVL_CRIT, RMDIR_TAG, "rmdir failed on %s: %s", dir_path,
                     strerror(rc) );
         /* if an previous error occurs, keep it, because this one
          * will be ENOTEMPTY */
@@ -252,11 +271,10 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
    }
    else
    {
-       /* TODO remove entry in database */
-
        if ( dir_id != NULL )
        {
-           rc = ListMgr_Remove( lmgr, dir_id );
+           /* no hardlinks for directories */
+           rc = ListMgr_Remove( lmgr, dir_id, dir_attrs, TRUE );
            if (rc)
            {
                 DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
@@ -275,7 +293,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr, const char * dir_path,
  * Count entries in directory (excluding . and ..)
  * @return value > 0
  */
-int nb_dir_entries( const char *dirpath )
+static int nb_dir_entries( const char *dirpath )
 {
     DIR           *dirp;
     int            rc;
@@ -435,6 +453,10 @@ static int perform_rmdir( unsigned int *p_nb_removed )
      * because they are used for checking if directory changed.
      * Also retrieve info needed for whitelist rules.
      */
+    /* parent_id and name needed for the new ListMgr_Remove prototype */
+    ATTR_MASK_SET( &attr_set, parent_id );
+    ATTR_MASK_SET( &attr_set, name );
+
     ATTR_MASK_SET( &attr_set, fullpath );
     ATTR_MASK_SET( &attr_set, last_mod );
     attr_set.attr_mask |= policies.rmdir_policy.global_attr_mask;
@@ -681,7 +703,15 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
      * because they are used for checking if directory changed.
      * Also retrieve info needed for whitelist rules.
      */
-    ATTR_MASK_SET( &attr_set, fullpath );
+    /* parent_id and name needed for the new ListMgr_Remove prototype */
+    ATTR_MASK_SET( &attr_set, parent_id );
+    ATTR_MASK_SET( &attr_set, name );
+
+#ifndef _HAVE_FID
+    /* not needed for fid adressing */
+    ATTR_MASK_SET( &attr_set, fullpath ) ;
+#endif
+
     ATTR_MASK_SET( &attr_set, last_mod );
     attr_set.attr_mask |= policies.rmdir_policy.global_attr_mask;
 
@@ -873,31 +903,33 @@ static void   *Thr_Rmdir( void *arg )
           ATTR_MASK_INIT( &new_attr_set );
 
 #ifndef _HAVE_FID
-          /* 1) If fullpath is not set, invalidate the entry (except if entries are adrressed by FID) ... */
-          if ( !ATTR_MASK_TEST( &p_item->entry_attr, fullpath ) )
-            {
-                DisplayLog( LVL_DEBUG, RMDIR_TAG,
-                            "Warning: directory fullpath is not set. Tagging it invalid." );
-                invalidate_dir( &lmgr, &p_item->entry_id );
+        /* 1) If fullpath is not set, invalidate the entry (except if entries are adrressed by FID) ... */
+        if (!ATTR_MASK_TEST( &p_item->entry_attr, fullpath ))
+        {
+            DisplayLog( LVL_DEBUG, RMDIR_TAG,
+                        "Warning: directory fullpath is not set. Tagging it invalid." );
+            invalidate_dir( &lmgr, &p_item->entry_id );
 
-                /* Notify that this entry has been processed and is erroneous */
-                Queue_Acknowledge( &rmdir_queue, RMDIR_ERROR, NULL, 0 );
+            /* Notify that this entry has been processed and is erroneous */
+            Queue_Acknowledge( &rmdir_queue, RMDIR_ERROR, NULL, 0 );
 
-                /* free entry resources */
-                FreeRmdirItem( p_item );
+            /* free entry resources */
+            FreeRmdirItem( p_item );
 
-                /* process next entries */
-                continue;
-            }
+            /* process next entries */
+            continue;
+        }
 #else
         /* 1) Update full path */
+        /* FIXME: we should get all paths of the directory to check if any of them match the policies */
+        /* TODO: also update parent_id+name */
         rc = Lustre_GetFullPath( &p_item->entry_id, ATTR(&p_item->entry_attr, fullpath), RBH_PATH_MAX );
         if ( rc )
         {
             if (rc == -ENOENT || rc == -ESTALE)
             {
-                DisplayLog( LVL_EVENT, RMDIR_TAG, "Directory with fid "DFID" disapeared, tagging it invalid: (%d) %s",
-                            PFID( &p_item->entry_id), rc, strerror(-rc) );
+                DisplayLog( LVL_EVENT, RMDIR_TAG, "Directory with fid "DFID" disappeared (previous name %s), tagging it invalid: (%d) %s",
+                            PFID( &p_item->entry_id), ATTR(&p_item->entry_attr, name), rc, strerror(-rc) );
             }
             else
             {
@@ -920,16 +952,10 @@ static void   *Thr_Rmdir( void *arg )
         ATTR( &p_item->entry_attr, path_update ) = time( NULL );
 #endif
 
-#ifdef _HAVE_FID
-        DisplayLog( LVL_FULL, RMDIR_TAG, "Considering entry %s (fid="DFID")",
-                    ATTR( &p_item->entry_attr, fullpath ), PFID( &p_item->entry_id) );
-#else
-        DisplayLog( LVL_FULL, RMDIR_TAG, "Considering entry %s",
-                    ATTR( &p_item->entry_attr, fullpath ) );
-#endif
+        DisplayLog(LVL_FULL, RMDIR_TAG, "Considering entry %s ("DFID")",
+                   ATTR(&p_item->entry_attr, fullpath), PFID(&p_item->entry_id));
 
         /* 2) Perform lstat on entry */
-
         if ( lstat( ATTR( &p_item->entry_attr, fullpath ), &entry_md ) != 0 )
         {
             /* If lstat returns an error, invalidate the entry */
@@ -1013,14 +1039,14 @@ static void   *Thr_Rmdir( void *arg )
           }
           else if ( match == POLICY_NO_MATCH )
           {
-              /* set DEFAULT class for non-whitelisted dirs */
-              strcpy( ATTR( &new_attr_set, release_class ), CLASS_DEFAULT );
-              ATTR_MASK_SET( &new_attr_set, release_class );
-              ATTR( &new_attr_set, rel_cl_update ) = time(NULL);
-              ATTR_MASK_SET( &new_attr_set, rel_cl_update );
+                /* set DEFAULT class for non-whitelisted dirs */
+                strcpy( ATTR( &new_attr_set, release_class ), CLASS_DEFAULT );
+                ATTR_MASK_SET( &new_attr_set, release_class );
+                ATTR( &new_attr_set, rel_cl_update ) = time(NULL);
+                ATTR_MASK_SET( &new_attr_set, rel_cl_update );
           }
           else
-            {
+          {
                 /* Cannot determine if entry is whitelisted: skip it
                  * (do nothing in database) */
                 DisplayLog( LVL_MAJOR, RMDIR_TAG,
@@ -1034,7 +1060,7 @@ static void   *Thr_Rmdir( void *arg )
                 /* free entry resources */
                 FreeRmdirItem( p_item );
                 continue;
-            }
+          }
 
           /* Empty dir removal */
           if ( p_item->rmdir_type == RMDIR_EMPTY )
@@ -1150,7 +1176,9 @@ static void   *Thr_Rmdir( void *arg )
                                    strmod, (time_t)ATTR( &new_attr_set, last_mod ) );
 
                     /* remove it from database */
-                    rc = ListMgr_Remove( &lmgr, &p_item->entry_id );
+                    rc = ListMgr_Remove( &lmgr, &p_item->entry_id,
+                                         &p_item->entry_attr, /* must be based on the DB content = old attrs */
+                                         TRUE ); /* no hardlinks for directories */
                     if ( rc )
                         DisplayLog( LVL_CRIT, RMDIR_TAG,
                                    "Error %d removing directory from database.",
@@ -1191,9 +1219,9 @@ static void   *Thr_Rmdir( void *arg )
                                 ATTR(&new_attr_set, fullpath) );
 
                     /* Recursive rmdir (needs lmgr for removing entries) */
-                    rc = Recursive_Rmdir_ByPath( &lmgr,
-                                                ATTR( &p_item->entry_attr, fullpath ),
-                                                &blocks, &nb_entries, &p_item->entry_id );
+                    rc = Recursive_Rmdir_ByPath( &lmgr, &p_item->entry_id,
+                                                 &new_attr_set,
+                                                 &blocks, &nb_entries );
 
                     if ( rc )
                     {
@@ -1219,13 +1247,13 @@ static void   *Thr_Rmdir( void *arg )
                                      "Recursively removed directory %s (content: %u entries, volume: %s)",
                                      ATTR( &p_item->entry_attr, fullpath ), nb_entries,
                                      FormatFileSize( volstr, 256, DEV_BSIZE*blocks ) );
-  
+
                          DisplayReport( "Recursively removed dir %s | nb_entries=%u, volume=%s (%llu blocks)",
                                         ATTR( &p_item->entry_attr, fullpath ), nb_entries, volstr, blocks );
 
                          rmdir_stats[RMDIR_FDBK_NBR] = nb_entries;
                          rmdir_stats[RMDIR_FDBK_VOL] = blocks*DEV_BSIZE;
-  
+
                          /* ack to queue manager */
                          Queue_Acknowledge( &rmdir_queue, RMDIR_OK, rmdir_stats, RMDIR_FDBK_COUNT );
                          /* free entry resources */
@@ -1246,14 +1274,14 @@ static void   *Thr_Rmdir( void *arg )
                 /* free entry resources */
                 FreeRmdirItem( p_item );
             }
-            
+
       }                         /* end of infinite loop en Queue_Get */
 
     return NULL;
 }
 
 
-int start_rmdir_threads( unsigned int nb_threads )
+static int start_rmdir_threads( unsigned int nb_threads )
 {
     unsigned int   i;
 
@@ -1400,7 +1428,7 @@ int Start_Rmdir( rmdir_config_t * p_config, int flags )
 }
 
 
-int Wait_Rmdir(  )
+int Wait_Rmdir( void )
 {
     void          *returned;
     pthread_join( rmdir_thr_id, &returned );
@@ -1408,7 +1436,7 @@ int Wait_Rmdir(  )
 }
 
 
-void Dump_Rmdir_Stats(  )
+void Dump_Rmdir_Stats( void )
 {
     char           tmp_buff[256];
     struct tm      paramtm;

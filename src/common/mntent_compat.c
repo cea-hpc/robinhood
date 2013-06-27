@@ -29,7 +29,7 @@ void getmntent_addopt(char ** c, const char * s)
 
 struct mntent *getmntent(FILE * filep)
 {
-	char *c = mntent_global_opts+2; 
+	char *c = mntent_global_opts+2;
 	struct fstab *fst;
 	if (getmntent_mntpos >= getmntent_mntcount)
 		return 0;
@@ -49,7 +49,7 @@ struct mntent *getmntent(FILE * filep)
         if (getmntent_mntbufp[getmntent_mntpos].f_flags & MNT_NOCLUSTERW)     getmntent_addopt(&c, "noclusterw");
         if (getmntent_mntbufp[getmntent_mntpos].f_flags & MNT_NOSYMFOLLOW)    getmntent_addopt(&c, "nosymfollow");
         if (getmntent_mntbufp[getmntent_mntpos].f_flags & MNT_SUIDDIR)        getmntent_addopt(&c, "suiddir");
-		
+
 	mntent_global_mntent.mnt_fsname = getmntent_mntbufp[getmntent_mntpos].f_mntfromname;
 	mntent_global_mntent.mnt_dir = getmntent_mntbufp[getmntent_mntpos].f_mntonname;
 	mntent_global_mntent.mnt_type = getmntent_mntbufp[getmntent_mntpos].f_fstypename;
@@ -64,7 +64,7 @@ struct mntent *getmntent(FILE * filep)
         	mntent_global_mntent.mnt_freq = fst->fs_freq;
         	mntent_global_mntent.mnt_passno = fst->fs_passno;
         }
-        else if (strcmp(getmntent_mntbufp[getmntent_mntpos].f_fstypename, "ufs") == 0) 
+        else if (strcmp(getmntent_mntbufp[getmntent_mntpos].f_fstypename, "ufs") == 0)
         {
                 if (strcmp(getmntent_mntbufp[getmntent_mntpos].f_mntonname, "/") == 0)
                 {
@@ -76,7 +76,7 @@ struct mntent *getmntent(FILE * filep)
 	        	mntent_global_mntent.mnt_freq = 2;
         		mntent_global_mntent.mnt_passno = 2;
                 }
-        } 
+        }
         else
         {
         	mntent_global_mntent.mnt_freq = 0;

@@ -15,7 +15,7 @@
 /**
  *
  * \file    $RCSfile: uidgidcache.c,v $
- * \author  $Author: leibovic $ 
+ * \author  $Author: leibovic $
  * \date    $Date: 2008/02/15 10:37:38 $
  * \brief   Cache user and groups relatives information.
  *
@@ -247,7 +247,7 @@ static void HashInsertGrent( gr_cacheent_t * grentry )
 
 
 /* Initialization of pwent and grent caches */
-int InitUidGid_Cache(  )
+int InitUidGid_Cache( void )
 {
     unsigned int   i;
 

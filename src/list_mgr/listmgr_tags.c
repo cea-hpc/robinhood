@@ -238,10 +238,10 @@ rollback:
 /** destroy a tag */
 int ListMgr_DestroyTag(lmgr_t * p_mgr, const char *tag_name)
 {
-    char query[1024];
-    sprintf(query, "DROP TABLE IF EXISTS TAG_%s", tag_name);
+    char tabname[1024];
+    snprintf(tabname, 1024, "TAG_%s", tag_name);
 
-    return db_exec_sql( &p_mgr->conn, query, NULL );
+    return db_drop_component( &p_mgr->conn, DBOBJ_TABLE, tabname );
 }
 
 /**

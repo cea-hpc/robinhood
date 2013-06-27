@@ -408,7 +408,7 @@ static int move_orphan(const char * path)
  * 0 if no copy is running
  * 1 if a copy is already running
  * */
-int check_running_copy(const char * bkpath)
+static int check_running_copy(const char * bkpath)
 {
     int rc;
     /* is a copy running for this entry? */
@@ -1014,7 +1014,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     {
         DisplayLog( LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
                     bkpath );
-        return -EINVAL; 
+        return -EINVAL;
     }
     /* 2) create it recursively */
     rc = mkdir_recurse_clone_attrs( destdir, 0750, TO_BACKEND );
@@ -1742,6 +1742,14 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     /* set parent id */
     ATTR_MASK_SET( p_attrs_new, parent_id );
     ATTR( p_attrs_new, parent_id ) = parent_id;
+
+    /* set name */
+    char * name = strrchr(ATTR(p_attrs_new, fullpath), '/');
+    if (name && *(name + 1) != '\0')
+    {
+        strncpy(ATTR( p_attrs_new, name ), name+1, RBH_NAME_MAX);
+        ATTR_MASK_SET(p_attrs_new, name);
+    }
 
 #ifdef _LUSTRE
     if (!ATTR_MASK_TEST( p_attrs_new, type) || !strcmp(ATTR(p_attrs_new, type), STR_TYPE_FILE))

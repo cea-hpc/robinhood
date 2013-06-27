@@ -26,8 +26,8 @@
 #include <stdio.h>
 
 
-#define P( _mutex_ )  pthread_mutex_lock( &(_mutex_) )
-#define V( _mutex_ )  pthread_mutex_unlock( &(_mutex_) )
+#define P( _lock_ )  pthread_spin_lock( &(_lock_) )
+#define V( _lock_ )  pthread_spin_unlock( &(_lock_) )
 
 #ifdef _ONE_SHOT
 #   define TIME_NOT_SET ((unsigned int)-1)
@@ -64,7 +64,7 @@ robinhood_task_t *CreateTask(  )
         memset( p_task, 0, sizeof( robinhood_task_t ) );
 
         /* initialization of child task list */
-        pthread_mutex_init( &p_task->child_list_lock, NULL );
+        pthread_spin_init( &p_task->child_list_lock, 0 );
 
         p_task->child_list = NULL;
         p_task->task_finished = FALSE;
@@ -78,7 +78,7 @@ robinhood_task_t *CreateTask(  )
 /* Free task resources */
 int FreeTask( robinhood_task_t * p_task )
 {
-    pthread_mutex_destroy( &p_task->child_list_lock );
+    pthread_spin_destroy( &p_task->child_list_lock );
 
     /* put it back to the allocation pool */
     RELEASE_PREALLOC( p_task, tasks_pool, next_task, mutex_spool, stat_mem_tach );
@@ -88,7 +88,7 @@ int FreeTask( robinhood_task_t * p_task )
 
 
 /* Add a child task (must be called by parent task) */
-int AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task )
+void AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task )
 {
     /* set parent task for this sub-task */
     p_child_task->parent_task = p_parent_task;
@@ -112,22 +112,18 @@ int AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_t
     }
     V( p_parent_task->child_list_lock );
 
-    return 0;
-
 }
 
 
 /* Remove a child task from a parent task.
  * This is called by a child task, when it finishes.
- * If the parent task and all its children are completed,
- * do_finish_parent is set to TRUE.
+ * Return TRUE if the parent task and all its children are completed,
+ * FALSE otherwise.
  */
 int RemoveChildTask( robinhood_task_t * p_parent_task,
-                     robinhood_task_t * p_child_task, int *do_finish_parent )
+                     robinhood_task_t * p_child_task )
 {
-
-    if ( p_child_task->parent_task != p_parent_task )
-        return -1;
+    int done;
 
     /* take the lock on sub-task list */
     P( p_parent_task->child_list_lock );
@@ -142,35 +138,37 @@ int RemoveChildTask( robinhood_task_t * p_parent_task,
         /* it was the head item */
         p_parent_task->child_list = p_child_task->next_child;
 
-    *do_finish_parent = ( p_parent_task->child_list == NULL ) && ( p_parent_task->task_finished );
+    done = ( p_parent_task->child_list == NULL ) && ( p_parent_task->task_finished );
 
     V( p_parent_task->child_list_lock );
 
     /* this task is now orphan */
     p_child_task->parent_task = NULL;
 
-    return 0;
+    return done;
 
 }
 
 
 /* Tag a task as completed i.e. finished its own work
  * (but it can possibly still have sub-tasks running).
- * If all sub-tasks are terminated too,
- * do_finish is set to TRUE.
+ * Return TRUE if all sub-tasks are terminated too,
+ * FALSE otherwise.
  */
-int FlagTaskAsFinished( robinhood_task_t * p_task, int *do_finish )
+int FlagTaskAsFinished( robinhood_task_t * p_task )
 {
+    int done;
+
     /* take the lock */
     P( p_task->child_list_lock );
 
     p_task->task_finished = TRUE;
 
-    *do_finish = ( p_task->child_list == NULL );
+    done = ( p_task->child_list == NULL );
 
     V( p_task->child_list_lock );
 
-    return 0;
+    return done;
 
 }
 

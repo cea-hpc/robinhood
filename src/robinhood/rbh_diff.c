@@ -236,7 +236,7 @@ static lmgr_t  lmgr;
 static int     lmgr_init = FALSE;
 static char    start_time_str[256];
 
-static inline int ensure_db_access()
+static inline int ensure_db_access( void )
 {
     if ( !lmgr_init )
     {
@@ -539,7 +539,7 @@ int main( int argc, char **argv )
     /* get default config file, if not specified */
     if ( SearchConfig( options.config_file, options.config_file, &chgd, badcfg ) != 0 )
     {
-        fprintf(stderr, "No config file found matching %s\n", badcfg);
+        fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);
     }
     else if (chgd)

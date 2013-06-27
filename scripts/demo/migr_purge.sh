@@ -5,7 +5,7 @@
 
 # 1) RH DB init: scan lustre FS
 # 2) start logging disk usage
-# 3) start posix copytool 
+# 3) start posix copytool
 # 4) start policy engine for monitoring disk usage and migrating files
 # 5) start script for writing data
 # 6) start policy engine for processing changelogs

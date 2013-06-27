@@ -542,7 +542,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     if ( rc == ENOENT )
         rc = GetBoolParam( config_blk, block_name, "alert_lw", 0,
                            &tmpval, NULL, NULL, msg_out );
-    
+
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if ( rc == 0 )
@@ -630,7 +630,7 @@ int Read_ResourceMon_Config( config_file_t config,
                            0, &intval, NULL, NULL, msg_out );
         if ( rc == 0 )
         {
-            DisplayLog( LVL_CRIT, RESMONCFG_TAG,    
+            DisplayLog( LVL_CRIT, RESMONCFG_TAG,
                 "WARNING: 'simulation_mode' parameter is deprecated. Use '--dry-run' option instead.");
         }
 

@@ -62,10 +62,10 @@ static inline const char *field_str( unsigned int index )
 
 #define field_type( _f_ )   (field_infos[_f_].db_type)
 
-static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr, 
-                                    const report_field_descr_t *report_desc_array, 
-                                    char *attrstring, char *attrname, 
-                                    char *having, char **curr_having, 
+static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr,
+                                    const report_field_descr_t *report_desc_array,
+                                    char *attrstring, char *attrname,
+                                    char *having, char **curr_having,
                                     char *where, char **curr_where , int i )
 {
     /* is this field filtered ? */
@@ -98,14 +98,14 @@ static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr,
 }
 
 
-static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr, 
-                                    unsigned int report_descr_count, 
+static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
+                                    unsigned int report_descr_count,
                                     const report_field_descr_t *report_desc_array,
                                     const profile_field_descr_t * profile_descr,
-                                    char *fields, char **curr_field, 
-                                    char *group_by, char **curr_group_by, 
-                                    char *order_by, char **curr_sort, 
-                                    char *having, char **curr_having, 
+                                    char *fields, char **curr_field,
+                                    char *group_by, char **curr_group_by,
+                                    char *order_by, char **curr_sort,
+                                    char *having, char **curr_having,
                                     char *where, char **curr_where )
 {
     char           attrstring[1024];
@@ -127,7 +127,7 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
     for ( i = 0; i < report_descr_count; i++ )
     {
         sprintf( attrname, "attr%u", i );
-        if( is_acct_pk( report_desc_array[i].attr_index ) || is_acct_field( report_desc_array[i].attr_index ) 
+        if( is_acct_pk( report_desc_array[i].attr_index ) || is_acct_field( report_desc_array[i].attr_index )
                             || report_desc_array[i].report_type == REPORT_COUNT )
         {
             switch ( report_desc_array[i].report_type )
@@ -193,8 +193,8 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
             add_string( fields, *curr_field, attrstring );
             p_report->result_type_array[i] = DB_TEXT;
         }
-        listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
-                            having, curr_having, where, curr_where, i ); 
+        listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname,
+                            having, curr_having, where, curr_where, i );
     }
     if (profile_descr)
     {
@@ -247,7 +247,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
      *  - List of fields to be selected
      *  - FROM clause with joins
      *  - WHERE clause (filters)
-     *  - GROUP BY clause 
+     *  - GROUP BY clause
      *  - ORBER BY clause
      */
     char           fields[1024] = "";
@@ -271,13 +271,16 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     lmgr_report_t *p_report;
     int            rc;
 
+    table_enum     query_tab;
     int            main_table_flag = FALSE;
     int            annex_table_flag = FALSE;
+    int            names_table_flag = FALSE;
     int            acct_table_flag = FALSE;
     int            filter_main = 0;
     int            filter_annex = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
+    int            filter_names = 0;
     int            filter_acct = 0;
     int            full_acct = TRUE;
     lmgr_iter_opt_t opt;
@@ -337,7 +340,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 #ifdef ATTR_INDEX_dircount
                 report_desc_array[i].attr_index != ATTR_INDEX_dircount &&
 #endif
-                !is_acct_field( report_desc_array[i].attr_index ) && 
+                !is_acct_field( report_desc_array[i].attr_index ) &&
                 !is_acct_pk( report_desc_array[i].attr_index ) )
             full_acct = FALSE;
     }
@@ -356,7 +359,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 
     if ( full_acct && !opt.force_no_acct )
     {
-        listmgr_optimizedstat( p_report, p_mgr, report_descr_count, report_desc_array, 
+        listmgr_optimizedstat( p_report, p_mgr, report_descr_count, report_desc_array,
                                profile_descr,
                                fields, &curr_field, group_by, &curr_group_by, order_by, &curr_sort,
                                having, &curr_having, where, &curr_where);
@@ -460,7 +463,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             }
 
             /* is this field filtered ? */
-            listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname, 
+            listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname,
                                 having, &curr_having, where, &curr_where, i );
         }
 
@@ -499,7 +502,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             }
         }
 
-    } 
+    }
     /* filter */
 
     if ( p_filter )
@@ -510,10 +513,11 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                                       ( where != curr_where ), TRUE );
             curr_where += strlen( curr_where );
             if ( filter_acct )
-                acct_table_flag =TRUE;    
+                acct_table_flag =TRUE;
         }
         else
         {
+            /* filter on main table? */
             filter_main = filter2str( p_mgr, curr_where, p_filter, T_MAIN,
                                       ( where != curr_where ), TRUE );
             curr_where += strlen( curr_where );
@@ -521,6 +525,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             if ( filter_main )
                 main_table_flag = TRUE;
 
+            /* filter on names table? */
+            filter_names = filter2str( p_mgr, curr_where, p_filter, T_DNAMES,
+                                       ( filter_main + filter_annex > 0 ), TRUE );
+            curr_where += strlen( curr_where );
+
+            if ( filter_names )
+                names_table_flag = TRUE;
+
+            /* filter on annex table? */
             if ( annex_table )
             {
                 filter_annex = filter2str( p_mgr, curr_where, p_filter, T_ANNEX,
@@ -531,24 +544,26 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                     annex_table_flag = TRUE;
             }
 
-
             filter_stripe_info =
                 filter2str( p_mgr, curr_where, p_filter, T_STRIPE_INFO,
                             (where != curr_where), TRUE );
             curr_where += strlen( curr_where );
 
-            /* XXX caller must select distinct id in this case */
             filter_stripe_items =
                 filter2str( p_mgr, curr_where, p_filter, T_STRIPE_ITEMS,
                             (where != curr_where), TRUE );
             curr_where += strlen( curr_where );
+
         }
     }
 
-    /* from clause */
+    /* FROM clause */
 
     if ( acct_table_flag )
+    {
         strcpy( from, ACCT_TABLE );
+        query_tab = T_ACCT;
+    }
     else
     {
         const char * first_table = NULL;
@@ -557,6 +572,21 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             strcpy(from, MAIN_TABLE);
             curr_from = from + strlen(from);
             first_table = MAIN_TABLE;
+            query_tab = T_MAIN;
+        }
+
+        if ( names_table_flag )
+        {
+            if (first_table)
+                curr_from += sprintf(curr_from, " LEFT JOIN "DNAMES_TABLE" ON %s.id="DNAMES_TABLE".id",
+                                     first_table);
+            else
+            {
+                strcpy(from, DNAMES_TABLE);
+                curr_from = from + strlen(from);
+                first_table = DNAMES_TABLE;
+                query_tab = T_DNAMES;
+            }
         }
         if ( annex_table_flag )
         {
@@ -568,6 +598,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 strcpy(from, ANNEX_TABLE);
                 curr_from = from + strlen(from);
                 first_table = ANNEX_TABLE;
+                query_tab = T_ANNEX;
             }
         }
         if ( filter_stripe_info )
@@ -580,6 +611,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 strcpy(from, STRIPE_INFO_TABLE);
                 curr_from = from + strlen(from);
                 first_table = STRIPE_INFO_TABLE;
+                query_tab = T_STRIPE_INFO;
             }
         }
         if ( filter_stripe_items )
@@ -592,9 +624,14 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 strcpy(from, STRIPE_ITEMS_TABLE);
                 curr_from = from + strlen(from);
                 first_table = STRIPE_ITEMS_TABLE;
+                query_tab = T_STRIPE_ITEMS;
             }
         }
     }
+
+    /* check if there is a filter on function return value */
+    if (p_filter)
+        func_filter(p_mgr, curr_where, p_filter, query_tab, where != curr_where, TRUE);
 
     /* Build the request */
 
@@ -724,7 +761,7 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
     {
         if (p_iter->profile_attr == ATTR_INDEX_size)
         {
-            db_type_u dbval; 
+            db_type_u dbval;
             for (i=0; i < p_iter->profile_count; i++)
             {
                 unsigned int idx = p_iter->result_count - p_iter->profile_count
@@ -783,7 +820,7 @@ int ListMgr_EntryCount(lmgr_t * p_mgr, uint64_t *count)
 
     if ( sscanf( str_count, "%"SCNu64, count ) != 1 )
         rc = DB_REQUEST_FAILED;
-        
+
     db_result_free( &p_mgr->conn, &result );
     return rc;
 }

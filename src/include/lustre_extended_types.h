@@ -13,7 +13,7 @@
  */
 
 /**
- * \file   lustre_extended_types.h 
+ * \file   lustre_extended_types.h
  * \brief  Specific types for handling lustre data.
  */
 #ifndef _LUSTRE_EXTRA_TYPES_H
@@ -90,5 +90,47 @@ struct obd_statfs {
 #else
     #define CL_REC_TYPE struct changelog_rec
 #endif
+
+#ifdef _HAVE_FID
+
+/* The following stuff is to decode link EA from userspace */
+
+#include <byteswap.h>
+#include <assert.h>
+
+/* undefined types in lustre_idl */
+#define be32_to_cpu(x) bswap_32(x)
+#define be64_to_cpu(x) (__u64)bswap_64(x)
+#define CLASSERT assert
+#define LASSERTF(a,b,c) assert(a)
+typedef void * lnet_nid_t;
+#include <lustre/lustre_idl.h>
+
+struct lu_buf {
+        void   *lb_buf;
+        ssize_t lb_len;
+};
+
+struct linkea_data {
+        /**
+         ** Buffer to keep link EA body.
+         **/
+        struct lu_buf           *ld_buf;
+        /**
+         ** The matched header, entry and its lenght in the EA
+         **/
+        struct link_ea_header   *ld_leh;
+        struct link_ea_entry    *ld_lee;
+        int                     ld_reclen;
+};
+
+#define LINKEA_NEXT_ENTRY(ldata)        \
+        (struct link_ea_entry *)((char *)ldata.ld_lee + ldata.ld_reclen)
+
+#define LINKEA_FIRST_ENTRY(ldata)       \
+        (struct link_ea_entry *)(ldata.ld_leh + 1)
+
+#endif /* _HAVE_FID */
+
 
 #endif

@@ -61,43 +61,39 @@ typedef struct robinhood_fsscan_stat__
  *
  * The function looks at the content of the configuration structure
  * that have been previously parsed.
- * 
+ *
  * It returns a status code:
  *   0 : initialization successful
  *   -1 : unexpected error at initialization.
  *   EINVAL : a parameter from the config file is invalid.
  */
-int            Robinhood_InitScanModule(  );
+int            Robinhood_InitScanModule( void );
 
 
 /**
  * Stop audit module + wait for termination
  */
-int            Robinhood_StopScanModule(  );
+void           Robinhood_StopScanModule( void );
 
 
 /**
  * Wait for scan termination (one shot mode).
  */
-void           wait_scan_finished(  );
+void           wait_scan_finished( void );
 
 
 /**
  * Check if audit is to be started and thread hangs.
  * (called by the spooler)
  */
-int            Robinhood_CheckScanDeadlines(  );
+int            Robinhood_CheckScanDeadlines( void );
 
-/** 
+/**
  * Retrieve some statistics about current and terminated audits.
  * (called by the statistic collector)
- * 
- * Take as parameter a structure of statistics to be filled.
  *
- * It returns a status code:
- *   0 : statistics collected successfully
- *   -1 : unexpected problem stats collection
+ * Take as parameter a structure of statistics to be filled.
  */
-int            Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats );
+void           Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats );
 
 #endif

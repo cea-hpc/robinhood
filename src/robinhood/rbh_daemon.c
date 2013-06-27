@@ -77,6 +77,7 @@ static time_t  boot_time;
 #define TEST_SYNTAX       282
 #define PARTIAL_SCAN      283
 #define SHOW_DIFF         284
+#define NO_GC             285
 
 #define ACTION_MASK_SCAN                0x00000001
 #define ACTION_MASK_PURGE               0x00000002
@@ -205,6 +206,7 @@ static struct option option_tab[] = {
     {"once", no_argument, NULL, 'O'},
     {"detach", no_argument, NULL, 'd'},
     {"no-limit", no_argument, NULL, NO_LIMIT},
+    {"no-gc", no_argument, NULL, NO_GC},
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -256,7 +258,7 @@ typedef struct rbh_options {
     double         usage_target;
     int            purge_class;
     char           purge_target_class[128];
-    int            partial_scan; 
+    int            partial_scan;
     char           partial_scan_path[RBH_PATH_MAX];
     int            diff_mask;
 
@@ -386,6 +388,8 @@ static const char *help_string =
     "        Daemonize the process (detach from parent process).\n"
     "    " _B "--no-limit"B_"\n"
     "        Don't limit the maximum number of migrations (per pass).\n"
+    "    " _B "--no-gc"B_"\n"
+    "        Don't clean removed entries in DB after a scan.\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -717,6 +721,15 @@ static void   *signal_handler_thr( void *arg )
             {
                 /* drop pipeline waiting operations and terminate threads */
                 EntryProcessor_Terminate( FALSE );
+
+#ifdef HAVE_CHANGELOGS
+                if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
+                {
+                    /* Ack last changelog records. */
+                    ChgLogRdr_Done( );
+                }
+#endif
+
                 FlushLogs(  );
             }
 
@@ -953,7 +966,7 @@ int main( int argc, char **argv )
 #elif HAVE_RM_POLICY
             SET_ACTION_FLAG( ACTION_MASK_UNLINK );
 #else
-            fprintf( stderr, "-R option is not supported.\n" ); 
+            fprintf( stderr, "-R option is not supported.\n" );
             exit(1);
 #endif
             break;
@@ -991,6 +1004,9 @@ int main( int argc, char **argv )
             break;
         case NO_LIMIT:
             options.flags |= FLAG_NO_LIMIT;
+            break;
+        case NO_GC:
+            options.flags |= FLAG_NO_GC;
             break;
         case DRY_RUN:
             options.flags |= FLAG_DRY_RUN;
@@ -1177,7 +1193,7 @@ int main( int argc, char **argv )
     }
 
 #ifdef HAVE_MIGR_POLICY
-    if ( options.migrate_user + options.migrate_group 
+    if ( options.migrate_user + options.migrate_group
 #ifdef _LUSTRE
         + options.migrate_ost
 #endif
@@ -1230,7 +1246,7 @@ int main( int argc, char **argv )
     /* get default config file, if not specified */
     if ( SearchConfig( options.config_file, options.config_file, &chgd, badcfg ) != 0 )
     {
-        fprintf(stderr, "No config file found matching %s\n", badcfg);
+        fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);
     }
     else if (chgd)
@@ -1438,6 +1454,14 @@ int main( int argc, char **argv )
     {
         /* Pipeline must be flushed */
         EntryProcessor_Terminate( TRUE );
+
+#ifdef HAVE_CHANGELOGS
+        if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
+        {
+            /* Ack last changelog records. */
+            ChgLogRdr_Done( );
+        }
+#endif
     }
 
 #ifdef HAVE_MIGR_POLICY
@@ -1492,7 +1516,7 @@ int main( int argc, char **argv )
         rc = Start_Migration( &rh_config.migr_config, migr_opt );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_MIGRATION;
             action_mask &= ~ACTION_MASK_MIGRATE;
@@ -1557,7 +1581,7 @@ int main( int argc, char **argv )
         rc = Start_ResourceMonitor( &rh_config.res_mon_config, resmon_opt );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_RES_MONITOR;
             action_mask &= ~ACTION_MASK_PURGE;
@@ -1590,7 +1614,7 @@ int main( int argc, char **argv )
         rc = Start_Rmdir( &rh_config.rmdir_config, options.flags );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_RMDIR;
             action_mask &= ~ACTION_MASK_RMDIR;
@@ -1623,7 +1647,7 @@ int main( int argc, char **argv )
         rc = Start_HSMRm( &rh_config.hsm_rm_config, options.flags );
         if ( rc == ENOENT )
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." ); 
+            DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." );
             /* unset it in parsing mask to avoid dumping stats */
             parsing_mask &= ~MODULE_MASK_UNLINK;
             action_mask &= ~ACTION_MASK_UNLINK;

@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <attr/xattr.h>
 
 #include "lustre_extended_types.h"
 
@@ -42,7 +43,7 @@
 #define TAG_FIDPATH "FidPath"
 
 /** initialize access to lustre */
-int Lustre_Init(  )
+int Lustre_Init( void )
 {
 #ifdef HAVE_LLAPI_MSG_LEVEL
     llapi_msg_set_level( LLAPI_MSG_OFF );
@@ -331,8 +332,6 @@ int CreateWithoutStripe( const char * path, mode_t mode, int overwrite )
 #ifdef _HAVE_FID
 
 #define FIDDIR      ".lustre/fid"
-#define FIDDIRLEN   11 /* to optimize string concatenation */
-
 
 /**
  * Build .lustre/fid path associated to a handle.
@@ -340,22 +339,10 @@ int CreateWithoutStripe( const char * path, mode_t mode, int overwrite )
 int BuildFidPath( const entry_id_t * p_id,       /* IN */
                   char *path )                   /* OUT */
 {
-    char          *curr = path;
-    unsigned int  mlen = 0;
-
     if ( !p_id || !path )
         return EFAULT;
 
-    /* filesystem root */
-    strcpy( path, get_mount_point(&mlen) );
-    curr += mlen;
-
-    /* fid directory */
-    strcpy( curr, "/" FIDDIR "/" );
-    curr += FIDDIRLEN + 2;
-
-    /* add fid string */
-    curr += sprintf( curr, DFID, PFID(p_id) );
+    sprintf(path, "%s"DFID, get_fid_dir(), PFID(p_id));
 
 #ifdef _DEBUG
     DisplayLog( LVL_FULL, TAG_FIDPATH, "FidPath=%s", path );
@@ -422,6 +409,54 @@ int Lustre_GetFidFromPath( const char *fullpath, entry_id_t * p_id )
     return rc;
 }
 
+/** get (name+parent_id) for an entry
+ * \param linkno hardlink index
+ * \retval -ENODATA after last link
+ * \retval -ERANGE if namelen is too small
+ */
+int Lustre_GetNameParent(const char *path, int linkno,
+                         lustre_fid *pfid, char *name,
+                         int namelen)
+{
+    int rc, i, len;
+    char buf[4096];
+    struct linkea_data     ldata      = { 0 };
+    struct lu_buf          lb = { 0 };
+
+    rc = lgetxattr(path, XATTR_NAME_LINK, buf, sizeof(buf));
+    if (rc < 0)
+        return -errno;
+
+    lb.lb_buf = buf;
+    lb.lb_len = sizeof(buf);
+    ldata.ld_buf = &lb;
+    ldata.ld_leh = (struct link_ea_header *)buf;
+
+    ldata.ld_lee = LINKEA_FIRST_ENTRY(ldata);
+    ldata.ld_reclen = (ldata.ld_lee->lee_reclen[0] << 8)
+               | ldata.ld_lee->lee_reclen[1];
+
+    if (linkno >= ldata.ld_leh->leh_reccount)
+        /* beyond last link */
+        return -ENODATA;
+
+    for (i = 0; i < linkno; i++) {
+        ldata.ld_lee = LINKEA_NEXT_ENTRY(ldata);
+        ldata.ld_reclen = (ldata.ld_lee->lee_reclen[0] << 8)
+                   | ldata.ld_lee->lee_reclen[1];
+    }
+
+    memcpy(pfid, &ldata.ld_lee->lee_parent_fid, sizeof(*pfid));
+    fid_be_to_cpu(pfid, pfid);
+
+    len = ldata.ld_reclen - sizeof(struct link_ea_entry);
+    if (len >= namelen)
+        return -ERANGE;
+
+    strncpy(name, ldata.ld_lee->lee_name, len);
+    name[len] = '\0';
+    return 0;
+}
 #endif
 
 #ifdef _LUSTRE_HSM
@@ -536,7 +571,7 @@ const char * HSMAction2str( enum hsm_user_action action )
         case HUA_CANCEL: return "CANCEL";
         default: return "Unknown";
     }
-    
+
 }
 
 /** Trigger a HSM action */
@@ -897,6 +932,8 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
                       p_stripe_items->stripe[i].obj_id );
     }
 
+    buff[sz-1] = '\0';
+
     return buff;
 }
 
@@ -913,7 +950,7 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
         return 0;
 
     /* check inconsistent values */
-    if (!ATTR_MASK_TEST(p_attrs, stripe_items) || 
+    if (!ATTR_MASK_TEST(p_attrs, stripe_items) ||
         (ATTR(p_attrs, stripe_items).count != ATTR(p_attrs, stripe_info).stripe_count))
     {
         DisplayLog(LVL_MAJOR, "BuildLovEA", "ERROR: inconsistent stripe info for "DFID, PFID(p_id));

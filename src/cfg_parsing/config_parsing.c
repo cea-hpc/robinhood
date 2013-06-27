@@ -135,7 +135,7 @@ config_file_t rh_config_ParseFile( char *file_path )
  * config_GetErrorMsg returns a detailled message
  * to indicate the reason for this error.
  */
-char          *rh_config_GetErrorMsg(  )
+char          *rh_config_GetErrorMsg( void )
 {
 
     return extern_errormsg;
@@ -165,7 +165,7 @@ void rh_config_Print( FILE * output, config_file_t config )
 
 
 
-/** 
+/**
  * config_Free:
  * Free the memory structure that store the configuration.
  */
@@ -416,7 +416,7 @@ config_item_type rh_config_ContentType( config_item_t block )
     generic_item  *item = ( generic_item * ) block;
 
     if ( item->type != TYPE_BLOCK )
-       return 0; 
+       return 0;
 
     if ( item->item.block.block_content == NULL )
         return 0;

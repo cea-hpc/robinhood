@@ -42,7 +42,7 @@ AC_SYS_LARGEFILE
 
 # gcc options
 #CC_OPT="-Wall -Werror"
-CC_OPT="-Wall"
+CC_OPT="-Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations"
 AC_SUBST(CC_OPT)
 
 AC_CHECK_SIZEOF([nlink_t])
@@ -99,17 +99,6 @@ if test "x$support_lustre" = "xyes" ; then
         # this defines LVERSION and LPACKAGE variables
         AX_LUSTRE_VERSION
 
-        if test "$LVERSION" = "2.2" ; then
-            # lu543 is fixed in Lustre 2.2
-            # then is replaced in Lustre 2.3
-            AC_MSG_NOTICE([lu543 is fixed in Lustre 2.2])
-            CFLAGS="$CFLAGS -D_CL_RNM_OVER"
-        else
-            # for previous version, or customized, use --enable-lu543 to activate it
-            AX_ENABLE_FLAG( [cl-rename-overwrite], [changelog correctly reflects overwriting rename (lu543)], [-D_CL_RNM_OVER] )
-            AX_ENABLE_FLAG( [lu543], [same as cl-rename-overwrite], [-D_CL_RNM_OVER] )
-        fi
-
         if test -z "$LVERSION"; then
             LDEFINES=""
         else
@@ -154,12 +143,6 @@ if test "x$support_lustre" = "xyes" ; then
 	    	AC_CHECK_LIB([lustreapi],[llapi_changelog_start],[have_llapi_changelog_start="yes"])
 		    if test "x$have_llapi_changelog_start" = "xyes"; then 
 		        AC_DEFINE(HAVE_CHANGELOGS, 1, [Lustre changelogs records are structures])
-                AC_CHECK_DECL([CL_MTIME],AC_DEFINE(CL_SPLITTED_TIME,1,[Changelog time events are splitted]),[],[
-                    #define LPX64 "%#llx"
-                    #include <sys/types.h>
-                    #include <asm/types.h>
-                    #include <lustre/lustre_user.h>
-                ])
             fi
 
             if test "x$have_llapi_changelog_start" = "xyes" && \

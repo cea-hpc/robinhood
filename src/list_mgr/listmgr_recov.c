@@ -32,7 +32,8 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
-#define RECOV_LIST_FIELDS "status,last_mod,type,mode,size,owner,gr_name,fullpath,backendpath,link,stripe_count,stripe_size,pool_name"
+#define BUILD_RECOV_LIST_FIELDS "CONCAT_WS('/','%s',one_path(%s.id)) as fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
+#define GET_RECOV_LIST_FIELDS "fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define RECOV_FIELD_COUNT 13
 
 
@@ -242,17 +243,22 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     {
         DisplayLog( LVL_EVENT, LISTMGR_TAG, "Dropping any previous "RECOV_TABLE" table" );
         /* start from clean state (no table, no indexes, no addl field) */
-        rc = db_exec_sql( &p_mgr->conn, "DROP TABLE IF EXISTS "RECOV_TABLE, NULL );
+        rc = db_drop_component(&p_mgr->conn, DBOBJ_TABLE, RECOV_TABLE);
         if ( rc )
             return rc;
     }
 
     if ( p_filter )
     {
-        if (dir_filter(p_mgr, p_filter, filter_dir_str, &filter_dir_index) != FILTERDIR_NONE)
+        if (dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index) != FILTERDIR_NONE)
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Directory filter not supported for recovery");
-            return DB_INVALID_ARG;
+            return DB_NOT_SUPPORTED;
+        }
+        else if (func_filter(p_mgr, filter_dir_str, p_filter, T_MAIN, FALSE, FALSE))
+        {
+            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
+            return DB_NOT_SUPPORTED;
         }
 
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, TRUE );
@@ -280,23 +286,25 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     if (filter_stripe_items > 0)
     {
         /* need to select only 1 instance of each object when joining with STRIPE_ITEMS */
-        strcpy(query, "CREATE TABLE "RECOV_TABLE
-            " SELECT DISTINCT("MAIN_TABLE".id)," RECOV_LIST_FIELDS
+        sprintf(query, "CREATE TABLE "RECOV_TABLE
+            " SELECT DISTINCT("MAIN_TABLE".id)," BUILD_RECOV_LIST_FIELDS
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
             "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)"
             " LEFT JOIN "STRIPE_ITEMS_TABLE" ON "
-            "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)");
+            "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)",
+            global_config.fs_path, MAIN_TABLE);
     }
     else
     {
-        strcpy(query, "CREATE TABLE "RECOV_TABLE
-            " SELECT "MAIN_TABLE".id," RECOV_LIST_FIELDS
+        sprintf(query, "CREATE TABLE "RECOV_TABLE
+            " SELECT "MAIN_TABLE".id," BUILD_RECOV_LIST_FIELDS
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
-            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)");
+            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)",
+            global_config.fs_path, MAIN_TABLE);
     }
 
     if (filter_main > 0 || filter_annex > 0 || filter_stripe_info > 0 || filter_stripe_items > 0)
@@ -377,7 +385,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
 int ListMgr_RecovReset( lmgr_t * p_mgr )
 {
    DisplayLog( LVL_EVENT, LISTMGR_TAG, "Dropping any previous "RECOV_TABLE" table" );
-   return db_exec_sql( &p_mgr->conn, "DROP TABLE IF EXISTS "RECOV_TABLE, NULL );
+   return db_drop_component(&p_mgr->conn, DBOBJ_TABLE, RECOV_TABLE);
 }
 
 /**
@@ -395,7 +403,7 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
     lmgr_iterator_t * it;
     int rc;
 
-    strcpy( query, "SELECT id,recov_status,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
+    strcpy( query, "SELECT id,recov_status,"GET_RECOV_LIST_FIELDS" FROM "RECOV_TABLE" WHERE " );
     curr = query + strlen(query);
     if ( retry )
         curr += sprintf( curr, "(recov_status IS NULL OR recov_status=%u)",
@@ -404,6 +412,9 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
         curr += sprintf( curr, "recov_status IS NULL" );
 
     if ( dir_path )
+    {
+        /* FIXME recovery table contains relative path,
+         * and dirpath is aboslute. Change it to relative. */
 #ifdef _MYSQL
         /* MySQL is case insensitive.
          * To force case-sensitivity, use BINARY keyword. */
@@ -411,6 +422,7 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
 #else
         curr += sprintf( curr, " AND fullpath LIKE '%s/%%'", dir_path );
 #endif
+    }
 
     /* allocate a new iterator */
     it = ( lmgr_iterator_t * ) MemAlloc( sizeof( lmgr_iterator_t ) );
@@ -440,7 +452,7 @@ struct lmgr_iterator_t * ListMgr_RecovList( lmgr_t * p_mgr,recov_type_e st )
     lmgr_iterator_t * it;
     int rc;
 
-    strcpy( query, "SELECT id,recov_status,"RECOV_LIST_FIELDS" FROM "RECOV_TABLE );
+    strcpy( query, "SELECT id,recov_status,"GET_RECOV_LIST_FIELDS" FROM "RECOV_TABLE );
     curr = query + strlen(query);
     switch(st)
     {

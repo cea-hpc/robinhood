@@ -8,6 +8,6 @@
 int main(int argc, char ** argv)
 {
 	size_t sz;
-	
+
 	printf("SIZEOF(size_t)=%lu\n", sizeof(sz) );
 }

@@ -63,8 +63,9 @@ typedef struct entry_proc_config_t
 
 /* paralellism */
 #define STAGE_FLAG_SEQUENTIAL    0x00000001
-#define STAGE_FLAG_MAX_THREADS   0x00000002     /* hard coded limit */
-#define STAGE_FLAG_PARALLEL      0x00000004     /* if set, refer to max threads in configuration */
+#define STAGE_FLAG_FORCE_SEQ     0x00000002     /* temporarily force sequential */
+#define STAGE_FLAG_MAX_THREADS   0x00000004     /* hard coded limit */
+#define STAGE_FLAG_PARALLEL      0x00000008     /* if set, refer to max threads in configuration */
 
 /* synchronism */
 #define STAGE_FLAG_SYNC          0x00000010
@@ -79,7 +80,7 @@ typedef struct entry_proc_config_t
 struct entry_proc_op_t;
 
 /**
- * Definition of pipeline stage functions 
+ * Definition of pipeline stage functions
  */
 typedef int    ( *step_function_t ) ( struct entry_proc_op_t *, lmgr_t * lmgr );
 
@@ -127,7 +128,8 @@ typedef enum operation_type_t
     OP_TYPE_NONE = 0,
     OP_TYPE_INSERT,
     OP_TYPE_UPDATE,
-    OP_TYPE_REMOVE,
+    OP_TYPE_REMOVE_ONE,         /* remove name only; inode still exists */
+    OP_TYPE_REMOVE_LAST,        /* remove last name to inode and inode */
     OP_TYPE_SOFT_REMOVE
 } operation_type_t;
 
@@ -162,6 +164,22 @@ typedef struct entry_proc_op_t
     unsigned int      being_processed:1;
     unsigned int      id_is_referenced:1;
 
+    /* fid needs to be retrieved from db. This is a workaround for
+     * Lustre servers that do not have LU-543. */
+    unsigned int      get_fid_from_db:1;
+
+    /* for changelog unlink record only, determine in pipeline if file
+     * is last and must be completely removed from DB. This is a
+     * workaround for Lustre servers that do not have LU-1331
+     * (extended records/CLF_RENAME_LAST). */
+    unsigned int      check_if_last_entry:1;
+
+    /* for pipeline flush: indicate if not seen entries must be cleaned */
+    unsigned int      gc_entries:1;
+    /* for pipeline flush: indicate if not seen paths must be cleaned
+     * (preserve entries). Used for partial scans. */
+    unsigned int      gc_names:1;
+
     operation_type_t db_op_type;
     callback_func_t callback_func;
     void          *callback_param;
@@ -184,13 +202,10 @@ typedef struct entry_proc_op_t
 
     /* ========================= */
 
-    /**
-     * internal entry lock for pipeline management:
-     * lock for entry status (being_processed) and pipeline stage
-     */
-    pthread_mutex_t entry_lock;
-
-    struct timeval start_processing_time;
+    union {
+        time_t changelog_inserted; /* used by changelog reader */
+        struct timeval start_processing_time; /* used by pipeline */
+    };
 
     /* double chained list for pipeline */
     struct list_head list;
@@ -213,11 +228,12 @@ typedef struct entry_proc_op_t
 
 #define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
                          | ATTR_MASK_gr_name | ATTR_MASK_last_access \
-                         | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode)
+                         | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
+                         | ATTR_MASK_nlink )
 
 #define NEED_GETSTATUS(_op) ((_op)->fs_attr_need & ATTR_MASK_status)
 #define NEED_GETSTRIPE(_op) ((_op)->fs_attr_need & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ))
-#define NEED_GETPATH(_op) ((_op)->fs_attr_need & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth))
+#define NEED_GETPATH(_op) ((_op)->fs_attr_need & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_depth ))
 #define NEED_GETATTR(_op) ((_op)->fs_attr_need & POSIX_ATTR_MASK )
 #define NEED_READLINK(_op) ((_op)->fs_attr_need & ATTR_MASK_link)
 
@@ -287,9 +303,14 @@ entry_proc_op_t * EntryProcessor_Get( void );
 void EntryProcessor_Release( entry_proc_op_t * p_op );
 
 /**
- * Dump info about pipeline stages 
+ * Dump info about pipeline stages
  */
-void           EntryProcessor_DumpCurrentStages(  );
+void           EntryProcessor_DumpCurrentStages( void );
+
+/**
+ * Unblock processing in a stage.
+ */
+void EntryProcessor_Unblock( int stage );
 
 #endif
 /**

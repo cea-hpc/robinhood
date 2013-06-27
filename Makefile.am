@@ -68,7 +68,6 @@ cppcheck:
 	cppcheck -j12 -v --force --enable=all -I`pwd`/src/include -DHAVE_CONFIG_H @PURPOSE_CFLAGS@ @DB_CFLAGS@ src/
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
-	robinhood.old_spec.in				\
         doc/templates					\
 	LICENSE KnownBugs README.tmp_fs_mgr README.Lustre_HSM	\
 	doc/admin_guides \
@@ -77,4 +76,4 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 
 
 
-#	goodies/vim/robinhood.vim cfg_templates/example.conf 
+#	goodies/vim/robinhood.vim cfg_templates/example.conf

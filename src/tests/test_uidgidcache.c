@@ -14,7 +14,7 @@
 /**
  *
  * \file    $RCSfile: testuidgidcache.c,v $
- * \author  $Author: leibovic $ 
+ * \author  $Author: leibovic $
  * \date    $Date: 2008/02/15 10:37:38 $
  * \brief   Cache user and groups relatives information.
  *

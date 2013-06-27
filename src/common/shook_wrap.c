@@ -21,7 +21,7 @@
 #include "RobinhoodLogs.h"
 #include <shook_svr.h>
 
-file_status_t shook2rbh_status(shook_state st)
+static file_status_t shook2rbh_status(shook_state st)
 {
     switch (st)
     {

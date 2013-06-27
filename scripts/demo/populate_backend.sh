@@ -22,7 +22,7 @@ FILE_SZ_MB=10 # file size
 function mksubtree
 {
     local DIR=$1
-    local LVL=$2 
+    local LVL=$2
     local d
     local f
 
@@ -37,12 +37,12 @@ function mksubtree
            echo "Archiving file $DIR/file.$f..."
            lfs hsm_archive $DIR/file.$f || echo "ERROR executing lfs hsm_archive $DIR/file.$f"
            sleep 2
-        done 
+        done
 
         df -h $DIR
         # release files if they are archived
         sleep 5
-        echo "Releasing files in $DIR..." 
+        echo "Releasing files in $DIR..."
         for f in $DIR/* ; do
             echo "release: $f"
             lfs hsm_release $f

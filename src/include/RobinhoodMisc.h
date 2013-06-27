@@ -51,7 +51,7 @@
 #define bool2str( _b_ )   ((_b_)?"TRUE":"FALSE")
 
 /**
- *  Other usefull definitions
+ *  Other useful definitions
  */
 
 #define MIN2( _a_, _b_ ) ( (_a_)<(_b_) ? (_a_) : (_b_) )
@@ -103,7 +103,7 @@ void           TestLockFile( time_t * p_last_action );
 /**
  * Convert a Posix attributes structure (returned by lstat)
  * to an attribute set.
- * @param size_info indicates if size info is set in the stat structure. 
+ * @param size_info indicates if size info is set in the stat structure.
  */
 void           PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int size_info );
 
@@ -131,26 +131,27 @@ int            CheckFSInfo( char *path, char *expected_type,
  * - global_config must be set
  * - initialize mount_point, fsname and dev_id
  */
-int InitFS();
+int InitFS( void );
 
 /**
  * This is to be called after a dev_id change was detected
  * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
  * else, return -1
  */
-int ResetFS();
+int ResetFS( void );
 
 
 /**
  *  Check that FS path is the same as the last time.
  */
-int            CheckLastFS(  );
+int            CheckLastFS( void );
 
 /* retrieve FS info */
 const char    *get_mount_point( unsigned int * plen );
-const char    *get_fsname(  );
-dev_t          get_fsdev();
-uint64_t       get_fskey();
+const char    *get_fid_dir( void );
+const char    *get_fsname( void );
+dev_t          get_fsdev( void );
+uint64_t       get_fskey( void );
 
 /**
  * extract relative path from full path
@@ -165,7 +166,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
 #ifdef _LUSTRE
 
 /** initialize access to lustre */
-int            Lustre_Init(  );
+int            Lustre_Init( void );
 
 /** Retrieve stripe info for a file */
 int            File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
@@ -190,13 +191,15 @@ int CreateWithoutStripe( const char * path, mode_t mode, int overwrite );
 int            BuildFidPath( const entry_id_t * p_id /* IN */ , char *path /* OUT */  );
 int            Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int len );
 int            Lustre_GetFidFromPath( const char *fullpath, entry_id_t * p_id );
+int            Lustre_GetNameParent(const char *path, int linkno,
+                                    lustre_fid *pfid, char *name, int namelen);
 
 #define FID_IS_ZERO(_pf) (((_pf)->f_seq == 0) && ((_pf)->f_oid == 0))
 
 #endif
 
 #ifdef HAVE_CHANGELOGS
-/* if the FS has changelogs, define fonction for converting changelog time */
+/* if the FS has changelogs, define function for converting changelog time */
 static inline time_t cltime2sec( uint64_t cltime )
 {
    /* extract secs from time field */
@@ -374,11 +377,14 @@ int execute_shell_command( const char * cmd, int argc, ... );
  */
 char * replace_cmd_parameters(const char * cmd_in);
 
+/** recursively create a directoy and return its id */
+int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
+
 #ifdef ATTR_INDEX_status
 /** status conversion functions */
 const char * db_status2str( file_status_t status, int csv );
 file_status_t status2dbval( char * status_str );
-const char * allowed_status();
+const char * allowed_status( void );
 #endif
 
 #endif

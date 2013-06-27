@@ -42,8 +42,8 @@ static inline void print_lock( char *s, rw_lock_t * plock )
 #endif
 }                               /* print_lock */
 
-/* 
- * Take the lock for reading 
+/*
+ * Take the lock for reading
  */
 int P_r( rw_lock_t * plock )
 {
@@ -69,7 +69,7 @@ int P_r( rw_lock_t * plock )
 }                               /* P_r */
 
 /*
- * Release the lock after reading 
+ * Release the lock after reading
  */
 int V_r( rw_lock_t * plock )
 {

@@ -38,19 +38,20 @@ int                 pipeline_flags = 0;
 static struct id_hash *id_constraint_hash;
 
 /** initialize id constraint manager */
-int id_constraint_init(  )
+int id_constraint_init( void )
 {
-    id_constraint_hash = id_hash_init(ID_HASH_SIZE);
+    id_constraint_hash = id_hash_init(ID_HASH_SIZE, TRUE);
     return id_constraint_hash == NULL;     /* TODO: this is not checked */
 }
 
 /**
  * This is called to register the operation (with the ordering of pipeline)
+ * Normal operation is to register at the tail.
  * @return ID_OK if the entry can be processed.
  *         ID_MISSING if the ID is not set in p_op structure
  *         ID_ALREADY if the op_structure has already been registered
  */
-int id_constraint_register( entry_proc_op_t * p_op )
+int id_constraint_register( entry_proc_op_t * p_op, int at_head )
 {
     struct id_hash_slot *slot;
 
@@ -62,7 +63,11 @@ int id_constraint_register( entry_proc_op_t * p_op )
 
     P( slot->lock );
 
-    rh_list_add_tail(&p_op->hash_list, &slot->list);
+    if (at_head)
+        rh_list_add(&p_op->hash_list, &slot->list);
+    else
+        rh_list_add_tail(&p_op->hash_list, &slot->list);
+
     slot->count++;
     p_op->id_is_referenced = TRUE;
 
@@ -75,7 +80,7 @@ int id_constraint_register( entry_proc_op_t * p_op )
 /**
  * Get the first operation for a given id.
  * @return an operation to be processed when it is possible.
- *         NULL else. 
+ *         NULL else.
  */
 entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
 {
@@ -143,7 +148,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 }
 
 
-void id_constraint_dump(  )
+void id_constraint_dump( void )
 {
     id_hash_dump(id_constraint_hash, "Id constraints count");
 }

@@ -38,7 +38,7 @@ chglog_reader_config_t chglog_reader_config;
 static mdt_def_t default_mdt_def =
     {
         .mdt_name  = "MDT0000",
-        .reader_id = "cl0" 
+        .reader_id = "cl0"
     };
 
 
@@ -54,6 +54,11 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
    /* poll until changelog's follow flag is implemented in llapi */
    p_config->force_polling = TRUE;
    p_config->polling_interval = 1; /* 1s */
+   p_config->queue_max_size = 1000;
+   p_config->queue_max_age = 5; /* 5s */
+   p_config->queue_check_interval = 1; /* every second */
+   p_config->mds_has_lu543 = FALSE;
+   p_config->mds_has_lu1331 = FALSE;
 
    /* acknowledge 100 records at once */
    p_config->batch_ack_count = 1024;
@@ -61,7 +66,7 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
    return 0;
 }
 
-/** Write default parameters for changelog readers */ 
+/** Write default parameters for changelog readers */
 int            ChgLogRdr_WriteDefaultConfig( FILE * output )
 {
     print_begin_block( output, 0, CHGLOG_CFG_BLOCK, NULL );
@@ -73,12 +78,18 @@ int            ChgLogRdr_WriteDefaultConfig( FILE * output )
     print_line( output, 1, "batch_ack_count  : 1024" );
     print_line( output, 1, "force_polling    : TRUE" );
     print_line( output, 1, "polling_interval : 1s" );
+    print_line( output, 1, "queue_max_size   : 1000" );
+    print_line( output, 1, "queue_max_age    : 5s" );
+    print_line( output, 1, "queue_check_interval : 1s" );
+    print_line( output, 1, "mds_has_lu543 : FALSE" );
+    print_line( output, 1, "mds_has_lu1331 : FALSE" );
+
     print_end_block( output, 0 );
 
     return 0;
 }
 
-/** Write a configuration template for changelog readers */ 
+/** Write a configuration template for changelog readers */
 int            ChgLogRdr_WriteConfigTemplate( FILE * output )
 {
     print_line( output, 0, "# Parameters for processing MDT changelogs :");
@@ -115,6 +126,9 @@ int            ChgLogRdr_WriteConfigTemplate( FILE * output )
 
     print_line( output, 1, "force_polling    = ON ;" );
     print_line( output, 1, "polling_interval = 1s ;" );
+    print_line( output, 1, "queue_max_size   = 1000 ;" );
+    print_line( output, 1, "queue_max_age    = 5s ;" );
+    print_line( output, 1, "queue_check_interval = 1s ;" );
 
     print_end_block( output, 0 );
 
@@ -217,6 +231,35 @@ int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
+    rc = GetIntParam( chglog_block, CHGLOG_CFG_BLOCK,
+                      "queue_max_size", INT_PARAM_NOT_NULL | INT_PARAM_POSITIVE,
+                       &p_config->queue_max_size, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetDurationParam( chglog_block, CHGLOG_CFG_BLOCK,
+                      "queue_max_age", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
+                        &p_config->queue_max_age, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetDurationParam( chglog_block, CHGLOG_CFG_BLOCK,
+                      "queue_check_interval", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
+                        &p_config->queue_check_interval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetBoolParam( chglog_block, CHGLOG_CFG_BLOCK,
+                       "mds_has_lu543",0, &p_config->mds_has_lu543, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetBoolParam( chglog_block, CHGLOG_CFG_BLOCK,
+                       "mds_has_lu1331",0, &p_config->mds_has_lu1331, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+
     /* browse  the list of MDT blocks */
 
     for ( blc_index = 0; blc_index < rh_config_GetNbItems( chglog_block ); blc_index++ )
@@ -248,10 +291,10 @@ int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
                    p_config->mdt_count ++;
 
                    p_config->mdt_def = (mdt_def_t*)realloc( p_config->mdt_def,
-                                         p_config->mdt_count * sizeof( mdt_def_t ) ); 
+                                         p_config->mdt_count * sizeof( mdt_def_t ) );
                    if ( !p_config->mdt_def ) return ENOMEM;
                 }
-                
+
                 /* fill the structure */
                 rc = parse_mdt_block( curr_item, MDT_DEF_BLOCK, &p_config->mdt_def[p_config->mdt_count-1], msg_out );
                 if ( rc ) return rc;

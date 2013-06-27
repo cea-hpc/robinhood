@@ -16,7 +16,7 @@
  * \file    analyze.c
  * \author  $Author: leibovic $
  * \date    $Date: 2008/07/04 08:15:29 $
- * \version	$Revision: 1.3 $ 
+ * \version	$Revision: 1.3 $
  * \brief   Building the syntax tree.
  *
  */
@@ -45,7 +45,7 @@ extern int     yylineno;
 /**
  *  create a list of items
  */
-list_items    *rh_config_CreateItemsList(  )
+list_items    *rh_config_CreateItemsList( void )
 {
     list_items    *new = ( list_items * ) malloc( sizeof( list_items ) );
 
@@ -352,7 +352,7 @@ generic_item  *rh_config_CreateSet_Binary( set_operator_t op,
     new->item.set.set_u.op.set2 =
         ( type_set * ) malloc( sizeof( type_set ) );
 
-    if ((new->item.set.set_u.op.set1 == NULL) || 
+    if ((new->item.set.set_u.op.set1 == NULL) ||
         (new->item.set.set_u.op.set2 == NULL))
     {
         fprintf( stderr, "Missing memory\n" );
@@ -382,7 +382,7 @@ generic_item  *rh_config_CreateSet_Singleton( char* set_name )
 }
 
 
-arg_list_t    *rh_config_CreateArgList(  )
+arg_list_t    *rh_config_CreateArgList( void )
 {
     arg_list_t    *p_list = ( arg_list_t * ) malloc( sizeof( arg_list_t ) );
     p_list->nb_args = 0;

@@ -51,34 +51,46 @@ typedef struct chglog_reader_config_t
     int   force_polling;
     int   polling_interval;
 
+    /* Maximum number of operations to keep in the internal queue. */
+    int queue_max_size;
+
+    /* Age of the opration we keep in the internal queue before we
+     * push them to thepipeline. */
+    int queue_max_age;
+
+    /* Interval at which we have to check whether operation in the
+     * internal queue have aged. */
+    int queue_check_interval;
+
+    /* Options suported by the MDS. LU-543 and LU-1331 are related to
+     * events in changelog, where a rename is overriding a destination
+     * file. */
+    int mds_has_lu543;
+    int mds_has_lu1331;
+
 } chglog_reader_config_t;
 
-/* type if a log record is a ctime or mtime ? */
-#ifdef CL_SPLITTED_TIME
-#define CL_MOD_TIME(_t) ((_t)==CL_MTIME)
-#define CL_CHG_TIME(_t) ((_t)==CL_CTIME)
-#else
-#define CL_MOD_TIME(_t) ((_t)==CL_TIME)
-#define CL_CHG_TIME(_t) ((_t)==CL_TIME)
-#endif
-
+extern chglog_reader_config_t chglog_reader_config;
 
 /** start ChangeLog Readers */
 int            ChgLogRdr_Start( chglog_reader_config_t * collector_config, int flags );
 
 /** terminate ChangeLog Readers */
-int            ChgLogRdr_Terminate(  );
+int            ChgLogRdr_Terminate( void );
 
 /** wait for ChangeLog Readers termination */
-int            ChgLogRdr_Wait(  );
+int            ChgLogRdr_Wait( void );
+
+/** Release last changelog records, and dump the final stats. */
+int            ChgLogRdr_Done( void );
 
 /** dump changelog processing stats */
-int            ChgLogRdr_DumpStats(  );
+int            ChgLogRdr_DumpStats( void );
 
 /** store changelog stats to db */
 int            ChgLogRdr_StoreStats( lmgr_t * lmgr );
 
-/** 
+/**
  * \addtogroup MODULE_CONFIG_FUNCTIONS
  * @{
  */

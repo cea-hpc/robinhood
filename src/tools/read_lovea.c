@@ -9,7 +9,7 @@
 #include <attr/xattr.h>
 #include "lustre_extended_types.h"
 
-const char * pattern2str(uint32_t pattern)
+static const char * pattern2str(uint32_t pattern)
 {
     switch(pattern)
     {
@@ -19,7 +19,7 @@ const char * pattern2str(uint32_t pattern)
     return "?";
 }
 
-int print_lov(struct lov_user_md * p_lum)
+static int print_lov(struct lov_user_md * p_lum)
 {
 #ifdef LOV_USER_MAGIC_V3
     struct lov_user_md_v3 *p_lum3;
@@ -107,7 +107,7 @@ int print_lov(struct lov_user_md * p_lum)
 }
 
 
-void usage(const char * bin)
+static void usage(const char * bin)
 {
     fprintf(stderr, "usage: %s <mdt_file>\n", bin);
 }

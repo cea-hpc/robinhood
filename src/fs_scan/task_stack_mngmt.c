@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * Module for managing FS scan tasks as a stack 
+ * Module for managing FS scan tasks as a stack
  * with priorities on entry depth.
  */
 
@@ -58,7 +58,7 @@ int InitTaskStack( task_stack_t * p_stack )
 
 
 /* insert a task in the stack */
-int InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task )
+void InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task )
 {
     unsigned int   prof = p_task->depth;
 
@@ -83,8 +83,6 @@ int InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task )
     /* unblock waiting worker threads */
     sem_post_safe( &p_stack->sem_tasks );
 
-    return 0;
-
 }
 
 
@@ -108,6 +106,7 @@ robinhood_task_t *GetTask_from_Stack( task_stack_t * p_stack )
     /* sanity check */
     if ( p_task == NULL )
     {
+        V( p_stack->stack_lock );
         DisplayLog( LVL_CRIT, FSSCAN_TAG, "UNEXPECTED ERROR: NO TASK FOUND" );
         return NULL;
     }
@@ -117,7 +116,7 @@ robinhood_task_t *GetTask_from_Stack( task_stack_t * p_stack )
 
     /* if the list at current depth is empty, we need to
      * update max_task_depth.
-     */ 
+     */
     if ( p_task->next_task == NULL )
     {
         for ( index = p_stack->max_task_depth; index >= 0; index-- )
