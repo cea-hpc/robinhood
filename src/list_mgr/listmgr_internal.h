@@ -36,19 +36,21 @@
 #define DPK      "'%s'"
 #define SPK      "%s"
 #define VALID( _p ) ((_p)->validator)
+#define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
 
 #else
-#define FID_LEN 128
+#define DB_FID_LEN 128 /* unlike rbh2.5 */
 
-#define PK_LEN FID_LEN
+#define PK_LEN DB_FID_LEN
 #define PK_ARG_T char *
 #define PK_PARG_T char *
 #define PTR_PK(_p) (_p)
-#define DEF_PK(_p) char _p[FID_LEN]
-#define PK_DB_TYPE DB_TEXT 
+#define DEF_PK(_p) char _p[DB_FID_LEN]
+#define PK_DB_TYPE DB_TEXT
 #define DPK      "'%s'"
 #define SPK      "%s"
 #define VALID( _p ) (0)
+#define PK_TYPE   "VARCHAR(" TOSTRING(DB_FID_LEN) ")"
 
 #endif
 

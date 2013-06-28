@@ -879,7 +879,7 @@ int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
     snprintf( p_pk, PK_LEN, "%"PRI_DT":%LX", p_id->fs_key,
               (unsigned long long)p_id->inode );
 #else /* FID_PK */
-    snprintf( p_pk, FID_LEN, DFID_NOBRACE, PFID(p_id) );
+    snprintf( p_pk, DB_FID_LEN, DFID_NOBRACE, PFID(p_id) );
 #endif
     return DB_SUCCESS;
 }

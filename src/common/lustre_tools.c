@@ -410,7 +410,7 @@ const char * HSMAction2str( enum hsm_user_action action )
 
 /** Trigger a HSM action */
 int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
-                      const char * hints, unsigned int archive_num )
+                      const char * hints, unsigned int archive_id )
 {
     struct hsm_user_request * req;
     int data_len = 0;
@@ -431,7 +431,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
     }
 
     req->hur_request.hr_action = action;
-    req->hur_request.hr_archive_num = archive_num;
+    req->hur_request.hr_archive_id = archive_id;
 
     req->hur_user_item[0].hui_fid = *p_id;
     req->hur_user_item[0].hui_extent.offset = 0 ;
