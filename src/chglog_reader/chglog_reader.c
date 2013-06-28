@@ -55,6 +55,10 @@ typedef struct reader_thr_info_t
     /** thread id */
     pthread_t thr_id;
 
+    /** open information */
+    char *mdtdevice;
+    int flags;
+
     /** nbr of records read by this thread */
     unsigned long long nb_read;
 
@@ -777,11 +781,6 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
         if ( !one_shot )
         {
             /* reopen */
-            char mdtdevice[128];
-            int flags;
-
-            snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
-                      chglog_reader_config.mdt_def[info->thr_index].mdt_name );
             log_close(info);
 
             if ( chglog_reader_config.force_polling )
@@ -791,7 +790,6 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
                     chglog_reader_config.polling_interval);
                     /* sleep during polling interval */
                     rh_sleep( chglog_reader_config.polling_interval );
-                    flags = CHANGELOG_FLAG_BLOCK;
             }
             else
             {
@@ -799,12 +797,11 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
                     "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
                     "was specified. Re-opening in 1 sec..." );
                     rh_sleep( 1 );
-                    flags = CHANGELOG_FLAG_BLOCK | CHANGELOG_FLAG_FOLLOW;
             }
             info->nb_reopen ++;
             /* opening the log again (from last_read_record + 1) */
-            rc = llapi_changelog_start( &info->chglog_hdlr, flags,
-                                        mdtdevice, info->last_read_record + 1 );
+            rc = llapi_changelog_start( &info->chglog_hdlr, info->flags,
+                                        info->mdtdevice, info->last_read_record + 1 );
             if (rc==0)
                 return cl_continue;
             else
@@ -963,28 +960,32 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
     /* create one reader per MDT */
     for ( i = 0; i < p_config->mdt_count ; i++ )
     {
+        reader_thr_info_t * info = &reader_info[i];
 
         /* retrieve from the first unacknowledged record */
         unsigned long long last_rec = 0;
 
-        memset(&reader_info[i], 0, sizeof(sizeof( reader_thr_info_t )));
-        reader_info[i].thr_index = i;
-        rh_list_init(&reader_info[i].op_queue);
-        reader_info[i].last_report = time(NULL);
-        reader_info->id_hash = id_hash_init( ID_CHGLOG_HASH_SIZE, FALSE );
+        memset(info, 0, sizeof(sizeof( reader_thr_info_t )));
+        info->thr_index = i;
+        rh_list_init(&info->op_queue);
+        info->last_report = time(NULL);
+        info->id_hash = id_hash_init( ID_CHGLOG_HASH_SIZE, FALSE );
 
         snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
                   p_config->mdt_def[i].mdt_name );
+
+        info->mdtdevice = strdup(mdtdevice);
+        info->flags = ((one_shot || p_config->force_polling)?0:CHANGELOG_FLAG_FOLLOW)
+            | CHANGELOG_FLAG_BLOCK;
 
         DisplayLog( LVL_DEBUG, CHGLOG_TAG, "Opening chglog for %s", mdtdevice );
 
         /* open the changelog (if we are in one_shot mode,
          * don't use the CHANGELOG_FLAG_FOLLOW flag)
          */
-        rc = llapi_changelog_start( &reader_info[i].chglog_hdlr,
-                                    ((one_shot || p_config->force_polling)?0:CHANGELOG_FLAG_FOLLOW)
-                                    | CHANGELOG_FLAG_BLOCK,
-                                    mdtdevice, last_rec );
+        rc = llapi_changelog_start( &info->chglog_hdlr,
+                                    info->flags,
+                                    info->mdtdevice, last_rec );
 
         if ( rc )
         {
@@ -995,8 +996,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
         }
 
         /* then create the thread that manages it */
-        if ( pthread_create(&reader_info[i].thr_id, NULL, chglog_reader_thr,
-                            (void*)&reader_info[i]) )
+        if ( pthread_create(&info->thr_id, NULL, chglog_reader_thr, info) )
         {
             int err = errno;
             DisplayLog(LVL_CRIT, CHGLOG_TAG,
