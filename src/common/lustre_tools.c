@@ -28,8 +28,6 @@
 #include <pthread.h>
 
 #include "lustre_extended_types.h"
-#include <lustre/liblustreapi.h>
-#include <lustre/lustre_user.h>
 
 /* for logs */
 #define TAG_STRIPE "GetStripe"

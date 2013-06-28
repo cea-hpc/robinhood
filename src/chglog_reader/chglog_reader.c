@@ -35,8 +35,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include "lustre_extended_types.h"
-#include <lustre/liblustreapi.h>
-#include <lustre/lustre_user.h>
 
 #ifdef _LLAPI_FORKS
 #include <signal.h>
