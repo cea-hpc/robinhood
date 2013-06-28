@@ -5010,28 +5010,33 @@ function trigger_purge_QUOTA_EXCEEDED
 	fi
 
 	clean_logs
-	
-	echo "1-Create Files ..."	
+
+	echo "1-Create Files ..."
 	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
+    limit_init=$limit
 	indice=1
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>/dev/null
+        # write 2M to fullfill 2 stripes
+        dd if=/dev/zero of=$ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>/dev/null
         if (( $? != 0 )); then
             echo "WARNING: failed to write $ROOT/file.$indice"
             # give it a chance to end the loop
             ((limit=$limit-1))
+        else
+            # reinitialize the limit on success
+            limit=$limit_init
         fi
-        
+
         unset elem
 	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
-    done 
-    
+    done
+
     echo "2-Reading changelogs and Applying purge trigger policy..."
 	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
-	
+
     countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
         error "********** TEST FAILED **********"
@@ -5111,11 +5116,12 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	fi
 
 	clean_logs
-		
+
 	echo "1-Create Files ..."
-		
+
 	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
+    limit_init=$limit
 	indice=1
     last=1
     dd_out=/tmp/dd.out.$$
@@ -5123,13 +5129,17 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     dd_err_count=0
     while [ $elem -lt $limit ]
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=1M count=1 conv=sync >/dev/null 2>$dd_out
+        # write 2M to fullfill 2 stripes
+        dd if=/dev/zero of=$ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>$dd_out
         if (( $? != 0 )); then
             [[ -z "$one_error" ]] && one_error="failed to write $ROOT/file.$indice: $(cat $dd_out)"
             ((dd_err_count++))
             ((limit=$limit-1))
+        else
+            # on success, reinitialize limit
+            limit=$limit_init
         fi
-            
+
         if [[ -s $ROOT/file.$indice ]]; then
             ((last++))
         fi
