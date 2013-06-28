@@ -72,7 +72,6 @@ AX_DISABLE_FLAG([atfunc], [Don't use 'at' functions for scanning], [-D_NO_AT_FUN
 
 AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
 
-
 # program to be used for mailing
 AX_PROG_MAIL
 
@@ -81,6 +80,14 @@ AC_ARG_ENABLE( [lustre], AS_HELP_STRING([--disable-lustre],
                [support_lustre="$enableval"],[support_lustre="yes"] )
 
 if test "x$support_lustre" = "xyes" ; then
+    # Lustre location
+    AC_ARG_WITH( [lustre], AS_HELP_STRING([--with-lustre=<lustre_src_dir>],[indicate alternative location for lustre]),
+                 LDIR="$withval")
+
+    if test -n "$LDIR"; then
+        CFLAGS="$CFLAGS -I$LDIR/lustre/include"
+        LDFLAGS="$LDFLAGS -L$LDIR/lustre/utils"
+    fi
 
     AC_CHECK_LIB([lustreapi], [llapi_obd_statfs], [have_liblustre_api="yes"])
     AM_CONDITIONAL( LUSTRE, test  "x$have_liblustre_api" = "xyes" )
@@ -97,7 +104,12 @@ if test "x$support_lustre" = "xyes" ; then
         fi
 
         # this defines LVERSION and LPACKAGE variables
-        AX_LUSTRE_VERSION
+        if test -z "$LDIR" ; then
+            AX_LUSTRE_VERSION
+        else
+            # get version from sources
+            AX_LUSTRE_SRC_VERSION("$LDIR")
+        fi
 
         if test -z "$LVERSION"; then
             LDEFINES=""
@@ -286,8 +298,8 @@ case $PURPOSE in
         ;;
 esac
 
-AM_CONDITIONAL( SHOOK, test  "$PURPOSE_EXT" = "shook" )
-AM_CONDITIONAL( BACKUP, test  "$PURPOSE_EXT" = "backup" )
+AM_CONDITIONAL(SHOOK, test  "$PURPOSE_EXT" = "shook")
+AM_CONDITIONAL(BACKUP, test  "$PURPOSE_EXT" = "backup")
 
 AC_SUBST(PURPOSE_CFLAGS)
 AC_SUBST(PURPOSE_LDFLAGS)
