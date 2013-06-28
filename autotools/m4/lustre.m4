@@ -16,3 +16,20 @@ AC_DEFUN([AX_LUSTRE_VERSION],
             AC_MSG_RESULT($LPACKAGE version $LVERSION)
         fi
 ])
+
+# Get lustre version from sources
+# AX_LUSTRE_SRC_VERSION(LUSTRE_SRC_DIR)
+AC_DEFUN([AX_LUSTRE_SRC_VERSION],
+[
+        AC_MSG_CHECKING(Lustre source version)
+
+	LVERSION=`grep "define VERSION " $1/config.h | awk '{print $(NF)}' | sed -e 's/"//g' | cut -d "." -f 1-2`
+	LPACKAGE="source"
+
+        if test -z "$LVERSION"; then
+            AC_MSG_RESULT(none installed)
+        else
+            AC_MSG_RESULT(source version $LVERSION)
+        fi
+
+])
