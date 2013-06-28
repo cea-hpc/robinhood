@@ -786,7 +786,7 @@ function link_unlink_remove_test
 	rm -f $ROOT/link.* $ROOT/file.1
 
 	sleep $cl_delay
-	
+
 	echo "Checking report..."
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
 	nb_ent=`wc -l rh_report.log | awk '{print $1}'`
@@ -3574,7 +3574,7 @@ function test_hardlinks
             cat rh_report.log
         fi
     fi
-    
+
 
     i=0
     while [ -n "${hlink_refs_tgt[$i]}" ]; do
@@ -6976,16 +6976,18 @@ function test_changelog
 	grep ChangeLog rh_scan.log
 
     # check that the MARK, CLOSE and SATTR have been ignored, but
-    # CREAT was processed
+    # CREAT was processed. Some versions of Lustre (2.1) do not issue
+    # a close, so we check whether all the close seen have been ignored.
     echo "3. Checking ignored records..."
     ignore_mark=$(grep -E "Ignoring event MARK" rh_scan.log | wc -l)
     ignore_creat=$(grep -E "Ignoring event CREAT" rh_scan.log | wc -l)
+    seen_close=$(grep -E "ChangeLog.*11CLOSE" rh_scan.log | wc -l)
     ignore_close=$(grep -E "Ignoring event CLOSE" rh_scan.log | wc -l)
     ignore_sattr=$(grep -E "Ignoring event SATTR" rh_scan.log | wc -l)
 
     (( $ignore_mark == 1 ))  || error "MARK record not ignored"
     (( $ignore_creat == 0 )) || error "CREATE record ignored"
-    (( $ignore_close == 2 )) || error "CLOSE record not ignored"
+    (( $seen_close == $ignore_close )) || error "CLOSE record not ignored"
     (( $ignore_sattr == 1 )) || error "SATTR record not ignored"
 
     rm -f report.out find.out
