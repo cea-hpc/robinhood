@@ -370,7 +370,9 @@ static const struct {
 
     /* Record we don't care about. */
     [CL_MARK] = { .ignore = IGNORE_ALWAYS },
+#ifdef _HAVE_CL_IOCTL /* replaced by CL_LAYOUT in Lustre 2.5 */
     [CL_IOCTL] = { .ignore = IGNORE_ALWAYS },
+#endif
 #ifndef HAVE_SHOOK
     [CL_XATTR] = { .ignore = IGNORE_ALWAYS },
 #endif

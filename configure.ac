@@ -155,6 +155,12 @@ if test "x$support_lustre" = "xyes" ; then
 	    	AC_CHECK_LIB([lustreapi],[llapi_changelog_start],[have_llapi_changelog_start="yes"])
 		    if test "x$have_llapi_changelog_start" = "xyes"; then 
 		        AC_DEFINE(HAVE_CHANGELOGS, 1, [Lustre changelogs records are structures])
+                AC_CHECK_DECL([CL_IOCTL],AC_DEFINE(_HAVE_CL_IOCTL,1,[CL_IOCTL is defined]),[],[
+                    #define LPX64 "%#llx"
+                    #include <sys/types.h>
+                    #include <asm/types.h>
+                    #include <lustre/lustre_user.h>
+                ])
             fi
 
             if test "x$have_llapi_changelog_start" = "xyes" && \
