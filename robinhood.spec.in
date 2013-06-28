@@ -15,7 +15,7 @@
 #####################################
 # define 'with' conditions
 %bcond_with lustre
-%bcond_with hsm
+%bcond_with lhsm
 %bcond_with mysql
 %bcond_with sqlite
 %bcond_with backup
@@ -109,12 +109,12 @@ Tools for MDS recovery.
 
 
 #summary, description and dependencies of each purpose
-%if %{with hsm}
+%if %{with lhsm}
 
 %define configure_purpose LUSTRE_HSM
-%define purpose hsm
-%define purpose_svc robinhood-hsm
-%define purpose_bin rbh-hsm
+%define purpose lhsm
+%define purpose_svc robinhood-lhsm
+%define purpose_bin rbh-lhsm
 
 %package %{purpose}
 Summary: PolicyEngine for Lustre-HSM binding

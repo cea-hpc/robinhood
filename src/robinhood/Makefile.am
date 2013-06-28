@@ -76,35 +76,35 @@ rbh_diff_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
 if LUSTRE_HSM
-sbin_PROGRAMS=rbh-hsm rbh-hsm-report rbh-hsm-diff
-bin_PROGRAMS=rbh-hsm-du rbh-hsm-find
+sbin_PROGRAMS=rbh-lhsm rbh-lhsm-report rbh-lhsm-diff
+bin_PROGRAMS=rbh-lhsm-du rbh-lhsm-find
 
 # dependencies:
-rbh_hsm_DEPENDENCIES=$(all_libs)
-rbh_hsm_report_DEPENDENCIES=$(all_libs)
-rbh_hsm_du_DEPENDENCIES=$(all_libs)
-rbh_hsm_find_DEPENDENCIES=$(all_libs)
-rbh_hsm_diff_DEPENDENCIES=$(all_libs)
+rbh_lhsm_DEPENDENCIES=$(all_libs)
+rbh_lhsm_report_DEPENDENCIES=$(all_libs)
+rbh_lhsm_du_DEPENDENCIES=$(all_libs)
+rbh_lhsm_find_DEPENDENCIES=$(all_libs)
+rbh_lhsm_diff_DEPENDENCIES=$(all_libs)
 
-rbh_hsm_SOURCES=rbh_daemon.c
-rbh_hsm_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_hsm_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_lhsm_SOURCES=rbh_daemon.c
+rbh_lhsm_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_lhsm_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_hsm_report_SOURCES=rbh_report.c
-rbh_hsm_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_hsm_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_lhsm_report_SOURCES=rbh_report.c
+rbh_lhsm_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_lhsm_report_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_hsm_du_SOURCES=rbh_du.c
-rbh_hsm_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_hsm_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_lhsm_du_SOURCES=rbh_du.c
+rbh_lhsm_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_lhsm_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_hsm_find_SOURCES=rbh_find.c
-rbh_hsm_find_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_hsm_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_lhsm_find_SOURCES=rbh_find.c
+rbh_lhsm_find_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_lhsm_find_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_hsm_diff_SOURCES=rbh_diff.c
-rbh_hsm_diff_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_hsm_diff_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_lhsm_diff_SOURCES=rbh_diff.c
+rbh_lhsm_diff_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_lhsm_diff_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 endif
 
 if SHOOK
