@@ -92,7 +92,7 @@ function flush_data
 function clean_caches
 {
     echo 3 > /proc/sys/vm/drop_caches
-    lctl set_param ldlm.namespaces.lustre-*.lru_size=clear
+    lctl set_param ldlm.namespaces.lustre-*.lru_size=clear > /dev/null
 }
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
@@ -2440,6 +2440,9 @@ function test_ost_trigger
 	else
 		echo "OK: no purge on OST#1 (usage=$full_vol1 MB)"
 	fi
+
+	# restore default striping
+	lfs setstripe --count 2 --offset -1 $ROOT
 }
 
 function test_trigger_check
@@ -2514,7 +2517,8 @@ function test_trigger_check
 	fi
 
 	# wait for df sync
-	sync; sleep 1
+	sync
+	clean_caches
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
@@ -3868,6 +3872,9 @@ function test_find
     # the same with another syntax
     check_find $ROOT "-f $cfg -mmin +120" 0  #none
     check_find $ROOT "-f $cfg -mmin -120" 12 #all
+
+    # restore default striping
+    lfs setstripe --count 2 --offset -1 $ROOT
 }
 
 function test_du
@@ -5117,9 +5124,19 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
 	clean_logs
 
-	echo "1-Create Files ..."
+        # force df update
+        while (( 1 )); do
+                elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+                if (( $elem > 20 )); then
+                        echo "filesystem is still ${elem}% full. waiting for df update..."
+        		clean_caches
+                        sleep 1
+                else
+                        break
+                fi
+        done
 
-	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	echo "1-Create Files ..."
 	limit=80
     limit_init=$limit
 	indice=1
@@ -5144,8 +5161,10 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
             ((last++))
         fi
 
-        unset elem
-	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	# force df update
+	clean_caches
+	unset elem
+	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
     done
     (($dd_err_count > 0)) && echo "WARNING: $dd_err_count errors writing $ROOT/file.*: first error: $one_error"
