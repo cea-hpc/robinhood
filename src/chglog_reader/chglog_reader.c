@@ -771,76 +771,78 @@ typedef enum {cl_ok, cl_continue, cl_stop} cl_status_e;
 static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
 {
     int rc;
+
     /* get next record */
     rc = llapi_changelog_recv( info->chglog_hdlr, pp_rec);
 
-    /* is it EOF ? */
-    if ( rc == 1 )
-    {
-        /* do we exit at EOF? */
-        if ( !one_shot )
-        {
-            /* reopen */
-            log_close(info);
+    switch(rc) {
+    case 0:
+        /* Successfully retrieved a record. Update thread info. pp_rec
+         * should never be NULL. */
+        cl_update_stats(info, *pp_rec);
 
-            if ( chglog_reader_config.force_polling )
-            {
-                DisplayLog( LVL_FULL, CHGLOG_TAG,
-                    "EOF reached on changelog, reopening in %d sec",
-                    chglog_reader_config.polling_interval);
-                    /* sleep during polling interval */
-                    rh_sleep( chglog_reader_config.polling_interval );
-            }
-            else
-            {
-                DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                    "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
-                    "was specified. Re-opening in 1 sec..." );
-                    rh_sleep( 1 );
-            }
-            info->nb_reopen ++;
-            /* opening the log again (from last_read_record + 1) */
-            rc = llapi_changelog_start( &info->chglog_hdlr, info->flags,
-                                        info->mdtdevice, info->last_read_record + 1 );
-            if (rc==0)
-                return cl_continue;
-            else
-                return cl_stop;
+        return cl_ok;
+
+    case 1:                     /* EOF */
+    case -EINVAL:               /* FS unmounted */
+
+        if (one_shot)
+            return cl_stop;
+
+        /* Close, wait and open the log again (from last_read_record + 1) */
+        log_close(info);
+
+        if ( chglog_reader_config.force_polling )
+        {
+            DisplayLog( LVL_FULL, CHGLOG_TAG,
+                        "EOF reached on changelog, reopening in %d sec",
+                        chglog_reader_config.polling_interval);
+            /* sleep during polling interval */
+            rh_sleep( chglog_reader_config.polling_interval );
         }
         else
-            return cl_stop;
-    }
-    else if ( rc == -EINTR )
-    {
+        {
+            DisplayLog( LVL_EVENT, CHGLOG_TAG,
+                        "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
+                        "was specified. Re-opening in 1 sec..." );
+            rh_sleep( 1 );
+        }
+
+        info->nb_reopen ++;
+
+        rc = llapi_changelog_start( &info->chglog_hdlr, info->flags,
+                                    info->mdtdevice, info->last_read_record + 1 );
+        if (rc) {
+            /* will try to recover from this error */
+            rh_sleep(1);
+        }
+
+        return cl_continue;
+
+    case -EINTR:
         DisplayLog( LVL_EVENT, CHGLOG_TAG,
                     "llapi_changelog_recv() interrupted. Retrying." );
         return cl_continue;
-    }
 
-    if ( rc )
-    {
+    case -EPROTO:
+        /* Unknown event. Skip it. */
+        DisplayLog( LVL_EVENT, CHGLOG_TAG,
+                    "llapi_changelog_recv() got an unknown changelog message. Retrying." );
+        return cl_continue;
+
+    default:
         DisplayLog( LVL_CRIT, CHGLOG_TAG,
                     "Error in llapi_changelog_recv(): %d: %s",
                     rc, strerror(abs(rc)));
+
+        /* will try to recover from this error */
         rh_sleep(1);
-        /* try to recover from this error */
-        return cl_continue;
-    }
-    else if ( *pp_rec == NULL )
-    {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                    "Error in llapi_changelog_recv(): NULL pointer returned" );
-        rh_sleep(1);
-        /* try to recover from this error */
+
         return cl_continue;
     }
 
-    /* successfully retrieved a record */
-
-    /* update thread info */
-    cl_update_stats(info, *pp_rec);
-
-    return cl_ok;
+    /* Unreachable */
+    return cl_continue;
 }
 
 
