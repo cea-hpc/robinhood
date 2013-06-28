@@ -5,7 +5,7 @@
 AC_PREREQ(2.59)
 
 AC_INIT( [robinhood], [2.4.2], [robinhood-support@lists.sourceforge.net])
-RELEASE="3"
+RELEASE="4.hsm"
 AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info] )
 AC_SUBST(RELEASE)
 
@@ -125,11 +125,13 @@ if test "x$support_lustre" = "xyes" ; then
             AX_ENABLE_FLAG( [lu543], [same as cl-rename-overwrite], [-D_CL_RNM_OVER] )
         fi
 
-        if test -z "$LVERSION"; then
-            LDEFINES=""
-        else
-            LDEFINES="--define=\"lversion $LVERSION\" --define=\"lpackage $LPACKAGE\""
+        LDEFINES=""
+        if test -n "$LVERSION"; then
+            LDEFINES="--define=\"lversion $LVERSION\""
             AC_DEFINE_UNQUOTED(LUSTRE_VERSION, "$LVERSION",  [Lustre version])
+        fi
+        if test -n "$LPACKAGE"; then
+            LDEFINES="$LDEFINES --define=\"lpackage $LPACKAGE\""
         fi
         AC_SUBST(LDEFINES)
 
@@ -239,9 +241,9 @@ case $PURPOSE in
         fi
 
         PURPOSE_CFLAGS="-D_LUSTRE_HSM"
-        PURPOSE_BIN="rbh-hsm"
-        PURPOSE_EXT="hsm"
-        PURPOSE_SVC="robinhood-hsm"
+        PURPOSE_BIN="rbh-lhsm"
+        PURPOSE_EXT="lhsm"
+        PURPOSE_SVC="robinhood-lhsm"
         AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for Lustre-HSM purpose])
         AC_DEFINE([HAVE_RM_POLICY], [1], [HSM removal policy for Lustre-HSM purpose])
         AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for Lustre-HSM purpose])

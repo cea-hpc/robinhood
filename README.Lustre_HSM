@@ -9,7 +9,7 @@ VII - First run
 I - License
 ===========
 
-Copyright (C) 2009 CEA/DAM
+Copyright (C) 2009-2013 CEA/DAM
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the CeCILL-C License.
@@ -31,16 +31,18 @@ Make sure you have the following products installed on your machine:
 * bison
 * flex
 * mysql-devel
-* liblustreapi (/usr/include/liblustreapi.h and /usr/lib/liblustreapi.a)
-  It is usually provided by lustre RPM.
+* liblustreapi (/usr/include/lustre/lustreapi.h and /usr/lib64/liblustreapi.so)
+  It is usually provided by client lustre RPM.
 
 Unzip and untar the source distribution:
-> tar zxvf robinhood-2.2.0.tar.gz
-> cd robinhood-2.2.0
+> tar zxvf robinhood-2.x.x.tar.gz
+> cd robinhood-2.x.x
 
 Run the 'configure' script with the following options:
 * For Lustre-HSM: --with-purpose=LUSTRE_HSM
 * --prefix=<path> to set the prefix of installation path (default is /usr).
+* --with-lustre=<lustre_src_tree> if you want to build using a specific Lustre
+	version (not installed)
 
 E.g.:
 > ./configure --with-purpose=LUSTRE_HSM
@@ -64,6 +66,7 @@ yum install mysql-devel
 
 git clone git://robinhood.git.sourceforge.net/gitroot/robinhood/robinhood
 cd robinhood
+git checkout  master (or other branch)
 sh autogen.sh
 
 Then refer to section 2.1 for next compilation steps.
@@ -72,30 +75,15 @@ Then refer to section 2.1 for next compilation steps.
 III - Install
 =============
 
-For installing robinhood on your target system, install the previously generated RPM:
-> rpm -ivh rpms/RPMS/x86_64/robinhood.lustre_hsm-2.2.0-1.x86_64.rpm
-
-This installs:
-* robinhood binaries (for Lustre-HSM: 'rbh-hsm' and 'rbh-hsm-report')
-* configuration helper script (rbh-config)
-* configuration templates
-* The /etc/init.d/robinhood-hsm script (for RobinHood service management)
-
-This also creates the robinhood service (chkconfig --add).
-
-Note: on SLES systems, the default dependency for init scheduling is on "mysql" service.
-However, in many cases, it should be too early for starting robinhood daemon,
-especially if the filesystem it manages is not yet mounted.
-In such case, you have to modify the following lines in "scripts/robinhood.init.sles.in"
-before you run "./configure":
-# Required-Start:    <your filesystem service>
-
+For installing robinhood on your target system, install the following RPM:
+> robinhood-adm
+	configuration helper for DB, changelogs, ...
+> robinhood-lhsm
+	include robinhood commands, config templates, init.d script
 
 IV - Database Configuration
 ===========================
 
-MySQL
------
 Robinhood needs a MySQL database for storing information about files.
 This database can run on a different node from Robinhood daemon.
 
@@ -109,24 +97,9 @@ This database can run on a different node from Robinhood daemon.
 		> rbh-config create_db
 
 * Write the DB password to a file with read access for root only (600)
-  e.g. to /etc/robinhood.d/.dbpassword
+  e.g. to /etc/robinhood.d/lhsm/.dbpassword
 
 Note: initially, the database schema is empty. Robinhood will create it the first time it is launched.
-
-SQLite
-------
-You can use SQLite instead of MySQL for testing, or small filesystems.
-For this, you need to compile robinhood with the following option:
-	--with-db=SQLITE
-To setup database access, you just need to give a path where robinhood will
-store its sqlite database (in-file), in the ListManager::SQLite block of the
-configuration file:
-
-ListManager {
-    SQLite {
-        db_file = "/var/robinhood/robinhood_sqlite_db" ;
-    }
-}
 
 V - Enabling Lustre changelogs
 ==============================
@@ -144,7 +117,7 @@ VI - Configuration file
 =======================
 
 You can use the '--template' option to generate a documented configuration file template:
-> rbh-hsm --template=<template_file>
+> rbh-lhsm --template=<template_file>
 
 Note: by default, "service robinhood-hsm start" looks for configuration files in "/etc/robinhood.d/hsm".
 
@@ -155,4 +128,12 @@ VII - First run
 
 Even if your filesystem is empty, you need to perform an initial scan in order to initialize robinhood database.
 This prevents from having entries in filesystem that it wouldn't know about.
-rbh-hsm --scan --once
+rbh-lhsm --scan --once
+
+VIII - Start the daemon
+=======================
+service robinhood-lhsm start
+or run:
+rbh-lhsm --detach
+
+This starts reading changelogs + applying policies (archive, release)

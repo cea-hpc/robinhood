@@ -320,8 +320,13 @@ static void   *Thr_Rm( void *arg )
 
           if (rc == -ENOENT)
           {
-               DisplayLog( LVL_DEBUG, HSMRM_TAG, "%s not in backend",
-                           p_item->backendpath );
+#ifdef _HSM_LITE
+               DisplayLog(LVL_DEBUG, HSMRM_TAG, "%s not in backend",
+                          p_item->backendpath );
+#else
+               DisplayLog(LVL_DEBUG, HSMRM_TAG, DFID" not in backend",
+                          PFID(&p_item->entry_id));
+#endif
                 /* remove it from database */
                 rc = ListMgr_SoftRemove_Discard( &lmgr, &p_item->entry_id );
                 if ( rc )

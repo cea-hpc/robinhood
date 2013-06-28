@@ -31,7 +31,7 @@ if TMP_FS_MGR
 endif
 if LUSTRE_HSM
   purpose=lustre_hsm
-  rpmbuild_opt += --with hsm
+  rpmbuild_opt += --with lhsm
 endif
 if SHERPA
   purpose=sherpa

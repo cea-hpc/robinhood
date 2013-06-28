@@ -415,7 +415,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
     struct hsm_user_request * req;
     int data_len = 0;
     int rc;
-    const char * mpath;
+    char * mpath;
 
     if ( hints != NULL )
         data_len = strlen(hints)+1;
@@ -450,10 +450,12 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
         req->hur_request.hr_data_len = 0;
     }
 
-    mpath = get_mount_point(NULL);
+    /* make tmp copy as llapi_hsm_request arg is not const */
+    mpath = strdup(get_mount_point(NULL));
     rc = llapi_hsm_request( mpath, req );
+    free(mpath);
+    free(req);
 
-    free( req );
     if (rc)
         DisplayLog( LVL_CRIT, "HSMAction", "ERROR performing HSM request(%s,"
                     " root=%s, fid="DFID"): %s",
