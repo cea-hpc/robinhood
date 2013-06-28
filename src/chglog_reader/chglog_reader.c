@@ -347,7 +347,9 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, int
         case CL_MARK:
         case CL_HARDLINK:
         case CL_MKNOD:
+#ifdef _HAVE_CL_IOCTL
         case CL_IOCTL:
+#endif
 #ifndef HAVE_SHOOK
         case CL_XATTR:
 #endif

@@ -175,6 +175,12 @@ if test "x$support_lustre" = "xyes" ; then
                     #include <asm/types.h>
                     #include <lustre/lustre_user.h>
                 ])
+                AC_CHECK_DECL([CL_IOCTL],AC_DEFINE(_HAVE_CL_IOCTL,1,[CL_IOCTL is defined]),[],[
+                    #define LPX64 "%#llx"
+                    #include <sys/types.h>
+                    #include <asm/types.h>
+                    #include <lustre/lustre_user.h>
+                ])
             fi
 
             if test "x$have_llapi_changelog_start" = "xyes" && \
