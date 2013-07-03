@@ -116,7 +116,6 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     return rc;
 }
 
-
 /**
  * Infer information from the changelog record (HSM status, ...).
  * \return next pipeline step to be perfomed.

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+[ -z "$LFS" ] && LFS=lfs
+
 ROOT="/mnt/lustre"
 
 RBH_BINDIR="../../src/robinhood"
@@ -25,11 +27,11 @@ if [[ -z "$PURPOSE" || $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_lhsm=1
 	is_hsmlite=0
 	shook=0
-	RH="$RBH_BINDIR/rbh-hsm $RBH_OPT"
-	REPORT=$RBH_BINDIR/rbh-hsm-report
-	FIND=$RBH_BINDIR/rbh-hsm-find
-	DU=$RBH_BINDIR/rbh-hsm-du
-	CMD=rbh-hsm
+	RH="$RBH_BINDIR/rbh-lhsm $RBH_OPT"
+	REPORT=$RBH_BINDIR/rbh-lhsm-report
+	FIND=$RBH_BINDIR/rbh-lhsm-find
+	DU=$RBH_BINDIR/rbh-lhsm-du
+	CMD=rbh-lhsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
 	REL_STR="Releasing"
@@ -191,9 +193,9 @@ function clean_fs
 	if (( $is_lhsm != 0 )); then
 		echo "Cancelling agent actions..."
 		if [[ -n "$MDS" ]]; then
-			ssh $MDS "echo purge > /proc/fs/lustre/mdt/*/hsm_control"
+			ssh $MDS "echo purge > /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control"
 		else
-			echo "purge" > /proc/fs/lustre/mdt/*/hsm_control
+			echo "purge" > /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control
 		fi
 
 		echo "Waiting for end of data migration..."
@@ -214,7 +216,7 @@ function clean_fs
 
 	echo "Destroying any running instance of robinhood..."
 	pkill robinhood
-	pkill rbh-hsm
+	pkill rbh-lhsm
 
 	if [ -f rh.pid ]; then
 		echo "killing remaining robinhood process..."
@@ -230,7 +232,7 @@ function clean_fs
 
 	echo "Cleaning changelogs..."
 	if (( $no_log==0 )); then
-	   lfs changelog_clear lustre-MDT0000 cl1 0
+	   $LFS changelog_clear lustre-MDT0000 cl1 0
 	fi
 
 }
@@ -269,8 +271,8 @@ function create_pools
   fi
 
   (($POOL_CREATED != 0 )) && return
-  $do_mds lfs pool_list lustre | grep lustre.$POOL1 && POOL_CREATED=1
-  $do_mds lfs pool_list lustre | grep lustre.$POOL2 && ((POOL_CREATED=$POOL_CREATED+1))
+  $do_mds $LFS pool_list lustre | grep lustre.$POOL1 && POOL_CREATED=1
+  $do_mds $LFS pool_list lustre | grep lustre.$POOL2 && ((POOL_CREATED=$POOL_CREATED+1))
   (($POOL_CREATED == 2 )) && return
 
   $do_mds lctl pool_new lustre.$POOL1 || error "creating pool $POOL1"
@@ -745,7 +747,7 @@ function link_unlink_remove_test
 	if (( $is_lhsm != 0 )); then
 		echo "3-Archiving file....1"
 		flush_data
-		lfs hsm_archive $ROOT/file.1 || error "executing lfs hsm_archive"
+		$LFS hsm_archive $ROOT/file.1 || error "executing lfs hsm_archive"
 
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 60 || error "Migration timeout"
@@ -926,7 +928,7 @@ function purge_test
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			lfs hsm_archive $ROOT/file.$i || error "lfs hsm_archive"
+			$LFS hsm_archive $ROOT/file.$i || error "lfs hsm_archive"
 		fi
 	done
 	if (( $is_lhsm != 0 )); then
@@ -1015,7 +1017,7 @@ function purge_size_filesets
 
 			if (( $is_lhsm != 0 )); then
 				flush_data
-				lfs hsm_archive $ROOT/file.$size.$i || error "lfs hsm_archive"
+				$LFS hsm_archive $ROOT/file.$size.$i || error "lfs hsm_archive"
 				wait_done 60 || error "Copy timeout"
 			fi
 		done
@@ -1807,7 +1809,7 @@ function update_test
 
 	if (( $is_lhsm != 0 )); then
 		# chg something different that path or POSIX attributes
-		lfs hsm_set --noarchive $ROOT/file
+		$LFS hsm_set --noarchive $ROOT/file
 	else
 		touch $ROOT/file
 	fi
@@ -2143,7 +2145,7 @@ function periodic_class_match_purge
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			lfs hsm_archive $ROOT/$file
+			$LFS hsm_archive $ROOT/$file
 		fi
 	done
 	if (( $is_lhsm != 0 )); then
@@ -2302,7 +2304,7 @@ function test_cnt_trigger
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
-			lfs hsm_archive $ROOT/file.$i
+			$LFS hsm_archive $ROOT/file.$i
 		fi
 	done
 
@@ -2354,7 +2356,7 @@ function test_ost_trigger
 	fi
 	clean_logs
 
-	empty_vol=`lfs df  $ROOT | grep OST0000 | awk '{print $3}'`
+	empty_vol=`$LFS df  $ROOT | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
     if (($empty_vol >= $mb_h_threshold)); then
@@ -2362,7 +2364,7 @@ function test_ost_trigger
         return 1
     fi
 
-	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
+	$LFS setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
 	((count=$mb_h_threshold - $empty_vol + 1))
@@ -2371,7 +2373,7 @@ function test_ost_trigger
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			lfs hsm_archive $ROOT/file.$i
+			$LFS hsm_archive $ROOT/file.$i
 		fi
 	done
 	if (( $is_lhsm != 0 )); then
@@ -2386,11 +2388,11 @@ function test_ost_trigger
 	sync; sleep 1
 
 	if (( $is_lhsm != 0 )); then
-		arch_count=`lfs hsm_state $ROOT/file.* | grep "exists archived" | wc -l`
+		arch_count=`$LFS hsm_state $ROOT/file.* | grep "exists archived" | wc -l`
 		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
 	fi
 
-	full_vol=`lfs df  $ROOT | grep OST0000 | awk '{print $3}'`
+	full_vol=`$LFS df  $ROOT | grep OST0000 | awk '{print $3}'`
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
 	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
@@ -2429,7 +2431,7 @@ function test_ost_trigger
 	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
 		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
 
-	full_vol1=`lfs df $ROOT | grep OST0001 | awk '{print $3}'`
+	full_vol1=`$LFS df $ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
 	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
 
@@ -2442,7 +2444,7 @@ function test_ost_trigger
 	fi
 
 	# restore default striping
-	lfs setstripe --count 2 --offset -1 $ROOT
+	$LFS setstripe --count 2 --offset -1 $ROOT
 }
 
 function test_trigger_check
@@ -2508,7 +2510,7 @@ function test_trigger_check
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			lfs hsm_archive $ROOT/file.$i
+			$LFS hsm_archive $ROOT/file.$i
 		fi
 	done
 
@@ -2580,7 +2582,7 @@ function test_trigger_check
 function check_released
 {
 	if (($is_lhsm != 0)); then
-		lfs hsm_state $1 | grep released || return 1
+		$LFS hsm_state $1 | grep released || return 1
     elif (($shook != 0 )); then
         # check that nb blocks is 0
         bl=`stat -c "%b" $1`
@@ -2620,7 +2622,7 @@ function test_periodic_trigger
 
     	flush_data
 		if (( $is_lhsm != 0 )); then
-			lfs hsm_archive $ROOT/file.$i $ROOT/foo.$i $ROOT/bar.$i
+			$LFS hsm_archive $ROOT/file.$i $ROOT/foo.$i $ROOT/bar.$i
 		fi
 	done
 
@@ -2948,10 +2950,10 @@ function test_pools
 	# create files in different pools (or not)
 	touch $ROOT/no_pool.1 || error "creating file"
 	touch $ROOT/no_pool.2 || error "creating file"
-	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.a || error "creating file in $POOL1"
-	lfs setstripe -p lustre.$POOL1 $ROOT/in_pool_1.b || error "creating file in $POOL1"
-	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.a || error "creating file in $POOL2"
-	lfs setstripe -p lustre.$POOL2 $ROOT/in_pool_2.b || error "creating file in $POOL2"
+	$LFS setstripe -p lustre.$POOL1 $ROOT/in_pool_1.a || error "creating file in $POOL1"
+	$LFS setstripe -p lustre.$POOL1 $ROOT/in_pool_1.b || error "creating file in $POOL1"
+	$LFS setstripe -p lustre.$POOL2 $ROOT/in_pool_2.a || error "creating file in $POOL2"
+	$LFS setstripe -p lustre.$POOL2 $ROOT/in_pool_2.b || error "creating file in $POOL2"
 
 	sleep $sleep_time
 
@@ -3072,7 +3074,7 @@ function test_logs
 
 	if (( $is_lhsm != 0 )); then
 		flush_data
-		lfs hsm_archive $ROOT/file.*
+		$LFS hsm_archive $ROOT/file.*
 		wait_done 60 || error "Copy timeout"
 	fi
 
@@ -3774,7 +3776,7 @@ function test_find
 	clean_logs
 
     # by default stripe all files on 0 and 1
-	lfs setstripe --count 2 --offset 0 $ROOT || error "setting stripe on root"
+	$LFS setstripe --count 2 --offset 0 $ROOT || error "setting stripe on root"
     # 1) create a FS tree with several levels:
     #   root
     #       file.1
@@ -3793,11 +3795,11 @@ function test_find
     mkdir $ROOT/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
-	lfs setstripe --count 1 --offset 1  $ROOT/dir.2/file.2 || error "creating file with stripe"
+	$LFS setstripe --count 1 --offset 1  $ROOT/dir.2/file.2 || error "creating file with stripe"
     mkdir $ROOT/dir.2/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
-	lfs setstripe --count 1 --offset 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
+	$LFS setstripe --count 1 --offset 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
     mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
 
     # scan FS content
@@ -3874,7 +3876,7 @@ function test_find
     check_find $ROOT "-f $cfg -mmin -120" 12 #all
 
     # restore default striping
-    lfs setstripe --count 2 --offset -1 $ROOT
+    $LFS setstripe --count 2 --offset -1 $ROOT
 }
 
 function test_du
@@ -4327,11 +4329,11 @@ function test_alerts_OST
 	
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 		
     for i in `seq 3 5`; do
-		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 	
 	echo "2-Scanning filesystem..."
@@ -4875,11 +4877,11 @@ function migration_OST
 	
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 		
     for i in `seq 3 4`; do
-		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 		
 	echo "Applying migration policy..."
@@ -4942,11 +4944,11 @@ function migration_file_OST
 	
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 		
     for i in `seq 3 4`; do
-		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 		
 	echo "3-Reading changelogs and Applying migration policy..."
@@ -5019,7 +5021,7 @@ function trigger_purge_QUOTA_EXCEEDED
 	clean_logs
 
 	echo "1-Create Files ..."
-	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
     limit_init=$limit
 	indice=1
@@ -5037,7 +5039,7 @@ function trigger_purge_QUOTA_EXCEEDED
         fi
 
         unset elem
-	    elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	    elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
     done
 
@@ -5079,18 +5081,18 @@ function trigger_purge_OST_QUOTA_EXCEEDED
     done
 	
 	echo "2-Create Files ..."   
-	elem=`lfs df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	elem=`$LFS df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
 	indice=1
     while [ $elem -lt $limit ]
     do
-        lfs setstripe -p lustre.$POOL1 $ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
+        $LFS setstripe -p lustre.$POOL1 $ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
         for i in `seq 0 200`; do
 		    echo "$aaa$aaa$aaa" >> $ROOT/file.$indice
             sync
 	    done
         unset elem
-	    elem=`lfs df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	    elem=`$LFS df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
     done 
     
@@ -5126,7 +5128,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
         # force df update
         while (( 1 )); do
-                elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+                elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
                 if (( $elem > 20 )); then
                         echo "filesystem is still ${elem}% full. waiting for df update..."
         		clean_caches
@@ -5164,7 +5166,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	# force df update
 	clean_caches
 	unset elem
-	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
     done
     (($dd_err_count > 0)) && echo "WARNING: $dd_err_count errors writing $ROOT/file.*: first error: $one_error"
@@ -5420,11 +5422,11 @@ function purge_OST
 	
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 		
     for i in `seq 3 4`; do
-		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 	
 	sleep 1
@@ -5623,18 +5625,18 @@ function test_removing_ost
 	echo "Create Files ..."
 	mkdir $ROOT/dir1
 	
-	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1 >/dev/null 2>/dev/null
 
-	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1/file.1 -c 1 >/dev/null 2>/dev/null
-	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1/file.2 -c 1 >/dev/null 2>/dev/null
-	lfs setstripe  -p lustre.$POOL1 $ROOT/dir1/file.3 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1/file.1 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1/file.2 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1/file.3 -c 1 >/dev/null 2>/dev/null
 	
 	mkdir $ROOT/dir2
-	lfs setstripe  -p lustre.$POOL2 $ROOT/dir2 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL2 $ROOT/dir2 >/dev/null 2>/dev/null
 	
-    lfs setstripe  -p lustre.$POOL2 $ROOT/file.1 -c 1 >/dev/null 2>/dev/null
-	lfs setstripe  -p lustre.$POOL2 $ROOT/dir2/file.2 -c 1 >/dev/null 2>/dev/null
-	lfs setstripe  -p lustre.$POOL2 $ROOT/dir2/file.3 -c 1 >/dev/null 2>/dev/null
+    $LFS setstripe  -p lustre.$POOL2 $ROOT/file.1 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL2 $ROOT/dir2/file.2 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL2 $ROOT/dir2/file.3 -c 1 >/dev/null 2>/dev/null
 
 	echo "Removing directories in filesystem ..."
 	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
@@ -6082,11 +6084,11 @@ function report_generation2
 	
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		lfs setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 		
     for i in `seq 3 4`; do
-		lfs setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 	
 	sleep 1
@@ -6509,7 +6511,7 @@ function TEST_OTHER_PARAMETERS_5
 	sleep 60
 	
     echo "Create files"
-	elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=60
 	indice=1
     while (( $elem < $limit ))
@@ -6521,7 +6523,7 @@ function TEST_OTHER_PARAMETERS_5
             ((limit=$limit-1))
         fi
         unset elem
-        elem=`lfs df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
+        elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'` 
         ((indice++))
     done
 
