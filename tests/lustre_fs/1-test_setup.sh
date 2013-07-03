@@ -12,17 +12,19 @@ if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 fi
 
 if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
+	
+	for mdt in /proc/fs/lustre/mdt/lustre-MDT* ; do
+		echo -n "checking coordinator status on $(basename $mdt): "
+		status=`cat $mdt/hsm_control`
+		echo $status
 
-	echo -n "checking coordinator status: "
-	status=`cat /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control`
-	echo $status
+		if [[ $status != "enabled" ]]; then
+			lctl set_param mdt.$(basename $mdt).hsm_control=enabled
+			sleep 2
+		fi
 
-	if [[ $status != "enabled" ]]; then
-		echo "enabled" >  /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control
-		sleep 2
-	fi
-
-	echo 10 > /proc/fs/lustre/mdt/lustre-MDT0000/hsm/grace_delay
+		lctl set_param mdt.$(basename $mdt).hsm/grace_delay=10
+	done
 
 	echo "Checking if copytool is already running..."
 	if (( `pgrep -f lhsmd_posix | wc -l` > 0 )); then
