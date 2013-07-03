@@ -81,6 +81,8 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                     "Error: entry full path is expected to be set"
                     " in STAGE_GET_FID stage" );
+        EntryProcessor_Acknowledge( p_op, -1, TRUE );
+        return EINVAL;
     }
 
     /* perform path2fid */
@@ -185,6 +187,21 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
         strcpy( ATTR( &p_op->entry_attr, type ), STR_TYPE_DIR );
         p_op->extra_info.getstripe_needed = FALSE;
         p_op->extra_info.getstatus_needed = FALSE;
+    }
+    else if (logrec->cr_type == CL_UNLINK )
+    {
+        /* in any case, update the path because the stored path
+         * may be the removed one. */
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getpath_needed = TRUE;
+        /* if the log record does not indicate if the entry still exists,
+         * force performing "lstat()" after UNLINK, to verify if the entry
+         * still exists.  Also need to get status to test if there is an
+         * orphan entry in the backend.
+         */
+        p_op->extra_info.getattr_needed = TRUE;
+        if ( policies.unlink_policy.hsm_remove )
+            p_op->extra_info.getstatus_needed = TRUE;
     }
     else if ( logrec->cr_type == CL_HSM )
     {
@@ -300,6 +317,14 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                 return -1;
         }
     }
+    else if (CL_CHG_TIME(logrec->cr_type) || (logrec->cr_type == CL_SETATTR))
+    {
+        /* need to update attrs */
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getattr_needed = TRUE;
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                    "getattr needed because this is a CTIME or SATTR event" );
+    }
 
     /* if the entry is already in DB, try to determine if something changed */
     if ( p_op->db_exists )
@@ -356,6 +381,11 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                                || ( logrec->cr_type == CL_HSM )
                                || ( logrec->cr_type == CL_SETATTR )) )
         {
+            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
+                        "Getattr needed because this is a TIME, TRUNC, SETATTR, HSM or CLOSE event, and "
+                         "metadata has not been recently updated. event=%s",
+                         changelog_type2str(logrec->cr_type) );
+
             p_op->extra_info.getattr_needed = TRUE;
         }
     }
@@ -515,6 +545,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ATTR_MASK_INIT( &p_op->entry_attr );
         ATTR_MASK_SET( &p_op->entry_attr, fullpath );
         ATTR_MASK_SET( &p_op->entry_attr, name );
+        ATTR_MASK_SET( &p_op->entry_attr, type );
         ATTR_MASK_SET( &p_op->entry_attr, stripe_info );
         ATTR_MASK_SET( &p_op->entry_attr, md_update );
         ATTR_MASK_SET( &p_op->entry_attr, path_update );
@@ -826,8 +857,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* get entry path (only for log records) */
             if ( p_op->extra_info.is_changelog_record )
             {
+                char pathnew[RBH_PATH_MAX];
+                /* /!\ Lustre_GetFullPath modifies fullpath even on failure,
+                 * so, first write to a tmp buffer */
                 rc = Lustre_GetFullPath( &p_op->entry_id,
-                                         ATTR( &p_op->entry_attr, fullpath ), RBH_PATH_MAX );
+                                         pathnew, RBH_PATH_MAX );
 
                 if ( ERR_MISSING( abs( rc )) )
                 {
@@ -837,6 +871,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 }
                 else if ( rc == 0 )
                 {
+                    strcpy( ATTR( &p_op->entry_attr, fullpath ), pathnew );
                     ATTR_MASK_SET( &p_op->entry_attr, fullpath );
                     ATTR_MASK_SET( &p_op->entry_attr, path_update );
                     ATTR( &p_op->entry_attr, path_update ) = time( NULL );
@@ -919,25 +954,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     ATTR_MASK_SET( &p_op->entry_attr, last_restore );
                     ATTR( &p_op->entry_attr, last_restore ) = 0;
                 }
-
-                /* if the file is released, it goes outside PolicyEngine working set */
-                if ( ATTR( &p_op->entry_attr, status ) == STATUS_RELEASED )
-                {
-                    DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
-                        "Entry "DFID" has status 'RELEASED': removing it from PolicyEngine working set (if it was in DB)",
-                        PFID( &p_op->entry_id ) );
-                    if ( p_op->db_exists )
-                    {
-                        p_op->db_op_type = OP_TYPE_REMOVE;
-                    }
-                    else
-                    {
-                        rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
-                        return rc;
-                    }
-                }
             }
-
         } /* get_status needed */
     }
 
@@ -961,9 +978,12 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     return rc;
 
 skip_record:
-
-    /* remove the operation from pipeline */
-    rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+    if ( p_op->extra_info.is_changelog_record )
+    /* do nothing on DB but ack the record */
+        rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
+    else
+        /* remove the operation from pipeline */
+        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
@@ -1143,7 +1163,6 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-    char           timestamp[128];
     lmgr_filter_t  filter;
     filter_value_t val;
 
