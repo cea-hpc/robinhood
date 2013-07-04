@@ -37,6 +37,9 @@ typedef struct migration_config_t
     time_t         pre_maintenance_window;
     time_t         maint_min_migr_delay;
 
+    /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
+    unsigned int   lru_sort_attr;
+
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     unsigned int   backup_new_files:1;
 #endif
