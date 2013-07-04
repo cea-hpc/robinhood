@@ -32,7 +32,7 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
     msg_out[0] = '\0';
 
     conf->runtime_interval = 5 * 60;    /* 5 min */
-    conf->nb_threads_migr = 4;
+    conf->nb_threads_migr = 8;
     conf->migr_queue_size = 4096;
     conf->db_request_limit = 10000;
     conf->max_migr_nbr = 0;
@@ -40,6 +40,7 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
     conf->backup_new_files = TRUE;
 #endif
+    conf->recheck_ignored_classes = TRUE;
     conf->check_copy_status_on_startup = TRUE;
     conf->check_copy_status_delay = 30 * 60; /* 30 min */
     conf->migration_timeout = 2 * 3600; /* cancel migration pass after 2h of inactivity */
@@ -63,11 +64,12 @@ int Write_Migration_ConfigDefault( FILE * output )
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     print_line( output, 1, "backup_new_files      : TRUE" );
 #endif
+    print_line( output, 1, "recheck_ignored_classes : TRUE" );
     print_line( output, 1, "check_copy_status_on_startup : TRUE" );
     fprintf( output, "\n" );
     print_line( output, 1, "check_copy_status_delay      : 30min" );
     fprintf( output, "\n" );
-    print_line( output, 1, "nb_threads_migration  : 4" );
+    print_line( output, 1, "nb_threads_migration  : 8" );
     print_line( output, 1, "migration_queue_size  : 4096" );
     fprintf( output, "\n" );
     print_line( output, 1, "db_result_size_max    : 10000" );
@@ -101,6 +103,13 @@ int Write_Migration_ConfigTemplate( FILE * output )
     print_line( output, 1, "backup_new_files      = TRUE ;" );
     fprintf( output, "\n" );
 #endif
+    print_line( output, 1, "# When applying migration policies, recheck entries");
+    print_line( output, 1, "# that previously matched ignored classes.");
+    print_line( output, 1, "# Enable it after changing fileclass definitions");
+    print_line( output, 1, "# or if entries move from one class to another.");
+    print_line( output, 1, "# This can significantly slow down policy application.");
+    print_line( output, 1, "recheck_ignored_classes = TRUE;" );
+    fprintf( output, "\n" );
     print_line( output, 1, "# do we check status of outstanding migration requests on startup?" );
     print_line( output, 1, "check_copy_status_on_startup = TRUE ;" );
     fprintf( output, "\n" );
@@ -142,7 +151,8 @@ int Read_Migration_Config( config_file_t config, void *module_config,
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
         "backup_new_files",
 #endif
-        "check_copy_status_on_startup", "check_copy_status_delay", "migration_timeout",
+        "recheck_ignored_classes", "check_copy_status_on_startup",
+        "check_copy_status_delay", "migration_timeout",
         "nb_threads_migration", "migration_queue_size", "db_result_size_max",
         "pre_maintenance_window", "maint_migr_delay_min",
         NULL
@@ -198,6 +208,12 @@ int Read_Migration_Config( config_file_t config, void *module_config,
     else if ( rc != ENOENT )
         conf->backup_new_files = intval;
 #endif
+    rc = GetBoolParam( param_block, MIGR_PARAM_BLOCK, "recheck_ignored_classes",
+                       0, &intval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc != ENOENT )
+        conf->recheck_ignored_classes = intval;
 
     rc = GetBoolParam( param_block, MIGR_PARAM_BLOCK, "check_copy_status_on_startup",
                        0, &intval, NULL, NULL, msg_out );
@@ -323,6 +339,13 @@ int Reload_Migration_Config( void *module_config )
         migr_config.backup_new_files = conf->backup_new_files;
     }
 #endif
+    if ( migr_config.recheck_ignored_classes != conf->recheck_ignored_classes )
+    {
+        DisplayLog( LVL_EVENT, MIGRCFG_TAG, MIGR_PARAM_BLOCK
+                    "::recheck_ignored_classes updated: %u->%u",
+                    migr_config.recheck_ignored_classes, conf->recheck_ignored_classes );
+        migr_config.recheck_ignored_classes = conf->recheck_ignored_classes;
+    }
 
     if ( migr_config.db_request_limit != conf->db_request_limit )
     {

@@ -39,6 +39,7 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
 #ifdef ATTR_INDEX_status
     conf->check_purge_status_on_startup = TRUE;
 #endif
+    conf->recheck_ignored_classes = TRUE;
 
     conf->trigger_list = NULL;
     conf->trigger_count = 0;
@@ -56,6 +57,7 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
 #ifdef ATTR_INDEX_status
     print_line( output, 1, "check_purge_status_on_startup: TRUE" );
 #endif
+    print_line( output, 1, "recheck_ignored_classes: TRUE" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -88,6 +90,13 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "# check status of previous purge operations on startup" );
     print_line( output, 1, "check_purge_status_on_startup = TRUE ;" );
 #endif
+    print_line( output, 1, "# When applying purge policies, recheck entries");
+    print_line( output, 1, "# that previously matched ignored classes.");
+    print_line( output, 1, "# Enable it after changing fileclass definitions");
+    print_line( output, 1, "# or if entries move from one class to another.");
+    print_line( output, 1, "# This can significantly slow down policy application.");
+    print_line( output, 1, "recheck_ignored_classes = TRUE;" );
+    fprintf( output, "\n" );
 
     print_end_block( output, 0 );
 
@@ -575,6 +584,7 @@ int Read_ResourceMon_Config( config_file_t config,
 #ifdef ATTR_INDEX_status
         "check_purge_status_on_startup",
 #endif
+        "recheck_ignored_classes",
         NULL
     };
 
@@ -625,6 +635,12 @@ int Read_ResourceMon_Config( config_file_t config,
         else if ( rc != ENOENT )
             conf->check_purge_status_on_startup = intval;
 #endif
+        rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "recheck_ignored_classes",
+                           0, &intval, NULL, NULL, msg_out );
+        if ( ( rc != 0 ) && ( rc != ENOENT ) )
+            return rc;
+        else if ( rc != ENOENT )
+            conf->recheck_ignored_classes = intval;
 
         rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "simulation_mode",
                            0, &intval, NULL, NULL, msg_out );
@@ -912,6 +928,14 @@ int Reload_ResourceMon_Config( void *module_config )
         resmon_config.check_purge_status_on_startup = conf->check_purge_status_on_startup;
     }
 #endif
+    if ( resmon_config.recheck_ignored_classes != conf->recheck_ignored_classes )
+    {
+        DisplayLog( LVL_EVENT, RESMONCFG_TAG, PURGE_PARAM_BLOCK
+                    "::recheck_ignored_classes updated: %u->%u",
+                    resmon_config.recheck_ignored_classes, conf->recheck_ignored_classes );
+        resmon_config.recheck_ignored_classes = conf->recheck_ignored_classes;
+    }
+
 
     update_triggers( conf->trigger_list, conf->trigger_count );
 

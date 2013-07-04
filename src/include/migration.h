@@ -41,6 +41,7 @@ typedef struct migration_config_t
     unsigned int   backup_new_files:1;
 #endif
     unsigned int   check_copy_status_on_startup:1;
+    unsigned int   recheck_ignored_classes:1;
 
 } migration_config_t;
 
