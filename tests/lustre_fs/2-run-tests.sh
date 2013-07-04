@@ -6610,6 +6610,10 @@ run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode
 run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 
+# TODO: test sort order by last_archive, last_mod, creation
+# check order of application
+# check request splitting, optimizations, ...
+
 	
 #### triggers ####
 

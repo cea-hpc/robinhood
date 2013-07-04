@@ -186,8 +186,10 @@ static void FreeMigrItem( migr_item_t * item )
     MemFree( item );
 }
 
+#define sort_attr_name  (field_infos[migr_config.lru_sort_attr].field_name)
 
-static int heuristic_end_of_list( time_t last_mod_time )
+
+static int heuristic_end_of_list( time_t last_time )
 {
     entry_id_t     void_id;
     attr_set_t     void_attr;
@@ -196,42 +198,75 @@ static int heuristic_end_of_list( time_t last_mod_time )
     if ( ignore_policies )
         return FALSE;
 
-    /* XXX Tip for optimization:
-     * we build a void entry with last_mod = last_mod_time
-     * and last_archive_time = last_mod_time.
-     * If it doesn't match any policy, next entries won't match too
-     * because entries are sorted by last modification time,
-     * so it is not necessary to continue.
-     * (Note that we have last_archive_time < last_modification_time (entry is dirty)).
-     * and creation_time < last_modification_time (except for faked mtime)
-     */
     memset( &void_id, 0, sizeof( entry_id_t ) );
     memset( &void_attr, 0, sizeof( attr_set_t ) );
-
     ATTR_MASK_INIT( &void_attr );
-    ATTR_MASK_SET( &void_attr, last_mod );
-    ATTR( &void_attr, last_mod ) = last_mod_time;
-#ifdef ATTR_INDEX_last_archive
-    ATTR_MASK_SET( &void_attr, last_archive );
-    ATTR( &void_attr, last_archive ) = last_mod_time;
-#endif
-#ifdef ATTR_INDEX_creation_time
-    ATTR_MASK_SET( &void_attr, creation_time );
-    ATTR( &void_attr, creation_time ) = last_mod_time;
-#endif
 
+    /* Optimization: we build a void entry with time attr = current sort attr
+     * If it doesn't match any policy, next entries won't match too
+     * because entries are sorted by this attribute, so it is not necessary
+     * to continue. */
+
+    /* We have creation_time <= last_archive <= last mod (entry is dirty) <= last_access
+     * so we can guess a maximum value for other times.
+     * E.g. if entry matches age > x with all times = last_access value
+     * it will match for older times.
+     */
+    if (migr_config.lru_sort_attr == ATTR_INDEX_last_access)
+    {
+        ATTR_MASK_SET( &void_attr, last_access );
+        ATTR( &void_attr, last_access ) = last_time;
+    }
+    if (migr_config.lru_sort_attr == ATTR_INDEX_last_mod ||
+        migr_config.lru_sort_attr == ATTR_INDEX_last_access)
+    {
+        ATTR_MASK_SET( &void_attr, last_mod );
+        ATTR( &void_attr, last_mod ) = last_time;
+    }
+    if (migr_config.lru_sort_attr == ATTR_INDEX_last_archive ||
+        migr_config.lru_sort_attr == ATTR_INDEX_last_mod ||
+        migr_config.lru_sort_attr == ATTR_INDEX_last_access)
+    {
+        ATTR_MASK_SET( &void_attr, last_archive );
+        ATTR( &void_attr, last_archive ) = last_time;
+    }
+#ifdef ATTR_INDEX_creation_time
+    if (migr_config.lru_sort_attr == ATTR_INDEX_creation_time
+        || migr_config.lru_sort_attr == ATTR_INDEX_last_mod
+        || migr_config.lru_sort_attr == ATTR_INDEX_last_archive
+        || migr_config.lru_sort_attr == ATTR_INDEX_last_access)
+    {
+        ATTR_MASK_SET( &void_attr, creation_time );
+        ATTR( &void_attr, creation_time ) = last_time;
+    }
+#endif
 
     if ( PolicyMatchAllConditions( &void_id, &void_attr, MIGR_POLICY,
                                    migr_pol_mod ) == POLICY_NO_MATCH )
     {
         DisplayLog( LVL_DEBUG, MIGR_TAG,
-                    "Optimization: entries with modification time later than %lu"
+                    "Optimization: entries with %s later than %lu"
                     " cannot match any policy condition. Stop retrieving DB entries.",
-                    last_mod_time );
+                    sort_attr_name, last_time );
         return TRUE;
     }
     else
         return FALSE;
+}
+
+
+static inline int get_sort_attr(const attr_set_t * p_attrs)
+{
+    if (migr_config.lru_sort_attr == ATTR_INDEX_creation_time)
+        return (ATTR_MASK_TEST(p_attrs, creation_time) ? ATTR(p_attrs, creation_time) : -1);
+    else if (migr_config.lru_sort_attr == ATTR_INDEX_last_mod)
+        return (ATTR_MASK_TEST(p_attrs, last_mod) ? ATTR(p_attrs, last_mod) : -1);
+    else if (migr_config.lru_sort_attr == ATTR_INDEX_last_access)
+        return (ATTR_MASK_TEST(p_attrs, last_access) ? ATTR(p_attrs, last_access) : -1);
+    else if (migr_config.lru_sort_attr == ATTR_INDEX_last_archive)
+        return (ATTR_MASK_TEST(p_attrs, last_archive) ? ATTR(p_attrs, last_archive) : -1);
+    else
+        return -1;
 }
 
 
@@ -318,10 +353,11 @@ static int set_migr_optimization_filters(lmgr_filter_t * p_filter)
         struct tm ts;
 
         fval.val_uint = first_eligible;
-        lmgr_simple_filter_add( p_filter, ATTR_INDEX_last_mod, MORETHAN, fval, 0 );
+        lmgr_simple_filter_add( p_filter, migr_config.lru_sort_attr, MORETHAN, fval, 0 );
 
         strftime( datestr, 128, "%Y/%m/%d %T", localtime_r( &first_eligible, &ts ) );
-        DisplayLog( LVL_EVENT, MIGR_TAG, "Optimization: considering entries newer than %s", datestr );
+        DisplayLog( LVL_EVENT, MIGR_TAG, "Optimization: considering entries with %s newer than %s",
+                    sort_attr_name, datestr );
     }
 
     return 0;
@@ -456,11 +492,12 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
 
     ATTR_MASK_INIT( p_attr_set );
 
-    /* Retrieve at least: fullpath, last_mod, last_archive, size
+    /* Retrieve at least: fullpath, last_mod, <sort_attr>, last_archive, size
      * for logging or computing statistics */
     ATTR_MASK_SET( p_attr_set, fullpath );
     ATTR_MASK_SET( p_attr_set, path_update );
     ATTR_MASK_SET( p_attr_set, last_mod );
+    p_attr_set->attr_mask |= (1 << migr_config.lru_sort_attr);
     ATTR_MASK_SET( p_attr_set, size );
     ATTR_MASK_SET( p_attr_set, md_update );
 #ifdef ATTR_INDEX_last_archive
@@ -510,7 +547,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     unsigned int   nb_submitted;
     unsigned long  submitted_vol;
 
-    int            last_mod_time = 0;
+    int            last_sort_time = 0;
     time_t         last_request_time = 0;
 
     int            attr_mask_sav;
@@ -536,7 +573,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         return rc;
 
     /* sort by last modification time */
-    sort_type.attr_index = ATTR_INDEX_last_mod;
+    sort_type.attr_index = migr_config.lru_sort_attr;
     sort_type.order = SORT_ASC;
 
     rc = lmgr_simple_filter_init( &filter );
@@ -780,7 +817,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                 }
 
                 /* no new useless request */
-                if ( heuristic_end_of_list( last_mod_time ) )
+                if ( heuristic_end_of_list( last_sort_time ) )
                 {
                     end_of_list = TRUE;
                     break;
@@ -797,7 +834,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
                 /* perform a new request with next entries */
 
-                /* /!\ if there is already a filter on last_mod or md_update
+                /* /!\ if there is already a filter on <sort_attr> or md_update
                  * only replace it, do not add a new filter.
                  */
 
@@ -814,9 +851,9 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                     return rc;
 
                 /* filter on modification time (allow NULL) */
-                fval.val_int = last_mod_time;
+                fval.val_int = last_sort_time;
                 rc = lmgr_simple_filter_add_or_replace(&filter,
-                                                       ATTR_INDEX_last_mod,
+                                                       migr_config.lru_sort_attr,
                                                        MORETHAN, fval,
                                                        FILTER_FLAG_ALLOW_NULL );
                 if ( rc )
@@ -824,9 +861,9 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
                 DisplayLog( LVL_DEBUG, MIGR_TAG,
                             "Performing new request with a limit of %u entries"
-                            " and mod >= %d and md_update < %ld ",
-                            opt.list_count_max, last_mod_time,
-                            last_request_time );
+                            " and %s >= %d and md_update < %ld ",
+                            opt.list_count_max, sort_attr_name,
+                            last_sort_time, last_request_time );
 
                 nb_returned = 0;
                 it = ListMgr_Iterator( lmgr, &filter, &sort_type, &opt );
@@ -852,8 +889,9 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
             nb_returned++;
 
-            if ( ATTR_MASK_TEST( &attr_set, last_mod ) )
-                last_mod_time = ATTR( &attr_set, last_mod );
+            rc = get_sort_attr(&attr_set);
+            if (rc != -1)
+                last_sort_time = rc;
 
             sz = ATTR( &attr_set, size );
 
@@ -869,7 +907,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
             /* periodically check if we have a chance to have more matching entries */
             if ( nb_submitted % 1000 == 0 )
             {
-                if ( heuristic_end_of_list( last_mod_time ) )
+                if ( heuristic_end_of_list( last_sort_time ) )
                 {
                     end_of_list = TRUE;
                     break;
@@ -1555,9 +1593,9 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     /* we found an eligible entry! */
 
     /* it is the first? */
-    if (ATTR_MASK_TEST(&p_item->entry_attr, last_mod)
-        && (!first_eligible || (ATTR(&p_item->entry_attr, last_mod) < first_eligible)))
-        first_eligible = ATTR(&p_item->entry_attr, last_mod);
+    rc = get_sort_attr(&p_item->entry_attr);
+    if (rc != -1 && (!first_eligible || (rc < first_eligible)))
+        first_eligible = rc;
 
     /* build hints */
     hints = build_migration_hints( policy_case, p_fileset, &p_item->entry_id, &new_attr_set );
@@ -1673,13 +1711,11 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     }
     else
     {
-        char           strmod[256];
-        char           strarchive[256];
+        char           strtime[256];
         char           strsize[256];
         char           strstorage[1024]="";
-
-        int            is_copy = TRUE;
         int            is_stor = TRUE;
+        time_t         t;
 
         const char * action_str;
 
@@ -1697,20 +1733,13 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 #endif
 
         /* report messages */
-        FormatDurationFloat( strmod, 256, time( NULL ) - ATTR( &new_attr_set, last_mod ) );
-
-#ifdef ATTR_INDEX_last_archive
-        if ( ATTR_MASK_TEST( &p_item->entry_attr, last_archive )
-             && ATTR( &p_item->entry_attr, last_archive) != 0 )
-        {
-            FormatDurationFloat( strarchive, 256,
-                                 time( NULL ) - ATTR(  &p_item->entry_attr, last_archive ) );
-        }
+        t = get_sort_attr(&new_attr_set);
+        if (t != -1)
+            FormatDurationFloat(strtime, 256, time( NULL ) - t);
         else
-#endif
-            is_copy = FALSE;
+            strcpy(strtime, "<none>");
 
-        FormatFileSize( strsize, 256, ATTR( &new_attr_set, size ) );
+        FormatFileSize(strsize, 256, ATTR( &new_attr_set, size));
 
         if ( ATTR_MASK_TEST( &p_item->entry_attr, stripe_items ) )
             FormatStripeList( strstorage, 1024, &ATTR( &p_item->entry_attr, stripe_items ) );
@@ -1718,31 +1747,18 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             is_stor = FALSE;
 
         DisplayLog( LVL_DEBUG, MIGR_TAG,
-                    "%s '%s' using policy '%s', last modified %s ago,"
-                    " last archived %s%s,  size=%s%s%s",
+                    "%s '%s' using policy '%s', %s %s ago, size=%s%s%s",
                     action_str, ATTR( &p_item->entry_attr, fullpath ),
-                    policy_case->policy_id, strmod,
-                    ( is_copy ? strarchive : "(none)" ), ( is_copy ? " ago" : "" ),
-                    strsize, ( is_stor ? "stored on" : "" ), ( is_stor ? strstorage : "" ) );
+                    policy_case->policy_id, sort_attr_name, strtime, strsize,
+                    ( is_stor ? "stored on" : "" ), ( is_stor ? strstorage : "" ) );
 
-#ifdef ATTR_INDEX_last_archive
-        DisplayReport( "%s '%s' using policy '%s', last mod %s ago | size=%"
-                       PRI_STSZ ", last_mod=%" PRI_TT ", last_archive=%" PRI_TT
-                       "%s%s", action_str, ATTR( &p_item->entry_attr, fullpath ),
-                       policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
-                       (time_t)ATTR( &new_attr_set, last_mod ),
-                       is_copy ? (time_t)ATTR( &p_item->entry_attr, last_archive ) : 0,
-                       ( is_stor ? ", storage_units=" : "" ), 
-                       ( is_stor ? strstorage : "" ) );
-#else
-   DisplayReport( "%s '%s' using policy '%s', last mod %s ago | size=%"
-                       PRI_SZ ", last_mod=%" PRI_TT "%s%s",
+        DisplayReport( "%s '%s' using policy '%s', %s %s ago | size=%"
+                       PRI_SZ ", %s=%" PRI_TT "%s%s",
                        action_str, ATTR( &p_item->entry_attr, fullpath ),
-                       policy_case->policy_id, strmod, ATTR( &new_attr_set, size ),
-                       (time_t)ATTR( &new_attr_set, last_mod ),
-                       ( is_stor ? ", storage_units=" : "" ),
+                       policy_case->policy_id, sort_attr_name, strtime,
+                       ATTR( &new_attr_set, size ),
+                       sort_attr_name, t, ( is_stor ? ", storage_units=" : "" ),
                        ( is_stor ? strstorage : "" ) );
-#endif
 
         /* update info in database */
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );

@@ -37,6 +37,8 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
     conf->db_request_limit = 10000;
     conf->max_migr_nbr = 0;
     conf->max_migr_vol = 0;
+    conf->lru_sort_attr = ATTR_INDEX_last_mod;
+
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
     conf->backup_new_files = TRUE;
 #endif
@@ -60,6 +62,7 @@ int Write_Migration_ConfigDefault( FILE * output )
     print_line( output, 1, "migration_timeout     : 2h" );
     print_line( output, 1, "pre_maintenance_window: 24h" );
     print_line( output, 1, "maint_migr_delay_min  : 30min" );
+    print_line( output, 1, "lru_sort_attr         : last_mod" );
 
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     print_line( output, 1, "backup_new_files      : TRUE" );
@@ -97,6 +100,9 @@ int Write_Migration_ConfigTemplate( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "# cancel migration pass after 2h of inactivity" );
     print_line( output, 1, "migration_timeout     = 2h ;" );
+    fprintf( output, "\n" );
+    print_line( output, 1, "# sort order for applying migration policy\n" );
+    print_line( output, 1, "lru_sort_attr         = last_mod ;" );
     fprintf( output, "\n" );
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     print_line( output, 1, "# don't archive files that have never been archived before" );
@@ -144,6 +150,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
 {
     int            rc;
     int            intval;
+    char           tmp[256];
     migration_config_t *conf = ( migration_config_t * ) module_config;
 
     static const char *migr_allowed[] = {
@@ -151,6 +158,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
         "backup_new_files",
 #endif
+        "lru_sort_attr",
         "recheck_ignored_classes", "check_copy_status_on_startup",
         "check_copy_status_delay", "migration_timeout",
         "nb_threads_migration", "migration_queue_size", "db_result_size_max",
@@ -199,6 +207,31 @@ int Read_Migration_Config( config_file_t config, void *module_config,
         return rc;
     else if ( rc != ENOENT)
         conf->migration_timeout = intval;
+
+    rc = GetStringParam(param_block, MIGR_PARAM_BLOCK, "lru_sort_attr",
+                        STR_PARAM_NO_WILDCARDS, tmp, 256, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT) {
+        /* is it a time attribute? */
+#ifdef ATTR_INDEX_last_archive
+        if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ARCHIVE)))
+            conf->lru_sort_attr = ATTR_INDEX_last_archive;
+        else
+#endif
+        if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ACCESS)))
+            conf->lru_sort_attr = ATTR_INDEX_last_access;
+        else if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_MOD)))
+            conf->lru_sort_attr = ATTR_INDEX_last_mod;
+#ifdef ATTR_INDEX_creation
+        else if (!strcasecmp(tmp, criteria2str(CRITERIA_CREATION)))
+            conf->lru_sort_attr = ATTR_INDEX_creation_time;
+#endif
+        else {
+            strcpy( msg_out, "time attribute expected for 'lru_sort_attr': creation, last_access, last_mod, last_archive...");
+            return EINVAL;
+        }
+    }
 
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     rc = GetBoolParam( param_block, MIGR_PARAM_BLOCK, "backup_new_files",
@@ -287,6 +320,10 @@ int Reload_Migration_Config( void *module_config )
         DisplayLog( LVL_MAJOR, MIGRCFG_TAG,
                     MIGR_PARAM_BLOCK
                     "::migration_queue_size changed in config file, but cannot be modified dynamically" );
+
+    if ( migr_config.lru_sort_attr != conf->lru_sort_attr )
+        DisplayLog( LVL_MAJOR, MIGRCFG_TAG, MIGR_PARAM_BLOCK "::lru_sort_attr"
+                    " changed in config file, but cannot be modified dynamically" );
 
     if ( migr_config.check_copy_status_on_startup != conf->check_copy_status_on_startup )
         DisplayLog( LVL_MAJOR, MIGRCFG_TAG, MIGR_PARAM_BLOCK "::check_copy_status_on_startup"
