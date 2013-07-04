@@ -102,6 +102,7 @@ typedef struct resource_monitor_config_t
 #ifdef ATTR_INDEX_status
     unsigned int check_purge_status_on_startup:1;
 #endif
+    unsigned int recheck_ignored_classes:1;
 
 } resource_monitor_config_t;
 

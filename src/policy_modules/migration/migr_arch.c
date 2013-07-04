@@ -291,6 +291,23 @@ static int set_migr_optimization_filters(lmgr_filter_t * p_filter)
         }
     }
 
+    if (!migr_config.recheck_ignored_classes)
+    {
+        int i;
+        filter_value_t fval;
+        /* don't select files in ignored classes */
+        for (i = 0; i < policies.migr_policies.ignore_count; i++)
+        {
+            int flags = 0;
+            fval.val_str = policies.migr_policies.ignore_list[i]->fileset_id;
+            if (i == 0)
+                flags = FILTER_FLAG_NOT | FILTER_FLAG_ALLOW_NULL;
+            else
+                flags = FILTER_FLAG_NOT;
+            lmgr_simple_filter_add( p_filter, ATTR_INDEX_archive_class, EQUAL, fval, flags );
+        }
+    }
+
     /* avoid re-checking all old whitelisted entries at the beginning of the list,
      * so start from the first non-whitelisted file.
      * restart from initial file when no migration could be done. */
