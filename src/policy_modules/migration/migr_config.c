@@ -101,7 +101,7 @@ int Write_Migration_ConfigTemplate( FILE * output )
     print_line( output, 1, "# cancel migration pass after 2h of inactivity" );
     print_line( output, 1, "migration_timeout     = 2h ;" );
     fprintf( output, "\n" );
-    print_line( output, 1, "# sort order for applying migration policy\n" );
+    print_line( output, 1, "# sort order for applying migration policy" );
     print_line( output, 1, "lru_sort_attr         = last_mod ;" );
     fprintf( output, "\n" );
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
