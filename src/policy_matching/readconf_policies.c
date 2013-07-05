@@ -1145,14 +1145,13 @@ static int write_migration_policy_template( FILE * output )
     print_line( output, 2, "target_fileclass = pool_ssd;" );
     fprintf( output, "\n" );
 
-    print_line( output, 2, "# copy files not modified for 6 hours," );
-    print_line( output, 2, "# or archived more that 5d ago (it the case it is" );
-    print_line( output, 2, "# continuously modified)" );
-
+    print_line( output, 2, "# Copy a file 6hours after its creation if it as never been archived.");
+    print_line( output, 2, "# For next changes, archive it daily.");
+    print_line( output, 2, "# In all cases, do nothing when it has been modified too recently (-30min).");
     print_begin_block( output, 2, CONDITION_BLOCK, NULL );
-    print_line( output, 3, "last_mod > 6h" );
-    print_line( output, 3, "or" );
-    print_line( output, 3, "last_archive > 5d" );
+    print_line( output, 3, "((last_archive == 0 and creation > 6h) " );
+    print_line( output, 3, "  or last_archive > 1d)" );
+    print_line( output, 3, "and last_mod > 30min");
     print_end_block( output, 2 );
 
 #ifdef _LUSTRE_HSM

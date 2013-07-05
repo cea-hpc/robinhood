@@ -1578,8 +1578,16 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 #endif
 
         /* report messages */
-        t = get_sort_attr(&new_attr_set);
-        if (t != -1)
+
+        /* don't take current last_archive that may have been just-updated:
+         * get the previous one */
+
+        if (migr_config.lru_sort_attr == ATTR_INDEX_last_archive)
+            t = get_sort_attr(&p_item->entry_attr);
+        else
+            t = get_sort_attr(&new_attr_set);
+
+        if (t > 0)
             FormatDurationFloat(strtime, 256, time( NULL ) - t);
         else
             strcpy(strtime, "<none>");
@@ -1592,16 +1600,17 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             is_stor = FALSE;
 
         DisplayLog( LVL_DEBUG, MIGR_TAG,
-                    "%s '%s' using policy '%s', %s %s ago, size=%s%s%s",
+                    "%s '%s' using policy '%s', %s %s%s, size=%s%s%s",
                     action_str, ATTR( &p_item->entry_attr, fullpath ),
-                    policy_case->policy_id, sort_attr_name, strtime, strsize,
+                    policy_case->policy_id, sort_attr_name, strtime,
+                    ((t > 0) ? " ago" : ""),  strsize,
                     ( is_stor ? "stored on" : "" ), ( is_stor ? strstorage : "" ) );
 
-        DisplayReport( "%s '%s' using policy '%s', %s %s ago | size=%"
+        DisplayReport( "%s '%s' using policy '%s', %s %s%s | size=%"
                        PRI_SZ ", %s=%" PRI_TT "%s%s",
                        action_str, ATTR( &p_item->entry_attr, fullpath ),
                        policy_case->policy_id, sort_attr_name, strtime,
-                       ATTR( &new_attr_set, size ),
+                       ((t > 0) ? " ago" : ""), ATTR( &new_attr_set, size ),
                        sort_attr_name, t, ( is_stor ? ", storage_units=" : "" ),
                        ( is_stor ? strstorage : "" ) );
 
