@@ -7,14 +7,14 @@ rpm_dir=`pwd`/rpms
 
 if LUSTRE
   rpmbuild_opt=--with lustre @LDEFINES@
-#  lversion=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
-#  lpackage=`rpm -qa "lustre[-_]*modules*" --qf "%{Name}\n"  2>/dev/null | tail -1`
-#ifeq ($(lversion), )
-#  rpmbuild_opt+=--define="lversion $(lversion)" --define="lpackage $(lpackage)"
-#endif
+if USER_LOVEA
+  rpmbuild_opt += --with recovtools
+endif
+
 else
   rpmbuild_opt=--without lustre
 endif
+
 
 if USE_MYSQL_DB
   rpmbuild_opt += --with mysql

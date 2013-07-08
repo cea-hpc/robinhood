@@ -20,6 +20,7 @@
 %bcond_with sqlite
 %bcond_with backup
 %bcond_with shook
+%bcond_with recovtools
 
 # macro for defining dependencies
 
@@ -98,7 +99,7 @@ Requires: php, php-mysql, php-xml, php-gd, php-pdo
 Web interface to vizualize filesystems stats.
 This uses robinhood database to display misc. user and group stats.
 
-%if %{with lustre}
+%if %{with recovtools}
 %package recov-tools
 Summary: Tools for MDS recovery.
 Group: Applications/System
@@ -272,7 +273,7 @@ fi
 %files adm
 %{_sbindir}/rbh-config
 
-%if %{with lustre}
+%if %{with recovtools}
 %files recov-tools
 %{_sbindir}/*lovea
 %{_sbindir}/gen_lov_objid

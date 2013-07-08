@@ -105,8 +105,6 @@ if test "x$support_lustre" = "xyes" ; then
             AC_DEFINE(_MDT_SPECIFIC_LOVEA, 1, [MDT LOV EA is no longer the same as lov_user_md])
         fi
 
-        AM_CONDITIONAL( USER_LOVEA, test  "x$have_new_lustre_header" != "xtrue" )
-
         # this defines LVERSION and LPACKAGE variables
         if test -z "$LDIR" ; then
             AX_LUSTRE_VERSION
@@ -207,10 +205,12 @@ if test "x$support_lustre" = "xyes" ; then
     fi
 
     AM_CONDITIONAL(CHANGELOGS,  test  "x$have_llapi_changelog_start" = "xyes" )
+    AM_CONDITIONAL( USER_LOVEA, test  "x$have_new_lustre_header" != "xtrue" )
 
 else
     AM_CONDITIONAL(LUSTRE, test 0 = 1 )
     AM_CONDITIONAL(CHANGELOGS, test 0 = 1 ) 
+    AM_CONDITIONAL( USER_LOVEA, test  0 = 1 )
 
 fi # end of Lustre support
 
