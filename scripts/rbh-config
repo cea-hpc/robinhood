@@ -21,28 +21,28 @@ fi
 function db_check
 {
     if (( $# != 0 )); then
-	echo "WARNING: no argument expected for function precheck_db"
+        echo "WARNING: no argument expected for function precheck_db"
     fi
     echo "Checking system configuration..."
 
     if [[ ! -x `which mysqladmin` ]]; then
         echo "Command 'mysqladmin' not found."
         echo "Install 'mysql' and 'mysql-server' packages on your system."
-        exit 2 
+        exit 2
     fi
     echo "mysqladmin command OK."
 
     if [[ ! -x `which mysql_config` ]]; then
         echo "Command 'mysql_config' not found."
         echo "Install 'mysql' package on your system."
-        exit 2 
+        exit 2
     fi
     echo "mysql_config command OK."
 
     version=`mysql_config --version | cut -d . -f 1`
     if (( $? )); then
         echo "Error executing 'mysql_config --version'."
-        exit 2 
+        exit 2
     fi
     echo "MySQL version is $version."
 
@@ -50,11 +50,11 @@ function db_check
     if (( $? )); then
         running=1
         pgrep mysqld >/dev/null || running=0
-     
+    
         if (( $running == 0 )); then
             echo "Service 'mysqld' is not running."
             echo "It must be started to run this script."
-            exit 2 
+            exit 2
         else
             echo "mysqld is running"
         fi
@@ -65,7 +65,7 @@ function db_check
     if [[ ! -x `which mysql` ]]; then
         echo "Command 'mysql' not found."
         echo "Install 'mysql' package on your system."
-        exit 2 
+        exit 2
     fi
     echo "mysql command OK."
 }
@@ -75,60 +75,60 @@ function db_config
 {
     interactive=0
     if (( $# == 0 )); then
-	interactive=1
+        interactive=1
     elif (( $# != 3  && $# != 4 )); then
-	echo "ERROR: 0, 3 or 4 arguments expected"
-    	echo "Usage: create_db <db_name> <client_hosts> <user_passwd> [<db_admin_passwd>]"
-	exit 1
+        echo "ERROR: 0, 3 or 4 arguments expected"
+            echo "Usage: create_db <db_name> <client_hosts> <user_passwd> [<db_admin_passwd>]"
+        exit 1
     fi
 
     if (( $interactive != 0 )); then
-	    echo
-	    echo "Enter a custom identifier for your filesystem. E.g. lustre"
+            echo
+            echo "Enter a custom identifier for your filesystem. E.g. lustre"
 
-	    while (( 1 )); do
-		read -p "fsname (max 8 chars): " fsname
-		if [[ $fsname =~ ^[a-zA-Z][a-zA-Z0-9_]{0,7}$ ]]; then
-		    break
-		else
-		    echo
-		    unmatched=`echo $fsname | sed -e "s/[a-zA-Z0-9_]//g"`
-		    echo "Error: unexpected '" $unmatched "'."
-		    echo "Filesystem name must only contain alpha-num chars with no space."
-		fi
-	    done
+            while (( 1 )); do
+                read -p "fsname (max 8 chars): " fsname
+                if [[ $fsname =~ ^[a-zA-Z][a-zA-Z0-9_]{0,7}$ ]]; then
+                    break
+                else
+                    echo
+                    unmatched=`echo $fsname | sed -e "s/[a-zA-Z0-9_]//g"`
+                    echo "Error: unexpected '" $unmatched "'."
+                    echo "Filesystem name must only contain alpha-num chars with no space."
+                fi
+            done
 
-	    echo
-	    echo "Enter hosts where robinhood commands will run. E.g. localhost"
-	    echo "You can use '%' as wildcard: \"%\" for all hosts, \"cluster%\" for nodes starting with 'cluster'..."
+            echo
+            echo "Enter hosts where robinhood commands will run. E.g. localhost"
+            echo "You can use '%' as wildcard: \"%\" for all hosts, \"cluster%\" for nodes starting with 'cluster'..."
 
-	    read -p "hosts: " clienthost
+            read -p "hosts: " clienthost
 
-	    while (( 1 )); do
-		echo
-		echo "Choose a password for connecting to the database (user 'robinhood'). "
-		read -p "password: " -s pass1
-		echo
-		read -p  "confirm password: " -s pass2
-		echo
-		
-		if [[ $pass1 = $pass2 ]]; then
-		    break
-		else
-		    echo "Passwords don't match."
-		    echo "Try again."
-		fi
-	    done
+            while (( 1 )); do
+                echo
+                echo "Choose a password for connecting to the database (user 'robinhood'). "
+                read -p "password: " -s pass1
+                echo
+                read -p  "confirm password: " -s pass2
+                echo
+               
+                if [[ $pass1 = $pass2 ]]; then
+                    break
+                else
+                    echo "Passwords don't match."
+                    echo "Try again."
+                fi
+            done
 
-	    echo "Write this password to /etc/robinhood.d/.dbpassword file"
+            echo "Write this password to /etc/robinhood.d/.dbpassword file"
 
 
-	    DB_NAME="robinhood_$fsname"
+            DB_NAME="robinhood_$fsname"
     else
-	DB_NAME=$1
-	clienthost=$2
-	pass1=$3
-	pass2=$3
+        DB_NAME=$1
+        clienthost=$2
+        pass1=$3
+        pass2=$3
     fi
 
     echo
@@ -138,22 +138,22 @@ function db_config
     echo "- Database user name: 'robinhood'"
 
     if (( $interactive != 0 )); then
-	    echo
-	    echo -n "Do you agree? [y/N]"
+            echo
+            echo -n "Do you agree? [y/N]"
 
-	    read -n 1 ok
-	    echo
-	    if [[ $ok != [yY] ]]; then
-		echo "aborting."
-		exit 1
-	    fi
+            read -n 1 ok
+            echo
+            if [[ $ok != [yY] ]]; then
+                echo "aborting."
+                exit 1
+            fi
 
-	    echo
-	    echo "Enter password for root's database account (leave blank if none is set):"
-	    read -p "root's DB password: " -s pass_root
-	    echo
+            echo
+            echo "Enter password for root's database account (leave blank if none is set):"
+            read -p "root's DB password: " -s pass_root
+            echo
     else
-	pass_root=$4
+        pass_root=$4
     fi
 
     echo
@@ -212,64 +212,83 @@ function enable_changelogs
 {
     interactive=0
     if (( $# == 0 )); then
-	interactive=1
+        interactive=1
     elif (( $# != 1 )); then
-	echo "ERROR: 0 or 1 argument expected"
-    	echo "Usage: enable_chglogs [<fsname>]"
-	exit 1
+        echo "ERROR: 0 or 1 argument expected"
+            echo "Usage: enable_chglogs [<fsname>]"
+        exit 1
     fi
 
     if (($interactive != 0 )); then
-	    # check if we are on mdt
-	    echo -n "Checking available MDTs...    "
-	    fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | xargs`
-	    echo $fslist
+            # check if we are on mdt
+            echo -n "Checking available MDTs...    "
+           fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | uniq | xargs`
+            echo $fslist
 
-	    if [[ -z $fslist ]]; then
-		echo "No MDT found on this machine. Run the command on MDT."
-		exit 2
-	    fi
+            if [[ -z $fslist ]]; then
+                echo "No MDT found on this machine. Run the command on MDT."
+                exit 2
+            fi
 
-	    echo "Select the filesystem you want to activate changelogs for:"
-	    while ((1)); do
-		read -p "$fslist: " fsname
-		if [[ -n "$fsname" ]]; then
-		    if [[ $fslist = *$fsname* ]]; then
-			break
-		    else
-			echo "$fsname: unknown"
-		    fi
-		fi
-	    done
+            echo "Select the filesystem you want to activate changelogs for:"
+            while ((1)); do
+                read -p "$fslist: " fsname
+                if [[ -n "$fsname" ]]; then
+                    if [[ $fslist = *$fsname* ]]; then
+                        break
+                    else
+                        echo "$fsname: unknown"
+                    fi
+                else
+                    cnt=$(echo $fslist | wc -w)
+                    # if count = 1, use the only fsname
+                    if (( $cnt == 1 )); then
+                        fsname=$fslist
+                        break
+                    fi
+                    if (( $cnt == 1 )); then
+                        fsname=$fslist
+                        break
+                    fi
+                fi
+            done
     else
-	fsname=$1
-        fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | xargs`
-	if [[ $fslist = *$fsname* ]]; then
-		echo "file system '$fsname' exists"
-	else
-		echo "$fsname: unknown"
-		exit 2
-	fi
+        fsname=$1
+        fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | uniq | xargs`
+        if [[ $fslist = *$fsname* ]]; then
+                echo "file system '$fsname' exists"
+        else
+                echo "$fsname: unknown"
+                exit 2
+        fi
     fi
+    # check mdt count
+    mdtcnt=$(ls -ld /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT* 2>/dev/null | wc -l)
 
-    echo "Checking if \"cl1\" is already registered for $fsname..."
+    echo "Checking if \"cl1\" is already registered for $fsname ($mdtcnt MDTs on this host)..."
     is_cl1=`grep cl1 /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT*/changelog_users 2>/dev/null | wc -l`
 
-    if (( $is_cl1 == 0 )); then
-        echo "No client registered yet"
-        lctl --device $fsname-MDT0000 changelog_register || echo "FAILED"
-    else
+    if (( $is_cl1 == $mdtcnt )); then
         echo "\"cl1\" is already registered. Skipping registration."
+    elif (( $is_cl1 < $mdtcnt )); then
+        echo "\"cl1\" is not registered on all MDTs on this host ($mdtcnt)..."
+        for i in $(seq -w 0000 $(($mdtcnt-1)) ); do
+           grep cl1 /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT$i > /dev/null 2> /dev/null
+           if (( $? != 0 )); then
+               echo "No client registered on $fsname-MDT$i yet"
+               lctl --device $fsname-MDT$i changelog_register || echo "FAILED to register to MDT$i"
+           fi
+        done
     fi
 
     echo "Checking event mask..."
 
     if [[ -z "$PURPOSE" || $PURPOSE = LUSTRE_HSM ]]; then
-	EVENT_LIST="HSM CREAT UNLNK TRUNC SATTR MTIME CLOSE"
+        EVENT_LIST="HSM CREAT UNLNK TRUNC SATTR MTIME CLOSE"
     elif [[ $PURPOSE = SHOOK ]]; then
     EVENT_LIST="CREAT UNLNK TRUNC XATTR SATTR MTIME CLOSE"
     else
-	EVENT_LIST="CREAT UNLNK TRUNC SATTR MTIME CLOSE"
+        EVENT_LIST="CREAT UNLNK TRUNC SATTR MTIME CLOSE"
     fi
     for event in $EVENT_LIST; do
         missing=0
@@ -289,7 +308,7 @@ function select_db
 {
     pass_root=$1
     db_list=`mysql -Ns --password="$pass_root" -e "show databases" | grep -v mysql | xargs`
-    
+   
     if (( $? )); then
             echo "Failed to get database list"
             exit 1
@@ -298,7 +317,7 @@ function select_db
         echo "No DB found"
         exit 2
     fi
-    
+   
     echo "Available databases are: $db_list"
 
     while ((1)); do
@@ -330,28 +349,28 @@ function empty_db
 {
     interactive=0
     if (( $# == 0 )); then
-	interactive=1
+        interactive=1
     elif (( $# != 1 && $# != 2 )); then
-	echo "ERROR: 0, 1 or 2 arguments expected"
-    	echo "Usage: empty_db [<db_name> [<db_admin_passwd>]]"
-	exit 1
+        echo "ERROR: 0, 1 or 2 arguments expected"
+            echo "Usage: empty_db [<db_name> [<db_admin_passwd>]]"
+        exit 1
     fi
 
     if (( $interactive != 0 )); then
-	    echo
-	    echo "Enter password for root's database account (leave blank if none is set):"
-	    read -p "root's DB password: " -s pass_root
-	    echo
+            echo
+            echo "Enter password for root's database account (leave blank if none is set):"
+            read -p "root's DB password: " -s pass_root
+            echo
 
-	    select_db $pass_root || exit 1
+            select_db $pass_root || exit 1
 
-	    if [ -z $RBH_DB ]; then
-		echo "ERROR: database not specified"
-		exit 1
-	    fi
+            if [ -z $RBH_DB ]; then
+                echo "ERROR: database not specified"
+                exit 1
+            fi
     else
-    	RBH_DB=$1
-    	pass_root=$2
+            RBH_DB=$1
+            pass_root=$2
     fi
 
     echo "Cleaning tables of database '$RBH_DB'..."
@@ -382,28 +401,28 @@ function reset_fileclasses
 {
     interactive=0
     if (( $# == 0 )); then
-	interactive=1
+        interactive=1
     elif (( $# != 1 && $# != 2 )); then
-	echo "ERROR: 0, 1 or 2 arguments expected"
-    	echo "Usage: reset_classes [<db_name> [<db_admin_passwd>]]"
-	exit 1
+        echo "ERROR: 0, 1 or 2 arguments expected"
+            echo "Usage: reset_classes [<db_name> [<db_admin_passwd>]]"
+        exit 1
     fi
 
     if (( $interactive != 0)); then
-	    echo
-	    echo "Enter password for root's database account (leave blank if none is set):"
-	    read -p "root's DB password: " -s pass_root
-	    echo
+            echo
+            echo "Enter password for root's database account (leave blank if none is set):"
+            read -p "root's DB password: " -s pass_root
+            echo
 
-	    select_db $pass_root || exit 1
+            select_db $pass_root || exit 1
 
-	    if [ -z $RBH_DB ]; then
-		echo "ERROR: database not specified"
-		exit 1
-	    fi
+            if [ -z $RBH_DB ]; then
+                echo "ERROR: database not specified"
+                exit 1
+            fi
     else
-	RBH_DB=$1	
-	pass_root=$2
+        RBH_DB=$1       
+        pass_root=$2
     fi
 
     # checking valid fields for this purpose
@@ -427,8 +446,8 @@ function reset_fileclasses
     fi
 
     if [ -z $expr ]; then
-	echo "Database $RBH_DB is already empty. No fileclass to reset."	
-	exit 0
+        echo "Database $RBH_DB is already empty. No fileclass to reset."       
+        exit 0
     fi
 
     echo "Resetting fileclasses in '$RBH_DB'..."
@@ -445,28 +464,28 @@ function repair_db
 {
     interactive=0
     if (( $# == 0 )); then
-	interactive=1
+        interactive=1
     elif (( $# != 1 && $# != 2 )); then
-	echo "ERROR: 0, 1 or 2 arguments expected"
-    	echo "Usage: repair_db [<db_name> [<db_admin_passwd>]]"
-	exit 1
+        echo "ERROR: 0, 1 or 2 arguments expected"
+            echo "Usage: repair_db [<db_name> [<db_admin_passwd>]]"
+        exit 1
     fi
 
     if (( $interactive != 0)); then
-	    echo
-	    echo "Enter password for root's database account (leave blank if none is set):"
-	    read -p "root's DB password: " -s pass_root
-	    echo
+            echo
+            echo "Enter password for root's database account (leave blank if none is set):"
+            read -p "root's DB password: " -s pass_root
+            echo
 
-	    select_db $pass_root || exit 1
+            select_db $pass_root || exit 1
 
-	    if [ -z $RBH_DB ]; then
-		echo "ERROR: database not specified"
-		exit 1
-	    fi
+            if [ -z $RBH_DB ]; then
+                echo "ERROR: database not specified"
+                exit 1
+            fi
     else
-	RBH_DB=$1	
-	pass_root=$2
+        RBH_DB=$1       
+        pass_root=$2
     fi
 
     # get table list
@@ -474,17 +493,17 @@ function repair_db
     tables=`mysql --password="$pass_root" $RBH_DB --batch --skip-column-names -e "SHOW TABLES" | xargs | sed -e 's/ /,/g'`
 
     if [[ -n "$tables" ]]; then
-	    echo "Checking/fixing tables ($tables)..."
-	    mysql --password="$pass_root" $RBH_DB -e "REPAIR TABLE $tables"
+            echo "Checking/fixing tables ($tables)..."
+            mysql --password="$pass_root" $RBH_DB -e "REPAIR TABLE $tables"
 
-	    if (( $? )); then
-		echo "Command failed"
-		exit 1
-	    else
-		echo "DONE"
-	    fi
+            if (( $? )); then
+                echo "Command failed"
+                exit 1
+            else
+                echo "DONE"
+            fi
     else
-	echo "No table in database"
+        echo "No table in database"
     fi
 
 }
@@ -493,39 +512,39 @@ function backup_db
 {
     interactive=0
     if (( $# == 0 )); then
-	interactive=1
+        interactive=1
     elif (( $# != 2 && $# != 3 )); then
-	echo "ERROR: 2 or 3 arguments expected"
-    	echo "Usage: repair_db [<db_name> <dest_dir> [<db_admin_passwd>]]"
-	exit 1
+        echo "ERROR: 2 or 3 arguments expected"
+            echo "Usage: repair_db [<db_name> <dest_dir> [<db_admin_passwd>]]"
+        exit 1
     fi
 
     if (( $interactive != 0)); then
-	    echo
-	    echo "Enter password for root's database account (leave blank if none is set):"
-	    read -p "root's DB password: " -s pass_root
-	    echo
+            echo
+            echo "Enter password for root's database account (leave blank if none is set):"
+            read -p "root's DB password: " -s pass_root
+            echo
 
-	    select_db $pass_root || exit 1
+            select_db $pass_root || exit 1
 
-	    if [ -z $RBH_DB ]; then
-		echo "ERROR: database not specified"
-		exit 1
-	    fi
+            if [ -z $RBH_DB ]; then
+                echo "ERROR: database not specified"
+                exit 1
+            fi
 
         while (( 1 )); do
-		read -p "destination directory: " DEST_DIR
-		if [[ -d "$DEST_DIR" ]]; then
-		    break
-		else
-		    echo
-		    echo "Error: the specified directory does not exist"
-		fi
-	    done
+                read -p "destination directory: " DEST_DIR
+                if [[ -d "$DEST_DIR" ]]; then
+                    break
+                else
+                    echo
+                    echo "Error: the specified directory does not exist"
+                fi
+            done
     else
-	RBH_DB=$1
-	DEST_DIR=$2
-	pass_root=$3
+        RBH_DB=$1
+        DEST_DIR=$2
+        pass_root=$3
     fi
 
     if [[ ! -d "$DEST_DIR" ]]; then
@@ -555,12 +574,12 @@ function backup_db
 
 
 
-function test_connect 
+function test_connect
 {
     if (( $# != 2 )); then
-	echo "ERROR: 2 arguments expected"
-    	echo "Usage: test_db <db_name> <robinhood_passwd>"
-	exit 1
+        echo "ERROR: 2 arguments expected"
+            echo "Usage: test_db <db_name> <robinhood_passwd>"
+        exit 1
     fi
 
     DB_NAME=$1
@@ -575,12 +594,12 @@ EOF
         echo "Connection to $DB_NAME@localhost failed"
         exit 1
     else
-	echo "Connection OK"
+        echo "Connection OK"
     fi
 }
 
 
-if [[ "$1" = precheck_db ]]; then 
+if [[ "$1" = precheck_db ]]; then
     shift 1
     db_check $*
 elif [[ "$1" = create_db ]]; then

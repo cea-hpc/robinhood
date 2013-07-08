@@ -31,11 +31,16 @@ static int print_lov(struct lov_user_md * p_lum)
     {
         printf("magic=%#x (LOV_USER_MAGIC_V1)\n", p_lum->lmm_magic);
         printf("pattern=%#x (%s)\n", p_lum->lmm_pattern, pattern2str(p_lum->lmm_pattern));
+#ifdef HAVE_OBJ_ID
         printf("object_id=%#Lx\n", p_lum->lmm_object_id);
 #ifdef _HAVE_FID
         printf("object_seq=%#Lx\n", p_lum->lmm_object_seq);
 #else /* lmm_object_gr for Lustre 1.x */
         printf("object_gr=%#Lx\n", p_lum->lmm_object_gr);
+#endif
+#else
+        printf("object_id=%#Lx\n", p_lum->lmm_oi.oi.oi_id);
+        printf("object_seq=%#Lx\n", p_lum->lmm_oi.oi.oi_seq);
 #endif
         printf("stripe_size=%u\n", p_lum->lmm_stripe_size);
         printf("stripe_count=%hu\n", p_lum->lmm_stripe_count);
@@ -53,8 +58,8 @@ static int print_lov(struct lov_user_md * p_lum)
             printf("   [%u] object_gr=%Lu\n", i, p_lum->lmm_objects[i].l_object_gr);
 #endif
 #else /* new structure (union of fid and id/seq) */
-            printf("   [%u] object_id=%Lu\n", i, p_lum->lmm_objects[i].l_ost_oi.oi.oi_id;
-            printf("   [%u] object_seq=%Lu\n", i, p_lum->lmm_objects[i].l_ost_oi.oi.oi_seq;
+            printf("   [%u] object_id=%Lu\n", i, p_lum->lmm_objects[i].l_ost_oi.oi.oi_id);
+            printf("   [%u] object_seq=%Lu\n", i, p_lum->lmm_objects[i].l_ost_oi.oi.oi_seq);
 #endif
         }
         return 0;
@@ -67,12 +72,18 @@ static int print_lov(struct lov_user_md * p_lum)
 
         printf("magic=%#x (LOV_USER_MAGIC_V3)\n", p_lum3->lmm_magic);
         printf("pattern=%#x (%s)\n", p_lum3->lmm_pattern, pattern2str(p_lum3->lmm_pattern));
+#ifdef HAVE_OBJ_ID
         printf("object_id=%#Lx\n", p_lum3->lmm_object_id);
 #ifdef _HAVE_FID
         printf("object_seq=%#Lx\n", p_lum3->lmm_object_seq);
 #else /* lmm_object_gr for Lustre 1.x */
         printf("object_gr=%#Lx\n", p_lum3->lmm_object_gr);
 #endif
+#else
+        printf("object_id=%#Lx\n", p_lum3->lmm_oi.oi.oi_id);
+        printf("object_seq=%#Lx\n", p_lum3->lmm_oi.oi.oi_seq);
+#endif
+
         printf("stripe_size=%u\n", p_lum3->lmm_stripe_size);
         printf("stripe_count=%hu\n", p_lum3->lmm_stripe_count);
         printf("stripe_offset=%hd\n", p_lum3->lmm_stripe_offset);
@@ -92,8 +103,8 @@ static int print_lov(struct lov_user_md * p_lum)
             printf("   [%u] object_gr=%Lu\n", i, p_lum3->lmm_objects[i].l_object_gr);
 #endif
 #else /* new structure (union of fid and id/seq) */
-            printf("   [%u] object_id=%Lu\n", i, p_lum3->lmm_objects[i].l_ost_oi.oi.oi_id;
-            printf("   [%u] object_seq=%Lu\n", i, p_lum3->lmm_objects[i].l_ost_oi.oi.oi_seq;
+            printf("   [%u] object_id=%Lu\n", i, p_lum3->lmm_objects[i].l_ost_oi.oi.oi_id);
+            printf("   [%u] object_seq=%Lu\n", i, p_lum3->lmm_objects[i].l_ost_oi.oi.oi_seq);
 #endif
         }
         return 0;

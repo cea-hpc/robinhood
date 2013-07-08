@@ -104,7 +104,15 @@ struct obd_statfs {
 #define CLASSERT assert
 #define LASSERTF(a,b,c) assert(a)
 typedef void * lnet_nid_t;
+typedef time_t cfs_time_t;
+
+/* lustre_idl.h references many undefined symbols
+ * in functions or structures we don't need.
+ * So ignore the warnings. */
+#pragma GCC push_options
+#pragma GCC diagnostic ignored "-Wimplicit-function-declaration"
 #include <lustre/lustre_idl.h>
+#pragma GCC pop_options
 
 struct lu_buf {
         void   *lb_buf;

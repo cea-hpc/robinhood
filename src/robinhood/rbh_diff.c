@@ -71,8 +71,10 @@ static struct option option_tab[] = {
 #ifdef _HSM_LITE
     {"from-backend", no_argument, NULL, 'b'}, /* recover lost files from backend */
 #endif
-#ifdef _HAVE_FID /* only for lustre 2.x */
+#ifdef _HAVE_FID /* only for lustre 2.1 to 2.3 */
+#ifndef _MDT_SPECIFIC_LOVEA
     {"lovea-file", required_argument, NULL, 'o'}, /* output file for lov EA */
+#endif
 #endif
 
     /* config file options */
@@ -151,10 +153,12 @@ static const char *help_string =
     "        When applying changes to the filesystem (--apply=fs), recover objects from the backend storage\n"
     "        (otherwise, recover orphaned objects on OSTs).\n"
 #endif
-#ifdef _HAVE_FID /* only for lustre 2.x */
+#ifdef _HAVE_FID /* only for lustre 2.1 to 2.3 */
+#ifndef _MDT_SPECIFIC_LOVEA
     "    " _B  "-o"B_" "_U"output_file"U_", --lovea-file" B_"="_U"output_file"U_"\n"
     "        For MDS disaster recovery, write lovea values to "_U"output_file"U_",\n"
     "        so they can be set on MDT objects using "_B"set_lovea"B_" tool.\n"
+#endif
 #endif
     "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -623,6 +627,7 @@ int main( int argc, char **argv )
         }
     }
 
+#ifndef _MDT_SPECIFIC_LOVEA
     if (options.diff_arg.apply == APPLY_FS && !(options.flags & FLAG_DRY_RUN))
     {
         /* open the file to write LOV EA */
@@ -637,6 +642,7 @@ int main( int argc, char **argv )
             }
         }
     }
+#endif
 
     /* if no DB apply action is specified, can't use md_update field for checking
      * removed entries. So, create a special tag for that. */

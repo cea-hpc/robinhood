@@ -35,6 +35,7 @@ all_libs += ../list_mgr/liblistmgr.la ../common/libcommontools.la
 
 #Lustre only
 if LUSTRE
+if USER_LOVEA
 sbin_PROGRAMS=read_lovea set_lovea gen_lov_objid
 
 set_lovea_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
@@ -43,6 +44,5 @@ read_lovea_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 gen_lov_objid_DEPENDENCIES=$(all_libs)
 gen_lov_objid_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 gen_lov_objid_LDADD=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-
+endif
 endif

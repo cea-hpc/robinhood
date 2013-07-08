@@ -101,7 +101,11 @@ if test "x$support_lustre" = "xyes" ; then
         AC_CHECK_HEADER([lustre/lustreapi.h], have_new_lustre_header="true", have_new_lustre_header="false")
         if test "$have_new_lustre_header" = "true"; then
             AC_DEFINE(_LUSTRE_API_HEADER, 1, [New lustreapi header])
+            # this comes with Lustre 2.4, so disable features of Lustre < 2.4 at the same time
+            AC_DEFINE(_MDT_SPECIFIC_LOVEA, 1, [MDT LOV EA is no longer the same as lov_user_md])
         fi
+
+        AM_CONDITIONAL( USER_LOVEA, test  "x$have_new_lustre_header" != "xtrue" )
 
         # this defines LVERSION and LPACKAGE variables
         if test -z "$LDIR" ; then

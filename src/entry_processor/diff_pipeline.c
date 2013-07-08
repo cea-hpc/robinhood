@@ -1125,6 +1125,7 @@ static int std_recover(lmgr_t * lmgr,
     }
 
 #ifdef _LUSTRE
+#ifndef _MDT_SPECIFIC_LOVEA
     if (diff_arg->lovea_file)
     {
         if (!ATTR_MASK_TEST(&new_attrs, fullpath))
@@ -1164,6 +1165,7 @@ static int std_recover(lmgr_t * lmgr,
             }
         }
     }
+#endif
 #endif
 
     /* insert the new entry to the DB */

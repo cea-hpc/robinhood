@@ -939,6 +939,7 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
     return buff;
 }
 
+#ifndef _MDT_SPECIFIC_LOVEA
 /**
  * build LOVEA buffer from stripe information
  * @return size of significant information in buffer.
@@ -1049,3 +1050,4 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
         return len;
     }
 }
+#endif
