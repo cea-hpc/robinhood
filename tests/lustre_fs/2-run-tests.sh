@@ -7002,12 +7002,13 @@ function test_changelog
     # a close, so we check whether all the close seen have been ignored.
     echo "3. Checking ignored records..."
     ignore_mark=$(grep -E "Ignoring event MARK" rh_scan.log | wc -l)
+    seen_mark=$(grep -E "ChangeLog.*00MARK" rh_scan.log | wc -l)
     ignore_creat=$(grep -E "Ignoring event CREAT" rh_scan.log | wc -l)
     seen_close=$(grep -E "ChangeLog.*11CLOSE" rh_scan.log | wc -l)
     ignore_close=$(grep -E "Ignoring event CLOSE" rh_scan.log | wc -l)
     ignore_sattr=$(grep -E "Ignoring event SATTR" rh_scan.log | wc -l)
 
-    (( $ignore_mark == 1 ))  || error "MARK record not ignored"
+    (( $seen_mark == $ignore_mark ))  || error "MARK record not ignored"
     (( $ignore_creat == 0 )) || error "CREATE record ignored"
     (( $seen_close == $ignore_close )) || error "CLOSE record not ignored"
     (( $ignore_sattr == 1 )) || error "SATTR record not ignored"
