@@ -223,7 +223,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
             conf->lru_sort_attr = ATTR_INDEX_last_access;
         else if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_MOD)))
             conf->lru_sort_attr = ATTR_INDEX_last_mod;
-#ifdef ATTR_INDEX_creation
+#ifdef ATTR_INDEX_creation_time
         else if (!strcasecmp(tmp, criteria2str(CRITERIA_CREATION)))
             conf->lru_sort_attr = ATTR_INDEX_creation_time;
 #endif
