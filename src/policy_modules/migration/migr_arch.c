@@ -284,6 +284,35 @@ static inline unsigned int ack_count( const unsigned int *status_tab )
     return sum;
 }
 
+static inline unsigned int skipped_count( const unsigned int *status_tab)
+{
+    int i;
+    unsigned int nb = 0;
+
+    /* skipped if it has changed, is whitelisted, matches no policy, is in use, already archiving,
+     * type not supported for archiving...
+     * i.e. status in MIGR_ENTRY_MOVED, MIGR_ENTRY_WHITELISTED, MIGR_STATUS_CHGD, MIGR_NO_POLICY,
+     * MIGR_BAD_TYPE, MIGR_BUSY, MIGR_ALREADY
+     */
+    for (i = MIGR_ENTRY_MOVED ; i <= MIGR_ALREADY; i++)
+        nb += status_tab[i];
+
+    return nb;
+}
+
+static inline unsigned int error_count( const unsigned int *status_tab)
+{
+    int i;
+    unsigned int nb = 0;
+
+    /* next status are errors */
+    for (i = MIGR_PARTIAL_MD ; i <= MIGR_ERROR; i++)
+        nb += status_tab[i];
+
+    return nb;
+}
+
+
 /* return 0 if limit is not reached, a non null value else */
 static inline int check_migration_limit( unsigned int count, unsigned long long vol,
                                          int verbose )
@@ -371,7 +400,6 @@ static void report_progress(const unsigned long long * pass_begin, const unsigne
     unsigned long migr_vol = migration_info.migr_vol;
     unsigned int nb_skipped = migration_info.skipped;
     unsigned int nb_errors = migration_info.errors;
-    int i;
 
     /* add stats for the current pass */
     if (pass_begin && pass_current)
@@ -381,17 +409,10 @@ static void report_progress(const unsigned long long * pass_begin, const unsigne
     }
     if (status_tab_begin && status_tab_current)
     {
-        /* skipped if it has changed, is whitelisted, matches no policy, is in use, already archiving,
-         * type not supported for archiving...
-         * i.e. status in MIGR_ENTRY_MOVED, MIGR_ENTRY_WHITELISTED, MIGR_STATUS_CHGD, MIGR_NO_POLICY,
-         * MIGR_BAD_TYPE, MIGR_BUSY, MIGR_ALREADY
-         */
-        for (i = MIGR_ENTRY_MOVED ; i <= MIGR_ALREADY; i++)
-            nb_skipped += status_tab_current[i] - status_tab_begin[i];
-
-        /* these statuses are more erroneous */
-        for (i = MIGR_PARTIAL_MD ; i <= MIGR_ERROR; i++)
-            nb_errors += status_tab_current[i] - status_tab_begin[i];
+        nb_skipped = skipped_count(status_tab_current)
+                        - skipped_count(status_tab_begin);
+        nb_errors = error_count(status_tab_current)
+                        - error_count(status_tab_begin);
     }
 
     /* say hello every runtime interval */
@@ -543,6 +564,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     unsigned long long feedback_after[MIGR_FDBK_COUNT];
 
     unsigned int   status_tab[MIGR_ST_COUNT];
+    unsigned int   status_tab_sav[MIGR_ST_COUNT];
 
     unsigned int   nb_submitted;
     unsigned long  submitted_vol;
@@ -777,6 +799,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
          */
         RetrieveQueueStats( &migr_queue, NULL, NULL, NULL, NULL, NULL,
                             status_tab, feedback_before );
+        memcpy(status_tab_sav, status_tab, sizeof(status_tab_sav));
 
         submitted_vol = 0;
         nb_submitted = 0;
@@ -925,6 +948,8 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         /* add stats for this pass */
         migration_info.migr_vol += feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL];
         migration_info.migr_count += feedback_after[MIGR_FDBK_NBR] - feedback_before[MIGR_FDBK_NBR];
+        migration_info.skipped += skipped_count(status_tab) - skipped_count(status_tab_sav);
+        migration_info.errors += error_count(status_tab) - error_count(status_tab_sav);
 
         /* if getnext returned an error */
         if ( rc )
