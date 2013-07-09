@@ -37,6 +37,10 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
     conf->db_request_limit = 10000;
     conf->max_migr_nbr = 0;
     conf->max_migr_vol = 0;
+
+    conf->suspend_error_min = 0;
+    conf->suspend_error_pct = 0.0;
+
     conf->lru_sort_attr = ATTR_INDEX_last_mod;
 
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
@@ -60,6 +64,8 @@ int Write_Migration_ConfigDefault( FILE * output )
     print_line( output, 1, "max_migration_count   : unlimited (0)" );
     print_line( output, 1, "max_migration_volume  : unlimited (0)" );
     print_line( output, 1, "migration_timeout     : 2h" );
+    print_line( output, 1, "suspend_error_pct     : disabled (0)" );
+    print_line( output, 1, "suspend_error_min     : disabled (0)" );
     print_line( output, 1, "pre_maintenance_window: 24h" );
     print_line( output, 1, "maint_migr_delay_min  : 30min" );
     print_line( output, 1, "lru_sort_attr         : last_mod" );
@@ -100,6 +106,10 @@ int Write_Migration_ConfigTemplate( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "# cancel migration pass after 2h of inactivity" );
     print_line( output, 1, "migration_timeout     = 2h ;" );
+    fprintf( output, "\n" );
+    print_line(output, 1, "# suspend current migration if 50%% of copies fail (after 100 errors)");
+    print_line(output, 1, "suspend_error_pct = 50%% ;");
+    print_line(output, 1, "suspend_error_min = 100 ;");
     fprintf( output, "\n" );
     print_line( output, 1, "# sort order for applying migration policy" );
     print_line( output, 1, "lru_sort_attr         = last_mod ;" );
@@ -158,7 +168,7 @@ int Read_Migration_Config( config_file_t config, void *module_config,
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
         "backup_new_files",
 #endif
-        "lru_sort_attr",
+        "suspend_error_min", "suspend_error_pct", "lru_sort_attr",
         "recheck_ignored_classes", "check_copy_status_on_startup",
         "check_copy_status_delay", "migration_timeout",
         "nb_threads_migration", "migration_queue_size", "db_result_size_max",
@@ -284,6 +294,18 @@ int Read_Migration_Config( config_file_t config, void *module_config,
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
+    rc = GetFloatParam(param_block, MIGR_PARAM_BLOCK, "suspend_error_pct",
+                       FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &conf->suspend_error_pct,
+                       NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+
+    rc = GetIntParam(param_block, MIGR_PARAM_BLOCK, "suspend_error_min",
+                     INT_PARAM_POSITIVE, (int *)&conf->suspend_error_min,
+                     NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+
     rc = GetDurationParam( param_block, MIGR_PARAM_BLOCK, "pre_maintenance_window",
                            INT_PARAM_POSITIVE, &intval, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
@@ -399,6 +421,22 @@ int Reload_Migration_Config( void *module_config )
                     ( unsigned int ) migr_config.check_copy_status_delay,
                     ( unsigned int ) conf->check_copy_status_delay );
         migr_config.check_copy_status_delay = conf->check_copy_status_delay;
+    }
+
+    if ( migr_config.suspend_error_pct != conf->suspend_error_pct )
+    {
+        DisplayLog( LVL_EVENT, MIGRCFG_TAG, MIGR_PARAM_BLOCK
+                    "::suspend_error_pct updated: %.2f->%.2f",
+                    migr_config.suspend_error_pct, conf->suspend_error_pct );
+        migr_config.suspend_error_pct = conf->suspend_error_pct;
+    }
+
+    if ( migr_config.suspend_error_min != conf->suspend_error_min )
+    {
+        DisplayLog( LVL_EVENT, MIGRCFG_TAG, MIGR_PARAM_BLOCK
+                    "::suspend_error_min updated: %u->%u",
+                    migr_config.suspend_error_min, conf->suspend_error_min );
+        migr_config.suspend_error_min = conf->suspend_error_min;
     }
 
     if ( migr_config.pre_maintenance_window != conf->pre_maintenance_window )
