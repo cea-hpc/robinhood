@@ -315,8 +315,10 @@ static inline unsigned int error_count( const unsigned int *status_tab)
 
 /* return 0 if limit is not reached, a non null value else */
 static inline int check_migration_limit( unsigned int count, unsigned long long vol,
-                                         int verbose )
+                                         unsigned int errors, int verbose )
 {
+    unsigned int total = count + errors;
+
     if ( no_limit )
         return 0;
 
@@ -332,6 +334,23 @@ static inline int check_migration_limit( unsigned int count, unsigned long long 
                     "max migration volume %llu is reached.", migr_config.max_migr_vol);
         return 1;
     }
+
+    if ((migr_config.suspend_error_pct > 0.0)
+        && (migr_config.suspend_error_min > 0)
+        && (errors >= migr_config.suspend_error_min))
+    {
+        /* total >= errors >= suspend_error_min  > 0 */
+        double pct = 100.0 * (float)errors/(float)total;
+        if (pct >= migr_config.suspend_error_pct)
+        {
+            DisplayLog(verbose ? LVL_EVENT : LVL_DEBUG, MIGR_TAG,
+                       "error count %u >= %u, error rate %.2f%% >= %.2f => suspending migration",
+                       errors, migr_config.suspend_error_min,
+                       pct, migr_config.suspend_error_pct);
+            return 1;
+        }
+    }
+
     return 0;
 }
 
@@ -938,8 +957,10 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
             }
 
         }
-        while ( !check_migration_limit( nb_submitted + migration_info.migr_count,
-                                        submitted_vol + migration_info.migr_vol, FALSE ) );
+        while (!check_migration_limit(nb_submitted + migration_info.migr_count,
+                                      submitted_vol + migration_info.migr_vol,
+                                      error_count(status_tab) - error_count(status_tab_sav)
+                                      +  migration_info.errors, FALSE));
 
         /* Wait for end of migration pass */
         wait_queue_empty( nb_submitted, feedback_before, status_tab,
@@ -955,8 +976,9 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         if ( rc )
             break;
     }
-    while ( (!end_of_list) &&
-            !check_migration_limit(migration_info.migr_count, migration_info.migr_vol, TRUE ));
+    while ((!end_of_list) && !check_migration_limit(migration_info.migr_count,
+                                                    migration_info.migr_vol,
+                                                    migration_info.errors, TRUE ));
 
     lmgr_simple_filter_free( &filter );
     ListMgr_CloseIterator( it );

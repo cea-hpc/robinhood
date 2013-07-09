@@ -37,6 +37,11 @@ typedef struct migration_config_t
     time_t         pre_maintenance_window;
     time_t         maint_min_migr_delay;
 
+    /* min error percentage to suspend current migration (0=disable) */
+    double         suspend_error_pct;
+    /* min error count to suspend current migration (0=disable) */
+    unsigned int   suspend_error_min;
+
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     unsigned int   lru_sort_attr;
 
