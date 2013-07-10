@@ -61,14 +61,11 @@ robinhood_task_t *CreateTask(  )
 
     if ( p_task != NULL )
     {
+        /* zero all fields */
         memset( p_task, 0, sizeof( robinhood_task_t ) );
 
-        /* initialization of child task list */
+        /* initialize spin lock */
         pthread_spin_init( &p_task->child_list_lock, 0 );
-
-        p_task->child_list = NULL;
-        p_task->task_finished = FALSE;
-
     }
 
     return p_task;

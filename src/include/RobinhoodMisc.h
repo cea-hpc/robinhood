@@ -234,7 +234,7 @@ int            Get_pool_usage( const char *poolname, struct statfs *pool_statfs 
 
 #ifdef _MDS_STAT_SUPPORT
 /** Retrieve file information from MDS */
-int lustre_mds_stat( char *fullpath, DIR * parent, struct stat *inode );
+int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode);
 #ifdef _HAVE_FID
 int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode );
 #endif

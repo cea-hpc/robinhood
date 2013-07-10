@@ -558,113 +558,198 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
 
 }                               /* RecursiveTaskTermination */
 
-
-
-/* process a filesystem entry */
-#ifndef _NO_AT_FUNC
-static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task, char *entry_name, int parentfd )
-#else
-static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task, char *entry_name, DIR * parent )
-#endif
+static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev, const char *path, int is_root)
 {
-    char           entry_path[RBH_PATH_MAX];
-    struct stat    inode;
-    int            st;
-
-    /* build absolute path */
-    snprintf( entry_path, RBH_PATH_MAX, "%s/%s", p_task->path, entry_name );
-
-    /* retrieve information about the entry (to know if it's a directory or something else) */
-#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    if ( is_lustre_fs && global_config.direct_mds_stat )
-    {
-        st = lustre_mds_stat( entry_path, parent, &inode );
-        if ( st ) return st;
-        /* device id is not the one seen by client: change it */
-        inode.st_dev = fsdev;
-    }
-    else
-#endif
-#ifndef _NO_AT_FUNC
-    if ( fstatat( parentfd, entry_name, &inode, AT_SYMLINK_NOFOLLOW) == -1 )
-#else
-    if ( lstat( entry_path, &inode ) == -1 )
-#endif
-    {
-        DisplayLog( LVL_MAJOR, FSSCAN_TAG,
-                    "lstat on %s failed: Error %d: %s: entry ignored",
-                    entry_path, errno, strerror( errno ) );
-        return errno;
-    }
-
-    /* Test if entry or directory is ignored */
-    if ( ignore_entry( entry_path, entry_name, p_task->depth, &inode ) )
-    {
-        DisplayLog( LVL_DEBUG, FSSCAN_TAG, "%s matches an 'ignore' rule. Skipped.", entry_path );
-        return 0;
-    }
-
     /* Check that the entry is on the same device as the filesystem we manage.
      * (prevent from mountpoint traversal).
      */
-    if ( inode.st_dev != fsdev )
+    if (entry_dev != *root_dev)
     {
         struct stat root_md;
         /* is the FS root changed: file system may have been remounted.
          * else: the entry is not in the same filesystem
          */
-        /* 1) check fs root dev_id */
-        if (stat( global_config.fs_path, &root_md ) == -1)
+        /* 1) check fs root dev_id (use stat as FS mount point maybe a symlink) */
+        if (stat(global_config.fs_path, &root_md) == -1)
         {
             int rc = -errno;
-            DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                        "stat failed on %s: %s", global_config.fs_path, strerror(-rc) );
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR accessing FileSystem: EXITING." );
-            Exit( rc );
+            DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                       "stat failed on %s: %s", global_config.fs_path, strerror(-rc));
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "ERROR accessing FileSystem: EXITING.");
+            Exit(rc);
         }
-        if (root_md.st_dev != fsdev)
+        if (root_md.st_dev != *root_dev)
         {
             /* manage dev id change after umount/mount */
-            DisplayLog( LVL_MAJOR, FSSCAN_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
-                        "checking if it has been remounted", fsdev, root_md.st_dev );
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG,
+                       "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
+                       "checking if it has been remounted", *root_dev, root_md.st_dev);
             if (ResetFS())
             {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG, "Filesystem was unmounted!!! EXITING!" );
-                Exit( 1 );
+                DisplayLog(LVL_CRIT, FSSCAN_TAG, "Filesystem was unmounted!!! EXITING!");
+                Exit(1);
             }
-            /* update current fsdev */
-            fsdev = get_fsdev();
+            /* update current root_dev */
+            *root_dev = get_fsdev();
         }
         /* else: root is still the same */
 
-        /* inode.st_dev == fsdev => OK: the entry is in the root filesystem */
-        if (inode.st_dev != fsdev)
+        /* entry_dev == *root_dev => OK: the entry is in the root filesystem */
+        if (entry_dev != *root_dev)
         {
-           if (global_config.stay_in_fs)
-           {
-               DisplayLog( LVL_CRIT, FSSCAN_TAG,
+            /* if new root dev != just retrieved root dev
+             * a remount occured while we were checking.
+             * Return error so the caller update its dev.
+             */
+            if (is_root)
+                return -1;
+
+            if (global_config.stay_in_fs)
+            {
+                DisplayLog(LVL_CRIT, FSSCAN_TAG,
                            "%s (0x%.8"PRI_DT") is in a filesystem different from root (0x%.8"
-                           PRI_DT "), entry ignored", entry_path, inode.st_dev, fsdev );
-               return -1;
-           }
-           else
-           {
-               /* TODO: what fs_key for this entry??? */
-               DisplayLog( LVL_DEBUG, FSSCAN_TAG,
+                           PRI_DT "), entry ignored", path, entry_dev, *root_dev);
+                return -1;
+            }
+            else
+            {
+                /* TODO: what fs_key for this entry??? */
+                DisplayLog(LVL_DEBUG, FSSCAN_TAG,
                            "%s (0x%.8"PRI_DT") is in a filesystem different from root (0x%.8"
                            PRI_DT "), but 'stay_in_fs' parameter is disabled: processing entry anyhow",
-                           entry_path, inode.st_dev, fsdev );
-           }
+                           path, entry_dev, *root_dev);
+            }
         }
     }
+    return 0;
+}
+
+static inline int get_dirid(const char *path, struct stat *st, entry_id_t *id)
+{
+#ifdef _HAVE_FID
+    int rc;
+    rc = Lustre_GetFidFromPath(path, id);
+    if (rc)
+        DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                   "Skipping %s because its FID couldn't be resolved",
+                   path);
+    return rc;
+#else
+    id->inode = st->st_ino;
+    id->fs_key = get_fskey();
+    id->validator = st->st_ctime;
+    return 0;
+#endif
+}
+
+static int create_child_task(const char *childpath, struct stat *inode, robinhood_task_t *parent)
+{
+    robinhood_task_t *p_task;
+    int rc = 0;
+
+    p_task = CreateTask();
+
+    if (p_task == NULL)
+    {
+        DisplayLog(LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: task creation failed");
+        return -1;
+    }
+
+    p_task->parent_task = parent;
+    strncpy(p_task->path, childpath, RBH_PATH_MAX);
+    
+    /* set parent id */
+    if ((rc = get_dirid(childpath, inode, &p_task->dir_id)))
+        goto out_free;
+
+    p_task->dir_md = *inode;
+    p_task->depth = parent->depth + 1;
+    p_task->task_finished = FALSE;
+
+    /* add the task to the parent's subtask list */
+    AddChildTask(parent, p_task);
+
+    /* insert task to the stack */
+    InsertTask_to_Stack(&tasks_stack, p_task);
+    return 0;
+
+out_free:
+    FreeTask(p_task);
+    return rc;
+}
+
+static int stat_entry(const char *path, const char *name, int parentfd, struct stat *inode)
+{
+#ifndef _NO_AT_FUNC
+    if (parentfd != -1) /* if called for a directory between root and partial_scan_root */
+    {
+        if (fstatat(parentfd, name, inode, AT_SYMLINK_NOFOLLOW) == -1)
+            return -errno;
+    }
+    else
+#endif
+#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
+    if (is_lustre_fs && global_config.direct_mds_stat)
+    {
+        int rc;
+        rc = lustre_mds_stat(path, parentfd, inode);
+        if (!rc)
+            /* device id is not the one seen by client: change it */
+            inode->st_dev = fsdev;
+        return rc;
+    }
+    else
+#endif
+    if (lstat(path, inode) == -1)
+        return -errno;
+
+    return 0;
+}
+
+/* process a filesystem entry */
+static int process_one_entry(thread_scan_info_t *p_info,
+                             robinhood_task_t *p_task,
+                             char *entry_name, int parentfd)
+{
+    char           entry_path[RBH_PATH_MAX];
+    struct stat    inode;
+    int            rc = 0;
+
+    /* build absolute path */
+    snprintf(entry_path, RBH_PATH_MAX, "%s/%s", p_task->path, entry_name);
+
+    /* retrieve information about the entry (to know if it's a directory or something else) */
+    rc = stat_entry(entry_path, entry_name, parentfd, &inode);
+    if (rc)
+    {
+        DisplayLog(LVL_MAJOR, FSSCAN_TAG,
+                   "failed to stat %s (%s): entry ignored",
+                   entry_path, strerror(-rc));
+        return rc;
+    }
+
+    /* Test if entry or directory is ignored */
+    if (ignore_entry(entry_path, entry_name, p_task->depth, &inode))
+    {
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "%s matches an 'ignore' rule. Skipped.", entry_path);
+        return 0;
+    }
+
+    if (check_entry_dev(inode.st_dev, &fsdev, entry_path, FALSE))
+        return 0; /* not considered as an error */
 
     /* Push all entries except dirs to the pipeline.
      * Note: directories are pushed in Thr_scan(), after the closedir() call.
      */
-    if ( !S_ISDIR( inode.st_mode ) )
+    if (S_ISDIR(inode.st_mode))
+    {
+        rc = create_child_task(entry_path, &inode, p_task);
+        if (rc)
+            return rc;
+    }
+    else
     {
         entry_proc_op_t * op;
-        int rc;
 
         op = EntryProcessor_Get( );
         if (!op) {
@@ -757,45 +842,308 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
 #endif
 
     }
-    else if ( S_ISDIR( inode.st_mode ) )
-    {
-
-        robinhood_task_t *p_scan_task;
-
-        /* create a scan task for this directory */
-        p_scan_task = CreateTask(  );
-
-        if ( p_scan_task == NULL )
-        {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: task creation failed" );
-            return -1;
-        }
-
-        p_scan_task->parent_task = p_task;
-        strncpy( p_scan_task->path, entry_path, RBH_PATH_MAX );
-        /* set parent id */
-#ifdef _HAVE_FID
-        st = Lustre_GetFidFromPath( entry_path, &p_scan_task->dir_id );
-        if (st)
-            return st;
-#else
-        p_scan_task->dir_id.inode = inode.st_ino;
-        p_scan_task->dir_id.fs_key = get_fskey();
-        p_scan_task->dir_id.validator = inode.st_ctime;
-#endif
-        p_scan_task->dir_md = inode;
-        p_scan_task->depth = p_task->depth + 1;
-        p_scan_task->task_finished = FALSE;
-
-        /* add the task to the parent's subtask list */
-        AddChildTask( p_task, p_scan_task );
-
-        /* insert task to the stack */
-        InsertTask_to_Stack( &tasks_stack, p_scan_task );
-    }
 
     return 0;
+}
 
+/* directory specific types and accessors */
+#ifndef _NO_AT_FUNC
+#define GETDENTS_BUF_SZ 4096
+#define DIR_T int
+#define DIR_FD(_d) (_d)
+#define DIR_ERR(_d) ((_d) < 0)
+#define OPENDIR_STR "open"
+#else
+#define DIR_T DIR*
+#define DIR_FD(_d) dirfd(_d)
+#define DIR_ERR(_d) ((_d) == NULL)
+#define OPENDIR_STR "opendir"
+#endif
+
+static inline DIR_T dir_open(const char *path)
+{
+#ifndef _NO_AT_FUNC
+    int dirfd = open(path, O_RDONLY | O_DIRECTORY | O_NOATIME);
+    /* opening with NOATIME may be forbiden for user,
+     * so try without it in case of failure */
+    if (dirfd < 0)
+        dirfd = open(path, O_RDONLY | O_DIRECTORY);
+    return dirfd;
+#else
+    return opendir(path);
+#endif
+}
+
+static int process_one_dir(robinhood_task_t *p_task,
+                           thread_scan_info_t *p_info,
+                           unsigned int *nb_entries,
+                           unsigned int *nb_errors)
+{
+    DIR_T   dirp;
+#ifndef _NO_AT_FUNC
+    char              dirent_buf[GETDENTS_BUF_SZ];
+    struct dirent64  *direntry = NULL;
+#else
+    struct dirent  direntry;
+    struct dirent *cookie_rep;
+#endif
+    int     rc = 0;
+
+    (*nb_entries) = 0;
+
+    /* hearbeat before opendir */
+    p_info->last_action = time(NULL);
+
+    dirp = dir_open(p_task->path);
+    if (DIR_ERR(dirp))
+    {
+        rc = -errno;
+        DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                   OPENDIR_STR" failed on %s (%s)",
+                   p_task->path, strerror(-rc));
+        (*nb_errors)++;
+        return rc;
+    }
+
+    /* hearbeat before first readdir */
+    p_info->last_action = time(NULL);
+
+#ifndef _NO_AT_FUNC
+    /* scan directory entries by chunk of 4k */
+    direntry = (struct dirent64*)dirent_buf;
+    while ((rc = syscall(SYS_getdents64, dirp, direntry, GETDENTS_BUF_SZ)) > 0)
+    {
+       off_t bytepos;
+       struct dirent64 *dp;
+
+        /* notify current activity */
+        p_info->last_action = time(NULL);
+
+       for(bytepos = 0; bytepos < rc;)
+       {
+          dp = (struct dirent64 *)(dirent_buf + bytepos);
+          bytepos += dp->d_reclen;
+
+          /* break ASAP if requested */
+          if (p_info->force_stop)
+          {
+              DisplayLog(LVL_EVENT, FSSCAN_TAG, "Stop requested: "
+                         "cancelling directory scan operation "
+                         "(in '%s')", p_task->path);
+              return -ECANCELED;
+          }
+
+          if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, ".."))
+                continue;
+
+          (*nb_entries)++;
+
+          /* Handle filesystem entry. */
+          if (process_one_entry(p_info, p_task, dp->d_name, DIR_FD(dirp)))
+              (*nb_errors)++;
+        }
+    }
+    /* rc == 0 => end of dir */
+    if (rc < 0)
+    {
+        rc = errno;
+        DisplayLog(LVL_CRIT, FSSCAN_TAG, "ERROR reading directory %s (%s)",
+                   p_task->path, strerror(rc));
+        (*nb_errors)++;
+    }
+    if (rc != EBADF)
+        close(dirp);
+#else
+    /* read entries one by one */
+    while (1)
+    {
+        rc = readdir_r(dirp, &direntry, &cookie_rep);
+
+        /* notify current activity (for watchdog) */
+        p_info->last_action = time(NULL);
+
+        if ((rc == 0) && (cookie_rep == NULL))
+            /* end of directory */
+            break;
+        else if (p_info->force_stop)
+        {
+            DisplayLog(LVL_EVENT, FSSCAN_TAG,"Stop requested: "
+                       "cancelling directory scan operation (in '%s')",
+                       p_task->path);
+            return -ECANCELED;
+        }
+        else if (rc != 0)
+        {
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "ERROR reading directory %s (%s)",
+                       p_task->path, strerror(rc));
+            (*nb_errors)++;
+            break;
+        }
+
+        if (!strcmp( direntry.d_name, ".") || !strcmp(direntry.d_name, ".."))
+            continue;
+
+        (*nb_entries)++;
+
+#ifdef SIMUL_HANGS
+        /* simulate a hang */
+        sleep(20 * p_task->depth);
+#endif
+
+        /* Handle filesystem entry. */
+        if (process_one_entry(p_info, p_task, direntry.d_name, dirfd(dirp)))
+            (*nb_errors)++;
+
+    } /* end of dir */
+
+    if (rc != EBADF)
+        closedir(dirp);
+#endif
+    return rc;
+}
+
+static int process_one_task(robinhood_task_t *p_task,
+                            thread_scan_info_t *p_info,
+                            unsigned int *nb_entries,
+                            unsigned int *nb_errors)
+{
+    int rc;
+
+    /* if this is the root task, check that the filesystem is still mounted */
+    if (p_task->parent_task == NULL)
+    {
+        /* retrieve filesystem device id */
+        if (stat(p_task->path, &p_task->dir_md))
+        {
+            DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                       "stat failed on %s (%s)", p_task->path, strerror(errno));
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "Error accessing filesystem: exiting");
+            Exit(1);
+        }
+        if (check_entry_dev(p_task->dir_md.st_dev, &fsdev, p_task->path, TRUE))
+            p_task->dir_md.st_dev = fsdev; /* just updated */
+
+        rc = get_dirid(p_task->path, &p_task->dir_md, &p_task->dir_id);
+        if (rc)
+        {
+            (*nb_errors)++;
+            return rc;
+        }
+
+        /* test lock before starting scan */
+        TestLockFile(&p_info->last_action);
+    }
+
+    /* As long as the current task path is (strictly)
+     * upper than partial scan root: just lookup, no readdir */ 
+    if (partial_scan_root && (strlen(p_task->path) <
+                              strlen(partial_scan_root)))
+    {
+        char name[RBH_NAME_MAX+1];
+        const char *next_name, *next_slash;
+
+        /* check path */
+        if (strncmp(p_task->path, partial_scan_root, strlen(p_task->path)))
+        {
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "ERROR: %s is supposed to be under %s",
+                       partial_scan_root, p_task->path);
+            (*nb_errors)++;
+            return -EINVAL;
+        }
+
+        next_name = partial_scan_root + strlen(p_task->path);
+        while (*next_name == '/')
+            next_name++;
+        next_slash = strchr(next_name, '/');
+        if (next_slash)
+        {
+            strncpy(name, next_name, next_slash - next_name);
+            name[next_name - next_slash + 1] = '\0';
+        }
+        else
+            strcpy(name, next_name);
+
+        DisplayLog(LVL_FULL, FSSCAN_TAG, "Partial scan: processing '%s' in %s", name, p_task->path);
+        
+        rc = process_one_entry(p_info, p_task, name, -1);
+        if (rc)
+        {
+            (*nb_errors)++;
+            return rc;
+        }
+    }
+    else
+    {
+        /* read the directory and process each entry */
+        rc = process_one_dir(p_task, p_info, nb_entries, nb_errors);
+        if (rc)
+            return rc;
+    }
+
+    if (p_task->depth > 0)
+    {
+        /* Fill dir info and push it to the pileline for checking alerts on it,
+         * and possibly purge it if it is empty for a long time.
+         */
+        entry_proc_op_t * op;
+
+        op = EntryProcessor_Get();
+        if (!op) {
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: Failed to allocate a new op");
+            return -ENOMEM;
+        }
+
+        ATTR_MASK_INIT(&op->fs_attrs);
+
+        /* set entry ID */
+        op->entry_id = p_task->dir_id;
+        op->entry_id_is_set = TRUE;
+
+        /* Id already known */
+        op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
+
+        if (p_task->parent_task)
+        {
+            ATTR_MASK_SET(&op->fs_attrs, parent_id);
+            ATTR(&op->fs_attrs, parent_id) = p_task->parent_task->dir_id;
+        }
+
+        ATTR_MASK_SET(&op->fs_attrs, name);
+        strcpy(ATTR(&op->fs_attrs, name), basename(p_task->path));
+
+        ATTR_MASK_SET(&op->fs_attrs, fullpath);
+        strcpy(ATTR(&op->fs_attrs, fullpath), p_task->path);
+
+#ifdef ATTR_INDEX_invalid
+        ATTR_MASK_SET(&op->fs_attrs, invalid);
+        ATTR(&op->fs_attrs, invalid) = FALSE;
+#endif
+
+        ATTR_MASK_SET(&op->fs_attrs, depth);
+        ATTR(&op->fs_attrs, depth) = p_task->depth - 1;  /* depth(/tmp/toto) = 0 */
+
+        ATTR_MASK_SET(&op->fs_attrs, dircount);
+        ATTR(&op->fs_attrs, dircount) = *nb_entries;
+
+#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
+        PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat));
+#else
+        PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, TRUE);
+#endif
+        /* set update time  */
+        ATTR_MASK_SET(&op->fs_attrs, md_update);
+        ATTR_MASK_SET(&op->fs_attrs, path_update);
+        ATTR(&op->fs_attrs, md_update) = ATTR(&op->fs_attrs, path_update)
+            = time(NULL);
+
+        op->extra_info_is_set = FALSE;
+
+#ifndef _BENCH_SCAN
+        /* Push directory to the pipeline */
+        EntryProcessor_Push(op);
+#endif
+    }
+    return 0;
 }
 
 
@@ -805,326 +1153,65 @@ static int HandleFSEntry( thread_scan_info_t * p_info, robinhood_task_t * p_task
  * Thr_scan :
  * main routine for handling tasks.
  */
-static void   *Thr_scan( void *arg_thread )
+static void   *Thr_scan(void *arg_thread)
 {
-    int            st;
     robinhood_task_t *p_task;
-
-    struct stat    inode_entry;
     int            rc;
-#ifndef _NO_AT_FUNC
-#define GETDENTS_BUF_SZ 4096
-    int            dirfd;
-    char           dirent_buf[GETDENTS_BUF_SZ];
-    struct dirent64  *direntry = NULL;
-#else
-    DIR           *dirp;
-    struct dirent  direntry;
-    struct dirent *cookie_rep;
-#endif
 
     struct timeval start_dir;
     struct timeval end_dir;
     struct timeval diff;
 
-    thread_scan_info_t *p_info = ( thread_scan_info_t * ) arg_thread;
+    thread_scan_info_t *p_info = (thread_scan_info_t *)arg_thread;
 
     unsigned int   nb_entries = 0;
     unsigned int   nb_errors = 0;
 
     /* Initialize buddy management */
 #ifdef _BUDDY_MALLOC
-    if ( BuddyInit( &buddy_config ) )
+    if (BuddyInit(&buddy_config))
     {
-        DisplayLog( LVL_CRIT, FSSCAN_TAG, "Error Initializing Memory Management" );
-        Exit( 1 );
+        DisplayLog(LVL_CRIT, FSSCAN_TAG, "Error Initializing Memory Management");
+        Exit(1);
     }
 #endif
 
-    while ( !p_info->force_stop )
+    while (!p_info->force_stop)
     {
-        DisplayLog( LVL_FULL, FSSCAN_TAG, "ThrScan-%d: Waiting for a task", p_info->index );
+        int task_rc;
+
+        DisplayLog(LVL_FULL, FSSCAN_TAG, "ThrScan-%d: Waiting for a task", p_info->index);
 
         /* take a task from queue */
-        p_task = GetTask_from_Stack( &tasks_stack );
+        p_task = GetTask_from_Stack(&tasks_stack);
 
         /* skip it if the thread was requested to stop */
-        if ( p_info->force_stop )
+        if (p_info->force_stop)
             break;
 
         /* ERROR if NULL */
-        if ( p_task == NULL )
+        if (p_task == NULL)
         {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: GetTask_from_Stack returned NULL" );
-            Exit( 1 );
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: GetTask_from_Stack returned NULL");
+            Exit(1);
         }
 
         /* update thread info */
         p_info->current_task = p_task;
-        p_info->last_action = time( NULL );
+        p_info->last_action = time(NULL);
 
-        DisplayLog( LVL_FULL, FSSCAN_TAG,
-                    "ThrScan-%d: Processing %s (depth %u)",
-                    p_info->index, p_task->path, p_task->depth );
-
-        /* directory processing start time */
-        gettimeofday( &start_dir, NULL );
-
-        /* if this is the root task, check that the filesystem is still mounted */
-        if ( p_task->parent_task == NULL )
-        {
-            /* retrieve filesystem device id */
-            if ( stat( p_task->path, &inode_entry ) == -1 )
-            {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                            "stat failed on %s. Error %d", p_task->path, errno );
-                DisplayLog( LVL_CRIT, FSSCAN_TAG, "Error accessing filesystem: exiting" );
-                Exit( 1 );
-            }
-
-            if ( fsdev != inode_entry.st_dev )
-            {
-                /* manage dev id change after umount/mount */
-                DisplayLog( LVL_MAJOR, FSSCAN_TAG, "WARNING: Filesystem device id changed (old=%"PRI_DT", new=%"PRI_DT"): "
-                            "checking if it has been remounted", fsdev, inode_entry.st_dev );
-                if (ResetFS())
-                {
-                    DisplayLog( LVL_CRIT, FSSCAN_TAG, "Filesystem was unmounted!!! EXITING!" );
-                    Exit( 1 );
-                }
-                /* update current fsdev */
-                fsdev = get_fsdev();
-            }
-
-            /* set dir_md and dir_id */
-            p_task->dir_md = inode_entry;
-
-#ifdef _HAVE_FID
-            st = Lustre_GetFidFromPath( p_task->path, &p_task->dir_id );
-            if (st) {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                            "Skipping scan of %s because its FID couldn't be resolved",
-                            p_task->path );
-                p_info->entries_errors ++;
-
-                /* cancel the task */
-                st = RecursiveTaskTermination( p_info, p_task, FALSE );
-
-                if ( st )
-                {
-                    DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                                "CRITICAL ERROR: RecursiveTaskTermination returned %d", st );
-                    Exit( 1 );
-                }
-
-                /* back to "normal" life :-) */
-                continue;
-            }
-#else
-            p_task->dir_id.inode = inode_entry.st_ino;
-            p_task->dir_id.fs_key = get_fskey();
-            p_task->dir_id.validator = inode_entry.st_ctime;
-#endif
-
-            /* test lock before starting scan */
-            TestLockFile( &p_info->last_action );
-        }
-
-
-        /* open directory */
-
-#ifndef _NO_AT_FUNC
-        #define OPENDIR_STR "open"
-        dirfd = open(p_task->path, O_RDONLY | O_DIRECTORY | O_NOATIME);
-        if (dirfd < 0) /* try without NOATIME */
-            dirfd = open(p_task->path, O_RDONLY | O_DIRECTORY);
-        if (dirfd < 0)
-#else
-        #define OPENDIR_STR "opendir"
-        if ( ( dirp = opendir( p_task->path ) ) == NULL )
-#endif
-        {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                        OPENDIR_STR" on %s failed: Error %d: %s",
-                        p_task->path, errno, strerror( errno ) );
-
-            p_info->entries_errors ++;
-
-            /* cancel the task */
-            st = RecursiveTaskTermination( p_info, p_task, FALSE );
-
-            if ( st )
-            {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                            "CRITICAL ERROR: RecursiveTaskTermination returned %d", st );
-                Exit( 1 );
-            }
-
-            /* back to "normal" life :-) */
-            continue;
-        }                       /* opendir */
-
-
-        /* scan directory entries */
+        /* initialize error counters for current task */
         nb_entries = 0;
         nb_errors = 0;
 
-#ifndef _NO_AT_FUNC
-        /* scan directory entries by chunk of 4k */
-        p_info->last_action = time( NULL );
+        DisplayLog(LVL_FULL, FSSCAN_TAG,
+                   "ThrScan-%d: Processing %s (depth %u)",
+                   p_info->index, p_task->path, p_task->depth);
 
-        direntry = (struct dirent64*)dirent_buf;
-        while ((rc = syscall(SYS_getdents64, dirfd, direntry, GETDENTS_BUF_SZ)) > 0)
-        {
-           off_t bytepos;
-           struct dirent64 *dp;
+        /* measure task processing time */
+        gettimeofday(&start_dir, NULL);
 
-           for(bytepos = 0; bytepos < rc;)
-           {
-              dp = (struct dirent64 *)(dirent_buf + bytepos);
-              bytepos += dp->d_reclen;
-
-              /* break ASAP if requested */
-              if ( p_info->force_stop )
-              {
-                  DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation (in '%s')", p_task->path );
-                  goto end_task;
-              }
-
-              if (!strcmp( dp->d_name, "." ) || !strcmp( dp->d_name, ".." ))
-                    continue;
-              nb_entries++;
-
-              /* Handle filesystem entry.
-               * Don't manage return value (entry is ignored).
-               */
-              if ( HandleFSEntry( p_info, p_task, dp->d_name, dirfd ) != 0 )
-                  nb_errors++;
-            }
-        }
-        /* rc == 0 => end of dir */
-        if (rc < 0)
-        {
-            rc = errno;
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR %d reading directory '%s': %s",
-                        rc, p_task->path, strerror(rc) );
-            nb_errors++;
-        }
-        if ( rc != EBADF )
-            close( dirfd );
-
-#else
-        /* read entries one by one */
-
-        while ( 1 )
-        {
-            /* notify current activity (for watchdog) */
-            p_info->last_action = time( NULL );
-
-            rc = readdir_r( dirp, &direntry, &cookie_rep );
-
-            if ( rc == 0 && cookie_rep == NULL )
-                /* end of directory */
-                break;
-            else if ( p_info->force_stop )
-            {
-                DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop requested: cancelling directory scan operation (in '%s')", p_task->path );
-                goto end_task;
-            }
-            else if ( rc != 0 )
-            {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR %d reading directory '%s': %s",
-                            rc, p_task->path, strerror(rc) );
-                nb_errors++;
-                break;
-            }
-
-            if ( !strcmp( direntry.d_name, "." ) || !strcmp( direntry.d_name, ".." ) )
-                continue;
-
-            nb_entries++;
-
-#ifdef SIMUL_HANGS
-            /* simulate a hang */
-            sleep( 20 * p_task->depth );
-#endif
-
-            /* Handle filesystem entry.
-             * Don't manage return value (entry is ignored).
-             */
-            if ( HandleFSEntry( p_info, p_task, direntry.d_name, dirp ) != 0 )
-                nb_errors++;
-
-        } /* end of dir */
-
-        if ( rc != EBADF )
-            closedir( dirp );
-#endif
-
-        if ( p_task->depth > 0 )
-        {
-            /* Fill dir info and push it to the pileline for checking alerts on it,
-             * and possibly purge it if it is empty for a long time.
-             */
-
-            entry_proc_op_t * op;
-
-            op = EntryProcessor_Get( );
-            if (!op) {
-                DisplayLog( LVL_CRIT, FSSCAN_TAG, "CRITICAL ERROR: Failed to allocate a new op" );
-                return NULL;
-            }
-
-            ATTR_MASK_INIT( &op->fs_attrs );
-
-            /* set entry ID */
-            op->entry_id = p_task->dir_id;
-            op->entry_id_is_set = TRUE;
-
-            /* Id already known */
-            op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
-
-            if (p_task->parent_task)
-            {
-                ATTR_MASK_SET( &op->fs_attrs, parent_id );
-                ATTR( &op->fs_attrs, parent_id ) = p_task->parent_task->dir_id;
-            }
-
-            ATTR_MASK_SET( &op->fs_attrs, name );
-            strcpy( ATTR( &op->fs_attrs, name ), basename( p_task->path ) );
-
-            ATTR_MASK_SET( &op->fs_attrs, fullpath );
-            strcpy( ATTR( &op->fs_attrs, fullpath ), p_task->path );
-
-#ifdef ATTR_INDEX_invalid
-            ATTR_MASK_SET( &op->fs_attrs, invalid );
-            ATTR( &op->fs_attrs, invalid ) = FALSE;
-#endif
-
-            ATTR_MASK_SET( &op->fs_attrs, depth );
-            ATTR( &op->fs_attrs, depth ) = p_task->depth - 1;  /* depth(/tmp/toto) = 0 */
-
-            ATTR_MASK_SET( &op->fs_attrs, dircount );
-            ATTR( &op->fs_attrs, dircount ) = nb_entries;
-
-#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-            PosixStat2EntryAttr( &p_task->dir_md, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
-#else
-            PosixStat2EntryAttr( &p_task->dir_md, &op->fs_attrs, TRUE );
-#endif
-            /* set update time  */
-            ATTR_MASK_SET( &op->fs_attrs, md_update );
-            ATTR( &op->fs_attrs, md_update ) = time( NULL );
-            ATTR_MASK_SET( &op->fs_attrs, path_update );
-            ATTR( &op->fs_attrs, path_update ) = time( NULL );
-
-            op->extra_info_is_set = FALSE;
-
-#ifndef _BENCH_SCAN
-            /* Push directory to the pipeline */
-            EntryProcessor_Push( op );
-#endif
-        }
+        task_rc = process_one_task(p_task, p_info, &nb_entries, &nb_errors);
 
         gettimeofday( &end_dir, NULL );
         timersub( &end_dir, &start_dir, &diff );
@@ -1135,7 +1222,7 @@ static void   *Thr_scan( void *arg_thread )
         p_info->entries_errors += nb_errors;
 
         /* make an average on directory entries */
-        if ( nb_entries > 0)
+        if (nb_entries > 0)
         {
             unsigned int rest;
             p_info->last_processing_time.tv_sec = diff.tv_sec/nb_entries;
@@ -1143,17 +1230,16 @@ static void   *Thr_scan( void *arg_thread )
             p_info->last_processing_time.tv_usec = ((1000000 * rest ) + diff.tv_usec)/nb_entries;
         }
 
-        /* terminate and free current task */
-        st = RecursiveTaskTermination( p_info, p_task, TRUE );
-        if ( st )
+        /* terminate processing of current task */
+        rc = RecursiveTaskTermination(p_info, p_task, (task_rc == 0));
+        if (rc)
         {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG,
-                        "CRITICAL ERROR: RecursiveTaskTermination returned %d", st );
-            Exit( 1 );
+            DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                       "CRITICAL ERROR: RecursiveTaskTermination returned %d", rc);
+            Exit(1);
         }
     }
 
-end_task:
     p_info->current_task = NULL;
 
     /* check scan termination status */
@@ -1296,41 +1382,6 @@ void Robinhood_StopScanModule( void )
 
 }
 
-
-static unsigned int path_depth(const char * path)
-{
-    const char     *curr;
-    unsigned int   nb1;
-    unsigned int   nb2;
-    /* depth = number of '/' - 1 - depth of root fs.
-     * E.g.: root="/mnt/lustre", path="/mnt/lustre/dir/foo", depth=4-2-1=1
-     */
-
-    nb1 = 0;
-    curr = global_config.fs_path;
-    while ( ( curr = strchr( curr, '/' ) ) )
-    {
-        curr++;
-        nb1++;
-    }
-
-    nb2 = 0;
-    curr = path;
-    while ( ( curr = strchr( curr, '/' ) ) )
-    {
-        curr++;
-        nb2++;
-    }
-    /* decrease '/' count if the path ended with '/' */
-    unsigned int len = strlen(path);
-    if ((len > 1) && (path[len-1] == '/'))
-        nb2 --;
-
-    return nb2 - nb1 - 1;
-}
-
-
-
 /* Start a scan of the filesystem.
  * This creates a root task and push it to the stack of tasks.
  * @param partial_root NULL for full scan; subdir path for partial scan
@@ -1360,7 +1411,6 @@ static int StartScan( void )
     }
 
     /* create a root task */
-
     p_parent_task = CreateTask(  );
 
     if ( p_parent_task == NULL )
@@ -1381,17 +1431,11 @@ static int StartScan( void )
                         partial_scan_root, global_config.fs_path );
             return -1;
         }
-        strcpy( p_parent_task->path, partial_scan_root );
     }
-    else
-        strcpy( p_parent_task->path, global_config.fs_path );
 
-    if (partial_scan_root)
-        /* depth of task /mnt/foo as depth entries in it /mnt are 0 */
-        p_parent_task->depth = path_depth(partial_scan_root) + 1;
-    else
-        p_parent_task->depth = 0;
-
+    /* always start at the root to get info about parent dirs */
+    strcpy(p_parent_task->path, global_config.fs_path);
+    p_parent_task->depth = 0;
     p_parent_task->task_finished = FALSE;
 
     /* set the mother task, and remember start time */

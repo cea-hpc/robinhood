@@ -788,7 +788,7 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
 /* This code is an adaptation of llapi_mds_getfileinfo() in liblustreapi.
  * It is unused for now, but could be useful when SOM will be implemented.
  */
-int lustre_mds_stat( char *fullpath, DIR * parent, struct stat *inode )
+int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode)
 {
     /* this buffer must be large enough for handling filename */
     char           buffer[1024];
@@ -805,9 +805,9 @@ int lustre_mds_stat( char *fullpath, DIR * parent, struct stat *inode )
     if ( filename == NULL )
         filename = fullpath;
 
-    memset( lmd, 0, sizeof( buffer ) );
-    strncpy( buffer, filename, strlen( filename ) + 1 );
-    rc = ioctl( dirfd( parent ), IOC_MDC_GETFILEINFO, ( void * ) lmd );
+    memset(lmd, 0, sizeof(buffer));
+    strncpy(buffer, filename, strlen(filename) + 1);
+    rc = ioctl(parentfd, IOC_MDC_GETFILEINFO, (void *)lmd);
 
     if ( rc )
     {
