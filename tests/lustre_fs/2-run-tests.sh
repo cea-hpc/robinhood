@@ -623,6 +623,109 @@ function test_rmdir
 	fi
 }
 
+function test_lru_policy 
+{
+	config_file=$1
+	expected_migr_1=$2
+	expected_migr_2=$3
+    sleep_time=$4
+	policy_str="$5"
+
+    nb_expected_migr_1=$(echo $expected_migr_1 | wc -w)
+    nb_expected_migr_2=$(echo $expected_migr_2 | wc -w)
+    cr_sleep=5
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# create test tree with 10 files 
+    # time | files         |  0   1   2   3   4   5   6   7   8   9
+    # -------------------------------------------------------------
+    #  0   | creation      |  x   x   x   x                         
+    #  5s  | creation      |                  x   x   x   x   x   x
+    # 10s  | modification  |          x   x   x       x   x
+    # 15s  | access        |      x           x   x       x       
+    # 20s  | 1st archive   |  $expected_migr_1
+    # +$4  | 2nd archive   |  $expected_migr_2
+
+	echo "1-Creating test files..."
+    # creation times
+	echo -n "  Creating files 0 1 2 3, "
+	for i in {0..3}; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+	echo "sleeping $cr_sleep seconds..."
+    sleep $cr_sleep
+	echo -n "  Creating files 4 5 6 7 8 9, "
+	for i in {4..9}; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+	echo "sleeping $cr_sleep seconds..."
+    sleep $cr_sleep
+    # modification times
+	echo -n "  Modifying files 2 3 4 6 7, "
+	for i in 2 3 4 6 7; do
+	    echo "data" > $ROOT/file.$i || error "modifying file.$i"
+	done
+	echo "sleeping $cr_sleep seconds..."
+    sleep $cr_sleep
+    # update last access times
+	echo -n "  Reading files 1 4 5 7, "
+    for i in 1 4 5 7; do
+ 	    cat $ROOT/file.$i >/dev/null || error "reading file.$i"
+    done
+	echo "sleeping $cr_sleep seconds..."
+    sleep $cr_sleep
+
+	echo "2-Reading changelogs..."
+	# read changelogs
+    # TODO: creation time is different when scanning (ctime at discovery time) and when reading
+    # changelogs (changelog timestamp)
+	if (( $no_log )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	else
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+	fi
+    check_db_error rh_chglogs.log
+
+	echo "3-Applying migration policy ($policy_str)..."
+	# start a migration files should notbe migrated this time
+
+	$RH -f ./cfg/$config_file --migrate -l FULL -L rh_migr.log  --once || error ""
+
+	migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
+          awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    nb_migr=$(echo $migr | wc -w)
+	if [[ "$migr" != "$expected_migr_1" ]]; then
+        error "********** TEST FAILED: $nb_expected_migr_1 migration expected ${expected_migr_1:+(files $expected_migr_1)}, $nb_migr started ${migr:+(files $migr)}"
+	else
+		echo "OK: $nb_expected_migr_1 files migrated"
+	fi
+
+	echo "4-Sleeping $sleep_time seconds..."
+	sleep $sleep_time
+
+	echo "3-Applying migration policy again ($policy_str)..."
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once
+
+	migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
+          awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    nb_migr=$(echo $migr | wc -w)
+	if [[ "$migr" != "$expected_migr_2" ]]; then
+        error "********** TEST FAILED: $nb_expected_migr_2 migration expected ${expected_migr_2:+(files $expected_migr_2)}, $nb_migr started ${migr:+(files $migr)}"
+	else
+        echo "OK: $nb_migr files migrated"
+	fi
+
+}
+
+
+
 
 function xattr_test
 {
@@ -6610,10 +6713,16 @@ run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode
 run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 
-# TODO: test sort order by last_archive, last_mod, creation
+# test sort order by last_archive, last_mod, creation
 # check order of application
 # check request splitting, optimizations, ...
-
+run_test 219a test_lru_policy lru_sort_creation.conf "" "0 1 2 3" 20 "lru sort on creation"
+run_test 219b test_lru_policy lru_sort_mod.conf "" "0 1 5 8 9" 10 "lru sort on last_mod"
+run_test 219c test_lru_policy lru_sort_mod_2pass.conf "" "0 1 2 3 4 5 6 7 8 9" 30 "lru sort on last_mod in 2 pass"
+run_test 219d test_lru_policy lru_sort_access.conf "" "0 2 3 6 8 9" 20 "lru sort on last_access"
+# FIXME, last_archive condtion not ready yet
+run_test 219e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 "lru sort on last_archive"
+run_test 219f test_lru_policy lru_sort_arch_and_mod.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on last_mod and last_archive==0"
 	
 #### triggers ####
 
