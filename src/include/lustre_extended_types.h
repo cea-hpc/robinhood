@@ -45,6 +45,11 @@
 #include <lustre/lustreapi.h>
 #endif
 
+#ifndef LOV_MAX_STRIPE_COUNT
+/* in old lustre versions, this is not defined in lustre_user.h */
+#define LOV_MAX_STRIPE_COUNT 160
+#endif
+
 #ifndef DFID_NOBRACE
 #define DFID_NOBRACE SFID
 #endif

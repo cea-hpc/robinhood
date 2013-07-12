@@ -82,8 +82,11 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
             if ( p_lum->lmm_stripe_count > 0 )
             {
                 p_stripe_items->stripe =
-                    ( stripe_item_t * ) MemCalloc( p_lum->lmm_stripe_count,
-                                                    sizeof( stripe_item_t ) );
+                    (stripe_item_t *)MemCalloc(p_lum->lmm_stripe_count,
+                                               sizeof(stripe_item_t));
+
+                if (p_stripe_items->stripe == NULL)
+                    return -ENOMEM;
 
                 /* fill OST ids */
                 for ( i = 0; i < p_lum->lmm_stripe_count; i++ )
@@ -132,8 +135,11 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
             if ( p_lum3->lmm_stripe_count > 0 )
             {
                 p_stripe_items->stripe =
-                    ( stripe_item_t * ) MemCalloc( p_lum3->lmm_stripe_count,
-                                                   sizeof( stripe_item_t ) );
+                    (stripe_item_t *)MemCalloc(p_lum3->lmm_stripe_count,
+                                               sizeof(stripe_item_t));
+
+                if (p_stripe_items->stripe == NULL)
+                    return -ENOMEM;
 
                 /* fill OST ids */
                 for ( i = 0; i < p_lum3->lmm_stripe_count; i++ )
@@ -170,19 +176,23 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
     }
 }
 
+#define LUM_SIZE_MAX (sizeof(struct lov_user_md_v3) + (LOV_MAX_STRIPE_COUNT * sizeof(struct lov_user_ost_data_v1)))
 
 int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                           stripe_items_t * p_stripe_items )
 {
     int            rc;
-    char           lum_buffer[4096];
-    struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;
+    struct lov_user_md *p_lum;
 
     if ( !entry_path || !entry_path[0] )
         return -EFAULT;
 
-    memset( lum_buffer, 0, sizeof( lum_buffer ) );
-    rc = llapi_file_get_stripe( entry_path, p_lum );
+    p_lum = (struct lov_user_md *)MemAlloc(LUM_SIZE_MAX);
+    if (!p_lum)
+        return -ENOMEM;
+
+    memset(p_lum, 0, LUM_SIZE_MAX);
+    rc = llapi_file_get_stripe(entry_path, p_lum);
 
     if ( rc != 0 )
     {
@@ -194,10 +204,14 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
             DisplayLog( LVL_CRIT, TAG_STRIPE,
                         "Error %d getting stripe info for %s", rc,
                         entry_path );
-        return rc;
+        goto out_free;
     }
 
-    return fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
+    rc = fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
+
+out_free:
+    MemFree(p_lum);
+    return rc;
 }
 
 int File_GetStripeByDirFd( int dirfd, const char *fname,
