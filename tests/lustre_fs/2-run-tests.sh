@@ -749,6 +749,60 @@ function test_lru_policy
 
 }
 
+function test_suspend_on_error
+{
+	config_file=$1
+    sleep_time=$2
+	policy_str="$3"
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+    # must reach 50% error with at least 5 errors
+    nb_files_ok=5
+    nb_files_error=10 # must stop migrating before
+    # migrating by creation order, so create them in order
+    # to increase the error rate sightly
+    # and reach this condition before the whole migration is finished
+	echo "1-Creating test files..."
+	for i in $(seq 1 ${nb_files_ok}); do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+    sleep 1
+	for i in $(seq 1 ${nb_files_error}); do
+		dd if=/dev/zero of=$ROOT/file.$i.fail bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i.fail"
+	done
+
+    # read fs content
+	if (( $no_log )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	else
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+	fi
+    check_db_error rh_chglogs.log
+
+	echo "2-Sleeping $sleep_time sec..."
+    sleep $sleep_time
+
+	echo "3-Applying migration policy ($policy_str)..."
+
+	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
+
+    nb_fail_match=$(grep "hints='fail'" rh_migr.log | wc -l)
+    nb_ok_match=$(grep "<no_hints>" rh_migr.log | wc -l)
+
+    echo "$nb_fail_match failed copies, $nb_ok_match successful copies"
+    (($nb_ok_match == $nb_files_ok)) || error "expected $nb_files_ok successful copies (got $nb_ok_match)"
+    # migration should have been stopped before migrating all
+    (($nb_fail_match == $nb_files_error)) && error "migration should have stopped before migrating all"
+    grep "suspending migration" rh_migr.log || error "migration should have been suspended"
+}
+
 
 
 
@@ -7635,6 +7689,8 @@ run_test 220c test_lru_policy lru_sort_mod_2pass.conf "" "0 1 2 3 4 5 6 7 8 9" 3
 run_test 220d test_lru_policy lru_sort_access.conf "" "0 2 3 6 8 9" 20 "lru sort on last_access"
 run_test 220e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 "lru sort on last_archive"
 run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on creation and last_archive==0"
+
+run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too many errors"
 	
 #### triggers ####
 
