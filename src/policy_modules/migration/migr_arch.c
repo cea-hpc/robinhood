@@ -441,6 +441,8 @@ static void report_progress(const unsigned long long * pass_begin, const unsigne
         char buf2[128];
         char buf3[128];
         unsigned int spent = time(NULL) - migration_info.migr_start;
+        if (spent == 0)
+            return;
         FormatDuration(buf1, 128, spent);
         FormatFileSize(buf2, 128, migr_vol);
         FormatFileSize(buf3, 128, migr_vol/spent);
@@ -461,10 +463,10 @@ static int wait_queue_empty( unsigned int nb_submitted,
                              const unsigned long long * feedback_init,
                              const unsigned int * status_tab_init,
                              unsigned long long * feedback_after,
+                             unsigned int * status_tab_after,
                              int long_sleep )
 {
     unsigned int nb_in_queue, nb_migr_pending;
-    unsigned int   status_tab[MIGR_ST_COUNT];
 
     /* Wait for end of migration pass */
     do
@@ -474,14 +476,14 @@ static int wait_queue_empty( unsigned int nb_submitted,
 
         RetrieveQueueStats( &migr_queue, NULL, &nb_in_queue,
                             &last_push, &last_pop, &last_ack,
-                            status_tab, feedback_after );
+                            status_tab_after, feedback_after );
 
         /* the last time a request was pushed/poped/acknowledged */
         last_activity = MAX3( last_push, last_pop, last_ack );
 
         /* nb of migr operation pending = nb_enqueued - ( nb ack after - nb ack before ) */
-        nb_migr_pending = nb_submitted + ack_count( status_tab_init )
-                            - ack_count( status_tab );
+        nb_migr_pending = nb_submitted - (ack_count(status_tab_after)
+                                          - ack_count(status_tab_init));
 
         if ( ( nb_in_queue != 0 ) || ( nb_migr_pending != 0 ) )
         {
@@ -496,7 +498,7 @@ static int wait_queue_empty( unsigned int nb_submitted,
                 return ETIME;
             }
 
-            report_progress(feedback_init, feedback_after, status_tab_init, status_tab);
+            report_progress(feedback_init, feedback_after, status_tab_init, status_tab_after);
 
             DisplayLog( LVL_DEBUG, MIGR_TAG,
                         "Waiting for the end of this migr pass: "
@@ -519,6 +521,72 @@ static int wait_queue_empty( unsigned int nb_submitted,
     while ( ( nb_in_queue != 0 ) || ( nb_migr_pending != 0 ) );
 
     return 0;
+}
+
+/* check if enqueued entries reach the limit.
+ * If so, wait for a while to recheck after some entries have been processed.
+ * return if no more entries are pending,
+ *     or if the limit is not reached
+ *     or if the limit is definitely reached.
+ *  return != 0 if migration must stop, 0 else
+ */
+static int check_queue_limit(unsigned int nb_submitted,
+                             unsigned long long vol_submitted,
+                             const unsigned long long * feedback_before,
+                             const unsigned int *status_before)
+{
+    unsigned int nb_in_queue, nb_ok, nb_err, nb_sk, nb_pending;
+    unsigned long long vol_ok;
+    unsigned long long feedback_after[MIGR_FDBK_COUNT];
+    unsigned int   status_after[MIGR_ST_COUNT];
+    unsigned int delay = 10000; /* 10ms */
+#define DELAY_MAX   1000000 /* 1s */
+
+    do {
+        RetrieveQueueStats( &migr_queue, NULL, &nb_in_queue, NULL, NULL, NULL,
+                            status_after, feedback_after );
+        nb_ok = status_after[MIGR_OK] - status_before[MIGR_OK] + migration_info.migr_count;
+        vol_ok = feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL] + migration_info.migr_vol;
+        nb_err = error_count(status_after) - error_count(status_before) + migration_info.errors;
+        nb_sk = skipped_count(status_after) - skipped_count(status_before) + migration_info.skipped ;
+        nb_pending = nb_submitted - (ack_count(status_after) - ack_count(status_before));
+
+        /* 1) check the limit of acknowledged status
+         * 1 => stop
+         */
+        if (check_migration_limit(nb_ok, vol_ok, nb_err, FALSE))
+            return TRUE;
+
+        /* 2) queue is empty and limit is not reached */
+        /* nb of migr operation pending = nb_enqueued - ( nb ack after - nb ack before ) */
+        if (nb_pending == 0)
+        {
+            DisplayLog(LVL_FULL, MIGR_TAG, "queue is empty => continuing");
+            return FALSE;
+        }
+
+        /* check the potential limit of acknowledged + pending
+         * 0 => continue enqueuing
+         * 1 => wait and retry
+         */
+        DisplayLog(LVL_FULL, MIGR_TAG, "OK requests + pending = %u", nb_ok + nb_pending);
+        if (check_migration_limit(nb_ok + nb_pending, vol_submitted + migration_info.migr_vol,
+                                  nb_err, FALSE))
+        {
+            DisplayLog(LVL_DEBUG, MIGR_TAG,
+                       "Limit potentially reached (%u requests successful, %u requests in queue), "
+                       "wait %ums before re-checking.", nb_ok, nb_pending, delay/1000);
+            rh_usleep( delay );
+            delay *= 2;
+            if (delay > DELAY_MAX)
+                delay = DELAY_MAX;
+            continue;
+        }
+        else
+            return FALSE;
+    } while(1);
+    DisplayLog(LVL_CRIT, MIGR_TAG, "ERROR: unexpected case line %u in %s", __LINE__, __FILE__);
+    return TRUE;
 }
 
 /* indicates attributes to be retrieved from db */
@@ -582,14 +650,14 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     unsigned long long feedback_before[MIGR_FDBK_COUNT];
     unsigned long long feedback_after[MIGR_FDBK_COUNT];
 
-    unsigned int   status_tab[MIGR_ST_COUNT];
-    unsigned int   status_tab_sav[MIGR_ST_COUNT];
+    unsigned int   status_tab_before[MIGR_ST_COUNT];
+    unsigned int   status_tab_after[MIGR_ST_COUNT];
 
     unsigned int   nb_submitted;
     unsigned long  submitted_vol;
 
     int            last_sort_time = 0;
-    time_t         last_request_time = 0;
+    time_t         first_request_time = 0;
 
     int            attr_mask_sav;
     int            end_of_list = FALSE;
@@ -608,6 +676,11 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         *p_nb_migr = 0;
     if ( p_migr_vol )
         *p_migr_vol = 0;
+
+    memset(feedback_before, 0, sizeof(feedback_before));
+    memset(feedback_after, 0, sizeof(feedback_after));
+    memset(status_tab_before, 0, sizeof(status_tab_before));
+    memset(status_tab_after, 0, sizeof(status_tab_after));
 
     rc = init_db_attr_mask( &attr_set );
     if (rc)
@@ -804,7 +877,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     migration_info.migr_vol = 0;
     migration_info.skipped = 0;
     migration_info.errors = 0;
-    migration_info.last_report = migration_info.migr_start = last_request_time
+    migration_info.last_report = migration_info.migr_start = first_request_time
         = time(NULL);
 
     /* loop on all migration passes */
@@ -817,11 +890,14 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
          * for computing a delta later.
          */
         RetrieveQueueStats( &migr_queue, NULL, NULL, NULL, NULL, NULL,
-                            status_tab, feedback_before );
-        memcpy(status_tab_sav, status_tab, sizeof(status_tab_sav));
+                            status_tab_before, feedback_before );
 
         submitted_vol = 0;
         nb_submitted = 0;
+
+        /* reset after's */
+        memset(feedback_after, 0, sizeof(feedback_after));
+        memset(status_tab_after, 0, sizeof(status_tab_after));
 
         /* List entries for migration */
         do
@@ -869,10 +945,11 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                 ListMgr_CloseIterator( it );
 
                 /* we must wait that migr. queue is empty,
-                 * to avoid race conditions (by processing the same
-                 * entry twice */
-                wait_queue_empty( nb_submitted, feedback_before, status_tab,
-                                  feedback_after, FALSE );
+                 * to prevent from processing the same entry twice
+                 * (not safe until their md_update has not been updated).
+                 */
+                wait_queue_empty( nb_submitted, feedback_before, status_tab_before,
+                                  feedback_after, status_tab_after, FALSE );
 
                 /* perform a new request with next entries */
 
@@ -880,11 +957,11 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                  * only replace it, do not add a new filter.
                  */
 
-                /* don't retrieve just-updated entries 
-                 * (update>=last_request_time),
+                /* don't retrieve entries updated after the migration started
+                 * (update>=first_request_time),
                  * allow entries with md_update == NULL.
                  */
-                fval.val_int = last_request_time;
+                fval.val_int = first_request_time;
                 rc = lmgr_simple_filter_add_or_replace(&filter,
                                                        ATTR_INDEX_md_update,
                                                        LESSTHAN_STRICT, fval,
@@ -905,7 +982,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                             "Performing new request with a limit of %u entries"
                             " and %s >= %d and md_update < %ld ",
                             opt.list_count_max, sort_attr_name,
-                            last_sort_time, last_request_time );
+                            last_sort_time, first_request_time );
 
                 nb_returned = 0;
                 it = ListMgr_Iterator( lmgr, &filter, &sort_type, &opt );
@@ -918,8 +995,6 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                                 "database. Migration cancelled." );
                     return -1;
                 }
-                last_request_time = time( NULL );
-
                 continue;
             }
             else if ( rc != 0 )
@@ -955,22 +1030,18 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                     break;
                 }
             }
-
         }
-        while (!check_migration_limit(nb_submitted + migration_info.migr_count,
-                                      submitted_vol + migration_info.migr_vol,
-                                      error_count(status_tab) - error_count(status_tab_sav)
-                                      +  migration_info.errors, FALSE));
+        while (!check_queue_limit(nb_submitted, submitted_vol, feedback_before, status_tab_before));
 
         /* Wait for end of migration pass */
-        wait_queue_empty( nb_submitted, feedback_before, status_tab,
-                          feedback_after, TRUE );
+        wait_queue_empty( nb_submitted, feedback_before, status_tab_before,
+                          feedback_after, status_tab_after, TRUE );
 
         /* add stats for this pass */
         migration_info.migr_vol += feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL];
         migration_info.migr_count += feedback_after[MIGR_FDBK_NBR] - feedback_before[MIGR_FDBK_NBR];
-        migration_info.skipped += skipped_count(status_tab) - skipped_count(status_tab_sav);
-        migration_info.errors += error_count(status_tab) - error_count(status_tab_sav);
+        migration_info.skipped += skipped_count(status_tab_after) - skipped_count(status_tab_before);
+        migration_info.errors += error_count(status_tab_after) - error_count(status_tab_before);
 
         /* if getnext returned an error */
         if ( rc )

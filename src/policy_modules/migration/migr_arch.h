@@ -58,9 +58,11 @@ static const char __attribute__(( __unused__ )) *migr_status_descr[MIGR_ST_COUNT
     "bad type for migration",
     "entry is in use/busy",
     "migration already running",
+
     "incomplete metadata",
     "stat failure",
     "migration error",
+
     "migration aborted"
 };
 
