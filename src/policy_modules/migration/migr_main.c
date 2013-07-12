@@ -405,7 +405,6 @@ int MigrateSingle( migration_config_t * p_config, const char * file, int flags )
     migr_config = *p_config;
 
     return migrate_one_file( file, flags );
-
 }
 
 int Stop_Migration()
