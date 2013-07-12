@@ -21,9 +21,10 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <attr/xattr.h>
+#include <stdlib.h>
+#include <sys/param.h>
+
 #include "lustre_extended_types.h"
-#include "list_mgr.h"
-#include "RobinhoodMisc.h"
 
 static ssize_t hex2bin(const char * hex, void * buff)
 {
