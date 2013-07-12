@@ -297,7 +297,8 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
     else if (access(cfg_in, F_OK) == 0)
     {
         /* the specified config file exists */
-        strcpy(cfg_out, cfg_in);
+        if (cfg_out != cfg_in)
+            strcpy(cfg_out, cfg_in);
         *changed=0;
         return 0;
     }
