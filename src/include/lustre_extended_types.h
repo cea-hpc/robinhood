@@ -39,6 +39,11 @@
 #define DFID_NOBRACE SFID
 #endif
 
+#ifndef LOV_MAX_STRIPE_COUNT
+/* in old lustre versions, this is not defined in lustre_user.h */
+#define LOV_MAX_STRIPE_COUNT 160
+#endif
+
 /* missing prototypes in lustre1.8 */
 #if defined(HAVE_LLAPI_GETPOOL_INFO) && !defined(_HAVE_FID)
 extern int llapi_get_poollist(const char *name, char **poollist, int list_size,

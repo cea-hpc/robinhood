@@ -778,7 +778,7 @@ function test_suspend_on_error
     echo "$nb_fail_match failed copies, $nb_ok_match successful copies"
     (($nb_ok_match == $nb_files_ok)) || error "expected $nb_files_ok successful copies (got $nb_ok_match)"
     # migration should have been stopped before migrating all
-    (($nb_fail_match == $nb_files_error)) || error "migration should have stopped before migrating all"
+    (($nb_fail_match == $nb_files_error)) && error "migration should have stopped before migrating all"
     grep "suspending migration" rh_migr.log || error "migration should have been suspended"
 }
 

@@ -48,6 +48,8 @@ int Lustre_Init(  )
     return 0;
 }
 
+#define LUM_SIZE_MAX (sizeof(struct lov_user_md_v3) + (LOV_MAX_STRIPE_COUNT * sizeof(struct lov_user_ost_data_v1)))
+
 int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                           stripe_items_t * p_stripe_items )
 {
@@ -56,18 +58,20 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
      * in the case of join'ed files.
      */
     int            rc;
-    char           lum_buffer[4096];
-    struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;
+    struct lov_user_md *p_lum;
 #ifdef LOV_USER_MAGIC_V3
     struct lov_user_md_v3 *p_lum3;
 #endif
-
     unsigned int   i;
 
     if ( !entry_path || !entry_path[0] )
         return -EFAULT;
 
-    memset( lum_buffer, 0, sizeof( lum_buffer ) );
+    p_lum = (struct lov_user_md *)MemAlloc(LUM_SIZE_MAX);
+    if (!p_lum)
+        return -ENOMEM;
+
+    memset(p_lum, 0, LUM_SIZE_MAX);
     rc = llapi_file_get_stripe( entry_path, p_lum );
 
     if ( rc != 0 )
@@ -80,7 +84,7 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
             DisplayLog( LVL_CRIT, TAG_STRIPE,
                         "Error %d getting stripe info for %s", rc,
                         entry_path );
-        return rc;
+        goto out_free;
     }
 
     /* Check protocol version number */
@@ -103,6 +107,11 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                 p_stripe_items->stripe_units =
                     ( storage_unit_id_t * ) MemCalloc( p_lum->lmm_stripe_count,
                                                        sizeof( storage_unit_id_t ) );
+                if (p_stripe_items->stripe_units == NULL)
+                {
+                    rc = -ENOMEM;
+                    goto out_free;
+                }
 
                 /* fill OST ids */
                 for ( i = 0; i < p_lum->lmm_stripe_count; i++ )
@@ -116,8 +125,8 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
             }
         }
 
-        return 0;
-
+        rc = 0;
+        goto out_free;
     }
 #ifdef LOV_USER_MAGIC_V3
     else if ( p_lum->lmm_magic == LOV_USER_MAGIC_V3 )
@@ -141,6 +150,11 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
                 p_stripe_items->stripe_units =
                     ( storage_unit_id_t * ) MemCalloc( p_lum3->lmm_stripe_count,
                                                        sizeof( storage_unit_id_t ) );
+                if (p_stripe_items->stripe_units == NULL)
+                {
+                    rc = -ENOMEM;
+                    goto out_free;
+                }
 
                 /* fill OST ids */
                 for ( i = 0; i < p_lum3->lmm_stripe_count; i++ )
@@ -154,15 +168,20 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
             }
         }
 
-        return 0;
+        rc = 0;
+        goto out_free;
     }
 #endif
     else
     {
         DisplayLog( LVL_CRIT, TAG_STRIPE, "Unsupported Luster magic number for %s: %#X",
                     entry_path, p_lum->lmm_magic );
-        return -EINVAL;
+        rc = -EINVAL;
+        goto out_free;
     }
+out_free:
+    MemFree(p_lum);
+    return rc;
 }
 
 
