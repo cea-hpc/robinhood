@@ -713,6 +713,8 @@ function test_lru_policy
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
     check_db_error rh_chglogs.log
+    # md_update of entries must be > 0 for policy application
+    sleep 1
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -730,8 +732,10 @@ function test_lru_policy
 
 	echo "4-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
+    # empty log file to prevent from counting previous action twice
+    :> rh_migr.log
 
-	echo "3-Applying migration policy again ($policy_str)..."
+	echo "5-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once
 
 	migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
@@ -7630,7 +7634,7 @@ run_test 220b test_lru_policy lru_sort_mod.conf "" "0 1 5 8 9" 10 "lru sort on l
 run_test 220c test_lru_policy lru_sort_mod_2pass.conf "" "0 1 2 3 4 5 6 7 8 9" 30 "lru sort on last_mod in 2 pass"
 run_test 220d test_lru_policy lru_sort_access.conf "" "0 2 3 6 8 9" 20 "lru sort on last_access"
 run_test 220e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 "lru sort on last_archive"
-run_test 220f test_lru_policy lru_sort_arch_and_mod.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on last_mod and last_archive==0"
+run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on creation and last_archive==0"
 	
 #### triggers ####
 

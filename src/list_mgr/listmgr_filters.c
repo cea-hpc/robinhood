@@ -396,7 +396,6 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
                         boolexpr->node_type, __FUNCTION__ );
             return DB_INVALID_ARG;
     }
-
 }
 
 /** Convert simple expressions to ListMgr filter (append filter) */

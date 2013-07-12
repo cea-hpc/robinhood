@@ -409,6 +409,16 @@ int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
         *p_attr_index = ATTR_INDEX_last_archive;
         *p_compar = Policy2FilterComparator( oppose_compare( p_comp->op ) );
         p_value->value.val_uint = time(NULL) - p_comp->val.duration;
+
+        /* last_archive == 0 has a special meaning that file
+         * has never been archived */
+        if ((p_comp->op == COMP_EQUAL)
+            && (p_comp->val.duration == 0))
+        {
+            p_value->value.val_uint = 0;
+            /* Caller (append_simple_AND_expr) must also set ALLOW_NULL flag */
+        }
+
         break;
 #endif
 
