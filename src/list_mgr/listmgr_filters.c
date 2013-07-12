@@ -314,7 +314,7 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
             if ( boolexpr->content_u.bool_expr.expr1->node_type != NODE_CONDITION )
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
-        
+
             /* get info about condition */
             rc = CriteriaToFilter( boolexpr->content_u.bool_expr.expr1->content_u.condition,
                                    &index, &comp, &val, &must_free );
@@ -352,7 +352,6 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
             return lmgr_simple_filter_add_if_not_exist( filter, index, comp, val, flag );
 
             return TRUE;
-           
 
         case NODE_BINARY_EXPR:
             if ( boolexpr->content_u.bool_expr.bool_op == BOOL_AND )
@@ -371,7 +370,6 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
                         boolexpr->node_type, __FUNCTION__ );
             return DB_INVALID_ARG;
     }
-
 }
 
 /** Convert simple expressions to ListMgr filter (append filter) */
