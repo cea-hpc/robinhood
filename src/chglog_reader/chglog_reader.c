@@ -759,7 +759,7 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
         /* retrieve from the first unacknowledged record */
         unsigned long long last_rec = 0;
 
-        memset(&reader_info[i], 0, sizeof(sizeof( reader_thr_info_t )));
+        memset(&reader_info[i], 0, sizeof(reader_thr_info_t ));
 
         reader_info[i].thr_index = i;
         reader_info[i].last_report = time(NULL);
