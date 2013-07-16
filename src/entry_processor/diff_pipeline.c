@@ -742,23 +742,24 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (p_op->db_op_type != OP_TYPE_INSERT)
         ATTR_MASK_UNSET( &p_op->fs_attrs, creation_time );
 #endif
-    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
-
     /* Only keep fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
         /* XXX keep md_update to avoid removing the entry from DB:
+         * (the same for parent_id, name, path_update)
          * use DB tag instead?
+         * TODO: distinguish display mask from attr mask.
          */
-        int to_keep = ATTR_MASK_md_update;
-        /* keep path_update if fullpath is in diff_mask */
-        if (entry_proc_conf.diff_mask & ATTR_MASK_fullpath)
-            to_keep |= ATTR_MASK_path_update;
+        int to_keep = (ATTR_MASK_md_update | ATTR_MASK_parent_id
+                       | ATTR_MASK_name | ATTR_MASK_path_update)
+                      & p_op->fs_attrs.attr_mask;
 
         ListMgr_KeepDiff(&p_op->fs_attrs, &p_op->db_attrs);
 
-        /* keep only fields in diff_mask or to_keep */
-        p_op->fs_attrs.attr_mask &= (entry_proc_conf.diff_mask | to_keep);
+        /* keep only fields in diff_mask */
+        p_op->fs_attrs.attr_mask &= entry_proc_conf.diff_mask;
+        /* force initial mask we want to keep */
+        p_op->fs_attrs.attr_mask |= to_keep;
 
         /* nothing changed => noop */
         if (p_op->fs_attrs.attr_mask == 0)
@@ -884,6 +885,8 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
+
+    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
     if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
     {
@@ -1251,7 +1254,7 @@ int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 strcpy(tmp, ATTR(&p_op->fs_attrs, fullpath));
                 strcat(tmp, "/*");
                 val.value.val_str = tmp;
-                lmgr_simple_filter_add( &filter, ATTR_INDEX_fullpath, LIKE, val, 0 );
+                lmgr_simple_filter_add(&filter, ATTR_INDEX_fullpath, LIKE, val, FILTER_FLAG_ALLOW_NULL);
             }
 
             /* force commit after this operation */

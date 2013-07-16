@@ -3429,12 +3429,7 @@ function test_rename
         done
     fi
 
-    if [ "$flavor" = "partial" ] || [ "$flavor" = "diffpart" ]; then
-        # entries with no path may appear with partial scans
-        $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out || error "$REPORT"
-    else
-        $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
-    fi
+    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
     $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
@@ -3453,7 +3448,7 @@ function test_rename
 
         # The following test is not critical for partial scanning
         # In the worst case, the deleted entry remains in the archive.
-        if [ "$flavor" = "partial" ] || [ "$flavor" = "diffpart" ]; then
+        if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ]; then
             grep "\[$rmid\]" rh_report.log > /dev/null || echo "WARNING: $rmid should be in HSM rm list"
         else
             # in the other cases, raise an error
@@ -3673,7 +3668,7 @@ function test_hardlinks
     elif [ "$flavor" = "scan" ]; then
         echo "4. Scanning again..."
     	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
-    elif [ "$flavor" = "scan" ]; then
+    elif [ "$flavor" = "diff" ]; then
         echo "4. Diffing again..."
     	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     elif [ "$flavor" = "partial" ]; then
@@ -3696,12 +3691,7 @@ function test_hardlinks
         done
     fi
 
-    if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ] ; then
-        # entries with no path may appear with partial scans
-        $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out || error "$REPORT"
-    else
-        $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
-    fi
+    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
     $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
@@ -3726,7 +3716,7 @@ function test_hardlinks
 
             # The following test is not critical for partial scanning
             # In the worst case, the deleted entry remains in the archive.
-            if [ "$flavor" = "partial" ] || [ "$flavor" = "diffpart" ]; then
+            if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ]; then
                 grep "\[$f\]" rh_report.log > /dev/null || echo "WARNING: $f should be in HSM rm list"
             else
                 # in the other cases, raise an error

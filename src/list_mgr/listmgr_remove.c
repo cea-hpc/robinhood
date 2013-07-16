@@ -450,7 +450,6 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                  " WHERE %s", tmp_table_name, first_table, from, filter_str );
 
     /* apply filters on function return val */
-    /* FIXME it must also match entries whose path is null (no path) */
     func_filter(p_mgr, query + strlen(query), p_filter, query_tab, TRUE, TRUE);
 
     /* in autocommit mode, set the transaction level, just before the needed statement */

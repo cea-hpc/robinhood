@@ -775,10 +775,6 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
                 param1[0] = '\0';
                 param2[0] = '\0';
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL )
-                    /* not supported yet */
-                    abort();
-
                 /* add prefixes or parenthesis, etc. */
                 if ( leading_and || ( nb_fields > 0 ) )
                 {
@@ -826,9 +822,13 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
                             strcpy(param1, "parent_id");
                             strcpy(param2, "name");
                         }
+                        if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                            curr += sprintf(curr, "(");
                         curr += sprintf(curr, "this_path(%s,%s)%s%s", param1, param2,
                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
                                 val);
+                        if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                            curr += sprintf(curr, " OR this_path(%s,%s) IS NULL)", param1, param2);
                     }
                     else
                     {
@@ -837,9 +837,15 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
                         else
                             strcpy(param1, "id");
 
+                        if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                            curr += sprintf(curr, "(");
+
                         curr += sprintf(curr, "one_path(%s)%s%s", param1,
                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
                                 val);
+
+                        if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                            curr += sprintf(curr, " OR one_path(%s) IS NULL)", param1);
                     }
                 }
 
