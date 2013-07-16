@@ -1,8 +1,7 @@
-- partial scan: update directories between root and partial dir
 - restore bulk search in rbh-find as a new option
 - support ost sets in rbh_find
 - non reg test for OST sets
-- backport recent modes to std_pipeline to diff pipeline.
+- backport recent modes in std_pipeline to diff pipeline.
 - hardlink management in policies, recovery, etc.
 - check how mknode'd entries and handled by backup mode and rbh-diff
 - fix name update warnings

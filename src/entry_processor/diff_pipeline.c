@@ -745,21 +745,29 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* Only keep fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
-        /* XXX keep md_update to avoid removing the entry from DB:
-         * (the same for parent_id, name, path_update)
-         * use DB tag instead?
-         * TODO: distinguish display mask from attr mask.
+        int diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
+
+        /* In scan mode, always keep md_update and path_update,
+         * to avoid their cleaning at the end of the scan.
+         * Also keep name and parent as they are keys in DNAMES table.
          */
-        int to_keep = (ATTR_MASK_md_update | ATTR_MASK_parent_id
-                       | ATTR_MASK_name | ATTR_MASK_path_update)
-                      & p_op->fs_attrs.attr_mask;
+        int to_keep = ATTR_MASK_parent_id | ATTR_MASK_name;
 
-        ListMgr_KeepDiff(&p_op->fs_attrs, &p_op->db_attrs);
+        /* the mask to be displayed > diff_mask (include to_keep flags) */
+        int display_mask = entry_proc_conf.diff_mask & diff_mask;
 
-        /* keep only fields in diff_mask */
-        p_op->fs_attrs.attr_mask &= entry_proc_conf.diff_mask;
-        /* force initial mask we want to keep */
-        p_op->fs_attrs.attr_mask |= to_keep;
+        /* keep fullpath if parent or name changed (friendly display) */
+        if (diff_mask & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
+            to_keep |= ATTR_MASK_fullpath;
+            display_mask |= ATTR_MASK_fullpath;
+        }
+#ifdef HAVE_CHANGELOGS
+        if (!p_op->extra_info.is_changelog_record)
+#endif
+            to_keep |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
+
+        /* remove other unchanged attrs */
+        p_op->fs_attrs.attr_mask &= (diff_mask | to_keep);
 
         /* nothing changed => noop */
         if (p_op->fs_attrs.attr_mask == 0)
@@ -767,7 +775,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* no op */
             p_op->db_op_type = OP_TYPE_NONE;
         }
-        else if (p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
+        else if (diff_mask & entry_proc_conf.diff_mask)
         {
             char attrchg[RBH_PATH_MAX] = "";
 
@@ -775,40 +783,30 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             if (diff_arg->apply == APPLY_FS)
             {
                 /* attr from FS */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
-                    p_op->fs_attrs.attr_mask & p_op->db_attrs.attr_mask
-                    & entry_proc_conf.diff_mask, 1);
-
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs, display_mask, 1);
                 printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
 
                 /* attr from DB */
-                if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                    & entry_proc_conf.diff_mask) == 0)
+                if (display_mask == 0)
                     attrchg[0] = '\0';
                 else
                     PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                        p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                        & entry_proc_conf.diff_mask, 1);
+                               display_mask, 1);
 
                 printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
             }
             else
             {
                 /* attr from DB */
-                if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                    & entry_proc_conf.diff_mask) == 0)
+                if (display_mask == 0)
                     attrchg[0] = '\0';
                 else
-                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                        p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                        & entry_proc_conf.diff_mask, 1);
+                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs, display_mask, 1);
 
                 printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
 
                 /* attr from FS */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
-                    p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask, 1);
-
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs, display_mask, 1);
                 printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
             }
         }

@@ -3187,10 +3187,9 @@ function test_diff
 
 	clean_logs
 
-    # TODO flavors:
-    # scan + diff option (various)
-    # diff (various), no apply
-    # diff (various) + apply to DB
+    # diff: diff (various), no apply
+    # diffapply: diff (various) + apply to DB
+    # scan: scan with diff option (various)
 
     # populate filesystem
     mkdir $ROOT/dir.1 || error "mkdir"
@@ -3229,15 +3228,24 @@ function test_diff
 	lfs swap_layouts $ROOT/dir.2/e  $ROOT/dir.2/f || error "lfs swap_layouts"
     fi
 
-    echo "2-diff..."
-    $DIFF -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+    # need 1s difference for md and name GC
+    sleep 1
+
+    echo "2-diff ($policy_str)..."
+    if [ "$flavor" = "diff" ]; then
+        $DIFF -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+    elif [ "$flavor" = "diffapply" ]; then
+        $DIFF --apply=db -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+    elif [ "$flavor" = "scan" ]; then
+        $RH -f ./cfg/$config_file -l FULL --scan --once --diff=all -L rh_report.log > report.out || error "performing scan+diff"
+    fi
 
     [ "$DEBUG" = "1" ] && cat report.out
 
     # must get:
     # new entries dir.1/file.new and dir.new
-    egrep -e '^++' report.out | grep -v '+++' | grep file.new | grep type=file || error "missing create dir.1/file.new"
-    egrep -e '^++' report.out | grep -v '+++' | grep dir.new | grep type=dir || error "missing create dir.new"
+    egrep '^++' report.out | grep -v '+++' | grep -E "name='file.new'|path='$ROOT/dir.1/file.new'" | grep type=file || error "missing create dir.1/file.new"
+    egrep '^++' report.out | grep -v '+++' | grep -E "name='dir.new'|path='$ROOT/dir.new'" | grep type=dir || error "missing create dir.new"
     # rmd entries dir.1/b and dir.3
     nbrm=$(egrep -e '^--' report.out | grep -v -- '---' | wc -l)
     [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
@@ -3266,6 +3274,7 @@ function test_diff
         grep "^+[^ ]*"$(get_id "$ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/f"
     fi
 
+    # TODO check the content of the DB for scan and diff --apply
 }
 
 function test_completion
@@ -7626,7 +7635,9 @@ run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creat
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 run_test 104     test_size_updt test_updt.conf 1 "test size update"
 run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/unlink"
-run_test 106     test_diff info_collect2.conf "rbh-diff"
+run_test 106a    test_diff info_collect2.conf "diff" "rbh-diff"
+run_test 106b    test_diff info_collect2.conf "diffapply" "rbh-diff --apply"
+run_test 106c    test_diff info_collect2.conf "scan" "robinhood --scan --diff"
 run_test 107a    test_completion test_completion.conf OK "scan completion command"
 run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion command"
 run_test 108a    test_rename info_collect.conf scan "rename cases (scan)"

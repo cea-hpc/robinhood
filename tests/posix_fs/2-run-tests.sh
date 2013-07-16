@@ -1639,15 +1639,24 @@ function test_diff
     mv $ROOT/dir.2/d  $ROOT/dir.1/d     || error "mv"
     mv $ROOT/file $ROOT/fname           || error "rename"
 
-    echo "2-diff..."
-    $DIFF -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+    # need 1s difference for md and name GC
+    sleep 1
+
+    echo "2-diff ($policy_str)..."
+    if [ "$flavor" = "diff" ]; then
+        $DIFF -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+    elif [ "$flavor" = "diffapply" ]; then
+        $DIFF --apply=db -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+    elif [ "$flavor" = "scan" ]; then
+        $RH -f ./cfg/$config_file -l FULL --scan --once --diff=all -L rh_report.log > report.out || error "performing scan+diff"
+    fi
 
     [ "$DEBUG" = "1" ] && cat report.out
 
     # must get:
     # new entries dir.1/file.new and dir.new
-    egrep '^++' report.out | grep -v '+++' | grep dir.1/file.new | grep type=file || error "missing create dir.1/file.new"
-    egrep '^++' report.out | grep -v '+++' | grep dir.new | grep type=dir || error "missing create dir.new"
+    egrep '^++' report.out | grep -v '+++' | grep -E "name='file.new'|path='$ROOT/dir.1/file.new'" | grep type=file || error "missing create dir.1/file.new"
+    egrep '^++' report.out | grep -v '+++' | grep -E "name='dir.new'|path='$ROOT/dir.new'" | grep type=dir || error "missing create dir.new"
     # rmd entries dir.1/b and dir.3
     nbrm=$(egrep '^--' report.out | grep -v -- '---' | wc -l)
     [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
@@ -1658,6 +1667,8 @@ function test_diff
     grep "^+[^ ]*"$(get_id "$ROOT/dir.1/c") report.out | grep size= || error "missing size change $ROOT/dir.1/c"
     grep "^+[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | grep path= || error "missing path change $ROOT/dir.1/d"
     grep "^+[^ ]*"$(get_id "$ROOT/fname") report.out | grep path= || error "missing path change $ROOT/fname"
+
+    # TODO check the content of the DB for scan and diff --apply
 }
 
 function test_completion
@@ -1796,12 +1807,7 @@ function test_rename
         done
     fi
 
-    if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ]; then
-        # entries with no path may appear with partial scans
-        $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out
-    else
-        $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
-    fi
+    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
     $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
@@ -1970,12 +1976,7 @@ function test_hardlinks
         done
     fi
 
-    if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ] ; then
-        # entries with no path may appear with partial scans
-        $REPORT -f ./cfg/$config_file --dump-all -q | grep -Ev " n/a$" > report.out
-    else
-        $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
-    fi
+    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
     $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
@@ -3931,7 +3932,10 @@ run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation
 run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
 run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
-run_test 106     test_diff info_collect2.conf "rbh-diff"
+
+run_test 106a    test_diff info_collect2.conf "diff" "rbh-diff"
+run_test 106b    test_diff info_collect2.conf "diffapply" "rbh-diff --apply"
+run_test 106c    test_diff info_collect2.conf "scan" "robinhood --scan --diff"
 run_test 107a    test_completion test_completion.conf OK "scan completion command"
 run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion command"
 run_test 108a    test_rename info_collect.conf scan "rename cases (scan)"

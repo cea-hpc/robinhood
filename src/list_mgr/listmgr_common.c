@@ -1279,16 +1279,17 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
 #endif
 }
 
-/** only keep the differences in target attrset */
-void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
+/** return the mask of attributes that differ */
+int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
 {
     int            i;
-    int            mask = 1;
-    int diff_mask = p_tgt->attr_mask & p_src->attr_mask;
+    int            bit = 1;
+    int common_mask = p_tgt->attr_mask & p_src->attr_mask;
+    int diff_mask = 0;
 
-    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+    for ( i = 0; i < ATTR_COUNT; i++, bit <<= 1 )
     {
-        if (mask & diff_mask)
+        if (bit & common_mask)
         {
             int is_diff = 0;
             if ( !is_stripe_field( i ) )
@@ -1299,20 +1300,20 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
                                 field_infos[i].offset),
                            ((char *)&p_tgt->attr_values +
                                 field_infos[i].offset));
-                if (!is_diff)
-                    p_tgt->attr_mask &= ~mask;
+                if (is_diff)
+                    diff_mask |= bit;
             }
 #ifdef _LUSTRE
             else if ( field_infos[i].db_type == DB_STRIPE_INFO )
             {
                 if ((ATTR(p_tgt, stripe_info).stripe_size
-                        == ATTR(p_src, stripe_info).stripe_size)
-                    && (ATTR(p_tgt, stripe_info).stripe_count
-                        == ATTR(p_src, stripe_info).stripe_count)
-                    && (!strcmp(ATTR(p_tgt, stripe_info).pool_name,
-                            ATTR(p_src, stripe_info).pool_name)))
+                        != ATTR(p_src, stripe_info).stripe_size)
+                    || (ATTR(p_tgt, stripe_info).stripe_count
+                        != ATTR(p_src, stripe_info).stripe_count)
+                    || (strcmp(ATTR(p_tgt, stripe_info).pool_name,
+                           ATTR(p_src, stripe_info).pool_name) != 0))
                 {
-                    p_tgt->attr_mask &= ~mask;
+                    diff_mask |= bit;
                 }
             }
             else if ( field_infos[i].db_type == DB_STRIPE_ITEMS )
@@ -1342,13 +1343,13 @@ void ListMgr_KeepDiff(attr_set_t * p_tgt, const attr_set_t * p_src)
                         }
                     }
                 }
-                if (!is_diff)
-                    p_tgt->attr_mask &= ~mask;
+                if (is_diff)
+                     diff_mask |= bit;
             }
 #endif
         }
     }
-    return;
+    return diff_mask;
 }
 
 /** Convert a set notation (eg. "3,5-8,12") to a list of values

@@ -1704,20 +1704,21 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
 
-skip_record:
 #ifdef HAVE_CHANGELOGS
+skip_record:
     if ( p_op->extra_info.is_changelog_record )
     /* do nothing on DB but ack the record */
         rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
     else
-#endif
     /* remove the operation from pipeline */
         rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
 
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
+#endif
 
+#ifdef HAVE_CHANGELOGS
 rm_record:
     /* soft remove the entry, except if it was 'new' (not in backend)
      * or not in DB.
@@ -1742,6 +1743,7 @@ rm_record:
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
+#endif
 }
 
 
@@ -1838,7 +1840,6 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (p_op->db_op_type != OP_TYPE_INSERT)
         ATTR_MASK_UNSET( &p_op->fs_attrs, creation_time );
 #endif
-    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
 #ifdef HAVE_CHANGELOGS
     /* handle nlink. We don't want the values from the filesystem if
@@ -1866,19 +1867,34 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* Only update fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
-        ListMgr_KeepDiff(&p_op->fs_attrs, &p_op->db_attrs);
+        int diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
+
+        /* In scan mode, always keep md_update and path_update,
+         * to avoid their cleaning at the end of the scan.
+         * Also keep name and parent as they are keys in DNAMES table.
+         */
+        int to_keep = ATTR_MASK_parent_id | ATTR_MASK_name;
+
+        /* the mask to be displayed > diff_mask (include to_keep flags) */
+        int display_mask = entry_proc_conf.diff_mask & diff_mask;
+
+        /* keep fullpath if parent or name changed (friendly display) */
+        if (diff_mask & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
+            to_keep |= ATTR_MASK_fullpath;
+            display_mask |= ATTR_MASK_fullpath;
+        }
+#ifdef HAVE_CHANGELOGS
+        if (!p_op->extra_info.is_changelog_record)
+#endif
+            to_keep |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
+
+        /* remove other unchanged attrs */
+        p_op->fs_attrs.attr_mask &= (diff_mask | to_keep);
 
         /* SQL req optimizations:
-         * if update policy == always and path is not changed, don't set path_update
-         * idem for fileclasses and md.
+         * if update policy == always and fileclass is not changed,
+         * don't set update timestamp.
          */
-#ifdef _HAVE_FID
-        if ((policies.updt_policy.path.policy == UPDT_ALWAYS)
-            && !ATTR_MASK_TEST( &p_op->fs_attrs, parent_id)
-            && !ATTR_MASK_TEST( &p_op->fs_attrs, name))
-            ATTR_MASK_UNSET(&p_op->fs_attrs, path_update);
-#endif
-
 #ifdef HAVE_PURGE_POLICY
         if ((policies.updt_policy.fileclass.policy == UPDT_ALWAYS)
             && !ATTR_MASK_TEST( &p_op->fs_attrs, release_class))
@@ -1897,25 +1913,21 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* no op */
             p_op->db_op_type = OP_TYPE_NONE;
         }
-        else if (p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask)
+        /* something changed in diffmask */
+        else if (diff_mask & entry_proc_conf.diff_mask)
         {
             char attrchg[RBH_PATH_MAX] = "";
 
             /* attr from DB */
-            if ((p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                & entry_proc_conf.diff_mask) == 0)
+            if (display_mask == 0)
                 attrchg[0] = '\0';
             else
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                    p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask
-                    & entry_proc_conf.diff_mask, 1);
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs, display_mask, 1);
 
             printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
 
             /* attr from FS */
-            PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs,
-                p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask, 1);
-
+            PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs, display_mask, 1);
             printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
         }
     }
@@ -1936,6 +1948,8 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 printf("--"DFID"\n", PFID(&p_op->entry_id));
         }
     }
+
+    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
     /* insert to DB */
     switch ( p_op->db_op_type )
