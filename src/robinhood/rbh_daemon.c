@@ -745,6 +745,11 @@ static void   *signal_handler_thr( void *arg )
 #ifdef _HSM_LITE
             Backend_Stop();
 #endif
+            if (lmgr_init)
+            {
+                ListMgr_CloseAccess(&lmgr);
+                lmgr_init = FALSE;
+            }
 
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
             FlushLogs(  );
