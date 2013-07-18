@@ -1564,6 +1564,7 @@ static void UpdateMaxUsage( void )
     sprintf( tmpval, "%lu", ( unsigned long ) scan_interval );
     ListMgr_SetVar( &lmgr, SCAN_INTERVAL_VAR, tmpval );
 
+    ListMgr_CloseAccess(&lmgr);
 }
 
 
