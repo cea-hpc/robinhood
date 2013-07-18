@@ -64,7 +64,7 @@ Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
 Summary: Robinhood - Policy engine and accounting tool for large filesystems
-License: CeCILL 
+License: CeCILL-C
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
 Source0: @PACKAGE@-%{version}.tar.gz
@@ -76,6 +76,7 @@ process all its tasks in parallel, so it is particulary adapted for managing
 large file systems with millions of entries and petabytes of data.
 
 Generated using options: @ac_configure_args@
+
 
 %package adm
 Summary: admin/config helper for Robinhood PolicyEngine
@@ -335,6 +336,36 @@ fi
 %{_initrddir}/%{purpose_svc}
 
 %changelog
+
+* Mon Jul 22 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.3
+- [lustre] support of Lustre 2.4
+    - DNE not fully supported yet: if running multiple MDS,
+      run 1 instance of changelog reader per MDT.
+    - Detect file layout changes (new changelog record CL_LAYOUT).
+- [lustre] added statistics about changelog processing speed.
+- [policies] new parameter 'recheck_ignored_classes' to allow/avoid
+    rematching entries from ignored classes in migration and purge policies.
+- [web ui] security patch to prevent from SQL injection.
+- [lustre] fix stack overflow when handling files with wide stripes.
+- [DB] better handling of ER_QUERY_INTERRUPTED MySQL error.
+- [DB] fixed DB connection leaks.
+- Backup & HSM modes:
+   - [fix] fix segfault in import command when uid/gid can't be resolved.
+   - [rbh-report] fix bad display of total volume with -u or -g.
+- Migration policy features and optimizations:
+   - [feature] new parameter 'lru_sort_attr' to select LRU sort criteria for policy application.
+        Previously based on last modification time, it can now be one of:
+        creation, last_archive, last_mod, last_access.
+   - [feature] special meaning for condition 'last_archive == 0':
+        matches entries that have never been archived.
+   - [feature] suspend migration if copy error rate exceed a threshold.
+        This is controled by 'suspend_error_pct' and 'suspend_error_min' parameters.
+   - [stats] migration stats while migration is running: added skipped and error counters.
+   - [optim] avoid rechecking ignored entries at each pass
+   - [optim] smoother feeding of migration workers queue
+- Code & environment:
+   - [build] can specify a path to alternative lustre source tree in ./configure
+   - [tests] allow specifying an alternative path to lfs command
 
 * Mon Mar 11 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.2
 - [general] immediate exit on ctrl+C: don't process all queued operations, just finish current.
