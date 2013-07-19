@@ -46,6 +46,23 @@ int delete_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk )
 }
 
 
+int update_stripe_info(lmgr_t *p_mgr, PK_ARG_T pk, int validator,
+                       const stripe_info_t *p_stripe,
+                       const stripe_items_t *p_items, int insert_if_absent)
+{
+    int rc;
+
+    if (p_stripe == NULL)
+        return DB_INVALID_ARG;
+
+    rc = delete_stripe_info(p_mgr, pk);
+    if (rc && !insert_if_absent)
+        return rc;
+
+    return insert_stripe_info(p_mgr, pk, validator, p_stripe, p_items, FALSE);
+}
+
+
 int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, 
                         int validator, const stripe_info_t * p_stripe,
                         const stripe_items_t * p_items,

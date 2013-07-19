@@ -202,6 +202,13 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             else
                 return STAGE_CHGLOG_CLR;
     }
+#ifdef HAVE_CL_LAYOUT
+    else if (logrec->cr_type == CL_LAYOUT)
+    {
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getstripe_needed = TRUE;
+    }
+#endif
 
     if ( !p_op->db_exists )
     {
@@ -233,9 +240,12 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         {
             p_op->extra_info_is_set = TRUE;
 
-            /* get stripe info only if we don't already know it. */
-            p_op->extra_info.getstripe_needed =
-                ATTR_MASK_TEST( &p_op->entry_attr, stripe_info )? FALSE : TRUE;
+            if (!p_op->extra_info.getstripe_needed)
+            {
+               /* get stripe info if needed. */
+               p_op->extra_info.getstripe_needed =
+                    ATTR_MASK_TEST( &p_op->entry_attr, stripe_info )? FALSE : TRUE;
+            }
 
             /* Check md_update policy */
             p_op->extra_info.getattr_needed

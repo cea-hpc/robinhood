@@ -183,6 +183,12 @@ if test "x$support_lustre" = "xyes" ; then
                     #include <asm/types.h>
                     #include <lustre/lustre_user.h>
                 ])
+                AC_CHECK_DECL([CL_LAYOUT],AC_DEFINE(HAVE_CL_LAYOUT,1,[Layout change emit changelog records]),[],[
+                    #define LPX64 "%#llx"
+                    #include <sys/types.h>
+                    #include <asm/types.h>
+                    #include <lustre/lustre_user.h>
+                ])
             fi
 
             if test "x$have_llapi_changelog_start" = "xyes" && \

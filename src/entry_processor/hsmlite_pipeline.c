@@ -379,7 +379,13 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op,
                     "getattr needed because this is a CTIME or SATTR event" );
 #endif
     }
-
+#ifdef HAVE_CL_LAYOUT
+    else if (logrec->cr_type == CL_LAYOUT)
+    {
+        p_op->extra_info_is_set = TRUE;
+        p_op->extra_info.getstripe_needed = TRUE;
+    }
+#endif
 
     /* if the entry is already in DB, try to determine if something changed */
     if ( p_op->db_exists )

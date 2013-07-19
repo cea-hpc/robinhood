@@ -104,13 +104,17 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
             goto rollback;
     }
 
-    /* insert new stripe info if provided (and eventually remove previous values) */
+    /* insert new stripe info if provided (and remove previous values if any) */
     if ( ATTR_MASK_TEST( p_update_set, stripe_info ) )
     {
-        rc = insert_stripe_info( p_mgr, pk, VALID(p_id), &ATTR( p_update_set, stripe_info ),
-                                 ATTR_MASK_TEST( p_update_set, stripe_items ) ?
-                                    &ATTR( p_update_set, stripe_items ) : NULL, TRUE );
-        if ( rc )
+        const stripe_items_t *p_items = NULL;
+
+        if (ATTR_MASK_TEST(p_update_set, stripe_items))
+            p_items = &ATTR(p_update_set, stripe_items);
+
+        rc = update_stripe_info(p_mgr, pk, VALID(p_id),
+                                &ATTR(p_update_set, stripe_info), p_items, TRUE);
+        if (rc)
             goto rollback;
     }
 

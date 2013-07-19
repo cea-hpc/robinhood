@@ -2432,6 +2432,43 @@ function test_size_updt
     pkill -9 $PROC
 }
 
+function test_layout
+{
+    config_file=$1
+    flavor=$2
+
+    has_swap=0
+    $LFS help | grep swap_layout > /dev/null && has_swap=1
+
+    if (( $has_swap == 0 )); then
+        echo "Layout change no supported on this config: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    if (( $no_log )); then
+        echo "Changelogs not supported on this config: skipped"
+        set_skipped
+        return 1
+    fi
+
+    # Create a file and change its layout.
+    DSTFILE="$ROOT/foo1"
+    $LFS setstripe -c 1 $DSTFILE
+    dd if=/dev/zero of=$DSTFILE bs=1M count=10
+    $LFS migrate -c 2 $DSTFILE
+
+    # Check if a CL_LAYOUT record was emitted and triggered a getstripe().
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    ngetstripe_zero=$(grep LYOUT rh_scan.log | grep -c "getstripe=0")
+    ngetstripe=$(grep LYOUT rh_scan.log | grep -c "getstripe=1")
+    (( $ngetstripe_zero == 0 && $ngetstripe > 0 )) || error "CL_LAYOUT should trigger a getstripe() operation."
+
+    rm -f $DSTFILE
+}
+
 
 function test_cnt_trigger
 {
@@ -6742,6 +6779,7 @@ run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers crea
 run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
 run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
 run_test 104     test_size_updt common.conf 1 "test size update"
+run_test 111     test_layout info_collect.conf "layout changes"
 
 #### policy matching tests  ####
 
