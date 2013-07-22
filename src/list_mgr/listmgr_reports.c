@@ -283,7 +283,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     int            filter_names = 0;
     int            filter_acct = 0;
     int            full_acct = TRUE;
-    lmgr_iter_opt_t opt;
+    lmgr_iter_opt_t opt = {0};
     unsigned int   profile_len = 0;
     unsigned int   ratio = 0;
 
@@ -323,16 +323,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     /* initialy, no char * tab allocated */
     p_report->str_tab = NULL;
 
-    if ( p_opt == NULL )
-    {
-        opt.list_count_max = 0;
-        opt.force_no_acct = FALSE;
-        opt.allow_no_attr = FALSE;
-    }
-    else
-    {
+    if (p_opt)
         opt = *p_opt;
-    }
 
     for ( i = 0; i < report_descr_count; i++ )
     {
