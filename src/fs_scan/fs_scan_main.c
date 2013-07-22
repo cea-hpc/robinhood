@@ -265,7 +265,7 @@ int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
 #endif
     conf->scan_retry_delay = HOUR;
     conf->nb_threads_scan = 2;
-    conf->scan_op_timeout = HOUR;
+    conf->scan_op_timeout = 0;
     conf->exit_on_timeout = FALSE;
     conf->spooler_check_interval = MINUTE;
     conf->nb_prealloc_tasks = 256;
@@ -289,7 +289,7 @@ int FSScan_WriteDefaultConfig( FILE * output )
 #endif
     print_line( output, 1, "scan_retry_delay       :    1h" );
     print_line( output, 1, "nb_threads_scan        :     2" );
-    print_line( output, 1, "scan_op_timeout        :    1h" );
+    print_line( output, 1, "scan_op_timeout        :     0 (disabled)" );
     print_line( output, 1, "exit_on_timeout        : FALSE" );
     print_line( output, 1, "spooler_check_interval :  1min" );
     print_line( output, 1, "nb_prealloc_tasks      :   256" );
