@@ -1,5 +1,5 @@
 #!/bin/bash
-# -*- mode: c; c-basic-offset: 4; indent-tabs-mode: nil; -*-
+# -*- mode: shell; sh-basic-offset: 4; indent-tabs-mode: nil; -*-
 # vim:expandtab:shiftwidth=4:tabstop=4:
 
 [ -z "$LFS" ] && LFS=lfs
@@ -644,7 +644,7 @@ function test_rmdir
 	fi
 }
 
-function test_lru_policy 
+function test_lru_policy
 {
 	config_file=$1
 	expected_migr_1=$2
@@ -664,13 +664,13 @@ function test_lru_policy
 
 	clean_logs
 
-	# create test tree with 10 files 
+	# create test tree with 10 files
     # time | files         |  0   1   2   3   4   5   6   7   8   9
     # -------------------------------------------------------------
-    #  0   | creation      |  x   x   x   x                         
+    #  0   | creation      |  x   x   x   x
     #  5s  | creation      |                  x   x   x   x   x   x
     # 10s  | modification  |          x   x   x       x   x
-    # 15s  | access        |      x           x   x       x       
+    # 15s  | access        |      x           x   x       x
     # 20s  | 1st archive   |  $expected_migr_1
     # +$4  | 2nd archive   |  $expected_migr_2
 
@@ -6013,7 +6013,7 @@ function trigger_purge_OST_QUOTA_EXCEEDED
 	for i in `seq 0 2000`; do
         aaa="$aaa azertyuiop"
     done
-	
+
 	echo "2-Create Files ..."
 	elem=`$LFS df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
@@ -7697,7 +7697,7 @@ run_test 220e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 
 run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on creation and last_archive==0"
 
 run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too many errors"
-	
+
 #### triggers ####
 
 run_test 300	test_cnt_trigger test_trig.conf 151 21 "trigger on file count"
