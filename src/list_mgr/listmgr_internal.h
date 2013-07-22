@@ -27,7 +27,7 @@
 /* primary key utils */
 #ifndef FID_PK
 
-#define PK_LEN 128
+#define PK_LEN 64
 #define PK_ARG_T  char *
 #define PK_PARG_T char *
 #define PTR_PK(_p) (_p)
@@ -39,10 +39,11 @@
 #define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
 
 #else
+#define DB_FID_LEN 64
 #ifdef FID_LEN
-#define DB_FID_LEN FID_LEN
-#else
-#define DB_FID_LEN 128
+#if FID_LEN > DB_FID_LEN
+#error "Lustre FID are bigger than expected, fix DB_FID_LEN"
+#endif
 #endif
 
 #define PK_LEN DB_FID_LEN
