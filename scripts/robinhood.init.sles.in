@@ -190,7 +190,7 @@ check_or_start_fs()
 			cd ${RH_RUN_DIR}
 			#action "$label ..." $cmdline
 			echo "$label ..."
-			startproc $cmdline
+			startproc -p $pidfile $cmdline
       # Remember status and be verbose
 		  rc_status -v
 		else
