@@ -50,7 +50,7 @@ while ( $line = <INPUT> )
 	elsif ($line =~ m/^\s*\%attrdef\s*$/ )
 	{
 	  # beginning of a new section
-	  $status = 2; 
+	  $status = 2;
 	}
 	elsif ( $status == 0 )
 	{
@@ -74,11 +74,11 @@ while ( $line = <INPUT> )
 		# parse the line
 		if ( $line =~ m/^\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+)$/ )
 		{
-			($name,$ctype,$dbtype,$len,$flags,$gen_from,$gen_func) = ($1,$2,$3,$4,$5,"","NULL"); 
+			($name,$ctype,$dbtype,$len,$flags,$gen_from,$gen_func) = ($1,$2,$3,$4,$5,"","NULL");
 		}
 		elsif (  $line =~ m/^\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*(.*)$/ )
 		{
-			($name,$ctype,$dbtype,$len,$flags,$gen_from,$gen_func) = ($1,$2,$3,$4,$5,$6,$7); 
+			($name,$ctype,$dbtype,$len,$flags,$gen_from,$gen_func) = ($1,$2,$3,$4,$5,$6,$7);
 		}
 		else
 		{
@@ -113,7 +113,7 @@ while ( $line = <INPUT> )
 		${$attrlist{$next_index}}{gen_func}=$gen_func;
 
 		$next_index ++;
-		
+
 	}
 }
 
@@ -140,7 +140,7 @@ foreach $index (sort {0+$a <=> 0+$b}  keys %attrlist )
 	{
 		print  OUTPUT ";\n";
 	}
-} 
+}
 
 print OUTPUT "} entry_info_t;\n\n";
 
@@ -156,7 +156,7 @@ print OUTPUT "\n";
 foreach $index (sort {0+$a <=> 0+$b}  keys %attrlist )
 {
         my $mask_val = 1<<$index;
-	printf OUTPUT "#define ATTR_MASK_".${$attrlist{$index}}{name}." \t%#08X\n", $mask_val; 
+	printf OUTPUT "#define ATTR_MASK_".${$attrlist{$index}}{name}." \t%#08X\n", $mask_val;
 }
 
 print OUTPUT "\nstatic const field_info_t field_infos[]=\n{\n";

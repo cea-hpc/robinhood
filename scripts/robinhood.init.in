@@ -41,11 +41,11 @@ pidfile_name()
 #
 # build_fslist() build the list of configurations files
 # configurations files can be given as
-# - a full pathname : 
+# - a full pathname :
 #	the script expects that file exists.
-# - a filename : <myconfigfile> 
+# - a filename : <myconfigfile>
 #	the script expects to find file /etc/robinhood.d/<purpose>/<myconfigfile>.
-# - a filesystem name <fsname> : 
+# - a filesystem name <fsname> :
 #	the scripts expects to find a file /etc/robinhood.d/<purpose>/<fsname>.conf
 # - an empty list :
 #	the script take all files directly under /etc/robinhood.d/<purpose>
@@ -65,7 +65,7 @@ build_fslist()
 			echo "No configuration files under $RH_CONF_DIR" >&2
 			return 1
 		fi
-	else 
+	else
 		# several args, each may be a full configuration file pathname
 		# or filename of a filesystem name
 		for fs in $@
@@ -151,7 +151,7 @@ check_or_start_fs()
                         else
                                	failure "$label"
                         fi
-			echo 
+			echo
 			#echo -n "$label ..."
 			#if initlog $INITLOG_ARGS -c "$cmdline" "$label" ; then
 			#	success "$label"
@@ -167,7 +167,7 @@ check_or_start_fs()
 
 }
 
-# 
+#
 # stop_fs() stops one daemon instance
 #
 stop_fs()
@@ -209,7 +209,7 @@ stop_fs()
 			rc=1
 		fi
 	else
-		# According to LSB, running "stop" on a service already stopped 
+		# According to LSB, running "stop" on a service already stopped
 		# or not running # should be considered successful.
 		echo -n "$label ..."
 		echo " already stopped"
@@ -246,7 +246,7 @@ reload_fs()
 
 }
 
-# 
+#
 # start action
 #
 start()
@@ -258,7 +258,7 @@ start()
 	done
 }
 
-# 
+#
 # stop action
 #
 stop()
@@ -270,7 +270,7 @@ stop()
 	done
 }
 
-# 
+#
 # status action
 #
 status()
@@ -282,7 +282,7 @@ status()
 	done
 }
 
-# 
+#
 # reload action
 #
 reload()

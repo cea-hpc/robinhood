@@ -50,7 +50,7 @@ function db_check
     if (( $? )); then
         running=1
         pgrep mysqld >/dev/null || running=0
-    
+
         if (( $running == 0 )); then
             echo "Service 'mysqld' is not running."
             echo "It must be started to run this script."
@@ -111,7 +111,7 @@ function db_config
                 echo
                 read -p  "confirm password: " -s pass2
                 echo
-               
+
                 if [[ $pass1 = $pass2 ]]; then
                     break
                 else
@@ -308,7 +308,7 @@ function select_db
 {
     pass_root=$1
     db_list=`mysql -Ns --password="$pass_root" -e "show databases" | grep -v mysql | xargs`
-   
+
     if (( $? )); then
             echo "Failed to get database list"
             exit 1
@@ -317,7 +317,7 @@ function select_db
         echo "No DB found"
         exit 2
     fi
-   
+
     echo "Available databases are: $db_list"
 
     while ((1)); do
@@ -421,7 +421,7 @@ function reset_fileclasses
                 exit 1
             fi
     else
-        RBH_DB=$1       
+        RBH_DB=$1
         pass_root=$2
     fi
 
@@ -446,7 +446,7 @@ function reset_fileclasses
     fi
 
     if [ -z $expr ]; then
-        echo "Database $RBH_DB is already empty. No fileclass to reset."       
+        echo "Database $RBH_DB is already empty. No fileclass to reset."
         exit 0
     fi
 
@@ -484,7 +484,7 @@ function repair_db
                 exit 1
             fi
     else
-        RBH_DB=$1       
+        RBH_DB=$1
         pass_root=$2
     fi
 
