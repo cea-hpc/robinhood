@@ -71,7 +71,7 @@ Other changes in 2.4.0:
 * [lustre] support for new Changelog record struct (lu-1331)
 * [fix] max_rm_count=0 resulted in no rm (instead of unlimited)
 * [fix] segfault in realpath() on Ubuntu
-* [fix] unsigned arythmetic issue with MySQL 5.5
+* [fix] unsigned arithmetic issue with MySQL 5.5
 
 Changes between version 2.3.3 and 2.3.4:
 - Faster and safer shutdown on SIGINT/SIGTERM
@@ -214,7 +214,7 @@ Changes between version 2.1.5 and 2.2.0:
 - [feature] special wildcard '**' in 'path ' or 'tree' conditions matches any count of directory levels
 - [feature] quota-like purge triggers fully implemented (on group or user)
 - [feature] triggers on used inode count in filesystem
-- [feature] '--check-triggers' option to check triggers without purging files 
+- [feature] '--check-triggers' option to check triggers without purging files
 - [feature] notification can be sent when a high watermark is reached (for triggers)
 - [feature] rbh-config helper now supports batch commands
 - [feature] Lustre 2.0 ready
