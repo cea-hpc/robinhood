@@ -536,7 +536,7 @@ static int check_queue_limit(unsigned int nb_submitted,
                              const unsigned int *status_before)
 {
     unsigned int nb_in_queue, nb_ok, nb_err, nb_sk, nb_pending;
-    unsigned long long vol_ok;
+    unsigned long long vol_ok, vol_pending;
     unsigned long long feedback_after[MIGR_FDBK_COUNT];
     unsigned int   status_after[MIGR_ST_COUNT];
     unsigned int delay = 10000; /* 10ms */
@@ -549,7 +549,10 @@ static int check_queue_limit(unsigned int nb_submitted,
         vol_ok = feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL] + migration_info.migr_vol;
         nb_err = error_count(status_after) - error_count(status_before) + migration_info.errors;
         nb_sk = skipped_count(status_after) - skipped_count(status_before) + migration_info.skipped ;
+
         nb_pending = nb_submitted - (ack_count(status_after) - ack_count(status_before));
+        vol_pending = vol_submitted - (feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL])
+                                    - (feedback_after[MIGR_FDBK_VOL_NOK] - feedback_before[MIGR_FDBK_VOL_NOK]);
 
         /* 1) check the limit of acknowledged status
          * 1 => stop
@@ -570,13 +573,14 @@ static int check_queue_limit(unsigned int nb_submitted,
          * 1 => wait and retry
          */
         DisplayLog(LVL_FULL, MIGR_TAG, "OK requests + pending = %u", nb_ok + nb_pending);
-        if (check_migration_limit(nb_ok + nb_pending, vol_submitted + migration_info.migr_vol,
-                                  nb_err, FALSE))
+        if (check_migration_limit(nb_ok + nb_pending, vol_ok + vol_pending, nb_err, FALSE))
         {
             DisplayLog(LVL_DEBUG, MIGR_TAG,
-                       "Limit potentially reached (%u requests successful, %u requests in queue), "
-                       "wait %ums before re-checking.", nb_ok, nb_pending, delay/1000);
-            rh_usleep( delay );
+                       "Limit potentially reached (%u requests successful, "
+                       "%u requests in queue, volume: %Lu done, %Lu pending), "
+                       "waiting %ums before re-checking.", nb_ok, nb_pending,
+                       vol_ok, vol_pending, delay/1000);
+            rh_usleep(delay);
             delay *= 2;
             if (delay > DELAY_MAX)
                 delay = DELAY_MAX;
@@ -1483,8 +1487,11 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                                if (no_queue)                        \
                                  rc = (_status);                    \
                                else {                               \
-                                    feedback[MIGR_FDBK_NBR] = _fdbk1;  \
-                                    feedback[MIGR_FDBK_VOL] = _fdbk2;  \
+                                    feedback[MIGR_FDBK_NBR] = _fdbk1; \
+                                    if (_status == MIGR_OK)         \
+                                        feedback[MIGR_FDBK_VOL] = _fdbk2; \
+                                    else                            \
+                                        feedback[MIGR_FDBK_VOL_NOK] = _fdbk2; \
                                     Queue_Acknowledge( _q, _status, feedback, MIGR_FDBK_COUNT ); \
                                }                                       \
                             } while(0)
@@ -1493,7 +1500,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     {
        /* migration aborted by a signal, doesn't submit new migrations */
        DisplayLog( LVL_FULL, MIGR_TAG, "Migration aborted: migration thread skipping migration requests" );
-       Acknowledge( &migr_queue, MIGR_ABORT, 0, 0 );
+       Acknowledge(&migr_queue, MIGR_ABORT, 0, ATTR(&p_item->entry_attr, size));
        rc = MIGR_ABORT;
        goto end;
     }
@@ -1507,7 +1514,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     rc = check_entry( lmgr, p_item, &new_attr_set );
     if ( rc != MIGR_OK )
     {
-        Acknowledge( &migr_queue, rc, 0, 0 );
+        Acknowledge(&migr_queue, rc, 0, ATTR(&p_item->entry_attr, size));
         goto end;
     }
 
@@ -1534,7 +1541,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
         /* Notify that this entry is whitelisted */
-        Acknowledge( &migr_queue, MIGR_ENTRY_WHITELISTED, 0, 0 );
+        Acknowledge(&migr_queue, MIGR_ENTRY_WHITELISTED, 0, ATTR(&p_item->entry_attr, size));
 
         goto end;
     }
@@ -1543,7 +1550,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     if ( !ATTR_MASK_TEST( &new_attr_set, status ) )
     {
         DisplayLog( LVL_MAJOR, MIGR_TAG, "Error: entry status should be set at this point");
-        Acknowledge( &migr_queue, MIGR_PARTIAL_MD, 0, 0 );
+        Acknowledge(&migr_queue, MIGR_PARTIAL_MD, 0, ATTR(&p_item->entry_attr, size));
         goto end;
     }
     else
@@ -1566,7 +1573,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
             /* Notify that this entry is whitelisted */
-            Acknowledge( &migr_queue, MIGR_STATUS_CHGD, 0, 0 );
+            Acknowledge(&migr_queue, MIGR_STATUS_CHGD, 0, ATTR(&p_item->entry_attr, size));
             goto end;
         }
     }
@@ -1575,7 +1582,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     update_fileclass = need_fileclass_update( &new_attr_set, MIGR_POLICY );
     if ( update_fileclass == -1 )
     {
-        Acknowledge( &migr_queue, MIGR_ERROR, 0, 0 );
+        Acknowledge(&migr_queue, MIGR_ERROR, 0, ATTR(&p_item->entry_attr, size));
         goto end;
     }
 
@@ -1614,7 +1621,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
             /* Notify that this entry is whitelisted */
-            Acknowledge( &migr_queue, MIGR_ENTRY_WHITELISTED, 0, 0 );
+            Acknowledge(&migr_queue, MIGR_ENTRY_WHITELISTED, 0, ATTR(&p_item->entry_attr, size));
 
             goto end;
         }
@@ -1634,7 +1641,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                         ATTR( &p_item->entry_attr, fullpath ) );
 
             /* Notify error */
-            Acknowledge( &migr_queue, MIGR_PARTIAL_MD, 0, 0 );
+            Acknowledge(&migr_queue, MIGR_PARTIAL_MD, 0, ATTR(&p_item->entry_attr, size));
 
             goto end;
         }
@@ -1660,7 +1667,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
     if ( !policy_case )
     {
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
-        Acknowledge( &migr_queue, MIGR_NO_POLICY, 0, 0 );
+        Acknowledge(&migr_queue, MIGR_NO_POLICY, 0, ATTR(&p_item->entry_attr, size));
         goto end;
     }
     else
@@ -1686,7 +1693,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         case POLICY_NO_MATCH:
             /* entry is not eligible now */
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
-            Acknowledge( &migr_queue, MIGR_ENTRY_WHITELISTED, 0, 0 );
+            Acknowledge(&migr_queue, MIGR_ENTRY_WHITELISTED, 0, ATTR(&p_item->entry_attr, size));
             goto end;
             break;
         case POLICY_MATCH:
@@ -1702,7 +1709,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                         ATTR( &p_item->entry_attr, fullpath ), policy_case->policy_id );
 
             /* Notify error */
-            Acknowledge( &migr_queue, MIGR_PARTIAL_MD, 0, 0 );
+            Acknowledge(&migr_queue, MIGR_PARTIAL_MD, 0, ATTR(&p_item->entry_attr, size));
 
             goto end;
         }
@@ -1773,7 +1780,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             "Warning: entry %s has no reference path: skipping it.",
             ATTR( &p_item->entry_attr, fullpath ) );
 
-        Acknowledge( &migr_queue, MIGR_PARTIAL_MD, 0, 0 );
+        Acknowledge(&migr_queue, MIGR_PARTIAL_MD, 0, ATTR(&p_item->entry_attr, size));
         goto end;
     }
 
@@ -1825,7 +1832,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
-        Acknowledge( &migr_queue, MIGR_ERROR, 0, 0 );
+        Acknowledge(&migr_queue, MIGR_ERROR, 0, ATTR(&p_item->entry_attr, size));
     }
     else
     {

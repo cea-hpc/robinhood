@@ -71,6 +71,7 @@ typedef enum
 {
     MIGR_FDBK_NBR = 0,
     MIGR_FDBK_VOL,
+    MIGR_FDBK_VOL_NOK,
 
     MIGR_FDBK_COUNT
 } migr_fdbk_t;
