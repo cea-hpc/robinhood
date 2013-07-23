@@ -2474,6 +2474,11 @@ function test_cnt_trigger
 	empty_count=`df -i $ROOT/ | grep "$ROOT" | xargs | awk '{print $(NF-3)}'`
 	(( file_count=$file_count - $empty_count ))
 
+    if (( $file_count < 0 )) ; then
+        error "INODE COUNT FOR EMPTY FILESYSTEM IS ALREADY OVER HIGH THRESHOLD!"
+        return 1
+    fi
+
     [ "$DEBUG" = "1" ] && echo "Initial inode count $empty_count, creating additional $file_count files"
 
 	#create test tree of archived files (1M each)
