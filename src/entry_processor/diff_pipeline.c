@@ -766,8 +766,8 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
             to_keep |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
 
-        /* remove other unchanged attrs */
-        p_op->fs_attrs.attr_mask &= (diff_mask | to_keep);
+        /* remove other unchanged attrs or attrs not in db mask */
+        p_op->fs_attrs.attr_mask &= (diff_mask | to_keep | ~p_op->db_attrs.attr_mask);
 
         /* nothing changed => noop */
         if (p_op->fs_attrs.attr_mask == 0)

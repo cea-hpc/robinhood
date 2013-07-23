@@ -6225,7 +6225,7 @@ function test_purge
 	    fi
     fi
 
-	echo "Reading changelogs and Applying purge policy..."
+	echo "Scan and apply purge policy..."
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
