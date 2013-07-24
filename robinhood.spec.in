@@ -340,6 +340,13 @@ fi
 
 %changelog
 
+* Wed Jul 24 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.0-alpha1
+Pre-version 2.5 for testing purpose
+- disaster recovery features (rbh-diff, ...)
+- new namespace management to handle hardlinks, renames...
+- scan and changelog optimizations
+- many other changes, improvements and code cleaning...
+
 * Mon Mar 11 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.2
 - [general] immediate exit on ctrl+C: don't process all queued operations, just finish current.
 - [general] LSB compliance if daemon is already started.
