@@ -3539,6 +3539,49 @@ function test_unlink
     rm -f report.out find.out
 }
 
+function test_layout
+{
+    config_file=$1
+    flavor=$2
+
+    has_swap=0
+    $LFS help | grep swap_layout > /dev/null && has_swap=1
+
+    if (( $has_swap == 0 )); then
+        echo "Layout change no supported on this config: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+	if (( $no_log )); then
+        echo "Changelogs not supported on this config: skipped"
+        set_skipped
+        return 1
+    fi
+
+    # Create a file and change its layout.
+    DSTFILE="$ROOT/foo1"
+    $LFS setstripe -c 1 $DSTFILE
+    dd if=/dev/zero of=$DSTFILE bs=1M count=10
+    $LFS migrate -c 2 $DSTFILE
+
+	# Check if a CL_LAYOUT record was emitted and triggered a getstripe().
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    ngetstripe_zero=$(grep LYOUT rh_scan.log | grep -c "getstripe=0")
+    ngetstripe=$(grep LYOUT rh_scan.log | grep -c "getstripe=1")
+    (( $ngetstripe_zero == 0 && $ngetstripe > 0 )) || error "CL_LAYOUT should trigger a getstripe() operation."
+
+    $LFS migrate -c 1 $DSTFILE
+    fsdiff=$($RH -f ./cfg/$config_file --readlog --diff=stripe --once -l DEBUG -L rh_scan.log)
+    (( $? == 0 )) || error "reading changelog (diff)"
+
+    echo $fsdiff | egrep "\-.*,stripe_count=2,.* \+.*,stripe_count=1,.*" > /dev/null || error "missed layout change"
+
+    rm -f $DSTFILE
+}
+
 # test link/unlink/rename
 # flavors=readlog, scan, partial scan
 function test_hardlinks
@@ -7656,6 +7699,7 @@ run_test 109c    test_hardlinks info_collect.conf partial "hardlinks management 
 run_test 109d    test_hardlinks info_collect.conf diff "hardlinks management (diff+apply)"
 run_test 109e    test_hardlinks info_collect.conf partdiff "hardlinks management (partial diffs+apply)"
 run_test 110     test_unlink info_collect.conf "unlink (readlog)"
+run_test 111     test_layout info_collect.conf "layout changes"
 
 #### policy matching tests  ####
 

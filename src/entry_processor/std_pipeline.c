@@ -304,6 +304,9 @@ static obj_type_t cl2type_clue(CL_REC_TYPE *logrec)
         case CL_CREATE:
         case CL_CLOSE:
         case CL_TRUNC:
+#ifdef HAVE_CL_LAYOUT
+        case CL_LAYOUT:
+#endif
         case CL_HSM:
             return TYPE_FILE;
         case CL_MKDIR:
@@ -620,6 +623,13 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
 #endif
 #endif
     }
+#ifdef HAVE_CL_LAYOUT
+    else if (logrec->cr_type == CL_LAYOUT)
+    {
+        p_op->fs_attr_need |= ATTR_MASK_stripe_info;
+        p_op->fs_attr_need |= ATTR_MASK_stripe_items;
+    }
+#endif
 
     /* if the entry is already in DB, try to determine if something changed */
     if ( p_op->db_exists )
