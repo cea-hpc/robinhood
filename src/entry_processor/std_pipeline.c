@@ -677,23 +677,16 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     /* allow event-driven update */
     int md_allow_event_updt = TRUE;
 
-    /* is there parent_id in log rec? */
-    if (!FID_IS_ZERO(&logrec->cr_pfid))
-    {
-        ATTR_MASK_SET( &p_op->fs_attrs, parent_id );
-        ATTR( &p_op->fs_attrs, parent_id ) = logrec->cr_pfid;
-    }
-
     /* is there entry name in log rec? */
     if ( logrec->cr_namelen > 0 )
     {
         ATTR_MASK_SET( &p_op->fs_attrs, name );
         strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
-    }
 
-    /* consider the path as updated if both of them are updated */
-    if (!FID_IS_ZERO(&logrec->cr_pfid) && (logrec->cr_namelen > 0))
-    {
+        /* parent id is always set when name is (Cf. comment in lfs.c) */
+        ATTR_MASK_SET( &p_op->fs_attrs, parent_id );
+        ATTR( &p_op->fs_attrs, parent_id ) = logrec->cr_pfid;
+
         ATTR_MASK_SET( &p_op->fs_attrs, path_update );
         ATTR(&p_op->fs_attrs, path_update) = time(NULL);
     }

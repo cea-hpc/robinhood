@@ -194,6 +194,7 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
                          int quiet )
 {
     int            rc;
+    time_t         start;
     unsigned int   retry = lmgr_config.connect_retry_min;
 #ifdef _DEBUG_DB
     DisplayLog( LVL_FULL, LISTMGR_TAG, "SQL query: %s", query );
@@ -202,6 +203,7 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
     do
     {
         int dberr;
+        start = time(NULL);
         rc = mysql_real_query( conn, query, strlen( query ) );
 
         dberr = mysql_errno( conn );
@@ -213,8 +215,8 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
                             __FUNCTION__, retry );
             else
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                            "Deadlock during DB request... Retrying in %u sec.",
-                            retry );
+                            "Deadlock during DB request '%s' after %u sec. Retrying in %u sec.",
+                            query, (unsigned int)(time(NULL) - start), retry );
 
             rh_sleep( retry );
             retry *= 2;

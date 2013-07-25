@@ -123,8 +123,12 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
             goto rollback;
     }
     else if (ATTR_MASK_TEST(p_update_set, name) || ATTR_MASK_TEST(p_update_set, parent_id))
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to update name information");
-
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to update name information"
+                   " (entry "DPK"): name %s, parent_id %s", pk,
+                   ATTR_MASK_TEST(p_update_set, name) ? "is set" : "is not set",
+                   ATTR_MASK_TEST(p_update_set, parent_id) ? "is set" : "is not set");
+    }
 
     /* update annex table (if any) */
     if ( annex_count > 0 )
