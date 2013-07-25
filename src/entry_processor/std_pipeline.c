@@ -736,12 +736,27 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             else /* hsm removal enabled: must check if there is some cleaning
                   * to be done in the backend */
             {
+#ifdef _LUSTRE_HSM
+                if (logrec->cr_flags & CLF_UNLINK_HSM_EXISTS)
+                    /* if CLF_UNLINK_HSM_EXISTS is set, we must clean something in the backend */
+                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+                else if (p_op->db_exists)
+                    /* nothing in the backend, just clean the entry in DB */
+                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+                else
+                    /* ignore the record */
+                    return STAGE_CHGLOG_CLR;
+#else
                 /* If the entry exists in DB, this moves it from main table
-                 * to a remove queue, else, just insert it to remove queue. */
-                if (soft_remove_filter(p_op))
+                 * to a remove queue, else, ignore the record. */
+                if (!p_op->db_exists)
+                    /* ignore the record */
+                    return STAGE_CHGLOG_CLR;
+                else if (soft_remove_filter(p_op))
                     p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
                 else
                     p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+#endif
                 return STAGE_DB_APPLY;
             }
 #endif
