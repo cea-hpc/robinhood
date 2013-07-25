@@ -511,9 +511,9 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
     {
         int            curr_field_index = 0;
 
-        /* check first fields: id and hname */
-        if (( fieldtab[0] == NULL ) || ( fieldtab[1] == NULL )
-            || strcmp( fieldtab[0], "id" ) || strcmp( fieldtab[1], "hname" ))
+        /* check first fields: id and pkn */
+        if ((fieldtab[0] == NULL) || (fieldtab[1] == NULL)
+            || strcmp(fieldtab[0], "id") || strcmp(fieldtab[1], "pkn"))
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG,
                         "Invalid schema (%s, %s...) for table "
@@ -524,7 +524,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         }
         else
         {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "id, hname OK");
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "id, pkn OK");
             curr_field_index += 2;
         }
 
@@ -553,7 +553,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             DisplayLog( LVL_EVENT, LISTMGR_TAG, DNAMES_TABLE " does not exist: creating it." );
 
             /* table does not exist */
-            strcpy( strbuf, "CREATE TABLE " DNAMES_TABLE " ( id "PK_TYPE", hname VARCHAR(40)");
+            strcpy(strbuf, "CREATE TABLE " DNAMES_TABLE " ( id "PK_TYPE", pkn VARCHAR(40) PRIMARY KEY");
             next = strbuf + strlen( strbuf );
 
             for ( i = 0; i < ATTR_COUNT; i++ )
@@ -563,7 +563,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
                     next += append_field_def( i, next, 0, NULL );
                 }
             }
-            next += sprintf(next, ", PRIMARY KEY (parent_id, hname) )");
+            strcpy( next, ")" );
 
 #ifdef _MYSQL
             if (lmgr_config.db_config.innodb)

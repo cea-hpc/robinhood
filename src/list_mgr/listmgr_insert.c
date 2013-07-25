@@ -120,8 +120,10 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
         attrset2valuelist( p_mgr, values_curr, p_info, T_DNAMES, TRUE );
 
         // FIXME this update operation may zero column content if some values are not specified
-        static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), hname=sha1(name), path_update=VALUES(path_update)";
-        sprintf( query, "INSERT INTO " DNAMES_TABLE "(%s, hname) VALUES (%s, sha1(name)) ON DUPLICATE KEY UPDATE %s", fields, values, set );
+        static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), "
+                                  "pkn="HNAME_DEF", path_update=VALUES(path_update)";
+        sprintf(query, "INSERT INTO " DNAMES_TABLE "(%s, pkn) VALUES (%s, "HNAME_DEF") "
+                       "ON DUPLICATE KEY UPDATE %s", fields, values, set);
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
 

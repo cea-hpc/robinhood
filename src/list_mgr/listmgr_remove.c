@@ -86,11 +86,16 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     /* Allow removing entry from MAIN_TABLE without removing it from NAMES */
     if (p_attr_set && ATTR_MASK_TEST(p_attr_set, parent_id) && ATTR_MASK_TEST(p_attr_set, name))
     {
+        char escaped[RBH_NAME_MAX*2];
+
         rc = entry_id2pk( p_mgr, &ATTR( p_attr_set, parent_id ), FALSE, PTR_PK(ppk) );
         if (rc)
             return rc;
 
-        sprintf( request, "DELETE FROM " DNAMES_TABLE " WHERE parent_id="DPK" AND hname=sha1('%s') AND id="DPK, ppk, ATTR( p_attr_set, name ), pk );
+        db_escape_string(&p_mgr->conn, escaped, RBH_NAME_MAX*2, ATTR(p_attr_set, name));
+
+        sprintf(request, "DELETE FROM " DNAMES_TABLE " WHERE pkn="HNAME_FMT" AND id="DPK,
+                ppk, escaped, pk);
         rc = db_exec_sql( &p_mgr->conn, request, NULL );
         if ( rc )
             return rc;

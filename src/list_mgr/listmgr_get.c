@@ -436,6 +436,7 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
 {
     result_handle_t result;
     char           query[4096];
+    char           escaped[RBH_NAME_MAX*2];
     DEF_PK(pk);
     int rc;
     char            *str_info[1];
@@ -444,8 +445,10 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
     if (rc)
         return rc;
 
-    sprintf( query, "SELECT id FROM " DNAMES_TABLE " WHERE parent_id=" DPK " AND hname=sha1('%s')",
-             pk, name);
+    db_escape_string(&p_mgr->conn, escaped, RBH_NAME_MAX*2, name);
+
+    sprintf(query, "SELECT id FROM "DNAMES_TABLE" WHERE pkn="HNAME_FMT,
+            pk, escaped);
 
     rc = db_exec_sql( &p_mgr->conn, query, &result );
     if ( rc )
