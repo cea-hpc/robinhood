@@ -22,15 +22,12 @@
 #include "entry_proc_tools.h"
 #include "Memory.h"
 #include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
 #include "list.h"
 #include <semaphore.h>
 #include <pthread.h>
 #include <errno.h>
 #include <stdlib.h>
-
-/* Dijkstra notation */
-#define P(_m_)  pthread_mutex_lock(&(_m_))
-#define V(_m_)  pthread_mutex_unlock(&(_m_))
 
 static sem_t pipeline_token;
 
@@ -861,6 +858,38 @@ static const char * entry_status_str( entry_proc_op_t * p_op, unsigned int stage
         return "ERROR: uncovered case /!\\";
 }
 
+static void print_op_stats(entry_proc_op_t * p_op, unsigned int stage, const char *what)
+{
+#ifdef HAVE_CHANGELOGS
+    if ( p_op->extra_info.is_changelog_record )
+    {
+        DisplayLog( LVL_EVENT, "STATS", "%-20s: %s: changelog record #%Lu, fid="DFID", status=%s",
+                    entry_proc_pipeline[stage].stage_name, what,
+                    p_op->extra_info.log_record.p_log_rec->cr_index,
+                    PFID(&p_op->extra_info.log_record.p_log_rec->cr_tfid),
+                    entry_status_str(p_op, stage));
+    }
+    else
+#endif
+    if (ATTR_FSorDB_TEST(p_op, fullpath))
+    {
+        DisplayLog(LVL_EVENT, "STATS", "%-20s: %s: %s, status=%s",
+                   entry_proc_pipeline[stage].stage_name, what,
+                   ATTR_FSorDB(p_op, fullpath),
+                   entry_status_str(p_op, stage));
+    }
+    else if (p_op->entry_id_is_set)
+    {
+        DisplayLog(LVL_EVENT, "STATS", "%-20s: %s: "DFID", status=%s",
+                   entry_proc_pipeline[stage].stage_name, what,
+                   PFID(&p_op->entry_id),
+                   entry_status_str(p_op, stage));
+    }
+    else
+        DisplayLog(LVL_EVENT, "STATS", "%-20s: %s: special op, status=%s",
+                   entry_proc_pipeline[stage].stage_name, what,
+                   entry_status_str(p_op, stage));
+}
 
 
 void EntryProcessor_DumpCurrentStages( void )
@@ -932,59 +961,11 @@ void EntryProcessor_DumpCurrentStages( void )
                 if ( !rh_list_empty(&pipeline[i].entries) )
                 {
                     entry_proc_op_t *op = rh_list_first_entry(&pipeline[i].entries, entry_proc_op_t, list);
-    #ifdef HAVE_CHANGELOGS
-                    if ( op->extra_info.is_changelog_record )
-                    {
-                        DisplayLog( LVL_EVENT, "STATS", "%-20s: first: changelog record #%Lu, fid="DFID", status=%s",
-                                    entry_proc_pipeline[i].stage_name,
-                                    op->extra_info.log_record.p_log_rec->cr_index,
-                                    PFID(&op->extra_info.log_record.p_log_rec->cr_tfid),
-                                    entry_status_str( op, i) );
-                    }
-                    else
-    #endif
-                        if ( ATTR_FSorDB_TEST( op, fullpath) )
-                    {
-                        DisplayLog( LVL_EVENT, "STATS", "%-20s: first: %s, status=%s",
-                                    entry_proc_pipeline[i].stage_name,
-                                    ATTR_FSorDB( op, fullpath ),
-                                    entry_status_str( op, i) );
-                    }
-                    else
-                    {
-                        DisplayLog( LVL_EVENT, "STATS", "%-20s: first: special op %s",
-                                    entry_proc_pipeline[i].stage_name,
-                                    entry_proc_pipeline[op->pipeline_stage].stage_name );
-                    }
+                    print_op_stats(op, i, "first");
 
                     /* Now, get the last entry. */
                     op = rh_list_last_entry(&pipeline[i].entries, entry_proc_op_t, list);
-
-    #ifdef HAVE_CHANGELOGS
-                    if ( op->extra_info.is_changelog_record )
-                    {
-                        DisplayLog( LVL_EVENT, "STATS", "%-20s: last: changelog record #%Lu, fid="DFID", status=%s",
-                                    entry_proc_pipeline[i].stage_name,
-                                    op->extra_info.log_record.p_log_rec->cr_index,
-                                    PFID(&op->extra_info.log_record.p_log_rec->cr_tfid),
-                                    entry_status_str( op, i) );
-                    }
-                    else
-    #endif
-                    /* path is always set for scan mode... */
-                    if ( ATTR_FSorDB_TEST( op, fullpath) )
-                    {
-                        DisplayLog( LVL_EVENT, "STATS", "%-20s: last: %s, status=%s",
-                                    entry_proc_pipeline[i].stage_name,
-                                        ATTR_FSorDB( op, fullpath ),
-                                    entry_status_str( op, i) );
-                    }
-                    else /* else it is a special op */
-                    {
-                        DisplayLog( LVL_EVENT, "STATS", "%-20s: last: special op %s",
-                                    entry_proc_pipeline[i].stage_name,
-                                    entry_proc_pipeline[op->pipeline_stage].stage_name );
-                    }
+                    print_op_stats(op, i, "last");
                 }
                 V( pipeline[i].stage_mutex );
 
