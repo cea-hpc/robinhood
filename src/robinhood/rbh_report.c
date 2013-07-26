@@ -104,6 +104,9 @@ static struct option option_tab[] = {
     {"fsinfo", no_argument, NULL, 'i'},
     {"fs-info", no_argument, NULL, 'i'},
 
+    {"entry-info", required_argument, NULL, 'e'},
+    {"entryinfo", required_argument, NULL, 'e'},
+
     {"userinfo", optional_argument, NULL, 'u'},
     {"user-info", optional_argument, NULL, 'u'},
 
@@ -112,10 +115,8 @@ static struct option option_tab[] = {
 
     {"classinfo", optional_argument, NULL, OPT_CLASS_INFO},
     {"class-info", optional_argument, NULL, OPT_CLASS_INFO},
-#ifdef ATTR_INDEX_dircount
     {"topdirs", optional_argument, NULL, 'd'},
     {"top-dirs", optional_argument, NULL, 'd'},
-#endif
     {"topsize", optional_argument, NULL, 's'},
     {"top-size", optional_argument, NULL, 's'},
     {"toppurge", optional_argument, NULL, 'p'},
@@ -180,7 +181,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDu:g:d:s:p:rU:P:C:Rf:cql:hVFS"
+#define SHORT_OPT_STRING    "aiDe:u:g:d:s:p:rU:P:C:Rf:cql:hVFS"
 
 static const char *help_string =
     _B "Usage:" B_ " %s [options]\n"
@@ -193,14 +194,15 @@ static const char *help_string =
     "    " _B "--class-info" B_ " [=" _U "fileclass" U_ "]\n"
     "        Display Fileclasses summary. Use optional parameter " _U "fileclass" U_ "\n"
     "        for retrieving stats about matching fileclasses.\n"
+    "    " _B "--entry-info"B_ " "_U "path"U_"|"_U"id"U_", "
+           _B "-e" B_ " "_U "path"U_"|"_U"id"U_"\n"
+    "        Display all information about entry.\n"
     "    " _B "--user-info" B_ " [=" _U "user" U_ "], " _B "-u" B_ " " _U "user" U_ "\n"
     "        Display user statistics. Use optional parameter " _U "user" U_ " for retrieving stats about a single user.\n"
     "    " _B "--group-info" B_ " [=" _U "group" U_ "], " _B "-g" B_ " " _U "group" U_ "\n"
     "        Display group statistics. Use optional parameter " _U "group" U_ " for retrieving stats about a single group.\n"
-#ifdef ATTR_INDEX_dircount
     "    " _B "--top-dirs" B_ " [=" _U "count" U_ "], " _B "-d" B_ " " _U "count" U_ "\n"
     "        Display largest directories. Optional argument indicates the number of directories to be returned (default: 20).\n"
-#endif
     "    " _B "--top-size" B_ " [=" _U "count" U_ "], " _B "-s" B_ " " _U "count" U_ "\n"
     "        Display largest files. Optional argument indicates the number of files to be returned (default: 20).\n"
     "    " _B "--top-purge" B_ " [=" _U "count" U_ "], " _B "-p" B_ " " _U "count" U_ "\n"
@@ -1243,29 +1245,50 @@ static inline const char * attrindex2name(unsigned int index)
     switch(index)
     {
         case ATTR_INDEX_fullpath: return "path";
+        case ATTR_INDEX_name: return "name";
+        case ATTR_INDEX_depth: return "depth";
         case ATTR_INDEX_avgsize: return "avgsize";
-#ifdef ATTR_INDEX_dircount
         case ATTR_INDEX_dircount: return "dircount";
-#endif
 #ifdef ATTR_INDEX_status
         case ATTR_INDEX_status: return "status";
 #endif
-#ifdef ATTR_INDEX_type
         case ATTR_INDEX_type: return "type";
-#endif
+        case ATTR_INDEX_mode: return "mode";
+        case ATTR_INDEX_nlink: return "nlink";
+        case ATTR_INDEX_parent_id: return "parent_id";
         case ATTR_INDEX_owner: return "user";
         case ATTR_INDEX_gr_name: return "group";
         case ATTR_INDEX_blocks: return "spc_used";
         case ATTR_INDEX_size: return "size";
         case ATTR_INDEX_last_access: return "last_access";
         case ATTR_INDEX_last_mod: return "last_mod";
+        case ATTR_INDEX_creation_time: return "creation";
+        case ATTR_INDEX_link: return "link";
 
+        case ATTR_INDEX_md_update: return "md updt";
+        case ATTR_INDEX_path_update: return "path updt";
 #ifdef ATTR_INDEX_archive_class
         case ATTR_INDEX_archive_class: return "migr. class";
+        case ATTR_INDEX_arch_cl_update: return "migr. class updt";
 #endif
 #ifdef ATTR_INDEX_release_class
         case ATTR_INDEX_release_class: return "purge class";
+        case ATTR_INDEX_rel_cl_update: return "purge class updt";
 #endif
+#ifdef ATTR_INDEX_invalid
+        case ATTR_INDEX_invalid: return "invalid";
+#endif
+#ifdef ATTR_INDEX_last_archive
+        case ATTR_INDEX_last_archive: return "last_archive";
+#endif
+#ifdef ATTR_INDEX_last_restore
+        case ATTR_INDEX_last_restore: return "last_restore";
+#endif
+#ifdef ATTR_INDEX_backend_path
+        case ATTR_INDEX_backend_path: return "backend_path";
+#endif
+
+
         case ATTR_INDEX_stripe_info: return "stripe_cnt, stripe_size,      pool";
         case ATTR_INDEX_stripe_items: return "stripes";
     }
@@ -1279,37 +1302,57 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
 {
     switch(index)
     {
-        case 0: return 10; /* count */
-#ifdef ATTR_INDEX_dircount
+        case -1: return 10; /* count */
+        case ATTR_INDEX_parent_id: return 20;
+        case ATTR_INDEX_name: return 10;
+        case ATTR_INDEX_depth: return 3;
         case ATTR_INDEX_dircount: return 8;
-#endif
 #ifdef  ATTR_INDEX_status
         case ATTR_INDEX_status: return 10;
 #endif
-#ifdef ATTR_INDEX_type
         case ATTR_INDEX_type: return 8;
-#endif
+        case ATTR_INDEX_mode:
+            return (csv ? 4 : 6);
+
+        case ATTR_INDEX_nlink:
+            return 5;
         case ATTR_INDEX_fullpath: return 40;
         case ATTR_INDEX_owner: return 10;
         case ATTR_INDEX_gr_name: return 10;
 
         case ATTR_INDEX_last_access: return 20;
         case ATTR_INDEX_last_mod: return 20;
+        case ATTR_INDEX_creation_time: return 20;
 
+        case ATTR_INDEX_md_update: return 20;
+        case ATTR_INDEX_path_update: return 20;
 #ifdef ATTR_INDEX_archive_class
         case ATTR_INDEX_archive_class: return 20;
+        case ATTR_INDEX_arch_cl_update: return 20;
 #endif
 #ifdef ATTR_INDEX_release_class
         case ATTR_INDEX_release_class: return 20;
+        case ATTR_INDEX_rel_cl_update: return 20;
+#endif
+#ifdef ATTR_INDEX_invalid
+        case ATTR_INDEX_invalid: return 3; /* yes/no */
+#endif
+#ifdef ATTR_INDEX_last_archive
+        case ATTR_INDEX_last_archive: return 20;
+#endif
+#ifdef ATTR_INDEX_last_restore
+        case ATTR_INDEX_last_restore: return 20;
+#endif
+#ifdef ATTR_INDEX_backend_path
+        case ATTR_INDEX_backend_path: return 40;
 #endif
 
+        case ATTR_INDEX_link: return 20;
         case ATTR_INDEX_blocks:
         case ATTR_INDEX_avgsize:
         case ATTR_INDEX_size:
-            if (csv)
-                return 15; /* up to 999To */
-            else
-                return 10; /* 1024.21 GB */
+            /* 15 digits for 999To, 10 chars for 1024.21 GB */
+            return (csv ? 15 : 10);
         case ATTR_INDEX_stripe_info: return strlen(attrindex2name(ATTR_INDEX_stripe_info));
         case ATTR_INDEX_stripe_items: return 30;
     }
@@ -1429,18 +1472,42 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
             else
                 FormatFileSize(out, 128, ATTR(attrs, avgsize));
             return out;
-#ifdef ATTR_INDEX_dircount
         case ATTR_INDEX_dircount:
             sprintf(out, "%u", ATTR(attrs, dircount));
             return out;
-#endif
 #ifdef ATTR_INDEX_status
         case ATTR_INDEX_status: return db_status2str(ATTR(attrs, status), csv);
 #endif
-#ifdef ATTR_INDEX_type
+        case ATTR_INDEX_parent_id:
+            sprintf(out, DFID, PFID(&ATTR(attrs, parent_id)));
+            return out;
+
+        case ATTR_INDEX_link:
+             return ATTR(attrs, link);
+
         case ATTR_INDEX_type:
              return ATTR(attrs, type);
-#endif
+        case ATTR_INDEX_nlink:
+             sprintf(out, "%u", ATTR(attrs, nlink));
+             return out;
+
+        case ATTR_INDEX_depth:
+             sprintf(out, "%u", ATTR(attrs, depth));
+             return out;
+
+        case ATTR_INDEX_name:
+             return ATTR(attrs, name);
+
+        case ATTR_INDEX_mode:
+            if (csv)
+                sprintf(out, "%#03o", ATTR(attrs, mode));
+            else
+            {
+                memset(out, 0, out_sz);
+                mode_string(ATTR(attrs, mode), out);
+            }
+            return out;
+
         case ATTR_INDEX_owner: return ATTR(attrs, owner);
         case ATTR_INDEX_gr_name: return ATTR(attrs, gr_name);
         case ATTR_INDEX_blocks:
@@ -1467,14 +1534,57 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
             strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
             return out;
 
+        case ATTR_INDEX_creation_time:
+            tt = ATTR(attrs, creation_time);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_md_update:
+            tt = ATTR(attrs, md_update);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_path_update:
+            tt = ATTR(attrs, path_update);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
 #ifdef ATTR_INDEX_archive_class
         case ATTR_INDEX_archive_class:
             return migr_class(attrs);
+        case ATTR_INDEX_arch_cl_update:
+            tt = ATTR(attrs, arch_cl_update);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
 #endif
 #ifdef ATTR_INDEX_release_class
         case ATTR_INDEX_release_class:
             return release_class(attrs);
+        case ATTR_INDEX_rel_cl_update:
+            tt = ATTR(attrs, rel_cl_update);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
 #endif
+#ifdef ATTR_INDEX_invalid
+        case ATTR_INDEX_invalid: return (ATTR(attrs, invalid) ? "yes" : "no");
+#endif
+#ifdef ATTR_INDEX_last_archive
+        case ATTR_INDEX_last_archive:
+            tt = ATTR(attrs, last_archive);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+#endif
+#ifdef ATTR_INDEX_last_restore
+        case ATTR_INDEX_last_restore:
+            tt = ATTR(attrs, last_restore);
+            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+#endif
+#ifdef ATTR_INDEX_backend_path
+        case ATTR_INDEX_backend_path:
+            return ATTR(attrs, backend_path);
+#endif
+
 #ifdef _LUSTRE
         case ATTR_INDEX_stripe_info:
             if (csv)
@@ -1548,7 +1658,7 @@ static inline const char * attrdesc2name(const report_field_descr_t * desc)
 {
     switch(desc->attr_index)
     {
-        case 0:
+        case -1:
             if (desc->report_type == REPORT_COUNT)
                 return "count";
             break;
@@ -1576,7 +1686,7 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
     out[0] = '\0';
     switch(desc->attr_index)
     {
-        case 0: /* count */
+        case -1: /* count */
             sprintf(out, "%Lu", val->value_u.val_biguint);
             break;
 #ifdef  ATTR_INDEX_status
@@ -1584,9 +1694,7 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
             sprintf(out, db_status2str(val->value_u.val_uint,csv));
             break;
 #endif
-#ifdef ATTR_INDEX_type
         case ATTR_INDEX_type:
-#endif
         case ATTR_INDEX_owner:
         case ATTR_INDEX_gr_name:
             strcpy(out, val->value_u.val_str);
@@ -1940,7 +2048,7 @@ static void report_fs_info( int flags )
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
 #endif
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
-        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
+        {-1, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL}, /* XXX ifdef STATUS ? */
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, FV_NULL},
@@ -2027,8 +2135,63 @@ static void report_fs_info( int flags )
     }
 }
 
+static int report_entry(const char *entry, int flags)
+{
+    int is_id = TRUE;
+    int rc;
+    entry_id_t id;
+    attr_set_t attrs;
+
+    /* try it as a fid */
+    if (sscanf(entry, SFID, RFID(&id)) != FID_SCAN_CNT)
+    {
+        is_id = FALSE;
+        /* try it as a path */
+        if ((rc = Path2Id(entry, &id)) != 0)
+        {
+            fprintf(stderr, "Couldn't get id for %s: %s\n,", entry, strerror(-rc));
+            return rc;
+        }
+    }
+
+    /* try to get all attrs */
+    attrs.attr_mask = ~0;
+
+    if (CSV(flags))
+        printf("id, "DFID"\n", PFID(&id));
+    else
+        printf("%-15s: \t"DFID"\n", "id", PFID(&id));
+
+    if (ListMgr_Get(&lmgr, &id, &attrs) == DB_SUCCESS)
+    {
+        int mask, i;
+        char str[RBH_PATH_MAX];
+
+        for (i = 0, mask = 1; i < ATTR_COUNT; i++, mask <<= 1)
+        {
+            if (mask & attrs.attr_mask)
+            {
+                if (attrindex2len(i, CSV(flags)) != 1) /* for '?' */
+                {
+                    if (!CSV(flags))
+                        printf("%-15s: \t%s\n", attrindex2name(i),
+                               attr2str(&attrs, &id, i, CSV(flags), FALSE,
+                               str, sizeof(str)));
+                    else
+                        printf("%s, %s\n", attrindex2name(i),
+                               attr2str(&attrs, &id, i, CSV(flags), FALSE,
+                               str, sizeof(str)));
+                }
+            }
+        }
+        return 0;
+    }
+    else
+        return -1;
+}
+
 static inline void set_report_rec_nofilter( report_field_descr_t* ent,
-                                   unsigned int   attr_index,
+                                   int   attr_index,
                                    report_type_t  report_type,
                                    sort_order_t   sort_flag )
 {
@@ -2101,14 +2264,12 @@ static void report_usergroup_info( char *name, int flags )
         field_count++;
     }
 
-#ifdef ATTR_INDEX_type
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type,
                             REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
     field_count++;
     shift++;
-#endif
 
-    set_report_rec_nofilter(&user_info[field_count], 0, REPORT_COUNT, SORT_NONE );
+    set_report_rec_nofilter(&user_info[field_count], -1, REPORT_COUNT, SORT_NONE );
     if (count_min) {
         user_info[field_count].filter = TRUE;
         user_info[field_count].filter_compar = MORETHAN;
@@ -2203,7 +2364,6 @@ static void report_usergroup_info( char *name, int flags )
 
 }
 
-#ifdef ATTR_INDEX_dircount
 static void report_topdirs( unsigned int count, int flags )
 {
     /* To be retrieved for dirs:
@@ -2295,7 +2455,6 @@ static void report_topdirs( unsigned int count, int flags )
     }
     ListMgr_CloseIterator( it );
 }
-#endif
 
 static void report_topsize( unsigned int count, int flags )
 {
@@ -2631,7 +2790,7 @@ static void report_topuser( unsigned int count, int flags )
     report_field_descr_t user_info[TOPUSERCOUNT] = {
         {ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_DESC, FALSE, 0, FV_NULL},
-        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
+        {-1, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, FALSE, 0, FV_NULL},
@@ -2845,7 +3004,7 @@ static void report_class_info( int flags )
 #ifdef ATTR_INDEX_status
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
 #endif
-        {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
+        {-1, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, FV_NULL},
@@ -3103,6 +3262,9 @@ int main( int argc, char **argv )
     int            activity = FALSE;
     int            fs_info = FALSE;
 
+    int            entry_info = FALSE;
+    char           entry_path[RBH_PATH_MAX] = "";
+
     int            user_info = FALSE;
     char           user_name[256] = "";
 
@@ -3111,9 +3273,7 @@ int main( int argc, char **argv )
 
     int            class_info = FALSE;
 
-#ifdef ATTR_INDEX_dircount
     int            topdirs = 0;
-#endif
     int            topsize = 0;
     int            toppurge = 0;
     int            toprmdir = 0;
@@ -3215,6 +3375,11 @@ int main( int argc, char **argv )
             fs_info = TRUE;
             break;
 
+        case 'e':
+            entry_info = TRUE;
+            strncpy(entry_path, optarg, RBH_PATH_MAX);
+            break;
+
         case 'u':
             user_info = TRUE;
             if ( optarg )
@@ -3296,7 +3461,6 @@ int main( int argc, char **argv )
             break;
 #endif
 
-#ifdef ATTR_INDEX_dircount
         case 'd':
             if ( optarg )
             {
@@ -3312,7 +3476,6 @@ int main( int argc, char **argv )
             else
                 topdirs = DEFAULT_TOP_SIZE;
             break;
-#endif
 
         case 's':
             if ( optarg )
@@ -3488,10 +3651,8 @@ int main( int argc, char **argv )
 
     if ( !activity && !fs_info && !user_info && !group_info
          && !topsize && !toppurge && !topuser && !dump_all
-         && !dump_user && !dump_group && !class_info
-#ifdef ATTR_INDEX_dircount
+         && !dump_user && !dump_group && !class_info && !entry_info
          && !topdirs
-#endif
 #ifdef ATTR_INDEX_status
          && !dump_status
 #endif
@@ -3587,6 +3748,9 @@ int main( int argc, char **argv )
     if ( fs_info )
         report_fs_info( flags );
 
+    if (entry_info)
+        report_entry(entry_path, flags);
+
     if ( user_info )
         report_usergroup_info( ( EMPTY_STRING( user_name ) ? NULL : user_name ),
                                flags );
@@ -3598,10 +3762,8 @@ int main( int argc, char **argv )
     if ( class_info )
         report_class_info(flags);
 
-#ifdef ATTR_INDEX_dircount
     if ( topdirs )
         report_topdirs( topdirs, flags );
-#endif
 
     if ( topsize )
         report_topsize( topsize, flags );

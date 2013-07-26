@@ -42,9 +42,8 @@
 - bench diff
 - test diff for hardlinks
 
-- add rbh-report --get=<id>
 - add rbh-find --details
-- add rbh-find -print
+- add rbh-find -print -exec -delete...
 - refactoring lmgr_init
 
 - change code formatting to GNU
