@@ -350,6 +350,7 @@ fi
 - [DB] better handling of ER_QUERY_INTERRUPTED MySQL error.
 - [DB] fixed DB connection leaks.
 - Backup & HSM modes:
+   - [doc] added config tutorial for backup mode
    - [fix] fix segfault in import command when uid/gid can't be resolved.
    - [rbh-report] fix bad display of total volume with -u or -g.
 - Migration policy features and optimizations:
