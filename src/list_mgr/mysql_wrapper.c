@@ -25,6 +25,7 @@
 /* mysql includes */
 #include <mysqld_error.h>
 #include <errmsg.h>
+#include <time.h>
 
 #define _DEBUG_DB
 

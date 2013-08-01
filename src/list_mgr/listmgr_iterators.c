@@ -148,18 +148,23 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                                           const lmgr_sort_type_t *
                                           p_sort_type, const lmgr_iter_opt_t * p_opt )
 {
-    char           query[4096];
-    char           filter_str_main[2048];
-    char           filter_str_annex[2048];
-    char           filter_str_stripe_info[2048];
-    char           filter_str_stripe_items[2048];
-    char           filter_dir_str[512];
+    char           query[4096] = "";
+
+    char           filter_str_main[2048] = "";
+    char           filter_str_name[2048] = "";
+    char           filter_str_annex[2048] = "";
+    char           filter_str_stripe_info[2048] = "";
+    char           filter_str_stripe_items[2048] = "";
+
+    char           filter_dir_str[512] = "";
     filter_dir_e   filter_dir_type = FILTERDIR_NONE;
     unsigned int   filter_dir_index = 0;
     int            filter_main = 0;
+    int            filter_name = 0;
     int            filter_annex = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
+    int            filters = 0;
     int            rc;
     char           fields[2048];
     char           tables[2048];
@@ -167,12 +172,6 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
     table_enum     sort_table = T_NONE;
     int            sort_dirattr = -1;
     int            do_sort = 0;
-
-    filter_str_main[0] = '\0';
-    filter_str_annex[0] = '\0';
-    filter_str_stripe_info[0] = '\0';
-    filter_str_stripe_items[0] = '\0';
-
     char          *query_end;
 
     /* Iterator only select a sorted list of ids.
@@ -213,36 +212,35 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
     if ( p_filter )
     {
-        if (func_filter(p_mgr, filter_dir_str, p_filter, T_MAIN, FALSE, FALSE))
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
-            return NULL;
-        }
-
         filter_dir_type = dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index);
         /* XXX is sort dirattr the same as filter dirattr? */
 
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
                                   FALSE, TRUE );
+        filters += (filter_main > 0 ? 1 : 0);
 
         if ( annex_table )
             filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                       T_ANNEX, ( filter_main > 0 ), TRUE );
+                                       T_ANNEX, filters, TRUE );
         else
             filter_annex = 0;
+        filters += (filter_annex > 0 ? 1 : 0);
+
+        filter_name = filter2str(p_mgr, filter_str_name, p_filter, T_DNAMES, filters, TRUE);
+        filters += (filter_name > 0 ? 1 : 0);
 
         filter_stripe_info =
-            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                        ( filter_main > 0 ) || ( filter_annex > 0 ), TRUE );
+            filter2str(p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
+                       filters, TRUE);
+        filters += (filter_stripe_info > 0 ? 1 : 0);
 
         filter_stripe_items =
             filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
-                        ( filter_main > 0 ) || ( filter_annex > 0 )
-                        || ( filter_stripe_info > 0 ), TRUE );
+                        filters, TRUE);
+        filters += (filter_stripe_items > 0 ? 1 : 0);
 
 
-        if (( filter_main == 0 ) && ( filter_annex == 0 ) && ( filter_stripe_items == 0 )
-             && ( filter_stripe_info == 0 ))
+        if (filters == 0)
         {
             /* for dirattr filter, we can deal with table mixing */
 
@@ -305,8 +303,8 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                                filter_dir_type, filter_dir_index, filter_dir_str);
             }
         }
-        else if ( filter_main && !( filter_annex || filter_stripe_items || filter_stripe_info )
-                  && ( !do_sort || ( sort_table == T_MAIN ) || sort_dirattr != -1 ) )
+        else if (filter_main && (filters == 1) /* only main */
+                 && (!do_sort || (sort_table == T_MAIN) || sort_dirattr != -1 ))
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " MAIN_TABLE " table" );
 
@@ -316,7 +314,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             append_dir_req(query, "SELECT id FROM " MAIN_TABLE, filter_str_main,
                            sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
         }
-        else if ( filter_annex && !( filter_main || filter_stripe_items || filter_stripe_info )
+        else if ( filter_annex && (filters == 1) /* only annex */
                   && ( !do_sort || ( sort_table == T_ANNEX ) || sort_dirattr != -1) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " ANNEX_TABLE " table" );
@@ -324,7 +322,15 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             append_dir_req(query, "SELECT id FROM " ANNEX_TABLE, filter_str_annex,
                            sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
         }
-        else if ( filter_stripe_info && !( filter_main || filter_annex || filter_stripe_items )
+        else if (filter_name && (filters == 1) /* only names */
+                 && (!do_sort || sort_dirattr != -1))
+        {
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " DNAMES_TABLE " table" );
+
+            append_dir_req(query, "SELECT DISTINCT(id) FROM " DNAMES_TABLE, filter_str_name,
+                           sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
+        }
+        else if ( filter_stripe_info && (filters == 1) /* only stripe info */
                   && ( !do_sort || ( sort_table == T_STRIPE_INFO ) || sort_dirattr != -1 ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_INFO_TABLE " table" );
@@ -332,7 +338,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             append_dir_req(query, "SELECT id FROM " STRIPE_INFO_TABLE, filter_str_stripe_info,
                            sort_dirattr, filter_dir_type, filter_dir_index, filter_dir_str);
         }
-        else if ( filter_stripe_items && !( filter_main || filter_annex || filter_stripe_info )
+        else if ( filter_stripe_items && (filters == 1) /* only stripe items */
                   && ( !do_sort || ( sort_table == T_STRIPE_ITEMS ) || sort_dirattr != -1 ) )
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_ITEMS_TABLE " table" );
@@ -345,13 +351,16 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             char          *curr_fields = fields;
             char          *curr_tables = tables;
             char          *first_table = NULL;
+            int distinct = 0;
 
             DisplayLog( LVL_FULL, LISTMGR_TAG,
                         "Filter or sort order on several tables: "
-                        MAIN_TABLE ":%d, " ANNEX_TABLE ":%d, "
+                        MAIN_TABLE ":%d, "ANNEX_TABLE ":%d, "
+                        DNAMES_TABLE ":%d, "
                         STRIPE_INFO_TABLE ":%d, "
                         STRIPE_ITEMS_TABLE ":%d",
-                        filter_main, filter_annex, filter_stripe_info, filter_stripe_items );
+                        filter_main, filter_name, filter_annex,
+                        filter_stripe_info, filter_stripe_items );
 
             if ( ( filter_main > 0 ) || ( do_sort && ( sort_table == T_MAIN ) ) )
             {
@@ -375,7 +384,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
                     /* also add junction condition */
                     curr_fields +=
-                        sprintf( curr_fields, " AND %s.id=%s.id", MAIN_TABLE, ANNEX_TABLE );
+                        sprintf( curr_fields, " AND %s.id=%s.id", first_table, ANNEX_TABLE );
                 }
                 else
                     first_table = ANNEX_TABLE;
@@ -383,8 +392,29 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                 curr_tables += sprintf( curr_tables, "%s", ANNEX_TABLE );
             }
 
+            if (filter_name > 0)
+            {
+                distinct = 1;
+                if (filter_name > 0)
+                    curr_fields += sprintf(curr_fields, "%s", filter_str_name);
+
+                if (first_table != NULL)
+                {
+                    *curr_tables = ',';
+                    curr_tables++;
+
+                    /* also add junction condition */
+                    curr_fields +=
+                        sprintf(curr_fields, " AND %s.id=%s.id", first_table, DNAMES_TABLE);
+                }
+                else
+                    first_table = DNAMES_TABLE;
+
+                curr_tables += sprintf( curr_tables, "%s", DNAMES_TABLE );
+            }
             if ( ( filter_stripe_items > 0 ) || ( do_sort && ( sort_table == T_STRIPE_ITEMS ) ) )
             {
+                distinct = 1;
                 if ( filter_stripe_items > 0 )
                     curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_items );
 
@@ -394,14 +424,8 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                     curr_tables++;
 
                     /* add junction condition */
-                    if ( ( filter_main > 0 ) || ( do_sort && ( sort_table == T_MAIN ) ) )
-                        curr_fields +=
-                            sprintf( curr_fields, " AND %s.id=%s.id",
-                                     MAIN_TABLE, STRIPE_ITEMS_TABLE );
-                    if ( ( filter_annex > 0 ) || ( do_sort && ( sort_table == T_ANNEX ) ) )
-                        curr_fields +=
-                            sprintf( curr_fields, " AND %s.id=%s.id",
-                                     ANNEX_TABLE, STRIPE_ITEMS_TABLE );
+                    curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
+                                           first_table, STRIPE_ITEMS_TABLE);
                 }
                 else
                     first_table = STRIPE_ITEMS_TABLE;
@@ -420,20 +444,8 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                     curr_tables++;
 
                     /* add junction condition */
-                    if ( ( filter_main > 0 ) || ( do_sort && ( sort_table == T_MAIN ) ) )
-                        curr_fields +=
-                            sprintf( curr_fields, " AND %s.id=%s.id",
-                                     MAIN_TABLE, STRIPE_INFO_TABLE );
-                    if ( ( filter_annex > 0 ) || ( do_sort && ( sort_table == T_ANNEX ) ) )
-                        curr_fields +=
-                            sprintf( curr_fields, " AND %s.id=%s.id",
-                                     ANNEX_TABLE, STRIPE_INFO_TABLE );
-                    if ( ( filter_stripe_items > 0 )
-                         || ( do_sort && ( sort_table == T_STRIPE_ITEMS ) ) )
-                        curr_fields +=
-                            sprintf( curr_fields, " AND %s.id=%s.id", STRIPE_ITEMS_TABLE,
-                                     STRIPE_INFO_TABLE );
-
+                    curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
+                                           first_table, STRIPE_INFO_TABLE);
                 }
                 else
                     first_table = STRIPE_INFO_TABLE;
@@ -445,14 +457,16 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                        first_table, tables);
 
             char tmp[1024];
-            sprintf( tmp, "SELECT %s.id AS id FROM %s", first_table, tables );
+            if (distinct)
+                sprintf( tmp, "SELECT DISTINCT(%s.id) AS id FROM %s", first_table, tables );
+            else
+                sprintf( tmp, "SELECT %s.id AS id FROM %s", first_table, tables );
             append_dir_req( query, tmp, fields, sort_dirattr,
                             filter_dir_type, filter_dir_index, filter_dir_str);
         }
     }
     else if ( do_sort )
     {
-
         /* no filter: entries must be selected depending on sort order */
         if ( sort_table == T_MAIN )
             strcpy( query, "SELECT id FROM " MAIN_TABLE );
@@ -464,6 +478,8 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             strcpy( query, "SELECT id FROM " STRIPE_INFO_TABLE );
         else if (sort_dirattr != -1)
             append_dirattr_select(query, sort_dirattr, "dirattr_sort");
+        else
+            abort();
     }
     else
     {

@@ -161,59 +161,21 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
 #endif
 }
 
-/** retrieve attributes generated using a DB function */
-int listmgr_get_funcattrs(lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info)
-{
-    char            query[1024];
-    result_handle_t result;
-    char            *str_info[1];
-    int rc = 0;
-
-    if (ATTR_MASK_TEST(p_info, fullpath))
-    {
-        sprintf( query, "SELECT one_path("DPK")", pk );
-        rc = db_exec_sql( &p_mgr->conn, query, &result );
-        if ( rc )
-            return rc;
-
-        rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
-        if (rc == DB_END_OF_LIST)
-        {
-            /* function: should return 1 value */
-            ATTR_MASK_UNSET(p_info, fullpath);
-            rc = DB_REQUEST_FAILED;
-        }
-        else if (rc == DB_SUCCESS)
-        {
-            if (str_info[0] == NULL)
-            {
-                ATTR_MASK_UNSET(p_info, fullpath);
-                rc = DB_SUCCESS;
-            }
-            else
-            {
-                snprintf(ATTR(p_info, fullpath), RBH_PATH_MAX, "%s/%s", global_config.fs_path, str_info[0]);
-                rc = DB_SUCCESS;
-            }
-        }
-        db_result_free( &p_mgr->conn, &result );
-    }
-    return rc;
-}
-
-
 /**
  *  Retrieve entry attributes from its primary key
  */
 int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 {
-    int            count, rc;
-    char           fieldlist[1024];
-    char           query[4096];
+    int            rc;
+    char           fieldlist[4096] = "";
+    char          *first_table = NULL;
+    char           from[1024] = "";
+    char           query[4096] = "";
     /* we assume there is not more than 128 fields */
     char          *result_tab[128];
     result_handle_t result;
     int checkmain = 1;
+    int main_count = 0, annex_count = 0, name_count = 0;
 
     if (p_info == NULL)
         return 0;
@@ -226,19 +188,66 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     add_source_fields_for_gen( &p_info->attr_mask );
 
     /* get info from main table (if asked) */
-    count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_MAIN, FALSE, FALSE, "", "" );
-    if ( count < 0 )
-        return -count;
-
-    if ( count > 0 )
+    main_count = attrmask2fieldlist(fieldlist, p_info->attr_mask, T_MAIN, FALSE,
+                                    FALSE, "", "");
+    if (main_count < 0)
+        return -main_count;
+    else if (main_count > 0)
     {
         checkmain = 0;
-        sprintf( query, "SELECT %s FROM " MAIN_TABLE " WHERE id="DPK, fieldlist, pk );
-        rc = db_exec_sql( &p_mgr->conn, query, &result );
-        if ( rc )
+        first_table = MAIN_TABLE;
+        sprintf(from, MAIN_TABLE);
+    }
+
+    annex_count = attrmask2fieldlist(fieldlist + strlen(fieldlist),
+                                     p_info->attr_mask, T_ANNEX,
+                                     first_table != NULL, FALSE, "", "");
+    if (annex_count < 0)
+        return -annex_count;
+    else if (annex_count > 0)
+    {
+        if (first_table)
+            sprintf(from + strlen(from), " LEFT JOIN "ANNEX_TABLE" ON %s.id="
+                    ANNEX_TABLE".id", first_table);
+        else
+        {
+            first_table = ANNEX_TABLE;
+            sprintf(from, ANNEX_TABLE);
+        }
+    }
+
+    name_count = attrmask2fieldlist(fieldlist + strlen(fieldlist),
+                                    p_info->attr_mask, T_DNAMES,
+                                    first_table != NULL, FALSE, "", "");
+    if (name_count < 0)
+        return -name_count;
+    else if (name_count > 0)
+    {
+        if (first_table)
+            /* it's OK to JOIN with NAMES table here even if there are multiple paths,
+             * as we only take one result record. The important thing is to return
+             * consistent values for parent_id, name and fullpath. */
+            sprintf(from + strlen(from), " LEFT JOIN "DNAMES_TABLE" ON %s.id="
+                    DNAMES_TABLE".id", first_table);
+        else
+        {
+            first_table = DNAMES_TABLE;
+            sprintf(from, DNAMES_TABLE);
+        }
+    }
+
+    if (first_table != NULL)
+    {
+        int shift = 0;
+        sprintf(query, "SELECT %s FROM %s WHERE %s.id="DPK, fieldlist, from,
+                first_table, pk);
+
+        rc = db_exec_sql(&p_mgr->conn, query, &result);
+        if (rc)
             return rc;
 
-        rc = db_next_record( &p_mgr->conn, &result, result_tab, count );
+        rc = db_next_record(&p_mgr->conn, &result, result_tab,
+                            main_count + annex_count + name_count);
         if ( rc == DB_END_OF_LIST )
         {
             rc = DB_NOT_EXISTS;
@@ -246,104 +255,38 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         }
 
         /* set info from result */
-        rc = result2attrset( T_MAIN, result_tab, count, p_info );
-        if ( rc )
-            goto free_res;
+        if (main_count)
+        {
+            rc = result2attrset(T_MAIN, result_tab + shift, main_count, p_info);
+            shift += main_count;
+            if (rc)
+                goto free_res;
+        }
+        if (annex_count)
+        {
+            rc = result2attrset(T_ANNEX, result_tab + shift, annex_count,
+                                p_info);
+            shift += annex_count;
+            if (rc)
+                goto free_res;
+        }
+        if (name_count)
+        {
+            rc = result2attrset(T_DNAMES, result_tab + shift, name_count,
+                                p_info);
+            shift += name_count;
+            if (rc)
+                goto free_res;
+        }
 
-        db_result_free( &p_mgr->conn, &result );
+        db_result_free(&p_mgr->conn, &result);
     }
 
-    /* remove slink attrs if it is not a symlink */
-    if (slinkattr_fields(p_info->attr_mask) && ATTR_MASK_TEST(p_info, type)
-        && strcmp(ATTR(p_info, type), STR_TYPE_LINK) != 0)
-    {
-        p_info->attr_mask &= ~slink_attr_set;
-    }
     /* remove stripe info if it is not a file */
     if (stripe_fields(p_info->attr_mask) && ATTR_MASK_TEST(p_info, type)
         && strcmp(ATTR(p_info, type), STR_TYPE_FILE) != 0)
     {
         p_info->attr_mask &= ~stripe_attr_set;
-    }
-
-    /* get info from NAMES table, if needed */
-    if (names_fields(p_info->attr_mask))
-    {
-        count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_DNAMES, FALSE, FALSE, "", "" );
-        if ( count < 0 )
-            return -count;
-
-        if ( count > 0 )
-        {
-            sprintf( query, "SELECT %s FROM " DNAMES_TABLE " WHERE id="DPK, fieldlist, pk );
-            rc = db_exec_sql( &p_mgr->conn, query, &result );
-            if ( rc )
-                return rc;
-
-            rc = db_next_record( &p_mgr->conn, &result, result_tab, count );
-
-            if (rc == 0)
-                checkmain = 0; /* entry exists */
-
-            if ( rc == DB_END_OF_LIST )
-            {
-                /* clear missing fields */
-                rc = result2attrset( T_DNAMES, NULL, count, p_info );
-                if ( rc )
-                    goto free_res;
-            }
-            else if (rc != DB_SUCCESS)
-                    goto free_res;
-            else
-            {
-                /* set info from result */
-                rc = result2attrset( T_DNAMES, result_tab, count, p_info );
-                if ( rc )
-                    goto free_res;
-            }
-
-            db_result_free( &p_mgr->conn, &result );
-        }
-    }
-
-    if ( annex_table )
-    {
-        /* get annex info (if asked) */
-        count = attrmask2fieldlist( fieldlist, p_info->attr_mask, T_ANNEX, FALSE, FALSE, "", "" );
-        if ( count < 0 )
-            return -count;
-
-        if ( count > 0 )
-        {
-            sprintf( query, "SELECT %s FROM " ANNEX_TABLE " WHERE id="DPK, fieldlist, pk );
-            rc = db_exec_sql( &p_mgr->conn, query, &result );
-            if ( rc )
-                return rc;
-
-            rc = db_next_record( &p_mgr->conn, &result, result_tab, count );
-
-            if (rc == 0)
-                checkmain = 0; /* entry exists */
-
-            if ( rc == DB_END_OF_LIST )
-            {
-                /* clear missing fields */
-                rc = result2attrset( T_ANNEX, NULL, count, p_info );
-                if ( rc )
-                    goto free_res;
-            }
-            else if (rc != DB_SUCCESS)
-                    goto free_res;
-            else
-            {
-                /* set info from result */
-                rc = result2attrset( T_ANNEX, result_tab, count, p_info );
-                if ( rc )
-                    goto free_res;
-            }
-
-            db_result_free( &p_mgr->conn, &result );
-        }
     }
 
     /* get stripe info if asked */
@@ -375,15 +318,6 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattrs failed for "DPK, pk );
             p_info->attr_mask &= ~dir_attr_set;
-        }
-    }
-
-    if (funcattr_fields( p_info->attr_mask ))
-    {
-        if (listmgr_get_funcattrs(p_mgr, pk, p_info))
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_funcattrs failed for "DPK, pk );
-            p_info->attr_mask &= ~func_attr_set;
         }
     }
 

@@ -137,7 +137,6 @@ int            dir_attr_set = 0;
 int            slink_attr_set = 0;
 int            readonly_attr_set = 0;
 int            gen_attr_set = 0;
-int            func_attr_set = 0;
 int            acct_attr_set = 0;
 int            acct_pk_attr_set = 0;
 
@@ -150,7 +149,6 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     names_attr_set = 0;
     annex_attr_set = 0;
     gen_attr_set = 0;
-    func_attr_set = 0;
     stripe_attr_set = 0;
     readonly_attr_set = 0;
     acct_pk_attr_set = 0;
@@ -189,8 +187,6 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
             main_attr_set |= mask;
         else if ( is_gen_field( i ) )
             gen_attr_set |= mask;
-        else if ( is_funcattr( i ) )
-            func_attr_set |= mask;
         else if ( is_annex_field( i ) )
             annex_attr_set |= mask;
         else if ( is_stripe_field( i ) )
@@ -319,6 +315,52 @@ int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask )
 }
 
 
+/* function attr_index, arg table, function_name, {arguments} */
+typedef struct function_def
+{
+    int         attr_index;
+    table_enum  arg_table;
+    char       *fn_name;
+    char      **fn_args;
+} function_def_t;
+
+static const function_def_t   functions[] =
+{
+    {ATTR_INDEX_fullpath, T_DNAMES, "this_path", (char*[]){"parent_id", "name", NULL}},
+    {-1, 0, NULL, NULL}
+};
+
+static const function_def_t *get_function_by_attr(int attr_index)
+{
+    int i;
+    for (i = 0; functions[i].fn_name != NULL; i++)
+    {
+        if (functions[i].attr_index == attr_index)
+            return &functions[i];
+    }
+    return NULL;
+}
+
+/* print function call */
+static int print_func_call(char *out, int func_index, const char *prefix)
+{
+    char *curr = out;
+    const function_def_t *func = get_function_by_attr(func_index); 
+    char **args;
+    if (func == NULL) /* unexpected: BUG */
+        abort();
+    curr += sprintf(curr, "%s(", func->fn_name);
+    for (args = func->fn_args; *args != NULL; args++)
+    {
+        if (args == func->fn_args) /* first arg */
+            curr += sprintf(curr, "%s%s", prefix, *args);
+        else
+            curr += sprintf(curr, ",%s%s", prefix, *args);
+    }
+    strcpy(curr, ")"); /* ) \0 */
+    curr++;
+    return curr-out;
+}
 
 /**
  * @param table T_MAIN, T_ANNEX, T_ACCT
@@ -335,6 +377,14 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
     unsigned int   nbfields = 0;
     int            mask = 1;
     char          *for_update_str = "";
+
+    /* optim: exit immediatly if no field matches */
+    if ((table == T_MAIN) && !main_fields(attr_mask))
+        return 0;
+    if ((table == T_ANNEX) && (!annex_table || !annex_fields(attr_mask)))
+        return 0;
+    if ((table == T_DNAMES) && !names_fields(attr_mask))
+        return 0;
 
     if ( for_update )
         for_update_str = "=?";
@@ -354,14 +404,25 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
                 return -DB_READ_ONLY_ATTR;
             }
 
-            if ( MATCH_TABLE( table, i ) )
+            if (MATCH_TABLE( table, i ))
             {
-                if ( !leading_comma && ( nbfields == 0 ) )
-                    fields_curr +=
-                        sprintf( fields_curr, "%s%s%s%s", prefix, field_infos[i].field_name, for_update_str, postfix );
+                if (leading_comma || (nbfields > 0))
+                {
+                    *fields_curr = ',';
+                    fields_curr ++;
+                }
+
+                if (is_funcattr(i))
+                {
+                    fields_curr += print_func_call(fields_curr, i, prefix);
+                    fields_curr += sprintf(fields_curr, "%s%s", for_update_str, postfix);
+                }
                 else
+                {
                     fields_curr +=
-                        sprintf( fields_curr, ", %s%s%s%s", prefix, field_infos[i].field_name, for_update_str, postfix );
+                        sprintf(fields_curr, "%s%s%s%s", prefix, field_infos[i].field_name,
+                                for_update_str, postfix);
+                }
                 nbfields++;
             }
         }
@@ -581,6 +642,27 @@ int mk_result_bind_list( const attr_set_t * p_set, table_enum table, db_type_t *
 
 }
 
+static inline int fullpath_attr2db(const char *attr, char *db)
+{
+    /* fullpath 2 relative */
+    if (relative_path(attr, global_config.fs_path, db))
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "fullpath %s is not under FS root %s",
+                   attr, global_config.fs_path);
+        return -EINVAL;
+    }
+    return 0;
+}
+
+static inline void fullpath_db2attr(const char *db, char *attr)
+{
+    /* relative 2 full */
+    if (!strcmp(global_config.fs_path, "/")) /* FS root is '/' */
+        sprintf(attr, "/%s", db);
+    else
+        sprintf(attr, "%s/%s", global_config.fs_path, db);
+}
+
 int result2attrset( table_enum table, char **result_tab,
                     unsigned int res_count, attr_set_t * p_set )
 {
@@ -591,7 +673,7 @@ int result2attrset( table_enum table, char **result_tab,
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
-        if ( ( p_set->attr_mask & mask ) && ( MATCH_TABLE( table, i ) ) )
+        if ((p_set->attr_mask & mask) && MATCH_TABLE(table, i))
         {
             if (result_tab)
                 DisplayLog(LVL_FULL, LISTMGR_TAG, "result[%u]: %s = %s", nbfields,
@@ -645,9 +727,12 @@ int result2attrset( table_enum table, char **result_tab,
                 continue;
             }
 
-            UNION_GET_VALUE( typeu, field_infos[i].db_type,
-                             ( ( char * ) &p_set->attr_values + field_infos[i].offset ) );
-
+            /* special case for fullpath which must be converted from relative to aboslute */
+            if (i == ATTR_INDEX_fullpath)
+                fullpath_db2attr(typeu.val_str, ATTR(p_set, fullpath));
+            else
+                UNION_GET_VALUE(typeu, field_infos[i].db_type,
+                                ((char *)&p_set->attr_values + field_infos[i].offset));
             nbfields++;
         }
     }
@@ -796,13 +881,9 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
                 if (index == ATTR_INDEX_fullpath)
                 {
                     char relative[RBH_PATH_MAX];
-                    /* one_path and this_path generates paths relatively to root dir,
-                     * so we extract the relative path */
-                    if (relative_path(p_filter->filter_simple.filter_value[i].value.val_str,
-                                      global_config.fs_path, relative))
+                    if (fullpath_attr2db(p_filter->filter_simple.filter_value[i].value.val_str, relative))
                     {
-                        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "fullpath filter %s is not under FS root %s: replacing filter by 'FALSE'",
-                                   val, global_config.fs_path);
+                        /* condition is always false */
                         curr += sprintf(curr, "FALSE");
                         return 1;
                     }
@@ -898,12 +979,6 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on dir attribute '%s'", field_infos[index].field_name );
                 continue;
             }
-            else if ( field_infos[index].flags & FUNC_ATTR )
-            {
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "Filtering on function return value: attribute '%s'",
-                            field_infos[index].field_name );
-                continue;
-            }
             else if ( field_infos[index].flags & GENERATED )
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG, "Cannot use filter on generated field '%s'", field_infos[index].field_name );
@@ -945,21 +1020,48 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
 
             if ( MATCH_TABLE( table, index ) )
             {
-                if ( prefix_table )
-                    sprintf(fname, "%s.", table2name(table));
+                if (is_funcattr(index))
+                {
+                    char tmp[128] = "";
+                    if (prefix_table)
+                        sprintf(tmp, "%s.", table2name(table));
+                    print_func_call(fname, index, tmp);
+                }
+                else /* std field */
+                {
+                    if ( prefix_table )
+                        sprintf(fname, "%s.", table2name(table));
 
-                strcat( fname, field_infos[index].field_name );
+                    strcat(fname, field_infos[index].field_name);
+                }
 
                 values_curr +=
                     sprintf( values_curr, "%s%s", fname,
                              compar2str( p_filter->filter_simple.filter_compar[i] ) );
 
-                /* single value (list only apply to OSTs XXX for now) */
-                typeu = p_filter->filter_simple.filter_value[i].value;
+                if (index == ATTR_INDEX_fullpath)
+                {
+                    char relative[RBH_PATH_MAX];
+                    if (fullpath_attr2db(p_filter->filter_simple.filter_value[i].value.val_str, relative))
+                    {
+                        /* condition is always false */
+                        values_curr += sprintf(values_curr, "FALSE");
+                    }
+                    else
+                    {
+                        typeu.val_str = relative;
+                        values_curr += printdbtype(p_mgr, values_curr,
+                                                   field_infos[index].db_type, &typeu);
+                    }
+                }
+                else
+                {
+                    /* single value (list only apply to OSTs XXX for now) */
+                    typeu = p_filter->filter_simple.filter_value[i].value;
 
-                values_curr += printdbtype( p_mgr, values_curr,
-                                            field_infos[index].db_type, &typeu );
-
+                    values_curr += printdbtype( p_mgr, values_curr,
+                                                field_infos[index].db_type, &typeu );
+                }
                 nbfields++;
             }
             else if ( ( table == T_STRIPE_ITEMS )

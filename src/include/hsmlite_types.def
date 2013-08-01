@@ -112,7 +112,7 @@ name,           char, DB_TEXT, RBH_NAME_MAX, FREQ_ACCESS | DNAMES
 path_update,    unsigned int, DB_UINT, 0, FREQ_ACCESS | DNAMES
 
 # built from NAMES table
-fullpath,   char, DB_TEXT, RBH_PATH_MAX, FUNC_ATTR
+fullpath,   char, DB_TEXT, RBH_PATH_MAX, FUNC_ATTR | DNAMES
 
 #generated from fullpath
 depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth

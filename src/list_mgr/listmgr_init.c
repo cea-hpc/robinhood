@@ -398,7 +398,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
         for ( i = 0; i < ATTR_COUNT; i++ )
         {
-            if ( is_main_field( i ) )
+            if (is_main_field( i ) && !is_funcattr(i))
             {
                 if ( check_field( i, &curr_field_index, MAIN_TABLE, fieldtab ) )
                     return -1;
@@ -426,7 +426,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             for ( i = 0; i < ATTR_COUNT; i++ )
             {
-                if ( is_main_field( i ) )
+                if (is_main_field(i) && !is_funcattr(i))
                 {
 #ifdef ATTR_INDEX_status
                     if ( i == ATTR_INDEX_status )
@@ -530,7 +530,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
         for ( i = 0; i < ATTR_COUNT; i++ )
         {
-            if ( is_names_field( i ) )
+            if (is_names_field( i ) && !is_funcattr(i))
             {
                 if ( check_field( i, &curr_field_index, DNAMES_TABLE, fieldtab ) )
                     return -1;
@@ -558,7 +558,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             for ( i = 0; i < ATTR_COUNT; i++ )
             {
-                if ( is_names_field( i ) )
+                if (is_names_field(i) && !is_funcattr(i))
                 {
                     next += append_field_def( i, next, 0, NULL );
                 }
@@ -585,7 +585,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
             /* create indexes on this table */
             for ( i = 0; i < ATTR_COUNT; i++ )
             {
-                if ( is_names_field( i ) && is_indexed_field( i ) )
+                if (is_names_field(i) && is_indexed_field(i))
                 {
                     sprintf( strbuf, "CREATE INDEX %s_index ON " DNAMES_TABLE "(%s)",
                              field_infos[i].field_name, field_infos[i].field_name );
@@ -981,7 +981,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
             for ( i = 0; i < ATTR_COUNT; i++ )
             {
-                if ( is_annex_field( i ) )
+                if (is_annex_field( i ) && !is_funcattr(i))
                 {
                     if ( check_field( i, &curr_field_index, ANNEX_TABLE, fieldtab ) )
                         return -1;
@@ -1009,7 +1009,7 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
 
                 for ( i = 0; i < ATTR_COUNT; i++ )
                 {
-                    if ( is_annex_field( i ) )
+                    if (is_annex_field(i) && !is_funcattr(i))
                     {
                         next += append_field_def( i, next, 0, NULL );
                     }

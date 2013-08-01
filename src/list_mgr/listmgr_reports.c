@@ -621,10 +621,6 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
         }
     }
 
-    /* check if there is a filter on function return value */
-    if (p_filter)
-        func_filter(p_mgr, curr_where, p_filter, query_tab, where != curr_where, TRUE);
-
     /* Build the request */
 
     curr_query += sprintf( query, "SELECT %s FROM %s", fields, from );

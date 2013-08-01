@@ -32,6 +32,7 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
+#define BUILD_RECOV_LIST_FIELDS_NAMES "CONCAT_WS('/','%s',this_path(NAMES.parent_id, NAMES.id)) as fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define BUILD_RECOV_LIST_FIELDS "CONCAT_WS('/','%s',one_path(%s.id)) as fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define GET_RECOV_LIST_FIELDS "fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define RECOV_FIELD_COUNT 13
@@ -214,21 +215,10 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     report_field_descr_t report_count = {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL};
 
     char           query[4096];
-    char           filter_str_main[2048];
-    char           filter_str_annex[2048];
-    char           filter_str_stripe_info[2048];
-    char           filter_str_stripe_items[2048];
-    char           filter_dir_str[512];
-    unsigned int   filter_dir_index = 0;
-    int            filter_main = 0;
-    int            filter_annex = 0;
-    int            filter_stripe_info = 0;
-    int            filter_stripe_items = 0;
-
-    filter_str_main[0] = '\0';
-    filter_str_annex[0] = '\0';
-    filter_str_stripe_info[0] = '\0';
-    filter_str_stripe_items[0] = '\0';
+    char           filter_str[4096] = "";
+    char          *filter_curr = filter_str;
+    #define has_filters (filter_curr == filter_str)
+    int            distinct = 0;
 
     rc = ListMgr_RecovStatus( p_mgr, p_stats );
     if (rc == 0)
@@ -250,51 +240,56 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
 
     if ( p_filter )
     {
+        /* dummy vars */
+        char           filter_dir_str[512] = "";
+        unsigned int   filter_dir_index = 0;
         if (dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index) != FILTERDIR_NONE)
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Directory filter not supported for recovery");
             return DB_NOT_SUPPORTED;
         }
-        else if (func_filter(p_mgr, filter_dir_str, p_filter, T_MAIN, FALSE, FALSE))
+
+        if (filter2str(p_mgr, filter_curr, p_filter, T_MAIN, FALSE, TRUE) > 0)
+            filter_curr += strlen(filter_curr);
+
+        if (annex_table && (filter2str(p_mgr, filter_curr, p_filter,
+                                       T_ANNEX, has_filters, TRUE) > 0))
+            filter_curr += strlen(filter_curr);
+
+        if (filter2str( p_mgr, filter_curr, p_filter, T_DNAMES, has_filters, TRUE) > 0)
         {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
-            return DB_NOT_SUPPORTED;
+            filter_curr += strlen(filter_curr);
+            distinct = 1;
         }
 
-        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN, FALSE, TRUE );
+        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_INFO, has_filters, TRUE) > 0)
+            filter_curr += strlen(filter_curr);
 
-        if ( annex_table )
-            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                       T_ANNEX, ( filter_main > 0 ), TRUE );
-        else
-            filter_annex = 0;
-
-        filter_stripe_info =
-            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                        ( filter_main > 0 ) || ( filter_annex > 0 ), TRUE );
-
-        filter_stripe_items =
-            filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
-                        ( filter_main > 0 ) || ( filter_annex > 0 )
-                        || ( filter_stripe_info > 0 ), TRUE );
+        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_ITEMS, has_filters, TRUE) > 0)
+        {
+            filter_curr += strlen(filter_curr);
+            distinct = 1;
+        }
     }
 
 
     DisplayLog( LVL_EVENT, LISTMGR_TAG, "Populating "RECOV_TABLE" table (this can take a few minutes)..." );
 
     /* create the recovery table */
-    if (filter_stripe_items > 0)
+    if (distinct)
     {
-        /* need to select only 1 instance of each object when joining with STRIPE_ITEMS */
+        /* need to select only 1 instance of each object when joining with STRIPE_ITEMS or NAMES */
         sprintf(query, "CREATE TABLE "RECOV_TABLE
-            " SELECT DISTINCT("MAIN_TABLE".id)," BUILD_RECOV_LIST_FIELDS
+            " SELECT DISTINCT("MAIN_TABLE".id)," BUILD_RECOV_LIST_FIELDS_NAMES
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
+            " LEFT JOIN "DNAMES_TABLE" ON "
+            "("MAIN_TABLE".id = "DNAMES_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
             "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)"
             " LEFT JOIN "STRIPE_ITEMS_TABLE" ON "
             "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)",
-            global_config.fs_path, MAIN_TABLE);
+            global_config.fs_path);
     }
     else
     {
@@ -307,17 +302,10 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
             global_config.fs_path, MAIN_TABLE);
     }
 
-    if (filter_main > 0 || filter_annex > 0 || filter_stripe_info > 0 || filter_stripe_items > 0)
+    if (has_filters)
     {
         strcat(query, " WHERE ");
-        if (filter_main > 0)
-            strcat(query, filter_str_main);
-        if (filter_annex > 0)
-            strcat(query, filter_str_annex);
-        if (filter_stripe_info > 0)
-            strcat(query, filter_str_stripe_info);
-        if (filter_stripe_items > 0)
-            strcat(query, filter_str_stripe_items);
+        strcat(query, filter_str);
     }
 
     rc = db_exec_sql( &p_mgr->conn, query, NULL );

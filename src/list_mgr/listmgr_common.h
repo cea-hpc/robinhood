@@ -151,7 +151,6 @@ extern int     main_attr_set;
 extern int     names_attr_set;
 extern int     annex_attr_set;
 extern int     gen_attr_set;
-extern int     func_attr_set;
 extern int     stripe_attr_set;
 extern int     dir_attr_set;
 extern int     slink_attr_set;
@@ -166,7 +165,6 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
 #define names_fields( _attr_mask )      ( (_attr_mask) & names_attr_set )
 #define annex_fields( _attr_mask )     ( (_attr_mask) & annex_attr_set )
 #define gen_fields( _attr_mask )       ( (_attr_mask) & gen_attr_set )
-#define funcattr_fields( _attr_mask )   ( (_attr_mask) & func_attr_set )
 #define stripe_fields( _attr_mask )    ( (_attr_mask) & stripe_attr_set )
 #define readonly_fields( _attr_mask )  ( (_attr_mask) & readonly_attr_set )
 #define dirattr_fields( _attr_mask )   ( (_attr_mask) & dir_attr_set )
@@ -245,6 +243,7 @@ typedef enum
 #ifdef _HSM_LITE
     T_RECOV,                                     /* fields in recov table */
 #endif
+
 } table_enum;
 
 static inline const char * table2name(table_enum table)
