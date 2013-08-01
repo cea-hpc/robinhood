@@ -1821,7 +1821,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     if ( it == NULL )
     {
         DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR: Could not retrieve top file size from database." );
+                    "ERROR: Could not dump entries from database." );
         return;
     }
 
