@@ -34,23 +34,6 @@ typedef lustre_fid entry_id_t;
 
 #define entry_id_equal( _p_id_1, _p_id_2 ) ( ((_p_id_1)->f_seq == (_p_id_2)->f_seq) && ((_p_id_1)->f_oid == (_p_id_2)->f_oid)  )
 
-/* functions for automatic generation */
-static int lmgr_gen_name( void * tgt, const void * src )
-{
-    char * curr; 
-    const char * fullpath = (char*)src;
-    char * name = (char*)tgt;
-
-    if ( fullpath == NULL )
-        return EFAULT;
-    
-    curr = strrchr( fullpath, '/' );
-    if ( curr )
-        strcpy( name, curr+1 );
-    else
-        strcpy( name, fullpath );
-    return 0;
-}
 
 static int lmgr_gen_depth( void * tgt, const void * src )
 {
@@ -105,52 +88,53 @@ typedef enum
 # /!\ Entry attribute type must fit with DB type
 # name,	C type,	db type, size (C and db), flags (INIT_ONLY, FREQ_ACCESS, ANNEX_INFO, DIR_ATTR or SLINK_ATTR)
 
-parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED
+# path information
+parent_id,      entry_id_t,    DB_ID,          0, FREQ_ACCESS | INDEXED | DNAMES
+name,           char, DB_TEXT, RBH_NAME_MAX, FREQ_ACCESS | DNAMES
+path_update,    unsigned int, DB_UINT, 0, FREQ_ACCESS | DNAMES
+
+# built from NAMES table
+fullpath,   char, DB_TEXT, RBH_PATH_MAX, FUNC_ATTR | DNAMES
+
+#generated from fullpath
+depth, 	unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
+
+# directory meta-attributes
 dircount,       unsigned int,  DB_UINT,        0, DIR_ATTR, type, NULL
 avgsize,        uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 
-# fields used for sorting/filtering
-
-#file status
-status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
-
-# time information
-last_access, 		unsigned int, 	DB_UINT,   0, 	 FREQ_ACCESS
-last_mod, 		    unsigned int, 	DB_UINT,   0, 	 FREQ_ACCESS
-last_archive,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
-last_restore,		unsigned int,	DB_UINT,   0,	 FREQ_ACCESS
-md_update,          unsigned int, DB_UINT, 0, FREQ_ACCESS
-
+# info in main table
+# POSIX attrs
+owner,      char,       DB_TEXT,   128,  FREQ_ACCESS
+gr_name,    char,       DB_TEXT,   128,  FREQ_ACCESS
+size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
+blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
+creation_time,  unsigned int,   DB_UINT,    0,       INIT_ONLY
+last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
+last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
-mode,           unsigned short, DB_USHORT, 0, FREQ_ACCESS
-size,        	uint64_t,	DB_BIGUINT, 0, FREQ_ACCESS  
-blocks, 	    uint64_t,   DB_BIGUINT, 0, FREQ_ACCESS
-owner, 			char, 		DB_TEXT,   128, FREQ_ACCESS
-gr_name, 		char, 		DB_TEXT,   128, FREQ_ACCESS
-
-# information that is not used for sorting or filtering
-fullpath,		char,		DB_TEXT,   RBH_PATH_MAX, ANNEX_INFO
-path_update,    unsigned int, DB_UINT, 0,    ANNEX_INFO
-link,          char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
-
-# generated fields
-name,			char,		DB_TEXT,   RBH_NAME_MAX,  GENERATED, fullpath, lmgr_gen_name
-depth, 	        unsigned int, DB_UINT, 0, GENERATED, fullpath, lmgr_gen_depth
-
+mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
+nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
+#file status compared to external backend
+status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
+# metadata update
+md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
 
 # is file eligible for purge/migration? 
 no_release,     int, DB_BOOL, 0, FREQ_ACCESS
 no_archive,     int, DB_BOOL, 0, FREQ_ACCESS
 
-
-# file classes and last update
-archive_class,      char,           DB_TEXT,    128,   FREQ_ACCESS 
+# file class and their last update
+archive_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
 arch_cl_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
 rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
-
 # info that is set once for each file
-creation_time, 		time_t, 	DB_BIGUINT,    0, 	 INIT_ONLY
-stripe_info, 		stripe_info_t, 	DB_STRIPE_INFO,   0, 	 INIT_ONLY
-stripe_items, 		stripe_items_t, DB_STRIPE_ITEMS,  0, 	 INIT_ONLY
+stripe_info, 	stripe_info_t,  DB_STRIPE_INFO, 0,   INIT_ONLY
+stripe_items,   stripe_items_t, DB_STRIPE_ITEMS, 0,  INIT_ONLY
+
+#backend relative info
+last_archive,   unsigned int, DB_UINT, 0, ANNEX_INFO
+last_restore,   unsigned int, DB_UINT, 0, ANNEX_INFO
+link,          char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
