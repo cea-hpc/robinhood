@@ -322,13 +322,13 @@ function xattr_test
 			fi
 		else
 			# checking archive nums
-			nb_migr_arch1=`grep "archive_num=1" rh_migr.log | wc -l`
-			nb_migr_arch2=`grep "archive_num=2" rh_migr.log | wc -l`
-			nb_migr_arch3=`grep "archive_num=3" rh_migr.log | wc -l`
+			nb_migr_arch1=`grep "archive_id=1" rh_migr.log | wc -l`
+			nb_migr_arch2=`grep "archive_id=2" rh_migr.log | wc -l`
+			nb_migr_arch3=`grep "archive_id=3" rh_migr.log | wc -l`
 			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
-				error "********** wrong archive_nums: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+				error "********** wrong archive_ids: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
 			else
-				echo "OK: 1 file to each archive_num"
+				echo "OK: 1 file to each archive_id"
 			fi
 		fi
 	fi
