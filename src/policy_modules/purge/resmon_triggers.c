@@ -2162,6 +2162,12 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
             return ENOENT;
         }
     }
+    if (NO_POLICY(&policies.purge_policies) && !(module_args.flags & FLAG_IGNORE_POL))
+    {
+        DisplayLog(LVL_CRIT, RESMON_TAG,
+            "No purge policy defined in configuration file... Disabling purge.");
+        return ENOENT;
+    }
 
     /* intervals must only be computed for daemon mode */
     if ( options.mode == RESMON_DAEMON )
