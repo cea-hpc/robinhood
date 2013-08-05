@@ -77,22 +77,22 @@ void abort_migration()
  */
 
 #ifdef _LUSTRE_HSM
-static migr_status_t MigrateEntry_ByFid( const entry_id_t * p_entry_id,
-                                         char *hints, unsigned int archive_id )
+static migr_status_t MigrateEntry_ByFid(const entry_id_t * p_entry_id,
+                                        char *hints, unsigned int archive_id)
 {
-    if ( hints )
-        DisplayLog( LVL_EVENT, MIGR_TAG,
-            "Start archiving(" DFID_NOBRACE ", hints='%s', archive_id=%u)",
-            PFID( p_entry_id ), hints, archive_id );
+    if (hints)
+        DisplayLog(LVL_EVENT, MIGR_TAG,
+                 "Start archiving(" DFID_NOBRACE ", hints='%s', archive_id=%u)",
+                 PFID(p_entry_id), hints, archive_id);
     else
-        DisplayLog( LVL_EVENT, MIGR_TAG,
-            "Start archiving(" DFID_NOBRACE ", <no_hints>, archive_id=%u)",
-             PFID( p_entry_id ), archive_id );
+        DisplayLog(LVL_EVENT, MIGR_TAG,
+                 "Start archiving(" DFID_NOBRACE ", <no_hints>, archive_id=%u)",
+                 PFID(p_entry_id), archive_id);
 
     if (dry_run)
         return MIGR_OK;
 
-    return LustreHSM_Action( HUA_ARCHIVE, p_entry_id, hints, archive_id );
+    return LustreHSM_Action(HUA_ARCHIVE, p_entry_id, hints, archive_id);
 }
 #elif defined(_HSM_LITE)
 
@@ -1607,17 +1607,17 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
 #ifdef _LUSTRE_HSM
     /* what archive num is to be used ? */
-    if ( ( p_fileset != NULL ) && (p_fileset->archive_id != 0) )
+    if ((p_fileset != NULL) && (p_fileset->archive_id != 0))
         archive_id =  p_fileset->archive_id;
     /* policy archive_id overrides fileset archive_id */
-    if ( ( policy_case != NULL ) && ( policy_case->archive_id != 0) )
+    if ((policy_case != NULL) && (policy_case->archive_id != 0))
         archive_id = policy_case->archive_id;
 #endif
 
     /* Perform migration operation! */
 
 #ifdef _LUSTRE_HSM
-    rc = MigrateEntry_ByFid( &p_item->entry_id, hints, archive_id );
+    rc = MigrateEntry_ByFid(&p_item->entry_id, hints, archive_id);
 
     if ( rc == 0 )
     {

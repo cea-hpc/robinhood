@@ -1060,9 +1060,8 @@ static int write_template_filesets( FILE * output )
     print_line( output, 2, "migration_hints = \"cos=3,class={FileClass},priority=2\" ;" );
 #endif
 #ifdef _LUSTRE_HSM
-    fprintf( output, "\n" );
-    print_line( output, 2, "# target archive" );
-    print_line( output, 2, "archive_id = 1 ;" );
+    print_line(output, 2, "# target archive");
+    print_line(output, 2, "archive_id = 1 ;");
 #endif
     print_end_block( output, 1 );
 
@@ -1080,9 +1079,9 @@ static int write_template_filesets( FILE * output )
     print_line( output, 2, "migration_hints = \"cos=4,class={Fileclass},priority=5\";" );
 #endif
 #ifdef _LUSTRE_HSM
-    fprintf( output, "\n" );
-    print_line( output, 2, "# target archive" );
-    print_line( output, 2, "archive_id = 2 ;" );
+    fprintf(output, "\n");
+    print_line(output, 2, "# target archive");
+    print_line(output, 2, "archive_id = 2 ;");
 #endif
     print_end_block( output, 1 );
     fprintf( output, "\n" );
@@ -1155,9 +1154,9 @@ static int write_migration_policy_template( FILE * output )
     print_end_block( output, 2 );
 
 #ifdef _LUSTRE_HSM
-    fprintf( output, "\n" );
-    print_line( output, 2, "# target archive (/!\\ policy archive_id overrides fileset archive_id) " );
-    print_line( output, 2, "archive_id = 3 ;" );
+    fprintf(output, "\n");
+    print_line(output, 2, "# target archive (/!\\ policy archive_id overrides fileset archive_id)");
+    print_line(output, 2, "archive_id = 3 ;");
 #endif
 
     print_end_block( output, 1 );
@@ -1193,9 +1192,9 @@ static int write_migration_policy_template( FILE * output )
     print_end_block( output, 2 );
 
 #ifdef _LUSTRE_HSM
-    fprintf( output, "\n" );
-    print_line( output, 2, "# target archive" );
-    print_line( output, 2, "archive_id = 2 ;" );
+    fprintf(output, "\n");
+    print_line(output, 2, "# target archive");
+    print_line(output, 2, "archive_id = 2 ;");
 #endif
 
     print_end_block( output, 1 );
@@ -1641,24 +1640,25 @@ static int read_filesets( config_file_t config, fileset_list_t * fileset_list,
 #endif
 #ifdef _LUSTRE_HSM
                         /* manage archive_id */
-                        if ( strcasecmp( subitem_name, "archive_id" ) == 0 )
+                        if (!strcasecmp(subitem_name,"archive_id")
+                            || !strcasecmp(subitem_name,"archive_num")) /* for backward compat. */
                         {
                             int tmp;
 
                             if ( extra_args )
                             {
-                                sprintf( msg_out,
-                                         "Unexpected arguments for archive_id parameter, line %d.",
-                                         rh_config_GetItemLine( sub_item ) );
+                                sprintf(msg_out,
+                                        "Unexpected arguments for archive_id parameter, line %d.",
+                                        rh_config_GetItemLine(sub_item));
                                 rc = EINVAL;
                                 goto clean_filesets;
                             }
                             tmp = str2int( value );
                             if ( tmp <= 0 )
                             {
-                                sprintf( msg_out,
-                                         "Positive integer expected for archive_id parameter, line %d.",
-                                         rh_config_GetItemLine( sub_item ) );
+                                sprintf(msg_out,
+                                        "Positive integer expected for archive_id parameter, line %d.",
+                                        rh_config_GetItemLine(sub_item));
                                 rc = EINVAL;
                                 goto clean_filesets;
                             }
@@ -2016,14 +2016,15 @@ static int parse_policy_block( config_item_t config_item,
                 }
             }
 #ifdef _LUSTRE_HSM
-            else if ( !strcasecmp( subitem_name, "archive_id" ) )
+            else if (!strcasecmp(subitem_name, "archive_id")
+                     || !strcasecmp(subitem_name, "archive_num")) /* for backward compat */
             {
                 int tmp;
 
                 if ( policy_type != MIGR_POLICY )
                 {
-                    sprintf( msg_out, "archive_id defined in a non-migration policy, line %d.",
-                             rh_config_GetItemLine( sub_item ) );
+                    sprintf(msg_out, "archive_id defined in a non-migration policy, line %d.",
+                            rh_config_GetItemLine(sub_item));
                     return EINVAL;
                 }
 
@@ -2038,9 +2039,9 @@ static int parse_policy_block( config_item_t config_item,
                 tmp = str2int( value );
                 if ( tmp <= 0 )
                 {
-                    sprintf( msg_out,
-                             "Positive integer expected for archive_id parameter, line %d.",
-                             rh_config_GetItemLine( sub_item ) );
+                    sprintf(msg_out,
+                            "Positive integer expected for archive_id parameter, line %d.",
+                            rh_config_GetItemLine(sub_item));
                     return EINVAL;
                 }
                 output_policy->archive_id = tmp;

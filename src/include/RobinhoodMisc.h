@@ -220,8 +220,8 @@ int            LustreHSM_GetStatus( const char *path, file_status_t * p_status,
 /** Trigger a HSM action
  * \param action HUA_ARCHIVE, HUA_RESTORE, HUA_RELEASE, HUA_REMOVE, HUA_CANCEL
  */
-int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
-                      const char * hints, unsigned int archive_id );
+int LustreHSM_Action(enum hsm_user_action action, const entry_id_t * p_id,
+                     const char * hints, unsigned int archive_id);
 #endif
 
 /** Retrieve OST usage info ('ost df') */
