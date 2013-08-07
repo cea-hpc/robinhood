@@ -635,15 +635,16 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 
 #ifdef ATTR_INDEX_last_archive
     case CRITERIA_LAST_ARCHIVE:
-        /* last_archive is required */
-        CHECK_ATTR( p_entry_attr, last_archive, no_warning );
-
-        /* last_archive == 0 has a special meaning that file
-         * has never been archived */
-        if (ATTR( p_entry_attr, last_archive) == 0
-            && (p_triplet->op == COMP_EQUAL)
-            && (p_triplet->val.duration == 0))
-            return POLICY_MATCH;
+        /* last_archive == 0 IF-AND-ONLY-IF file has never been archived */
+        if (!ATTR_MASK_TEST(p_entry_attr, last_archive)
+            || ATTR(p_entry_attr, last_archive) == 0)
+        {
+            if ((p_triplet->op == COMP_EQUAL)
+                && (p_triplet->val.duration == 0))
+                return POLICY_MATCH;
+            else /* last_archive > X do not match */
+                return POLICY_NO_MATCH;
+        }
 
         rc = int_compare( time( NULL ) - ATTR( p_entry_attr, last_archive ), p_triplet->op,
                           time_modify(p_triplet->val.duration, p_pol_mod) );
