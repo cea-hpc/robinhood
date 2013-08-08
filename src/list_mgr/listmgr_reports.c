@@ -46,7 +46,10 @@ typedef struct lmgr_report_t
 /* Return field string */
 static inline const char *field_str( unsigned int index )
 {
-    return field_infos[index].field_name;
+    if (index == (unsigned int)-1)
+        return "id";
+    else
+        return field_infos[index].field_name;
 }
 
 
@@ -160,8 +163,8 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
                 p_report->result_type_array[i] = DB_BIGUINT;
                 break;
             case REPORT_COUNT_DISTINCT:
-                sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
-                         field_str( report_desc_array[i].attr_index ), attrname );
+                sprintf(attrstring, "COUNT(DISTINCT(%s)) as %s",
+                        field_str( report_desc_array[i].attr_index ), attrname);
                 add_string( fields, *curr_field, attrstring );
                 p_report->result_type_array[i] = DB_BIGUINT;
                 break;
@@ -258,6 +261,12 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     char           order_by[512] = "";
     char           query[4096] = "";
 
+    /* filters on NAMES or STRIPE_ITEMS
+     * must be managed differently, as they
+     * can create duplicates (non uniq id) */
+    char           name_filter_str[1024] = "";
+    char           stripe_filter_str[1024] = "";
+
     char          *curr_field = fields;
     char          *curr_group_by = group_by;
     char          *curr_sort = order_by;
@@ -272,9 +281,9 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     int            rc;
 
     table_enum     query_tab;
+    /* supported report fields: ENTRIES, ANNEX_INFO or ACCT */
     int            main_table_flag = FALSE;
     int            annex_table_flag = FALSE;
-    int            names_table_flag = FALSE;
     int            acct_table_flag = FALSE;
     int            filter_main = 0;
     int            filter_annex = 0;
@@ -517,14 +526,6 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             if ( filter_main )
                 main_table_flag = TRUE;
 
-            /* filter on names table? */
-            filter_names = filter2str( p_mgr, curr_where, p_filter, T_DNAMES,
-                                       ( filter_main + filter_annex > 0 ), TRUE );
-            curr_where += strlen( curr_where );
-
-            if ( filter_names )
-                names_table_flag = TRUE;
-
             /* filter on annex table? */
             if ( annex_table )
             {
@@ -541,11 +542,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                             (where != curr_where), TRUE );
             curr_where += strlen( curr_where );
 
-            filter_stripe_items =
-                filter2str( p_mgr, curr_where, p_filter, T_STRIPE_ITEMS,
-                            (where != curr_where), TRUE );
-            curr_where += strlen( curr_where );
+           /*  filter on names table is particular as this may duplicate
+             * entries when computing the report (multiple hardlinks) */
+            filter_names = filter2str(p_mgr, name_filter_str, p_filter, T_DNAMES,
+                                      FALSE, FALSE );
 
+           /*  filter on stripe items table is particular as this may duplicate
+             * entries when computing the report (multiple stripes) */
+            filter_stripe_items = filter2str(p_mgr, stripe_filter_str, p_filter,
+                                             T_STRIPE_ITEMS, FALSE, FALSE);
         }
     }
 
@@ -567,19 +572,6 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             query_tab = T_MAIN;
         }
 
-        if ( names_table_flag )
-        {
-            if (first_table)
-                curr_from += sprintf(curr_from, " LEFT JOIN "DNAMES_TABLE" ON %s.id="DNAMES_TABLE".id",
-                                     first_table);
-            else
-            {
-                strcpy(from, DNAMES_TABLE);
-                curr_from = from + strlen(from);
-                first_table = DNAMES_TABLE;
-                query_tab = T_DNAMES;
-            }
-        }
         if ( annex_table_flag )
         {
             if (first_table)
@@ -596,7 +588,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
         if ( filter_stripe_info )
         {
             if (first_table)
-                curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_INFO_TABLE" ON %s.id="STRIPE_INFO_TABLE".id",
+                curr_from += sprintf(curr_from, " INNER JOIN "STRIPE_INFO_TABLE" ON %s.id="STRIPE_INFO_TABLE".id",
                                      first_table);
             else
             {
@@ -606,17 +598,37 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 query_tab = T_STRIPE_INFO;
             }
         }
-        if ( filter_stripe_items )
+        if (filter_names)
         {
             if (first_table)
-                curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_ITEMS_TABLE" ON %s.id="STRIPE_ITEMS_TABLE".id",
+                curr_from += sprintf(curr_from," INNER JOIN (SELECT DISTINCT(id)"
+                                     " FROM "DNAMES_TABLE" WHERE %s) N"
+                                     " ON %s.id=N.id", name_filter_str,
+                                     first_table);
+            else
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unexpected case: "DNAMES_TABLE
+                           " table can't be the query table in %s()", __func__);
+                return NULL;
+            }
+        }
+
+        if (filter_stripe_items)
+        {
+            if (first_table)
+                curr_from += sprintf(curr_from, " INNER JOIN (SELECT DISTINCT(id)"
+                                     " FROM "STRIPE_ITEMS_TABLE" WHERE %s) SI"
+                                     " ON %s.id=SI.id", stripe_filter_str,
                                      first_table);
             else
             {
                 strcpy(from, STRIPE_ITEMS_TABLE);
                 curr_from = from + strlen(from);
+                strcpy(curr_where, stripe_filter_str);
+                curr_where += strlen(curr_where);
                 first_table = STRIPE_ITEMS_TABLE;
                 query_tab = T_STRIPE_ITEMS;
+                /* XXX the caller is supposed to select DISTINCT(id) in this case */
             }
         }
     }

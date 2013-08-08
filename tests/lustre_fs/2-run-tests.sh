@@ -3814,6 +3814,95 @@ function test_hardlinks
     rm -f report.out find.out
 }
 
+function test_hl_count
+{
+	config_file=$1
+    dcount=3
+    fcount=2
+
+    clean_logs
+    # populate file system with simple files
+
+    for d in $(seq 1 $dcount); do
+        mkdir $ROOT/dir.$d || error "cannot create $ROOT/dir.$d"
+    for f in $(seq 1 $fcount); do
+        touch $ROOT/dir.$d/file.$f || error "cannot create $ROOT/dir.$d/file.$f"
+    done
+    done
+
+    # scan
+   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $ROOT"
+
+    ino=$(( $dcount * $fcount + $dcount ))
+    ino_subdir=$(($fcount + 1))
+
+    # reports to be checked:
+    #   dump report (9 entries, no root)
+    (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    #   dump report with path filter (3 entries)
+    (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    #   dump find output (whole FS) (10 entries, incl. root)
+    (($($FIND -f ./cfg/$config_file | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
+    #   dump find output (subdir: 3 entries)
+    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
+
+    #   dump summary (9 entries)
+    $REPORT -f ./cfg/$config_file -icq > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+    typeValues="dir;file"
+  	countValues="$dcount;$(($dcount * $fcount))"
+    if (( $is_hsmlite + $is_lhsm != 0 )); then
+        # type counts are in 3rd column (because of the status column)
+   	    colSearch=3
+    else
+        # type counts are in 2nd column
+   	    colSearch=2
+    fi
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
+
+    #   dump summary with path filter (3 entries)
+    $REPORT -f ./cfg/$config_file -iq -P $ROOT/dir.1 > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+  	countValues="1;$fcount"
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
+
+    # create 1 hardlink per file and recheck
+    for d in $(seq 1 $dcount); do
+    for f in $(seq 1 $fcount); do
+        ln $ROOT/dir.$d/file.$f $ROOT/dir.$d/link.$f || error "cannot create hardlink $ROOT/dir.$d/link.$f -> $ROOT/dir.$d/file.$f"
+    done
+    done
+
+    # rescan
+   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $ROOT"
+
+    paths=$(( $dcount * $fcount * 2 + $dcount ))
+    paths_subdir=$(($fcount * 2 + 1))
+
+    #   dump report (still 9 entries, no root)
+    (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    #   dump report with path filter (still 3 entries)
+    (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    #   dump find output (whole FS) (
+    (($($FIND -f ./cfg/$config_file | wc -l) == $paths + 1 ))  || error "wrong count in 'rbh-find' output"
+    #   dump find output (subdir: 3 entries)
+    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
+
+    #   dump summary (9 entries)
+    $REPORT -f ./cfg/$config_file -icq > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+  	countValues="$dcount;$(($dcount * $fcount))"
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
+
+    #   dump summary with path filter (3 entries)
+    $REPORT -f ./cfg/$config_file -iq -P $ROOT/dir.1 > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+  	countValues="1;$fcount"
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
+
+    
+    rm -f report.out
+}
 
 function test_pools
 {
@@ -4494,6 +4583,167 @@ function recovery_test
     done
 
     rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
+}
+
+function recov_filters
+{
+    config_file=$1
+    flavor=$2
+
+    if [[ $flavor == since ]] && [[ $nolog == 1 ]]; then
+        echo "'since' can only be used with changelogs"
+        set_skipped
+        return 1
+    fi
+
+    # start filters: --ost and --since
+    # resume filters: --dir
+
+    echo "populating filesystem"
+    # create one of each recov status matching or not matching the filter
+    # (full, delta, empty, rename, empty_new, empty_rename, nobkp, slink, slink_new)
+    mkdir $ROOT/dir.match $ROOT/dir.nomatch || error "mkdir failed"
+
+    for f in full delta rename empty empty_rnm; do
+        if [[ $flavor != since ]]; then
+            $LFS setstripe -c 1 -o 0 $ROOT/dir.match/$f || error "setstripe failed"
+        fi
+        $LFS setstripe -c 1 -o 1 $ROOT/dir.nomatch/$f || error "setstripe failed"
+    done
+    # write data to full and delta
+    for f in full delta rename; do
+        if [[ $flavor != since ]]; then
+            dd if=/dev/zero of=$ROOT/dir.match/$f bs=1M count=5  || error "writing data to $f"
+        fi
+        dd if=/dev/zero of=$ROOT/dir.nomatch/$f bs=1M count=5  || error "writing data to $f"
+    done
+    ln -s "this is an initial symlink" $ROOT/dir.nomatch/slink || error "creating symlink"
+    if [[ $flavor != ost ]] && [[ $flavor != since ]]; then
+        ln -s "this is an initial symlink" $ROOT/dir.match/slink || error "creating symlink slink_new"
+    fi
+
+    echo "scan and archive"
+    # scan and archive
+    $RH -f ./cfg/$config_file --scan --sync -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning or migrating"
+
+    if [[ $flavor == since ]]; then
+	    $LFS changelog_clear lustre-MDT0000 cl1 0
+        sleep 1
+        # only consider entries modifed from now
+        since=$(date +'%Y%m%d%H%M%S')
+
+        for f in full delta rename empty empty_rnm; do
+            $LFS setstripe -c 1 -o 0 $ROOT/dir.match/$f || error "setstripe failed"
+        done
+        # write data to full and delta
+        for f in full delta rename; do
+            dd if=/dev/zero of=$ROOT/dir.match/$f bs=1M count=5  || error "writing data to $f"
+        done
+        ln -s "this is an initial symlink" $ROOT/dir.match/slink || error "creating symlink slink_new"
+
+        # don't update non-modified objects, migrate other candidates
+        $RH -f ./cfg/$config_file --readlog --sync -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
+    fi
+
+    echo "making deltas"
+    for f in empty_new nobkp; do
+        lfs setstripe -c 1 -o 0 $ROOT/dir.match/$f
+        [[ $flavor != since ]] && lfs setstripe -c 1 -o 1 $ROOT/dir.nomatch/$f
+    done
+    for d in match nomatch ; do
+        # skip no match if flavor is 'since'
+        [[ $flavor == since ]] && [[ $d == nomatch ]] && continue
+        echo "sqdlqsldsqmdl" >> $ROOT/dir.$d/delta || error "appending dir.$d/delta"
+        echo "qsldjkqlsdkqs" >> $ROOT/dir.$d/nobkp || error "writting to dir.$d/nobkp"
+        mv $ROOT/dir.$d/rename $ROOT/dir.$d/rename.mv || error "renaming 'rename'"
+        mv $ROOT/dir.$d/empty_rnm $ROOT/dir.$d/empty_rnm.mv || error "renaming 'empty_rnm'"
+    done
+    if [[ $flavor != since ]]; then
+        ln -s "this is a new symlink" $ROOT/dir.nomatch/slink_new || error "creating symlink"
+    fi
+    if [[ $flavor != ost ]]; then
+        ln -s "this is a new symlink" $ROOT/dir.match/slink_new || error "creating symlink"
+    fi
+
+    if [[ $flavor == since ]]; then
+        # don't update non-modified objects
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
+    else
+        echo "rescan (no archive)"
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning"
+    fi
+
+    $REPORT -f ./cfg/$config_file -l MAJOR --csv -i > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+
+    new_cnt=`grep "new" report.out | grep file | cut -d ',' -f 3`
+    mod_cnt=`grep "modified" report.out | grep file | cut -d ',' -f 3`
+    sync_cnt=`grep "synchro" report.out | grep file | cut -d ',' -f 3`
+    [[ -z $new_cnt ]] && new_cnt=0
+    [[ -z $mod_cnt ]] && mod_cnt=0
+    [[ -z $sync_cnt ]] && sync_cnt=0
+
+    #          full, delta, empty, rename, empty_new, empty_rename, nobkp
+    # synchro:    2             2       2                        2       
+    # modified:          2                                               
+    # new:                                         2                    2
+    echo "files: new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
+    if [[ $flavor != since ]]; then
+        (( $sync_cnt == 8 )) || error "Nbr of synchro files doesn't match: $sync_cnt != 8"
+        (( $mod_cnt  == 2 )) || error "Nbr of modified files doesn't match: $mod_cnt != 2"
+        (( $new_cnt  == 4 )) || error "Nbr of new files doesn't match: $new_cnt != 4"
+    else
+        (( $sync_cnt == 9 )) || error "Nbr of synchro files doesn't match: $sync_cnt != 9"
+        (( $mod_cnt  == 1 )) || error "Nbr of modified files doesn't match: $mod_cnt != 1"
+        (( $new_cnt  == 2 )) || error "Nbr of new files doesn't match: $new_cnt != 2"
+    fi
+    # FS disaster
+    if [[ -n "$ROOT" ]]; then
+        echo "3-Disaster: all FS content is lost"
+        rm  -rf $ROOT/*
+    fi
+
+    # perform the recovery
+    echo "4-Performing recovery..."
+    cp /dev/null recov.log
+
+    case "$flavor" in
+        ost)
+            start_option="--ost 0"
+            resume_option=""
+            matching=(full delta empty empty_rnm.mv empty_new rename.mv nobkp)
+            status=("OK" "OK \(old version\)" "OK" "OK" "OK \(empty file\)" "OK" "No backup")
+            ;;
+        since)
+            start_option="--since=$since"
+            resume_option=""
+            matching=(full delta empty empty_rnm.mv empty_new rename.mv nobkp slink slink_new)
+            status=("OK" "OK \(old version\)" "OK" "OK" "OK \(empty file\)" "OK" "No backup")
+            ;;
+        dir)
+            start_option=""
+            resume_option="--dir=$ROOT/dir.match"
+            matching=(full delta empty empty_rnm.mv empty_new rename.mv nobkp slink slink_new)
+            status=("OK" "OK \(old version\)" "OK" "OK" "OK \(empty file\)" "OK" "No backup" "OK \(non-file \)" "OK \(non-file \)")
+            ;;
+    esac
+
+    $RECOV -f ./cfg/$config_file --start $start_option -l FULL >> recov.log 2>&1 || error "Error starting recovery"
+    $RECOV -f ./cfg/$config_file --resume $resume_option -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+    if [[ $flavor != dir ]]; then # for dirs, cannot complete as long as it is only for parallelizing the recovery
+        $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+    fi
+
+    # check that all matching entries are recovered with the appropriate status
+    [ "$DEBUG" = "1" ] && grep Restoring recov.log
+    for i in $(seq 1 ${#matching[@]}); do
+        f=${matching[$i]}
+        s=${status[$i]}
+        check_recov_status recov.log $ROOT/dir.match/$f $s
+    done
+    (( $(grep Restoring recov.log | wc -l) == ${#matching[@]} )) || error "Too many files restored"
+
+    (( $NB_ERROR == 0 )) && echo OK
 }
 
 function import_test
@@ -7700,6 +7950,7 @@ run_test 109d    test_hardlinks info_collect.conf diff "hardlinks management (di
 run_test 109e    test_hardlinks info_collect.conf partdiff "hardlinks management (partial diffs+apply)"
 run_test 110     test_unlink info_collect.conf "unlink (readlog)"
 run_test 111     test_layout info_collect.conf "layout changes"
+run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
 
 #### policy matching tests  ####
 
@@ -7786,6 +8037,12 @@ run_test 503c    recovery_test	test_recov2.conf  rename  0 "FS recovery with ren
 run_test 503d    recovery_test	test_recov2.conf  partial 0 "FS recovery with missing backups (archive_symlinks=FALSE)"
 run_test 503e    recovery_test	test_recov2.conf  mixed   0 "FS recovery (mixed status, archive_symlinks=FALSE)"
 run_test 504     import_test    test_recov.conf "Import from backend"
+run_test 505a     recov_filters  test_recov.conf  ost    "FS recovery with OST filter"
+run_test 505b     recov_filters  test_recov2.conf  ost    "FS recovery with OST filter (archive_symlinks=FALSE)"
+run_test 506a     recov_filters  test_recov.conf  since    "FS recovery with time filter"
+run_test 506b     recov_filters  test_recov2.conf  since    "FS recovery with time filter (archive_symlinks=FALSE)"
+run_test 507a     recov_filters  test_recov.conf  dir    "FS recovery with dir filter"
+run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir filter (archive_symlinks=FALSE)"
 
 
 #### Tests by Sogeti ####

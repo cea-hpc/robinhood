@@ -32,9 +32,9 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
-#define BUILD_RECOV_LIST_FIELDS_NAMES "CONCAT_WS('/','%s',this_path(NAMES.parent_id, NAMES.id)) as fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
-#define BUILD_RECOV_LIST_FIELDS "CONCAT_WS('/','%s',one_path(%s.id)) as fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
-#define GET_RECOV_LIST_FIELDS "fullpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
+#define BUILD_RECOV_LIST_FIELDS_NAMES "this_path(NAMES.parent_id, NAMES.name) as relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
+#define BUILD_RECOV_LIST_FIELDS "one_path("MAIN_TABLE".id) as relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
+#define GET_RECOV_LIST_FIELDS "relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define RECOV_FIELD_COUNT 13
 
 
@@ -212,12 +212,12 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     db_value_t report_val;
     unsigned int nb;
     struct lmgr_report_t * report;
-    report_field_descr_t report_count = {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL};
+    report_field_descr_t report_count = {-1, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL};
 
     char           query[4096];
     char           filter_str[4096] = "";
     char          *filter_curr = filter_str;
-    #define has_filters (filter_curr == filter_str)
+    #define has_filters (filter_curr != filter_str)
     int            distinct = 0;
 
     rc = ListMgr_RecovStatus( p_mgr, p_stats );
@@ -240,7 +240,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
 
     if ( p_filter )
     {
-        /* dummy vars */
+	 /* dummy vars */
         char           filter_dir_str[512] = "";
         unsigned int   filter_dir_index = 0;
         if (dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index) != FILTERDIR_NONE)
@@ -279,7 +279,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     if (distinct)
     {
         /* need to select only 1 instance of each object when joining with STRIPE_ITEMS or NAMES */
-        sprintf(query, "CREATE TABLE "RECOV_TABLE
+        strcpy(query, "CREATE TABLE "RECOV_TABLE
             " SELECT DISTINCT("MAIN_TABLE".id)," BUILD_RECOV_LIST_FIELDS_NAMES
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
@@ -288,18 +288,16 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
             "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)"
             " LEFT JOIN "STRIPE_ITEMS_TABLE" ON "
-            "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)",
-            global_config.fs_path);
+            "("MAIN_TABLE".id = "STRIPE_ITEMS_TABLE".id)");
     }
     else
     {
-        sprintf(query, "CREATE TABLE "RECOV_TABLE
+        strcpy(query, "CREATE TABLE "RECOV_TABLE
             " SELECT "MAIN_TABLE".id," BUILD_RECOV_LIST_FIELDS
             " FROM "MAIN_TABLE" LEFT JOIN "ANNEX_TABLE" ON "
             "("MAIN_TABLE".id = "ANNEX_TABLE".id)"
             " LEFT JOIN "STRIPE_INFO_TABLE" ON "
-            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)",
-            global_config.fs_path, MAIN_TABLE);
+            "("MAIN_TABLE".id = "STRIPE_INFO_TABLE".id)");
     }
 
     if (has_filters)
@@ -334,9 +332,9 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     /* count entries of each status */
     expected_recov_status( p_mgr, p_stats );
 
-    /* if there is a filter on OST, report distinct ids */
-//    if (filter_stripe_items)
-//        report_count.report_type = REPORT_COUNT_DISTINCT;
+    /* if there is a filter on OSTs, report distinct ids */
+    if (distinct)
+        report_count.report_type = REPORT_COUNT_DISTINCT;
 
     /* double check entry count before deleting entries */
     report = ListMgr_Report(p_mgr, &report_count, 1, NULL, p_filter, NULL);
@@ -401,14 +399,17 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
 
     if ( dir_path )
     {
-        /* FIXME recovery table contains relative path,
-         * and dirpath is aboslute. Change it to relative. */
+        char rel[RBH_PATH_MAX] = "";
+        /* Recovery table contains relative path,
+         * and dirpath is absolute. Change it to relative. */
+        if (relative_path(dir_path, global_config.fs_path, rel))
+            return NULL;
 #ifdef _MYSQL
         /* MySQL is case insensitive.
          * To force case-sensitivity, use BINARY keyword. */
-        curr += sprintf( curr, " AND fullpath LIKE BINARY '%s/%%'", dir_path );
+        curr += sprintf( curr, " AND relpath LIKE BINARY '%s/%%'", rel );
 #else
-        curr += sprintf( curr, " AND fullpath LIKE '%s/%%'", dir_path );
+        curr += sprintf( curr, " AND relpath LIKE '%s/%%'", rel );
 #endif
     }
 

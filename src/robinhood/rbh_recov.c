@@ -120,7 +120,7 @@ static const char *help_string =
     "        or set of OSTs (e.g. 3,5-8).\n"
     "    "  _B "--since" B_ " " _U "date_time" U_ "\n"
     "        Perform the recovery only for files updated after the given "_U"date_time"U_".\n"
-    "        The expected date/time format is yymmdd[HHMM[SS]].\n"
+    "        The expected date/time format is yyyymmdd[HHMM[SS]].\n"
 //    "    " _B "--with-data" B_ "\n"
 //    "        Used with --ost: only recover files that really have data on the OST.\n"
     _B "Resume options:" B_ "\n"

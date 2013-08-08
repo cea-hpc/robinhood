@@ -2017,6 +2017,95 @@ function test_hardlinks
     rm -f report.out find.out
 }
 
+function test_hl_count
+{
+	config_file=$1
+    dcount=3
+    fcount=2
+
+    clean_logs
+    # populate file system with simple files
+
+    for d in $(seq 1 $dcount); do
+        mkdir $ROOT/dir.$d || error "cannot create $ROOT/dir.$d"
+    for f in $(seq 1 $fcount); do
+        touch $ROOT/dir.$d/file.$f || error "cannot create $ROOT/dir.$d/file.$f"
+    done
+    done
+
+    # scan
+   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $ROOT"
+
+    ino=$(( $dcount * $fcount + $dcount ))
+    ino_subdir=$(($fcount + 1))
+
+    # reports to be checked:
+    #   dump report (9 entries, no root)
+    (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    #   dump report with path filter (3 entries)
+    (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    #   dump find output (whole FS) (10 entries, incl. root)
+    (($($FIND -f ./cfg/$config_file | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
+    #   dump find output (subdir: 3 entries)
+    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
+
+    #   dump summary (9 entries)
+    $REPORT -f ./cfg/$config_file -icq > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+    typeValues="dir;file"
+  	countValues="$dcount;$(($dcount * $fcount))"
+    if (( $is_hsmlite + $is_lhsm != 0 )); then
+        # type counts are in 3rd column (because of the status column)
+   	    colSearch=3
+    else
+        # type counts are in 2nd column
+   	    colSearch=2
+    fi
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
+
+    #   dump summary with path filter (3 entries)
+    $REPORT -f ./cfg/$config_file -iq -P $ROOT/dir.1 > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+  	countValues="1;$fcount"
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
+
+    # create 1 hardlink per file and recheck
+    for d in $(seq 1 $dcount); do
+    for f in $(seq 1 $fcount); do
+        ln $ROOT/dir.$d/file.$f $ROOT/dir.$d/link.$f || error "cannot create hardlink $ROOT/dir.$d/link.$f -> $ROOT/dir.$d/file.$f"
+    done
+    done
+
+    # rescan
+   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $ROOT"
+
+    paths=$(( $dcount * $fcount * 2 + $dcount ))
+    paths_subdir=$(($fcount * 2 + 1))
+
+    #   dump report (still 9 entries, no root)
+    (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    #   dump report with path filter (still 3 entries)
+    (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    #   dump find output (whole FS) (
+    (($($FIND -f ./cfg/$config_file | wc -l) == $paths + 1 ))  || error "wrong count in 'rbh-find' output"
+    #   dump find output (subdir: 3 entries)
+    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
+
+    #   dump summary (9 entries)
+    $REPORT -f ./cfg/$config_file -icq > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+  	countValues="$dcount;$(($dcount * $fcount))"
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
+
+    #   dump summary with path filter (3 entries)
+    $REPORT -f ./cfg/$config_file -iq -P $ROOT/dir.1 > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+  	countValues="1;$fcount"
+	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
+
+    
+    rm -f report.out
+}
 
 
 function test_logs
@@ -3946,6 +4035,7 @@ run_test 109a    test_hardlinks info_collect.conf scan "hardlinks management (sc
 run_test 109c    test_hardlinks info_collect.conf partial "hardlinks management (partial scans)"
 run_test 109d    test_hardlinks info_collect.conf diff "hardlinks management (diff+apply)"
 run_test 109e    test_hardlinks info_collect.conf partdiff "hardlinks management (partial diffs+apply)"
+run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
 
 #### policy matching tests  ####
 
