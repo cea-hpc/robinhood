@@ -1,4 +1,4 @@
-- recov filters (start, resume)
+- make size_acct optional
 
 - manage LU-3620 in changelog reader
 - restore bulk search in rbh-find as a new option

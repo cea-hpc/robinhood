@@ -56,6 +56,7 @@
 #define DB_NOT_ALLOWED         14
 #define DB_TRG_NOT_EXISTS      15
 #define DB_DEADLOCK            16
+#define DB_BAD_SCHEMA          17
 
 
 /* Tag in logfile */
@@ -856,7 +857,6 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 /*
  * Name of variables stored in database
  */
-
 #define LAST_PURGE_TIME     "LastPurgeTime"
 #define LAST_PURGE_TARGET   "LastPurgeTarget"
 #define LAST_PURGE_STATUS   "LastPurgeStatus"

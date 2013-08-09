@@ -102,5 +102,4 @@ static inline int buf2hex(char *out, size_t out_sz, const unsigned char *in, siz
     return (int)(dst-out);
 }
 
-
 #endif

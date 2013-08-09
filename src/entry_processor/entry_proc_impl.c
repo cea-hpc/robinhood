@@ -629,8 +629,7 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                                 i, pthread_self(  ), PFID(&p_curr->entry_id) );
                         if ( other_op == NULL )
                         {
-                            fprintf(stderr, "ERROR!!! OPERATION NOT REGISTERED FOR THIS STEP!!!\n" );
-                            abort();
+                            RBH_BUG("ERROR!!! OPERATION NOT REGISTERED FOR THIS STEP!!!");
                         }
                         else
                         {

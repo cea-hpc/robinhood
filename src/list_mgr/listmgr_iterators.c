@@ -479,7 +479,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
         else if (sort_dirattr != -1)
             append_dirattr_select(query, sort_dirattr, "dirattr_sort");
         else
-            abort();
+            RBH_BUG("unsupported sort table");
     }
     else
     {

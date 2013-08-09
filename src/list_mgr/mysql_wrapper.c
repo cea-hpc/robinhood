@@ -416,6 +416,107 @@ int            db_drop_component( db_conn_t * conn, db_object_e obj_type, const 
     }
 }
 
+/**
+ * check a component exists in the database
+ * \param arg depends on the object type: src table for triggers, NULL for others.
+ */
+int db_check_component(db_conn_t *conn, db_object_e obj_type, const char *name, const char *arg)
+{
+    char       query[1024];
+    MYSQL_RES *result;
+    MYSQL_ROW  row;
+    int rc;
+
+    if (obj_type == DBOBJ_TRIGGER)
+    {
+        sprintf(query, "SELECT EVENT_OBJECT_TABLE FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA='%s'"
+                "AND TRIGGER_NAME='%s'", lmgr_config.db_config.db, name);
+
+        rc = _db_exec_sql(conn, query, &result, FALSE);
+        if ( rc )
+            return rc;
+
+        if (!result)
+        {
+            DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s does not exist", name);
+            return DB_NOT_EXISTS;
+        }
+
+        row = mysql_fetch_row(result);
+        if (row)
+        {
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Trigger %s exists and is defined on %s",
+                       name, row[0] ? row[0] : "<null>"); 
+            if (!arg)
+            {
+                /* just check the row is set */
+                if (row[0] == NULL || row[0][0] == '\0')
+                    rc = DB_BAD_SCHEMA;
+                else
+                    rc = DB_SUCCESS;
+            }
+            else if (strcmp(arg, row[0]))
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Trigger %s is on wrong table: expected %s, got %s",
+                           name, arg, row[0]);
+                rc = DB_BAD_SCHEMA;
+            }
+            else
+                rc = DB_SUCCESS;
+
+            if (mysql_fetch_row(result))
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unexpected multiple definition of %s on %s",
+                           name, row[0]);
+                rc = DB_BAD_SCHEMA;
+            }
+        }
+        else
+            rc = DB_NOT_EXISTS;
+
+        mysql_free_result(result);
+        return rc;
+    }
+    else if (obj_type == DBOBJ_FUNCTION)
+    {
+        sprintf(query, "SHOW FUNCTION STATUS WHERE DB='%s' AND NAME='%s'",
+                lmgr_config.db_config.db, name);
+
+        rc = _db_exec_sql(conn, query, &result, FALSE);
+        if ( rc )
+            return rc;
+
+        if (!result)
+        {
+            DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s does not exist", name);
+            return DB_NOT_EXISTS;
+        }
+
+        row = mysql_fetch_row(result);
+        if (row)
+        {
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Function %s exists", name);
+            rc = DB_SUCCESS;
+
+            if (mysql_fetch_row(result))
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unexpected multiple definition of %s",
+                           name);
+                rc = DB_BAD_SCHEMA;
+            }
+        }
+        else
+            rc = DB_NOT_EXISTS;
+
+        mysql_free_result(result);
+        return rc;
+    }
+    else
+    {
+        RBH_BUG("Only triggers are supported for now");
+    }
+}
+
 /* create a trigger */
 int db_create_trigger( db_conn_t * conn, const char *name, const char *event,
                                const char *table, const char *body )

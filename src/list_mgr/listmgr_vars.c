@@ -25,52 +25,110 @@
 #include "RobinhoodLogs.h"
 #include <stdio.h>
 
-/**
- *  Get variable value.
- *  @param value must be of size 1024.
- */
-int ListMgr_GetVar( lmgr_t * p_mgr, const char *varname, char *value )
+int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value)
 {
     char           request[4096];
     int            rc;
     result_handle_t result;
     char          *str_val = NULL;
 
-    if ( !varname || !value )
+    if (!varname || !value)
         return DB_INVALID_ARG;
 
-    /* verify it exists in main table */
-
-    sprintf( request, "SELECT value FROM " VAR_TABLE " WHERE varname='%s'", varname );
+    sprintf(request, "SELECT value FROM "VAR_TABLE" WHERE varname='%s'",
+            varname);
 
     /* execute the request */
-    rc = db_exec_sql( &p_mgr->conn, request, &result );
-    if ( rc )
+    rc = db_exec_sql(pconn, request, &result);
+    if (rc)
         return rc;
 
-    rc = db_next_record( &p_mgr->conn, &result, &str_val, 1 );
+    rc = db_next_record(pconn, &result, &str_val, 1);
 
-    if ( rc == DB_END_OF_LIST )
+    if (rc == DB_END_OF_LIST)
     {
-        db_result_free( &p_mgr->conn, &result );
+        db_result_free(pconn, &result);
         return DB_NOT_EXISTS;
     }
-    else if ( rc )
+    else if (rc)
     {
-        db_result_free( &p_mgr->conn, &result );
+        db_result_free(pconn, &result);
         return rc;
     }
-    if ( str_val == NULL )
+    if (str_val == NULL)
     {
-        db_result_free( &p_mgr->conn, &result );
+        db_result_free(pconn, &result);
         return DB_REQUEST_FAILED;
     }
 
     /* result */
-    strcpy( value, str_val );
-    db_result_free( &p_mgr->conn, &result );
+    strcpy(value, str_val);
+    db_result_free(pconn, &result);
 
-    return 0;
+    return DB_SUCCESS;
+}
+
+int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value)
+{
+    char           query[4096];
+    int            rc;
+#ifdef _MYSQL
+    char           escaped[1024];
+
+    /* delete var if value is NULL */
+    if (value == NULL)
+    {
+        sprintf(query, "DELETE FROM "VAR_TABLE" WHERE varname = '%s'",
+                 varname);
+        return db_exec_sql(pconn, query, NULL);
+    }
+
+    /* escape special characters in value */
+    db_escape_string(pconn, escaped, 1024, value);
+
+    sprintf(query,
+             "INSERT INTO "VAR_TABLE" (varname, value) VALUES ('%s', '%s') "
+             "ON DUPLICATE KEY UPDATE value = '%s'", varname, escaped, escaped);
+#elif defined(_SQLITE)
+    /* using slqite3_snprintf with "%q" format, to escape strings */
+    sqlite3_snprintf(4096, query,
+             "INSERT INTO "VAR_TABLE" (varname, value) VALUES ('%s', '%q')",
+             varname, value, value);
+#else
+#error "ListMgr_SetVar() not yet implemented for this database engine"
+#endif
+
+    rc = db_exec_sql(pconn, query, NULL);
+
+    if (rc == DB_ALREADY_EXISTS)
+    {
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG,
+                    "Entry already exists in %s(). Updating it.",
+                    __FUNCTION__);
+        /* insert failed, try to update */
+#ifdef _MYSQL
+        sprintf(query,
+                 "UPDATE " VAR_TABLE " SET value = '%s' WHERE varname = '%s'",
+                 escaped, varname);
+#elif defined(_SQLITE)
+        /* using slqite3_snprintf with "%q" format, to escape strings */
+        sqlite3_snprintf(4096, query,
+                          "UPDATE " VAR_TABLE " SET value = '%q' WHERE varname = '%s'",
+                          value, varname);
+#endif
+
+        rc = db_exec_sql(pconn, query, NULL);
+    }
+    return rc;
+}
+
+/**
+ *  Get variable value.
+ *  @param value must be of size 1024.
+ */
+int ListMgr_GetVar(lmgr_t *p_mgr, const char *varname, char *value)
+{
+    return lmgr_get_var(&p_mgr->conn, varname, value);
 }
 
 
@@ -78,58 +136,7 @@ int ListMgr_GetVar( lmgr_t * p_mgr, const char *varname, char *value )
  *  Set variable value.
  *  @param value size must not exceed 1024.
  */
-int ListMgr_SetVar( lmgr_t * p_mgr, const char *varname, const char *value )
+int ListMgr_SetVar(lmgr_t *p_mgr, const char *varname, const char *value)
 {
-    char           query[4096];
-    int            rc;
-
-#ifdef _MYSQL
-    char           escaped[1024];
-
-    /* delete var if value is NULL */
-    if (value == NULL)
-    {
-        sprintf( query, "DELETE FROM "VAR_TABLE" WHERE varname = '%s'",
-                 varname );
-        return db_exec_sql( &p_mgr->conn, query, NULL );
-    }
-
-    /* escape special characters in value */
-    db_escape_string( &p_mgr->conn, escaped, 1024, value );
-
-    sprintf( query,
-             "INSERT INTO " VAR_TABLE " (varname, value) VALUES ('%s', '%s') "
-             "ON DUPLICATE KEY UPDATE value = '%s'", varname, escaped, escaped );
-#elif defined( _SQLITE )
-    /* using slqite3_snprintf with "%q" format, to escape strings */
-    sqlite3_snprintf( 4096, query,
-             "INSERT INTO " VAR_TABLE " (varname, value) VALUES ('%s', '%q')",
-             varname, value, value );
-#else
-#error "ListMgr_SetVar() not yet implemented for this database engine"
-#endif
-
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
-
-    if (rc == DB_ALREADY_EXISTS)
-    {
-        DisplayLog( LVL_DEBUG, LISTMGR_TAG,
-                    "Entry already exists in %s(). Updating it.",
-                    __FUNCTION__ );
-        /* insert failed, try to update */
-#ifdef _MYSQL
-        sprintf( query,
-                 "UPDATE " VAR_TABLE " SET value = '%s' WHERE varname = '%s'",
-                 escaped, varname );
-#elif defined( _SQLITE )
-        /* using slqite3_snprintf with "%q" format, to escape strings */
-        sqlite3_snprintf( 4096, query,
-                          "UPDATE " VAR_TABLE " SET value = '%q' WHERE varname = '%s'",
-                          value, varname );
-#endif
-
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    }
-
-    return rc;
+    return lmgr_set_var(&p_mgr->conn, varname, value);
 }

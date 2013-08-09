@@ -23,6 +23,13 @@
 #include "RobinhoodLogs.h"
 #include <stdio.h>
 
+/* exported symbols */
+int            annex_table = FALSE;              /* indicates if an annex table is used */
+
+/* global symbols */
+static const char *acct_info_table = NULL;
+static int report_only = FALSE;
+
 #define MAX_DB_FIELDS 64
 
 #define APPEND_TXT( _n, _str ) do { strcpy( _n, _str );  _n = _n + strlen( _n ); } while (0)
@@ -126,42 +133,48 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
  * @return 0 on success
  * @return -1 on error
  */
-static inline int check_field( int i, int * curr_field_index, char *table, char **fieldtab )
+static int check_field_name(const char *name, int *curr_field_index,
+                            char *table, char **fieldtab)
 {
-    if ( ( *curr_field_index >= MAX_DB_FIELDS )
-        || ( fieldtab[*curr_field_index] == NULL ) )
+    if ((*curr_field_index >= MAX_DB_FIELDS)
+        || (fieldtab[*curr_field_index] == NULL))
     {
         if (!strcmp(table, ACCT_TABLE))
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (missing field '%s' in table %s):"
-                        " "DROP_ACCT_MSG, field_infos[i].field_name, table );
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Incompatible database schema (missing field '%s' in table %s):"
+                       " "DROP_ACCT_MSG, name, table);
         else
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (missing field '%s' in table %s):"
-                        " "DROP_MESSAGE, field_infos[i].field_name, table );
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Incompatible database schema (missing field '%s' in table %s):"
+                       " "DROP_MESSAGE, name, table);
         return -1;
     }
     /* check that this is the expected field */
-    if ( !strcmp( field_infos[i].field_name, fieldtab[*curr_field_index] ) )
+    if (!strcmp(name, fieldtab[*curr_field_index]))
     {
-        DisplayLog( LVL_FULL, LISTMGR_TAG, "%s OK", field_infos[i].field_name );
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "%s OK", name);
         (*curr_field_index)++;
         return 0;
     }
     else
     {
-        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s != %s",
-                    field_infos[i].field_name, fieldtab[*curr_field_index] );
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s != %s", name,
+                   fieldtab[*curr_field_index]);
         if (!strcmp(table, ACCT_TABLE))
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (unexpected field '%s' in table %s): "DROP_ACCT_MSG,
-                        fieldtab[*curr_field_index], table );
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Incompatible database schema (unexpected field '%s' in table %s): "DROP_ACCT_MSG,
+                       fieldtab[*curr_field_index], table);
         else
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (unexpected field '%s' in table %s): "DROP_MESSAGE,
-                        fieldtab[*curr_field_index], table );
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Incompatible database schema (unexpected field '%s' in table %s): "DROP_MESSAGE,
+                       fieldtab[*curr_field_index], table);
         return -1;
     }
+}
+
+static inline int check_field(int i, int * curr_field_index, char *table, char **fieldtab)
+{
+    return check_field_name(field_infos[i].field_name, curr_field_index, table, fieldtab);
 }
 
 /* Return 0 if there is no extra field else return 1 */
@@ -232,411 +245,1368 @@ static unsigned int append_size_range_op(char * str, int leading_comma, char *pr
     return l;
 }
 
-
-
-int            annex_table = FALSE;              /* indicates if an annex table is used */
-int            acct_on_annex = FALSE;            /* indicates if acct info are is on annex table */
-int            acct_on_main = FALSE;             /* indicates if acct info is on main table */
-
-int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
+/** check if this mode uses an annex table */
+static inline int have_annex_table(void)
 {
-    int            i, rc, is_first_field;
-    db_conn_t      conn;
-    char           errmsg_buf[1024];
-    char           strbuf[4096];
-    char          *next;
-    char          *fieldtab[MAX_DB_FIELDS];
-    char          *acct_info_table;
-    db_type_u      default_val;
-
-    /* store the configuration */
-    lmgr_config = *p_conf;
-
-    /* determine if an annex table is used */
-    annex_table = FALSE;
-    for ( i = 0; i < ATTR_COUNT; i++ )
+    int i;
+    for (i = 0; i < ATTR_COUNT; i++)
     {
-        if ( field_infos[i].flags & ANNEX_INFO )
-        {
-            annex_table = TRUE;
-            break;
-        }
+        if (field_infos[i].flags & ANNEX_INFO)
+            return TRUE;
     }
+    return FALSE;
+}
 
-    /* initilize attr masks for each table */
-    init_attrset_masks( &lmgr_config );
+/**
+ * Check what tables are used as source for accounting.
+ * Return the main source table for accounting.
+ */
+static const char *acct_table(void)
+{
+    const char *src_table = NULL;
+    int is_annex = FALSE;
+    int is_main = FALSE;
 
-    if ( annex_table && ( lmgr_config.user_acct || lmgr_config.group_acct ) )
+    if (lmgr_config.user_acct || lmgr_config.group_acct)
     {
-        acct_on_annex = FALSE ;
-        acct_on_main = FALSE ;
-        acct_info_table = NULL;
-
-        for ( i = 0; i < ATTR_COUNT; i++ )
+        int i;
+        for (i = 0; i < ATTR_COUNT; i++)
         {
-            if ( is_acct_field( i ) || is_acct_pk( i ) )
+            if (is_acct_field(i) || is_acct_pk(i))
             {
-                if ( is_annex_field( i ) )
-                    acct_on_annex = TRUE;
-                else if ( is_main_field( i ) )
-                    acct_on_main = TRUE;
+                if (is_annex_field(i))
+                    is_annex = TRUE;
+                else if (is_main_field(i))
+                    is_main = TRUE;
                 else
-                {
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: Accounting field not in "MAIN_TABLE" or "ANNEX_TABLE" table" );
-                    return -1;
-                }
+                    /* BUG */
+                    RBH_BUG("Accounting field not in "MAIN_TABLE
+                            " or "ANNEX_TABLE" table");
             }
         }
-        if ( acct_on_annex && acct_on_main )
+
+        if (is_annex && is_main)
         {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: Accounting info is on several tables" );
-            return -1;
+            RBH_BUG("Accounting info is on several tables (unsupported)");
         }
-        else if (acct_on_annex )
-            acct_info_table = ANNEX_TABLE;
-        else if (acct_on_main )
-            acct_info_table = MAIN_TABLE;
+        else if (is_main)
+            src_table = MAIN_TABLE;
+        else if (is_annex)
+            src_table = ANNEX_TABLE;
         else
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "ERROR: Accounting info is not in "MAIN_TABLE" or "ANNEX_TABLE" table" );
-            return -1;
-        }
+            /* BUG */
+            RBH_BUG("Accounting info is not in "MAIN_TABLE
+                    " or "ANNEX_TABLE" table");
     }
-    else
-        acct_info_table = MAIN_TABLE;
+    return src_table;
+}
 
+/** generic type for check_table/create_table functions */
+typedef int (*check_create_tab_func_t)(db_conn_t *);
 
+static int check_table_vars(db_conn_t *pconn)
+{
+    char  strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
 
-    /* create a database access */
-    rc = db_connect( &conn );
-
-    if ( rc )
-        return rc;
-
-    /* check if tables exist, and check their schema */
-
-    DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Checking database schema" );
-
-    /*
-     *  ===== Check table of vars =====
-     */
-    rc = db_list_table_fields( &conn, VAR_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-    if ( rc == DB_SUCCESS )
+    int rc = db_list_table_fields(pconn, VAR_TABLE, fieldtab, MAX_DB_FIELDS,
+                                  strbuf, sizeof(strbuf));
+    if (rc == DB_SUCCESS)
     {
-        if ( ( fieldtab[0] == NULL ) || ( fieldtab[1] == NULL )
-             || strcmp( fieldtab[0], "varname" ) || strcmp( fieldtab[1], "value" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid fields (%s, %s) for table "
-                        VAR_TABLE,
-                        ( fieldtab[0] ? fieldtab[0] : "(null)" ),
-                        ( fieldtab[1] ? fieldtab[1] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Fields (%s, %s) OK", fieldtab[0], fieldtab[1] );
-        }
+        int curr_index = 0;
+        /* check fields */
+        if (check_field_name("varname", &curr_index, VAR_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("value", &curr_index, VAR_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+
+        if (has_extra_field(curr_index, VAR_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
     }
-    else if ( rc == DB_NOT_EXISTS )
+    else if (rc != DB_NOT_EXISTS)
     {
-        /* Note: allow creating this table in report_only mode because the command can set some values in this table */
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Error checking database schema: %s",
+                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
 
-        DisplayLog( LVL_EVENT, LISTMGR_TAG, VAR_TABLE " does not exist: creating it." );
+static int create_table_vars(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    int rc;
 
-        /* table does not exist */
-        strcpy( strbuf, "CREATE TABLE " VAR_TABLE " ( "
-                "varname VARCHAR(255) PRIMARY KEY, "
-                "value TEXT )" );
+    /* table does not exist */
+    strcpy(strbuf, "CREATE TABLE "VAR_TABLE" ("
+           "varname VARCHAR(255) PRIMARY KEY, "
+           "value TEXT)");
 #ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
 #endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
-        DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-        rc = db_exec_sql( &conn, strbuf, NULL );
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-            return rc;
-        }
-
-        DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " VAR_TABLE " created successfully" );
-    }
-    else
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
     {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                    db_errmsg(pconn, strbuf, sizeof(strbuf)));
         return rc;
     }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "VAR_TABLE" created successfully");
+    return DB_SUCCESS;
+}
 
-    /*
-     * ====== CHECKING MAIN TABLE ==========
-     */
-    rc = db_list_table_fields( &conn, MAIN_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-
-    if ( rc == DB_SUCCESS )
+static int check_table_main(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
+    int rc = db_list_table_fields(pconn, MAIN_TABLE, fieldtab, MAX_DB_FIELDS,
+                                  strbuf, sizeof(strbuf));
+    if (rc == DB_SUCCESS)
     {
-        int            curr_field_index = 0;
+        int i;
+        int curr_field_index = 0;
 
         /* check primary key */
-        if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid primary key (%s) for table " MAIN_TABLE,
-                        ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
-            curr_field_index += 1;
-        }
+        if (check_field_name("id", &curr_field_index, MAIN_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
 
-        for ( i = 0; i < ATTR_COUNT; i++ )
+        for (i = 0; i < ATTR_COUNT; i++)
         {
-            if (is_main_field( i ) && !is_funcattr(i))
+            if (is_main_field(i) && !is_funcattr(i))
             {
-                if ( check_field( i, &curr_field_index, MAIN_TABLE, fieldtab ) )
-                    return -1;
+                if (check_field(i, &curr_field_index, MAIN_TABLE, fieldtab))
+                    return DB_BAD_SCHEMA;
             }
         }
 
         /* is there any extra field ? */
-        if ( has_extra_field( curr_field_index, MAIN_TABLE, fieldtab ) )
-            return -1;
-
+        if (has_extra_field(curr_field_index, MAIN_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
     }
-    else if ( rc == DB_NOT_EXISTS )
+    else if (rc != DB_NOT_EXISTS)
     {
-        if ( report_only )
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "MAIN_TABLE" table does not exist" );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, MAIN_TABLE " does not exist: creating it." );
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Error checking database schema: %s",
+                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
 
-            /* table does not exist */
-            strcpy( strbuf, "CREATE TABLE " MAIN_TABLE " ( id "PK_TYPE" PRIMARY KEY" );
-            next = strbuf + strlen( strbuf );
+static int create_table_main(db_conn_t *pconn)
+{
+    char        strbuf[4096];
+    char       *next;
+    int         i, rc;
+    db_type_u   default_val;
 
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if (is_main_field(i) && !is_funcattr(i))
-                {
+    strcpy(strbuf, "CREATE TABLE "MAIN_TABLE" (id "PK_TYPE" PRIMARY KEY");
+    next = strbuf + strlen(strbuf);
+
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_main_field(i) && !is_funcattr(i))
+        {
 #ifdef ATTR_INDEX_status
-                    if ( i == ATTR_INDEX_status )
-                    {
-                        default_val.val_int = 0;
-                        next += append_field_def( i, next, 0, &default_val );
-                    }
-                    else
-#endif
-                    if ( i == ATTR_INDEX_owner )
-                    {
-                        default_val.val_str = ACCT_DEFAULT_OWNER;
-                        next += append_field_def( i, next, 0, &default_val );
-                    }
-                    else if ( i == ATTR_INDEX_gr_name )
-                    {
-                        default_val.val_str = ACCT_DEFAULT_GROUP;
-                        next += append_field_def( i, next, 0, &default_val );
-                    }
-                    else
-                         next += append_field_def( i, next, 0, NULL );
-                }
-            }
-
-            strcpy( next, ")" );
-
-#ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
-#endif
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
+            if (i == ATTR_INDEX_status)
             {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
+                default_val.val_int = 0;
+                next += append_field_def(i, next, 0, &default_val);
             }
-
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " MAIN_TABLE " created successfully" );
-
-            /* create indexes on this table */
-            for ( i = 0; i < ATTR_COUNT; i++ )
+            else
+#endif
+            if (i == ATTR_INDEX_owner)
             {
-                if ( is_main_field( i ) && is_indexed_field( i ) )
-                {
-                    sprintf( strbuf, "CREATE INDEX %s_index ON " MAIN_TABLE "(%s)",
-                             field_infos[i].field_name, field_infos[i].field_name );
-
-                    DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-                    rc = db_exec_sql( &conn, strbuf, NULL );
-                    if ( rc )
-                    {
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                    "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                        return rc;
-                    }
-                    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " MAIN_TABLE "(%s) created successfully",
-                                field_infos[i].field_name );
-                }
+                default_val.val_str = ACCT_DEFAULT_OWNER;
+                next += append_field_def(i, next, 0, &default_val);
             }
+            else if (i == ATTR_INDEX_gr_name)
+            {
+                default_val.val_str = ACCT_DEFAULT_GROUP;
+                next += append_field_def(i, next, 0, &default_val);
+            }
+            else
+                 next += append_field_def(i, next, 0, NULL);
         }
     }
-    else
+    strcpy(next, ")");
+
+    #ifdef _MYSQL
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
+    #endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
     {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
         return rc;
     }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "MAIN_TABLE" created successfully");
 
-
-    /*
-     * ====== CHECKING NAMES TABLE ==========
-     */
-
-    rc = db_list_table_fields( &conn, DNAMES_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-
-    if ( rc == DB_SUCCESS )
+    /* create indexes on this table */
+    for (i = 0; i < ATTR_COUNT; i++)
     {
-        int            curr_field_index = 0;
+        if (is_main_field(i) && is_indexed_field(i))
+        {
+            sprintf(strbuf, "CREATE INDEX %s_index ON " MAIN_TABLE "(%s)",
+                    field_infos[i].field_name, field_infos[i].field_name);
+
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s",
+                       strbuf);
+
+            rc = db_exec_sql(pconn, strbuf, NULL);
+            if (rc)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to create index: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                return rc;
+            }
+            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "MAIN_TABLE"(%s) created successfully",
+                       field_infos[i].field_name);
+        }
+    }
+    return DB_SUCCESS;
+}
+
+static int check_table_dnames(db_conn_t *pconn)
+{
+    char  strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
+    int   rc = db_list_table_fields(pconn, DNAMES_TABLE, fieldtab,
+                                    MAX_DB_FIELDS, strbuf, sizeof(strbuf));
+
+    if (rc == DB_SUCCESS)
+    {
+        int i;
+        int curr_field_index = 0;
 
         /* check first fields: id and pkn */
-        if ((fieldtab[0] == NULL) || (fieldtab[1] == NULL)
-            || strcmp(fieldtab[0], "id") || strcmp(fieldtab[1], "pkn"))
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid schema (%s, %s...) for table "
-                        DNAMES_TABLE,
-                        ( fieldtab[0] ? fieldtab[0] : "(null)" ),
-                        ( fieldtab[1] ? fieldtab[1] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog(LVL_FULL, LISTMGR_TAG, "id, pkn OK");
-            curr_field_index += 2;
-        }
+        if (check_field_name("id", &curr_field_index, DNAMES_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("pkn", &curr_field_index, DNAMES_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
 
-        for ( i = 0; i < ATTR_COUNT; i++ )
+        for (i = 0; i < ATTR_COUNT; i++)
         {
-            if (is_names_field( i ) && !is_funcattr(i))
+            if (is_names_field(i) && !is_funcattr(i))
             {
-                if ( check_field( i, &curr_field_index, DNAMES_TABLE, fieldtab ) )
-                    return -1;
+                if (check_field(i, &curr_field_index, DNAMES_TABLE, fieldtab))
+                    return DB_BAD_SCHEMA;
+            }
+        }
+        /* is there any extra field ? */
+        if (has_extra_field(curr_field_index, DNAMES_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+    }
+    else if (rc != DB_NOT_EXISTS)
+    {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Error checking database schema: %s",
+                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
+
+static int create_table_dnames(db_conn_t *pconn)
+{
+    char        strbuf[4096];
+    char       *next;
+    int         i, rc;
+
+    /* table does not exist */
+    strcpy(strbuf, "CREATE TABLE "DNAMES_TABLE" (id "PK_TYPE", "
+                   "pkn VARCHAR(40) PRIMARY KEY");
+    next = strbuf + strlen(strbuf);
+
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_names_field(i) && !is_funcattr(i))
+        {
+            next += append_field_def(i, next, 0, NULL);
+        }
+    }
+    strcpy(next, ")");
+
+#ifdef _MYSQL
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
+#endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "DNAMES_TABLE" created successfully");
+
+    /* create indexes on this table */
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_names_field(i) && is_indexed_field(i))
+        {
+            sprintf(strbuf, "CREATE INDEX %s_index ON " DNAMES_TABLE "(%s)",
+                    field_infos[i].field_name, field_infos[i].field_name);
+
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
+
+            rc = db_exec_sql(pconn, strbuf, NULL);
+            if (rc)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to create index: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                return rc;
+            }
+            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "DNAMES_TABLE"(%s) created successfully",
+                       field_infos[i].field_name);
+        }
+    }
+
+    /* this index is needed to build the fullpath of entries */
+    rc = db_exec_sql(pconn, "CREATE INDEX id_index ON "DNAMES_TABLE"(id)", NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create index: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on "DNAMES_TABLE"(id) created successfully");
+    return DB_SUCCESS;
+}
+
+static int check_table_annex(db_conn_t *pconn)
+{
+    int rc, i;
+    char  strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
+
+    if (!annex_table)
+        return DB_SUCCESS;
+
+    rc = db_list_table_fields(pconn, ANNEX_TABLE, fieldtab, MAX_DB_FIELDS,
+                              strbuf, sizeof(strbuf));
+
+    if (rc == DB_SUCCESS)
+    {
+        int curr_field_index = 0;
+
+        /* check primary key */
+        if (check_field_name("id", &curr_field_index, ANNEX_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+
+        for (i = 0; i < ATTR_COUNT; i++)
+        {
+            if (is_annex_field(i) && !is_funcattr(i))
+            {
+                if (check_field(i, &curr_field_index, ANNEX_TABLE, fieldtab))
+                    return DB_BAD_SCHEMA;
             }
         }
 
         /* is there any extra field ? */
-        if ( has_extra_field( curr_field_index, DNAMES_TABLE, fieldtab ) )
-            return -1;
+        if ( has_extra_field(curr_field_index, ANNEX_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+    }
+    else if (rc != DB_NOT_EXISTS)
+    {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Error checking database schema: %s",
+                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
 
+static int create_table_annex(db_conn_t *pconn)
+{
+    char        strbuf[4096];
+    char       *next;
+    int         i, rc;
+
+    if (!annex_table)
+        return DB_SUCCESS;
+
+    strcpy( strbuf, "CREATE TABLE "ANNEX_TABLE" (id "PK_TYPE" PRIMARY KEY");
+    next = strbuf + strlen(strbuf);
+
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_annex_field(i) && !is_funcattr(i))
+        {
+            next += append_field_def(i, next, 0, NULL);
+        }
+    }
+    strcpy( next, ")" );
+#ifdef _MYSQL
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
+#endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "ANNEX_TABLE" created successfully");
+
+    /* create indexes on this table */
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_annex_field(i) && is_indexed_field(i))
+        {
+            sprintf( strbuf, "CREATE INDEX %s_index ON " ANNEX_TABLE "(%s)",
+                     field_infos[i].field_name, field_infos[i].field_name );
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
+
+            rc = db_exec_sql(pconn, strbuf, NULL);
+            if (rc)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to create index: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                return rc;
+            }
+            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "ANNEX_TABLE"(%s) created successfully",
+                       field_infos[i].field_name);
+        }
+    }
+    return DB_SUCCESS;
+}
+
+#ifdef _LUSTRE
+static int check_table_stripe_info(db_conn_t *pconn)
+{
+    int rc;
+    char  strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
+
+    rc = db_list_table_fields(pconn, STRIPE_INFO_TABLE, fieldtab, MAX_DB_FIELDS,
+                              strbuf, sizeof(strbuf));
+    if (rc == DB_SUCCESS)
+    {
+        int curr_field_index = 0;
+
+        /* check primary key */
+        if (check_field_name("id", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("validator", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("stripe_count", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("stripe_size", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("pool_name", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        /* is there any extra field ? */
+        if (has_extra_field(curr_field_index, STRIPE_INFO_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+    }
+    else if (rc != DB_NOT_EXISTS)
+    {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Error checking database schema: %s",
+                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
+
+static int create_table_stripe_info(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    int  rc;
+
+    sprintf(strbuf,
+            "CREATE TABLE " STRIPE_INFO_TABLE
+            " (id "PK_TYPE" PRIMARY KEY, validator INT UNSIGNED, "
+            "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u))",
+            MAX_POOL_LEN - 1);
+#ifdef _MYSQL
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
+#endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "STRIPE_INFO_TABLE" created successfully");
+    return DB_SUCCESS;
+}
+
+static int check_table_stripe_items(db_conn_t *pconn)
+{
+    int rc;
+    char  strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
+
+    rc = db_list_table_fields(pconn, STRIPE_ITEMS_TABLE, fieldtab,
+                              MAX_DB_FIELDS, strbuf, sizeof(strbuf));
+
+    if (rc == DB_SUCCESS)
+    {
+        int curr_field_index = 0;
+
+        /* check index */
+        if (check_field_name("id", &curr_field_index, STRIPE_ITEMS_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("stripe_index", &curr_field_index, STRIPE_ITEMS_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("ostidx", &curr_field_index, STRIPE_ITEMS_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("details", &curr_field_index, STRIPE_ITEMS_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+
+        /* is there any extra field ? */
+        if (has_extra_field(curr_field_index, STRIPE_ITEMS_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+    }
+    else if (rc != DB_NOT_EXISTS)
+    {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Error checking database schema: %s",
+                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
+
+static int create_table_stripe_items(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    int  rc;
+
+    sprintf(strbuf, "CREATE TABLE "STRIPE_ITEMS_TABLE
+            " (id "PK_TYPE", stripe_index INT UNSIGNED, ostidx INT UNSIGNED, details BINARY(%u))",
+            STRIPE_DETAIL_SZ);
+#ifdef _MYSQL
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
+#endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "STRIPE_ITEMS_TABLE" created successfully");
+
+    strcpy(strbuf, "CREATE INDEX id_index ON "STRIPE_ITEMS_TABLE"(id)");
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create index: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "STRIPE_ITEMS_TABLE"(id) created successfully");
+
+    strcpy(strbuf, "CREATE INDEX st_index ON "STRIPE_ITEMS_TABLE"(ostidx)");
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create index: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "STRIPE_ITEMS_TABLE"(ostidx) created successfully");
+    return DB_SUCCESS;
+}
+#endif
+
+static void disable_acct(void)
+{
+    lmgr_config.user_acct = FALSE;
+    lmgr_config.group_acct = FALSE;
+    /* reset acct masks */
+    acct_pk_attr_set = 0;
+    acct_attr_set = 0;
+}
+
+static int check_table_acct(db_conn_t *pconn)
+{
+    int i, rc;
+    char  strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
+
+    /* when running report only with acct enabled,
+     * check if ACCT table is OK and disable acct if is not.
+    */
+    if (!lmgr_config.user_acct && !lmgr_config.group_acct && !report_only)
+        return DB_SUCCESS;
+
+    rc = db_list_table_fields(pconn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS,
+                              strbuf, sizeof(strbuf));
+    if (rc == DB_SUCCESS)
+    {
+        int curr_field_index = 0;
+
+        /* check primary key */
+        for (i = 0; i < ATTR_COUNT; i++)
+        {
+            if (is_acct_pk(i))
+            {
+                if (check_field(i, &curr_field_index, ACCT_TABLE, fieldtab))
+                    return DB_BAD_SCHEMA;
+            }
+        }
+        /* check other fields */
+        for (i = 0; i < ATTR_COUNT; i++)
+        {
+            if (is_acct_field(i))
+            {
+                if (check_field(i, &curr_field_index, ACCT_TABLE, fieldtab))
+                    return DB_BAD_SCHEMA;
+            }
+        }
+        /* check count field*/
+        if (check_field_name(ACCT_FIELD_COUNT, &curr_field_index, ACCT_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+
+        /* check size range fields */
+        /* based on log2(size/32) => 0 1 32 1K 32K 1M 32M 1G 32G 1T */
+        for (i = 0; i < SZ_PROFIL_COUNT; i++)
+        {
+            if (check_field_name(sz_field[i], &curr_field_index, ACCT_TABLE, fieldtab))
+                return DB_BAD_SCHEMA;
+        }
+
+        if (has_extra_field(curr_field_index, ACCT_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
     }
     else if ( rc == DB_NOT_EXISTS )
     {
-        if ( report_only )
+        if (report_only)
         {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "DNAMES_TABLE" table does not exist" );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, DNAMES_TABLE " does not exist: creating it." );
-
-            /* table does not exist */
-            strcpy(strbuf, "CREATE TABLE " DNAMES_TABLE " ( id "PK_TYPE", pkn VARCHAR(40) PRIMARY KEY");
-            next = strbuf + strlen( strbuf );
-
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if (is_names_field(i) && !is_funcattr(i))
-                {
-                    next += append_field_def( i, next, 0, NULL );
-                }
-            }
-            strcpy( next, ")" );
-
-#ifdef _MYSQL
-            if (lmgr_config.db_config.innodb)
-                strcat(strbuf, " ENGINE=InnoDB");
-#endif
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create table: Error: %s",
-                            db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " DNAMES_TABLE " created successfully" );
-
-            /* create indexes on this table */
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if (is_names_field(i) && is_indexed_field(i))
-                {
-                    sprintf( strbuf, "CREATE INDEX %s_index ON " DNAMES_TABLE "(%s)",
-                             field_infos[i].field_name, field_infos[i].field_name );
-
-                    DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-                    rc = db_exec_sql( &conn, strbuf, NULL );
-                    if ( rc )
-                    {
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                    "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                        return rc;
-                    }
-                    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " DNAMES_TABLE "(%s) created successfully",
-                                field_infos[i].field_name );
-                }
-            }
-
-            /* this index is needed to build the fullpath of entries */
-            rc = db_exec_sql( &conn, "CREATE INDEX id_index ON "DNAMES_TABLE"(id)", NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " DNAMES_TABLE "(id) created successfully");
+            DisplayLog(LVL_VERB, LISTMGR_TAG, "Accounting stats not available");
+            disable_acct();
         }
     }
     else
     {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s",
-                    db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Error checking database schema: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
     }
+    return rc;
+}
 
-    /* drop previous versions of the function */
-    rc = db_drop_component( &conn, DBOBJ_FUNCTION, "one_path" );
-    if ( rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
+static int populate_acct_table(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    char *next = strbuf;
+    int i, rc;
+
+    if (acct_info_table == NULL)
+        RBH_BUG("Can't populate "ACCT_TABLE" with no source table");
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB content."
+               " This can take a while...");
+    FlushLogs();
+
+    /* Initial table population for already existing entries */
+    APPEND_TXT(next, "INSERT INTO "ACCT_TABLE"(");
+    attrmask2fieldlist(next, acct_pk_attr_set , T_ACCT, FALSE, FALSE, "", "");
+    INCR_NEXT(next);
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "");
+    INCR_NEXT(next);
+    APPEND_TXT(next, ", "ACCT_FIELD_COUNT);
+    next += append_size_range_fields(next, TRUE, "");
+    APPEND_TXT(next, ") SELECT ");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    INCR_NEXT(next);
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "SUM(", ")");
+    INCR_NEXT(next);
+    APPEND_TXT(next, " ,COUNT(id), SUM(size=0)");
+    for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
+            next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")"=%u,0))", i-1);
+    next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
+
+    next += sprintf(next, " FROM %s  GROUP BY ", acct_info_table);
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    next = next + strlen(next);
+
+    /* set READ COMMITTED isolation level for the next (big!) request
+     * so locks can be released immediatly after the record is read */
+    rc = db_transaction_level(pconn, TRANS_NEXT, TXL_READ_COMMITTED);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to drop function 'one_path': Error: %s",
-                    db_errmsg( &conn, errmsg_buf, 1024 ) );
+        char errmsg_buf[1024];
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to set READ_COMMITTED isolation level: Error: %s",
+                   db_errmsg(pconn, errmsg_buf, sizeof(errmsg_buf)));
+        /* try to continue */
+    }
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to populate accounting table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+
+        /* drop this table, to leave the db in a consistent state (if ACCT_TABLE exists, it must be populated) */
+        if (db_drop_component(pconn, DBOBJ_TABLE, ACCT_TABLE))
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Failed to drop table: Error: %s",
+                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
+
+static int create_table_acct(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    int i, rc;
+    char *next;
+    int first_acct_pk = TRUE;
+    int is_first_acct_field = TRUE;
+
+    if (!lmgr_config.user_acct & !lmgr_config.group_acct)
+        return DB_SUCCESS;
+
+    /* table does not exist */
+    strcpy(strbuf, "CREATE TABLE "ACCT_TABLE" (");
+    next = strbuf + strlen(strbuf);
+
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_acct_pk(i))
+        {
+            next += append_field_def(i, next, is_first_acct_field, NULL);
+            is_first_acct_field = FALSE;
+        }
+    }
+
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_acct_field(i))
+        {
+            next += append_field_def(i, next, is_first_acct_field, NULL);
+        }
+    }
+
+    /* count field */
+    strcpy (next, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED");
+    next = next + strlen(next);
+
+    /* size range fields */
+    for (i = 0; i < SZ_PROFIL_COUNT; i++)
+    {
+        next += sprintf(next, ", %s BIGINT UNSIGNED DEFAULT 0", sz_field[i]);
+    }
+
+    /* PK definition */
+    strcpy (next, ", PRIMARY KEY ( ");
+    next = next + strlen(next);
+
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_acct_pk(i))
+        {
+            if (!first_acct_pk )
+                next += sprintf(next, ", %s", field_infos[i].field_name);
+            else
+            {
+                next += sprintf(next, "%s", field_infos[i].field_name);
+                first_acct_pk = FALSE;
+            }
+        }
+    }
+    strcpy(next,"))");
+#ifdef _MYSQL
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
+#endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                    db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "ACCT_TABLE" created successfully");
+
+    /* now populate it */
+    return populate_acct_table(pconn);
+}
+
+#ifdef HAVE_RM_POLICY
+static int check_table_softrm(db_conn_t *pconn)
+{
+    int rc;
+    char  strbuf[4096];
+    char *fieldtab[MAX_DB_FIELDS];
+
+    rc = db_list_table_fields(pconn, SOFT_RM_TABLE, fieldtab, MAX_DB_FIELDS,
+                              strbuf, sizeof(strbuf));
+    if (rc == DB_SUCCESS)
+    {
+        int curr_index = 0;
+
+        if (check_field_name("fid", &curr_index, SOFT_RM_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("fullpath", &curr_index, SOFT_RM_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+#ifndef _LUSTRE_HSM
+        if (check_field_name("backendpath", &curr_index, SOFT_RM_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+#endif
+        if (check_field_name("soft_rm_time", &curr_index, SOFT_RM_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+        if (check_field_name("real_rm_time", &curr_index, SOFT_RM_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+
+        if (has_extra_field(curr_index, SOFT_RM_TABLE, fieldtab))
+            return DB_BAD_SCHEMA;
+    }
+    else if (rc != DB_NOT_EXISTS)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Error checking database schema: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    }
+    return rc;
+}
+
+static int create_table_softrm(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    int rc;
+
+    /* table does not exist */
+    sprintf(strbuf, "CREATE TABLE "SOFT_RM_TABLE" ("
+            "fid "PK_TYPE" PRIMARY KEY, "
+            "fullpath VARCHAR(%u), "
+#ifndef _LUSTRE_HSM
+            "backendpath VARCHAR(%u), "
+#endif
+            "soft_rm_time INT UNSIGNED, "
+            "real_rm_time INT UNSIGNED)",
+             field_infos[ATTR_INDEX_fullpath].db_type_size
+#ifndef _LUSTRE_HSM
+             , field_infos[ATTR_INDEX_backendpath].db_type_size
+#endif
+           );
+#ifdef _MYSQL
+    if (lmgr_config.db_config.innodb)
+        strcat(strbuf, " ENGINE=InnoDB");
+#endif
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "SOFT_RM_TABLE" created successfully");
+
+    /* main use case is to sort by real_rm_time */
+    strcpy(strbuf, "CREATE INDEX rm_time ON " SOFT_RM_TABLE "(real_rm_time)");
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create index: Error: %s",
+                   strbuf);
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "SOFT_RM_TABLE" created successfully");
+    return DB_SUCCESS;
+}
+#endif
+
+
+#define VERSION_VAR_FUNC    "VersionFunctionSet"
+#define VERSION_VAR_TRIG    "VersionTriggerSet"
+
+#define FUNCTIONSET_VERSION    "1"
+#define TRIGGERSET_VERSION     "1"
+
+static int check_functions_version(db_conn_t *conn)
+{
+    int rc;
+    char val[1024];
+
+    /* check the functions version */
+    rc = lmgr_get_var(conn, VERSION_VAR_FUNC, val);
+    if (rc == DB_SUCCESS)
+    {
+        if (strcmp(val, FUNCTIONSET_VERSION))
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Wrong functions version (in DB: %s, expected: %s). "
+                       "Existing functions will be dropped and re-created.", val, FUNCTIONSET_VERSION);
+            return DB_BAD_SCHEMA;
+        }
+        else
+        {
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Functions version is up-to-date (%s)", val);
+            return DB_SUCCESS;
+        }
+    }
+    else if (rc == DB_NOT_EXISTS)
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "No function versioning (expected: %s). "
+                   "Existing functions will be dropped and re-created.",
+                   FUNCTIONSET_VERSION);
+        return DB_BAD_SCHEMA;
+    }
+    else
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error getting functions version: %s",
+                   db_errmsg(conn, val, 1024));
+        return rc;
+    }
+}
+
+static int set_functions_version(db_conn_t *conn)
+{
+    /* set new functions version */
+    int rc = lmgr_set_var(conn, VERSION_VAR_FUNC, FUNCTIONSET_VERSION);
+    if (rc)
+    {
+        char msgbuf[1024];
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Failed to set triggers version: %s",
+                   db_errmsg(conn, msgbuf, sizeof(msgbuf)));
+    }
+    return rc;
+}
+
+static int check_triggers_version(db_conn_t *pconn)
+{
+    int rc;
+    char val[1024];
+
+    /* check the triggers version */
+    rc = lmgr_get_var(pconn, VERSION_VAR_TRIG, val);
+    if (rc == DB_SUCCESS)
+    {
+        if (strcmp(val, TRIGGERSET_VERSION))
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Wrong triggers version (in DB: %s, expected: %s). "
+                       "Existing triggers will be dropped and re-created.", val, TRIGGERSET_VERSION);
+            return DB_BAD_SCHEMA;
+        }
+        else
+        {
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Triggers version is up-to-date (%s)", val);
+            return DB_SUCCESS;
+        }
+    }
+    else if (rc == DB_NOT_EXISTS)
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "No trigger versioning (expected: %s). "
+                   "Existing triggers will be dropped and re-created.",
+                   TRIGGERSET_VERSION);
+        return DB_BAD_SCHEMA;
+    }
+    else
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error getting trigger version: %s",
+                   db_errmsg(pconn, val, sizeof(val)));
+        return rc;
+    }
+}
+
+static int set_triggers_version(db_conn_t *pconn)
+{
+    /* set new triggers version */
+    int rc = lmgr_set_var(pconn, VERSION_VAR_TRIG, TRIGGERSET_VERSION);
+    if (rc)
+    {
+        char msgbuf[1024];
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Failed to set triggers version: %s",
+                   db_errmsg(pconn, msgbuf, sizeof(msgbuf)));
+    }
+    return rc;
+}
+
+
+static int check_trig_acct_insert(db_conn_t *pconn)
+{
+    int rc;
+    char strbuf[4096];
+    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
+    {
+        /* no acct: must delete trigger */
+        if (!report_only)
+        {
+            rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT);
+            if (rc == DB_NOT_SUPPORTED)
+            {
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                           "Triggers are not supported with this database. "
+                           "Not a big issue (wanted to disable it)");
+            }
+            else if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to drop "ACCT_TRIGGER_INSERT "trigger: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                return rc;
+            }
+        }
+        return DB_SUCCESS;
+    }
+
+    return db_check_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT,
+                              acct_info_table);
+}
+
+static int check_trig_acct_delete(db_conn_t *pconn)
+{
+    int rc;
+    char strbuf[4096];
+    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
+    {
+        /* no acct: must delete trigger */
+        if (!report_only)
+        {
+            rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE);
+            if (rc == DB_NOT_SUPPORTED)
+            {
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                           "Triggers are not supported with this database. "
+                           "Not a big issue (wanted to disable it)");
+            }
+            else if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to drop "ACCT_TRIGGER_DELETE "trigger: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                return rc;
+            }
+        }
+        return DB_SUCCESS;
+    }
+
+    return db_check_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE,
+                              acct_info_table);
+}
+
+static int check_trig_acct_update(db_conn_t *pconn)
+{
+    int rc;
+    char strbuf[4096];
+    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
+    {
+        /* no acct: must delete trigger */
+        if (!report_only)
+        {
+            rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE);
+            if (rc == DB_NOT_SUPPORTED)
+            {
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                           "Triggers are not supported with this database. "
+                           "Not a big issue (wanted to disable it)");
+            }
+            else if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to drop "ACCT_TRIGGER_UPDATE "trigger: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                return rc;
+            }
+        }
+        return DB_SUCCESS;
+    }
+
+    return db_check_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE,
+                              acct_info_table);
+}
+
+static int create_trig_acct_insert(db_conn_t *pconn)
+{
+    int  rc;
+    char strbuf[4096];
+    char *next;
+
+    /* Trigger on insert */
+    next = strbuf;
+    APPEND_TXT(next, "DECLARE val BIGINT UNSIGNED; "
+                     "SET val="ACCT_SZ_VAL("NEW.size")";");
+    APPEND_TXT(next, "INSERT INTO " ACCT_TABLE "(");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    INCR_NEXT(next);
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "");
+    INCR_NEXT(next);
+    APPEND_TXT(next, ", " ACCT_FIELD_COUNT);
+    next += append_size_range_fields(next, TRUE, "");
+    APPEND_TXT(next, ") VALUES (");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "");
+    INCR_NEXT(next);
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "");
+    INCR_NEXT(next);
+    APPEND_TXT(next, ", 1");
+    next += append_size_range_val(next, TRUE, "NEW.", "val");
+    APPEND_TXT(next, ") ON DUPLICATE KEY UPDATE ");
+    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "NEW.", ADD);
+    INCR_NEXT(next);
+    APPEND_TXT(next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1");
+
+    /* update size range values */
+    next += append_size_range_op(next, TRUE, "NEW.", "val", ADD);
+
+    APPEND_TXT(next,";");
+    rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT);
+    if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
         return rc;
     }
 
+    rc = db_create_trigger(pconn, ACCT_TRIGGER_INSERT, "AFTER INSERT",
+                           acct_info_table, strbuf);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create "ACCT_TRIGGER_INSERT" trigger: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Trigger "ACCT_TRIGGER_INSERT" created successfully");
+    return DB_SUCCESS;
+}
+
+static int create_trig_acct_delete(db_conn_t *pconn)
+{
+    int  rc;
+    char strbuf[4096];
+    char *next;
+
+    /* Trigger on delete */
+    next = strbuf;
+    APPEND_TXT(next, "DECLARE val BIGINT UNSIGNED; "
+                      "SET val="ACCT_SZ_VAL("OLD.size")";");
+    APPEND_TXT(next, "UPDATE " ACCT_TABLE " SET ");
+    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
+    INCR_NEXT(next);
+    APPEND_TXT(next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1");
+
+    /* update size range values */
+    next += append_size_range_op(next, TRUE, "OLD.", "val", SUBSTRACT);
+
+    APPEND_TXT(next, " WHERE ");
+    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
+    INCR_NEXT(next);
+    APPEND_TXT(next, ";");
+
+    rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE);
+    if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+
+    rc = db_create_trigger(pconn, ACCT_TRIGGER_DELETE, "BEFORE DELETE",
+                           acct_info_table, strbuf);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create " ACCT_TRIGGER_DELETE " trigger: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Trigger "ACCT_TRIGGER_DELETE" created successfully");
+    return DB_SUCCESS;
+}
+
+static int create_trig_acct_update(db_conn_t *pconn)
+{
+    int  rc, i;
+    char strbuf[4096];
+    char *next;
+    int is_first_field = TRUE;
+
+    /* Trigger on update */
+
+    /* In case the owner or group changes, we
+     * must substract old information in previous raw
+     * and add new information to the new raw.
+     */
+    /* Simple case: owner and group are still the same */
+    next = strbuf;
+    APPEND_TXT(next, "DECLARE val_old, val_new BIGINT UNSIGNED;");
+    APPEND_TXT(next, "SET val_old="ACCT_SZ_VAL("OLD.size")"; "
+                      "SET val_new="ACCT_SZ_VAL("NEW.size")";");
+    APPEND_TXT(next, "\nIF ");
+    /* generate comparison like NEW.owner=OLD.owner AND NEW.gr_name=OLD.gr_name */
+    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND");
+    INCR_NEXT(next);
+    APPEND_TXT(next, "THEN \n\t IF ");
+    /********* if one of the attribute value has changed: update the acct table *********/
+    /* generate comparison like NEW.size<>=OLD.size OR NEW.blocks<>OLD.blocks */
+    attrmask2fieldcomparison(next, acct_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
+    INCR_NEXT(next);
+    APPEND_TXT(next, "THEN \n\t\t UPDATE " ACCT_TABLE " SET ");
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_acct_field(i))
+        {
+            if (!is_first_field)
+                next += sprintf(next, ", %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
+                                 field_infos[i].field_name, field_infos[i].field_name,
+                                 field_infos[i].field_name, field_infos[i].field_name);
+            else
+            {
+                next += sprintf(next, " %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
+                                 field_infos[i].field_name, field_infos[i].field_name,
+                                 field_infos[i].field_name, field_infos[i].field_name);
+                is_first_field = FALSE;
+            }
+        }
+    }
+
+    /* update size range values */
+    next += sprintf(next, "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
+                     is_first_field?" ":", ", sz_field[0], sz_field[0]);
+    is_first_field = FALSE;
+    for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
+    {
+        next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old=%u,0)+IFNULL(val_new=%u,0)) as SIGNED)",
+                         sz_field[i], sz_field[i], i-1, i-1);
+    }
+    /* last */
+    next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old>=%u,0)+IFNULL(val_new>=%u,0)) as SIGNED)",
+                     sz_field[i], sz_field[i], i-1, i-1);
+
+    APPEND_TXT(next, " WHERE ");
+    /* generate comparison as follows: owner=NEW.owner AND gr_name=NEW.gr_name */
+    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "NEW.", "=", "AND");
+    INCR_NEXT(next);
+    APPEND_TXT(next, "; \n\t END IF; \nELSEIF ");
+
+    /* tricky case: owner and/or group changed */
+
+    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
+    INCR_NEXT(next);
+    APPEND_TXT(next,  "THEN \n\tINSERT INTO " ACCT_TABLE "(");
+    /* generate fields as follows: owner, gr_name */
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    INCR_NEXT(next);
+    /* generate fields as follows: , size, blocks */
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "");
+    INCR_NEXT(next);
+    APPEND_TXT(next, ", " ACCT_FIELD_COUNT);
+    next += append_size_range_fields(next, TRUE, "");
+    APPEND_TXT(next, ") VALUES (");
+    /* generate fields as follows: NEW.owner, NEW.gr_name */
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "");
+    INCR_NEXT(next);
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "");
+    INCR_NEXT(next);
+    APPEND_TXT(next, ", 1");
+    next += append_size_range_val(next, TRUE, "NEW.", "val_new");
+    APPEND_TXT(next, ") \n\tON DUPLICATE KEY UPDATE ");
+    /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
+    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "NEW.", ADD);
+    INCR_NEXT(next);
+    APPEND_TXT(next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1");
+    /* update size range values */
+    next += append_size_range_op(next, TRUE, "NEW.", "val_new", ADD);
+    APPEND_TXT(next, ";");
+
+    APPEND_TXT(next, "\n\tUPDATE " ACCT_TABLE " SET ");
+    /* generate operations as follows: size=size-Old.size, blocks=blocks-Old.blocks */
+    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
+    INCR_NEXT(next);
+    APPEND_TXT(next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 ");
+    next += append_size_range_op(next, TRUE, "OLD.", "val_old", SUBSTRACT);
+    APPEND_TXT(next, " WHERE ");
+    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
+    INCR_NEXT(next);
+    APPEND_TXT(next, ";\nEND IF;\n");
+
+    rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE);
+    if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to drop "ACCT_TRIGGER_UPDATE" trigger: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+
+    rc = db_create_trigger(pconn, ACCT_TRIGGER_UPDATE, "AFTER UPDATE",
+                           acct_info_table, strbuf);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create "ACCT_TRIGGER_UPDATE" trigger: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Trigger "ACCT_TRIGGER_UPDATE" created successfully");
+    return DB_SUCCESS;
+}
+
+
+static int check_func_onepath(db_conn_t *pconn)
+{
+    /* XXX /!\ do not modify the code of DB functions
+     * without changing FUNCTIONSET_VERSION!!!!
+     */
+    return db_check_component(pconn, DBOBJ_FUNCTION, ONE_PATH_FUNC, NULL);
+}
+
+static int create_func_onepath(db_conn_t *pconn)
+{
+    int  rc;
+    char strbuf[4096];
+
+    /* XXX /!\ do not modify the code of DB functions
+     * without changing FUNCTIONSET_VERSION!!!!
+     */
+    rc = db_drop_component(pconn, DBOBJ_FUNCTION, ONE_PATH_FUNC);
+    if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to drop function '"ONE_PATH_FUNC"': Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
     /* creating function to get one path for a file */
     /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same id in a given request */
-    snprintf(strbuf, 4096, "CREATE FUNCTION one_path(param "PK_TYPE") RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
+    snprintf(strbuf, sizeof(strbuf), "CREATE FUNCTION "ONE_PATH_FUNC"(param "PK_TYPE")"
+        " RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
             " DECLARE p VARCHAR(%u) DEFAULT NULL;"
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"
@@ -653,27 +1623,41 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
         /* size of name */field_infos[ATTR_INDEX_name].db_type_size);
 
-    rc = db_exec_sql( &conn, strbuf, NULL );
-    if (rc )
-    {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to create function 'one_path': Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
-    }
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create function '"ONE_PATH_FUNC"': Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    return rc;
+}
+
+static int check_func_thispath(db_conn_t *pconn)
+{
+    return db_check_component(pconn, DBOBJ_FUNCTION, THIS_PATH_FUNC, NULL);
+}
+
+static int create_func_thispath(db_conn_t *pconn)
+{
+    int rc;
+    char        strbuf[4096];
+    /* XXX /!\ do not modify the code of DB functions
+     * without changing FUNCTIONSET_VERSION!!!!
+     */
 
     /* drop previous versions of the function */
-    rc = db_drop_component( &conn, DBOBJ_FUNCTION, "this_path" );
-    if ( rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
+    rc = db_drop_component(pconn, DBOBJ_FUNCTION, THIS_PATH_FUNC);
+    if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS)
     {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to drop function 'one_path': Error: %s",
-                    db_errmsg( &conn, errmsg_buf, 1024 ) );
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to drop function '"THIS_PATH_FUNC"': Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
         return rc;
     }
 
     /* creating function to get a path for a file, for the given parent and name  */
     /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same parent+name in a given request */
-    snprintf(strbuf, 4096, "CREATE FUNCTION this_path(pid_arg "PK_TYPE", n_arg VARCHAR(%u)) RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
+    snprintf(strbuf, sizeof(strbuf), "CREATE FUNCTION "THIS_PATH_FUNC"(pid_arg "PK_TYPE ", n_arg VARCHAR(%u))"
+        " RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
             " DECLARE p VARCHAR(%u) DEFAULT NULL;"
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"
@@ -692,1034 +1676,153 @@ int ListMgr_Init( const lmgr_config_t * p_conf, int report_only )
         /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
         /* size of name */field_infos[ATTR_INDEX_name].db_type_size);
 
-    rc = db_exec_sql( &conn, strbuf, NULL );
-    if (rc )
-    {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Failed to create function 'this_path': Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
-    }
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create function '"THIS_PATH_FUNC"': Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    return rc;
+}
 
+typedef struct dbobj_descr {
+    db_object_e  o_type;
+    const char * o_name;
+    check_create_tab_func_t o_check;
+    check_create_tab_func_t o_create;
+} dbobj_descr_t;
+
+
+/** list of tables and their check/create functions. */
+static const dbobj_descr_t  o_list[] = {
+    /* tables */
+    {DBOBJ_TABLE, VAR_TABLE,     check_table_vars,    create_table_vars},
+    {DBOBJ_TABLE, MAIN_TABLE,    check_table_main,    create_table_main},
+    {DBOBJ_TABLE, DNAMES_TABLE,  check_table_dnames,  create_table_dnames},
+    {DBOBJ_TABLE, ANNEX_TABLE,   check_table_annex,   create_table_annex},
+    {DBOBJ_TABLE, ACCT_TABLE,    check_table_acct,    create_table_acct},
 #ifdef _LUSTRE
-    /*
-     * ====== CHECKING STRIPE TABLES ==========
-     */
-
-    /* stripe info tables */
-    /* T1 STRIPE_INFO: fid (pk) => stripesize, stripecount, poolname */
-    /* T2 STRIPE_ITEMS: fid (indexed for get/del) => stripe entries */
-
-    rc = db_list_table_fields( &conn, STRIPE_INFO_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-
-    if ( rc == DB_SUCCESS )
-    {
-        int            curr_field_index = 0;
-
-        /* check primary key */
-        if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid primary key (%s) for table "
-                        STRIPE_INFO_TABLE, ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
-            curr_field_index += 1;
-        }
-
-        if ( ( fieldtab[curr_field_index] == NULL )
-             || strcmp( fieldtab[curr_field_index], "validator" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Missing field 'validator' in table " STRIPE_INFO_TABLE );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "validator OK" );
-            curr_field_index += 1;
-        }
-
-        if ( ( fieldtab[curr_field_index] == NULL )
-             || strcmp( fieldtab[curr_field_index], "stripe_count" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema for table "
-                        STRIPE_INFO_TABLE
-                        " (missing field 'stripe_count'): "DROP_MESSAGE );
-            return -1;
-        }
-
-        curr_field_index++;
-
-        if ( ( fieldtab[curr_field_index] == NULL )
-             || strcmp( fieldtab[curr_field_index], "stripe_size" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema for table "
-                        STRIPE_INFO_TABLE
-                        " (missing field 'stripesize'): "DROP_MESSAGE );
-            return -1;
-        }
-
-        curr_field_index++;
-
-        if ( ( fieldtab[curr_field_index] == NULL )
-             || strcmp( fieldtab[curr_field_index], "pool_name" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema for table "
-                        STRIPE_INFO_TABLE
-                        " (missing field 'pool_name'): "DROP_MESSAGE );
-            return -1;
-        }
-
-        curr_field_index++;
-
-        /* is there any extra field ? */
-        if ( has_extra_field( curr_field_index, STRIPE_INFO_TABLE, fieldtab ) )
-            return -1;
-
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( report_only )
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "STRIPE_INFO_TABLE" table does not exist" );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG,
-                        STRIPE_INFO_TABLE " table does not exist: creating it." );
-
-            sprintf( strbuf,
-                     "CREATE TABLE " STRIPE_INFO_TABLE
-                     " (id "PK_TYPE" PRIMARY KEY, validator INT UNSIGNED, "
-                     "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u) )",
-                     MAX_POOL_LEN - 1 );
-#ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
+    {DBOBJ_TABLE, STRIPE_INFO_TABLE,  check_table_stripe_info,
+                                      create_table_stripe_info},
+    {DBOBJ_TABLE, STRIPE_ITEMS_TABLE, check_table_stripe_items,
+                                      create_table_stripe_items},
 #endif
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
+#ifdef HAVE_RM_POLICY
+    {DBOBJ_TABLE, SOFT_RM_TABLE, check_table_softrm, create_table_softrm},
+#endif
 
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
+    /* triggers */
+    {DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT, check_trig_acct_insert,
+                                         create_trig_acct_insert},
+    {DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE, check_trig_acct_delete,
+                                         create_trig_acct_delete},
+    {DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE, check_trig_acct_update,
+                                         create_trig_acct_update},
 
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " STRIPE_INFO_TABLE " created successfully" );
-        }
-    }
-    else
-    {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
+    /* functions */
+    {DBOBJ_FUNCTION, ONE_PATH_FUNC,  check_func_onepath,  create_func_onepath},
+    {DBOBJ_FUNCTION, THIS_PATH_FUNC, check_func_thispath, create_func_thispath},
+
+    {0, NULL, NULL, NULL} /* STOP item */
+};
+
+
+/**
+ * Initialize the database access module and
+ * check and create the schema.
+ */
+int ListMgr_Init(const lmgr_config_t * p_conf, int report_access_only)
+{
+    int            rc;
+    db_conn_t      conn;
+    const dbobj_descr_t *o;
+    int create_all_functions = FALSE;
+    int create_all_triggers = FALSE;
+
+    /* store the configuration */
+    lmgr_config = *p_conf;
+    report_only = report_access_only;
+
+    /* determine if an annex table is used */
+    annex_table = have_annex_table();
+
+    /* initilize attr masks for each table */
+    init_attrset_masks(&lmgr_config);
+
+    /* determine source tables for accounting */
+    acct_info_table = acct_table();
+
+    /* create a database access */
+    rc = db_connect(&conn);
+    if (rc)
         return rc;
-    }
 
+    /* check if tables exist, and check their schema */
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Checking database schema");
 
-    rc = db_list_table_fields( &conn, STRIPE_ITEMS_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
+    /* check function and trigger version: if wrong, drop and re-create them all */
+    if (check_functions_version(&conn) != DB_SUCCESS)
+        create_all_functions = TRUE;
+    if (check_triggers_version(&conn) != DB_SUCCESS)
+        create_all_triggers = TRUE;
 
-    if ( rc == DB_SUCCESS )
+    for (o = o_list; o->o_name != NULL; o++)
     {
-        int            curr_field_index = 0;
+        /* don't need triggers for report-only */
+        if (report_only && (o->o_type == DBOBJ_TRIGGER))
+            continue;
 
-        /* check index */
-        if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid index (%s) for table "
-                        STRIPE_ITEMS_TABLE, ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
-            return -1;
-        }
+        /* force re-creating triggers and functions, if needed */
+        if ((o->o_type == DBOBJ_TRIGGER) && create_all_triggers)
+            rc = DB_NOT_EXISTS;
+        else if ((o->o_type == DBOBJ_FUNCTION) && create_all_functions)
+            rc = DB_NOT_EXISTS;
         else
+            rc = o->o_check(&conn);
+
+        switch(rc)
         {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "index (%s) OK", fieldtab[0] );
-            curr_field_index += 1;
-        }
-
-        if (( fieldtab[curr_field_index] == NULL )
-            || strcmp( fieldtab[curr_field_index], "stripe_index" ))
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema for table "
-                        STRIPE_ITEMS_TABLE": "DROP_MESSAGE );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "stripe_index OK" );
-            curr_field_index += 1;
-        }
-
-        if (( fieldtab[curr_field_index] == NULL )
-            || strcmp( fieldtab[curr_field_index], "ostidx" ))
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema for table "
-                        STRIPE_ITEMS_TABLE": "DROP_MESSAGE );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "ostidx OK" );
-            curr_field_index += 1;
-        }
-
-        if ( ( fieldtab[curr_field_index] == NULL )
-             || strcmp( fieldtab[curr_field_index], "details" )
-             || fieldtab[curr_field_index + 1] != NULL )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema for table "
-                        STRIPE_ITEMS_TABLE": "DROP_MESSAGE );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "details OK" );
-        }
-
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( report_only )
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "STRIPE_ITEMS_TABLE" table does not exist" );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, STRIPE_ITEMS_TABLE
-                        " table does not exist: creating it." );
-
-            sprintf( strbuf,
-                    "CREATE TABLE " STRIPE_ITEMS_TABLE
-                    " ( id "PK_TYPE", stripe_index INT UNSIGNED, ostidx INT UNSIGNED, details BINARY(%u) )",
-                    STRIPE_DETAIL_SZ );
-#ifdef _MYSQL
-            if (lmgr_config.db_config.innodb)
-                strcat(strbuf, " ENGINE=InnoDB");
-#endif
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " STRIPE_ITEMS_TABLE " created successfully" );
-
-            strcpy( strbuf, "CREATE INDEX id_index ON " STRIPE_ITEMS_TABLE "(id)" );
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(id) created successfully" );
-
-            strcpy( strbuf, "CREATE INDEX st_index ON " STRIPE_ITEMS_TABLE "(ostidx)" );
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " STRIPE_ITEMS_TABLE "(ostidx) created successfully" );
-        }
-    }
-    else
-    {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
-    }
-
-#endif
-
-    /*
-     * ====== CHECKING ANNEX TABLE ==========
-     */
-
-    if ( annex_table )
-    {
-        rc = db_list_table_fields( &conn, ANNEX_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-
-        if ( rc == DB_SUCCESS )
-        {
-            int            curr_field_index = 0;
-
-            /* check primary key */
-            if ( ( fieldtab[0] == NULL ) || strcmp( fieldtab[0], "id" ) )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Invalid primary key (%s) for table "
-                            ANNEX_TABLE, ( fieldtab[0] ? fieldtab[0] : "(null)" ) );
-                return -1;
-            }
-            else
-            {
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "primary key (%s) OK", fieldtab[0] );
-                curr_field_index += 1;
-            }
-
-
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if (is_annex_field( i ) && !is_funcattr(i))
-                {
-                    if ( check_field( i, &curr_field_index, ANNEX_TABLE, fieldtab ) )
-                        return -1;
-                }
-            }
-
-            /* is there any extra field ? */
-            if ( has_extra_field( curr_field_index, ANNEX_TABLE, fieldtab ) )
-                return -1;
-
-        }
-        else if ( rc == DB_NOT_EXISTS )
-        {
-            if ( report_only )
-            {
-                DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "ANNEX_TABLE" table does not exist" );
-            }
-            else
-            {
-                DisplayLog( LVL_EVENT, LISTMGR_TAG, ANNEX_TABLE " does not exist: creating it." );
-
-                /* table does not exist */
-                strcpy( strbuf, "CREATE TABLE " ANNEX_TABLE " ( id "PK_TYPE" PRIMARY KEY" );
-                next = strbuf + strlen( strbuf );
-
-                for ( i = 0; i < ATTR_COUNT; i++ )
-                {
-                    if (is_annex_field(i) && !is_funcattr(i))
-                    {
-                        next += append_field_def( i, next, 0, NULL );
-                    }
-                }
-                strcpy( next, " )" );
-#ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
-#endif
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-                rc = db_exec_sql( &conn, strbuf, NULL );
-                if ( rc )
-                {
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Failed to create table: Error: %s",
-                                db_errmsg( &conn, errmsg_buf, 1024 ) );
-                    return rc;
-                }
-
-                DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ANNEX_TABLE " created successfully" );
-
-                /* create indexes on this table */
-                for ( i = 0; i < ATTR_COUNT; i++ )
-                {
-                    if ( is_annex_field( i ) && is_indexed_field( i ) )
-                    {
-                        sprintf( strbuf, "CREATE INDEX %s_index ON " ANNEX_TABLE "(%s)",
-                                 field_infos[i].field_name, field_infos[i].field_name );
-
-                        DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-                        rc = db_exec_sql( &conn, strbuf, NULL );
-                        if ( rc )
-                        {
-                            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                        "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                            return rc;
-                        }
-                        DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " ANNEX_TABLE "(%s) created successfully",
-                                    field_infos[i].field_name );
-                    }
-                }
-            }
-        }
-        else
-        {
-            /* error */
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Error checking database schema: %s",
-                        db_errmsg( &conn, errmsg_buf, 1024 ) );
-            return rc;
-        }
-
-    }                           /* if annex_table */
-
-#ifdef _LUSTRE_HSM
-    /*
-     *  ===== Checking SOFT_RM table ====
-     * SCHEMA: fid (string), last_known_path, soft_rm_time, real_rm_time
-     */
-    rc = db_list_table_fields( &conn, SOFT_RM_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-    if ( rc == DB_SUCCESS )
-    {
-        if ( ( fieldtab[0] == NULL ) || ( fieldtab[1] == NULL ) ||
-             ( fieldtab[2] == NULL ) || ( fieldtab[3] == NULL ) ||
-                strcmp( fieldtab[0], "fid" ) ||
-                strcmp( fieldtab[1], "fullpath" ) ||
-                strcmp( fieldtab[2], "soft_rm_time" ) ||
-                strcmp( fieldtab[3], "real_rm_time" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid fields (%s, %s, %s, %s) for table "
-                        SOFT_RM_TABLE,
-                        ( fieldtab[0] ? fieldtab[0] : "(null)" ),
-                        ( fieldtab[1] ? fieldtab[1] : "(null)" ),
-                        ( fieldtab[2] ? fieldtab[2] : "(null)" ),
-                        ( fieldtab[3] ? fieldtab[3] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Fields (%s, %s, %s, %s) OK",
-                        fieldtab[0], fieldtab[1], fieldtab[2], fieldtab[3] );
-        }
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( report_only )
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "SOFT_RM_TABLE" table does not exist" );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, SOFT_RM_TABLE " does not exist: creating it." );
-
-            /* table does not exist */
-            strcpy( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
-                    "fid "PK_TYPE" PRIMARY KEY, "
-                    "fullpath VARCHAR(%u), "
-                    "soft_rm_time INT UNSIGNED, "
-                    "real_rm_time INT UNSIGNED  )", field_infos[ATTR_INDEX_fullpath].db_type_size );
-#ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
-#endif
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " SOFT_RM_TABLE " created successfully" );
-
-            strcpy( strbuf, "CREATE INDEX rm_time ON " SOFT_RM_TABLE "(real_rm_time)" );
-
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " SOFT_RM_TABLE " created successfully" );
-        }
-    }
-    else
-    {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
-    }
-#elif defined(_HSM_LITE)
-    /*
-     *  ===== Checking SOFT_RM table ====
-     * SCHEMA: fid (string), last_known_path, bkpath, soft_rm_time, real_rm_time
-     */
-    rc = db_list_table_fields( &conn, SOFT_RM_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-    if ( rc == DB_SUCCESS )
-    {
-        if ( ( fieldtab[0] == NULL ) || ( fieldtab[1] == NULL ) ||
-             ( fieldtab[2] == NULL ) || ( fieldtab[3] == NULL ) ||
-             ( fieldtab[4] == NULL ) ||
-                strcmp( fieldtab[0], "fid" ) ||
-                strcmp( fieldtab[1], "fullpath" ) ||
-                strcmp( fieldtab[2], "backendpath" ) ||
-                strcmp( fieldtab[3], "soft_rm_time" ) ||
-                strcmp( fieldtab[4], "real_rm_time" ) )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Invalid fields (%s, %s, %s, %s, %s) for table "
-                        SOFT_RM_TABLE,
-                        ( fieldtab[0] ? fieldtab[0] : "(null)" ),
-                        ( fieldtab[1] ? fieldtab[1] : "(null)" ),
-                        ( fieldtab[2] ? fieldtab[2] : "(null)" ),
-                        ( fieldtab[3] ? fieldtab[3] : "(null)" ),
-                        ( fieldtab[4] ? fieldtab[4] : "(null)" ) );
-            return -1;
-        }
-        else
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Fields (%s, %s, %s, %s, %s) OK",
-                        fieldtab[0], fieldtab[1], fieldtab[2], fieldtab[3], fieldtab[4] );
-        }
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( report_only )
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: "SOFT_RM_TABLE" table does not exist" );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, SOFT_RM_TABLE " does not exist: creating it." );
-
-            /* table does not exist */
-            sprintf( strbuf, "CREATE TABLE " SOFT_RM_TABLE " ( "
-                    "fid "PK_TYPE" PRIMARY KEY, "
-                    "fullpath VARCHAR(%u), "
-                    "backendpath VARCHAR(%u), "
-                    "soft_rm_time INT UNSIGNED, "
-                    "real_rm_time INT UNSIGNED  )",
-                     field_infos[ATTR_INDEX_fullpath].db_type_size,
-                     field_infos[ATTR_INDEX_backendpath].db_type_size );
-#ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
-#endif
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " SOFT_RM_TABLE " created successfully" );
-
-            strcpy( strbuf, "CREATE INDEX rm_time ON " SOFT_RM_TABLE "(real_rm_time)" );
-
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-            rc = db_exec_sql( &conn, strbuf, NULL );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create index: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on " SOFT_RM_TABLE " created successfully" );
-        }
-    }
-    else
-    {
-        /* error */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-        return rc;
-    }
-#endif
-
-    /*
-     * ====== CHECKING ACCOUNTING TABLE ==========
-     */
-    /* Note: when running a report command, check ACCT format too */
-    if ( lmgr_config.user_acct || lmgr_config.group_acct || report_only )
-    {
-        rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-
-        if ( rc == DB_SUCCESS )
-        {
-            int curr_field_index = 0;
-
-            /* check primary key */
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if ( is_acct_pk( i ) )
-                {
-                    if ( check_field( i, &curr_field_index, ACCT_TABLE, fieldtab ) )
-                        return -1;
-                }
-            }
-
-            /* check other fields */
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if ( is_acct_field( i ) )
-                {
-                    if ( check_field( i, &curr_field_index, ACCT_TABLE, fieldtab ) )
-                        return -1;
-                }
-            }
-
-            /* check count field*/
-            if ( ( fieldtab[curr_field_index] == NULL ) || strcmp( fieldtab[curr_field_index], ACCT_FIELD_COUNT ) )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Incompatible database schema (missing field '" ACCT_FIELD_COUNT  "' in table "
-                            ACCT_TABLE"): "DROP_ACCT_MSG );
-                return -1;
-            }
-            else
-            {
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "%s OK", fieldtab[curr_field_index] );
-                curr_field_index += 1;
-            }
-
-            /* check size range fields */
-            /* based on log2(size/32) => 0 1 32 1K 32K 1M 32M 1G 32G 1T */
-            for (i = 0; i < SZ_PROFIL_COUNT; i++)
-            {
-                if ((fieldtab[curr_field_index] == NULL) || strcmp(fieldtab[curr_field_index], sz_field[i]))
-                {
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Incompatible database schema (expected field '%s' at index #%u in table "ACCT_TABLE
-                                "): "DROP_ACCT_MSG, sz_field[i], curr_field_index);
-                    return -1;
-                }
+            case DB_SUCCESS: /* OK */
+                break;
+            case DB_NOT_EXISTS:
+                if (report_only)
+                    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: %s %s"
+                               " does not exist", dbobj2str(o->o_type),
+                               o->o_name);
                 else
                 {
-                    DisplayLog( LVL_FULL, LISTMGR_TAG, "%s OK", fieldtab[curr_field_index] );
-                    curr_field_index += 1;
+                    DisplayLog(LVL_EVENT, LISTMGR_TAG, "%s %s does not exist (or wrong version):"
+                               " creating it.", dbobj2str(o->o_type), o->o_name);
+                    rc = o->o_create(&conn);
+                    if (rc != DB_SUCCESS)
+                        goto close_conn;
                 }
-            }
-
-            if ( has_extra_field( curr_field_index, ACCT_TABLE, fieldtab ) )
-                return -1;
-
-        }
-        else if ( rc == DB_NOT_EXISTS )
-        {
-            if (report_only)
-            {
-                /* report only and table does not exist: disabling acct options */
-                lmgr_config.user_acct = FALSE;
-                lmgr_config.group_acct = FALSE;
-                /* reset acct masks */
-                acct_pk_attr_set = 0;
-                acct_attr_set = 0;
-
-                DisplayLog( LVL_VERB, LISTMGR_TAG, "Accounting stats not available" );
-            }
-            else
-            {
-                int first_acct_pk = 1;
-                int is_first_acct_field = 1;
-
-                DisplayLog( LVL_EVENT, LISTMGR_TAG, ACCT_TABLE " does not exist: creating it." );
-
-                /* table does not exist */
-                strcpy( strbuf, "CREATE TABLE " ACCT_TABLE "(" );
-                next = strbuf + strlen( strbuf );
-
-                for ( i = 0; i < ATTR_COUNT; i++ )
-                {
-                    if ( is_acct_pk( i ) )
-                    {
-                        next += append_field_def( i, next, is_first_acct_field, NULL );
-                        is_first_acct_field = 0;
-                    }
-                }
-
-                for ( i = 0; i < ATTR_COUNT; i++ )
-                {
-                    if ( is_acct_field( i ) )
-                    {
-                        next += append_field_def( i, next, is_first_acct_field, NULL );
-                    }
-                }
-
-                /* count field */
-                strcpy ( next, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED" );
-                next = next + strlen( next );
-
-                /* size range fields */
-                for (i = 0; i < SZ_PROFIL_COUNT; i++)
-                {
-                    next += sprintf( next, ", %s BIGINT UNSIGNED DEFAULT 0", sz_field[i]);
-                }
-
-                /* PK definition */
-                strcpy ( next, ", PRIMARY KEY ( " );
-                next = next + strlen( next );
-
-                for ( i = 0; i < ATTR_COUNT; i++ )
-                {
-                    if ( is_acct_pk( i ) )
-                    {
-                        if ( !first_acct_pk )
-                            next += sprintf( next, ", %s", field_infos[i].field_name );
-                        else
-                        {
-                            next += sprintf( next, "%s", field_infos[i].field_name );
-                            first_acct_pk = 0;
-                        }
-                    }
-                }
-
-                strcpy( next, " ))" );
-#ifdef _MYSQL
-        if (lmgr_config.db_config.innodb)
-            strcat(strbuf, " ENGINE=InnoDB");
-#endif
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf );
-
-                rc = db_exec_sql( &conn, strbuf, NULL );
-                if ( rc )
-                {
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Failed to create table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                    return rc;
-                }
-
-                DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " created successfully" );
-
-                DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB content. This can take a while..." );
-                FlushLogs();
-
-                /* Initial table population for already existing entries */
-                next = strbuf;
-                APPEND_TXT( next, "INSERT INTO " ACCT_TABLE "( " );
-                attrmask2fieldlist( next, acct_pk_attr_set , T_ACCT, FALSE, FALSE, "", "" );
-                INCR_NEXT( next );
-                attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
-                INCR_NEXT( next );
-                APPEND_TXT( next, ", " ACCT_FIELD_COUNT );
-                next += append_size_range_fields(next, TRUE, "");
-                APPEND_TXT( next, " ) SELECT " );
-                attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
-                INCR_NEXT( next );
-                attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "SUM( ", " )" );
-                INCR_NEXT( next );
-                APPEND_TXT( next, " ,COUNT( id ), SUM(size=0)");
-                for (i=1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
-                        next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")"=%u,0))", i-1);
-                next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
-
-                next += sprintf( next, " FROM %s  GROUP BY ", acct_info_table );
-                attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
-                next = next + strlen( next );
-
-                /* set READ COMMITTED isolation level for the next (big!) request
-                 * so locks can be released immediatly after the record is read */
-                rc = db_transaction_level(&conn, TRANS_NEXT, TXL_READ_COMMITTED);
-                if ( rc )
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                    /* try to continue */
-
-                rc = db_exec_sql( &conn, strbuf, NULL );
-                if ( rc )
-                {
-                    DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                "Failed to populate accounting table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-
-                    /* drop this table, to leave the db in a consistent state (if ACCT_TABLE exists, it must be populated */
-                    if (db_drop_component( &conn, DBOBJ_TABLE, ACCT_TABLE))
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                                    "Failed to drop table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-
-                    return rc;
-                }
-            }
-        }
-        else
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-            return rc;
-        }
-
-        /*
-         * ====== CREATE TRIGGERS ==========
-         */
-
-        if (!report_only) /* don't create triggers in report only mode */
-        {
-            //Trigger on insert
-            next = strbuf;
-            APPEND_TXT( next, "DECLARE val BIGINT UNSIGNED; "
-                              "SET val="ACCT_SZ_VAL("NEW.size")";" );
-            APPEND_TXT( next, "INSERT INTO " ACCT_TABLE "( " );
-            attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
-            INCR_NEXT( next );
-            attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT );
-            next += append_size_range_fields(next, TRUE, "");
-            APPEND_TXT( next, " ) VALUES ( " );
-            attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
-            INCR_NEXT( next );
-            attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ", 1");
-            next += append_size_range_val(next, TRUE, "NEW.", "val");
-            APPEND_TXT( next, " ) ON DUPLICATE KEY UPDATE " );
-            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
-            INCR_NEXT( next );
-            APPEND_TXT( next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1" );
-
-            /* update size range values */
-            next += append_size_range_op(next, TRUE, "NEW.", "val", ADD);
-
-            APPEND_TXT( next,";");
-            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT );
-            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            rc = db_create_trigger( &conn, ACCT_TRIGGER_INSERT, "AFTER INSERT", acct_info_table, strbuf );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_INSERT " created successfully" );
-
-            //Trigger on delete
-            next = strbuf;
-            APPEND_TXT( next, "DECLARE val BIGINT UNSIGNED; "
-                              "SET val="ACCT_SZ_VAL("OLD.size")";");
-            APPEND_TXT( next, "UPDATE " ACCT_TABLE " SET " );
-            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT );
-            INCR_NEXT( next );
-            APPEND_TXT( next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1" );
-
-            /* update size range values */
-            next += append_size_range_op(next, TRUE, "OLD.", "val", SUBSTRACT);
-
-            APPEND_TXT( next, " WHERE " );
-            attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ";" );
-
-            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE );
-            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            rc = db_create_trigger( &conn, ACCT_TRIGGER_DELETE, "BEFORE DELETE", acct_info_table, strbuf );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_DELETE " created successfully" );
-
-            //Trigger on update
-            /* if it is the same owner and group: */
-            next = strbuf;
-            APPEND_TXT( next, "DECLARE val_old, val_new BIGINT UNSIGNED;");
-            APPEND_TXT( next, "SET val_old="ACCT_SZ_VAL("OLD.size")"; "
-                              "SET val_new="ACCT_SZ_VAL("NEW.size")";" );
-            APPEND_TXT( next, "\nIF " );
-            /* generate comparison like NEW.owner=OLD.owner AND NEW.gr_name=OLD.gr_name */
-            attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, "THEN \n\t IF " );
-            /********* if one of the attribute value has changed: update the acct table *********/
-            /* generate comparison like NEW.size<>=OLD.size OR NEW.blocks<>OLD.blocks */
-            attrmask2fieldcomparison( next, acct_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, "THEN \n\t\t UPDATE " ACCT_TABLE " SET " );
-            is_first_field = 1;
-            for ( i = 0; i < ATTR_COUNT; i++ )
-            {
-                if ( is_acct_field( i ) )
-                {
-                    if ( !is_first_field )
-                        next += sprintf( next, ", %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
-                                         field_infos[i].field_name, field_infos[i].field_name,
-                                         field_infos[i].field_name, field_infos[i].field_name );
-                    else
-                    {
-                        next += sprintf( next, " %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
-                                         field_infos[i].field_name, field_infos[i].field_name,
-                                         field_infos[i].field_name, field_infos[i].field_name );
-                        is_first_field = 0;
-                    }
-                }
-            }
-
-            /* update size range values */
-            next += sprintf( next, "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
-                             is_first_field?" ":", ", sz_field[0], sz_field[0] );
-            is_first_field = 0;
-            for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
-            {
-                next += sprintf( next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old=%u,0)+IFNULL(val_new=%u,0)) as SIGNED)",
-                                 sz_field[i], sz_field[i], i-1, i-1 );
-            }
-            /* last */
-            next += sprintf( next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old>=%u,0)+IFNULL(val_new>=%u,0)) as SIGNED)",
-                             sz_field[i], sz_field[i], i-1, i-1 );
-
-            APPEND_TXT( next, " WHERE " );
-            /* generate comparison as follows: owner=NEW.owner AND gr_name=NEW.gr_name */
-            attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "NEW.", "=", "AND" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, "; \n\t END IF; \nELSEIF " );
-            /********* else if the owner or group is different: add values to the new user or group and substract from the old one *********/
-            attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR" );
-            INCR_NEXT( next );
-            APPEND_TXT( next,  "THEN \n\tINSERT INTO " ACCT_TABLE "( " );
-            /* generate fields as follows: owner, gr_name */
-            attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "" );
-            INCR_NEXT( next );
-            /* generate fields as follows: , size, blocks */
-            attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT );
-            next += append_size_range_fields(next, TRUE, "");
-            APPEND_TXT( next, " ) VALUES ( " );
-            /* generate fields as follows: NEW.owner, NEW.gr_name */
-            attrmask2fieldlist( next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "" );
-            INCR_NEXT( next );
-            attrmask2fieldlist( next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ", 1" );
-            next += append_size_range_val(next, TRUE, "NEW.", "val_new");
-            APPEND_TXT(next, " ) \n\tON DUPLICATE KEY UPDATE " );
-            /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
-            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "NEW.", ADD );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1" );
-            /* update size range values */
-            next += append_size_range_op(next, TRUE, "NEW.", "val_new", ADD);
-            APPEND_TXT( next, ";" );
-
-            APPEND_TXT( next, "\n\tUPDATE " ACCT_TABLE " SET " );
-            /* generate operations as follows: size=size-Old.size, blocks=blocks-Old.blocks */
-            attrmask2fieldoperation( next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 " );
-            next += append_size_range_op(next, TRUE, "OLD.", "val_old", SUBSTRACT);
-            APPEND_TXT( next, " WHERE " );
-            attrmask2fieldcomparison( next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND" );
-            INCR_NEXT( next );
-            APPEND_TXT( next, ";\nEND IF;\n" );
-
-            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE );
-            if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            rc = db_create_trigger( &conn, ACCT_TRIGGER_UPDATE, "AFTER UPDATE", acct_info_table, strbuf );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to create " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Trigger " ACCT_TRIGGER_UPDATE " created successfully" );
+                break;
+            default: /* error */
+                goto close_conn;
         }
     }
-    //If accounting is disabled
-    else /* don't drop triggers in report_only mode because it matches the previous "if" */
+
+    if (create_all_triggers)
     {
-        rc = db_list_table_fields( &conn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS, strbuf, 4096 );
-        if ( rc == DB_SUCCESS )
-        {
-            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT );
-            if ( rc == DB_NOT_SUPPORTED )
-            {
-                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                            "Triggers are not supported with this database. "
-                            "Not a big issue (wanted to disable it)" );
-            }
-            else if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE );
-            if ( rc == DB_NOT_SUPPORTED )
-            {
-                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                            "Triggers are not supported with this database. "
-                            "Not a big issue (wanted to disable it)" );
-            }
-            else if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            rc = db_drop_component( &conn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE );
-            if ( rc == DB_NOT_SUPPORTED )
-            {
-                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                            "Triggers are not supported with this database. "
-                            "Not a big issue (wanted to disable it)" );
-            }
-            else if ( rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop " ACCT_TRIGGER_UPDATE " trigger: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-
-            rc = db_drop_component( &conn, DBOBJ_TABLE, ACCT_TABLE );
-            if ( rc )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Failed to drop table: Error: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-                return rc;
-            }
-            DisplayLog( LVL_VERB, LISTMGR_TAG, "Table " ACCT_TABLE " dropped successfully" );
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, "Accounting stats not activated" );
-
-        }
-        else if ( rc == DB_NOT_EXISTS )
-        {
-            DisplayLog( LVL_EVENT, LISTMGR_TAG, "Accounting stats not activated" );
-        }
-        else
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Error checking database schema: %s", db_errmsg( &conn, errmsg_buf, 1024 ) );
-            return rc;
-        }
+        rc = set_triggers_version(&conn);
+        if (rc)
+            goto close_conn;
     }
 
-    /* database is not ready, we can close db_connection */
-    db_close_conn( &conn );
+    if (create_all_functions)
+    {
+        rc = set_functions_version(&conn);
+        if (rc)
+            goto close_conn;
+    }
 
-    return 0;
+    rc = DB_SUCCESS;
 
-}                               /* ListMgr_Init */
+close_conn:
+    /* close the connection in any case */
+    db_close_conn(&conn);
+    return rc;
+} /* ListMgr_Init */
 
 
 

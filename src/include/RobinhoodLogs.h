@@ -92,6 +92,12 @@ void           DisplayLogFn( int debug_level, const char *tag, const char *forma
             DisplayLogFn((dbg_level), (tag), format); \
     } while(0)
 
+/* Abort due to a bug */
+#define RBH_BUG(_msg)   do { DisplayLog(LVL_CRIT, "BUG", "in %s::%s(), line %u: %s", \
+                                       __FILE__, __func__, __LINE__, _msg); \
+                             FlushLogs(); \
+                             abort();   \
+                        } while(0)
 
 /* Displays a line in the report file */
 void           DisplayReport( const char *format, ... )

@@ -331,4 +331,9 @@ int            lmgr_commit( lmgr_t * p_mgr );
 /* to be called before closing a connection */
 int            lmgr_flush_commit( lmgr_t * p_mgr );
 
+/* get/set variable in DB */
+int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value);
+int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value);
+
+
 #endif

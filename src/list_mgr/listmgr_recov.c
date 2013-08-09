@@ -32,8 +32,8 @@
 /* table: id+... */
 /* TODO: generate this list automatically */
 /* /!\ it must be in the same order as in MAIN, ANNEX, ... */
-#define BUILD_RECOV_LIST_FIELDS_NAMES "this_path(NAMES.parent_id, NAMES.name) as relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
-#define BUILD_RECOV_LIST_FIELDS "one_path("MAIN_TABLE".id) as relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
+#define BUILD_RECOV_LIST_FIELDS_NAMES THIS_PATH_FUNC"(NAMES.parent_id, NAMES.name) as relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
+#define BUILD_RECOV_LIST_FIELDS ONE_PATH_FUNC"("MAIN_TABLE".id) as relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define GET_RECOV_LIST_FIELDS "relpath,owner,gr_name,size,last_mod,type,mode,status,stripe_count,stripe_size,pool_name,backendpath,link"
 #define RECOV_FIELD_COUNT 13
 

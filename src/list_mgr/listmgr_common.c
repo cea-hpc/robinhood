@@ -326,7 +326,7 @@ typedef struct function_def
 
 static const function_def_t   functions[] =
 {
-    {ATTR_INDEX_fullpath, T_DNAMES, "this_path", (char*[]){"parent_id", "name", NULL}},
+    {ATTR_INDEX_fullpath, T_DNAMES, THIS_PATH_FUNC, (char*[]){"parent_id", "name", NULL}},
     {-1, 0, NULL, NULL}
 };
 
@@ -348,7 +348,8 @@ static int print_func_call(char *out, int func_index, const char *prefix)
     const function_def_t *func = get_function_by_attr(func_index); 
     char **args;
     if (func == NULL) /* unexpected: BUG */
-        abort();
+        RBH_BUG("call for non-function attr");
+
     curr += sprintf(curr, "%s(", func->fn_name);
     for (args = func->fn_args; *args != NULL; args++)
     {
@@ -721,7 +722,7 @@ int result2attrset( table_enum table, char **result_tab,
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Error: cannot parse field value '%s' (position %u) for %s",
                             result_tab[nbfields], nbfields, field_infos[i].field_name );
-                abort();
+                RBH_BUG("DB value cannot be parsed: DB may be corrupted");
                 p_set->attr_mask &= ~( 1 << i );
                 nbfields++;
                 continue;
@@ -905,11 +906,11 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
                         }
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                             curr += sprintf(curr, "(");
-                        curr += sprintf(curr, "this_path(%s,%s)%s%s", param1, param2,
+                        curr += sprintf(curr, THIS_PATH_FUNC"(%s,%s)%s%s", param1, param2,
                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
                                 val);
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            curr += sprintf(curr, " OR this_path(%s,%s) IS NULL)", param1, param2);
+                            curr += sprintf(curr, " OR "THIS_PATH_FUNC"(%s,%s) IS NULL)", param1, param2);
                     }
                     else
                     {
@@ -921,12 +922,12 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                             curr += sprintf(curr, "(");
 
-                        curr += sprintf(curr, "one_path(%s)%s%s", param1,
+                        curr += sprintf(curr, ONE_PATH_FUNC"(%s)%s%s", param1,
                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
                                 val);
 
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            curr += sprintf(curr, " OR one_path(%s) IS NULL)", param1);
+                            curr += sprintf(curr, " OR "ONE_PATH_FUNC"(%s) IS NULL)", param1);
                     }
                 }
 

@@ -134,10 +134,10 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
 #ifdef HAVE_RM_POLICY
 /* path is retrieved only for information: just get one of them */
 #ifdef _HSM_LITE
-#define BUILD_SOFTRM_FIELDS "one_path(%s.id) as fullpath, backendpath"
+#define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath, backendpath"
 #define GET_SOFTRM_FIELDS "fullpath, backendpath"
 #else
-#define BUILD_SOFTRM_FIELDS "one_path(%s.id) as fullpath"
+#define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath"
 #define GET_SOFTRM_FIELDS "fullpath"
 #endif
 

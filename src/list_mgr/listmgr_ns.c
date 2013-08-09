@@ -114,7 +114,7 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
      * lookup into parent_list to find the right one. In the meantime,
      * try not to mess up the code. */
     if (parent_count != 1)
-        abort();
+        RBH_BUG("cannot get children for several parent simultaneously");
 
     /* always request for name to build fullpath in wagon */
     attr_mask |= ATTR_MASK_name;

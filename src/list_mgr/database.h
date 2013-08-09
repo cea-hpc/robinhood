@@ -29,6 +29,8 @@
 #define ACCT_FIELD_COUNT    "count"
 #define ACCT_DEFAULT_OWNER  "unknown"
 #define ACCT_DEFAULT_GROUP  "unknown"
+#define ONE_PATH_FUNC       "one_path"
+#define THIS_PATH_FUNC      "this_path"
 
 /* name of sz fields */
 #define ACCT_SIZE_PREFIX "sz"
@@ -92,8 +94,29 @@ int            db_result_nb_records( db_conn_t * conn, result_handle_t * p_resul
 int            db_result_free( db_conn_t * conn, result_handle_t * p_result );
 
 typedef enum {DBOBJ_TABLE, DBOBJ_TRIGGER, DBOBJ_FUNCTION, DBOBJ_PROC } db_object_e;
-/* remove a database component (table, trigger, function, ...) */
+
+static inline const char *dbobj2str(db_object_e ot)
+{
+    switch(ot)
+    {
+        case DBOBJ_TABLE:    return "table";
+        case DBOBJ_TRIGGER:  return "trigger";
+        case DBOBJ_FUNCTION: return "function";
+        case DBOBJ_PROC:     return "procedure";
+    }
+    return NULL;
+}
+
+
+/** remove a database component (table, trigger, function, ...) */
 int            db_drop_component( db_conn_t * conn, db_object_e obj_type, const char *name );
+
+/**
+ * check a component exists in the database
+ * \param arg depends on the object type: src table for triggers, NULL for others.
+ */
+int db_check_component(db_conn_t *conn, db_object_e obj_type, const char *name, const char *arg);
+
 
 /* create a trigger */
 int            db_create_trigger( db_conn_t * conn, const char *name, const char *event,
