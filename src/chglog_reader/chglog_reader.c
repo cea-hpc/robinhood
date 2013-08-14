@@ -278,6 +278,77 @@ static const char * event_name[] = {
 #define CL_EVENT_MAX 5
 #endif
 
+/* Dump a single record. */
+static void dump_record(int debug_level, const CL_REC_TYPE *rec)
+{
+    char flag_buff[256] = "";
+
+    /* No need to go further if the log level is not right. */
+    if (log_config.debug_level < debug_level)
+        return;
+
+#ifdef _LUSTRE_HSM
+    if (rec->cr_type == CL_HSM)
+    {
+        const char * event = NULL;
+        if (hsm_get_cl_event(rec->cr_flags) > CL_EVENT_MAX)
+            event = "unknown";
+        else
+            event = event_name[hsm_get_cl_event(rec->cr_flags)];
+
+        snprintf(flag_buff, 256, "(%s%s,rc=%d)", event,
+                 hsm_get_cl_flags(rec->cr_flags) & CLF_HSM_DIRTY? ",dirty":"",
+                 hsm_get_cl_error(rec->cr_flags));
+    }
+#endif
+
+    if (rec->cr_namelen)
+    {
+        /* this record has a 'name' field. */
+        DisplayLog(debug_level, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID" p="DFID" %.*s",
+                   rec->cr_index, rec->cr_type,
+                   changelog_type2str(rec->cr_type),
+                   (uint32_t)cltime2sec(rec->cr_time),
+                   cltime2nsec(rec->cr_time),
+                   rec->cr_flags & CLF_FLAGMASK, flag_buff,
+                   PFID(&rec->cr_tfid),
+                   PFID(&rec->cr_pfid),
+                   rec->cr_namelen, rec->cr_name);
+    }
+    else
+    {
+        /* no 'name' field. */
+        DisplayLog(debug_level, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID,
+                   rec->cr_index, rec->cr_type,
+                   changelog_type2str(rec->cr_type),
+                   (uint32_t)cltime2sec(rec->cr_time),
+                   cltime2nsec(rec->cr_time),
+                   rec->cr_flags & CLF_FLAGMASK, flag_buff,
+                   PFID(&rec->cr_tfid) );
+    }
+}
+
+/* Dumps the nth most recent entries in the queue. If -1, dump them
+ * all. */
+static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
+{
+    entry_proc_op_t *op;
+
+    if (log_config.debug_level < debug_level ||
+        num == 0)
+        return;
+
+    rh_list_for_each_entry_reverse(op, &p_info->op_queue, list) {
+        dump_record(debug_level, op->extra_info.log_record.p_log_rec);
+
+        if (num != -1) {
+            num --;
+            if (num == 0)
+                return;
+        }
+    }
+}
+
 /* Push the oldest (all=FALSE) or all (all=TRUE) entries into the pipeline. */
 static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
 {
@@ -552,50 +623,9 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
 static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
 {
     unsigned int opnum;
-    char flag_buff[256] = "";
-
-#ifdef _LUSTRE_HSM
-    if ( p_rec->cr_type == CL_HSM )
-    {
-        const char * event = NULL;
-        if ( hsm_get_cl_event( p_rec->cr_flags ) > CL_EVENT_MAX )
-            event = "unknown";
-        else
-            event = event_name[hsm_get_cl_event( p_rec->cr_flags )];
-
-        snprintf(flag_buff, 256, "(%s%s,rc=%d)", event,
-                 hsm_get_cl_flags( p_rec->cr_flags ) & CLF_HSM_DIRTY? ",dirty":"",
-                 hsm_get_cl_error( p_rec->cr_flags ));
-    }
-#endif
 
     /* display the log record in debug mode */
-    if (p_rec->cr_namelen)
-    {
-        /* this record has a 'name' field. */
-        DisplayLog(LVL_DEBUG, CHGLOG_TAG, "%s: %llu %02d%-5s %u.%09u 0x%x%s t="DFID" p="DFID" %.*s",
-                   p_info->mdtdevice,
-                   p_rec->cr_index, p_rec->cr_type,
-                   changelog_type2str(p_rec->cr_type),
-                   (uint32_t)cltime2sec(p_rec->cr_time),
-                   cltime2nsec(p_rec->cr_time),
-                   p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
-                   PFID(&p_rec->cr_tfid),
-                   PFID(&p_rec->cr_pfid),
-                   p_rec->cr_namelen, p_rec->cr_name);
-    }
-    else
-    {
-        /* no 'name' field. */
-        DisplayLog(LVL_DEBUG, CHGLOG_TAG, "%s: %llu %02d%-5s %u.%09u 0x%x%s t="DFID,
-                   p_info->mdtdevice,
-                   p_rec->cr_index, p_rec->cr_type,
-                   changelog_type2str(p_rec->cr_type),
-                   (uint32_t)cltime2sec(p_rec->cr_time),
-                   cltime2nsec(p_rec->cr_time),
-                   p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
-                   PFID(&p_rec->cr_tfid));
-    }
+    dump_record(LVL_DEBUG, p_rec);
 
     /* update stats */
     opnum = p_rec->cr_type ;
@@ -625,6 +655,8 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             /* Should never happen. */
             DisplayLog( LVL_CRIT, CHGLOG_TAG,
                         "Got 2 CL_RENAME in a row without a CL_EXT." );
+            dump_record(LVL_CRIT, p_rec);
+            dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
             llapi_changelog_free( &p_info->cl_rename );
@@ -697,6 +729,8 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             /* Should never happen. */
             DisplayLog( LVL_CRIT, CHGLOG_TAG,
                         "Got CL_EXT without a CL_RENAME." );
+            dump_record(LVL_CRIT, p_rec);
+            dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
             llapi_changelog_free( &p_rec );

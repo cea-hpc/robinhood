@@ -119,6 +119,12 @@ static inline int rh_list_empty(const struct list_head *head)
          &l->member != (head);                               \
          l = rh_list_entry(l->member.next, typeof(*l), member))
 
+/* Iterate over a list. l is the cursor. */
+#define rh_list_for_each_entry_reverse(l, head, member)         \
+    for (l = rh_list_entry((head)->prev, typeof(*l), member);   \
+         &l->member != (head);                                  \
+         l = rh_list_entry(l->member.prev, typeof(*l), member))
+
 /* Iterate over a list in reverse. l is the cursor, tmp stores the
  * next entry. l can be removed during the iteration. */
 #define rh_list_for_each_entry_safe_reverse(l, tmp, head, member)       \
