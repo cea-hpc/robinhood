@@ -37,11 +37,7 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
     DEF_PK( pk );
 
     /* retrieve primary key */
-    rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
-    if ( rc == DB_NOT_EXISTS )
-        return 0;
-    else if (rc)
-        return -rc;
+    entry_id2pk(p_id, PTR_PK(pk));
 
     /* verify it exists in main table */
 
@@ -354,11 +350,8 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 int ListMgr_Get( lmgr_t * p_mgr, const entry_id_t * p_id, attr_set_t * p_info )
 {
     DEF_PK(pk);
-    int rc;
 
-    rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
-    if (rc)
-        return rc;
+    entry_id2pk(p_id, PTR_PK(pk) );
 
     return listmgr_get_by_pk( p_mgr, pk, p_info );
 }
@@ -375,9 +368,7 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
     int rc;
     char            *str_info[1];
 
-    rc = entry_id2pk( p_mgr, parent_fid, FALSE, PTR_PK(pk) );
-    if (rc)
-        return rc;
+    entry_id2pk(parent_fid, PTR_PK(pk));
 
     db_escape_string(&p_mgr->conn, escaped, RBH_NAME_MAX*2, name);
 

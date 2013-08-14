@@ -318,9 +318,7 @@ int ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id )
     int            rc = DB_SUCCESS;
     DEF_PK(pk);
 
-    rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
-    if (rc)
-        return rc;
+    entry_id2pk(p_id, PTR_PK(pk));
 
     sprintf( query, "SELECT validator FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
 
@@ -362,10 +360,7 @@ int ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
 {
     DEF_PK(pk);
 
-    int rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
-
-    if (rc)
-        return rc;
+    entry_id2pk(p_id, PTR_PK(pk));
 
     return insert_stripe_info( p_mgr, pk, VALID(p_id), p_stripe_info, p_stripe_items,
                                TRUE );

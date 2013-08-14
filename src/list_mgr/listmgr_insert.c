@@ -49,12 +49,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
     if ( rc )
         return rc;
 
-    rc = entry_id2pk( p_mgr, p_id, TRUE, PTR_PK(pk) );
-    if (rc)
-    {
-            lmgr_rollback( p_mgr );
-            return rc;
-    }
+    entry_id2pk(p_id, PTR_PK(pk));
 
 #ifdef _LUSTRE
     /* ======== insert stripe information, if available ========= */
@@ -138,7 +133,7 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
     } else {
         DEF_PK(ppk);
 
-        entry_id2pk( p_mgr, & ATTR(p_info, parent_id ), TRUE, PTR_PK(ppk) );
+        entry_id2pk(& ATTR(p_info, parent_id ), PTR_PK(ppk));
 
         DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: entry "DPK" created "
                    "without name ('%s') or parent ("DPK") information", pk,

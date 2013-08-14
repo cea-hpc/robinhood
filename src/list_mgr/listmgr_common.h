@@ -319,8 +319,7 @@ int            result2attrset( table_enum table, char **result_tab,
 /* return the attr string for a dirattr */
 const char * dirattr2str(unsigned int attr_index);
 
-int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
-                 PK_PARG_T p_pk );
+void entry_id2pk(const entry_id_t * p_id, PK_PARG_T p_pk);
 int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id );
 
 /* those functions are used for begin/commit/rollback */

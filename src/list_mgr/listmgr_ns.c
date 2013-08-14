@@ -46,8 +46,7 @@ static char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz,
     }
     if (parent_count == 1)
     {
-        if (entry_id2pk(p_mgr, &parent_list[0].id, FALSE, PTR_PK(pk)))
-            return NULL;
+        entry_id2pk(&parent_list[0].id, PTR_PK(pk));
         sprintf(buff, "%sparent_id="DPK, prefix ? prefix : "", pk);
     }
     else
@@ -57,8 +56,7 @@ static char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz,
         curr += sprintf(curr, "%sparent_id IN (", prefix ? prefix : "");
         for (i = 0; i < parent_count; i++)
         {
-            if (entry_id2pk(p_mgr, &parent_list[i].id, FALSE, PTR_PK(pk)))
-                return NULL;
+            entry_id2pk(&parent_list[i].id, PTR_PK(pk));
             if ((ssize_t)(curr - buff) + strlen(pk) + 2 >= buffsz)
             {
                 DisplayLog(LVL_CRIT, LISTMGR_TAG, "ERROR: request overflow in %s(): parent_list length=%u, current buff_usage=%zu",

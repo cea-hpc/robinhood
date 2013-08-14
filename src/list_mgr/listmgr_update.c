@@ -44,9 +44,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
         return DB_INVALID_ARG;
     }
 
-    rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
-    if (rc)
-        return rc;
+    entry_id2pk(p_id, PTR_PK(pk));
 
     /* check how many tables are to be updated */
     if ( main_fields( p_update_set->attr_mask ) )

@@ -258,9 +258,7 @@ int ListMgr_TagEntry(lmgr_t * p_mgr, const char *tag_name, const entry_id_t * p_
     if ( rc )
         return rc;
 
-    rc = entry_id2pk(p_mgr, p_id, FALSE, PTR_PK(pk));
-    if (rc)
-        return rc;
+    entry_id2pk(p_id, PTR_PK(pk));
 
     /* Only keep untagged entries in the table, as the goal
      * is to list untagged entries at the end. */

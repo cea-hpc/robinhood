@@ -116,9 +116,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     DEF_PK(pk);
     DEF_PK(ppk);
 
-    rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
-    if (rc)
-        return rc;
+    entry_id2pk(p_id, PTR_PK(pk));
 
     if (last)
     {
@@ -143,9 +141,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
     {
         char escaped[RBH_NAME_MAX*2];
 
-        rc = entry_id2pk( p_mgr, &ATTR( p_attr_set, parent_id ), FALSE, PTR_PK(ppk) );
-        if (rc)
-            return rc;
+        entry_id2pk(&ATTR( p_attr_set, parent_id ), PTR_PK(ppk));
 
         db_escape_string(&p_mgr->conn, escaped, RBH_NAME_MAX*2, ATTR(p_attr_set, name));
 

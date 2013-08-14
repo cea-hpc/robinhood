@@ -34,7 +34,7 @@ int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * va
     {
     case DB_ID:
         /* convert id to str */
-        entry_id2pk( p_mgr, &value_ptr->val_id, FALSE, tmpstr );
+        entry_id2pk(&value_ptr->val_id, tmpstr);
         return sprintf( str, DPK, tmpstr );
     case DB_TEXT:
         /* escape special characters in value */
@@ -1172,8 +1172,7 @@ const char * dirattr2str(unsigned int attr_index)
 #define MASK_PK2ID  1
 
 
-int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
-                 PK_PARG_T p_pk )
+void entry_id2pk(const entry_id_t * p_id, PK_PARG_T p_pk)
 {
 #ifndef FID_PK
     snprintf( p_pk, PK_LEN, "%"PRI_DT":%LX", p_id->fs_key,
@@ -1181,7 +1180,6 @@ int entry_id2pk( lmgr_t * p_mgr, const entry_id_t * p_id, int add_if_not_exists,
 #else /* FID_PK */
     snprintf( p_pk, DB_FID_LEN, DFID_NOBRACE, PFID(p_id) );
 #endif
-    return DB_SUCCESS;
 }
 
 
