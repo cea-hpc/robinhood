@@ -135,11 +135,16 @@ int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info
                         __FUNCTION__, __LINE__, pk, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
             return rc;
         }
-    }
-    else
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: entry "DPK" created "
-                   "without name information", pk);
+    } else {
+        DEF_PK(ppk);
 
+        entry_id2pk( p_mgr, & ATTR(p_info, parent_id ), TRUE, PTR_PK(ppk) );
+
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: entry "DPK" created "
+                   "without name ('%s') or parent ("DPK") information", pk,
+                   ATTR_MASK_TEST(p_info, name) ? ATTR(p_info, name ) : "",
+                   ATTR_MASK_TEST(p_info, parent_id) ? ppk : "");
+    }
 
     /* insert all info in annex table, if any */
     if ( annex_table )
