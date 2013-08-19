@@ -37,7 +37,7 @@ fi
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
-CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log /tmp/rh_alert.log rh_rmdir.log"
+CLEAN="rh_scan.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log /tmp/rh_alert.log rh_rmdir.log rh_chglogs.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -211,8 +211,8 @@ function test_rmdir
 	touch "$ROOT/$RECURSE.1/subdir.1/file.1" "$ROOT/$RECURSE.1/subdir.1/file.2" "$ROOT/$RECURSE.1/subdir.2/file" || error "populating directories"
 
 	echo "2-Scanning..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning filesystem"
-	check_db_error rh_chglogs.log
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning filesystem"
+	check_db_error rh_scan.log
 
 	echo "3-Applying rmdir policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
@@ -748,8 +748,8 @@ function test_dircount_report
 	clean_logs
 
 	# inital scan
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
-	check_db_error rh_chglogs.log
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading chglog"
+	check_db_error rh_scan.log
 
 	# create several dirs with different entry count (+10 for each)
 
@@ -770,8 +770,8 @@ function test_dircount_report
 	fi
 
 	echo "2-Scanning..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
-	check_db_error rh_chglogs.log
+	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading chglog"
+	check_db_error rh_scan.log
 
 	echo "3.Checking dircount report..."
 	# dircount+1 because $ROOT may be returned
