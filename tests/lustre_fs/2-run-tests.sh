@@ -4601,6 +4601,11 @@ function recov_filters
         set_skipped
         return 1
     fi
+    if (( $is_hsmlite == 0 )); then
+        echo "Backup test only: skipped"
+        set_skipped
+        return 1
+    fi
 
     # start filters: --ost and --since
     # resume filters: --dir
