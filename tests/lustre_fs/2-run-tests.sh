@@ -7787,7 +7787,7 @@ function TEST_OTHER_PARAMETERS_4
     	dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
-	echo "Migrate files"
+	echo "Migrate files (must fail)"
 	$RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once
 
 	nbError=0
@@ -7795,7 +7795,12 @@ function TEST_OTHER_PARAMETERS_4
     if (( $count != 0 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
         ((nbError++))
+    elif grep "Error initializing backend" rh_migr.log > /dev/null; then
+        echo "OK: backend not initialized"
+    else
+        error "Backend initialization SHOULD have FAILED"
     fi
+    :> rh_migr.log
 
     ensure_init_backend || error "Error initializing backend $BKROOT"
 
