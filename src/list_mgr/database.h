@@ -21,6 +21,7 @@
 #define ANNEX_TABLE	        "ANNEX_INFO"
 #define STRIPE_INFO_TABLE	"STRIPE_INFO"
 #define STRIPE_ITEMS_TABLE	"STRIPE_ITEMS"
+#define SOFT_RM_TABLE       "SOFT_RM"
 #define VAR_TABLE           "VARS"
 #define ACCT_TABLE          "ACCT_STAT"
 #define ACCT_TRIGGER_INSERT "ACCT_ENTRY_INSERT"
@@ -51,10 +52,6 @@ char * sz_field[SZ_PROFIL_COUNT] =
 
 #define ACCT_SZ_VAL(_s) "FLOOR(LOG2("_s")/5)"
 
-
-#ifdef HAVE_RM_POLICY
-#   define SOFT_RM_TABLE    "SOFT_RM"
-#endif
 
 #ifdef _HSM_LITE
 #   define  RECOV_TABLE     "RECOVERY"

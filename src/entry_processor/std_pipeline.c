@@ -2127,7 +2127,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             strcpy(tmp, ATTR(&p_op->fs_attrs, fullpath));
             strcat(tmp, "/*");
             val.value.val_str = tmp;
-            lmgr_simple_filter_add(&filter, ATTR_INDEX_fullpath, LIKE, val, FILTER_FLAG_ALLOW_NULL);
+            lmgr_simple_filter_add(&filter, ATTR_INDEX_fullpath, LIKE, val, 0);
         }
 
         /* force commit after this operation */

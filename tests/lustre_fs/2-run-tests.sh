@@ -3456,6 +3456,7 @@ function test_rename
     done
 
     grep "\[$rmid\]" find.out && error "id of deleted file ($rmid) found in rbh-find output"
+    unset count_nb_final
 	if (( $is_lhsm + $is_hsmlite == 1 )); then
 		# additionally check that the entry is scheduled for deferred rm (and only this one)
 	    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
@@ -3464,6 +3465,8 @@ function test_rename
         # In the worst case, the deleted entry remains in the archive.
         if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ]; then
             grep "\[$rmid\]" rh_report.log > /dev/null || echo "WARNING: $rmid should be in HSM rm list"
+            # Conservative behavior for partial scans in front of an archive: allow n/a in paths
+            count_nb_final=$(awk '{print $(NF)}' report.out | grep -v 'n/a' | wc -l)
         else
             # in the other cases, raise an error
             grep "\[$rmid\]" rh_report.log > /dev/null || error "$rmid should be in HSM rm list"
@@ -3474,7 +3477,7 @@ function test_rename
         grep -v "\[$rmid\]" rh_report.log && error "Existing entries are in HSM rm list!!!"
 	fi
 
-    count_nb_final=$(wc -l report.out | awk '{print $1}')
+    [ -z "$count_nb_final" ] && count_nb_final=$(wc -l report.out | awk '{print $1}')
     count_path_final=$(wc -l find.out | awk '{print $1}')
 
     (( $count_nb_final == $count_nb_init - 1)) || error "1 entry should have been removed (rename target)"
@@ -3765,7 +3768,8 @@ function test_hardlinks
     for f in $rmids; do
         grep "\[$f\]" find.out && error "deleted id ($f) found in find output"
     done
-
+    
+    unset count_nb_final
     if (( $is_lhsm + $is_hsmlite == 1 )); then
         # check that removed entries are scheduled for HSM rm
         $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
@@ -3775,6 +3779,8 @@ function test_hardlinks
             # In the worst case, the deleted entry remains in the archive.
             if [ "$flavor" = "partial" ] || [ "$flavor" = "partdiff" ]; then
                 grep "\[$f\]" rh_report.log > /dev/null || echo "WARNING: $f should be in HSM rm list"
+                # Conservative behavior for partial scans in front of an archive: allow n/a in paths
+                count_nb_final=$(awk '{print $(NF)}' report.out | grep -v 'n/a' | wc -l)
             else
                 # in the other cases, raise an error
                 grep "\[$f\]" rh_report.log > /dev/null || error "$f should be in HSM rm list"
@@ -3804,7 +3810,7 @@ function test_hardlinks
         [ "$ok" = "0" ] && error "$file or its hardlinks (${hlinks_tgt[$i]}) must be in report output"
         ((i++))
     done
-    count_nb_final=$(wc -l report.out | awk '{print $1}')
+    [ -z "$count_nb_final" ] && count_nb_final=$(wc -l report.out | awk '{print $1}')
     count_path_final=$(grep -v "$ROOT$" find.out | wc -l)
 
     echo "nbr_inodes=$count_nb_final, nb_paths=$count_path_final, nb_ln=$nb_ln"
