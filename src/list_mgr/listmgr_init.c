@@ -856,9 +856,7 @@ static int check_table_acct(db_conn_t *pconn)
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
 
-    /* when running report only with acct enabled,
-     * check if ACCT table is OK and disable acct if is not.
-    */
+    /* daemon mode with acccounting disabled: don't check ACCT table */
     if (!lmgr_config.user_acct && !lmgr_config.group_acct && !report_only)
         return DB_SUCCESS;
 
@@ -905,8 +903,10 @@ static int check_table_acct(db_conn_t *pconn)
     {
         if (report_only)
         {
+            /* report only: remember there is no ACCT table and don't warn */
             DisplayLog(LVL_VERB, LISTMGR_TAG, "Accounting stats not available");
             disable_acct();
+            return DB_SUCCESS;
         }
     }
     else
@@ -1212,6 +1212,15 @@ static int check_triggers_version(db_conn_t *pconn)
     int rc;
     char val[1024];
 
+    /* no accounting or report_only: don't check triggers */
+    if (!lmgr_config.user_acct && !lmgr_config.group_acct && !report_only)
+    {
+        DisplayLog(LVL_VERB, LISTMGR_TAG, "Accounting is disabled: all triggers will be dropped.");
+        return DB_SUCCESS;
+    }
+    else if (report_only)
+        return DB_SUCCESS; /* don't care about triggers */
+
     /* check the triggers version */
     rc = lmgr_get_var(pconn, VERSION_VAR_TRIG, val);
     if (rc == DB_SUCCESS)
@@ -1266,6 +1275,8 @@ static int check_trig_acct_insert(db_conn_t *pconn)
         /* no acct: must delete trigger */
         if (!report_only)
         {
+            DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Dropping trigger %s",
+                       ACCT_TRIGGER_INSERT);
             rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT);
             if (rc == DB_NOT_SUPPORTED)
             {
@@ -1297,6 +1308,8 @@ static int check_trig_acct_delete(db_conn_t *pconn)
         /* no acct: must delete trigger */
         if (!report_only)
         {
+            DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Dropping trigger %s",
+                       ACCT_TRIGGER_DELETE);
             rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE);
             if (rc == DB_NOT_SUPPORTED)
             {
@@ -1328,6 +1341,8 @@ static int check_trig_acct_update(db_conn_t *pconn)
         /* no acct: must delete trigger */
         if (!report_only)
         {
+            DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Dropping trigger %s",
+                       ACCT_TRIGGER_UPDATE);
             rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE);
             if (rc == DB_NOT_SUPPORTED)
             {
@@ -1767,7 +1782,7 @@ int ListMgr_Init(const lmgr_config_t * p_conf, int report_access_only)
 
     for (o = o_list; o->o_name != NULL; o++)
     {
-        /* don't need triggers for report-only */
+        /* don't care about triggers for report-only */
         if (report_only && (o->o_type == DBOBJ_TRIGGER))
             continue;
 
