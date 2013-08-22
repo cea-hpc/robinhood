@@ -396,6 +396,16 @@ AC_CHECK_FUNC([getmntent_r],[getmntent_r=yes],[getmntent_r=no])
 test "$getmntent_r" = "yes" && AC_DEFINE(HAVE_GETMNTENT_R, 1, [Reentrant version of getmntent exists])
 AM_CONDITIONAL(MNTENTCOMPAT, test "$getmntent_r" = "no" )
 
+AS_AC_EXPAND(CONFDIR, $sysconfdir)
+if test $prefix = NONE && test "$CONFDIR" = "/usr/etc"  ; then
+    CONFDIR="/etc"
+fi
+AC_MSG_NOTICE([Using config dir $CONFDIR])
+AC_DEFINE_UNQUOTED([SYSCONFDIR],"$CONFDIR", [Configuration directory])
+AC_SUBST(CONFDIR)
+
+AS_AC_EXPAND(SBINDIR, $sbindir)
+AC_SUBST(SBINDIR)
 
 # for exporting to spec file
 AC_SUBST(ac_configure_args)

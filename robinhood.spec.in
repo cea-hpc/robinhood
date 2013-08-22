@@ -214,10 +214,8 @@ Generated using options: @ac_configure_args@
 
 %build
 ./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
-        --sysconfdir=%{_sysconfdir} \
         --mandir=%{_mandir} \
-        --libdir=%{_libdir} \
-        --prefix=%{_prefix}
+        --libdir=%{_libdir}
 make
 
 %install
