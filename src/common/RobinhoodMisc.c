@@ -234,9 +234,9 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
 {
     static const char * default_cfg_paths[] =
     {
-       "/etc/robinhood.d/"PURPOSE_EXT,
-       "/etc/robinhood.d",
-       "/etc/robinhood",
+       SYSCONFDIR"/robinhood.d/"PURPOSE_EXT,
+       SYSCONFDIR"/robinhood.d",
+       SYSCONFDIR"/robinhood",
        ".",
        NULL
     };
