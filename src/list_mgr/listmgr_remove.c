@@ -188,9 +188,11 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
 /* path is retrieved only for information: just get one of them */
 #ifdef _HSM_LITE
 #define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath, backendpath"
+#define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath, backendpath"
 #define GET_SOFTRM_FIELDS "fullpath, backendpath"
 #else
 #define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath"
+#define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath"
 #define GET_SOFTRM_FIELDS "fullpath"
 #endif
 
@@ -526,34 +528,41 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         if (!annex_table)
             RBH_BUG("no annex table with softrm mode");
 
-        if (filter_names)
+        /* case A: full scan (no filter on fullpath), all non-updated entries are to be removed + all unseen names must be cleaned.
+         *          => filter_names + soft_rm
+         * case B: partial scan, we don't remove objects from ENTRIES (only from NAMES).
+         */
+        if (lmgr_filter_check_field(p_filter, ATTR_INDEX_fullpath)) /* partial scan with condition on NAMES + ENTRIES */
         {
-            /* 1) get the entries to be removed (those with nb paths = removed paths)
-             * 2) then we will clean the names
-             */
-            /* To determine names whose we remove the last reference:
-                        (select id,COUNT(*) as rmd from NAMES LINKS WHERE <condition> GROUP BY id) rmname
-                        JOIN
-                        (select id, COUNT(*) as all FROM NAMES GROUP BY id) allname
-                        ON rmname.id=allname.id;
-                    => also check rmname.id IS NULL for entries with no more paths
-             */
+                /* 1) get the entries to be removed (those with nb paths = removed paths)
+                 * 2) then we will clean the names
+                 */
 
-            #define REMOVED_NAMES "SELECT id,"THIS_PATH_FUNC"(parent_id,name) AS fullpath, COUNT(*) AS rmcount" \
-                                  " FROM "DNAMES_TABLE" WHERE %s GROUP BY id" /* arg=name filter */
-            #define ALLNAMES "SELECT id, COUNT(*) AS pathcount FROM "DNAMES_TABLE" GROUP BY id"
-
-            sprintf(query, "CREATE TEMPORARY TABLE %s AS "
-                    "SELECT %s.id, "GET_SOFTRM_FIELDS
-                    " FROM %s"
-                    " LEFT JOIN ("REMOVED_NAMES") rmpath ON %s.id=rmpath.id"
-                    " LEFT JOIN ("ALLNAMES") paths ON rmpath.id=paths.id"
-                    " LEFT JOIN "ANNEX_TABLE" ON rmpath.id="ANNEX_TABLE".id"
-                    " WHERE (rmpath.rmcount=paths.pathcount OR rmpath.id IS NULL) AND %s",
-                    tmp_table_name, first_table, first_table, filter_str_names,
-                    first_table, filter_str);
+                /* To determine names whose we remove the last reference, we avoid huge JOIN like this one:
+                            (select id,COUNT(*) as rmd from NAMES LINKS WHERE <condition> GROUP BY id) rmname
+                            JOIN
+                            (select id, COUNT(*) as all FROM NAMES GROUP BY id) allname
+                            ON rmname.id=allname.id
+                            WHERE rmname.rmcount=paths.pathcount
+                 *
+                 * Instead we do:
+                 *  SELECT id,sum(this_path(parent_id,name) LIKE '%/foo' AND path_update < x) as rmcnt, count(*) as tot FROM NAMES GROUP BY id HAVING rmcnt=tot;
+                 *
+                 * BUT we must also get ENTRIES with no remaining name (no matching entry in NAMES)...
+                 * Finally we do:
+                 *  SELECT ENTRIES.id, this_path(parent_id, name) as fullpath, ...
+                    sum(path_update < 1377176998 and this_path(parent_id, name) like 'dir1/%') as rm, count(*) as tot
+                    FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id=NAMES.id GROUP BY ENTRIES.id HAVING s=tot or fullpath is NULL;
+                 */
+                sprintf(query, "CREATE TEMPORARY TABLE %s AS "
+                        "SELECT %s.id, "BUILD_SOFTRM_FIELDS_JOIN_NAMES", SUM(%s) AS rmcnt, COUNT(*) AS tot"
+                        " FROM %s LEFT JOIN "DNAMES_TABLE" ON %s.id="DNAMES_TABLE".id"
+                                " LEFT JOIN "ANNEX_TABLE" ON %s.id="ANNEX_TABLE".id"
+                        " WHERE %s GROUP BY %s.id HAVING rmcnt=tot OR fullpath is NULL",
+                        tmp_table_name, first_table, filter_str_names, first_table,
+                        first_table, first_table, filter_str, first_table);
         }
-        else
+        else /* full scan */
             sprintf( query,
                  "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "BUILD_SOFTRM_FIELDS
                  " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id = "ANNEX_TABLE".id"
@@ -694,7 +703,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         goto rollback;
 
 names_only:
-    /* clean names that still have nlink > 0 (no soft rm) */
+    /* condition on names only (partial scan that clean unseen names).
+     * If no soft_rm, it was do at the beginning of the function.
+     */
     if (soft_rm && filter_names)
     {
         rc = clean_names(p_mgr, p_filter, &filter_names);

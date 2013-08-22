@@ -941,6 +941,9 @@ int            lmgr_simple_filter_add( lmgr_filter_t * p_filter,
                                        filter_value_t value,
                                        int flag );
 
+/* check if the given attribute is part of a filter */
+int lmgr_filter_check_field(const lmgr_filter_t *p_filter, unsigned int attr_index);
+
 /** Add a criteria to a simple filter or modify it if it already exists in the filter */
 int            lmgr_simple_filter_add_or_replace( lmgr_filter_t * p_filter,
                                                   unsigned int attr_index,

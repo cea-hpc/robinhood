@@ -193,6 +193,23 @@ int lmgr_simple_filter_add( lmgr_filter_t * p_filter, unsigned int attr_index,
     return 0;
 }
 
+/* check if the given attribute is part of a filter */
+int lmgr_filter_check_field(const lmgr_filter_t *p_filter, unsigned int attr_index)
+{
+    unsigned int i;
+
+    if (p_filter->filter_type != FILTER_SIMPLE)
+        return DB_INVALID_ARG;
+
+    /* first check if there is already a filter on this argument */
+    for (i = 0; i < p_filter->filter_simple.filter_count; i++)
+    {
+        if (p_filter->filter_simple.filter_index[i] == attr_index)
+            return 1;
+    }
+    return 0;
+}
+
 int lmgr_simple_filter_add_or_replace( lmgr_filter_t * p_filter,
                                        unsigned int attr_index,
                                        filter_comparator_t comparator, filter_value_t value,
