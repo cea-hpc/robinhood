@@ -419,8 +419,14 @@ static int TerminateScan( int scan_complete, time_t date_fin )
 
     if (scan_complete && !EMPTY_STRING(fs_scan_config.completion_command))
     {
+        const char *vars[] = {
+            "cfg", process_config_file,
+            "fspath", global_config.fs_path,
+            NULL, NULL
+        };
+
         /* replace special args in completion command */
-        char * cmd = replace_cmd_parameters(fs_scan_config.completion_command);
+        char * cmd = replace_cmd_parameters(fs_scan_config.completion_command, vars);
         if (cmd)
         {
             execute_shell_command(cmd, 0);

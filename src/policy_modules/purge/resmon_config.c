@@ -44,6 +44,10 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
     conf->trigger_list = NULL;
     conf->trigger_count = 0;
 
+#ifdef _TMP_FS_MGR
+    conf->purge_command[0] = '\0';
+#endif
+
     return 0;
 }
 
@@ -58,6 +62,9 @@ int Write_ResourceMon_ConfigDefault( FILE * output )
     print_line( output, 1, "check_purge_status_on_startup: TRUE" );
 #endif
     print_line( output, 1, "recheck_ignored_classes: TRUE" );
+#ifdef _TMP_FS_MGR
+    print_line( output, 1, "purge_command          : <built-in: unlink>");
+#endif
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -96,6 +103,22 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "# or if entries move from one class to another.");
     print_line( output, 1, "# This can significantly slow down policy application.");
     print_line( output, 1, "recheck_ignored_classes = TRUE;" );
+    fprintf( output, "\n" );
+
+#ifdef _TMP_FS_MGR
+    print_line(output, 1, "# By default, purge action is removing the entry");
+    print_line(output, 1, "# from the filesystem. You can define an alternative");
+    print_line(output, 1, "# action by specifying a script command.");
+    print_line(output, 1, "# The following parameters can be specified:");
+    print_line(output, 1, "#    {path}: posix path to the entry");
+#ifdef _LUSTRE
+#   ifdef _HAVE_FID
+    print_line(output, 1, "#    {fid}: fid of the entry");
+#   endif
+    print_line(output, 1, "#    {fsname}: Lustre fsname");
+#endif
+    print_line(output, 1, "#purge_command = =\"/usr/bin/move_to_trash.sh {path}\";");
+#endif
     fprintf( output, "\n" );
 
     print_end_block( output, 0 );
@@ -585,6 +608,9 @@ int Read_ResourceMon_Config( config_file_t config,
         "check_purge_status_on_startup",
 #endif
         "recheck_ignored_classes",
+#ifdef _TMP_FS_MGR
+        "purge_command",
+#endif
         NULL
     };
 
@@ -649,6 +675,14 @@ int Read_ResourceMon_Config( config_file_t config,
             DisplayLog( LVL_CRIT, RESMONCFG_TAG,
                 "WARNING: 'simulation_mode' parameter is deprecated. Use '--dry-run' option instead.");
         }
+
+#ifdef _TMP_FS_MGR
+        rc = GetStringParam(param_block, PURGE_PARAM_BLOCK, "purge_command",
+                         STR_PARAM_ABSOLUTE_PATH, /* can contain wildcards: {path}, {fid}, {fsname} */
+                         conf->purge_command, RBH_PATH_MAX, NULL, NULL, msg_out);
+        if ((rc != 0) && (rc != ENOENT))
+            return rc;
+#endif
 
         CheckUnknownParameters( param_block, PURGE_PARAM_BLOCK, purge_allowed );
 
@@ -890,15 +924,18 @@ int Reload_ResourceMon_Config( void *module_config )
     /* parameters that can't be modified dynamically */
 
     if ( resmon_config.nb_threads_purge != conf->nb_threads_purge )
-        DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                    PURGE_PARAM_BLOCK
-                    "::nb_threads_purge changed in config file, but cannot be modified dynamically" );
+        DisplayLog( LVL_MAJOR, RESMONCFG_TAG, PURGE_PARAM_BLOCK
+                    "::nb_threads_purge changed in config file, but cannot be modified dynamically");
 
     if ( resmon_config.purge_queue_size != conf->purge_queue_size )
-        DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                    PURGE_PARAM_BLOCK
-                    "::purge_queue_size changed in config file, but cannot be modified dynamically" );
+        DisplayLog( LVL_MAJOR, RESMONCFG_TAG, PURGE_PARAM_BLOCK
+                    "::purge_queue_size changed in config file, but cannot be modified dynamically");
 
+#ifdef _TMP_FS_MGR
+    if (strcmp(conf->purge_command, resmon_config.purge_command))
+        DisplayLog(LVL_MAJOR, RESMONCFG_TAG, PURGE_PARAM_BLOCK
+                   "::purge_command changed in config file, but cannot be modified dynamically");
+#endif
 
     /* dynamic parameters */
 

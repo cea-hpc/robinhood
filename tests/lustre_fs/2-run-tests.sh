@@ -1170,6 +1170,82 @@ function purge_test
 #	kill %1
 }
 
+function test_custom_purge
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str="$3"
+
+	if (( $is_hsmlite + $is_lhsm > 0 )); then
+		echo "No custom purge for HSM purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# initial scan
+	echo "Populating filesystem..."
+	for i in `seq 1 10`; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+
+	echo "Inital scan..."
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+	check_db_error rh_scan.log
+
+	echo "Sleeping $sleep_time seconds..."
+	sleep $sleep_time
+
+    fsname=$(df $ROOT/. | xargs | awk '{print $(NF-5)}' | awk -F '/' '{print $(NF)}')
+	if (( $no_log == 0 )); then
+		# get fids of entries
+		fids=()
+		for i in `seq 1 10`; do
+			fids[$i]=$($LFS path2fid $ROOT/file.$i)
+        done
+        [ "$DEBUG" = "1" ] && echo "fsname=$fsname, fids=${fids[*]}"
+    fi
+
+	echo "Applying purge policy ($policy_str)..."
+	$RH -f ./cfg/$config_file --purge-fs=0 -l FULL -L rh_purge.log --once || error "purging files"
+	check_db_error rh_purge.log
+
+	nb_purge=`grep "Purged" rh_purge.log | wc -l`
+	if (($nb_purge != 10)); then
+		error "********** TEST FAILED: 10 purge actions expected, $nb_purge done"
+	else
+		echo "OK: 10 actions done"
+	fi
+
+	# checking that the custom command was called for each
+	for  i in `seq 1 10`; do
+		line=$(grep "Executing " rh_purge.log | grep '/bin/rm' | grep $ROOT/file.$i)
+        if [ -z "$line" ]; then
+            error "No action found on $ROOT/file.$i"
+            continue
+        fi
+        # split args
+        args=($(echo "$line" | sed -e "s/.*rm -f//"))
+        fn=${args[0]}
+        id=${args[1]}
+        p=${args[2]}
+        [ "$DEBUG" = "1" ] && echo "action: fsname=$fn, fid=$id, path=$p"
+
+        [ $fn = $fsname ] || error "invalid fsname $fn != $fsname"
+        # only compare fids for lustre 2.x
+        if (( $no_log == 0 )); then
+            [ $id = ${fids[$i]} ] || error "invalid fid $id != ${fids[$i]}"
+        fi
+        [ $p = $ROOT/file.$i ] || error "invalid path $p != $ROOT/file.$i"
+
+        [ -f $ROOT/file.$i ] && error "$ROOT/file.$i still exists after purge command"
+	done
+	return 0
+}
+
+
+
 function purge_size_filesets
 {
 	config_file=$1
@@ -8008,6 +8084,7 @@ run_test 220e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 
 run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on creation and last_archive==0"
 
 run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too many errors"
+run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
 
 #### triggers ####
 

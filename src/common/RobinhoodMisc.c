@@ -2111,16 +2111,20 @@ int execute_shell_command( const char * cmd, int argc, ... )
  * in the given cmd line.
  * Result string is allocated using malloc()
  * and must be released using free().
+ * \param replace_array char** of param1, value1, param2, value2, ..., NULL, NULL
  */
-char * replace_cmd_parameters(const char * cmd_in)
+char *replace_cmd_parameters(const char *cmd_in, const char **replace_array)
 {
 #define CMDPARAMS "CmdParams"
-    char * pass_begin;
-    char * begin_var;
-    char * end_var;
-    const char * value;
+    int i;
+    char *pass_begin = NULL;
+    char *begin_var;
+    char *end_var;
+    const char *var_value;
 
     pass_begin = strdup(cmd_in);
+    if (!pass_begin)
+        return NULL;
 
     do
     {
@@ -2142,30 +2146,45 @@ char * replace_cmd_parameters(const char * cmd_in)
         {
             DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unmatched '{' in command parameters '%s'", cmd_in);
             free(pass_begin);
+            errno = EINVAL;
             return NULL;
         }
 
         *end_var = '\0';
         end_var++;
 
-        value = NULL;
+        var_value = NULL;
 
         /* compute final length, depending on variable name */
-        if (!strcasecmp( begin_var, "cfg" ))
-           value = process_config_file;
-        else if (!strcasecmp( begin_var, "fspath" ))
-           value = global_config.fs_path;
-        else
+        for (i = 0; replace_array[i] != NULL; i += 2)
+        {
+            const char *param = replace_array[i];
+            const char *value = replace_array[i+1];
+
+            if (!strcasecmp(begin_var, param))
+            {
+                var_value = value;
+                break;
+            }
+        }
+
+        if (var_value == NULL)
         {
             DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unknown parameter '%s' in command parameters '%s'", begin_var, cmd_in);
             free(pass_begin);
+            errno = EINVAL;
             return NULL;
         }
 
         /* allocate a new string */
-        new_str = malloc( strlen(pass_begin)+strlen(value)+strlen(end_var)+1 );
+        new_str = malloc(strlen(pass_begin) + strlen(var_value) + strlen(end_var) + 1);
+        if (!new_str)
+        {
+            free(pass_begin);
+            return NULL;
+        }
 
-        sprintf(new_str, "%s%s%s", pass_begin, value, end_var );
+        sprintf(new_str, "%s%s%s", pass_begin, var_value, end_var);
 
         free(pass_begin);
         pass_begin = new_str;
