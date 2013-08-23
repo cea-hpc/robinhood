@@ -1638,15 +1638,16 @@ int execute_shell_command( const char * cmd, int argc, ... )
  * in the given cmd line.
  * Result string is allocated using malloc()
  * and must be released using free().
+ * \param replace_array char** of param1, value1, param2, value2, ..., NULL, NULL
  */
-char * replace_cmd_parameters(const char * cmd_in)
+char * replace_cmd_parameters(const char * cmd_in, const char **replace_array)
 {
 #define CMDPARAMS "CmdParams"
-    int error = FALSE;
+    int i, error = FALSE;
     char * pass_begin = NULL;
     char * begin_var;
     char * end_var;
-    const char * value;
+    const char * var_value;
 
     /* allocate tmp copy of cmd in */
     pass_begin = (char *)malloc(strlen(cmd_in)+1);
@@ -1673,6 +1674,7 @@ char * replace_cmd_parameters(const char * cmd_in)
         if (!end_var)
         {
            DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unmatched '{' in command parameters '%s'", cmd_in);
+           errno = EINVAL;
            error = TRUE;
            break;
         }
@@ -1680,24 +1682,38 @@ char * replace_cmd_parameters(const char * cmd_in)
         *end_var = '\0';
         end_var++;
 
-        value = NULL;
+        var_value = NULL;
 
         /* compute final length, depending on variable name */
-        if (!strcasecmp( begin_var, "cfg" ))
-           value = process_config_file;
-        else if (!strcasecmp( begin_var, "fspath" ))
-           value = global_config.fs_path;
-        else
+        for (i = 0; replace_array[i] != NULL; i += 2)
+        {
+            const char *param = replace_array[i];
+            const char *value = replace_array[i+1];
+
+            if (!strcasecmp(begin_var, param))
+            {
+                var_value = value;
+                break;
+            }
+        }
+
+        if (var_value == NULL)
         {
             DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unknown parameter '%s' in command parameters '%s'", begin_var, cmd_in);
+            errno = EINVAL;
             error = TRUE;
             break;
         }
 
         /* allocate a new string if var length < value length */
-        new_str = malloc( strlen(pass_begin)+strlen(value)+strlen(end_var)+1 );
+        new_str = malloc(strlen(pass_begin)+strlen(var_value)+strlen(end_var)+1);
+        if (!new_str)
+        {
+            error = TRUE;
+            break;
+        }
 
-        sprintf(new_str, "%s%s%s", pass_begin, value, end_var );
+        sprintf(new_str, "%s%s%s", pass_begin, var_value, end_var);
 
         free(pass_begin);
         pass_begin = new_str;

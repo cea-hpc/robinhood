@@ -21,6 +21,7 @@
 #ifndef _RESOURCE_MONITOR_H
 #define _RESOURCE_MONITOR_H
 
+#include "rbh_const.h"
 #include "config_parsing.h"
 #include <sys/types.h>
 
@@ -98,6 +99,10 @@ typedef struct resource_monitor_config_t
 
     trigger_item_t *trigger_list;
     unsigned int   trigger_count;
+
+#ifdef _TMP_FS_MGR
+	char         purge_command[RBH_PATH_MAX];
+#endif
 
 #ifdef ATTR_INDEX_status
     unsigned int check_purge_status_on_startup:1;

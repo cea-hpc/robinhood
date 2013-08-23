@@ -458,6 +458,55 @@ function purge_test
 #	kill %1
 }
 
+function test_custom_purge
+{
+	config_file=$1
+	sleep_time=$2
+	policy_str="$3"
+
+	if (( $is_hsmlite != 0 )); then
+		echo "No purge for hsmlite purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+	# initial scan
+	echo "Populating filesystem..."
+	for i in `seq 1 10`; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+
+	echo "Inital scan..."
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log 
+	check_db_error rh_scan.log
+
+	echo "Sleeping $sleep_time seconds..."
+	sleep $sleep_time
+
+	echo "Applying purge policy ($policy_str)..."
+	# no purge expected here
+	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error "purging files"
+	check_db_error rh_purge.log
+
+	nb_purge=`grep "Purged" rh_purge.log | wc -l`
+	if (($nb_purge != 10)); then
+		error "********** TEST FAILED: 10 purge actions expected, $nb_purge done"
+	else
+		echo "OK: 10 actions done"
+	fi
+
+	# checking that the custom command was called for each
+	for  i in `seq 1 10`; do
+		grep "Executing " rh_purge.log | grep '/bin/rm' | grep $ROOT/file.$i || error "No action found on $ROOT/file.$i"
+        # check the entry has been deleted
+        [ -f $ROOT/file.$i ] && error "$ROOT/file.$i still exists after purge command"
+	done
+	return 0
+}
+
+
 function purge_size_filesets
 {
 	config_file=$1
@@ -3527,6 +3576,8 @@ run_test 214d 	check_disabled	common.conf  hsm_remove	"hsm_rm is enabled by defa
 run_test 214e 	check_disabled	common.conf  class	"no class matching if none defined in config"
 #test 215-217 are HSM specific
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
+
+run_test 221	test_custom_purge test_custom_purge.conf 2	"custom purge command"
 
 #### triggers ####
 

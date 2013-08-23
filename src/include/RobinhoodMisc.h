@@ -344,8 +344,10 @@ int execute_shell_command( const char * cmd, int argc, ... );
  * in the given cmd line.
  * Result string is allocated using malloc()
  * and must be released using free().
+ * \param replace_array char** of param1, value1, param2, value2, ..., NULL, NULL
  */
-char * replace_cmd_parameters(const char * cmd_in);
+char * replace_cmd_parameters(const char * cmd_in, const char **replace_array);
+
 
 
 #endif

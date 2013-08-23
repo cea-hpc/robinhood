@@ -52,7 +52,7 @@ static int purge_abort = FALSE;
 /* queue of entries to be checked/purged */
 entry_queue_t  purge_queue;
 
-/** 
+/**
  * Purge helpers (depending on purpose)
  * @return posix error code (from errno)
  */
@@ -76,15 +76,47 @@ static int PurgeEntry_ByFid( const entry_id_t * p_entry_id,
 }
 #else
 /** purge by path for other purpose */
-static int PurgeEntry_ByPath( const char *entry_path )
+static int PurgeEntry(const entry_id_t *id, const char *entry_path)
 {
-    DisplayLog( LVL_FULL, PURGE_TAG, "Unlink(%s)", entry_path );
-    if ( !dry_run )
+    if (EMPTY_STRING(resmon_config.purge_command))
     {
-        if ( unlink( entry_path ) != 0 )
+        /* no custom purge command => unlink */
+        DisplayLog(LVL_DEBUG, PURGE_TAG, "%sunlink(%s)", dry_run ? "(dry-run) " : "",
+                   entry_path);
+        if (!dry_run)
+        {
+            if (unlink( entry_path) != 0)
+                return errno;
+        }
+        return 0;
+    }
+    else
+    {
+        /* execute custom action */
+        char strfid[128];
+        sprintf(strfid, DFID, PFID(id));
+
+        const char *vars[] = {
+            "path", entry_path,
+            "fsname", get_fsname(),
+            "fid", strfid,
+            NULL, NULL
+        };
+
+        char *cmd = replace_cmd_parameters(resmon_config.purge_command, vars);
+        if (cmd)
+        {
+            int rc = 0;
+            /* call custom purge command instead of unlink() */
+            DisplayLog(LVL_DEBUG, PURGE_TAG, "%scmd(%s)", dry_run ? "(dry-run) " : "", cmd);
+            if (!dry_run)
+                rc =  execute_shell_command(cmd, 0);
+            free(cmd);
+            return rc;
+        }
+        else
             return errno;
     }
-    return 0;
 }
 #endif
 
@@ -1400,7 +1432,7 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
         ATTR( &new_attr_set, status ) = STATUS_RELEASED;
     }
 #else
-    rc = PurgeEntry_ByPath( ATTR( &p_item->entry_attr, fullpath ) );
+    rc = PurgeEntry(&p_item->entry_id, ATTR(&p_item->entry_attr, fullpath));
 #endif
     if ( rc )
     {
