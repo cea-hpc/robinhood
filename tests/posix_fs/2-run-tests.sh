@@ -1991,7 +1991,7 @@ function test_hardlinks
     done
 
     for f in $rmids; do
-        grep "$f" find.out && error "deleted id ($f) found in find output"
+        egrep -E "^[0-9A-F]*$f" find.out && error "deleted id ($f) found in find output"
     done
 
     i=0
@@ -2054,7 +2054,7 @@ function test_hl_count
     [ "$DEBUG" = "1" ] && cat report.out
     typeValues="dir;file"
   	countValues="$dcount;$(($dcount * $fcount))"
-    if (( $is_hsmlite + $is_lhsm != 0 )); then
+    if (( $is_hsmlite != 0 )); then
         # type counts are in 3rd column (because of the status column)
    	    colSearch=3
     else
@@ -3551,7 +3551,7 @@ function test_report_generation_1
 	sleep 1
 	dd if=/dev/zero of=$ROOT/dir1/file.1 bs=1k count=5 >/dev/null 2>/dev/null || error "writing file.1"
 	sleep 1
-    dd if=/dev/zero of=$ROOT/dir1/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
+	dd if=/dev/zero of=$ROOT/dir1/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
 	sleep 1
 	dd if=/dev/zero of=$ROOT/dir1/file.3 bs=1k count=15 >/dev/null 2>/dev/null || error "writing file.3"
 	sleep 1
@@ -3746,6 +3746,8 @@ function find_allValuesinCSVreport
     typeValues=$2
     countValues=$3
     colSearch=$4
+
+    [ "$DEBUG" = "1" ] && echo "find_allValuesinCSVreport: log=$logFile, type=$typeValues, count=$countValues, col=$colSearch" >&2
 
     # get typeValue and associated countvalue
     splitTypes=$(echo $typeValues | tr ";" "\n")
