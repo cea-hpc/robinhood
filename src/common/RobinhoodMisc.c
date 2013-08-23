@@ -1643,13 +1643,15 @@ char * replace_cmd_parameters(const char * cmd_in)
 {
 #define CMDPARAMS "CmdParams"
     int error = FALSE;
-    char * pass_begin;
+    char * pass_begin = NULL;
     char * begin_var;
     char * end_var;
     const char * value;
 
     /* allocate tmp copy of cmd in */
     pass_begin = (char *)malloc(strlen(cmd_in)+1);
+    if (!pass_begin)
+        return NULL;
     strcpy(pass_begin, cmd_in);
 
     do
@@ -1701,6 +1703,12 @@ char * replace_cmd_parameters(const char * cmd_in)
         pass_begin = new_str;
 
     } while(1);
+
+    if (error)
+    {
+        free(pass_begin);
+        return NULL;
+    }
 
     return pass_begin;
 }
