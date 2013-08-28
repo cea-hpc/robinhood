@@ -1057,14 +1057,15 @@ static int process_one_task(robinhood_task_t *p_task,
         next_slash = strchr(next_name, '/');
         if (next_slash)
         {
-            strncpy(name, next_name, next_slash - next_name);
-            name[next_name - next_slash + 1] = '\0';
+            ptrdiff_t len = next_slash - next_name; /* length without final '\0' */
+            strncpy(name, next_name, len);
+            name[len] = '\0';
         }
         else
             strcpy(name, next_name);
 
         DisplayLog(LVL_FULL, FSSCAN_TAG, "Partial scan: processing '%s' in %s", name, p_task->path);
-        
+
         rc = process_one_entry(p_info, p_task, name, -1);
         if (rc)
         {
