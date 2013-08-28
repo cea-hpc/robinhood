@@ -38,7 +38,7 @@ chglog_reader_config_t chglog_reader_config;
 static mdt_def_t default_mdt_def =
     {
         .mdt_name  = "MDT0000",
-        .reader_id = "cl0"
+        .reader_id = "cl1"
     };
 
 
@@ -107,16 +107,19 @@ int            ChgLogRdr_WriteConfigTemplate( FILE * output )
 
     print_end_block( output, 1 );
 
-/** @TODO XXX multi-MDT not supported for now */
-#if 0
+#ifdef HAVE_DNE
     fprintf( output, "\n" );
-
     print_line( output, 1, "# another MDT");
     print_begin_block( output, 1, MDT_DEF_BLOCK, NULL );
-
     print_line( output, 2, "mdt_name  = \"MDT0001\" ;");
     print_line( output, 2, "reader_id = \"cl1\" ;" );
+    print_end_block( output, 1 );
 
+    fprintf( output, "\n" );
+    print_line( output, 1, "# yet another MDT");
+    print_begin_block( output, 1, MDT_DEF_BLOCK, NULL );
+    print_line( output, 2, "mdt_name  = \"MDT0002\" ;");
+    print_line( output, 2, "reader_id = \"cl1\" ;" );
     print_end_block( output, 1 );
 #endif
 

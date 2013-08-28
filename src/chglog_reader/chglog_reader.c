@@ -187,7 +187,6 @@ static void free_extra_info2( void * ptr )
 static int clear_changelog_records(reader_thr_info_t * p_info)
 {
     int rc;
-    const char * mount_point = get_mount_point(NULL);
 
     if (p_info->last_committed_record == 0) {
         /* No record was ever commited. Stop here because calling
@@ -196,23 +195,23 @@ static int clear_changelog_records(reader_thr_info_t * p_info)
         return 0;
     }
 
-    DisplayLog( LVL_DEBUG, CHGLOG_TAG, "Acknowledging ChangeLog records up to #%llu",
-                p_info->last_committed_record );
+    DisplayLog(LVL_DEBUG, CHGLOG_TAG, "%s: acknowledging ChangeLog records up to #%llu",
+               p_info->mdtdevice, p_info->last_committed_record);
 
-    DisplayLog( LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %llu)",
-                mount_point,
-                chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
-                p_info->last_committed_record );
+    DisplayLog(LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %llu)",
+               p_info->mdtdevice,
+               chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
+               p_info->last_committed_record);
 
-    rc = llapi_changelog_clear( mount_point,
+    rc = llapi_changelog_clear(p_info->mdtdevice,
                     chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
-                    p_info->last_committed_record );
+                    p_info->last_committed_record);
 
     if (rc)
     {
             DisplayLog( LVL_CRIT, CHGLOG_TAG,
                         "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %llu) returned %d",
-                        mount_point,
+                        p_info->mdtdevice,
                         chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
                         p_info->last_committed_record, rc );
     } else {
@@ -258,7 +257,9 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
          && ((logrec->cr_index - p_info->last_cleared_record)
              < chglog_reader_config.batch_ack_count))
     {
-        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %llu %llu\n", logrec->cr_index, p_info->last_cleared_record);
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s %llu %llu\n",
+                   p_info->mdtdevice, logrec->cr_index,
+                   p_info->last_cleared_record);
         /* do nothing, don't clear log now */
         return 0;
     }
@@ -429,6 +430,17 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
          * record. */
         if ((ignore_mask & (1<<logrec->cr_type)) &&
             entry_id_equal(&logrec->cr_tfid, &logrec_in->cr_tfid)) {
+
+            /* if the matching record is n, and ignored record is n+1,
+             * acknownledging(n) can also acknownledge(n+1),
+             * as they refer to the same entry.
+             */
+            if (logrec_in->cr_index == logrec->cr_index + 1)
+            {
+                DisplayLog(LVL_FULL, CHGLOG_TAG, "acknowledging %Lu will acknowledge %Lu too",
+                           logrec->cr_index, logrec_in->cr_index);
+                logrec->cr_index++;
+            }
             return TRUE;
         }
     }
@@ -455,9 +467,9 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
         /* Copy the structure and fix a few fields. */
         memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + rec_in->cr_namelen);
 
-        /* TODO: It is unclear whether cr_name is actually 0
-         * terminated, so add one just in case. */
-        rec->cr_name[rec->cr_namelen] = 0;
+        /* It is unclear whether cr_name is actually
+         * 0 terminated, so add one just in case. */
+        rec->cr_name[rec->cr_namelen] = '\0';
 
         *insert_flags = PLR_FLG_FREE2;
 
@@ -561,26 +573,28 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
     if (p_rec->cr_namelen)
     {
         /* this record has a 'name' field. */
-        DisplayLog( LVL_DEBUG, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID" p="DFID" %.*s",
-                    p_rec->cr_index, p_rec->cr_type,
-                    changelog_type2str(p_rec->cr_type),
-                    (uint32_t)cltime2sec(p_rec->cr_time),
-                    cltime2nsec(p_rec->cr_time),
-                    p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
-                    PFID(&p_rec->cr_tfid),
-                    PFID(&p_rec->cr_pfid),
-                    p_rec->cr_namelen, p_rec->cr_name);
+        DisplayLog(LVL_DEBUG, CHGLOG_TAG, "%s: %llu %02d%-5s %u.%09u 0x%x%s t="DFID" p="DFID" %.*s",
+                   p_info->mdtdevice,
+                   p_rec->cr_index, p_rec->cr_type,
+                   changelog_type2str(p_rec->cr_type),
+                   (uint32_t)cltime2sec(p_rec->cr_time),
+                   cltime2nsec(p_rec->cr_time),
+                   p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
+                   PFID(&p_rec->cr_tfid),
+                   PFID(&p_rec->cr_pfid),
+                   p_rec->cr_namelen, p_rec->cr_name);
     }
     else
     {
         /* no 'name' field. */
-        DisplayLog( LVL_DEBUG, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID,
-                    p_rec->cr_index, p_rec->cr_type,
-                    changelog_type2str(p_rec->cr_type),
-                    (uint32_t)cltime2sec(p_rec->cr_time),
-                    cltime2nsec(p_rec->cr_time),
-                    p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
-                    PFID(&p_rec->cr_tfid) );
+        DisplayLog(LVL_DEBUG, CHGLOG_TAG, "%s: %llu %02d%-5s %u.%09u 0x%x%s t="DFID,
+                   p_info->mdtdevice,
+                   p_rec->cr_index, p_rec->cr_type,
+                   changelog_type2str(p_rec->cr_type),
+                   (uint32_t)cltime2sec(p_rec->cr_time),
+                   cltime2nsec(p_rec->cr_time),
+                   p_rec->cr_flags & CLF_FLAGMASK, flag_buff,
+                   PFID(&p_rec->cr_tfid));
     }
 
     /* update stats */
@@ -795,8 +809,8 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
         if ( chglog_reader_config.force_polling )
         {
             DisplayLog( LVL_FULL, CHGLOG_TAG,
-                        "EOF reached on changelog, reopening in %d sec",
-                        chglog_reader_config.polling_interval);
+                        "EOF reached on changelog from %s, reopening in %d sec",
+                        info->mdtdevice, chglog_reader_config.polling_interval);
             /* sleep during polling interval */
             rh_sleep( chglog_reader_config.polling_interval );
         }
@@ -913,10 +927,9 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
 #endif
 
     /* check parameters */
-#ifdef _DEBUG_CHGLOG
-    printf( "Parameters: mdt_count = %u, mdt_def = %p\n",
-            p_config->mdt_count, p_config->mdt_def );
-#endif
+    for (i = 0; i < p_config->mdt_count; i++)
+         DisplayLog(LVL_FULL, CHGLOG_TAG, "mdt[%u] = %s", i,
+                    p_config->mdt_def[i].mdt_name);
 
     if ( (p_config->mdt_count == 0) || (p_config->mdt_def == NULL) )
     {
@@ -924,12 +937,14 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
                     "ERROR: no MDT ChangeLog has been defined in configuration" );
         return EINVAL;
     }
+#ifndef HAVE_DNE
     else if ( p_config->mdt_count > 1 )
     {
         DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                   "ERROR: multi-MDT filesystems are not supported in the current version");
+                   "ERROR: multiple MDTs are not supported with this version of Lustre");
           return ENOTSUP;
     }
+#endif
 
     /* saves the current config and parameter flags */
     chglog_reader_config = *p_config;
