@@ -550,12 +550,9 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
                            recov_status_t status )
 {
     char query[4096];
-    int rc;
     DEF_PK(pk);
 
-    rc = entry_id2pk( p_mgr, p_id, FALSE, PTR_PK(pk) );
-    if (rc)
-        return rc;
+    entry_id2pk(p_id, PTR_PK(pk));
 
     sprintf( query, "UPDATE "RECOV_TABLE" SET recov_status=%u WHERE id="DPK,
              status, pk );
