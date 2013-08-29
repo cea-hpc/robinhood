@@ -149,9 +149,14 @@ static struct option option_tab[] = {
     {"sync", no_argument, NULL, 's'},
 #endif
 #ifdef HAVE_CHANGELOGS
+#ifdef HAVE_DNE
+    {"readlog", optional_argument, NULL, 'r'},
+    {"read-log", optional_argument, NULL, 'r'},
+#else
     {"readlog", no_argument, NULL, 'r'},
     {"read-log", no_argument, NULL, 'r'},
     {"handle-events", no_argument, NULL, 'r'}, /* for backward compatibility */
+#endif
 #endif
 
     /* XXX we use the same letter 'R' for the 2 purposes
@@ -921,6 +926,7 @@ int main( int argc, char **argv )
     robinhood_config_t rh_config;
     int chgd = 0;
     char           badcfg[RBH_PATH_MAX];
+    int mdtidx = -1; /* all MDTs */
 
     boot_time = time( NULL );
 
@@ -1001,6 +1007,15 @@ int main( int argc, char **argv )
             exit( 1 );
 #else
             SET_ACTION_FLAG( ACTION_MASK_HANDLE_EVENTS );
+#ifdef HAVE_DNE
+            if (optarg) {  /* optional argument => MDT index */
+                mdtidx = str2int(optarg);
+                if (mdtidx == -1) {
+                    fprintf(stderr, "Invalid argument to --read-log: expected numeric value for <mdt_index>.\n");
+                    exit(1);
+                }
+            }
+#endif
 #endif
             break;
 
@@ -1434,7 +1449,7 @@ int main( int argc, char **argv )
     {
 
         /* Start reading changelogs */
-        rc = ChgLogRdr_Start( &rh_config.chglog_reader_config, options.flags );
+        rc = ChgLogRdr_Start(&rh_config.chglog_reader_config, options.flags, mdtidx);
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing ChangeLog Reader", rc );

@@ -918,7 +918,8 @@ static void action_sigchld( int sig )
 
 
 /** start ChangeLog Reader module */
-int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
+int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
+                               int flags, int mdt_index)
 {
     int i, rc;
     char mdtdevice[128];
@@ -926,11 +927,14 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
     struct sigaction act_sigchld ;
 #endif
 
-    /* check parameters */
     for (i = 0; i < p_config->mdt_count; i++)
-         DisplayLog(LVL_FULL, CHGLOG_TAG, "mdt[%u] = %s", i,
-                    p_config->mdt_def[i].mdt_name);
+    {
+        if (mdt_index == -1 || mdt_index == i)
+            DisplayLog(LVL_FULL, CHGLOG_TAG, "mdt[%u] = %s", i,
+                       p_config->mdt_def[i].mdt_name);
+    }
 
+    /* check parameters */
     if ( (p_config->mdt_count == 0) || (p_config->mdt_def == NULL) )
     {
         DisplayLog( LVL_CRIT, CHGLOG_TAG,
@@ -938,13 +942,29 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
         return EINVAL;
     }
 #ifndef HAVE_DNE
-    else if ( p_config->mdt_count > 1 )
+    else if ((p_config->mdt_count > 1) || (mdt_index > 0))
     {
         DisplayLog(LVL_CRIT, CHGLOG_TAG,
                    "ERROR: multiple MDTs are not supported with this version of Lustre");
-          return ENOTSUP;
+        return ENOTSUP;
     }
 #endif
+    else if (mdt_index >= (int)p_config->mdt_count)
+    {
+        DisplayLog(LVL_CRIT, CHGLOG_TAG, "The specified mdt_index (%d) exceeds the MDT count in configuration file (%u)",
+                   mdt_index, p_config->mdt_count);
+        return EINVAL;
+    }
+
+    if (mdt_index != -1)
+    {
+        /* hack the configuration structure to keep only the specified MDT */
+        if (mdt_index != 0)
+            p_config->mdt_def[0] = p_config->mdt_def[mdt_index];
+        p_config->mdt_count = 1;
+        DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Starting changelog reader only for %s, as specified by command line",
+                   p_config->mdt_def[0].mdt_name);
+    }
 
     /* saves the current config and parameter flags */
     chglog_reader_config = *p_config;
@@ -952,7 +972,8 @@ int            ChgLogRdr_Start( chglog_reader_config_t * p_config, int flags )
 
     /* create thread params */
     reader_info = (reader_thr_info_t*)MemCalloc(p_config->mdt_count,
-                                                sizeof( reader_thr_info_t ));
+                                                sizeof(reader_thr_info_t));
+
     if ( reader_info == NULL )
         return ENOMEM;
 

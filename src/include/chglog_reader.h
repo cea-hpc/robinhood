@@ -72,8 +72,11 @@ typedef struct chglog_reader_config_t
 
 extern chglog_reader_config_t chglog_reader_config;
 
-/** start ChangeLog Readers */
-int            ChgLogRdr_Start( chglog_reader_config_t * collector_config, int flags );
+/** start ChangeLog Readers
+ * \param mdt_index -1 for all
+ */
+int            ChgLogRdr_Start(chglog_reader_config_t * p_config,
+                               int flags, int mdt_index);
 
 /** terminate ChangeLog Readers */
 int            ChgLogRdr_Terminate( void );
