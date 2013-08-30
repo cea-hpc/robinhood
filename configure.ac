@@ -149,9 +149,13 @@ if test "x$support_lustre" = "xyes" ; then
             test "x$have_fid" = "xyes" && AC_DEFINE(_HAVE_FID, 1, [lustre supports fids])
         fi
 
+        # check if fd2fid function exists
+        AC_CHECK_LIB([lustreapi], [llapi_fd2fid], [have_fd2fid="yes"])
+        test "x$have_fd2fid" = "xyes" && AC_DEFINE(HAVE_FD2FID, 1, [llapi_fd2fid function is available])
+
         # check for DNE support
         AC_CHECK_LIB([lustreapi], [llapi_file_fget_mdtidx], [have_dne_support="yes"])
-        test "x$have_dne_support" = "xyes" && AC_DEFINE(HAVE_DNE, 1, [this version of Lustre supports DNE])
+        test "x$have_dne_support" = "xyes" && AC_DEFINE(HAVE_DNE, 1, [this version of Lustre supports DNE]) # FIXME wrong test (works with 2.1!)
 
         AC_ARG_ENABLE( [changelogs], AS_HELP_STRING([--disable-changelogs],[Don't use ChangeLogs]),
                    use_changelogs=$enableval, use_changelogs='yes' )

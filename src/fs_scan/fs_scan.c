@@ -630,6 +630,76 @@ static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev, const char *
     return 0;
 }
 
+#ifndef _NO_AT_FUNC
+
+static int noatime_permitted = TRUE;
+
+static int openat_noatime(int pfd, const char *name, int rddir)
+{
+    int fd = -1;
+    int flags = 0;
+    int had_eperm = FALSE;
+
+    /* is it for readdir? */
+    if (rddir)
+        flags = O_RDONLY | O_DIRECTORY;
+    else
+        flags = O_RDONLY | O_NONBLOCK | O_NOFOLLOW;
+
+    if (noatime_permitted)
+    {
+        /* try to open with NOATIME flag */
+        fd = openat(pfd, name, flags | O_NOATIME);
+        if ((fd < 0) && (errno == EPERM))
+            had_eperm = TRUE;
+    }
+    if (fd < 0)
+        fd = openat(pfd, name, flags);
+
+    /* openat successful but not with NOATIME => no longer use this flag */
+    if (had_eperm && (fd >= 0))
+    {
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed with O_NOATIME, and was sucessful without it. Disabling this flag.");
+        noatime_permitted = FALSE;
+    }
+
+    return fd;
+}
+
+static int open_noatime(const char *path, int rddir)
+{
+    int fd = -1;
+    int flags = 0;
+    int had_eperm = FALSE;
+
+    /* is it for readdir? */
+    if (rddir)
+        flags = O_RDONLY | O_DIRECTORY;
+    else
+        flags = O_RDONLY | O_NONBLOCK | O_NOFOLLOW;
+
+    if (noatime_permitted)
+    {
+        /* try to open with NOATIME flag */
+        fd = open(path, flags | O_NOATIME);
+        if ((fd < 0) && (errno == EPERM))
+            had_eperm = TRUE;
+    }
+
+    if (fd < 0)
+        fd = open(path, flags);
+
+    /* open successful but not with NOATIME => no longer use this flag */
+    if (had_eperm && (fd >= 0))
+    {
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "open failed with O_NOATIME, and was sucessful without it. Disabling this flag.");
+        noatime_permitted = FALSE;
+    }
+
+    return fd;
+}
+#endif
+
 static inline int get_dirid(const char *path, struct stat *st, entry_id_t *id)
 {
 #ifdef _HAVE_FID
@@ -663,7 +733,7 @@ static int create_child_task(const char *childpath, struct stat *inode, robinhoo
 
     p_task->parent_task = parent;
     strncpy(p_task->path, childpath, RBH_PATH_MAX);
-    
+
     /* set parent id */
     if ((rc = get_dirid(childpath, inode, &p_task->dir_id)))
         goto out_free;
@@ -806,6 +876,24 @@ static int process_one_entry(thread_scan_info_t *p_info,
         op->entry_id_is_set = TRUE;
 #else
         op->entry_id_is_set = FALSE;
+#ifndef _NO_AT_FUNC
+        /* get fid from fd, using openat on parent fd */
+        int fd = openat_noatime(parentfd, entry_name, FALSE);
+        if (fd < 0)
+            DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed on %d/%s: %s", parentfd, entry_name, strerror(errno));
+        else
+        {
+            rc = Lustre_GetFidByFd(fd, &op->entry_id);
+            if (rc)
+                DisplayLog(LVL_DEBUG, FSSCAN_TAG, "fd2fid failed on %d/%s: %s", parentfd, entry_name, strerror(errno));
+            else
+            {
+                op->entry_id_is_set = TRUE;
+                op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
+            }
+            close(fd);
+        }
+#endif
 #endif
 
         op->extra_info_is_set = FALSE;
@@ -869,12 +957,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
 static inline DIR_T dir_open(const char *path)
 {
 #ifndef _NO_AT_FUNC
-    int dirfd = open(path, O_RDONLY | O_DIRECTORY | O_NOATIME);
-    /* opening with NOATIME may be forbiden for user,
-     * so try without it in case of failure */
-    if (dirfd < 0)
-        dirfd = open(path, O_RDONLY | O_DIRECTORY);
-    return dirfd;
+    return open_noatime(path, TRUE);
 #else
     return opendir(path);
 #endif

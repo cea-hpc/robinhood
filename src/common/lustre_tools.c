@@ -423,6 +423,25 @@ int Lustre_GetFidFromPath( const char *fullpath, entry_id_t * p_id )
     return rc;
 }
 
+/* Get fid from a file descriptor (fd2fid wrapper) */
+int Lustre_GetFidByFd(int fd, entry_id_t * p_id)
+{
+    int rc = 0;
+#ifdef HAVE_FD2FID
+    #define FD2FID "llapi_fd2fid()"
+    rc = llapi_fd2fid(fd, p_id);
+#else
+    #define FD2FID "ioctl(LL_IOC_PATH2FID)"
+    if (ioctl(fd, LL_IOC_PATH2FID, p_id) != 0)
+        rc = -errno;
+#endif
+
+    if ((rc != 0) && (rc != -ENOENT) && (rc != -ESTALE))
+        DisplayLog(LVL_DEBUG, "Fd2Fid", FD2FID"=%d", rc);
+
+    return rc;
+}
+
 /** get (name+parent_id) for an entry
  * \param linkno hardlink index
  * \retval -ENODATA after last link
