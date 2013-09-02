@@ -1544,6 +1544,12 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
                     int match_all_fc )
 {
     policy_match_t isok;
+#ifdef HAVE_PURGE_POLICY
+    int get_purge_class = TRUE;
+#endif
+#ifdef HAVE_MIGR_POLICY
+    int get_migr_class = TRUE;
+#endif
 
 #ifdef HAVE_RMDIR_POLICY
     if ( ATTR_MASK_TEST( p_attrs, type )
@@ -1575,6 +1581,8 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
     ListMgr_GenerateFields( p_attrs, policies.purge_policies.global_attr_mask );
 
     isok = _IsWhitelisted( p_id, p_attrs, PURGE_POLICY, TRUE );
+    if (isok == POLICY_MATCH)
+	get_purge_class = FALSE;
 
 #ifdef ATTR_INDEX_whitelisted
     if ( isok == POLICY_MATCH )
@@ -1593,13 +1601,14 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 #ifdef HAVE_MIGR_POLICY
     /* check whitelisted fileclasses for migration */
     ListMgr_GenerateFields( p_attrs, policies.migr_policies.global_attr_mask );
-    _IsWhitelisted( p_id, p_attrs, MIGR_POLICY, TRUE );
+    if (_IsWhitelisted( p_id, p_attrs, MIGR_POLICY, TRUE ) == POLICY_MATCH)
+	get_migr_class = FALSE;
 #endif
 
     if ( match_all_fc )
     {
 #ifdef HAVE_PURGE_POLICY
-        if ( need_fileclass_update( p_attrs, PURGE_POLICY ) == TRUE )
+        if ( get_purge_class && need_fileclass_update( p_attrs, PURGE_POLICY ) == TRUE)
         {
             policy_item_t *policy_case = NULL;
             fileset_item_t *p_fileset = NULL;
@@ -1622,7 +1631,7 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs,
 #endif
 
 #ifdef HAVE_MIGR_POLICY
-        if ( need_fileclass_update( p_attrs, MIGR_POLICY ) == TRUE )
+        if ( get_migr_class && need_fileclass_update( p_attrs, MIGR_POLICY ) == TRUE )
         {
             policy_item_t *policy_case = NULL;
             fileset_item_t *p_fileset = NULL;
