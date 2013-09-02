@@ -1120,8 +1120,9 @@ static void ManageEntry( lmgr_t * lmgr, purge_item_t * p_item )
 
 /* acknowledging helper */
 #define Acknowledge( _q, _status, _fdbk1, _fdbk2 )  do {                \
-                               feedback[PURGE_FDBK_BLOCKS] = _fdbk1;   \
-                               feedback[PURGE_SPECIFIC_COUNT] = _fdbk2;  \
+                               memset(feedback, 0, sizeof(feedback));   \
+                               feedback[PURGE_FDBK_BLOCKS] = _fdbk1;    \
+                               feedback[PURGE_SPECIFIC_COUNT] = _fdbk2; \
                                Queue_Acknowledge( _q, _status, feedback, PURGE_FDBK_COUNT ); \
                             } while(0)
 
