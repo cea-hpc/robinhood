@@ -1484,6 +1484,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
 /* acknowledging helper */
 #define Acknowledge( _q, _status, _fdbk1, _fdbk2 )  do {            \
+                               memset(feedback, 0, sizeof(feedback)); \
                                if (no_queue)                        \
                                  rc = (_status);                    \
                                else {                               \
