@@ -384,9 +384,13 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         /* set wait db flag */
         set_db_wait_flag(  );
 
-        EntryProcessor_Push( op );
-
-        wait_for_db_callback(  );
+#ifndef _BENCH_SCAN
+        /* Push directory to the pipeline */
+        EntryProcessor_Push(op);
+        wait_for_db_callback();
+#else
+        EntryProcessor_Release(op);
+#endif
     }
 
     /* reset threads stats */
@@ -932,7 +936,9 @@ static int process_one_entry(thread_scan_info_t *p_info,
 
 #ifndef _BENCH_SCAN
         /* Push entry to the pipeline */
-        EntryProcessor_Push( op );
+        EntryProcessor_Push(op);
+#else
+        EntryProcessor_Release(op);
 #endif
 
     }
@@ -1231,6 +1237,8 @@ static int process_one_task(robinhood_task_t *p_task,
 #ifndef _BENCH_SCAN
         /* Push directory to the pipeline */
         EntryProcessor_Push(op);
+#else
+        EntryProcessor_Release(op);
 #endif
     }
     return 0;
