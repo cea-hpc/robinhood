@@ -1103,6 +1103,14 @@ static int process_one_task(robinhood_task_t *p_task,
                             unsigned int *nb_errors)
 {
     int rc;
+#ifdef _BENCH_DB
+    /* to map entry_id_t to an integer  we can increment */
+    struct id_map { uint64_t high; uint64_t low; } *fakeid;
+    /* root task: insert 500k entries with root entry id + N.
+     * no subtask */
+    if (p_task->parent_task != NULL)
+        return 0;
+#endif
 
     /* if this is the root task, check that the filesystem is still mounted */
     if (p_task->parent_task == NULL)
@@ -1168,6 +1176,7 @@ static int process_one_task(robinhood_task_t *p_task,
             return rc;
         }
     }
+#ifndef _BENCH_DB
     else
     {
         /* read the directory and process each entry */
@@ -1177,6 +1186,10 @@ static int process_one_task(robinhood_task_t *p_task,
     }
 
     if (p_task->depth > 0)
+#else
+    int i;
+    for (i = 1; i < 500000 && !p_info->force_stop; i++)
+#endif
     {
         /* Fill dir info and push it to the pileline for checking alerts on it,
          * and possibly purge it if it is empty for a long time.
@@ -1193,22 +1206,38 @@ static int process_one_task(robinhood_task_t *p_task,
 
         /* set entry ID */
         op->entry_id = p_task->dir_id;
+#ifdef _BENCH_DB
+        /* add i to the entry id */
+        fakeid = (struct id_map*)&op->entry_id;
+        fakeid->low += i;
+#endif
         op->entry_id_is_set = TRUE;
 
         /* Id already known */
         op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
 
+#ifndef _BENCH_DB
         if (p_task->parent_task)
         {
             ATTR_MASK_SET(&op->fs_attrs, parent_id);
             ATTR(&op->fs_attrs, parent_id) = p_task->parent_task->dir_id;
         }
+#else
+        ATTR_MASK_SET(&op->fs_attrs, parent_id);
+        ATTR(&op->fs_attrs, parent_id) = p_task->dir_id;
+#endif
 
         ATTR_MASK_SET(&op->fs_attrs, name);
         strcpy(ATTR(&op->fs_attrs, name), basename(p_task->path));
+#ifdef _BENCH_DB
+        sprintf(ATTR(&op->fs_attrs, name) + strlen(ATTR(&op->fs_attrs, name)), "%d", i);
+#endif
 
         ATTR_MASK_SET(&op->fs_attrs, fullpath);
         strcpy(ATTR(&op->fs_attrs, fullpath), p_task->path);
+#ifdef _BENCH_DB
+        sprintf(ATTR(&op->fs_attrs, fullpath) + strlen(ATTR(&op->fs_attrs, fullpath)), "%d", i);
+#endif
 
 #ifdef ATTR_INDEX_invalid
         ATTR_MASK_SET(&op->fs_attrs, invalid);
