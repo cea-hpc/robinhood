@@ -799,6 +799,14 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
 
     case 1:                     /* EOF */
     case -EINVAL:               /* FS unmounted */
+    case -EPROTO:               /* error in KUC channel */
+
+        /* warn if it is an error */
+        if (rc != 1)
+            DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                       "Error %d in llapi_changelog_recv(): %s. "
+                       "Trying to reopen it.",
+                       rc, strerror(-rc));
 
         if (one_shot)
             return cl_stop;
@@ -836,12 +844,6 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
     case -EINTR:
         DisplayLog( LVL_EVENT, CHGLOG_TAG,
                     "llapi_changelog_recv() interrupted. Retrying." );
-        return cl_continue;
-
-    case -EPROTO:
-        /* Unknown event. Skip it. */
-        DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                    "llapi_changelog_recv() got an unknown changelog message. Retrying." );
         return cl_continue;
 
     default:
