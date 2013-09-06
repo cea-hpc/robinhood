@@ -441,7 +441,7 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
     rc = llapi_changelog_recv( info->chglog_hdlr, pp_rec);
 
     /* is it EOF ? */
-    if ( rc == 1 )
+    if (rc == 1  || rc == -EINVAL || rc == -EPROTO)
     {
         /* do we exit at EOF? */
         if ( !one_shot )
