@@ -22,13 +22,13 @@ function formatSizeNumber( $number )
 {
     if ( $number < 1024)
         return $number.' B';
-    else if ( $number > 1024 && $number < 1048576 )
+    else if ( $number >= 1024 && $number < 1048576 )
         return ( round( $number/1024 , 2 ) ).' KB';
-    else if ( $number > 1048576 && $number < 1073741824 )
+    else if ( $number >= 1048576 && $number < 1073741824 )
         return ( round ( $number/1048576 , 2 ) ).' MB';
-    else if ( $number > 1073741824 && $number < 1099511627776 )
+    else if ( $number >= 1073741824 && $number < 1099511627776 )
         return ( round( $number/1073741824 , 2 ) ).' GB';
-    else if ( $number > 1099511627776 && $number < 1125899906842624 )
+    else if ( $number >= 1099511627776 && $number < 1125899906842624 )
         return ( round( $number/1099511627776 , 2 ) ).' TB';
     else
         return ( round( $number/1125899906842624 , 2 )  ).' PB';
