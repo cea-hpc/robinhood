@@ -1,3 +1,33 @@
+Changes between version 2.4.2 and 2.4.3:
+* [lustre] support of Lustre 2.4
+    - DNE not fully supported yet: if running multiple MDS,
+      run 1 instance of changelog reader per MDT.
+    - Detect file layout changes (new changelog record CL_LAYOUT).
+* [lustre] added statistics about changelog processing speed.
+* [policies] new parameter 'recheck_ignored_classes' to allow/avoid
+    rematching entries from ignored classes in migration and purge policies.
+* [web ui] security patch to prevent from SQL injection.
+* [lustre] fix stack overflow when handling files with wide stripes.
+* [DB] better handling of ER_QUERY_INTERRUPTED MySQL error.
+* [DB] fixed DB connection leaks.
+* Backup & HSM modes:
+   - [fix] fix segfault in import command when uid/gid can't be resolved.
+   - [rbh-report] fix bad display of total volume with -u or -g.
+* Migration policy features and optimizations:
+   - [feature] new parameter 'lru_sort_attr' to select LRU sort criteria for policy application.
+        Previously based on last modification time, it can now be one of:
+        creation, last_archive, last_mod, last_access.
+   - [feature] special meaning for condition 'last_archive == 0':
+        matches entries that have never been archived.
+   - [feature] suspend migration if copy error rate exceed a threshold.
+        This is controled by 'suspend_error_pct' and 'suspend_error_min' parameters.
+   - [stats] migration stats while migration is running: added skipped and error counters.
+   - [optim] avoid rechecking ignored entries at each pass
+   - [optim] smoother feeding of migration workers queue
+* Code & environment:
+   - [build] can specify a path to alternative lustre source tree in ./configure
+   - [tests] allow specifying an alternative path to lfs command
+
 Changes between version 2.4.1 and 2.4.2:
 * [general] immediate exit on ctrl+C: don't process all queued operations, just finish current.
 * [general] LSB compliance if daemon is already started.

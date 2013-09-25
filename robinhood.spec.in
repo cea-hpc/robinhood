@@ -63,7 +63,7 @@ Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
 
 
 Summary: Robinhood - Policy engine and accounting tool for large filesystems
-License: CeCILL
+License: CeCILL-C
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
 Source0: @PACKAGE@-%{version}.tar.gz
@@ -75,6 +75,7 @@ process all its tasks in parallel, so it is particulary adapted for managing
 large file systems with millions of entries and petabytes of data.
 
 Generated using options: @ac_configure_args@
+
 
 %package adm
 Summary: admin/config helper for Robinhood PolicyEngine
