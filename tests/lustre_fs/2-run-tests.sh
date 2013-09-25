@@ -4741,6 +4741,8 @@ function recov_filters
         # skip no match if flavor is 'since'
         [[ $flavor == since ]] && [[ $d == nomatch ]] && continue
         echo "sqdlqsldsqmdl" >> $ROOT/dir.$d/delta || error "appending dir.$d/delta"
+        # force modification (in case Lustre don't report small data changes)
+        touch $ROOT/dir.$d/delta || error "touching dir.$d/delta"
         echo "qsldjkqlsdkqs" >> $ROOT/dir.$d/nobkp || error "writting to dir.$d/nobkp"
         mv $ROOT/dir.$d/rename $ROOT/dir.$d/rename.mv || error "renaming 'rename'"
         mv $ROOT/dir.$d/empty_rnm $ROOT/dir.$d/empty_rnm.mv || error "renaming 'empty_rnm'"
@@ -4753,6 +4755,7 @@ function recov_filters
     fi
 
     if [[ $flavor == since ]]; then
+        [ "$DEBUG" = "1" ] && $LFS changelog lustre
         # don't update non-modified objects
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
     else
@@ -7706,7 +7709,7 @@ function TEST_OTHER_PARAMETERS_2
     fi
 
     # Migration dans "fs"
-    countMigrLog=`grep "ShCmd | Command successful" rh_migr.log | wc -l`
+    countMigrLog=`grep "Archived " rh_migr.log | wc -l`
     if (( $countMigrLog != 10 )); then
         error "********** TEST FAILED (File System): $countMigrLog files migrated, but 10 expected"
         ((nbError++))

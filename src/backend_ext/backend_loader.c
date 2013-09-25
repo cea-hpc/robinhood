@@ -38,7 +38,7 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
 
     strcpy( conf->root, "/backend" );
     strcpy( conf->mnt_type, "nfs" );
-    strcpy( conf->action_cmd, "/usr/sbin/rbhext_tool" );
+    strcpy(conf->action_cmd, ""); /* default is built-in */
 #ifdef HAVE_SHOOK
     strcpy( conf->shook_cfg, "/etc/shook.cfg" );
 #endif
@@ -54,7 +54,7 @@ int Write_Backend_ConfigDefault( FILE * output )
     print_begin_block( output, 0, BACKEND_BLOCK, NULL );
     print_line( output, 1, "root          : \"/backend\"" );
     print_line( output, 1, "mnt_type      : nfs ");
-    print_line( output, 1, "action_cmd    : \"/usr/sbin/rbhext_tool\"" );
+    print_line(output, 1, "action_cmd    : <built-in copy>");
 #ifdef HAVE_SHOOK
      print_line( output, 1, "shook_cfg    : \"/etc/shook.cfg\"" );
 #endif
@@ -114,11 +114,20 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetStringParam( block, BACKEND_BLOCK, "action_cmd", 0,
-                         conf->action_cmd, RBH_PATH_MAX,
-                         NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    rc = GetStringParam(block, BACKEND_BLOCK, "action_cmd", 0,
+                        conf->action_cmd, RBH_PATH_MAX,
+                        NULL, NULL, msg_out);
+    if (rc == ENOENT) /* use built-in copy */
+        conf->action_cmd[0] = '\0';
+    else if (rc != 0) /* error */
         return rc;
+    else if (EMPTY_STRING(conf->action_cmd))
+    /* rc == 0 and cmd is empty: perhaps the user wanted to perform dry-run copy.
+       so notify him it will use the built-in copy */
+    {
+        DisplayLog(LVL_MAJOR, "BkConfig", "Notice: "BACKEND_BLOCK"::action_cmd "
+                   "is empty in config file: will use built-in copy");
+    }
 
     rc = GetStringParam( block, BACKEND_BLOCK, "mnt_type", 0,
                          conf->mnt_type, RBH_NAME_MAX, NULL, NULL, msg_out );
@@ -183,8 +192,10 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line( output, 1, "# shook server configuration" );
     print_line( output, 1, "shook_cfg     = \"/etc/shook.cfg\";" );
 #endif
-    print_line( output, 1, "# copy wrapper script" );
-    print_line( output, 1, "action_cmd    = \"/usr/sbin/rbhext_tool\";" );
+    print_line(output, 1, "# By default, the copy is done by a built-in function");
+    print_line(output, 1, "# Uncomment the following line to use an external command.");
+    print_line(output, 1, "# /!\\ Calling an external command introduce an extra cost.");
+    print_line(output, 1, "#action_cmd    = \"/usr/sbin/rbhext_tool\";");
     print_line( output, 1, "copy_timeout  = 6h;" );
     print_line( output, 1, "xattr_support = FALSE;");
     print_line( output, 1, "# check if the backend is mounted on startup" );
@@ -208,7 +219,10 @@ int Backend_Start( backend_config_t * config, int flags )
     DisplayLog(LVL_DEBUG, BKL_TAG, "shook_cfg        =   \"%s\"", config->shook_cfg );
 #endif
     DisplayLog(LVL_DEBUG, BKL_TAG, "check_mounted    =   %s", bool2str(config->check_mounted));
-    DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd       =   \"%s\"", config->action_cmd );
+    if (EMPTY_STRING(config->action_cmd))
+        DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd       =   <built-in copy>");
+    else
+        DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd       =   \"%s\"", config->action_cmd);
     DisplayLog(LVL_DEBUG, BKL_TAG, "copy_timeout     =   %us", config->copy_timeout );
     DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support    =   %s",  bool2str(config->xattr_support) );
     DisplayLog(LVL_DEBUG, BKL_TAG, "archive_symlinks =   %s",  bool2str(config->archive_symlinks) );

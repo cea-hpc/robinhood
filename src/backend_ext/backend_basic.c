@@ -27,6 +27,7 @@
 #include "RobinhoodMisc.h"
 #include "global_config.h"
 #include "xplatform_print.h"
+#include "Memory.h"
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -890,6 +891,126 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
     return 0;
 }
 
+static int file_clone_attrs(const char *tgt, const struct stat *st)
+{
+    struct utimbuf tbuf;
+
+    if (lchown(tgt, st->st_uid, st->st_gid))
+        return -errno;
+    if (chmod(tgt, st->st_mode & 07777))
+        return -errno;
+
+    tbuf.actime = st->st_atime;
+    tbuf.modtime = st->st_mtime;
+
+    if (utime(tgt, &tbuf))
+        return -errno;
+
+    return 0;
+}
+
+static int builtin_copy(const char *src, const char *dst, int dst_flags,
+                        int save_attrs)
+{
+/* log tag for built-in copy */
+#define CP_TAG "cp"
+    int srcfd, dstfd;
+    struct stat st_src, st_dst;
+    int rc = 0;
+    size_t  io_size;
+    ssize_t r = 0, w = 0;
+    char *io_buff = NULL;
+
+    srcfd = open(src, O_RDONLY | O_NOATIME);
+    if (srcfd < 0)
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Can't open %s for read: %s",
+                   src, strerror(-rc));
+        return rc;
+    }
+
+    /* get src attrs */
+    if (fstat(srcfd, &st_src))
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Failed to stat %s: %s",
+                   src, strerror(-rc));
+        goto close_src;
+    }
+
+    dstfd = open(dst, dst_flags, st_src.st_mode & 07777);
+    if (dstfd < 0)
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Can't open %s for write: %s",
+                   src, strerror(-rc));
+        goto close_src;
+    }
+
+    /* needed to get the biggest IO size of source and destination.  */
+    if (fstat(dstfd, &st_dst))
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Failed to stat %s: %s",
+                   dst, strerror(-rc));
+        goto close_dst;
+    }
+    io_size = MAX2(st_src.st_blksize, st_dst.st_blksize);
+    DisplayLog(LVL_DEBUG, CP_TAG, "using IO size = %"PRI_SZ, io_size);
+    io_buff = MemAlloc(io_size);
+    if (!io_buff)
+    {
+        rc = -ENOMEM;
+        goto close_dst;
+    }
+
+    /* do the copy */
+    while ((r = read(srcfd, io_buff, io_size)) > 0)
+    {
+        w = write(dstfd, io_buff, r);
+        if (w < 0)
+        {
+            rc = -errno;
+            DisplayLog(LVL_MAJOR, CP_TAG, "Copy error (%s -> %s): %s",
+                       src, dst, strerror(-rc));
+            goto out_free;
+        }
+        else if (w < r)
+        {
+            DisplayLog(LVL_MAJOR, CP_TAG, "Short write on %s, aborting copy", dst);
+            rc = -EAGAIN;
+            goto out_free;
+        }
+    }
+
+    if (r < 0) /* error */
+    {
+        rc = -errno;
+        goto out_free;
+    }
+    /* else (r == 0): EOF */
+
+out_free:
+    MemFree(io_buff);
+close_dst:
+    if ((close(dstfd) < 0) && (rc == 0))
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "close failed on %s: %s",
+                   dst, strerror(-rc));
+    }
+
+close_src:
+    close(srcfd);
+
+    /* save attributes if the copy was sucessfull, and if asked */
+    if (rc == 0)
+        rc = file_clone_attrs(dst, &st_src);
+
+    return rc;
+} /* builtin_copy */
+
 
 /**
  * Performs an archiving operation.
@@ -1036,11 +1157,16 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         }
 #endif
 
-        /* execute the archive command */
-        if ( hints )
-            rc = execute_shell_command( config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
+        /* execute the archive command (or built-in, if not set) */
+        if (EMPTY_STRING(config.action_cmd))
+            rc = builtin_copy(fspath, tmp, O_WRONLY | O_CREAT | O_TRUNC, TRUE);
         else
-            rc = execute_shell_command( config.action_cmd, 3, "ARCHIVE", fspath, tmp );
+        {
+            if (hints)
+                rc = execute_shell_command(config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
+            else
+                rc = execute_shell_command(config.action_cmd, 3, "ARCHIVE", fspath, tmp);
+        }
 
         if (rc)
         {
@@ -1204,7 +1330,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     }
 
     return 0;
-}
+} /* archive */
 
 /**
  * Performs entry removal in the backend
@@ -1570,8 +1696,11 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     #endif
     #else
             /* full restore (even data) */
-            rc = execute_shell_command( config.action_cmd, 3, "RESTORE",
-                                        backend_path, fspath );
+            if (EMPTY_STRING(config.action_cmd))
+                rc = builtin_copy(backend_path, fspath, O_WRONLY, FALSE);
+            else
+                rc = execute_shell_command(config.action_cmd, 3, "RESTORE",
+                                           backend_path, fspath);
             if (rc)
                 return RS_ERROR;
             /* TODO: remove partial copy */
