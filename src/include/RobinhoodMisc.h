@@ -191,6 +191,7 @@ int CreateWithoutStripe( const char * path, mode_t mode, int overwrite );
 int            BuildFidPath( const entry_id_t * p_id /* IN */ , char *path /* OUT */  );
 int            Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int len );
 int            Lustre_GetFidFromPath( const char *fullpath, entry_id_t * p_id );
+int            Lustre_GetFidByFd(int fd, entry_id_t * p_id);
 int            Lustre_GetNameParent(const char *path, int linkno,
                                     lustre_fid *pfid, char *name, int namelen);
 

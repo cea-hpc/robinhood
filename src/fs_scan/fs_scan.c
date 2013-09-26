@@ -1105,7 +1105,7 @@ static int process_one_task(robinhood_task_t *p_task,
     int rc;
 #ifdef _BENCH_DB
     /* to map entry_id_t to an integer  we can increment */
-    struct id_map { uint64_t high; uint64_t low; } *fakeid;
+    struct id_map { uint64_t high; uint64_t low; } * volatile fakeid;
     /* root task: insert 500k entries with root entry id + N.
      * no subtask */
     if (p_task->parent_task != NULL)

@@ -128,4 +128,10 @@ static inline int rh_list_empty(const struct list_head *head)
          l = tmp,                                                       \
              tmp = rh_list_entry(l->member.prev, typeof(*l), member))
 
+/* Iterate in a list starting after any element in it. */
+#define rh_list_for_each_entry_after(l, head, start, member)   \
+    for(l =  rh_list_entry(start->member.next, typeof(*l), member); \
+        &l->member != (head);                                  \
+        l = rh_list_entry(l->member.next, typeof(*l), member))
+
 #endif  /* _RH_LIST_H */

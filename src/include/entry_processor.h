@@ -44,6 +44,7 @@ typedef struct entry_proc_config_t
 {
     unsigned int   nb_thread;
     unsigned int   max_pending_operations;
+    unsigned int   max_batch_size;
 
     alert_item_t  *alert_list;
     unsigned int   alert_count;
@@ -82,7 +83,13 @@ struct entry_proc_op_t;
 /**
  * Definition of pipeline stage functions
  */
-typedef int    ( *step_function_t ) ( struct entry_proc_op_t *, lmgr_t * lmgr );
+typedef int (*step_function_t) (struct entry_proc_op_t *, lmgr_t * lmgr);
+typedef int (*step_batch_function_t) (struct entry_proc_op_t **, int count, lmgr_t * lmgr);
+
+/**
+ * Callback to check if 2 operations can be batched together.
+ */
+typedef int (*test_batchable_func_t)(struct entry_proc_op_t *, struct entry_proc_op_t *);
 
 /**
  * Definition of a pipeline stage
@@ -91,7 +98,9 @@ typedef struct pipeline_stage_t
 {
     unsigned int   stage_index;                  /**< index of this puipeline stage */
     const char    *stage_name;                   /**< name of this pipeline stage */
-    step_function_t stage_function;              /**< function for performing the stage */
+    step_function_t       stage_function;        /**< function for performing the stage */
+    step_batch_function_t stage_batch_function;  /**< function for performing the stage with operation batching */
+    test_batchable_func_t test_batchable;        /**< function to check if 2 operations are batchable for the batch step */
     int            stage_flags;                  /**< stage qualifiers */
     unsigned int   max_thread_count;             /**< 0 = UNLIMITED */
 
@@ -138,7 +147,7 @@ typedef enum operation_type_t
  * @param struct entry_proc_op_t * : the structure associated to the entry
  * @param void * : InfoCollector specific parameter
  */
-typedef int    ( *callback_func_t ) ( lmgr_t *, struct entry_proc_op_t *, void * );
+typedef int (*callback_func_t) (lmgr_t *, struct entry_proc_op_t *, void *);
 
 /**
  * function prototype for freeing  extra_info
@@ -278,8 +287,12 @@ void            EntryProcessor_Push( entry_proc_op_t * p_entry );
  * @param remove This flag indicates that the entry must be removed
  *        from pipeline (basically after the last step).
  */
-int            EntryProcessor_Acknowledge( entry_proc_op_t * p_op,
-                                           unsigned int next_stage, int remove );
+int            EntryProcessor_Acknowledge(entry_proc_op_t * p_op,
+                                          unsigned int next_stage, int remove);
+
+/** Acknowledge a batch of operations */
+int EntryProcessor_AcknowledgeBatch(entry_proc_op_t **p_op, unsigned int count,
+                                    unsigned int next_stage, int remove);
 
 /**
  * Set entry id.

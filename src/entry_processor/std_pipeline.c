@@ -42,11 +42,16 @@ static int  EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_get_info_fs( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_reporting( struct entry_proc_op_t *, lmgr_t * );
-static int  EntryProc_db_apply( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_pre_apply(struct entry_proc_op_t *, lmgr_t *);
+static int  EntryProc_db_apply(struct entry_proc_op_t *, lmgr_t *);
+static int  EntryProc_db_batch_apply(struct entry_proc_op_t **, int, lmgr_t *);
 #ifdef HAVE_CHANGELOGS
 static int  EntryProc_chglog_clr( struct entry_proc_op_t *, lmgr_t * );
 #endif
 static int  EntryProc_rm_old_entries( struct entry_proc_op_t *, lmgr_t * );
+
+/* forward declaration to check batchable operations for db_apply stage */
+static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *);
 
 /* pipeline stages */
 enum {
@@ -54,6 +59,7 @@ enum {
     STAGE_GET_INFO_DB,
     STAGE_GET_INFO_FS,
     STAGE_REPORTING,
+    STAGE_PRE_APPLY,
     STAGE_DB_APPLY,
 #ifdef HAVE_CHANGELOGS
     STAGE_CHGLOG_CLR,
@@ -74,15 +80,18 @@ const pipeline_descr_t std_pipeline_descr =
 
 /** pipeline stages definition */
 pipeline_stage_t std_pipeline[] = {
-    {STAGE_GET_FID, "STAGE_GET_FID", EntryProc_get_fid,
+    {STAGE_GET_FID, "STAGE_GET_FID", EntryProc_get_fid, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
-    {STAGE_GET_INFO_DB, "STAGE_GET_INFO_DB", EntryProc_get_info_db,
+    {STAGE_GET_INFO_DB, "STAGE_GET_INFO_DB", EntryProc_get_info_db, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC | STAGE_FLAG_ID_CONSTRAINT, 0},
-    {STAGE_GET_INFO_FS, "STAGE_GET_INFO_FS", EntryProc_get_info_fs,
+    {STAGE_GET_INFO_FS, "STAGE_GET_INFO_FS", EntryProc_get_info_fs, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
-    {STAGE_REPORTING, "STAGE_REPORTING", EntryProc_reporting,
+    {STAGE_REPORTING, "STAGE_REPORTING", EntryProc_reporting, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_ASYNC, 0},
+    {STAGE_PRE_APPLY, "STAGE_PRE_APPLY", EntryProc_pre_apply, NULL, NULL,
+     STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
     {STAGE_DB_APPLY, "STAGE_DB_APPLY", EntryProc_db_apply,
+        EntryProc_db_batch_apply, dbop_is_batchable, /* batched ops management */
 #if defined( _SQLITE )
      /* SQLite locks the whole file for modifications...
      * So, 1 single threads is enough at this step.
@@ -95,7 +104,7 @@ pipeline_stage_t std_pipeline[] = {
 #ifdef HAVE_CHANGELOGS
     /* only 1 thread here because commiting records must be sequential
      * (in the same order as changelog) */
-    {STAGE_CHGLOG_CLR, "STAGE_CHGLOG_CLR", EntryProc_chglog_clr,
+    {STAGE_CHGLOG_CLR, "STAGE_CHGLOG_CLR", EntryProc_chglog_clr, NULL, NULL, /* XXX could be batched? */
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 1},
 
      /* acknowledging records must be sequential,
@@ -105,7 +114,7 @@ pipeline_stage_t std_pipeline[] = {
 #endif
     /* this step is for mass update / mass remove operations when
      * starting/ending a FS scan. */
-    {STAGE_RM_OLD_ENTRIES, "STAGE_RM_OLD_ENTRIES", EntryProc_rm_old_entries,
+    {STAGE_RM_OLD_ENTRIES, "STAGE_RM_OLD_ENTRIES", EntryProc_rm_old_entries, NULL, NULL,
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 0}
 };
 
@@ -518,7 +527,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
 #ifdef _DROP_RELEASED
                     /* remove entry from PE working set */
                     p_op->db_op_type = OP_TYPE_REMOVE;
-                    return STAGE_DB_APPLY;
+                    return STAGE_PRE_APPLY;
 #else
                     ATTR_MASK_SET( &p_op->fs_attrs, status );
                     ATTR( &p_op->fs_attrs, status ) = STATUS_RELEASED;
@@ -546,7 +555,7 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
                 {
                     /* Entry is now 'released': remove it from PE working set */
                     p_op->db_op_type = OP_TYPE_REMOVE;
-                    return STAGE_DB_APPLY;
+                    return STAGE_PRE_APPLY;
                 }
                 else /* entry is not in PE working set */
                 {
@@ -735,7 +744,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                 if ( p_op->db_exists )
                 {
                     p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-                    return STAGE_DB_APPLY;
+                    return STAGE_PRE_APPLY;
                 }
                 else
                     /* ignore the record */
@@ -767,7 +776,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                 else
                     p_op->db_op_type = OP_TYPE_REMOVE_LAST;
 #endif
-                return STAGE_DB_APPLY;
+                return STAGE_PRE_APPLY;
             }
 #endif
         }
@@ -776,7 +785,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             /* Remove the name only. Keep the inode information since
              * there is more file names refering to it. */
             p_op->db_op_type = OP_TYPE_REMOVE_ONE;
-            return STAGE_DB_APPLY;
+            return STAGE_PRE_APPLY;
         }
         else {
             /* UNLINK with unknown file in database -> ignore the
@@ -794,14 +803,14 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         /* remove only the old name */
         /* TODO: could be OP_TYPE_REMOVE_ONE or OP_TYPE_REMOVE_LAST. */
         p_op->db_op_type = OP_TYPE_REMOVE_ONE;
-        return STAGE_DB_APPLY;
+        return STAGE_PRE_APPLY;
     }
     else if ( logrec->cr_type == CL_RMDIR )
     {
         if (p_op->db_exists)
         {
             p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-            return STAGE_DB_APPLY;
+            return STAGE_PRE_APPLY;
         }
         else
         {
@@ -1757,7 +1766,7 @@ rm_record:
         /* drop the record */
         goto skip_record;
 
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+    rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, FALSE);
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
@@ -1820,7 +1829,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* acknowledge now if the stage is asynchronous */
     if ( stage_info->stage_flags & STAGE_FLAG_ASYNC )
     {
-        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, FALSE);
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
                         stage_info->stage_name );
@@ -1832,7 +1841,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* acknowledge now if the stage was synchronous */
     if ( !( stage_info->stage_flags & STAGE_FLAG_ASYNC ) )
     {
-        rc = EntryProcessor_Acknowledge( p_op, STAGE_DB_APPLY, FALSE );
+        rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, FALSE);
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
                         stage_info->stage_name );
@@ -1841,11 +1850,26 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     return 0;
 }
 
+static int  dbop_is_batchable(struct entry_proc_op_t *first,
+                              struct entry_proc_op_t *next)
+{
+    if (first->db_op_type != OP_TYPE_INSERT
+        && first->db_op_type != OP_TYPE_UPDATE
+        && first->db_op_type != OP_TYPE_NONE)
+        return FALSE;
+    else if (first->db_op_type != next->db_op_type)
+        return FALSE;
+    /* starting from here, db_op_type is the same for the 2 operations */
+    /* all NOOP operations can be batched */
+    else if (first->db_op_type == OP_TYPE_NONE)
+        return TRUE;
+    else
+        /* batch operations with the same attr mask */
+        return (first->fs_attrs.attr_mask == next->fs_attrs.attr_mask);
+}
 
-/**
- * Perform an operation on database.
- */
-int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
+/** operation cleaning before the db_apply step */
+int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
@@ -1856,13 +1880,13 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #ifdef ATTR_INDEX_creation_time
     /* once set, never change creation time */
     if (p_op->db_op_type != OP_TYPE_INSERT)
-        ATTR_MASK_UNSET( &p_op->fs_attrs, creation_time );
+        ATTR_MASK_UNSET(&p_op->fs_attrs, creation_time);
 #endif
 
 #ifdef HAVE_CHANGELOGS
     /* handle nlink. We don't want the values from the filesystem if
      * we're not doing a scan. */
-    if ( p_op->extra_info.is_changelog_record ) {
+    if (p_op->extra_info.is_changelog_record) {
         CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
 
         if (logrec->cr_type == CL_CREATE) {
@@ -1969,6 +1993,37 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
+    rc = EntryProcessor_Acknowledge(p_op, STAGE_DB_APPLY, FALSE);
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
+                   stage_info->stage_name);
+    return rc;
+
+#ifdef HAVE_SHOOK
+skip_record:
+#ifdef HAVE_CHANGELOGS
+    if (p_op->extra_info.is_changelog_record)
+    /* do nothing on DB but ack the record */
+        rc = EntryProcessor_Acknowledge(p_op, STAGE_CHGLOG_CLR, FALSE);
+    else
+#endif
+    /* remove the operation from pipeline */
+    rc = EntryProcessor_Acknowledge(p_op, -1, TRUE);
+
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc);
+    return rc;
+#endif
+}
+
+/**
+ * Perform a single operation on the database.
+ */
+int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
+{
+    int            rc;
+    const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
+
     /* insert to DB */
     switch ( p_op->db_op_type )
     {
@@ -2033,23 +2088,81 @@ int EntryProc_db_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     stage_info->stage_name );
 
     return rc;
+}
 
-#ifdef HAVE_SHOOK
-skip_record:
+/**
+ * Perform a batch of operations on the database.
+ */
+int EntryProc_db_batch_apply(struct entry_proc_op_t **ops, int count,
+                             lmgr_t *lmgr)
+{
+    int            i, rc = 0;
+    const pipeline_stage_t *stage_info = &entry_proc_pipeline[ops[0]->pipeline_stage];
+    entry_id_t **ids = NULL;
+    attr_set_t **attrs = NULL;
+
+    /* allocate arrays of ids and attrs */
+    ids = MemCalloc(count, sizeof(*ids));
+    if (!ids)
+        return -ENOMEM;
+    attrs = MemCalloc(count, sizeof(*attrs));
+    if (!attrs)
+    {
+        rc = -ENOMEM;
+        goto free_ids;
+    }
+    for (i = 0; i < count; i++)
+    {
+        ids[i] = &ops[i]->entry_id;
+        attrs[i] = &ops[i]->fs_attrs;
+    }
+
+    /* insert to DB */
+    switch (ops[0]->db_op_type)
+    {
+    case OP_TYPE_NONE:
+        /* noop */
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "NoOp(%u ops: "DFID"...)", count,
+                   PFID(ids[0]));
+        rc = 0;
+        break;
+    case OP_TYPE_INSERT:
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "BatchInsert(%u ops: "DFID"...)",
+                   count, PFID(ids[0]));
+        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, FALSE);
+        break;
+    case OP_TYPE_UPDATE:
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "BatchUpdate(%u ops: "DFID"...)",
+                   count, PFID(ids[0]));
+        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, TRUE);
+        break;
+    default:
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Unexpected operation for batch op: %d",
+                   ops[0]->db_op_type);
+        rc = -1;
+    }
+
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing batch database operation.", rc);
+
+    /* Acknowledge the operation if there is a callback */
 #ifdef HAVE_CHANGELOGS
-    if ( p_op->extra_info.is_changelog_record )
-    /* do nothing on DB but ack the record */
-        rc = EntryProcessor_Acknowledge( p_op, STAGE_CHGLOG_CLR, FALSE );
+    if (ops[0]->callback_func)
+        rc = EntryProcessor_AcknowledgeBatch(ops, count, STAGE_CHGLOG_CLR, FALSE);
     else
 #endif
-    /* remove the operation from pipeline */
-        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+        rc = EntryProcessor_AcknowledgeBatch(ops, count, -1, TRUE);
 
-    if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
+                   stage_info->stage_name);
+
+    MemFree(attrs);
+free_ids:
+    MemFree(ids);
     return rc;
-#endif
 }
+
 
 #ifdef HAVE_CHANGELOGS
 int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmgr )

@@ -39,6 +39,8 @@ typedef struct __list_by_stage__
     unsigned int   nb_unprocessed_entries;       /* number of entries to be processed in this list */
     unsigned int   nb_processed_entries;         /* number of entries processed in this list */
     unsigned long long total_processed;          /* total number of processed entries since start */
+    unsigned long long nb_batches;               /* number of batched steps */
+    unsigned long long total_batched_entries;    /* total number of entries processed as batches */
     struct timeval total_processing_time;        /* total amount of time for processing entries at this stage */
     pthread_mutex_t stage_mutex;
 } list_by_stage_t;
@@ -66,7 +68,9 @@ static pthread_cond_t terminate_cond = PTHREAD_COND_INITIALIZER;
 static enum {NONE=0, FLUSH=1, BREAK=2}  terminate_flag = NONE;
 static int     nb_finished_threads = 0;
 
-static entry_proc_op_t *EntryProcessor_GetNextOp(void);
+/* forward declarations */
+static entry_proc_op_t **EntryProcessor_GetNextOp(int *count);
+static void print_op_stats(entry_proc_op_t * p_op, unsigned int stage, const char *what);
 
 typedef struct worker_info__
 {
@@ -101,9 +105,10 @@ static void dump_entry_op( entry_proc_op_t * p_op )
 /* worker thread for pipeline */
 static void   *entry_proc_worker_thr( void *arg )
 {
-    entry_proc_op_t *p_op;
+    entry_proc_op_t **list_op;
     int            rc;
     worker_info_t *myinfo = ( worker_info_t * ) arg;
+    int count;
 
     DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Starting pipeline worker thread #%u", myinfo->index );
 
@@ -116,10 +121,34 @@ static void   *entry_proc_worker_thr( void *arg )
         exit( 1 );
     }
 
-    while ( ( p_op = EntryProcessor_GetNextOp(  ) ) != NULL )
+    while ((list_op = EntryProcessor_GetNextOp(&count)) != NULL)
     {
-        const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-        stage_info->stage_function( p_op, &myinfo->lmgr );
+        const pipeline_stage_t *stage_info = &entry_proc_pipeline[list_op[0]->pipeline_stage];
+        if (count == 1)
+        {
+            /* preferably call single entry function, if it exists */
+            if (stage_info->stage_function)
+                stage_info->stage_function(list_op[0], &myinfo->lmgr);
+            /* else, call batch function if it exists */
+            else if (stage_info->stage_batch_function)
+                stage_info->stage_batch_function(list_op, count, &myinfo->lmgr);
+            else
+                /* no function! */
+                RBH_BUG("No function is defined for a pipeline step");
+        }
+        else if (count > 1)
+        {
+            /* call batch function, if it exists */
+            if (stage_info->stage_batch_function)
+                stage_info->stage_batch_function(list_op, count, &myinfo->lmgr);
+            else
+                /* no batch function! */
+                RBH_BUG("Batched returned whereas no batch function is defined for this stage");
+        }
+        else
+            RBH_BUG("Empty operation list returned");
+
+        MemFree(list_op);
     }
 
     if ( !terminate_flag )
@@ -201,6 +230,8 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
         pipeline[i].nb_unprocessed_entries = 0;
         pipeline[i].nb_processed_entries = 0;
         pipeline[i].total_processed = 0;
+        pipeline[i].nb_batches = 0;
+        pipeline[i].total_batched_entries = 0;
         timerclear( &pipeline[i].total_processing_time );
         pthread_mutex_init( &pipeline[i].stage_mutex, NULL );
     }
@@ -450,7 +481,7 @@ static int move_stage_entries( const unsigned int source_stage_index )
  * @param p_empty Output Boolean. In the case no entry is returned,
  *        this indicates if it is because the pipeline is empty.
  */
-static entry_proc_op_t *next_work_avail( int *p_empty )
+static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
 {
     entry_proc_op_t *p_curr;
     int            i;
@@ -543,7 +574,13 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
 
                     V( pl->stage_mutex );
 
-                    return p_curr;
+                    entry_proc_op_t ** listop = MemAlloc(sizeof(entry_proc_op_t*));
+                    if (listop)
+                    {
+                        *listop = p_curr;
+                        *op_count = 1;
+                    }
+                    return listop;
                 }
             }
         }
@@ -657,8 +694,44 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
                 pl->nb_threads++;
                 p_curr->being_processed = TRUE;
 
+                entry_proc_op_t ** listop = MemCalloc(entry_proc_conf.max_batch_size,
+                                                      sizeof(entry_proc_op_t*));
+                if (!listop)
+                    return NULL;
+                listop[0] = p_curr;
+                *op_count = 1;
+
+                /* check if this stage is batchable */
+                if (entry_proc_conf.max_batch_size > 1
+                    && entry_proc_pipeline[i].test_batchable != NULL
+                    && entry_proc_pipeline[i].stage_batch_function != NULL)
+                {
+                    entry_proc_op_t *p_next;
+                    rh_list_for_each_entry_after(p_next, &pl->entries, p_curr, list)
+                    {
+                        if (*op_count >= entry_proc_conf.max_batch_size)
+                            break;
+                        else if (p_next->being_processed || (p_next->pipeline_stage != i))
+                            /* entry is already beeing processed or is at a different stage */
+                            break;
+
+                        if (entry_proc_pipeline[i].test_batchable(p_curr, p_next))
+                        {
+                            pl->nb_unprocessed_entries--;
+                            p_next->being_processed = TRUE;
+
+                            listop[*op_count] = p_next;
+                            (*op_count) ++;
+                        }
+                        else
+                            /* stop at first non-batchable entry */
+                            break;
+                    }
+                }
+
                 V( pl->stage_mutex );
-                return p_curr;
+
+                return listop;
             }
 
         }
@@ -687,15 +760,17 @@ static entry_proc_op_t *next_work_avail( int *p_empty )
  * This function returns the next operation to be processed
  * according to pipeline stage/ordering constrains.
  */
-static entry_proc_op_t *EntryProcessor_GetNextOp(void)
+static entry_proc_op_t **EntryProcessor_GetNextOp(int *count)
 {
     int            is_empty;
-    entry_proc_op_t *p_op;
+    entry_proc_op_t **list_op;
+    int i;
+    *count = 0;
 
     P( work_avail_lock );
     nb_waiting_threads++;
 
-    while ( ( p_op = next_work_avail( &is_empty ) ) == NULL )
+    while ((list_op = next_work_avail(&is_empty, count)) == NULL)
     {
         if ( (terminate_flag == BREAK) || ((terminate_flag == FLUSH) && is_empty) )
         {
@@ -723,9 +798,11 @@ static entry_proc_op_t *EntryProcessor_GetNextOp(void)
 
     V( work_avail_lock );
 
-    gettimeofday( &p_op->start_processing_time, NULL );
+    gettimeofday(&(list_op[0]->start_processing_time), NULL);
+    for (i = 1; i < *count; i++)
+        list_op[i]->start_processing_time = list_op[0]->start_processing_time;
 
-    return p_op;
+    return list_op;
 }
 
 /**
@@ -749,66 +826,71 @@ void EntryProcessor_Release( entry_proc_op_t * p_op )
     MemFree( p_op );
 }
 
-
 /**
- * Advise that the entry is ready for next step of the pipeline.
- * @param next_stage The next stage to be performed for this entry
- * @param remove This flag indicates that the entry must be removed
- *        from pipeline (basically after the last step).
+ * Acknownledge a batch of operations.
  */
-int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage, int remove )
+int EntryProcessor_AcknowledgeBatch(entry_proc_op_t ** ops, unsigned int count,
+                                    unsigned int next_stage, int remove)
 {
-    const unsigned int   curr_stage = p_op->pipeline_stage;
+    const unsigned int   curr_stage = ops[0]->pipeline_stage;
     list_by_stage_t *pl = &pipeline[curr_stage];
     int            nb_moved;
     struct timeval now, diff;
+    int i;
 
-    gettimeofday( &now, NULL );
-    timersub( &now, &p_op->start_processing_time, &diff );
+    gettimeofday(&now, NULL);
+    timersub(&now, &ops[0]->start_processing_time, &diff);
 
     /* lock current stage */
-    P( pl->stage_mutex );
+    P(pl->stage_mutex);
 
     /* update stats */
-    pl->nb_processed_entries++;
-    pl->total_processed++;
-    pl->nb_threads--;
-    timeradd( &diff, &pl->total_processing_time,
-              &pl->total_processing_time );
+    pl->nb_processed_entries += count;
+    pl->total_processed += count;
 
-    if ( (!remove) && (p_op->pipeline_stage >= next_stage) )
+    if (count > 1)
     {
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "CRITICAL: entry is already at a higher pipeline stage %u >= %u !!!",
-                    p_op->pipeline_stage, next_stage );
-
-        V( pl->stage_mutex );
-
-        return -EINVAL;
+        pl->nb_batches ++;
+        pl->total_batched_entries += count;
     }
+    pl->nb_threads--;
+    timeradd(&diff, &pl->total_processing_time,
+             &pl->total_processing_time);
 
-    /* update its status (even if it's going to be removed) */
-    p_op->being_processed = FALSE;
-    p_op->pipeline_stage = next_stage;
-
-    /* remove entry, if it must be */
-    if ( remove )
+    for (i = 0; i < count; i++)
     {
-        /* update stage info. */
-        pl->nb_processed_entries--;
-
-        rh_list_del_init(&p_op->list);
-
-        /* remove entry constraints on this id */
-        if ( p_op->id_is_referenced )
+        /* sanity check */
+        if ((!remove) && (ops[i]->pipeline_stage >= next_stage))
         {
-            id_constraint_unregister( p_op );
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "CRITICAL: entry is already"
+                       " in a higher pipeline stage %u >= %u !!!",
+                       ops[i]->pipeline_stage, next_stage);
+
+            V(pl->stage_mutex);
+            RBH_BUG("Entry is already in a higher pipeline stage.");
+        }
+
+        /* update their status */
+        ops[i]->being_processed = FALSE;
+        ops[i]->pipeline_stage = next_stage;
+
+        /* remove the entry, if it must be */
+        if (remove)
+        {
+            /* update stage info. */
+            pl->nb_processed_entries--;
+            rh_list_del_init(&ops[i]->list);
+
+            /* remove entry constraints on this id */
+            if (ops[i]->id_is_referenced)
+                id_constraint_unregister(ops[i]);
         }
     }
 
-    /* We're done with the entry in that stage. */
+    /* We're done with the entries in that stage. */
 
     /* check if entries are to be moved from this stage */
-    nb_moved = move_stage_entries( curr_stage );
+    nb_moved = move_stage_entries(curr_stage);
 
     /* unlock current stage */
     V( pl->stage_mutex );
@@ -821,26 +903,39 @@ int EntryProcessor_Acknowledge( entry_proc_op_t * p_op, unsigned int next_stage,
      * so it must have been moved.
      */
     /* @TODO check configuration for max_thread_count */
-    if ( remove || ( nb_moved > 0 ) || ( entry_proc_pipeline[curr_stage].max_thread_count != 0 ) )
+    if (remove || (nb_moved > 0) || (entry_proc_pipeline[curr_stage].max_thread_count != 0))
     {
-        P( work_avail_lock );
-        if ( nb_waiting_threads > 0 )
-            pthread_cond_signal( &work_avail_cond );
-        V( work_avail_lock );
+        P(work_avail_lock);
+        if (nb_waiting_threads > 0)
+            pthread_cond_signal(&work_avail_cond);
+        V(work_avail_lock);
     }
 
     /* free entry resources if asked */
-    if ( remove )
+    if (remove)
     {
+        for (i = 0; i < count; i++)
+        {
+            /* If a limit of pending operations is specified, release a token */
+            if (entry_proc_conf.max_pending_operations > 0)
+                sem_post(&pipeline_token);
 
-        /* If a limit of pending operations is specified, release a token */
-        if ( entry_proc_conf.max_pending_operations > 0 )
-            sem_post( &pipeline_token );
-
-        EntryProcessor_Release(p_op);
+            EntryProcessor_Release(ops[i]);
+        }
     }
 
     return 0;
+}
+
+/**
+ * Advise that the entry is ready for next step of the pipeline.
+ * @param next_stage The next stage to be performed for this entry
+ * @param remove This flag indicates that the entry must be removed
+ *        from pipeline (basically after the last step).
+ */
+int EntryProcessor_Acknowledge(entry_proc_op_t * p_op, unsigned int next_stage, int remove)
+{
+    return EntryProcessor_AcknowledgeBatch(&p_op, 1, next_stage, remove);
 }
 
 static const char * entry_status_str( entry_proc_op_t * p_op, unsigned int stage )
@@ -922,12 +1017,22 @@ void EntryProcessor_DumpCurrentStages( void )
             else
                 tpe = 0.0;
 
-            DisplayLog( LVL_MAJOR, "STATS",
-                        "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu | ms/op: %.2f",
-                        i, entry_proc_pipeline[i].stage_name,
-                        pipeline[i].nb_unprocessed_entries,
-                        pipeline[i].nb_threads,
-                        pipeline[i].nb_processed_entries, pipeline[i].total_processed, tpe );
+            if (pipeline[i].nb_batches > 0)
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu, batches: %5Lu (avg size: %Lu) | ms/op: %.2f",
+                           i, entry_proc_pipeline[i].stage_name,
+                           pipeline[i].nb_unprocessed_entries,
+                           pipeline[i].nb_threads,
+                           pipeline[i].nb_processed_entries, pipeline[i].total_processed,
+                           pipeline[i].nb_batches, pipeline[i].total_batched_entries/pipeline[i].nb_batches, tpe);
+
+            else
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu | ms/op: %.2f",
+                           i, entry_proc_pipeline[i].stage_name,
+                           pipeline[i].nb_unprocessed_entries,
+                           pipeline[i].nb_threads,
+                           pipeline[i].nb_processed_entries, pipeline[i].total_processed, tpe);
             V( pipeline[i].stage_mutex );
 
             if ( !rh_list_empty(&pipeline[i].entries) )

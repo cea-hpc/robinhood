@@ -164,7 +164,8 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
     msg_out[0] = '\0';
 
     conf->nb_thread = 8;
-    conf->max_pending_operations = 1000;
+    conf->max_pending_operations = 5000;
+    conf->max_batch_size = 500;
     conf->match_file_classes = TRUE;
 #ifdef HAVE_RMDIR_POLICY
     conf->match_dir_classes = TRUE;
@@ -188,7 +189,8 @@ int Write_EntryProc_ConfigDefault( FILE * output )
 {
     print_begin_block( output, 0, ENTRYPROC_CONFIG_BLOCK, NULL );
     print_line( output, 1, "nb_threads             :  8" );
-    print_line( output, 1, "max_pending_operations :  1000" );
+    print_line( output, 1, "max_pending_operations :  5000" );
+    print_line(output, 1, "max_batch_size         :  500");
     print_line( output, 1, "match_classes          :  TRUE" );
 #ifdef ATTR_INDEX_creation_time
     print_line( output, 1, "detect_fake_mtime      :  FALSE" );
@@ -309,9 +311,15 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
         return rc;
 
     rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "max_pending_operations",
-                      INT_PARAM_POSITIVE,
+                      INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
                       ( int * ) &conf->max_pending_operations, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+
+    rc = GetIntParam(entryproc_block, ENTRYPROC_CONFIG_BLOCK, "max_batch_size",
+                     INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
+                     (int *)&conf->max_batch_size, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
         return rc;
 
     rc = GetBoolParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "match_classes",
@@ -396,13 +404,14 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
 
     entry_proc_allowed[0] = "nb_threads";
     entry_proc_allowed[1] = "max_pending_operations";
-    entry_proc_allowed[2] = "match_classes";
-    entry_proc_allowed[3] = ALERT_BLOCK;
+    entry_proc_allowed[2] = "max_batch_size";
+    entry_proc_allowed[3] = "match_classes";
+    entry_proc_allowed[4] = ALERT_BLOCK;
 #ifdef ATTR_INDEX_creation_time
-    entry_proc_allowed[4] = "detect_fake_mtime";
-    next_idx = 5;
+    entry_proc_allowed[5] = "detect_fake_mtime";
+    next_idx = 6;
 #else
-    next_idx = 4;
+    next_idx = 5;
 #endif
 
     pipeline_names = malloc(16*256); /* max 16 strings of 256 (oversized) */
@@ -493,6 +502,14 @@ int Reload_EntryProc_Config( void *module_config )
                     ENTRYPROC_CONFIG_BLOCK
                     "::max_pending_operations changed in config file, but cannot be modified dynamically" );
 
+    if (conf->max_batch_size != entry_proc_conf.max_batch_size)
+    {
+        DisplayLog(LVL_MAJOR, "EntryProc_Config",
+                   ENTRYPROC_CONFIG_BLOCK"::max_batch_size updated: '%u'->'%u'",
+                   entry_proc_conf.max_batch_size, conf->max_batch_size);
+        entry_proc_conf.max_batch_size = conf->max_batch_size;
+    }
+
     if ( conf->match_file_classes != entry_proc_conf.match_file_classes)
     {
         DisplayLog( LVL_MAJOR, "EntryProc_Config",
@@ -573,11 +590,14 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     print_line( output, 1, "# If the number of pending operations exceeds this limit, " );
     print_line( output, 1, "# info collectors are suspended until this count decreases" );
 #ifdef _SQLITE
-    print_line( output, 1, "max_pending_operations = 100 ;" );
+    print_line( output, 1, "max_pending_operations = 500 ;" );
 #else
-    print_line( output, 1, "max_pending_operations = 1000 ;" );
+    print_line( output, 1, "max_pending_operations = 5000 ;" );
 #endif
-    fprintf( output, "\n" );
+    fprintf(output, "\n");
+    print_line(output, 1, "# max batched DB operations (1=no batching)");
+    print_line(output, 1, "max_batch_size = 500;");
+    fprintf(output, "\n");
 
     print_line( output, 1,
                 "# Optionnaly specify a maximum thread count for each stage of the pipeline:" );

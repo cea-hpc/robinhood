@@ -563,8 +563,8 @@ int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
  * @param table T_MAIN, T_ANNEX
  * @return nbr of fields
  */
-int attrset2updatelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
-                        table_enum table, int leading_coma )
+int attrset2updatelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
+                       table_enum table, int leading_coma, int generic_value)
 {
     int            i;
     char          *values_curr = str;
@@ -594,11 +594,15 @@ int attrset2updatelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
 
             values_curr += sprintf( values_curr, "%s=", field_infos[i].field_name );
 
-            ASSIGN_UNION( typeu, field_infos[i].db_type,
-                          ( ( char * ) &p_set->attr_values + field_infos[i].offset ) );
-
-            values_curr += printdbtype( p_mgr, values_curr,
-                                field_infos[i].db_type, &typeu );
+            if (!generic_value)
+            {
+                ASSIGN_UNION(typeu, field_infos[i].db_type,
+                             ((char *)&p_set->attr_values + field_infos[i].offset));
+                values_curr += printdbtype(p_mgr, values_curr,
+                                           field_infos[i].db_type, &typeu);
+            }
+            else
+                values_curr += sprintf(values_curr, "VALUES(%s)", field_infos[i].field_name);
 
             nbfields++;
         }

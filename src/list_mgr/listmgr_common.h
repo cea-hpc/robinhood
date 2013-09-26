@@ -287,9 +287,9 @@ int            attrmask2fieldoperation( char *str, int attr_mask, table_enum tab
 int            attrset2valuelist( lmgr_t * p_mgr, char *str,
                                   const attr_set_t * p_set, table_enum table,
                                   int leading_coma );
-int            attrset2updatelist( lmgr_t * p_mgr, char *str,
-                                   const attr_set_t * p_set, table_enum table,
-                                   int leading_coma );
+int            attrset2updatelist(lmgr_t * p_mgr, char *str,
+                                  const attr_set_t * p_set, table_enum table,
+                                  int leading_coma, int generic_value);
 int            mk_result_bind_list( const attr_set_t * p_set, table_enum table,
                                     db_type_t * type_list, void **buff_list, size_t * size_list );
 

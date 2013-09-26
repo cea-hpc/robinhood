@@ -45,7 +45,11 @@ static int  EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_get_info_fs( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_report_diff( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_apply( struct entry_proc_op_t *, lmgr_t * );
+static int  EntryProc_batch_apply(struct entry_proc_op_t **, int, lmgr_t *);
 static int  EntryProc_report_rm( struct entry_proc_op_t *, lmgr_t * );
+
+/* forward declaration to check batchable operations for db_apply stage */
+static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *);
 
 /* pipeline stages */
 #define STAGE_GET_FID       0
@@ -68,20 +72,21 @@ const pipeline_descr_t diff_pipeline_descr =
 
 /** pipeline stages definition */
 pipeline_stage_t diff_pipeline[] = {
-    {STAGE_GET_FID, "STAGE_GET_FID", EntryProc_get_fid,
+    {STAGE_GET_FID, "STAGE_GET_FID", EntryProc_get_fid, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
-    {STAGE_GET_INFO_DB, "STAGE_GET_INFO_DB", EntryProc_get_info_db,
+    {STAGE_GET_INFO_DB, "STAGE_GET_INFO_DB", EntryProc_get_info_db, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC | STAGE_FLAG_ID_CONSTRAINT, 0},
-    {STAGE_GET_INFO_FS, "STAGE_GET_INFO_FS", EntryProc_get_info_fs,
+    {STAGE_GET_INFO_FS, "STAGE_GET_INFO_FS", EntryProc_get_info_fs, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
     /* must be sequential to avoid line interlacing */
-    {STAGE_REPORT_DIFF, "STAGE_REPORT_DIFF", EntryProc_report_diff,
+    {STAGE_REPORT_DIFF, "STAGE_REPORT_DIFF", EntryProc_report_diff, NULL, NULL,
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 1},
     {STAGE_APPLY, "STAGE_APPLY", EntryProc_apply,
+        EntryProc_batch_apply, dbop_is_batchable, /* batched ops management */
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
     /* this step is for displaying removed entries when
      * starting/ending a FS scan. */
-    {STAGE_REPORT_RM, "STAGE_REPORT_RM", EntryProc_report_rm,
+    {STAGE_REPORT_RM, "STAGE_REPORT_RM", EntryProc_report_rm, NULL, NULL,
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 1}
 };
 
@@ -729,6 +734,7 @@ skip_record:
 }
 
 
+/* report diff and clean unchenged attributes */
 int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
@@ -857,6 +863,8 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
     }
 
+    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
+
     /* always go to APPLY step, at least to tag the entry */
     rc = EntryProcessor_Acknowledge( p_op, STAGE_APPLY, FALSE );
     if ( rc )
@@ -875,6 +883,29 @@ skip_record:
 #endif
 }
 
+/* forward declaration to check batchable operations for db_apply stage */
+static int  dbop_is_batchable(struct entry_proc_op_t *first, struct entry_proc_op_t *next)
+{
+    /* batch nothing if not applying to DB */
+    if ((diff_arg->apply != APPLY_DB) || (pipeline_flags & FLAG_DRY_RUN))
+        return FALSE;
+
+    if (first->db_op_type != OP_TYPE_INSERT
+        && first->db_op_type != OP_TYPE_UPDATE
+        && first->db_op_type != OP_TYPE_NONE)
+        return FALSE;
+    else if (first->db_op_type != next->db_op_type)
+        return FALSE;
+    /* starting from here, db_op_type is the same for the 2 operations */
+    /* all NOOP operations can be batched */
+    else if (first->db_op_type == OP_TYPE_NONE)
+        return TRUE;
+    else
+        /* batch operations with the same attr mask */
+        return (first->fs_attrs.attr_mask == next->fs_attrs.attr_mask);
+}
+
+
 
 /**
  * Perform an operation on database.
@@ -883,8 +914,6 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-
-    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
     if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
     {
@@ -1015,6 +1044,72 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
                     stage_info->stage_name );
+    return rc;
+}
+
+/**
+ * Perform a batch of operations on the database.
+ */
+int EntryProc_batch_apply(struct entry_proc_op_t **ops, int count,
+                          lmgr_t *lmgr)
+{
+    int            i, rc = 0;
+    const pipeline_stage_t *stage_info = &entry_proc_pipeline[ops[0]->pipeline_stage];
+    entry_id_t **ids = NULL;
+    attr_set_t **attrs = NULL;
+
+    /* allocate arrays of ids and attrs */
+    ids = MemCalloc(count, sizeof(*ids));
+    if (!ids)
+        return -ENOMEM;
+    attrs = MemCalloc(count, sizeof(*attrs));
+    if (!attrs)
+    {
+        rc = -ENOMEM;
+        goto free_ids;
+    }
+    for (i = 0; i < count; i++)
+    {
+        ids[i] = &ops[i]->entry_id;
+        attrs[i] = &ops[i]->fs_attrs;
+    }
+
+    /* insert to DB */
+    switch (ops[0]->db_op_type)
+    {
+    case OP_TYPE_NONE:
+        /* noop */
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "NoOp(%u ops: "DFID"...)", count,
+                   PFID(ids[0]));
+        rc = 0;
+        break;
+    case OP_TYPE_INSERT:
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "BatchInsert(%u ops: "DFID"...)",
+                   count, PFID(ids[0]));
+        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, FALSE);
+        break;
+    case OP_TYPE_UPDATE:
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "BatchUpdate(%u ops: "DFID"...)",
+                   count, PFID(ids[0]));
+        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, TRUE);
+        break;
+    default:
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Unexpected operation for batch op: %d",
+                   ops[0]->db_op_type);
+        rc = -1;
+    }
+
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing batch database operation.", rc);
+
+    rc = EntryProcessor_AcknowledgeBatch(ops, count, -1, TRUE);
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
+                   stage_info->stage_name);
+
+    MemFree(attrs);
+free_ids:
+    MemFree(ids);
     return rc;
 }
 

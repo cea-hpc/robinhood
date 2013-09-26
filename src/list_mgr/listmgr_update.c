@@ -49,7 +49,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
     /* check how many tables are to be updated */
     if ( main_fields( p_update_set->attr_mask ) )
     {
-        main_count = attrset2updatelist( p_mgr, fields, p_update_set, T_MAIN, FALSE );
+        main_count = attrset2updatelist(p_mgr, fields, p_update_set, T_MAIN, FALSE, FALSE);
         if ( main_count < 0 )
             return -main_count;
         if ( main_count > 0 )
@@ -63,7 +63,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
 
     if ( annex_table && annex_fields( p_update_set->attr_mask ) )
     {
-        annex_count = attrset2updatelist( p_mgr, annex_fields, p_update_set, T_ANNEX, FALSE );
+        annex_count = attrset2updatelist(p_mgr, annex_fields, p_update_set, T_ANNEX, FALSE, FALSE);
         if ( annex_count < 0 )
             return -annex_count;
         if ( annex_count > 0 )
@@ -102,6 +102,7 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
         char          *fields_curr;
         char          *values_curr;
         char           values[4096];
+        char          *set;
 
         strcpy( fields, "id" );
         sprintf( values, DPK, pk );
@@ -113,10 +114,10 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
         attrset2valuelist( p_mgr, values_curr, p_update_set, T_DNAMES, TRUE );
 
         // FIXME this update operation may zero column content if some values are not specified
-        static const char set[] = "id=VALUES(id), parent_id=VALUES(parent_id), name=VALUES(name), "
-                                  "pkn="HNAME_DEF", path_update=VALUES(path_update)";
-        sprintf(query, "INSERT INTO " DNAMES_TABLE "(%s, pkn) VALUES (%s, "HNAME_DEF") "
-                "ON DUPLICATE KEY UPDATE %s", fields, values, set);
+        set = query + sprintf(query, "INSERT INTO " DNAMES_TABLE "(%s, pkn) VALUES (%s, "HNAME_DEF") "
+                "ON DUPLICATE KEY UPDATE id=VALUES(id)", fields, values);
+        /* append the field values for 'ON DUPLICATE KEY...' */
+        attrset2updatelist(p_mgr, set, p_update_set, T_DNAMES, TRUE, TRUE);
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if ( rc )
@@ -275,7 +276,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
         return rc;
 
     /* perform updates on MAIN TABLE */
-    count = attrset2updatelist( p_mgr, fields, p_attr_set, T_MAIN, FALSE );
+    count = attrset2updatelist(p_mgr, fields, p_attr_set, T_MAIN, FALSE, FALSE);
     if ( count < 0 )
         return -count;
     if ( count > 0 )
@@ -390,7 +391,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
     /* update on annex table ? */
     if ( annex_table )
     {
-        count = attrset2updatelist( p_mgr, fields, p_attr_set, T_ANNEX, FALSE );
+        count = attrset2updatelist(p_mgr, fields, p_attr_set, T_ANNEX, FALSE, FALSE);
         if ( count < 0 )
             return -count;
         if ( count > 0 )

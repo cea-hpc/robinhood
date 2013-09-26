@@ -32,6 +32,7 @@
 #define PK_PARG_T char *
 #define PTR_PK(_p) (_p)
 #define DEF_PK(_p) char _p[PK_LEN]
+typedef DEF_PK(pktype);
 #define PK_DB_TYPE DB_TEXT
 #define DPK      "'%s'"
 #define SPK      "%s"
@@ -51,6 +52,7 @@
 #define PK_PARG_T char *
 #define PTR_PK(_p) (_p)
 #define DEF_PK(_p) char _p[DB_FID_LEN]
+typedef DEF_PK(pktype);
 #define PK_DB_TYPE DB_TEXT
 #define DPK      "'%s'"
 #define SPK      "%s"

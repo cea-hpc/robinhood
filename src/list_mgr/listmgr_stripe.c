@@ -21,9 +21,15 @@
 #include "listmgr_common.h"
 #include "Memory.h"
 #include "RobinhoodLogs.h"
+#include "var_str.h"
 #include <stdio.h>
 #include <stdlib.h>
 
+#define STRIPE_INFO_FIELDS "id,validator,stripe_count,stripe_size,pool_name"
+#define STRIPE_INFO_SET_VALUES "validator=VALUES(validator),stripe_count=VALUES(stripe_count)," \
+                               "stripe_size=VALUES(stripe_size),pool_name=VALUES(pool_name)"
+
+#define STRIPE_ITEMS_FIELDS "id,stripe_index,ostidx,details"
 
 static int delete_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk )
 {
@@ -81,7 +87,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
          * we will remove its previous stripe info */
 
         sprintf( short_query, "INSERT INTO " STRIPE_INFO_TABLE
-                 "(id,validator, stripe_count,stripe_size,pool_name) "
+                 "("STRIPE_INFO_FIELDS") "
                  "VALUES ("DPK",%u,%u,%u,'%s')", pk, validator,
                  p_stripe->stripe_count, ( unsigned int ) p_stripe->stripe_size,
                  p_stripe->pool_name );
@@ -184,6 +190,89 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
     }
 
     return 0;
+}
+
+int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
+                             attr_set_t *const *p_attrs,
+                             unsigned int count, int update_if_exists)
+{
+    int     i, rc;
+    char    tmp[1024];
+    var_str query = VAR_STR_NULL;
+
+    if (!ATTR_MASK_TEST(p_attrs[0], stripe_info))
+        return DB_INVALID_ARG;
+
+    /* build batch request for STRIPE_INFO table */
+    var_str_append(&query, "INSERT INTO "STRIPE_INFO_TABLE
+                   " ("STRIPE_INFO_FIELDS") VALUES ");
+    for (i = 0; i < count; i++)
+    {
+        sprintf(tmp, "%s("DPK",%u,%u,%u,'%s')", i == 0 ? "" : ",",
+                pklist[i], validators[i], ATTR(p_attrs[i], stripe_info).stripe_count,
+                (unsigned int)ATTR(p_attrs[i], stripe_info).stripe_size,
+                ATTR(p_attrs[i], stripe_info).pool_name);
+        var_str_append(&query, tmp);
+    }
+
+    if (update_if_exists)
+        /* append "on duplicate key ..." */
+        var_str_append(&query, " ON DUPLICATE KEY UPDATE "STRIPE_INFO_SET_VALUES);
+
+    rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
+    if (rc)
+        goto out;
+
+    var_str_reset(&query);
+
+    /* Stripe items more tricky because we want to delete previous items on update */
+    /* If update_if_exists is false, insert them all as a batch.
+     * For the update case, remove previous items before bluk insert.
+     */
+    if (update_if_exists)
+    {
+        for (i = 0; i < count; i++)
+        {
+            sprintf(tmp, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pklist[i]);
+
+            rc = db_exec_sql(&p_mgr->conn, tmp, NULL);
+            if ( rc )
+                goto out;
+        }
+    }
+
+    /* bulk insert stripe items */
+    if (!ATTR_MASK_TEST(p_attrs[0], stripe_items))
+        goto out;
+
+    var_str_append(&query, "INSERT INTO " STRIPE_ITEMS_TABLE
+                           " ("STRIPE_ITEMS_FIELDS") VALUES ");
+    /* loop on all entries and all stripe items */
+    for (i = 0; i < count; i++)
+    {
+        int s;
+        const stripe_items_t * p_items;
+
+        p_items = &ATTR(p_attrs[i], stripe_items);
+        for (s = 0; s < p_items->count; s++)
+        {
+            char buff[2*STRIPE_DETAIL_SZ+1];
+            if (buf2hex(buff, sizeof(buff), (unsigned char *)(&p_items->stripe[s].ost_gen), STRIPE_DETAIL_SZ ) < 0)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Buffer too small to store details stripe info");
+                memset(buff, 0, sizeof(buff));
+            }
+            sprintf(tmp, "%s("DPK",%u,%u,x'%s')", (i == 0) && (s == 0) ? "" : ",",
+                    pklist[i], s, p_items->stripe[s].ost_idx, buff);
+            var_str_append(&query, tmp);
+        }
+    }
+
+    rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
+
+out:
+    var_str_free(&query);
+    return rc;
 }
 
 
