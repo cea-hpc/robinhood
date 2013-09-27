@@ -5122,6 +5122,8 @@ function test_find
 
     # 2) test find at several levels
     echo "checking find list at all levels..."
+    check_find "" "-f $cfg" 12 # should return all (including root)
+    check_find "" "-f $cfg -b" 12 # should return all (including root)
     check_find $ROOT "-f $cfg" 12 # should return all (including root)
     check_find $ROOT/file.1 "-f $cfg" 1 # should return only the file
     check_find $ROOT/dir.1 "-f $cfg" 1  # should return dir.1
@@ -5134,6 +5136,8 @@ function test_find
 
     # 3) test -td / -tf
     echo "testing type filter (-type d)..."
+    check_find "" "-f $cfg -type d" 6 # should return all (including root)
+    check_find "" "-f $cfg -type d -b" 6 # should return all (including root)
     check_find $ROOT "-f $cfg -type d" 6 # 6 including root
     check_find $ROOT/dir.2 "-f $cfg -type d" 4 # 4 including dir.2
     check_find $ROOT/dir.2/dir.2 "-f $cfg -type d" 2 # 2 including dir.2/dir.2
@@ -5142,6 +5146,8 @@ function test_find
     check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -type d" 1
 
     echo "testing type filter (-type f)..."
+    check_find "" "-f $cfg -type f" 6
+    check_find "" "-f $cfg -type f -b" 6
     check_find $ROOT "-f $cfg -type f" 6
     check_find $ROOT/dir.2 "-f $cfg -type f" 4
     check_find $ROOT/dir.2/dir.2 "-f $cfg -type f" 2
@@ -5152,6 +5158,8 @@ function test_find
     check_find $ROOT/dir.2/file.1 "-f $cfg -type f" 1
 
     echo "testing name filter..."
+    check_find "" "-f $cfg -name dir.*" 5 # 5
+    check_find "" "-f $cfg -name dir.* -b" 5 # 5
     check_find $ROOT "-f $cfg -name dir.*" 5 # 5
     check_find $ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
     check_find $ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
@@ -5160,6 +5168,8 @@ function test_find
     check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -name dir.*" 1
 
     echo "testing size filter..."
+    check_find "" "-f $cfg -type f -size +2k" 2
+    check_find "" "-f $cfg -type f -size +2k -b" 2
     check_find $ROOT "-f $cfg -type f -size +2k" 2
     check_find $ROOT "-f $cfg -type f -size +11k" 1
     check_find $ROOT "-f $cfg -type f -size +1M" 0
@@ -5169,11 +5179,17 @@ function test_find
     check_find $ROOT "-f $cfg -type f -size -10k" 4
 
     echo "testing ost filter..."
+    check_find "" "-f $cfg -ost 0" 5 # all files but 1
+    check_find "" "-f $cfg -ost 0 -b" 5 # all files but 1
     check_find $ROOT "-f $cfg -ost 0" 5 # all files but 1
     check_find $ROOT "-f $cfg -ost 1" 5 # all files but 1
     check_find $ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
 
     echo "testing mtime filter..."
+    check_find "" "-f $cfg -mtime +1d" 0  #none
+    check_find "" "-f $cfg -mtime -1d" 12 #all
+    check_find "" "-f $cfg -mtime +1d -b" 0  #none
+    check_find "" "-f $cfg -mtime -1d -b" 12 #all
     # change last day
     check_find $ROOT "-f $cfg -mtime +1d" 0  #none
     check_find $ROOT "-f $cfg -mtime -1d" 12 #all

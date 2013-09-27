@@ -60,6 +60,10 @@ static struct option option_tab[] =
 #endif
     {"ls", no_argument, NULL, 'l'},
 
+    /* query options */
+    {"not", no_argument, NULL, '!'},
+    {"bulk", no_argument, NULL, 'b'},
+
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
 
@@ -69,13 +73,12 @@ static struct option option_tab[] =
     /* miscellaneous options */
     {"help", no_argument, NULL, 'h'},
     {"version", no_argument, NULL, 'V'},
-    {"not", no_argument, NULL, '!'},
 
     {NULL, 0, NULL, 0}
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:A:M:m:z:f:d:hV!"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:A:M:m:z:f:d:hV!b"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -138,6 +141,9 @@ struct find_opt
     unsigned int groupneg:1;
     unsigned int nameneg:1;
 
+    /* query option */
+    unsigned int bulk:1;
+
     /* behavior flags */
     unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
     unsigned int dir_only:1; /* if -t dir => only display dir */
@@ -150,6 +156,7 @@ struct find_opt
     .ls = 0, .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_ctime = 0, .match_mtime = 0, .match_atime = 0,
+    .bulk = 0,
 #ifdef ATTR_INDEX_status
     .match_status = 0, .statusneg = 0,
 #endif
@@ -158,13 +165,13 @@ struct find_opt
 };
 
 #ifdef ATTR_INDEX_status
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_name | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link | ATTR_MASK_status)
 #else
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_name | ATTR_MASK_owner |\
+#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link )
 #endif
-static int disp_mask = ATTR_MASK_fullpath | ATTR_MASK_type;
+static int disp_mask = ATTR_MASK_type;
 static int query_mask = 0;
 
 //static lmgr_filter_t    dir_filter;
@@ -916,6 +923,100 @@ out:
     return rc;
 }
 
+/**
+ * Bulk filtering in the DB.
+ */
+static int list_bulk()
+{
+    attr_set_t  root_attrs, attrs;
+    entry_id_t  root_id, id;
+    int rc;
+    struct stat st;
+    struct lmgr_iterator_t *it;
+
+    /* no tranvsersal => no wagon
+     * so we need the path from the DB.
+     */
+    query_mask |= ATTR_MASK_fullpath;
+
+    ATTR_MASK_INIT(&root_attrs);
+
+    rc = get_root_id(&root_id);
+    if (rc)
+        return rc;
+
+    /* root is not a part of the DB: print it now */
+    ATTR_MASK_SET(&root_attrs, fullpath);
+    strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
+
+    if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
+    {
+        PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+        ListMgr_GenerateFields(&root_attrs, disp_mask | query_mask);
+    }
+    /* root has no name... */
+    ATTR_MASK_SET(&root_attrs, name);
+    ATTR(&root_attrs, name)[0] = '\0';
+
+    /* match condition on dirs parent */
+    if (!is_expr || (EntryMatches(&root_id, &root_attrs,
+                     &match_expr, NULL) == POLICY_MATCH))
+    {
+        /* don't display dirs if no_dir is specified */
+        if (! (prog_options.no_dir && ATTR_MASK_TEST(&root_attrs, type)
+               && !strcasecmp(ATTR(&root_attrs, type), STR_TYPE_DIR))) {
+            wagon_t w;
+            w.id = root_id;
+            w.fullname = ATTR(&root_attrs, fullpath);
+            print_entry(&w, &root_attrs);
+        }
+    }
+
+    /* list all, including dirs */
+    it = ListMgr_Iterator(&lmgr, &entry_filter, NULL, NULL);
+    if (!it)
+    {
+        DisplayLog(LVL_MAJOR, FIND_TAG, "ERROR: cannot retrieve entry list from database");
+        return -1;
+    }
+
+    attrs.attr_mask = disp_mask | query_mask;
+    while ((rc = ListMgr_GetNext(it, &id, &attrs)) == DB_SUCCESS)
+    {
+        if (!is_expr || (EntryMatches(&id, &attrs, &match_expr, NULL)
+                                      == POLICY_MATCH))
+        {
+            /* don't display dirs if no_dir is specified */
+            if (! (prog_options.no_dir && ATTR_MASK_TEST(&attrs, type)
+                   && !strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR))) {
+                wagon_t w;
+                w.id = id;
+                w.fullname = ATTR(&attrs, fullpath);
+                print_entry(&w, &attrs);
+            }
+            /* don't display non dirs is dir_only is specified */
+            else if (! (prog_options.dir_only && ATTR_MASK_TEST(&attrs, type)
+                        && strcasecmp(ATTR(&attrs, type), STR_TYPE_DIR))) {
+                wagon_t w;
+                w.id = id;
+                w.fullname = ATTR(&attrs, fullpath);
+                print_entry(&w, &attrs);
+            }
+            else
+                /* return entry don't match? */
+                DisplayLog(LVL_DEBUG, FIND_TAG, "Warning: returned DB entry doesn't match filter: %s",
+                           ATTR(&attrs, fullpath));
+        }
+        ListMgr_FreeAttrs(&attrs);
+
+        /* prepare next call */
+        attrs.attr_mask = disp_mask | query_mask;
+    }
+    ListMgr_CloseIterator(it);
+
+    return 0;
+}
+
 #define toggle_option(_opt, _name)              \
             do {                                \
                 if (prog_options. _opt )        \
@@ -1114,6 +1215,9 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+        case 'b':
+            prog_options.bulk = 1;
+            break;
         case 'h':
             display_help( bin );
             exit( 0 );
@@ -1204,13 +1308,25 @@ int main( int argc, char **argv )
 
     if (argc == optind)
     {
-        char *id = config.global_config.fs_path;
-        mkfilters(TRUE); /* exclude dirs */
-        /* no path specified, list all entries */
-        rc = list_content(&id, 1);
+        if (prog_options.bulk)
+        {
+            DisplayLog(LVL_DEBUG, FIND_TAG, "Performing bulk request on DB");
+            mkfilters(FALSE); /* keep dirs */
+            return list_bulk();
+        }
+        else
+        {
+            char *id = config.global_config.fs_path;
+            mkfilters(TRUE); /* exclude dirs */
+            /* no path specified, list all entries */
+            rc = list_content(&id, 1);
+        }
     }
     else
     {
+        if (prog_options.bulk)
+            fprintf(stderr, "No path argument expected with '-bulk' option. Option ignored.\n");
+
         mkfilters(TRUE); /* exclude dirs */
         rc = list_content(argv+optind, argc-optind);
     }
