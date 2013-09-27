@@ -289,6 +289,13 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 <INBLOC>"union"  { DEBUG_LEX(" UNION "); return UNION; }
 <INBLOC>"inter"  { DEBUG_LEX(" INTER "); return INTER; }
 
+<INBLOC>"$"{LETTER}({IDENTIFIER_CHAR})* {
+                    /* environment variable */
+                    DEBUG_LEX("[VAR:%s]",yytext);
+                    strncpy(yylval.str_val,yytext,MAXSTRLEN);
+                    return ENV_VAR;
+                }
+
 <INBLOC>{LETTER}({IDENTIFIER_CHAR})* {
                     /* identifier */
                     DEBUG_LEX("[%s]",yytext);

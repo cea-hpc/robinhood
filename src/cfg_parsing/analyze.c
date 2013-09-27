@@ -727,3 +727,15 @@ void rh_config_free_list( list_items * list )
     free( list );
     return;
 }
+
+/**
+ * Resolve an environment variable.
+ */
+void rh_config_resov_var(char *dstvalue, char*var)
+{
+    char * val = getenv(var + 1); /* skip '$' */
+    if (val == NULL)
+        dstvalue[0] = '\0';
+    else
+        strncpy(dstvalue, val, MAXSTRLEN);
+}

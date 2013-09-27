@@ -80,6 +80,7 @@ static void DEBUG_YACC( FILE * output, list_items * list ) { return ;}
 %token INTER
 %token <str_val> IDENTIFIER
 %token <str_val> NON_IDENTIFIER_VALUE 
+%token <str_val> ENV_VAR
 
 %type <str_val> value
 %type <list> listblock
@@ -123,6 +124,7 @@ definition:
 value:
 	IDENTIFIER	{strcpy($$,$1);}
 	| NON_IDENTIFIER_VALUE {strcpy($$,$1);}
+    | ENV_VAR {rh_config_resov_var($$,$1);}
 	;
 
 affect:
