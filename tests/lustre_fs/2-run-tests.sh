@@ -6337,6 +6337,8 @@ function trigger_purge_QUOTA_EXCEEDED
 
 	clean_logs
 
+    $LFS setstripe -c 2 $ROOT || echo "error setting stripe count=2"
+
 	echo "1-Create Files ..."
 	elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
