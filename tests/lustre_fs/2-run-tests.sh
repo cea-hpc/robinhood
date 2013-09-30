@@ -3089,7 +3089,8 @@ function test_info_collect
 
 	nb_create=`grep ChangeLog rh_chglogs.log | grep 01CREAT | wc -l`
 	nb_close=`grep ChangeLog rh_chglogs.log | grep 11CLOSE | wc -l`
-	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
+	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 |
+                 cut -d ',' -f 1 | tr -d ' '`
 
     # (directories are always inserted since robinhood 2.4)
     # 4 file + 3 dirs -> 7 changelogs
@@ -3123,7 +3124,8 @@ function test_info_collect
 	check_db_error rh_chglogs.log
 
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
-	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 | tr -d ' '`
+	nb_db_apply=`grep STAGE_DB_APPLY rh_chglogs.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 |
+                 cut -d ',' -f 1 | tr -d ' '`
 
 	# 7 db operations expected (1 for each file and dir)
 	if (( $nb_db_apply == $db_expect )); then
