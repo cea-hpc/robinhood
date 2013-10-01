@@ -1421,6 +1421,17 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
                       ATTR( p_attr_set, type ) );
     }
 #endif
+    if (mask & ATTR_MASK_nlink)
+    {
+        if (brief)
+            format = "nlink=%u,";
+        else
+            format = "Nlinks:   %u\n";
+        written +=
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, nlink));
+    }
+
 #ifdef ATTR_INDEX_mode
     if ( mask & ATTR_MASK_mode )
     {
@@ -2328,7 +2339,10 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id)
     curr = full_path + strlen(global_config.fs_path);
 
     if ( *curr == '\0' ) /* full_path is root dir */
-        return 0;
+    {
+        exists = 1;
+        goto get_id;
+    }
     else if ( *curr != '/' ) /* slash expected */
     {
         DisplayLog( LVL_MAJOR, MKDIR_TAG, "Error: '%s' in not under filesystem root '%s'",
@@ -2375,6 +2389,7 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id)
     else if (errno == EEXIST)
         exists = 1;
 
+get_id:
     /* must return directory id */
     if (dir_id)
     {
@@ -2649,9 +2664,21 @@ int create_from_attrs(const attr_set_t * attrs_in,
     /* update with the new attributes */
     PosixStat2EntryAttr(&st_dest, attrs_out, TRUE);
 
-    /* copy missing info: path, link, ...*/
+    /* copy missing info: path, name, link, ...*/
     strcpy( ATTR( attrs_out, fullpath ), fspath );
     ATTR_MASK_SET( attrs_out, fullpath );
+
+    char *name = strrchr(fspath, '/');
+    if (name)
+    {
+        name++;
+        strcpy(ATTR(attrs_out, name), name);
+        ATTR_MASK_SET(attrs_out, name);
+    }
+    ATTR(attrs_out, path_update) = time(NULL);
+    ATTR_MASK_SET(attrs_out, path_update);
+    ATTR(attrs_out, md_update) = time(NULL);
+    ATTR_MASK_SET(attrs_out, md_update);
 
     if (S_ISLNK(st_dest.st_mode))
     {

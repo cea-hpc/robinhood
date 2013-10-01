@@ -26,179 +26,10 @@
 #include <stdlib.h>
 
 
-int ListMgr_Insert( lmgr_t * p_mgr, entry_id_t * p_id, const attr_set_t * p_info,
-                    int update_if_exists )
-{
-    int            rc;
-    char           query[4096];
-    char           fields[1024];
-    char           values[4096];
-    char          *fields_curr;
-    char          *values_curr;
-    DEF_PK( pk );
-
-    /* read only fields in info mask? */
-    if ( readonly_attr_set & p_info->attr_mask )
-    {
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error: trying to insert read only values: attr_mask=%#x",
-                    readonly_attr_set & p_info->attr_mask );
-        return DB_INVALID_ARG;
-    }
-
-    /* We want insert operation set to be atomic */
-    rc = lmgr_begin( p_mgr );
-    if ( rc )
-        return rc;
-
-    entry_id2pk(p_id, PTR_PK(pk));
-
-#ifdef _LUSTRE
-    /* ======== insert stripe information, if available ========= */
-    if ( ATTR_MASK_TEST( p_info, stripe_info ) && ATTR_MASK_TEST( p_info, stripe_items ) )
-    {
-        rc = insert_stripe_info( p_mgr, pk, VALID(p_id), &ATTR( p_info, stripe_info ),
-                                 &ATTR( p_info, stripe_items ), update_if_exists );
-
-        if ( (rc == DB_ALREADY_EXISTS) && update_if_exists )
-            return ListMgr_Update( p_mgr, p_id, p_info );
-
-        if ( rc )
-        {
-            lmgr_rollback( p_mgr );
-            return rc;
-        }
-    }
-#endif
-
-    /* ========= insert info in main table ============ */
-
-    strcpy( fields, "id" );
-    sprintf( values, DPK, pk );
-    fields_curr = fields + strlen( fields );
-    values_curr = values + strlen( values );
-
-    /* create field and values lists */
-    attrmask2fieldlist( fields_curr, p_info->attr_mask, T_MAIN, TRUE, FALSE, "", "" );
-    attrset2valuelist( p_mgr, values_curr, p_info, T_MAIN, TRUE );
-
-    sprintf( query, "INSERT INTO " MAIN_TABLE "(%s) VALUES (%s)", fields, values );
-
-    if ( update_if_exists )
-    {
-        /* no warning if we allow update */
-        rc = db_exec_sql_quiet( &p_mgr->conn, query, NULL );
-        if ( rc == DB_ALREADY_EXISTS )
-            return ListMgr_Update( p_mgr, p_id, p_info );
-    }
-    else
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-
-    if ( rc )
-    {
-        lmgr_rollback( p_mgr );
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "DB query failed in %s line %d: pk="DPK", code=%d: %s",
-                    __FUNCTION__, __LINE__, pk, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
-        return rc;
-    }
-
-    /* allow inserting entries in MAIN_TABLE, without name information */
-    if (ATTR_MASK_TEST(p_info, name) && ATTR_MASK_TEST(p_info, parent_id))
-    {
-        char *set;
-
-        /* Insert into names */
-        strcpy( fields, "id" );
-        sprintf( values, DPK, pk );
-        fields_curr = fields + strlen( fields );
-        values_curr = values + strlen( values );
-
-        /* create field and values lists */
-        attrmask2fieldlist( fields_curr, p_info->attr_mask, T_DNAMES, TRUE, FALSE, "", "" );
-        attrset2valuelist( p_mgr, values_curr, p_info, T_DNAMES, TRUE );
-
-        set = query + sprintf(query, "INSERT INTO " DNAMES_TABLE "(%s, pkn) VALUES (%s, "HNAME_DEF") "
-                       "ON DUPLICATE KEY UPDATE id=VALUES(id)", fields, values);
-        /* append the field values for 'ON DUPLICATE KEY...' */
-        attrset2updatelist(p_mgr, set, p_info, T_DNAMES, TRUE, TRUE);
-
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-
-        if ( rc )
-        {
-            lmgr_rollback( p_mgr );
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "DB query failed in %s line %d: pk="DPK", code=%d: %s",
-                        __FUNCTION__, __LINE__, pk, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
-            return rc;
-        }
-    } else {
-        DEF_PK(ppk);
-
-        entry_id2pk(& ATTR(p_info, parent_id ), PTR_PK(ppk));
-
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: entry "DPK" created "
-                   "without name ('%s') or parent ("DPK") information", pk,
-                   ATTR_MASK_TEST(p_info, name) ? ATTR(p_info, name ) : "",
-                   ATTR_MASK_TEST(p_info, parent_id) ? ppk : "");
-    }
-
-    /* insert all info in annex table, if any */
-    if ( annex_table )
-    {
-        strcpy( fields, "id" );
-        sprintf( values, DPK, pk );
-        fields_curr = fields + strlen( fields );
-        values_curr = values + strlen( values );
-
-        /* Create field and values lists.
-         * Do nothing if no fields are to be set.
-         */
-        if ( attrmask2fieldlist( fields_curr, p_info->attr_mask, T_ANNEX, TRUE, FALSE, "", "" ) > 0 )
-        {
-
-            attrset2valuelist( p_mgr, values_curr, p_info, T_ANNEX, TRUE );
-
-            sprintf( query, "INSERT INTO " ANNEX_TABLE "(%s) VALUES (%s)", fields, values );
-
-            if ( update_if_exists )
-            {
-                /* no warning if we allow update */
-                rc = db_exec_sql_quiet( &p_mgr->conn, query, NULL );
-                if ( rc == DB_ALREADY_EXISTS )
-                    return ListMgr_Update( p_mgr, p_id, p_info );
-            }
-            else
-                rc = db_exec_sql( &p_mgr->conn, query, NULL );
-
-            if ( rc )
-            {
-                lmgr_rollback( p_mgr );
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "DB query failed in %s line %d: code=%d: %s",
-                            __FUNCTION__, __LINE__, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
-                return rc;
-            }
-        }
-    }
-
-
-    rc = lmgr_commit( p_mgr );
-
-    /* success, count it */
-    if (!rc)
-        p_mgr->nbop[OPIDX_INSERT]++;
-    return rc;
-}
-
-/**
- * Insert a batch of entries into the database.
- * All entries must have the same attr mask.
- */
-int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
-                                   attr_set_t * const * p_attrs,
-                                   unsigned int count,
-                                   int update_if_exists)
+int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t const * const *p_ids,
+                               attr_set_t const * const *p_attrs,
+                               unsigned int count,
+                               int update_if_exists)
 {
     int            rc = 0;
     int            i, mask_init;
@@ -208,24 +39,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
     char           values[4096] = "";
     char          *values_curr = NULL;
 
-    if (count == 0)
-        return DB_SUCCESS;
-    else if (p_ids == NULL || p_attrs == NULL)
-        RBH_BUG("NULL pointer argument");
-
-    /* read only fields in info mask? */
-    if (readonly_attr_set & p_attrs[0]->attr_mask)
-    {
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Error: trying to insert read only values: attr_mask=%#x",
-                   readonly_attr_set & p_attrs[0]->attr_mask);
-        return DB_INVALID_ARG;
-    }
     mask_init = p_attrs[0]->attr_mask;
-
-    /* We want insert operation set to be atomic */
-    rc = lmgr_begin(p_mgr);
-    if (rc)
-        return rc;
 
     pklist = (pktype *)MemCalloc(count, sizeof(pktype));
     if (pklist == NULL)
@@ -237,7 +51,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
         if (p_attrs[i]->attr_mask != mask_init)
         {
             rc = DB_INVALID_ARG;
-            goto rollback;
+            goto out_free;
         }
         /* fill pk array */
         entry_id2pk(p_ids[i], PTR_PK(pklist[i]));
@@ -251,8 +65,8 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
         int *validators = (int*)MemCalloc(count, sizeof(int));
         if (!validators)
         {
-            rc = DB_NO_MEMORY;
-            goto rollback;
+            rc =  DB_NO_MEMORY;
+            goto out_free;
         }
         for (i = 0; i < count; i++)
             validators[i] = VALID(p_ids[i]);
@@ -261,7 +75,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
                                       count, update_if_exists);
         MemFree(validators);
         if (rc)
-            goto rollback;
+            goto out_free;
     }
 #endif
 
@@ -293,7 +107,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
 
     rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
     if (rc)
-        goto rollback;
+        goto out_free;
 
     var_str_reset(&query);
 
@@ -325,7 +139,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
 
         rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
         if (rc)
-            goto rollback;
+            goto out_free;
     } else if (!update_if_exists) { /* only warn for create operations */
         DEF_PK(ppk);
 
@@ -376,12 +190,83 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
 
             rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
             if (rc)
-                goto rollback;
+                goto out_free;
         }
     }
 
+out_free:
     var_str_free(&query);
     MemFree(pklist);
+    return rc;
+}
+
+
+int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t const *p_id, attr_set_t const *p_info,
+                   int update_if_exists)
+{
+    int rc;
+    char buff[4096];
+
+    rc = lmgr_begin(p_mgr);
+    if (rc)
+        return rc;
+
+    rc = listmgr_batch_insert_no_tx(p_mgr, &p_id, &p_info, 1, update_if_exists);
+    if (rc)
+    {
+        lmgr_rollback(p_mgr);
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "DB query failed in %s line %d: code=%d: %s",
+                   __FUNCTION__, __LINE__, rc, db_errmsg(&p_mgr->conn, buff, 4096));
+        return rc;
+    }
+    rc = lmgr_commit(p_mgr);
+
+    /* success, count it */
+    if (!rc)
+        p_mgr->nbop[OPIDX_INSERT]++;
+    return rc;
+}
+
+/**
+ * Insert a batch of entries into the database.
+ * All entries must have the same attr mask.
+ */
+int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t const * const * p_ids,
+                                   attr_set_t const * const * p_attrs,
+                                   unsigned int count,
+                                   int update_if_exists)
+{
+    int rc;
+    char buff[4096];
+
+    if (count == 0)
+        return DB_SUCCESS;
+    else if (p_ids == NULL || p_attrs == NULL)
+        RBH_BUG("NULL pointer argument");
+
+    /* read only fields in info mask? */
+    if (readonly_attr_set & p_attrs[0]->attr_mask)
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Error: trying to insert read only values: attr_mask=%#x",
+                   readonly_attr_set & p_attrs[0]->attr_mask);
+        return DB_INVALID_ARG;
+    }
+
+    /* We want insert operation set to be atomic */
+    rc = lmgr_begin(p_mgr);
+    if (rc)
+        return rc;
+
+    rc = listmgr_batch_insert_no_tx(p_mgr, p_ids, p_attrs, count, update_if_exists);
+    if (rc)
+    {
+        lmgr_rollback(p_mgr);
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "DB query failed in %s line %d: code=%d: %s",
+                   __FUNCTION__, __LINE__, rc, db_errmsg(&p_mgr->conn, buff, 4096));
+        return rc;
+    }
 
     rc = lmgr_commit(p_mgr);
     /* success, count it */
@@ -393,11 +278,4 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
             p_mgr->nbop[OPIDX_INSERT] += count;
     }
     return rc;
-
-rollback:
-    var_str_free(&query);
-    MemFree(pklist);
-    lmgr_rollback(p_mgr);
-    return rc;
 }
-

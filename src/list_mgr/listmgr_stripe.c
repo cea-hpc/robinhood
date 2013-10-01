@@ -193,7 +193,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
 }
 
 int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
-                             attr_set_t *const *p_attrs,
+                             attr_set_t const *const *p_attrs,
                              unsigned int count, int update_if_exists)
 {
     int     i, rc;

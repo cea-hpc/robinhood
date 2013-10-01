@@ -434,16 +434,15 @@ void           ListMgr_FreeAttrs( attr_set_t * p_attrs );
 /**
  * Inserts a new entry to the database.
  */
-int            ListMgr_Insert(lmgr_t * p_mgr, entry_id_t * p_id,
-                              const attr_set_t * p_info,
-                              int update_if_exists);
-
+int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t const *p_id,
+                   attr_set_t const *p_info,
+                   int update_if_exists);
 /**
  * Insert a batch of entries into the database.
  * All entries must have the same attr mask.
  */
-int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
-                                   attr_set_t * const * p_attrs,
+int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t const * const * p_ids,
+                                   attr_set_t const * const * p_attrs,
                                    unsigned int count,
                                    int update_if_exists);
 
@@ -474,6 +473,12 @@ int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
 int            ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                                    rm_cb_func_t );
 
+/**
+ * Atomically replace an entry with another, and relink childs in the namespace if needed.
+ */
+int ListMgr_Replace(lmgr_t * p_mgr, const entry_id_t *old_id, const attr_set_t *old_attrs,
+                    const entry_id_t *new_id, const attr_set_t *new_attrs,
+                    int src_is_last, int update_target_if_exists);
 
 #ifdef HAVE_RM_POLICY
 /**

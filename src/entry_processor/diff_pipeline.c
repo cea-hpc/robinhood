@@ -781,7 +781,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* no op */
             p_op->db_op_type = OP_TYPE_NONE;
         }
-        else if (diff_mask & entry_proc_conf.diff_mask)
+        else if ((diff_mask & entry_proc_conf.diff_mask) && (display_mask != 0))
         {
             char attrchg[RBH_PATH_MAX] = "";
 
@@ -793,22 +793,14 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
 
                 /* attr from DB */
-                if (display_mask == 0)
-                    attrchg[0] = '\0';
-                else
-                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                               display_mask, 1);
-
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
+                           display_mask, 1);
                 printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
             }
             else
             {
                 /* attr from DB */
-                if (display_mask == 0)
-                    attrchg[0] = '\0';
-                else
-                    PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs, display_mask, 1);
-
+                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs, display_mask, 1);
                 printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
 
                 /* attr from FS */
@@ -863,7 +855,8 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
     }
 
-    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
+    if (diff_arg->apply == APPLY_DB)
+        p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
     /* always go to APPLY step, at least to tag the entry */
     rc = EntryProcessor_Acknowledge( p_op, STAGE_APPLY, FALSE );
@@ -985,6 +978,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     if (diff_arg->apply == APPLY_FS)
     {
+
         /* all changes must be reverted. So, insert=>rm, rm=>create, ... */
         /* FIXME as this step is parallel, how to manage file creation while
          * parent directory is not created?
@@ -992,6 +986,22 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         switch ( p_op->db_op_type )
         {
             case OP_TYPE_INSERT:
+
+#ifdef _HAVE_FID
+                /* if fullpath is not set, but parent and name are set, use parent/name
+                 * as the fullpath (for fids only) */
+                if (!ATTR_MASK_TEST(&p_op->fs_attrs, fullpath)
+                    && ATTR_MASK_TEST(&p_op->fs_attrs, parent_id)
+                    && ATTR_MASK_TEST(&p_op->fs_attrs, name))
+                {
+                    char *str = ATTR(&p_op->fs_attrs, fullpath);
+                    BuildFidPath(&ATTR(&p_op->fs_attrs, parent_id), str);
+                    long len = strlen(str);
+                    sprintf(str+len, "/%s", ATTR(&p_op->fs_attrs, name));
+                    ATTR_MASK_SET(&p_op->fs_attrs, fullpath);
+                }
+#endif
+
                 /* unlink or rmdir */
                 if ( ATTR_MASK_TEST(&p_op->fs_attrs, type)
                      &&  ATTR_MASK_TEST(&p_op->fs_attrs, fullpath) )
@@ -1143,21 +1153,15 @@ static int hsm_recover(lmgr_t * lmgr,
         case RS_NON_FILE:
         case RS_FILE_DELTA:
 
-            /* insert the new entry to the DB */
-            rc = ListMgr_Insert(lmgr, &new_id, &new_attrs, TRUE);
+            new_attrs.attr_mask &= ~readonly_attr_set;
+            rc = ListMgr_Replace(lmgr, p_id, p_oldattr, &new_id, &new_attrs,
+                                 TRUE, TRUE);
             if (rc)
             {
-                DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to insert new entry '%s' ("DFID") to the database",
-                           ATTR(&new_attrs, fullpath), PFID(&new_id));
+                DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to replace entry "
+                           DFID" with "DFID" (%s) in DB.",
+                           PFID(p_id), PFID(&new_id), ATTR(&new_attrs, fullpath));
                 goto clean_entry;
-            }
-
-            rc = ListMgr_Remove(lmgr, p_id, p_oldattr, TRUE );
-            if (rc)
-            {
-                DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to remove old reference "DFID" from the database",
-                           PFID(p_id));
-                goto clean_db;
             }
 
             status_str = "?";
@@ -1183,11 +1187,6 @@ static int hsm_recover(lmgr_t * lmgr,
                        ATTR(p_oldattr, fullpath), st);
             goto clean_entry;
     }
-
-clean_db:
-    rc = ListMgr_Remove(lmgr, &new_id, &new_attrs, TRUE);
-    if (rc)
-        DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "db cleanup: remove failed: error %d", rc);
 
 clean_entry:
     /* clean new entry (inconsistent) */
@@ -1261,32 +1260,24 @@ static int std_recover(lmgr_t * lmgr,
             }
         }
     }
+    if (diff_arg->fid_remap_file)
+        fprintf(diff_arg->fid_remap_file, DFID" "DFID"\n",PFID(p_id), PFID(&new_id));
 #endif
 #endif
 
     /* insert the new entry to the DB */
-    rc = ListMgr_Insert(lmgr, &new_id, &new_attrs, TRUE);
+    new_attrs.attr_mask &= ~readonly_attr_set;
+    rc = ListMgr_Replace(lmgr, p_id, p_oldattr, &new_id, &new_attrs,
+                         TRUE, TRUE);
     if (rc)
     {
-        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to insert new entry '%s' ("DFID") to the database",
-                   ATTR(&new_attrs, fullpath), PFID(&new_id));
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to replace entry "
+                   DFID" with "DFID" (%s) in DB.",
+                   PFID(p_id), PFID(&new_id), ATTR(&new_attrs, fullpath));
         goto clean_entry;
     }
 
-    rc = ListMgr_Remove(lmgr, p_id, p_oldattr, TRUE);
-    if (rc)
-    {
-        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to remove old reference "DFID" from the database",
-                   PFID(p_id));
-        goto clean_db;
-    }
-
     return 0;
-
-clean_db:
-    rc = ListMgr_Remove(lmgr, &new_id, &new_attrs, TRUE);
-    if (rc)
-        DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "db cleanup: remove failed: error %d", rc);
 
 clean_entry:
     /* clean new entry (inconsistent) */

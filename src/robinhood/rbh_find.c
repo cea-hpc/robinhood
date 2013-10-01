@@ -926,7 +926,7 @@ out:
 /**
  * Bulk filtering in the DB.
  */
-static int list_bulk()
+static int list_bulk(void)
 {
     attr_set_t  root_attrs, attrs;
     entry_id_t  root_id, id;

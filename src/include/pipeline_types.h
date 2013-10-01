@@ -70,6 +70,7 @@ typedef struct _diff_arg
     enum {NO_APPLY = 0, APPLY_FS, APPLY_DB} apply;
     const char * db_tag;
     FILE * lovea_file;
+    FILE * fid_remap_file;
     unsigned int recov_from_backend:1;
 } diff_arg_t;
 

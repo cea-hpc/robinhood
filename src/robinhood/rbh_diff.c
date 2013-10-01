@@ -54,6 +54,13 @@
 
 #define DIFF_TAG    "diff"
 
+#ifdef _HAVE_FID
+#ifndef _MDT_SPECIFIC_LOVEA
+#define LOVEA_FNAME "lovea"
+#define FIDREMAP_FNAME "fid_remap"
+#endif
+#endif
+
 static time_t  start_time;
 
 /* Array of options for getopt_long().
@@ -73,7 +80,7 @@ static struct option option_tab[] = {
 #endif
 #ifdef _HAVE_FID /* only for lustre 2.1 to 2.3 */
 #ifndef _MDT_SPECIFIC_LOVEA
-    {"lovea-file", required_argument, NULL, 'o'}, /* output file for lov EA */
+    {"output-dir", required_argument, NULL, 'o'}, /* output directory to write information for MDT/OST rebuild */
 #endif
 #endif
 
@@ -103,7 +110,7 @@ typedef struct diff_options {
     char           partial_scan_path[RBH_PATH_MAX];
     int            diff_mask;
     diff_arg_t     diff_arg;
-    char           lovea_file[MAX_OPT_LEN];
+    char           output_dir[MAX_OPT_LEN];
 
     /* bit field */
     unsigned int            force_log_level:1;
@@ -114,6 +121,7 @@ static inline void zero_options(struct diff_options * opts)
     /* default value is 0 for most options */
     memset(opts, 0, sizeof(struct diff_options));
     opts->flags = FLAG_ONCE;
+    strcpy(opts->output_dir, ".");
 }
 
 
@@ -155,9 +163,8 @@ static const char *help_string =
 #endif
 #ifdef _HAVE_FID /* only for lustre 2.1 to 2.3 */
 #ifndef _MDT_SPECIFIC_LOVEA
-    "    " _B  "-o"B_" "_U"output_file"U_", --lovea-file" B_"="_U"output_file"U_"\n"
-    "        For MDS disaster recovery, write lovea values to "_U"output_file"U_",\n"
-    "        so they can be set on MDT objects using "_B"set_lovea"B_" tool.\n"
+    "    " _B  "-o"B_" "_U"dir"U_", --output-dir" B_"="_U"dir"U_"\n"
+    "        For MDS disaster recovery, write needed information to files in "_U"dir"U_".\n"
 #endif
 #endif
     "\n"
@@ -348,6 +355,8 @@ static void   *signal_handler_thr( void *arg )
             /* make sure written data is flushed */
             if (options.diff_arg.lovea_file)
                 fflush(options.diff_arg.lovea_file);
+            if (options.diff_arg.fid_remap_file)
+                fflush(options.diff_arg.fid_remap_file);
         }
         exit( 1 );
     }
@@ -394,6 +403,8 @@ static void   *signal_handler_thr( void *arg )
                 /* make sure written data is flushed */
                 if (options.diff_arg.lovea_file)
                     fflush(options.diff_arg.lovea_file);
+                if (options.diff_arg.fid_remap_file)
+                    fflush(options.diff_arg.fid_remap_file);
             }
 
             /* indicate the process terminated due to a signal */
@@ -486,7 +497,7 @@ int main( int argc, char **argv )
 #endif
 #ifdef _HAVE_FID /* only for lustre 2.x */
         case 'o':
-            strncpy( options.lovea_file, optarg, MAX_OPT_LEN );
+            strncpy(options.output_dir, optarg, MAX_OPT_LEN);
             break;
 #endif
         case 'l':
@@ -630,14 +641,30 @@ int main( int argc, char **argv )
 #ifndef _MDT_SPECIFIC_LOVEA
     if (options.diff_arg.apply == APPLY_FS && !(options.flags & FLAG_DRY_RUN))
     {
-        /* open the file to write LOV EA */
-        if (!EMPTY_STRING(options.lovea_file))
+        /* open the file to write LOV EA and FID remapping */
+        if (!EMPTY_STRING(options.output_dir))
         {
-            options.diff_arg.lovea_file = fopen(options.lovea_file, "w");
+            char fname[RBH_PATH_MAX];
+            if (mkdir(options.output_dir, 0700) && (errno != EEXIST))
+            {
+                DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to create directory %s: %s",
+                           options.output_dir, strerror(errno));
+                exit(1);
+            }
+            snprintf(fname, RBH_PATH_MAX-1, "%s/"LOVEA_FNAME, options.output_dir);
+            options.diff_arg.lovea_file = fopen(fname, "w");
             if (options.diff_arg.lovea_file == NULL)
             {
                 DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to open %s for writting: %s",
-                           options.lovea_file, strerror(errno));
+                           fname, strerror(errno));
+                exit(1);
+            }
+            snprintf(fname, RBH_PATH_MAX-1, "%s/"FIDREMAP_FNAME, options.output_dir);
+            options.diff_arg.fid_remap_file = fopen(fname, "w");
+            if (options.diff_arg.fid_remap_file == NULL)
+            {
+                DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to open %s for writting: %s",
+                           fname, strerror(errno));
                 exit(1);
             }
         }
@@ -764,7 +791,15 @@ int main( int argc, char **argv )
 
     /* flush the lovea file */
     if (options.diff_arg.lovea_file)
+    {
+        fprintf(stderr, " > LOV EA information written to %s/"LOVEA_FNAME"\n", options.output_dir);
         fclose(options.diff_arg.lovea_file);
+    }
+    if (options.diff_arg.fid_remap_file)
+    {
+        fprintf(stderr, " > FID remapping written to %s/"FIDREMAP_FNAME"\n", options.output_dir);
+        fclose(options.diff_arg.fid_remap_file);
+    }
 
     fprintf(stderr, "End of scan\n");
 

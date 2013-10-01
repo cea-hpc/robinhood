@@ -175,9 +175,6 @@ int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * 
 }
 
 
-
-
-
 int ListMgr_MassUpdate( lmgr_t * p_mgr,
                         const lmgr_filter_t * p_filter, const attr_set_t * p_attr_set )
 {
@@ -525,5 +522,45 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
 
   rollback:
     lmgr_rollback( p_mgr );
+    return rc;
+}
+
+int ListMgr_Replace(lmgr_t * p_mgr, const entry_id_t *old_id, const attr_set_t *old_attrs,
+                    const entry_id_t *new_id, const attr_set_t *new_attrs,
+                    int src_is_last, int update_target_if_exists)
+{
+    char query[4096];
+    DEF_PK(oldpk);
+    DEF_PK(newpk);
+
+    int rc = lmgr_begin(p_mgr);
+    if (rc)
+        return rc;
+
+    /* delete the old entry */
+    rc = listmgr_remove_no_tx(p_mgr, old_id, old_attrs, src_is_last);
+    if (rc)
+        goto rollback;
+
+    /* create the new one */
+    rc = listmgr_batch_insert_no_tx(p_mgr, &new_id, &new_attrs, 1,
+                                    update_target_if_exists);
+    if (rc)
+        goto rollback;
+
+    /* update parent ids in NAMES table */
+    entry_id2pk(old_id, PTR_PK(oldpk));
+    entry_id2pk(new_id, PTR_PK(newpk));
+
+    sprintf(query, "UPDATE "DNAMES_TABLE" SET parent_id="DPK" WHERE parent_id="DPK,
+            newpk, oldpk);
+    rc = db_exec_sql(&p_mgr->conn, query, NULL);
+    if (rc)
+        goto rollback;
+
+    return lmgr_commit(p_mgr);
+
+rollback:
+    lmgr_rollback(p_mgr);
     return rc;
 }

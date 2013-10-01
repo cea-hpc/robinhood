@@ -68,6 +68,13 @@ int            listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_in
 int            listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs );
 int            listmgr_get_funcattrs(lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_attrs);
 
+int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t const * const *p_ids,
+                               attr_set_t const * const *p_attrs,
+                               unsigned int count,
+                               int update_if_exists);
+
+int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
+                         const attr_set_t *p_attr_set, int last);
 
 typedef struct lmgr_iterator_t
 {

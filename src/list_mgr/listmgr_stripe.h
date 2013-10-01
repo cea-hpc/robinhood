@@ -27,7 +27,7 @@ int            update_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                                    const stripe_items_t * p_items,
                                    int insert_if_absent );
 int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
-                             attr_set_t *const *p_attrs,
+                             attr_set_t const *const *p_attrs,
                              unsigned int count, int update_if_exists);
 
 int            get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe,

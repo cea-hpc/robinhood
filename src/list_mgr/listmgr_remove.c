@@ -106,10 +106,8 @@ static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_
 }
 
 
-
-
-static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                          const attr_set_t * p_attr_set, int last )
+int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
+                         const attr_set_t *p_attr_set, int last)
 {
     char           request[4096];
     int            rc;
@@ -136,7 +134,7 @@ static int listmgr_remove_no_transaction( lmgr_t * p_mgr, const entry_id_t * p_i
 #endif
     }
 
-    /* Allow removing entry from MAIN_TABLE without removing it from rh_scan.log */
+    /* Allow removing entry from MAIN_TABLE without removing it from NAMES */
     if (p_attr_set && ATTR_MASK_TEST(p_attr_set, parent_id) && ATTR_MASK_TEST(p_attr_set, name))
     {
         char escaped[RBH_NAME_MAX*2];
@@ -168,7 +166,7 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
     if ( rc )
         return rc;
 
-    rc = listmgr_remove_no_transaction( p_mgr, p_id, p_attr_set, last );
+    rc = listmgr_remove_no_tx( p_mgr, p_id, p_attr_set, last );
     if (rc)
     {
         lmgr_rollback( p_mgr );
@@ -811,7 +809,7 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     ListMgr_MergeAttrSets(&missing_attrs, p_old_attrs, TRUE);
 
     /* remove the entry from main tables, if it exists */
-    rc = listmgr_remove_no_transaction( p_mgr, p_id, &missing_attrs, TRUE );
+    rc = listmgr_remove_no_tx( p_mgr, p_id, &missing_attrs, TRUE );
     if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
     {
         lmgr_rollback( p_mgr );

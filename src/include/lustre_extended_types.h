@@ -51,7 +51,7 @@
 #endif
 
 #ifndef DFID_NOBRACE
-#define DFID_NOBRACE SFID
+#define DFID_NOBRACE LPX64":0x%x:0x%x"
 #endif
 #ifndef XATTR_NAME_LOV
 #define XATTR_NAME_LOV "trusted.lov"
