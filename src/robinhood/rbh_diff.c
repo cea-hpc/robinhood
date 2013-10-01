@@ -56,6 +56,7 @@
 
 #ifdef _HAVE_FID
 #ifndef _MDT_SPECIFIC_LOVEA
+#define LUSTRE_DUMP_FILES 1
 #define LOVEA_FNAME "lovea"
 #define FIDREMAP_FNAME "fid_remap"
 #endif
@@ -78,10 +79,8 @@ static struct option option_tab[] = {
 #ifdef _HSM_LITE
     {"from-backend", no_argument, NULL, 'b'}, /* recover lost files from backend */
 #endif
-#ifdef _HAVE_FID /* only for lustre 2.1 to 2.3 */
-#ifndef _MDT_SPECIFIC_LOVEA
+#ifdef LUSTRE_DUMP_FILES
     {"output-dir", required_argument, NULL, 'o'}, /* output directory to write information for MDT/OST rebuild */
-#endif
 #endif
 
     /* config file options */
@@ -161,11 +160,9 @@ static const char *help_string =
     "        When applying changes to the filesystem (--apply=fs), recover objects from the backend storage\n"
     "        (otherwise, recover orphaned objects on OSTs).\n"
 #endif
-#ifdef _HAVE_FID /* only for lustre 2.1 to 2.3 */
-#ifndef _MDT_SPECIFIC_LOVEA
+#ifdef LUSTRE_DUMP_FILES
     "    " _B  "-o"B_" "_U"dir"U_", --output-dir" B_"="_U"dir"U_"\n"
     "        For MDS disaster recovery, write needed information to files in "_U"dir"U_".\n"
-#endif
 #endif
     "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -638,7 +635,7 @@ int main( int argc, char **argv )
         }
     }
 
-#ifndef _MDT_SPECIFIC_LOVEA
+#ifdef LUSTRE_DUMP_FILES
     if (options.diff_arg.apply == APPLY_FS && !(options.flags & FLAG_DRY_RUN))
     {
         /* open the file to write LOV EA and FID remapping */
@@ -789,6 +786,7 @@ int main( int argc, char **argv )
     /* Pipeline must be flushed */
     EntryProcessor_Terminate( TRUE );
 
+#ifdef LUSTRE_DUMP_FILES
     /* flush the lovea file */
     if (options.diff_arg.lovea_file)
     {
@@ -800,6 +798,7 @@ int main( int argc, char **argv )
         fprintf(stderr, " > FID remapping written to %s/"FIDREMAP_FNAME"\n", options.output_dir);
         fclose(options.diff_arg.fid_remap_file);
     }
+#endif
 
     fprintf(stderr, "End of scan\n");
 
