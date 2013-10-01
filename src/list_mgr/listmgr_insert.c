@@ -326,7 +326,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t * const * p_ids,
         rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
         if (rc)
             goto rollback;
-    } else {
+    } else if (!update_if_exists) { /* only warn for create operations */
         DEF_PK(ppk);
 
         entry_id2pk(& ATTR(p_attrs[0], parent_id), PTR_PK(ppk));
