@@ -3360,6 +3360,106 @@ function test_diff
     # TODO check the content of the DB for scan and diff --apply
 }
 
+function test_diff_apply_fs # test diff --apply=fs in particular for entry recovery
+{
+    config_file=$1
+    flavor=$2
+    policy_str="$3"
+
+    clean_logs
+    # clean any previous files used for this test
+    rm -f diff.out diff.log find.out find2.out lovea fid_remap
+    
+    # copy 2 instances /bin in the filesystem
+    echo "Populating filesystem..."
+    $LFS setstripe -c 2 $ROOT/.
+    cp -ar /bin $ROOT/bin.1 || error "copy failed"
+    cp -ar /bin $ROOT/bin.2 || error "copy failed"
+
+    # run initial scan
+    echo "Initial scan..."
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+
+    # save contents of bin.1
+    find $ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find.out || error "find error"
+
+    # remove it
+    echo "removing objects"
+    rm -rf "$ROOT/bin.1"
+
+    # cause 1 sec bw initial creation and recovery
+    # to check robinhood restore the original date
+    sleep 1
+
+    echo "running recovery..."
+    strace -f $DIFF -f ./cfg/$config_file --apply=fs > diff.out 2> diff.log || error "rbh-diff error"
+
+    cr1=$(grep -E '^\+\+[^+]' diff.out | wc -l)
+    cr2=$(grep -E 'create|mkdir' diff.log | wc -l)
+    cr3=$(wc -l find.out | awk '{print $1}')
+    rmhl=0
+    if (($cr1 != $cr2)) || (($cr1 != $cr3)); then
+        miss=0
+        for h in $(grep "type=file" diff.out | grep -E "nlink=[^1]"| sed -e "s/.*nlink=\([0-9]*\),.*/\1/"); do
+            ((miss=$h-1+$miss))
+        done
+        echo "detected $miss missing hardlinks"
+        rmhl=1
+        if (($cr3 == $cr1 + $miss)); then
+            echo "WARNING: $miss hardlinks not restored"
+        else
+            error "Unexpected number of objects created: rbh-diff displayed $cr1, rbh-diff log indicates $cr2, expected $cr3 according to find"
+        fi
+    else
+        echo "OK: $cr1 objects created"
+    fi
+
+    find $ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find2.out || error "find error"
+
+    if (($rmhl == 1)); then
+        # remove file hardlinks from diff as their are erroneous
+        for f in $(grep -E "^[^1]* f" find.out | awk '{print $(NF)}'); do
+            grep -Ev " $f " find.out > find.out.new
+            grep -Ev " $f " find2.out > find2.out.new
+            /bin/mv find.out.new find.out
+            /bin/mv find2.out.new find2.out
+        done
+    fi
+
+    # diff non-files: don't compare time as it can't be set
+    sed -e "s/\([0-9]* [^f] [0-7]* \)[0-9.]* /\1/" find.out | sort > find.out.new
+    sed -e "s/\([0-9]* [^f] [0-7]* \)[0-9.]* /\1/" find2.out | sort > find2.out.new
+    /bin/mv find.out.new find.out
+    /bin/mv find2.out.new find2.out
+
+    diff find.out find2.out || error "unexpected differences between initial and final state"
+
+
+    lvers=$(cat /proc/fs/lustre/version | grep "lustre:" | awk '{print $2}' | cut -d '.' -f 1,2)
+    if [[ "$lvers" == "2.1" ]]; then
+        # lovea and fid_remap must have been generated for newly created files
+        [[ -f lovea ]] || error "lovea not generated"
+        [[ -f fid_remap ]] || error "fid_remap not generated"
+    elif [[ "$lustre_major" == "2" ]]; then
+        # not tested for those versions: display a warning for reminder
+        [[ -f lovea ]] || echo  "WARNING: lovea not generated"
+        [[ -f fid_remap ]] || echo "WARNING: fid_remap not generated"
+    fi
+    if [[ -f lovea ]] && [[ -f fid_remap ]]; then
+        nbf=$(grep -E '^\+\+[^+]' diff.out | grep "type=file" | wc -l)
+        nbso=$(grep -E '^\+\+[^+]' diff.out | grep "type=file" | sed -e "s/.*stripe_count=\([0-9]*\),.*/\1/" | xargs | tr " " "+" | bc)
+        # check their contents
+        nbl=$(wc -l lovea | awk '{print $1}')
+        nbo=$(wc -l fid_remap | awk '{print $1}')
+        
+        echo "$nbl items in lovea, $nbo items in fid_remap"
+        [[ "$nbf" == "$nbl" ]] || error "unexpected number of items in lovea $nbl: $nbf expected"
+        [[ "$nbso" == "$nbo" ]] || error "unexpected number of items in fid_remap $nbo: $nbso expected"
+    fi
+
+    rm -f  diff.out diff.log find.out find2.out lovea fid_remap
+}
+
 function test_completion
 {
 	config_file=$1
@@ -8066,6 +8166,7 @@ run_test 109e    test_hardlinks info_collect.conf partdiff "hardlinks management
 run_test 110     test_unlink info_collect.conf "unlink (readlog)"
 run_test 111     test_layout info_collect.conf "layout changes"
 run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
+run_test 113     test_diff_apply_fs info_collect2.conf  "diff"  "rbh-diff --apply=fs"
 
 #### policy matching tests  ####
 
