@@ -42,20 +42,6 @@ struct id_hash
 struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock );
 
 
-/**
- * This is called to register the operation (with the ordering of pipeline)
- * @return ID_OK if the entry can be processed.
- *         ID_MISSING if the ID is not set in p_op structure
- */
-int id_hash_register( struct id_hash * id_hash, entry_proc_op_t * p_op );
-
-
-/**
- * This removes the current reference to an id when the operation is removed.
- */
-int id_hash_unregister( struct id_hash * id_hash, entry_proc_op_t * p_op );
-
-
 /* display info about id hash management */
 void id_hash_dump( struct id_hash * id_hash, const char * log_str );
 
