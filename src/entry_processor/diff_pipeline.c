@@ -1135,7 +1135,7 @@ static void no_tag_cb(const entry_id_t *p_id)
 
 #ifdef _HSM_LITE
 static int hsm_recover(lmgr_t * lmgr,
-                       const entry_id_t *p_id,
+                       entry_id_t *p_id,
                        attr_set_t *p_oldattr)
 {
     recov_status_t st;
@@ -1204,7 +1204,7 @@ clean_entry:
 #endif
 
 static int std_recover(lmgr_t * lmgr,
-                       const entry_id_t *p_id,
+                       entry_id_t *p_id,
                        attr_set_t *p_oldattr)
 {
     entry_id_t new_id;
@@ -1225,7 +1225,7 @@ static int std_recover(lmgr_t * lmgr,
     {
         if (!ATTR_MASK_TEST(&new_attrs, fullpath))
         {
-            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Fullpath needed to write into lovea_file");
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Fullpath needed to write into lovea_file");
         }
         else
         {
@@ -1261,7 +1261,21 @@ static int std_recover(lmgr_t * lmgr,
         }
     }
     if (diff_arg->fid_remap_file)
-        fprintf(diff_arg->fid_remap_file, DFID" "DFID"\n",PFID(p_id), PFID(&new_id));
+    {
+        /* print for each stripe: ost index, stripe_number, object id, old fid, new fid */
+        if (ATTR_MASK_TEST(p_oldattr, stripe_items))
+        {
+            int i;
+            stripe_items_t *pstripe = &ATTR(p_oldattr, stripe_items);
+            for (i = 0; i < pstripe->count; i++)
+            {
+                fprintf(diff_arg->fid_remap_file, "%u %u %"PRIu64" "DFID" "DFID"\n",
+                        pstripe->stripe[i].ost_idx, i,
+                        pstripe->stripe[i].obj_id,
+                        PFID(p_id), PFID(&new_id));
+            }
+        }
+    }
 #endif
 #endif
 
@@ -1294,7 +1308,7 @@ clean_entry:
 }
 
 
-int EntryProc_report_rm( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
+static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];

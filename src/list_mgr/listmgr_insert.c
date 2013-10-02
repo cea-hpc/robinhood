@@ -26,8 +26,8 @@
 #include <stdlib.h>
 
 
-int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t const * const *p_ids,
-                               attr_set_t const * const *p_attrs,
+int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
+                               attr_set_t **p_attrs,
                                unsigned int count,
                                int update_if_exists)
 {
@@ -201,7 +201,7 @@ out_free:
 }
 
 
-int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t const *p_id, attr_set_t const *p_info,
+int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id, attr_set_t *p_info,
                    int update_if_exists)
 {
     int rc;
@@ -232,8 +232,8 @@ int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t const *p_id, attr_set_t const *p_in
  * Insert a batch of entries into the database.
  * All entries must have the same attr mask.
  */
-int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t const * const * p_ids,
-                                   attr_set_t const * const * p_attrs,
+int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
+                                   attr_set_t ** p_attrs,
                                    unsigned int count,
                                    int update_if_exists)
 {

@@ -27,7 +27,7 @@
 #include <pthread.h>
 
 
-int ListMgr_Update( lmgr_t * p_mgr, const entry_id_t * p_id, const attr_set_t * p_update_set )
+int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
 {
     int            rc, main_count, annex_count;
     char           query[4096];
@@ -525,8 +525,8 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
     return rc;
 }
 
-int ListMgr_Replace(lmgr_t * p_mgr, const entry_id_t *old_id, const attr_set_t *old_attrs,
-                    const entry_id_t *new_id, const attr_set_t *new_attrs,
+int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
+                    entry_id_t *new_id, attr_set_t *new_attrs,
                     int src_is_last, int update_target_if_exists)
 {
     char query[4096];

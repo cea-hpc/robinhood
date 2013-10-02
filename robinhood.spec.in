@@ -275,6 +275,7 @@ fi
 %files recov-tools
 %{_sbindir}/*lovea
 %{_sbindir}/gen_lov_objid
+%{_sbindir}/ost_fids_remap
 %endif
 
 %if %{with shook}

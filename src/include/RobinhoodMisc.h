@@ -293,7 +293,24 @@ int            str2bool( const char *str );
  * Convert a string to an integer
  * @return -1 on error.
  */
-int            str2int( const char *str );
+static inline int str2int(const char *str)
+{
+    char           suffix[256];
+    int            nb_read, value;
+
+    if (str == NULL)
+        return -1;
+
+    nb_read = sscanf(str, "%d%s", &value, suffix);
+
+    if (nb_read <= 0)
+        return -1;              /* invalid format */
+
+    if ((nb_read == 1) || (suffix[0] == '\0'))
+        return value;           /* no suffix => 0K */
+    else
+        return -1;
+}
 
 /**
  * Convert a string to a long integer
