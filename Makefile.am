@@ -8,6 +8,7 @@ rpm_dir=`pwd`/rpms
 if LUSTRE
   rpmbuild_opt=--with lustre @LDEFINES@
 if USER_LOVEA
+  # Lustre 2.x only
   rpmbuild_opt += --with recovtools
 endif
 

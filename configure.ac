@@ -221,8 +221,7 @@ if test "x$support_lustre" = "xyes" ; then
     fi
 
     AM_CONDITIONAL(CHANGELOGS,  test  "x$have_llapi_changelog_start" = "xyes" )
-    AM_CONDITIONAL( USER_LOVEA, test  "x$have_new_lustre_header" != "xtrue" )
-
+    AM_CONDITIONAL(USER_LOVEA, [test  "x$have_new_lustre_header" != "xtrue" && test "x$have_llapi_changelog_start" = "xyes"])
 else
     AM_CONDITIONAL(LUSTRE, test 0 = 1 )
     AM_CONDITIONAL(CHANGELOGS, test 0 = 1 ) 

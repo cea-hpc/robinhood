@@ -33,7 +33,7 @@ endif
 
 all_libs += ../list_mgr/liblistmgr.la ../common/libcommontools.la
 
-#Lustre only
+#Lustre 2.x only
 if LUSTRE
 if USER_LOVEA
 sbin_PROGRAMS=read_lovea set_lovea gen_lov_objid ost_fids_remap
