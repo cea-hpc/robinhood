@@ -72,6 +72,7 @@ cppcheck:
 	cppcheck -j12 -v --force --enable=all -I`pwd`/src/include -DHAVE_CONFIG_H @PURPOSE_CFLAGS@ @DB_CFLAGS@ src/
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
+	autogen.sh \
         doc/templates					\
 	LICENSE.fr.txt LICENSE.en.txt README.tmp_fs_mgr README.Lustre_HSM	\
 	doc/admin_guides \
