@@ -1971,7 +1971,7 @@ void report_usergroup_info( char *name, int flags )
     lmgr_iter_opt_t opt;
     int display_header = TRUE;
 
-#define USERINFOCOUNT_MAX 8
+#define USERINFOCOUNT_MAX 9
 
     db_value_t     result[USERINFOCOUNT_MAX];
     profile_u   prof;
@@ -2035,6 +2035,9 @@ void report_usergroup_info( char *name, int flags )
 #if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
     /* for 'release'-capable systems, count sum(size) instead of sum(blocks) that might be zero */
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_SUM, SORT_NONE );
+    field_count++;
+    /* split by file status */
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_status, REPORT_GROUP_BY, SORT_NONE);
 #else
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
 #endif
@@ -2542,7 +2545,11 @@ void report_topuser( unsigned int count, int flags )
      */
     report_field_descr_t user_info[TOPUSERCOUNT] = {
         {ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_NONE, FALSE, 0, {NULL}},
+#if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
+        {ATTR_INDEX_size, REPORT_SUM, SORT_DESC, FALSE, 0, {NULL}},
+#else
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_DESC, FALSE, 0, {NULL}},
+#endif
         {0, REPORT_COUNT, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, FALSE, 0, {NULL}},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, FALSE, 0, {NULL}},
