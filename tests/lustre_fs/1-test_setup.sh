@@ -5,11 +5,11 @@ CFG_SCRIPT="../../scripts/rbh-config"
 if [ -z "$LFS" ]; then
 	LFS=lfs
 	LCTL=lctl
-	COPYTOOL=lhsmd_posix
+	COPYTOOL=lhsmtool_posix
 else
 	lutils_dir=$(dirname $LFS)
 	LCTL=$lutils_dir/lctl
-	COPYTOOL=$lutils_dir/lhsmd_posix
+	COPYTOOL=$lutils_dir/lhsmtool_posix
 fi
 
 service mysqld start
@@ -40,7 +40,7 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	if (( `pgrep -f lhsmd_posix | wc -l` > 0 )); then
 		echo "Already running"
 	else
-		$COPYTOOL --hsm_root=/tmp --noshadow lustre &
+		$COPYTOOL --hsm_root=/tmp --no-shadow --daemon /mnt/lustre &
 	fi
 
 fi
