@@ -592,21 +592,6 @@ int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
     return 0;
 }
 
-/* for traces */
-const char * HSMAction2str( enum hsm_user_action action )
-{
-    switch( action )
-    {
-        case HUA_ARCHIVE: return "ARCHIVE";
-        case HUA_RESTORE: return "RESTORE";
-        case HUA_RELEASE: return "RELEASE";
-        case HUA_REMOVE: return "REMOVE";
-        case HUA_CANCEL: return "CANCEL";
-        default: return "Unknown";
-    }
-
-}
-
 /** Trigger a HSM action */
 int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
                       const char * hints, unsigned int archive_id )
@@ -658,7 +643,7 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
     if (rc)
         DisplayLog( LVL_CRIT, "HSMAction", "ERROR performing HSM request(%s,"
                     " root=%s, fid="DFID"): %s",
-                    HSMAction2str(action), mpath, PFID(p_id),
+                    hsm_user_action2name(action), mpath, PFID(p_id),
                     strerror(-rc) );
     return rc;
 

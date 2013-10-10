@@ -526,11 +526,11 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
                     /* Entry status remains 'released' */
 #ifdef _DROP_RELEASED
                     /* remove entry from PE working set */
-                    p_op->db_op_type = OP_TYPE_REMOVE;
+                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
                     return STAGE_PRE_APPLY;
 #else
-                    ATTR_MASK_SET( &p_op->fs_attrs, status );
-                    ATTR( &p_op->fs_attrs, status ) = STATUS_RELEASED;
+                    ATTR_MASK_SET(&p_op->fs_attrs, status);
+                    ATTR(&p_op->fs_attrs, status) = STATUS_RELEASED;
                     p_op->fs_attr_need &= ~ATTR_MASK_status;
 #endif
                 }
@@ -553,9 +553,15 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
                 }
                 else if ( p_op->db_exists )
                 {
+#ifdef _DROP_RELEASED
                     /* Entry is now 'released': remove it from PE working set */
-                    p_op->db_op_type = OP_TYPE_REMOVE;
+                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
                     return STAGE_PRE_APPLY;
+#else
+                    ATTR_MASK_SET(&p_op->fs_attrs, status);
+                    ATTR(&p_op->fs_attrs, status) = STATUS_RELEASED;
+                    p_op->fs_attr_need &= ~ATTR_MASK_status;
+#endif
                 }
                 else /* entry is not in PE working set */
                 {
