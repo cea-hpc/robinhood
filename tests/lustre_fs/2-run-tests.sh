@@ -219,7 +219,7 @@ function clean_fs
 		 find "$ROOT" -mindepth 1 -delete 2>/dev/null
 	fi
 
-	if (( $is_hsmlite != 0 )); then
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
 		if [[ -n "$BKROOT" ]]; then
 			echo "Cleaning backend content..."
 			find "$BKROOT" -mindepth 1 -delete 2>/dev/null
@@ -721,8 +721,16 @@ function test_lru_policy
 
 	$RH -f ./cfg/$config_file --migrate -l FULL -L rh_migr.log  --once || error ""
 
-	migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-          awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    # if robinhood logs fids, convert them to files
+    if (( $is_lhsm > 0 )); then
+        migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
+              awk -F, '{print $1}' | xargs -n 1 -r lfs fid2path $ROOT |\
+              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    else
+        migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
+              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    fi
+
     nb_migr=$(echo $migr | wc -w)
 	if [[ "$migr" != "$expected_migr_1" ]]; then
         error "********** TEST FAILED: $nb_expected_migr_1 migration expected ${expected_migr_1:+(files $expected_migr_1)}, $nb_migr started ${migr:+(files $migr)}"
@@ -738,8 +746,14 @@ function test_lru_policy
 	echo "5-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once
 
-	migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-          awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    if (( $is_lhsm > 0 )); then
+        migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
+              awk -F, '{print $1}' | xargs -n 1 -r lfs fid2path $ROOT |\
+              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    else
+	    migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
+              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
+    fi
     nb_migr=$(echo $migr | wc -w)
 	if [[ "$migr" != "$expected_migr_2" ]]; then
         error "********** TEST FAILED: $nb_expected_migr_2 migration expected ${expected_migr_2:+(files $expected_migr_2)}, $nb_migr started ${migr:+(files $migr)}"
@@ -1136,7 +1150,7 @@ function purge_test
 	if (( $is_hsmlite != 0 )); then
 		echo "2bis-Archiving files"
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing migrate-file"
-		arch_count=`grep "$ARCH_STR" rh_migr.log | wc -l`
+		arch_count=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
 		(( $arch_count == 11 )) || error "$11 archive commands expected"
 	fi
 
@@ -3369,7 +3383,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
     clean_logs
     # clean any previous files used for this test
     rm -f diff.out diff.log find.out find2.out lovea fid_remap
-    
+
     # copy 2 instances /bin in the filesystem
     echo "Populating filesystem..."
     $LFS setstripe -c 2 $ROOT/.
@@ -4452,14 +4466,6 @@ function test_cfg_parsing
 	policy_str="$3"
 
 	clean_logs
-
-	# needed for reading password file
-	if [[ ! -f /etc/robinhood.d/.dbpassword ]]; then
-		if [[ ! -d /etc/robinhood.d ]]; then
-			mkdir /etc/robinhood.d
-		fi
-		echo robinhood > /etc/robinhood.d/.dbpassword
-	fi
 
 	if [[ $flavor == "basic" ]]; then
 
@@ -5923,9 +5929,19 @@ function test_migration
 
 	echo "Reading changelogs and Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 60
 
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    # no symlink archiving for Lustre/HSM
+    if (( $is_lhsm > 0 )); then
+        for x in $migrate_arr; do
+            if [[ $x = *"link"* ]]; then
+                ((countFinal=$countFinal-1))
+            fi
+        done
+    fi
+
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -5934,14 +5950,17 @@ function test_migration
     nbError=0
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && [[ $x = *"link"* ]] && continue
+        # lustre/HSM: search by fid
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
@@ -5969,8 +5988,8 @@ function migration_file_type
 	migrate_list=$4
     migrate_arr=$(echo $migrate_list | tr ";" "\n")
 
-    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
-		echo "No Migration for this purpose: skipped"
+    if (( $is_hsmlite == 0 )); then
+		echo "No symlink migration for this purpose: skipped"
 		set_skipped
 		return 1
 	fi
@@ -5992,8 +6011,8 @@ function migration_file_type
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/link.1 -l DEBUG -L rh_migr.log --once
 
     nbError=0
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6002,23 +6021,25 @@ function migration_file_type
 
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
-	countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6026,14 +6047,15 @@ function migration_file_type
     fi
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
@@ -6082,10 +6104,11 @@ function migration_file_owner
 
 	echo "Reading changelogs and Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != 0)); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
@@ -6094,9 +6117,10 @@ function migration_file_owner
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.3 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
-	countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6104,14 +6128,15 @@ function migration_file_owner
     fi
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
@@ -6152,10 +6177,11 @@ function migration_file_Last
 
 	echo "Reading changelogs and Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != 0)); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
@@ -6172,9 +6198,10 @@ function migration_file_Last
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
-	countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6182,14 +6209,15 @@ function migration_file_Last
     fi
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
@@ -6230,10 +6258,11 @@ function migration_file_ExtendedAttribut
 
 	echo "Reading changelogs and Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.4 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6242,9 +6271,10 @@ function migration_file_ExtendedAttribut
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.5 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6253,9 +6283,10 @@ function migration_file_ExtendedAttribut
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6264,14 +6295,15 @@ function migration_file_ExtendedAttribut
 
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
@@ -6321,9 +6353,10 @@ function migration_OST
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 60
     nbError=0
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6332,14 +6365,15 @@ function migration_OST
 
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
@@ -6388,10 +6422,11 @@ function migration_file_OST
 
 	echo "3-Reading changelogs and Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/file.2 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != 0)); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
@@ -6400,9 +6435,10 @@ function migration_file_OST
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/file.3 -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 10
 
-    countFile=`find $BKROOT -type f | wc -l`
-    countLink=`find $BKROOT -type l | wc -l`
+    countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
@@ -6411,14 +6447,15 @@ function migration_file_OST
 
     for x in $migrate_arr
     do
+        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not migrate"
+            error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
         countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
         if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not migrate"
+            error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
 	    fi
     done
@@ -6730,6 +6767,7 @@ function test_purge
         if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 	        echo "Update Archiving files"
 	        $RH -f ./cfg/$config_file --scan --migrate -l DEBUG  -L rh_migr.log --once
+            (( $is_lhsm > 0 )) && wait_done 60
 	    fi
     fi
 
@@ -6870,9 +6908,10 @@ function purge_OST
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	# use robinhood for flushing
-	if (( $is_hsmlite != 0 )); then
+	if (( $is_hsmlite + $is_lhsm > 0 )); then
 		echo "2bis-Archiving files"
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+        (( $is_lhsm > 0 )) && wait_done 60
 	fi
 
 	echo "Reading changelogs and Applying purge policy..."
@@ -7317,13 +7356,13 @@ function test_report_generation_1
 	logFile=report.out
 
     typeValues="dir;file;symlink"
-  	countValues="8;6;5"
+    countValues="8;6;5"
     if (( $is_hsmlite + $is_lhsm != 0 )); then
         # type counts are in 3rd column (beacause of status column)
-   	    colSearch=3
+        colSearch=3
     else
         # type counts are in 2nd column
-   	    colSearch=2
+        colSearch=2
     fi
     [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
@@ -7332,8 +7371,15 @@ function test_report_generation_1
 	# launch another scan ..........................
 	echo -e "\n 4-FileClasses summary..."
 	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
-	typeValues="test_file_type;test_link_type"
-	countValues="6;5"
+    if (( $is_lhsm == 0 )); then
+        typeValues="test_file_type;test_link_type"
+        countValues="6;5"
+    else
+        # Lustre/HSM: no fileclass for symlinks
+        typeValues="test_file_type"
+        countValues="6"
+    fi
+
     if (( $is_hsmlite + $is_lhsm != 0 )); then
     	colSearch=3
     else
@@ -7760,8 +7806,9 @@ function TEST_OTHER_PARAMETERS_1
 	    $RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once &
 
 	    sleep 5
+        wait_done 60
 
-        count=`find $BKROOT -type f | wc -l`
+        count=`find $BKROOT -type f -not -name "*.lov" | wc -l`
         if (($count != 0)); then
             error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
             ((nbError++))
@@ -7773,7 +7820,7 @@ function TEST_OTHER_PARAMETERS_1
 	    echo "wait robinhood"
 	    wait
 
-        count=`find $BKROOT -type f | wc -l`
+        count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
         if (($count != 10)); then
             error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
             ((nbError++))
@@ -7820,18 +7867,19 @@ function TEST_OTHER_PARAMETERS_2
 	pid=$!
 
 	sleep 5
+    (( $is_lhsm > 0 )) && wait_done 60
 
     nbError=0
-	count=`find $BKROOT -type f | wc -l`
+	count=`find $BKROOT -type f -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
         ((nbError++))
     fi
 
-    # Migration dans "fs"
-    countMigrLog=`grep "Archived " rh_migr.log | wc -l`
+    # Migration dans fs
+    countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
     if (( $countMigrLog != 10 )); then
-        error "********** TEST FAILED (File System): $countMigrLog files migrated, but 10 expected"
+        error "********** TEST FAILED (Log): $countMigrLog files migrated, but 10 expected"
         ((nbError++))
     fi
 
@@ -7844,7 +7892,7 @@ function TEST_OTHER_PARAMETERS_2
     #comptage du nombre de "STATS"
     nb_Stats2=`grep "STATS" rh_migr.log | wc -l`
 	if (( $nb_Stats2 <= $nb_Stats )); then
-        error "********** TEST FAILED (LOG): $nb_Stats2 \"STATS\" detected, but more than $nb_Stats \"STATS\" expected"
+        error "********** TEST FAILED (Stats): $nb_Stats2 \"STATS\" detected, but more than $nb_Stats \"STATS\" expected"
         ((nbError++))
     fi
 
@@ -7852,7 +7900,7 @@ function TEST_OTHER_PARAMETERS_2
 	sleep 30
 
 
-	count=`find $BKROOT -type f | wc -l`
+	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
         ((nbError++))
@@ -7891,16 +7939,20 @@ function TEST_OTHER_PARAMETERS_3
 
 	echo "Archives files"
 	$RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
-	count=`find $BKROOT -type f | wc -l`
+	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 5 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 5 expected"
         ((nbError++))
     fi
 
+    local rmd=()
     for i in `seq 1 5` ; do
-    	rm -f $ROOT/file.$i
+        local f=$ROOT/file.$i
+        (( $is_lhsm > 0 )) && f=$($LFS path2fid $f | tr -d '[]')
+    	rm -f $ROOT/file.$i && rmd+=($f)
 	done
 
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
@@ -7921,24 +7973,20 @@ function TEST_OTHER_PARAMETERS_3
         ((nbError++))
     fi
 
-	for i in `seq 1 4` ; do
-	    countMigrFile=`ls -R $BKROOT | grep "file.$i" | wc -l`
-        if (($countMigrFile != 0)); then
-            error "********** TEST FAILED (File System): file.$i is not removed"
-            ((nbError++))
-        fi
+    # 1 file out of 5 must remain in the backend
+    local countRemainFile=0
+	for i in ${rmd[*]}; do
+	    local found=`find $BKROOT -type f -name "$i" | wc -l`
+        (( $found != 0 )) && echo "$i remains in backend"
+        ((countRemainFile+=$found))
 	done
-
-    countMigrFile=`ls -R $BKROOT | grep "file.5" | wc -l`
-    if (($countMigrFile == 0)); then
-        error "********** TEST FAILED (File System): file.5 is removed"
+    if (($countRemainFile != 1)); then
+        error "********** TEST FAILED (File System): Wrong count of remaining files: $countRemainFile (1 expected)"
         ((nbError++))
     fi
 
 	echo "sleep 60 seconds"
 	sleep 60
-
-
 
 	nb_Remove=`grep "Remove request successful for entry" rh_purge.log | wc -l`
 	if (( $nb_Remove != 5 )); then
@@ -7946,9 +7994,15 @@ function TEST_OTHER_PARAMETERS_3
         ((nbError++))
     fi
 
-	countMigrFile=`ls -R $BKROOT | grep "file.5" | wc -l`
-    if (($countMigrFile == 1)); then
-        error "********** TEST FAILED (File System): file.5 is not removed"
+    # no file must remain in the backend
+    countRemainFile=0
+	for i in ${rmd[*]}; do
+	    local found=`find $BKROOT -type f -name "$i" | wc -l`
+        (( $found != 0 )) && echo "$i remains in backend"
+        ((countRemainFile+=$found))
+	done
+    if (($countRemainFile != 0)); then
+        error "********** TEST FAILED (File System): Wrong count of remaining files: $countRemainFile (0 expected)"
         ((nbError++))
     fi
 
@@ -7970,7 +8024,7 @@ function TEST_OTHER_PARAMETERS_4
 
 	config_file=$1
 
-    if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
+    if (( $is_hsmlite == 0 )); then
 		echo "No TEST_OTHER_PARAMETERS_4 for this purpose: skipped"
 		set_skipped
 		return 1
@@ -7988,9 +8042,10 @@ function TEST_OTHER_PARAMETERS_4
 
 	echo "Migrate files (must fail)"
 	$RH -f ./cfg/$config_file --scan --migrate -l DEBUG -L rh_migr.log --once
+    (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
-	count=`find $BKROOT -type f | wc -l`
+	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 0 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
         ((nbError++))
@@ -8010,7 +8065,7 @@ function TEST_OTHER_PARAMETERS_4
     kill -9 $pid
 
 	nbError=0
-	count=`find $BKROOT -type f | wc -l`
+	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 0 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
         ((nbError++))
@@ -8023,9 +8078,10 @@ function TEST_OTHER_PARAMETERS_4
 
 	echo "sleep 30 seconds"
 	sleep 30
+    (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
-	count=`find $BKROOT -type f | wc -l`
+	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
         ((nbError++))
@@ -8274,10 +8330,10 @@ run_test 608 test_alerts Alert_ExtendedAttribute.conf "extAttributes" 0 "TEST_AL
 run_test 609 test_alerts Alert_Dircount.conf "dircount" 0 "TEST_ALERT_DIRCOUNT"
 
 run_test 610 test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.8" "--migrate" "TEST_test_migration_PATH_NAME"
-run_test 611 test_migration MigrationStd_Type.conf 0 2 "link.1;link.2" "--migrate" "TEST_MIGRATION_STD_TYPE"
+run_test 611 test_migration MigrationStd_Type.conf 0 8 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--migrate" "TEST_MIGRATION_STD_TYPE"
 run_test 612 test_migration MigrationStd_Owner.conf 0 1 "file.3" "--migrate" "TEST_MIGRATION_STD_OWNER"
 run_test 613 test_migration MigrationStd_Size.conf 0 2 "file.6;file.7" "--migrate" "TEST_MIGRATION_STD_SIZE"
-run_test 614 test_migration MigrationStd_LastAccess.conf 31 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--migrate" "TEST_MIGRATION_STD_LAST_ACCESS"
+run_test 614 test_migration MigrationStd_LastAccess.conf 12 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--migrate" "TEST_MIGRATION_STD_LAST_ACCESS"
 run_test 615 test_migration MigrationStd_LastModification.conf 31 2 "file.8;file.9" "--migrate" "TEST_MIGRATION_STD_LAST_MODIFICATION"
 run_test 616 migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--migrate" "TEST_MIGRATION_STD_OST"
 run_test 617 test_migration MigrationStd_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_STD_EXTENDED_ATTRIBUT"
@@ -8296,8 +8352,8 @@ run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--migrate
 run_test 630 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
 run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--migrate-file=$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
 run_test 632 test_migration MigrationFile_Size.conf 1 1 "file.8" "--migrate-file=$ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
-run_test 633 migration_file_Last MigrationFile_LastAccess.conf 31 1 "file.1" "TEST_MIGRATION_FILE_LAST_ACCESS"
-run_test 634 migration_file_Last MigrationFile_LastModification.conf 31 1 "file.1" "TEST_MIGRATION_FILE_LAST_MODIFICATION"
+run_test 633 migration_file_Last MigrationFile_LastAccess.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_ACCESS"
+run_test 634 migration_file_Last MigrationFile_LastModification.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_MODIFICATION"
 run_test 635 migration_file_OST MigrationFile_OST.conf 1 "file.3" "TEST_MIGRATION_FILE_OST"
 run_test 636 migration_file_ExtendedAttribut MigrationFile_ExtendedAttribut.conf 0 1 "file.4"  "TEST_MIGRATION_FILE_EXTENDED_ATTRIBUT"
 

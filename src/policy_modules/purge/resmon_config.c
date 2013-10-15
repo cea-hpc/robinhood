@@ -488,16 +488,7 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         return ENOENT;
     }
 
-#if defined(_LUSTRE_HSM) || defined(HAVE_SHOOK)
-    /* count threshold as no sense for lustre HSM, because releasing file
-     * does not free inodes */
-    if ( (rc_hc == 0) || (rc_lc == 0) )
-    {
-       DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                "Warning: threshold on entry count doesn't make sense for "
-                         PURPOSE_EXT" purpose" );
-    }
-#endif
+    /* NOTE: count threshold for HSM systems only match online files (not released)*/
 
     /* count threshold is only on global usage */
     if ( (p_trigger_item->type != TRIGGER_GLOBAL_USAGE)

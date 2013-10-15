@@ -1,6 +1,7 @@
 #!/bin/bash
 
 CFG_SCRIPT="../../scripts/rbh-config"
+BKROOT="/tmp/backend"
 
 if [ -z "$LFS" ]; then
 	LFS=lfs
@@ -40,7 +41,7 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	if (( `pgrep -f lhsmd_posix | wc -l` > 0 )); then
 		echo "Already running"
 	else
-		$COPYTOOL --hsm_root=/tmp --no-shadow --daemon /mnt/lustre &
+		$COPYTOOL --hsm_root=$BKROOT --no-shadow --daemon /mnt/lustre &
 	fi
 
 fi
