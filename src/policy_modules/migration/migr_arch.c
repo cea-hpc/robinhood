@@ -1511,6 +1511,14 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
                 ATTR( &p_item->entry_attr, fullpath ) );
 
     ATTR_MASK_INIT( &new_attr_set );
+#ifdef ATTR_INDEX_creation_time
+    /* set creation_time as it must not be set by check_entry */
+    if (ATTR_MASK_TEST(&p_item->entry_attr, creation_time))
+    {
+        ATTR_MASK_SET(&new_attr_set, creation_time);
+        ATTR(&new_attr_set, creation_time) = ATTR(&p_item->entry_attr, creation_time);
+    }
+#endif
 
     rc = check_entry( lmgr, p_item, &new_attr_set );
     if ( rc != MIGR_OK )
@@ -1618,6 +1626,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
             ATTR( &new_attr_set, whitelisted ) = TRUE;
     #endif
 
+            DisplayLog(LVL_FULL, MIGR_TAG, "%s is whitelisted", ATTR(&p_item->entry_attr, fullpath));
             /* update DB and skip the entry */
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
 
@@ -1667,6 +1676,7 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
     if ( !policy_case )
     {
+        DisplayLog(LVL_FULL, MIGR_TAG, "%s doesn't match any policy case", ATTR(&p_item->entry_attr, fullpath));
         update_entry( lmgr, &p_item->entry_id, &new_attr_set );
         Acknowledge(&migr_queue, MIGR_NO_POLICY, 0, ATTR(&p_item->entry_attr, size));
         goto end;
@@ -1692,6 +1702,9 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
         switch ( EntryMatches( &p_item->entry_id, &new_attr_set, &policy_case->condition, migr_pol_mod ) )
         {
         case POLICY_NO_MATCH:
+            DisplayLog(LVL_FULL, MIGR_TAG, "%s doesn't match condition for policy '%s': dt=%lu",
+                       ATTR(&p_item->entry_attr, fullpath), policy_case->policy_id,
+                       time(NULL) - get_sort_attr(&new_attr_set));
             /* entry is not eligible now */
             update_entry( lmgr, &p_item->entry_id, &new_attr_set );
             Acknowledge(&migr_queue, MIGR_ENTRY_WHITELISTED, 0, ATTR(&p_item->entry_attr, size));
@@ -1862,7 +1875,6 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
         /* don't take current last_archive that may have been just-updated:
          * get the previous one */
-
         if (migr_config.lru_sort_attr == ATTR_INDEX_last_archive)
             t = get_sort_attr(&p_item->entry_attr);
         else
