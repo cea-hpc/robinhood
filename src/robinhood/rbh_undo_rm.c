@@ -368,7 +368,7 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
 
     printf("Restoring '%s'...\n", last_known_path );
 
-    ATTR_MASK_INIT( &attrs );
+    ATTR_MASK_INIT(&attrs);
     ATTR_MASK_SET(&attrs, fullpath);
     strcpy( ATTR(&attrs, fullpath), last_known_path );
 
@@ -379,6 +379,7 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
     }
 
     /* copy file to Lustre */
+    ATTR_MASK_INIT(&new_attrs);
     st = rbhext_recover( id, &attrs, &new_id, &new_attrs, NULL );
     if ((st == RS_FILE_OK) || (st == RS_FILE_DELTA)|| (st == RS_FILE_EMPTY)
         ||  (st == RS_NON_FILE))

@@ -201,7 +201,9 @@ static inline int import_helper(const char       *backend_path,
 
     printf("Importing '%s' as '%s'...\n", backend_path, tgt_path);
 
-    ATTR_MASK_INIT( &attrs );
+    ATTR_MASK_INIT(&attrs);
+    ATTR_MASK_INIT(&src_attrs);
+    ATTR_MASK_INIT(&new_attrs);
 
     ATTR_MASK_SET( &attrs, backendpath );
     strcpy( ATTR( &attrs, backendpath), backend_path );
