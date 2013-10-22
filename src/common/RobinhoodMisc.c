@@ -449,13 +449,7 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
         MAX3( p_inode->st_atime, p_inode->st_mtime, p_inode->st_ctime );
 
     ATTR_MASK_SET( p_attr_set, last_mod );
-    /* @TODO is this really what we want? */
-#ifdef _HSM_LITE
     ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
-#else
-    //ATTR( p_attr_set, last_mod ) = MAX2( p_inode->st_mtime, p_inode->st_ctime );
-    ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
-#endif
 
 #ifdef ATTR_INDEX_creation_time
     if (ATTR_MASK_TEST(p_attr_set, creation_time))
