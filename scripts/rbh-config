@@ -272,11 +272,12 @@ function enable_changelogs
         echo "\"cl1\" is already registered. Skipping registration."
     elif (( $is_cl1 < $mdtcnt )); then
         echo "\"cl1\" is not registered on all MDTs on this host ($mdtcnt)..."
-        for i in $(seq -w 0000 $(($mdtcnt-1)) ); do
-           grep cl1 /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT$i > /dev/null 2> /dev/null
+        for m in $(ls -d /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT* 2>/dev/null); do
+           grep cl1 $m > /dev/null 2> /dev/null
            if (( $? != 0 )); then
-               echo "No client registered on $fsname-MDT$i yet"
-               lctl --device $fsname-MDT$i changelog_register || echo "FAILED to register to MDT$i"
+               short=$(basename $m)
+               echo "No client registered on $short yet"
+               lctl --device $short changelog_register || echo "FAILED to register to $short"
            fi
         done
     fi
