@@ -38,7 +38,7 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	done
 
 	echo "Checking if copytool is already running..."
-	if (( `pgrep -f lhsmd_posix | wc -l` > 0 )); then
+	if (( `pgrep -f lhsmtool_posix | wc -l` > 0 )); then
 		echo "Already running"
 	else
 		$COPYTOOL --hsm_root=$BKROOT --no-shadow --daemon /mnt/lustre &
