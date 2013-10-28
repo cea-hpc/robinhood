@@ -297,12 +297,11 @@ function enable_changelogs
 
         if (( $missing != 0 )); then
             echo "event $event not in changelog mask: setting it"
-            lctl set_param mdd.$fsname-MDT*.changelog_mask "+$event" || echo "FAILED"
+            lctl conf_param mdd.$fsname-MDT*.changelog_mask "+$event" || echo "FAILED"
         else
             echo "event $event OK"
         fi
     done
-    #lctl set_param mdd.*.changelog_mask "CREAT UNLNK OPEN CLOSE TRUNC HSM"
 }
 
 function select_db
