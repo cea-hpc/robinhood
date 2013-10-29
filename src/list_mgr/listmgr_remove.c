@@ -56,6 +56,14 @@ static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_
     int rc;
     char request[2048];
 
+    if (exclude_tab != T_MAIN)
+    {
+        sprintf(request, "DELETE FROM "MAIN_TABLE" WHERE id="DPK, pk);
+        rc = db_exec_sql(&p_mgr->conn, request, NULL);
+        if (rc)
+            return rc;
+    }
+
     if (exclude_tab != T_DNAMES)
     {
         /* remove all paths to an entry if it has no longer info in ENTRIES */
@@ -65,8 +73,23 @@ static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_
             return rc;
     }
 
+    if (annex_table && exclude_tab != T_ANNEX)
+    {
+        sprintf(request, "DELETE FROM "ANNEX_TABLE" WHERE id="DPK, pk);
+        rc = db_exec_sql(&p_mgr->conn, request, NULL);
+        if (rc)
+            return rc;
+    }
+
     /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
+    if (exclude_tab != T_STRIPE_INFO)
+    {
+        sprintf(request, "DELETE FROM "STRIPE_INFO_TABLE" WHERE id="DPK, pk);
+        rc = db_exec_sql(&p_mgr->conn, request, NULL);
+        if (rc)
+            return rc;
+    }
 
     if (exclude_tab != T_STRIPE_ITEMS)
     {
@@ -76,31 +99,7 @@ static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_
         if (rc)
             return rc;
     }
-
-    if (exclude_tab != T_STRIPE_INFO)
-    {
-        sprintf(request, "DELETE FROM "STRIPE_INFO_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
-    }
 #endif
-
-    if (annex_table && exclude_tab != T_ANNEX)
-    {
-        sprintf(request, "DELETE FROM "ANNEX_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
-    }
-
-    if (exclude_tab != T_MAIN)
-    {
-        sprintf(request, "DELETE FROM "MAIN_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
-    }
 
     return DB_SUCCESS;
 }

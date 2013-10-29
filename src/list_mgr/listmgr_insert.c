@@ -57,28 +57,6 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
         entry_id2pk(p_ids[i], PTR_PK(pklist[i]));
     }
 
-#ifdef _LUSTRE
-    /* batch insert of striping info */
-    if (ATTR_MASK_TEST(p_attrs[0], stripe_info) && ATTR_MASK_TEST(p_attrs[0], stripe_items))
-    {
-        /* create validator list */
-        int *validators = (int*)MemCalloc(count, sizeof(int));
-        if (!validators)
-        {
-            rc =  DB_NO_MEMORY;
-            goto out_free;
-        }
-        for (i = 0; i < count; i++)
-            validators[i] = VALID(p_ids[i]);
-
-        rc = batch_insert_stripe_info(p_mgr, pklist, validators, p_attrs,
-                                      count, update_if_exists);
-        MemFree(validators);
-        if (rc)
-            goto out_free;
-    }
-#endif
-
     /* build batch request for main table */
     attrmask2fieldlist(fields, p_attrs[0]->attr_mask, T_MAIN, TRUE, FALSE, "", "");
 
@@ -193,6 +171,28 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
                 goto out_free;
         }
     }
+
+#ifdef _LUSTRE
+    /* batch insert of striping info */
+    if (ATTR_MASK_TEST(p_attrs[0], stripe_info) && ATTR_MASK_TEST(p_attrs[0], stripe_items))
+    {
+        /* create validator list */
+        int *validators = (int*)MemCalloc(count, sizeof(int));
+        if (!validators)
+        {
+            rc =  DB_NO_MEMORY;
+            goto out_free;
+        }
+        for (i = 0; i < count; i++)
+            validators[i] = VALID(p_ids[i]);
+
+        rc = batch_insert_stripe_info(p_mgr, pklist, validators, p_attrs,
+                                      count, update_if_exists);
+        MemFree(validators);
+        if (rc)
+            goto out_free;
+    }
+#endif
 
 out_free:
     var_str_free(&query);
