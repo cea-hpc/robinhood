@@ -337,8 +337,10 @@ static const char *help_string =
     "        Copy \"dirty\" entries to HSM.\n"
 #endif
 #ifdef HAVE_CHANGELOGS
-    "    " _B "-r" B_ ", " _B "--read-log" B_ "\n"
+    "    " _B "-r" B_ ", " _B "--read-log" B_ "[=" _U "mdt_idx" U_ "]\n"
     "        Read events from MDT ChangeLog.\n"
+    "        If "_U"mdt_idx"U_" is specified, only read ChangeLogs for the given MDT.\n"
+    "        Else, start 1 changelog reader thread per MDT (with DNE).\n"
 #endif
 #ifdef HAVE_RM_POLICY
     "    " _B "-R" B_ ", " _B "--hsm-remove" B_ "\n"
@@ -394,7 +396,10 @@ static const char *help_string =
     "    " _B "--no-limit"B_"\n"
     "        Don't limit the maximum number of migrations (per pass).\n"
     "    " _B "--no-gc"B_"\n"
-    "        Don't clean removed entries in DB after a scan.\n"
+    "        Garbage collection of entries in DB is a long operation when terminating\n"
+    "        a scan. This skips this operation if you don't care about removed\n"
+    "        entries (or don't expect entries to be removed).\n"
+    "        This is also recommended for partial scanning (see -scan=dir option).\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
