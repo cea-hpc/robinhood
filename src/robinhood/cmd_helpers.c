@@ -33,14 +33,13 @@
 #define SCRUB_TAG "Scrubber"
 #define P2ID_TAG "Path2Id"
 
-/* initially empty array */
+/* Initially empty array. This is a LIFO array; oldest elements are
+ * stacked from the last entry to the first. When element 0 is
+ * occupied, it is time to increase the size of the array. */
 static wagon_t * dir_array = NULL;
-static unsigned int array_len = 0;
-
-/* first/last+1 set entry ids in array */
-static unsigned int array_first = 0;
-static unsigned int array_next = 0;
-#define array_used ((int)array_next-(int)array_first)
+static unsigned int array_len; /* number of elements in array. */
+static unsigned int array_first; /* index of first valid element in array. */
+#define array_used (array_len-array_first)
 
 #define LS_CHUNK    1 /* TODO - ListMgr_GetChild will get confused if not 1 */
 
@@ -78,65 +77,59 @@ static int add_id_list(const wagon_t * list,
     /* is there enough room before the first item ? */
     if (count <= array_first)
     {
-        /* copy it just before 'first' (entries must be consecutive) */
+        /* copy it just before the head (entries must be consecutive) */
         copy_arrays(list, dir_array, array_first-count, count);
 
         array_first -= count;
 
 #ifdef _DEBUG_ID_LIST
-        printf("1)...<new_ids:%u-%u><ids:%u-%u>...(len=%Lu)\n", array_first,
-                array_first+count-1, array_first+count, array_next-1, array_len);
+        printf("1)...<new_ids:%u-%u><ids:%u-%u>...(len=%u)\n",
+               array_first, array_first+count-1,
+               array_first+count, array_len-1, array_len);
 #endif
     }
     /* is the array empty ?*/
     else if ((array_used == 0) && (count <= array_len))
     {
         /* copy from the beginning */
-        copy_arrays(list, dir_array, 0, count);
-        array_first = 0;
-        array_next = count;
+        copy_arrays(list, dir_array, array_len - count, count);
+        array_first = array_len - count;
 
 #ifdef _DEBUG_ID_LIST
-        printf("2) <new_ids:%u-%u>...(len=%Lu)\n", array_first, array_next - 1,
-               array_len);
+        printf("2) <new_ids:%u-%u>...(len=%u)\n",
+               array_first, array_len-1, array_len);
 #endif
     }
     else /* increase array size */
     {
         wagon_t * dir_array_new;
         size_t new_len = what_2_power(array_len + count);
+
         dir_array_new = MemAlloc(new_len * sizeof(wagon_t));
         if (!dir_array_new)
             return -ENOMEM;
 
-        /* first copy new ids */
-        copy_arrays(list, dir_array_new, 0, count);
-        if (dir_array && (array_used > 0))
-        {
-            /* then copy current ids and names */
-            memcpy(&dir_array_new[count], &dir_array[array_first],
-                   array_used * sizeof(wagon_t));
-
-#ifdef _DEBUG_ID_LIST
-            printf("3) <new_ids:%u-%u><ids:%u-%u>...(len=%Lu)\n", 0, count - 1,
-                   count+1, array_next-1, new_len);
-#endif
-        }
-#ifdef _DEBUG_ID_LIST
-        else
-            printf("4) <new_ids:%u-%u>...(len=%Lu)\n", 0, count - 1,
-                   new_len);
-#endif
-
-        /* free old array */
-        if (dir_array)
+        /* First, transfer current ids and names */
+        if (dir_array) {
+            if (array_used)
+                memcpy(&dir_array_new[new_len-array_used], &dir_array[array_first],
+                       array_used * sizeof(wagon_t));
             MemFree(dir_array);
+        }
 
         /* update array info */
         dir_array = dir_array_new;
-        array_next = array_used + count;
-        array_first = 0;
+        array_first = new_len-array_used;
         array_len = new_len;
+
+        /* Then copy new ids */
+        copy_arrays(list, dir_array, array_first-count, count);
+        array_first -= count;
+
+#ifdef _DEBUG_ID_LIST
+        printf("3)...<ids:%u-%u>...(len=%u)\n",
+                array_first, array_len-1, array_len);
+#endif
     }
     return 0;
 }
