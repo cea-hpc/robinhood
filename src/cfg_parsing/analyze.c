@@ -294,7 +294,11 @@ generic_item  *rh_config_CreateSet_Unary( set_operator_t op,
         return NULL;
     }
 
-    generic_item  *new = ( generic_item * ) malloc( sizeof( generic_item ) );
+    generic_item *new = malloc(sizeof(generic_item));
+    if (!new) {
+        fprintf( stderr, "Not enough memory\n" );
+        return NULL;
+    }
 
     new->type = TYPE_SET;
     new->line = yylineno;
@@ -309,6 +313,7 @@ generic_item  *rh_config_CreateSet_Unary( set_operator_t op,
 
     if (new->item.set.set_u.op.set1 == NULL)
     {
+        free(new);
         fprintf( stderr, "Missing memory\n" );
         return NULL;
     }
@@ -338,7 +343,11 @@ generic_item  *rh_config_CreateSet_Binary( set_operator_t op,
         return NULL;
     }
 
-    generic_item  *new = ( generic_item * ) malloc( sizeof( generic_item ) );
+    generic_item  *new = malloc(sizeof(generic_item));
+    if (!new) {
+        fprintf( stderr, "Not enough memory\n" );
+        return NULL;
+    }
 
     new->type = TYPE_SET;
     new->line = yylineno;
@@ -355,6 +364,7 @@ generic_item  *rh_config_CreateSet_Binary( set_operator_t op,
     if ((new->item.set.set_u.op.set1 == NULL) ||
         (new->item.set.set_u.op.set2 == NULL))
     {
+        free(new);
         fprintf( stderr, "Missing memory\n" );
         return NULL;
     }

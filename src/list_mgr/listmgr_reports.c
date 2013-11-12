@@ -609,7 +609,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             {
                 DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unexpected case: "DNAMES_TABLE
                            " table can't be the query table in %s()", __func__);
-                return NULL;
+                goto free_field_tab;
             }
         }
 
