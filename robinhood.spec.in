@@ -336,12 +336,84 @@ fi
 
 %changelog
 
-* Wed Jul 24 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.0-alpha1
-Pre-version 2.5 for testing purpose
-- disaster recovery features (rbh-diff, ...)
-- new namespace management to handle hardlinks, renames...
-- scan and changelog optimizations
+* Wed Nov 27 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.0
+Summary:
+- filesystem disaster recovery features (rbh-diff, ...)
+- new namespace management (new DB schema to properly handle hardlinks, renames...)
+- scanning and changelog processing optimizations 
+- database requests batching
 - many other changes, improvements and code cleaning...
+Details:
+- scanning:
+    * --partial-scan option is deprecated and replaced by an optional argument to --scan (e.g. --scan=/fs/subdir).
+    * better management of partial scans:
+        - better detection of removed entries vs. entries moved from a directory to another.
+        - partial scans can be used for initial DB population (even if the DB is initially empty).
+    * garbage collection of removed entries in DB is a long operation when terminating a scan (and even more
+      when terminating a partial scan). Added --no-gc option to skip it (recommanded for partial scans).
+    * automatically enabling --no-gc if the DB is initially empty (eg. for initial scan).
+    * optimization: use *at() functions (openat, fstatat) and readdir by chunk (using getdents) instead of POSIX lstat() and readdir_r().
+    * optimization: use NOATIME flag to access entries as much as possible
+    * optimizations of get_stripe and get_fid operations.
+    * new --diff option for robinhood --scan and --readlog: output detected changes in a diff-like format.
+- Lustre changelogs:
+    * changelog batching (Cray contribution): to speed up changelog processing,
+      robinhood retains changelog records in memory a short time,
+      to aggregate similar/redundant Changelog records on the same entry before
+      updating its database.
+    * support multiple changelog readers (for DNE) as multiple threads (default)
+      or as multiple processes, possibly on different hosts, by giving a MDT index
+      to --readlog option.
+    * resilience to filesystem umount/mount.
+- rbh-report:
+    * new option --entry-info to get all the stored information about an entry
+    * option --dump-ost can now list multiple OSTs and support ranges notation (e.g. 3,5-8,12-23).
+    * --dump-ost output indicates if a file has data on a given OST (could be striped on the OST but have no data on it).
+- rbh-find:
+    * new option -crtime to filter entries on creation time.
+    * output ordering closer to find output
+    * added missing info in 'rbh-find -ls' output (nlink, mode, symlink info...)
+- robinhood-backup:
+    * by default, use a built-in copy function to avoid the cost of forking copy commands.
+    * rbh-backup-rebind: tool to rebind an entry in the backend if its fid changed in the filesystem
+      for any reason (file copied to a new one to change its stripe, etc...)
+    * rbh-backup-recov new features and options:
+        --list (list information about entries to be recovered)
+        --ost <ost_set> to only recover entries for a given set of OSTs (support range notation):
+            the basic use-case is OST disaster recovery.
+        --since <time> to only recover entries modified since a given date:
+            the basic use case is after restoring an OST snapshot.
+    * symlinks archiving to backend made optional (new parameter 'archive_symlinks')
+      as they can now be restored using robinhood database information.
+- database:
+    * new namespace implementation in database with new NAMES table (Cray contribution)
+        - fixes/improves hardlink support
+        - fixes/improves Lustre ChangeLog hardlink/rename/unlink support
+        - saves DB storage space
+    * database request batching: significantly increase database ingest rate.
+      No longer needs innodb_flush_log_at_tx_commit != 1 to speed up DB operations.
+    * additional information in DB that can help for disaster recovery:
+      symlink info, access rights, stripe object indexes, stripe order, nlink...
+    * set default commit behavior to transaction (prevent from DB inconsistencies)
+    * optimized multi-table requests
+    * optimization: minimized attribute set in DB update operations
+      (don't update attributes that didn't change)
+    * Fix: deal with mysql case insensitivity for string matching
+    * triggers and stored procedures versioning mechanism
+    * prevent from overflows for large INSERT requests, wide stripes...
+    * prevent from DB deadlocks
+- configuration:
+    * can specify environment variables in config file (e.g. fs_path = $ROOT_DIR ;)
+    * prevent from using a wrong config file (Cray contribution):
+        - only check files in /etc/robinhood.d/<purpose>, no longer in the current directory
+        - fails if to many config files are available.
+- rbh-diff:
+    * new command to detect differences between the filesystem and the information
+      in robinhood database.
+    * option "--apply=fs" for disaster recovery purpose: restore the filesystem
+      metadata from robinhood DB.
+    * makes it possible to rebuild a Lustre MDT from scratch, or from a LVM snapshot
+      (see "Robinhood Lustre disaster recovery guide" for more details).
 
 * Mon Jul 22 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.3
 - [lustre] support of Lustre 2.4
