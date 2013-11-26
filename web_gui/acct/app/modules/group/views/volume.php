@@ -27,7 +27,7 @@
     $graph->renderer->options->pieChartRotation = .8;
 
     $graph->driver = new ezcGraphGdDriver();
-    $graph->options->font = 'app/img/arial.ttf';
+    $graph->options->font = 'app/img/KhmerOSclassic.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
     $graph->render( 532, 195, 'app/img/graph/groupVolumePieGraph.png' );

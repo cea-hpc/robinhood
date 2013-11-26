@@ -75,7 +75,7 @@ echo "<hr/>";
     $graph->yAxis->label = 'File count';
 
     $graph->driver = new ezcGraphGdDriver();
-    $graph->options->font = 'app/img/arial.ttf';
+    $graph->options->font = 'app/img/KhmerOSclassic.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
     $graph->render( 532, 300, 'app/img/graph/sizeCountBarGraph-'.$user.'.png' );
