@@ -297,7 +297,10 @@ function enable_changelogs
 
         if (( $missing != 0 )); then
             echo "event $event not in changelog mask: setting it"
-            lctl conf_param mdd.$fsname-MDT*.changelog_mask "+$event" || echo "FAILED"
+            # first try with -P, if supported
+            lctl set_param -P mdd.$fsname-MDT*.changelog_mask "+$event" 2> /dev/null ||
+                lctl set_param mdd.$fsname-MDT*.changelog_mask "+$event" 2> /dev/null ||
+                echo "FAILED"
         else
             echo "event $event OK"
         fi
