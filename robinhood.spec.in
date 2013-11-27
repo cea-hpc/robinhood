@@ -338,12 +338,37 @@ fi
 
 * Wed Nov 27 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.0
 Summary:
-- filesystem disaster recovery features (rbh-diff, ...)
+- filesystem disaster recovery features
 - new namespace management (new DB schema to properly handle hardlinks, renames...)
-- scanning and changelog processing optimizations 
-- database requests batching
+- scanning and changelog processing optimizations
+- database optimizations (requests batching)
 - many other changes, improvements and code cleaning...
+
 Details:
+- rbh-diff:
+    * new command to detect differences between the filesystem and the information
+      in robinhood database.
+    * option "--apply=fs" for disaster recovery purpose: restore the filesystem
+      metadata from robinhood DB.
+    * makes it possible to rebuild a Lustre MDT from scratch, or from a LVM snapshot
+      (see "Robinhood Lustre disaster recovery guide" for more details).
+- database:
+    * new namespace implementation in database with new NAMES table (Cray contribution)
+        - fixes/improves hardlink support
+        - fixes/improves Lustre ChangeLog hardlink/rename/unlink support
+        - saves DB storage space
+    * database request batching: significantly increase database ingest rate.
+      No longer needs innodb_flush_log_at_tx_commit != 1 to speed up DB operations.
+    * additional information in DB that can help for disaster recovery:
+      symlink info, access rights, stripe object indexes, stripe order, nlink...
+    * set default commit behavior to transaction (prevent from DB inconsistencies)
+    * optimized multi-table requests
+    * optimization: minimized attribute set in DB update operations
+      (don't update attributes that didn't change)
+    * Fix: deal with mysql case insensitivity for string matching
+    * triggers and stored procedures versioning mechanism
+    * prevent from overflows for large INSERT requests, wide stripes...
+    * prevent from DB deadlocks
 - scanning:
     * --partial-scan option is deprecated and replaced by an optional argument to --scan (e.g. --scan=/fs/subdir).
     * better management of partial scans:
@@ -385,35 +410,11 @@ Details:
             the basic use case is after restoring an OST snapshot.
     * symlinks archiving to backend made optional (new parameter 'archive_symlinks')
       as they can now be restored using robinhood database information.
-- database:
-    * new namespace implementation in database with new NAMES table (Cray contribution)
-        - fixes/improves hardlink support
-        - fixes/improves Lustre ChangeLog hardlink/rename/unlink support
-        - saves DB storage space
-    * database request batching: significantly increase database ingest rate.
-      No longer needs innodb_flush_log_at_tx_commit != 1 to speed up DB operations.
-    * additional information in DB that can help for disaster recovery:
-      symlink info, access rights, stripe object indexes, stripe order, nlink...
-    * set default commit behavior to transaction (prevent from DB inconsistencies)
-    * optimized multi-table requests
-    * optimization: minimized attribute set in DB update operations
-      (don't update attributes that didn't change)
-    * Fix: deal with mysql case insensitivity for string matching
-    * triggers and stored procedures versioning mechanism
-    * prevent from overflows for large INSERT requests, wide stripes...
-    * prevent from DB deadlocks
 - configuration:
     * can specify environment variables in config file (e.g. fs_path = $ROOT_DIR ;)
     * prevent from using a wrong config file (Cray contribution):
         - only check files in /etc/robinhood.d/<purpose>, no longer in the current directory
         - fails if to many config files are available.
-- rbh-diff:
-    * new command to detect differences between the filesystem and the information
-      in robinhood database.
-    * option "--apply=fs" for disaster recovery purpose: restore the filesystem
-      metadata from robinhood DB.
-    * makes it possible to rebuild a Lustre MDT from scratch, or from a LVM snapshot
-      (see "Robinhood Lustre disaster recovery guide" for more details).
 
 * Mon Jul 22 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.3
 - [lustre] support of Lustre 2.4
