@@ -575,6 +575,37 @@ function backup_db
     fi
 }
 
+function optimize_db
+{
+    interactive=0
+    if (( $# == 0 )); then
+        interactive=1
+    elif (( $# != 1 && $# != 2 )); then
+        echo "ERROR: 1 or 2 arguments expected"
+            echo "Usage: optimize_db [<db_name> [<db_admin_passwd>]]"
+        exit 1
+    fi
+
+    if (( $interactive != 0)); then
+            echo
+            echo "Enter password for root's database account (leave blank if none is set):"
+            read -p "root's DB password: " -s pass_root
+            echo
+
+            select_db $pass_root || exit 1
+
+            if [ -z $RBH_DB ]; then
+                echo "ERROR: database not specified"
+                exit 1
+            fi
+    else
+        RBH_DB=$1
+        pass_root=$2
+    fi
+
+    mysqlcheck --optimize --password="$pass_root" --database $RBH_DB
+    exit $?
+}
 
 
 function test_connect
@@ -623,6 +654,9 @@ elif [[ "$1" = repair_db ]]; then
 elif [[ "$1" = backup_db ]]; then
     shift 1
     backup_db $*
+elif [[ "$1" = optimize_db ]]; then
+    shift 1
+    optimize_db $*
 elif [[ "$1" = test_db ]]; then
     shift 1
     test_connect $*
@@ -641,8 +675,10 @@ else
     echo "        reset fileclasses after a change in config file (interactive if no option is specified)"
     echo "    test_db <db_name> <robinhood_passwd>:"
     echo "        test connection to the database"
-    echo "    repair_db [<db_name> [<db_admin_passwd>]]:"
-    echo "        check tables and fix them after a mysql server crash"
     echo "    backup_db [<db_name> <dest_dir> [<db_admin_passwd>]]:"
     echo "        backup robinhood database to dest dir"
+    echo "    repair_db [<db_name> [<db_admin_passwd>]]:"
+    echo "        check tables and fix them after a mysql server crash"
+    echo "    optimize_db [<db_name> [<db_admin_passwd>]]:"
+    echo "        defragments the database for better performance and using less disk space"
 fi
