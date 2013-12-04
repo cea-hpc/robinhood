@@ -266,8 +266,21 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
 
     rc = clear_changelog_records(p_info);
 
-    return rc;
+    if ((rc == 0) &&  (p_info->last_committed_record != 0))
+    {
+        char var_tmp[256];
+        char val_tmp[256];
+        /* save the last committed record, so we don't get old records from
+         * other registrated readers when restarting */
+        sprintf(var_tmp, "%s_%s", CL_LAST_COMMITTED,
+                chglog_reader_config.mdt_def[p_info->thr_index].mdt_name);
+        sprintf(val_tmp, "%llu", p_info->last_committed_record);
+        if (ListMgr_SetVar(lmgr, var_tmp, val_tmp))
+            DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Failed to save last committed record for %s",
+                       chglog_reader_config.mdt_def[p_info->thr_index].mdt_name);
+    }
 
+    return rc;
 }
 
 #ifdef _LUSTRE_HSM
@@ -1031,6 +1044,13 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
 
     Alert_StartBatching();
 
+    // need a connection to get last committed record
+    lmgr_t lmgr;
+    int dbget = 1;
+    rc = ListMgr_InitAccess(&lmgr);
+    if (rc)
+        dbget = 0;
+
     /* create one reader per MDT */
     for ( i = 0; i < p_config->mdt_count ; i++ )
     {
@@ -1052,14 +1072,31 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
         info->flags = ((one_shot || p_config->force_polling)?0:CHANGELOG_FLAG_FOLLOW)
             | CHANGELOG_FLAG_BLOCK;
 
-        DisplayLog( LVL_DEBUG, CHGLOG_TAG, "Opening chglog for %s", mdtdevice );
+        if (dbget)
+        {
+            char lastcl_var[256];
+            char val_str[1024];
+            sprintf(lastcl_var, "%s_%s", CL_LAST_COMMITTED,
+                    p_config->mdt_def[i].mdt_name);
+            if (ListMgr_GetVar(&lmgr, lastcl_var, val_str) == DB_SUCCESS)
+            {
+                  last_rec = str2bigint(val_str);
+                  if (last_rec == -1LL)
+                      last_rec = 0;
+                  else
+                      /* start rec = last rec + 1 */
+                      last_rec ++;
+            }
+        }
+        DisplayLog(LVL_DEBUG, CHGLOG_TAG, "Opening chglog for %s (start_rec=%llu)",
+                   mdtdevice, last_rec);
 
         /* open the changelog (if we are in one_shot mode,
          * don't use the CHANGELOG_FLAG_FOLLOW flag)
          */
-        rc = llapi_changelog_start( &info->chglog_hdlr,
-                                    info->flags,
-                                    info->mdtdevice, last_rec );
+        rc = llapi_changelog_start(&info->chglog_hdlr,
+                                   info->flags,
+                                   info->mdtdevice, last_rec);
 
         if ( rc )
         {
@@ -1080,6 +1117,9 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
         }
 
     }
+
+    if (dbget)
+        ListMgr_CloseAccess(&lmgr);
 
     return 0;
 }
