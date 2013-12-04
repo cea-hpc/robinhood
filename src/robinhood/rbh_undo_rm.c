@@ -388,6 +388,8 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
         /* discard entry from remove list */
         if ( ListMgr_SoftRemove_Discard(&lmgr, id) != 0 )
             fprintf(stderr, "Error: could not remove previous id "DFID" from database\n", PFID(id) );
+        /* clean read-only attrs */
+        new_attrs.attr_mask &= ~readonly_attr_set;
         /* insert or update it in the db */
         rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
         if ( rc == 0 )
