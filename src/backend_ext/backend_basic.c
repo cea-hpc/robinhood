@@ -39,6 +39,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <ctype.h>
+#include <fnmatch.h>
 
 
 #ifdef HAVE_PURGE_POLICY
@@ -94,6 +95,11 @@ static void clean_bad_chars(char * path)
     }
 }
 
+#ifdef HAVE_SHOOK
+static char lock_dirname[RBH_NAME_MAX] = "";
+static char restripe_dirname[RBH_NAME_MAX] = "";
+#endif
+
 /**
  * Initialize the extension module.
  * \param[in] config_string specific config string (e.g path to config file...)
@@ -121,6 +127,9 @@ int rbhext_init( const backend_config_t * conf,
                     rc );
         return rc;
     }
+
+    strcpy(lock_dirname, basename(LOCK_DIR));
+    strcpy(restripe_dirname, basename(RESTRIPE_DIR));
 #endif
 
     /* check that backend filesystem is mounted */
@@ -130,6 +139,106 @@ int rbhext_init( const backend_config_t * conf,
         return -rc;
 
     return 0;
+}
+
+
+/* return the mask of needed attributes to know if an entry is to be ignored */
+int rbhext_ignore_need()
+{
+    return ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_type;
+}
+
+int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
+{
+#ifndef HAVE_SHOOK
+    return 0;
+#else
+    /* if we don't know the full path, but the name looks like
+     * an ignored entry, get the path */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath)
+        && ATTR_MASK_TEST(p_attrs, name))
+    {
+        if (!strcmp(ATTR(p_attrs, name), SHOOK_DIR)
+            || !strcmp(ATTR(p_attrs, name), lock_dirname)
+            || !strcmp(ATTR(p_attrs, name), restripe_dirname)
+            || !strncmp(SHOOK_LOCK_PREFIX, ATTR(p_attrs, name), strlen(SHOOK_LOCK_PREFIX))
+            || !strncmp(RESTRIPE_SRC_PREFIX, ATTR(p_attrs, name), strlen(RESTRIPE_SRC_PREFIX))
+            || !strncmp(RESTRIPE_TGT_PREFIX, ATTR(p_attrs, name), strlen(RESTRIPE_TGT_PREFIX)))
+        {
+            if (Lustre_GetFullPath(p_id, ATTR(p_attrs,fullpath), RBH_PATH_MAX) != 0)
+                /* ignore, by default */
+                return TRUE;
+            else
+                /* continue with path checking */
+                ATTR_MASK_SET(p_attrs, fullpath);
+        }
+        else /* no possible match */
+            return FALSE;
+    }
+
+    if (ATTR_MASK_TEST(p_attrs, fullpath))
+    {
+        /* check lock file */
+        if (!fnmatch("*/"LOCK_DIR"/"SHOOK_LOCK_PREFIX"*", ATTR(p_attrs, fullpath ), 0))
+        {
+            /* skip the entry */
+            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook lock",
+                       ATTR(p_attrs, fullpath));
+            /** @TODO raise special event for the file: LOCK/UNLOCK */
+            return TRUE;
+        }
+        /* check lock dir */
+        else if (!fnmatch("*/"LOCK_DIR, ATTR(p_attrs, fullpath ), 0))
+        {
+            /* skip the entry */
+            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook lock dir",
+                       ATTR(p_attrs, fullpath));
+            return TRUE;
+        }
+        /* check restripe dir */
+        else if (!fnmatch("*/"RESTRIPE_DIR, ATTR(p_attrs, fullpath ), 0))
+        {
+            /* skip the entry */
+            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook restripe dir",
+                       ATTR(p_attrs, fullpath));
+            return TRUE;
+        }
+    }
+
+    /* match '.shook' directory */
+    if (p_attrs && ATTR_MASK_TEST( p_attrs, name )
+        && ATTR_MASK_TEST( p_attrs, type ))
+    {
+        if ( !strcmp(STR_TYPE_DIR, ATTR(p_attrs, type)) &&
+             !strcmp(SHOOK_DIR, ATTR(p_attrs, name)) )
+        {
+            /* skip the entry */
+            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "\"%s\" is a shook dir",
+                       ATTR(p_attrs, name));
+            return TRUE;
+        }
+    }
+
+    /* if the removed entry is a restripe source,
+     * we MUST NOT remove the backend entry
+     * as it will be linked to the restripe target
+     */
+    if ( (ATTR_MASK_TEST(p_attrs, fullpath)
+               && !fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*",
+                     ATTR(p_attrs, fullpath), 0))
+        ||
+        (ATTR_MASK_TEST(p_attrs, name)
+         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(p_attrs, name),
+                     strlen(RESTRIPE_SRC_PREFIX))))
+    {
+        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Removing shook stripe source %s: no removal in backend!",
+                    ATTR_MASK_TEST(p_attrs, fullpath)?
+                    ATTR(p_attrs, fullpath) : ATTR(p_attrs, name));
+        return TRUE;
+    }
+
+    return FALSE;
+#endif
 }
 
 /**

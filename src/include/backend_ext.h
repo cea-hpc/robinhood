@@ -51,6 +51,17 @@ int rbhext_compat_flags(void);
 int rbhext_init( const backend_config_t * conf,
                  unsigned int * p_behaviors_flags );
 
+
+/** return the mask of needed attributes to know if an entry is to be ignored */
+int rbhext_ignore_need(void);
+
+/**
+ * Check if an entry is to be ignored i.e. not inserted to the database
+ * (special file for backend management)
+ */
+int rbhext_ignore(const entry_id_t *p_id,
+                  attr_set_t *p_attrs);
+
 /**
  * Determine attributes to be provided for rbhext_get_status().
  * \param[in] entry_type type of entry to check status.

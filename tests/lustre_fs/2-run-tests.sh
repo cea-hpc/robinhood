@@ -3267,6 +3267,7 @@ function test_enoent
 
 	$REPORT -f ./cfg/$config_file --dump-all -cq > report.out || error "report cmd failed"
     lines=$(cat report.out | wc -l)
+    [ "$DEBUG" = "1" ] && cat report.out
     (($lines == 0)) || error "no entries expected after create/rm"
     rm -f report.out
 
@@ -7974,7 +7975,9 @@ function TEST_OTHER_PARAMETERS_3
     # 1 file out of 5 must remain in the backend
     local countRemainFile=0
 	for i in ${rmd[*]}; do
-	    local found=`find $BKROOT -type f -name "$i" | wc -l`
+        bi=$(basename $i)
+        [ "$DEBUG" = "1" ] && find $BKROOT -type f -name "${bi}__*"
+	    local found=`find $BKROOT -type f -name "${bi}__*" | wc -l`
         (( $found != 0 )) && echo "$i remains in backend"
         ((countRemainFile+=$found))
 	done
@@ -7995,7 +7998,9 @@ function TEST_OTHER_PARAMETERS_3
     # no file must remain in the backend
     countRemainFile=0
 	for i in ${rmd[*]}; do
-	    local found=`find $BKROOT -type f -name "$i" | wc -l`
+        bi=$(basename $i)
+        [ "$DEBUG" = "1" ] && find $BKROOT -type f -name "${bi}__*"
+	    local found=`find $BKROOT -type f -name "${bi}__*" | wc -l`
         (( $found != 0 )) && echo "$i remains in backend"
         ((countRemainFile+=$found))
 	done

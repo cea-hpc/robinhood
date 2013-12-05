@@ -119,75 +119,6 @@ pipeline_stage_t std_pipeline[] = {
 };
 
 
-
-#ifdef HAVE_SHOOK
-static int shook_special_obj( struct entry_proc_op_t *p_op )
-{
-    if (ATTR_FSorDB_TEST( p_op, fullpath )
-        && ATTR_FSorDB_TEST( p_op, type))
-    {
-        if ( !strcmp(STR_TYPE_FILE, ATTR_FSorDB(p_op, type)) )
-        {
-            /* is it a lock file? */
-            if (!fnmatch("*/"LOCK_DIR"/"SHOOK_LOCK_PREFIX"*", ATTR_FSorDB(p_op, fullpath ), 0))
-            {
-                /* skip the entry */
-                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook lock",
-                           ATTR_FSorDB(p_op, fullpath));
-                /** @TODO raise special event for the file: LOCK/UNLOCK */
-                return TRUE;
-            }
-        }
-        else if (!strcmp(STR_TYPE_DIR, ATTR_FSorDB(p_op, type)))
-        {
-            if (!fnmatch("*/"LOCK_DIR, ATTR_FSorDB(p_op, fullpath ), 0))
-            {
-                /* skip the entry */
-                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook lock dir",
-                           ATTR_FSorDB(p_op, fullpath));
-                return TRUE;
-            }
-            else if (!fnmatch("*/"RESTRIPE_DIR, ATTR_FSorDB(p_op, fullpath ), 0))
-            {
-                /* skip the entry */
-                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "%s is a shook restripe dir",
-                           ATTR_FSorDB(p_op, fullpath));
-                return TRUE;
-            }
-        }
-    }
-
-    /* also match '.shook' directory */
-    if (p_op && ATTR_FSorDB_TEST( p_op, name )
-        && ATTR_FSorDB_TEST( p_op, type ))
-    {
-        if ( !strcmp(STR_TYPE_DIR, ATTR_FSorDB(p_op, type)) &&
-             !strcmp(SHOOK_DIR, ATTR_FSorDB(p_op, name)) )
-        {
-            /* skip the entry */
-            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "\"%s\" is a shook dir",
-                       ATTR_FSorDB(p_op, name));
-            return TRUE;
-        }
-    }
-
-    return FALSE;
-}
-
-#define SKIP_SPECIAL_OBJ(_pop, _goto) do {                              \
-        if (shook_special_obj( _pop )) {                                \
-                    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,               \
-                        "Shook special file or dir '%s', skipped",      \
-                        (ATTR_FSorDB_TEST( _pop, fullpath )?            \
-                         ATTR_FSorDB(_pop, fullpath):                   \
-                         ATTR_FSorDB(_pop, name)) );                    \
-            goto _goto;                                                 \
-        }                                                               \
-    } while(0)
-#else
-#define SKIP_SPECIAL_OBJ(_pop, _goto) /* do nothing */
-#endif
-
 /**
  * For entries from FS scan, we must get the associated entry ID.
  */
@@ -936,9 +867,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* add diff mask for diff mode */
         p_op->db_attr_need |= entry_proc_conf.diff_mask;
 
-#ifdef HAVE_SHOOK
-        /* needed to check special objects, ... */
-        p_op->db_attr_need = ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id;
+#ifdef _HSM_LITE
+        /* needed attributes to check special objects */
+        p_op->db_attr_need |= rbhext_ignore_need();
 #endif
 
         if (!chglog_reader_config.mds_has_lu543 &&
@@ -1451,9 +1382,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 #endif
 
-    /* early check using DB info */
-    SKIP_SPECIAL_OBJ(p_op, skip_record);
-
     DisplayLog(LVL_FULL, ENTRYPROC_TAG,
         DFID": Getattr=%u, Getpath=%u, Readlink=%u"
 #ifdef ATTR_INDEX_status
@@ -1712,6 +1640,29 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "readlink failed on %s: %s", path, strerror(errno));
     }
 
+    /* check if the entry must be ignored */
+    #ifdef _HSM_LITE
+    {
+        attr_set_t merged_attrs; /* attrs from FS+DB */
+        ATTR_MASK_INIT(&merged_attrs);
+
+        ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
+        ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
+
+        /* ignored entries will always go there, as they are considered as new */
+        /* use the same merged attributes to check the ignore condition */
+        if (rbhext_ignore(&p_op->entry_id, &merged_attrs))
+        {
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       "Special file or dir '%s' skipped",
+                       (ATTR_FSorDB_TEST(p_op, fullpath )?
+                        ATTR_FSorDB(p_op, fullpath):
+                        ATTR_FSorDB(p_op, name)));
+            goto skip_record;
+        }
+    }
+    #endif
+
     /* match fileclasses if specified in config */
 
     /* sure it's a directory */
@@ -1727,9 +1678,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             check_policies(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs, TRUE);
     }
     /* non-dir or not supported (no check) */
-
-    /* later check using DB+FS info */
-    SKIP_SPECIAL_OBJ(p_op, skip_record);
 
     /* set other info */
     rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
@@ -1879,9 +1827,6 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
 {
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-
-    /* final check before DB operation */
-    SKIP_SPECIAL_OBJ(p_op, skip_record);
 
 #ifdef ATTR_INDEX_creation_time
     /* once set, never change creation time */
