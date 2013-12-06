@@ -30,6 +30,8 @@ static file_status_t shook2rbh_status(shook_state st)
         case SS_RELEASE_PEND:   return STATUS_RELEASE_PENDING;
         case SS_RESTORE_PEND:   return STATUS_RESTORE_RUNNING;
         case SS_LOST:           return STATUS_UNKNOWN;
+        /* handle restripe opreation as a restore */
+        case SS_RESTRIPE_PEND:  return STATUS_RESTORE_RUNNING;
         default:                return (file_status_t)-1;
     }
 }
