@@ -364,6 +364,10 @@ int Start_Migration( migration_config_t * p_config, migr_opt_t options )
         return ENOENT;
     }
 
+    /* Display an info message if no default policy is specified */
+    if (!has_default_policy(&policies.migr_policies))
+        DisplayLog(LVL_EVENT, MIGR_TAG, "Notice: no 'default' migration policy is defined. Unmatched entries will be ignored.");
+
     /* initialize migration queue */
     rc = CreateQueue( &migr_queue, migr_config.migr_queue_size, MIGR_ST_COUNT - 1,
                       MIGR_FDBK_COUNT );

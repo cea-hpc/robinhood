@@ -2111,7 +2111,6 @@ static int read_policy( config_file_t config, policies_t * policies, char *msg_o
     policy_list_t *policy_list;
     config_item_t  section;
     char          *section_name;
-    int default_found = FALSE;
 
 /* macros for cleaner code */
 #define curr_ign        policy_list->whitelist_count
@@ -2196,9 +2195,6 @@ static int read_policy( config_file_t config, policies_t * policies, char *msg_o
                                          policy_type, msg_out );
                 if ( rc )
                     goto free_policy;
-
-                if ( !strcasecmp( policy_list->policy_list[curr_pol].policy_id, "default" ))
-                    default_found = TRUE;
 
                 policy_list->global_attr_mask |= policy_list->policy_list[curr_pol].attr_mask;
                 curr_pol++;
@@ -2313,10 +2309,6 @@ static int read_policy( config_file_t config, policies_t * policies, char *msg_o
         }                       /* end of vars */
 
     }                           /* end of section content */
-
-    /* check that the policy has a default case */
-    if ( !default_found )
-        DisplayLog( LVL_MAJOR, "PolicyCheck", "WARNING: no default policy found in section '%s'", section_name );
 
     return 0;
 

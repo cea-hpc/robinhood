@@ -1257,6 +1257,86 @@ function test_custom_purge
 }
 
 
+function test_default
+{
+	config_file=$1
+	policy_str="$2"
+
+	clean_logs
+
+    # matrix of files (m)igration/(p)urge:
+    #       *.A  *.B  *.C
+    #   X*        m
+    #   Y*   p    m/p   p
+    #   Z*        m
+    for pre in X Y Z; do
+        for suf in A B C; do
+            touch $ROOT/$pre.$suf || error "touch $ROOT/$pre.$suf"
+        done
+    done
+
+    # wait for entries to be eligible
+    sleep 1
+
+	# initial scan
+    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "Initial scan"
+    check_db_error rh_chglogs.log
+
+	# archive the file (if applicable)
+	if (( $is_hsmlite + $is_lhsm != 0 )); then
+        $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "Migration"
+
+        # check archived files
+        # *.B files must be archived. other files should be.
+        nb_b=$(grep "$ARCH_STR" rh_migr.log | grep -E "$ROOT/[XYZ]\.B"| wc -l)
+        nb_ac=$(grep "$ARCH_STR" rh_migr.log | grep -E "$ROOT/[XYZ]\.[AC]"| wc -l)
+
+        [ "$DEBUG" = "1" ] && grep "$ARCH_STR" rh_migr.log
+
+        (( $nb_b != 3 )) && error "unexpected number of migrated *.B files: $nb_b != 3"
+        (( $nb_ac != 0 )) && error "unexpected number of migrated *.[AC] files: $nb_ac != 0"
+    fi
+    
+    # purge the files (if applicable)
+    if (( ($is_hsmlite == 0) || ($shook != 0) )); then
+
+        if (($is_lhsm != 0)); then
+    		wait_done 60 || error "Migration timeout"
+        fi
+
+        # wait for entries to be eligible
+        sleep 1
+
+        $RH -f ./cfg/$config_file --purge-fs=0 --once -l DEBUG -L rh_purge.log || error "Purge"
+
+        # check purged files
+        # tmpfs: all Y* files can be purged
+        # hsm: only archived files can be purged: Y.B
+	    if (( $is_lhsm + $shook != 0 )); then
+            nb_purge=1
+            purge_pat="Y.B"
+        else
+            nb_purge=3
+            purge_pat="Y*"
+        fi
+        other=$(( 9 - $nb_purge ))
+        
+        nbp=$(grep "$REL_STR" rh_purge.log | grep -E "$ROOT/$purge_pat"| wc -l)
+        nbnp=$(grep "$REL_STR" rh_purge.log | grep -vE "$ROOT/$purge_pat" | wc -l)
+
+        [ "$DEBUG" = "1" ] && grep "$REL_STR" rh_purge.log
+
+        (( $nbp != $nb_purge )) && error "unexpected number of purged files matching $purge_pat : $nbp != $nb_purge"
+        (( $nbnp != 0 )) && error "unexpected number of purged files matching $purge_pat: $nbnp != 0"
+    fi
+
+
+	# stop RH in background
+#	kill %1
+}
+
+
+
 
 function purge_size_filesets
 {
@@ -8268,6 +8348,7 @@ run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8
 
 run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too many errors"
 run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
+run_test 223    test_default test_default_case.conf "ignore entries if no default case is specified"
 
 #### triggers ####
 

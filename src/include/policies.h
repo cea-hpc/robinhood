@@ -272,6 +272,17 @@ typedef struct policy_list_t
 
 #define NO_POLICY( p_list ) ( ((p_list)->whitelist_count + (p_list)->ignore_count + (p_list)->policy_count) == 0 )
 
+static int inline has_default_policy(policy_list_t *list)
+{
+    int i;
+    for (i = 0; i < list->policy_count; i++)
+    {
+        if (!strcasecmp(list->policy_list[i].policy_id, "default"))
+            return TRUE;
+    }
+    return FALSE;
+}
+
 #ifdef HAVE_RM_POLICY
 typedef struct unlink_policy
 {

@@ -2169,6 +2169,10 @@ int Start_ResourceMonitor( resource_monitor_config_t * p_config, resmon_opt_t op
         return ENOENT;
     }
 
+    /* Display an info message if no default policy is specified */
+    if (!has_default_policy(&policies.purge_policies))
+        DisplayLog(LVL_EVENT, RESMON_TAG, "Notice: no 'default' purge policy is defined. Unmatched entries will be ignored.");
+
     /* intervals must only be computed for daemon mode */
     if ( options.mode == RESMON_DAEMON )
         ResMon_UpdateCheckInterval(  );

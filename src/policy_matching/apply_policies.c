@@ -1271,12 +1271,11 @@ policy_item_t *GetPolicyCase( const entry_id_t * p_entry_id,
     if ( default_index != -1 )
         return &pol_list[default_index];
 
-    /* entry matches no policy  */
-    DisplayLog( LVL_MAJOR, POLICY_TAG, "Warning: entry " F_ENT_ID " matches no %s policy.",
-                P_ENT_ID( p_entry_id, p_entry_attr ), ( policy_type == PURGE_POLICY ) ? "purge" : "migration" );
+    /* entry matches no policy => ignored */
+    DisplayLog(LVL_DEBUG, POLICY_TAG, "Entry " F_ENT_ID " matches no policy case: not applying %s to it.",
+               P_ENT_ID(p_entry_id, p_entry_attr), (policy_type == PURGE_POLICY) ? "purge" : "migration");
 
     return NULL;
-
 }
 
 /** get the policy case for the given fileclass.
@@ -1636,14 +1635,14 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
     if ( match_all_fc )
     {
 #ifdef HAVE_PURGE_POLICY
-        if (!wl_purge && (need_fileclass_update( &attrs, PURGE_POLICY ) == TRUE) )
+        if (!wl_purge && (need_fileclass_update(&attrs, PURGE_POLICY) == TRUE))
                                      /* can return -1 on error */
         {
             policy_item_t *policy_case = NULL;
             fileset_item_t *p_fileset = NULL;
 
-            policy_case = GetPolicyCase( p_id, &attrs, PURGE_POLICY,
-                                         &p_fileset );
+            policy_case = GetPolicyCase(p_id, &attrs, PURGE_POLICY,
+                                        &p_fileset);
             if ( policy_case != NULL )
             {
                 /* store the matched fileclass */
@@ -1660,11 +1659,19 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
                 printf( "release_class=%s\n",  ATTR( p_attrs_new, release_class ) );
 #endif
             }
+            else
+            {
+                /* no policy case: fileclass = ignored */
+                strcpy(ATTR(p_attrs_new, release_class), CLASS_IGNORED);
+                ATTR_MASK_SET(p_attrs_new, release_class);
+                ATTR(p_attrs_new, rel_cl_update) = time(NULL);
+                ATTR_MASK_SET(p_attrs_new, rel_cl_update);
+            }
         }
 #endif
 
 #ifdef HAVE_MIGR_POLICY
-        if ( !wl_migr && (need_fileclass_update( &attrs, MIGR_POLICY ) == TRUE))
+        if (!wl_migr && (need_fileclass_update(&attrs, MIGR_POLICY) == TRUE))
                                      /* can return -1 on error */
         {
             policy_item_t *policy_case = NULL;
@@ -1676,13 +1683,21 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
             {
                 /* store the matched fileclass */
                 if ( p_fileset )
-                    strcpy( ATTR( p_attrs_new, archive_class ),
-                            p_fileset->fileset_id );
+                    strcpy(ATTR(p_attrs_new, archive_class),
+                           p_fileset->fileset_id);
                 else
-                    strcpy( ATTR( p_attrs_new, archive_class ), CLASS_DEFAULT );
-                ATTR_MASK_SET( p_attrs_new, archive_class );
-                ATTR( p_attrs_new, arch_cl_update ) = time(NULL);
-                ATTR_MASK_SET( p_attrs_new, arch_cl_update );
+                    strcpy(ATTR(p_attrs_new, archive_class), CLASS_DEFAULT);
+                ATTR_MASK_SET(p_attrs_new, archive_class);
+                ATTR(p_attrs_new, arch_cl_update) = time(NULL);
+                ATTR_MASK_SET(p_attrs_new, arch_cl_update);
+            }
+            else
+            {
+                /* no policy case: fileclass = ignored */
+                strcpy(ATTR(p_attrs_new, archive_class), CLASS_IGNORED);
+                ATTR_MASK_SET(p_attrs_new, archive_class);
+                ATTR(p_attrs_new, arch_cl_update) = time(NULL);
+                ATTR_MASK_SET(p_attrs_new, arch_cl_update);
             }
         }
 #endif
