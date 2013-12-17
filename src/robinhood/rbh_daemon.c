@@ -501,6 +501,39 @@ static lmgr_t  lmgr;
 static int     lmgr_init = FALSE;
 static char    boot_time_str[256];
 
+
+static void module_mask2str(int mask, char *str)
+{
+    str[0] = '\0';
+    if (mask & MODULE_MASK_FS_SCAN)
+        strcat(str, "scan,");
+#ifdef HAVE_CHANGELOGS
+    if (mask & MODULE_MASK_EVENT_HDLR)
+        strcat(str, "log_reader,");
+#endif
+#ifdef HAVE_PURGE_POLICY
+    if (mask & MODULE_MASK_RES_MONITOR)
+        strcat(str, "purge,");
+#endif
+#ifdef HAVE_RMDIR_POLICY
+    if (module_mask & MODULE_MASK_RMDIR)
+        strcat(str, "rmdir,");
+#endif
+#ifdef HAVE_MIGR_POLICY
+   if (mask & MODULE_MASK_MIGRATION)
+        strcat(str, "migration,");
+#endif
+#ifdef HAVE_RM_POLICY
+   if (MODULE_MASK_UNLINK)
+        strcat(str, "hsm_rm,");
+#endif
+    /* remove final ',' */
+    int len = strlen(str);
+    if ((len > 0) && str[len-1] == ',')
+        str[len-1] = '\0';
+    return;
+}
+
 static void dump_stats( lmgr_t * lmgr, const int * module_mask )
 {
         char           tmp_buff[256];
@@ -1701,6 +1734,11 @@ int main( int argc, char **argv )
 
     if ( !(options.flags & FLAG_ONCE) )
     {
+        char tmpstr[1024];
+        module_mask2str(parsing_mask, tmpstr);
+        DisplayLog(LVL_MAJOR, MAIN_TAG, "Daemon started (running modules: %s)", tmpstr);
+        FlushLogs();
+
         /* dump stats periodically */
         stats_thr( &parsing_mask );
 
