@@ -1100,6 +1100,18 @@ static int builtin_copy(const char *src, const char *dst, int dst_flags,
     }
     /* else (r == 0): EOF */
 
+    /* free the kernel buffer cache as we does expect reading the files again.
+     * This can be done immediatly for the read file.
+     * For the writen file, we need to flush it to disk to ensure
+     * the file is correctly archived and to allow freeing the buffer cache */
+    posix_fadvise(srcfd, 0, 0, POSIX_FADV_DONTNEED);
+    if (config.sync_archive_data && (fdatasync(dstfd) != 0))
+    {
+        rc = -errno;
+        goto out_free;
+    }
+    posix_fadvise(dstfd, 0, 0, POSIX_FADV_DONTNEED);
+
 out_free:
     MemFree(io_buff);
 close_dst:

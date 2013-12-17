@@ -46,6 +46,7 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
     conf->xattr_support = FALSE;
     conf->check_mounted = TRUE;
     conf->archive_symlinks = TRUE;
+    conf->sync_archive_data = TRUE;
     return 0;
 }
 
@@ -58,11 +59,12 @@ int Write_Backend_ConfigDefault( FILE * output )
 #ifdef HAVE_SHOOK
      print_line( output, 1, "shook_cfg    : \"/etc/shook.cfg\"" );
 #endif
-    print_line( output, 1, "copy_timeout  : 6h" );
-    print_line( output, 1, "xattr_support : FALSE");
-    print_line( output, 1, "check_mounted : TRUE" );
-    print_line( output, 1, "archive_symlinks: TRUE" );
-    print_end_block( output, 0 );
+    print_line(output, 1, "copy_timeout  : 6h");
+    print_line(output, 1, "xattr_support : FALSE");
+    print_line(output, 1, "check_mounted : TRUE");
+    print_line(output, 1, "archive_symlinks: TRUE");
+    print_line(output, 1, "sync_archive_data: TRUE");
+    print_end_block(output, 0);
     return 0;
 }
 
@@ -76,7 +78,8 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
 #ifdef HAVE_SHOOK
         "shook_cfg",
 #endif
-        "xattr_support", "check_mounted", "archive_symlinks", NULL };
+        "xattr_support", "check_mounted", "archive_symlinks",
+        "sync_archive_data", NULL};
 
     /* get Backend block */
 
@@ -172,6 +175,13 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
     else if ( rc != ENOENT )
         conf->archive_symlinks = tmpval;
 
+    /* /!\ sync_archive_data is part of a bit field, it should not be passed directly: using tmpval instead */
+    rc = GetBoolParam(block, BACKEND_BLOCK, "sync_archive_data",
+                      0, &tmpval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT)
+        conf->sync_archive_data = tmpval;
 
     CheckUnknownParameters( block, BACKEND_BLOCK, allowed_params );
 
@@ -196,13 +206,16 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line(output, 1, "# Uncomment the following line to use an external command.");
     print_line(output, 1, "# /!\\ Calling an external command introduce an extra cost.");
     print_line(output, 1, "#action_cmd    = \"/usr/sbin/rbhext_tool\";");
-    print_line( output, 1, "copy_timeout  = 6h;" );
-    print_line( output, 1, "xattr_support = FALSE;");
-    print_line( output, 1, "# check if the backend is mounted on startup" );
-    print_line( output, 1, "check_mounted = TRUE; " );
-    print_line( output, 1, "# archive symlinks to the backend?");
-    print_line( output, 1, "archive_symlinks = TRUE; " );
-    print_end_block( output, 0 );
+    print_line(output, 1, "copy_timeout  = 6h;");
+    print_line(output, 1, "xattr_support = FALSE;");
+    print_line(output, 1, "# check if the backend is mounted on startup");
+    print_line(output, 1, "check_mounted = TRUE; ");
+    print_line(output, 1, "# archive symlinks to the backend?");
+    print_line(output, 1, "archive_symlinks = TRUE; ");
+    print_line(output, 1, "# flush archive data on close, to make sure the copy");
+    print_line(output, 1, "# is really successful (performance impact for small files)");
+    print_line(output, 1, "sync_archive_data = TRUE; ");
+    print_end_block(output, 0);
     return 0;
 }
 #define BKL_TAG "BkLoader"
@@ -224,8 +237,9 @@ int Backend_Start( backend_config_t * config, int flags )
     else
         DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd       =   \"%s\"", config->action_cmd);
     DisplayLog(LVL_DEBUG, BKL_TAG, "copy_timeout     =   %us", config->copy_timeout );
-    DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support    =   %s",  bool2str(config->xattr_support) );
-    DisplayLog(LVL_DEBUG, BKL_TAG, "archive_symlinks =   %s",  bool2str(config->archive_symlinks) );
+    DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support    =   %s",  bool2str(config->xattr_support));
+    DisplayLog(LVL_DEBUG, BKL_TAG, "archive_symlinks =   %s",  bool2str(config->archive_symlinks));
+    DisplayLog(LVL_DEBUG, BKL_TAG, "sync_archive_data =  %s",  bool2str(config->sync_archive_data));
 
     /* first check compatibility flags */
     compat_flags = rbhext_compat_flags();
