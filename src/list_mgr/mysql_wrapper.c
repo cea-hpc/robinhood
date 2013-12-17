@@ -52,6 +52,12 @@ static int mysql_error_convert( int err )
     case ER_LOCK_DEADLOCK:
         DisplayLog( LVL_MAJOR, LISTMGR_TAG, "DB deadlock detected" );
         return DB_DEADLOCK;
+    case ER_LOCK_WAIT_TIMEOUT:
+        if (lmgr_config.db_config.innodb)
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"innodb_lock_wait_timeout\" in MySQL config.");
+        else
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"lock_wait_timeout\" in MySQL config.");
+        return DB_TIMEOUT;
 
         /* connection relative errors */
 
@@ -91,6 +97,7 @@ static int is_retryable( int sql_err )
     {
         case DB_CONNECT_FAILED:
         case DB_DEADLOCK:
+        case DB_TIMEOUT:
             return TRUE;
         default:
             return FALSE;
