@@ -516,7 +516,7 @@ static void module_mask2str(int mask, char *str)
         strcat(str, "purge,");
 #endif
 #ifdef HAVE_RMDIR_POLICY
-    if (module_mask & MODULE_MASK_RMDIR)
+    if (mask & MODULE_MASK_RMDIR)
         strcat(str, "rmdir,");
 #endif
 #ifdef HAVE_MIGR_POLICY
