@@ -34,7 +34,7 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
     conf->runtime_interval = 5 * 60;    /* 5 min */
     conf->nb_threads_migr = 8;
     conf->migr_queue_size = 4096;
-    conf->db_request_limit = 10000;
+    conf->db_request_limit = 100000;
     conf->max_migr_nbr = 0;
     conf->max_migr_vol = 0;
 
@@ -80,9 +80,9 @@ int Write_Migration_ConfigDefault( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "nb_threads_migration  : 8" );
     print_line( output, 1, "migration_queue_size  : 4096" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "db_result_size_max    : 10000" );
-    print_end_block( output, 0 );
+    fprintf(output, "\n");
+    print_line(output, 1, "db_result_size_max    : 100000");
+    print_end_block(output, 0);
 
     fprintf( output, "\n" );
 
@@ -139,12 +139,12 @@ int Write_Migration_ConfigTemplate( FILE * output )
     print_line( output, 1, "pre_maintenance_window = 24h ;" );
     print_line( output, 1, "maint_migr_delay_min   = 30min ;" );
     fprintf( output, "\n" );
-    print_line( output, 1, "# internal/tuning parameters" );
-    print_line( output, 1, "migration_queue_size   = 4096 ;" );
-    print_line( output, 1, "db_result_size_max     = 10000 ;" );
-    print_end_block( output, 0 );
+    print_line(output, 1, "# internal/tuning parameters");
+    print_line(output, 1, "migration_queue_size   = 4096 ;");
+    print_line(output, 1, "db_result_size_max     = 100000 ;");
+    print_end_block(output, 0);
 
-    fprintf( output, "\n" );
+    fprintf(output, "\n");
 
     return 0;
 }

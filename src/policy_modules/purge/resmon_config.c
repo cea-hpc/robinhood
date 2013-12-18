@@ -35,7 +35,7 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
     conf->nb_threads_purge = 4;
     conf->post_purge_df_latency = 60;   /*1 min */
     conf->purge_queue_size = 4096;
-    conf->db_request_limit = 10000;
+    conf->db_request_limit = 100000;
 #ifdef ATTR_INDEX_status
     conf->check_purge_status_on_startup = TRUE;
 #endif
@@ -51,23 +51,23 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
     return 0;
 }
 
-int Write_ResourceMon_ConfigDefault( FILE * output )
+int Write_ResourceMon_ConfigDefault(FILE * output)
 {
-    print_begin_block( output, 0, PURGE_PARAM_BLOCK, NULL );
-    print_line( output, 1, "nb_threads_purge      : 4" );
-    print_line( output, 1, "post_purge_df_latency : 1min" );
-    print_line( output, 1, "purge_queue_size      : 4096" );
-    print_line( output, 1, "db_result_size_max    : 10000" );
+    print_begin_block(output, 0, PURGE_PARAM_BLOCK, NULL);
+    print_line(output, 1, "nb_threads_purge      : 4");
+    print_line(output, 1, "post_purge_df_latency : 1min");
+    print_line(output, 1, "purge_queue_size      : 4096");
+    print_line(output, 1, "db_result_size_max    : 100000");
 #ifdef ATTR_INDEX_status
-    print_line( output, 1, "check_purge_status_on_startup: TRUE" );
+    print_line(output, 1, "check_purge_status_on_startup: TRUE");
 #endif
-    print_line( output, 1, "recheck_ignored_classes: TRUE" );
+    print_line(output, 1, "recheck_ignored_classes: TRUE");
 #ifdef _TMP_FS_MGR
-    print_line( output, 1, "purge_command          : <built-in: unlink>");
+    print_line(output, 1, "purge_command          : <built-in: unlink>");
 #endif
-    print_end_block( output, 0 );
+    print_end_block(output, 0);
 
-    fprintf( output, "\n" );
+    fprintf(output, "\n");
 
     return 0;
 }
@@ -88,9 +88,9 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "# queue size (for leveraging purge threads load)" );
     print_line( output, 1, "purge_queue_size      = 4096 ;" );
 
-    fprintf( output, "\n" );
-    print_line( output, 1, "# Limit the size of database result sets (save memory)" );
-    print_line( output, 1, "db_result_size_max    = 10000 ;" );
+    fprintf(output, "\n");
+    print_line(output, 1, "# Limit the size of database result sets (save memory)");
+    print_line(output, 1, "db_result_size_max    = 100000 ;");
 
 #ifdef ATTR_INDEX_status
     fprintf( output, "\n" );
