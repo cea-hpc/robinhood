@@ -124,7 +124,10 @@ static time_t  boot_time;
 
 #endif
 
-static int     action_mask = DEFAULT_ACTION_MASK;
+/* currently running modules */
+static int     running_mask = 0;
+/* selected modules (used for reloading config) */
+static int     parsing_mask = 0;
 
 /* Array of options for getopt_long().
  * Each record consists of: { const char *name, int has_arg, int * flag, int val }
@@ -540,6 +543,7 @@ static void dump_stats( lmgr_t * lmgr, const int * module_mask )
         time_t         now;
         struct tm      date;
 
+
         now = time( NULL );
         strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &now, &date ) );
 
@@ -547,6 +551,8 @@ static void dump_stats( lmgr_t * lmgr, const int * module_mask )
                     "==================== Dumping stats at %s =====================", tmp_buff );
         DisplayLog( LVL_MAJOR, "STATS", "======== General statistics =========" );
         DisplayLog( LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str );
+        module_mask2str(*module_mask, tmp_buff);
+        DisplayLog(LVL_MAJOR, "STATS", "Currently running: %s", tmp_buff);
 
         if ( *module_mask & MODULE_MASK_FS_SCAN )
         {
@@ -634,29 +640,29 @@ static void usr_handler( int sig )
 static int action2parsing_mask( int act_mask )
 {
     /* build config parsing mask */
-    int parsing_mask = 0;
+    int parse_mask = 0;
     if ( act_mask & ACTION_MASK_SCAN )
-        parsing_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
+        parse_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
     if ( act_mask & ACTION_MASK_PURGE )
-        parsing_mask |= MODULE_MASK_RES_MONITOR;
+        parse_mask |= MODULE_MASK_RES_MONITOR;
 #ifdef HAVE_RMDIR_POLICY
     if ( act_mask & ACTION_MASK_RMDIR )
-        parsing_mask |= MODULE_MASK_RMDIR;
+        parse_mask |= MODULE_MASK_RMDIR;
 #endif
 #ifdef HAVE_CHANGELOGS
     if ( act_mask & ACTION_MASK_HANDLE_EVENTS )
-        parsing_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
+        parse_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
 #endif
 #ifdef HAVE_MIGR_POLICY
     if ( act_mask & ACTION_MASK_MIGRATE )
-        parsing_mask |= MODULE_MASK_MIGRATION;
+        parse_mask |= MODULE_MASK_MIGRATION;
 #endif
 #ifdef HAVE_RM_POLICY
     if ( act_mask & ACTION_MASK_UNLINK )
-        parsing_mask |= MODULE_MASK_UNLINK;
+        parse_mask |= MODULE_MASK_UNLINK;
 #endif
 
-    return parsing_mask;
+    return parse_mask;
 }
 
 
@@ -727,14 +733,14 @@ static void   *signal_handler_thr( void *arg )
 
             /* 1a- stop submitting migrations */
 #ifdef HAVE_MIGR_POLICY
-            if ( action_mask & ACTION_MASK_MIGRATE ) {
+            if (running_mask & MODULE_MASK_MIGRATION) {
                 /* abort migration */
                 Stop_Migration();
             }
 #endif
             /* 1b- stop triggering purges */
 #ifdef HAVE_PURGE_POLICY
-            if ( action_mask & ACTION_MASK_PURGE ) {
+            if (running_mask & MODULE_MASK_RES_MONITOR) {
                 /* abort purge */
                 Stop_ResourceMonitor();
             }
@@ -742,7 +748,7 @@ static void   *signal_handler_thr( void *arg )
 
             /* 2a - stop feeding with changelogs */
 #ifdef HAVE_CHANGELOGS
-            if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
+            if (running_mask & MODULE_MASK_EVENT_HDLR)
             {
                 /* stop changelog processing */
                 ChgLogRdr_Terminate(  );
@@ -750,7 +756,7 @@ static void   *signal_handler_thr( void *arg )
             }
 #endif
             /* 2b - stop feeding from scan */
-            if ( action_mask & ACTION_MASK_SCAN )
+            if (running_mask & MODULE_MASK_FS_SCAN)
             {
                 /* stop FS scan (blocking) */
                 FSScan_Terminate(  );
@@ -760,32 +766,32 @@ static void   *signal_handler_thr( void *arg )
             /* TODO 3) wait changelog reader (blocking) */
 
             /* 4 - entry processor can be stopped */
-            if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
+            if (running_mask & MODULE_MASK_ENTRY_PROCESSOR)
             {
                 /* drop pipeline waiting operations and terminate threads */
                 EntryProcessor_Terminate( FALSE );
 
 #ifdef HAVE_CHANGELOGS
-                if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
+                if (running_mask & MODULE_MASK_EVENT_HDLR)
                 {
                     /* Ack last changelog records. */
                     ChgLogRdr_Done( );
                 }
 #endif
-
                 FlushLogs(  );
             }
 
             /* 5 - wait consumers */
 #ifdef HAVE_PURGE_POLICY
-            if ( action_mask & ACTION_MASK_PURGE ) {
+            if (running_mask & MODULE_MASK_RES_MONITOR)
+            {
                 /* wait for purge to end */
                 Wait_ResourceMonitor();
                 FlushLogs(  );
             }
 #endif
 #ifdef HAVE_MIGR_POLICY
-            if ( action_mask & ACTION_MASK_MIGRATE ) {
+            if (running_mask & MODULE_MASK_MIGRATION) {
                 /* wait for migration to end */
                 Wait_Migration();
                 FlushLogs(  );
@@ -814,13 +820,13 @@ static void   *signal_handler_thr( void *arg )
             char  err_msg[4096];
             robinhood_config_t new_config;
 
-            DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration" );
+            DisplayLog(LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration");
 
-            DisplayLog( LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", options.config_file );
-            if ( ReadRobinhoodConfig( action2parsing_mask(action_mask), options.config_file,
-                                      err_msg, &new_config, TRUE ) )
+            DisplayLog(LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", options.config_file);
+            if (ReadRobinhoodConfig(parsing_mask, options.config_file,
+                                    err_msg, &new_config, TRUE))
             {
-                DisplayLog( LVL_CRIT, RELOAD_TAG, "Error reading config: %s", err_msg );
+                DisplayLog(LVL_CRIT, RELOAD_TAG, "Error reading config: %s", err_msg);
             }
             else
             {
@@ -849,7 +855,7 @@ static void   *signal_handler_thr( void *arg )
                     new_config.log_config.debug_level = options.log_level;
                 }
 
-                ReloadRobinhoodConfig( action2parsing_mask(action_mask), &new_config );
+                ReloadRobinhoodConfig(parsing_mask, &new_config);
             }
 
             reload_sig = FALSE;
@@ -857,7 +863,6 @@ static void   *signal_handler_thr( void *arg )
         }
         else if ( dump_sig )
         {
-            int tmp_mask = action2parsing_mask(action_mask);
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGUSR1 received: dumping stats" );
 
             if ( !lmgr_init )
@@ -867,7 +872,7 @@ static void   *signal_handler_thr( void *arg )
                 lmgr_init = TRUE;
             }
 
-            dump_stats(&lmgr, &tmp_mask);
+            dump_stats(&lmgr, &running_mask);
             dump_sig = FALSE;
         }
     }
@@ -955,11 +960,11 @@ int main( int argc, char **argv )
     int            c, option_index = 0;
     char          *bin = basename( argv[0] );
 
+    int            action_mask = DEFAULT_ACTION_MASK;
     int            is_default_actions = TRUE;
     char           extra_chr[1024];
 
     int            rc;
-    int            parsing_mask, currently_running_mask;
     char           err_msg[4096];
     robinhood_config_t rh_config;
     int chgd = 0;
@@ -1402,7 +1407,7 @@ int main( int argc, char **argv )
 #endif
 
     /* create signal handling thread */
-    rc = pthread_create( &sig_thr, NULL, signal_handler_thr, NULL );
+    rc = pthread_create(&sig_thr, NULL, signal_handler_thr, NULL);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, MAIN_TAG, "Error starting signal handler thread: %s",
@@ -1425,11 +1430,10 @@ int main( int argc, char **argv )
     if ( CheckLastFS(  ) != 0 )
         exit( 1 );
 
-    if ( options.flags & FLAG_ONCE )
+    if (options.flags & FLAG_ONCE)
     {
         /* used for dumping stats in one shot mode */
-        currently_running_mask = 0;
-        pthread_create( &stat_thread, NULL, stats_thr, &currently_running_mask );
+        pthread_create(&stat_thread, NULL, stats_thr, &running_mask);
     }
 
     if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
@@ -1474,9 +1478,13 @@ int main( int argc, char **argv )
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
 
-        if ( options.flags & FLAG_ONCE )
+        if (options.flags & FLAG_ONCE)
+            running_mask = MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
+        else
+            running_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
+
+        if (options.flags & FLAG_ONCE)
         {
-            currently_running_mask = MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
             FSScan_Wait(  );
             DisplayLog( LVL_MAJOR, MAIN_TAG, "FS Scan finished" );
         }
@@ -1499,9 +1507,13 @@ int main( int argc, char **argv )
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
 
+        if (options.flags & FLAG_ONCE)
+            running_mask = MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
+        else
+            running_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
+
         if ( options.flags & FLAG_ONCE )
         {
-            currently_running_mask = MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
             ChgLogRdr_Wait(  );
             DisplayLog( LVL_MAJOR, MAIN_TAG, "Event Processing finished" );
         }
@@ -1520,6 +1532,7 @@ int main( int argc, char **argv )
             ChgLogRdr_Done( );
         }
 #endif
+        running_mask = 0;
     }
 
 #ifdef HAVE_MIGR_POLICY
@@ -1575,7 +1588,7 @@ int main( int argc, char **argv )
         if ( rc == ENOENT )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." );
-            /* unset it in parsing mask to avoid dumping stats */
+            /* unset it in parsing mask to avoid reloading its config */
             parsing_mask &= ~MODULE_MASK_MIGRATION;
             action_mask &= ~ACTION_MASK_MIGRATE;
         }
@@ -1591,11 +1604,16 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( options.flags & FLAG_ONCE )
+            if (options.flags & FLAG_ONCE)
+                running_mask = MODULE_MASK_MIGRATION;
+            else
+                running_mask |= MODULE_MASK_MIGRATION;
+
+            if (options.flags & FLAG_ONCE)
             {
-                currently_running_mask = MODULE_MASK_MIGRATION;
                 Wait_Migration();
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration pass terminated" );
+                running_mask = 0;
             }
         }
     }
@@ -1640,7 +1658,7 @@ int main( int argc, char **argv )
         if ( rc == ENOENT )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." );
-            /* unset it in parsing mask to avoid dumping stats */
+            /* unset it in parsing mask to avoid reloading its config */
             parsing_mask &= ~MODULE_MASK_RES_MONITOR;
             action_mask &= ~ACTION_MASK_PURGE;
         }
@@ -1656,11 +1674,16 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( options.flags & FLAG_ONCE )
+            if (options.flags & FLAG_ONCE)
+                running_mask = MODULE_MASK_RES_MONITOR;
+            else
+                running_mask |= MODULE_MASK_RES_MONITOR;
+
+            if (options.flags & FLAG_ONCE)
             {
-                currently_running_mask = MODULE_MASK_RES_MONITOR;
                 Wait_ResourceMonitor();
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "ResourceMonitor terminated its task" );
+                running_mask = 0;
             }
         }
     }
@@ -1673,7 +1696,7 @@ int main( int argc, char **argv )
         if ( rc == ENOENT )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." );
-            /* unset it in parsing mask to avoid dumping stats */
+            /* unset it in parsing mask to avoid reloading its config */
             parsing_mask &= ~MODULE_MASK_RMDIR;
             action_mask &= ~ACTION_MASK_RMDIR;
         }
@@ -1689,11 +1712,16 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( options.flags & FLAG_ONCE )
+            if (options.flags & FLAG_ONCE)
+                running_mask = MODULE_MASK_RMDIR;
+            else
+                running_mask |= MODULE_MASK_RMDIR;
+
+            if (options.flags & FLAG_ONCE)
             {
-                currently_running_mask = MODULE_MASK_RMDIR;
                 Wait_Rmdir(  );
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "Directory Remover terminated its task" );
+                running_mask = 0;
             }
         }
     }
@@ -1706,7 +1734,7 @@ int main( int argc, char **argv )
         if ( rc == ENOENT )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." );
-            /* unset it in parsing mask to avoid dumping stats */
+            /* unset it in parsing mask to avoid reloading its config */
             parsing_mask &= ~MODULE_MASK_UNLINK;
             action_mask &= ~ACTION_MASK_UNLINK;
         }
@@ -1722,11 +1750,16 @@ int main( int argc, char **argv )
             /* Flush logs now, to have a trace in the logs */
             FlushLogs(  );
 
-            if ( options.flags & FLAG_ONCE )
+            if (options.flags & FLAG_ONCE)
+                running_mask = MODULE_MASK_UNLINK;
+            else
+                running_mask |= MODULE_MASK_UNLINK;
+
+            if (options.flags & FLAG_ONCE)
             {
-                currently_running_mask = MODULE_MASK_UNLINK;
                 Wait_HSMRm(  );
                 DisplayLog( LVL_MAJOR, MAIN_TAG, "HSM removal terminated" );
+                running_mask = 0;
             }
         }
     }
@@ -1735,12 +1768,12 @@ int main( int argc, char **argv )
     if ( !(options.flags & FLAG_ONCE) )
     {
         char tmpstr[1024];
-        module_mask2str(parsing_mask, tmpstr);
+        module_mask2str(running_mask, tmpstr);
         DisplayLog(LVL_MAJOR, MAIN_TAG, "Daemon started (running modules: %s)", tmpstr);
         FlushLogs();
 
         /* dump stats periodically */
-        stats_thr( &parsing_mask );
+        stats_thr(&running_mask);
 
         /* should never return */
         exit( 1 );

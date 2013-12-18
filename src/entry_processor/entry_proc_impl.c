@@ -1009,7 +1009,7 @@ void EntryProcessor_DumpCurrentStages( void )
         for ( i = 0; i < entry_proc_descr.stage_count; i++ )
         {
             P( pipeline[i].stage_mutex );
-            if ( pipeline[i].total_processed )
+            if (pipeline[i].total_processed != 0)
                 tpe =
                     ( ( 1000.0 * pipeline[i].total_processing_time.tv_sec ) +
                       ( 1E-3 * pipeline[i].total_processing_time.tv_usec ) ) /
