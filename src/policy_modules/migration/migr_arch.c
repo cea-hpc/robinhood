@@ -730,13 +730,13 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
     switch ( p_migr_param->type )
     {
     case MIGR_FS:
-        DisplayLog( LVL_EVENT, MIGR_TAG, "Starting migration pass" );
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Starting migration");
         /* We must retrieve all files sorted by mtime: no extra filter */
         break;
 
     case MIGR_BY_OST:
-        DisplayLog( LVL_EVENT, MIGR_TAG, "Starting migration on OST #%u",
-                    p_migr_param->param_u.ost_index );
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Starting migration on OST #%u",
+                   p_migr_param->param_u.ost_index);
 
         /* retrieve stripe info and stripe items */
         ATTR_MASK_SET( &attr_set, stripe_info );
@@ -751,8 +751,8 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         break;
 
     case MIGR_BY_USER:
-        DisplayLog( LVL_EVENT, MIGR_TAG, "Starting migration of '%s' user files",
-                    p_migr_param->param_u.user_name );
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Starting migration of '%s' user files",
+                   p_migr_param->param_u.user_name);
 
         /* We must retrieve files for this user */
 
@@ -763,8 +763,8 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         break;
 
     case MIGR_BY_GROUP:
-        DisplayLog( LVL_EVENT, MIGR_TAG, "Starting migration of '%s' group files",
-                    p_migr_param->param_u.group_name );
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Starting migration of '%s' group files",
+                   p_migr_param->param_u.group_name);
 
         /* We must retrieve files for this group */
 
@@ -776,8 +776,8 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
         break;
 
     case MIGR_BY_CLASS:
-        DisplayLog( LVL_EVENT, MIGR_TAG, "Starting migration on fileclass '%s'",
-                    p_migr_param->param_u.class_name );
+        DisplayLog(LVL_MAJOR, MIGR_TAG, "Starting migration on fileclass '%s'",
+                   p_migr_param->param_u.class_name);
 
         if (!strcasecmp( p_migr_param->param_u.class_name, "default"))
             fval.value.val_str = CLASS_DEFAULT;

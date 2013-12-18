@@ -529,14 +529,14 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     {
     case PURGE_FS:
     case PURGE_ALL:
-        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge" );
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Starting purge");
 
         /* We must retrieve all files sorted by atime: no extra filter */
         break;
 
     case PURGE_BY_OST:
-        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge on OST #%u",
-                    p_purge_param->param_u.ost_index );
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Starting purge on OST #%u",
+                   p_purge_param->param_u.ost_index);
 
         /* retrieve stripe info and stripe items */
         ATTR_MASK_SET( &attr_set, stripe_info );
@@ -552,8 +552,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         break;
 
     case PURGE_BY_POOL:
-        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of pool '%s'",
-                    p_purge_param->param_u.pool_name );
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Starting purge of pool '%s'",
+                   p_purge_param->param_u.pool_name);
 
         /** @TODO must retrieve files stored on current pool definition */
 
@@ -572,8 +572,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         break;
 
     case PURGE_BY_USER:
-        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of '%s' user files",
-                    p_purge_param->param_u.user_name );
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Starting purge of '%s' user files",
+                   p_purge_param->param_u.user_name);
 
         /* We must retrieve files for this user, sorted by atime */
 
@@ -585,8 +585,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         break;
 
     case PURGE_BY_GROUP:
-        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of '%s' group files",
-                    p_purge_param->param_u.group_name );
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Starting purge of '%s' group files",
+                   p_purge_param->param_u.group_name);
 
         /* We must retrieve files for this group, sorted by atime */
 
@@ -597,8 +597,8 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         break;
 
     case PURGE_BY_CLASS:
-        DisplayLog( LVL_EVENT, PURGE_TAG, "Starting purge of fileclass(es) '%s'",
-                    p_purge_param->param_u.class_name );
+        DisplayLog(LVL_MAJOR, PURGE_TAG, "Starting purge of fileclass(es) '%s'",
+                   p_purge_param->param_u.class_name);
 
         if (!strcasecmp( p_purge_param->param_u.class_name, "default"))
             fval.value.val_str = CLASS_DEFAULT;
