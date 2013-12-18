@@ -55,6 +55,8 @@ int            id_constraint_unregister( entry_proc_op_t * p_op );
 
 
 /* display info about id constraints management */
-void           id_constraint_dump( void );
+void id_constraint_stats(void);
+/* dump all values */
+void id_constraint_dump(void);
 
 #endif

@@ -57,7 +57,7 @@ struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock  )
 	return hash;
 }
 
-void id_hash_dump( struct id_hash * id_hash, const char * log_str )
+void id_hash_stats(struct id_hash * id_hash, const char * log_str)
 {
     unsigned int   i, total, min, max;
     double         avg;
@@ -103,4 +103,24 @@ void id_hash_dump( struct id_hash * id_hash, const char * log_str )
     }
 #endif
 
+}
+
+void id_hash_dump(struct id_hash * id_hash)
+{
+    unsigned int   i;
+    entry_proc_op_t *op;
+
+    /* dump all values */
+    printf("==\n");
+    for (i = 0; i < id_hash->hash_size; i++)
+    {
+        struct id_hash_slot *slot = &id_hash->slot[i];
+
+        P(slot->lock);
+        rh_list_for_each_entry(op, &slot->list, hash_list)
+        {
+            printf("[%u] "DFID"\n", i, PFID(&op->entry_id));
+        }
+        V(slot->lock);
+    }
 }

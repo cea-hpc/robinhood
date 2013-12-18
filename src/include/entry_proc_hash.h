@@ -42,8 +42,11 @@ struct id_hash
 struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock );
 
 
-/* display info about id hash management */
-void id_hash_dump( struct id_hash * id_hash, const char * log_str );
+/* display stats about the hash */
+void id_hash_stats(struct id_hash *id_hash, const char *log_str);
+
+/* dump all values in the hash */
+void id_hash_dump(struct id_hash *id_hash);
 
 /**
  * @TODO use better hash functions (see http://burtleburtle.net/bob/c/lookup3.c)

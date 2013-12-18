@@ -1004,7 +1004,7 @@ void EntryProcessor_DumpCurrentStages( void )
         DisplayLog( LVL_MAJOR, "STATS", "==== EntryProcessor Pipeline Stats ===" );
         DisplayLog( LVL_MAJOR, "STATS", "Threads waiting: %u", nb_waiting_threads );
 
-        id_constraint_dump(  );
+        id_constraint_stats();
 
         for ( i = 0; i < entry_proc_descr.stage_count; i++ )
         {

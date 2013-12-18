@@ -41,7 +41,7 @@ static struct id_hash *id_constraint_hash;
 int id_constraint_init( void )
 {
     id_constraint_hash = id_hash_init(ID_HASH_SIZE, TRUE);
-    return id_constraint_hash == NULL;     /* TODO: this is not checked */
+    return (id_constraint_hash == NULL);     /* TODO: this is not checked */
 }
 
 /**
@@ -72,6 +72,7 @@ int id_constraint_register( entry_proc_op_t * p_op, int at_head )
     p_op->id_is_referenced = TRUE;
 
     V( slot->lock );
+
     return ID_OK;
 
 }
@@ -109,7 +110,7 @@ entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
     {
 
         printf( "no registered operation on "DFID"?\n", PFID(p_id));
-        printf( "etat de la file %u:\n", hash_index );
+        printf("entries in %u:\n", hash_index);
         for ( p_curr = slot->id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
             printf( DFID"\n", PFID(&p_curr->op_ptr->entry_id) );
     }
@@ -148,9 +149,14 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 }
 
 
-void id_constraint_dump( void )
+void id_constraint_stats(void)
 {
-    id_hash_dump(id_constraint_hash, "Id constraints count");
+    id_hash_stats(id_constraint_hash, "Id constraints count");
+}
+
+void id_constraint_dump(void)
+{
+    id_hash_dump(id_constraint_hash);
 }
 
 /* ------------ Config management functions --------------- */
