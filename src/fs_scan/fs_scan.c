@@ -1255,6 +1255,19 @@ static int process_one_task(robinhood_task_t *p_task,
 #else
         PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, TRUE);
 #endif
+
+#ifdef _BENCH_DB
+        /* generate cyclic owner, group, type, size, ... */
+        unsigned int u = (i + 17) % 137;
+        sprintf(ATTR(&op->fs_attrs, owner), "user%u", u);
+        sprintf(ATTR(&op->fs_attrs, gr_name), "group%u", u/8); /* 8 user per group */
+        switch (i % 2)
+        {
+            case 0: strcpy(ATTR(&op->fs_attrs, type), STR_TYPE_DIR); break;
+            case 1: strcpy(ATTR(&op->fs_attrs, type), STR_TYPE_FILE); break;
+        }
+        ATTR(&op->fs_attrs, size) = ((i % 311) * 1493);
+#endif
         /* set update time  */
         ATTR_MASK_SET(&op->fs_attrs, md_update);
         ATTR_MASK_SET(&op->fs_attrs, path_update);
