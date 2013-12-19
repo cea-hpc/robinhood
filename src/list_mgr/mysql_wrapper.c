@@ -57,7 +57,7 @@ static int mysql_error_convert( int err )
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"innodb_lock_wait_timeout\" in MySQL config.");
         else
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"lock_wait_timeout\" in MySQL config.");
-        return DB_TIMEOUT;
+        return DB_DEADLOCK;
 
         /* connection relative errors */
 
@@ -97,7 +97,6 @@ static int is_retryable( int sql_err )
     {
         case DB_CONNECT_FAILED:
         case DB_DEADLOCK:
-        case DB_TIMEOUT:
             return TRUE;
         default:
             return FALSE;
@@ -222,9 +221,12 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
                             "Connection to database lost in %s()... Retrying in %u sec.",
                             __FUNCTION__, retry );
             else
-                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                            "Deadlock during DB request '%s' after %u sec. Retrying in %u sec.",
-                            query, (unsigned int)(time(NULL) - start), retry );
+            {
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                           "Deadlock or timeout of DB request after %u sec. Retrying in %u sec.",
+                           (unsigned int)(time(NULL) - start), retry);
+                DisplayLog(LVL_EVENT, LISTMGR_TAG, "Query: %s", query);
+            }
 
             rh_sleep( retry );
             retry *= 2;

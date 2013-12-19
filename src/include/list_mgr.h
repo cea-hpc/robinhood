@@ -57,7 +57,6 @@
 #define DB_TRG_NOT_EXISTS      15
 #define DB_DEADLOCK            16
 #define DB_BAD_SCHEMA          17
-#define DB_TIMEOUT             18
 
 
 /* Tag in logfile */
