@@ -55,7 +55,7 @@ static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *
 
 /* pipeline stages */
 enum {
-    STAGE_GET_FID,
+    STAGE_GET_FID = 0,
     STAGE_GET_INFO_DB,
     STAGE_GET_INFO_FS,
     STAGE_REPORTING,
@@ -76,6 +76,7 @@ const pipeline_descr_t std_pipeline_descr =
     .GET_INFO_DB    = STAGE_GET_INFO_DB,
     .GET_INFO_FS    = STAGE_GET_INFO_FS,
     .GC_OLDENT      = STAGE_RM_OLD_ENTRIES,
+    .DB_APPLY       = STAGE_DB_APPLY,
 };
 
 /** pipeline stages definition */

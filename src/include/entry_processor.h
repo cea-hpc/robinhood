@@ -116,6 +116,7 @@ typedef struct pipeline_descr_t
    unsigned int GET_INFO_DB;
    unsigned int GET_INFO_FS;
    unsigned int GC_OLDENT;
+   unsigned int DB_APPLY;
 } pipeline_descr_t;
 
 /* pipeline currently in operation */

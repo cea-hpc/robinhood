@@ -200,6 +200,22 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
             return EINVAL;
     }
 
+    DisplayLog(LVL_FULL, "EntryProc_Config", "nb_threads=%u", p_conf->nb_thread);
+    DisplayLog(LVL_FULL, "EntryProc_Config", "max_batch_size=%u", p_conf->max_batch_size);
+    for (i = 0; i < entry_proc_descr.stage_count; i++)
+    {
+        if (entry_proc_pipeline[i].stage_flags & STAGE_FLAG_SEQUENTIAL)
+            DisplayLog(LVL_FULL,"EntryProc_Config","%s: sequential",
+                       entry_proc_pipeline[i].stage_name);
+        else if (entry_proc_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL)
+            DisplayLog(LVL_FULL,"EntryProc_Config","%s: parallel",
+                       entry_proc_pipeline[i].stage_name);
+        else if (entry_proc_pipeline[i].stage_flags & STAGE_FLAG_MAX_THREADS)
+            DisplayLog(LVL_FULL,"EntryProc_Config","%s: %u threads max",
+                       entry_proc_pipeline[i].stage_name,
+                       entry_proc_pipeline[i].max_thread_count);
+    }
+
     pipeline = (list_by_stage_t*)MemCalloc(entry_proc_descr.stage_count, sizeof(list_by_stage_t));
     if (!pipeline)
         return ENOMEM;

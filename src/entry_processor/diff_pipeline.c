@@ -67,7 +67,8 @@ const pipeline_descr_t diff_pipeline_descr =
     .GET_ID         = STAGE_GET_FID,
     .GET_INFO_DB    = STAGE_GET_INFO_DB,
     .GET_INFO_FS    = STAGE_GET_INFO_FS,
-    .GC_OLDENT      = STAGE_REPORT_RM
+    .GC_OLDENT      = STAGE_REPORT_RM,
+    .DB_APPLY       = STAGE_APPLY
 };
 
 /** pipeline stages definition */
