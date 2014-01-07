@@ -3360,7 +3360,7 @@ function test_root_changelog
 
     # name and parent are supposed to be empty for ROOT
     nr=$(get_db_info $config_file name $idr)
-    [ "$name" = "" ] || error "name for $ROOT is not empty: '$nr'"
+    [ "$nr" = "" ] || error "name for $ROOT is not empty: '$nr'"
     pr=$(get_db_info $config_file parent_id $idr)
     [ "$pr" = "" ] || error "parent_id for $ROOT is not empty: '$pr'"
 
@@ -3397,7 +3397,7 @@ function test_root_changelog
 
     # name and parent are supposed to be empty for ROOT
     nr=$(get_db_info $config_file name $idr)
-    [ "$name" = "" ] || error "name for $ROOT is not empty: '$nr'"
+    [ "$nr" = "" ] || error "name for $ROOT is not empty: '$nr'"
     pr=$(get_db_info $config_file parent_id $idr)
     [ "$pr" = "" ] || error "parent_id for $ROOT is not empty: '$pr'"
 
