@@ -152,6 +152,7 @@ const char    *get_fid_dir( void );
 const char    *get_fsname( void );
 dev_t          get_fsdev( void );
 uint64_t       get_fskey( void );
+const entry_id_t *get_mnt_id(void);
 
 /**
  * extract relative path from full path

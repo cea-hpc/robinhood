@@ -157,6 +157,7 @@ function set_skipped
 
 function clean_logs
 {
+    local f
 	for f in $CLEAN; do
 		if [ -s $f ]; then
 			cp /dev/null $f
@@ -3228,9 +3229,10 @@ function test_info_collect
 	fi
 }
 
+
 function readlog_chk
 {
-	config_file=$1
+	local config_file=$1
 
 	echo "Reading changelogs..."
 	$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error "reading logs"
@@ -3240,7 +3242,7 @@ function readlog_chk
 
 function scan_chk
 {
-	config_file=$1
+	local config_file=$1
 
 	echo "Scanning..."
         $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
@@ -3250,7 +3252,7 @@ function scan_chk
 
 function diff_chk
 {
-    config_file=$1
+    local config_file=$1
 
     echo "Scanning with rbh-diff..."
     $DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_chglogs.log  2>&1 || error "scanning filesystem"
@@ -3313,6 +3315,109 @@ function test_info_collect2
 	else
 		error "Unexpexted test flavor '$flavor'"
 	fi
+}
+
+function get_db_info
+{
+    local config_file=$1
+    local field=$2
+    local entry=$3
+    
+    $REPORT -f ./cfg/$config_file -e $entry -c | egrep -E "^$field," | cut -d ',' -f 2 | sed -e 's/^ //g'
+}
+
+function test_root_changelog
+{
+	config_file=$1
+	clean_logs
+
+	if (( $no_log )); then
+    	echo "Changelogs not supported on this config: skipped"
+		set_skipped
+		return 1
+    fi
+
+    # create a directory and a file 
+    local d=$ROOT/subdir
+    local f=$ROOT/subdir/file
+    mkdir $d || error "creating directory $d"
+    id1=$(get_id $d)
+    touch $f || error "creating file $f"
+    id2=$(get_id $f)
+    idr=$(get_id $ROOT/.)
+
+    [ "$DEBUG" = "1" ] && echo -e "$ROOT: $idr\n$d: $id1\n$f: $id2"
+
+    # read the changelog
+    readlog_chk $config_file
+
+    # check the id, path and parent for $ROOT, $d and $f
+    idrb=$(get_db_info $config_file id $idr | tr -d '[]')
+    [ "$idr" = "$idrb" ] || error "id doesn't match: $idr != $idrb"
+    pathr=$(get_db_info $config_file path $idr)
+    # path must be empty or match $ROOT
+    [ "$pathr" = "" ] || [ "$pathr" = "$ROOT" ] || error "path doesn't match: $ROOT != $pathr"
+
+    # name and parent are supposed to be empty for ROOT
+    nr=$(get_db_info $config_file name $idr)
+    [ "$name" = "" ] || error "name for $ROOT is not empty: '$nr'"
+    pr=$(get_db_info $config_file parent_id $idr)
+    [ "$pr" = "" ] || error "parent_id for $ROOT is not empty: '$pr'"
+
+    id1b=$(get_db_info $config_file id $id1 | tr -d '[]')
+    [ "$id1" = "$id1b" ] || error "id doesn't match: '$id1' != '$id1b'"
+    path1=$(get_db_info $config_file path $id1)
+    [ "$DEBUG" = "1" ] && echo "$d: path=$path1"
+    [ "$path1" = "$d" ] || error "path doesn't match: $d != $path1"
+    parent1=$(get_db_info $config_file parent_id $id1 | tr -d '[]')
+    [ "$DEBUG" = "1" ] && echo "$d: parent=$parent1"
+    [ "$parent1" = "$idr" ] || error "parent doesn't match: $idr != $parent1"
+
+    id2b=$(get_db_info $config_file id $id2 | tr -d '[]')
+    [ "$id2" = "$id2b" ] || error "id doesn't match: '$id2' != '$id2b'"
+    path2=$(get_db_info $config_file path $id2)
+    [ "$DEBUG" = "1" ] && echo "$f: path=$path2"
+    [ "$path2" = "$f" ] || error "path doesn't match: $f != $path2"
+    parent2=$(get_db_info $config_file parent_id $id2 | tr -d '[]')
+    [ "$DEBUG" = "1" ] && echo "$f: parent=$parent2"
+    [ "$parent2" = "$id1" ] || error "parent doesn't match: $id1 != $parent2"
+
+    # generate an event on $ROOT and do the checks again
+    touch $ROOT/.
+    sleep 1
+    # read the changelog
+    readlog_chk $config_file
+    
+    # check the id, path and parent for $ROOT, $d and $f
+    idrb=$(get_db_info $config_file id $idr | tr -d '[]')
+    [ "$idr" = "$idrb" ] || error "id doesn't match: $idr != $idrb"
+    pathr=$(get_db_info $config_file path $idr)
+    # path must be empty or match $ROOT
+    [ "$pathr" = "" ] || [ "$pathr" = "$ROOT" ] || error "path doesn't match: $ROOT != $pathr"
+
+    # name and parent are supposed to be empty for ROOT
+    nr=$(get_db_info $config_file name $idr)
+    [ "$name" = "" ] || error "name for $ROOT is not empty: '$nr'"
+    pr=$(get_db_info $config_file parent_id $idr)
+    [ "$pr" = "" ] || error "parent_id for $ROOT is not empty: '$pr'"
+
+    id1b=$(get_db_info $config_file id $id1 | tr -d '[]')
+    [ "$id1" = "$id1b" ] || error "id doesn't match: '$id1' != '$id1b'"
+    path1=$(get_db_info $config_file path $id1)
+    [ "$DEBUG" = "1" ] && echo "$d: path=$path1"
+    [ "$path1" = "$d" ] || error "path doesn't match: $d != $path1"
+    parent1=$(get_db_info $config_file parent_id $id1 | tr -d '[]')
+    [ "$DEBUG" = "1" ] && echo "$d: parent=$parent1"
+    [ "$parent1" = "$idr" ] || error "parent doesn't match: $idr != $parent1"
+
+    id2b=$(get_db_info $config_file id $id2 | tr -d '[]')
+    [ "$id2" = "$id2b" ] || error "id doesn't match: '$id2' != '$id2b'"
+    path2=$(get_db_info $config_file path $id2)
+    [ "$DEBUG" = "1" ] && echo "$f: path=$path2"
+    [ "$path2" = "$f" ] || error "path doesn't match: $f != $path2"
+    parent2=$(get_db_info $config_file parent_id $id2 | tr -d '[]')
+    [ "$DEBUG" = "1" ] && echo "$f: parent=$parent2"
+    [ "$parent2" = "$id1" ] || error "parent doesn't match: $id1 != $parent2"
 }
 
 function test_enoent
@@ -8306,6 +8411,7 @@ run_test 110     test_unlink info_collect.conf "unlink (readlog)"
 run_test 111     test_layout info_collect.conf "layout changes"
 run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
 run_test 113     test_diff_apply_fs info_collect2.conf  "diff"  "rbh-diff --apply=fs"
+run_test 114     test_root_changelog info_collect.conf "changelog record on root entry"
 
 #### policy matching tests  ####
 

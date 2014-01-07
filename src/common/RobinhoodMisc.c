@@ -84,6 +84,7 @@ static char   *mount_point;
 static char    fsname[RBH_PATH_MAX] = "";
 static dev_t   dev_id = 0;
 static uint64_t fs_key = 0;
+static entry_id_t mnt_id;
 
 /* to optimize string concatenation */
 static unsigned int mount_len = 0;
@@ -165,11 +166,15 @@ static void _set_mount_point( char *mntpnt )
     }
 }
 
-static void set_fs_info( char *name, char * mountp, dev_t dev, fsid_t fsid)
+static int path2id(const char *path, entry_id_t *id);
+
+static int set_fs_info(char *name, char * mountp, dev_t dev, fsid_t fsid)
 {
-    P( mount_point_lock );
+    int rc = 0;
+
+    P(mount_point_lock);
     _set_mount_point(mountp);
-    strcpy( fsname, name );
+    strcpy(fsname, name);
     dev_id = dev;
 
     switch (global_config.fs_key)
@@ -190,7 +195,15 @@ static void set_fs_info( char *name, char * mountp, dev_t dev, fsid_t fsid)
             DisplayLog(LVL_MAJOR, "FSInfo", "Invalid fs_key type %#x", global_config.fs_key);
             fs_key = 0;
     }
-    V( mount_point_lock );
+
+    /* now, path2id can be called */
+    rc = path2id(mountp, &mnt_id);
+    if (rc)
+        DisplayLog(LVL_CRIT, "FSInfo", "Failed to get id for root directory %s: %s",
+                   mountp, strerror(-rc));
+
+    V(mount_point_lock);
+    return rc;
 }
 
 /* retrieve the mount point from any module
@@ -225,6 +238,11 @@ dev_t          get_fsdev( void )
 uint64_t       get_fskey( void )
 {
     return fs_key;
+}
+
+const entry_id_t *get_mnt_id(void)
+{
+    return &mnt_id;
 }
 
 
@@ -740,6 +758,8 @@ int CheckFSInfo( char *path, char *expected_type,
 
     if ( save_fs )
     {
+        int rc;
+
         /* getting filesystem fsid (needed for fskey) */
         if (global_config.fs_key == FSKEY_FSID)
         {
@@ -754,17 +774,19 @@ int CheckFSInfo( char *path, char *expected_type,
             /* if fsid == 0, it may mean that fsid is not significant on the current system
              * => DISPLAY A WARNING */
             if (fsidto64(stf.f_fsid) == 0)
-            {
-                DisplayLog(LVL_MAJOR, "CheckFS", "WARNING: fsid(0) doesn't look significant on this system. I should not be used as fs_key!");
-            }
-            set_fs_info(name, mntdir, pathstat.st_dev, stf.f_fsid);
+                DisplayLog(LVL_MAJOR, "CheckFS", "WARNING: fsid(0) doesn't look significant on this system."
+                           "It should not be used as fs_key!");
+
+            rc = set_fs_info(name, mntdir, pathstat.st_dev, stf.f_fsid);
         }
         else
         {
             fsid_t dummy_fsid;
             memset(&dummy_fsid, 0, sizeof(fsid_t));
-            set_fs_info(name, mntdir, pathstat.st_dev, dummy_fsid);
+            rc = set_fs_info(name, mntdir, pathstat.st_dev, dummy_fsid);
         }
+        if (rc)
+            return rc;
     }
 
     if ( p_fs_dev != NULL )

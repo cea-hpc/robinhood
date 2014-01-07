@@ -80,6 +80,7 @@ function set_skipped
 
 function clean_logs
 {
+    local f
 	for f in $CLEAN; do
 		if [ -s $f ]; then
 			cp /dev/null $f
