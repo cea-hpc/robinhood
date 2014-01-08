@@ -1207,7 +1207,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     else if ( ATTR(p_attrs, status) == STATUS_MODIFIED
              || ATTR(p_attrs, status) == STATUS_ARCHIVE_RUNNING ) /* for timed out copies.. or ourselves! */
      {
-        /* chexck if somebody else is about to copy */
+        /* check if somebody else is about to copy */
         rc = check_running_copy(bkpath);
         if (rc < 0)
             return rc;
@@ -1222,8 +1222,9 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
             if ( lstat(ATTR(p_attrs,backendpath), &void_stat) != 0 )
             {
                 rc = -errno;
-                DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in backend (errno=%d, %s): archiving anyway.",
-                            ATTR(p_attrs,backendpath) , -rc, strerror(-rc) );
+                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in backend (errno=%d, %s): "
+                           "entry will be archived again as %s.",
+                           ATTR(p_attrs,backendpath), -rc, strerror(-rc), bkpath);
             }
         }
     }
