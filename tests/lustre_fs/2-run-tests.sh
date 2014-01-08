@@ -66,9 +66,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
-	if [ ! -d $BKROOT ]; then
-		mkdir -p $BKROOT
-	fi
+	mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
 	is_lhsm=0
 	is_hsmlite=1
@@ -84,9 +82,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
-	if [ ! -d $BKROOT ]; then
-		mkdir -p $BKROOT
-	fi
+	mkdir -p $BKROOT
 fi
 
 LVERSION=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}"`

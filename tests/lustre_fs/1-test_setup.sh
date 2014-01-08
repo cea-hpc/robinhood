@@ -41,6 +41,7 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	if (( `pgrep -f lhsmtool_posix | wc -l` > 0 )); then
 		echo "Already running"
 	else
+		mkdir -p $BKROOT
 		$COPYTOOL --hsm_root=$BKROOT --no-shadow --daemon /mnt/lustre &
 	fi
 
