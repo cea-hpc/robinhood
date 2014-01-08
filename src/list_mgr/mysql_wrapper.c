@@ -214,18 +214,27 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
         rc = mysql_real_query( conn, query, strlen( query ) );
 
         dberr = mysql_errno( conn );
-        if ( rc && is_retryable( dberr ) )
+        if ((rc != 0) && is_retryable(dberr))
         {
-            if (dberr != ER_LOCK_DEADLOCK)
-                DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                            "Connection to database lost in %s()... Retrying in %u sec.",
-                            __FUNCTION__, retry );
-            else
+            switch (mysql_error_convert(dberr))
             {
-                DisplayLog(LVL_MAJOR, LISTMGR_TAG,
-                           "Deadlock or timeout of DB request after %u sec. Retrying in %u sec.",
-                           (unsigned int)(time(NULL) - start), retry);
-                DisplayLog(LVL_EVENT, LISTMGR_TAG, "Query: %s", query);
+                case DB_CONNECT_FAILED:
+                    DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                               "Connection to database lost in %s()... Retrying in %u sec.",
+                               __FUNCTION__, retry);
+                    break;
+                case DB_DEADLOCK:
+                    DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                               "Deadlock or timeout of DB request after %u sec. Retrying in %u sec.",
+                               (unsigned int)(time(NULL) - start), retry);
+                    DisplayLog(LVL_EVENT, LISTMGR_TAG, "Query: %s", query);
+                    break;
+                default:
+                    DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                               "Undetermined retryable error %d after %u sec. Retrying in %u sec.",
+                               dberr, (unsigned int)(time(NULL) - start), retry);
+                    DisplayLog(LVL_EVENT, LISTMGR_TAG, "Query: %s", query);
+                    break;
             }
 
             rh_sleep( retry );
