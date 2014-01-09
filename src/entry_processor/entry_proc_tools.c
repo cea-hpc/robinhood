@@ -169,7 +169,7 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
     entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
     msg_out[0] = '\0';
 
-    conf->nb_thread = 4;
+    conf->nb_thread = 8;
     conf->max_pending_operations = 10000; /* for efficient batching of 1000 ops */
     conf->max_batch_size = 1000;
     conf->match_file_classes = TRUE;
@@ -195,7 +195,7 @@ int Write_EntryProc_ConfigDefault(FILE * output)
 {
     print_begin_block(output, 0, ENTRYPROC_CONFIG_BLOCK, NULL);
     print_line(output, 1, "# batching strategy");
-    print_line(output, 1, "nb_threads             :  4");
+    print_line(output, 1, "nb_threads             :  8");
     print_line(output, 1, "max_pending_operations :  10000");
     print_line(output, 1, "max_batch_size         :  1000");
     print_line(output, 1, "match_classes          :  TRUE");
