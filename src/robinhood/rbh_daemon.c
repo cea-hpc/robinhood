@@ -527,7 +527,7 @@ static void module_mask2str(int mask, char *str)
         strcat(str, "migration,");
 #endif
 #ifdef HAVE_RM_POLICY
-   if (MODULE_MASK_UNLINK)
+   if (mask & MODULE_MASK_UNLINK)
         strcat(str, "hsm_rm,");
 #endif
     /* remove final ',' */
