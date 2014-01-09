@@ -29,7 +29,7 @@
 
 #define _DEBUG_DB
 
-static int mysql_error_convert( int err )
+static int mysql_error_convert(int err, int verb)
 {
     switch ( err )
     {
@@ -44,19 +44,25 @@ static int mysql_error_convert( int err )
         return DB_TRG_NOT_EXISTS;
 #endif
     case ER_BAD_FIELD_ERROR:
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid DB field" );
+        if (verb)
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid DB field");
         return DB_INVALID_ARG;
     case ER_PARSE_ERROR:
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "SQL request parse error" );
+        if (verb)
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "SQL request parse error");
         return DB_REQUEST_FAILED;
     case ER_LOCK_DEADLOCK:
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "DB deadlock detected" );
+        if (verb)
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "DB deadlock detected");
         return DB_DEADLOCK;
     case ER_LOCK_WAIT_TIMEOUT:
-        if (lmgr_config.db_config.innodb)
-            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"innodb_lock_wait_timeout\" in MySQL config.");
-        else
-            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"lock_wait_timeout\" in MySQL config.");
+        if (verb)
+        {
+            if (lmgr_config.db_config.innodb)
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"innodb_lock_wait_timeout\" in MySQL config.");
+            else
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"lock_wait_timeout\" in MySQL config.");
+        }
         return DB_DEADLOCK;
 
         /* connection relative errors */
@@ -81,7 +87,8 @@ static int mysql_error_convert( int err )
     case CR_SERVER_GONE_ERROR:
     case CR_SERVER_LOST:
     case CR_CONN_HOST_ERROR:
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "DB connection error %d", err );
+        if (verb)
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB connection error %d", err);
         return DB_CONNECT_FAILED;
 
     default:
@@ -93,7 +100,7 @@ static int mysql_error_convert( int err )
 
 static int is_retryable( int sql_err )
 {
-    switch (mysql_error_convert(sql_err))
+    switch (mysql_error_convert(sql_err, 1))
     {
         case DB_CONNECT_FAILED:
         case DB_DEADLOCK:
@@ -216,7 +223,7 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
         dberr = mysql_errno( conn );
         if ((rc != 0) && is_retryable(dberr))
         {
-            switch (mysql_error_convert(dberr))
+            switch (mysql_error_convert(dberr, 0))
             {
                 case DB_CONNECT_FAILED:
                     DisplayLog(LVL_MAJOR, LISTMGR_TAG,
@@ -272,7 +279,7 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error %d executing query '%s': %s",
                         rc, query, mysql_error(conn) );
 
-        return mysql_error_convert( mysql_errno( conn ) );
+        return mysql_error_convert(mysql_errno(conn), 1);
     }
     else
     {
