@@ -1588,7 +1588,7 @@ function test_info_collect
 	grep "DB query failed" rh_scan.log && error ": a DB query failed when scanning"
 
 	nb_create=`grep ChangeLog rh_scan.log | grep 01CREAT | wc -l`
-	nb_db_apply=`grep STAGE_DB_APPLY rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 |
+	nb_db_apply=`grep ': DB_APPLY' rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 |
 		     cut -d ',' -f 1 | tr -d ' '`
 
 	if (( $is_hsmlite != 0 )); then
@@ -1612,7 +1612,7 @@ function test_info_collect
 	check_db_error rh_scan.log
 
 	grep "DB query failed" rh_scan.log && error ": a DB query failed when scanning"
-	nb_db_apply=`grep STAGE_DB_APPLY rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 |
+	nb_db_apply=`grep ': DB_APPLY' rh_scan.log | tail -1 | cut -d '|' -f 6 | cut -d ':' -f 2 |
 		     cut -d ',' -f 1 |  tr -d ' '`
 
 	# 4 db operations expected (1 for each file)

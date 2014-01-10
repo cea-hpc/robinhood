@@ -552,7 +552,7 @@ static void dump_stats( lmgr_t * lmgr, const int * module_mask )
         DisplayLog( LVL_MAJOR, "STATS", "======== General statistics =========" );
         DisplayLog( LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str );
         module_mask2str(*module_mask, tmp_buff);
-        DisplayLog(LVL_MAJOR, "STATS", "Currently running: %s", tmp_buff);
+        DisplayLog(LVL_MAJOR, "STATS", "Started modules: %s", tmp_buff);
 
         if ( *module_mask & MODULE_MASK_FS_SCAN )
         {
