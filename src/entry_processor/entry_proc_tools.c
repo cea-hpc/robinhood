@@ -355,6 +355,8 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
     if ( entryproc_block == NULL )
     {
         strcpy( msg_out, "Missing configuration block '" ENTRYPROC_CONFIG_BLOCK "'" );
+        /* set default pipeline config */
+        set_default_pipeline_config(&std_pipeline_descr, std_pipeline, conf);
         /* No error because no parameter is mandatory  */
         return 0;
     }

@@ -1022,6 +1022,10 @@ void EntryProcessor_DumpCurrentStages( void )
 
         id_constraint_stats();
 
+        DisplayLog(LVL_MAJOR, "STATS",
+                   "idx %-20s | wait | curr | done |   total |ms/op |",
+                   "stage");
+
         for ( i = 0; i < entry_proc_descr.stage_count; i++ )
         {
             P( pipeline[i].stage_mutex );
@@ -1035,16 +1039,17 @@ void EntryProcessor_DumpCurrentStages( void )
 
             if (pipeline[i].nb_batches > 0)
                 DisplayLog(LVL_MAJOR, "STATS",
-                           "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu, batches: %5Lu (avg size: %Lu) | ms/op: %.2f",
+                           "%2u: %-20s |%5u | %4u | %4u | %7Lu | %.2f | %.2f%% batched (avg batch size: %.1f)",
                            i, entry_proc_pipeline[i].stage_name,
                            pipeline[i].nb_unprocessed_entries,
                            pipeline[i].nb_threads,
-                           pipeline[i].nb_processed_entries, pipeline[i].total_processed,
-                           pipeline[i].nb_batches, pipeline[i].total_batched_entries/pipeline[i].nb_batches, tpe);
-
+                           pipeline[i].nb_processed_entries,
+                           pipeline[i].total_processed, tpe,
+                           pipeline[i].total_processed ? 100.0*(float)pipeline[i].total_batched_entries/(float)pipeline[i].total_processed:0.0,
+                           (float)pipeline[i].total_batched_entries/(float)pipeline[i].nb_batches);
             else
                 DisplayLog(LVL_MAJOR, "STATS",
-                           "%2u: %-20s | Wait: %5u | Curr: %3u | Done: %3u | Total: %6llu | ms/op: %.2f",
+                           "%2u: %-20s |%5u | %4u | %4u | %7Lu | %.2f |",
                            i, entry_proc_pipeline[i].stage_name,
                            pipeline[i].nb_unprocessed_entries,
                            pipeline[i].nb_threads,
