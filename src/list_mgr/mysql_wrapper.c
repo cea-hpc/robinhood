@@ -103,7 +103,7 @@ static int is_retryable( int sql_err )
     switch (mysql_error_convert(sql_err, 1))
     {
         case DB_CONNECT_FAILED:
-        case DB_DEADLOCK:
+        case DB_DEADLOCK: /* Note: the whole transaction must be retryed */
             return TRUE;
         default:
             return FALSE;
