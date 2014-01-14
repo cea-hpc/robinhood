@@ -666,8 +666,12 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             /* When inserting that entry, we didn't know whether the
              * entry was the last one or not, so use the nlink
              * attribute we requested earlier to determine. */
-            if (ATTR(&p_op->db_attrs, nlink) == 1)
+            if (ATTR_MASK_TEST(&p_op->db_attrs, nlink) && (ATTR(&p_op->db_attrs, nlink) <= 1))
+            {
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "UNLINK record for entry with nlink=%u in DB => removing it",
+                           ATTR(&p_op->db_attrs, nlink));
                 logrec->cr_flags |= CLF_UNLINK_LAST;
+            }
         }
 
         /* is it the last reference to this file? */
@@ -1444,6 +1448,20 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                             strerror( rc ) );
             /* If lstat returns an error, drop the log record */
             goto skip_record;
+        }
+        else if (entry_md.st_nlink == 0)
+        {
+            /* remove pending */
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Entry %s has nlink=0: remove pending", path);
+            /* schedule rm in the backend, if enabled */
+            if ((!p_op->db_exists)
+#ifdef HAVE_RM_POLICY
+                && (!policies.unlink_policy.hsm_remove)
+#endif
+            )
+                goto skip_record;
+            else /* else, remove it from db */
+                goto rm_record;
         }
 
         /* convert them to internal structure */

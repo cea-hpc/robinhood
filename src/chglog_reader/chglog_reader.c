@@ -422,7 +422,9 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
     else
         op->extra_info_free_func = free_extra_info;
 
-    op->check_if_last_entry = !!(flags & CHECK_IF_LAST_ENTRY);
+    /* if the unlink record is not tagged as last unlink,
+     * always check the previous value of nlink in DB */
+    op->check_if_last_entry = (p_rec->cr_type == CL_UNLINK) && !(p_rec->cr_flags & CLF_UNLINK_LAST);
     op->get_fid_from_db = !!(flags & GET_FID_FROM_DB);
 
     /* set callback function + args */
