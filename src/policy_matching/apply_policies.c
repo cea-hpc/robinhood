@@ -49,6 +49,8 @@
 #endif
 
 
+//#define _DEBUG_POLICIES 1
+
 
 static char   *ExtractParentDir( const char *file_path, char *out_buff )
 {
@@ -1618,18 +1620,40 @@ int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
 #ifdef HAVE_PURGE_POLICY
     ListMgr_GenerateFields( &attrs, policies.purge_policies.global_attr_mask );
     /* set release class if whitelisted */
-    if (_IsWhitelisted( p_id, p_attrs_new, &attrs, PURGE_POLICY, TRUE ) == POLICY_MATCH)
-        wl_purge = TRUE;
+    switch (_IsWhitelisted( p_id, p_attrs_new, &attrs, PURGE_POLICY, TRUE))
+    {
+        case POLICY_MATCH:
+            wl_purge = TRUE;
 #ifdef _DEBUG_POLICIES
             printf( "release_class=%s\n", ATTR(p_attrs_new, release_class));
 #endif
+            break;
+        case POLICY_NO_MATCH:
+            break;
+        case POLICY_MISSING_ATTR:
+        case POLICY_ERR:
+            /* skip next class matching */
+            wl_purge = TRUE;
+            break;
+    }
 #endif
 
 #ifdef HAVE_MIGR_POLICY
     /* check whitelisted fileclasses for migration */
     ListMgr_GenerateFields( &attrs, policies.migr_policies.global_attr_mask );
-    if (_IsWhitelisted( p_id, p_attrs_new, &attrs, MIGR_POLICY, TRUE ) == POLICY_MATCH)
-        wl_migr = TRUE;
+    switch (_IsWhitelisted(p_id, p_attrs_new, &attrs, MIGR_POLICY, TRUE))
+    {
+        case POLICY_MATCH:
+            wl_migr = TRUE;
+            break;
+        case POLICY_NO_MATCH:
+            break;
+        case POLICY_MISSING_ATTR:
+        case POLICY_ERR:
+            /* skip next class matching */
+            wl_migr = TRUE;
+            break;
+    }
 #endif
 
     if ( match_all_fc )

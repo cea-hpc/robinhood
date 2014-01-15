@@ -271,9 +271,7 @@ static inline void check_path_info(struct entry_proc_op_t *p_op, const char *rec
     {
         DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "WARNING: name and parent should be set by %s record",
                    recname);
-        p_op->fs_attr_need |= ATTR_MASK_fullpath
-                              | ATTR_MASK_name
-                              | ATTR_MASK_parent_id;
+        p_op->fs_attr_need |= ATTR_MASK_name | ATTR_MASK_parent_id;
     }
 }
 
@@ -779,6 +777,11 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         p_op->fs_attr_need |= (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
                                | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
                                | ATTR_MASK_link) & ~ p_op->fs_attrs.attr_mask;
+
+        /* if we needed fullpath (e.g. for policies), set it */
+        if ((p_op->db_attr_need & ATTR_MASK_fullpath) &&
+            !ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
+            p_op->fs_attr_need |= ATTR_MASK_fullpath;
 #ifdef ATTR_INDEX_status
         /* By default, get status for a new record.
          * This is overwritten by EntryProc_FillFromLogRec if the status
@@ -821,11 +824,12 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         /* Check md_update policy */
         if (need_md_update(&p_op->db_attrs, &md_allow_event_updt))
             p_op->fs_attr_need |= POSIX_ATTR_MASK;
+
         /* check if path update is needed (only if it was not just updated) */
         if ((!ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) || !ATTR_MASK_TEST(&p_op->fs_attrs, name))
             && (need_path_update(&p_op->db_attrs, NULL)
                 || (db_missing & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id))))
-            p_op->fs_attr_need |= ATTR_MASK_fullpath | ATTR_MASK_name
+            p_op->fs_attr_need |= ATTR_MASK_name
                                   | ATTR_MASK_parent_id;
     }
 
@@ -1477,23 +1481,39 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     if (NEED_GETPATH(p_op))
     {
-        /* the log record did not provide name information and the path is needed:
-         * get parent_id and name (FIXME, just retrieve one for now).
-         */
-        rc = Lustre_GetNameParent(path, 0, &ATTR(&p_op->fs_attrs, parent_id),
-                                  ATTR(&p_op->fs_attrs, name), RBH_NAME_MAX);
-        if (rc == 0)
+        if ((p_op->fs_attr_need & ATTR_MASK_parent_id)
+            || (p_op->fs_attr_need & ATTR_MASK_name))
         {
-            ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
-            ATTR_MASK_SET(&p_op->fs_attrs, name);
-            ATTR_MASK_SET(&p_op->fs_attrs, path_update);
-            ATTR(&p_op->fs_attrs, path_update) = time(NULL);
+            /* the log record did not provide name information and the path is needed:
+             * get parent_id and name (FIXME, just retrieve one for now).
+             */
+            rc = Lustre_GetNameParent(path, 0, &ATTR(&p_op->fs_attrs, parent_id),
+                                      ATTR(&p_op->fs_attrs, name), RBH_NAME_MAX);
+            if (rc == 0)
+            {
+                ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
+                ATTR_MASK_SET(&p_op->fs_attrs, name);
+                ATTR_MASK_SET(&p_op->fs_attrs, path_update);
+                ATTR(&p_op->fs_attrs, path_update) = time(NULL);
+            }
+            else if (!ERR_MISSING(-rc))
+            {
+                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to get parent+name for "DFID": %s",
+                           PFID(&p_op->entry_id), strerror(-rc));
+            }
         }
-        else if (!ERR_MISSING(-rc))
+
+        /* if the fullpath is needed get path from fid */
+        if (p_op->fs_attr_need & ATTR_MASK_fullpath)
         {
-            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to get parent+name for "DFID": %s",
-                       PFID(&p_op->entry_id), strerror(-rc));
+            rc = Lustre_GetFullPath(&p_op->entry_id, ATTR(&p_op->fs_attrs, fullpath), RBH_PATH_MAX);
+            if (rc == 0)
+                ATTR_MASK_SET(&p_op->fs_attrs, fullpath);
+            else if (!ERR_MISSING(-rc))
+                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to retrieve fullpath for "DFID": %s",
+                           PFID(&p_op->entry_id), strerror(-rc));
         }
+
     } /* getpath needed */
 #endif
 
