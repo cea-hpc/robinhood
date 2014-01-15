@@ -223,8 +223,6 @@ static struct option option_tab[] = {
     {"test-syntax", no_argument, NULL, TEST_SYNTAX},
 
     /* override config file options */
-    {"fs-path", required_argument, NULL, 'F'},
-    {"fs-type", required_argument, NULL, 't'},
     {"log-file", required_argument, NULL, 'L'},
     {"log-level", required_argument, NULL, 'l'},
 
@@ -249,10 +247,6 @@ typedef struct rbh_options {
     char           template_file[MAX_OPT_LEN];
     int            write_template;
     int            write_defaults;
-    int            force_fspath;
-    char           fspath[MAX_OPT_LEN];
-    int            force_fstype;
-    char           fstype[MAX_TYPE_LEN];
     int            force_log;
     char           log[MAX_OPT_LEN];
     int            force_log_level;
@@ -350,7 +344,7 @@ static const char *help_string =
     "        Perform deferred removal in HSM.\n"
 #endif
     "\n"
-    "    If nothing is specified, the default action set is: "DEFAULT_ACTION_HELP"\n"
+    "    If no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n"
     "\n"
     "    " _B "--diff"B_"="_U"attrset"U_ " : when scanning or reading changelogs,\n"
     "        display changes for the given set of attributes (to stdout).\n"
@@ -389,7 +383,7 @@ static const char *help_string =
     _B "Behavior options:" B_ "\n"
     "    " _B "--dry-run"B_"\n"
     "        Only report actions that would be performed (rmdir, migration, purge)\n"
-    "        without really doing them.\n"
+    "        without really doing them. Robinhood DB contents are however impacted.\n"
     "    " _B "-i" B_ ", " _B "--ignore-policies"B_"\n"
     "        Force migration/purge of all eligible files, ignoring policy conditions.\n"
     "    " _B "-O" B_ ", " _B "--once" B_ "\n"
@@ -415,12 +409,6 @@ static const char *help_string =
     "    " _B "--test-syntax" B_ "\n"
     "        Check configuration file and exit.\n"
     "\n"
-    _B "Filesystem options:" B_ "\n"
-    "    " _B "-F" B_ " " _U "path" U_ ", " _B "--fs-path=" B_ _U
-    "path" U_ "\n"
-    "        Force the path of the filesystem to be managed (overrides configuration value).\n"
-    "    " _B "-t" B_ " " _U "type" U_ ", " _B "--fs-type=" B_ _U "type" U_ "\n"
-    "        Force the type of filesystem to be managed (overrides configuration value).\n" "\n" _B
     "Log options:" B_ "\n"
     "    " _B "-L" B_ " " _U "logfile" U_ ", " _B "--log-file=" B_ _U
     "logfile" U_ "\n" "        Force the path to the log file (overrides configuration value).\n"
@@ -830,18 +818,6 @@ static void   *signal_handler_thr( void *arg )
             }
             else
             {
-                if ( options.force_fspath && strcmp(options.fspath, new_config.global_config.fs_path) )
-                {
-                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing FS path (forced on command line): %s)",
-                                options.fspath);
-                    strcpy( new_config.global_config.fs_path, options.fspath );
-                }
-                if ( options.force_fstype && strcmp(options.fstype, new_config.global_config.fs_type))
-                {
-                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing FS type (forced on command line): %s)",
-                                options.fstype);
-                    strcpy( new_config.global_config.fs_type, options.fstype );
-                }
                 if ( options.force_log && strcmp(options.log, new_config.log_config.log_file ))
                 {
                     DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing log file (forced on command line): %s)",
@@ -1189,14 +1165,6 @@ int main( int argc, char **argv )
         case 'D':
             options.write_defaults = TRUE;
             break;
-        case 'F':
-            options.force_fspath = TRUE;
-            strncpy( options.fspath, optarg, MAX_OPT_LEN );
-            break;
-        case 't':
-            options.force_fstype = TRUE;
-            strncpy( options.fstype, optarg, MAX_TYPE_LEN );
-            break;
         case 'L':
             options.force_log = TRUE;
             strncpy( options.log, optarg, MAX_OPT_LEN );
@@ -1333,10 +1301,6 @@ int main( int argc, char **argv )
     }
 
     /* override config file options with command line parameters */
-    if ( options.force_fspath )
-        strcpy( rh_config.global_config.fs_path, options.fspath );
-    if ( options.force_fstype )
-        strcpy( rh_config.global_config.fs_type, options.fstype );
     if ( options.force_log )
         strcpy( rh_config.log_config.log_file, options.log );
     if ( options.force_log_level )
