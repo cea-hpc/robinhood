@@ -83,6 +83,9 @@ typedef struct reader_thr_info_t
     /** last record id cleared with changelog */
     unsigned long long last_cleared_record;
 
+    /** last record pushed to the pipeline */
+    unsigned long long last_pushed;
+
     /* number of times the changelog has been reopened */
     unsigned int nb_reopen;
 
@@ -253,13 +256,14 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
      * do nothing in all other cases:
      */
     if ((chglog_reader_config.batch_ack_count > 1)
-         && (logrec->cr_index < p_info->last_read_record)
+         && (logrec->cr_index < p_info->last_pushed)
          && ((logrec->cr_index - p_info->last_cleared_record)
              < chglog_reader_config.batch_ack_count))
     {
-        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s %llu %llu\n",
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s cl_record: %llu, last_cleared: %llu, last_pushed: %llu\n",
                    p_info->mdtdevice, logrec->cr_index,
-                   p_info->last_cleared_record);
+                   p_info->last_cleared_record,
+                   p_info->last_pushed);
         /* do nothing, don't clear log now */
         return 0;
     }
@@ -367,20 +371,26 @@ static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
 {
     time_t oldest = time(NULL) - chglog_reader_config.queue_max_age;
 
+    DisplayLog(LVL_FULL, CHGLOG_TAG, "processing changelog queue");
+
     while(!rh_list_empty(&p_info->op_queue)) {
         entry_proc_op_t *op = rh_list_first_entry(&p_info->op_queue, entry_proc_op_t, list);
 
         /* Stop when the queue is below our limit, and when the oldest
          * element is still new enough. */
-        if (push_all == FALSE &&
-            p_info->op_queue_count < chglog_reader_config.queue_max_size &&
-            op->changelog_inserted > oldest)
+        if (!push_all &&
+            (p_info->op_queue_count < chglog_reader_config.queue_max_size) &&
+            (op->changelog_inserted > oldest))
             break;
 
         rh_list_del(&op->list);
         rh_list_del(&op->hash_list);
 
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "pushing cl record #%Lu: age=%ld",
+                   op->extra_info.log_record.p_log_rec->cr_index,
+                   time(NULL) - op->changelog_inserted);
         /* Push the entry to the pipeline */
+        p_info->last_pushed = op->extra_info.log_record.p_log_rec->cr_index;
         EntryProcessor_Push( op );
 
         p_info->op_queue_count --;
@@ -1230,6 +1240,8 @@ int            ChgLogRdr_DumpStats( void )
 
             DisplayLog( LVL_MAJOR, "STATS", "   last read record id      = %llu",
                         reader_info[i].last_read_record );
+            DisplayLog( LVL_MAJOR, "STATS", "   last pushed record id    = %llu",
+                        reader_info[i].last_pushed );
             DisplayLog( LVL_MAJOR, "STATS", "   last committed record id = %llu",
                         reader_info[i].last_committed_record );
             DisplayLog( LVL_MAJOR, "STATS", "   last cleared record id   = %llu",
