@@ -440,6 +440,8 @@ AC_CONFIG_FILES([Makefile
          scripts/sysconfig_robinhood
          tests/Makefile
          web_gui/Makefile
+         man/Makefile
          robinhood.spec
-         doc/doxygen/doxygen.cfg])
+         doc/doxygen/doxygen.cfg
+         scripts/make_mans.sh])
 AC_OUTPUT

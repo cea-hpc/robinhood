@@ -1,7 +1,6 @@
 ACLOCAL_AMFLAGS = -I autotools/m4
 
-#SUBDIRS=src man scripts
-SUBDIRS=src scripts tests web_gui
+SUBDIRS=src scripts tests web_gui man
 
 rpm_dir=`pwd`/rpms
 
@@ -70,6 +69,9 @@ srpm: robinhood.spec dist
 
 cppcheck:
 	cppcheck -j12 -v --force --enable=all -I`pwd`/src/include -DHAVE_CONFIG_H @PURPOSE_CFLAGS@ @DB_CFLAGS@ src/
+
+mans:
+	chmod +x ./scripts/make_mans.sh && ./scripts/make_mans.sh
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	autogen.sh \

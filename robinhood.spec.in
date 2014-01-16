@@ -320,8 +320,7 @@ fi
 %{_sbindir}/rbhext_*
 %endif
 
-#%{_mandir}/man5/*
-#%{_mandir}/man8/*
+%{_mandir}/man1/*
 
 %config(noreplace) %{_sysconfdir}/sysconfig/%{purpose_svc}
 

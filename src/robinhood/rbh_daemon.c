@@ -316,7 +316,7 @@ static struct rbh_options options;
 static const char *help_string =
     _B "Usage:" B_ " %s [options]\n"
     "\n"
-    _B "Action switches:" B_ "\n"
+    _B "Actions:" B_ "\n"
     "    " _B "-S" B_", " _B "--scan" B_ "[=" _U "dir" U_ "]\n"
     "        Scan the filesystem namespace. If "_U"dir"U_" is specified, only scan the specified subdir.\n"
 #ifdef HAVE_PURGE_POLICY
@@ -344,11 +344,12 @@ static const char *help_string =
     "        Perform deferred removal in HSM.\n"
 #endif
     "\n"
-    "    If no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n"
+    "    Note: if no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n"
     "\n"
-    "    " _B "--diff"B_"="_U"attrset"U_ " : when scanning or reading changelogs,\n"
-    "        display changes for the given set of attributes (to stdout).\n"
-    "        "_U"attrset"U_" is a list of options in: path,posix,stripe,all,notimes,noatime.\n"
+    _B "Output options:" B_ "\n"
+    "    " _B "--diff"B_"="_U"attrset"U_ "\n"
+    "        When scanning or reading changelogs, display changes for the given set of attributes (to stdout).\n"
+    "        "_U"attrset"U_" is a list of values in: path,posix,stripe,all,notimes,noatime.\n"
     "\n"
 #ifdef HAVE_PURGE_POLICY
     _B "Manual purge actions:" B_ "\n"
@@ -399,10 +400,10 @@ static const char *help_string =
     "        This is also recommended for partial scanning (see -scan=dir option).\n"
     "\n"
     _B "Config file options:" B_ "\n"
-    "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
+    "    " _B "-f" B_ " " _U "cfg_file" U_ ", " _B "--config-file=" B_ _U "cfg_file" U_ "\n"
     "        Path to configuration file (or short name).\n"
-    "    " _B "-T" B_ " " _U "file"
-    U_ ", " _B "--template=" B_ _U "file" U_ "\n"
+    "    " _B "-T" B_ " " _U "output_file"
+    U_ ", " _B "--template" B_"[=" _U "output_file" U_ "]\n"
     "        Write a configuration file template to the specified file.\n"
     "    " _B "-D" B_ ", " _B "--defaults" B_ "\n"
     "        Display default configuration values.\n"
@@ -413,7 +414,7 @@ static const char *help_string =
     "    " _B "-L" B_ " " _U "logfile" U_ ", " _B "--log-file=" B_ _U
     "logfile" U_ "\n" "        Force the path to the log file (overrides configuration value).\n"
     "        Special values \"stdout\" and \"stderr\" can be used.\n"
-    "    " _B "-l" B_ " " _U "level" U_ ", " _B "--log-level=" B_ _U "level" U_ "\n"
+    "    " _B "-l" B_ " " _U "loglevel" U_ ", " _B "--log-level=" B_ _U "loglevel" U_ "\n"
     "        Force the log verbosity level (overrides configuration value).\n"
     "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n" "\n" _B
     "Miscellaneous options:" B_ "\n"
