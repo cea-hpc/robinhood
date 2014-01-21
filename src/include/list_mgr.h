@@ -58,6 +58,31 @@
 #define DB_DEADLOCK            16
 #define DB_BAD_SCHEMA          17
 
+static inline const char *lmgr_err2str(int err)
+{
+    switch (err)
+    {
+        case DB_SUCCESS:            return "success";
+        case DB_NOT_EXISTS:         return "entry doesn't exist";
+        case DB_ALREADY_EXISTS:     return "entry already exists";
+        case DB_END_OF_LIST:        return "end of list";
+        case DB_OUT_OF_DATE:        return "obsolete info";
+        case DB_CONNECT_FAILED:     return "connection failure";
+        case DB_REQUEST_FAILED:     return "request error";
+        case DB_BUFFER_TOO_SMALL:   return "buffer is too small";
+        case DB_NO_MEMORY:          return "out of memory";
+        case DB_ATTR_MISSING:       return "missing attribute";
+        case DB_NOT_SUPPORTED:      return "operation not supported";
+        case DB_INVALID_ARG:        return "invalid argument";
+        case DB_READ_ONLY_ATTR:     return "read-only attribute";
+        case DB_NOT_ALLOWED:        return "operation not allowed";
+        case DB_TRG_NOT_EXISTS:     return "trigger doesn't exist";
+        case DB_DEADLOCK:           return "deadlock or timeout";
+        case DB_BAD_SCHEMA:         return "invalid DB schema";
+        default:                    return "unknown error";
+    }
+}
+
 
 /* Tag in logfile */
 #define LISTMGR_TAG     "ListMgr"
@@ -211,10 +236,11 @@ typedef enum {
 typedef struct lmgr_t
 {
     db_conn_t      conn;
-    unsigned int   last_commit;
-
-    /* flag to force commit */
-    int            force_commit;
+    unsigned int   last_commit;  /*< 0 if last operation was committed */
+    int            force_commit; /*< flag to force commit */
+    unsigned int   retry_delay;  /*< current retry delay */
+    unsigned int   retry_count;  /*< nbr of retries */
+    struct timeval first_error;  /*< time of first retried error */
 
     /* operation statistics */
     unsigned int nbop[OPCOUNT];

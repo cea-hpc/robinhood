@@ -217,18 +217,26 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
     sprintf(query, "CREATE TABLE TAG_%s (id "PK_TYPE" PRIMARY KEY) AS %s",
             tag_name, select);
 
+retry:
     rc = lmgr_begin( p_mgr );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     /* create the table */
     rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         goto rollback;
 
     /** TODO handle 'reset' option if table already exists */
 
-    return lmgr_commit(p_mgr);
+    rc = lmgr_commit(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    return rc;
 
 rollback:
     lmgr_rollback( p_mgr );
@@ -254,8 +262,11 @@ int ListMgr_TagEntry(lmgr_t * p_mgr, const char *tag_name, const entry_id_t * p_
     DEF_PK(pk);
 
     /* We want the remove operation to be atomic */
-    rc = lmgr_begin( p_mgr );
-    if ( rc )
+retry:
+    rc = lmgr_begin(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     entry_id2pk(p_id, PTR_PK(pk));
@@ -264,10 +275,15 @@ int ListMgr_TagEntry(lmgr_t * p_mgr, const char *tag_name, const entry_id_t * p_
      * is to list untagged entries at the end. */
     sprintf( request, "DELETE FROM TAG_%s WHERE id="DPK, tag_name, pk);
     rc = db_exec_sql( &p_mgr->conn, request, NULL );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
-    return lmgr_commit( p_mgr );
+    rc = lmgr_commit(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    return rc;
 }
 
 
@@ -302,9 +318,11 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
     }
 
     /* execute request */
+retry:
     rc = db_exec_sql( &p_mgr->conn, query, &it->select_result );
-
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
     {
         MemFree( it );
         return NULL;

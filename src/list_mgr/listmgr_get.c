@@ -43,16 +43,23 @@ int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
 
     sprintf( request, "SELECT id FROM " MAIN_TABLE " WHERE id="DPK, pk );
 
+retry:
     /* execute the request */
-    rc = db_exec_sql( &p_mgr->conn, request, &result );
-    if ( rc )
+    rc = db_exec_sql(&p_mgr->conn, request, &result);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return -rc;
 
     rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
-    if ( rc == 0 )
+    if (rc == 0)
         rc = 1;
     else if (rc != DB_END_OF_LIST)
+    {
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
         rc = -rc;
+    }
     else
         rc = 0;
 
@@ -349,11 +356,15 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 
 int ListMgr_Get( lmgr_t * p_mgr, const entry_id_t * p_id, attr_set_t * p_info )
 {
+    int rc;
     DEF_PK(pk);
 
-    entry_id2pk(p_id, PTR_PK(pk) );
-
-    return listmgr_get_by_pk( p_mgr, pk, p_info );
+    entry_id2pk(p_id, PTR_PK(pk));
+retry:
+    rc = listmgr_get_by_pk(p_mgr, pk, p_info);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    return rc;
 }
 
 
@@ -375,13 +386,18 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
     sprintf(query, "SELECT id FROM "DNAMES_TABLE" WHERE pkn="HNAME_FMT,
             pk, escaped);
 
-    rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if ( rc )
+retry:
+    rc = db_exec_sql(&p_mgr->conn, query, &result);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
 
-    if (rc != DB_SUCCESS)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc != DB_SUCCESS)
         goto free_res;
 
     rc = pk2entry_id(p_mgr, str_info[0], fid);

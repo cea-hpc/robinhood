@@ -161,18 +161,25 @@ int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
     int rc;
 
     /* We want the remove operation to be atomic */
-    rc = lmgr_begin( p_mgr );
-    if ( rc )
+retry:
+    rc = lmgr_begin(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     rc = listmgr_remove_no_tx( p_mgr, p_id, p_attr_set, last );
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
     {
         lmgr_rollback( p_mgr );
         return rc;
     }
 
     rc = lmgr_commit( p_mgr );
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
     if (!rc)
          p_mgr->nbop[OPIDX_RM]++;
     return rc;
@@ -338,7 +345,7 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     char           from[1024];
     char           *curr_from;
     const char* first_table = NULL;
-    table_enum     query_tab;
+    table_enum     query_tab = T_MAIN;
     const char* direct_del_table = NULL;
     char           tmp_table_name[256];
     result_handle_t result;
@@ -366,8 +373,11 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
     }
 
     /* We want the remove operation to be atomic */
-    rc = lmgr_begin( p_mgr );
-    if ( rc )
+retry:
+    rc = lmgr_begin(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     if ( !p_filter
@@ -380,7 +390,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         if (soft_rm)
         {
             rc = listmgr_softrm_all( p_mgr, real_remove_time );
-            if ( rc )
+            if (lmgr_delayed_retry(p_mgr, rc))
+                goto retry;
+            else if (rc)
                 goto rollback;
         }
 
@@ -388,11 +400,17 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         DisplayLog( LVL_EVENT, LISTMGR_TAG,
                     "No filter is specified: removing entries from all tables." );
         rc = listmgr_rm_all(p_mgr);
-        if (rc)
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
 
         /* FIXME how many entries removed? */
-        return lmgr_commit(p_mgr);
+        rc = lmgr_commit(p_mgr);
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else
+            return rc;
     }
 
     if (!soft_rm)
@@ -402,7 +420,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
          * 2) clean related entries in other tables if there is no remaining path.
          */
         rc = clean_names(p_mgr, p_filter, &filter_names);
-        if (rc)
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
     }
     else
@@ -598,7 +618,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
 
     /* create the temporary table */
     rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         goto rollback;
 
     /* if the filter is only a single table, entries can be directly deleted in it */
@@ -612,7 +634,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         sprintf( query, "DELETE FROM %s WHERE %s", first_table, filter_str );
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
         else
             direct_del_table = first_table;
@@ -627,7 +651,9 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
         sprintf( query, "SELECT id FROM %s", tmp_table_name );
 
     rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         goto rollback;
 
     DisplayLog( LVL_DEBUG, LISTMGR_TAG,
@@ -666,14 +692,19 @@ static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, 
                                         field_tab[2],
 #endif
                                         real_remove_time );
-            if (rc)
+
+            if (lmgr_delayed_retry(p_mgr, rc))
+                goto retry;
+            else if (rc)
                 goto free_res;
         }
 
         /* delete all entries related to this id (except from query table if we did
          * a direct deletion in it) */
         rc = listmgr_remove_single(p_mgr, pk, direct_del_table ? query_tab : T_NONE);
-        if (rc)
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto free_res;
 
         if (cb_func)
@@ -702,11 +733,15 @@ names_only:
     if (soft_rm && filter_names)
     {
         rc = clean_names(p_mgr, p_filter, &filter_names);
-        if (rc)
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
     }
 
-    rc = lmgr_commit( p_mgr );
+    rc = lmgr_commit(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
     if (!rc)
         p_mgr->nbop[OPIDX_RM]+=rmcount;
     return rc;
@@ -789,8 +824,11 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     }
 
     /* We want the removal sequence to be atomic */
-    rc = lmgr_begin( p_mgr );
-    if ( rc )
+retry:
+    rc = lmgr_begin(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     rc = listmgr_softrm_single( p_mgr, p_id, entry_path,
@@ -798,7 +836,9 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
     backendpath,
 #endif
                                 real_remove_time );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
     {
         lmgr_rollback( p_mgr );
         return rc;
@@ -809,14 +849,18 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
 
     /* remove the entry from main tables, if it exists */
     rc = listmgr_remove_no_tx( p_mgr, p_id, &missing_attrs, TRUE );
-    if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS)
     {
         lmgr_rollback( p_mgr );
         return rc;
     }
 
     /* commit */
-    rc = lmgr_commit( p_mgr );
+    rc = lmgr_commit(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
     if (!rc)
          p_mgr->nbop[OPIDX_RM]++;
     return rc;
@@ -884,8 +928,11 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
                 "ORDER BY real_rm_time ASC",
                 (expired_only || p_filter) ? filter_str:"" );
 
-    /* execute request */
+    /* execute request (retry on connexion error or deadlock) */
+retry:
     rc = db_exec_sql( &p_mgr->conn, query, &p_list->select_result );
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
 
     if ( rc )
     {
@@ -928,6 +975,7 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
         record[i] = NULL;
 
     rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result, record, 4+SHIFT);
+    /* what to do on connexion error? */
 
     if ( rc )
         return rc;
@@ -1007,10 +1055,13 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
               "FROM "SOFT_RM_TABLE" WHERE fid='"DFID_NOBRACE"'",
               PFID(p_id) );
 
-    /* execute request */
+    /* execute request (retry on connexion error or timeout) */
+retry:
     rc = db_exec_sql( &p_mgr->conn, query, &result );
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
 
-    if ( rc )
+    if (rc)
     {
         char msg_buff[1024];
         DisplayLog( LVL_CRIT, LISTMGR_TAG,
@@ -1071,12 +1122,17 @@ free_res:
 int ListMgr_SoftRemove_Discard( lmgr_t * p_mgr, const entry_id_t * p_id )
 {
     char query[1024];
+    int rc;
 
     snprintf(query, 1024,
              "DELETE FROM "SOFT_RM_TABLE" WHERE fid='"DFID_NOBRACE"'",
              PFID(p_id) );
 
-    return db_exec_sql( &p_mgr->conn, query, NULL );
+retry:
+    rc = db_exec_sql(&p_mgr->conn, query, NULL);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    return rc;
 }
 
 #endif

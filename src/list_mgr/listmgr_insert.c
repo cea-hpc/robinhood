@@ -158,13 +158,12 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
                 var_str_append(&query, ")");
             }
 
-            if (update_if_exists)
-            {
-                /* append "on duplicate key ..." */
-                attrset2updatelist(p_mgr, values, p_attrs[0], T_ANNEX, FALSE, TRUE);
-                var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
-                var_str_append(&query, values);
-            }
+            /* always update as having the entry in the main table
+             * is the reference to know if we knew the entry */
+            /* append "on duplicate key ..." */
+            attrset2updatelist(p_mgr, values, p_attrs[0], T_ANNEX, FALSE, TRUE);
+            var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
+            var_str_append(&query, values);
 
             rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
             if (rc)
@@ -187,7 +186,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
             validators[i] = VALID(p_ids[i]);
 
         rc = batch_insert_stripe_info(p_mgr, pklist, validators, p_attrs,
-                                      count, update_if_exists);
+                                      count, TRUE);
         MemFree(validators);
         if (rc)
             goto out_free;
@@ -207,12 +206,18 @@ int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id, attr_set_t *p_info,
     int rc;
     char buff[4096];
 
+    /* retry the whole transaction when the error is retryable */
+retry:
     rc = lmgr_begin(p_mgr);
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     rc = listmgr_batch_insert_no_tx(p_mgr, &p_id, &p_info, 1, update_if_exists);
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
     {
         lmgr_rollback(p_mgr);
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
@@ -221,6 +226,8 @@ int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id, attr_set_t *p_info,
         return rc;
     }
     rc = lmgr_commit(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
 
     /* success, count it */
     if (!rc)
@@ -253,13 +260,20 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
         return DB_INVALID_ARG;
     }
 
+    /* retry the whole transaction when the error is retryable */
+retry:
     /* We want insert operation set to be atomic */
     rc = lmgr_begin(p_mgr);
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     rc = listmgr_batch_insert_no_tx(p_mgr, p_ids, p_attrs, count, update_if_exists);
-    if (rc)
+
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
     {
         lmgr_rollback(p_mgr);
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
@@ -269,6 +283,8 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
     }
 
     rc = lmgr_commit(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
     /* success, count it */
     if (!rc)
     {

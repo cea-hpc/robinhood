@@ -306,27 +306,42 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
         strcat(query, filter_str);
     }
 
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    if ( rc )
+    /* the whole function is not atomic as we try to preserve the progress
+     * in case of DB engine failure. So we retry each step independently.
+     */
+retry1:
+    rc = db_exec_sql(&p_mgr->conn, query, NULL);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry1;
+    else if (rc)
         return rc;
 
     DisplayLog( LVL_EVENT, LISTMGR_TAG, "Building indexes on "RECOV_TABLE" table..." );
 
     /* create pk */
+retry2:
     rc = db_exec_sql( &p_mgr->conn, "ALTER TABLE "RECOV_TABLE" ADD PRIMARY KEY (id)", NULL );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry2;
+    else if (rc)
         return rc;
 
     /* add recov_status column */
+retry3:
     rc = db_exec_sql( &p_mgr->conn, "ALTER TABLE "RECOV_TABLE" ADD COLUMN recov_status INTEGER", NULL );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry3;
+    else if (rc)
         return rc;
 
     /* add index on status */
+retry4:
     rc = db_exec_sql( &p_mgr->conn,
                       "CREATE INDEX recov_st_index ON "RECOV_TABLE"(recov_status)",
                       NULL );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry4;
+    else if (rc)
         return rc;
 
     /* count entries of each status */

@@ -128,7 +128,13 @@ int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value)
  */
 int ListMgr_GetVar(lmgr_t *p_mgr, const char *varname, char *value)
 {
-    return lmgr_get_var(&p_mgr->conn, varname, value);
+    int rc;
+retry:
+    rc = lmgr_get_var(&p_mgr->conn, varname, value);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+
+    return rc;
 }
 
 
@@ -138,5 +144,10 @@ int ListMgr_GetVar(lmgr_t *p_mgr, const char *varname, char *value)
  */
 int ListMgr_SetVar(lmgr_t *p_mgr, const char *varname, const char *value)
 {
-    return lmgr_set_var(&p_mgr->conn, varname, value);
+    int rc;
+retry:
+    rc = lmgr_set_var(&p_mgr->conn, varname, value);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    return rc;
 }

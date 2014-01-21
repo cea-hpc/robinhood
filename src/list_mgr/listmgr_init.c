@@ -1852,6 +1852,9 @@ int ListMgr_InitAccess( lmgr_t * p_mgr )
 
     p_mgr->last_commit = 0;
     p_mgr->force_commit = FALSE;
+    p_mgr->retry_delay = 0;
+    p_mgr->retry_count = 0;
+    timerclear(&p_mgr->first_error);
 
     for (i = 0; i < OPCOUNT; i++)
         p_mgr->nbop[i] = 0;

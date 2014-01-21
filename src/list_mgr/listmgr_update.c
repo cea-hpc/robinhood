@@ -76,23 +76,28 @@ int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
     if ( stripe_fields( p_update_set->attr_mask ) )
         nb_tables += 2;
 
+    /* restart the whole transaction when the error is retryable */
+retry:
     /* if only 1 table is impacted, switch to autocommit mode */
-    if ( nb_tables > 1 )
+    if (nb_tables > 1)
     {
         /* @todo in the case of sqlite, we may want to do periodic commit
          * instead of systematic one. */
-        rc = lmgr_begin( p_mgr );
-        if ( rc )
+        rc = lmgr_begin(p_mgr);
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             return rc;
     }
 
     /* update main table */
-
-    if ( main_count > 0 )
+    if (main_count > 0)
     {
         sprintf( query, "UPDATE " MAIN_TABLE " SET %s WHERE id="DPK, fields, pk );
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
     }
 
@@ -120,7 +125,9 @@ int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
         attrset2updatelist(p_mgr, set, p_update_set, T_DNAMES, TRUE, TRUE);
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
     }
     else if (ATTR_MASK_TEST(p_update_set, name) || ATTR_MASK_TEST(p_update_set, parent_id))
@@ -136,7 +143,9 @@ int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
     {
         sprintf( query, "UPDATE " ANNEX_TABLE " SET %s WHERE id="DPK, annex_fields, pk );
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
     }
 
@@ -151,14 +160,18 @@ int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
 
         rc = update_stripe_info(p_mgr, pk, VALID(p_id),
                                 &ATTR(p_update_set, stripe_info), p_items, TRUE);
-        if (rc)
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
     }
 #endif
 
     if ( nb_tables > 1 )
     {
-        rc = lmgr_commit( p_mgr );
+        rc = lmgr_commit(p_mgr);
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
         if (!rc)
             p_mgr->nbop[OPIDX_UPDATE]++;
         return rc;
@@ -268,8 +281,11 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
     /* 3) if filters are in MAIN table too, make a simple update statement */
     /* 4) if not, make a compound request: update xxx set xxx WHERE pk in ( select pk from ... where ... ) */
 
-    rc = lmgr_begin( p_mgr );
-    if ( rc )
+retry:
+    rc = lmgr_begin(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     /* perform updates on MAIN TABLE */
@@ -306,7 +322,9 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
                              ANNEX_TABLE " WHERE %s", tmp_table_name, filter_str_annex );
 
                     rc = db_exec_sql( &p_mgr->conn, query, NULL );
-                    if ( rc )
+                    if (lmgr_delayed_retry(p_mgr, rc))
+                        goto retry;
+                    else if (rc)
                         goto rollback;
 
                     tmp_table_created = TRUE;
@@ -332,7 +350,9 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
                              filter_str_stripe_units );
 
                     rc = db_exec_sql( &p_mgr->conn, query, NULL );
-                    if ( rc )
+                    if (lmgr_delayed_retry(p_mgr, rc))
+                        goto retry;
+                    else if (rc)
                         goto rollback;
 
                     tmp_table_created = TRUE;
@@ -358,7 +378,9 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
                              filter_str_stripe_info );
 
                     rc = db_exec_sql( &p_mgr->conn, query, NULL );
-                    if ( rc )
+                    if (lmgr_delayed_retry(p_mgr, rc))
+                        goto retry;
+                    else if (rc)
                         goto rollback;
 
                     tmp_table_created = TRUE;
@@ -380,7 +402,9 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
         }
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
+        if (lmgr_delayed_retry(p_mgr, rc))
+            goto retry;
+        else if (rc)
             goto rollback;
     }
 
@@ -421,8 +445,10 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
                                  "CREATE TEMPORARY TABLE %s AS SELECT id FROM "
                                  MAIN_TABLE " WHERE %s", tmp_table_name, filter_str_main );
 
-                        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-                        if ( rc )
+                        rc = db_exec_sql(&p_mgr->conn, query, NULL);
+                        if (lmgr_delayed_retry(p_mgr, rc))
+                            goto retry;
+                        else if (rc)
                             goto rollback;
 
                         tmp_table_created = TRUE;
@@ -450,7 +476,9 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
                                  tmp_table_name, filter_str_stripe_units );
 
                         rc = db_exec_sql( &p_mgr->conn, query, NULL );
-                        if ( rc )
+                        if (lmgr_delayed_retry(p_mgr, rc))
+                            goto retry;
+                        else if (rc)
                             goto rollback;
 
                         tmp_table_created = TRUE;
@@ -477,7 +505,9 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
                                  tmp_table_name, filter_str_stripe_info );
 
                         rc = db_exec_sql( &p_mgr->conn, query, NULL );
-                        if ( rc )
+                        if (lmgr_delayed_retry(p_mgr, rc))
+                            goto retry;
+                        else if (rc)
                             goto rollback;
 
                         tmp_table_created = TRUE;
@@ -498,7 +528,9 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
             }
 
             rc = db_exec_sql( &p_mgr->conn, query, NULL );
-            if ( rc )
+            if (lmgr_delayed_retry(p_mgr, rc))
+                goto retry;
+            else if (rc)
                 goto rollback;
         }
     }
@@ -518,7 +550,8 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
             goto rollback;
     }
 
-    return lmgr_commit( p_mgr );
+    rc = lmgr_commit(p_mgr);
+
 
   rollback:
     lmgr_rollback( p_mgr );
@@ -532,20 +565,28 @@ int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
     char query[4096];
     DEF_PK(oldpk);
     DEF_PK(newpk);
+    int rc;
 
-    int rc = lmgr_begin(p_mgr);
-    if (rc)
+retry:
+    rc = lmgr_begin(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     /* delete the old entry */
     rc = listmgr_remove_no_tx(p_mgr, old_id, old_attrs, src_is_last);
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         goto rollback;
 
     /* create the new one */
     rc = listmgr_batch_insert_no_tx(p_mgr, &new_id, &new_attrs, 1,
                                     update_target_if_exists);
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         goto rollback;
 
     /* update parent ids in NAMES table */
@@ -555,10 +596,16 @@ int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
     sprintf(query, "UPDATE "DNAMES_TABLE" SET parent_id="DPK" WHERE parent_id="DPK,
             newpk, oldpk);
     rc = db_exec_sql(&p_mgr->conn, query, NULL);
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         goto rollback;
 
-    return lmgr_commit(p_mgr);
+    rc = lmgr_commit(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else
+        return rc;
 
 rollback:
     lmgr_rollback(p_mgr);

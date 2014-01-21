@@ -1037,9 +1037,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         else
         {
             /* ERROR */
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                        "Error %d retrieving entry "DFID" from DB", rc,
-                        PFID(&p_op->entry_id) );
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG,
+                       "Error %d retrieving entry "DFID" from DB: %s.", rc,
+                       PFID(&p_op->entry_id), lmgr_err2str(rc));
             p_op->db_exists = FALSE;
             /* no attrs from DB */
             ATTR_MASK_INIT( &p_op->db_attrs );
@@ -1196,9 +1196,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             else
             {
                 /* ERROR */
-                DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                            "Error %d retrieving entry "DFID" from DB", rc,
-                            PFID(&p_op->entry_id) );
+                DisplayLog(LVL_CRIT, ENTRYPROC_TAG,
+                           "Error %d retrieving entry "DFID" from DB: %s.", rc,
+                           PFID(&p_op->entry_id), lmgr_err2str(rc));
                 p_op->db_exists = FALSE;
                 ATTR_MASK_INIT( &p_op->db_attrs );
             }
@@ -2073,7 +2073,8 @@ int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     }
 
     if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation.", rc );
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation: %s.",
+                   rc, lmgr_err2str(rc));
 
     /* Acknowledge the operation if there is a callback */
 #ifdef HAVE_CHANGELOGS
@@ -2143,7 +2144,8 @@ int EntryProc_db_batch_apply(struct entry_proc_op_t **ops, int count,
     }
 
     if (rc)
-        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing batch database operation.", rc);
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing batch database operation: %s.",
+                   rc, lmgr_err2str(rc));
 
     /* Acknowledge the operation if there is a callback */
 #ifdef HAVE_CHANGELOGS

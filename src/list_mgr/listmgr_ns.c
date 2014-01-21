@@ -224,8 +224,11 @@ int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     if (filter_annex)
         curr += sprintf(curr, " AND %s", filter_str_annex);
 
+retry:
     rc = db_exec_sql(&p_mgr->conn, query, &result);
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     /* copy result to output structures */

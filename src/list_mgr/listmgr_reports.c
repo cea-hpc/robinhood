@@ -669,11 +669,15 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     printf( "Report is specified by: %s\n", query );
 #endif
 
+retry:
     /* execute request (expect that ACCT table does not exists) */
     if (acct_table_flag)
         rc = db_exec_sql_quiet( &p_mgr->conn, query, &p_report->select_result );
     else
         rc = db_exec_sql( &p_mgr->conn, query, &p_report->select_result );
+
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
 
     /* if the ACCT table does exist, switch to standard mode */
     if ( acct_table_flag && (rc == DB_NOT_EXISTS))
@@ -810,8 +814,11 @@ int ListMgr_EntryCount(lmgr_t * p_mgr, uint64_t *count)
     char          *str_count = NULL;
 
     /* execute the request */
+retry:
     rc = db_exec_sql( &p_mgr->conn, "SELECT COUNT(*) FROM " MAIN_TABLE, &result );
-    if ( rc )
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
         return rc;
 
     rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );

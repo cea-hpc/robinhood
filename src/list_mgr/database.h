@@ -90,6 +90,9 @@ int            db_result_nb_records( db_conn_t * conn, result_handle_t * p_resul
 /* free result resources */
 int            db_result_free( db_conn_t * conn, result_handle_t * p_result );
 
+/* indicate if the error is retryable (transaction must be restarted) */
+int db_is_retryable(int db_err);
+
 typedef enum {DBOBJ_TABLE, DBOBJ_TRIGGER, DBOBJ_FUNCTION, DBOBJ_PROC } db_object_e;
 
 static inline const char *dbobj2str(db_object_e ot)

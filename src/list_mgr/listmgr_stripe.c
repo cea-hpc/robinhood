@@ -411,13 +411,18 @@ int ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id )
 
     sprintf( query, "SELECT validator FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
 
+retry:
     rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if ( rc )
+    if (db_is_retryable(rc))
+        goto retry;
+    else if (rc)
         goto out;
 
     rc = db_next_record( &p_mgr->conn, &result, &res, 1 );
+    if (db_is_retryable(rc))
+        goto retry;
 
-    if ( rc == DB_END_OF_LIST )
+    if (rc == DB_END_OF_LIST)
         rc = DB_NOT_EXISTS;
 
     if ( rc )
@@ -448,9 +453,13 @@ int ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
                        stripe_info_t * p_stripe_info, stripe_items_t * p_stripe_items )
 {
     DEF_PK(pk);
+    int rc;
 
     entry_id2pk(p_id, PTR_PK(pk));
-
-    return insert_stripe_info( p_mgr, pk, VALID(p_id), p_stripe_info, p_stripe_items,
-                               TRUE );
+retry:
+    rc = insert_stripe_info(p_mgr, pk, VALID(p_id), p_stripe_info, p_stripe_items,
+                            TRUE);
+    if (db_is_retryable(rc))
+        goto retry;
+    return rc;
 }

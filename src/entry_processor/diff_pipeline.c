@@ -251,9 +251,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         else
         {
             /* ERROR */
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                        "Error %d retrieving entry "DFID" from DB", rc,
-                        PFID(&p_op->entry_id) );
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG,
+                       "Error %d retrieving entry "DFID" from DB: %s.", rc,
+                       PFID(&p_op->entry_id), lmgr_err2str(rc));
             p_op->db_exists = FALSE;
             ATTR_MASK_INIT( &p_op->db_attrs );
         }
@@ -903,14 +903,16 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 
         if ( rc )
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation.", rc );
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation: %s.",
+                       rc, lmgr_err2str(rc));
     }
     else if (diff_arg->db_tag)
     {
         /* tag the entry in the DB */
         rc = ListMgr_TagEntry(lmgr, diff_arg->db_tag, &p_op->entry_id);
         if ( rc )
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation.", rc );
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation: %s.",
+                       rc, lmgr_err2str(rc));
     }
 
     if (diff_arg->apply == APPLY_FS)
@@ -1047,7 +1049,8 @@ int EntryProc_batch_apply(struct entry_proc_op_t **ops, int count,
     }
 
     if (rc)
-        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing batch database operation.", rc);
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing batch database operation: %s.",
+                   rc, lmgr_err2str(rc));
 
     rc = EntryProcessor_AcknowledgeBatch(ops, count, -1, TRUE);
     if (rc)

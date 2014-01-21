@@ -554,6 +554,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
      * Set READ COMMITTED isolation level for the big select
      * so locks can be released immediatly after the record is read.
      */
+retry:
     it->in_tx = 0;
     if (p_mgr->last_commit == 0)
     {
@@ -569,7 +570,9 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
         else
         {
             rc = lmgr_begin(p_mgr);
-            if (rc)
+            if (lmgr_delayed_retry(p_mgr, rc))
+                goto retry;
+            else if (rc)
                 return NULL;
             it->in_tx = 1;
         }
@@ -578,7 +581,9 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
     /* execute request */
     rc = db_exec_sql( &p_mgr->conn, query, &it->select_result );
 
-    if (rc)
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
     {
         MemFree(it);
         return NULL;

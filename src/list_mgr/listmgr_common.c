@@ -1532,3 +1532,54 @@ out_free:
     p_list->count = 0;
     return -1;
 }
+
+
+/** manage delayed retry of retryable errors
+ * \return != 0 if the transaction must be restarted
+ */
+int lmgr_delayed_retry(lmgr_t *lmgr, int errcode)
+{
+    if (!db_is_retryable(errcode))
+    {
+        /* if a retry was pending, display a success message */
+        if (lmgr->retry_delay != 0)
+        {
+            struct timeval diff, now;
+            timerclear(&diff);
+            gettimeofday(&now, NULL);
+            timersub(&now, &lmgr->first_error, &diff);
+
+            DisplayLog(LVL_EVENT, LISTMGR_TAG,
+                       "DB operation succeeded after %u retries (%ld.%03ld sec)",
+                       lmgr->retry_count, diff.tv_sec, diff.tv_usec/1000);
+
+            /* reset retry delay if no error occured,
+             * or if the error is not retryable */
+            lmgr->retry_delay = 0;
+            lmgr->retry_count = 0;
+            timerclear(&lmgr->first_error);
+        }
+        return 0;
+    }
+
+    /* transaction is about to be restarted,
+     * sleep for a given time */
+    if (lmgr->retry_delay == 0)
+    {
+        /* first error, first sleep */
+        gettimeofday(&lmgr->first_error, NULL);
+        lmgr->retry_delay = lmgr_config.connect_retry_min;
+    }
+    else
+    {
+        lmgr->retry_delay *= 2;
+        if (lmgr->retry_delay > lmgr_config.connect_retry_max)
+            lmgr->retry_delay = lmgr_config.connect_retry_max;
+    }
+    DisplayLog(LVL_EVENT, LISTMGR_TAG,
+               "Retryable DB error... Retrying in %u sec.",
+               lmgr->retry_delay);
+    rh_sleep(lmgr->retry_delay);
+    lmgr->retry_count ++;
+    return 1;
+}
