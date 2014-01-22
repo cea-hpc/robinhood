@@ -53,55 +53,55 @@ static int clean_names(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 
 static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_tab)
 {
-    int rc;
-    char request[2048];
+    char fields[1024];
+    char tables[1024];
+    char where[1024];
+    char request[4096];
+    char *curr_fields = fields;
+    char *curr_tables = tables;
+    char *curr_where = where;
 
     if (exclude_tab != T_MAIN)
     {
-        sprintf(request, "DELETE FROM "MAIN_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
+        strcpy(fields, "M.*");
+        curr_fields += strlen(curr_fields);
+        strcpy(tables, MAIN_TABLE" M");
+        curr_tables += strlen(curr_tables);
+        curr_where += sprintf(where, "M.id="DPK, pk);
     }
-
+    if (exclude_tab != T_ANNEX)
+    {
+        curr_fields += sprintf(curr_fields, "%sA.*", curr_fields == fields?"":",");
+        curr_tables += sprintf(curr_tables, "%s"ANNEX_TABLE" A",curr_tables == tables?"":",");
+        curr_where += sprintf(curr_where, "%sA.id="DPK, curr_where == where?"":" AND ",pk);
+    }
     if (exclude_tab != T_DNAMES)
     {
-        /* remove all paths to an entry if it has no longer info in ENTRIES */
-        sprintf(request, "DELETE FROM "DNAMES_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
+        curr_fields += sprintf(curr_fields, "%sN.*", curr_fields == fields?"":",");
+        curr_tables += sprintf(curr_tables, "%s"DNAMES_TABLE" N",curr_tables == tables?"":",");
+        curr_where += sprintf(curr_where, "%sN.id="DPK, curr_where == where?"":" AND ",pk);
     }
-
-    if (annex_table && exclude_tab != T_ANNEX)
-    {
-        sprintf(request, "DELETE FROM "ANNEX_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
-    }
-
-    /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
     if (exclude_tab != T_STRIPE_INFO)
     {
-        sprintf(request, "DELETE FROM "STRIPE_INFO_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
+        curr_fields += sprintf(curr_fields, "%sI.*", curr_fields == fields?"":",");
+        curr_tables += sprintf(curr_tables, "%s"STRIPE_INFO_TABLE" I",curr_tables == tables?"":",");
+        curr_where += sprintf(curr_where, "%sI.id="DPK, curr_where == where?"":" AND ",pk);
     }
-
     if (exclude_tab != T_STRIPE_ITEMS)
     {
-        /* First remove stripe info */
-        sprintf(request, "DELETE FROM "STRIPE_ITEMS_TABLE" WHERE id="DPK, pk);
-        rc = db_exec_sql(&p_mgr->conn, request, NULL);
-        if (rc)
-            return rc;
+        curr_fields += sprintf(curr_fields, "%sS.*", curr_fields == fields?"":",");
+        curr_tables += sprintf(curr_tables, "%s"STRIPE_ITEMS_TABLE" S",curr_tables == tables?"":",");
+        curr_where += sprintf(curr_where, "%sS.id="DPK, curr_where == where?"":" AND ",pk);
     }
 #endif
 
-    return DB_SUCCESS;
+    /* doing this in a single request instead of 1 DELETE per table
+     * results in a huge speed up (246sec -> 59s).
+     */
+    sprintf(request, "DELETE %s FROM %s WHERE %s", fields, tables, where);
+
+    return db_exec_sql(&p_mgr->conn, request, NULL);
 }
 
 
