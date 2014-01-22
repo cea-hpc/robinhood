@@ -333,7 +333,8 @@ int            lmgr_flush_commit( lmgr_t * p_mgr );
 /** manage delayed retry of retryable errors
  * \return != 0 if the transaction must be restarted
  */
-int lmgr_delayed_retry(lmgr_t *lmgr, int errcode);
+#define lmgr_delayed_retry(_l, _e) _lmgr_delayed_retry(_l, _e, __func__, __LINE__)
+int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line);
 
 /* get/set variable in DB */
 int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value);

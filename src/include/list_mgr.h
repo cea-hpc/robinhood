@@ -241,6 +241,8 @@ typedef struct lmgr_t
     unsigned int   retry_delay;  /*< current retry delay */
     unsigned int   retry_count;  /*< nbr of retries */
     struct timeval first_error;  /*< time of first retried error */
+    const char *last_err_func; /*< function of the last error */
+    int         last_err_line; /*< line of the last error */
 
     /* operation statistics */
     unsigned int nbop[OPCOUNT];

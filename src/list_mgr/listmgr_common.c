@@ -1537,7 +1537,7 @@ out_free:
 /** manage delayed retry of retryable errors
  * \return != 0 if the transaction must be restarted
  */
-int lmgr_delayed_retry(lmgr_t *lmgr, int errcode)
+int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line)
 {
     if (!db_is_retryable(errcode))
     {
@@ -1549,9 +1549,16 @@ int lmgr_delayed_retry(lmgr_t *lmgr, int errcode)
             gettimeofday(&now, NULL);
             timersub(&now, &lmgr->first_error, &diff);
 
-            DisplayLog(LVL_EVENT, LISTMGR_TAG,
-                       "DB operation succeeded after %u retries (%ld.%03ld sec)",
-                       lmgr->retry_count, diff.tv_sec, diff.tv_usec/1000);
+            /* Only notify success if the suceeded function
+             * is the same as the last error.
+             */
+            if ((lmgr->last_err_func == func) && (lmgr->last_err_line == line)
+                && errcode == DB_SUCCESS)
+            {
+                DisplayLog(LVL_EVENT, LISTMGR_TAG,
+                           "DB operation succeeded after %u retries (%ld.%03ld sec)",
+                           lmgr->retry_count, diff.tv_sec, diff.tv_usec/1000);
+            }
 
             /* reset retry delay if no error occured,
              * or if the error is not retryable */
@@ -1576,9 +1583,11 @@ int lmgr_delayed_retry(lmgr_t *lmgr, int errcode)
         if (lmgr->retry_delay > lmgr_config.connect_retry_max)
             lmgr->retry_delay = lmgr_config.connect_retry_max;
     }
+    lmgr->last_err_func = func;
+    lmgr->last_err_line = line;
     DisplayLog(LVL_EVENT, LISTMGR_TAG,
-               "Retryable DB error... Retrying in %u sec.",
-               lmgr->retry_delay);
+               "Retryable DB error in %s l.%u. Restarting transaction in %u sec...",
+               func, line, lmgr->retry_delay);
     rh_sleep(lmgr->retry_delay);
     lmgr->retry_count ++;
     return 1;
