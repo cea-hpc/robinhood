@@ -788,7 +788,6 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
 }
 #endif
 
-#ifdef _MDS_STAT_SUPPORT
 /* This code is an adaptation of llapi_mds_getfileinfo() in liblustreapi.
  * It is unused for now, but could be useful when SOM will be implemented.
  */
@@ -801,7 +800,7 @@ int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode)
     int            rc;
 
     /* sanity checks */
-    if ( ( parent == NULL ) || ( fullpath == NULL ) || ( inode == NULL ) )
+    if ((fullpath == NULL) || (inode == NULL))
         return EINVAL;
 
     filename = basename( fullpath );
@@ -835,9 +834,9 @@ int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode)
         }
         else
         {
-            DisplayLog( LVL_CRIT, TAG_MDSSTAT,
-                        "Error: %s: IOC_MDC_GETFILEINFO failed for %s",
-                        __FUNCTION__, fullpath );
+            DisplayLog(LVL_CRIT, TAG_MDSSTAT,
+                       "Error: %s: IOC_MDC_GETFILEINFO failed for %s: rc=%d, errno=%d",
+                       __FUNCTION__, fullpath, rc, errno);
             return rc;
         }
     }
@@ -850,7 +849,6 @@ int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode)
 
 
 #ifdef _HAVE_FID
-
 static DIR * fid_dir_fd = NULL;
 static pthread_mutex_t dir_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -917,7 +915,6 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
     return 0;
 }
 #endif
-#endif /* MDS stat */
 
 char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items, int brief )
 {

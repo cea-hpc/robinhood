@@ -234,12 +234,10 @@ int            Get_OST_usage( const char *fs_path, unsigned int ost_index, struc
 int            Get_pool_usage( const char *poolname, struct statfs *pool_statfs );
 #endif
 
-#ifdef _MDS_STAT_SUPPORT
 /** Retrieve file information from MDS */
 int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode);
 #ifdef _HAVE_FID
 int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode );
-#endif
 #endif
 
 #ifndef _MDT_SPECIFIC_LOVEA

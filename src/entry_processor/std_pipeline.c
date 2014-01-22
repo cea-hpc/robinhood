@@ -1418,7 +1418,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     p_op->fs_attr_need &= ~p_op->fs_attrs.attr_mask;
 
 #ifdef HAVE_CHANGELOGS /* never needed for scans */
-    if (NEED_GETATTR(p_op))
+    if (NEED_GETATTR(p_op) && (p_op->extra_info.is_changelog_record))
     {
         struct stat    entry_md;
 

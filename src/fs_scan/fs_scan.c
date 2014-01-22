@@ -794,6 +794,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
     char           entry_path[RBH_PATH_MAX];
     struct stat    inode;
     int            rc = 0;
+    int            no_md = 0;
 
     /* build absolute path */
     snprintf(entry_path, RBH_PATH_MAX, "%s/%s", p_task->path, entry_name);
@@ -802,6 +803,19 @@ static int process_one_entry(thread_scan_info_t *p_info,
     rc = stat_entry(entry_path, entry_name, parentfd, &inode);
     if (rc)
     {
+#ifdef _LUSTRE
+        if (is_lustre_fs && (rc == -ESHUTDOWN))
+        {
+            /* File can't be stat because it is on a disconnected OST.
+             * Still push it to the pipeline, to avoid loosing valid info
+             * in the DB.
+             */
+            DisplayLog(LVL_EVENT, FSSCAN_TAG, "Entry %s is on inactive OST or MDT. "
+                       "Cannot get its attributes.", entry_path);
+            no_md = 1;
+            goto push;
+        }
+#endif
         DisplayLog(LVL_MAJOR, FSSCAN_TAG,
                    "failed to stat %s (%s): entry ignored",
                    entry_path, strerror(-rc));
@@ -830,6 +844,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
     else
     {
         entry_proc_op_t * op;
+push:
 
         op = EntryProcessor_Get( );
         if (!op) {
@@ -861,23 +876,37 @@ static int process_one_entry(thread_scan_info_t *p_info,
         ATTR_MASK_SET( &op->fs_attrs, depth );
         ATTR( &op->fs_attrs, depth ) = p_task->depth;  /* depth(/<mntpoint>/toto) = 0 */
 
+        if (!no_md)
+        {
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-        PosixStat2EntryAttr( &inode, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
+            PosixStat2EntryAttr( &inode, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-        PosixStat2EntryAttr( &inode, &op->fs_attrs, TRUE );
+            PosixStat2EntryAttr(&inode, &op->fs_attrs, TRUE);
 #endif
-        /* set update time  */
-        ATTR_MASK_SET( &op->fs_attrs, md_update );
-        ATTR( &op->fs_attrs, md_update ) = time( NULL );
+            /* set update time  */
+            ATTR_MASK_SET( &op->fs_attrs, md_update );
+            ATTR( &op->fs_attrs, md_update ) = time( NULL );
+        }
+        else
+        {
+            /* must still set it to avoid the entry to be impacted by scan final GC */
+            ATTR_MASK_SET(&op->fs_attrs, md_update);
+            ATTR(&op->fs_attrs, md_update) = time(NULL);
+        }
         ATTR_MASK_SET( &op->fs_attrs, path_update );
         ATTR( &op->fs_attrs, path_update ) = time( NULL );
 
         /* Set entry id */
 #ifndef _HAVE_FID
-        op->entry_id.inode = inode.st_ino;
-        op->entry_id.fs_key = get_fskey();
-        op->entry_id.validator = inode.st_ctime;
-        op->entry_id_is_set = TRUE;
+        if (!no_md)
+        {
+            op->entry_id.inode = inode.st_ino;
+            op->entry_id.fs_key = get_fskey();
+            op->entry_id.validator = inode.st_ctime;
+            op->entry_id_is_set = TRUE;
+        }
+        else
+            op->entry_id_is_set = FALSE;
 #else
         op->entry_id_is_set = FALSE;
 #ifndef _NO_AT_FUNC
@@ -903,7 +932,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
         op->extra_info_is_set = FALSE;
 
 #ifdef _LUSTRE
-        if (S_ISREG(inode.st_mode) && is_first_scan)
+        if ((no_md || S_ISREG(inode.st_mode)) && is_first_scan)
         {
             /* Fetch the stripes information now. This is faster than
              * doing it later in the pipeline. However if that fails now,

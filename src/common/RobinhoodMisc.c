@@ -460,14 +460,15 @@ void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int siz
         ATTR_MASK_SET( p_attr_set, blksize );
         ATTR( p_attr_set, blksize ) = p_inode->st_blksize;
 #endif
+
+        /* times are also wrong when they come from the MDT device */
+        ATTR_MASK_SET( p_attr_set, last_access );
+        ATTR( p_attr_set, last_access ) =
+            MAX3( p_inode->st_atime, p_inode->st_mtime, p_inode->st_ctime );
+
+        ATTR_MASK_SET( p_attr_set, last_mod );
+        ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
     }
-
-    ATTR_MASK_SET( p_attr_set, last_access );
-    ATTR( p_attr_set, last_access ) =
-        MAX3( p_inode->st_atime, p_inode->st_mtime, p_inode->st_ctime );
-
-    ATTR_MASK_SET( p_attr_set, last_mod );
-    ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
 
 #ifdef ATTR_INDEX_creation_time
     if (ATTR_MASK_TEST(p_attr_set, creation_time))
