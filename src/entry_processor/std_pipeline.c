@@ -2261,8 +2261,9 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         lmgr_simple_filter_free( &filter );
 
         if ( rc )
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                        "Error: ListMgr MassRemove operation failed with code %d.", rc );
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG,
+                       "Error: ListMgr MassRemove operation failed with code %d: %s",
+                       rc,lmgr_err2str(rc));
     }
 
     /* must call callback function in any case, to unblock the scan */

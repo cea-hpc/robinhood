@@ -1029,7 +1029,7 @@ void EntryProcessor_DumpCurrentStages( void )
         id_constraint_stats();
 
         DisplayLog(LVL_MAJOR, "STATS",
-                   "%-18s | Wait | Curr | Done |   Total | ms/op |",
+                   "%-18s | Wait | Curr | Done |     Total | ms/op |",
                    "Stage");
 
         for ( i = 0; i < entry_proc_descr.stage_count; i++ )
@@ -1055,7 +1055,7 @@ void EntryProcessor_DumpCurrentStages( void )
 
             if (pipeline[i].nb_batches > 0)
                 DisplayLog(LVL_MAJOR, "STATS",
-                           "%2u: %-14s |%5u | %4u | %4u | %7Lu | %5.2f | %.2f%% batched (avg batch size: %.1f)",
+                           "%2u: %-14s |%5u | %4u | %4u | %9Lu | %5.2f | %.2f%% batched (avg batch size: %.1f)",
                            i, strchr(entry_proc_pipeline[i].stage_name,'_')+1, /* remove STAGE_ */
                            pipeline[i].nb_unprocessed_entries,
                            pipeline[i].nb_current_entries,
@@ -1065,7 +1065,7 @@ void EntryProcessor_DumpCurrentStages( void )
                            (float)pipeline[i].total_batched_entries/(float)pipeline[i].nb_batches);
             else
                 DisplayLog(LVL_MAJOR, "STATS",
-                           "%2u: %-14s |%5u | %4u | %4u | %7Lu | %5.2f |",
+                           "%2u: %-14s |%5u | %4u | %4u | %9Lu | %5.2f |",
                            i, strchr(entry_proc_pipeline[i].stage_name,'_')+1, /* remove STAGE_ */
                            pipeline[i].nb_unprocessed_entries,
                            pipeline[i].nb_current_entries,
@@ -1101,12 +1101,17 @@ void EntryProcessor_DumpCurrentStages( void )
                 P( pipeline[i].stage_mutex );
                 if ( !rh_list_empty(&pipeline[i].entries) )
                 {
-                    entry_proc_op_t *op = rh_list_first_entry(&pipeline[i].entries, entry_proc_op_t, list);
-                    print_op_stats(op, i, "first");
+                    entry_proc_op_t *op1, *op2;
+                    op1 = rh_list_first_entry(&pipeline[i].entries, entry_proc_op_t, list);
+                    op2 = rh_list_last_entry(&pipeline[i].entries, entry_proc_op_t, list);
 
-                    /* Now, get the last entry. */
-                    op = rh_list_last_entry(&pipeline[i].entries, entry_proc_op_t, list);
-                    print_op_stats(op, i, "last");
+                    if (op1 != op2)
+                    {
+                        print_op_stats(op1, i, "first");
+                        print_op_stats(op2, i, "last");
+                    }
+                    else
+                        print_op_stats(op1, i, "(1 op)");
                 }
                 V( pipeline[i].stage_mutex );
 
