@@ -446,7 +446,8 @@ static int wait_queue_empty( unsigned int nb_submitted,
                              unsigned int * status_tab_after,
                              int long_sleep )
 {
-    unsigned int nb_in_queue, nb_migr_pending;
+    unsigned int nb_in_queue;
+    int nb_migr_pending;
 
     /* Wait for end of migration pass */
     do
@@ -465,14 +466,14 @@ static int wait_queue_empty( unsigned int nb_submitted,
         nb_migr_pending = nb_submitted - (ack_count(status_tab_after)
                                           - ack_count(status_tab_init));
 
-        if ( ( nb_in_queue != 0 ) || ( nb_migr_pending != 0 ) )
+        if ((nb_in_queue > 0) || (nb_migr_pending > 0))
         {
             /* abort this migrations pass if the last action was done a too long time ago */
             if ( ( migr_config.migration_timeout != 0 ) &&
                  (time(NULL) - last_activity > migr_config.migration_timeout) )
             {
                 DisplayLog( LVL_MAJOR, MIGR_TAG,
-                            "Migration pass time-out: %u migrations inactive for %us",
+                            "Migration pass time-out: %d migrations inactive for %us",
                             nb_migr_pending, (unsigned int) (time(NULL) - last_activity) );
                 /* don't wait for current migrations to end, continue with other entries */
                 return ETIME;
@@ -483,7 +484,7 @@ static int wait_queue_empty( unsigned int nb_submitted,
             DisplayLog( LVL_DEBUG, MIGR_TAG,
                         "Waiting for the end of this migr pass: "
                         "still %u files to be archived "
-                        "(%u in queue, %u being processed). "
+                        "(%d in queue, %d being processed). "
                         "Last action: %"PRI_TT"s ago.",
                         nb_migr_pending, nb_in_queue,
                         nb_migr_pending - nb_in_queue,
