@@ -21,6 +21,7 @@
 #include "listmgr_stripe.h"
 #include "database.h"
 #include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
 #include "Memory.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,49 +52,41 @@ static int clean_names(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     return DB_SUCCESS;
 }
 
+
+#define APPEND_TABLE_JOIN(_table_name, _alias) do { \
+        curr_fields += sprintf(curr_fields, "%s%c.*", curr_fields == fields?"":",", _alias); \
+        if (curr_tables == tables) { \
+            first_table = _alias; \
+            curr_tables += sprintf(curr_tables, "%s %c", _table_name, _alias); \
+        } else \
+            curr_tables += sprintf(curr_tables, " LEFT JOIN %s %c ON %c.id = %c.id", \
+                                   _table_name, _alias, first_table, _alias); \
+        if (EMPTY_STRING(where)) \
+            sprintf(where, "%c.id="DPK, _alias, pk); \
+    } while (0)
+
+
 static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_tab)
 {
     char fields[1024];
     char tables[1024];
-    char where[1024];
+    char first_table = '\0';
+    char where[1024] = "";
     char request[4096];
     char *curr_fields = fields;
     char *curr_tables = tables;
-    char *curr_where = where;
 
     if (exclude_tab != T_MAIN)
-    {
-        strcpy(fields, "M.*");
-        curr_fields += strlen(curr_fields);
-        strcpy(tables, MAIN_TABLE" M");
-        curr_tables += strlen(curr_tables);
-        curr_where += sprintf(where, "M.id="DPK, pk);
-    }
+        APPEND_TABLE_JOIN(MAIN_TABLE, 'M');
     if (exclude_tab != T_ANNEX)
-    {
-        curr_fields += sprintf(curr_fields, "%sA.*", curr_fields == fields?"":",");
-        curr_tables += sprintf(curr_tables, "%s"ANNEX_TABLE" A",curr_tables == tables?"":",");
-        curr_where += sprintf(curr_where, "%sA.id="DPK, curr_where == where?"":" AND ",pk);
-    }
+        APPEND_TABLE_JOIN(ANNEX_TABLE, 'A');
     if (exclude_tab != T_DNAMES)
-    {
-        curr_fields += sprintf(curr_fields, "%sN.*", curr_fields == fields?"":",");
-        curr_tables += sprintf(curr_tables, "%s"DNAMES_TABLE" N",curr_tables == tables?"":",");
-        curr_where += sprintf(curr_where, "%sN.id="DPK, curr_where == where?"":" AND ",pk);
-    }
+        APPEND_TABLE_JOIN(DNAMES_TABLE, 'N');
 #ifdef _LUSTRE
     if (exclude_tab != T_STRIPE_INFO)
-    {
-        curr_fields += sprintf(curr_fields, "%sI.*", curr_fields == fields?"":",");
-        curr_tables += sprintf(curr_tables, "%s"STRIPE_INFO_TABLE" I",curr_tables == tables?"":",");
-        curr_where += sprintf(curr_where, "%sI.id="DPK, curr_where == where?"":" AND ",pk);
-    }
+        APPEND_TABLE_JOIN(STRIPE_INFO_TABLE, 'I');
     if (exclude_tab != T_STRIPE_ITEMS)
-    {
-        curr_fields += sprintf(curr_fields, "%sS.*", curr_fields == fields?"":",");
-        curr_tables += sprintf(curr_tables, "%s"STRIPE_ITEMS_TABLE" S",curr_tables == tables?"":",");
-        curr_where += sprintf(curr_where, "%sS.id="DPK, curr_where == where?"":" AND ",pk);
-    }
+        APPEND_TABLE_JOIN(STRIPE_ITEMS_TABLE, 'S');
 #endif
 
     /* doing this in a single request instead of 1 DELETE per table

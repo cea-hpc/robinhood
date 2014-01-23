@@ -3852,8 +3852,8 @@ function test_rename
     [ -z "$count_nb_final" ] && count_nb_final=$(wc -l report.out | awk '{print $1}')
     count_path_final=$(wc -l find.out | awk '{print $1}')
 
-    (( $count_nb_final == $count_nb_init - 1)) || error "1 entry should have been removed (rename target)"
-    (( $count_path_final == $count_path_init - 2)) || error "2 paths should have been removed (rename target)"
+    (( $count_nb_final == $count_nb_init - 1)) || error "1 entry should have been removed (rename target), got $(($count_nb_init - $count_nb_final))"
+    (( $count_path_final == $count_path_init - 2)) || error "2 paths should have been removed (rename target), got $(( $count_path_init - $count_path_final ))"
 
     rm -f report.out find.out
 }
