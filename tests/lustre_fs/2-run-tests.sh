@@ -47,6 +47,7 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	FIND=$RBH_BINDIR/rbh-lhsm-find
 	DU=$RBH_BINDIR/rbh-lhsm-du
     DIFF=$RBH_BINDIR/rbh-lhsm-diff
+    UNDELETE=$RBH_BINDIR/rbh-lhsm-undo-rm
 	CMD=rbh-lhsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
@@ -62,7 +63,8 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	IMPORT="$RBH_BINDIR/rbh-backup-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-backup-find
 	DU=$RBH_BINDIR/rbh-backup-du
-        DIFF=$RBH_BINDIR/rbh-backup-diff
+    DIFF=$RBH_BINDIR/rbh-backup-diff
+    UNDELETE=$RBH_BINDIR/rbh-backup-undo-rm
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
@@ -78,7 +80,8 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	IMPORT="$RBH_BINDIR/rbh-shook-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-shook-find
 	DU=$RBH_BINDIR/rbh-shook-du
-        DIFF=$RBH_BINDIR/rbh-shook-diff
+    DIFF=$RBH_BINDIR/rbh-shook-diff
+    UNDELETE=$RBH_BINDIR/rbh-shook-undo-rm
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
@@ -1330,6 +1333,56 @@ function test_default
 
 	# stop RH in background
 #	kill %1
+}
+
+function test_undelete
+{
+	config_file=$1
+	policy_str="$2"
+
+	clean_logs
+
+	if (( $is_hsmlite == 0 )); then
+		echo "No undelete for this flavor"
+		set_skipped
+		return 1
+    fi
+
+    FILES="$ROOT/dir1/file1 $ROOT/dir1/file2 $ROOT/dir2/file1 $ROOT/dir2/file2"
+
+    mkdir -p $ROOT/dir1 || error "mkdir"
+    mkdir -p $ROOT/dir2 || error "mkdir"
+    for f in $FILES ; do echo 123 > $f || error "write"; done
+    sz1=$(stat -c '%s' $ROOT/dir2/file1)
+
+    # initial scan + archive all
+    $RH -f ./cfg/$config_file --scan --once --sync -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
+    check_db_error rh_chglogs.log
+
+    # remove all and read the changelog
+    rm -rf $ROOT/dir1 $ROOT/dir2
+    start=$(date +%s)
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
+    check_db_error rh_chglogs.log
+
+    # list all deleted entries
+	$UNDELETE -f ./cfg/$config_file -L $ROOT | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
+    (( $(wc -l rh_report.log | awk '{print $1}') == 4 )) || error "invalid file count in undelete list"
+    for f in $FILES; do grep $f rh_report.log || error "missing $f in undelete list"; done
+    # list all deleted entried from dir1
+	$UNDELETE -f ./cfg/$config_file -L $ROOT/dir1 | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
+    (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid file count in undelete list"
+    for f in dir1/file1 dir1/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
+    # recover all deleted entries from dir2
+	$UNDELETE -f ./cfg/$config_file -R $ROOT/dir2 | grep Restoring | cut -d "'" -f 2 > rh_report.log
+    (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid undeleted file count"
+    for f in dir2/file1 dir2/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
+    [ ! -f $ROOT/dir2/file1 ] && error "Missing $ROOT/dir2/file1 in FS after undelete"
+    [ ! -f $ROOT/dir2/file2 ] && error "Missing $ROOT/dir2/file2 in FS after undelete"
+
+    # check final size
+    sz2=$(stat -c '%s' $ROOT/dir2/file1)
+    (( $sz1 == $sz2 )) || error "final size $sz2 doesn't match $sz1"
 }
 
 
@@ -8437,7 +8490,6 @@ run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode
 run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 run_test 219    test_rmdir_mix RemovingDir_Mixed.conf 11 "mixed rmdir policies"
-
 # test sort order by last_archive, last_mod, creation
 # check order of application
 # check request splitting, optimizations, ...
@@ -8447,10 +8499,10 @@ run_test 220c test_lru_policy lru_sort_mod_2pass.conf "" "0 1 2 3 4 5 6 7 8 9" 3
 run_test 220d test_lru_policy lru_sort_access.conf "" "0 2 3 6 8 9" 20 "lru sort on last_access"
 run_test 220e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 "lru sort on last_archive"
 run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on creation and last_archive==0"
-
 run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too many errors"
 run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
-run_test 223    test_default test_default_case.conf "ignore entries if no default case is specified"
+run_test 223  test_default test_default_case.conf "ignore entries if no default case is specified"
+run_test 224  test_undelete test_rm1.conf   "undelete"
 
 #### triggers ####
 

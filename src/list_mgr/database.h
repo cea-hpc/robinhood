@@ -33,6 +33,9 @@
 #define ONE_PATH_FUNC       "one_path"
 #define THIS_PATH_FUNC      "this_path"
 
+/* for HSM flavors only */
+#define  RECOV_TABLE     "RECOVERY"
+
 /* name of sz fields */
 #define ACCT_SIZE_PREFIX "sz"
 static const __attribute__ ((__unused__))
@@ -53,9 +56,6 @@ char * sz_field[SZ_PROFIL_COUNT] =
 #define ACCT_SZ_VAL(_s) "FLOOR(LOG2("_s")/5)"
 
 
-#ifdef _HSM_LITE
-#   define  RECOV_TABLE     "RECOVERY"
-#endif
 
 extern lmgr_config_t lmgr_config;
 extern int     annex_table;                      /* are we using an annex table */

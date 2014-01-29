@@ -1025,7 +1025,9 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
 
             if ( MATCH_TABLE( table, index ) )
             {
-                if (is_funcattr(index))
+                /* exception: fullpath is a real field in SOFT_RM table */
+                if (is_funcattr(index) &&
+                    !((table == T_SOFTRM) && (index == ATTR_INDEX_fullpath)))
                 {
                     char tmp[128] = "";
                     if (prefix_table)
@@ -1044,7 +1046,8 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                     sprintf( values_curr, "%s%s", fname,
                              compar2str( p_filter->filter_simple.filter_compar[i] ) );
 
-                if (index == ATTR_INDEX_fullpath)
+                /* fullpath already includes root for SOFT_RM table */
+                if ((index == ATTR_INDEX_fullpath) && (table != T_SOFTRM))
                 {
                     char relative[RBH_PATH_MAX];
                     if (fullpath_attr2db(p_filter->filter_simple.filter_value[i].value.val_str, relative))

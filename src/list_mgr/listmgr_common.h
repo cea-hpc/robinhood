@@ -237,13 +237,8 @@ typedef enum
     T_STRIPE_INFO,                               /* field in stripe info table */
     T_STRIPE_ITEMS,                              /* field in stripe items table */
     T_ACCT,                                      /* fields in accounting table */
-#ifdef HAVE_RM_POLICY
-    T_SOFTRM,                                    /* fields in softrm table */
-#endif
-#ifdef _HSM_LITE
-    T_RECOV,                                     /* fields in recov table */
-#endif
-
+    T_SOFTRM,                                    /* fields in softrm table (backup and HSM flavors only) */
+    T_RECOV                                      /* fields in recov table (HSM flavors only) */
 } table_enum;
 
 static inline const char * table2name(table_enum table)
@@ -257,12 +252,8 @@ static inline const char * table2name(table_enum table)
         case T_STRIPE_INFO: return STRIPE_INFO_TABLE;
         case T_STRIPE_ITEMS: return STRIPE_ITEMS_TABLE;
         case T_ACCT: return ACCT_TABLE;
-#ifdef HAVE_RM_POLICY
         case T_SOFTRM: return SOFT_RM_TABLE;
-#endif
-#ifdef _HSM_LITE
         case T_RECOV: return RECOV_TABLE;
-#endif
    }
    return NULL;
 }
