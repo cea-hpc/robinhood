@@ -1155,7 +1155,7 @@ static int create_table_softrm(db_conn_t *pconn)
 #define VERSION_VAR_FUNC    "VersionFunctionSet"
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
-#define FUNCTIONSET_VERSION    "1"
+#define FUNCTIONSET_VERSION    "1.1"
 #define TRIGGERSET_VERSION     "1.1"
 
 static int check_functions_version(db_conn_t *conn)
@@ -1169,8 +1169,10 @@ static int check_functions_version(db_conn_t *conn)
     {
         if (strcmp(val, FUNCTIONSET_VERSION))
         {
-            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Wrong functions version (in DB: %s, expected: %s). "
-                       "Existing functions will be dropped and re-created.", val, FUNCTIONSET_VERSION);
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Wrong functions version (in DB: %s, expected: %s). %s.",
+                       val, FUNCTIONSET_VERSION, report_only?"Reports output might be incorrect":
+                            "Existing functions will be dropped and re-created");
+
             return DB_BAD_SCHEMA;
         }
         else
@@ -1181,9 +1183,9 @@ static int check_functions_version(db_conn_t *conn)
     }
     else if (rc == DB_NOT_EXISTS)
     {
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "No function versioning (expected: %s). "
-                   "Existing functions will be dropped and re-created.",
-                   FUNCTIONSET_VERSION);
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "No function versioning (expected: %s). %s.",
+                   FUNCTIONSET_VERSION, report_only?"Reports output might be incorrect":
+                            "Existing functions will be dropped and re-created");
         return DB_BAD_SCHEMA;
     }
     else
@@ -1627,7 +1629,7 @@ static int create_func_onepath(db_conn_t *pconn)
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"
             " DECLARE n VARCHAR(%u) DEFAULT NULL;"
             // returns path when parent is not found (NULL if id is not found)
-            " DECLARE EXIT HANDLER FOR NOT FOUND RETURN p;"
+            " DECLARE EXIT HANDLER FOR NOT FOUND RETURN CONCAT(pid,'/',p);"
             " SELECT parent_id, name INTO pid, p from NAMES where id=param LIMIT 1;"
             " LOOP"
                 " SELECT parent_id, name INTO pid, n from NAMES where id=pid ;"
@@ -1678,7 +1680,7 @@ static int create_func_thispath(db_conn_t *pconn)
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"
             " DECLARE n VARCHAR(%u) DEFAULT NULL;"
             // returns path when parent is not found (NULL if id is not found)
-            " DECLARE EXIT HANDLER FOR NOT FOUND RETURN p;"
+            " DECLARE EXIT HANDLER FOR NOT FOUND RETURN CONCAT(pid,'/',p);"
             " SET pid=pid_arg;"
             " SET p=n_arg;"
             " LOOP"
@@ -1817,14 +1819,14 @@ int ListMgr_Init(const lmgr_config_t * p_conf, int report_access_only)
         }
     }
 
-    if (create_all_triggers)
+    if (create_all_triggers && !report_only)
     {
         rc = set_triggers_version(&conn);
         if (rc)
             goto close_conn;
     }
 
-    if (create_all_functions)
+    if (create_all_functions && !report_only)
     {
         rc = set_functions_version(&conn);
         if (rc)

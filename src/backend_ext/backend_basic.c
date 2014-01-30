@@ -329,6 +329,7 @@ static void entry2backend_path( const entry_id_t * p_id,
              !strcasecmp(ATTR(p_attrs_in, type), STR_TYPE_DIR))
     {
         if (ATTR_MASK_TEST(p_attrs_in, fullpath) &&
+            ATTR(p_attrs_in, fullpath)[0] == '/' &&
             relative_path(ATTR(p_attrs_in, fullpath), global_config.fs_path,
                           rel_path ) == 0)
         {
@@ -344,7 +345,16 @@ static void entry2backend_path( const entry_id_t * p_id,
         {
             const char * fname;
 
-            if ( ATTR_MASK_TEST(p_attrs_in, name) )
+            /* There is something in the fullpath, but it is not under FS root
+             * or it is relative */
+            if (ATTR_MASK_TEST(p_attrs_in, fullpath))
+            {
+                if (ATTR(p_attrs_in, fullpath)[0] == '/')
+                    fname = ATTR(p_attrs_in, fullpath) + 1;
+                else
+                    fname = ATTR(p_attrs_in, fullpath);
+            }
+            else if (ATTR_MASK_TEST(p_attrs_in, name))
                 fname = ATTR(p_attrs_in, name);
             else
                 fname = UNK_NAME;
@@ -384,6 +394,7 @@ static void entry2backend_path( const entry_id_t * p_id,
     {
         /* if the fullpath is available, build human readable path */
         if ( ATTR_MASK_TEST(p_attrs_in, fullpath) &&
+             ATTR(p_attrs_in, fullpath)[0] == '/' &&
              relative_path( ATTR(p_attrs_in, fullpath), global_config.fs_path,
                             rel_path ) == 0 )
         {
@@ -394,11 +405,20 @@ static void entry2backend_path( const entry_id_t * p_id,
             else
                 sprintf(backend_path, "%s/%s", config.root, rel_path);
         }
-        else /* we don't have fullpath available */
+        else /* we don't have fullpath available (or not in FS root, or relative) */
         {
             const char * fname;
 
-            if ( ATTR_MASK_TEST(p_attrs_in, name) )
+            /* There is something in the fullpath, but it is not under FS root
+             * or it is relative */
+            if (ATTR_MASK_TEST(p_attrs_in, fullpath))
+            {
+                if (ATTR(p_attrs_in, fullpath)[0] == '/')
+                    fname = ATTR(p_attrs_in, fullpath) + 1;
+                else
+                    fname = ATTR(p_attrs_in, fullpath);
+            }
+            else if (ATTR_MASK_TEST(p_attrs_in, name))
                 fname = ATTR(p_attrs_in, name);
             else
                 fname = UNK_NAME;

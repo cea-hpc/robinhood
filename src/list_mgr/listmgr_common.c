@@ -647,25 +647,59 @@ int mk_result_bind_list( const attr_set_t * p_set, table_enum table, db_type_t *
 
 }
 
-static inline int fullpath_attr2db(const char *attr, char *db)
+int fullpath_attr2db(const char *attr, char *db)
 {
+    DEF_PK(root_pk);
+    char rel[RBH_PATH_MAX];
+
     /* fullpath 2 relative */
-    if (relative_path(attr, global_config.fs_path, db))
+    if (relative_path(attr, global_config.fs_path, rel))
     {
         DisplayLog(LVL_MAJOR, LISTMGR_TAG, "fullpath %s is not under FS root %s",
                    attr, global_config.fs_path);
         return -EINVAL;
     }
+    /* prefix with root id */
+    entry_id2pk(get_mnt_id(), PTR_PK(root_pk));
+    sprintf(db, "%s/%s", root_pk, rel);
     return 0;
 }
 
-static inline void fullpath_db2attr(const char *db, char *attr)
+void fullpath_db2attr(const char *db, char *attr)
 {
+    DEF_PK(id_from_db);
+    DEF_PK(root_pk);
+
+    entry_id2pk(get_mnt_id(), PTR_PK(root_pk));
+    const char *c = strchr(db, '/');
+    if (!c)
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Unexpected path format from DB: '%s'", db);
+        /* use c = db */
+        c = db;
+    }
+    else
+    {
+        memset(PTR_PK(id_from_db), 0, sizeof(id_from_db));
+        strncpy(id_from_db, db, (ptrdiff_t)(c - db));
+
+        /* check FS root */
+        if (strcmp(root_pk, id_from_db) != 0)
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: entry has incomplete path in DB: "
+                       "parent_id='%s', relative_path='%s'", id_from_db, c+1);
+            /* copy as is */
+            sprintf(attr, "%s", db);
+            return;
+        }
+        c++; /* skip '/' */
+    }
+
     /* relative 2 full */
     if (!strcmp(global_config.fs_path, "/")) /* FS root is '/' */
-        sprintf(attr, "/%s", db);
+        sprintf(attr, "/%s", c);
     else
-        sprintf(attr, "%s/%s", global_config.fs_path, db);
+        sprintf(attr, "%s/%s", global_config.fs_path, c);
 }
 
 int result2attrset( table_enum table, char **result_tab,

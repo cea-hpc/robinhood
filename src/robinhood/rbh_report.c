@@ -1284,8 +1284,8 @@ static inline const char * attrindex2name(unsigned int index)
 #ifdef ATTR_INDEX_last_restore
         case ATTR_INDEX_last_restore: return "last_restore";
 #endif
-#ifdef ATTR_INDEX_backend_path
-        case ATTR_INDEX_backend_path: return "backend_path";
+#ifdef ATTR_INDEX_backendpath
+        case ATTR_INDEX_backendpath: return "backend_path";
 #endif
 
 
@@ -1343,8 +1343,8 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
 #ifdef ATTR_INDEX_last_restore
         case ATTR_INDEX_last_restore: return 20;
 #endif
-#ifdef ATTR_INDEX_backend_path
-        case ATTR_INDEX_backend_path: return 40;
+#ifdef ATTR_INDEX_backendpath
+        case ATTR_INDEX_backendpath: return 40;
 #endif
 
         case ATTR_INDEX_link: return 20;
@@ -1580,9 +1580,9 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
             strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
             return out;
 #endif
-#ifdef ATTR_INDEX_backend_path
-        case ATTR_INDEX_backend_path:
-            return ATTR(attrs, backend_path);
+#ifdef ATTR_INDEX_backendpath
+        case ATTR_INDEX_backendpath:
+            return ATTR(attrs, backendpath);
 #endif
 
 #ifdef _LUSTRE
@@ -2148,9 +2148,9 @@ static int report_entry(const char *entry, int flags)
         is_id = FALSE;
 
         if ((rc = InitFS()) != 0)
-            fprintf(stderr, "Error: cannot access the filesystem to get entry id: %s\n",
+            fprintf(stderr, "Warning: cannot access the filesystem to get entry id: %s\n",
                     strerror(-rc));
-            /* continue anyway */
+            /* try to continue anyway */
 
         /* try it as a path */
         if ((rc = Path2Id(entry, &id)) != 0)
@@ -3732,6 +3732,10 @@ int main( int argc, char **argv )
                  rc, errno, strerror( errno ) );
         exit( rc );
     }
+
+    if ((rc = InitFS()) != 0)
+            fprintf(stderr, "Warning: cannot access filesystem %s (%s), some reports may be incomplete or not available.\n",
+                    global_config.fs_path, strerror(abs(rc)));
 
     /* Initialize list manager */
     rc = ListMgr_Init( &config.lmgr_config, TRUE );

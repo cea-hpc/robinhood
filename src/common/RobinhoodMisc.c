@@ -807,7 +807,11 @@ int CheckFSInfo( char *path, char *expected_type,
  */
 int InitFS( void )
 {
+    static int initialized = FALSE;
     int rc;
+
+    if (initialized)
+        return 0;
 
     /* Initialize mount point info */
 #ifdef _LUSTRE
@@ -830,6 +834,7 @@ int InitFS( void )
     }
 
     /* OK */
+    initialized = TRUE;
     return 0;
 }
 
@@ -1999,10 +2004,17 @@ int relative_path( const char * fullpath, const char * root, char * rel_path )
     size_t len;
     char rootcopy[1024];
 
+    if (!strcmp(root, fullpath))
+    {
+        /* arg is root */
+        rel_path[0]='\0';
+        return 0;
+    }
+
     /* copy root path */
     strcpy(rootcopy, root);
-
     len = strlen(rootcopy);
+
     /* add '/' if needed */
     if ( (len > 1) && (rootcopy[len-1] != '/') )
     {
@@ -2014,8 +2026,8 @@ int relative_path( const char * fullpath, const char * root, char * rel_path )
     /* test if the full path starts with the same dirs */
     if (strncmp(rootcopy, fullpath,len))
     {
-        DisplayLog( LVL_MAJOR, "RelPath", "ERROR: file path '%s' is not under filesystem root '%s'",
-                    fullpath, rootcopy );
+        DisplayLog(LVL_MAJOR, "RelPath", "ERROR: file path '%s' is not under filesystem root '%s'",
+                   fullpath, rootcopy);
         return -EINVAL;
     }
 

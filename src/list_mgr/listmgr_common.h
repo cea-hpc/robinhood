@@ -331,5 +331,7 @@ int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line);
 int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value);
 int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value);
 
+int fullpath_attr2db(const char *attr, char *db);
+void fullpath_db2attr(const char *db, char *attr);
 
 #endif

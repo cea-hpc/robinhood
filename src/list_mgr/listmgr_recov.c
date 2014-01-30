@@ -415,9 +415,9 @@ struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
     if ( dir_path )
     {
         char rel[RBH_PATH_MAX] = "";
-        /* Recovery table contains relative path,
-         * and dirpath is absolute. Change it to relative. */
-        if (relative_path(dir_path, global_config.fs_path, rel))
+        /* Recovery table contains path from DB (<root_id>/<rel_path>),
+         * and dirpath is absolute. So convert it. */
+        if (fullpath_attr2db(dir_path, rel))
             return NULL;
 #ifdef _MYSQL
         /* MySQL is case insensitive.
