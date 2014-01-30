@@ -312,6 +312,9 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         else
             checkmain = 0; /* entry exists */
     }
+#else
+    /* always clean them */
+    p_info->attr_mask &= ~(ATTR_MASK_stripe_info | ATTR_MASK_stripe_items);
 #endif
 
     /* special field dircount */

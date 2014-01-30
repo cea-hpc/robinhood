@@ -1156,7 +1156,7 @@ static int create_table_softrm(db_conn_t *pconn)
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
 #define FUNCTIONSET_VERSION    "1"
-#define TRIGGERSET_VERSION     "1"
+#define TRIGGERSET_VERSION     "1.1"
 
 static int check_functions_version(db_conn_t *conn)
 {
@@ -1498,12 +1498,12 @@ static int create_trig_acct_update(db_conn_t *pconn)
         if (is_acct_field(i))
         {
             if (!is_first_field)
-                next += sprintf(next, ", %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
+                next += sprintf(next, ", %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
                                  field_infos[i].field_name, field_infos[i].field_name,
                                  field_infos[i].field_name, field_infos[i].field_name);
             else
             {
-                next += sprintf(next, " %s=%s+(CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)) ",
+                next += sprintf(next, " %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
                                  field_infos[i].field_name, field_infos[i].field_name,
                                  field_infos[i].field_name, field_infos[i].field_name);
                 is_first_field = FALSE;
@@ -1517,11 +1517,11 @@ static int create_trig_acct_update(db_conn_t *pconn)
     is_first_field = FALSE;
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old=%u,0)+IFNULL(val_new=%u,0)) as SIGNED)",
+        next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old=%u,0) as SIGNED)+CAST(IFNULL(val_new=%u,0) as SIGNED)",
                          sz_field[i], sz_field[i], i-1, i-1);
     }
     /* last */
-    next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST((IFNULL(val_old>=%u,0)+IFNULL(val_new>=%u,0)) as SIGNED)",
+    next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old>=%u,0) as SIGNED)+CAST(IFNULL(val_new>=%u,0) as SIGNED)",
                      sz_field[i], sz_field[i], i-1, i-1);
 
     APPEND_TXT(next, " WHERE ");

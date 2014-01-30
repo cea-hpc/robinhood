@@ -2146,6 +2146,12 @@ static int report_entry(const char *entry, int flags)
     if (sscanf(entry, SFID, RFID(&id)) != FID_SCAN_CNT)
     {
         is_id = FALSE;
+
+        if ((rc = InitFS()) != 0)
+            fprintf(stderr, "Error: cannot access the filesystem to get entry id: %s\n",
+                    strerror(-rc));
+            /* continue anyway */
+
         /* try it as a path */
         if ((rc = Path2Id(entry, &id)) != 0)
         {
