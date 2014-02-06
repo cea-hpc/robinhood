@@ -3492,14 +3492,16 @@ function partial_paths
     # FIXEME only for Lustre 2.x
     mysql robinhood_lustre -e "DELETE FROM NAMES WHERE id='$id'" || error "DELETE request"
 
-	if (( $is_hsmlite > 0 )); then
+	if (( $is_hsmlite + $is_lhsm > 0 )); then
         # check how a child entry is archived
         $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
         check_db_error rh_migr.log
-        name=$(find $BKROOT -type f -name "file3__*")
-        cnt=$(echo $name | wc -w)
-        (( $cnt == 1 )) || error "1 file expected to match file 3 in backend, $cnt found"
-        echo "file3 archived as $name"
+        if (( $is_hsmlite > 0 )); then
+            name=$(find $BKROOT -type f -name "file3__*")
+            cnt=$(echo $name | wc -w)
+            (( $cnt == 1 )) || error "1 file expected to match file 3 in backend, $cnt found"
+            echo "file3 archived as $name"
+        fi
     fi
 
     # check what --dump reports
@@ -3560,12 +3562,11 @@ function partial_paths
             (($nb == 1)) || error "file3 not reported in remove-pending list"
             f3=$(cut -d "," -f 3 report.log)
             [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
-
-            b3=$(cut -d "," -f 6 report.log)
-            echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
         fi
 
         if (( $is_hsmlite > 0 )); then
+            b3=$(cut -d "," -f 6 report.log)
+            echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
 
             b3=$($UNDELETE -f ./cfg/$config_file -L '*/file3' | grep "Backend path" | cut -d ':' -f 2- | tr -d ' ')
             echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
