@@ -3469,6 +3469,117 @@ function test_root_changelog
     [ "$parent2" = "$id1" ] || error "parent doesn't match: $id1 != $parent2"
 }
 
+function partial_paths
+{
+	config_file=$1
+	clean_logs
+
+    # create a tree
+    mkdir -p $ROOT/dir1/dir2
+    mkdir -p $ROOT/dir3
+    touch $ROOT/file1
+    touch $ROOT/dir1/file2
+    touch $ROOT/dir1/dir2/file3
+    touch $ROOT/dir3/file4
+
+    # initial scan
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    check_db_error rh_scan.log
+
+    # remove a path component from the DB
+    id=$(get_id $ROOT/dir1/dir2)
+    [ -z $id ] && error "could not get id"
+    # FIXEME only for Lustre 2.x
+    mysql robinhood_lustre -e "DELETE FROM NAMES WHERE id='$id'" || error "DELETE request"
+
+	if (( $is_hsmlite > 0 )); then
+        # check how a child entry is archived
+        $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+        check_db_error rh_migr.log
+        name=$(find $BKROOT -type f -name "file3__*")
+        cnt=$(echo $name | wc -w)
+        (( $cnt == 1 )) || error "1 file expected to match file 3 in backend, $cnt found"
+        echo "file3 archived as $name"
+    fi
+
+    # check what --dump reports
+    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q | grep "file3" | awk '{print $(NF)}')
+    echo "file3 reported with path $f3"
+    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+    
+    # check filter path behavior
+    # should report at least file2 (and optionnally file3 : must check its path is valid)
+    f2=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1" | grep file2 | awk '{print $(NF)}')
+    [[ -n $f2 ]] && echo "file2 reported with path $f2"
+    [[ $f2 != $ROOT/dir1/file2 ]] && error "wrong path reported for file2: $f2"
+
+    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1" | grep file3 | awk '{print $(NF)}')
+    [[ -n $f3 ]] && echo "file3 reported with path $f3"
+    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+
+    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1/dir2" | grep file)
+    [[ -n $f3 ]] && echo "file3 reported with path $f3"
+    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+
+    # check find behavior
+    # find cannot go into dir2
+    $FIND -f ./cfg/$config_file $ROOT/dir1 | grep dir2 && echo "$ROOT/dir1/dir2 reported?!"
+    # starting from dir2 fid, it can list file3 in it
+    f3=$($FIND -f ./cfg/$config_file $ROOT/dir1/dir2 | grep file3)
+    echo "find: $f3"
+    [[ $f3 = $ROOT/dir1/dir2/file3 ]] || error "$f3 : invalid fullpath"
+
+    # like find, should count file3
+    fc=$($DU -d -f ./cfg/$config_file $ROOT/dir1/dir2 | grep "file count" | cut -d ':' -f 2 | cut -d ',' -f 1)
+    [[ $fc = 1 ]] || error "expected filecount in $ROOT/dir1/dir2: 1 (got $fc)"
+
+    # check -e report
+    # dir2 should be in DB, even with no path
+    $REPORT -f ./cfg/$config_file --csv -e "$ROOT/dir1/dir2" | grep "md updt" || error "$ROOT/dir1/dir2 should have a DB entry"
+
+    $REPORT -f ./cfg/$config_file --csv -e "$ROOT/dir1/dir2/file3"  > report.log || error "report error for $ROOT/dir1/dir2/file3"
+    grep "md updt" report.log || error "$ROOT/dir1/dir2/file3 should have a DB entry"
+    f3=$(egrep "^path," report.log)
+    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+	if (( $is_hsmlite > 0 )); then
+        b3=$(grep "backend_path," report.log | cut -d ',' -f 2)
+        # b3 should be in 'dir2' or in '__unknown_path'
+        echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
+    fi
+
+    # check what rm does (+undelete)
+	if (( $no_log==0 )); then
+	   $LFS changelog_clear lustre-MDT0000 cl1 0
+
+        rm -f $ROOT/dir1/dir2/file3
+        readlog_chk $config_file 
+
+	    if (( $is_lhsm + $is_hsmlite > 0 )); then
+            $REPORT -f ./cfg/$config_file -Rcq > report.log
+            nb=$(cat report.log | grep file3 | wc -l)
+            (($nb == 1)) || error "file3 not reported in remove-pending list"
+            f3=$(cut -d "," -f 3 report.log)
+            [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+
+            b3=$(cut -d "," -f 6 report.log)
+            echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
+        fi
+
+        if (( $is_hsmlite > 0 )); then
+
+            b3=$($UNDELETE -f ./cfg/$config_file -L '*/file3' | grep "Backend path" | cut -d ':' -f 2- | tr -d ' ')
+            echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
+
+            $UNDELETE -f ./cfg/$config_file -R '*/file3' -l DEBUG || error "undeleting file3"
+            find $ROOT -name "file3" -ls | tee report.log
+            (( $(wc -l report.log | awk '{print $1}') == 1 )) || error "file3 not restored"
+        fi
+	fi
+    
+    # TODO check disaster recovery
+    
+}
+
 function test_enoent
 {
 	config_file=$1
@@ -8461,6 +8572,7 @@ run_test 111     test_layout info_collect.conf "layout changes"
 run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
 run_test 113     test_diff_apply_fs info_collect2.conf  "diff"  "rbh-diff --apply=fs"
 run_test 114     test_root_changelog info_collect.conf "changelog record on root entry"
+run_test 115     partial_paths info_collect.conf "test behavior when handling partial paths"
 
 #### policy matching tests  ####
 

@@ -894,10 +894,10 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
     /* to backend or the other way? */
     if ( target == TO_BACKEND )
     {
-        if ( strncmp(config.root,full_path, strlen(config.root)) != 0 )
+        if (strncmp(config.root,full_path, strlen(config.root)) != 0)
         {
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under backend root '%s'",
-                        full_path, config.root );
+            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Error: '%s' is not under backend root '%s'",
+                       full_path, config.root);
             return -EINVAL;
         }
         /* skip backend root */
@@ -905,27 +905,34 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
     }
     else
     {
-        if ( strncmp(global_config.fs_path,full_path, strlen(global_config.fs_path)) != 0 )
+        /* is it relative? */
+        if (!EMPTY_STRING(full_path) && (full_path[0] != '/'))
         {
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under filesystem root '%s'",
-                        full_path, global_config.fs_path );
+            curr = full_path;
+            goto relative;
+        }
+        else if (strncmp(global_config.fs_path,full_path, strlen(global_config.fs_path)) != 0)
+        {
+            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Error: '%s' is not under filesystem root '%s'",
+                       full_path, global_config.fs_path);
             return -EINVAL;
         }
         /* skip fs root */
         curr = full_path + strlen(global_config.fs_path);
     }
 
-    if ( *curr == '\0' ) /* full_path is root dir */
+    if (*curr == '\0') /* full_path is root dir */
         return 0;
-    else if ( *curr != '/' ) /* slash expected */
+    else if (*curr != '/') /* slash expected */
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: '%s' in not under backend root '%s'",
-                    full_path, (target == TO_BACKEND)?config.root:global_config.fs_path );
+        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Error: '%s' is not under backend root '%s'",
+                   full_path, (target == TO_BACKEND)?config.root:global_config.fs_path);
         return -EINVAL;
     }
 
     /* skip first slash */
     curr ++;
+relative:
 
     while( (curr = strchr( curr, '/' )) != NULL )
     {
@@ -1563,6 +1570,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 {
     char bkpath[RBH_PATH_MAX] = "";
     char link[RBH_PATH_MAX] = "";
+    char buff[RBH_PATH_MAX] = "";
     const char * backend_path = NULL;
     const char * fspath;
     int rc;
@@ -1578,12 +1586,28 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     int stat_done = FALSE;
     int no_copy = FALSE;
 
-    if ( !ATTR_MASK_TEST( p_attrs_old, fullpath ) )
+    if (!ATTR_MASK_TEST(p_attrs_old, fullpath))
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'fullpath' for restoring entry "DFID, PFID(p_old_id) );
         return RS_ERROR;
     }
-    fspath = ATTR( p_attrs_old, fullpath );
+    fspath = ATTR(p_attrs_old, fullpath);
+    /* if FS path is not absolute, get the relative backend path and append to FS root */
+    if (fspath[0] != '/')
+    {
+        char tmp[RBH_PATH_MAX];
+        if (ATTR_MASK_TEST(p_attrs_old, backendpath))
+        {
+            relative_path(ATTR(p_attrs_old, backendpath), config.root, tmp);
+            sprintf(buff, "%s/%s/%s",global_config.fs_path, dirname(tmp), strrchr(fspath, '/') + 1);
+            fspath = buff;
+        }
+        else /* use the given relative path */
+        {
+            sprintf(buff, "%s/%s", global_config.fs_path, ATTR(p_attrs_old, fullpath));
+            fspath = buff;
+        }
+    }
 
     if ( ATTR_MASK_TEST( p_attrs_old, backendpath) )
         backend_path = ATTR( p_attrs_old, backendpath );
@@ -1753,7 +1777,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         }
 
         /* test if the target does not already exist */
-        rc = lstat( ATTR(p_attrs_old, fullpath), &st_dest ) ? errno : 0;
+        rc = lstat(fspath, &st_dest) ? errno : 0;
         if ( rc == 0 )
         {
             DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error: cannot recover '%s': already exists",
