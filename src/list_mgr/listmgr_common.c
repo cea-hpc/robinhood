@@ -686,7 +686,7 @@ void fullpath_db2attr(const char *db, char *attr)
         /* check FS root */
         if (strcmp(root_pk, id_from_db) != 0)
         {
-            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: entry has incomplete path in DB: "
+            DisplayLog(LVL_EVENT, LISTMGR_TAG, "Entry has incomplete path in DB: "
                        "parent_id='%s', relative_path='%s'", id_from_db, c+1);
             /* copy as is */
             sprintf(attr, "%s", db);

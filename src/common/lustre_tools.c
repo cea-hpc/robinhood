@@ -482,6 +482,12 @@ int Lustre_GetNameParent(const char *path, int linkno,
     memcpy(pfid, &ldata.ld_lee->lee_parent_fid, sizeof(*pfid));
     fid_be_to_cpu(pfid, pfid);
 
+    if (!fid_is_sane(pfid))
+    {
+        DisplayLog(LVL_MAJOR, __func__, "unsane fid: "DFID, PFID(pfid));
+        return -EPROTO;
+    }
+
     len = ldata.ld_reclen - sizeof(struct link_ea_entry);
     if (len >= namelen)
         return -ERANGE;

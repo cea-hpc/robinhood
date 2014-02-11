@@ -633,17 +633,25 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     int md_allow_event_updt = TRUE;
 
     /* is there entry name in log rec? */
-    if ( logrec->cr_namelen > 0 )
+    if (logrec->cr_namelen > 0)
     {
-        ATTR_MASK_SET( &p_op->fs_attrs, name );
-        strcpy( ATTR( &p_op->fs_attrs, name ), logrec->cr_name );
+        ATTR_MASK_SET(&p_op->fs_attrs, name);
+        strcpy(ATTR(&p_op->fs_attrs, name), logrec->cr_name);
 
         /* parent id is always set when name is (Cf. comment in lfs.c) */
-        ATTR_MASK_SET( &p_op->fs_attrs, parent_id );
-        ATTR( &p_op->fs_attrs, parent_id ) = logrec->cr_pfid;
+        if (fid_is_sane(&logrec->cr_pfid))
+        {
+            ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
+            ATTR(&p_op->fs_attrs, parent_id) = logrec->cr_pfid;
 
-        ATTR_MASK_SET( &p_op->fs_attrs, path_update );
-        ATTR(&p_op->fs_attrs, path_update) = time(NULL);
+            ATTR_MASK_SET(&p_op->fs_attrs, path_update);
+            ATTR(&p_op->fs_attrs, path_update) = time(NULL);
+        }
+        else
+        {
+            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Error: unsane parent fid "DFID"in %s changelog record (namelen=%u)",
+                       PFID(&logrec->cr_pfid), changelog_type2str(logrec->cr_type), logrec->cr_namelen);
+        }
     }
 
     if ( logrec->cr_type == CL_UNLINK )
@@ -838,6 +846,106 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 }
 #endif /* CHANGELOG support */
 
+#ifdef HAVE_CHANGELOGS
+/* free fake records allocated in this layer */
+static void free_fake_record(void * ptr)
+{
+    op_extra_info_t * p_info = (op_extra_info_t*)ptr;
+
+    if (p_info->is_changelog_record && p_info->log_record.p_log_rec)
+    {
+        /* if this is a locally allocated record, just "free" it */
+        MemFree(p_info->log_record.p_log_rec);
+        p_info->log_record.p_log_rec = NULL;
+    }
+}
+
+static CL_REC_TYPE * create_fake_ctime_record(uint64_t cl_index, uint64_t cl_time,
+                                              const entry_id_t *fid)
+{
+    CL_REC_TYPE *rec;
+
+    rec = MemAlloc(sizeof(CL_REC_TYPE)+1); /* +1 for name = '\0' (safer) */
+    if (rec) {
+        memset(rec, 0, sizeof(CL_REC_TYPE)+1);
+        rec->cr_type = CL_CTIME;
+        rec->cr_index = cl_index;
+        rec->cr_time = cl_time;
+        rec->cr_tfid = *fid;
+    }
+    return rec;
+}
+#endif
+
+
+/* ensure the fullpath from DB is consistent */
+static void check_fullpath(attr_set_t *attrs, const entry_id_t *id)
+{
+#ifdef _HAVE_FID
+    if (ATTR_MASK_TEST(attrs, fullpath)
+        && ATTR(attrs, fullpath)[0] != '/')
+    {
+        char parent[RBH_NAME_MAX];
+        char *next = strchr(ATTR(attrs, fullpath), '/');
+        if (next)
+        {
+            struct entry_proc_op_t *new_op;
+            entry_id_t parent_id;
+
+            memset(parent,0, sizeof(parent));
+            strncpy(parent, ATTR(attrs, fullpath), (ptrdiff_t)(next-ATTR(attrs, fullpath)));
+            if (sscanf(parent, SFID, RFID(&parent_id)) != 3) /* fid consists of 3 numbers */
+            {
+                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "unexpected relative path %s",
+                           ATTR(attrs, fullpath));
+                /* fullpath is not consistent */
+                ATTR_MASK_UNSET(attrs, fullpath);
+            }
+            else
+            {
+                new_op = EntryProcessor_Get();
+                if (!new_op)
+                {
+                    DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "CRITICAL ERROR: Failed to allocate a new op");
+                    return;
+                }
+                ATTR_MASK_INIT(&new_op->fs_attrs); /* no attr */
+                new_op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
+                new_op->entry_id = parent_id;
+                new_op->entry_id_is_set = TRUE;
+                new_op->fs_attr_need |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
+                DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "%s ("DFID") is a partial path: triggering update of parent dir %s",
+                           ATTR(attrs, fullpath), PFID(id), parent);
+
+                /* create a fake record, like CTIME => is there a risk to re-create a removed directory? */
+                new_op->extra_info.log_record.p_log_rec =
+                    create_fake_ctime_record(0, 0, &parent_id);
+                if (new_op->extra_info.log_record.p_log_rec)
+                {
+                    new_op->extra_info_is_set = TRUE;
+                    new_op->extra_info.is_changelog_record = TRUE;
+                    new_op->extra_info_free_func = free_fake_record;
+                    /* no callback */
+                }
+                EntryProcessor_Push(new_op);
+            }
+        }
+        else
+        {
+            /* fullpath is not pertinent */
+            ATTR_MASK_UNSET(attrs, fullpath);
+        }
+    }
+#else
+    if (ATTR_MASK_TEST(attrs, fullpath)
+        && ATTR(attrs, fullpath)[0] != '/')
+    {
+        /* fullpath is not pertinent */
+        ATTR_MASK_UNSET(attrs, fullpath);
+    }
+#endif
+}
+
 
 /**
  * check if the entry exists in the database and what info
@@ -902,6 +1010,11 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             rc = ListMgr_Get_FID_from_Path( lmgr, &logrec->cr_pfid, logrec->cr_name, &p_op->entry_id );
 
             if (!rc) {
+
+                if (!fid_is_sane(&logrec->cr_pfid))
+                    DisplayLog(LVL_MAJOR, ENTRYPROC_TAG,
+                               "Error: unsane parent fid "DFID" from DB",
+                               PFID(&logrec->cr_pfid));
                 /* The FID is now set, so we can register it with the
                  * constraint engine. Since this operation is at the
                  * very top of the queue, we register it at the head
@@ -1364,6 +1477,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     } /* end if entry from FS scan */
 #endif
 
+    check_fullpath(&p_op->db_attrs, &p_op->entry_id);
+
 next_step:
     if ( next_stage == -1 )
         /* drop the entry */
@@ -1378,7 +1493,6 @@ next_step:
                     stage_info->stage_name );
     return rc;
 }
-
 
 
 int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
