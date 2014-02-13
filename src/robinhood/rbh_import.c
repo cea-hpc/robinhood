@@ -189,8 +189,14 @@ static inline int import_helper(const char       *backend_path,
         if (EMPTY_STRING(dummy)) {
             DisplayLog(LVL_EVENT, LOGTAG, "'%s' ends with a fid: "DFID_NOBRACE,
                        name, PFID(&old_id));
-            /* clean fid in target path */
-            tgt_path[strlen(tgt_path)-strlen(first)] = '\0';
+
+            if (strlen(first) <= strlen(tgt_path)) /* else, it can't terminate with a fid */
+            {
+                char * end_of_tgt = tgt_path + strlen(tgt_path) - strlen(first);
+                if (!strcmp(end_of_tgt, first))
+                    /* clean fid in target path */
+                    *end_of_tgt = '\0';
+            }
         } else {
             DisplayLog(LVL_MAJOR, LOGTAG, "'%s' has garbage ('%s') after fid ("DFID_NOBRACE")",
                        name, dummy, PFID(&old_id));
