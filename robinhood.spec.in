@@ -335,7 +335,7 @@ fi
 
 %changelog
 
-* Wed Nov 27 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.0
+* Thu Feb 13 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.0-1
 Summary:
 - filesystem disaster recovery features
 - new namespace management (new DB schema to properly handle hardlinks, renames...)
@@ -373,6 +373,7 @@ Details:
     * better management of partial scans:
         - better detection of removed entries vs. entries moved from a directory to another.
         - partial scans can be used for initial DB population (even if the DB is initially empty).
+    * dealing with dead/deactivated OSTs: don't remove entries from DB if stat() returns ESHUTDOWN.
     * garbage collection of removed entries in DB is a long operation when terminating a scan (and even more
       when terminating a partial scan). Added --no-gc option to skip it (recommanded for partial scans).
     * automatically enabling --no-gc if the DB is initially empty (eg. for initial scan).
@@ -409,11 +410,15 @@ Details:
             the basic use case is after restoring an OST snapshot.
     * symlinks archiving to backend made optional (new parameter 'archive_symlinks')
       as they can now be restored using robinhood database information.
+    * new parameter: sync_archive_data: force sync'ing data to disk to
+      finalize the copy.
 - configuration:
     * can specify environment variables in config file (e.g. fs_path = $ROOT_DIR ;)
     * prevent from using a wrong config file (Cray contribution):
         - only check files in /etc/robinhood.d/<purpose>, no longer in the current directory
         - fails if to many config files are available.
+- documentation:
+    * added man pages for robinhood daemon, rbh-report, rbh-find.
 
 * Mon Jul 22 2013 Thomas Leibovici <thomas.leibovici@cea.fr> 2.4.3
 - [lustre] support of Lustre 2.4
