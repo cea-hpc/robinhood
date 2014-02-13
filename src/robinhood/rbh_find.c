@@ -817,7 +817,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
 /**
  *  Get id of root dir
  */
-static int get_root_id(entry_id_t * root_id)
+static int retrieve_root_id(entry_id_t * root_id)
 {
     int rc;
     rc = Path2Id(config.global_config.fs_path, root_id);
@@ -838,7 +838,7 @@ static int list_content(char ** id_list, int id_count)
     entry_id_t root_id;
     int is_id;
 
-    rc = get_root_id(&root_id);
+    rc = retrieve_root_id(&root_id);
     if (rc)
         return rc;
 
@@ -941,7 +941,7 @@ static int list_bulk(void)
 
     ATTR_MASK_INIT(&root_attrs);
 
-    rc = get_root_id(&root_id);
+    rc = retrieve_root_id(&root_id);
     if (rc)
         return rc;
 

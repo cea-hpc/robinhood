@@ -966,7 +966,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* always ignore root */
     if (p_op->entry_id_is_set &&
-        entry_id_equal(&p_op->entry_id, get_mnt_id()))
+        entry_id_equal(&p_op->entry_id, get_root_id()))
     {
         DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Ignoring record for root directory");
         /* drop the entry */

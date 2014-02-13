@@ -1586,7 +1586,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     int stat_done = FALSE;
     int no_copy = FALSE;
 
-    if (!ATTR_MASK_TEST(p_attrs_old, fullpath))
+    if (!ATTR_MASK_TEST(p_attrs_old, fullpath) || EMPTY_STRING(ATTR(p_attrs_old, fullpath)))
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'fullpath' for restoring entry "DFID, PFID(p_old_id) );
         return RS_ERROR;

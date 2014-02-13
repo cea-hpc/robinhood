@@ -84,7 +84,7 @@ static char   *mount_point;
 static char    fsname[RBH_PATH_MAX] = "";
 static dev_t   dev_id = 0;
 static uint64_t fs_key = 0;
-static entry_id_t mnt_id;
+static entry_id_t root_id;
 
 /* to optimize string concatenation */
 static unsigned int mount_len = 0;
@@ -197,7 +197,7 @@ static int set_fs_info(char *name, char * mountp, dev_t dev, fsid_t fsid)
     }
 
     /* now, path2id can be called */
-    rc = path2id(mountp, &mnt_id);
+    rc = path2id(global_config.fs_path, &root_id);
     if (rc)
         DisplayLog(LVL_CRIT, "FSInfo", "Failed to get id for root directory %s: %s",
                    mountp, strerror(-rc));
@@ -240,9 +240,9 @@ uint64_t       get_fskey( void )
     return fs_key;
 }
 
-const entry_id_t *get_mnt_id(void)
+const entry_id_t *get_root_id(void)
 {
-    return &mnt_id;
+    return &root_id;
 }
 
 

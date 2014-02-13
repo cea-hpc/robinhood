@@ -660,7 +660,7 @@ int fullpath_attr2db(const char *attr, char *db)
         return -EINVAL;
     }
     /* prefix with root id */
-    entry_id2pk(get_mnt_id(), PTR_PK(root_pk));
+    entry_id2pk(get_root_id(), PTR_PK(root_pk));
     sprintf(db, "%s/%s", root_pk, rel);
     return 0;
 }
@@ -670,7 +670,7 @@ void fullpath_db2attr(const char *db, char *attr)
     DEF_PK(id_from_db);
     DEF_PK(root_pk);
 
-    entry_id2pk(get_mnt_id(), PTR_PK(root_pk));
+    entry_id2pk(get_root_id(), PTR_PK(root_pk));
     const char *c = strchr(db, '/');
     if (!c)
     {

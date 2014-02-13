@@ -442,7 +442,7 @@ static const char * opt2type(const char * type_opt)
 /**
  *  Get id of root dir
  */
-static int get_root_id(entry_id_t * root_id)
+static int retrieve_root_id(entry_id_t * root_id)
 {
     int rc;
     rc = Path2Id(config.global_config.fs_path, root_id);
@@ -523,7 +523,7 @@ static int list_all(stats_du_t * stats, int display_stats)
 
     ATTR_MASK_INIT( &root_attrs );
 
-    rc = get_root_id(&root_id);
+    rc = retrieve_root_id(&root_id);
     if (rc)
         return rc;
 
@@ -585,7 +585,7 @@ static int list_content(char ** id_list, int id_count)
     if (prog_options.sum)
         reset_stats(stats);
 
-    rc = get_root_id(&root_id);
+    rc = retrieve_root_id(&root_id);
     if (rc)
         return rc;
 
