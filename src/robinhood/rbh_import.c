@@ -186,7 +186,7 @@ static inline int import_helper(const char       *backend_path,
         && (*(first = second - 1) == '_')
         && (sscanf(second+1, SFID"%s", RFID(&old_id), dummy) >= 3))
     {
-        if (EMPTY_STRING(dummy)) {
+        if (EMPTY_STRING(dummy) || !strcmp(dummy, "z")) {
             DisplayLog(LVL_EVENT, LOGTAG, "'%s' ends with a fid: "DFID_NOBRACE,
                        name, PFID(&old_id));
 

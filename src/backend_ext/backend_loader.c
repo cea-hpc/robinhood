@@ -29,7 +29,7 @@
 backend_t	backend;
 
 #define BACKEND_BLOCK "Backend"
-
+#define BKL_TAG "BkLoader"
 
 int SetDefault_Backend_Config( void *module_config, char *msg_out )
 {
@@ -47,6 +47,7 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
     conf->check_mounted = TRUE;
     conf->archive_symlinks = TRUE;
     conf->sync_archive_data = TRUE;
+    conf->compress = FALSE;
     return 0;
 }
 
@@ -56,6 +57,7 @@ int Write_Backend_ConfigDefault( FILE * output )
     print_line( output, 1, "root          : \"/backend\"" );
     print_line( output, 1, "mnt_type      : nfs ");
     print_line(output, 1, "action_cmd    : <built-in copy>");
+    print_line(output, 1, "compress      : FALSE");
 #ifdef HAVE_SHOOK
      print_line( output, 1, "shook_cfg    : \"/etc/shook.cfg\"" );
 #endif
@@ -79,7 +81,7 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
         "shook_cfg",
 #endif
         "xattr_support", "check_mounted", "archive_symlinks",
-        "sync_archive_data", NULL};
+        "sync_archive_data", "compress", NULL};
 
     /* get Backend block */
 
@@ -183,7 +185,21 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
     else if (rc != ENOENT)
         conf->sync_archive_data = tmpval;
 
-    CheckUnknownParameters( block, BACKEND_BLOCK, allowed_params );
+    rc = GetBoolParam(block, BACKEND_BLOCK, "compress", 0, &tmpval, NULL,
+                      NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT)
+        conf->compress = tmpval;
+
+
+    if (conf->compress && !EMPTY_STRING(conf->action_cmd))
+    {
+        DisplayLog(LVL_MAJOR, BKL_TAG, "Warning: enabling compression is only allowed for built-in copy action: disabling compression");
+        conf->compress = 0;
+    }
+
+    CheckUnknownParameters(block, BACKEND_BLOCK, allowed_params);
 
     return 0;
 }
@@ -206,6 +222,8 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line(output, 1, "# Uncomment the following line to use an external command.");
     print_line(output, 1, "# /!\\ Calling an external command introduce an extra cost.");
     print_line(output, 1, "#action_cmd    = \"/usr/sbin/rbhext_tool\";");
+    print_line(output, 1, "# compress data in archive (built-in copy only)");
+    print_line(output, 1, "#compress = yes;");
     print_line(output, 1, "copy_timeout  = 6h;");
     print_line(output, 1, "xattr_support = FALSE;");
     print_line(output, 1, "# check if the backend is mounted on startup");
@@ -218,7 +236,6 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_end_block(output, 0);
     return 0;
 }
-#define BKL_TAG "BkLoader"
 
 int Backend_Start( backend_config_t * config, int flags )
 {
@@ -236,6 +253,7 @@ int Backend_Start( backend_config_t * config, int flags )
         DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd       =   <built-in copy>");
     else
         DisplayLog(LVL_DEBUG, BKL_TAG, "action_cmd       =   \"%s\"", config->action_cmd);
+    DisplayLog(LVL_DEBUG, BKL_TAG, "compress         =  %s",  bool2str(config->compress));
     DisplayLog(LVL_DEBUG, BKL_TAG, "copy_timeout     =   %us", config->copy_timeout );
     DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support    =   %s",  bool2str(config->xattr_support));
     DisplayLog(LVL_DEBUG, BKL_TAG, "archive_symlinks =   %s",  bool2str(config->archive_symlinks));
