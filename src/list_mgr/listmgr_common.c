@@ -1229,7 +1229,7 @@ int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
 #ifndef FID_PK
     unsigned long long tmp_ino;
 
-    if ( sscanf( pk, "%"PRI_DT":%LX", &p_id->fs_key, &tmp_ino ) != 2 )
+    if (sscanf(pk, "%"PRI_DT":%LX", &p_id->fs_key, &tmp_ino ) != FID_SCAN_CNT)
         return DB_INVALID_ARG;
     else
     {
@@ -1237,7 +1237,7 @@ int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
         return DB_SUCCESS;
     }
 #else /* FID_PK */
-    if ( sscanf( pk, SFID, RFID(p_id) ) != 3 )
+    if (sscanf( pk, SFID, RFID(p_id) ) != FID_SCAN_CNT)
         return DB_INVALID_ARG;
     else
         return DB_SUCCESS;

@@ -187,7 +187,7 @@ static inline int rebind_helper(const char       *old_backend_path,
         else
             nb_read = sscanf(new_fid_str, SFID, RFID(&new_fid));
 
-        if (nb_read != 3)
+        if (nb_read != FID_SCAN_CNT)
         {
             DisplayLog( LVL_CRIT, LOGTAG, "Unexpected format for fid %s", new_fid_str );
             return -EINVAL;

@@ -218,7 +218,7 @@ static int is_fid_filter(entry_id_t * id)
     lustre_fid  fid;
     if ( !EMPTY_STRING( path_filter ) )
     {
-        if (sscanf(path_filter, SFID, RFID(&fid)) != 3)
+        if (sscanf(path_filter, SFID, RFID(&fid)) != FID_SCAN_CNT)
             return FALSE;
         else {
             if (id)
