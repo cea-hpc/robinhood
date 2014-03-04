@@ -846,94 +846,61 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 }
 #endif /* CHANGELOG support */
 
-#ifdef HAVE_CHANGELOGS
-/* free fake records allocated in this layer */
-static void free_fake_record(void * ptr)
-{
-    op_extra_info_t * p_info = (op_extra_info_t*)ptr;
-
-    if (p_info->is_changelog_record && p_info->log_record.p_log_rec)
-    {
-        /* if this is a locally allocated record, just "free" it */
-        MemFree(p_info->log_record.p_log_rec);
-        p_info->log_record.p_log_rec = NULL;
-    }
-}
-
-static CL_REC_TYPE * create_fake_ctime_record(uint64_t cl_index, uint64_t cl_time,
-                                              const entry_id_t *fid)
-{
-    CL_REC_TYPE *rec;
-
-    rec = MemAlloc(sizeof(CL_REC_TYPE)+1); /* +1 for name = '\0' (safer) */
-    if (rec) {
-        memset(rec, 0, sizeof(CL_REC_TYPE)+1);
-        rec->cr_type = CL_CTIME;
-        rec->cr_index = cl_index;
-        rec->cr_time = cl_time;
-        rec->cr_tfid = *fid;
-    }
-    return rec;
-}
-#endif
-
-
-/* ensure the fullpath from DB is consistent */
-static void check_fullpath(attr_set_t *attrs, const entry_id_t *id)
+/* Ensure the fullpath from DB is consistent.
+ * Set updt_mask according to the missing info.
+ */
+static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, int *updt_mask)
 {
 #ifdef _HAVE_FID
-    if (ATTR_MASK_TEST(attrs, fullpath)
-        && ATTR(attrs, fullpath)[0] != '/')
+    /* If the parent id from the changelog refers to a directory
+     * that no longer exists, the path built from the DB may be partial.
+     * If the current entry is the direct child of such a directory,
+     * we must update the parent information.
+     * Else, we should do it for every parent up to the unknown dir.
+     */
+    if (ATTR_MASK_TEST(attrs, fullpath) && ATTR(attrs, fullpath)[0] != '/')
     {
         char parent[RBH_NAME_MAX];
         char *next = strchr(ATTR(attrs, fullpath), '/');
-        if (next)
+        if (next != NULL)
         {
-            struct entry_proc_op_t *new_op;
             entry_id_t parent_id;
 
             memset(parent,0, sizeof(parent));
             strncpy(parent, ATTR(attrs, fullpath), (ptrdiff_t)(next-ATTR(attrs, fullpath)));
-            if (sscanf(parent, SFID, RFID(&parent_id)) != 3) /* fid consists of 3 numbers */
+
+            if (sscanf(parent, SFID, RFID(&parent_id)) != FID_SCAN_CNT) /* fid consists of 3 numbers */
             {
-                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "unexpected relative path %s",
-                           ATTR(attrs, fullpath));
-                /* fullpath is not consistent */
+                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Entry "DFID" has an inconsistent relative path: %s",
+                           PFID(id), ATTR(attrs, fullpath));
+                /* fullpath is not consistent (should be <id>/name) */
                 ATTR_MASK_UNSET(attrs, fullpath);
+                /* update all path information */
+                *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
             }
+            /* check if the entry is the direct child of the unknown directory */
+            else if (strchr(next+1, '/') == NULL)
+            {
+                DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "Parent dir for entry "DFID
+                           " in unknown (parent: "DFID", child name: '%s'): updating entry path info",
+                           PFID(id), PFID(&parent_id), next+1);
+                ATTR_MASK_UNSET(attrs, fullpath);
+                *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
+            }
+            /* else: FIXME: We should update parent info for an upper entry. */
             else
             {
-                new_op = EntryProcessor_Get();
-                if (!new_op)
-                {
-                    DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "CRITICAL ERROR: Failed to allocate a new op");
-                    return;
-                }
-                ATTR_MASK_INIT(&new_op->fs_attrs); /* no attr */
-                new_op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
-                new_op->entry_id = parent_id;
-                new_op->entry_id_is_set = TRUE;
-                new_op->fs_attr_need |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
-                DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "%s ("DFID") is a partial path: triggering update of parent dir %s",
-                           ATTR(attrs, fullpath), PFID(id), parent);
-
-                /* create a fake record, like CTIME => is there a risk to re-create a removed directory? */
-                new_op->extra_info.log_record.p_log_rec =
-                    create_fake_ctime_record(0, 0, &parent_id);
-                if (new_op->extra_info.log_record.p_log_rec)
-                {
-                    new_op->extra_info_is_set = TRUE;
-                    new_op->extra_info.is_changelog_record = TRUE;
-                    new_op->extra_info_free_func = free_fake_record;
-                    /* no callback */
-                }
-                EntryProcessor_Push(new_op);
+                ATTR_MASK_UNSET(attrs, fullpath);
+                /* update path info anyhow, to try fixing the issue */
+                *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
             }
         }
         else
         {
-            /* fullpath is not pertinent */
+            /* fullpath is not consistent (should be <pid>/name) */
             ATTR_MASK_UNSET(attrs, fullpath);
+            /* update path info, to try fixing the issue */
+            *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
         }
     }
 #else
@@ -942,6 +909,8 @@ static void check_fullpath(attr_set_t *attrs, const entry_id_t *id)
     {
         /* fullpath is not pertinent */
         ATTR_MASK_UNSET(attrs, fullpath);
+        /* update path info, to try fixing the issue */
+        *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
     }
 #endif
 }
@@ -1477,7 +1446,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     } /* end if entry from FS scan */
 #endif
 
-    check_fullpath(&p_op->db_attrs, &p_op->entry_id);
+    check_fullpath(&p_op->db_attrs, &p_op->entry_id, &p_op->fs_attr_need);
 
 next_step:
     if ( next_stage == -1 )
