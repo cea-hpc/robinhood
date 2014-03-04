@@ -645,7 +645,7 @@ int rbhext_get_status( const entry_id_t * p_id,
     }
 
     /* path to lookup the entry in the backend */
-    entry2backend_path(p_id, p_attrs_in, FOR_LOOKUP, bkpath, 1);
+    entry2backend_path(p_id, p_attrs_in, FOR_LOOKUP, bkpath, config.compress);
 
     /* is the entry has a supported type? */
     entry_type = ListMgr2PolicyType(ATTR(p_attrs_in, type));
@@ -1340,7 +1340,7 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     }
 
     /* compute path for target file */
-    entry2backend_path( p_id, p_attrs, FOR_NEW_COPY, bkpath, 1);
+    entry2backend_path(p_id, p_attrs, FOR_NEW_COPY, bkpath, config.compress);
 
     /* check the status */
     if ( ATTR(p_attrs, status) == STATUS_NEW )
@@ -1747,7 +1747,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             lvl_log = LVL_EVENT;
         else
             lvl_log = LVL_VERB;
-        entry2backend_path( p_old_id, p_attrs_old, FOR_LOOKUP, bkpath, 1);
+        entry2backend_path(p_old_id, p_attrs_old, FOR_LOOKUP, bkpath, config.compress);
         DisplayLog( lvl_log, RBHEXT_TAG,
                     "No backend path is set for '%s', guess it could be '%s'",
                     fspath, bkpath );
