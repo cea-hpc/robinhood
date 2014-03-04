@@ -882,7 +882,7 @@ static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, int *updt_ma
             else if (strchr(next+1, '/') == NULL)
             {
                 DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "Parent dir for entry "DFID
-                           " in unknown (parent: "DFID", child name: '%s'): updating entry path info",
+                           " is unknown (parent: "DFID", child name: '%s'): updating entry path info",
                            PFID(id), PFID(&parent_id), next+1);
                 ATTR_MASK_UNSET(attrs, fullpath);
                 *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
