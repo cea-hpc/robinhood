@@ -48,10 +48,14 @@ typedef struct log_config__
      * 0=unlimited, 1=no batching, >1 maximum number of reported alerts per summary
      */
     unsigned int            batch_alert_max;
-    /* display entry attributes for each entry in alert reports */
-    int            alert_show_attrs;
 
     time_t         stats_interval;
+
+    /* display entry attributes for each entry in alert reports */
+    unsigned int alert_show_attrs:1;
+    unsigned int log_process:1; /* display process name in the log line header */
+    unsigned int log_host:1;    /* display hostname in the log line header */
+    unsigned int log_tag:1;     /* display module name in the log line header */
 
 } log_config_t;
 

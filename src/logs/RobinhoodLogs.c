@@ -139,7 +139,6 @@ static pthread_key_t thread_key;
 static pthread_once_t once_key = PTHREAD_ONCE_INIT;
 static unsigned int next_index = 1;
 
-
 /* init check */
 static inline void log_init_check( void )
 {
@@ -465,67 +464,58 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
         ((p_log->log_type != RBH_LOG_SYSLOG) && (p_log->f_log == NULL)))
     {
         localtime_r( &now, &date );
-        if (tag)
-            written =
-                snprintf( line_log, MAX_LINE_LEN,
-                          "%.4d/%.2d/%.2d %.2d:%.2d:%.2d robinhood[%lu/%u]: %s | ",
-                          1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                          date.tm_hour, date.tm_min, date.tm_sec,
-                          ( unsigned long ) getpid(  ), th, tag );
-        else
-            written =
-                snprintf( line_log, MAX_LINE_LEN,
-                          "%.4d/%.2d/%.2d %.2d:%.2d:%.2d robinhood[%lu/%u]: ",
-                          1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                          date.tm_hour, date.tm_min, date.tm_sec,
-                          ( unsigned long ) getpid(  ), th );
+        written =
+            snprintf(line_log, MAX_LINE_LEN,
+                     "%.4d/%.2d/%.2d %.2d:%.2d:%.2d %s[%lu/%u] %s%s",
+                     1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                     date.tm_hour, date.tm_min, date.tm_sec,
+                     log_config.log_process?"robinhood":"",
+                     (unsigned long)getpid(), th,
+                     (tag && log_config.log_tag)?tag:"",
+                     (tag && log_config.log_tag)?" | ":"");
 
-        would_print = vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
+        would_print = vsnprintf(line_log + written, MAX_LINE_LEN - written, format, arglist);
 
         if (would_print >= MAX_LINE_LEN - written)
-            fprintf( stderr, "%s... <Line truncated. Real size=%u>\n", line_log, would_print );
+            fprintf(stderr, "%s... <Line truncated. Original size=%u>\n", line_log, would_print);
         else
-            fprintf( stderr, "%s\n", line_log );
+            fprintf(stderr, "%s\n", line_log);
     }
     else if ( p_log->log_type == RBH_LOG_SYSLOG )
     {
         /* add tag to syslog line */
         char new_format[MAX_LINE_LEN];
-        if ( tag )
-            snprintf(new_format, MAX_LINE_LEN, "%s | %s", tag, format );
+        if (tag && log_config.log_tag)
+            snprintf(new_format, MAX_LINE_LEN, "%s | %s", tag, format);
         else
-            strncpy( new_format, format, MAX_LINE_LEN );
+            strncpy(new_format, format, MAX_LINE_LEN);
 
-        vsyslog(log_config.syslog_priority, new_format, arglist );
+        vsyslog(log_config.syslog_priority, new_format, arglist);
     }
     else /* log to a file */
     {
         localtime_r( &now, &date );
 
-        if (tag)
-            written =
-                snprintf( line_log, MAX_LINE_LEN,
-                          "%.4d/%.2d/%.2d %.2d:%.2d:%.2d %s@%s[%lu/%u]: %s | ",
-                          1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                          date.tm_hour, date.tm_min, date.tm_sec,
-                          prog_name, machine_name, ( unsigned long ) getpid(),
-                          th, tag );
-        else
-            written =
-                snprintf( line_log, MAX_LINE_LEN,
-                          "%.4d/%.2d/%.2d %.2d:%.2d:%.2d %s@%s[%lu/%u]: ",
-                          1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                          date.tm_hour, date.tm_min, date.tm_sec, prog_name,
-                          machine_name, ( unsigned long ) getpid(), th );
+        written =
+            snprintf(line_log, MAX_LINE_LEN,
+                     "%.4d/%.2d/%.2d %.2d:%.2d:%.2d %s%s%s[%lu/%u] %s%s",
+                     1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                     date.tm_hour, date.tm_min, date.tm_sec,
+                     log_config.log_process?prog_name:"",
+                     log_config.log_host?"@":"",
+                     log_config.log_host?machine_name:"",
+                     (unsigned long)getpid(), th,
+                     (tag && log_config.log_tag)?tag:"",
+                     (tag && log_config.log_tag)?" | ":"");
 
-        would_print = vsnprintf( line_log + written, MAX_LINE_LEN - written, format, arglist );
+        would_print = vsnprintf(line_log + written, MAX_LINE_LEN - written, format, arglist);
 
         if ( p_log->f_log != NULL )
         {
         if (would_print >= MAX_LINE_LEN - written)
-            fprintf( p_log->f_log, "%s... <Line truncated. Real size=%u>\n", line_log, would_print );
+            fprintf(p_log->f_log, "%s... <Line truncated. Original size=%u>\n", line_log, would_print);
         else
-            fprintf( p_log->f_log, "%s\n", line_log );
+            fprintf(p_log->f_log, "%s\n", line_log);
         }
     }
 }
@@ -943,21 +933,28 @@ int SetDefaultLogConfig( void *module_config, char *msg_out )
 
     conf->stats_interval = 900; /* 15min */
 
+    conf->log_process = 0;
+    conf->log_host = 0;
+    conf->log_tag = 1;
+
     return 0;
 }
 
-int WriteLogConfigDefault( FILE * output )
+int WriteLogConfigDefault(FILE * output)
 {
-    print_begin_block( output, 0, RBH_LOG_CONFIG_BLOCK, NULL );
-    print_line( output, 1, "debug_level    :   EVENT" );
-    print_line( output, 1, "log_file       :   \"/var/log/robinhood.log\"" );
-    print_line( output, 1, "report_file    :   \"/var/log/robinhood_reports.log\"" );
-    print_line( output, 1, "alert_file     :   \"/var/log/robinhood_alerts.log\"" );
-    print_line( output, 1, "syslog_facility:   local1.info" );
-    print_line( output, 1, "stats_interval :   15min" );
-    print_line( output, 1, "batch_alert_max:   1 (no batching)" );
-    print_line( output, 1, "alert_show_attrs: FALSE" );
-    print_end_block( output, 0 );
+    print_begin_block(output, 0, RBH_LOG_CONFIG_BLOCK, NULL);
+    print_line(output, 1, "debug_level    :   EVENT");
+    print_line(output, 1, "log_file       :   \"/var/log/robinhood.log\"");
+    print_line(output, 1, "report_file    :   \"/var/log/robinhood_reports.log\"");
+    print_line(output, 1, "alert_file     :   \"/var/log/robinhood_alerts.log\"");
+    print_line(output, 1, "syslog_facility:   local1.info");
+    print_line(output, 1, "stats_interval :   15min");
+    print_line(output, 1, "batch_alert_max:   1 (no batching)");
+    print_line(output, 1, "alert_show_attrs: FALSE");
+    print_line(output, 1, "log_procname: FALSE");
+    print_line(output, 1, "log_hostname: FALSE");
+    print_line(output, 1, "log_module:   TRUE");
+    print_end_block(output, 0);
     return 0;
 }
 
@@ -969,7 +966,7 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
 
     static const char *allowed_params[] = { "debug_level", "log_file", "report_file",
         "alert_file", "alert_mail", "stats_interval", "batch_alert_max",
-        "alert_show_attrs", "syslog_facility",
+        "alert_show_attrs", "syslog_facility", "log_procname", "log_hostname", "log_module",
         NULL
     };
 
@@ -1070,11 +1067,33 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetBoolParam( log_block, RBH_LOG_CONFIG_BLOCK, "alert_show_attrs",
-                      INT_PARAM_POSITIVE, &conf->alert_show_attrs,
-                      NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "alert_show_attrs",
+                      0, &tmpval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
         return rc;
+    else if (rc != ENOENT)
+        conf->alert_show_attrs = tmpval;
+
+    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "log_procname",
+                      0, &tmpval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT)
+        conf->log_process = tmpval;
+
+    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "log_hostname",
+                      0, &tmpval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT)
+        conf->log_host = tmpval;
+
+    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "log_module",
+                      0, &tmpval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT)
+        conf->log_tag = tmpval;
 
     CheckUnknownParameters( log_block, RBH_LOG_CONFIG_BLOCK, allowed_params );
 
@@ -1158,50 +1177,71 @@ int ReloadLogConfig( void *module_config )
         V( alert_mutex );
     }
 
-    if ( conf->alert_show_attrs != log_config.alert_show_attrs )
+    if (conf->log_process != log_config.log_process)
     {
-        DisplayLog( LVL_MAJOR, "LogConfig",
-                    RBH_LOG_CONFIG_BLOCK "::alert_show_attrs modified: '%s'->'%s'",
-                    bool2str(log_config.alert_show_attrs),
-                    bool2str(conf->alert_show_attrs) );
-        log_config.alert_show_attrs = conf->alert_show_attrs;
+        DisplayLog(LVL_MAJOR, "LogConfig",
+                    RBH_LOG_CONFIG_BLOCK "::log_procname modified: '%s'->'%s'",
+                    bool2str(log_config.log_process),
+                    bool2str(conf->log_process));
+        log_config.log_process = conf->log_process;
     }
 
+    if (conf->log_host != log_config.log_host)
+    {
+        DisplayLog(LVL_MAJOR, "LogConfig",
+                    RBH_LOG_CONFIG_BLOCK "::log_hostname modified: '%s'->'%s'",
+                    bool2str(log_config.log_host),
+                    bool2str(conf->log_host));
+        log_config.log_host = conf->log_host;
+    }
 
+    if (conf->log_tag != log_config.log_tag)
+    {
+        DisplayLog(LVL_MAJOR, "LogConfig",
+                    RBH_LOG_CONFIG_BLOCK "::log_module modified: '%s'->'%s'",
+                    bool2str(log_config.log_tag),
+                    bool2str(conf->log_tag));
+        log_config.log_tag = conf->log_tag;
+    }
 
     return 0;
 
 }
 
-int WriteLogConfigTemplate( FILE * output )
+int WriteLogConfigTemplate(FILE * output)
 {
-    print_begin_block( output, 0, RBH_LOG_CONFIG_BLOCK, NULL );
+    print_begin_block(output, 0, RBH_LOG_CONFIG_BLOCK, NULL);
 
-    print_line( output, 1, "# Log verbosity level" );
-    print_line( output, 1, "# Possible values are: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL" );
-    print_line( output, 1, "debug_level = EVENT ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# Log file" );
-    print_line( output, 1, "log_file = \"/var/log/robinhood.log\" ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# File for reporting purge events" );
-    print_line( output, 1, "report_file = \"/var/log/robinhood_reports.log\" ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1,
-                "# set alert_file, alert_mail or both depending on the alert method you wish" );
-    print_line( output, 1, "alert_file = \"/var/log/robinhood_alerts.log\" ;" );
-    print_line( output, 1, "alert_mail = \"root@localhost\" ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# Interval for dumping stats (to logfile)" );
-    print_line( output, 1, "stats_interval = 20min ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# Alert batching (to send a digest instead of 1 alert per file)" );
-    print_line( output, 1, "# 0: unlimited batch size, 1: no batching (1 alert per file)," );
-    print_line( output, 1, "# N>1: batch N alerts per digest" );
-    print_line( output, 1, "batch_alert_max = 5000 ;" );
-    print_line( output, 1, "# Give the detail of entry attributes for each alert?" );
-    print_line( output, 1, "alert_show_attrs = FALSE ;" );
-
-    print_end_block( output, 0 );
+    print_line(output, 1, "# Log verbosity level");
+    print_line(output, 1, "# Possible values are: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL");
+    print_line(output, 1, "debug_level = EVENT ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Log file");
+    print_line(output, 1, "log_file = \"/var/log/robinhood.log\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# File for reporting purge events");
+    print_line(output, 1, "report_file = \"/var/log/robinhood_reports.log\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# set alert_file, alert_mail or both depending on the alert method you wish");
+    print_line(output, 1, "alert_file = \"/var/log/robinhood_alerts.log\" ;");
+    print_line(output, 1, "alert_mail = \"root@localhost\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Interval for dumping stats (to logfile)");
+    print_line(output, 1, "stats_interval = 20min ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Alert batching (to send a digest instead of 1 alert per file)");
+    print_line(output, 1, "# 0: unlimited batch size, 1: no batching (1 alert per file),");
+    print_line(output, 1, "# N>1: batch N alerts per digest");
+    print_line(output, 1, "batch_alert_max = 5000 ;");
+    print_line(output, 1, "# Give the detail of entry attributes for each alert?");
+    print_line(output, 1, "alert_show_attrs = FALSE ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# whether the process name appears in the log line");
+    print_line(output, 1, "log_procname = TRUE;");
+    print_line(output, 1, "# whether the host name appears in the log line");
+    print_line(output, 1, "log_hostname = TRUE;");
+    print_line(output, 1, "# whether the module name appears in the log line");
+    print_line(output, 1, "log_module = TRUE;");
+    print_end_block(output, 0);
     return 0;
 }
