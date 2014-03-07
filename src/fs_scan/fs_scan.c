@@ -433,7 +433,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         char * cmd = replace_cmd_parameters(fs_scan_config.completion_command, vars);
         if (cmd)
         {
-            execute_shell_command(cmd, 0);
+            execute_shell_command(TRUE, cmd, 0);
             free(cmd);
         }
     }

@@ -1436,9 +1436,9 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         else
         {
             if (hints)
-                rc = execute_shell_command(config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
+                rc = execute_shell_command(TRUE, config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
             else
-                rc = execute_shell_command(config.action_cmd, 3, "ARCHIVE", fspath, tmp);
+                rc = execute_shell_command(TRUE, config.action_cmd, 3, "ARCHIVE", fspath, tmp);
         }
 
         if (rc)
@@ -1995,7 +1995,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                 rc = builtin_copy(backend_path, fspath, O_WRONLY, FALSE,
                                   compressed?COMPRESSED_SRC:0);
             else
-                rc = execute_shell_command(config.action_cmd, 3, "RESTORE",
+                rc = execute_shell_command(TRUE, config.action_cmd, 3, "RESTORE",
                                            backend_path, fspath);
             if (rc)
                 return RS_ERROR;

@@ -2066,7 +2066,7 @@ static char * escape_shell_arg( const char * in, char * out )
     return out;
 }
 
-int execute_shell_command( const char * cmd, int argc, ... )
+int execute_shell_command(int quiet, const char * cmd, int argc, ...)
 {
 #define SHCMD "ShCmd"
     va_list arglist;
@@ -2083,7 +2083,8 @@ int execute_shell_command( const char * cmd, int argc, ... )
         curr += sprintf( curr, " %s",
                          escape_shell_arg( va_arg(arglist, char *), argbuf ));
     va_end(arglist);
-    curr += sprintf( curr, " %s", " >/dev/null 2>/dev/null");
+    if (quiet)
+        curr += sprintf(curr, " %s", " >/dev/null 2>/dev/null");
 
     DisplayLog(LVL_DEBUG, SHCMD, "Executing command: %s", cmdline);
     rc = system(cmdline);
@@ -2123,7 +2124,6 @@ int execute_shell_command( const char * cmd, int argc, ... )
 
     return rc;
 }
-
 
 /**
  * Replace special parameters {cfgfile}, {fspath}, ...

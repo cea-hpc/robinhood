@@ -64,6 +64,18 @@ negate next argument
 .B
 \fB-ls\fP
 : display attributes
+.TP
+.B
+\fB-print\fP
+: display the fullpath of matching entries (this is the default, unless \fB-ls\fP or \fB-exec\fP are used).
+.SH ACTIONS
+
+.TP
+.B
+\fB-exec\fP "\fIcmd\fP"
+Execute the given command for each matching entry. Unlike classical 'find', \fIcmd\fP must
+be a single (quoted) shell param, not necessarily terminated with ';'.
+\(cq{}' is replaced by the entry path. Example: \fB-exec\fP 'md5sum {}'
 .SH PROGRAM OPTIONS
 
 \fB-f\fP \fIconfig_file\fP

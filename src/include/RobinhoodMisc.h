@@ -387,7 +387,7 @@ int str_replace( char * str_in_out, const char * to_be_replaced,
 /**
  * Execute a shell command and analyze the return code
  */
-int execute_shell_command( const char * cmd, int argc, ... );
+int execute_shell_command(int quiet, const char * cmd, int argc, ...);
 
 /**
  * Replace special parameters {cfgfile}, {fspath}, ...

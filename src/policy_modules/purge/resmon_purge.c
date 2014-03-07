@@ -110,7 +110,7 @@ static int PurgeEntry(const entry_id_t *id, const char *entry_path)
             /* call custom purge command instead of unlink() */
             DisplayLog(LVL_DEBUG, PURGE_TAG, "%scmd(%s)", dry_run ? "(dry-run) " : "", cmd);
             if (!dry_run)
-                rc =  execute_shell_command(cmd, 0);
+                rc =  execute_shell_command(TRUE, cmd, 0);
             free(cmd);
             return rc;
         }

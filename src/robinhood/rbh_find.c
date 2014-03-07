@@ -60,6 +60,8 @@ static struct option option_tab[] =
     {"status", required_argument, NULL, 'S'},
 #endif
     {"ls", no_argument, NULL, 'l'},
+    {"exec", required_argument, NULL, 'E'},
+    /* TODO dry-run mode for exec */
 
     /* query options */
     {"not", no_argument, NULL, '!'},
@@ -79,7 +81,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:P:A:M:m:z:f:d:hV!b"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:P:E:A:M:m:z:f:d:hV!b"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -119,8 +121,11 @@ struct find_opt
     file_status_t status;
 #endif
 
+    const char * exec_cmd;
+
     /* output flags */
     unsigned int ls:1;
+    unsigned int print:1;
     /* condition flags */
     unsigned int match_user:1;
     unsigned int match_group:1;
@@ -151,6 +156,8 @@ struct find_opt
     unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
     unsigned int dir_only:1; /* if -t dir => only display dir */
 
+    unsigned int exec:1;
+
 } prog_options = {
     .user = NULL, .group = NULL, .type = NULL, .name = NULL,
 #ifdef _LUSTRE
@@ -159,7 +166,7 @@ struct find_opt
 #ifdef ATTR_INDEX_status
     .status = STATUS_UNKNOWN,
 #endif
-    .ls = 0, .match_user = 0, .match_group = 0,
+    .ls = 0, .print = 0, .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_crtime = 0, .match_mtime = 0, .match_atime = 0,
     .bulk = 0,
@@ -167,7 +174,7 @@ struct find_opt
     .match_status = 0, .statusneg = 0,
 #endif
     .userneg = 0 , .groupneg = 0, .nameneg = 0,
-    .no_dir = 0, .dir_only = 0
+    .no_dir = 0, .dir_only = 0, .exec = 0
 };
 
 #ifdef ATTR_INDEX_status
@@ -423,6 +430,13 @@ static const char *help_string =
     "\n"
     _B "Output options:" B_ "\n"
     "    " _B "-ls" B_" \t: display attributes\n"
+    "    " _B "-print" B_" \t: display the fullpath of matching entries (this is the default, unless -ls or -exec are used).\n"
+    "\n"
+    _B "Actions:" B_ "\n"
+    "    " _B "-exec" B_" "_U "\"cmd\"" U_ "\n"
+    "       Execute the given command for each matching entry. Unlike classical 'find', cmd must\n"
+    "       be a single (quoted) shell param, not necessarily terminated with ';'.\n"
+    "       '{}' is replaced by the entry path. Example: -exec 'md5sum {}'\n"
     "\n"
     _B "Program options:" B_ "\n"
     "    " _B "-f" B_ " " _U "config_file" U_ "\n"
@@ -774,13 +788,28 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
                    ATTR(attrs, owner), ATTR(attrs, gr_name),
                    ATTR(attrs, size), date_str, id->fullname);
     }
-    else
+
+    if (prog_options.print)
     {
         /* just display name */
         if (id->fullname)
             printf("%s\n", id->fullname);
         else
             printf(DFID"\n", PFID(&id->id));
+    }
+
+    if (prog_options.exec)
+    {
+        const char *vars[] = {
+            "", id->fullname,
+            NULL, NULL
+        };
+        char * cmd = replace_cmd_parameters(prog_options.exec_cmd, vars);
+        if (cmd)
+        {
+            execute_shell_command(FALSE, cmd, 0);
+            free(cmd);
+        }
     }
 
 }
@@ -1218,6 +1247,10 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+        case 'E':
+            toggle_option(exec, "exec");
+            prog_options.exec_cmd = optarg;
+            break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
             if (neg) {
@@ -1259,6 +1292,10 @@ int main( int argc, char **argv )
             break;
         }
     }
+
+    /* enable 'print' if no other output option is specified (ls, exec...) */
+    if (!prog_options.ls && !prog_options.exec)
+            prog_options.print = 1;
 
     /* get default config file, if not specified */
     if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
