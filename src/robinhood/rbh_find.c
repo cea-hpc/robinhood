@@ -54,6 +54,7 @@ static struct option option_tab[] =
     {"amin", required_argument, NULL, 'a'},
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
+    {"pool", required_argument, NULL, 'P'},
 #endif
 #ifdef ATTR_INDEX_status
     {"status", required_argument, NULL, 'S'},
@@ -78,7 +79,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:A:M:m:z:f:d:hV!b"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:P:A:M:m:z:f:d:hV!b"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -100,6 +101,7 @@ struct find_opt
     uint64_t            sz_val;
     const char * name;
     unsigned int ost_idx;
+    const char * pool;
 
     // crtime cond: gt/eq/lt <time>
     compare_direction_t crt_compar;
@@ -130,6 +132,7 @@ struct find_opt
     unsigned int match_atime:1;
 #ifdef _LUSTRE
     unsigned int match_ost:1;
+    unsigned int match_pool:1;
 #endif
 #ifdef ATTR_INDEX_status
     unsigned int match_status:1;
@@ -150,6 +153,9 @@ struct find_opt
 
 } prog_options = {
     .user = NULL, .group = NULL, .type = NULL, .name = NULL,
+#ifdef _LUSTRE
+    .match_ost = 0, .match_pool = 0,
+#endif
 #ifdef ATTR_INDEX_status
     .status = STATUS_UNKNOWN,
 #endif
@@ -300,6 +306,18 @@ static int mkfilters(int exclude_dirs)
         is_expr = 1;
         query_mask |= ATTR_MASK_stripe_items;
     }
+
+    if (prog_options.match_pool)
+    {
+        compare_value_t val;
+        strcpy(val.str, prog_options.pool);
+        if (!is_expr)
+            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_POOL, val);
+        else
+            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_POOL, val);
+        is_expr = 1;
+        query_mask |= ATTR_MASK_stripe_info;
+    }
 #endif
 
     /* create DB filters */
@@ -352,6 +370,8 @@ static int mkfilters(int exclude_dirs)
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_name, LIKE, fv, 0 );
     }
 
+    /* TODO what about pool? */
+
     if (is_expr)
     {
         char expr[RBH_PATH_MAX];
@@ -391,6 +411,7 @@ static const char *help_string =
     "       "TIME_HELP"\n"
 #ifdef _LUSTRE
     "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
+    "    " _B "-pool" B_ " " _U "ost_pool" U_ "\n"
 #endif
 #ifdef ATTR_INDEX_status
     "    " _B "-status" B_ " " _U "status" U_ "\n"
@@ -1085,6 +1106,10 @@ int main( int argc, char **argv )
                 fprintf(stderr, "! () is not supported for ost criteria\n");
                 exit(1);
             }
+            break;
+        case 'P':
+            toggle_option(match_pool, "pool");
+            prog_options.pool = optarg;
             break;
 #endif
         case 't':

@@ -169,11 +169,12 @@ static inline int int_compare( int int1, compare_direction_t comp, int int2 )
 #define BOOL2POLICY(_rc_) ((_rc_)?POLICY_MATCH:POLICY_NO_MATCH)
 
 #define CHECK_ATTR( _pset_, _attr_, _no_trace ) do {                                    \
-                                           if ( !ATTR_MASK_TEST( _pset_, _attr_ ) )     \
+                                           if (!ATTR_MASK_TEST( _pset_, _attr_ ))       \
                                            {                                            \
                                                if (!(_no_trace))                        \
-                                                   DisplayLog( LVL_MAJOR, POLICY_TAG,   \
-                                                       "Missing attribute '%s' for evaluating boolean expression", (#_attr_) ); \
+                                                   DisplayLog(LVL_MAJOR, POLICY_TAG,   \
+                                                       "Missing attribute '%s' for evaluating boolean expression on " \
+                                                        DFID, (#_attr_), PFID(p_entry_id)); \
                                                return POLICY_MISSING_ATTR;              \
                                            }                                            \
                                      } while (0)
