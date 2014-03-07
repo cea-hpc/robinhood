@@ -412,6 +412,25 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
                 curr_tables += sprintf( curr_tables, "%s", DNAMES_TABLE );
             }
+            if ( ( filter_stripe_info > 0 ) || ( do_sort && ( sort_table == T_STRIPE_INFO ) ) )
+            {
+                if ( filter_stripe_info > 0 )
+                    curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_info );
+
+                if (first_table != NULL)
+                {
+                    *curr_tables = ',';
+                    curr_tables++;
+
+                    /* add junction condition */
+                    curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
+                                           first_table, STRIPE_INFO_TABLE);
+                }
+                else
+                    first_table = STRIPE_INFO_TABLE;
+
+                curr_tables += sprintf( curr_tables, "%s", STRIPE_INFO_TABLE );
+            }
             if ( ( filter_stripe_items > 0 ) || ( do_sort && ( sort_table == T_STRIPE_ITEMS ) ) )
             {
                 distinct = 1;
@@ -431,26 +450,6 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                     first_table = STRIPE_ITEMS_TABLE;
 
                 curr_tables += sprintf( curr_tables, "%s", STRIPE_ITEMS_TABLE );
-            }
-
-            if ( ( filter_stripe_info > 0 ) || ( do_sort && ( sort_table == T_STRIPE_INFO ) ) )
-            {
-                if ( filter_stripe_info > 0 )
-                    curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_info );
-
-                if (first_table != NULL)
-                {
-                    *curr_tables = ',';
-                    curr_tables++;
-
-                    /* add junction condition */
-                    curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
-                                           first_table, STRIPE_INFO_TABLE);
-                }
-                else
-                    first_table = STRIPE_INFO_TABLE;
-
-                curr_tables += sprintf( curr_tables, "%s", STRIPE_INFO_TABLE );
             }
 
             DisplayLog(LVL_FULL, LISTMGR_TAG, "first_table=%s, tables=%s",
