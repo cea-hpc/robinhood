@@ -57,11 +57,13 @@ static struct option option_tab[] =
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
     {"pool", required_argument, NULL, 'P'},
+    {"lsost", no_argument, NULL, 'O'},
 #endif
 #ifdef ATTR_INDEX_status
     {"status", required_argument, NULL, 'S'},
 #endif
     {"ls", no_argument, NULL, 'l'},
+    {"print", no_argument, NULL, 'p'},
     {"exec", required_argument, NULL, 'E'},
     /* TODO dry-run mode for exec */
 
@@ -83,7 +85,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:P:E:A:M:m:z:f:d:hV!bUG"
+#define SHORT_OPT_STRING    "lpOu:g:t:s:n:S:o:P:E:A:M:m:z:f:d:hV!bUG"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -127,6 +129,7 @@ struct find_opt
 
     /* output flags */
     unsigned int ls:1;
+    unsigned int lsost:1;
     unsigned int print:1;
     /* condition flags */
     unsigned int match_user:1;
@@ -169,7 +172,8 @@ struct find_opt
 #ifdef ATTR_INDEX_status
     .status = STATUS_UNKNOWN,
 #endif
-    .ls = 0, .print = 0, .match_user = 0, .match_group = 0,
+    .ls = 0, .lsost = 0, .print = 1,
+    .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_crtime = 0, .match_mtime = 0, .match_atime = 0,
     .bulk = 0,
@@ -181,12 +185,14 @@ struct find_opt
 };
 
 #ifdef ATTR_INDEX_status
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
+#define LS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link | ATTR_MASK_status)
 #else
-#define DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
+#define LS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link )
 #endif
+#define LSOST_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_stripe_items)
+
 static int disp_mask = ATTR_MASK_type;
 static int query_mask = 0;
 
@@ -434,7 +440,10 @@ static const char *help_string =
     "\n"
     _B "Output options:" B_ "\n"
     "    " _B "-ls" B_" \t Display attributes\n"
-    "    " _B "-print" B_" \t Display the fullpath of matching entries (this is the default, unless -ls or -exec are used).\n"
+#ifdef _LUSTRE
+    "    " _B "-lsost" B_" \t Display OST information\n"
+#endif
+    "    " _B "-print" B_" \t Display the fullpath of matching entries (this is the default, unless -ls, -lsost or -exec are used).\n"
     "\n"
     _B "Actions:" B_ "\n"
     "    " _B "-exec" B_" "_U "\"cmd\"" U_ "\n"
@@ -736,6 +745,8 @@ static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix
 
 static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
 {
+    char ostbuf[24576] = "";
+
 #ifdef ATTR_INDEX_status
     if (prog_options.match_status)
     {
@@ -744,6 +755,16 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             /* no match -> no display */
             return;
         }
+    }
+#endif
+
+#ifdef _LUSTRE
+    /* prepare OST display buffer */
+    if (prog_options.lsost && ATTR_MASK_TEST(attrs, stripe_items))
+    {
+        /* leave a space as first char */
+        ostbuf[0] = ' ';
+        FormatStripeList(ostbuf+1, sizeof(ostbuf)-2, &ATTR(attrs, stripe_items), TRUE);
     }
 #endif
 
@@ -784,6 +805,8 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             strftime(date_str, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
         }
 
+        /* TODO: add OST info is lsost is specified */
+
         if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
             && ATTR_MASK_TEST(attrs, link))
             /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
@@ -793,19 +816,33 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
                    ATTR(attrs, size), date_str, id->fullname, ATTR(attrs,link));
         else
             /* display all: id, type, mode, nlink, (status,) owner, group, size, mtime, path */
-            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s\n",
+            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s%s\n",
                    PFID(&id->id), type, mode_str, ATTR(attrs, nlink) STATUS_VAL,
                    ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, id->fullname);
+                   ATTR(attrs, size), date_str, id->fullname, ostbuf);
     }
+    else if (prog_options.lsost) /* lsost without -ls */
+    {
+        const char * type;
 
-    if (prog_options.print)
+        /* type2char */
+        if (!ATTR_MASK_TEST(attrs, type))
+            type = "?";
+        else
+            type = type2char(ATTR(attrs, type));
+
+        /* display: id, type, size, path */
+        printf(DFID" %-4s %15"PRIu64" %s %s\n",
+               PFID(&id->id), type, ATTR(attrs, size), id->fullname, ostbuf);
+
+    }
+    else if (prog_options.print)
     {
         /* just display name */
         if (id->fullname)
-            printf("%s\n", id->fullname);
+            printf("%s%s\n", id->fullname, ostbuf);
         else
-            printf(DFID"\n", PFID(&id->id));
+            printf(DFID"%s\n", PFID(&id->id), ostbuf);
     }
 
     if (prog_options.exec)
@@ -1162,6 +1199,15 @@ int main( int argc, char **argv )
             toggle_option(match_pool, "pool");
             prog_options.pool = optarg;
             break;
+        case 'O':
+            prog_options.lsost = 1;
+            prog_options.print = 0;
+            disp_mask |= LSOST_DISPLAY_MASK;
+            if (neg) {
+                fprintf(stderr, "! (-not) unexpected before -lsost option\n");
+                exit(1);
+            }
+            break;
 #endif
         case 't':
             toggle_option(match_type, "type");
@@ -1263,15 +1309,26 @@ int main( int argc, char **argv )
 #endif
         case 'l':
             prog_options.ls = 1;
-            disp_mask = DISPLAY_MASK;
+            prog_options.print = 0;
+            disp_mask |= LS_DISPLAY_MASK;
             if (neg) {
-                fprintf(stderr, "! (-not) unexpected before -l option\n");
+                fprintf(stderr, "! (-not) unexpected before -ls option\n");
                 exit(1);
             }
             break;
+        case 'p':
+            prog_options.print = 1;
+            disp_mask |= LS_DISPLAY_MASK;
+            if (neg) {
+                fprintf(stderr, "! (-not) unexpected before -ls option\n");
+                exit(1);
+            }
+            break;
+
         case 'E':
             toggle_option(exec, "exec");
             prog_options.exec_cmd = optarg;
+            prog_options.print = 0;
             break;
         case 'f':
             strncpy( config_file, optarg, MAX_OPT_LEN );
@@ -1314,10 +1371,6 @@ int main( int argc, char **argv )
             break;
         }
     }
-
-    /* enable 'print' if no other output option is specified (ls, exec...) */
-    if (!prog_options.ls && !prog_options.exec)
-            prog_options.print = 1;
 
     /* get default config file, if not specified */
     if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
