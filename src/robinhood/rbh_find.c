@@ -43,6 +43,8 @@ static struct option option_tab[] =
 {
     {"user", required_argument, NULL, 'u'},
     {"group", required_argument, NULL, 'g'},
+    {"nouser", no_argument, NULL, 'U'},
+    {"nogroup", no_argument, NULL, 'G'},
     {"type", required_argument, NULL, 't'},
     {"size", required_argument, NULL, 's'},
     {"name", required_argument, NULL, 'n'},
@@ -81,7 +83,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:P:E:A:M:m:z:f:d:hV!b"
+#define SHORT_OPT_STRING    "lu:g:t:s:n:S:o:P:E:A:M:m:z:f:d:hV!bUG"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -400,6 +402,8 @@ static const char *help_string =
     _B "Filters:" B_ "\n"
     "    " _B "-user" B_ " " _U "user" U_ "\n"
     "    " _B "-group" B_ " " _U "group" U_ "\n"
+    "    " _B "-nouser" B_ "\n"
+    "    " _B "-nogroup" B_ "\n"
     "    " _B "-type" B_ " " _U "type" U_ "\n"
     "       "TYPE_HELP"\n"
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
@@ -1119,6 +1123,18 @@ int main( int argc, char **argv )
         case 'g':
             toggle_option(match_group, "group");
             prog_options.group = optarg;
+            prog_options.groupneg = neg;
+            neg = 0;
+            break;
+        case 'U': /* match numerical (non resolved) users */
+            toggle_option(match_user, "user");
+            prog_options.user = "[0-9]*";
+            prog_options.userneg = neg;
+            neg = 0;
+            break;
+        case 'G': /* match numerical (non resolved) groups */
+            toggle_option(match_group, "group");
+            prog_options.group = "[0-9]*";
             prog_options.groupneg = neg;
             neg = 0;
             break;
