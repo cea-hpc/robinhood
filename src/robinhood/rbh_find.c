@@ -156,6 +156,7 @@ struct find_opt
     unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
     unsigned int dir_only:1; /* if -t dir => only display dir */
 
+    /* actions */
     unsigned int exec:1;
 
 } prog_options = {
@@ -425,18 +426,23 @@ static const char *help_string =
     "       %s\n"
 #endif
     "\n"
-    "    " _B "-not" B_ ", "_B"-!"B_"\n"
-    "        negate next argument\n"
+    "    " _B "-not" B_ ", "_B"-!"B_" \t Negate next argument\n"
     "\n"
     _B "Output options:" B_ "\n"
-    "    " _B "-ls" B_" \t: display attributes\n"
-    "    " _B "-print" B_" \t: display the fullpath of matching entries (this is the default, unless -ls or -exec are used).\n"
+    "    " _B "-ls" B_" \t Display attributes\n"
+    "    " _B "-print" B_" \t Display the fullpath of matching entries (this is the default, unless -ls or -exec are used).\n"
     "\n"
     _B "Actions:" B_ "\n"
     "    " _B "-exec" B_" "_U "\"cmd\"" U_ "\n"
-    "       Execute the given command for each matching entry. Unlike classical 'find', cmd must\n"
-    "       be a single (quoted) shell param, not necessarily terminated with ';'.\n"
+    "       Execute the given command for each matching entry. Unlike classical 'find',\n"
+    "       cmd must be a single (quoted) shell param, not necessarily terminated with ';'.\n"
     "       '{}' is replaced by the entry path. Example: -exec 'md5sum {}'\n"
+    "\n"
+    _B "Behavior:"B_"\n"
+    "    " _B "-bulk" B_ "\n"
+    "       Perform a bulk DB request instead of scanning the namespace from the DB.\n"
+    "       The request is faster, but the result may not be ordered like find output.\n"
+    "       Also, with bulk mode, a single path is displayed in case of multiple hardlinks.\n"
     "\n"
     _B "Program options:" B_ "\n"
     "    " _B "-f" B_ " " _U "config_file" U_ "\n"
@@ -447,12 +453,12 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n"
     "        Display version info\n";
 
-static inline void display_help( char *bin_name )
+static inline void display_help(char *bin_name)
 {
 #ifdef ATTR_INDEX_status
-    printf( help_string, bin_name, allowed_status() );
+    printf(help_string, bin_name, allowed_status());
 #else
-    printf( help_string, bin_name );
+    printf(help_string, bin_name);
 #endif
 }
 
@@ -830,7 +836,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
 
         /* match condition on dirs parent */
         if (!is_expr || (EntryMatches(&id_list[i].id, &attr_list[i],
-                         &match_expr, NULL) == POLICY_MATCH))
+                                      &match_expr, NULL) == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attr_list[i], type)

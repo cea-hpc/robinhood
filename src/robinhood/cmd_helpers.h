@@ -45,7 +45,7 @@ typedef int    ( *scrub_callback_t ) ( wagon_t * id_list,
 int rbh_scrub(lmgr_t   * p_mgr, const wagon_t * id_list,
               unsigned int id_count, int dir_attr_mask,
               scrub_callback_t cb_func,
-              void * arg );
+              void * arg);
 
 
 int Path2Id(const char *path, entry_id_t * id);
