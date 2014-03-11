@@ -3916,7 +3916,7 @@ function test_rename
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -3983,7 +3983,7 @@ function test_rename
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -4042,28 +4042,28 @@ function test_unlink
 
 	# Check nlink == 2
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 2 )) || error "nlink should be 2 instead of $nlink"
 
 	# Remove one file and check nlink == 1
 	rm "$ROOT/foo2"
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
 	# Add a new hard link and check nlink == 2
 	ln "$ROOT/foo1" "$ROOT/foo3"
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 2 )) || error "nlink should be 1 instead of $nlink"
 
 	# Remove one file and check nlink == 1
 	rm "$ROOT/foo3"
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
@@ -4072,7 +4072,7 @@ function test_unlink
 	rm "$ROOT/foo2"
 	# check nlink == 1
 	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -l > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
@@ -4199,7 +4199,7 @@ function test_hardlinks
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -4291,10 +4291,8 @@ function test_hardlinks
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
-
-
 
     # checking all objects in reports
     for o in $dirs_tgt $files_tgt; do
@@ -4385,9 +4383,9 @@ function test_hl_count
     #   dump report with path filter (3 entries)
     (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (10 entries, incl. root)
-    (($($FIND -f ./cfg/$config_file | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
+    (($($FIND -f ./cfg/$config_file -nobulk | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
     #   dump find output (subdir: 3 entries)
-    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
+    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 -nobulk | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
 
     #   dump summary (9 entries)
     $REPORT -f ./cfg/$config_file -icq > report.out
@@ -4427,9 +4425,9 @@ function test_hl_count
     #   dump report with path filter (still 3 entries)
     (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (
-    (($($FIND -f ./cfg/$config_file | wc -l) == $paths + 1 ))  || error "wrong count in 'rbh-find' output"
+    (($($FIND -f ./cfg/$config_file -nobulk | wc -l) == $paths + 1 ))  || error "wrong count in 'rbh-find' output"
     #   dump find output (subdir: 3 entries)
-    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
+    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 -nobulk | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
 
     #   dump summary (9 entries)
     $REPORT -f ./cfg/$config_file -icq > report.out
