@@ -106,6 +106,19 @@ function clean_caches
     lctl set_param ldlm.namespaces.lustre-*.lru_size=clear > /dev/null
 }
 
+function wait_stable_df
+{
+    $LFS df $ROOT > /tmp/lfsdf.1
+    while (( 1 )); do
+        sleep 5
+        $LFS df $ROOT > /tmp/lfsdf.2
+        diff /tmp/lfsdf.1 /tmp/lfsdf.2 > /dev/null && break
+        echo "waiting for df update..."
+        mv -f /tmp/lfsdf.2 /tmp/lfsdf.1
+    done
+}
+
+
 lustre_major=$(cat /proc/fs/lustre/version | grep "lustre:" | awk '{print $2}' | cut -d '.' -f 1)
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
@@ -2698,12 +2711,8 @@ function test_cnt_trigger
 
 	# initial inode count
 	empty_count=`df -i $ROOT/ | grep "$ROOT" | xargs | awk '{print $(NF-3)}'`
-	(( file_count=$file_count - $empty_count ))
-
-    if (( $file_count < 0 )) ; then
-        error "INODE COUNT FOR EMPTY FILESYSTEM IS ALREADY OVER HIGH THRESHOLD!"
-        return 1
-    fi
+    export high_cnt=$((file_count + $empty_count))
+    export low_cnt=$(($high_cnt - $exp_purge_count))
 
     [ "$DEBUG" = "1" ] && echo "Initial inode count $empty_count, creating additional $file_count files"
 
@@ -2757,6 +2766,9 @@ function test_ost_trigger
 	mb_l_threshold=$3
 	policy_str="$4"
 
+    export ost_high_vol="${mb_h_threshold}MB"
+    export ost_low_vol="${mb_l_threshold}MB"
+
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
 		echo "No purge for backup purpose: skipped"
 		set_skipped
@@ -2764,15 +2776,21 @@ function test_ost_trigger
 	fi
 	clean_logs
 
-	empty_vol=`$LFS df  $ROOT | grep OST0000 | awk '{print $3}'`
+    # reset df values
+    clean_caches
+    wait_stable_df
+
+	empty_vol=`$LFS df $ROOT | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
     if (($empty_vol >= $mb_h_threshold)); then
-        error "FILESYSTEM IS ALREADY OVER HIGH THRESHOLD (cannot run test)"
+        error "OST IS ALREADY OVER HIGH THRESHOLD (cannot run test)"
         return 1
     fi
 
-	$LFS setstripe --count 2 --offset 0 $ROOT || error "setting stripe_count=2"
+    [ "$DEBUG" = "1" ] && echo "empty_vol OST0000: $empty_vol MB, HW: $mb_h_threshold MB"
+
+	$LFS setstripe --count 2 --offset 0 -S 1m $ROOT || error "setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
 	((count=$mb_h_threshold - $empty_vol + 1))
@@ -2793,7 +2811,8 @@ function test_ost_trigger
     fi
 
 	# wait for df sync
-	sync; sleep 1
+	sync; clean_caches
+    wait_stable_df
 
 	if (( $is_lhsm != 0 )); then
 		arch_count=`$LFS hsm_state $ROOT/file.* | grep "exists archived" | wc -l`
@@ -2814,14 +2833,18 @@ function test_ost_trigger
 	$REPORT -f ./cfg/$config_file -i
 
 	# apply purge trigger
-	$RH -f ./cfg/$config_file --purge --once -l DEBUG -L rh_purge.log
+	$RH -f ./cfg/$config_file --purge --once -l DEBUG -L rh_purge.log || error "applying purge policy"
 
-	grep summary rh_purge.log
+	grep summary rh_purge.log || error "No purge was done"
+    [ "$DEBUG" = "1" ] && cat rh_purge.log
+
 	stat_purge=`grep summary rh_purge.log | grep "OST #0" | awk '{print $(NF-9)" "$(NF-3)" "$(NF-2)}' | sed -e "s/[^0-9 ]//g"`
 
 	purged_ost=`echo $stat_purge | awk '{print $1}'`
 	purged_total=`echo $stat_purge | awk '{print $2}'`
 	needed_ost=`echo $stat_purge | awk '{print $3}'`
+
+    [ "$DEBUG" = "1" ] && echo "purged_ost=$purged_ost, total_purged=$purged_total, ost_purge_needed=$needed_ost"
 
 	# change blocks to MB (*512/1024/1024 == /2048)
 	((purged_ost=$purged_ost/2048))
@@ -2854,6 +2877,83 @@ function test_ost_trigger
 	# restore default striping
 	$LFS setstripe --count 2 --offset -1 $ROOT
 }
+
+function test_ost_order
+{
+	config_file=$1
+	policy_str="$2"
+	clean_logs
+
+    # reset df values
+    sync; clean_caches
+    wait_stable_df
+
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+
+    # nb OSTs?
+    nbost=`$LFS df $ROOT | grep OST | wc -l`
+    maxidx=$((nbost -1))
+
+    # get low watermark = max current OST usage
+    local min_kb=0
+    for i in $(seq 0 $maxidx); do
+    	empty_vol=`$LFS df $ROOT | grep OST000$i | awk '{print $3}'`
+        (( $empty_vol > $min_kb )) && min_kb=$empty_vol
+    done
+
+    export ost_low_vol="${min_kb}KB"
+    local trig_kb=$(($min_kb + 1024 )) # low thresh. +1MB
+    export ost_high_vol="${trig_kb}KB"
+
+    [ "$DEBUG" = "1" ] && $LFS df $ROOT
+    echo "setting low threshold = $ost_low_vol, high_threshold = $ost_high_vol"
+
+    # create nothing on OST0000 (should not be purged)
+    # ensure OST1 usage is trig_kb + 1M
+    # ensure OST2 usage is trig_kb + 2M
+    # etc...
+    for i in $(seq 1 $maxidx); do
+        vol=`$LFS df $ROOT | grep OST000$i | awk '{print $3}'`
+        nbkb=$(($trig_kb + 1024*$i - $vol))
+        nbmb=$(($nbkb/1024+1))
+        for f in $(seq 1 $nbmb); do
+            lfs setstripe -c 1 -o $i $ROOT/test_ost_order.ost_$i.$f || error "lfs setstripe"
+            dd if=/dev/zero of=$ROOT/test_ost_order.ost_$i.$f bs=1M count=$nbmb || error "dd"
+        done
+    done
+
+    sync; clean_caches
+    wait_stable_df
+
+    # check thresholds only, then purge
+    for opt in "--check-thresholds" "--purge"; do
+        :> rh_purge.log
+        $RH -f ./cfg/$config_file $opt --once -l DEBUG -L rh_purge.log || error "command $opt error"
+        [ "$DEBUG" = "1" ] && cat rh_purge.log
+
+        # OSTs != 0 should be stated from the higher index to the lower
+        lastline=0
+        for i in $(seq 1 $maxidx); do
+            grep "High threshold reached on OST #$i" rh_purge.log || error "OST #$i should be reported over high threshold"
+            line=$(grep -n "High threshold reached on OST #$i" rh_purge.log | cut -d ':' -f 1)
+            if (( $lastline > 0 && $line > $lastline )); then
+                error "OST #$i: a lower OST idx has been reported in a previous line $lastline"
+            else
+                last_line=$line
+            fi
+        done
+
+        # OST0 should not be reported
+        grep "High threshold reached on OST #0" rh_purge.log && error "OST #0 should not be reported over threshold"
+    done
+
+}
+
 
 function test_trigger_check
 {
@@ -2929,6 +3029,7 @@ function test_trigger_check
 	# wait for df sync
 	sync
 	clean_caches
+	sync; clean_caches
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
@@ -8696,6 +8797,7 @@ run_test 300	test_cnt_trigger test_trig.conf 151 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 150 110 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
 run_test 303    test_periodic_trigger test_trig4.conf 35 "periodic trigger"
+run_test 304    test_ost_order test_trig2.conf "OST purge order"
 
 
 #### reporting ####
