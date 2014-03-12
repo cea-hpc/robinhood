@@ -1830,6 +1830,8 @@ function test_dircount_report
 			grep "$ROOT/empty.$i" report.out > /dev/null || error "$ROOT/empty.$i not found in top rmdir"
 		done
 	fi
+
+    rm -f report.out
 }
 
 # test report options: avg_size, by-count, count-min and reverse
@@ -1926,6 +1928,8 @@ function    test_sort_report
     $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --count-min=10 > report.out || error "generating topuser with at least 10 entries"
     (( $(wc -l report.out | awk '{print$1}') == 2 )) || error "only 2 users expected with more than 10 entries"
     grep ${users[2]} report.out && error "${users[2]} is not expected to have more than 10 entries"
+
+    rm -f report.out
 }
 
 function path_test
@@ -2404,6 +2408,8 @@ function policy_check_migr
 
     (( $w1_arch == 0 )) && (( $i1_arch == 0 )) && (( $m1_arch == 1 )) \
     && (( $d1_arch == 1 )) && echo "OK: All expected files migrated"
+
+    rm -f report.out
 }
 
 function policy_check_purge
@@ -2520,6 +2526,8 @@ function policy_check_purge
 
     (( $w1_arch == 0 )) && (( $i1_arch == 0 )) && (( $p1_arch == 1 )) \
     && (( $d1_arch == 1 )) && echo "OK: All expected files released"
+
+    rm -f report.out
 
     # check that purge fileclasses are properly matched at scan time,
     # then at application time
@@ -3579,6 +3587,58 @@ function partial_paths
     
     # TODO check disaster recovery
     
+    rm -f report.log
+}
+
+function test_mnt_point
+{
+	config_file=$1
+	clean_logs
+
+    export fs_path=$ROOT/subdir # retrieved from env when parsing config file
+
+    local dir_rel="dir1 dir2"
+    local file_rel="dir1/file.1 dir1/file.2 dir2/file.3 file.4"
+
+    for d in $dir_rel; do
+        mkdir -p $fs_path/$d || error mkdir
+    done
+    for f in $file_rel; do
+        touch $fs_path/$f || error touch
+    done
+
+    # scan the filesystem
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    check_db_error rh_scan.log
+
+    # check that rbh-find output is correct (2 methods)
+    for opt in "-nobulk $fs_path" "$fs_path" "-nobulk" ""; do
+        echo "checking output for rbh-find $opt..."
+        $FIND -f ./cfg/$config_file $opt > rh_report.log
+        for e in $dir_rel $file_rel; do
+            egrep -E "^$fs_path/$e$" rh_report.log || error "$e not found in rbh-find output"
+        done
+    done
+
+    # check that rbh-report output is correct
+    $REPORT -f ./cfg/$config_file -q --dump | awk '{print $(NF)}'> rh_report.log
+    [ "$DEBUG" = "1" ] && cat rh_report.log
+    for e in $dir_rel $file_rel; do
+        egrep -E "^$fs_path/$e$" rh_report.log || error "$e not found in report output"
+    done
+
+    # backup: check that backend path is correct
+    if (( $is_hsmlite > 0 )); then
+        # wait atime > 1s
+        sleep 1
+        $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+        check_db_error rh_migr.log
+
+        for e in $file_rel; do
+            ls -d $BKROOT/${e}__* || error "$BKROOT/$e* not found in backend"
+        done
+    fi
+
 }
 
 function test_enoent
@@ -8586,6 +8646,7 @@ run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
 run_test 113     test_diff_apply_fs info_collect2.conf  "diff"  "rbh-diff --apply=fs"
 run_test 114     test_root_changelog info_collect.conf "changelog record on root entry"
 run_test 115     partial_paths info_collect.conf "test behavior when handling partial paths"
+run_test 116     test_mnt_point  test_mnt_point.conf "test with mount point != fs_path"
 
 #### policy matching tests  ####
 

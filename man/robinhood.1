@@ -29,14 +29,8 @@ Only check thresholds without purging.
 .B
 \fB-R\fP, \fB--rmdir\fP
 Remove empty directories according to policy.
-.TP
-.B
-\fB-r\fP, \fB--read-log\fP[=\fImdt_idx\fP]
-Read events from MDT ChangeLog.
-If \fImdt_idx\fP is specified, only read ChangeLogs for the given MDT.
-Else, start 1 changelog reader thread per MDT (with DNE).
 .PP
-Note: if no action is specified, the default action set is: \fB--read-log\fP \fB--purge\fP \fB--rmdir\fP
+Note: if no action is specified, the default action set is: \fB--scan\fP \fB--purge\fP \fB--rmdir\fP
 .SH OUTPUT OPTIONS
 
 .TP
@@ -46,10 +40,6 @@ When scanning or reading changelogs, display changes for the given set of attrib
 \fIattrset\fP is a list of values in: path,posix,stripe,all,notimes,noatime.
 .SH MANUAL PURGE ACTIONS
 
-.TP
-.B
-\fB--purge-ost\fP=\fIost_index\fP,\fItarget_usage_pct\fP
-Apply purge policy on OST \fIost_index\fP until its usage reaches the specified value.
 .TP
 .B
 \fB--purge-fs\fP=\fItarget_usage_pct\fP

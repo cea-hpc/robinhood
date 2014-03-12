@@ -1799,6 +1799,45 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
     rm -f  diff.out diff.log find.out find2.out
 }
 
+function test_mnt_point
+{
+	config_file=$1
+	clean_logs
+
+    export fs_path=$ROOT/subdir # retrieved from env when parsing config file
+
+    local dir_rel="dir1 dir2"
+    local file_rel="dir1/file.1 dir1/file.2 dir2/file.3 file.4"
+
+    for d in $dir_rel; do
+        mkdir -p $fs_path/$d || error mkdir
+    done
+    for f in $file_rel; do
+        touch $fs_path/$f || error touch
+    done
+
+    # scan the filesystem
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    check_db_error rh_scan.log
+
+    # check that rbh-find output is correct (2 methods)
+    for opt in "-nobulk $fs_path" "$fs_path" "-nobulk" ""; do
+        echo "checking output for rbh-find $opt..."
+        $FIND -f ./cfg/$config_file $opt > rh_report.log
+        for e in $dir_rel $file_rel; do
+            egrep -E "^$fs_path/$e$" rh_report.log || error "$e not found in rbh-find output"
+        done
+    done
+
+    # check that rbh-report output is correct
+    $REPORT -f ./cfg/$config_file -q --dump | awk '{print $(NF)}'> rh_report.log
+    [ "$DEBUG" = "1" ] && cat rh_report.log
+    for e in $dir_rel $file_rel; do
+        egrep -E "^$fs_path/$e$" rh_report.log || error "$e not found in report output"
+    done
+}
+
+
 function test_completion
 {
 	config_file=$1
@@ -4176,6 +4215,7 @@ run_test 109d    test_hardlinks info_collect.conf diff "hardlinks management (di
 run_test 109e    test_hardlinks info_collect.conf partdiff "hardlinks management (partial diffs+apply)"
 run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
 run_test 113     test_diff_apply_fs info_collect2.conf  "diff"  "rbh-diff --apply=fs"
+run_test 116     test_mnt_point  test_mnt_point.conf "test with mount point != fs_path"
 
 #### policy matching tests  ####
 
