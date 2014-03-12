@@ -766,7 +766,8 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
 
 #ifdef _LUSTRE
     /* prepare OST display buffer */
-    if (prog_options.lsost && ATTR_MASK_TEST(attrs, stripe_items))
+    if (prog_options.lsost && ATTR_MASK_TEST(attrs, stripe_items)
+        && (ATTR(attrs, stripe_items).count > 0))
     {
         /* leave a space as first char */
         ostbuf[0] = ' ';
@@ -811,8 +812,6 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             strftime(date_str, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
         }
 
-        /* TODO: add OST info is lsost is specified */
-
         if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
             && ATTR_MASK_TEST(attrs, link))
             /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
@@ -838,7 +837,7 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             type = type2char(ATTR(attrs, type));
 
         /* display: id, type, size, path */
-        printf(DFID" %-4s %15"PRIu64" %s %s\n",
+        printf(DFID" %-4s %15"PRIu64" %s%s\n",
                PFID(&id->id), type, ATTR(attrs, size), id->fullname, ostbuf);
 
     }

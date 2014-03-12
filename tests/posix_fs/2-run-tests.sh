@@ -2397,10 +2397,21 @@ function test_logs
 			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z ]* \|' > /tmp/extract_log
 			egrep -v 'ALERT|: [A-Za-Z ]* \|' /tmp/extract_all > /tmp/extract_report
 			grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
-		elif (( $stdio )); then
-			grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
-			# grep 'robinhood\[' => don't select lines with no headers
-			grep -v ALERT /tmp/rbh.stdout | grep "$CMD[^ ]*\[" > /tmp/extract_report
+
+            if [ "$DEBUG" = "1" ]; then
+                echo "----- syslog alerts:" ; cat /tmp/extract_alert
+                echo "----- syslog actions:" ; cat /tmp/extract_report
+                echo "----- syslog traces:" ; cat /tmp/extract_log
+            fi
+        elif (( $stdio )); then
+                        grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
+                       # grep [22909/8] => don't select lines with no headers
+                       grep -v ALERT /tmp/rbh.stdout | grep "\[[0-9]*/[0-9]*\]" > /tmp/extract_report
+            if [ "$DEBUG" = "1" ]; then
+                echo "----- stdio alerts:" ; cat /tmp/extract_alert
+                echo "----- stdio actions:" ; cat /tmp/extract_report
+                echo "----- stdio (all):" ; cat /tmp/rbh.stdout
+            fi
 		fi
 
 		# check that there is something written in the log

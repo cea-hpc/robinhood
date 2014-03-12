@@ -3916,7 +3916,7 @@ function test_rename
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $ROOT -ls -nobulk > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -4293,6 +4293,8 @@ function test_hardlinks
 
     $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
+
+
 
     # checking all objects in reports
     for o in $dirs_tgt $files_tgt; do
@@ -4719,13 +4721,25 @@ function test_logs
             # wait for syslog to flush logs to disk
             sync; sleep 2
 			tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
+            
 			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z0-9_ ]* \|' > /tmp/extract_log
 			egrep -v 'ALERT|: [A-Za-Z0-9_ ]* \|' /tmp/extract_all > /tmp/extract_report
 			grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
+
+            if [ "$DEBUG" = "1" ]; then
+                echo "----- syslog alerts:" ; cat /tmp/extract_alert
+                echo "----- syslog actions:" ; cat /tmp/extract_report
+                echo "----- syslog traces:" ; cat /tmp/extract_log
+            fi
 		elif (( $stdio )); then
 			grep ALERT /tmp/rbh.stdout > /tmp/extract_alert
-			# grep 'robinhood\[' => don't select lines with no headers
-			grep -v ALERT /tmp/rbh.stdout | grep "$CMD[^ ]*\[" > /tmp/extract_report
+			# grep [22909/8] => don't select lines with no headers
+			grep -v ALERT /tmp/rbh.stdout | grep "\[[0-9]*/[0-9]*\]" > /tmp/extract_report
+            if [ "$DEBUG" = "1" ]; then
+                echo "----- stdio alerts:" ; cat /tmp/extract_alert
+                echo "----- stdio actions:" ; cat /tmp/extract_report
+                echo "----- stdio (all):" ; cat /tmp/rbh.stdout
+            fi
 		fi
 
 		# check that there is something written in the log
