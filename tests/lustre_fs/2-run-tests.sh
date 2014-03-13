@@ -3739,7 +3739,154 @@ function test_mnt_point
             ls -d $BKROOT/${e}__* || error "$BKROOT/$e* not found in backend"
         done
     fi
+}
 
+function check_status_count
+{
+    report=$1
+    status=$2
+    count=$3
+
+    nst=$(grep -E "^$status" $report | cut -d ',' -f 3 | tr -d ' ')
+    [ -z "$nst" ] && nst=0
+
+    [ "$DEBUG" = "1" ] && echo "$status: $nst"
+    [ "$nst" = "$count" ] || error "Expected $count $status, got $nst"
+}
+
+function test_compress
+{
+	config_file=$1
+	clean_logs
+
+	if (( $is_hsmlite == 0 )); then
+    	echo "compression is only available with backup mode"
+		set_skipped
+		return 1
+    fi
+
+    local dir_rel="dir1 dir2"
+    local file_rel="dir1/file.1 dir1/file.2 dir2/file.3 file.4"
+    local file_rel_mod="dir1/file.1 file.4"
+    local file_rel_new="dir1/file.5 dir1/file.6 dir2/file.7"
+
+    src_file="/etc/hosts"
+
+    # populate the filesystem
+    for d in $dir_rel; do
+        mkdir -p $ROOT/$d || error mkdir
+    done
+    for f in $file_rel; do
+        /bin/cp $src_file $ROOT/$f || error cp
+    done
+
+    # scan the filesystem (compress=no)
+    export compress=no
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    check_db_error rh_scan.log
+
+    # check file status
+    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    check_status_count report.out new 4
+
+    # check how a child entries is archived
+    $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+    check_db_error rh_migr.log
+
+    # check file status
+    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    check_status_count report.out synchro 4
+
+    # no compressed file names expected xxxx__<fid>z
+    name_comp=$(find $BKROOT -type f -name "*z" | wc -l)
+    name_ncomp=$(find $BKROOT -type f -name "*[0-9]" | wc -l)
+    type_comp=$(find $BKROOT -type f -exec file {} \; | grep "gzip compressed data" | wc -l)
+    type_ncomp=$(find $BKROOT -type f -exec file {} \; | grep "ASCII" | wc -l)
+
+    (( $name_comp == 0 )) || error "No compressed file name expected in backend: found $name_comp"
+    (( $type_comp == 0 )) || error "No compressed file data expected in backend: found $type_comp"
+    (( $name_ncomp == 4 )) || error "4 non-compressed file names expected in backend: found $name_ncomp"
+    (( $type_ncomp == 4 )) || error "4 ASCII file data expected in backend: found $type_ncomp"
+    
+    # turn compression on
+    export compress=yes
+
+    # modify some files, create new files
+    for f in $file_rel_mod; do
+        cat $src_file >> $ROOT/$f || error "appending $f"
+    done
+    for f in $file_rel_new; do
+        /bin/cp $src_file $ROOT/$f || error "creating $f"
+    done
+
+    # scan the file system and check file status
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing 2nd scan"
+    check_db_error rh_scan.log
+
+    # check file status
+    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    check_status_count report.out synchro 2
+    check_status_count report.out modified 2
+    check_status_count report.out new 3
+
+    # archive all dirty data and check status
+    $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+    check_db_error rh_migr.log
+
+    # check file status
+    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    check_status_count report.out synchro 7
+
+    # check backend files
+    name_comp=$(find $BKROOT -type f -name "*z" | wc -l)
+    name_ncomp=$(find $BKROOT -type f -name "*[0-9]" | wc -l)
+    type_comp=$(find $BKROOT -type f -exec file {} \; | grep "gzip compressed data" | wc -l)
+    type_ncomp=$(find $BKROOT -type f -exec file {} \; | grep "ASCII" | wc -l)
+
+    # 2 already archived: uncompresssed
+    # 2 modified: compressed
+    # 3 new: compressed
+    (( $name_comp == 5 )) || error "5 compressed file names expected in backend: found $name_comp"
+    (( $type_comp == 5 )) || error "5 compressed file data expected in backend: found $type_comp"
+    (( $name_ncomp == 2 )) || error "2 non-compressed file names expected in backend: found $name_ncomp"
+    (( $type_ncomp == 2 )) || error "2 ASCII file data expected in backend: found $type_ncomp"
+
+    # turn compression off compression, make some changes and check status again
+    for f in $file_rel_mod; do
+        cat $src_file >> $ROOT/$f || error "appending $f"
+    done
+
+    export compress=no
+    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    check_db_error rh_scan.log
+
+    # check file status
+    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    check_status_count report.out synchro 5
+    check_status_count report.out modified 2
+
+    $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+    check_db_error rh_migr.log
+
+    # check backend files
+    name_comp=$(find $BKROOT -type f -name "*z" | wc -l)
+    name_ncomp=$(find $BKROOT -type f -name "*[0-9]" | wc -l)
+    type_comp=$(find $BKROOT -type f -exec file {} \; | grep "gzip compressed data" | wc -l)
+    type_ncomp=$(find $BKROOT -type f -exec file {} \; | grep "ASCII" | wc -l)
+
+    # 2 archived at first: uncompresssed
+    # 2 modified: uncompressed
+    # 3 archived at step 2: compressed
+    (( $name_comp == 3 )) || error "3 compressed file names expected in backend: found $name_comp"
+    (( $type_comp == 3 )) || error "3 compressed file data expected in backend: found $type_comp"
+    (( $name_ncomp == 4 )) || error "4 non-compressed file names expected in backend: found $name_ncomp"
+    (( $type_ncomp == 4 )) || error "4 ASCII file data expected in backend: found $type_ncomp"
+
+    # check file status
+    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    check_status_count report.out synchro 7
+
+    rm -f report.out
 }
 
 function test_enoent
@@ -8790,6 +8937,7 @@ run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too 
 run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
 run_test 223  test_default test_default_case.conf "ignore entries if no default case is specified"
 run_test 224  test_undelete test_rm1.conf   "undelete"
+run_test 225  test_compress compress.conf "compressed archived files"
 
 #### triggers ####
 
