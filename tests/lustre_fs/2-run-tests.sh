@@ -3886,7 +3886,57 @@ function test_compress
     $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
     check_status_count report.out synchro 7
 
-    rm -f report.out
+    # test disaster recovery with compressed files
+    local before=/tmp/before.$$
+    local after=/tmp/after.$$
+    local diff=/tmp/diff.$$
+    # shots before disaster (time is only significant for files)
+    find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $before
+    find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $before
+    find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> $before
+
+    # perform 2 disaster recovery with compress=yes and compress=no
+    for c in yes no; do
+        export compress=$c
+        # FS disaster
+        if [[ -n "$ROOT" ]]; then
+            echo "Disaster: all FS content is lost"
+            rm  -rf $ROOT/*
+        fi
+
+        # perform the recovery
+        echo "Performing recovery (compress=$c)..."
+        cp /dev/null recov.log
+        $RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
+        $RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+        $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+
+        find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $after
+        find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $after
+        find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> $after
+
+        diff  $before $after > /tmp/diff.$$ || error "unexpected differences between initial and final state"
+        [ "$DEBUG" = "1" ] && cat /tmp/diff.$$
+
+        # check that no file in Lustre is restored as compressed file
+        lucomp=$(find $ROOT -type f -exec file {} \; | grep "gzip compressed data" | wc -l)
+        (( $lucomp == 0 )) || error "No compressed file expected in Lustre"
+
+        # check backend files
+        # check all *z files are compressed
+        type_comp=$(find $BKROOT -type f -name "*z" -exec file {} \; | grep -v "gzip compressed data" | wc -l)
+        (( $type_comp == 0 )) || error "Some __<fid>z files are not compressed data"
+        # check all *0x0 files are uncompressed
+        type_ncomp=$(find $BKROOT -type f -name "*[0-9]" -exec file {} \; | grep "gzip compressed data" | wc -l)
+        (( $type_ncomp == 0 )) || error "Some __<fid> files are actually compressed data"
+        # check counts
+        name_comp=$(find $BKROOT -type f -name "*z" | wc -l)
+        name_ncomp=$(find $BKROOT -type f -name "*[0-9]" | wc -l)
+        (( $name_comp == 3 )) || error "3 compressed file names expected in backend: found $name_comp"
+        (( $name_ncomp == 4 )) || error "4 non-compressed file names expected in backend: found $name_ncomp"
+    done
+
+    rm -f report.out $before $after $diff
 }
 
 function test_enoent

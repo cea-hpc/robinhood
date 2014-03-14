@@ -1970,6 +1970,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
          * so it will be recovered at first open.
          */
     #ifdef HAVE_SHOOK
+            size_t restore_size = st_bk.st_size;
+
             /* set the file in "released" state */
             rc = shook_set_status(fspath, SS_RELEASED);
             if (rc)
@@ -1977,9 +1979,13 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                 DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
                             fspath, strerror(-rc));
                 return RS_ERROR;
-            }
+             }
 
-            rc = truncate( fspath, st_bk.st_size ) ? errno : 0; /* FIXME: what is uncompressed size? */
+            /* if the file was compressed, set the saved size (from the DB), not the one from the backend */
+            if (compressed && p_attrs_old && ATTR_MASK_TEST(p_attrs_old, size))
+                restore_size = ATTR(p_attrs_old, size);
+
+            rc = truncate(fspath, restore_size) ? errno : 0;
             if (rc)
             {
                 DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
