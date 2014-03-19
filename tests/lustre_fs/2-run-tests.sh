@@ -2790,7 +2790,7 @@ function test_ost_trigger
 
     [ "$DEBUG" = "1" ] && echo "empty_vol OST0000: $empty_vol MB, HW: $mb_h_threshold MB"
 
-	$LFS setstripe --count 2 --offset 0 -S 1m $ROOT || error "setting stripe_count=2"
+	$LFS setstripe --count 2 --offset 0 -s 1m $ROOT || echo "error setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
 	((count=$mb_h_threshold - $empty_vol + 1))
@@ -5914,7 +5914,7 @@ function test_find
 	clean_logs
 
     # by default stripe all files on 0 and 1
-	$LFS setstripe --count 2 --offset 0 $ROOT || error "setting stripe on root"
+	$LFS setstripe --count 2 --offset 0 $ROOT || echo "error setting stripe on root"
     # 1) create a FS tree with several levels:
     #   root
     #       file.1
