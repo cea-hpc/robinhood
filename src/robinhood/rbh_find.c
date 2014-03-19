@@ -908,6 +908,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
                     print_entry(&chids[j], &chattrs[j]);
             }
 
+            ListMgr_FreeAttrs(&chattrs[j]);
             free_wagon(chids, 0, chcount);
             MemFree(chids);
             MemFree(chattrs);
