@@ -335,6 +335,18 @@ fi
 
 %changelog
 
+* Wed Mar 19 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.1
+- entry processing (major fix): fixed deadlock when the pipeline is full
+  and an entry with an unknown parent is encountered.
+- purge (enhancement): start purging data from the most used OSTs.
+- rbh-find (features): new options: -pool, -exec, -print, -nouser, -nogroup, -lsost
+- rbh-find (optimization): automatically switch to bulk DB request mode when
+  command argument is filesystem root (+new option -nobulk to disable it).
+- logging (enhancement): new config parameters to control log header format
+- backup (feature): allow compressing data in archive.
+- backup (fix): wrong path in archive when robinhood root directory != mount point.
+- backup (fix): fix segfault when importing a single file with a FID-ending name.
+
 * Thu Feb 13 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.0-1
 Summary:
 - filesystem disaster recovery features
