@@ -879,8 +879,9 @@ static int check_ost_trigger( unsigned trigger_index )
     /* initialize max usage */
     trigger_status_list[trigger_index].last_usage = 0.0;
 
-    while((ost_index = get_ost_max(&statfs_ost, p_trigger->hw_type, &excl_list))
-          != -ENOENT)
+    while(!terminate &&
+          ((ost_index = get_ost_max(&statfs_ost, p_trigger->hw_type, &excl_list))
+              != -ENOENT))
     {
         if (ost_index < 0)
         {

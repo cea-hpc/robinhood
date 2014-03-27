@@ -708,6 +708,10 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
             if ( purge_abort )
             {
+                /* free the last returned entry */
+                if (rc == 0)
+                    ListMgr_FreeAttrs(&attr_set);
+
                 DisplayLog( LVL_MAJOR, PURGE_TAG, "Purge aborted, stop enqueuing "
                             "purge requests." );
                 rc = DB_END_OF_LIST;

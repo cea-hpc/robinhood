@@ -2016,6 +2016,8 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
         /* remove other unchanged attrs + attrs not in db mask */
         p_op->fs_attrs.attr_mask &= (diff_mask | to_keep | ~p_op->db_attrs.attr_mask);
 
+        /* FIXME: free cleared attributes */
+
         /* SQL req optimizations:
          * if update policy == always and fileclass is not changed,
          * don't set update timestamp.
