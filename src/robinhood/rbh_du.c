@@ -127,7 +127,7 @@ static lmgr_filter_t    parent_filter; /* same as entry_filter + condition on pa
 static bool_node_t      match_expr;
 static int              is_expr = 0; /* is it set? */
 
-static int disp_mask = ATTR_MASK_fullpath | ATTR_MASK_type | ATTR_MASK_blocks | ATTR_MASK_size;
+static int disp_mask = ATTR_MASK_type | ATTR_MASK_blocks | ATTR_MASK_size;
 static int query_mask = 0;
 
 typedef struct stats_du_t
@@ -690,7 +690,7 @@ static int list_content(char ** id_list, int id_count)
             if (rc)
                 return rc;
 
-            print_stats(ATTR(&root_attrs, fullpath), stats);
+            print_stats(ids[i].fullname, stats);
         }
     }
 
