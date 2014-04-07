@@ -141,6 +141,12 @@ check_or_start_fs()
 		fi
 	else
 		if [[ $action = START ]] ; then
+            # prevent from excessive memory usage
+            stack=$(ulimit  -s)
+            mem=$(free -k | grep 'Mem:' | awk '{print $2}')
+            if [ -n "$stack" ] && (( 32*$stack > $mem)); then
+                echo "WARNING: thread stack size (ulimit -s) is surprisingly high and may not be adapted to a multithreaded application!" >&2
+            fi
 			rm -f $pidfile
 			cd ${RH_RUN_DIR}
 			action "$label ..." $cmdline
