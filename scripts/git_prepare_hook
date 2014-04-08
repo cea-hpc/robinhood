@@ -19,6 +19,7 @@
 #
 # The third example adds a Signed-off-by line to the message, that can
 # still be edited.  This is rarely a good idea.
+rootdir=$(git rev-parse --show-toplevel)
 
 case "$2" in
   merge)
@@ -29,8 +30,8 @@ case "$2" in
 #      print "\n" . `git diff --cached --name-status -r`
 #	  if /^#/ && $first++ == 0' "$1"
       tmpfile=$(mktemp)
-      cat .commit-template >> $tmpfile
-      scripts/check_commit.sh $1 | sed -e "s/^/# /" >> $tmpfile
+      cat $rootdir/.commit-template >> $tmpfile
+      $rootdir/scripts/check_commit.sh $1 | sed -e "s/^/# /" >> $tmpfile
       cat $1 >> $tmpfile
       mv -f $tmpfile $1
       #show diff:
