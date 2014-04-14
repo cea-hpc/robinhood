@@ -45,7 +45,7 @@ function process_lines
 
 for f in $(git diff-tree --name-only --diff-filter=AMR --root -r --no-commit-id $GIT_COMMIT | grep '\.[chyl]$'); do
     git show $GIT_COMMIT $f > /tmp/patch || continue
-    $d/checkpatch.pl --ignore CODE_INDENT,SPACE_BEFORE_TAB,LEADING_SPACE /tmp/patch | grep -A 2 "foo \* bar" | process_lines
+    $d/checkpatch.pl --ignore CODE_INDENT,SPACE_BEFORE_TAB,LEADING_SPACE,PRINTF_L /tmp/patch | grep -A 2 "foo \* bar" | process_lines
     
     sed -i -e "s/( /(/g" -e "s/ )/)/g" $f
 done

@@ -509,7 +509,7 @@ static int check_global_trigger( unsigned trigger_index )
     char           traverse_path[RBH_PATH_MAX];
     purge_param_t  purge_param;
     int            rc;
-    unsigned long long  purged, spec;
+    unsigned long long  blks_purged, spec;
     char           timestamp[128];
     char           status_str[1024];
     char           buff[1024];
@@ -582,7 +582,7 @@ static int check_global_trigger( unsigned trigger_index )
     update_trigger_status( trigger_index, TRIG_PURGE_RUNNING );
 
     /* perform the purge */
-    rc = perform_purge( &lmgr, &purge_param, &purged, &spec );
+    rc = perform_purge(&lmgr, &purge_param, &blks_purged, &spec);
 
     /* update last purge time and target */
     sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
@@ -593,9 +593,10 @@ static int check_global_trigger( unsigned trigger_index )
     {
         if ( rc == 0 )
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
-                        "%Lu entries purged (%Lu blocks)/%Lu needed in %s",
-                        spec, purged, purge_param.nb_inodes, global_config.fs_path );
+            DisplayLog(LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
+                       "%Lu entries purged (%Lu blocks)/%Lu needed in %s",
+                       spec, blks_purged, purge_param.nb_inodes,
+                       global_config.fs_path);
         }
 
         if ( spec < purge_param.nb_inodes )
@@ -613,32 +614,33 @@ static int check_global_trigger( unsigned trigger_index )
             }
             else if ( rc == ECANCELED )
             {
-                update_trigger_status( trigger_index, TRIG_ABORTED );
-                DisplayLog( LVL_CRIT, RESMON_TAG,
-                            "Purge aborted after releasing %Lu entries (%Lu blocks) in %s.",
-                            spec, purged, global_config.fs_path );
+                update_trigger_status(trigger_index, TRIG_ABORTED);
+                DisplayLog(LVL_CRIT, RESMON_TAG,
+                           "Purge aborted after releasing %Lu entries (%Lu blocks) in %s.",
+                           spec, blks_purged, global_config.fs_path);
 
                 snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
-                         global_config.fs_path, spec, purged);
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                         global_config.fs_path, spec, blks_purged);
+                ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
             }
             else
             {
-                update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
-                DisplayLog( LVL_CRIT, RESMON_TAG,
-                            "Could not purge %Lu entries in %s: not enough eligible files. Only %Lu entries released.",
-                            purge_param.nb_inodes, global_config.fs_path, purged );
+                update_trigger_status(trigger_index, TRIG_NOT_ENOUGH);
+                DisplayLog(LVL_CRIT, RESMON_TAG,
+                           "Could not purge %Lu entries in %s: not enough eligible files. Only %Lu entries released (%Lu blocks).",
+                           purge_param.nb_inodes, global_config.fs_path, spec,
+                           blks_purged);
 
                 if ( ALERT_LW( trigger_index ) )
                 {
                     sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
-                    RaiseAlert( buff, "Could not purge %Lu entries in filesystem %s: "
-                                "not enough eligible files. Only %Lu entries freed.",
-                                purge_param.nb_inodes, global_config.fs_path, purged );
+                    RaiseAlert(buff, "Could not purge %Lu entries in filesystem %s: "
+                               "not enough eligible files. Only %Lu entries freed (%Lu blocks).",
+                               purge_param.nb_inodes, global_config.fs_path, spec, blks_purged);
                 }
 
                 snprintf(status_str, 1024, "Not enough eligible files: %Lu/%Lu entries released",
-                         purged, purge_param.nb_inodes );
+                         spec, purge_param.nb_inodes);
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
 
@@ -646,8 +648,8 @@ static int check_global_trigger( unsigned trigger_index )
         else
         {
             snprintf(status_str, 1024, "Success (%Lu/%Lu entries purged)",
-                     purged, purge_param.nb_inodes );
-            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                     spec, purge_param.nb_inodes);
+            ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
 
             update_trigger_status( trigger_index, TRIG_OK );
         }
@@ -656,12 +658,12 @@ static int check_global_trigger( unsigned trigger_index )
     {
         if ( rc == 0 )
         {
-            DisplayLog( LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
-                        "%Lu blocks purged (initial estimation %Lu)/%lu blocks needed in %s",
-                        purged, spec, purge_param.nb_blocks, global_config.fs_path );
+            DisplayLog(LVL_MAJOR, RESMON_TAG, "Filesystem purge summary: "
+                       "%Lu blocks purged/%lu blocks needed in %s",
+                       blks_purged, purge_param.nb_blocks, global_config.fs_path);
         }
 
-        if ( purged < purge_param.nb_blocks )
+        if (blks_purged < purge_param.nb_blocks)
         {
             if ( rc == ENOENT )
             {
@@ -676,48 +678,51 @@ static int check_global_trigger( unsigned trigger_index )
             }
             else if ( rc == ECANCELED )
             {
-                update_trigger_status( trigger_index, TRIG_ABORTED );
-                DisplayLog( LVL_CRIT, RESMON_TAG,
-                            "Purge aborted after releasing %Lu blocks in %s.",
-                            purged, global_config.fs_path );
+                update_trigger_status(trigger_index, TRIG_ABORTED);
+                DisplayLog(LVL_CRIT, RESMON_TAG,
+                           "Purge aborted after releasing %Lu blocks in %s.",
+                           blks_purged, global_config.fs_path);
 
                 snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu blocks)",
-                         global_config.fs_path, purged);
+                         global_config.fs_path, blks_purged);
                 ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
             }
             else
             {
-                update_trigger_status( trigger_index, TRIG_NOT_ENOUGH );
-                DisplayLog( LVL_CRIT, RESMON_TAG,
-                            "Could not purge %lu blocks in %s: not enough eligible files. Only %Lu blocks released.",
-                            purge_param.nb_blocks, global_config.fs_path, purged );
+                update_trigger_status(trigger_index, TRIG_NOT_ENOUGH);
+                DisplayLog(LVL_CRIT, RESMON_TAG,
+                           "Could not purge %lu blocks in %s: not enough eligible files. Only %Lu blocks released.",
+                           purge_param.nb_blocks, global_config.fs_path,
+                           blks_purged);
 
                 if ( ALERT_LW( trigger_index ) )
                 {
-                    sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
-                    RaiseAlert( buff, "Could not purge %lu blocks in filesystem %s: "
-                                "not enough eligible files. Only %Lu blocks freed.",
-                                purge_param.nb_blocks, global_config.fs_path, purged );
+                    sprintf(buff, "cannot purge filesystem %s", global_config.fs_path);
+                    RaiseAlert(buff, "Could not purge %lu blocks in filesystem %s: "
+                               "not enough eligible files. Only %Lu blocks freed.",
+                               purge_param.nb_blocks, global_config.fs_path,
+                               blks_purged);
                 }
 
                 snprintf(status_str, 1024, "Not enough eligible files (%Lu/%lu blocks released)",
-                         purged, purge_param.nb_blocks );
-                ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
+                         blks_purged, purge_param.nb_blocks);
+                ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
             }
 
         }
         else
         {
             snprintf(status_str, 1024, "Success (%Lu/%lu blocks released)",
-                     purged, purge_param.nb_blocks );
-            ListMgr_SetVar( &lmgr, LAST_PURGE_STATUS, status_str );
-            update_trigger_status( trigger_index, TRIG_OK );
+                     blks_purged, purge_param.nb_blocks);
+            ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
+            update_trigger_status(trigger_index, TRIG_OK);
         }
     }
 
     FlushLogs(  );
 
-    if ( (!terminate) && ( purged > 0 ) && ( resmon_config.post_purge_df_latency > 0 ) )
+    if ((!terminate) && (blks_purged > 0) &&
+        (resmon_config.post_purge_df_latency > 0))
     {
         DisplayLog( LVL_EVENT, RESMON_TAG,
                     "Waiting %lus before performing 'df' on other storage units.",

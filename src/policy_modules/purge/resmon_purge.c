@@ -372,9 +372,9 @@ static int init_db_attr_mask( attr_set_t * p_attr_set )
 /*
  *  Return ENOENT if no list is available
  */
-int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
-                   unsigned long long *p_nb_purged,
-                   unsigned long long *p_nb_specific )
+int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
+                  unsigned long long *p_blks_purged,
+                  unsigned long long *p_nb_specific)
 {
     int            rc;
     struct lmgr_iterator_t *it = NULL;
@@ -411,9 +411,9 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
 
     resmon_flags = p_purge_param->flags;
 
-    if ( p_nb_purged )
-        *p_nb_purged = 0;
-    if ( p_nb_specific )
+    if (p_blks_purged)
+        *p_blks_purged = 0;
+    if (p_nb_specific)
         *p_nb_specific = 0;
 
     if ( p_purge_param->nb_blocks != 0 )
@@ -850,12 +850,12 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
         /* Wait for end of purge pass */
         wait_queue_empty( nb_submitted, feedback_before, status_tab,
                           feedback_after, TRUE );
-        /* how much blocks have been purged ? */
+        /* how much blocks have been purged? (must be count for TGT_COUNT) */
         purged_amount += feedback_after[PURGE_SPECIFIC_COUNT] - feedback_before[PURGE_SPECIFIC_COUNT];
         purged_vol += feedback_after[PURGE_FDBK_BLOCKS] - feedback_before[PURGE_FDBK_BLOCKS];
 
         /* if getnext returned an error */
-        if ( rc )
+        if (rc)
             break;
     }
     while ( ( !end_of_list ) &&
@@ -864,9 +864,9 @@ int perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
     lmgr_simple_filter_free( &filter );
     ListMgr_CloseIterator( it );
 
-    if ( p_nb_purged )
-        *p_nb_purged = purged_vol;
-    if ( p_nb_specific )
+    if (p_blks_purged)
+        *p_blks_purged = purged_vol;
+    if (p_nb_specific)
         *p_nb_specific = purged_amount;
 
     return (purge_abort?ECANCELED:0);
