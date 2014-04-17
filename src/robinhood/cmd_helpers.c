@@ -244,6 +244,7 @@ int rbh_scrub(lmgr_t   * p_mgr, const wagon_t * id_list,
             child_ids = NULL;
         }
     }
+    lmgr_simple_filter_free(&filter);
 
     return last_err;
 }

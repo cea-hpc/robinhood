@@ -906,9 +906,10 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
                 if (!is_expr || (EntryMatches(&chids[j].id, &chattrs[j],
                                  &match_expr, NULL) == POLICY_MATCH))
                     print_entry(&chids[j], &chattrs[j]);
+
+                ListMgr_FreeAttrs(&chattrs[j]);
             }
 
-            ListMgr_FreeAttrs(&chattrs[j]);
             free_wagon(chids, 0, chcount);
             MemFree(chids);
             MemFree(chattrs);
