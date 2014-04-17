@@ -196,6 +196,10 @@ int            Lustre_GetFidByFd(int fd, entry_id_t * p_id);
 int            Lustre_GetNameParent(const char *path, int linkno,
                                     lustre_fid *pfid, char *name, int namelen);
 
+void path_check_update(const entry_id_t *p_id,
+                       const char *fid_path, attr_set_t *p_attrs,
+                       int attr_mask);
+
 #define FID_IS_ZERO(_pf) (((_pf)->f_seq == 0) && ((_pf)->f_oid == 0))
 
 #endif

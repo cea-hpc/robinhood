@@ -481,23 +481,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #if defined( _LUSTRE ) && defined( _HAVE_FID )
     /* may be needed if parent information is missing */
     if (NEED_GETPATH(p_op))
-    {
-        /* get parent_id and name (FIXME, just retrieve one for now).  */
-        rc = Lustre_GetNameParent(path, 0, &ATTR(&p_op->fs_attrs, parent_id),
-                                  ATTR(&p_op->fs_attrs, name), RBH_NAME_MAX);
-        if (rc == 0)
-        {
-            ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
-            ATTR_MASK_SET(&p_op->fs_attrs, name);
-            ATTR_MASK_SET(&p_op->fs_attrs, path_update);
-            ATTR(&p_op->fs_attrs, path_update) = time(NULL);
-        }
-        else if (!ERR_MISSING(-rc))
-        {
-            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to get parent+name for "DFID": %s",
-                       PFID(&p_op->entry_id), strerror(-rc));
-        }
-    } /* getpath needed */
+        path_check_update(&p_op->entry_id, path, &p_op->fs_attrs, p_op->fs_attr_need);
 #endif
 
 #ifdef ATTR_INDEX_creation_time

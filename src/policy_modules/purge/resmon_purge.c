@@ -959,36 +959,14 @@ static int check_entry( lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_a
     ATTR_MASK_SET( new_attr_set, md_update );
     ATTR( new_attr_set, md_update ) = time( NULL );
 
-    /* get fullpath or name, if they are needed for applying policy */
-
-    if ( ( policies.purge_policies.global_attr_mask & ATTR_MASK_fullpath )
-         || ( policies.purge_policies.global_attr_mask & ATTR_MASK_name ) )
+    /* get fullpath or name, if they are needed for applying policy
+     * and if it is expired in DB */
+    if (((policies.purge_policies.global_attr_mask & ATTR_MASK_fullpath)
+          || (policies.purge_policies.global_attr_mask & ATTR_MASK_name)) &&
+        need_path_update(&p_item->entry_attr, NULL))
     {
-        if ( need_path_update(&p_item->entry_attr, NULL) )
-        {
-            /* FIXME: we should get all paths of the entry to check any of them
-             * in policies */
-            /* TODO: also update parent_id+name */
-            if ( Lustre_GetFullPath( &p_item->entry_id,
-                                    ATTR( new_attr_set, fullpath ),
-                                    1024 ) == 0 )
-            {
-                char          *curr;
-                ATTR_MASK_SET( new_attr_set, fullpath );
-                curr = strrchr( ATTR( new_attr_set, fullpath ), '/' );
-
-                /* update path refresh time */
-                ATTR_MASK_SET( new_attr_set, path_update );
-                ATTR( new_attr_set, path_update ) = time( NULL );
-
-                if ( curr )
-                {
-                    curr++;
-                    strcpy( ATTR( new_attr_set, name ), curr );
-                    ATTR_MASK_SET( new_attr_set, name );
-                }
-            }
-        } /* end get path */
+        path_check_update(&p_item->entry_id, fid_path, new_attr_set,
+                          policies.purge_policies.global_attr_mask);
     }
 
 #ifdef ATTR_INDEX_status

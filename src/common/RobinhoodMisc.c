@@ -2710,3 +2710,43 @@ int create_from_attrs(const attr_set_t * attrs_in,
 #endif
     return 0;
 }
+
+#ifdef _HAVE_FID
+void path_check_update(const entry_id_t *p_id,
+                       const char *fid_path, attr_set_t *p_attrs,
+                       int attr_mask)
+{
+    int rc;
+    if (attr_mask & (ATTR_MASK_name | ATTR_MASK_parent_id))
+    {
+        rc = Lustre_GetNameParent(fid_path, 0, &ATTR(p_attrs, parent_id),
+                                  ATTR(p_attrs, name), RBH_NAME_MAX);
+        if (rc == 0)
+        {
+            ATTR_MASK_SET(p_attrs, name);
+            ATTR_MASK_SET(p_attrs, parent_id);
+            /* update path refresh time */
+            ATTR_MASK_SET(p_attrs, path_update);
+            ATTR(p_attrs, path_update) = time(NULL);
+        }
+        else if (rc != -ENOENT)
+        {
+            DisplayLog(LVL_MAJOR, "PathCheck", "Failed to get parent+name for "DFID": %s",
+                       PFID(p_id), strerror(-rc));
+        }
+    }
+
+    /* if fullpath is in the policy, get the fullpath */
+    if (attr_mask & ATTR_MASK_fullpath)
+    {
+        rc = Lustre_GetFullPath(p_id, ATTR(p_attrs, fullpath), RBH_PATH_MAX);
+        if (rc == 0)
+            ATTR_MASK_SET(p_attrs, fullpath);
+        else if (rc != -ENOENT)
+            DisplayLog(LVL_MAJOR, "PathCheck", "Failed to retrieve fullpath for "DFID": %s",
+                       PFID(p_id), strerror(-rc));
+    }
+}
+#endif
+
+

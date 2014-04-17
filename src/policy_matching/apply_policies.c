@@ -1839,6 +1839,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
        is_set = ATTR_MASK_TEST( p_attrs, path_update );
        if ( is_set )
            last = ATTR( p_attrs, path_update );
+
     }
 #endif
     else
@@ -1853,6 +1854,12 @@ int need_info_update( const attr_set_t * p_attrs, int * update_if_event,
     {
         do_update = TRUE;
         why = "not in DB/never updated";
+    }
+    /* Need to update the path if it is partial */
+    else if (ATTR_MASK_TEST(p_attrs, fullpath) && ATTR(p_attrs, fullpath)[0] != '/')
+    {
+        do_update = TRUE;
+        why = "partial path in DB";
     }
     else if ( pol.policy == UPDT_ALWAYS )
     {

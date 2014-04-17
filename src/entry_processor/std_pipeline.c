@@ -1563,41 +1563,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     } /* getattr needed */
 
     if (NEED_GETPATH(p_op))
-    {
-        if ((p_op->fs_attr_need & ATTR_MASK_parent_id)
-            || (p_op->fs_attr_need & ATTR_MASK_name))
-        {
-            /* the log record did not provide name information and the path is needed:
-             * get parent_id and name (FIXME, just retrieve one for now).
-             */
-            rc = Lustre_GetNameParent(path, 0, &ATTR(&p_op->fs_attrs, parent_id),
-                                      ATTR(&p_op->fs_attrs, name), RBH_NAME_MAX);
-            if (rc == 0)
-            {
-                ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
-                ATTR_MASK_SET(&p_op->fs_attrs, name);
-                ATTR_MASK_SET(&p_op->fs_attrs, path_update);
-                ATTR(&p_op->fs_attrs, path_update) = time(NULL);
-            }
-            else if (!ERR_MISSING(-rc))
-            {
-                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to get parent+name for "DFID": %s",
-                           PFID(&p_op->entry_id), strerror(-rc));
-            }
-        }
-
-        /* if the fullpath is needed get path from fid */
-        if (p_op->fs_attr_need & ATTR_MASK_fullpath)
-        {
-            rc = Lustre_GetFullPath(&p_op->entry_id, ATTR(&p_op->fs_attrs, fullpath), RBH_PATH_MAX);
-            if (rc == 0)
-                ATTR_MASK_SET(&p_op->fs_attrs, fullpath);
-            else if (!ERR_MISSING(-rc))
-                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to retrieve fullpath for "DFID": %s",
-                           PFID(&p_op->entry_id), strerror(-rc));
-        }
-
-    } /* getpath needed */
+        path_check_update(&p_op->entry_id, path, &p_op->fs_attrs, p_op->fs_attr_need);
 #endif
 
 #ifdef ATTR_INDEX_creation_time

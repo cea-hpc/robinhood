@@ -1151,31 +1151,12 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
 
     /* get fullpath or name, if they are needed for applying policy
      * and if it is expired in DB */
-    if ( ( policies.migr_policies.global_attr_mask & ATTR_MASK_fullpath )
-         || ( policies.migr_policies.global_attr_mask & ATTR_MASK_name ) )
+    if (((policies.migr_policies.global_attr_mask & ATTR_MASK_fullpath)
+          || (policies.migr_policies.global_attr_mask & ATTR_MASK_name)) &&
+        need_path_update(&p_item->entry_attr, NULL))
     {
-        if ( need_path_update(&p_item->entry_attr, NULL) )
-        {
-            if ( Lustre_GetFullPath( &p_item->entry_id,
-                                    ATTR( new_attr_set, fullpath ),
-                                    1024 ) == 0 )
-            {
-                char          *curr;
-                ATTR_MASK_SET( new_attr_set, fullpath );
-                curr = strrchr( ATTR( new_attr_set, fullpath ), '/' );
-
-                /* update path refresh time */
-                ATTR_MASK_SET( new_attr_set, path_update );
-                ATTR( new_attr_set, path_update ) = time( NULL );
-
-                if ( curr )
-                {
-                    curr++;
-                    strcpy( ATTR( new_attr_set, name ), curr );
-                    ATTR_MASK_SET( new_attr_set, name );
-                }
-            }
-        } /* end get path */
+        path_update_check(fid_path, &new_attr_set,
+                          policies.migr_policies.global_attr_mask);
     }
 
     /* is status known? */
@@ -1259,28 +1240,11 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
         }
     }
 
-    if ( (need_fresh_attrs & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth ))
-         || need_path_update(&p_item->entry_attr, NULL) )
+    if ((need_fresh_attrs & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_depth))
+         || need_path_update(&p_item->entry_attr, NULL))
     {
 #ifdef _HAVE_FID
-        char pathnew[RBH_PATH_MAX];
-        /* /!\ Lustre_GetFullPath modifies fullpath even on failure,
-         * so, first write to a tmp buffer */
-        rc = Lustre_GetFullPath( &p_item->entry_id, pathnew, RBH_PATH_MAX );
-
-        if ( rc == 0 )
-        {
-            strcpy( ATTR( &p_item->entry_attr, fullpath ), pathnew );
-            ATTR_MASK_SET( &p_item->entry_attr, fullpath );
-            ATTR_MASK_SET( &p_item->entry_attr, path_update );
-            ATTR( &p_item->entry_attr, path_update ) = time( NULL );
-        }
-        else if (rc == -ENOENT)
-        {
-            invalidate_entry( lmgr, &p_item->entry_id );
-            return MIGR_ENTRY_MOVED;
-        }
-
+        path_check_update(&p_item->entry_id, fspath, new_attr_set, need_fresh_attrs);
 #else
         DisplayLog( LVL_MAJOR, MIGR_TAG, "Missing path info for addressing the entry" );
         return MIGR_PARTIAL_MD;
