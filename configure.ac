@@ -65,9 +65,10 @@ AX_ENABLE_FLAG([debug-pipeline], [enables debug traces for entry processor pipel
 AX_ENABLE_FLAG([debug-policies], [enables debug traces for entry processor pipeline], [-D_DEBUG_POLICIES])
 AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DEBUG_HASH])
 
-AX_ENABLE_FLAG([bench-scan], [build version for scan benchmarking], [-D_BENCH_SCAN])
-AX_ENABLE_FLAG([bench-db], [build version for DB benchmarking], [-D_BENCH_DB])
-AX_ENABLE_FLAG([gprof], [Add gprof info to the binaries], [-g -pg])
+AX_ENABLE_FLAG([bench-scan], [test only: build special version for scan benchmarking], [-D_BENCH_SCAN])
+AX_ENABLE_FLAG([bench-db], [test only: build special version for DB benchmarking], [-D_BENCH_DB])
+AX_ENABLE_FLAG([gprof], [test only: add gprof info to the binaries], [-g -pg])
+AX_ENABLE_FLAG([gcov], [test only: add gcov info to the binaries], [-fprofile-arcs -ftest-coverage])
 
 # behavior flags
 AX_DISABLE_FLAG([atfunc], [Don't use 'at' functions for scanning], [-D_NO_AT_FUNC])
