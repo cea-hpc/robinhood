@@ -96,4 +96,4 @@ TAGS
 /src/include/hsmlite_types.h
 /src/include/lustre_hsm_types.h
 /src/include/tmp_fs_mgr_types.h
-
+/scripts/make_mans.sh
