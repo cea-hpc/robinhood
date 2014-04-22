@@ -70,6 +70,8 @@ srpm: robinhood.spec dist
 cppcheck:
 	cppcheck -j12 -v --force --enable=all -I`pwd`/src/include -DHAVE_CONFIG_H @PURPOSE_CFLAGS@ @DB_CFLAGS@ src/
 
+lcov:
+	lcov --capture --directory . --output-file rbh_cov.info && genhtml rbh_cov.info --output-directory rbh_cov
 mans:
 	chmod +x ./scripts/make_mans.sh && ./scripts/make_mans.sh
 
