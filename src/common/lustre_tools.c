@@ -266,6 +266,10 @@ int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
     else if (fsize > (sinfo->stripe_count - 1) * sinfo->stripe_size)
         return TRUE;
 
+    /* unsane value, file may not be striped */
+    if (sinfo->stripe_size == 0)
+        return FALSE;
+
     /* In the remaining cases, we must check stripe_items.
      * First compute the number of full stripe blocks,
      * and the remaining piece of data.
