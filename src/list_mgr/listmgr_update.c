@@ -132,7 +132,7 @@ retry:
     }
     else if (ATTR_MASK_TEST(p_update_set, name) || ATTR_MASK_TEST(p_update_set, parent_id))
     {
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to update name information"
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "WARNING: missing attribute to update name information"
                    " (entry "DPK"): name %s, parent_id %s", pk,
                    ATTR_MASK_TEST(p_update_set, name) ? "is set" : "is not set",
                    ATTR_MASK_TEST(p_update_set, parent_id) ? "is set" : "is not set");
