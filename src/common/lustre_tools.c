@@ -677,7 +677,9 @@ int Get_OST_usage( const char *fs_path, unsigned int ost_index, struct statfs *o
         return EFAULT;
     memset(&stat_buf, 0, sizeof(struct obd_statfs));
     memset(&uuid_buf, 0, sizeof(struct obd_uuid));
-    memset(&ost_statfs, 0, sizeof(struct statfs));
+
+    /* zero the output */
+    memset(ost_statfs, 0, sizeof(struct statfs));
 
     /* llapi_obd_statfs does not modify path (checked in code) */
     rc = llapi_obd_statfs( (char*)fs_path, LL_STATFS_LOV, ost_index, &stat_buf,
