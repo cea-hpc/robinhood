@@ -174,18 +174,76 @@ static void   *entry_proc_worker_thr( void *arg )
 }
 
 
+#ifdef _BENCH_PIPELINE
+static pipeline_descr_t bench_pipeline_descr = {0}; /* to be set */
+static pipeline_stage_t *bench_pipeline = NULL; /* to be allocated */
+
+static int EntryProc_noop(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
+{
+    int rc;
+    /* last stage ? */
+    if (p_op->pipeline_stage < bench_pipeline_descr.stage_count - 1)
+        rc = EntryProcessor_Acknowledge(p_op, p_op->pipeline_stage+1, FALSE);
+    else {
+        if (p_op->callback_func)
+            p_op->callback_func(lmgr, p_op, p_op->callback_param);
+
+        /* last stage, remove from the pipeline */
+        rc = EntryProcessor_Acknowledge(p_op, -1, TRUE);
+    }
+    return rc;
+}
+
+static int mk_bench_pipeline(unsigned int stages)
+{
+    int i;
+    bench_pipeline_descr.stage_count = stages;
+    bench_pipeline = MemCalloc(stages, sizeof(pipeline_stage_t));
+    if (bench_pipeline == NULL)
+        return -ENOMEM;
+    for (i = 0; i < stages; i++)
+    {
+        bench_pipeline[i].stage_index = i;
+        bench_pipeline[i].stage_name = "stage_bench";
+        bench_pipeline[i].stage_function = EntryProc_noop;
+        bench_pipeline[i].stage_batch_function = NULL;
+        bench_pipeline[i].test_batchable = NULL;
+        bench_pipeline[i].stage_flags = STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC;
+        bench_pipeline[i].max_thread_count = 0; /* unlimited */
+    }
+
+        if (stages > 2)
+        {
+             bench_pipeline[1].stage_flags |= STAGE_FLAG_ID_CONSTRAINT;
+             bench_pipeline_descr.DB_APPLY = stages - 1;
+        }
+    return 0;
+}
+#endif
+
+
 /**
  *  Initialize entry processor pipeline
  */
 int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e flavor, int flags,
                          void * arg )
 {
-    int            i;
+    int i;
 
     entry_proc_conf = *p_conf;
     pipeline_flags = flags;
     entry_proc_arg = arg;
 
+#ifdef _BENCH_PIPELINE
+    int rc;
+
+    /* in this case, arg points to stage count */
+    rc = mk_bench_pipeline(*((int*)arg));
+    if (rc)
+        return rc;
+    entry_proc_pipeline = bench_pipeline; /* pointer */
+    entry_proc_descr = bench_pipeline_descr; /* full copy */
+#else
     switch (flavor)
     {
         case STD_PIPELINE:
@@ -200,6 +258,7 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
             DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Pipeline flavor not supported");
             return EINVAL;
     }
+#endif
 
     DisplayLog(LVL_FULL, "EntryProc_Config", "nb_threads=%u", p_conf->nb_thread);
     DisplayLog(LVL_FULL, "EntryProc_Config", "max_batch_size=%u", p_conf->max_batch_size);

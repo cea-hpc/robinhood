@@ -1135,9 +1135,8 @@ static int process_one_task(robinhood_task_t *p_task,
 #ifdef _BENCH_DB
     /* to map entry_id_t to an integer  we can increment */
     struct id_map { uint64_t high; uint64_t low; } * volatile fakeid;
-    /* root task: insert 500k entries with root entry id + N.
-     * no subtask */
-    if (p_task->parent_task != NULL)
+    /* level1 tasks: insert 100k entries with root entry id + N. */
+    if (p_task->depth > 1)
         return 0;
 #endif
 
@@ -1207,6 +1206,9 @@ static int process_one_task(robinhood_task_t *p_task,
     }
 #ifndef _BENCH_DB
     else
+#else
+    else if (p_task->depth == 0)
+#endif
     {
         /* read the directory and process each entry */
         rc = process_one_dir(p_task, p_info, nb_entries, nb_errors);
@@ -1214,10 +1216,13 @@ static int process_one_task(robinhood_task_t *p_task,
             return rc;
     }
 
-    if (p_task->depth > 0)
-#else
+#ifdef _BENCH_DB
     int i;
-    for (i = 1; i < 500000 && !p_info->force_stop; i++)
+#endif
+
+    if (p_task->depth > 0)
+#ifdef _BENCH_DB
+    for (i = 1; i < 100000 && !p_info->force_stop; i++)
 #endif
     {
         /* Fill dir info and push it to the pileline for checking alerts on it,
@@ -1279,10 +1284,12 @@ static int process_one_task(robinhood_task_t *p_task,
         ATTR_MASK_SET(&op->fs_attrs, dircount);
         ATTR(&op->fs_attrs, dircount) = *nb_entries;
 
+#ifndef _BENCH_PIPELINE
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
         PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat));
 #else
         PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, TRUE);
+#endif
 #endif
 
 #ifdef _BENCH_DB
@@ -1296,6 +1303,8 @@ static int process_one_task(robinhood_task_t *p_task,
             case 1: strcpy(ATTR(&op->fs_attrs, type), STR_TYPE_FILE); break;
         }
         ATTR(&op->fs_attrs, size) = ((i % 311) * 1493);
+
+        p_info->entries_handled ++;
 #endif
         /* set update time  */
         ATTR_MASK_SET(&op->fs_attrs, md_update);

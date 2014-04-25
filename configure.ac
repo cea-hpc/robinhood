@@ -67,6 +67,7 @@ AX_ENABLE_FLAG([debug-hash], [enables debug traces internal hash tables], [-D_DE
 
 AX_ENABLE_FLAG([bench-scan], [test only: build special version for scan benchmarking], [-D_BENCH_SCAN])
 AX_ENABLE_FLAG([bench-db], [test only: build special version for DB benchmarking], [-D_BENCH_DB])
+AX_ENABLE_FLAG([bench-pipeline], [test only: build special version for pipeline benchmarking], [-D_BENCH_PIPELINE -D_BENCH_DB])
 AX_ENABLE_FLAG([gprof], [test only: add gprof info to the binaries], [-g -pg])
 AX_ENABLE_FLAG([gcov], [test only: add gcov info to the binaries], [--coverage])
 

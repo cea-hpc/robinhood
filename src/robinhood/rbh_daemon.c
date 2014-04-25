@@ -1406,9 +1406,15 @@ int main( int argc, char **argv )
         if (options.diff_mask)
             rh_config.entry_proc_config.diff_mask = options.diff_mask;
 
-        /* Initialise Pipeline */
+        /* Initialize Pipeline */
+#ifdef _BENCH_PIPELINE
+        int nb_stages = 3;
+        rc = EntryProcessor_Init(&rh_config.entry_proc_config, 0, options.flags,
+                                 &nb_stages);
+#else
         rc = EntryProcessor_Init(&rh_config.entry_proc_config, STD_PIPELINE,
                                  options.flags, NULL);
+#endif
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing EntryProcessor pipeline", rc );
