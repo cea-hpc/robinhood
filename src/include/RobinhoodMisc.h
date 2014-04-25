@@ -50,6 +50,8 @@
 
 #define bool2str( _b_ )   ((_b_)?"TRUE":"FALSE")
 
+#define rh_strncpy(_s1, _s2, _sz) do { strncpy(_s1, _s2, _sz-1); if (_sz > 0) (_s1)[_sz-1] = '\0'; } while(0)
+
 /**
  *  Other useful definitions
  */
@@ -92,7 +94,8 @@ int            SendMail( const char *recipient, const char *subject, const char 
 /**
  * Search for Robinhood config file
  */
-int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unmatched);
+int SearchConfig(const char * cfg_in, char * cfg_out, int * changed, char * unmatched,
+                 size_t max_len);
 
 /**
  * This function is blocking as long as the lock file is present.

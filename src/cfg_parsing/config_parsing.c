@@ -526,7 +526,7 @@ config_item_t rh_config_FindItemByName( config_file_t config, const char *name )
 
     list = *config_struct->syntax_tree;
 
-    strncpy( tmp_name, name, MAXSTRLEN );
+    rh_strncpy(tmp_name, name, MAXSTRLEN);
     current = tmp_name;
 
     while ( current )
@@ -600,7 +600,7 @@ config_item_t rh_config_GetItemByName( config_item_t block, const char *name )
 
     list = curr_block->item.block.block_content;
 
-    strncpy( tmp_name, name, MAXSTRLEN );
+    rh_strncpy(tmp_name, name, MAXSTRLEN);
     current = tmp_name;
 
     while ( current )

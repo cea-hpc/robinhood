@@ -21,6 +21,7 @@
 #include "listmgr_common.h"
 #include "Memory.h"
 #include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
 #include "var_str.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -308,8 +309,7 @@ int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
 
     p_stripe_info->stripe_count = atoi( res[0] );
     p_stripe_info->stripe_size = atoi( res[1] );
-    strncpy( p_stripe_info->pool_name, res[2], MAX_POOL_LEN );
-    p_stripe_info->pool_name[MAX_POOL_LEN-1] = 0;
+    rh_strncpy(p_stripe_info->pool_name, res[2], MAX_POOL_LEN);
 
     db_result_free( &p_mgr->conn, &result );
 

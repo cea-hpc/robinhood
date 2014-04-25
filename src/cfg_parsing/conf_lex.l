@@ -142,7 +142,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                         
                         include_stack[include_stack_index] = YY_CURRENT_BUFFER;
                         lines_stack[include_stack_index] = yylineno;                        
-                        strncpy( files_stack[include_stack_index], current_file, FILE_LEN );
+                        rh_strncpy(files_stack[include_stack_index], current_file, FILE_LEN);
                         
                         /* relative path management */
                         
@@ -153,7 +153,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                         if ( ( YY_PARSED_STRING[0] == '/' )
                             || ( strchr( current_file, '/') == NULL ) )
                         {
-                            strncpy( new_file_path, YY_PARSED_STRING, FILE_LEN );
+                            rh_strncpy(new_file_path, YY_PARSED_STRING, FILE_LEN);
                         }
                         else
                         {
@@ -163,7 +163,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                             char tmp_buf[FILE_LEN];
                             char * path;
                             
-                            strncpy( tmp_buf, current_file, FILE_LEN );
+                            rh_strncpy(tmp_buf, current_file, FILE_LEN);
                             
                             path = dirname( tmp_buf );
 
@@ -196,7 +196,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                         }
                         
                         yylineno = 1;
-                        strncpy( current_file, new_file_path, FILE_LEN );
+                        rh_strncpy(current_file, new_file_path, FILE_LEN);
                         
                         /* change current buffer */
                         yy_switch_to_buffer( yy_create_buffer( yyin, YY_BUF_SIZE ) );
@@ -237,7 +237,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                 yy_delete_buffer( YY_CURRENT_BUFFER );
                 
                 yylineno = lines_stack[include_stack_index];
-                strncpy( current_file, files_stack[include_stack_index], FILE_LEN );
+                rh_strncpy(current_file, files_stack[include_stack_index], FILE_LEN);
                 
                 yy_switch_to_buffer( include_stack[include_stack_index] );
             }
@@ -248,7 +248,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 <YY_INIT>{LETTER}({IDENTIFIER_CHAR})* {
                     /* identifier */
                     DEBUG_LEX("[bloc:%s]\n",yytext);
-                    strncpy(yylval.str_val,yytext,MAXSTRLEN);
+                    rh_strncpy(yylval.str_val,yytext,MAXSTRLEN);
                     BEGIN BLOC;
                     return IDENTIFIER;
                  }
@@ -292,14 +292,14 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 <INBLOC>"$"{LETTER}({IDENTIFIER_CHAR})* {
                     /* environment variable */
                     DEBUG_LEX("[VAR:%s]",yytext);
-                    strncpy(yylval.str_val,yytext,MAXSTRLEN);
+                    rh_strncpy(yylval.str_val,yytext,MAXSTRLEN);
                     return ENV_VAR;
                 }
 
 <INBLOC>{LETTER}({IDENTIFIER_CHAR})* {
                     /* identifier */
                     DEBUG_LEX("[%s]",yytext);
-                    strncpy(yylval.str_val,yytext,MAXSTRLEN);
+                    rh_strncpy(yylval.str_val,yytext,MAXSTRLEN);
                     return IDENTIFIER;
                 }
 
@@ -351,21 +351,21 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 <INBLOC>"\""           {BEGIN STRING1;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 1 */
 <INBLOC>"'"            {BEGIN STRING2;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 2 */
 
-<INBLOC>({VAL_CHAR})+  {/* valeur */DEBUG_LEX("[value:%s]\n",yytext);strncpy(yylval.str_val,yytext,MAXSTRLEN); return NON_IDENTIFIER_VALUE;}
+<INBLOC>({VAL_CHAR})+  {/* valeur */DEBUG_LEX("[value:%s]\n",yytext);rh_strncpy(yylval.str_val,yytext,MAXSTRLEN); return NON_IDENTIFIER_VALUE;}
 
 <INBLOC>";"     {DEBUG_LEX(" end_AFFECT "); return END_AFFECT; }
 
 
 
 <STRING1>\\     {BEGIN ESC1;}
-<STRING1>"\""   {DEBUG_LEX(">");strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
+<STRING1>"\""   {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
 <STRING1>\n      {snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 <STRING1>.      {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 
 <ESC1>\n        {BEGIN STRING1;yylineno++;}/* ignore un saut de ligne echappe*/
 <ESC1>.         {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN STRING1;/* caractere de la chaine */}
 
-<STRING2>"'"    {DEBUG_LEX(">");strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
+<STRING2>"'"    {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
 <STRING2>\n     {snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 <STRING2>.      {YY_BUFFER_APPEND(yytext);DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 
@@ -389,5 +389,5 @@ void yyreset(void){
 
 void yy_set_current_file( char * file )
 {
-    strncpy( current_file, file, FILE_LEN );
+    rh_strncpy(current_file, file, FILE_LEN);
 }

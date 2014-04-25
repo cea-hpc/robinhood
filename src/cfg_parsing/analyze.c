@@ -64,9 +64,9 @@ generic_item  *rh_config_CreateBlock( char *blockname, char *blockid, list_items
     new->type = TYPE_BLOCK;
     new->line = yylineno;
 
-    strncpy( new->item.block.block_name, blockname, MAXSTRLEN );
+    rh_strncpy(new->item.block.block_name, blockname, MAXSTRLEN);
     if ( blockid )
-        strncpy( new->item.block.block_id, blockid, MAXSTRLEN );
+        rh_strncpy(new->item.block.block_id, blockid, MAXSTRLEN);
     else
         new->item.block.block_id[0] = '\0';
 
@@ -117,8 +117,8 @@ generic_item  *rh_config_CreateKeyValueExpr( char *varname, operator_t op, char 
     new->next = NULL;
     new->item.bool_expr.type = BOOL_CONDITION;
     new->item.bool_expr.oper = BOOL_OP_IDENTITY;
-    strncpy( new->item.bool_expr.expr_u.key_value.varname, varname, MAXSTRLEN );
-    strncpy( new->item.bool_expr.expr_u.key_value.varvalue, varval, MAXSTRLEN );
+    rh_strncpy(new->item.bool_expr.expr_u.key_value.varname, varname, MAXSTRLEN);
+    rh_strncpy(new->item.bool_expr.expr_u.key_value.varvalue, varval, MAXSTRLEN);
     new->item.bool_expr.expr_u.key_value.op_type = op;
     new->item.bool_expr.expr_u.key_value.arg_list = NULL;
 
@@ -136,8 +136,8 @@ generic_item  *rh_config_CreateAffect( char *varname, char *varval )
     new->type = TYPE_AFFECT;
     new->line = yylineno;
     new->next = NULL;
-    strncpy( new->item.affect.varname, varname, MAXSTRLEN );
-    strncpy( new->item.affect.varvalue, varval, MAXSTRLEN );
+    rh_strncpy(new->item.affect.varname, varname, MAXSTRLEN);
+    rh_strncpy(new->item.affect.varvalue, varval, MAXSTRLEN);
     new->item.affect.op_type = 0;
     new->item.affect.arg_list = NULL;
 
@@ -156,10 +156,10 @@ generic_item  *rh_config_CreateBoolExpr( char *blockname, char* title,
     new->type = TYPE_BLOCK;
     new->line = yylineno;
 
-    strncpy( new->item.block.block_name, blockname, MAXSTRLEN );
+    rh_strncpy(new->item.block.block_name, blockname, MAXSTRLEN);
 
     if ( title )
-        strncpy( new->item.block.block_id, title, MAXSTRLEN );
+        rh_strncpy(new->item.block.block_id, title, MAXSTRLEN);
     else
         new->item.block.block_id[0] = '\0';
 
@@ -263,10 +263,10 @@ generic_item  *rh_config_CreateSet( char *blockname, char *label,
     new->type = TYPE_BLOCK;
     new->line = yylineno;
 
-    strncpy( new->item.block.block_name, blockname, MAXSTRLEN );
+    rh_strncpy(new->item.block.block_name, blockname, MAXSTRLEN);
 
     if ( label )
-        strncpy( new->item.block.block_id, label, MAXSTRLEN );
+        rh_strncpy(new->item.block.block_id, label, MAXSTRLEN);
     else
         new->item.block.block_id[0] = '\0';
 
@@ -386,7 +386,7 @@ generic_item  *rh_config_CreateSet_Singleton( char* set_name )
     new->line = yylineno;
     new->next = NULL;
     new->item.set.set_type = SET_SINGLETON;
-    strncpy( new->item.set.set_u.name, set_name, MAXSTRLEN );
+    rh_strncpy(new->item.set.set_u.name, set_name, MAXSTRLEN);
 
     return new;
 }
@@ -747,5 +747,5 @@ void rh_config_resov_var(char *dstvalue, char*var)
     if (val == NULL)
         dstvalue[0] = '\0';
     else
-        strncpy(dstvalue, val, MAXSTRLEN);
+        rh_strncpy(dstvalue, val, MAXSTRLEN);
 }

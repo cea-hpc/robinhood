@@ -124,8 +124,8 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
         {
             p_stripe_info->stripe_size = p_lum3->lmm_stripe_size;
             p_stripe_info->stripe_count = p_lum3->lmm_stripe_count;
-            strncpy( p_stripe_info->pool_name, p_lum3->lmm_pool_name, LOV_MAXPOOLNAME );
-            p_stripe_info->pool_name[MAX_POOL_LEN-1] = 0;
+            strncpy(p_stripe_info->pool_name, p_lum3->lmm_pool_name, LOV_MAXPOOLNAME);
+            p_stripe_info->pool_name[MAX_POOL_LEN-1] = '\0';
         }
 
         if ( p_stripe_items )
@@ -675,8 +675,9 @@ int Get_OST_usage( const char *fs_path, unsigned int ost_index, struct statfs *o
     /* sanity check */
     if ( !ost_statfs )
         return EFAULT;
-    memset( &stat_buf, 0, sizeof( struct obd_statfs ) );
-    memset( &uuid_buf, 0, sizeof( struct obd_uuid ) );
+    memset(&stat_buf, 0, sizeof(struct obd_statfs));
+    memset(&uuid_buf, 0, sizeof(struct obd_uuid));
+    memset(&ost_statfs, 0, sizeof(struct statfs));
 
     /* llapi_obd_statfs does not modify path (checked in code) */
     rc = llapi_obd_statfs( (char*)fs_path, LL_STATFS_LOV, ost_index, &stat_buf,
@@ -731,8 +732,11 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
 #endif
 
     /* sanity check */
-    if ( !pool_statfs )
+    if (!pool_statfs)
+    {
+        MemFree(buffer);
         return EFAULT;
+    }
 
     memset( pool_statfs, 0, sizeof( struct statfs ) );
 
@@ -819,7 +823,7 @@ int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode)
         filename = fullpath;
 
     memset(lmd, 0, sizeof(buffer));
-    strncpy(buffer, filename, strlen(filename) + 1);
+    rh_strncpy(buffer, filename, strlen(filename) + 1);
     rc = ioctl(parentfd, IOC_MDC_GETFILEINFO, (void *)lmd);
 
     if ( rc )
@@ -896,7 +900,7 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
 
     sprintf( filename, DFID, PFID(p_id) );
     memset( lmd, 0, sizeof( buffer ) );
-    strncpy( buffer, filename, strlen( filename ) + 1 );
+    rh_strncpy(buffer, filename, strlen(filename) + 1);
 
     rc = ioctl( dirfd( fid_dir_fd ), IOC_MDC_GETFILEINFO, ( void * ) lmd );
 
@@ -934,7 +938,7 @@ char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p
 
     if ( !p_stripe_items || ( p_stripe_items->count == 0 ) )
     {
-        strncpy( buff, "(none)", sz );
+        rh_strncpy(buff, "(none)", sz);
         return buff;
     }
 
@@ -1053,7 +1057,7 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
         p_lum->lmm_stripe_count = ATTR(p_attrs, stripe_info).stripe_count;
         p_lum->lmm_stripe_offset = 0;
         /* pool name */
-        strncpy(p_lum->lmm_pool_name, ATTR(p_attrs, stripe_info).pool_name, LOV_MAXPOOLNAME);
+        rh_strncpy(p_lum->lmm_pool_name, ATTR(p_attrs, stripe_info).pool_name, LOV_MAXPOOLNAME)
 
         /* set stripe items */
         for ( i = 0; i < ATTR(p_attrs, stripe_items).count; i++ )

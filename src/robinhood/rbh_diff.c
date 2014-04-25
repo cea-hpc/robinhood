@@ -447,7 +447,7 @@ int main( int argc, char **argv )
         {
         case 's':
             options.partial_scan = TRUE;
-            strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
+            rh_strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
             /* clean final slash */
             if (FINAL_SLASH(options.partial_scan_path))
                 REMOVE_FINAL_SLASH(options.partial_scan_path);
@@ -485,7 +485,7 @@ int main( int argc, char **argv )
             break;
 
         case 'f':
-            strncpy( options.config_file, optarg, MAX_OPT_LEN );
+            rh_strncpy(options.config_file, optarg, MAX_OPT_LEN);
             break;
 #ifdef _HSM_LITE
         case 'b':
@@ -494,7 +494,7 @@ int main( int argc, char **argv )
 #endif
 #ifdef _HAVE_FID /* only for lustre 2.x */
         case 'o':
-            strncpy(options.output_dir, optarg, MAX_OPT_LEN);
+            rh_strncpy(options.output_dir, optarg, MAX_OPT_LEN);
             break;
 #endif
         case 'l':
@@ -549,7 +549,8 @@ int main( int argc, char **argv )
     }
 
     /* get default config file, if not specified */
-    if ( SearchConfig( options.config_file, options.config_file, &chgd, badcfg ) != 0 )
+    if (SearchConfig(options.config_file, options.config_file, &chgd,
+                      badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);

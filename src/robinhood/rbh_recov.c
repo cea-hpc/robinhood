@@ -647,7 +647,7 @@ int main( int argc, char **argv )
             local_flags |= NO_CONFIRM;
             break;
         case 'f':
-            strncpy( config_file, optarg, MAX_OPT_LEN );
+            rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'D':
             if ( !optarg )
@@ -657,7 +657,7 @@ int main( int argc, char **argv )
             }
             else
             {
-                strncpy( path_buff, optarg, MAX_OPT_LEN );
+                rh_strncpy(path_buff, optarg, MAX_OPT_LEN);
                 path_filter = path_buff;
             }
             break;
@@ -676,7 +676,7 @@ int main( int argc, char **argv )
                 exit( 1 );
             }
             /* copy arg to display it */
-            strncpy(ost_range_str, optarg, sizeof(ost_range_str));
+            rh_strncpy(ost_range_str, optarg, sizeof(ost_range_str));
             break;
         case 'b':
             if ( !optarg )
@@ -727,7 +727,7 @@ int main( int argc, char **argv )
     }
 
     /* get default config file, if not specified */
-    if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
+    if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg );
         exit(2);

@@ -87,7 +87,7 @@ static int print_lov(struct lov_user_md * p_lum)
         printf("stripe_size=%u\n", p_lum3->lmm_stripe_size);
         printf("stripe_count=%hu\n", p_lum3->lmm_stripe_count);
         printf("stripe_offset=%hd\n", p_lum3->lmm_stripe_offset);
-        strncpy( pool_name, p_lum3->lmm_pool_name, LOV_MAXPOOLNAME );
+        strncpy(pool_name, p_lum3->lmm_pool_name, LOV_MAXPOOLNAME);
         pool_name[LOV_MAXPOOLNAME] = '\0';
         printf("pool_name=%s\n", pool_name);
         printf("stripe objects:\n");

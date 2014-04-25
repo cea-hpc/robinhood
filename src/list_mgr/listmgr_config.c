@@ -287,7 +287,7 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
             return rc;
         }
         fclose( passfile );
-        strncpy( conf->db_config.password, tmpstr, 256 );
+        rh_strncpy(conf->db_config.password, tmpstr, 256);
     }
 
     rc = GetIntParam( db_block, MYSQL_CONFIG_BLOCK, "port",

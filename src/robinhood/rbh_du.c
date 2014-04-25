@@ -630,7 +630,7 @@ static int list_content(char ** id_list, int id_count)
             DisplayLog(LVL_DEBUG, DU_TAG, "Optimization: command argument is filesystem's root: performing bulk sum in DB");
             rc = list_all(stats, !prog_options.sum);
             if (rc)
-                return rc;
+                goto out;
             continue;
         }
 
@@ -688,7 +688,7 @@ static int list_content(char ** id_list, int id_count)
             rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask, dircb, stats);
 
             if (rc)
-                return rc;
+                goto out;
 
             print_stats(ids[i].fullname, stats);
         }
@@ -698,7 +698,7 @@ static int list_content(char ** id_list, int id_count)
     {
         rc = rbh_scrub(&lmgr, ids, id_count, disp_mask, dircb, stats);
         if (rc)
-            return rc;
+            goto out;
         print_stats("total", stats);
     }
 
@@ -793,7 +793,7 @@ int main( int argc, char **argv )
                 break;
 #endif
             case 'f':
-                strncpy( config_file, optarg, MAX_OPT_LEN );
+                rh_strncpy(config_file, optarg, MAX_OPT_LEN);
                 break;
             case 'l':
                 force_log_level = TRUE;
@@ -825,7 +825,7 @@ int main( int argc, char **argv )
 
 
     /* get default config file, if not specified */
-    if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
+    if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);

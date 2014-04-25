@@ -58,7 +58,7 @@ static char   *ExtractParentDir( const char *file_path, char *out_buff )
     char           buff[RBH_PATH_MAX];
     char          *dir;
 
-    strncpy( buff, file_path, RBH_PATH_MAX );
+    rh_strncpy(buff, file_path, RBH_PATH_MAX);
 
     dir = dirname( buff );
 

@@ -274,29 +274,31 @@ int SendMail( const char *recipient, const char *subject, const char *message )
  * If cfg_in is empty: search any config in config paths
  * /!\ not thread safe
  */
-int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unmatched )
+int SearchConfig(const char *cfg_in, char *cfg_out, int *changed, char *unmatched,
+                 size_t max_len)
 {
-    static const char * default_cfg_path = SYSCONFDIR"/robinhood.d/"PURPOSE_EXT;
-    DIR * dir;
-    struct dirent * ent;
+    static const char *default_cfg_path = SYSCONFDIR"/robinhood.d/"PURPOSE_EXT;
+    DIR *dir;
+    struct dirent *ent;
+    const char *cfg = cfg_in;
 
     *changed = 1; /* most of the cases */
 
-    if (cfg_in == NULL || EMPTY_STRING(cfg_in))
+    if (cfg == NULL || EMPTY_STRING(cfg))
     {
         /* check if a default config file is specified */
-        cfg_in = getenv(DEFAULT_CFG_VAR);
+        cfg = getenv(DEFAULT_CFG_VAR);
     }
 
     /* set unmatched, for better logging */
     if (unmatched) {
-        if (cfg_in)
-            strcpy(unmatched, cfg_in);
+        if (cfg)
+            rh_strncpy(unmatched, cfg, max_len);
         else
-            sprintf(unmatched, "%s/*.conf", default_cfg_path);
+            snprintf(unmatched, max_len, "%s/*.conf", default_cfg_path);
     }
 
-    if (cfg_in == NULL || EMPTY_STRING(cfg_in)) {
+    if (cfg == NULL || EMPTY_STRING(cfg)) {
         int found = 0;
 
         /* look for files in default config path */
@@ -330,15 +332,15 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
            return 0;
        }
     }
-    else if (access(cfg_in, F_OK) == 0)
+    else if (access(cfg, F_OK) == 0)
     {
         /* the specified config file exists */
-        if (cfg_out != cfg_in)
-            strcpy(cfg_out, cfg_in);
+        if (cfg_out != cfg)
+            rh_strncpy(cfg_out, cfg, max_len);
         *changed=0;
         return 0;
     }
-    else if (strchr(cfg_in, '/'))
+    else if (strchr(cfg, '/'))
     {
         /* the argument is a path (not a single name
          * and this path was not found) */
@@ -347,25 +349,25 @@ int SearchConfig( const char * cfg_in, char * cfg_out, int * changed, char * unm
     }
     else /* look for a file in the given paths */
     {
-        char cfg_cp[RBH_PATH_MAX];
-        int has_ext = (strchr(cfg_in, '.') != NULL);
+        char cfg_cp[RBH_PATH_MAX] = "";
+        int has_ext = (strchr(cfg, '.') != NULL);
 
-        strcpy(cfg_cp, cfg_in);
+        rh_strncpy(cfg_cp, cfg, MIN2(max_len, RBH_PATH_MAX));
 
         /* if the file already has an extension, try path/name */
         if (has_ext)
         {
-            sprintf(cfg_out, "%s/%s", default_cfg_path, cfg_cp);
+            snprintf(cfg_out, max_len, "%s/%s", default_cfg_path, cfg_cp);
             if (access(cfg_out, F_OK) == 0)
                 return 0;
         }
 
         /* try path/name.cfg, path/name.conf */
-        sprintf(cfg_out, "%s/%s.conf", default_cfg_path, cfg_cp);
+        snprintf(cfg_out, max_len, "%s/%s.conf", default_cfg_path, cfg_cp);
         if (access(cfg_out, F_OK) == 0)
             return 0;
 
-        sprintf(cfg_out, "%s/%s.cfg", default_cfg_path, cfg_cp);
+        snprintf(cfg_out, max_len, "%s/%s.cfg", default_cfg_path, cfg_cp);
         if (access(cfg_out, F_OK) == 0)
             return 0;
     }
@@ -648,9 +650,9 @@ int CheckFSInfo( char *path, char *expected_type,
                             "Root mountpoint is allowed for matching %s, type=%s, fs=%s",
                             rpath, p_mnt->mnt_type, p_mnt->mnt_fsname );
                 outlen = pathlen;
-                strncpy( mntdir, p_mnt->mnt_dir, RBH_PATH_MAX );
-                strncpy( type, p_mnt->mnt_type, 256 );
-                strncpy( fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX );
+                rh_strncpy(mntdir, p_mnt->mnt_dir, RBH_PATH_MAX);
+                rh_strncpy(type, p_mnt->mnt_type, 256);
+                rh_strncpy(fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX);
             }
             /* in other cases, the filesystem must be <mountpoint>/<smthg> or <mountpoint>\0 */
             else if ( ( pathlen > outlen ) &&
@@ -662,9 +664,9 @@ int CheckFSInfo( char *path, char *expected_type,
                             rpath, p_mnt->mnt_dir, p_mnt->mnt_type, p_mnt->mnt_fsname );
 
                 outlen = pathlen;
-                strncpy( mntdir, p_mnt->mnt_dir, RBH_PATH_MAX );
-                strncpy( type, p_mnt->mnt_type, 256 );
-                strncpy( fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX );
+                rh_strncpy(mntdir, p_mnt->mnt_dir, RBH_PATH_MAX);
+                rh_strncpy(type, p_mnt->mnt_type, 256);
+                rh_strncpy(fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX);
             }
         }
     }
@@ -2371,7 +2373,7 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id)
         int path_len = curr - full_path;
 
         /* extract directory name */
-        strncpy( path_copy, full_path, path_len );
+        rh_strncpy(path_copy, full_path, path_len);
         path_copy[path_len]='\0';
 
         DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", path_copy );

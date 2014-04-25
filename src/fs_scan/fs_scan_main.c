@@ -260,7 +260,7 @@ int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
 
     conf->ignore_list = NULL;
     conf->ignore_count = 0;
-    strncpy( conf->completion_command, "", RBH_PATH_MAX );
+    rh_strncpy(conf->completion_command, "", RBH_PATH_MAX);
 
     return 0;
 }

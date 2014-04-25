@@ -518,7 +518,7 @@ int main( int argc, char **argv )
             action = ACTION_RESTORE;
             break;
         case 'f':
-            strncpy( config_file, optarg, MAX_OPT_LEN );
+            rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
             force_log_level = TRUE;
@@ -554,10 +554,10 @@ int main( int argc, char **argv )
         fprintf( stderr, "Error: missing mandatory argument on command line: <path|fid>\n" );
         exit( 1 );
     }
-    strncpy( path_filter, argv[optind], RBH_PATH_MAX );
+    rh_strncpy(path_filter, argv[optind], RBH_PATH_MAX);
 
     /* get default config file, if not specified */
-    if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
+    if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);

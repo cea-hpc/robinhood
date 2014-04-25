@@ -261,7 +261,7 @@ int GetStringParam( config_item_t block,
         return rc;
     }
 
-    strncpy( target, value, target_size );
+    rh_strncpy(target, value, target_size);
 
     if ( extra )
     {
@@ -964,7 +964,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         /* 3 possible values: aboslute path, relative path,
          * path with special wildcard '**' that match any number
          * of directory levels */
-        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
+        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
 
         if ( ANY_LEVEL_MATCH(p_triplet->val.str) )
         {
@@ -1011,7 +1011,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         /* 3 possible values: aboslute path, relative path,
          * path with special wildcard '**' that match any number
          * of directory levels */
-        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
+        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
 
         if ( ANY_LEVEL_MATCH(p_triplet->val.str) )
         {
@@ -1062,7 +1062,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
             return EINVAL;
         }
 
-        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
+        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
 
         /* allowed comparators are = and != */
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
@@ -1129,7 +1129,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->crit = CRITERIA_OWNER;
         *p_attr_mask |= ATTR_MASK_owner;
 
-        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
+        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
@@ -1155,7 +1155,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->crit = CRITERIA_GROUP;
         *p_attr_mask |= ATTR_MASK_gr_name;
 
-        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
+        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
@@ -1338,7 +1338,7 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         p_triplet->crit = CRITERIA_POOL;
         *p_attr_mask |= ATTR_MASK_stripe_info;
 
-        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
+        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
@@ -1415,8 +1415,8 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
         *p_attr_mask |= ATTR_MASK_fullpath;
 #endif
 
-        strncpy( p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX );
-        strncpy( p_triplet->xattr_name, p_xattr, RBH_NAME_MAX );
+        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
+        rh_strncpy(p_triplet->xattr_name, p_xattr, RBH_NAME_MAX);
         p_triplet->op = syntax2conf_comparator( key_value->op_type );
 
         if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )

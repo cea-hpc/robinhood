@@ -241,7 +241,7 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
     int i;
     int match;
 
-    strncpy(descr_cp, descriptor, 256 );
+    rh_strncpy(descr_cp, descriptor, 256);
     curr = strchr(descr_cp, '.');
     if ( curr != NULL )
     {
@@ -299,7 +299,7 @@ int InitializeLogs( char *program_name, const log_config_t * config )
     if ( uname( &uts ) == -1 )
         strcpy( machine_name, "???" );
     else
-        strncpy( machine_name, uts.nodename, RBH_PATH_MAX );
+        rh_strncpy(machine_name, uts.nodename, RBH_PATH_MAX);
 
     /* if the name is the full machine name (node.subnet.domain.ext),
      * only kief the brief name */
@@ -309,7 +309,7 @@ int InitializeLogs( char *program_name, const log_config_t * config )
     if ( program_name == NULL )
         strcpy( prog_name, "???" );
     else
-        strncpy( prog_name, program_name, RBH_PATH_MAX );
+        rh_strncpy(prog_name, program_name, RBH_PATH_MAX);
 
     /* open log files */
     rc = init_log_descr( log_config.log_file, &log );
@@ -488,7 +488,7 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
         if (tag && log_config.log_tag)
             snprintf(new_format, MAX_LINE_LEN, "%s | %s", tag, format);
         else
-            strncpy(new_format, format, MAX_LINE_LEN);
+            rh_strncpy(new_format, format, MAX_LINE_LEN);
 
         vsyslog(log_config.syslog_priority, new_format, arglist);
     }
@@ -919,10 +919,10 @@ int SetDefaultLogConfig( void *module_config, char *msg_out )
 
 
     conf->debug_level = LVL_EVENT;
-    strncpy( conf->log_file, "/var/log/robinhood.log", RBH_PATH_MAX );
-    strncpy( conf->report_file, "/var/log/robinhood_reports.log", RBH_PATH_MAX );
+    rh_strncpy(conf->log_file, "/var/log/robinhood.log", RBH_PATH_MAX);
+    rh_strncpy(conf->report_file, "/var/log/robinhood_reports.log", RBH_PATH_MAX);
 
-    strncpy( conf->alert_file, "/var/log/robinhood_alerts.log", 1024 );
+    rh_strncpy(conf->alert_file, "/var/log/robinhood_alerts.log", 1024);
     conf->alert_mail[0] = '\0';
 
     conf->syslog_facility = LOG_LOCAL1;

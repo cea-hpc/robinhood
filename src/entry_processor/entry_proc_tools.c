@@ -455,7 +455,7 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
 
             alert_title = rh_config_GetBlockId( curr_item );
             if ( alert_title != NULL )
-                strncpy( conf->alert_list[conf->alert_count - 1].title,
+                rh_strncpy(conf->alert_list[conf->alert_count - 1].title,
                          alert_title, ALERT_TITLE_MAX );
             else
                 conf->alert_list[conf->alert_count - 1].title[0] = '\0';

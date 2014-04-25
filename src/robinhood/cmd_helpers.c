@@ -346,7 +346,7 @@ int parse_diff_mask(const char * arg, int * diff_mask, char * msg)
     char *curr, *init;
 
     /* tmp copy of argument */
-    strncpy(buff, arg, 4096);
+    rh_strncpy(buff, arg, 4096);
     init = buff;
 
     while ((curr = strtok(init, ",")) != NULL)

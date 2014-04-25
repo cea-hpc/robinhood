@@ -45,13 +45,13 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
     global_config_t *conf = ( global_config_t * ) module_config;
     msg_out[0] = '\0';
 
-    strncpy( conf->fs_path, "", RBH_PATH_MAX );
+    rh_strncpy(conf->fs_path, "", RBH_PATH_MAX);
 #ifdef _HAVE_FID
-    strncpy( conf->fs_type, "lustre", FILENAME_MAX );
+    rh_strncpy(conf->fs_type, "lustre", FILENAME_MAX);
 #else
-    strncpy( conf->fs_type, "", FILENAME_MAX );
+    rh_strncpy(conf->fs_type, "", FILENAME_MAX);
 #endif
-    strncpy( conf->lock_file, "/var/locks/robinhood.lock", RBH_PATH_MAX );
+    rh_strncpy(conf->lock_file, "/var/locks/robinhood.lock", RBH_PATH_MAX);
     conf->stay_in_fs = TRUE;
     conf->check_mounted = TRUE;
     conf->fs_key = FSKEY_FSNAME;

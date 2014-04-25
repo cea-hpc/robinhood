@@ -968,7 +968,7 @@ int main( int argc, char **argv )
             if (optarg) {       /* optional argument => partial scan*/
                 options.flags |= FLAG_ONCE;
                 options.partial_scan = TRUE;
-                strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
+                rh_strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
                 /* clean final slash */
                 if (FINAL_SLASH(options.partial_scan_path))
                     REMOVE_FINAL_SLASH(options.partial_scan_path);
@@ -1093,7 +1093,7 @@ int main( int argc, char **argv )
             options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_PURGE );
             options.purge_class = TRUE;
-            strncpy( options.purge_target_class, optarg, 128 );
+            rh_strncpy(options.purge_target_class, optarg, 128);
             break;
 
 
@@ -1121,7 +1121,7 @@ int main( int argc, char **argv )
             options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
             options.migrate_user = TRUE;
-            strncpy( options.migr_target_user, optarg, 128 );
+            rh_strncpy(options.migr_target_user, optarg, 128);
             break;
 
         case FORCE_GROUP_MIGR:
@@ -1129,7 +1129,7 @@ int main( int argc, char **argv )
             options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
             options.migrate_group = TRUE;
-            strncpy( options.migr_target_group, optarg, 128 );
+            rh_strncpy(options.migr_target_group, optarg, 128);
             break;
 
         case FORCE_CLASS_MIGR:
@@ -1137,7 +1137,7 @@ int main( int argc, char **argv )
             options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
             options.migrate_class = TRUE;
-            strncpy( options.migr_target_class, optarg, 128 );
+            rh_strncpy(options.migr_target_class, optarg, 128);
             break;
 
         case MIGR_ONE_FILE:
@@ -1145,7 +1145,7 @@ int main( int argc, char **argv )
             options.flags |= FLAG_ONCE;
             SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
             options.migrate_file = TRUE;
-            strncpy( options.migr_target_file, optarg, RBH_PATH_MAX );
+            rh_strncpy(options.migr_target_file, optarg, RBH_PATH_MAX);
             break;
 #endif
 
@@ -1153,11 +1153,11 @@ int main( int argc, char **argv )
             options.detach = TRUE;
             break;
         case 'f':
-            strncpy( options.config_file, optarg, MAX_OPT_LEN );
+            rh_strncpy(options.config_file, optarg, MAX_OPT_LEN);
             break;
         case 'T':
             if ( optarg )       /* optional argument */
-                strncpy( options.template_file, optarg, MAX_OPT_LEN );
+                rh_strncpy(options.template_file, optarg, MAX_OPT_LEN);
             options.write_template = TRUE;
             break;
         case TEST_SYNTAX:
@@ -1168,7 +1168,7 @@ int main( int argc, char **argv )
             break;
         case 'L':
             options.force_log = TRUE;
-            strncpy( options.log, optarg, MAX_OPT_LEN );
+            rh_strncpy(options.log, optarg, MAX_OPT_LEN);
             break;
         case 'l':
             options.force_log_level = TRUE;
@@ -1183,7 +1183,7 @@ int main( int argc, char **argv )
             break;
         case 'p':
             options.pid_file = TRUE;
-            strncpy( options.pid_filepath, optarg, MAX_OPT_LEN );
+            rh_strncpy(options.pid_filepath, optarg, MAX_OPT_LEN);
             break;
         case 'h':
             display_help( bin );
@@ -1276,7 +1276,8 @@ int main( int argc, char **argv )
     parsing_mask = action2parsing_mask(action_mask);
 
     /* get default config file, if not specified */
-    if ( SearchConfig( options.config_file, options.config_file, &chgd, badcfg ) != 0 )
+    if (SearchConfig(options.config_file, options.config_file, &chgd,
+                     badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);

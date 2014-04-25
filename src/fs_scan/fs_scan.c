@@ -736,7 +736,7 @@ static int create_child_task(const char *childpath, struct stat *inode, robinhoo
     }
 
     p_task->parent_task = parent;
-    strncpy(p_task->path, childpath, RBH_PATH_MAX);
+    rh_strncpy(p_task->path, childpath, RBH_PATH_MAX);
 
     /* set parent id */
     if ((rc = get_dirid(childpath, inode, &p_task->dir_id)))

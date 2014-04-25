@@ -88,10 +88,10 @@ int main( int argc, char **argv )
                 }
                 break;
             case 'f':
-                strncpy(config_file, optarg, MAX_OPT_LEN);
+                rh_strncpy(config_file, optarg, MAX_OPT_LEN);
                 break;
             case 'o':
-                strncpy(output_file, optarg, MAX_OPT_LEN);
+                rh_strncpy(output_file, optarg, MAX_OPT_LEN);
                 break;
             case 'm':
                 margin = str2int(optarg);

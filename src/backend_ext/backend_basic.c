@@ -996,7 +996,7 @@ relative:
         int path_len = curr - full_path;
 
         /* extract directory name */
-        strncpy( path_copy, full_path, path_len );
+        rh_strncpy(path_copy, full_path, path_len);
         path_copy[path_len]='\0';
 
         /* stat dir */
@@ -2183,7 +2183,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     char * name = strrchr(ATTR(p_attrs_new, fullpath), '/');
     if (name && *(name + 1) != '\0')
     {
-        strncpy(ATTR( p_attrs_new, name ), name+1, RBH_NAME_MAX);
+        rh_strncpy(ATTR(p_attrs_new, name), name+1, RBH_NAME_MAX);
         ATTR_MASK_SET(p_attrs_new, name);
     }
 

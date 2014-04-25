@@ -740,8 +740,7 @@ int result2attrset( table_enum table, char **result_tab,
                 }
                 ATTR(p_set, stripe_info).stripe_count = atoi( result_tab[nbfields]  );
                 ATTR(p_set, stripe_info).stripe_size = atoi( result_tab[nbfields+1]  );
-                strncpy( ATTR(p_set, stripe_info).pool_name, result_tab[nbfields+2] , MAX_POOL_LEN );
-                ATTR(p_set, stripe_info).pool_name[MAX_POOL_LEN-1] = 0;
+                rh_strncpy(ATTR(p_set, stripe_info).pool_name, result_tab[nbfields+2] , MAX_POOL_LEN);
 
                 /* stripe count, stripe size and pool_name */
                 nbfields += 3;
@@ -1511,7 +1510,7 @@ int lmgr_range2list(const char * set, db_type_t type, value_list_t * p_list)
         return -1;
 
     /* local copy for strtok */
-    strncpy(buffer, set, 1024);
+    rh_strncpy(buffer, set, 1024);
 
     /* inialize list */
     p_list->count = 0;

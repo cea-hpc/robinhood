@@ -1003,7 +1003,7 @@ YY_RULE_SETUP
                         
                         include_stack[include_stack_index] = YY_CURRENT_BUFFER;
                         lines_stack[include_stack_index] = yylineno;                        
-                        strncpy( files_stack[include_stack_index], current_file, FILE_LEN );
+                        rh_strncpy(files_stack[include_stack_index], current_file, FILE_LEN);
                         
                         /* relative path management */
                         
@@ -1014,7 +1014,7 @@ YY_RULE_SETUP
                         if ( ( YY_PARSED_STRING[0] == '/' )
                             || ( strchr( current_file, '/') == NULL ) )
                         {
-                            strncpy( new_file_path, YY_PARSED_STRING, FILE_LEN );
+                            rh_strncpy(new_file_path, YY_PARSED_STRING, FILE_LEN);
                         }
                         else
                         {
@@ -1024,7 +1024,7 @@ YY_RULE_SETUP
                             char tmp_buf[FILE_LEN];
                             char * path;
                             
-                            strncpy( tmp_buf, current_file, FILE_LEN );
+                            rh_strncpy(tmp_buf, current_file, FILE_LEN);
                             
                             path = dirname( tmp_buf );
 
@@ -1057,7 +1057,7 @@ YY_RULE_SETUP
                         }
                         
                         yylineno = 1;
-                        strncpy( current_file, new_file_path, FILE_LEN );
+                        rh_strncpy(current_file, new_file_path, FILE_LEN);
                         
                         /* change current buffer */
                         yy_switch_to_buffer(yy_create_buffer(yyin,YY_BUF_SIZE ) );
@@ -1122,7 +1122,7 @@ case YY_STATE_EOF(INCL_ESC):
                 yy_delete_buffer(YY_CURRENT_BUFFER );
                 
                 yylineno = lines_stack[include_stack_index];
-                strncpy( current_file, files_stack[include_stack_index], FILE_LEN );
+                rh_strncpy(current_file, files_stack[include_stack_index], FILE_LEN);
                 
                 yy_switch_to_buffer(include_stack[include_stack_index] );
             }
@@ -1134,7 +1134,7 @@ YY_RULE_SETUP
 {
                     /* identifier */
                     DEBUG_LEX("[bloc:%s]\n",yytext);
-                    strncpy(yylval.str_val,yytext,MAXSTRLEN);
+                    rh_strncpy(yylval.str_val,yytext,MAXSTRLEN);
                     BEGIN BLOC;
                     return IDENTIFIER;
                  }
@@ -1211,7 +1211,7 @@ YY_RULE_SETUP
 {
                     /* environment variable */
                     DEBUG_LEX("[VAR:%s]",yytext);
-                    strncpy(yylval.str_val,yytext,MAXSTRLEN);
+                    rh_strncpy(yylval.str_val,yytext,MAXSTRLEN);
                     return ENV_VAR;
                 }
 	YY_BREAK
@@ -1221,7 +1221,7 @@ YY_RULE_SETUP
 {
                     /* identifier */
                     DEBUG_LEX("[%s]",yytext);
-                    strncpy(yylval.str_val,yytext,MAXSTRLEN);
+                    rh_strncpy(yylval.str_val,yytext,MAXSTRLEN);
                     return IDENTIFIER;
                 }
 	YY_BREAK
@@ -1318,7 +1318,7 @@ YY_RULE_SETUP
 case 33:
 YY_RULE_SETUP
 #line 354 "conf_lex.l"
-{/* valeur */DEBUG_LEX("[value:%s]\n",yytext);strncpy(yylval.str_val,yytext,MAXSTRLEN); return NON_IDENTIFIER_VALUE;}
+{/* valeur */DEBUG_LEX("[value:%s]\n",yytext);rh_strncpy(yylval.str_val,yytext,MAXSTRLEN); return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
@@ -1333,7 +1333,7 @@ YY_RULE_SETUP
 case 36:
 YY_RULE_SETUP
 #line 361 "conf_lex.l"
-{DEBUG_LEX(">");strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
+{DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
 	YY_BREAK
 case 37:
 /* rule 37 can match eol */
@@ -1360,7 +1360,7 @@ YY_RULE_SETUP
 case 41:
 YY_RULE_SETUP
 #line 368 "conf_lex.l"
-{DEBUG_LEX(">");strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
+{DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 42:
 /* rule 42 can match eol */
@@ -2421,6 +2421,6 @@ void yyreset(void){
 
 void yy_set_current_file( char * file )
 {
-    strncpy( current_file, file, FILE_LEN );
+    rh_strncpy(current_file, file, FILE_LEN);
 }
 

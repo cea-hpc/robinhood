@@ -24,7 +24,6 @@
 #   include <string.h>
 #endif
 
-
     int yylex(void);
     void yyerror(char*);
     extern int yylineno;
@@ -167,7 +166,6 @@ expression:
 set:
     BEGIN_PARENTHESIS set END_PARENTHESIS { $$=$2; }
     | NOT set       { $$=rh_config_CreateSet_Unary( SET_OP_NOT, $2 ); }
-    | NOT BEGIN_PARENTHESIS set END_PARENTHESIS { $$=rh_config_CreateSet_Unary( SET_OP_NOT, $3 ); }
     | set UNION set { $$=rh_config_CreateSet_Binary( SET_OP_UNION, $1, $3 ); }
     | set INTER set { $$=rh_config_CreateSet_Binary( SET_OP_INTER, $1, $3 ); }
     | IDENTIFIER    { $$=rh_config_CreateSet_Singleton( $1 ); }
@@ -197,5 +195,5 @@ subblock:
     
 
     void set_error(char * s){
-        strncpy(local_errormsg,s,1024);
+        rh_strncpy(local_errormsg, s, 1024);
     }

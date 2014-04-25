@@ -28,6 +28,9 @@
 
 #include <stdio.h>
 
+#ifndef rh_strncpy
+#define rh_strncpy(_s1, _s2, _sz) do { strncpy(_s1, _s2, _sz-1); if (_sz > 0) (_s1)[_sz-1] = '\0'; } while(0)
+#endif
 
 #define MAXSTRLEN   1024
 

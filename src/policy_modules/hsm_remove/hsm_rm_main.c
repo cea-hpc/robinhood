@@ -115,7 +115,7 @@ static void   *MkRmItem( entry_id_t * p_entry_id )
     new_entry->entry_id = *p_entry_id;
 
 #ifdef _HSM_LITE
-    strncpy(new_entry->backendpath, bkpath, RBH_PATH_MAX);
+    rh_strncpy(new_entry->backendpath, bkpath, RBH_PATH_MAX);
 #endif
 
     return new_entry;

@@ -3342,7 +3342,7 @@ int main( int argc, char **argv )
             }
             else
             {
-                strncpy( path_filter, optarg, RBH_PATH_MAX );
+                rh_strncpy(path_filter, optarg, RBH_PATH_MAX);
             }
             break;
 
@@ -3358,11 +3358,11 @@ int main( int argc, char **argv )
                 break;
             }
             if (!strcasecmp( optarg, "default"))
-                strncpy( class_filter, CLASS_DEFAULT, 1024 );
+                rh_strncpy(class_filter, CLASS_DEFAULT, 1024);
             else if ( !strcasecmp( optarg, "ignored"))
-                strncpy( class_filter, CLASS_IGNORED, 1024 );
+                rh_strncpy(class_filter, CLASS_IGNORED, 1024);
             else
-                strncpy( class_filter, optarg, 1024 );
+                rh_strncpy(class_filter, optarg, 1024);
             break;
 
         case OPT_CLASS_INFO:
@@ -3377,11 +3377,11 @@ int main( int argc, char **argv )
             if ( optarg )
             {
                 if (!strcasecmp( optarg, "default"))
-                    strncpy( class_filter, CLASS_DEFAULT, 1024 );
+                    rh_strncpy(class_filter, CLASS_DEFAULT, 1024);
                 else if ( !strcasecmp( optarg, "ignored"))
-                    strncpy( class_filter, CLASS_IGNORED, 1024 );
+                    rh_strncpy(class_filter, CLASS_IGNORED, 1024);
                 else
-                    strncpy( class_filter, optarg, 1024 );
+                    rh_strncpy(class_filter, optarg, 1024);
             }
             break;
 
@@ -3391,19 +3391,19 @@ int main( int argc, char **argv )
 
         case 'e':
             entry_info = TRUE;
-            strncpy(entry_path, optarg, RBH_PATH_MAX);
+            rh_strncpy(entry_path, optarg, RBH_PATH_MAX);
             break;
 
         case 'u':
             user_info = TRUE;
             if ( optarg )
-                strncpy( user_name, optarg, 256 );
+                rh_strncpy(user_name, optarg, 256);
             break;
 
         case 'g':
             group_info = TRUE;
             if ( optarg )
-                strncpy( group_name, optarg, 256 );
+                rh_strncpy(group_name, optarg, 256);
             break;
 
         case 'D':
@@ -3417,7 +3417,7 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Missing mandatory argument <username> for --dump-user\n");
                 exit(1);
             }
-            strncpy( dump_user_name, optarg, 256 );
+            rh_strncpy(dump_user_name, optarg, 256);
             break;
 
         case OPT_DUMP_GROUP:
@@ -3427,7 +3427,7 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Missing mandatory argument <groupname> for --dump-group\n");
                 exit(1);
             }
-            strncpy( dump_group_name, optarg, 256 );
+            rh_strncpy(dump_group_name, optarg, 256);
             break;
 
 #ifdef _LUSTRE
@@ -3447,7 +3447,7 @@ int main( int argc, char **argv )
                 exit( 1 );
             }
             /* copy arg to display it */
-            strncpy(ost_set_str, optarg, sizeof(ost_set_str));
+            rh_strncpy(ost_set_str, optarg, sizeof(ost_set_str));
             break;
 #endif
 
@@ -3583,7 +3583,7 @@ int main( int argc, char **argv )
 #endif
 
         case 'f':
-            strncpy( config_file, optarg, MAX_OPT_LEN );
+            rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
             force_log_level = TRUE;
@@ -3689,7 +3689,7 @@ int main( int argc, char **argv )
     }
 
     /* get default config file, if not specified */
-    if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
+    if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);

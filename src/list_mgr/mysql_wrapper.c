@@ -197,7 +197,7 @@ int db_close_conn( db_conn_t * conn )
 char          *db_errmsg( db_conn_t * conn, char *errmsg, unsigned int buflen )
 {
     if ( strlen( mysql_error( conn ) ) + 1 > buflen )
-        strncpy( errmsg, mysql_error( conn ), buflen );
+        rh_strncpy(errmsg, mysql_error(conn), buflen);
     else
         strcpy( errmsg, mysql_error( conn ) );
 

@@ -99,7 +99,7 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 53 "conf_yacc.y"
+#line 52 "conf_yacc.y"
 
     char         str_val[MAXSTRLEN];
     list_items              *  list;

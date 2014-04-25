@@ -103,7 +103,7 @@ char          *db_errmsg( db_conn_t * conn, char *errmsg, unsigned int buflen )
     }
 
     if ( strlen( sqlite3_errmsg( *conn ) ) + 1 > buflen )
-        strncpy( errmsg, sqlite3_errmsg( *conn ), buflen );
+        rh_strncpy(errmsg, sqlite3_errmsg(*conn), buflen);
     else
         strcpy( errmsg, sqlite3_errmsg( *conn ) );
 
