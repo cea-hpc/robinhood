@@ -1059,7 +1059,7 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
         p_lum->lmm_stripe_count = ATTR(p_attrs, stripe_info).stripe_count;
         p_lum->lmm_stripe_offset = 0;
         /* pool name */
-        rh_strncpy(p_lum->lmm_pool_name, ATTR(p_attrs, stripe_info).pool_name, LOV_MAXPOOLNAME)
+        rh_strncpy(p_lum->lmm_pool_name, ATTR(p_attrs, stripe_info).pool_name, LOV_MAXPOOLNAME);
 
         /* set stripe items */
         for ( i = 0; i < ATTR(p_attrs, stripe_items).count; i++ )

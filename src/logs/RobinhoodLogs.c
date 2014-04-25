@@ -270,7 +270,7 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
         {
             if ( !strcasecmp(prioritynames[i].c_name, curr) )
             {
-                if ( p_level ) *p_fac = prioritynames[i].c_val;
+                if ( p_level ) *p_level = prioritynames[i].c_val;
                 match = TRUE;
                 break;
             }

@@ -98,7 +98,10 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t * p_filter, unsigned int
 
         rc = convert_regexp( p_value->value.val_str, newstr );
         if ( rc )
+        {
+            MemFree(newstr);
             return rc;
+        }
 
         /* free the previous string */
         if ( flag & FILTER_FLAG_ALLOC_STR )

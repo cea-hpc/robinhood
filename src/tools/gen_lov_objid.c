@@ -113,7 +113,7 @@ int main( int argc, char **argv )
     }
 
     /* get default config file, if not specified */
-    if ( SearchConfig( config_file, config_file, &chgd, badcfg ) != 0 )
+    if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
         exit(2);

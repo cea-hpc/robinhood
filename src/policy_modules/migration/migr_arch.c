@@ -1155,7 +1155,7 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
           || (policies.migr_policies.global_attr_mask & ATTR_MASK_name)) &&
         need_path_update(&p_item->entry_attr, NULL))
     {
-        path_update_check(fid_path, &new_attr_set,
+        path_check_update(&p_item->entry_id, fid_path, new_attr_set,
                           policies.migr_policies.global_attr_mask);
     }
 

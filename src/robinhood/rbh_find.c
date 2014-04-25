@@ -1080,6 +1080,7 @@ static int list_contents(char ** id_list, int id_count)
             /* the ID is FS root: use list_bulk instead */
             DisplayLog(LVL_DEBUG, FIND_TAG, "Optimization: switching to bulk DB request mode");
             mkfilters(FALSE); /* keep dirs */
+            MemFree(ids);
             return list_bulk();
         }
 

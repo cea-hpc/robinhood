@@ -996,7 +996,7 @@ relative:
         int path_len = curr - full_path;
 
         /* extract directory name */
-        rh_strncpy(path_copy, full_path, path_len);
+        strncpy(path_copy, full_path, path_len);
         path_copy[path_len]='\0';
 
         /* stat dir */

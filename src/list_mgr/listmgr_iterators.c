@@ -572,7 +572,10 @@ retry:
             if (lmgr_delayed_retry(p_mgr, rc))
                 goto retry;
             else if (rc)
+            {
+                MemFree(it);
                 return NULL;
+            }
             it->in_tx = 1;
         }
     }
