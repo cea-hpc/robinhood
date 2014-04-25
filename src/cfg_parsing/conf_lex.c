@@ -633,7 +633,7 @@ char err_str[ERRLEN]="";
 char YY_PARSED_STRING[MAXSTRLEN];
 
 void YY_BUFFER_APPEND(char * s){
-    strncat( YY_PARSED_STRING,s, MAXSTRLEN);
+    strncat(YY_PARSED_STRING,s, MAXSTRLEN-1);
 }
 
 void YY_BUFFER_RESET(void){
