@@ -816,6 +816,13 @@ function test_suspend_on_error
 
 	echo "3-Applying migration policy ($policy_str)..."
 
+    # make the archive fail
+	if (( $is_lhsm != 0 )); then
+        for i in $(seq 1 ${nb_files_error}); do
+            $LFS hsm_set --noarchive $ROOT/file.$i.fail
+        done
+    fi
+
 	$RH -f ./cfg/$config_file --migrate -l DEBUG -L rh_migr.log  --once || error ""
 
     nb_fail_match=$(grep "hints='fail'" rh_migr.log | wc -l)
@@ -1315,6 +1322,11 @@ function test_default
 
         if (($is_lhsm != 0)); then
     		wait_done 60 || error "Migration timeout"
+
+            # read changelogs to be aware of migration success
+            :> rh_chglogs.log
+            $RH -f ./cfg/$config_file --readlog --once  -l DEBUG -L rh_chglogs.log || error "reading changelog"
+            check_db_error rh_chglogs.log
         fi
 
         # wait for entries to be eligible
@@ -3327,6 +3339,7 @@ function test_info_collect
 		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 		nb_cr=0
 	else
+        [ "$DEBUG" = "1" ] && $LFS changelog lustre
 		echo "1-Reading changelogs..."
 		#$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 		$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error ""
@@ -3354,8 +3367,11 @@ function test_info_collect
                 # CLOSE record is only expected since Lustre 2.2
                 # for previous versions, just display a warning
                 echo "warning: no close record (lustre version $LVERSION)"
-            else
+            elif [[ $LVERSION = 2.[234]* ]] ; then
+                # CLOSE is expected from 2.2 to 2.4
                 error ": unexpected number of close: $nb_close / 4"
+            else
+                echo "warning: no close record (lustre version $LVERSION)"
             fi
             return 1
         fi
