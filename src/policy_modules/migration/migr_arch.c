@@ -401,13 +401,12 @@ static void report_progress(const unsigned long long * pass_begin, const unsigne
     unsigned int nb_errors = migration_info.errors;
 
     /* add stats for the current pass */
-    if (pass_begin && pass_current)
+    if (pass_begin && pass_current &&
+        status_tab_begin && status_tab_current)
     {
         migr_vol += pass_current[MIGR_FDBK_VOL] - pass_begin[MIGR_FDBK_VOL];
-        migr_count += pass_current[MIGR_FDBK_NBR] - pass_begin[MIGR_FDBK_NBR];
-    }
-    if (status_tab_begin && status_tab_current)
-    {
+        migr_count += status_tab_current[MIGR_OK] - status_tab_begin[MIGR_OK];
+
         nb_skipped = skipped_count(status_tab_current)
                         - skipped_count(status_tab_begin);
         nb_errors = error_count(status_tab_current)
@@ -1024,7 +1023,7 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
         /* add stats for this pass */
         migration_info.migr_vol += feedback_after[MIGR_FDBK_VOL] - feedback_before[MIGR_FDBK_VOL];
-        migration_info.migr_count += feedback_after[MIGR_FDBK_NBR] - feedback_before[MIGR_FDBK_NBR];
+        migration_info.migr_count += status_tab_after[MIGR_OK] - status_tab_before[MIGR_OK];
         migration_info.skipped += skipped_count(status_tab_after) - skipped_count(status_tab_before);
         migration_info.errors += error_count(status_tab_after) - error_count(status_tab_before);
 
@@ -1611,10 +1610,10 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
         /* we probably have a wrong status for this entry: refresh it */
 
-        rc = LustreHSM_GetStatus( fid_path, &ATTR( &new_attr_set, status ),
-                                  &ATTR( &new_attr_set, no_release ),
-                                  &ATTR( &new_attr_set, no_archive ) );
-        if ( !rc )
+        int rc2 = LustreHSM_GetStatus(fid_path, &ATTR(&new_attr_set, status),
+                                      &ATTR(&new_attr_set, no_release),
+                                      &ATTR(&new_attr_set, no_archive));
+        if (!rc2)
         {
             ATTR_MASK_SET( &new_attr_set, status );
             ATTR_MASK_SET( &new_attr_set, no_release );
