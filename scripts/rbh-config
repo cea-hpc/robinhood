@@ -493,24 +493,14 @@ function repair_db
         pass_root=$2
     fi
 
-    # get table list
-    echo "Retrieving table list..."
-    tables=`mysql --password="$pass_root" $RBH_DB --batch --skip-column-names -e "SHOW TABLES" | xargs | sed -e 's/ /,/g'`
-
-    if [[ -n "$tables" ]]; then
-            echo "Checking/fixing tables ($tables)..."
-            mysql --password="$pass_root" $RBH_DB -e "REPAIR TABLE $tables"
-
-            if (( $? )); then
-                echo "Command failed"
-                exit 1
-            else
-                echo "DONE"
-            fi
+    # check tables
+    mysqlcheck --password="$pass_root" --auto-repair --databases mysql $RBH_DB
+    if (( $? )); then
+        echo "Check failed"
+        exit 1
     else
-        echo "No table in database"
+        echo "DONE"
     fi
-
 }
 
 function backup_db
@@ -520,7 +510,7 @@ function backup_db
         interactive=1
     elif (( $# != 2 && $# != 3 )); then
         echo "ERROR: 2 or 3 arguments expected"
-            echo "Usage: repair_db [<db_name> <dest_dir> [<db_admin_passwd>]]"
+            echo "Usage: backup_db [<db_name> <dest_dir> [<db_admin_passwd>]]"
         exit 1
     fi
 
