@@ -403,6 +403,10 @@ AC_CHECK_FUNC([getmntent_r],[getmntent_r=yes],[getmntent_r=no])
 test "$getmntent_r" = "yes" && AC_DEFINE(HAVE_GETMNTENT_R, 1, [Reentrant version of getmntent exists])
 AM_CONDITIONAL(MNTENTCOMPAT, test "$getmntent_r" = "no" )
 
+# Check if fallocate(2) exists.
+AC_CHECK_FUNC([fallocate],[fallocate=yes],[fallocate=no])
+test "$fallocate" = "yes" && AC_DEFINE(HAVE_FALLOCATE, 1, [File preallocation available])
+
 AS_AC_EXPAND(CONFDIR, $sysconfdir)
 if test $prefix = NONE && test "$CONFDIR" = "/usr/etc"  ; then
     CONFDIR="/etc"

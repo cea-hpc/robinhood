@@ -1097,103 +1097,113 @@ static int file_clone_attrs(const char *tgt, const struct stat *st)
     return 0;
 }
 
-#define COMPRESSED_SRC 0x00000001
-#define COMPRESS_DEST  0x00000002
-static int builtin_copy(const char *src, const char *dst, int dst_flags,
-                        int save_attrs, int flags)
-{
 /* log tag for built-in copy */
 #define CP_TAG "cp"
+
+#define COMPRESSED_SRC  (1 << 0)
+#define COMPRESS_DEST   (1 << 1)
+#define USE_SENDFILE    (1 << 2)
+
+struct copy_info {
+    const char  *src;
+    const char  *dst;
+    int          src_fd;
+    int          dst_fd;
+    struct stat  src_st;
+};
+
+static int flush_data(int srcfd, int dstfd)
+{
+    posix_fadvise(srcfd, 0, 0, POSIX_FADV_DONTNEED);
+    if (config.sync_archive_data)
+    {
+        if (fdatasync(dstfd) < 0)
+            return -errno;
+    }
+    posix_fadvise(dstfd, 0, 0, POSIX_FADV_DONTNEED);
+    return 0;
+}
+
+static int builtin_copy_standard(const struct copy_info *cp_nfo, int flags)
+{
     int srcfd, dstfd;
-    struct stat st_src, st_dst;
+    struct stat dst_st;
     int rc = 0;
     size_t  io_size;
     ssize_t r = 0, w = 0;
     char *io_buff = NULL;
     gzFile gz = NULL;
-    int gzerr, err_close;
+    int gzerr, err_close = 0;
 
     if ((flags & COMPRESSED_SRC) && (flags & COMPRESS_DEST))
     {
-        /* doesn't handle compression for both source and dest */
-        DisplayLog(LVL_MAJOR, CP_TAG, "Copy function doesn't handle compression "
-                   "for both src and dest");
+        DisplayLog(LVL_MAJOR, CP_TAG, "Copy function doesn't handle "
+                   "compression for both source and destination");
         return -EINVAL;
     }
 
-    srcfd = open(src, O_RDONLY | O_NOATIME);
-    if (srcfd < 0)
-    {
-        rc = -errno;
-        DisplayLog(LVL_MAJOR, CP_TAG, "Can't open %s for read: %s",
-                   src, strerror(-rc));
-        return rc;
-    }
-
-    /* open a compressed stream over the src fd */
     if (flags & COMPRESSED_SRC)
     {
+        srcfd = dup(cp_nfo->src_fd);
+        dstfd = cp_nfo->dst_fd;
+
         gz = gzdopen(srcfd, "rb");
         if (gz == NULL)
         {
-            DisplayLog(LVL_MAJOR, CP_TAG, "Failed to initialize decompression stream");
+            DisplayLog(LVL_MAJOR, CP_TAG,
+                       "Failed to initialize decompression stream");
+            close(srcfd);
             return -EIO;
         }
     }
-
-    /* get src attrs */
-    if (fstat(srcfd, &st_src))
+    else if (flags & COMPRESS_DEST)
     {
-        rc = -errno;
-        DisplayLog(LVL_MAJOR, CP_TAG, "Failed to stat %s: %s",
-                   src, strerror(-rc));
-        goto close_src;
-    }
+        srcfd = cp_nfo->src_fd;
+        dstfd = dup(cp_nfo->dst_fd);
 
-    dstfd = open(dst, dst_flags, st_src.st_mode & 07777);
-    if (dstfd < 0)
-    {
-        rc = -errno;
-        DisplayLog(LVL_MAJOR, CP_TAG, "Can't open %s for write: %s",
-                   src, strerror(-rc));
-        goto close_src;
-    }
-
-    /* open a compression stream for dest */
-    if (flags & COMPRESS_DEST)
-    {
         gz = gzdopen(dstfd, "wb");
         if (gz == NULL)
         {
-            DisplayLog(LVL_MAJOR, CP_TAG, "Failed to initialize compression stream");
+            DisplayLog(LVL_MAJOR, CP_TAG,
+                       "Failed to initialize decompression stream");
+            close(dstfd);
             return -EIO;
         }
     }
+    else
+    {
+        /* Uncompressed regular copy */
+        srcfd = cp_nfo->src_fd;
+        dstfd = cp_nfo->dst_fd;
+    }
 
-    /* needed to get the biggest IO size of source and destination.  */
-    if (fstat(dstfd, &st_dst))
+    /* needed to get the biggest IO size of source and destination. */
+    if (fstat(dstfd, &dst_st))
     {
         rc = -errno;
         DisplayLog(LVL_MAJOR, CP_TAG, "Failed to stat %s: %s",
-                   dst, strerror(-rc));
-        goto close_dst;
+                   cp_nfo->dst, strerror(-rc));
+        goto out_close;
     }
-    io_size = MAX2(st_src.st_blksize, st_dst.st_blksize);
+
+    io_size = MAX2(cp_nfo->src_st.st_blksize, dst_st.st_blksize);
     DisplayLog(LVL_DEBUG, CP_TAG, "using IO size = %"PRI_SZ, io_size);
+
     io_buff = MemAlloc(io_size);
     if (!io_buff)
     {
         rc = -ENOMEM;
-        goto close_dst;
+        goto out_close;
     }
 
-    /* do the copy */
+    /* Do the copy */
     do
     {
         if (flags & COMPRESSED_SRC)
             r = gzread(gz, io_buff, io_size);
         else
             r = read(srcfd, io_buff, io_size);
+
         if (r <= 0)
             break;
 
@@ -1206,12 +1216,13 @@ static int builtin_copy(const char *src, const char *dst, int dst_flags,
         {
             rc = -errno;
             DisplayLog(LVL_MAJOR, CP_TAG, "Copy error (%s -> %s): %s",
-                       src, dst, strerror(-rc));
+                       cp_nfo->src, cp_nfo->dst, strerror(-rc));
             goto out_free;
         }
         else if (w < r)
         {
-            DisplayLog(LVL_MAJOR, CP_TAG, "Short write on %s, aborting copy", dst);
+            DisplayLog(LVL_MAJOR, CP_TAG, "Short write on %s, aborting copy",
+                       cp_nfo->dst);
             rc = -EAGAIN;
             goto out_free;
         }
@@ -1224,63 +1235,136 @@ static int builtin_copy(const char *src, const char *dst, int dst_flags,
     }
     /* else (r == 0): EOF */
 
-    /* free the kernel buffer cache as we does expect reading the files again.
-     * This can be done immediatly for the read file.
-     * For the writen file, we need to flush it to disk to ensure
-     * the file is correctly archived and to allow freeing the buffer cache */
-    posix_fadvise(srcfd, 0, 0, POSIX_FADV_DONTNEED);
-
-    /* need to flush the compression buffer to the file before system sync */
+    /* need to flush the compression buffer before system sync */
     if (flags & COMPRESS_DEST)
     {
         if (gzflush(gz, Z_FINISH) != Z_OK)
         {
             DisplayLog(LVL_MAJOR, CP_TAG, "compression error for %s: %s",
-                       dst, gzerror(gz, &gzerr));
-            return -EIO;
+                       cp_nfo->dst, gzerror(gz, &gzerr));
+            rc = -EIO;
+            goto out_free;
         }
     }
 
-    if (config.sync_archive_data && (fdatasync(dstfd) != 0))
-    {
-        rc = -errno;
+    /* Free the kernel buffer cache as we don't expect to read the files again.
+     * This can be done immediatly for the read file.
+     * For the written file, we need to flush it to disk to ensure
+     * that it is correctly archived and to allow freeing the buffer cache. */
+    rc = flush_data(srcfd, dstfd);
+    if (rc)
         goto out_free;
-    }
-    posix_fadvise(dstfd, 0, 0, POSIX_FADV_DONTNEED);
 
 out_free:
     MemFree(io_buff);
 
-close_dst:
-
-    if (flags & COMPRESS_DEST)
+out_close:
+    if (flags & (COMPRESSED_SRC | COMPRESS_DEST))
         err_close = (gzclose(gz) != Z_OK);
-    else
-        err_close = (close(dstfd) < 0);
 
+    if (err_close && rc == 0)
+    {
+        rc = errno ? -errno : -EIO;
+        DisplayLog(LVL_MAJOR, CP_TAG, "close failed on %s: %s",
+                   cp_nfo->src, "error closing compression stream");
+    }
+
+    return rc;
+}
+
+static int builtin_copy_sendfile(const struct copy_info *cp_nfo, int flags)
+{
+    int rc;
+    int srcfd = cp_nfo->src_fd;
+    int dstfd = cp_nfo->dst_fd;
+    size_t fsize = cp_nfo->src_st.st_size;
+
+#if HAVE_FALLOCATE
+    rc = fallocate(dstfd, 0, 0, fsize);
+    if (rc)
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Failed to fallocate %s: %s",
+                   cp_nfo->dst, strerror(-rc));
+        goto out;
+    }
+#endif
+
+    rc = sendfile(dstfd, srcfd, NULL, fsize);
+    if (rc)
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Failed to sendfile(%s->%s): %s",
+                   cp_nfo->src, cp_nfo->dst, strerror(-rc));
+        goto out;
+    }
+
+    rc = flush_data(srcfd, dstfd);
+    if (rc)
+        goto out;
+
+out:
+    return rc;
+}
+
+static int builtin_copy(const char *src, const char *dst, int dst_flags,
+                        int save_attrs, int flags)
+{
+    struct copy_info cp_nfo;
+    int rc, err_close = 0;
+
+    cp_nfo.src = src;
+    cp_nfo.dst = dst;
+
+    cp_nfo.src_fd = open(src, O_RDONLY | O_NOATIME);
+    if (cp_nfo.src_fd < 0)
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Can't open %s for read: %s", src,
+                   strerror(-rc));
+        return rc;
+    }
+
+    if (fstat(cp_nfo.src_fd, &cp_nfo.src_st))
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Failed to stat %s: %s", src,
+                   strerror(-rc));
+        goto close_src;
+    }
+
+    cp_nfo.dst_fd = open(dst, dst_flags, cp_nfo.src_st.st_mode & 07777);
+    if (cp_nfo.dst_fd < 0)
+    {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, CP_TAG, "Can't open %s for write: %s",
+                   dst, strerror(-rc));
+        goto close_src;
+    }
+
+    if (flags & (COMPRESSED_SRC | COMPRESS_DEST))
+        rc = builtin_copy_standard(&cp_nfo, flags);
+    else if (flags & USE_SENDFILE)
+        rc = builtin_copy_sendfile(&cp_nfo, flags);
+    else
+        rc = builtin_copy_standard(&cp_nfo, flags);
+
+    err_close = close(cp_nfo.dst_fd);
     if (err_close && (rc == 0))
     {
-        rc = -(errno ? errno : EIO);
-        if (flags & COMPRESS_DEST)
-            DisplayLog(LVL_MAJOR, CP_TAG, "close failed on %s: %s",
-                       dst, "error closing compression stream");
-        else
-            DisplayLog(LVL_MAJOR, CP_TAG, "close failed on %s: %s",
-                       dst, strerror(-rc));
+        rc = errno ? -errno : -EIO;
+        DisplayLog(LVL_MAJOR, CP_TAG, "close failed on %s: %s",
+                   dst, strerror(-rc));
     }
 
 close_src:
-    if (flags & COMPRESSED_SRC)
-        gzclose(gz);
-    else
-        close(srcfd);
+    close(cp_nfo.src_fd);
 
-    /* save attributes if the copy was sucessfull, and if asked */
-    if (rc == 0)
-        rc = file_clone_attrs(dst, &st_src);
+    if (rc == 0 && save_attrs)
+        rc = file_clone_attrs(dst, &cp_nfo.src_st);
 
     return rc;
-} /* builtin_copy */
+}
 
 
 /**
@@ -1432,7 +1516,8 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
         /* execute the archive command (or built-in, if not set) */
         if (EMPTY_STRING(config.action_cmd))
             rc = builtin_copy(fspath, tmp, O_WRONLY | O_CREAT | O_TRUNC, TRUE,
-                              config.compress?COMPRESS_DEST:0);
+                              (config.compress?COMPRESS_DEST:0) |
+                              (config.sendfile?USE_SENDFILE:0));
         else
         {
             if (hints)
@@ -1999,7 +2084,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             /* full restore (even data) */
             if (EMPTY_STRING(config.action_cmd))
                 rc = builtin_copy(backend_path, fspath, O_WRONLY, FALSE,
-                                  compressed?COMPRESSED_SRC:0);
+                                  (compressed?COMPRESSED_SRC:0) |
+                                  (config.sendfile?USE_SENDFILE:0));
             else
                 rc = execute_shell_command(TRUE, config.action_cmd, 3, "RESTORE",
                                            backend_path, fspath);

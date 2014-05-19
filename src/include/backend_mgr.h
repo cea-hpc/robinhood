@@ -27,6 +27,7 @@ typedef struct backend_config_t
     unsigned int archive_symlinks:1;
     unsigned int sync_archive_data:1;
     unsigned int compress:1;
+    unsigned int sendfile:1;
 } backend_config_t;
 
 int            SetDefault_Backend_Config( void *module_config, char *msg_out );

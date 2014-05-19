@@ -48,6 +48,7 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
     conf->archive_symlinks = TRUE;
     conf->sync_archive_data = TRUE;
     conf->compress = FALSE;
+    conf->sendfile = FALSE;
     return 0;
 }
 
@@ -58,6 +59,7 @@ int Write_Backend_ConfigDefault( FILE * output )
     print_line( output, 1, "mnt_type      : nfs ");
     print_line(output, 1, "action_cmd    : <built-in copy>");
     print_line(output, 1, "compress      : FALSE");
+    print_line(output, 1, "sendfile      : FALSE");
 #ifdef HAVE_SHOOK
      print_line( output, 1, "shook_cfg    : \"/etc/shook.cfg\"" );
 #endif
@@ -81,7 +83,7 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
         "shook_cfg",
 #endif
         "xattr_support", "check_mounted", "archive_symlinks",
-        "sync_archive_data", "compress", NULL};
+        "sync_archive_data", "compress", "sendfile", NULL};
 
     /* get Backend block */
 
@@ -192,12 +194,18 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
     else if (rc != ENOENT)
         conf->compress = tmpval;
 
-
     if (conf->compress && !EMPTY_STRING(conf->action_cmd))
     {
         DisplayLog(LVL_MAJOR, BKL_TAG, "Warning: enabling compression is only allowed for built-in copy action: disabling compression");
         conf->compress = 0;
     }
+
+    rc = GetBoolParam(block, BACKEND_BLOCK, "sendfile", 0, &tmpval, NULL,
+                      NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT)
+        conf->sendfile = tmpval;
 
     CheckUnknownParameters(block, BACKEND_BLOCK, allowed_params);
 
@@ -233,6 +241,9 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line(output, 1, "# flush archive data on close, to make sure the copy");
     print_line(output, 1, "# is really successful (performance impact for small files)");
     print_line(output, 1, "sync_archive_data = TRUE; ");
+    print_line(output, 1, "# use sendfile() to efficiently copy files");
+    print_line(output, 1, "# Requires fallocate() and file-to-file sendfile()");
+    print_line(output, 1, "#sendfile = TRUE; ");
     print_end_block(output, 0);
     return 0;
 }
@@ -258,6 +269,7 @@ int Backend_Start( backend_config_t * config, int flags )
     DisplayLog(LVL_DEBUG, BKL_TAG, "xattr_support    =   %s",  bool2str(config->xattr_support));
     DisplayLog(LVL_DEBUG, BKL_TAG, "archive_symlinks =   %s",  bool2str(config->archive_symlinks));
     DisplayLog(LVL_DEBUG, BKL_TAG, "sync_archive_data =  %s",  bool2str(config->sync_archive_data));
+    DisplayLog(LVL_DEBUG, BKL_TAG, "sendfile         =  %s",  bool2str(config->sendfile));
 
     /* first check compatibility flags */
     compat_flags = rbhext_compat_flags();
