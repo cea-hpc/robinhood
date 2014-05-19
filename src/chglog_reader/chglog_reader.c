@@ -593,10 +593,10 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
         rec->cr_type = CL_UNLINK;
         rec->cr_index = rec_in->cr_index - 1;
 
-        DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                    "Unlink: object="DFID", name=%.*s",
-                    PFID(&rec->cr_tfid), rec->cr_namelen,
-                    rec->cr_name );
+        DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+                   "Unlink: object="DFID", name=%.*s, flags=%#x",
+                   PFID(&rec->cr_tfid), rec->cr_namelen,
+                   rec->cr_name, rec->cr_flags);
     }
 
     return rec;

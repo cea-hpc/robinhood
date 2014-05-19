@@ -668,6 +668,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                     bool2str( logrec->cr_flags & CLF_UNLINK_LAST ) );
 #endif
 
+    #ifndef HAVE_RM_POLICY
         if (p_op->check_if_last_entry) {
             /* When inserting that entry, we didn't know whether the
              * entry was the last one or not, so use the nlink
@@ -679,6 +680,9 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                 logrec->cr_flags |= CLF_UNLINK_LAST;
             }
         }
+    #else
+            /* too dangerous */
+    #endif
 
         /* is it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
