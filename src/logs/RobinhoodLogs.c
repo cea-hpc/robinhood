@@ -861,6 +861,7 @@ void RaiseAlert( const char *title, const char *format, ... )
 {
     va_list        args;
     char           mail[MAX_MAIL_LEN];
+    char           title2[1024];
     int            written;
     time_t         now = time( NULL );
     struct tm      date;
@@ -885,7 +886,10 @@ void RaiseAlert( const char *title, const char *format, ... )
         va_start( args, format );
         vsnprintf( mail + written, MAX_MAIL_LEN - written, format, args );
         va_end( args );
-        SendMail( log_config.alert_mail, title, mail );
+
+        snprintf(title2, 1024, "%s (%s on %s)", title, global_config.fs_path,
+                 machine_name);
+        SendMail(log_config.alert_mail, title2, mail);
     }
 
     if ( !EMPTY_STRING( log_config.alert_file ) )

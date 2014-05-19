@@ -227,10 +227,9 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
         }
         else if ( p_trigger->alert_hw )
         {
-           snprintf( buff, 1024, "High threshold reached on %s (%s)",
-                     storage_descr, global_config.fs_path );
-           RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high threshold: %s",
-                       buff, tmp1, used_pct, tmp2 );
+           snprintf(buff, 1024, "High threshold reached on %s", storage_descr);
+           RaiseAlert(buff, "%s\nspaced used: %s (%.2f%%), high threshold: %s",
+                      buff, tmp1, used_pct, tmp2);
         }
         else
         {
@@ -258,8 +257,7 @@ static int check_thresholds( trigger_item_t * p_trigger, const char *storage_des
         else if ( p_trigger->alert_hw )
         {
            FormatFileSize( tmp1, 128, used_vol );
-           snprintf( buff, 1024, "High threshold reached on %s (%s)",
-                     storage_descr, global_config.fs_path );
+           snprintf(buff, 1024, "High threshold reached on %s", storage_descr);
            RaiseAlert( buff, "%s\nspaced used: %s (%.2f%%), high threshold: %.2f%%",
                        buff, tmp1, used_pct, p_trigger->hw_percent );
         }
@@ -370,8 +368,7 @@ static int check_count_thresholds( trigger_item_t * p_trigger,
     else if ( p_trigger->alert_hw )
     {
        char buff[1024];
-       snprintf( buff, 1024, "High threshold reached on %s (%s)",
-                 storage_descr, global_config.fs_path );
+       snprintf(buff, 1024, "High threshold reached on %s", storage_descr);
        RaiseAlert( buff, "%s\nentry count: %Lu, high threshold: %Lu",
                    buff, inode_used, p_trigger->hw_count );
     }
@@ -405,7 +402,6 @@ static int check_periodic_trigger( unsigned trigger_index )
     unsigned long long  blocks_purged, nbr_purged;
     char           timestamp[128];
     char           status_str[1024];
-    char           buff[1024];
 
     if ( !CheckFSDevice(  ) )
         return ENXIO;
@@ -477,8 +473,7 @@ static int check_periodic_trigger( unsigned trigger_index )
                     global_config.fs_path, strerror(rc),
                     nbr_purged, blocks_purged );
 
-        sprintf(buff, "Error releasing data in %s", global_config.fs_path );
-        RaiseAlert( buff, "Error %d performing purge in %s (%s).\n"
+        RaiseAlert("Error purging data", "Error %d performing purge in %s (%s).\n"
                     "%Lu entries purged, %Lu blocks.", rc,
                     global_config.fs_path, strerror(rc),
                     nbr_purged, blocks_purged );
@@ -984,8 +979,7 @@ static int check_ost_trigger( unsigned trigger_index )
 
                 if (ALERT_LW(trigger_index))
                 {
-                    sprintf(buff, "cannot purge OST#%u (%s)", ost_index,
-                            global_config.fs_path);
+                    sprintf(buff, "cannot purge OST#%u", ost_index);
                     RaiseAlert(buff, "Could not purge %lu blocks in OST #%u (filesystem %s):\n"
                                 "not enough eligible files. Only %Lu blocks freed.",
                                 purge_param.nb_blocks, ost_index,
@@ -1181,8 +1175,7 @@ static int check_pool_trigger( unsigned trigger_index )
 
                 if ( ALERT_LW( trigger_index ) )
                 {
-                    sprintf(buff, "cannot purge %s (%s)", pool_string,
-                            global_config.fs_path );
+                    sprintf(buff, "cannot purge %s", pool_string);
                     RaiseAlert( buff, "Could not purge %lu blocks in %s (%s): not enough eligible files."
                                 " Only %Lu blocks freed.",
                                 purge_param.nb_blocks, pool_string, global_config.fs_path, spec );
@@ -1410,8 +1403,8 @@ static int check_usergroup_trigger( unsigned trigger_index )
 
             if ( p_trigger->alert_hw )
             {
-                snprintf(buff, 1024, "Inode quota exceeded for %s '%s' (in %s)",
-                         what, result[0].value_u.val_str, global_config.fs_path );
+                snprintf(buff, 1024, "Inode quota exceeded for %s '%s'",
+                         what, result[0].value_u.val_str);
                 RaiseAlert(buff, "%s\n"
                                  "%s:       %s\n"
                                  "quota:      %Lu inodes\n"
@@ -1430,8 +1423,8 @@ static int check_usergroup_trigger( unsigned trigger_index )
             {
                 char usage_str[128];
                 FormatFileSize( usage_str, 128, result[1].value_u.val_biguint * 512 );
-                snprintf(buff, 1024, "Volume quota exceeded for %s '%s' (in %s)",
-                         what,  result[0].value_u.val_str, global_config.fs_path );
+                snprintf(buff, 1024, "Volume quota exceeded for %s '%s'",
+                         what,  result[0].value_u.val_str);
                 RaiseAlert(buff, "%s\n%s:       %s\nquota:      %s\nspace used: %s",
                            buff, what, result[0].value_u.val_str, hw_str, usage_str);
             }
@@ -1546,8 +1539,8 @@ static int check_usergroup_trigger( unsigned trigger_index )
 
                     if ( ALERT_LW( trigger_index ) )
                     {
-                        sprintf(buff, "cannot purge %s '%s' files (in %s)",
-                                what, result[0].value_u.val_str, global_config.fs_path );
+                        sprintf(buff, "cannot purge %s '%s' files",
+                                what, result[0].value_u.val_str);
                         RaiseAlert( buff,
                                     "Could not purge %Lu entries for %s '%s' in %s:\n"
                                     "not enough eligible files. Only %Lu entries freed.",
@@ -1610,8 +1603,8 @@ static int check_usergroup_trigger( unsigned trigger_index )
 
                     if ( ALERT_LW( trigger_index ) )
                     {
-                        sprintf(buff, "cannot purge %s '%s' files (in %s)",
-                                what, result[0].value_u.val_str, global_config.fs_path );
+                        sprintf(buff, "cannot purge %s '%s' files",
+                                what, result[0].value_u.val_str);
                         RaiseAlert( buff,
                                     "Could not purge %lu blocks for %s '%s' in %s:\n"
                                     "not enough eligible files. Only %Lu blocks freed.",
@@ -1792,8 +1785,7 @@ static void   *force_ost_trigger_thr( void *arg )
                         "Only %Lu blocks freed.",
                         purge_param.nb_blocks, module_args.ost_index, spec );
 
-            sprintf(buff, "cannot purge OST#%u (%s)", module_args.ost_index,
-                    global_config.fs_path );
+            sprintf(buff, "cannot purge OST#%u", module_args.ost_index);
             RaiseAlert( buff, "Could not purge %lu blocks in OST #%u (%s): not enough eligible files. "
                         "Only %Lu blocks freed.",
                         purge_param.nb_blocks, module_args.ost_index,
@@ -1947,7 +1939,7 @@ static void   *force_fs_trigger_thr( void *arg )
                         "not enough eligible files. Only %Lu blocks freed.",
                         purge_param.nb_blocks, global_config.fs_path, purged );
 
-            sprintf(buff, "cannot purge filesystem %s", global_config.fs_path );
+            sprintf(buff, "cannot purge filesystem");
             RaiseAlert( buff, "Could not purge %lu blocks in filesystem %s: "
                         "not enough eligible files. Only %Lu blocks freed.",
                         purge_param.nb_blocks, global_config.fs_path, purged );

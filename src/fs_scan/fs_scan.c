@@ -1910,18 +1910,14 @@ int Robinhood_CheckScanDeadlines( void )
                 }
                 else
                 {
-                    char tmpbuf[1024];
                     DisplayLog( LVL_MAJOR, FSSCAN_TAG,
                                 "Hang of thread #%d while it was scanning %s (inactive for %ld sec)",
                                 i, thread_list[i].current_task->path,
                                 time( NULL ) - thread_list[i].last_action );
-
-                    snprintf( tmpbuf, 1024, "FS scan is blocked (%s)",
-                              global_config.fs_path );
-                    RaiseAlert( tmpbuf, "A thread has been inactive for %ld sec\n"
-                                "while scanning directory %s",
-                                time( NULL ) - thread_list[i].last_action,
-                                thread_list[i].current_task->path );
+                    RaiseAlert("FS scan is blocked", "A thread has been inactive for %ld sec\n"
+                               "while scanning directory %s",
+                               time(NULL) - thread_list[i].last_action,
+                               thread_list[i].current_task->path);
 
                     /* if the config says to exit on timeout => do it */
                     if ( fs_scan_config.exit_on_timeout )
