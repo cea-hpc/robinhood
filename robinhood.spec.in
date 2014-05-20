@@ -336,6 +336,22 @@ fi
 
 %changelog
 
+* Wed May 21 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.2
+- rbh-du: fixed major performance regression (since v2.5.0).
+- rbh-find: fixed occasional crash.
+- HSM and backup modes: fixed a risk of removing an existing entry from the backend (in some situations of hardlink/rename+unlink).
+- backup mode: optimized sendfile()-based copy (Linux kernel >= 2.6.33).
+- logs: avoid flood of log messages in case of DB connection error.
+- alerts: added host name to alert mail title.
+- rbh-config empty_db/repair_db: also manage/fix stored procedures.
+- cosmetic: fix wrong display of purged blocks for count-based triggers.
+- cosmetic: fix migration counter display.
+- init script: check that 'ulimit -s' is reasonable.
+- fixed build dependancies on Fedora19 and Fedora20.
+- code sanity: fixed many 'coverity' warnings + a couple of minor memleaks.
+- doc: details about RPM installation locations.
+- doc: detail of 'backend' paramaters for backup mode.
+
 * Wed Mar 19 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.1
 - entry processing (major fix): fixed deadlock when the pipeline is full
   and an entry with an unknown parent is encountered.
