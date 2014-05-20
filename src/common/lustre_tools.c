@@ -731,7 +731,6 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
     int          bufsize = sizeof(struct obd_uuid) * obdcount;
     char *buffer = MemAlloc(bufsize + (sizeof(*ostlist) * obdcount));
     ostlist = (char **)(buffer + bufsize);
-#endif
 
     /* sanity check */
     if (!pool_statfs)
@@ -739,6 +738,7 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
         MemFree(buffer);
         return EFAULT;
     }
+#endif
 
     memset( pool_statfs, 0, sizeof( struct statfs ) );
 
