@@ -413,13 +413,13 @@ int ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id )
 
 retry:
     rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if (db_is_retryable(rc))
+    if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
         goto out;
 
     rc = db_next_record( &p_mgr->conn, &result, &res, 1 );
-    if (db_is_retryable(rc))
+    if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
 
     if (rc == DB_END_OF_LIST)
@@ -459,7 +459,8 @@ int ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
 retry:
     rc = insert_stripe_info(p_mgr, pk, VALID(p_id), p_stripe_info, p_stripe_items,
                             TRUE);
-    if (db_is_retryable(rc))
+    if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
+
     return rc;
 }

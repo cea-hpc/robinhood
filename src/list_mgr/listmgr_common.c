@@ -1621,9 +1621,15 @@ int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line)
     }
     lmgr->last_err_func = func;
     lmgr->last_err_line = line;
-    DisplayLog(LVL_EVENT, LISTMGR_TAG,
-               "Retryable DB error in %s l.%u. Restarting transaction in %u sec...",
-               func, line, lmgr->retry_delay);
+    if (lmgr->retry_count == 0)
+        DisplayLog(LVL_EVENT, LISTMGR_TAG,
+                   "Retryable DB error in %s l.%u. Retrying...",
+                   func, line);
+    else /* only display for debug level */
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG,
+                  "Retryable DB error in %s l.%u. Restarting transaction in %u sec...",
+                  func, line, lmgr->retry_delay);
+
     rh_sleep(lmgr->retry_delay);
     lmgr->retry_count ++;
     return 1;

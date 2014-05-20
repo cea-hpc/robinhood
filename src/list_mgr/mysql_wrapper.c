@@ -59,9 +59,11 @@ static int mysql_error_convert(int err, int verb)
         if (verb)
         {
             if (lmgr_config.db_config.innodb)
-                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"innodb_lock_wait_timeout\" in MySQL config.");
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. "
+                           "Consider increasing \"innodb_lock_wait_timeout\" in MySQL config.");
             else
-                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. Consider increasing \"lock_wait_timeout\" in MySQL config.");
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. "
+                           "Consider increasing \"lock_wait_timeout\" in MySQL config.");
         }
         return DB_DEADLOCK;
 
@@ -92,8 +94,8 @@ static int mysql_error_convert(int err, int verb)
         return DB_CONNECT_FAILED;
 
     default:
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG,
-                    "Unhandled error %d: default conversion to DB_REQUEST_FAILED", err );
+        DisplayLog(verb?LVL_MAJOR:LVL_DEBUG, LISTMGR_TAG,
+                   "Unhandled error %d: default conversion to DB_REQUEST_FAILED", err);
         return DB_REQUEST_FAILED;
     }
 }
@@ -218,7 +220,7 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
     dberr = mysql_errno(conn);
     if (rc)
     {
-        rc = mysql_error_convert(dberr, 1);
+        rc = mysql_error_convert(dberr, quiet?0:1);
         if (dberr == ER_DUP_ENTRY)
         {
             DisplayLog(quiet?LVL_DEBUG:LVL_EVENT, LISTMGR_TAG,
