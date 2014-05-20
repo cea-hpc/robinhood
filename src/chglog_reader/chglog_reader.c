@@ -699,8 +699,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
              * and LU-1331. */
             if (!chglog_reader_config.mds_has_lu543 ||
                 !chglog_reader_config.mds_has_lu1331) {
-                DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                            "Detected LU-1331." );
+                DisplayLog(LVL_EVENT, CHGLOG_TAG, "Detected fix for LU-1331.");
 
                 chglog_reader_config.mds_has_lu543 = 1;
                 chglog_reader_config.mds_has_lu1331 = 1;
@@ -768,8 +767,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
              !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
             /* tfid if 0, or the two fids are different, so we have LU-543. */
             chglog_reader_config.mds_has_lu543 = 1;
-            DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                        "Detected LU-543." );
+            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Detected fix for LU-543.");
         }
 
         /* We now have a CL_RENAME and a CL_EXT. */
