@@ -6,6 +6,7 @@ sudo service mysqld start # sudo has been added before creating base
 
 $CFG_SCRIPT test_db  robinhood_test robinhood || $CFG_SCRIPT create_db robinhood_test localhost robinhood
 $CFG_SCRIPT empty_db robinhood_test
+$CFG_SCRIPT repair_db robinhood_test
 
 
 LOOP_FILE=/tmp/rbh.loop.cont
