@@ -396,6 +396,8 @@ int str_replace( char * str_in_out, const char * to_be_replaced,
  */
 int execute_shell_command(int quiet, const char * cmd, int argc, ...);
 
+char *quote_shell_arg(const char *arg);
+
 /**
  * Replace special parameters {cfgfile}, {fspath}, ...
  * in the given cmd line.

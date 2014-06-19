@@ -2127,6 +2127,52 @@ int execute_shell_command(int quiet, const char * cmd, int argc, ...)
     return rc;
 }
 
+char *quote_shell_arg(const char *arg)
+{
+    const char *replace_with = "'\\''";
+    char *arg_walk, *quoted, *quoted_walk;
+    int count = 0;
+
+    arg_walk = (char *) arg;
+    while (*arg_walk) {
+        if (*arg_walk == '\'') {
+            ++count;
+            if (count < 0) {
+                /* It's unlikely given our input, but avoid integer overflow. */
+                return NULL;
+            }
+        }
+        ++arg_walk;
+    }
+
+    quoted = (char *)calloc(1, strlen(arg) +
+                            (count * strlen(replace_with)) + 2 + 1);
+    if (!quoted)
+        return NULL;
+
+    quoted_walk = quoted;
+    *quoted_walk = '\'';
+    ++quoted_walk;
+
+    arg_walk = (char *) arg;
+    while (*arg_walk) {
+        if (*arg_walk == '\'') {
+            strcat(quoted_walk, replace_with);
+            quoted_walk += strlen(replace_with);
+        } else {
+            *quoted_walk = *arg_walk;
+            ++quoted_walk;
+        }
+        ++arg_walk;
+    }
+
+    *quoted_walk = '\'';
+    ++quoted_walk;
+    *quoted_walk = '\0';
+
+    return quoted;
+}
+
 /**
  * Replace special parameters {cfgfile}, {fspath}, ...
  * in the given cmd line.
@@ -2141,6 +2187,7 @@ char *replace_cmd_parameters(const char *cmd_in, const char **replace_array)
     char *pass_begin = NULL;
     char *begin_var;
     char *end_var;
+    char *quoted_arg;
     const char *var_value;
 
     pass_begin = strdup(cmd_in);
@@ -2192,27 +2239,35 @@ char *replace_cmd_parameters(const char *cmd_in, const char **replace_array)
         if (var_value == NULL)
         {
             DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unknown parameter '%s' in command parameters '%s'", begin_var, cmd_in);
-            free(pass_begin);
             errno = EINVAL;
-            return NULL;
+            goto err_free;
         }
+
+        quoted_arg = quote_shell_arg(var_value);
+        if (!quoted_arg)
+            goto err_free;
 
         /* allocate a new string */
-        new_str = malloc(strlen(pass_begin) + strlen(var_value) + strlen(end_var) + 1);
+        new_str = malloc(strlen(pass_begin) + strlen(quoted_arg) +
+                         strlen(end_var) + 1);
         if (!new_str)
-        {
-            free(pass_begin);
-            return NULL;
-        }
+            goto err_free_quoted;
 
-        sprintf(new_str, "%s%s%s", pass_begin, var_value, end_var);
+        sprintf(new_str, "%s%s%s", pass_begin, quoted_arg, end_var);
 
         free(pass_begin);
+        free(quoted_arg);
         pass_begin = new_str;
 
     } while(1);
 
     return pass_begin;
+
+err_free_quoted:
+    free(quoted_arg);
+err_free:
+    free(pass_begin);
+    return NULL;
 }
 
 

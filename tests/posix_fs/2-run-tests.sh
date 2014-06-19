@@ -487,6 +487,11 @@ function test_custom_purge
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
+    # create malicious file names to test vulnerability
+    touch "$ROOT/foo1 \`pkill -9 $CMD\`" || error "couldn't create file"
+    touch "$ROOT/foo2 ; exit 1" || error "couldn't create file"
+    touch "$ROOT/foo3' ';' 'exit' '1'" || error "couldn't create file"
+
 	echo "Inital scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log 
 	check_db_error rh_scan.log
@@ -500,10 +505,10 @@ function test_custom_purge
 	check_db_error rh_purge.log
 
 	nb_purge=`grep "Purged" rh_purge.log | wc -l`
-	if (($nb_purge != 10)); then
-		error "********** TEST FAILED: 10 purge actions expected, $nb_purge done"
+	if (($nb_purge != 13)); then
+		error "********** TEST FAILED: 13 purge actions expected, $nb_purge done"
 	else
-		echo "OK: 10 actions done"
+		echo "OK: 13 actions done"
 	fi
 
 	# checking that the custom command was called for each
@@ -512,6 +517,17 @@ function test_custom_purge
         # check the entry has been deleted
         [ -f $ROOT/file.$i ] && error "$ROOT/file.$i still exists after purge command"
 	done
+
+    for f in  "$ROOT/foo1 \`pkill -9 $CMD\`" "$ROOT/foo2 ; exit 1" "$ROOT/foo3' ';' 'exit' '1'" ; do
+        f0=$(echo "$f" | awk '{print $1}')
+		line=$(grep "Executing " rh_purge.log | grep '/bin/rm' | grep "$f0")
+        if [ -z "$line" ]; then
+            error "No action found on $f"
+            continue
+        fi
+        [ -f "$f" ] && error "$f still exists after purge command"
+    done
+
 	return 0
 }
 

@@ -1221,6 +1221,10 @@ function test_custom_purge
 	for i in `seq 1 10`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
+    # create malicious file names to test vulnerability
+    touch "$ROOT/foo1 \`pkill -9 $CMD\`" || error "couldn't create file"
+    touch "$ROOT/foo2 ; exit 1" || error "couldn't create file"
+    touch "$ROOT/foo3' ';' 'exit' '1'" || error "couldn't create file"
 
 	echo "Inital scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
@@ -1236,6 +1240,11 @@ function test_custom_purge
 		for i in `seq 1 10`; do
 			fids[$i]=$($LFS path2fid $ROOT/file.$i)
         done
+        i=11
+        for f in  "$ROOT/foo1 \`pkill -9 $CMD\`" "$ROOT/foo2 ; exit 1" "$ROOT/foo3' ';' 'exit' '1'" ; do
+			fids[$i]=$($LFS path2fid "$f")
+            ((i=$i+1))
+        done
         [ "$DEBUG" = "1" ] && echo "fsname=$fsname, fids=${fids[*]}"
     fi
 
@@ -1244,13 +1253,13 @@ function test_custom_purge
 	check_db_error rh_purge.log
 
 	nb_purge=`grep "Purged" rh_purge.log | wc -l`
-	if (($nb_purge != 10)); then
-		error "********** TEST FAILED: 10 purge actions expected, $nb_purge done"
+	if (($nb_purge != 13)); then
+		error "********** TEST FAILED: 13 purge actions expected, $nb_purge done"
 	else
-		echo "OK: 10 actions done"
+		echo "OK: 13 actions done"
 	fi
 
-	# checking that the custom command was called for each
+	# checking that the custom command was called for each file
 	for  i in `seq 1 10`; do
 		line=$(grep "Executing " rh_purge.log | grep '/bin/rm' | grep $ROOT/file.$i)
         if [ -z "$line" ]; then
@@ -1258,7 +1267,7 @@ function test_custom_purge
             continue
         fi
         # split args
-        args=($(echo "$line" | sed -e "s/.*rm -f//"))
+        args=($(echo "$line" | sed -e "s/.*rm -f//" | tr -d "'"))
         fn=${args[0]}
         id=${args[1]}
         p=${args[2]}
@@ -1273,6 +1282,37 @@ function test_custom_purge
 
         [ -f $ROOT/file.$i ] && error "$ROOT/file.$i still exists after purge command"
 	done
+
+    # same test for special file names
+    i=11
+    for f in  "$ROOT/foo1 \`pkill -9 $CMD\`" "$ROOT/foo2 ; exit 1" "$ROOT/foo3' ';' 'exit' '1'" ; do
+        f0=$(echo "$f" | awk '{print $1}')
+		line=$(grep "Executing " rh_purge.log | grep '/bin/rm' | grep "$f0")
+        if [ -z "$line" ]; then
+            error "No action found on $f"
+            continue
+        fi
+        # split args
+        args=($(echo "$line" | sed -e "s/.*rm -f//" | tr -d "'" | tr -d '\\' | cut -d '>' -f 1))
+        fn=${args[0]}
+        id=${args[1]}
+        unset args[0]
+        unset args[1]
+        p=${args[@]}
+        [ "$DEBUG" = "1" ] && echo "action: fsname=$fn, fid=$id, path=$p"
+
+        [ $fn = $fsname ] || error "invalid fsname $fn != $fsname"
+        # only compare fids for lustre 2.x
+        if (( $no_log == 0 )); then
+            [ $id = ${fids[$i]} ] || error "invalid fid $id != ${fids[$i]}"
+        fi
+        f2=$(echo $f | tr -d "'")
+        [ "$p" = "$f2" ] || error "invalid path $p != $f2"
+
+        [ -f "$f" ] && error "$f still exists after purge command"
+        ((i=$i+1))
+    done
+
 	return 0
 }
 
