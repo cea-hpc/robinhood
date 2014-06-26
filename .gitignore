@@ -32,6 +32,7 @@ TAGS
 /config.log
 /configure
 /doc/doxygen/doxygen.cfg
+/man/Makefile
 /robinhood-*.tar.gz
 /robinhood.spec
 /rpms/
@@ -73,6 +74,7 @@ TAGS
 /src/robinhood/rbh-backup-undo-rm
 /src/robinhood/rbh-backup-diff
 /src/robinhood/rbh-backup-rebind
+/src/tools/Makefile
 /src/tools/gen_lov_objid
 /src/tools/read_lovea
 /src/tools/set_lovea
