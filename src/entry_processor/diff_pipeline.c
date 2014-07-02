@@ -572,8 +572,8 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
         if ( ERR_MISSING( abs( rc )) )
         {
-            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s does not exist anymore",
-                        path );
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Entry %s no longer exists",
+                       path);
              /* entry will be garbage collected at the end of the scan */
             goto skip_record;
         }
