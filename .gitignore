@@ -7,6 +7,8 @@ Makefile.in
 *.diff
 *.orig
 *.rej
+*.gcda
+*.gcno
 *~
 TAGS
 
