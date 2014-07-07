@@ -46,40 +46,52 @@ struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock );
 void id_hash_stats(struct id_hash *id_hash, const char *log_str);
 
 /* dump all values in the hash */
-void id_hash_dump(struct id_hash *id_hash);
+void id_hash_dump(struct id_hash *id_hash, int parent);
 
 /**
- * @TODO use better hash functions (see http://burtleburtle.net/bob/c/lookup3.c)
+ * @TODO use better hash functions:
+ *       - http://code.google.com/p/smhasher/wiki/MurmurHash3
+ *    or - http://burtleburtle.net/bob/c/lookup3.c
  */
-static inline unsigned int hash_id( const entry_id_t * p_id, unsigned int modulo )
+static inline uint64_t id_hash64(const entry_id_t * p_id)
 {
 #ifdef FID_PK
-	unsigned int   val = 1;
+	uint64_t       val = 1;
     char          *buffer;
     unsigned int   index;
 
-	buffer = ( char * ) &( p_id->f_seq );
+	buffer = (char *) &(p_id->f_seq);
 
-	for ( index = 0; index < sizeof( p_id->f_seq ); index++ )
-		val = ( val << 5 ) - val + ( unsigned int ) ( buffer[index] );
+	for (index = 0; index < sizeof(p_id->f_seq); index++)
+		val = (val << 5) - val + (unsigned int)(buffer[index]);
 
-	buffer = ( char * ) &( p_id->f_oid );
+	buffer = (char *) &(p_id->f_oid);
 
-	for ( index = 0; index < sizeof( p_id->f_oid ); index++ )
-		val = ( val << 5 ) - val + ( unsigned int ) ( buffer[index] );
+	for (index = 0; index < sizeof(p_id->f_oid); index++)
+		val = (val << 5) - val + (unsigned int)(buffer[index]);
 
-	return val % modulo;
-
+    return val;
 #else
-	unsigned long long lval;
     /* polynom of prime numbers */
-	lval = 1873 * p_id->fs_key + 3511 * p_id->inode + 10267;
-
-	lval = lval % modulo;
-
-	return lval;
-
+	return 1873 * p_id->fs_key + 3511 * p_id->inode + 10267;
 #endif
+}
+
+static inline unsigned int hash_id(const entry_id_t * p_id, unsigned int modulo)
+{
+    return id_hash64(p_id) % modulo;
+}
+
+static inline unsigned int hash_name(const entry_id_t * p_id,
+                                     const char *name, unsigned int modulo)
+{
+    uint64_t val = id_hash64(p_id);
+    const char *c;
+
+    for (c = name; *c != '\0'; c++)
+        val = (val << 5) - val + (unsigned int)(*c);
+
+    return val % modulo;
 }
 
 /* return a slot pointer. */
@@ -87,6 +99,14 @@ static inline struct id_hash_slot * get_hash_slot( struct id_hash * id_hash,
 												   const entry_id_t * p_id)
 {
 	return &id_hash->slot[hash_id( p_id, id_hash->hash_size )];
+}
+
+/* return a slot pointer. */
+static inline struct id_hash_slot *get_name_hash_slot(struct id_hash *name_hash,
+                                                   const entry_id_t *parent_id,
+                                                   const char *name)
+{
+    return &name_hash->slot[hash_name(parent_id, name, name_hash->hash_size)];
 }
 
 #endif

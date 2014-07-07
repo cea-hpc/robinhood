@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
+
 static sem_t pipeline_token;
 
 /* each stage of the pipeline consist of the following information: */
@@ -92,6 +93,10 @@ static void dump_entry_op( entry_proc_op_t * p_op )
     /* mask is always set, even if fs/db_attrs is not set */
     if ( ATTR_FSorDB_TEST( p_op, fullpath ) )
         printf("path=%s\n", ATTR_FSorDB( p_op, fullpath ) );
+
+    if (p_op->extra_info.is_changelog_record)
+        printf("log_rec=%s\n",
+            changelog_type2str(p_op->extra_info.log_record.p_log_rec->cr_type));
 
     printf("stage=%u, being processed=%u, db_exists=%u, id is referenced=%u, db_op_type=%u\n",
             p_op->pipeline_stage, p_op->being_processed, p_op->db_exists,
@@ -314,7 +319,8 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
     }
 
     /* init id constraint manager */
-    id_constraint_init(  );
+    if (id_constraint_init())
+        return -1;
 
     /* start workers */
 
@@ -623,7 +629,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                     if ( ( entry_proc_pipeline[i].stage_flags & STAGE_FLAG_ID_CONSTRAINT )
                          && p_curr->entry_id_is_set )
                     {
-                        if ( p_curr != id_constraint_get_first_op( &p_curr->entry_id ) )
+                        if (!id_constraint_is_first_op(p_curr))
                         {
 
                             DisplayLog( LVL_FULL, ENTRYPROC_TAG,
@@ -632,7 +638,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                             V( pl->stage_mutex );
                             return NULL;
                         }
-                        /* entry can be added */
+                        /* else: entry can be added */
                     }
 
                     /* sanity check */
@@ -735,26 +741,8 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                     }
 
                     /* is this the first operation for this id ? */
-                    if ( p_curr != id_constraint_get_first_op( &p_curr->entry_id ) )
-                    {
-#ifdef _DEBUG_ENTRYPROC
-                        entry_proc_op_t * other_op = id_constraint_get_first_op( &p_curr->entry_id );
-
-                        printf( "Stage[%u] - thread %#lx - not the first operation with this id ("DFID")\n",
-                                i, pthread_self(  ), PFID(&p_curr->entry_id) );
-                        if ( other_op == NULL )
-                        {
-                            RBH_BUG("ERROR!!! OPERATION NOT REGISTERED FOR THIS STEP!!!");
-                        }
-                        else
-                        {
-                            printf( "The first operation for this id is (%p):\n", other_op);
-                            dump_entry_op( other_op );
-                        }
-#endif
+                    if (!id_constraint_is_first_op(p_curr))
                         continue;
-                    }
-
                 }
                 else if ( p_curr->being_processed || p_curr->pipeline_stage > i )
                 {

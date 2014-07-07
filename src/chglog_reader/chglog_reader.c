@@ -366,10 +366,40 @@ static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
     }
 }
 
+/** extract parent_id and name attributes from the changelog record */
+static void set_name(CL_REC_TYPE * logrec, entry_proc_op_t * p_op)
+{
+    /* is there entry name in log rec? */
+    if (logrec->cr_namelen == 0)
+        return;
+    ATTR_MASK_SET(&p_op->fs_attrs, name);
+    rh_strncpy(ATTR(&p_op->fs_attrs, name), logrec->cr_name,
+               sizeof(ATTR(&p_op->fs_attrs, name)));
+
+    /* parent id is always set when name is (Cf. comment in lfs.c) */
+    if (fid_is_sane(&logrec->cr_pfid))
+    {
+        ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
+        ATTR(&p_op->fs_attrs, parent_id) = logrec->cr_pfid;
+
+        ATTR_MASK_SET(&p_op->fs_attrs, path_update);
+        ATTR(&p_op->fs_attrs, path_update) = time(NULL);
+    }
+    else
+    {
+        DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Error: insane parent fid "DFID
+                   "in %s changelog record (namelen=%u)",
+                   PFID(&logrec->cr_pfid),
+                   changelog_type2str(logrec->cr_type), logrec->cr_namelen);
+    }
+}
+
+
 /* Push the oldest (all=FALSE) or all (all=TRUE) entries into the pipeline. */
 static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
 {
     time_t oldest = time(NULL) - chglog_reader_config.queue_max_age;
+    CL_REC_TYPE * rec;
 
     DisplayLog(LVL_FULL, CHGLOG_TAG, "processing changelog queue");
 
@@ -384,14 +414,18 @@ static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
             break;
 
         rh_list_del(&op->list);
-        rh_list_del(&op->hash_list);
+        rh_list_del(&op->id_hash_list);
 
+        rec = op->extra_info.log_record.p_log_rec;
         DisplayLog(LVL_FULL, CHGLOG_TAG, "pushing cl record #%Lu: age=%ld",
-                   op->extra_info.log_record.p_log_rec->cr_index,
-                   time(NULL) - op->changelog_inserted);
+                   rec->cr_index, time(NULL) - op->changelog_inserted);
         /* Push the entry to the pipeline */
-        p_info->last_pushed = op->extra_info.log_record.p_log_rec->cr_index;
-        EntryProcessor_Push( op );
+        p_info->last_pushed = rec->cr_index;
+
+        /* Set parent_id+name from changelog record info, as they are used
+         * in pipeline for stage locking. */
+        set_name(rec, op);
+        EntryProcessor_Push(op);
 
         p_info->op_queue_count --;
     }
@@ -452,7 +486,7 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
 
     /* ... and the hash table. */
     slot = get_hash_slot(p_info->id_hash, &op->entry_id);
-    rh_list_add_tail(&op->hash_list, &slot->list);
+    rh_list_add_tail(&op->id_hash_list, &slot->list);
 
     return 0;
 }
@@ -517,7 +551,7 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
     slot = get_hash_slot(p_info->id_hash, &logrec_in->cr_tfid);
     ignore_mask = record_filters[logrec_in->cr_type].ignore_mask;
 
-    rh_list_for_each_entry_safe_reverse(op, t1, &slot->list, hash_list)
+    rh_list_for_each_entry_safe_reverse(op, t1, &slot->list, id_hash_list)
     {
         CL_REC_TYPE *logrec = op->extra_info.log_record.p_log_rec;
 

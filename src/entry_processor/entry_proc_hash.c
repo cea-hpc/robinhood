@@ -105,7 +105,7 @@ void id_hash_stats(struct id_hash * id_hash, const char * log_str)
 
 }
 
-void id_hash_dump(struct id_hash * id_hash)
+void id_hash_dump(struct id_hash * id_hash, int parent)
 {
     unsigned int   i;
     entry_proc_op_t *op;
@@ -117,9 +117,18 @@ void id_hash_dump(struct id_hash * id_hash)
         struct id_hash_slot *slot = &id_hash->slot[i];
 
         P(slot->lock);
-        rh_list_for_each_entry(op, &slot->list, hash_list)
+        if (!parent)
         {
-            printf("[%u] "DFID"\n", i, PFID(&op->entry_id));
+            rh_list_for_each_entry(op, &slot->list, id_hash_list)
+                printf("[%u] "DFID"\n", i, PFID(&op->entry_id));
+        }
+        else
+        {
+            rh_list_for_each_entry(op, &slot->list, name_hash_list)
+                printf("[%u] "DFID"/%s:"DFID"\n", i,
+                       PFID(&ATTR(&op->fs_attrs, parent_id)),
+                       ATTR(&op->fs_attrs, name),
+                       PFID(&op->entry_id));
         }
         V(slot->lock);
     }

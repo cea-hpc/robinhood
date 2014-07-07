@@ -40,12 +40,9 @@ int            id_constraint_register( entry_proc_op_t * p_op, int at_head );
 
 
 /**
- * Get the first operation for a given id.
- * @return an operation to be processed when it is possible.
- *         NULL else.
- *
+ * Indicate if a given operation is the first for a given id and parent/name.
  */
-entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id );
+int id_constraint_is_first_op(entry_proc_op_t *p_op);
 
 
 /**

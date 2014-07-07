@@ -33,15 +33,20 @@
 entry_proc_config_t entry_proc_conf;
 int                 pipeline_flags = 0;
 
+/* default max pending operation is 10k */
+#define ID_HASH_SIZE 16007
 /* hash table for storing references to ids */
-#define ID_HASH_SIZE 7919
-static struct id_hash *id_constraint_hash;
+static struct id_hash *id_hash;
+/* hash table for storing references to parent_id/name */
+static struct id_hash *name_hash;
 
 /** initialize id constraint manager */
 int id_constraint_init( void )
 {
-    id_constraint_hash = id_hash_init(ID_HASH_SIZE, TRUE);
-    return (id_constraint_hash == NULL);     /* TODO: this is not checked */
+    id_hash = id_hash_init(ID_HASH_SIZE, TRUE);
+    name_hash = id_hash_init(ID_HASH_SIZE, TRUE);
+    /* exiting the process releases hash resources */
+    return (id_hash == NULL || name_hash == NULL)? -1 : 0;
 }
 
 /**
@@ -51,74 +56,134 @@ int id_constraint_init( void )
  *         ID_MISSING if the ID is not set in p_op structure
  *         ID_ALREADY if the op_structure has already been registered
  */
-int id_constraint_register( entry_proc_op_t * p_op, int at_head )
+int id_constraint_register(entry_proc_op_t * p_op, int at_head)
 {
     struct id_hash_slot *slot;
 
-    if ( !p_op->entry_id_is_set )
+    if (!p_op->entry_id_is_set)
         return ID_MISSING;
 
     /* compute id hash value */
-    slot = get_hash_slot(id_constraint_hash, &p_op->entry_id);
+    slot = get_hash_slot(id_hash, &p_op->entry_id);
 
-    P( slot->lock );
+    P(slot->lock);
 
     if (at_head)
-        rh_list_add(&p_op->hash_list, &slot->list);
+        rh_list_add(&p_op->id_hash_list, &slot->list);
     else
-        rh_list_add_tail(&p_op->hash_list, &slot->list);
+        rh_list_add_tail(&p_op->id_hash_list, &slot->list);
 
     slot->count++;
     p_op->id_is_referenced = TRUE;
 
-    V( slot->lock );
+    V(slot->lock);
+
+    /* also lock parent_id/name */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) &&
+        ATTR_MASK_TEST(&p_op->fs_attrs, name))
+    {
+        slot = get_name_hash_slot(name_hash, &ATTR(&p_op->fs_attrs, parent_id),
+                                  ATTR(&p_op->fs_attrs, name));
+        P(slot->lock);
+
+        if (at_head)
+            rh_list_add(&p_op->name_hash_list, &slot->list);
+        else
+            rh_list_add_tail(&p_op->name_hash_list, &slot->list);
+
+        slot->count++;
+        p_op->name_is_referenced = TRUE;
+
+        V(slot->lock);
+    }
 
     return ID_OK;
-
 }
 
+#ifdef HAVE_CHANGELOGS
+    #define op_name(_op)    ((_op)->extra_info.is_changelog_record ? \
+                             changelog_type2str((_op)->extra_info.log_record.p_log_rec->cr_type): \
+                             "scan_op")
+#else
+    #define op_name(_op)    "scan_op"
+#endif
 
 /**
- * Get the first operation for a given id.
+ * Get the first operation for a given id or parent/name.
  * @return an operation to be processed when it is possible.
  *         NULL else.
  */
-entry_proc_op_t *id_constraint_get_first_op( entry_id_t * p_id )
+int id_constraint_is_first_op(entry_proc_op_t *p_op_in)
 {
-    entry_proc_op_t *p_op = NULL;
     entry_proc_op_t *op;
     struct id_hash_slot *slot;
+    int is_first = -1; /* not set */
 
     /* compute id hash value */
-    slot = get_hash_slot(id_constraint_hash, p_id);
+    slot = get_hash_slot(id_hash, &p_op_in->entry_id);
 
-    P( slot->lock );
-
-    rh_list_for_each_entry( op, &slot->list, hash_list )
+    P(slot->lock);
+    rh_list_for_each_entry(op, &slot->list, id_hash_list)
     {
-        if ( entry_id_equal( p_id, &op->entry_id ) )
+        if (entry_id_equal(&p_op_in->entry_id, &op->entry_id))
         {
-            p_op = op;
+            /* found an operation with the given id */
+            if (op == p_op_in)
+                is_first = 1;
+            else
+            {
+                is_first = 0;
+                DisplayLog(LVL_FULL, "IdConstraint", "Pending operation with the same id: "DFID" (%s). next op: %s",
+                           PFID(&op->entry_id), op_name(op), op_name(p_op_in));
+            }
             break;
         }
     }
-#ifdef _DEBUG_ID_CONSTRAINT
-    if ( p_op )
-       printf( "first op on id "DFID" at stage %u (list %u)\n",
-               PFID(&p_op->entry_id), p_op->pipeline_stage, hash_index );
-    else
+    V(slot->lock);
+
+    if (is_first == 0)
+        /* for sure, there is another operation on the same id before this one */
+        return FALSE;
+
+    /* sanity check: registered operation was not found??? */
+    if ((is_first == -1) && (p_op_in->id_is_referenced))
+        RBH_BUG("Registered operation was not found in id_constraint hash");
+
+    /* Entry may be the first (or is not registered).
+     * Additional check of parent/name constraint: */
+    if (ATTR_MASK_TEST(&p_op_in->fs_attrs, parent_id) &&
+        ATTR_MASK_TEST(&p_op_in->fs_attrs, name))
     {
-
-        printf( "no registered operation on "DFID"?\n", PFID(p_id));
-        printf("entries in %u:\n", hash_index);
-        for ( p_curr = slot->id_list_first; p_curr != NULL; p_curr = p_curr->p_next )
-            printf( DFID"\n", PFID(&p_curr->op_ptr->entry_id) );
+        slot = get_name_hash_slot(name_hash, &ATTR(&p_op_in->fs_attrs, parent_id),
+                                  ATTR(&p_op_in->fs_attrs, name));
+        P(slot->lock);
+        rh_list_for_each_entry(op, &slot->list, name_hash_list)
+        {
+            if (entry_id_equal(&ATTR(&p_op_in->fs_attrs, parent_id), &ATTR(&op->fs_attrs, parent_id))
+                && !strcmp(ATTR(&p_op_in->fs_attrs, name), ATTR(&op->fs_attrs, name)))
+            {
+                if (op == p_op_in)
+                    is_first = 1;
+                else
+                {
+                    is_first = 0;
+                    DisplayLog(LVL_FULL, "IdConstraint", "Pending operation with the same parent/name: "DFID"/%s (%s). next op: %s",
+                            PFID(&ATTR(&p_op_in->fs_attrs, parent_id)),
+                            ATTR(&p_op_in->fs_attrs, name), op_name(op),
+                            op_name(p_op_in));
+                }
+                break;
+            }
+        }
+        V(slot->lock);
     }
-#endif
-    V( slot->lock );
-    return p_op;
 
+    /* if is_first = 0 => not first */
+    /* if is_first = -1: not found => not first */
+    /* just return TRUE if is_first = 1 */
+    return (is_first == 1);
 }
+
 
 
 /**
@@ -134,16 +199,39 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
     if ( !p_op->id_is_referenced )
         return ID_NOT_EXISTS;
 
-    slot = get_hash_slot(id_constraint_hash, &p_op->entry_id);
+    slot = get_hash_slot(id_hash, &p_op->entry_id);
 
     /* Remove the entry */
     P( slot->lock );
 
-    rh_list_del(&p_op->hash_list);
+    rh_list_del(&p_op->id_hash_list);
     p_op->id_is_referenced = FALSE;
     slot->count--;
 
     V( slot->lock );
+
+    if (p_op->name_is_referenced)
+    {
+        if (ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) &&
+            ATTR_MASK_TEST(&p_op->fs_attrs, name))
+        {
+            slot = get_name_hash_slot(name_hash, &ATTR(&p_op->fs_attrs, parent_id),
+                                      ATTR(&p_op->fs_attrs, name));
+            /* Remove the entry */
+            P(slot->lock);
+
+            rh_list_del(&p_op->name_hash_list);
+            p_op->name_is_referenced = FALSE;
+            slot->count--;
+
+            V(slot->lock);
+        }
+        else
+        {
+            DisplayLog(LVL_MAJOR, "IdConstraint", "WARNING: cannot unregister "
+                       "entry with no parent/name but with a registered name!");
+        }
+    }
 
     return ID_OK;
 }
@@ -151,12 +239,14 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
 
 void id_constraint_stats(void)
 {
-    id_hash_stats(id_constraint_hash, "Id constraints count");
+    id_hash_stats(id_hash, "Id constraints count");
+    id_hash_stats(name_hash, "Name constraints count");
 }
 
 void id_constraint_dump(void)
 {
-    id_hash_dump(id_constraint_hash);
+    id_hash_dump(id_hash, FALSE);
+    id_hash_dump(name_hash, TRUE);
 }
 
 /* ------------ Config management functions --------------- */

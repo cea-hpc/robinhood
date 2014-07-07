@@ -173,6 +173,7 @@ typedef struct entry_proc_op_t
     /* internal flag for pipeline management */
     unsigned int      being_processed:1;
     unsigned int      id_is_referenced:1;
+    unsigned int      name_is_referenced:1;
 
     /* fid needs to be retrieved from db. This is a workaround for
      * Lustre servers that do not have LU-543. */
@@ -220,8 +221,11 @@ typedef struct entry_proc_op_t
     /* double chained list for pipeline */
     struct list_head list;
 
-    /* double chained list for hash storage (used by constraint) */
-    struct list_head hash_list;
+    /* double chained list for hash storage (used by constraint on id) */
+    struct list_head id_hash_list;
+
+    /* double chained list for hash storage (used by constraint on parent/name) */
+    struct list_head name_hash_list;
 
 } entry_proc_op_t;
 

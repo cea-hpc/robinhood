@@ -266,7 +266,7 @@ int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
     else if (fsize > (sinfo->stripe_count - 1) * sinfo->stripe_size)
         return TRUE;
 
-    /* unsane value, file may not be striped */
+    /* insane value, file may not be striped */
     if (sinfo->stripe_size == 0)
         return FALSE;
 
@@ -488,7 +488,7 @@ int Lustre_GetNameParent(const char *path, int linkno,
 
     if (!fid_is_sane(pfid))
     {
-        DisplayLog(LVL_MAJOR, __func__, "unsane fid: "DFID, PFID(pfid));
+        DisplayLog(LVL_MAJOR, __func__, "insane fid: "DFID, PFID(pfid));
         return -EPROTO;
     }
 
