@@ -401,6 +401,48 @@ EOF
     fi
 }
 
+function reset_acct
+{
+    interactive=0
+    if (( $# == 0 )); then
+        interactive=1
+    elif (( $# != 1 && $# != 2 )); then
+        echo "ERROR: 0, 1 or 2 arguments expected"
+            echo "Usage: reset_acct [<db_name> [<db_admin_passwd>]]"
+        exit 1
+    fi
+
+    if (( $interactive != 0 )); then
+            echo
+            echo "Enter password for root's database account (leave blank if none is set):"
+            read -p "root's DB password: " -s pass_root
+            echo
+
+            select_db $pass_root || exit 1
+
+            if [ -z $RBH_DB ]; then
+                echo "ERROR: database not specified"
+                exit 1
+            fi
+    else
+            RBH_DB=$1
+            pass_root=$2
+    fi
+
+    echo "Cleaning ACCT tables in database '$RBH_DB'..."
+    mysql -v --password="$pass_root" $RBH_DB << EOF
+BEGIN;
+DROP TABLE IF EXISTS ACCT_STAT;
+COMMIT;
+EOF
+    if (( $? )); then
+        echo "Command failed"
+        exit 1
+    else
+        echo "DONE"
+    fi
+}
+
 
 function reset_fileclasses
 {
@@ -637,6 +679,9 @@ elif [[ "$1" = enable_chglogs ]]; then
 elif [[ "$1" = empty_db ]]; then
     shift 1
     empty_db $*
+elif [[ "$1" = reset_acct ]]; then
+    shift 1
+    reset_acct $*
 elif [[ "$1" = reset_classes ]]; then
     shift 1
     reset_fileclasses $*
@@ -663,6 +708,8 @@ else
     echo "        enable changelogs on MDT (interactive if no option is specified)"
     echo "    empty_db [<db_name> [<db_admin_passwd>]]:"
     echo "        delete robinhood database content (interactive if no option is specified)"
+    echo "    reset_acct [<db_name> [<db_admin_passwd>]]:"
+    echo "        drop acct info, so robinhood can rebuild it when it restarts."
     echo "    reset_classes [<db_name> [<db_admin_passwd>]]:"
     echo "        reset fileclasses after a change in config file (interactive if no option is specified)"
     echo "    test_db <db_name> <robinhood_passwd>:"
