@@ -68,6 +68,9 @@ typedef struct chglog_reader_config_t
     int mds_has_lu543;
     int mds_has_lu1331;
 
+    /* file to dump all changelog records */
+    char dump_file[RBH_PATH_MAX];
+
 } chglog_reader_config_t;
 
 extern chglog_reader_config_t chglog_reader_config;

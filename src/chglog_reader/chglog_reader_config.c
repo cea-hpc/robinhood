@@ -59,6 +59,7 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
    p_config->queue_check_interval = 1; /* every second */
    p_config->mds_has_lu543 = FALSE;
    p_config->mds_has_lu1331 = FALSE;
+   p_config->dump_file[0] = '\0'; /* no dump file */
 
    /* acknowledge 100 records at once */
    p_config->batch_ack_count = 1024;
@@ -81,8 +82,9 @@ int            ChgLogRdr_WriteDefaultConfig( FILE * output )
     print_line( output, 1, "queue_max_size   : 1000" );
     print_line( output, 1, "queue_max_age    : 5s" );
     print_line( output, 1, "queue_check_interval : 1s" );
-    print_line( output, 1, "mds_has_lu543 : FALSE" );
-    print_line( output, 1, "mds_has_lu1331 : FALSE" );
+    print_line(output, 1, "mds_has_lu543    : FALSE");
+    print_line(output, 1, "mds_has_lu1331   : FALSE");
+    print_line(output, 1, "dump_file        : (none)");
 
     print_end_block( output, 0 );
 
@@ -132,6 +134,10 @@ int            ChgLogRdr_WriteConfigTemplate( FILE * output )
     print_line( output, 1, "queue_max_size   = 1000 ;" );
     print_line( output, 1, "queue_max_age    = 5s ;" );
     print_line( output, 1, "queue_check_interval = 1s ;" );
+    fprintf( output, "\n" );
+
+    print_line(output, 1, "# uncomment to dump all changelog records to the file");
+    print_line(output, 1, "#dump_file = \"/var/log/robinhood/changelog_dump.log\";");
 
     print_end_block( output, 0 );
 
@@ -262,6 +268,13 @@ int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
+    rc = GetStringParam(chglog_block, CHGLOG_CFG_BLOCK, "dump_file",
+                        STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
+                       p_config->dump_file, RBH_PATH_MAX, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc == ENOENT)
+        p_config->dump_file[0] = '\0';
 
     /* browse  the list of MDT blocks */
 

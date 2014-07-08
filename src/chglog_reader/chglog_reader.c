@@ -133,6 +133,7 @@ static int behavior_flags = 0;
 
 /** array of reader info */
 static reader_thr_info_t  * reader_info = NULL;
+static FILE *f_changelog = NULL;
 
 
 /** Reload configuration for changelog readers */
@@ -295,13 +296,30 @@ static const char * event_name[] = {
 #define CL_EVENT_MAX 5
 #endif
 
+#define CL_BASE_FORMAT "%s: %llu %02d%-5s %u.%09u 0x%x%s t="DFID
+#define CL_BASE_ARG(_mdt, _rec_) (_mdt), (_rec_)->cr_index, (_rec_)->cr_type, changelog_type2str((_rec_)->cr_type), \
+               (uint32_t)cltime2sec((_rec_)->cr_time), cltime2nsec((_rec_)->cr_time), \
+               (_rec_)->cr_flags & CLF_FLAGMASK, flag_buff, PFID(&(_rec_)->cr_tfid)
+#define CL_NAME_FORMAT "p="DFID" %.*s"
+#define CL_NAME_ARG(_rec_) PFID(&(_rec_)->cr_pfid), (_rec_)->cr_namelen, (_rec_)->cr_name
+
+#ifdef HAVE_CHANGELOG_EXTEND_REC
+#define CL_EXT_FORMAT   "s="DFID" sp="DFID" %.*s"
+#define CL_EXT_ARG(_rec_)  PFID(&(_rec_)->cr_sfid), PFID(&(_rec_)->cr_spfid), \
+                           changelog_rec_snamelen(_rec_), changelog_rec_sname(_rec_)
+#endif
+
 /* Dump a single record. */
-static void dump_record(int debug_level, const CL_REC_TYPE *rec)
+static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec)
 {
     char flag_buff[256] = "";
+    char record_str[RBH_PATH_MAX] = "";
+    char *curr = record_str;
+    int len;
+    int left = sizeof(record_str);
 
     /* No need to go further if the log level is not right. */
-    if (log_config.debug_level < debug_level)
+    if (f_changelog == NULL && log_config.debug_level < debug_level)
         return;
 
 #ifdef _LUSTRE_HSM
@@ -319,30 +337,30 @@ static void dump_record(int debug_level, const CL_REC_TYPE *rec)
     }
 #endif
 
-    if (rec->cr_namelen)
+    len = snprintf(curr, left, CL_BASE_FORMAT, CL_BASE_ARG(mdt, rec));
+    curr += len;
+    left -= len;
+    if (left > 0 && rec->cr_namelen)
     {
         /* this record has a 'name' field. */
-        DisplayLog(debug_level, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID" p="DFID" %.*s",
-                   rec->cr_index, rec->cr_type,
-                   changelog_type2str(rec->cr_type),
-                   (uint32_t)cltime2sec(rec->cr_time),
-                   cltime2nsec(rec->cr_time),
-                   rec->cr_flags & CLF_FLAGMASK, flag_buff,
-                   PFID(&rec->cr_tfid),
-                   PFID(&rec->cr_pfid),
-                   rec->cr_namelen, rec->cr_name);
+        len = snprintf(curr, left, " "CL_NAME_FORMAT, CL_NAME_ARG(rec));
+        curr += len;
+        left -= len;
     }
-    else
+#ifdef HAVE_CHANGELOG_EXTEND_REC
+    if (left > 0 && fid_is_sane(&rec->cr_sfid))
     {
-        /* no 'name' field. */
-        DisplayLog(debug_level, CHGLOG_TAG, "%llu %02d%-5s %u.%09u 0x%x%s t="DFID,
-                   rec->cr_index, rec->cr_type,
-                   changelog_type2str(rec->cr_type),
-                   (uint32_t)cltime2sec(rec->cr_time),
-                   cltime2nsec(rec->cr_time),
-                   rec->cr_flags & CLF_FLAGMASK, flag_buff,
-                   PFID(&rec->cr_tfid) );
+        len = snprintf(curr, left, " "CL_EXT_FORMAT, CL_EXT_ARG(rec));
+        curr += len;
+        left -= len;
     }
+#endif
+    if (left <= 0)
+        record_str[RBH_PATH_MAX-1] = '\0';
+
+    DisplayLog(debug_level, CHGLOG_TAG, record_str);
+    if (f_changelog)
+        fprintf(f_changelog, "%s\n", record_str);
 }
 
 /* Dumps the nth most recent entries in the queue. If -1, dump them
@@ -356,7 +374,8 @@ static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
         return;
 
     rh_list_for_each_entry_reverse(op, &p_info->op_queue, list) {
-        dump_record(debug_level, op->extra_info.log_record.p_log_rec);
+        dump_record(debug_level, op->extra_info.log_record.mdt,
+                    op->extra_info.log_record.p_log_rec);
 
         if (num != -1) {
             num --;
@@ -676,6 +695,8 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
 }
 #endif
 
+#define mdtname(_info) chglog_reader_config.mdt_def[(_info)->thr_index].mdt_name
+
 /**
  * This handles a single log record.
  */
@@ -684,7 +705,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
     unsigned int opnum;
 
     /* display the log record in debug mode */
-    dump_record(LVL_DEBUG, p_rec);
+    dump_record(LVL_DEBUG, mdtname(p_info), p_rec);
 
     /* update stats */
     opnum = p_rec->cr_type ;
@@ -701,6 +722,9 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
      * might create a duplicate operation anyway. */
     if (can_ignore_record(p_info, p_rec)) {
         DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
+        if (f_changelog)
+            fprintf(f_changelog, "(ignored redundant record %s:%llu)\n", mdtname(p_info),
+                    p_rec->cr_index);
         p_info->suppressed_records ++;
         llapi_changelog_free( &p_rec );
         goto done;
@@ -712,9 +736,9 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
         /* Ensure there is no pending rename. */
         if (p_info->cl_rename) {
             /* Should never happen. */
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "Got 2 CL_RENAME in a row without a CL_EXT." );
-            dump_record(LVL_CRIT, p_rec);
+            DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                       "Got 2 CL_RENAME in a row without a CL_EXT.");
+            dump_record(LVL_CRIT, mdtname(p_info), p_rec);
             dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
@@ -733,7 +757,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
              * and LU-1331. */
             if (!chglog_reader_config.mds_has_lu543 ||
                 !chglog_reader_config.mds_has_lu1331) {
-                DisplayLog(LVL_EVENT, CHGLOG_TAG, "Detected fix for LU-1331.");
+                DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-1331 is fixed in this version of Lustre.");
 
                 chglog_reader_config.mds_has_lu543 = 1;
                 chglog_reader_config.mds_has_lu1331 = 1;
@@ -787,7 +811,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             /* Should never happen. */
             DisplayLog( LVL_CRIT, CHGLOG_TAG,
                         "Got CL_EXT without a CL_RENAME." );
-            dump_record(LVL_CRIT, p_rec);
+            dump_record(LVL_CRIT, mdtname(p_info), p_rec);
             dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
@@ -801,7 +825,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
              !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
             /* tfid if 0, or the two fids are different, so we have LU-543. */
             chglog_reader_config.mds_has_lu543 = 1;
-            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Detected fix for LU-543.");
+            DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-543 is fixed in this version of Lustre.");
         }
 
         /* We now have a CL_RENAME and a CL_EXT. */
@@ -879,6 +903,13 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
 
     /* get next record */
     rc = llapi_changelog_recv(info->chglog_hdlr, pp_rec);
+
+    if (f_changelog && rc != 0 && rc != 1)
+    {
+        fprintf(f_changelog, ">>> llapi_changelog_recv returned error %d (last record = %Lu)\n",
+                rc, info->last_read_record);
+        fflush(f_changelog);
+    }
 
     switch(rc) {
     case 0:
@@ -970,6 +1001,8 @@ static void * chglog_reader_thr( void *  arg )
             process_op_queue(info, FALSE);
 
             next_push_time = time(NULL) + chglog_reader_config.queue_check_interval;
+            if (f_changelog)
+                fflush(f_changelog);
         }
 
         st = cl_get_one(info, &p_rec);
@@ -984,6 +1017,13 @@ static void * chglog_reader_thr( void *  arg )
 
     /* Stopping. Flush the internal queue. */
     process_op_queue(info, TRUE);
+
+    if (f_changelog)
+    {
+        fflush(f_changelog);
+        fclose(f_changelog);
+        f_changelog = NULL;
+    }
 
     DisplayLog(LVL_CRIT, CHGLOG_TAG, "Changelog reader thread terminating");
     return NULL;
@@ -1062,6 +1102,16 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
     /* saves the current config and parameter flags */
     chglog_reader_config = *p_config;
     behavior_flags = flags;
+
+    if (!EMPTY_STRING(p_config->dump_file))
+    {
+        f_changelog = fopen(p_config->dump_file, "a");
+        if (f_changelog == NULL)
+            DisplayLog(LVL_CRIT, CHGLOG_TAG, "Failed to open %s to dump incoming changelogs",
+                       p_config->dump_file);
+        else
+            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Dumping changelogs to: %s", p_config->dump_file);
+    }
 
     /* create thread params */
     reader_info = (reader_thr_info_t*)MemCalloc(p_config->mdt_count,
