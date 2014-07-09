@@ -19,18 +19,6 @@
 Scan the filesystem namespace. If \fIdir\fP is specified, only scan the specified subdir.
 .TP
 .B
-\fB-P\fP, \fB--purge\fP
-Purge non-directory entries according to policy.
-.TP
-.B
-\fB-C\fP, \fB--check-thresholds\fP
-Only check thresholds without purging.
-.TP
-.B
-\fB-M\fP, \fB--migrate\fP
-Copy "dirty" entries to HSM.
-.TP
-.B
 \fB-r\fP, \fB--read-log\fP[=\fImdt_idx\fP]
 Read events from MDT ChangeLog.
 If \fImdt_idx\fP is specified, only read ChangeLogs for the given MDT.
@@ -50,54 +38,44 @@ Note: if no action is specified, the default action set is: \fB--read-log\fP \fB
 
 .TP
 .B
-\fB--purge-ost\fP=\fIost_index\fP,\fItarget_usage_pct\fP
-Apply purge policy on OST \fIost_index\fP until its usage reaches the specified value.
+\fB-t\fP target, \fB--target\fP=target
+Run the policies only on the specified target.
+Target specification can be one of: fs (all entries), user:username, group:grpname, file:path, class:\fIfileclass\fP, ost:ost_idx, pool:poolname.
 .TP
 .B
-\fB--purge-fs\fP=\fItarget_usage_pct\fP
-Apply purge policy until the filesystem usage reaches the specified value.
+\fB--usage-target\fP=percent
+For FS, OST or pool targets of purge policies, specifies the target disk usage (in percent).
 .TP
 .B
-\fB--purge-class\fP=\fIfileclass\fP
-Purge all eligible files in the given \fIfileclass\fP.
-.SH MANUAL MIGRATION ACTIONS
-
+\fB-I\fP, \fB--ignore-policies\fP
+Apply policy to all entries in policy scope, without checking policy rules.
 .TP
 .B
-\fB-s\fP, \fB--sync\fP
-Immediately migrate all modified files, ignoring policy conditions.
-It is equivalent to "\fB--migrate\fP \fB--ignore-policies\fP \fB--once\fP \fB--no-limit\fP".
-.TP
-.B
-\fB--migrate-ost\fP=\fIost_index\fP
-Apply migration policies to files on the given OST \fIost_index\fP.
-.TP
-.B
-\fB--migrate-user\fP=\fIuser_name\fP
-Apply migration policies to files owned by \fIuser_name\fP.
-.TP
-.B
-\fB--migrate-group\fP=\fIgrp_name\fP
-Apply migration policies to files of group \fIgrp_name\fP.
-.TP
-.B
-\fB--migrate-class\fP=\fIfileclass\fP
-Apply migration policy on files in the given \fIfileclass\fP.
-.TP
-.B
-\fB--migrate-file\fP=\fIfilepath\fP
-Apply migration policy to a single file \fIfilepath\fP.
-.SH BEHAVIOR OPTIONS
-
+\fB--no-limit\fP
+Don't limit the maximum number/volume of policy actions per pass.
 .TP
 .B
 \fB--dry-run\fP
-Only report actions that would be performed (rmdir, migration, purge)
-without really doing them. Robinhood DB contents are however impacted.
+Only report policy actions that would be performed without really doing them.
+Note: Robinhood DB is impacted as if the reported actions were realy done.
+.SH SCANNING OPTIONS
+
 .TP
 .B
-\fB-i\fP, \fB--ignore-policies\fP
-Force migration/purge of all eligible files, ignoring policy conditions.
+\fB--no-gc\fP
+Garbage collection of entries in DB is a long operation when terminating
+a scan. This skips this operation if you don't care about removed
+entries (or don't expect entries to be removed).
+This is also recommended for partial scanning (see \fB-scan\fP=\fIdir\fP option).
+.SH OUTPUT OPTIONS
+
+.TP
+.B
+\fB--diff\fP=\fIattrset\fP
+When scanning or reading changelogs, display changes for the given set of attributes (to stdout).
+\fIattrset\fP is a list of values in: path,posix,stripe,all,notimes,noatime.
+.SH BEHAVIOR OPTIONS
+
 .TP
 .B
 \fB-O\fP, \fB--once\fP
@@ -106,17 +84,6 @@ Perform only one pass of the specified action and exit.
 .B
 \fB-d\fP, \fB--detach\fP
 Daemonize the process (detach from parent process).
-.TP
-.B
-\fB--no-limit\fP
-Don't limit the maximum number of migrations (per pass).
-.TP
-.B
-\fB--no-gc\fP
-Garbage collection of entries in DB is a long operation when terminating
-a scan. This skips this operation if you don't care about removed
-entries (or don't expect entries to be removed).
-This is also recommended for partial scanning (see \fB-scan\fP=\fIdir\fP option).
 .SH CONFIG FILE OPTIONS
 
 .TP

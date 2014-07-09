@@ -16,6 +16,10 @@
 -user \fIuser\fP
 .PP
 -group \fIgroup\fP
+.PP
+\fB-nouser\fP
+.PP
+\fB-nogroup\fP
 .TP
 .B
 -type \fItype\fP
@@ -52,6 +56,8 @@ same as '\fB-mtime\fP Ns'
 [-|+]<val>[s|m|h|d|y] (s: sec, m: min, h: hour, d:day, y:year. default unit is days)
 .PP
 \fB-ost\fP \fIost_index\fP
+.PP
+\fB-pool\fP ost_pool
 .TP
 .B
 -status \fIstatus\fP
@@ -63,13 +69,39 @@ unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released
 .TP
 .B
 \fB-not\fP, -!
-negate next argument
+Negate next argument
 .SH OUTPUT OPTIONS
 
 .TP
 .B
 \fB-ls\fP
-: display attributes
+Display attributes
+.TP
+.B
+\fB-lsost\fP
+Display OST information
+.TP
+.B
+\fB-print\fP
+Display the fullpath of matching entries (this is the default, unless \fB-ls\fP, \fB-lsost\fP or \fB-exec\fP are used).
+.SH ACTIONS
+
+.TP
+.B
+\fB-exec\fP "cmd"
+Execute the given command for each matching entry. Unlike classical 'find',
+cmd must be a single (quoted) shell param, not necessarily terminated with ';'.
+\(cq{}' is replaced by the entry path. Example: \fB-exec\fP 'md5sum {}'
+.SH BEHAVIOR
+
+.TP
+.B
+\fB-nobulk\fP
+When running rbh-find on the filesystem root, rbh-find automatically switches
+to bulk DB request instead of browsing the namespace from the DB.
+This speeds up the query, but this may result in an arbitrary output ordering,
+and a single path may be displayed in case of multiple hardlinks.
+Use \fB-nobulk\fP to disable this optimization.
 .SH PROGRAM OPTIONS
 
 \fB-f\fP \fIconfig_file\fP
