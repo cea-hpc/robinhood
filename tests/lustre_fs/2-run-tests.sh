@@ -153,12 +153,14 @@ function error_reset
 
 function error
 {
+    grep_ctx_opt="-B 5 -A 1"
+
 	echo "ERROR $@"
- 	grep -i -B 5 -A 1 error *.log | grep -v "(0 errors)" | grep -v "LastScanErrors"
+ 	grep -i $grep_ctx_opt error *.log | grep -v "[ (]0 errors" | grep -v "LastScanErrors"
 	NB_ERROR=$(($NB_ERROR+1))
 
 	if (($junit)); then
-	 	grep -i -B 5 -A 1 error *.log | grep -v "(0 errors)" | grep -v "LastScanErrors" >> $TMPERR_FILE
+	 	grep -i $grep_ctx_opt error *.log | grep -v "[ (]0 errors" | grep -v "LastScanErrors" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
 
@@ -3294,6 +3296,10 @@ function fileclass_test
 	fi
 
 	clean_logs
+
+    # initial scan
+    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "running initial scan"
+	check_db_error rh_chglogs.log
 
 	# create test tree
 
