@@ -35,6 +35,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <string.h>
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"

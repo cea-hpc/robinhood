@@ -240,10 +240,6 @@ typedef struct fileset_item_t
     /** summary of attributes needed to build hints */
     int            hints_attr_mask;
 
-#ifdef _LUSTRE_HSM
-    unsigned int archive_id; /* manage it as a hint? */
-#endif
-
     /** @TODO aggregation policy */
 
 } fileset_item_t;
@@ -265,10 +261,6 @@ typedef struct rule_item_t
 
     char           action_hints[HINTS_LEN];
     // TODO: different action per rule?
-
-#ifdef _LUSTRE_HSM
-    unsigned int   archive_id; /* TODO manage it as a hint? */
-#endif
 } rule_item_t;
 
 /** list of rules for a policy */

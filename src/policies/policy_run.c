@@ -1560,14 +1560,14 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         case POLICY_MATCH:
             /* OK, can be purged */
             DisplayLog(LVL_DEBUG, tag(pol),
-                       "Entry %s matches the condition for policy '%s'.",
+                       "Entry %s matches the condition for policy rule '%s'.",
                        ATTR(&p_item->entry_attr, fullpath), rule->rule_id);
             break;
         default:
             /* Cannot determine if entry matches the policy condition */
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s matches the "
-                       "condition for policy '%s': skipping it.",
+                       "condition for policy rule '%s': skipping it.",
                        ATTR(&p_item->entry_attr, fullpath), rule->rule_id);
             policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr,
                        p_item->targeted);
@@ -1658,7 +1658,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         char           strsize[256];
         char           strfileset[FILESET_ID_LEN+128] = "";
         char           strstorage[24576]="";
-        int            is_stor = TRUE;
+        int            is_stor = FALSE;
         time_t         t;
 
         /* Action was sucessful */
@@ -1676,8 +1676,11 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
 #ifdef _LUSTRE
         if (ATTR_MASK_TEST(&p_item->entry_attr, stripe_items))
+        {
             FormatStripeList(strstorage, sizeof(strstorage),
                 &ATTR(&p_item->entry_attr, stripe_items), 0);
+            is_stor = TRUE;
+        }
         else
             strcpy(strstorage, "<none>");
 #endif
@@ -1691,7 +1694,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                    tag(pol), ATTR(&p_item->entry_attr, fullpath),
                    rule->rule_id, strfileset, sort_attr_name(pol),
                    strtime, ((t > 0) ? " ago" : ""),  strsize,
-                   (is_stor ? "stored on" : ""), (is_stor ? strstorage : ""));
+                   (is_stor ? " stored on " : ""), (is_stor ? strstorage : ""));
 
         DisplayReport("%s success for '%s', matching rule '%s'%s, %s %s%s | size=%"
                       PRI_SZ ", %s=%" PRI_TT "%s%s",

@@ -695,25 +695,92 @@ int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
     return 0;
 }
 
+#define ARCHIVE_HINT "archive_id"
+
 /** Trigger a HSM action */
-int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
-                      const char * hints, unsigned int archive_id )
+int LustreHSM_Action(enum hsm_user_action action, const entry_id_t *p_id,
+                     const char *hints)
 {
     struct hsm_user_request * req;
     int data_len = 0;
     int rc;
-    char * mpath;
+    char *mpath;
+    char *new_hints = NULL;
+    unsigned int archive_id = 0;
 
-    if ( hints != NULL )
+    /* Extract archive_id from hints. Don't propagate it to the copytool. */
+    if (hints)
+    {
+        char *ptr = NULL;
+        char *in, *next, *tmp_hints;
+        ptrdiff_t archid_offset  = -1;
+
         data_len = strlen(hints)+1;
+        in = tmp_hints = strdup(hints);
+        while ((next = strtok_r(in, ",", &ptr)))
+        {
+            if (!strncmp(next, ARCHIVE_HINT"=", strlen(ARCHIVE_HINT)+1))
+            {
+                archid_offset = (next - tmp_hints);
+                next += strlen(ARCHIVE_HINT)+1;
+                archive_id = str2int(next);
+                if ((int)archive_id == -1)
+                {
+                    DisplayLog(LVL_MAJOR, "HSMAction", "Invalid archive_id '%s': "
+                               "index expected", next);
+                    free(tmp_hints);
+                    return -EINVAL;
+                }
+                break;
+            }
+            in = NULL;
+        }
+        /* this one was modified by strtok: drop it */
+        free(tmp_hints);
+
+        if (archid_offset != -1)
+        {
+            char *c_w, *c_r;
+            /* remove archive_id from original hints */
+            new_hints = strdup(hints);
+            c_w = new_hints + archid_offset;
+            c_r = strchr(c_w, ',');
+            if (c_r == NULL)
+            {
+                /* no ',' after, truncate hints in place */
+                *c_w = '\0';
+            }
+            else
+            {
+                /* skip ',' */
+                c_r++;
+                /* copy up to end of string */
+                while (*c_r)
+                {
+                    *c_w = *c_r;
+                    c_w++;
+                    c_r++;
+                }
+                *c_w = '\0';
+            }
+            data_len = strlen(new_hints)+1;
+            if (data_len == 1)
+            {
+                /* new hints are empty */
+                free(new_hints);
+                new_hints = NULL;
+                data_len = 0;
+            }
+        }
+    }
 
     req = llapi_hsm_user_request_alloc(1, data_len);
 
     if (!req)
     {
         rc = -errno;
-        DisplayLog( LVL_CRIT, "HSMAction", "Cannot create HSM request: %s",
-            strerror(-rc) );
+        DisplayLog(LVL_CRIT, "HSMAction", "Cannot create HSM request: %s",
+                   strerror(-rc));
         return rc;
     }
 
@@ -727,10 +794,11 @@ int LustreHSM_Action( enum hsm_user_action action, const entry_id_t * p_id,
 
     req->hur_request.hr_itemcount = 1;
 
-    if ( hints != NULL )
+    if (new_hints != NULL)
     {
         req->hur_request.hr_data_len = data_len;
-        memcpy(hur_data(req), hints, data_len);
+        memcpy(hur_data(req), new_hints, data_len);
+        free(new_hints);
     }
     else
     {

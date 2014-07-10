@@ -356,8 +356,6 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
 {
     int            rc;
     char           tmpstr[1024];
-    char         **options = NULL;
-    unsigned int   nb_options = 0;
 
     static const char *expect[] =
     {
@@ -368,8 +366,8 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
 
     /* get parameters from this block */
     rc = GetStringParam(config_blk, block_name, "name",
-                        PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr, 1024,
-                        &options, &nb_options, msg_out);
+                        PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
+                        NULL, NULL, msg_out);
     if (rc != 0)
         return rc;
 
@@ -701,7 +699,7 @@ static int write_template_filesets(FILE * output)
 #endif
 #ifdef _LUSTRE_HSM
     print_line(output, 2, "# target archive");
-    print_line(output, 2, "archive_id = 1 ;");
+    print_line(output, 2, "lhsm_archive_hints = \"archive_id=1\" ;");
 #endif
     print_end_block(output, 1);
 
@@ -721,7 +719,7 @@ static int write_template_filesets(FILE * output)
 #ifdef _LUSTRE_HSM
     fprintf(output, "\n");
     print_line(output, 2, "# target archive");
-    print_line(output, 2, "archive_id = 2 ;");
+    print_line(output, 2, "lhsm_archive_hints = \"archive_id=2\" ;");
 #endif
     print_end_block(output, 1);
     fprintf(output, "\n");
@@ -797,7 +795,7 @@ static int write_migration_policy_template(FILE * output)
 #ifdef _LUSTRE_HSM
     fprintf(output, "\n");
     print_line(output, 2, "# target archive (/!\\ policy archive_id overrides fileset archive_id)");
-    print_line(output, 2, "archive_id = 3 ;");
+    print_line(output, 2, "lhsm_archive_hints = "archive_id=3" ;");
 #endif
 
     print_end_block(output, 1);
@@ -835,7 +833,7 @@ static int write_migration_policy_template(FILE * output)
 #ifdef _LUSTRE_HSM
     fprintf(output, "\n");
     print_line(output, 2, "# target archive");
-    print_line(output, 2, "archive_id = 2 ;");
+    print_line(output, 2, "lhsm_archive_hints = "archive_id=2" ;");
 #endif
 
     print_end_block(output, 1);
@@ -1021,7 +1019,7 @@ static int hints_mask(const char *hints)
         end_var = strchr(begin_var, '}');
         if (!end_var)
         {
-           DisplayLog(LVL_CRIT,CHK_TAG, "ERROR: unmatched '{' in migration hints '%s'", hints);
+           DisplayLog(LVL_CRIT,CHK_TAG, "ERROR: unmatched '{' in policy hints '%s'", hints);
            return -1;
         }
 
@@ -1367,26 +1365,10 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                         else if (!strcasecmp(subitem_name,"archive_id")
                             || !strcasecmp(subitem_name,"archive_num")) /* for backward compat. */
                         {
-                            int tmp;
-
-                            if (extra_args)
-                            {
-                                sprintf(msg_out,
-                                        "Unexpected arguments for archive_id parameter, line %d.",
-                                        rh_config_GetItemLine(sub_item));
-                                rc = EINVAL;
-                                goto clean_filesets;
-                            }
-                            tmp = str2int(value);
-                            if (tmp <= 0)
-                            {
-                                sprintf(msg_out,
-                                        "Positive integer expected for archive_id parameter, line %d.",
-                                        rh_config_GetItemLine(sub_item));
-                                rc = EINVAL;
-                                goto clean_filesets;
-                            }
-                            p_policies->fileset_list[i].archive_id = tmp;
+                            sprintf(msg_out, "%s parameter is deprecated (line %u). Specify archive_id as policy hint, e.g. <policy>_hints=\"archive_id=<idx>\".",
+                                    subitem_name, rh_config_GetItemLine(sub_item));
+                            rc = EINVAL;
+                            goto clean_filesets;
                         }
                         else
 #endif
@@ -1508,6 +1490,7 @@ static int read_unlink_policy(config_file_t config, unlink_policy_t * pol, char 
 static int parse_rule_block(config_item_t config_item,
                             const char *block_name,
                             const policies_t *all_policies, /* to check filesets */
+                            const char *policy_name, /* to build specific parameter name like '<policy>_hints' */
                             const policy_rules_t *policy_rules, /* to check other rule names in the policy */
                             rule_item_t *rule_out, char *msg_out)
 {
@@ -1583,6 +1566,8 @@ static int parse_rule_block(config_item_t config_item,
             char          *value = NULL;
             int            extra_args = FALSE;
             fileset_item_t *fs;
+            char hint_name[POLICY_NAME_LEN + sizeof("_hints") + 1];
+            sprintf(hint_name, "%s_hints", policy_name);
 
             rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra_args);
             if (rc)
@@ -1674,8 +1659,10 @@ static int parse_rule_block(config_item_t config_item,
                 rule_out->attr_mask |= fs->attr_mask;
 
             }
-            /* TODO allowed syntaxes:    hints, <policyname>_hints, action_hints */
-            else if (!strcasecmp(subitem_name, "action_hints"))
+            /* allowed syntaxes:    hints, <policyname>_hints, action_hints */
+            else if (!strcasecmp(subitem_name, "hints") ||
+                     !strcasecmp(subitem_name, "action_hints") ||
+                     !strcasecmp(subitem_name, hint_name))
             {
                 if (extra_args)
                 {
@@ -1718,38 +1705,13 @@ static int parse_rule_block(config_item_t config_item,
                 }
             }
 #ifdef _LUSTRE_HSM
-            /* TODO manage archive_id as a hint? */
+            /* archive_id is now managed as a hint */
             else if (!strcasecmp(subitem_name, "archive_id")
                      || !strcasecmp(subitem_name, "archive_num")) /* for backward compat */
             {
-                int tmp;
-
-#if 0 // FIXME
-                if (policy_type != MIGR_POLICY)
-                {
-                    sprintf(msg_out, "archive_id defined in a non-migration policy, line %d.",
-                            rh_config_GetItemLine(sub_item));
-                    return EINVAL;
-                }
-#endif
-
-                if (extra_args)
-                {
-                    sprintf(msg_out,
-                             "Unexpected arguments for %s parameter, line %d.",
-                             subitem_name, rh_config_GetItemLine(sub_item));
-                    return EINVAL;
-                }
-
-                tmp = str2int(value);
-                if (tmp <= 0)
-                {
-                    sprintf(msg_out,
-                            "Positive integer expected for archive_id parameter, line %d.",
-                            rh_config_GetItemLine(sub_item));
-                    return EINVAL;
-                }
-                rule_out->archive_id = tmp;
+                sprintf(msg_out, "%s parameter is deprecated (line %u). Specify archive_id in %s, e.g. %s=\"archive_id=<idx>\".",
+                        subitem_name, rh_config_GetItemLine(sub_item), hint_name, hint_name);
+                return EINVAL;
             }
 #endif
             else
@@ -1895,8 +1857,8 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
             else if (!strcasecmp(item_name, OLD_RULE_BLOCK) || !strcasecmp(item_name, RULE_BLOCK))
             {
                 /* parse 'policy' block */
-                rc = parse_rule_block(curr_item, item_name,
-                                      p_policies, rules,
+                rc = parse_rule_block(curr_item, item_name, p_policies,
+                                      policy_descr->name, rules,
                                       &rules->rules[curr_rule],
                                       msg_out);
                 if (rc)

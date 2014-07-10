@@ -159,7 +159,6 @@ typedef struct policy_run_config_t
     trigger_item_t *trigger_list;
     unsigned int   trigger_count;
 
-    /* TODO move to policy declaration? */
 	action_type_t  action_type;
     union {
 	    char            command[RBH_PATH_MAX];
