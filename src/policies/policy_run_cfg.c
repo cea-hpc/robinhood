@@ -611,6 +611,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, policy_name);
 
     /* get <policy>_parameters block */
+    /* TODO be able to aggregate multiple blocks with the same name */
     config_item_t  param_block = rh_config_FindItemByName(config, block_name);
 
     /* default_action is mandatory */

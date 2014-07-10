@@ -454,7 +454,6 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         break;
 
     case CRITERIA_XATTR:
-    case CRITERIA_CUSTOM_CMD:
     default:
         *p_attr_index = -1;
         return -1;
@@ -806,11 +805,6 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
         break;
     }
-
-    case CRITERIA_CUSTOM_CMD:
-        /* fullpath is required if fids are not available */
-        /* @TODO */
-        break;
 
     default:
         DisplayLog(LVL_CRIT, POLICY_TAG, "This criteria (%#x) is not supported in this mode", p_triplet->crit);

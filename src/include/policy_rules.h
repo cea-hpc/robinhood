@@ -38,21 +38,17 @@ typedef enum {
 } compare_direction_t;
 
 typedef enum {
-    CRITERIA_TREE,
+    CRITERIA_TREE = 0,
     CRITERIA_PATH,
     CRITERIA_FILENAME,
-#ifdef ATTR_INDEX_type
     CRITERIA_TYPE,
-#endif
     CRITERIA_OWNER,
     CRITERIA_GROUP,
     CRITERIA_SIZE,
+    CRITERIA_DEPTH,
+    CRITERIA_DIRCOUNT,
     CRITERIA_LAST_ACCESS,
     CRITERIA_LAST_MOD,
-    CRITERIA_DEPTH,
-#ifdef ATTR_INDEX_dircount
-    CRITERIA_DIRCOUNT,
-#endif
 #ifdef ATTR_INDEX_last_restore
     CRITERIA_LAST_RESTORE,
 #endif
@@ -62,12 +58,12 @@ typedef enum {
 #ifdef ATTR_INDEX_creation_time
     CRITERIA_CREATION,
 #endif
+#ifdef _LUSTRE
     CRITERIA_POOL,
     CRITERIA_OST,
+#endif
     CRITERIA_XATTR,
-    CRITERIA_CUSTOM_CMD
 } compare_criteria_t;
-
 
 typedef enum {
     BOOL_ERR = 0,
@@ -88,6 +84,29 @@ typedef enum {
     TYPE_SOCK
 } obj_type_t;
 
+
+/* string representation in policies */
+static const char *type_cfg_name[] = {"?", "symlink", "directory", "file",
+    "chr", "blk", "fifo", "sock"};
+
+static inline const char *type2str(obj_type_t type)
+{
+    if (type > TYPE_SOCK)
+        return type_cfg_name[TYPE_NONE];
+    else
+        return type_cfg_name[type];
+}
+
+static inline obj_type_t str2type(const char *str)
+{
+    obj_type_t i;
+    for (i = TYPE_NONE; i <= TYPE_SOCK; i++)
+    {
+        if (!strcasecmp(str, type_cfg_name[i]))
+            return i;
+    }
+    return TYPE_NONE;
+}
 
 /* string representation in database (not in config file)
  *

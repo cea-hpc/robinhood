@@ -109,8 +109,7 @@ int compare_boolexpr(const bool_node_t * expr1, const bool_node_t * expr2)
         if (expr1->content_u.condition->crit != expr2->content_u.condition->crit)
             return TRUE;
         /* compare operator, except for custom cmd and xattr */
-        if ((expr1->content_u.condition->crit != CRITERIA_CUSTOM_CMD)
-             && (expr1->content_u.condition->crit != CRITERIA_XATTR)
+        if ((expr1->content_u.condition->crit != CRITERIA_XATTR)
              && (expr1->content_u.condition->op != expr2->content_u.condition->op))
             return TRUE;
         /* same structure */
@@ -245,15 +244,6 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
             {
                 DisplayLog(LVL_MAJOR, RELOAD_TAG,
                             "Condition changed on attribute '%s' but this cannot be modified dynamically",
-                            criteria2str(p_triplet1->crit));
-            }
-            return FALSE;
-
-        case CRITERIA_CUSTOM_CMD:
-            if (strcmp(p_triplet1->val.str, p_triplet2->val.str))
-            {
-                DisplayLog(LVL_MAJOR, RELOAD_TAG,
-                            "Command line changed for '%s' condition, but this cannot be modified dynamically",
                             criteria2str(p_triplet1->crit));
             }
             return FALSE;

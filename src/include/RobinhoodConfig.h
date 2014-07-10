@@ -40,6 +40,49 @@ typedef int    ( *reload_config_func_t ) ( void *module_config );
 typedef int    ( *write_config_func_t ) ( FILE * output );
 /** @} */
 
+/* parameter flags */
+
+#define PFLG_MANDATORY             (1 << 0)
+
+#define PFLG_ABSOLUTE_PATH         (1 << 1)
+#define PFLG_REMOVE_FINAL_SLASH    (1 << 2)
+#define PFLG_NO_WILDCARDS          (1 << 3)
+#define PFLG_MAIL                  (1 << 4)
+#define PFLG_STDIO_ALLOWED         (1 << 5)
+
+/* for int and float params */
+#define PFLG_POSITIVE              (1 << 6)
+#define PFLG_NOT_NULL              (1 << 7)
+
+/* for string param */
+#define PFLG_NOT_EMPTY             PFLG_NOT_NULL
+
+/* float params only */
+#define PFLG_ALLOW_PCT_SIGN        (1 << 8)
+
+/* extra flags for values in policy expressions */
+#define PFLG_ALLOW_ANY_DEPTH       (1 << 9) /* allow ** */
+#define PFLG_NO_SLASH              (1 << 10)
+#define PFLG_COMPARABLE            (1 << 11)
+#define PFLG_NOT_EMPTY             PFLG_NOT_NULL
+#define PFLG_XATTR                 (1 << 12)
+
+/**
+ * Types and function to parse a list of simple scalar configuration variables (with no extra args).
+ */
+typedef enum {
+    PT_STRING,
+    PT_BOOL,
+    PT_DURATION,
+    PT_SIZE,
+    PT_INT,
+    PT_INT64,
+    PT_FLOAT,
+    PT_TYPE
+} cfg_param_type;
+
+
+
 #include "list_mgr.h"
 #include "RobinhoodLogs.h"
 #include "global_config.h"
@@ -279,28 +322,6 @@ void           print_line( FILE * output, unsigned int indent, const char *forma
 
 /* ==== Tools for retrieving parameters from conf and checking them ==== */
 
-/* constraint flags on parameters */
-
-/* parameter flags */
-
-#define PFLG_MANDATORY             (1 << 0)
-
-#define PFLG_ABSOLUTE_PATH         (1 << 1)
-#define PFLG_REMOVE_FINAL_SLASH    (1 << 2)
-#define PFLG_NO_WILDCARDS          (1 << 3)
-#define PFLG_MAIL                  (1 << 4)
-#define PFLG_STDIO_ALLOWED         (1 << 5)
-
-/* for int and float params */
-#define PFLG_POSITIVE              (1 << 6)
-#define PFLG_NOT_NULL              (1 << 7)
-
-/* for string param */
-#define PFLG_NOT_EMPTY             PFLG_NOT_NULL
-
-/* float params only */
-#define PFLG_ALLOW_PCT_SIGN        (1 << 8)
-
 /**
  *  Retrieve a string parameter and check its format
  *  @return 0 on success
@@ -380,20 +401,89 @@ int           GetFloatParam(config_item_t block, const char *block_name,
                             char *err_msg);
 
 
-// TODO generic config parsing using structure {type, name, flags, tgtptr}
 
-/**
- * Types and function to parse a list of simple scalar configuration variables (with no extra args).
- */
-typedef enum {
-    PT_STRING,
-    PT_BOOL,
-    PT_DURATION,
-    PT_SIZE,
-    PT_INT,
-    PT_INT64,
-    PT_FLOAT
-} cfg_param_type;
+/* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the last criteria */
+#define MAX_CRITERIA CRITERIA_XATTR
+
+#define XATTR_PREFIX    "xattr"
+
+#if (!defined (_LUSTRE) || !defined(_HAVE_FID))
+#define XATTR_NEED ATTR_MASK_fullpath
+#else
+#define XATTR_NEED 0
+#endif
+
+static struct criteria_descr_t {
+    compare_criteria_t crit;
+    const char *name;
+    int   attr_mask;
+    cfg_param_type type;
+    int   parsing_flags;
+} const criteria_descr[] = {
+    {CRITERIA_TREE, "tree", ATTR_MASK_fullpath, PT_STRING,
+        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
+    {CRITERIA_PATH, "path", ATTR_MASK_fullpath, PT_STRING,
+        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
+    {CRITERIA_FILENAME, "name", ATTR_MASK_name, PT_STRING,
+        PFLG_NOT_EMPTY | PFLG_NO_SLASH},
+    {CRITERIA_TYPE, "type", ATTR_MASK_type, PT_TYPE, 0},
+    {CRITERIA_OWNER, "owner", ATTR_MASK_owner, PT_STRING, PFLG_NOT_EMPTY},
+    {CRITERIA_GROUP, "group", ATTR_MASK_gr_name, PT_STRING, PFLG_NOT_EMPTY},
+    {CRITERIA_SIZE, "size", ATTR_MASK_size, PT_SIZE,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+    {CRITERIA_DEPTH, "depth", ATTR_MASK_depth, PT_INT,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+    {CRITERIA_DIRCOUNT, "dircount", ATTR_MASK_dircount, PT_INT,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+    {CRITERIA_LAST_ACCESS, "last_access", ATTR_MASK_last_access, PT_DURATION,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+    {CRITERIA_LAST_MOD, "last_mod", ATTR_MASK_last_mod, PT_DURATION,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+#ifdef ATTR_INDEX_last_restore
+    {CRITERIA_LAST_RESTORE, "last_restore", ATTR_MASK_last_restore, PT_DURATION,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+#endif
+#ifdef ATTR_INDEX_last_archive
+    {CRITERIA_LAST_ARCHIVE, "last_archive", ATTR_MASK_last_archive, PT_DURATION,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+#endif
+#ifdef ATTR_INDEX_creation_time
+    {CRITERIA_CREATION ,"creation", ATTR_MASK_creation_time, PT_DURATION,
+        PFLG_POSITIVE | PFLG_COMPARABLE},
+#endif
+#ifdef _LUSTRE
+    {CRITERIA_POOL, "ost_pool", ATTR_MASK_stripe_info, 0},
+    {CRITERIA_OST, "ost_index", ATTR_MASK_stripe_items, PFLG_POSITIVE},
+#endif
+    {CRITERIA_XATTR, XATTR_PREFIX, XATTR_NEED, PT_STRING, PFLG_XATTR},
+};
+
+static const inline char *criteria2str(compare_criteria_t crit)
+{
+    if (crit > MAX_CRITERIA)
+        return "?";
+    else
+        return criteria_descr[crit].name;
+}
+
+#define NO_CRITERIA ((compare_criteria_t)-1)
+
+static const inline compare_criteria_t str2criteria(const char *str)
+{
+    int i;
+
+    /* special case of XATTR criteria: xattr.<attr_name> */
+    if (!strncasecmp(str, XATTR_PREFIX".", strlen(XATTR_PREFIX".")))
+        return CRITERIA_XATTR;
+
+    for (i = 0; i < CRITERIA_XATTR; i++)
+        if (!strcasecmp(str,criteria_descr[i].name))
+            return i;
+
+    return NO_CRITERIA;
+}
+
+/* generic config parsing using structure {type, name, flags, tgtptr} */
 
 typedef struct cfg_param_t {
     const char     *name; /* NULL for last name */
@@ -434,10 +524,6 @@ const char    *op2str( compare_direction_t comp );
 
 /** give the string for an object type */
 const char    *type2str( obj_type_t type );
-
-/** give the  name for a criteria */
-const char    *criteria2str( compare_criteria_t crit );
-
 
 /** Create a boolean condition */
 int CreateBoolCond(bool_node_t * p_out_node, compare_direction_t compar,

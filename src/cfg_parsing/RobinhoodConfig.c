@@ -25,8 +25,6 @@
 #include <errno.h>
 #include <stdarg.h>
 
-#define XATTR_PREFIX    "xattr"
-
 char *process_config_file = "";
 
 /**
@@ -926,7 +924,7 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
         }
     }
 
-    /* leave single '*' (unfortunatly, they will be interpreted like '**') */
+    /* FIXME leave single '*' (unfortunatly, they will be interpreted like '**') */
 #if 0
     for ( curr = strchr(regexpr, '*'); curr != NULL; curr = strchr(curr+2,'*') )
     {
@@ -948,503 +946,173 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
     return 0;
 }
 
+#define CHECK_INT_VALUE(_v, _flg) do {\
+                if (( _flg & PFLG_POSITIVE) && (_v < 0)) { \
+                    sprintf(err_msg, "Positive value expected for %s criteria", \
+                            key_value->varname); \
+                    return EINVAL; \
+                } \
+                if (( _flg & PFLG_NOT_NULL) && (_v == 0)) { \
+                    sprintf(err_msg, "Null value not allowed for %s criteria", \
+                            key_value->varname); \
+                    return EINVAL; \
+                } \
+            } while(0)
 
 
-/* test for a criteria name */
-#define TEST_CRIT( _str_, _crit_code ) ( !strcasecmp( _str_, criteria2str(_crit_code)  ) )
+static int criteria2condition(const type_key_value *key_value,
+        compare_triplet_t *p_triplet, int *p_attr_mask, char *err_msg,
+        compare_criteria_t crit, cfg_param_type type, int attr_mask, int flags)
+{
+    p_triplet->crit = crit;
+    p_triplet->op = syntax2conf_comparator(key_value->op_type);
+    *p_attr_mask |= attr_mask;
+
+    switch(type)
+    {
+        case PT_STRING:
+            if ((flags & PFLG_NOT_EMPTY) && EMPTY_STRING(key_value->varvalue))
+            {
+                sprintf("non-empty string expected for %s parameter",
+                        key_value->varname);
+                return EINVAL;
+            }
+            if ((flags & PFLG_NO_SLASH) && SLASH_IN(key_value->varvalue))
+            {
+                sprintf("no slash (/) expected in %s parameter",
+                        key_value->varname);
+                return EINVAL;
+            }
+
+           /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
+            if (WILDCARDS_IN(key_value->varvalue))
+            {
+                if (flags & PFLG_NO_WILDCARDS)
+                {
+                    sprintf(err_msg, "No wildcard is allowed in %s criteria",
+                            key_value->varname);
+                    return EINVAL;
+                }
+
+                if (p_triplet->op == COMP_EQUAL)
+                    p_triplet->op = COMP_LIKE;
+                else if (p_triplet->op == COMP_DIFF)
+                    p_triplet->op = COMP_UNLIKE;
+            }
+
+            rh_strncpy(p_triplet->val.str, key_value->varvalue, sizeof(p_triplet->val.str));
+
+            if (flags & PFLG_XATTR)
+            {
+                char *p_xattr = strchr(key_value->varname, '.');
+                p_xattr ++;
+                rh_strncpy(p_triplet->xattr_name, p_xattr, sizeof(p_triplet->xattr_name));
+            }
+            else if (ANY_LEVEL_MATCH(p_triplet->val.str)) /* don't care for xattr value */
+            {
+                if (flags & PFLG_ALLOW_ANY_DEPTH)
+                {
+                    int rc;
+
+                    /* check the expression and adapt it to fnmatch */
+                    rc = process_any_level_condition(p_triplet->val.str, err_msg);
+                    if (rc) return rc;
+                    p_triplet->flags |= CMP_FLG_ANY_LEVEL;
+                }
+                else
+                {
+                    sprintf("double star wildcard (**) not expected in %s parameter",
+                            key_value->varname);
+                    return EINVAL;
+                }
+            }
+            break;
+        case PT_SIZE:
+            /* a size is expected */
+            p_triplet->val.size = str2size(key_value->varvalue);
+            if (p_triplet->val.size == -1LL)
+            {
+                sprintf(err_msg, "%s criteria: invalid format for size: '%s'",
+                        key_value->varname, key_value->varvalue);
+                return EINVAL;
+            }
+            CHECK_INT_VALUE(p_triplet->val.size, flags);
+            break;
+        case PT_INT:
+            p_triplet->val.integer = str2int(key_value->varvalue);
+            if (p_triplet->val.integer == -1)
+            {
+                sprintf(err_msg, "%s criteria: integer expected: '%s'",
+                        key_value->varname, key_value->varvalue);
+                return EINVAL;
+            }
+            CHECK_INT_VALUE(p_triplet->val.integer, flags);
+            break;
+        case PT_DURATION:
+            p_triplet->val.duration = str2duration(key_value->varvalue);
+            if (p_triplet->val.duration == -1)
+            {
+                sprintf(err_msg, "%s criteria: duration expected: '%s'",
+                        key_value->varname, key_value->varvalue);
+                return EINVAL;
+            }
+            CHECK_INT_VALUE(p_triplet->val.duration, flags);
+            break;
+        case PT_TYPE:
+            p_triplet->val.type = str2type(key_value->varvalue);
+            if (p_triplet->val.type == TYPE_NONE)
+            {
+                strcpy(err_msg, "Illegal condition on type: file, directory, "
+                       "symlink, chr, blk, fifo or sock expected.");
+                return EINVAL;
+            }
+            break;
+        default:
+            sprintf(err_msg, "Unsupported criteria type for %s",
+                    key_value->varname);
+            return ENOTSUP;
+    }
+
+    /* > or < for a non comparable item */
+    if (!(flags & PFLG_COMPARABLE)
+        && (p_triplet->op != COMP_EQUAL)
+        && (p_triplet->op != COMP_DIFF)
+        && (p_triplet->op != COMP_LIKE)
+        && (p_triplet->op != COMP_UNLIKE))
+    {
+        sprintf(err_msg, "Illegal comparator for %s criteria: == or != expected",
+                key_value->varname);
+        return EINVAL;
+    }
+
+    return 0;
+}
 
 
 /**
  *  interpret and check a condition.
  */
-static int interpret_condition( type_key_value * key_value, compare_triplet_t * p_triplet,
-                                int *p_attr_mask, char *err_msg )
+static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_triplet,
+                               int *p_attr_mask, char *err_msg)
 {
+    /* check the name for the condition */
+    compare_criteria_t crit = str2criteria(key_value->varname);
+
+    if (crit == NO_CRITERIA)
+    {
+            sprintf(err_msg, "Unknown or unsupported criteria '%s'",
+                    key_value->varname);
+            return EINVAL;
+    }
+
     p_triplet->flags = 0;
 
-    /* check the name for the condition */
-    if ( TEST_CRIT( key_value->varname, CRITERIA_TREE ) )
-    {
-        p_triplet->crit = CRITERIA_TREE;
-        *p_attr_mask |= ATTR_MASK_fullpath;
-
-        /* looking for a non-empty absolute path or starting with '*''/' */
-        if ( EMPTY_STRING( key_value->varvalue ) )
-        {
-            strcpy( err_msg,
-                    "a path is expected for 'tree' criteria (wildcards allowed)" );
-            return EINVAL;
-        }
-
-        /* 3 possible values: aboslute path, relative path,
-         * path with special wildcard '**' that match any number
-         * of directory levels */
-        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
-
-        if ( ANY_LEVEL_MATCH(p_triplet->val.str) )
-        {
-            int rc;
-
-            /* check the expression and adapt it to fnmatch */
-            rc = process_any_level_condition( p_triplet->val.str, err_msg );
-            if ( rc ) return rc;
-            p_triplet->flags |= CMP_FLG_ANY_LEVEL;
-        }
-
-        /* allowed coparators are = and != */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            sprintf( err_msg, "Illegal comparator for 'tree' criteria: == or != expected" );
-            return EINVAL;
-        }
-
-        /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
-        if ( WILDCARDS_IN( p_triplet->val.str ) )
-        {
-            if ( p_triplet->op == COMP_EQUAL )
-                p_triplet->op = COMP_LIKE;
-            else if ( p_triplet->op == COMP_DIFF )
-                p_triplet->op = COMP_UNLIKE;
-        }
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_PATH ) )
-    {
-        /* check for a non empty path */
-        p_triplet->crit = CRITERIA_PATH;
-        *p_attr_mask |= ATTR_MASK_fullpath;
-
-        /* looking for a non-empty absolute path or starting with * and / */
-        if ( EMPTY_STRING( key_value->varvalue ) )
-        {
-            strcpy( err_msg,
-                    "a path is expected for 'path' criteria (wildcards allowed)" );
-            return EINVAL;
-        }
-
-        /* 3 possible values: aboslute path, relative path,
-         * path with special wildcard '**' that match any number
-         * of directory levels */
-        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
-
-        if ( ANY_LEVEL_MATCH(p_triplet->val.str) )
-        {
-            int rc;
-
-            /* check the expression and adapt it to fnmatch */
-            rc = process_any_level_condition( p_triplet->val.str, err_msg );
-            if ( rc ) return rc;
-            p_triplet->flags |= CMP_FLG_ANY_LEVEL;
-        }
-
-        /* allowed comparators are = and != */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            strcpy( err_msg, "Illegal comparator for 'tree' criteria: == or != expected" );
-            return EINVAL;
-        }
-
-        /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
-        if ( WILDCARDS_IN( p_triplet->val.str ) )
-        {
-            if ( p_triplet->op == COMP_EQUAL )
-                p_triplet->op = COMP_LIKE;
-            else if ( p_triplet->op == COMP_DIFF )
-                p_triplet->op = COMP_UNLIKE;
-        }
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_FILENAME ) )
-    {
-        p_triplet->crit = CRITERIA_FILENAME;
-        *p_attr_mask |= ATTR_MASK_name;
-
-        /* non-empty string expected with no slash */
-        if ( EMPTY_STRING( key_value->varvalue ) || SLASH_IN( key_value->varvalue ) )
-        {
-            strcpy( err_msg,
-                    "A name with no slash is expected in 'name' criteria (wildcards allowed)" );
-            return EINVAL;
-        }
-
-        /* special wildcard '**' not expected here */
-        if ( ANY_LEVEL_MATCH(key_value->varvalue) )
-        {
-            strcpy( err_msg,
-                    "Special wildcard '**' not expected in 'name' regular expression" );
-            return EINVAL;
-        }
-
-        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
-
-        /* allowed comparators are = and != */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            strcpy( err_msg, "Illegal comparator for 'tree' criteria: == or != expected" );
-            return EINVAL;
-        }
-
-        /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
-        if ( WILDCARDS_IN( p_triplet->val.str ) )
-        {
-            if ( p_triplet->op == COMP_EQUAL )
-                p_triplet->op = COMP_LIKE;
-            else if ( p_triplet->op == COMP_DIFF )
-                p_triplet->op = COMP_UNLIKE;
-        }
-
-    }
-#ifdef ATTR_INDEX_type
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_TYPE ) )
-    {
-        p_triplet->crit = CRITERIA_TYPE;
-        *p_attr_mask |= ATTR_MASK_type;
-
-        /* value expected : file, symlink, directory */
-        if ( !strcasecmp( key_value->varvalue, "file" ) )
-            p_triplet->val.type = TYPE_FILE;
-        else if ( !strcasecmp( key_value->varvalue, "directory" )
-                  || !strcasecmp( key_value->varvalue, "dir" ) )
-            p_triplet->val.type = TYPE_DIR;
-        else if ( !strcasecmp( key_value->varvalue, "symlink" ) )
-            p_triplet->val.type = TYPE_LINK;
-        else if ( !strcasecmp( key_value->varvalue, "chr" ) )
-            p_triplet->val.type = TYPE_CHR;
-        else if ( !strcasecmp( key_value->varvalue, "blk" ) )
-            p_triplet->val.type = TYPE_BLK;
-        else if ( !strcasecmp( key_value->varvalue, "fifo" ) )
-            p_triplet->val.type = TYPE_FIFO;
-        else if ( !strcasecmp( key_value->varvalue, "sock" ) )
-            p_triplet->val.type = TYPE_SOCK;
-        else
-        {
-            strcpy( err_msg,
-                    "Illegal condition on type: file, directory, symlink, chr, blk, fifo or sock expected" );
-            return EINVAL;
-        }
-
-        /* allowed comparators are = and != */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            strcpy( err_msg, "Illegal comparator for 'type' criteria: == or != expected" );
-            return EINVAL;
-        }
-
-    }
-#endif
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_OWNER ) )
-    {
-        /* user name, possibly with wildcards */
-        p_triplet->crit = CRITERIA_OWNER;
-        *p_attr_mask |= ATTR_MASK_owner;
-
-        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            strcpy( err_msg, "Illegal comparator for 'owner' criteria: == or != expected" );
-            return EINVAL;
-        }
-
-        /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
-        if ( WILDCARDS_IN( p_triplet->val.str ) )
-        {
-            if ( p_triplet->op == COMP_EQUAL )
-                p_triplet->op = COMP_LIKE;
-            else if ( p_triplet->op == COMP_DIFF )
-                p_triplet->op = COMP_UNLIKE;
-        }
-
-
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_GROUP ) )
-    {
-        /* same thing for group */
-        p_triplet->crit = CRITERIA_GROUP;
-        *p_attr_mask |= ATTR_MASK_gr_name;
-
-        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            strcpy( err_msg, "Illegal comparator for 'group' criteria: == or != expected" );
-            return EINVAL;
-        }
-
-        /* in case the string containts regexpr, those comparators are changed to LIKE / UNLIKE */
-        if ( WILDCARDS_IN( p_triplet->val.str ) )
-        {
-            if ( p_triplet->op == COMP_EQUAL )
-                p_triplet->op = COMP_LIKE;
-            else if ( p_triplet->op == COMP_DIFF )
-                p_triplet->op = COMP_UNLIKE;
-        }
-
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_SIZE ) )
-    {
-        p_triplet->crit = CRITERIA_SIZE;
-        *p_attr_mask |= ATTR_MASK_size;
-
-        /* a size is expected */
-        p_triplet->val.size = str2size( key_value->varvalue );
-
-        if ( p_triplet->val.size == ( unsigned long long ) -1 )
-        {
-            sprintf( err_msg, "Invalid format for size: '%s'", key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_DEPTH ) )
-    {
-        p_triplet->crit = CRITERIA_DEPTH;
-        *p_attr_mask |= ATTR_MASK_depth;
-
-        /* a size is expected */
-        p_triplet->val.integer = str2int( key_value->varvalue );
-
-        if ( p_triplet->val.integer == -1 )
-        {
-            sprintf( err_msg, "Invalid format for depth: '%s'", key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-    }
-#ifdef ATTR_INDEX_dircount
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_DIRCOUNT ) )
-    {
-        p_triplet->crit = CRITERIA_DIRCOUNT;
-        *p_attr_mask |= ATTR_MASK_dircount;
-
-        /* a size is expected */
-        p_triplet->val.integer = str2int( key_value->varvalue );
-
-        if ( p_triplet->val.integer == -1 )
-        {
-            sprintf( err_msg, "Invalid format for dircount: '%s'", key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-    }
-#endif
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_LAST_ACCESS ) )
-    {
-        p_triplet->crit = CRITERIA_LAST_ACCESS;
-        *p_attr_mask |= ATTR_MASK_last_access;
-
-        /* a duration is expected */
-        p_triplet->val.duration = str2duration( key_value->varvalue );
-
-        if ( p_triplet->val.duration == -1 )
-        {
-            sprintf( err_msg, "Invalid format for duration in 'last_access' criteria: '%s'",
-                     key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_LAST_MOD ) )
-    {
-        p_triplet->crit = CRITERIA_LAST_MOD;
-        *p_attr_mask |= ATTR_MASK_last_mod;
-
-        /* a duration is expected */
-        p_triplet->val.duration = str2duration( key_value->varvalue );
-
-        if ( p_triplet->val.duration == -1 )
-        {
-            sprintf( err_msg, "Invalid format for duration in 'last_mod' criteria: '%s'",
-                     key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-
-    }
-#ifdef ATTR_INDEX_last_archive
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_LAST_ARCHIVE ) )
-    {
-        p_triplet->crit = CRITERIA_LAST_ARCHIVE;
-        *p_attr_mask |= ATTR_MASK_last_archive;
-
-        /* a duration is expected */
-        p_triplet->val.duration = str2duration( key_value->varvalue );
-
-        if ( p_triplet->val.duration == -1 )
-        {
-            sprintf( err_msg, "Invalid format for duration in 'last_archive' criteria: '%s'",
-                     key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-    }
-#endif
-#ifdef ATTR_INDEX_last_restore
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_LAST_RESTORE ) )
-    {
-        p_triplet->crit = CRITERIA_LAST_RESTORE;
-        *p_attr_mask |= ATTR_MASK_last_restore;
-
-        /* a duration is expected */
-        p_triplet->val.duration = str2duration( key_value->varvalue );
-
-        if ( p_triplet->val.duration == -1 )
-        {
-            sprintf( err_msg, "Invalid format for duration in 'last_restore' criteria: '%s'",
-                     key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-    }
-#endif
-#ifdef ATTR_INDEX_creation_time
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_CREATION ) )
-    {
-        p_triplet->crit = CRITERIA_CREATION;
-        *p_attr_mask |= ATTR_MASK_creation_time;
-
-        /* a duration is expected */
-        p_triplet->val.duration = str2duration( key_value->varvalue );
-
-        if ( p_triplet->val.duration == -1 )
-        {
-            sprintf( err_msg, "Invalid format for duration in 'creation' criteria: '%s'",
-                     key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-    }
-#endif
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_POOL ) )
-    {
-        /* same thing for group */
-        p_triplet->crit = CRITERIA_POOL;
-        *p_attr_mask |= ATTR_MASK_stripe_info;
-
-        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            strcpy( err_msg, "Illegal comparator for 'ost_pool' criteria: == or != expected" );
-            return EINVAL;
-        }
-
-        /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
-        if ( WILDCARDS_IN( p_triplet->val.str ) )
-        {
-            if ( p_triplet->op == COMP_EQUAL )
-                p_triplet->op = COMP_LIKE;
-            else if ( p_triplet->op == COMP_DIFF )
-                p_triplet->op = COMP_UNLIKE;
-        }
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_OST ) )
-    {
-        p_triplet->crit = CRITERIA_OST;
-        *p_attr_mask |= ATTR_MASK_stripe_items;
-
-        /* a index is expected */
-        p_triplet->val.integer = str2int( key_value->varvalue );
-
-        if ( p_triplet->val.integer == -1 )
-        {
-            sprintf( err_msg, "Invalid format for ost index: '%s'", key_value->varvalue );
-            return EINVAL;
-        }
-
-        /* any comparator is allowed */
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            strcpy( err_msg, "Illegal comparator for 'ost_index' criteria: == or != expected" );
-            return EINVAL;
-        }
-    }
-    else if ( TEST_CRIT( key_value->varname, CRITERIA_CUSTOM_CMD ) )
-    {
-        p_triplet->crit = CRITERIA_CUSTOM_CMD;
-        *p_attr_mask |= ATTR_MASK_fullpath;
-
-        /* non empty string expected */
-        if ( EMPTY_STRING( key_value->varvalue ) )
-        {
-            strcpy( err_msg, "Empty external_command" );
-            return EINVAL;
-        }
-
-        /* no comparator is allowed */
-        if ( key_value->op_type != OP_CMD )
-        {
-            sprintf( err_msg, "Unexpected operator %d for external_command", key_value->op_type );
-            return EINVAL;
-        }
-    }
-    else if ( !strncasecmp( key_value->varname, XATTR_PREFIX".", strlen(XATTR_PREFIX".") ) )
-    {
-        char * p_xattr = strchr( key_value->varname, '.' );
-        p_xattr ++;
-
-        p_triplet->crit = CRITERIA_XATTR;
-
-#if (!defined (_LUSTRE) || !defined(_HAVE_FID))
-         /* fullpath needed to get xattr, except if fids are supported */
-        *p_attr_mask |= ATTR_MASK_fullpath;
-#endif
-
-        rh_strncpy(p_triplet->val.str, key_value->varvalue, RBH_PATH_MAX);
-        rh_strncpy(p_triplet->xattr_name, p_xattr, RBH_NAME_MAX);
-        p_triplet->op = syntax2conf_comparator( key_value->op_type );
-
-        if ( ( p_triplet->op != COMP_EQUAL ) && ( p_triplet->op != COMP_DIFF ) )
-        {
-            sprintf( err_msg, "Illegal comparator for 'xattr.%s' criteria: == or != expected",
-                     p_triplet->xattr_name  );
-            return EINVAL;
-        }
-    }
-    else
-    {
-        sprintf( err_msg, "Unknown or unsupported criteria on '%s'", key_value->varname );
-        return EINVAL;
-    }
-
-    return 0;
-} /* interpret_condition */
-
+    const struct criteria_descr_t *pcrit = &criteria_descr[crit];
+
+    return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
+                              crit, pcrit->type, pcrit->attr_mask,
+                              pcrit->parsing_flags);
+}
 
 /**
  *  Recursive function for building boolean expression.
@@ -1898,84 +1566,6 @@ const char    *op2str( compare_direction_t comp )
     }
 }                               /* op2str */
 
-const char    *type2str( obj_type_t type )
-{
-    switch ( type )
-    {
-    case TYPE_LINK:
-        return "symlink";
-    case TYPE_DIR:
-        return "directory";
-    case TYPE_FILE:
-        return "file";
-    case TYPE_CHR:
-        return "chr";
-    case TYPE_BLK:
-        return "blk";
-    case TYPE_FIFO:
-        return "fifo";
-    case TYPE_SOCK:
-        return "sock";
-    default:
-        return "?";
-    }
-}
-
-const char    *criteria2str( compare_criteria_t crit )
-{
-    switch ( crit )
-    {
-    case CRITERIA_TREE:
-        return "tree";
-    case CRITERIA_PATH:
-        return "path";
-    case CRITERIA_FILENAME:
-        return "name";
-#ifdef ATTR_INDEX_type
-    case CRITERIA_TYPE:
-        return "type";
-#endif
-    case CRITERIA_OWNER:
-        return "owner";
-    case CRITERIA_GROUP:
-        return "group";
-    case CRITERIA_SIZE:
-        return "size";
-    case CRITERIA_DEPTH:
-        return "depth";
-#ifdef ATTR_INDEX_dircount
-    case CRITERIA_DIRCOUNT:
-        return "dircount";
-#endif
-    case CRITERIA_LAST_ACCESS:
-        return "last_access";
-    case CRITERIA_LAST_MOD:
-        return "last_mod";
-#ifdef ATTR_INDEX_last_archive
-    case CRITERIA_LAST_ARCHIVE:
-        return "last_archive";
-#endif
-#ifdef ATTR_INDEX_last_restore
-    case CRITERIA_LAST_RESTORE:
-        return "last_restore";
-#endif
-#ifdef ATTR_INDEX_creation_time
-    case CRITERIA_CREATION:
-        return "creation";
-#endif
-    case CRITERIA_POOL:
-        return "ost_pool";
-    case CRITERIA_OST:
-        return "ost_index";
-    case CRITERIA_CUSTOM_CMD:
-        return "external_cmd";
-    case CRITERIA_XATTR:
-        return XATTR_PREFIX;
-    default:
-        return "?";
-    }
-}
-
 static int print_condition( const compare_triplet_t * p_triplet, char *out_str, size_t str_size )
 {
     char           tmp_buff[256];
@@ -2028,9 +1618,6 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
         FormatDurationFloat( tmp_buff, 256, p_triplet->val.duration );
         return snprintf( out_str, str_size, "%s %s %s", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), tmp_buff );
-
-    case CRITERIA_CUSTOM_CMD:
-        return snprintf( out_str, str_size, "external_cmd(%s)", p_triplet->val.str );
 
     case CRITERIA_XATTR:
         return snprintf( out_str, str_size, XATTR_PREFIX".%s %s %s",
@@ -2226,6 +1813,10 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+            case PT_TYPE:
+                sprintf(msgout, "Unexpected type for %s parameter (type)",
+                        params[i].name);
+                return EINVAL;
         }
     }
     return 0;
