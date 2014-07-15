@@ -15,7 +15,7 @@
 #SERVERS=$(nodeset -e @<group>)
 SERVERS=(server1 server2)
 SERV_PORT=49999
-# must be >= robinhood's copy_timeout value
+# must be < robinhood's copy_timeout
 TIMEOUT=15000
 
 LOG_FILE="/var/log/robinhood/rbhext_tool_clnt.log"
