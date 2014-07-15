@@ -1325,8 +1325,9 @@ int main( int argc, char **argv )
 
 /* if the filesystem supports changelogs and a scan is requested
  * and the once option is not set, display a warning */
-    if ( ( action_mask & ACTION_MASK_SCAN ) && !( options.flags & FLAG_ONCE )
-         && strcmp( global_config.fs_type, "lustre" ) == 0 )
+    if ((action_mask & ACTION_MASK_SCAN) && !(options.flags & FLAG_ONCE)
+         && !(action_mask & ACTION_MASK_HANDLE_EVENTS)
+         && strcmp(global_config.fs_type, "lustre") == 0)
     {
         fprintf(stderr, "ADVICE: this filesystem is changelog-capable, you should use changelogs instead of scanning.\n");
     }
