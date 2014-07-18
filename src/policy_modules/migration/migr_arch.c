@@ -1270,11 +1270,13 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
             ATTR_MASK_SET( new_attr_set, md_update );
             ATTR( new_attr_set, md_update ) = time( NULL );
         }
-        else if (rc == -ENOENT)
+        else if (rc == ENOENT)
         {
             invalidate_entry( lmgr, &p_item->entry_id );
             return MIGR_ENTRY_MOVED;
         }
+        else /* rc != 0 */
+            return MIGR_ERROR;
     }
 
     /* Merge with missing attrs from database */
