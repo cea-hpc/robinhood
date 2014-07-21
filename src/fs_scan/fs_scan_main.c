@@ -296,7 +296,7 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
     int            rc, blc_index;
     fs_scan_config_t *conf = ( fs_scan_config_t * ) module_config;
     int scan_intl_set = FALSE;
-    int scan_intl = 0;
+    time_t scan_intl = 0;
 
     static const char * fsscan_allowed[] =
     {
@@ -307,8 +307,23 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
         IGNORE_BLOCK, NULL
     };
 
-    /* get FS Scan block */
+    const cfg_param_t cfg_params[] = {
+        {"nb_threads_scan", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->nb_threads_scan, 0},
+        {"scan_retry_delay", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->scan_retry_delay, 0},
+        {"scan_op_timeout", PT_DURATION, PFLG_POSITIVE, &conf->scan_op_timeout, 0},
+        {"exit_on_timeout", PT_BOOL, 0, &conf->exit_on_timeout, 0},
+        {"spooler_check_interval", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->spooler_check_interval, 0},
+        {"nb_prealloc_tasks", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->nb_prealloc_tasks, 0},
+        {"completion_command", PT_STRING, 0, /* can contain wildcards: {cfg}, {fspath} ... */
+            conf->completion_command, sizeof(conf->completion_command)},
+        END_OF_PARAMS
+    };
 
+    /* get FS Scan block */
     config_item_t  fsscan_block = rh_config_FindItemByName( config, FSSCAN_CONFIG_BLOCK );
 
     if ( fsscan_block == NULL )
@@ -324,30 +339,33 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
         return EINVAL;
     }
 
-    /* retrieve parameters */
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
-                           "min_scan_interval",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           ( int * ) &conf->min_scan_interval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    /* read scalar parameters */
+    rc = read_scalar_params(fsscan_block, FSSCAN_CONFIG_BLOCK, cfg_params,
+                            msg_out);
+    if (rc)
         return rc;
-    else if ( rc == 0 )
+
+    /* parameters with specific management */
+    rc = GetDurationParam(fsscan_block, FSSCAN_CONFIG_BLOCK,
+                          "min_scan_interval", PFLG_POSITIVE | PFLG_NOT_NULL,
+                          &conf->min_scan_interval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc == 0)
         scan_intl_set = TRUE;
 
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
-                           "max_scan_interval",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           ( int * ) &conf->max_scan_interval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    rc = GetDurationParam(fsscan_block, FSSCAN_CONFIG_BLOCK,
+                          "max_scan_interval", PFLG_POSITIVE | PFLG_NOT_NULL,
+                          &conf->max_scan_interval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if ( rc == 0 )
+    else if (rc == 0)
         scan_intl_set = TRUE;
 
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
-                           "scan_interval",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           &scan_intl, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    rc = GetDurationParam(fsscan_block, FSSCAN_CONFIG_BLOCK,
+                          "scan_interval", PFLG_POSITIVE | PFLG_NOT_NULL,
+                          &scan_intl, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
         return rc;
     else if ( rc == 0 )
     {
@@ -359,52 +377,6 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
         conf->min_scan_interval = scan_intl;
         conf->max_scan_interval = scan_intl;
     }
-
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
-                           "scan_retry_delay",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           ( int * ) &conf->scan_retry_delay, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetIntParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
-                      "nb_threads_scan",
-                      INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                      ( int * ) &conf->nb_threads_scan, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "scan_op_timeout",
-                            INT_PARAM_POSITIVE,    /* 0 is authorized => no timeout */
-                           ( int * ) &conf->scan_op_timeout, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetBoolParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "exit_on_timeout", 0,
-                       (int*)&conf->exit_on_timeout, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
-                           "spooler_check_interval",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           ( int * ) &conf->spooler_check_interval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetDurationParam( fsscan_block, FSSCAN_CONFIG_BLOCK,
-                           "nb_prealloc_tasks",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           ( int * ) &conf->nb_prealloc_tasks, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetStringParam( fsscan_block, FSSCAN_CONFIG_BLOCK, "completion_command",
-                         0, /* can contain wildcards: {cfg} or {fspath} */
-                         conf->completion_command, RBH_PATH_MAX, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
 
     /* Find and parse "ignore" blocks */
     for ( blc_index = 0; blc_index < rh_config_GetNbItems( fsscan_block ); blc_index++ )
@@ -512,7 +484,7 @@ int FSScan_ReloadConfig( void *module_config )
     if ( conf->min_scan_interval != fs_scan_config.min_scan_interval )
     {
         DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::min_scan_interval updated: %u->%u",
+                    FSSCAN_CONFIG_BLOCK "::min_scan_interval updated: %ld->%ld",
                     fs_scan_config.min_scan_interval, conf->min_scan_interval );
         fs_scan_config.min_scan_interval = conf->min_scan_interval;
     }
@@ -520,7 +492,7 @@ int FSScan_ReloadConfig( void *module_config )
     if ( conf->max_scan_interval != fs_scan_config.max_scan_interval )
     {
         DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::max_scan_interval updated: %u->%u",
+                    FSSCAN_CONFIG_BLOCK "::max_scan_interval updated: %ld->%ld",
                     fs_scan_config.max_scan_interval, conf->max_scan_interval );
         fs_scan_config.max_scan_interval = conf->max_scan_interval;
     }
@@ -528,7 +500,7 @@ int FSScan_ReloadConfig( void *module_config )
     if ( conf->scan_retry_delay != fs_scan_config.scan_retry_delay )
     {
         DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::scan_retry_delay updated: %u->%u",
+                    FSSCAN_CONFIG_BLOCK "::scan_retry_delay updated: %ld>%ld",
                     fs_scan_config.scan_retry_delay, conf->scan_retry_delay );
         fs_scan_config.scan_retry_delay = conf->scan_retry_delay;
     }
@@ -536,7 +508,7 @@ int FSScan_ReloadConfig( void *module_config )
     if ( conf->scan_op_timeout != fs_scan_config.scan_op_timeout )
     {
         DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::scan_op_timeout updated: %u->%u",
+                    FSSCAN_CONFIG_BLOCK "::scan_op_timeout updated: %ld->%ld",
                     fs_scan_config.scan_op_timeout, conf->scan_op_timeout );
         fs_scan_config.scan_op_timeout = conf->scan_op_timeout;
     }
@@ -553,7 +525,7 @@ int FSScan_ReloadConfig( void *module_config )
     if ( conf->spooler_check_interval != fs_scan_config.spooler_check_interval )
     {
         DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::spooler_check_interval updated: %u->%u",
+                    FSSCAN_CONFIG_BLOCK "::spooler_check_interval updated: %ld->%ld",
                     fs_scan_config.spooler_check_interval, conf->spooler_check_interval );
         fs_scan_config.spooler_check_interval = conf->spooler_check_interval;
     }

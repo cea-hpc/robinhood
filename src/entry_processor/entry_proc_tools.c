@@ -340,8 +340,8 @@ static int load_pipeline_config(const pipeline_descr_t * descr, pipeline_stage_t
 
         snprintf( varname, 256, "%s_threads_max", p[i].stage_name );
 
-        rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, varname,
-                          INT_PARAM_POSITIVE, &tmpval, NULL, NULL, msg_out );
+        rc = GetIntParam(entryproc_block, ENTRYPROC_CONFIG_BLOCK, varname,
+                         PFLG_POSITIVE, &tmpval, NULL, NULL, msg_out);
 
         if ( ( rc != 0 ) && ( rc != ENOENT ) )
             return rc;
@@ -428,7 +428,6 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
                            char *msg_out, int for_reload )
 {
     int            rc, blc_index, i;
-    int            tmpval;
     entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
     unsigned int next_idx = 0;
 
@@ -438,8 +437,18 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
 #define MAX_ENTRYPROC_ARGS 16
     char           *entry_proc_allowed[MAX_ENTRYPROC_ARGS];
 
-    /* get EntryProcessor block */
+    const cfg_param_t cfg_params[] = {
+        {"nb_threads", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL, &conf->nb_thread, 0},
+        {"max_pending_operations", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL, &conf->max_pending_operations, 0},
+        {"max_batch_size", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL, &conf->max_batch_size, 0},
+        {"match_classes", PT_BOOL, 0, &conf->match_classes, 0},
+#ifdef ATTR_INDEX_creation_time
+        {"detect_fake_mtime", PT_BOOL, 0, &conf->detect_fake_mtime, 0},
+#endif
+        END_OF_PARAMS
+    };
 
+    /* get EntryProcessor block */
     config_item_t  entryproc_block = rh_config_FindItemByName( config, ENTRYPROC_CONFIG_BLOCK );
 
     if ( entryproc_block == NULL )
@@ -457,48 +466,16 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
         return EINVAL;
     }
 
-    /* retrieve parameters */
-
-    rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "nb_threads",
-                      INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                      ( int * ) &conf->nb_thread, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    /* read std params */
+    rc = read_scalar_params(entryproc_block, ENTRYPROC_CONFIG_BLOCK, cfg_params, msg_out);
+    if (rc)
         return rc;
+
     /* should have at least 2 threads! */
     if (conf->nb_thread == 1)
-        DisplayLog(LVL_MAJOR, "EntryProc_Config", "WARNING: "ENTRYPROC_CONFIG_BLOCK" should have at least 2 threads to avoid pipeline step starvation!");
-
-    rc = GetIntParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "max_pending_operations",
-                      INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                      ( int * ) &conf->max_pending_operations, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetIntParam(entryproc_block, ENTRYPROC_CONFIG_BLOCK, "max_batch_size",
-                     INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                     (int *)&conf->max_batch_size, NULL, NULL, msg_out);
-    if ((rc != 0) && (rc != ENOENT))
-        return rc;
-
-    rc = GetBoolParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "match_classes",
-                       0, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if (rc == 0)
-#ifdef HAVE_RMDIR_POLICY
-        conf->match_file_classes = conf->match_dir_classes = tmpval;
-#else
-        conf->match_file_classes = tmpval;
-#endif
-
-#ifdef ATTR_INDEX_creation_time
-    rc = GetBoolParam( entryproc_block, ENTRYPROC_CONFIG_BLOCK, "detect_fake_mtime",
-                       0, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if (rc == 0)
-        conf->detect_fake_mtime = tmpval;
-#endif
+        DisplayLog(LVL_MAJOR, "EntryProc_Config", "WARNING: "
+                   ENTRYPROC_CONFIG_BLOCK" should have at least 2 threads to "
+                   "avoid pipeline step starvation!");
 
     /* look for '<stage>_thread_max' parameters (for all pipelines) */
     if (!for_reload)

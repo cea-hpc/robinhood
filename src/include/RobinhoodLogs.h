@@ -47,15 +47,15 @@ typedef struct log_config__
     /* batching of alerts:
      * 0=unlimited, 1=no batching, >1 maximum number of reported alerts per summary
      */
-    unsigned int            batch_alert_max;
+    unsigned int   batch_alert_max;
 
     time_t         stats_interval;
 
     /* display entry attributes for each entry in alert reports */
-    unsigned int alert_show_attrs:1;
-    unsigned int log_process:1; /* display process name in the log line header */
-    unsigned int log_host:1;    /* display hostname in the log line header */
-    unsigned int log_tag:1;     /* display module name in the log line header */
+    int alert_show_attrs;
+    int log_process; /* display process name in the log line header */
+    int log_host;    /* display hostname in the log line header */
+    int log_tag;     /* display module name in the log line header */
 
 } log_config_t;
 
@@ -82,7 +82,7 @@ int            TestDisplayLevel( int level );
 /* Open log and report files,
  * Returns -1 and sets error in case of an error.
  */
-int            InitializeLogs( char *prog_name, const log_config_t * log_config );
+int InitializeLogs(const char *prog_name, const log_config_t *log_config);
 
 /* flush logs */
 void           FlushLogs(void);

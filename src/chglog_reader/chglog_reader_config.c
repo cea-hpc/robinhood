@@ -215,116 +215,96 @@ int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
     unsigned int   blc_index;
     int            rc;
 
+    static const char *cl_cfg_allow[] =
+    {
+        "force_polling", "polling_interval", "batch_ack_count",
+        "queue_max_size", "queue_max_age", "queue_check_interval",
+        "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK,
+        NULL
+    };
+
+    const cfg_param_t cfg_params[] = {
+        {"force_polling", PT_BOOL, 0, &p_config->force_polling, 0},
+        {"polling_interval", PT_DURATION, PFLG_NOT_NULL|PFLG_POSITIVE,
+            &p_config->polling_interval, 0},
+        {"batch_ack_count",     PT_INT, PFLG_NOT_NULL|PFLG_POSITIVE,
+            &p_config->batch_ack_count, 0},
+        {"queue_max_size",      PT_INT, PFLG_NOT_NULL|PFLG_POSITIVE,
+            &p_config->queue_max_size, 0},
+        {"queue_max_age",       PT_DURATION, PFLG_NOT_NULL|PFLG_POSITIVE,
+            &p_config->queue_max_age, 0},
+        {"queue_check_interval",PT_DURATION, PFLG_NOT_NULL|PFLG_POSITIVE,
+            &p_config->queue_check_interval, 0},
+        {"mds_has_lu543", PT_BOOL, 0, &p_config->mds_has_lu543, 0},
+        {"mds_has_lu1331", PT_BOOL, 0, &p_config->mds_has_lu1331, 0},
+        {"dump_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS,
+            p_config->dump_file, sizeof(p_config->dump_file)},
+        END_OF_PARAMS
+    };
+
+
     /* get ChangeLog  block */
-    config_item_t  chglog_block = rh_config_FindItemByName( config, CHGLOG_CFG_BLOCK );
+    config_item_t  chglog_block = rh_config_FindItemByName(config, CHGLOG_CFG_BLOCK);
 
     /* not mandatory */
-    if ( chglog_block == NULL )
+    if (chglog_block == NULL)
         return 0;
 
     /* get scalar params */
-    rc = GetBoolParam( chglog_block, CHGLOG_CFG_BLOCK,
-                       "force_polling",0, &p_config->force_polling, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    rc = read_scalar_params(chglog_block, CHGLOG_CFG_BLOCK, cfg_params, msg_out);
+    if (rc)
         return rc;
-
-    rc = GetDurationParam( chglog_block, CHGLOG_CFG_BLOCK,
-                      "polling_interval", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
-                        &p_config->polling_interval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetIntParam( chglog_block, CHGLOG_CFG_BLOCK,
-                      "batch_ack_count", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
-                       &p_config->batch_ack_count, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetIntParam( chglog_block, CHGLOG_CFG_BLOCK,
-                      "queue_max_size", INT_PARAM_NOT_NULL | INT_PARAM_POSITIVE,
-                       &p_config->queue_max_size, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetDurationParam( chglog_block, CHGLOG_CFG_BLOCK,
-                      "queue_max_age", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
-                        &p_config->queue_max_age, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetDurationParam( chglog_block, CHGLOG_CFG_BLOCK,
-                      "queue_check_interval", INT_PARAM_NOT_NULL|INT_PARAM_POSITIVE,
-                        &p_config->queue_check_interval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetBoolParam( chglog_block, CHGLOG_CFG_BLOCK,
-                       "mds_has_lu543",0, &p_config->mds_has_lu543, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetBoolParam( chglog_block, CHGLOG_CFG_BLOCK,
-                       "mds_has_lu1331",0, &p_config->mds_has_lu1331, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetStringParam(chglog_block, CHGLOG_CFG_BLOCK, "dump_file",
-                        STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
-                       p_config->dump_file, RBH_PATH_MAX, NULL, NULL, msg_out);
-    if ((rc != 0) && (rc != ENOENT))
-        return rc;
-    else if (rc == ENOENT)
-        p_config->dump_file[0] = '\0';
 
     /* browse  the list of MDT blocks */
+    for (blc_index = 0; blc_index < rh_config_GetNbItems(chglog_block); blc_index++)
+    {
+        char          *block_name;
+        config_item_t  curr_item = rh_config_GetItemByIndex(chglog_block, blc_index);
+        critical_err_check(curr_item, CHGLOG_CFG_BLOCK);
 
-    for ( blc_index = 0; blc_index < rh_config_GetNbItems( chglog_block ); blc_index++ )
-      {
-          char          *block_name;
-          config_item_t  curr_item = rh_config_GetItemByIndex( chglog_block, blc_index );
-          critical_err_check( curr_item, CHGLOG_CFG_BLOCK );
+        if (rh_config_ItemType(curr_item) != CONFIG_ITEM_BLOCK)
+            continue;
 
-          if ( rh_config_ItemType( curr_item ) != CONFIG_ITEM_BLOCK )
-              continue;
+        block_name = rh_config_GetBlockName(curr_item);
+        critical_err_check(curr_item, CHGLOG_CFG_BLOCK);
 
-          block_name = rh_config_GetBlockName( curr_item );
-          critical_err_check( curr_item, CHGLOG_CFG_BLOCK );
+        if (!strcasecmp(block_name, MDT_DEF_BLOCK))
+        {
+            /* allocate a new mdt_definition  */
 
-          if ( !strcasecmp( block_name, MDT_DEF_BLOCK ) )
-          {
-                /* allocate a new mdt_definition  */
+            if ((p_config->mdt_def==NULL) || (p_config->mdt_def == &default_mdt_def))
+            {
+                p_config->mdt_count = 1;
 
-                if ( (p_config->mdt_def==NULL) || (p_config->mdt_def == &default_mdt_def) )
-                {
-                    p_config->mdt_count = 1;
+                /* no MDT definition, or MDT definition was the default */
+                p_config->mdt_def = (mdt_def_t*)malloc(sizeof(mdt_def_t));
+                if (!p_config->mdt_def) return ENOMEM;
+            }
+            else
+            {
+               p_config->mdt_count ++;
 
-                    /* no MDT definition, or MDT definition was the default */
-                    p_config->mdt_def = (mdt_def_t*)malloc( sizeof( mdt_def_t ) );
-                    if ( !p_config->mdt_def ) return ENOMEM;
-                }
-                else
-                {
-                   p_config->mdt_count ++;
+               p_config->mdt_def = (mdt_def_t*)realloc(p_config->mdt_def,
+                                     p_config->mdt_count * sizeof(mdt_def_t));
+               if (!p_config->mdt_def) return ENOMEM;
+            }
 
-                   p_config->mdt_def = (mdt_def_t*)realloc( p_config->mdt_def,
-                                         p_config->mdt_count * sizeof( mdt_def_t ) );
-                   if ( !p_config->mdt_def ) return ENOMEM;
-                }
-
-                /* fill the structure */
-                rc = parse_mdt_block( curr_item, MDT_DEF_BLOCK, &p_config->mdt_def[p_config->mdt_count-1], msg_out );
-                if ( rc ) return rc;
-          }
-          else
-          {
-                sprintf( msg_out, "Unknown sub-block '%s' in " CHGLOG_CFG_BLOCK " block, line %d",
-                         block_name, rh_config_GetItemLine( curr_item ) );
-                return EINVAL;
-          }
+            /* fill the structure */
+            rc = parse_mdt_block(curr_item, MDT_DEF_BLOCK, &p_config->mdt_def[p_config->mdt_count-1], msg_out);
+            if (rc) return rc;
+        }
+        else
+        {
+            sprintf(msg_out, "Unknown sub-block '%s' in " CHGLOG_CFG_BLOCK " block, line %d",
+                     block_name, rh_config_GetItemLine(curr_item));
+            return EINVAL;
+        }
     }
 
+    CheckUnknownParameters(chglog_block, CHGLOG_CFG_BLOCK, cl_cfg_allow);
+
 #ifdef _DEBUG_CHGLOG
-    printf( "%u MDT definitions parsed successfully, ptr = %p\n", p_config->mdt_count,  p_config->mdt_def );
+    printf("%u MDT definitions parsed successfully, ptr = %p\n", p_config->mdt_count,  p_config->mdt_def);
 #endif
 
     return 0;

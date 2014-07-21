@@ -99,32 +99,59 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
     config_item_t  db_block;
 
     static const char *lmgr_allowed[] = {
-        "commit_behavior",
-        "connect_retry_interval_min",
-        "connect_retry_interval_max",
-        "user_acct",
-        "group_acct",
-        MYSQL_CONFIG_BLOCK,
-        SQLITE_CONFIG_BLOCK,
+        "commit_behavior", "connect_retry_interval_min",
+        "connect_retry_interval_max", "user_acct",
+        "group_acct", MYSQL_CONFIG_BLOCK, SQLITE_CONFIG_BLOCK,
         NULL
     };
 
+    const cfg_param_t cfg_params[] = {
+        {"connect_retry_interval_min", PT_DURATION, PFLG_POSITIVE |
+         PFLG_NOT_NULL, &conf->connect_retry_min, 0},
+        {"connect_retry_interval_max", PT_DURATION, PFLG_POSITIVE |
+         PFLG_NOT_NULL, &conf->connect_retry_max, 0},
+        {"user_acct", PT_BOOL, 0, &conf->user_acct, 0},
+        {"group_acct", PT_BOOL, 0, &conf->group_acct, 0},
+        END_OF_PARAMS
+    };
 
 #ifdef _MYSQL
     static const char *db_allowed[] = {
         "server", "db", "user", "password", "password_file", "port", "socket",
-        "innodb", "engine", NULL
+        "engine", NULL
+    };
+
+    const cfg_param_t db_params[] = {
+        {"server", PT_STRING, PFLG_NO_WILDCARDS,
+         conf->db_config.server, sizeof(conf->db_config.server)},
+        {"db", PT_STRING, PFLG_MANDATORY | PFLG_NO_WILDCARDS,
+         conf->db_config.db, sizeof(conf->db_config.db)},
+        {"user", PT_STRING, PFLG_NO_WILDCARDS, conf->db_config.user,
+         sizeof(conf->db_config.user)},
+        {"port", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
+         (int*)&conf->db_config.port, 0},
+        {"socket", PT_STRING, PFLG_NO_WILDCARDS | PFLG_ABSOLUTE_PATH,
+         conf->db_config.socket, sizeof(conf->db_config.socket)},
+        {"engine", PT_STRING, PFLG_NO_WILDCARDS | PFLG_NOT_EMPTY,
+         conf->db_config.engine, sizeof(conf->db_config.engine)},
+        END_OF_PARAMS
     };
 #elif defined (_SQLITE)
     static const char *db_allowed[] = {
         "db_file", "retry_delay_microsec",
         NULL
     };
+    const cfg_param_t db_params[] = {
+        {"db_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS,
+         conf->db_config.filepath, sizeof(conf->db_config.filepath)},
+        {"retry_delay_microsec", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
+         (int*)&conf->db_config.retry_delay_microsec, 0},
+        END_OF_PARAMS
+    };
 #endif
 
     /* get ListManager block */
-
-    config_item_t  lmgr_block = rh_config_FindItemByName( config, LMGR_CONFIG_BLOCK );
+    config_item_t  lmgr_block = rh_config_FindItemByName(config, LMGR_CONFIG_BLOCK);
 
     if ( lmgr_block == NULL )
     {
@@ -138,12 +165,15 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         return EINVAL;
     }
 
-    /* retrieve parameters */
+    /* retrieve std parameters */
+    rc = read_scalar_params(lmgr_block, LMGR_CONFIG_BLOCK, cfg_params, msg_out);
+    if (rc)
+        return rc;
 
-    /* 1) commit_behavior */
-
-    rc = GetStringParam( lmgr_block, LMGR_CONFIG_BLOCK, "commit_behavior",
-                         STR_PARAM_NO_WILDCARDS, tmpstr, 1024, &options, &nb_options, msg_out );
+    /* commit_behavior */
+    rc = GetStringParam(lmgr_block, LMGR_CONFIG_BLOCK, "commit_behavior",
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr), &options,
+                        &nb_options, msg_out);
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if ( rc != ENOENT )
@@ -179,41 +209,11 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         }
     }
 
-    /* 2) connect_retry_interval_min  and connect_retry_interval_max */
-
-    rc = GetDurationParam( lmgr_block, LMGR_CONFIG_BLOCK,
-                           "connect_retry_interval_min",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           ( int * ) &conf->connect_retry_min, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetDurationParam( lmgr_block, LMGR_CONFIG_BLOCK,
-                           "connect_retry_interval_max",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                           ( int * ) &conf->connect_retry_max, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    /* 3) ACCT configuration*/
-
-    rc = GetBoolParam( lmgr_block, LMGR_CONFIG_BLOCK,
-                       "user_acct", 0, &conf->user_acct, NULL, NULL, msg_out);
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetBoolParam( lmgr_block, LMGR_CONFIG_BLOCK,
-                       "group_acct", 0, &conf->group_acct, NULL, NULL, msg_out);
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
     CheckUnknownParameters( lmgr_block, LMGR_CONFIG_BLOCK, lmgr_allowed );
 
-    /* Database specific parameters */
+    /* Database parameters */
 #ifdef _MYSQL
-
     /* get MySQL block */
-
     db_block = rh_config_GetItemByName( lmgr_block, MYSQL_CONFIG_BLOCK );
 
     if ( db_block == NULL )
@@ -231,22 +231,12 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         return EINVAL;
     }
 
-    rc = GetStringParam( db_block, MYSQL_CONFIG_BLOCK, "server",
-                         STR_PARAM_NO_WILDCARDS, conf->db_config.server, 256, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    /* DB std params */
+    rc = read_scalar_params(db_block, MYSQL_CONFIG_BLOCK, db_params, msg_out);
+    if (rc)
         return rc;
 
-    rc = GetStringParam( db_block, MYSQL_CONFIG_BLOCK, "db",
-                         PARAM_MANDATORY | STR_PARAM_NO_WILDCARDS,
-                         conf->db_config.db, 256, NULL, NULL, msg_out );
-    if ( rc )
-        return rc;
-
-    rc = GetStringParam( db_block, MYSQL_CONFIG_BLOCK, "user",
-                         STR_PARAM_NO_WILDCARDS, conf->db_config.user, 256, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
+    /* DB params with specific type */
     rc = GetStringParam( db_block, MYSQL_CONFIG_BLOCK, "password",
                          0, conf->db_config.password, 256, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
@@ -256,10 +246,10 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         FILE          *passfile;
         char           errstr[1024];
 
-        rc = GetStringParam( db_block, MYSQL_CONFIG_BLOCK,
-                             "password_file",
-                             STR_PARAM_ABSOLUTE_PATH |
-                             STR_PARAM_NO_WILDCARDS, tmpstr, 1024, NULL, NULL, msg_out );
+        rc = GetStringParam(db_block, MYSQL_CONFIG_BLOCK,
+                            "password_file",
+                            PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS,
+                            tmpstr, sizeof(tmpstr), NULL, NULL, msg_out);
         if ( ( rc != 0 ) && ( rc != ENOENT ) )
             return rc;
         else if ( rc == ENOENT )
@@ -290,48 +280,7 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         rh_strncpy(conf->db_config.password, tmpstr, 256);
     }
 
-    rc = GetIntParam( db_block, MYSQL_CONFIG_BLOCK, "port",
-                         INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                         (int*)&conf->db_config.port, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetStringParam( db_block, MYSQL_CONFIG_BLOCK, "socket",
-                         STR_PARAM_NO_WILDCARDS | STR_PARAM_ABSOLUTE_PATH,
-                         conf->db_config.socket, sizeof(conf->db_config.socket), NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-
-    rc = GetStringParam(db_block, MYSQL_CONFIG_BLOCK, "engine",
-                        STR_PARAM_NO_WILDCARDS | STR_PARAM_NOT_EMPTY,
-                        conf->db_config.engine, sizeof(conf->db_config.engine),
-                        NULL, NULL, msg_out);
-    if (rc == ENOENT)
-    {
-        int dummy = TRUE;
-
-        /* try to get innodb parameter for backward compat */
-        rc = GetBoolParam(db_block, MYSQL_CONFIG_BLOCK, "innodb", 0,
-                          &dummy, NULL, NULL, msg_out);
-        if ((rc != 0) && (rc != ENOENT))
-            return rc;
-        else if (rc == 0)
-        {
-            if (dummy)
-                rh_strncpy(conf->db_config.engine, "InnoDB", sizeof(conf->db_config.engine));
-            else
-                rh_strncpy(conf->db_config.engine, "MyISAM", sizeof(conf->db_config.engine));
-
-            DisplayLog(LVL_CRIT, "LmgrConfig",
-                       "WARNING: 'innodb' parameter is deprecated (specify \"engine = %s\" instead)",
-                       conf->db_config.engine);
-        }
-    }
-    else if (rc != 0)/* other error */
-        return rc;
-
-    CheckUnknownParameters( db_block, MYSQL_CONFIG_BLOCK, db_allowed );
+    CheckUnknownParameters(db_block, MYSQL_CONFIG_BLOCK, db_allowed);
 
 #elif defined (_SQLITE)
     /* get SQLite block */
@@ -353,24 +302,12 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
         return EINVAL;
     }
 
-
-    rc = GetStringParam( db_block, SQLITE_CONFIG_BLOCK, "db_file",
-                         STR_PARAM_ABSOLUTE_PATH |
-                         STR_PARAM_NO_WILDCARDS,
-                         conf->db_config.filepath, RBH_PATH_MAX, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetIntParam( db_block, SQLITE_CONFIG_BLOCK,
-                      "retry_delay_microsec",
-                      INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
-                      (int*)&conf->db_config.retry_delay_microsec, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    rc = read_scalar_params(db_block, SQLITE_CONFIG_BLOCK, db_params, msg_out);
+    if (rc)
         return rc;
 
     CheckUnknownParameters( db_block, SQLITE_CONFIG_BLOCK, db_allowed );
 #endif
-
 
     return 0;
 }
@@ -389,7 +326,7 @@ int ReloadLmgrConfig( void *module_config )
     {
         DisplayLog( LVL_EVENT, "LmgrConfig",
                     LMGR_CONFIG_BLOCK
-                    "::connect_retry_interval_min updated: %u->%u",
+                    "::connect_retry_interval_min updated: %ld->%ld",
                     lmgr_config.connect_retry_min, conf->connect_retry_min );
         lmgr_config.connect_retry_min = conf->connect_retry_min;
     }
@@ -398,7 +335,7 @@ int ReloadLmgrConfig( void *module_config )
     {
         DisplayLog( LVL_EVENT, "LmgrConfig",
                     LMGR_CONFIG_BLOCK
-                    "::connect_retry_interval_max updated: %u->%u",
+                    "::connect_retry_interval_max updated: %ld->%ld",
                     lmgr_config.connect_retry_max, conf->connect_retry_max );
         lmgr_config.connect_retry_max = conf->connect_retry_max;
     }

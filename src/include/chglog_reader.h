@@ -56,11 +56,11 @@ typedef struct chglog_reader_config_t
 
     /* Age of the opration we keep in the internal queue before we
      * push them to thepipeline. */
-    int queue_max_age;
+    time_t queue_max_age;
 
     /* Interval at which we have to check whether operation in the
      * internal queue have aged. */
-    int queue_check_interval;
+    time_t queue_check_interval;
 
     /* Options suported by the MDS. LU-543 and LU-1331 are related to
      * events in changelog, where a rename is overriding a destination

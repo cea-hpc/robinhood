@@ -46,7 +46,7 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
     msg_out[0] = '\0';
 
     rh_strncpy(conf->fs_path, "", RBH_PATH_MAX);
-#ifdef _HAVE_FID
+#ifdef _LUSTRE
     rh_strncpy(conf->fs_type, "lustre", FILENAME_MAX);
 #else
     rh_strncpy(conf->fs_type, "", FILENAME_MAX);
@@ -68,7 +68,7 @@ int WriteGlobalConfigDefault( FILE * output )
 {
     print_begin_block( output, 0, GLOBAL_CONFIG_BLOCK, NULL );
     print_line( output, 1, "fs_path       :  [MANDATORY]" );
-#ifdef _HAVE_FID
+#ifdef _LUSTRE
     print_line( output, 1, "fs_type       :  lustre" );
 #else
     print_line( output, 1, "fs_type       :  [MANDATORY]" );
@@ -88,13 +88,30 @@ int WriteGlobalConfigDefault( FILE * output )
 
 int ReadGlobalConfig( config_file_t config, void *module_config, char *msg_out, int for_reload )
 {
-    int            rc, tmpval;
+    int            rc;
     global_config_t *conf = ( global_config_t * ) module_config;
 
     static const char *allowed_params[] = {
         "fs_path", "fs_type", "lock_file", "stay_in_fs", "check_mounted",
-        "direct_mds_stat", "fs_key",
-NULL
+        "direct_mds_stat", "fs_key", NULL
+    };
+    const cfg_param_t cfg_params[] = {
+        {"fs_path", PT_STRING, PFLG_MANDATORY | PFLG_ABSOLUTE_PATH |
+            PFLG_REMOVE_FINAL_SLASH | PFLG_NO_WILDCARDS, conf->fs_path,
+            sizeof(conf->fs_path)},
+        {"fs_type", PT_STRING,
+#ifndef _LUSTRE
+        PFLG_MANDATORY |
+#endif
+        PFLG_NO_WILDCARDS, conf->fs_type, sizeof(conf->fs_type)},
+        {"lock_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS,
+         conf->lock_file, sizeof(conf->lock_file)},
+        {"stay_in_fs", PT_BOOL, 0, &conf->stay_in_fs, 0},
+        {"check_mounted", PT_BOOL, 0, &conf->check_mounted, 0},
+#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
+        {"direct_mds_stat", PT_BOOL, 0, &conf->direct_mds_stat, 0},
+#endif
+        END_OF_PARAMS
     };
 
     /* get GENERAL block */
@@ -112,62 +129,25 @@ NULL
         return EINVAL;
     }
 
-    /* retrieve parameters */
-
-    rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_path",
-                         PARAM_MANDATORY | STR_PARAM_ABSOLUTE_PATH |
-                         STR_PARAM_REMOVE_FINAL_SLASH |
-                         STR_PARAM_NO_WILDCARDS, conf->fs_path, RBH_PATH_MAX,
-                         NULL, NULL, msg_out );
-    if ( rc )
+    /* retrieve std parameters */
+    rc = read_scalar_params(general_block, GLOBAL_CONFIG_BLOCK, cfg_params,
+                            msg_out);
+    if (rc)
         return rc;
 
-#ifdef _HAVE_FID
-    rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_type",
-                         PARAM_MANDATORY, conf->fs_type, RBH_NAME_MAX, NULL, NULL, msg_out );
-    if ( ( rc != ENOENT ) && strcmp( conf->fs_type, "lustre" ) )
+#ifdef _LUSTRE
+    if (strcmp(conf->fs_type, "lustre"))
     {
-#ifdef _LUSTRE_HSM
-        strcpy( msg_out, "Only \"lustre\" filesystem type is allowed for Lustre-HSM purpose" );
-#else
-        strcpy( msg_out, "Robinhood is compiled for Lustre filesystem support only" );
-#endif
+        strcpy(msg_out, "This robinhood version has been built for Lustre filesystem support only");
         return EINVAL;
     }
-#else
-    rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_type",
-                         PARAM_MANDATORY, conf->fs_type, RBH_NAME_MAX, NULL, NULL, msg_out );
-    if ( rc )
-        return rc;
 #endif
-
-    rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "lock_file",
-                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS,
-                         conf->lock_file, RBH_PATH_MAX, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    /* /!\ stay_in_fs is a piece of bit field, it should not be passed directly: using tmpval instead */
-    rc = GetBoolParam( general_block, GLOBAL_CONFIG_BLOCK, "stay_in_fs",
-                       0, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc != ENOENT )
-        conf->stay_in_fs = tmpval;
-
-    /* /!\ idem for check_mounted */
-    rc = GetBoolParam( general_block, GLOBAL_CONFIG_BLOCK, "check_mounted",
-                       0, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc != ENOENT )
-        conf->check_mounted = tmpval;
 
     /* fs_key param */
     char tmpstr[128];
-    rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_key",
-                         STR_PARAM_NO_WILDCARDS, tmpstr, 128, NULL, NULL,
-                         msg_out );
+    rc = GetStringParam(general_block, GLOBAL_CONFIG_BLOCK, "fs_key",
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr), NULL, NULL,
+                        msg_out);
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if (rc == 0)
@@ -179,14 +159,6 @@ NULL
             return EINVAL;
         }
     }
-
-#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    rc = GetBoolParam( general_block, GLOBAL_CONFIG_BLOCK,
-                       "direct_mds_stat",0, &conf->direct_mds_stat,
-                       NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-#endif
 
     /* check unknown parameters */
     CheckUnknownParameters( general_block, GLOBAL_CONFIG_BLOCK, allowed_params );

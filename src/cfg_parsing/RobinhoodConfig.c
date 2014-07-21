@@ -224,10 +224,10 @@ void print_line( FILE * output, unsigned int indent, const char *format, ... )
 /**
  * Misc. tools for config parsing
  */
-int GetStringParam( config_item_t block,
-                    const char *block_name, char *var_name, int flags,
-                    char *target, unsigned int target_size,
-                    char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg )
+int            GetStringParam(config_item_t block, const char *block_name,
+                              const char *var_name, int flags, char *target,
+                              unsigned int target_size, char ***extra_args_tab,
+                              unsigned int *nb_extra_args, char *err_msg)
 {
     config_item_t  curr_item;
     int            rc;
@@ -246,7 +246,7 @@ int GetStringParam( config_item_t block,
     curr_item = rh_config_GetItemByName( block, var_name );
     if ( !curr_item )
     {
-        if ( flags & PARAM_MANDATORY )
+        if (flags & PFLG_MANDATORY)
             sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
                      block_name, rh_config_GetItemLine( block ) );
         /* return ENOENT in any case */
@@ -279,7 +279,7 @@ int GetStringParam( config_item_t block,
 
     /* checks */
 
-    if (flags & STR_PARAM_NOT_EMPTY)
+    if (flags & PFLG_NOT_EMPTY)
     {
         if (EMPTY_STRING(target))
         {
@@ -290,14 +290,14 @@ int GetStringParam( config_item_t block,
     }
 
     /* are stdio names allowed ? */
-    if ( flags & STDIO_ALLOWED )
+    if (flags & PFLG_STDIO_ALLOWED)
     {
         if ( !strcasecmp( target, "stdout" ) || !strcasecmp( target, "stderr" )
              || !strcasecmp( target, "syslog") )
             return 0;
     }
 
-    if ( flags & STR_PARAM_ABSOLUTE_PATH )
+    if (flags & PFLG_ABSOLUTE_PATH)
     {
         /* check this is an absolute path */
         if ( !IS_ABSOLUTE_PATH( target ) )
@@ -308,7 +308,7 @@ int GetStringParam( config_item_t block,
         }
     }
 
-    if ( flags & STR_PARAM_NO_WILDCARDS )
+    if (flags & PFLG_NO_WILDCARDS)
     {
         if ( WILDCARDS_IN( target ) )
         {
@@ -318,7 +318,7 @@ int GetStringParam( config_item_t block,
         }
     }
 
-    if ( flags & STR_PARAM_MAIL )
+    if (flags & PFLG_MAIL)
     {
         char          *arob = strchr( target, '@' );
 
@@ -331,7 +331,7 @@ int GetStringParam( config_item_t block,
         }
     }
 
-    if ( flags & STR_PARAM_REMOVE_FINAL_SLASH )
+    if (flags & PFLG_REMOVE_FINAL_SLASH)
     {
         /* remove final slash */
         if ( FINAL_SLASH( target ) )
@@ -342,9 +342,10 @@ int GetStringParam( config_item_t block,
 
 }
 
-int GetBoolParam( config_item_t block,
-                  const char *block_name, char *var_name, int flags, int *target,
-                  char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg )
+int  GetBoolParam(config_item_t block, const char *block_name,
+                  const char *var_name, int flags, int *target,
+                  char ***extra_args_tab, unsigned int *nb_extra_args,
+                  char *err_msg )
 {
     config_item_t  curr_item;
     int            rc, extra;
@@ -356,7 +357,7 @@ int GetBoolParam( config_item_t block,
     curr_item = rh_config_GetItemByName( block, var_name );
     if ( !curr_item )
     {
-        if ( flags & PARAM_MANDATORY )
+        if (flags & PFLG_MANDATORY)
             sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
                      block_name, rh_config_GetItemLine( block ) );
         /* return ENOENT in any case */
@@ -405,12 +406,14 @@ int GetBoolParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetDurationParam( config_item_t block,
-                      const char *block_name, char *var_name, int flags, int *target,
-                      char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg )
+int GetDurationParam(config_item_t block, const char *block_name,
+                     const char *var_name, int flags, time_t *target,
+                     char ***extra_args_tab,
+                     unsigned int *nb_extra_args, char *err_msg)
 {
     config_item_t  curr_item;
-    int            rc, extra, timeval;
+    int            rc, extra;
+    time_t         timeval;
     char          *name;
     char          *value;
 
@@ -424,7 +427,7 @@ int GetDurationParam( config_item_t block,
     curr_item = rh_config_GetItemByName( block, var_name );
     if ( !curr_item )
     {
-        if ( flags & PARAM_MANDATORY )
+        if (flags & PFLG_MANDATORY)
             sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
                      block_name, rh_config_GetItemLine( block ) );
         /* return ENOENT in any case */
@@ -447,13 +450,13 @@ int GetDurationParam( config_item_t block,
         return EINVAL;
     }
 
-    if ( ( flags & INT_PARAM_POSITIVE ) && ( timeval < 0 ) )
+    if ((flags & PFLG_POSITIVE) && (timeval < 0))
     {
         sprintf( err_msg, "Positive value expected for '%s::%s', line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
         return EINVAL;
     }
-    if ( ( flags & INT_PARAM_NOT_NULL ) && ( timeval == 0 ) )
+    if ((flags & PFLG_NOT_NULL) && (timeval == 0))
     {
         sprintf( err_msg, "'%s::%s' must not be null, line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
@@ -485,9 +488,10 @@ int GetDurationParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetSizeParam( config_item_t block,
-                  const char *block_name, char *var_name, int flags, unsigned long long *target,
-                  char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg )
+int GetSizeParam(config_item_t block, const char *block_name,
+                 const char *var_name, int flags,
+                 unsigned long long *target, char ***extra_args_tab,
+                 unsigned int *nb_extra_args, char *err_msg)
 {
     config_item_t  curr_item;
     int            rc;
@@ -506,7 +510,7 @@ int GetSizeParam( config_item_t block,
     curr_item = rh_config_GetItemByName( block, var_name );
     if ( !curr_item )
     {
-        if ( flags & PARAM_MANDATORY )
+        if (flags & PFLG_MANDATORY)
             sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
                      block_name, rh_config_GetItemLine( block ) );
         /* return ENOENT in any case */
@@ -529,7 +533,7 @@ int GetSizeParam( config_item_t block,
         return EINVAL;
     }
 
-    if ( ( flags & INT_PARAM_NOT_NULL ) && ( sizeval == 0 ) )
+    if ((flags & PFLG_NOT_NULL) && (sizeval == 0))
     {
         sprintf( err_msg, "'%s::%s' must not be null, line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
@@ -562,9 +566,10 @@ int GetSizeParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetIntParam( config_item_t block,
-                 const char *block_name, char *var_name, int flags, int *target,
-                 char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg )
+int            GetIntParam(config_item_t block, const char *block_name,
+                           const char *var_name, int flags, int *target,
+                           char ***extra_args_tab, unsigned int *nb_extra_args,
+                           char *err_msg)
 {
     config_item_t  curr_item;
     int            rc, extra, intval, nb_read;
@@ -582,7 +587,7 @@ int GetIntParam( config_item_t block,
     curr_item = rh_config_GetItemByName( block, var_name );
     if ( !curr_item )
     {
-        if ( flags & PARAM_MANDATORY )
+        if (flags & PFLG_MANDATORY)
             sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
                      block_name, rh_config_GetItemLine( block ) );
         /* return ENOENT in any case */
@@ -612,13 +617,13 @@ int GetIntParam( config_item_t block,
         return EINVAL;
     }
 
-    if ( ( flags & INT_PARAM_POSITIVE ) && ( intval < 0 ) )
+    if ((flags & PFLG_POSITIVE) && (intval < 0))
     {
         sprintf( err_msg, "Positive value expected for '%s::%s', line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
         return EINVAL;
     }
-    if ( ( flags & INT_PARAM_NOT_NULL ) && ( intval == 0 ) )
+    if ((flags & PFLG_NOT_NULL) && (intval == 0))
     {
         sprintf( err_msg, "'%s::%s' must not be null, line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
@@ -651,11 +656,10 @@ int GetIntParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetInt64Param( config_item_t block,
-                   const char *block_name, char *var_name, int flags,
-                   uint64_t *target,
-                   char ***extra_args_tab, unsigned int *nb_extra_args,
-                   char *err_msg )
+int GetInt64Param(config_item_t block, const char *block_name,
+                  const char *var_name, int flags, uint64_t *target,
+                  char ***extra_args_tab, unsigned int *nb_extra_args,
+                  char *err_msg)
 {
     config_item_t  curr_item;
     int            rc, extra, nb_read;
@@ -674,7 +678,7 @@ int GetInt64Param( config_item_t block,
     curr_item = rh_config_GetItemByName( block, var_name );
     if ( !curr_item )
     {
-        if ( flags & PARAM_MANDATORY )
+        if (flags & PFLG_MANDATORY)
             sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
                      block_name, rh_config_GetItemLine( block ) );
         /* return ENOENT in any case */
@@ -717,7 +721,7 @@ int GetInt64Param( config_item_t block,
         }
     }
 
-    if ( ( flags & INT_PARAM_NOT_NULL ) && ( intval == 0 ) )
+    if ((flags & PFLG_NOT_NULL) && (intval == 0))
     {
         sprintf( err_msg, "'%s::%s' must not be null, line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
@@ -749,9 +753,10 @@ int GetInt64Param( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetFloatParam( config_item_t block,
-                   const char *block_name, char *var_name, int flags, double *target,
-                   char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg )
+int           GetFloatParam(config_item_t block, const char *block_name,
+                            const char *var_name, int flags, double *target,
+                            char ***extra_args_tab, unsigned int *nb_extra_args,
+                            char *err_msg)
 {
     config_item_t  curr_item;
     int            rc, extra, nb_read;
@@ -770,7 +775,7 @@ int GetFloatParam( config_item_t block,
     curr_item = rh_config_GetItemByName( block, var_name );
     if ( !curr_item )
     {
-        if ( flags & PARAM_MANDATORY )
+        if (flags & PFLG_MANDATORY)
             sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
                      block_name, rh_config_GetItemLine( block ) );
         /* return ENOENT in any case */
@@ -794,8 +799,8 @@ int GetFloatParam( config_item_t block,
     }
     if ( nb_read > 1 )
     {
-        if ( ( !( flags & ALLOW_PCT_SIGN ) && ( tmpbuf[0] != '\0' ) )   /* no sign allowed */
-             || ( ( flags & ALLOW_PCT_SIGN ) && ( strcmp( tmpbuf, "%" ) != 0 ) ) )      /* '%' allowed */
+        if ((!(flags & PFLG_ALLOW_PCT_SIGN) && (tmpbuf[0] != '\0')) /* no sign allowed */
+            || ((flags & PFLG_ALLOW_PCT_SIGN) && (strcmp(tmpbuf, "%") != 0)))   /* '%' allowed */
         {
             sprintf( err_msg,
                      "Invalid value for '%s::%s', line %d: extra characters '%s' found after float %.2f.",
@@ -804,13 +809,13 @@ int GetFloatParam( config_item_t block,
         }
     }
 
-    if ( ( flags & FLOAT_PARAM_POSITIVE ) && ( val < 0.0 ) )
+    if ((flags & PFLG_POSITIVE) && (val < 0.0))
     {
         sprintf( err_msg, "Positive value expected for '%s::%s', line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
         return EINVAL;
     }
-    if ( ( flags & FLOAT_PARAM_NOT_NULL ) && ( val == 0.0 ) )
+    if ((flags & PFLG_NOT_NULL) && (val == 0.0))
     {
         sprintf( err_msg, "'%s::%s' must not be null, line %d.", block_name, var_name,
                  rh_config_GetItemLine( curr_item ) );
@@ -1706,105 +1711,105 @@ int FreeBoolExpr( bool_node_t * p_expr, int free_top_node )
  *  Recursive function for building boolean expression, from a union/intersection
  *  of defined classes.
  */
-static int build_set_expr( type_set * p_in_set,
-                           bool_node_t * p_out_node, int *p_attr_mask,
-                           const fileset_list_t * list, char *err_msg )
+static int build_set_expr(type_set * p_in_set,
+                          bool_node_t * p_out_node, int *p_attr_mask,
+                          const policies_t *policies, char *err_msg)
 {
     int i, rc;
 
-    if ( p_in_set->set_type == SET_SINGLETON )
+    if (p_in_set->set_type == SET_SINGLETON)
     {
        /* get class from its name */
-       for ( i = 0; i < list->fileset_count; i++ )
+       for (i = 0; i < policies->fileset_count; i++)
        {
-            if ( !strcasecmp( list->fileset_list[i].fileset_id,
-                              p_in_set->set_u.name ) )
+            if (!strcasecmp(policies->fileset_list[i].fileset_id,
+                              p_in_set->set_u.name))
             {
                 /* found */
-                *p_out_node = list->fileset_list[i].definition;
-                (*p_attr_mask) |= list->fileset_list[i].attr_mask;
+                *p_out_node = policies->fileset_list[i].definition;
+                (*p_attr_mask) |= policies->fileset_list[i].attr_mask;
                 /* top level expression is not owner of the content */
                 p_out_node->content_u.bool_expr.owner = 0;
                 return 0;
             }
        }
-       sprintf( err_msg, "FileClass '%s' is undefined", p_in_set->set_u.name );
+       sprintf(err_msg, "FileClass '%s' is undefined", p_in_set->set_u.name);
        return ENOENT;
     }
-    else if ( p_in_set->set_type == SET_NEGATION )
+    else if (p_in_set->set_type == SET_NEGATION)
     {
         p_out_node->node_type = NODE_UNARY_EXPR;
 
-        if ( p_in_set->set_u.op.oper != SET_OP_NOT )
+        if (p_in_set->set_u.op.oper != SET_OP_NOT)
         {
-            strcpy( err_msg, "Unexpected set operator in unary expression" );
+            strcpy(err_msg, "Unexpected set operator in unary expression");
             return EINVAL;
         }
         p_out_node->content_u.bool_expr.bool_op = BOOL_NOT;
 
         p_out_node->content_u.bool_expr.owner = 1;
         p_out_node->content_u.bool_expr.expr1
-                = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
-        if ( !p_out_node->content_u.bool_expr.expr1 )
+                = (bool_node_t *) malloc(sizeof(bool_node_t));
+        if (!p_out_node->content_u.bool_expr.expr1)
             goto errmem;
 
         p_out_node->content_u.bool_expr.expr2 = NULL;
 
-        rc = build_set_expr( p_in_set->set_u.op.set1,
-                             p_out_node->content_u.bool_expr.expr1,
-                             p_attr_mask, list, err_msg );
-        if ( rc )
+        rc = build_set_expr(p_in_set->set_u.op.set1,
+                            p_out_node->content_u.bool_expr.expr1,
+                            p_attr_mask, policies, err_msg);
+        if (rc)
             goto free_set1;
     }
     else /* not a singleton: Union or Inter or Negation */
     {
         p_out_node->node_type = NODE_BINARY_EXPR;
 
-        if ( p_in_set->set_u.op.oper == SET_OP_UNION )
+        if (p_in_set->set_u.op.oper == SET_OP_UNION)
             /* entry matches one class OR the other */
             p_out_node->content_u.bool_expr.bool_op = BOOL_OR;
-        else if ( p_in_set->set_u.op.oper == SET_OP_INTER )
+        else if (p_in_set->set_u.op.oper == SET_OP_INTER)
             /* entry matches one class AND the other */
             p_out_node->content_u.bool_expr.bool_op = BOOL_AND;
         else
         {
-            strcpy( err_msg, "Unexpected set operator in expression" );
+            strcpy(err_msg, "Unexpected set operator in expression");
             return EINVAL;
         }
 
         p_out_node->content_u.bool_expr.owner = 1;
         p_out_node->content_u.bool_expr.expr1
-                = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
-        if ( !p_out_node->content_u.bool_expr.expr1 )
+                = (bool_node_t *) malloc(sizeof(bool_node_t));
+        if (!p_out_node->content_u.bool_expr.expr1)
             goto errmem;
-        rc = build_set_expr( p_in_set->set_u.op.set1,
-                             p_out_node->content_u.bool_expr.expr1,
-                             p_attr_mask, list, err_msg );
+        rc = build_set_expr(p_in_set->set_u.op.set1,
+                            p_out_node->content_u.bool_expr.expr1,
+                            p_attr_mask, policies, err_msg);
 
-        if ( rc )
+        if (rc)
             goto free_set1;
 
         p_out_node->content_u.bool_expr.expr2
-                = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
-        if ( !p_out_node->content_u.bool_expr.expr2 )
+                = (bool_node_t *) malloc(sizeof(bool_node_t));
+        if (!p_out_node->content_u.bool_expr.expr2)
             goto errmem;
-        rc = build_set_expr( p_in_set->set_u.op.set2,
-                             p_out_node->content_u.bool_expr.expr2,
-                             p_attr_mask, list, err_msg );
-        if ( rc )
+        rc = build_set_expr(p_in_set->set_u.op.set2,
+                            p_out_node->content_u.bool_expr.expr2,
+                            p_attr_mask, policies, err_msg);
+        if (rc)
             goto free_set2;
     }
 
     return 0;
 
 errmem:
-    sprintf( err_msg, "Could not allocate memory" );
+    sprintf(err_msg, "Could not allocate memory");
     return ENOMEM;
 
 free_set2:
-    free( p_out_node->content_u.bool_expr.expr2 );
+    free(p_out_node->content_u.bool_expr.expr2);
 free_set1:
-    free( p_out_node->content_u.bool_expr.expr1 );
+    free(p_out_node->content_u.bool_expr.expr1);
 return rc;
 
 }
@@ -1813,9 +1818,9 @@ return rc;
 /**
  * Build a policy boolean expression from a union/intersection of fileclasses
  */
-int GetSetExpr( config_item_t block, const char *block_name,
-                bool_node_t * p_bool_node, int *p_attr_mask,
-                const fileset_list_t * list, char *err_msg )
+int GetSetExpr(config_item_t block, const char *block_name,
+               bool_node_t * p_bool_node, int *p_attr_mask,
+               const policies_t *policies, char *err_msg)
 {
     generic_item  *curr_block = ( generic_item * ) block;
     generic_item  *subitem;
@@ -1857,11 +1862,11 @@ int GetSetExpr( config_item_t block, const char *block_name,
     }
 
     /* now we can analyze the union/intersection */
-    rc = build_set_expr( &subitem->item.set, p_bool_node, p_attr_mask,
-                         list, err_msg );
-    if ( rc )
-        sprintf( err_msg + strlen( err_msg ), ", line %d",
-                 rh_config_GetItemLine( ( config_item_t ) subitem ) );
+    rc = build_set_expr(&subitem->item.set, p_bool_node, p_attr_mask,
+                        policies,err_msg);
+    if (rc)
+        sprintf(err_msg + strlen(err_msg), ", line %d",
+                 rh_config_GetItemLine((config_item_t) subitem));
 
     return rc;
 
@@ -2155,3 +2160,74 @@ void CheckUnknownParameters( config_item_t block, const char *block_name, const 
 
     }
 }
+
+#define cfg_is_err(_rc, _flgs) ((_rc != 0 && _rc != ENOENT) || \
+                                (_rc == ENOENT && (_flgs & PFLG_MANDATORY)))
+
+int read_scalar_params(config_item_t block, const char *block_name,
+                       const cfg_param_t * params, char *msgout)
+{
+    int i;
+    int rc = 0;
+
+    /* read all expected parameters */
+    for (i = 0; params[i].name != NULL; i++)
+    {
+        switch (params[i].type)
+        {
+            case PT_STRING:
+                rc = GetStringParam(block, block_name, params[i].name,
+                                    params[i].flags, (char*)params[i].ptr, params[i].ptrsize,
+                                    NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+            case PT_BOOL:
+                rc = GetBoolParam(block, block_name, params[i].name,
+                                  params[i].flags, (int*)params[i].ptr,
+                                  NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+            case PT_DURATION:
+                /* FIXME Duration gets an int, but the parameter maybe a time_t */
+                rc = GetDurationParam(block, block_name, params[i].name,
+                                  params[i].flags, (time_t*)params[i].ptr,
+                                  NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+            case PT_SIZE:
+                rc = GetSizeParam(block, block_name, params[i].name,
+                                  params[i].flags,
+                                  (unsigned long long*)params[i].ptr,
+                                  NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+            case PT_INT:
+                rc = GetIntParam(block, block_name, params[i].name,
+                                  params[i].flags, (int*)params[i].ptr,
+                                  NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+            case PT_INT64:
+                rc = GetInt64Param(block, block_name, params[i].name,
+                                  params[i].flags, (uint64_t*)params[i].ptr,
+                                  NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+            case PT_FLOAT:
+                rc = GetFloatParam(block, block_name, params[i].name,
+                                  params[i].flags, (double*)params[i].ptr,
+                                  NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+        }
+    }
+    return 0;
+}
+

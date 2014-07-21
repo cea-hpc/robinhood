@@ -258,11 +258,10 @@ typedef struct lmgr_config_t
 {
     db_config_t    db_config;
     unsigned int   commit_behavior;              /* 0: autocommit, 1: commit every transaction, <n>: commit every <n> transactions */
-    unsigned int   connect_retry_min;            /* min retry delay when connection is lost */
-    unsigned int   connect_retry_max;            /* max retry delay when connection is lost */
+    time_t         connect_retry_min;            /* min retry delay when connection is lost */
+    time_t         connect_retry_max;            /* max retry delay when connection is lost */
 
-
-    /* XXXXXX TEMPORAIREMENT valeur des options pour l'accounting */
+    /* options to enable accounting */
     int user_acct;
     int group_acct;
 } lmgr_config_t;

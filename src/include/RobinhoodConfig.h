@@ -44,25 +44,26 @@ typedef int    ( *write_config_func_t ) ( FILE * output );
 #include "RobinhoodLogs.h"
 #include "global_config.h"
 #include "entry_processor.h"
-#include "policies.h"
-#include "resource_monitor.h"
+#include "policy_rules.h"
+#include "policy_run.h"
 #include "fs_scan_main.h"
+#include "update_params.h"
 
-#ifdef HAVE_RMDIR_POLICY
-#include "rmdir.h"
-#endif
+//#ifdef HAVE_RMDIR_POLICY
+//#include "rmdir.h"
+//#endif
 
 #ifdef HAVE_CHANGELOGS
 #include "chglog_reader.h"
 #endif
 
-#ifdef HAVE_MIGR_POLICY
-#include "migration.h"
-#endif
+//#ifdef HAVE_MIGR_POLICY
+//#include "migration.h"
+//#endif
 
-#ifdef HAVE_RM_POLICY
-#include "hsm_rm.h"
-#endif
+//#ifdef HAVE_RM_POLICY
+//#include "hsm_rm.h"
+//#endif
 
 #ifdef _BUDDY_MALLOC
 #include "BuddyMalloc.h"
@@ -98,6 +99,9 @@ typedef struct robinhood_config_t
     /** List Manager Configuration */
     lmgr_config_t  lmgr_config;
 
+    /** Database update strategy */
+    updt_params_t  db_update_params;
+
     /** Entry processor pipeline configuration */
     entry_proc_config_t entry_proc_config;
 
@@ -109,26 +113,21 @@ typedef struct robinhood_config_t
 #endif
 
     /** policies (migration, purge, rmdir, unlink...) */
-    policies_t     policies;
+    policies_t              policies;
 
-#ifdef HAVE_PURGE_POLICY
-    /** resource monitor parameters (purge parameters) */
-    resource_monitor_config_t res_mon_config;
-#endif
+    /** policy run parameters (same order as policies) */
+    policy_run_configs_t    policy_run_cfgs;
 
+#if 0
 #ifdef HAVE_RMDIR_POLICY
     /** rmdir parameters */
     rmdir_config_t rmdir_config;
 #endif
 
-#ifdef HAVE_MIGR_POLICY
-    /** migration parameters */
-    migration_config_t migr_config;
-#endif
-
 #ifdef HAVE_RM_POLICY
     /** hsm removal parameters */
     hsm_rm_config_t hsm_rm_config;
+#endif
 #endif
 
 #ifdef _HSM_LITE
@@ -147,19 +146,17 @@ extern char *process_config_file;
 #define FLAG_NO_LIMIT   0x00000008
 #define FLAG_CHECK_ONLY 0x00000010 /* only check triggers, don't purge */
 #define FLAG_NO_GC      0x00000020 /* don't clean orphan entries after scan */
+#define FLAG_FORCE_RUN  0x00000040 /* force running policy even if no scan was complete */
 
 /* Config module masks:
  * Global, Log, and List Manager are always initialized.
- * Entry processor, Info Collector, Purge and migration
+ * Entry processor, Info Collector, policy runs are optional
  * are optionnal.
  */
 #define MODULE_MASK_ENTRY_PROCESSOR 0x00000001
 #define MODULE_MASK_FS_SCAN         0x00000002
 #define MODULE_MASK_EVENT_HDLR      0x00000004
-#define MODULE_MASK_RES_MONITOR     0x00000008
-#define MODULE_MASK_MIGRATION       0x00000010
-#define MODULE_MASK_RMDIR           0x00000020
-#define MODULE_MASK_UNLINK          0x00000040
+#define MODULE_MASK_POLICY_RUN      0x00000008
 
 #define MODULE_MASK_ALWAYS          0x10000000
 
@@ -186,11 +183,9 @@ static const module_config_def_t robinhood_module_conf[] = {
      WriteLmgrConfigTemplate, WriteLmgrConfigDefault,
      offsetof( robinhood_config_t, lmgr_config ), MODULE_MASK_ALWAYS},
 
-    {"Policies", SetDefault_Policies, Read_Policies,
-     Reload_Policies, Write_Policy_Template,
-     Write_Policy_Default, offsetof( robinhood_config_t,
-                                     policies ),
-     MODULE_MASK_ALWAYS},
+    {"Attr Update", set_default_update_params, read_update_params, reload_update_params,
+     write_update_params_template, write_default_update_params,
+     offsetof(robinhood_config_t, db_update_params), MODULE_MASK_ALWAYS},
 
     {"Entry Processor", SetDefault_EntryProc_Config, Read_EntryProc_Config,
      Reload_EntryProc_Config, Write_EntryProc_ConfigTemplate,
@@ -207,13 +202,19 @@ static const module_config_def_t robinhood_module_conf[] = {
      offsetof( robinhood_config_t, chglog_reader_config ), MODULE_MASK_EVENT_HDLR},
 #endif
 
-#ifdef HAVE_PURGE_POLICY
-    {"Resource Monitor", SetDefault_ResourceMon_Config, Read_ResourceMon_Config,
-     Reload_ResourceMon_Config, Write_ResourceMon_ConfigTemplate,
-     Write_ResourceMon_ConfigDefault, offsetof( robinhood_config_t, res_mon_config ),
-     MODULE_MASK_RES_MONITOR},
-#endif
+    /* TODO manage fileclasses separately? */
 
+    {"Policies", SetDefault_Policies, Read_Policies, Reload_Policies,
+     Write_Policy_Template, Write_Policy_Default,
+     offsetof(robinhood_config_t, policies),
+     MODULE_MASK_ALWAYS},
+
+    {"PolicyRun", policy_run_cfg_set_default, policy_run_cfg_read,
+     policy_run_cfg_reload, policy_run_cfg_write_template,
+     policy_run_cfg_write_defaults, offsetof(robinhood_config_t, policy_run_cfgs),
+     MODULE_MASK_POLICY_RUN},
+
+#if 0
 #ifdef HAVE_RMDIR_POLICY
     {"Directory Remover", SetDefault_Rmdir_Config, Read_Rmdir_Config,
      Reload_Rmdir_Config, Write_Rmdir_ConfigTemplate,
@@ -221,18 +222,12 @@ static const module_config_def_t robinhood_module_conf[] = {
      MODULE_MASK_RMDIR},
 #endif
 
-#ifdef HAVE_MIGR_POLICY
-    {"Migration", SetDefault_Migration_Config, Read_Migration_Config,
-     Reload_Migration_Config, Write_Migration_ConfigTemplate,
-     Write_Migration_ConfigDefault, offsetof( robinhood_config_t, migr_config ),
-     MODULE_MASK_MIGRATION},
-#endif
-
 #ifdef HAVE_RM_POLICY
    {"HSM Remove", SetDefault_HSMRm_Config, Read_HSMRm_Config,
      Reload_HSMRm_Config, Write_HSMRm_ConfigTemplate,
      Write_HSMRm_ConfigDefault, offsetof( robinhood_config_t, hsm_rm_config ),
      MODULE_MASK_UNLINK},
+#endif
 #endif
 
     {NULL, NULL, NULL, NULL, NULL, NULL, 0, 0}
@@ -285,26 +280,26 @@ void           print_line( FILE * output, unsigned int indent, const char *forma
 /* ==== Tools for retrieving parameters from conf and checking them ==== */
 
 /* constraint flags on parameters */
-#define PARAM_MANDATORY                 0x00000001
 
-#define STR_PARAM_ABSOLUTE_PATH         0x00000002
-#define STR_PARAM_REMOVE_FINAL_SLASH    0x00000004
-#define STR_PARAM_NO_WILDCARDS          0x00000008
-#define STR_PARAM_MAIL                  0x00000010
-#define STDIO_ALLOWED                   0x00000020
+/* parameter flags */
 
-#define INT_PARAM_POSITIVE              0x00000040
-#define INT_PARAM_NOT_NULL              0x00000080
+#define PFLG_MANDATORY             (1 << 0)
 
-#define FLOAT_PARAM_POSITIVE            INT_PARAM_POSITIVE
-#define FLOAT_PARAM_NOT_NULL            INT_PARAM_NOT_NULL
-#define ALLOW_PCT_SIGN                  0x00000100
+#define PFLG_ABSOLUTE_PATH         (1 << 1)
+#define PFLG_REMOVE_FINAL_SLASH    (1 << 2)
+#define PFLG_NO_WILDCARDS          (1 << 3)
+#define PFLG_MAIL                  (1 << 4)
+#define PFLG_STDIO_ALLOWED         (1 << 5)
 
-#define STR_PARAM_NOT_EMPTY             0x00000200
+/* for int and float params */
+#define PFLG_POSITIVE              (1 << 6)
+#define PFLG_NOT_NULL              (1 << 7)
 
-#define BOOLEXPR_TIME_YOUNGER
-#define BOOLEXPR_TIME_OLDER
+/* for string param */
+#define PFLG_NOT_EMPTY             PFLG_NOT_NULL
 
+/* float params only */
+#define PFLG_ALLOW_PCT_SIGN        (1 << 8)
 
 /**
  *  Retrieve a string parameter and check its format
@@ -312,19 +307,20 @@ void           print_line( FILE * output, unsigned int indent, const char *forma
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetStringParam( config_item_t block,
-                               const char *block_name, char *var_name, int flags,
-                               char *target, unsigned int target_size,
-                               char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
+int            GetStringParam(config_item_t block, const char *block_name,
+                              const char *var_name, int flags, char *target,
+                              unsigned int target_size, char ***extra_args_tab,
+                              unsigned int *nb_extra_args, char *err_msg);
 /**
  *  Retrieve a boolean parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetBoolParam( config_item_t block,
-                             const char *block_name, char *var_name, int flags, int *target,
-                             char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
+int            GetBoolParam(config_item_t block, const char *block_name,
+                            const char *var_name, int flags, int *target,
+                            char ***extra_args_tab, unsigned int *nb_extra_args,
+                            char *err_msg );
 
 /**
  *  Retrieve a duration parameter and check its format
@@ -332,20 +328,20 @@ int            GetBoolParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetDurationParam( config_item_t block,
-                                 const char *block_name, char *var_name, int flags, int *target,
-                                 char ***extra_args_tab, unsigned int *nb_extra_args,
-                                 char *err_msg );
+int            GetDurationParam(config_item_t block, const char *block_name,
+                                const char *var_name, int flags, time_t *target,
+                                char ***extra_args_tab,
+                                unsigned int *nb_extra_args, char *err_msg);
 /**
  *  Retrieve a size parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetSizeParam( config_item_t block,
-                             const char *block_name, char *var_name, int flags,
-                             unsigned long long *target, char ***extra_args_tab,
-                             unsigned int *nb_extra_args, char *err_msg );
+int            GetSizeParam(config_item_t block, const char *block_name,
+                            const char *var_name, int flags,
+                            unsigned long long *target, char ***extra_args_tab,
+                            unsigned int *nb_extra_args, char *err_msg);
 
 
 
@@ -355,9 +351,10 @@ int            GetSizeParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetIntParam( config_item_t block,
-                            const char *block_name, char *var_name, int flags, int *target,
-                            char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
+int            GetIntParam(config_item_t block, const char *block_name,
+                           const char *var_name, int flags, int *target,
+                           char ***extra_args_tab, unsigned int *nb_extra_args,
+                           char *err_msg);
 
 /**
  *  Retrieve a 64 bits integer parameter and check its format.
@@ -366,11 +363,10 @@ int            GetIntParam( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int GetInt64Param( config_item_t block,
-                   const char *block_name, char *var_name, int flags,
-                   uint64_t *target,
-                   char ***extra_args_tab, unsigned int *nb_extra_args,
-                   char *err_msg );
+int GetInt64Param(config_item_t block, const char *block_name,
+                  const char *var_name, int flags, uint64_t *target,
+                  char ***extra_args_tab, unsigned int *nb_extra_args,
+                  char *err_msg);
 
 /**
  *  Retrieve a float parameter and check its format
@@ -378,10 +374,38 @@ int GetInt64Param( config_item_t block,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetFloatParam( config_item_t block,
-                              const char *block_name, char *var_name, int flags, double *target,
-                              char ***extra_args_tab, unsigned int *nb_extra_args, char *err_msg );
+int           GetFloatParam(config_item_t block, const char *block_name,
+                            const char *var_name, int flags, double *target,
+                            char ***extra_args_tab, unsigned int *nb_extra_args,
+                            char *err_msg);
 
+
+// TODO generic config parsing using structure {type, name, flags, tgtptr}
+
+/**
+ * Types and function to parse a list of simple scalar configuration variables (with no extra args).
+ */
+typedef enum {
+    PT_STRING,
+    PT_BOOL,
+    PT_DURATION,
+    PT_SIZE,
+    PT_INT,
+    PT_INT64,
+    PT_FLOAT
+} cfg_param_type;
+
+typedef struct cfg_param_t {
+    const char     *name; /* NULL for last name */
+    cfg_param_type  type;
+    int             flags;
+    void           *ptr;
+    size_t          ptrsize;
+} cfg_param_t;
+#define END_OF_PARAMS {NULL, 0, 0, NULL, 0}
+
+int read_scalar_params(config_item_t block, const char *block_name, 
+                       const cfg_param_t * params, char *msgout);
 
 /**
  * Build a policy boolean expression from the given block
@@ -391,12 +415,12 @@ int            GetBoolExpr( config_item_t block, const char *block_name,
                             int *p_attr_mask, char *err_msg );
 
 /**
- * Build a policy boolean expression from a union/intersection or filesets
+ * Build a policy boolean expression from a union/intersection of filesets
  */
-int            GetSetExpr( config_item_t block, const char *block_name,
-                           bool_node_t * p_bool_node,
-                           int *p_attr_mask, const fileset_list_t * list,
-                           char *err_msg );
+int            GetSetExpr(config_item_t block, const char *block_name,
+                          bool_node_t * p_bool_node,
+                          int *p_attr_mask, const policies_t *policies,
+                          char *err_msg);
 
 
 /**

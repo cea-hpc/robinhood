@@ -286,7 +286,7 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
 
 /* Open log files */
 
-int InitializeLogs( char *program_name, const log_config_t * config )
+int InitializeLogs(const char *program_name, const log_config_t *config)
 {
     struct utsname uts;
     char          *tmp;
@@ -984,14 +984,36 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
     char           tmpstr[1024];
     log_config_t  *conf = ( log_config_t * ) module_config;
 
+    /* all allowed parameters names */
     static const char *allowed_params[] = { "debug_level", "log_file", "report_file",
         "alert_file", "alert_mail", "stats_interval", "batch_alert_max",
         "alert_show_attrs", "syslog_facility", "log_procname", "log_hostname", "log_module",
         NULL
     };
 
-    /* get Log block */
+    /* std parameters */
+    const cfg_param_t cfg_params[] = {
+        {"log_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS | PFLG_STDIO_ALLOWED,
+            conf->log_file, sizeof(conf->log_file)},
+        {"report_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS | PFLG_STDIO_ALLOWED,
+            conf->report_file, sizeof(conf->report_file)},
+        {"alert_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS | PFLG_STDIO_ALLOWED,
+            conf->alert_file, sizeof(conf->alert_file)},
+        {"alert_mail", PT_STRING, PFLG_MAIL,
+            conf->alert_mail, sizeof(conf->alert_mail)},
+            /* TODO add cfg flag: clean if not found */
+        {"stats_interval", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->stats_interval, 0},
+        {"batch_alert_max", PT_DURATION, PFLG_POSITIVE, &conf->batch_alert_max, 0},
+        {"alert_show_attrs", PT_BOOL,    0, &conf->alert_show_attrs, 0},
+        {"log_procname",     PT_BOOL,    0, &conf->log_process, 0},
+        {"log_hostname",     PT_BOOL,    0, &conf->log_host, 0},
+        {"log_module",       PT_BOOL,    0, &conf->log_tag, 0},
 
+        {NULL, 0, 0, NULL, 0}
+    };
+
+    /* get Log block */
     config_item_t  log_block = rh_config_FindItemByName( config, RBH_LOG_CONFIG_BLOCK );
 
     if ( log_block == NULL )
@@ -1008,10 +1030,14 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
         return EINVAL;
     }
 
-    /* retrieve parameters */
+    /* read std parameters */
+    rc = read_scalar_params(log_block, RBH_LOG_CONFIG_BLOCK, cfg_params, msg_out);
+    if (rc)
+        return rc;
 
+    /* read specific parameters */
     rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "debug_level",
-                         STR_PARAM_NO_WILDCARDS, tmpstr, 1024, NULL, NULL, msg_out );
+                         PFLG_NO_WILDCARDS, tmpstr, 1024, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
     else if ( rc != ENOENT )
@@ -1030,28 +1056,8 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
             conf->debug_level = tmpval;
     }
 
-    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "log_file",
-                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
-                         conf->log_file, RBH_PATH_MAX, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "report_file",
-                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
-                         conf->report_file, RBH_PATH_MAX, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "alert_file",
-                         STR_PARAM_ABSOLUTE_PATH | STR_PARAM_NO_WILDCARDS | STDIO_ALLOWED,
-                         conf->alert_file, 1024, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc == ENOENT )
-        conf->alert_file[0] = '\0';
-
     rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "syslog_facility",
-                         STR_PARAM_NO_WILDCARDS,
+                         PFLG_NO_WILDCARDS,
                          tmpstr, 1024, NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
@@ -1066,54 +1072,6 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
             return rc;
         }
     }
-
-    rc = GetStringParam( log_block, RBH_LOG_CONFIG_BLOCK, "alert_mail",
-                         STR_PARAM_MAIL, conf->alert_mail, 256, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc == ENOENT )
-        conf->alert_mail[0] = '\0';
-
-    rc = GetDurationParam( log_block, RBH_LOG_CONFIG_BLOCK, "stats_interval",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc != ENOENT )
-        conf->stats_interval = tmpval;
-
-    rc = GetIntParam( log_block, RBH_LOG_CONFIG_BLOCK, "batch_alert_max",
-                      INT_PARAM_POSITIVE, (int *)&conf->batch_alert_max,
-                      NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-
-    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "alert_show_attrs",
-                      0, &tmpval, NULL, NULL, msg_out);
-    if ((rc != 0) && (rc != ENOENT))
-        return rc;
-    else if (rc != ENOENT)
-        conf->alert_show_attrs = tmpval;
-
-    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "log_procname",
-                      0, &tmpval, NULL, NULL, msg_out);
-    if ((rc != 0) && (rc != ENOENT))
-        return rc;
-    else if (rc != ENOENT)
-        conf->log_process = tmpval;
-
-    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "log_hostname",
-                      0, &tmpval, NULL, NULL, msg_out);
-    if ((rc != 0) && (rc != ENOENT))
-        return rc;
-    else if (rc != ENOENT)
-        conf->log_host = tmpval;
-
-    rc = GetBoolParam(log_block, RBH_LOG_CONFIG_BLOCK, "log_module",
-                      0, &tmpval, NULL, NULL, msg_out);
-    if ((rc != 0) && (rc != ENOENT))
-        return rc;
-    else if (rc != ENOENT)
-        conf->log_tag = tmpval;
 
     CheckUnknownParameters( log_block, RBH_LOG_CONFIG_BLOCK, allowed_params );
 

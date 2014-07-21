@@ -47,8 +47,8 @@ typedef struct global_config_t
     fs_key_t      fs_key;
 
     /* behavior flags */
-    int            stay_in_fs:1;
-    int            check_mounted:1;
+    int            stay_in_fs;
+    int            check_mounted;
 
 #if defined( _LUSTRE ) && defined ( _MDS_STAT_SUPPORT )
     /** Direct stat to MDS on Lustre filesystems */

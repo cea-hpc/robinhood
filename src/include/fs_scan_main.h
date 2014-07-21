@@ -27,24 +27,24 @@
 #define _FS_SCAN_MAIN_H
 
 #include "config_parsing.h"
-#include "policies.h"
+#include "policy_rules.h"
 
 /** Configuration for FS scan Module */
 typedef struct fs_scan_config_t
 {
     /* scan options */
 
-    unsigned int   min_scan_interval;
-    unsigned int   max_scan_interval;
-    unsigned int   scan_retry_delay;
-    unsigned int   nb_threads_scan;
-    unsigned int   scan_op_timeout;
-    unsigned int   exit_on_timeout;
+    unsigned int nb_threads_scan;
+    time_t       min_scan_interval;
+    time_t       max_scan_interval;
+    time_t       scan_retry_delay;
+    time_t       scan_op_timeout;
+    time_t       exit_on_timeout;
 
     /**
      * interval of the spooler (checks for audits to be launched,
      * thread hangs, ...) */
-    unsigned int   spooler_check_interval;
+    time_t         spooler_check_interval;
 
     /** memory management */
     unsigned       nb_prealloc_tasks;
