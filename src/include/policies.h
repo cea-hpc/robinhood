@@ -13,8 +13,8 @@
  */
 
 /**
- * \file  policies.h
- * \brief policies management.
+ * \file  policy_rules.h
+ * \brief policy rules definition
  */
 
 #ifndef _POLICIES_H
@@ -25,8 +25,7 @@
 #include <sys/time.h>
 
 
-typedef enum
-{
+typedef enum {
     COMP_NONE = 0,              /**<     not set */
     COMP_GRTHAN,                /**<     > */
     COMP_GRTHAN_EQ,             /**<     >= */
@@ -38,8 +37,7 @@ typedef enum
     COMP_UNLIKE                 /**<     regexp not matching */
 } compare_direction_t;
 
-typedef enum
-{
+typedef enum {
     CRITERIA_TREE,
     CRITERIA_PATH,
     CRITERIA_FILENAME,
@@ -71,8 +69,7 @@ typedef enum
 } compare_criteria_t;
 
 
-typedef enum
-{
+typedef enum {
     BOOL_ERR = 0,
     BOOL_NOT,
     BOOL_OR,
@@ -80,8 +77,15 @@ typedef enum
 } bool_op_t;
 
 
-typedef enum
-{ TYPE_NONE = 0, TYPE_LINK, TYPE_DIR, TYPE_FILE, TYPE_CHR, TYPE_BLK, TYPE_FIFO, TYPE_SOCK
+typedef enum {
+    TYPE_NONE = 0,
+    TYPE_LINK,
+    TYPE_DIR,
+    TYPE_FILE,
+    TYPE_CHR,
+    TYPE_BLK,
+    TYPE_FIFO,
+    TYPE_SOCK
 } obj_type_t;
 
 
@@ -98,12 +102,12 @@ typedef enum
 #define STR_TYPE_SOCK   "sock"
 
 /* type conversion functions */
-const char * Policy2ListMgrType( obj_type_t type );
-obj_type_t ListMgr2PolicyType( const char * str_type );
+const char *policy2lmgr_type(obj_type_t type);
+obj_type_t lmgr2policy_type(const char *str_type);
 
 typedef union
 {
-    char           str[RBH_PATH_MAX];                    /* for all conditions based on a string */
+    char           str[RBH_PATH_MAX];            /* for all conditions based on a string */
     unsigned long long size;                     /* for size-based conditions */
     unsigned int   integer;                      /* for int base conditions */
     time_t         duration;                     /* for last access and last mod condition */
@@ -128,8 +132,7 @@ typedef struct compare_triplet_t
 } compare_triplet_t;
 
 /** Type of boolean expression: unary, binary or criteria */
-typedef enum
-{
+typedef enum {
     NODE_CONDITION,
     NODE_UNARY_EXPR,
     NODE_BINARY_EXPR
@@ -185,13 +188,16 @@ typedef struct rmdir_policy_t
 
 #endif
 
-#define POLICY_ID_LEN   128
-#define FILESET_ID_LEN  128
+#define POLICY_NAME_LEN  128
+#define RULE_ID_LEN      128
+#define FILESET_ID_LEN   128
 #define HINTS_LEN       4096
 
-/* special fileclass name for ignored entries (in database) */
-#define CLASS_IGNORED "@ignore@"
-#define CLASS_DEFAULT "@default@"
+typedef struct action_hint_t
+{
+    struct policy_descr_t *policy; /* hint for what policy? */
+    char                   hint_str[HINTS_LEN]; /* the hints itself */
+} action_hint_t;
 
 /* fileset definition */
 typedef struct fileset_item_t
@@ -203,58 +209,51 @@ typedef struct fileset_item_t
     /** summary of attributes involved in boolean expression */
     int            attr_mask;
 
-#ifdef HAVE_PURGE_POLICY
+    /* user tunable */
+    unsigned int   matchable:1;                /* is the fileset matchable or is it a temporary
+                                                * fileset to build another one? */
     /* flags for internal management */
-    unsigned int   has_purge_policy:1;           /* is the fileset referenced in a purge policy? */
-#endif
-#ifdef HAVE_MIGR_POLICY
-    unsigned int   has_migration_policy:1;       /* is the fileset referenced in a migration policy? */
+    unsigned int   used_in_policy:1;           /* is the fileset referenced in a policy? */
 
-    /* fileset specific hints for migration */
-    char           migration_hints[HINTS_LEN];
-#endif
+    /* action hints for policies */
+    action_hint_t *action_hints;
+    unsigned int   hints_count;
+    /** summary of attributes needed to build hints */
+    int            hints_attr_mask;
 
 #ifdef _LUSTRE_HSM
-    unsigned int archive_id;
+    unsigned int archive_id; /* manage it as a hint? */
 #endif
 
     /** @TODO aggregation policy */
 
 } fileset_item_t;
 
-typedef struct fileset_list_t
+/** policy rule */
+typedef struct rule_item_t
 {
-    fileset_item_t *fileset_list;
-    unsigned int   fileset_count;
-
-    int            global_attr_mask;   /**< minimum set of attributes for checking all rules */
-
-} fileset_list_t;
-
-/* migration/purge policy definition */
-
-typedef struct policy_item_t
-{
-    char           policy_id[POLICY_ID_LEN];
+    char           rule_id[RULE_ID_LEN];
 
     fileset_item_t **target_list;
     unsigned int   target_count;
+
+    /* TODO add support for LUA rules */
 
     /** condition for purging/migrating files */
     bool_node_t    condition;
     /** summary of attributes involved in boolean expression */
     int            attr_mask;
 
-    char           hints[HINTS_LEN];             /* for migration only */
+    char           action_hints[HINTS_LEN];
+    // TODO: different action per rule?
+
 #ifdef _LUSTRE_HSM
-    unsigned int   archive_id;
+    unsigned int   archive_id; /* TODO manage it as a hint? */
 #endif
+} rule_item_t;
 
-} policy_item_t;
-
-/* policy lists*/
-
-typedef struct policy_list_t
+/** list of rules for a policy */
+typedef struct policy_rules_t
 {
     whitelist_item_t *whitelist_rules;
     unsigned int   whitelist_count;
@@ -262,22 +261,23 @@ typedef struct policy_list_t
     fileset_item_t **ignore_list;
     unsigned int   ignore_count;
 
-    policy_item_t *policy_list;                  /* one of them can be the default policy */
-    unsigned int   policy_count;
+    rule_item_t   *rules;      /* one of them can be the default policy */
+    unsigned int   rule_count;
 
-    /* minimum set of attributes for checking all rules */
-    int            global_attr_mask;
+    /* minimum set of attributes for checking rules and building action_hints */
+    int            run_attr_mask;
 
-} policy_list_t;
+} policy_rules_t;
 
-#define NO_POLICY( p_list ) ( ((p_list)->whitelist_count + (p_list)->ignore_count + (p_list)->policy_count) == 0 )
+#define NO_POLICY(p_list) (((p_list)->whitelist_count + (p_list)->ignore_count \
+                           + (p_list)->rule_count) == 0)
 
-static int inline has_default_policy(policy_list_t *list)
+static int inline has_default_policy(policy_rules_t *list)
 {
     int i;
-    for (i = 0; i < list->policy_count; i++)
+    for (i = 0; i < list->rule_count; i++)
     {
-        if (!strcasecmp(list->policy_list[i].policy_id, "default"))
+        if (!strcasecmp(list->rules[i].rule_id, "default"))
             return TRUE;
     }
     return FALSE;
@@ -291,41 +291,6 @@ typedef struct unlink_policy
 } unlink_policy_t;
 #endif
 
-/**
- * path and metadata update strategies
- */
-enum updt_policy {
-    UPDT_NEVER,     /* get info once, and never refresh it */
-    UPDT_ALWAYS,    /* always update info when processing an entry */
-    UPDT_ON_EVENT,  /* get info on related event */
-    UPDT_ON_EVENT_PERIODIC,  /* default: get info on related event, with a
-                              * min interval + periodic update (max interval) */
-    UPDT_PERIODIC   /* update info periodically */
-};
-
-/**
- * update policy item
- */
-typedef struct updt_policy_item_t
-{
-    enum updt_policy    policy;
-    unsigned int        period_min; /* 0=no min */
-    unsigned int        period_max; /* 0=no periodic update */
-} updt_policy_item_t;
-
-/**
- *  update policy
- */
-typedef struct updt_policy_t
-{
-    updt_policy_item_t  md;
-#ifdef _HAVE_FID
-    updt_policy_item_t  path;
-#endif
-    updt_policy_item_t  fileclass; /* only never/always/periodic allowed */
-} updt_policy_t;
-
-
 /* ======================================================================
  * Function for managing all policy configuration (migration, purge, unlink)
  * ======================================================================*/
@@ -337,6 +302,41 @@ int            Reload_Policies( void *module_config );
 int            Write_Policy_Template( FILE * output );
 int            Write_Policy_Default( FILE * output );
 
+/* policy descriptor */
+typedef struct policy_descr_t {
+    char             name[POLICY_NAME_LEN];
+    /* TODO: add scope, status_check, changelog_cb */
+    policy_rules_t   rules;
+} policy_descr_t;
+
+/* template policy name */
+#define TEMPL_POLICY_NAME "rm_tmp"
+
+typedef struct policies_t
+{
+    policy_descr_t  *policy_list;
+    unsigned int     policy_count;
+    int              global_status_mask; // mask for all policies that provide a get_status function
+
+    fileset_item_t  *fileset_list;
+    unsigned int     fileset_count;
+    int              global_fileset_mask; // mask for all matchable filesets
+
+    unsigned int     manage_deleted:1; // is there any policy that manages deleted entries?
+
+} policies_t;
+extern struct  policies_t policies;
+
+int policy_exists(const char *name, int *index);
+
+// TODO
+//int match_scope(policy, entry);
+//int match_scope_deleted(policy);
+
+/** Indicate if a policy is about deleted entries */
+#define has_deletion_policy() (policies.manage_deleted)
+
+#if 0
 typedef struct policies_t
 {
 #ifdef HAVE_PURGE_POLICY
@@ -355,7 +355,6 @@ typedef struct policies_t
 
     updt_policy_t  updt_policy;
 } policies_t;
-
 extern policies_t policies;
 
 /* ==============================================
@@ -384,101 +383,80 @@ static inline int is_dir_class_defined(void)
 #endif
     return FALSE;
 }
+#endif
+
+int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
+                  attr_set_t *p_attrs_cached);
 
 /* return values for matching */
-typedef enum
-{ POLICY_MATCH, POLICY_NO_MATCH, POLICY_MISSING_ATTR, POLICY_ERR } policy_match_t;
+typedef enum {
+    POLICY_MATCH,
+    POLICY_NO_MATCH,
+    POLICY_MISSING_ATTR,
+    POLICY_ERR
+} policy_match_t;
 
-/* type of policy */
-typedef enum
-{
-    PURGE_POLICY,
-    MIGR_POLICY,                                 /* for HSM purpose only */
-    RMDIR_POLICY                                 /* not for lustre HSM */
-} policy_type_t;
-
-/** policy modifier */
-typedef struct policy_modifier
+/** time modifier */
+typedef struct time_modifier
 {
    double time_factor;
    time_t time_min;
-} policy_modifier_t;
+} time_modifier_t;
 
 /** retrieve fileset structure from its name */
-fileset_item_t *GetFilesetByName( fileset_list_t * filesets, const char *name );
+fileset_item_t *get_fileset_by_name(const policies_t *policies, const char *name);
 
 /** get the first matching policy case for the given file
- *  \param pp_fileset is set to the matching fileset
+ *  \param pp_fileset(out) set to the matching fileset
  *         or NULL for the default policy case
  */
-policy_item_t *GetPolicyCase( const entry_id_t * p_entry_id,
-                              const attr_set_t * p_entry_attr, policy_type_t policy_type,
-                              fileset_item_t ** pp_fileset );
+rule_item_t *policy_case(const policy_descr_t *policy,
+                         const entry_id_t *p_entry_id,
+                         const attr_set_t *p_entry_attr,
+                         fileset_item_t **pp_fileset);
 
 /** get the policy case for the given fileclass.
  *  \param pp_fileset is set to the matching fileset
  *         or NULL for the default policy case
  */
-policy_item_t * GetPolicyCaseByClass( const char * class_id,
-                                      policy_type_t policy_type,
-                                      fileset_item_t ** pp_fileset );
+rule_item_t * class_policy_case(const policy_descr_t *policy,
+                                const char *class_id,
+                                fileset_item_t **pp_fileset);
 
 /**
  * Check if an entry has a chance to be matched in any policy condition.
  * (does not report warnings if attrs are missing).
- * p_entry_attr is not read-only because the function may set the matched
- * fileclass.
+ * \param pp_fileset(out) the matched fileclass.
  */
-policy_match_t PolicyMatchAllConditions( const entry_id_t * p_entry_id,
-                                         attr_set_t * p_entry_attr,
-                                         policy_type_t policy_type,
-                                         const policy_modifier_t * p_pol_mod );
+policy_match_t policy_match_all(const policy_descr_t *policy,
+                                const entry_id_t *p_entry_id,
+                                const attr_set_t *p_entry_attr,
+                                const time_modifier_t *time_mod,
+                                fileset_item_t **pp_fileset);
 
-#ifdef HAVE_MIGR_POLICY
-char          *build_migration_hints( const policy_item_t * policy,
-                                      const fileset_item_t * fileset,
-                                      const entry_id_t * p_entry_id,
-                                      const attr_set_t * p_entry_attr );
-void           free_migration_hints( char *hints );
-#endif
+char          *build_action_hints(const policy_descr_t *policy,
+                                  const rule_item_t *policy_case,
+                                  const fileset_item_t *fileset,
+                                  const entry_id_t *p_entry_id,
+                                  const attr_set_t *p_entry_attr);
+void           free_action_hints(char *hints);
 
-/* check if an entry is whitelisted for the given policy type,
- * entry attr can be modified to set the matched fileclass.
+/* Check if an entry is whitelisted for the given policy.
+ * \param pp_fileset(out) the matched fileclass.
  */
-policy_match_t IsWhitelisted( const entry_id_t * p_entry_id,
-                              attr_set_t * p_entry_attr, policy_type_t policy_type );
+policy_match_t is_whitelisted(const policy_descr_t *policy,
+                              const entry_id_t *p_entry_id,
+                              const attr_set_t *p_entry_attr,
+                              fileset_item_t **fileset);
 
 /** determine if a class is whitelisted for the given policy */
-int WhitelistedClass( const char * class_id, policy_type_t policy_type );
+int class_is_whitelisted(const policy_descr_t *policy, const char *class_id);
 
 /* check if entry matches a boolean expression */
-policy_match_t EntryMatches( const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr,
-                             bool_node_t * p_node, const policy_modifier_t * p_pol_mod );
-
-/**
- * check whitelist condition for file or directory entries
- * optionnally match fileclasses.
- */
-int check_policies( const entry_id_t * p_id, attr_set_t * p_attrs_new,
-                    attr_set_t * p_attrs_cached,
-                    int match_all_fc );
-
-/**
- *  Check if the fileclass needs to be updated
- */
-int need_fileclass_update( const attr_set_t * p_attrs, policy_type_t policy_type );
-
-/**
- *  Check if path or metadata needs to be updated
- *  \param p_allow_event [out] if set to TRUE, the path
- *         must be updated on related event.
- */
-typedef enum { UPDT_PATH, UPDT_MD } type_info_t;
-int need_info_update( const attr_set_t * p_attrs, int * update_on_event,
-                      type_info_t type_info );
-
-#define need_path_update( _pa, _pu )    need_info_update( (_pa), (_pu), UPDT_PATH )
-#define need_md_update( _pa, _pu )    need_info_update( (_pa), (_pu), UPDT_MD )
+policy_match_t entry_matches(const entry_id_t *p_entry_id,
+                             const attr_set_t *p_entry_attr,
+                             bool_node_t *p_node,
+                             const time_modifier_t *time_mod);
 
 /**
  * Compare 2 boolean expressions
@@ -486,7 +464,7 @@ int need_info_update( const attr_set_t * p_attrs, int * update_on_event,
  * @return FALSE if they have the same structure,
  * @return  -1 on error.
  */
-int compare_boolexpr( const bool_node_t * expr1, const bool_node_t * expr2 );
+int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
 
 
 /**
@@ -497,7 +475,7 @@ int compare_boolexpr( const bool_node_t * expr1, const bool_node_t * expr2 );
  * @return TRUE if expression values have been changed
  * @return FALSE if nothing has been changed
  */
-int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src );
+int update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
 
 
 /**
@@ -509,8 +487,8 @@ int update_boolexpr( const bool_node_t * tgt, const bool_node_t * src );
  * \param p_must_release OUT: set to TRUE if the db_type_u.val_str string must be released
  * \return -1 if this is not a criteria stored in DB.
  */
-int CriteriaToFilter(const compare_triplet_t * p_comp, int * p_attr_index,
-                     filter_comparator_t * p_compar, filter_value_t * p_value,
-                     int * p_must_release);
+int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
+                    filter_comparator_t *p_compar, filter_value_t *p_value,
+                    int *p_must_release);
 
 #endif
