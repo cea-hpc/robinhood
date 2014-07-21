@@ -277,7 +277,7 @@ static int mkfilters( void )
     if (prog_options.match_type)
     {
         compare_value_t val;
-        val.type = ListMgr2PolicyType(prog_options.type);
+        val.type = lmgr2policy_type(prog_options.type);
         if (!is_expr)
             CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_TYPE, val);
         else
@@ -491,7 +491,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
         result_count = REPCNT;
         while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) ) == DB_SUCCESS )
         {
-            unsigned int idx = ListMgr2PolicyType(result[0].value_u.val_str);
+            unsigned int idx = lmgr2policy_type(result[0].value_u.val_str);
             stats[idx].count += result[1].value_u.val_biguint;
             stats[idx].blocks += result[2].value_u.val_biguint;
             stats[idx].size += result[3].value_u.val_biguint;
@@ -538,10 +538,10 @@ static int list_all(stats_du_t * stats, int display_stats)
     }
 
     /* sum root if it matches */
-    if (!is_expr || (EntryMatches(&root_id, &root_attrs,
+    if (!is_expr || (entry_matches(&root_id, &root_attrs,
                      &match_expr, NULL) == POLICY_MATCH))
     {
-        unsigned int idx = ListMgr2PolicyType(ATTR(&root_attrs, type));
+        unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
         stats[idx].count ++;
         stats[idx].blocks += ATTR(&root_attrs, blocks);
         stats[idx].size += ATTR(&root_attrs, size);
@@ -554,7 +554,7 @@ static int list_all(stats_du_t * stats, int display_stats)
     result_count = REPCNT;
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) ) == DB_SUCCESS )
     {
-        unsigned int idx = ListMgr2PolicyType(result[0].value_u.val_str);
+        unsigned int idx = lmgr2policy_type(result[0].value_u.val_str);
         stats[idx].count += result[1].value_u.val_biguint;
         stats[idx].blocks += result[2].value_u.val_biguint;
         stats[idx].size += result[3].value_u.val_biguint;
@@ -673,10 +673,10 @@ static int list_content(char ** id_list, int id_count)
         }
 
         /* sum root if it matches */
-        if (!is_expr || (EntryMatches(&ids[i].id, &root_attrs,
+        if (!is_expr || (entry_matches(&ids[i].id, &root_attrs,
                          &match_expr, NULL) == POLICY_MATCH))
         {
-            unsigned int idx = ListMgr2PolicyType(ATTR(&root_attrs, type));
+            unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
             stats[idx].count ++;
             stats[idx].blocks += ATTR(&root_attrs, blocks);
             stats[idx].size += ATTR(&root_attrs, size);

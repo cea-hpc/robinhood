@@ -16,18 +16,13 @@
 #include "config.h"
 #endif
 
+#if 0
 #ifdef HAVE_RMDIR_POLICY
 #include "rmdir.h"
 #endif
-
-#ifdef HAVE_MIGR_POLICY
-#include "migration.h"
 #endif
 
-#ifdef HAVE_PURGE_POLICY
-#include "resource_monitor.h"
-#endif
-
+#include "policy_run.h"
 #include "uidgidcache.h"
 #include "list_mgr.h"
 #include "RobinhoodConfig.h"

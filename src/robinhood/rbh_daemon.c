@@ -20,18 +20,13 @@
 #include "config.h"
 #endif
 
+#if 0
 #ifdef HAVE_RMDIR_POLICY
 #include "rmdir.h"
 #endif
-
-#ifdef HAVE_MIGR_POLICY
-#include "migration.h"
 #endif
 
-#ifdef HAVE_PURGE_POLICY
-#include "resource_monitor.h"
-#endif
-
+#include "policy_run.h"
 #include "uidgidcache.h"
 #include "list_mgr.h"
 #include "RobinhoodConfig.h"
@@ -61,73 +56,54 @@
 
 static time_t  boot_time;
 
-/* values over max char index */
-#define FORCE_OST_PURGE   260
-#define FORCE_FS_PURGE    261
-#define FORCE_CLASS_PURGE 262
+/* values must be over max char index */
+#define DRY_RUN           260
+#define NO_LIMIT          261
+#define TEST_SYNTAX       262
+#define PARTIAL_SCAN      263
+#define SHOW_DIFF         264
+#define NO_GC             265
+#define RUN_POLICIES      266
+#define TGT_USAGE         267
 
-#define FORCE_OST_MIGR    270
-#define FORCE_USER_MIGR   271
-#define FORCE_GROUP_MIGR  272
-#define FORCE_CLASS_MIGR  273
-#define MIGR_ONE_FILE     274
+/* deprecated params */
+#define FORCE_OST_PURGE   270
+#define FORCE_FS_PURGE    271
+#define FORCE_CLASS_PURGE 272
 
-#define DRY_RUN           280
-#define NO_LIMIT          281
-#define TEST_SYNTAX       282
-#define PARTIAL_SCAN      283
-#define SHOW_DIFF         284
-#define NO_GC             285
+#define FORCE_OST_MIGR    280
+#define FORCE_USER_MIGR   281
+#define FORCE_GROUP_MIGR  282
+#define FORCE_CLASS_MIGR  283
+#define MIGR_ONE_FILE     284
+
+#define DEPRECATED_WM     290
+
 
 #define ACTION_MASK_SCAN                0x00000001
 #define ACTION_MASK_PURGE               0x00000002
-#define ACTION_MASK_MIGRATE             0x00000004
-#define ACTION_MASK_HANDLE_EVENTS       0x00000008
-#define ACTION_MASK_UNLINK              0x00000010
-#define ACTION_MASK_RMDIR               0x00000020
+#define ACTION_MASK_HANDLE_EVENTS       0x00000004
+#define ACTION_MASK_RUN_POLICIES        0x00000008
 
-#ifdef _LUSTRE_HSM
-
-#define DEFAULT_ACTION_MASK     (ACTION_MASK_PURGE | ACTION_MASK_MIGRATE | ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK )
-#define DEFAULT_ACTION_HELP   "--read-log --purge --migrate --hsm-remove"
-
-
-#elif defined (_TMP_FS_MGR )
-
-#   ifdef HAVE_CHANGELOGS
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_PURGE | ACTION_MASK_RMDIR)
-#       define DEFAULT_ACTION_HELP   "--read-log --purge --rmdir"
-#   else
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_PURGE | ACTION_MASK_RMDIR)
-#       define DEFAULT_ACTION_HELP   "--scan --purge --rmdir"
-#   endif
-
-#elif defined (_HSM_LITE )
-
-#ifdef HAVE_SHOOK
-#   ifdef HAVE_CHANGELOGS
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE | ACTION_MASK_PURGE)
-#       define DEFAULT_ACTION_HELP   "--read-log --migrate --hsm-remove --purge"
-#   else
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE | ACTION_MASK_PURGE)
-#       define DEFAULT_ACTION_HELP   "--scan --migrate --hsm-remove --purge"
-#   endif
+#ifdef HAVE_CHANGELOGS
+    #define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_RUN_POLICIES)
+    #define DEFAULT_ACTION_HELP   "--read-log --run=all"
 #else
-#   ifdef HAVE_CHANGELOGS
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
-#       define DEFAULT_ACTION_HELP   "--read-log --migrate --hsm-remove"
-#   else
-#       define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_UNLINK | ACTION_MASK_MIGRATE)
-#       define DEFAULT_ACTION_HELP   "--scan --migrate --hsm-remove"
-#   endif
-#endif
-
+    #define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_RUN_POLICIES)
+    #define DEFAULT_ACTION_HELP   "--scan --run=all"
 #endif
 
 /* currently running modules */
 static int     running_mask = 0;
 /* selected modules (used for reloading config) */
 static int     parsing_mask = 0;
+
+/* currently running policies mask */
+static uint64_t policy_run_mask = 0LL;
+
+/* info for started policy modules */
+static policy_info_t    *policy_run = NULL;
+static unsigned int      policy_run_cpt = 0;
 
 /* Array of options for getopt_long().
  * Each record consists of: { const char *name, int has_arg, int * flag, int val }
@@ -138,19 +114,6 @@ static struct option option_tab[] = {
     /* Actions selectors */
     {"scan", optional_argument, NULL, 'S'},
     {"diff", required_argument, NULL, SHOW_DIFF},
-    /* kept for compatibility */
-    {"partial-scan", required_argument, NULL, PARTIAL_SCAN},
-#ifdef HAVE_PURGE_POLICY
-    {"purge", no_argument, NULL, 'P'},
-    {"release", no_argument, NULL, 'P'},
-    {"check-watermarks", no_argument, NULL, 'C'},
-    {"check-thresholds", no_argument, NULL, 'C'},
-#endif
-#ifdef HAVE_MIGR_POLICY
-    {"migrate", no_argument, NULL, 'M'},
-    {"archive", no_argument, NULL, 'M'},
-    {"sync", no_argument, NULL, 's'},
-#endif
 #ifdef HAVE_CHANGELOGS
 #ifdef HAVE_DNE
     {"readlog", optional_argument, NULL, 'r'},
@@ -161,52 +124,17 @@ static struct option option_tab[] = {
     {"handle-events", no_argument, NULL, 'r'}, /* for backward compatibility */
 #endif
 #endif
+    {"run", optional_argument, NULL, RUN_POLICIES},
+    {"check-thresholds", optional_argument, NULL, 'C'},
 
-    /* XXX we use the same letter 'R' for the 2 purposes
-     * because there are never used together */
-#ifdef HAVE_RM_POLICY
-    {"hsm-remove", no_argument, NULL, 'R'},
-    {"hsm-rm", no_argument, NULL, 'R'},
-#endif
-#ifdef HAVE_RMDIR_POLICY
-    {"rmdir", no_argument, NULL, 'R'},
-#endif
+    /* specifies a policy target */
+    {"target", required_argument, NULL, 't'}, /* ost, pool, fs, class, user, group, file... */
+    {"usage-target", required_argument, NULL, TGT_USAGE}, /* usage target FS, OST or pool */
 
-    /* purge by ... */
-#ifdef HAVE_PURGE_POLICY
-#ifdef _LUSTRE
-    {"purge-ost", required_argument, NULL, FORCE_OST_PURGE},
-    {"release-ost", required_argument, NULL, FORCE_OST_PURGE},
-#endif
-    {"purge-fs", required_argument, NULL, FORCE_FS_PURGE},
-    {"release-fs", required_argument, NULL, FORCE_FS_PURGE},
-
-    {"purge-class", required_argument, NULL, FORCE_CLASS_PURGE},
-    {"release-class", required_argument, NULL, FORCE_CLASS_PURGE},
-#endif
-
-#ifdef HAVE_MIGR_POLICY
-    /* migration by ... */
-#ifdef _LUSTRE
-    {"migrate-ost", required_argument, NULL, FORCE_OST_MIGR},
-    {"archive-ost", required_argument, NULL, FORCE_OST_MIGR},
-#endif
-    {"migrate-user", required_argument, NULL, FORCE_USER_MIGR},
-    {"archive-user", required_argument, NULL, FORCE_USER_MIGR},
-    {"migrate-group", required_argument, NULL, FORCE_GROUP_MIGR},
-    {"archive-group", required_argument, NULL, FORCE_GROUP_MIGR},
-    {"migrate-class", required_argument, NULL, FORCE_CLASS_MIGR},
-    {"archive-class", required_argument, NULL, FORCE_CLASS_MIGR},
-
-    {"migrate-file", required_argument, NULL, MIGR_ONE_FILE},
-    {"archive-file", required_argument, NULL, MIGR_ONE_FILE},
-#endif
-
-    /* For purge and migration actions,
-     * this forces to migrate/purge all eligible files,
-     * by ignoring policy conditions.
+    /* For policies, this forces to apply policy to files in policy scope,
+     * by ignoring condition in policy rules.
      */
-    {"ignore-policies", no_argument, NULL, 'i'},
+    {"ignore-policies", no_argument, NULL, 'I'},
 
     /* behavior flags */
     {"dry-run", no_argument, NULL, DRY_RUN},
@@ -231,11 +159,42 @@ static struct option option_tab[] = {
     {"version", no_argument, NULL, 'V'},
     {"pid-file", required_argument, NULL, 'p'},
 
-    {NULL, 0, NULL, 0}
+    /* kept for compatibility */
+    {"partial-scan", required_argument, NULL, PARTIAL_SCAN},
 
+    /* deprecated params */
+    {"purge", no_argument, NULL, 'P'},
+    {"release", no_argument, NULL, 'P'},
+    {"check-watermarks", no_argument, NULL, DEPRECATED_WM},
+    {"migrate", no_argument, NULL, 'M'},
+    {"archive", no_argument, NULL, 'M'},
+    {"sync", no_argument, NULL, 's'}, /* TODO how to implement it as generic policy? */
+    {"hsm-remove", no_argument, NULL, 'R'},
+    {"hsm-rm", no_argument, NULL, 'R'},
+    {"rmdir", no_argument, NULL, 'R'},
+    {"purge-ost", required_argument, NULL, FORCE_OST_PURGE},
+    {"release-ost", required_argument, NULL, FORCE_OST_PURGE},
+    {"purge-fs", required_argument, NULL, FORCE_FS_PURGE},
+    {"release-fs", required_argument, NULL, FORCE_FS_PURGE},
+    {"purge-class", required_argument, NULL, FORCE_CLASS_PURGE},
+    {"release-class", required_argument, NULL, FORCE_CLASS_PURGE},
+    {"migrate-ost", required_argument, NULL, FORCE_OST_MIGR},
+    {"archive-ost", required_argument, NULL, FORCE_OST_MIGR},
+    {"migrate-user", required_argument, NULL, FORCE_USER_MIGR},
+    {"archive-user", required_argument, NULL, FORCE_USER_MIGR},
+    {"migrate-group", required_argument, NULL, FORCE_GROUP_MIGR},
+    {"archive-group", required_argument, NULL, FORCE_GROUP_MIGR},
+    {"migrate-class", required_argument, NULL, FORCE_CLASS_MIGR},
+    {"archive-class", required_argument, NULL, FORCE_CLASS_MIGR},
+    {"migrate-file", required_argument, NULL, MIGR_ONE_FILE},
+    {"archive-file", required_argument, NULL, MIGR_ONE_FILE},
+    /* -i replaced by -I to allow confusions with rbh-report -i */
+
+    {NULL, 0, NULL, 0}
 };
 
-#define SHORT_OPT_STRING    "CSPMsRUrOdf:T:DF:t:L:l:hVp:i"
+#define SHORT_OPT_STRING     "SrCt:IOdf:T:DL:l:hVp:"
+#define SHORT_OPT_DEPRECATED "PMRi"
 
 #define MAX_OPT_LEN 1024
 #define MAX_TYPE_LEN 256
@@ -254,47 +213,26 @@ typedef struct rbh_options {
     int            pid_file;
     char           pid_filepath[MAX_OPT_LEN];
     int            test_syntax;
-    int            ost_trigger;
-    int            fs_trigger;
-    int            purge_target_ost;
-    double         usage_target;
-    int            purge_class;
-    char           purge_target_class[128];
     int            partial_scan;
-    char           partial_scan_path[RBH_PATH_MAX];
+    char           partial_scan_path[RBH_PATH_MAX]; /* can be a deep path */
     int            diff_mask;
 
-#ifdef HAVE_MIGR_POLICY
-#ifdef _LUSTRE
-    int            migrate_ost;
-    int            migr_target_ost;
-#endif
-    int            migrate_user;
-    int            migrate_group;
-    int            migrate_class;
-    int            migrate_file;
-    char           migr_target_user[128];
-    char           migr_target_group[128];
-    char           migr_target_class[128];
-    char           migr_target_file[RBH_PATH_MAX];
-#endif
+    char           policy_string[MAX_OPT_LEN];
+    char           target_string[RBH_PATH_MAX]; /* can be a deep file */
+    double         usage_target; /* set -1.0 if not set */
+
+    int            mdtidx;
 
 } rbh_options;
+
+#define TGT_NOT_SET   -1.0
 
 static inline void zero_options(struct rbh_options * opts)
 {
     /* default value is 0 for most options */
     memset(opts, 0, sizeof(struct rbh_options));
-
-    /* undefined target ost is -1 */
-    opts->purge_target_ost = -1;
-    opts->usage_target = 0.0;
-
-#ifdef HAVE_MIGR_POLICY
-#ifdef _LUSTRE
-    opts->migr_target_ost = -1;
-#endif
-#endif
+    opts->usage_target = TGT_NOT_SET;
+    opts->mdtidx = -1; /* all MDTs */
 }
 
 
@@ -319,85 +257,59 @@ static const char *help_string =
     _B "Actions:" B_ "\n"
     "    " _B "-S" B_", " _B "--scan" B_ "[=" _U "dir" U_ "]\n"
     "        Scan the filesystem namespace. If "_U"dir"U_" is specified, only scan the specified subdir.\n"
-#ifdef HAVE_PURGE_POLICY
-    "    " _B "-P" B_ ", " _B "--purge" B_ "\n"
-    "        Purge non-directory entries according to policy.\n"
-    "    " _B "-C" B_ ", " _B "--check-thresholds" B_ "\n"
-    "        Only check thresholds without purging.\n"
-#endif
-#ifdef HAVE_RMDIR_POLICY
-    "    " _B "-R" B_ ", " _B "--rmdir" B_ "\n"
-    "        Remove empty directories according to policy.\n"
-#endif
-#ifdef HAVE_MIGR_POLICY
-    "    " _B "-M" B_ ", " _B "--migrate" B_ "\n"
-    "        Copy \"dirty\" entries to HSM.\n"
-#endif
 #ifdef HAVE_CHANGELOGS
     "    " _B "-r" B_ ", " _B "--read-log" B_ "[=" _U "mdt_idx" U_ "]\n"
     "        Read events from MDT ChangeLog.\n"
     "        If "_U"mdt_idx"U_" is specified, only read ChangeLogs for the given MDT.\n"
     "        Else, start 1 changelog reader thread per MDT (with DNE).\n"
 #endif
-#ifdef HAVE_RM_POLICY
-    "    " _B "-R" B_ ", " _B "--hsm-remove" B_ "\n"
-    "        Perform deferred removal in HSM.\n"
-#endif
+    "    " _B "--run" B_"[=" _U "policy1,policy2..." U_ "]\n"
+    "        Run the given policies. If no policy is specified (or 'all'), run all policies.\n"
+    "    " _B "-C" B_ " " _U"policy1,policy2..."U_", "
+            _B "--check-thresholds" B_"[=" _U "policy1,policy2..." U_ "]\n"
+    "        Only check trigger thresholds without applying policy actions.\n"
+    "        If no policy is specified (or 'all'), check all triggers.\n"
     "\n"
     "    Note: if no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n"
+    "\n"
+    _B "Policy run options:" B_ "\n"
+    "    " _B "-t" B_" " _U"target"U_ ", " _B "--target" B_ "=" _U"target"U_ "\n"
+    "        Run the policies only on the specified target.\n"
+    "        Target specification can be one of: "
+            _B"fs"B_" (all entries), " _B"user"B_":"_U"username"U_", "
+            _B"group"B_":"_U"grpname"U_", "_B"file"B_":"_U"path"U_", "
+            _B"class"B_":"_U"fileclass"U_
+#ifdef _LUSTRE
+", "_B"ost"B_":"_U"ost_idx"U_", "_B"pool"B_":"_U"poolname"U_
+#endif
+    ".\n"
+    "    "  _B "--usage-target" B_ "=" _U"percent"U_ "\n"
+    "        For FS, OST or pool targets of purge policies, specifies the target disk usage (in percent).\n"
+    "    " _B "-I" B_ ", " _B "--ignore-policies"B_"\n"
+    "        Apply policy to all entries in policy scope, without checking policy rules.\n"
+    "    " _B "--no-limit"B_"\n"
+    "        Don't limit the maximum number/volume of policy actions per pass.\n"
+    "    " _B "--dry-run"B_"\n"
+    "        Only report policy actions that would be performed without really doing them.\n"
+    "        Note: Robinhood DB is impacted as if the reported actions were realy done.\n"
+    "\n"
+    _B "Scanning options:" B_ "\n"
+    "    " _B "--no-gc"B_"\n"
+    "        Garbage collection of entries in DB is a long operation when terminating\n"
+    "        a scan. This skips this operation if you don't care about removed\n"
+    "        entries (or don't expect entries to be removed).\n"
+    "        This is also recommended for partial scanning (see -scan=dir option).\n"
     "\n"
     _B "Output options:" B_ "\n"
     "    " _B "--diff"B_"="_U"attrset"U_ "\n"
     "        When scanning or reading changelogs, display changes for the given set of attributes (to stdout).\n"
     "        "_U"attrset"U_" is a list of values in: path,posix,stripe,all,notimes,noatime.\n"
     "\n"
-#ifdef HAVE_PURGE_POLICY
-    _B "Manual purge actions:" B_ "\n"
-#ifdef _LUSTRE
-    "    " _B "--purge-ost=" B_ _U "ost_index" U_ "," _U "target_usage_pct" U_ "\n"
-    "        Apply purge policy on OST " _U "ost_index" U_ " until its usage reaches the specified value.\n"
-#endif
-    "    " _B "--purge-fs=" B_ _U "target_usage_pct" U_ "\n"
-    "        Apply purge policy until the filesystem usage reaches the specified value.\n"
-    "    " _B "--purge-class=" B_ _U "fileclass" U_ "\n"
-    "        Purge all eligible files in the given fileclass.\n"
-    "\n"
-#endif
-#ifdef HAVE_MIGR_POLICY
-    _B "Manual migration actions:" B_ "\n"
-    "    " _B "-s" B_ ", " _B "--sync" B_ "\n"
-    "        Immediately migrate all modified files, ignoring policy conditions.\n"
-    "        It is equivalent to \"--migrate --ignore-policies --once --no-limit\".\n"
-#ifdef _LUSTRE
-    "    " _B "--migrate-ost=" B_ _U "ost_index" U_ "\n"
-    "        Apply migration policies to files on the given OST " _U "ost_index" U_ ".\n"
-#endif
-    "    " _B "--migrate-user=" B_ _U "user_name" U_ "\n"
-    "        Apply migration policies to files owned by " _U "user_name" U_ ".\n"
-    "    " _B "--migrate-group=" B_ _U "grp_name" U_ "\n"
-    "        Apply migration policies to files of group " _U "grp_name" U_ ".\n"
-    "    " _B "--migrate-class=" B_ _U "fileclass" U_ "\n"
-    "        Apply migration policy on files in the given " _U "fileclass" U_ ".\n"
-    "    " _B "--migrate-file=" B_ _U "filepath" U_ "\n"
-    "        Apply migration policy to a single file " _U "filepath" U_ ".\n\n"
-#endif
     _B "Behavior options:" B_ "\n"
-    "    " _B "--dry-run"B_"\n"
-    "        Only report actions that would be performed (rmdir, migration, purge)\n"
-    "        without really doing them. Robinhood DB contents are however impacted.\n"
-    "    " _B "-i" B_ ", " _B "--ignore-policies"B_"\n"
-    "        Force migration/purge of all eligible files, ignoring policy conditions.\n"
     "    " _B "-O" B_ ", " _B "--once" B_ "\n"
     "        Perform only one pass of the specified action and exit.\n"
     "    " _B "-d" B_ ", " _B "--detach" B_ "\n"
     "        Daemonize the process (detach from parent process).\n"
-    "    " _B "--no-limit"B_"\n"
-    "        Don't limit the maximum number of migrations (per pass).\n"
-    "    " _B "--no-gc"B_"\n"
-    "        Garbage collection of entries in DB is a long operation when terminating\n"
-    "        a scan. This skips this operation if you don't care about removed\n"
-    "        entries (or don't expect entries to be removed).\n"
-    "        This is also recommended for partial scanning (see -scan=dir option).\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "cfg_file" U_ ", " _B "--config-file=" B_ _U "cfg_file" U_ "\n"
@@ -410,7 +322,7 @@ static const char *help_string =
     "    " _B "--test-syntax" B_ "\n"
     "        Check configuration file and exit.\n"
     "\n"
-    "Log options:" B_ "\n"
+    _B"Log options:" B_ "\n"
     "    " _B "-L" B_ " " _U "logfile" U_ ", " _B "--log-file=" B_ _U
     "logfile" U_ "\n" "        Force the path to the log file (overrides configuration value).\n"
     "        Special values \"stdout\" and \"stderr\" can be used.\n"
@@ -425,65 +337,56 @@ static const char *help_string =
     _B "--pid-file=" B_ _U "pidfile" U_ "\n" "         Pid file (used for service management).\n";
 
 
-static inline void display_help( char *bin_name )
+static inline void display_help(const char *bin_name)
 {
     printf( help_string, bin_name );
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(const char *bin_name)
 {
-    printf( "\n" );
-    printf( "Product:         " PACKAGE_NAME "\n" );
-    printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
-    printf( "Build:           " COMPIL_DATE "\n" );
-    printf( "\n" );
-    printf( "Compilation switches:\n" );
+    printf("\n");
+    printf("Product:         " PACKAGE_NAME "\n");
+    printf("Version:         " PACKAGE_VERSION "-"RELEASE"\n");
+    printf("Build:           " COMPIL_DATE "\n");
+    printf("\n");
+    printf("Compilation switches:\n");
 
-/* purpose of this daemon */
-#ifdef _LUSTRE_HSM
-    printf( "    Lustre-HSM Policy Engine\n" );
-#elif defined(_TMP_FS_MGR)
-    printf( "    Temporary filesystem manager\n" );
-#elif defined(_HSM_LITE)
-    printf( "    Basic HSM binding\n" );
-#else
-#error "No purpose was specified"
+/* FS type */
+#ifdef _LUSTRE
+    printf("    Lustre filesystems\n");
+#ifdef LUSTRE_VERSION
+    printf("    Lustre Version: " LUSTRE_VERSION "\n");
 #endif
 
+#else
+    printf("    Posix filesystems\n");
+#endif
 /* Access by Fid ? */
 #ifdef _HAVE_FID
-    printf( "    Address entries by FID\n" );
+    printf("    Address entries by FID\n");
 #else
-    printf( "    Address entries by path\n" );
+    printf("    Address entries by path\n");
 #endif
 #ifdef HAVE_CHANGELOGS
-    printf( "    MDT Changelogs supported\n" );
-#else
-    printf( "    MDT Changelogs disabled\n" );
-#endif
-
-
-    printf( "\n" );
-#ifdef _LUSTRE
-#ifdef LUSTRE_VERSION
-    printf( "Lustre Version: " LUSTRE_VERSION "\n" );
-#else
-    printf( "Lustre FS support\n" );
+    printf("    MDT Changelogs supported\n");
+#ifndef HAVE_DNE
+    printf("    Support Changelogs from multiple MDT (DNE)\n");
 #endif
 #else
-    printf( "No Lustre support\n" );
+    printf("    MDT Changelogs disabled\n");
 #endif
+    printf("\n");
 
 #ifdef _MYSQL
-    printf( "Database binding: MySQL\n" );
+    printf("Database binding: MySQL\n");
 #elif defined(_SQLITE)
-    printf( "Database binding: SQLite\n" );
+    printf("Database binding: SQLite\n");
 #else
 #error "No database was specified"
 #endif
-    printf( "\n" );
-    printf( "Report bugs to: <" PACKAGE_BUGREPORT ">\n" );
-    printf( "\n" );
+    printf("\n");
+    printf("Report bugs to: <" PACKAGE_BUGREPORT ">\n");
+    printf("\n");
 }
 
 static pthread_t stat_thread;
@@ -494,7 +397,7 @@ static int     lmgr_init = FALSE;
 static char    boot_time_str[256];
 
 
-static void module_mask2str(int mask, char *str)
+static void running_mask2str(int mask, uint64_t pol_mask, char *str)
 {
     str[0] = '\0';
     if (mask & MODULE_MASK_FS_SCAN)
@@ -503,22 +406,20 @@ static void module_mask2str(int mask, char *str)
     if (mask & MODULE_MASK_EVENT_HDLR)
         strcat(str, "log_reader,");
 #endif
-#ifdef HAVE_PURGE_POLICY
-    if (mask & MODULE_MASK_RES_MONITOR)
-        strcat(str, "purge,");
-#endif
-#ifdef HAVE_RMDIR_POLICY
-    if (mask & MODULE_MASK_RMDIR)
-        strcat(str, "rmdir,");
-#endif
-#ifdef HAVE_MIGR_POLICY
-   if (mask & MODULE_MASK_MIGRATION)
-        strcat(str, "migration,");
-#endif
-#ifdef HAVE_RM_POLICY
-   if (mask & MODULE_MASK_UNLINK)
-        strcat(str, "hsm_rm,");
-#endif
+    if (mask & MODULE_MASK_POLICY_RUN)
+    {
+        int i;
+        strcat(str, "policy_run(");
+        for (i = 0; i < policy_run_cpt; i++)
+        {
+            if ((pol_mask) & (1<<i))
+                strcat(str, policy_run[i].descr->name);
+            if (i != policy_run_cpt - 1)
+                strcat(str, ",");
+        }
+        strcat(str, "),");
+    }
+
     /* remove final ',' */
     int len = strlen(str);
     if ((len > 0) && str[len-1] == ',')
@@ -526,7 +427,8 @@ static void module_mask2str(int mask, char *str)
     return;
 }
 
-static void dump_stats( lmgr_t * lmgr, const int * module_mask )
+static void dump_stats(lmgr_t *lmgr, const int *module_mask,
+                       const uint64_t *p_policy_mask)
 {
         char           tmp_buff[256];
         time_t         now;
@@ -540,7 +442,7 @@ static void dump_stats( lmgr_t * lmgr, const int * module_mask )
                     "==================== Dumping stats at %s =====================", tmp_buff );
         DisplayLog( LVL_MAJOR, "STATS", "======== General statistics =========" );
         DisplayLog( LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str );
-        module_mask2str(*module_mask, tmp_buff);
+        running_mask2str(*module_mask, *p_policy_mask, tmp_buff);
         DisplayLog(LVL_MAJOR, "STATS", "Started modules: %s", tmp_buff);
 
         if ( *module_mask & MODULE_MASK_FS_SCAN )
@@ -558,29 +460,26 @@ static void dump_stats( lmgr_t * lmgr, const int * module_mask )
 #endif
         if ( *module_mask & MODULE_MASK_ENTRY_PROCESSOR )
             EntryProcessor_DumpCurrentStages(  );
-#ifdef HAVE_PURGE_POLICY
-        if ( *module_mask & MODULE_MASK_RES_MONITOR )
-            Dump_ResourceMonitor_Stats(  );
-#endif
-#ifdef HAVE_RMDIR_POLICY
-        if ( *module_mask & MODULE_MASK_RMDIR )
-            Dump_Rmdir_Stats(  );
-#endif
-#ifdef HAVE_MIGR_POLICY
-        if ( *module_mask & MODULE_MASK_MIGRATION )
-            Dump_Migration_Stats(  );
-#endif
-#ifdef HAVE_RM_POLICY
-        if ( *module_mask & MODULE_MASK_UNLINK )
-            Dump_HSMRm_Stats(  );
-#endif
+
+        if (*module_mask & MODULE_MASK_POLICY_RUN
+            && *p_policy_mask != 0LL
+            && policy_run_cpt != 0
+            && policy_run != NULL)
+        {
+            int i;
+            for (i = 0; i <  policy_run_cpt; i++)
+            {
+                if ((*p_policy_mask) & (1<<i))
+                    policy_module_dump_stats(&policy_run[i]);
+            }
+        }
+
         /* Flush stats */
         FlushLogs(  );
 }
 
 static void  *stats_thr( void *arg )
 {
-    int           *module_mask = ( int * ) arg;
     struct tm      date;
 
     strftime( boot_time_str, 256, "%Y/%m/%d %T", localtime_r( &boot_time, &date ) );
@@ -597,7 +496,7 @@ static void  *stats_thr( void *arg )
     while ( 1 )
     {
         WaitStatsInterval(  );
-        dump_stats(&lmgr, module_mask);
+        dump_stats(&lmgr, &running_mask, &policy_run_mask);
     }
 }
 
@@ -630,25 +529,13 @@ static int action2parsing_mask( int act_mask )
 {
     /* build config parsing mask */
     int parse_mask = 0;
-    if ( act_mask & ACTION_MASK_SCAN )
+    if (act_mask & ACTION_MASK_SCAN)
         parse_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
-    if ( act_mask & ACTION_MASK_PURGE )
-        parse_mask |= MODULE_MASK_RES_MONITOR;
-#ifdef HAVE_RMDIR_POLICY
-    if ( act_mask & ACTION_MASK_RMDIR )
-        parse_mask |= MODULE_MASK_RMDIR;
-#endif
+    if (act_mask & ACTION_MASK_RUN_POLICIES)
+        parse_mask |= MODULE_MASK_POLICY_RUN;
 #ifdef HAVE_CHANGELOGS
     if ( act_mask & ACTION_MASK_HANDLE_EVENTS )
         parse_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
-#endif
-#ifdef HAVE_MIGR_POLICY
-    if ( act_mask & ACTION_MASK_MIGRATE )
-        parse_mask |= MODULE_MASK_MIGRATION;
-#endif
-#ifdef HAVE_RM_POLICY
-    if ( act_mask & ACTION_MASK_UNLINK )
-        parse_mask |= MODULE_MASK_UNLINK;
 #endif
 
     return parse_mask;
@@ -718,24 +605,29 @@ static void   *signal_handler_thr( void *arg )
                 DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
             FlushLogs(  );
 
-            /* first ask purge consummers and feeders to stop (long operations first) */
+            /* first ask policy consummers and feeders to stop (long operations first) */
 
-            /* 1a- stop submitting migrations */
-#ifdef HAVE_MIGR_POLICY
-            if (running_mask & MODULE_MASK_MIGRATION) {
-                /* abort migration */
-                Stop_Migration();
+            /* 1- stop submitting policy actions */
+            if (running_mask & MODULE_MASK_POLICY_RUN
+                && policy_run_mask != 0LL
+                && policy_run_cpt != 0
+                && policy_run != NULL)
+            {
+                int i;
+                for (i = 0; i <  policy_run_cpt; i++)
+                {
+                    if (policy_run_mask & (1<<i))
+                    {
+                        int rc = policy_module_stop(&policy_run[i]);
+                        if (rc)
+                            DisplayLog(LVL_CRIT, SIGHDL_TAG, "Failed to stop policy module '%s' (rc=%d).",
+                                       policy_run[i].descr->name, rc);
+                        FlushLogs();
+                    }
+                }
             }
-#endif
-            /* 1b- stop triggering purges */
-#ifdef HAVE_PURGE_POLICY
-            if (running_mask & MODULE_MASK_RES_MONITOR) {
-                /* abort purge */
-                Stop_ResourceMonitor();
-            }
-#endif
 
-            /* 2a - stop feeding with changelogs */
+            /* 2 - stop feeding with changelogs */
 #ifdef HAVE_CHANGELOGS
             if (running_mask & MODULE_MASK_EVENT_HDLR)
             {
@@ -770,22 +662,27 @@ static void   *signal_handler_thr( void *arg )
                 FlushLogs(  );
             }
 
-            /* 5 - wait consumers */
-#ifdef HAVE_PURGE_POLICY
-            if (running_mask & MODULE_MASK_RES_MONITOR)
+            /* 5 - wait policy consumers */
+            if (running_mask & MODULE_MASK_POLICY_RUN
+                && policy_run_mask != 0LL
+                && policy_run_cpt != 0
+                && policy_run != NULL)
             {
-                /* wait for purge to end */
-                Wait_ResourceMonitor();
-                FlushLogs(  );
+                int i;
+                for (i = 0; i <  policy_run_cpt; i++)
+                {
+                    if (policy_run_mask & (1<<i))
+                    {
+                        int rc = policy_module_wait(&policy_run[i]);
+                        if (rc)
+                            DisplayLog(LVL_CRIT, SIGHDL_TAG, "Failure while waiting for policy module '%s' to end (rc=%d).",
+                                       policy_run[i].descr->name, rc);
+                        policy_run_mask &= ~(1<<i);
+                        FlushLogs();
+                    }
+                    running_mask &= ~MODULE_MASK_POLICY_RUN;
+                }
             }
-#endif
-#ifdef HAVE_MIGR_POLICY
-            if (running_mask & MODULE_MASK_MIGRATION) {
-                /* wait for migration to end */
-                Wait_Migration();
-                FlushLogs(  );
-            }
-#endif
 
             /* 6 - shutdown backend access */
 #ifdef _HSM_LITE
@@ -849,7 +746,7 @@ static void   *signal_handler_thr( void *arg )
                 lmgr_init = TRUE;
             }
 
-            dump_stats(&lmgr, &running_mask);
+            dump_stats(&lmgr, &running_mask, &policy_run_mask);
             dump_sig = FALSE;
         }
     }
@@ -922,38 +819,28 @@ static void create_pid_file( const char *pid_file )
                                     if ( is_default_actions )           \
                                     {                                   \
                                         is_default_actions = FALSE;     \
-                                        action_mask = _f_;              \
+                                        *action_mask = _f_;             \
                                     }                                   \
                                     else                                \
-                                        action_mask |= _f_;             \
+                                        *action_mask |= _f_;            \
                                 } while(0)
 
-
-/**
- * Main daemon routine
- */
-int main( int argc, char **argv )
+static int rh_read_parameters(int argc, char **argv, int *action_mask,
+                              struct rbh_options *opt)
 {
+    const char    *bin = basename(argv[0]);
     int            c, option_index = 0;
-    char          *bin = basename( argv[0] );
-
-    int            action_mask = DEFAULT_ACTION_MASK;
     int            is_default_actions = TRUE;
     char           extra_chr[1024];
-
-    int            rc;
     char           err_msg[4096];
-    robinhood_config_t rh_config;
-    int chgd = 0;
-    char           badcfg[RBH_PATH_MAX];
-    int mdtidx = -1; /* all MDTs */
 
-    boot_time = time( NULL );
+    *action_mask = DEFAULT_ACTION_MASK;
 
     zero_options( &options );
 
     /* parse command line options */
-    while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab, &option_index ) ) != -1 )
+    while ((c = getopt_long(argc, argv, SHORT_OPT_STRING SHORT_OPT_DEPRECATED,
+                            option_tab, &option_index)) != -1)
     {
         switch ( c )
         {
@@ -966,353 +853,577 @@ int main( int argc, char **argv )
             SET_ACTION_FLAG( ACTION_MASK_SCAN );
 
             if (optarg) {       /* optional argument => partial scan*/
-                options.flags |= FLAG_ONCE;
-                options.partial_scan = TRUE;
-                rh_strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
+                opt->flags |= FLAG_ONCE;
+                opt->partial_scan = TRUE;
+                rh_strncpy(opt->partial_scan_path, optarg, RBH_PATH_MAX);
                 /* clean final slash */
-                if (FINAL_SLASH(options.partial_scan_path))
-                    REMOVE_FINAL_SLASH(options.partial_scan_path);
+                if (FINAL_SLASH(opt->partial_scan_path))
+                    REMOVE_FINAL_SLASH(opt->partial_scan_path);
             }
             break;
 
         case SHOW_DIFF:
-            if (parse_diff_mask(optarg, &options.diff_mask, err_msg))
+            if (parse_diff_mask(optarg, &opt->diff_mask, err_msg))
             {
                 fprintf(stderr,
                         "Invalid argument for --diff: %s\n", err_msg);
-                exit( 1 );
+                return EINVAL;
             }
             break;
 
+        case DEPRECATED_WM:
+            fprintf(stderr, "Warning: '--check-watermarks' is deprecated. Use '--check-thresholds' instead.\n");
+            optarg = NULL;
+            /* same as '--check-thresholds' with opt_arg=NULL.
+             * => continue to -C
+             */
         case 'C':
-            SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            options.flags |= FLAG_CHECK_ONLY;
-            break;
-        case 'P':
-            SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            break;
-        case 'R': /* rmdir for non Lustre-HSM systems */
-#ifdef HAVE_RMDIR_POLICY
-            SET_ACTION_FLAG( ACTION_MASK_RMDIR );
-#elif HAVE_RM_POLICY
-            SET_ACTION_FLAG( ACTION_MASK_UNLINK );
-#else
-            fprintf( stderr, "-R option is not supported.\n" );
-            exit(1);
-#endif
-            break;
-
-        case 'M':
-#ifndef HAVE_MIGR_POLICY
-            fprintf( stderr, "-M | --migrate option is only supported for HSM purposes.\n" );
-            exit( 1 );
-#else
-            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-#endif
-            break;
-        case 's':
-#ifndef HAVE_MIGR_POLICY
-            fprintf( stderr, "-s | --sync option is only supported for HSM purposes.\n" );
-            exit( 1 );
-#else
-            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            options.flags |= (FLAG_ONCE | FLAG_IGNORE_POL | FLAG_NO_LIMIT);
-#endif
+            SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
+            opt->flags |= FLAG_CHECK_ONLY;
+            /* 4 cases:
+             *  --run=foo,bar --check-thresholds=bah,boo
+             *      => reject if arguments are different
+             *  --run=foo,bar --check-thresholds
+             *      => user may want to check thresholds for the given policies
+             *  --run --check-thresholds=bah,boo
+             *      => user may want to check thresholds for the given policies
+             *  --run --check-thresholds
+             *      => user may want to check thresholds for all policies
+             */
+            /* first case: */
+            if (!EMPTY_STRING(opt->policy_string) && (optarg != NULL)
+                && !EMPTY_STRING(optarg))
+            {
+                if(strcasecmp(opt->policy_string, optarg) != 0)
+                {
+                    fprintf(stderr, "Incompatible arguments for --run and --check-thresholds ('%s' != '%s').\n"
+                                    "You can specify:\n"
+                                    "--check-thresholds=foo,bar\n"
+                                    "--run=foo,bar --check-thresholds\n",
+                                    opt->policy_string, optarg);
+                    return EINVAL;
+                }
+                else
+                    fprintf(stderr, "Duplicate arguments for --run and --check-thresholds\n"
+                                    "Assuming --check-thresholds=%s",
+                                    opt->policy_string);
+            }
+            else /* all other cases: global check flag. */
+            {
+                /* copy specified policies (unless if specified by run) */
+                if (EMPTY_STRING(opt->policy_string) && optarg != NULL &&
+                    !EMPTY_STRING(optarg))
+                    rh_strncpy(opt->policy_string, optarg, sizeof(opt->policy_string));
+            }
             break;
 
         case 'r':
 #ifndef HAVE_CHANGELOGS
             fprintf( stderr,
                      "-r | --read-log option is only supported in Lustre v2.x versions.\n" );
-            exit( 1 );
+            return ENOTSUP;
 #else
             SET_ACTION_FLAG( ACTION_MASK_HANDLE_EVENTS );
 #ifdef HAVE_DNE
             if (optarg) {  /* optional argument => MDT index */
-                mdtidx = str2int(optarg);
-                if (mdtidx == -1) {
+                opt->mdtidx = str2int(optarg);
+                if (opt->mdtidx == -1) {
                     fprintf(stderr, "Invalid argument to --read-log: expected numeric value for <mdt_index>.\n");
-                    exit(1);
+                    return EINVAL;
                 }
             }
 #endif
 #endif
             break;
 
+        case RUN_POLICIES:
+            SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
+            /* avoid conflicts with check-policies */
+            if (opt->flags & FLAG_CHECK_ONLY)
+            {
+                if (optarg != NULL && !EMPTY_STRING(optarg))
+                    fprintf(stderr, "ERROR: --run is redundant with --check-thresholds\n"
+                            "Did you mean: --check-thresholds=%s ?\n", optarg);
+                else if (!EMPTY_STRING(opt->policy_string))
+                    fprintf(stderr, "ERROR: --run is redundant with --check-thresholds\n"
+                            "Did you just mean: --check-thresholds=%s ?\n", opt->policy_string);
+                else /* both empty */
+                    fprintf(stderr, "ERROR: --run is redundant with --check-thresholds\n"
+                            "Did you just mean: --check-thresholds ?\n");
+                return EINVAL;
+            }
+            else if (!EMPTY_STRING(opt->policy_string))
+            {
+                /* not empty? may be a previous --run-policy option (make sure it is consistent)*/
+                if (optarg == NULL || strcasecmp(opt->policy_string, optarg) != 0)
+                {
+                    fprintf(stderr, "ERROR: multiple inconsistent --run-policy parameters on command line.\n");
+                    return EINVAL;
+                }
+                else /* optarg not null and == policy_string */
+                    fprintf(stderr, "Warning: redundant --run-policy parameters on command line.\n");
+            }
+            else if (optarg != NULL && !EMPTY_STRING(optarg))
+            {
+                rh_strncpy(opt->policy_string, optarg,
+                           sizeof(opt->policy_string));
+            }
+            break;
+
+        case 't':
+            if (!EMPTY_STRING(opt->target_string))
+            {
+                fprintf(stderr, "ERROR: multiple target definition on command line: '%s' and '%s'.\n",
+                        opt->target_string, optarg);
+                return EINVAL;
+            }
+            rh_strncpy(opt->target_string, optarg, sizeof(opt->target_string));
+            break;
+        case TGT_USAGE:
+            if (opt->usage_target != TGT_NOT_SET)
+            {
+                fprintf(stderr, "ERROR: multiple usage-target specified on command line.\n");
+                return EINVAL;
+            }
+            /* parse float argument */
+            if (sscanf(optarg, "%lf%s", &opt->usage_target, extra_chr) != 1)
+             {
+                fprintf(stderr, "Invalid argument: --usage-target=<target_usage> expected. "
+                        "E.g. --usage-target=10.00\n");
+                return EINVAL;
+            }
+            break;
+
+        case 's':
+            /* TODO */
+            break;
+
         case 'O':
-            options.flags |= FLAG_ONCE;
+            opt->flags |= FLAG_ONCE;
             break;
         case NO_LIMIT:
-            options.flags |= FLAG_NO_LIMIT;
+            opt->flags |= FLAG_NO_LIMIT;
             break;
         case NO_GC:
-            options.flags |= FLAG_NO_GC;
+            opt->flags |= FLAG_NO_GC;
             break;
         case DRY_RUN:
-            options.flags |= FLAG_DRY_RUN;
+            opt->flags |= FLAG_DRY_RUN;
             break;
-        case 'i':
-            options.flags |= FLAG_IGNORE_POL;
+        case 'I':
+            opt->flags |= FLAG_IGNORE_POL;
             break;
-
-#ifdef _LUSTRE
-        case FORCE_OST_PURGE:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            options.ost_trigger = TRUE;
-            /* parse <index,float> argument */
-            if ( sscanf( optarg, "%u,%lf%s", &options.purge_target_ost,
-                         &options.usage_target, extra_chr ) != 2 )
-            {
-                fprintf( stderr,
-                         "Invalid argument: --purge-ost=<ost_index,target_usage> expected. E.g. --purge-ost=5,10.00\n" );
-                exit( 1 );
-            }
-            break;
-#endif
-
-        case FORCE_FS_PURGE:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            options.fs_trigger = TRUE;
-
-            /* parse float argument */
-            if ( sscanf( optarg, "%lf%s", &options.usage_target, extra_chr ) != 1 )
-            {
-                fprintf( stderr,
-                         "Invalid argument: --purge-fs=<target_usage> expected. E.g. --purge-fs=20.00\n" );
-                exit( 1 );
-            }
-
-            break;
-
-        case FORCE_CLASS_PURGE:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_PURGE );
-            options.purge_class = TRUE;
-            rh_strncpy(options.purge_target_class, optarg, 128);
-            break;
-
-
-#ifdef HAVE_MIGR_POLICY
-
-#ifdef _LUSTRE
-        case FORCE_OST_MIGR:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            options.migrate_ost = TRUE;
-
-            /* parse <index> argument */
-            if ( sscanf( optarg, "%u%s", &options.migr_target_ost, extra_chr ) != 1 )
-            {
-                fprintf( stderr,
-                         "Invalid argument: --migrate-ost=<ost_index> expected. E.g. --migrate-ost=5\n" );
-                exit( 1 );
-            }
-            break;
-#endif
-
-        case FORCE_USER_MIGR:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            options.migrate_user = TRUE;
-            rh_strncpy(options.migr_target_user, optarg, 128);
-            break;
-
-        case FORCE_GROUP_MIGR:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            options.migrate_group = TRUE;
-            rh_strncpy(options.migr_target_group, optarg, 128);
-            break;
-
-        case FORCE_CLASS_MIGR:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            options.migrate_class = TRUE;
-            rh_strncpy(options.migr_target_class, optarg, 128);
-            break;
-
-        case MIGR_ONE_FILE:
-            /* this mode is always 'one-shot' */
-            options.flags |= FLAG_ONCE;
-            SET_ACTION_FLAG( ACTION_MASK_MIGRATE );
-            options.migrate_file = TRUE;
-            rh_strncpy(options.migr_target_file, optarg, RBH_PATH_MAX);
-            break;
-#endif
 
         case 'd':
-            options.detach = TRUE;
+            opt->detach = TRUE;
             break;
         case 'f':
-            rh_strncpy(options.config_file, optarg, MAX_OPT_LEN);
+            rh_strncpy(opt->config_file, optarg, MAX_OPT_LEN);
             break;
         case 'T':
             if ( optarg )       /* optional argument */
-                rh_strncpy(options.template_file, optarg, MAX_OPT_LEN);
-            options.write_template = TRUE;
+                rh_strncpy(opt->template_file, optarg, MAX_OPT_LEN);
+            opt->write_template = TRUE;
             break;
         case TEST_SYNTAX:
-            options.test_syntax = TRUE;
+            opt->test_syntax = TRUE;
             break;
         case 'D':
-            options.write_defaults = TRUE;
+            opt->write_defaults = TRUE;
             break;
         case 'L':
-            options.force_log = TRUE;
-            rh_strncpy(options.log, optarg, MAX_OPT_LEN);
+            opt->force_log = TRUE;
+            rh_strncpy(opt->log, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            options.force_log_level = TRUE;
-            options.log_level = str2debuglevel( optarg );
-            if ( options.log_level == -1 )
+            opt->force_log_level = TRUE;
+            opt->log_level = str2debuglevel(optarg);
+            if (opt->log_level == -1)
             {
-                fprintf( stderr,
-                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
-                         optarg );
-                exit( 1 );
+                fprintf(stderr,
+                        "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
+                        optarg);
+                return EINVAL;
             }
             break;
         case 'p':
-            options.pid_file = TRUE;
-            rh_strncpy(options.pid_filepath, optarg, MAX_OPT_LEN);
+            opt->pid_file = TRUE;
+            rh_strncpy(opt->pid_filepath, optarg, MAX_OPT_LEN);
             break;
         case 'h':
             display_help( bin );
-            exit( 0 );
+            return -1;
             break;
         case 'V':
             display_version( bin );
-            exit( 0 );
+            return -1;
             break;
+
+        /* Deprecated options */
+        case 'P':
+        case 'R':
+        case 'M':
+            fprintf(stderr, "ERROR: option -%c is deprecated. Instead, use: --run=<policyname>\n",
+                    c);
+            return EINVAL;
+            break;
+        case 'i':
+            fprintf(stderr, "ERROR: option '-i' is deprecated: use '-I' instead.\n");
+            return EINVAL;
+            break;
+        case FORCE_OST_PURGE:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<idx> --usage-target=<pct>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+        case FORCE_FS_PURGE:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=fs --usage-target=<pct>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+        case FORCE_CLASS_PURGE:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=class:<name>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+        case FORCE_OST_MIGR:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<name>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+        case FORCE_USER_MIGR:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=user:<name>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+        case FORCE_GROUP_MIGR:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=group:<name>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+        case FORCE_CLASS_MIGR:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=class:<name>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+        case MIGR_ONE_FILE:
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=file:<path>\n",
+                    option_tab[option_index].name);
+            return EINVAL;
+
         case ':':
         case '?':
         default:
             fprintf(stderr,"Run '%s --help' for more details.\n", bin);
-            exit( 1 );
+            return EINVAL;
             break;
         }
     }
 
     /* check there is no extra arguments */
-    if ( optind != argc )
+    if (optind != argc)
     {
-        fprintf( stderr, "Error: unexpected argument on command line: %s\n", argv[optind] );
-        exit( 1 );
+        fprintf(stderr, "Error: unexpected argument on command line: %s\n",
+                argv[optind]);
+        return EINVAL;
     }
 
-    /* check that force-purge options are not used together */
-    if ( options.ost_trigger && options.fs_trigger )
+    if (opt->diff_mask && (*action_mask != ACTION_MASK_SCAN)
+        && (*action_mask != ACTION_MASK_HANDLE_EVENTS))
     {
-        fprintf( stderr,
-                 "Error: --purge-ost and --purge-fs cannot be used together\n" );
-        exit( 1 );
+        fprintf(stderr, "Error: --diff option only applies to --scan and --readlog actions\n");
+        return EINVAL;
     }
 
-    if (options.diff_mask && (action_mask != ACTION_MASK_SCAN)
-        && (action_mask != ACTION_MASK_HANDLE_EVENTS))
+    return 0;
+}
+
+/** convert a comma-delimiter string of policy names to a array of policy indexes */
+static int policyopt2index_list(char *policyarg, unsigned int *count, int **list)
+{
+    int *l = NULL;
+    char *c;
+    char *arg;
+    int cnt, i, j;
+
+    if (EMPTY_STRING(policyarg) || !strcasecmp(policyarg, "all"))
     {
-        fprintf( stderr, "Error: --diff option only applies to --scan and --readlog actions\n");
-        exit(1);
+        /* return a l with all policies */
+        *count = policies.policy_count;
+        l = calloc(*count, sizeof(int));
+        if (!l)
+        {
+            fprintf(stderr, "ERROR: cannot allocate memory\n");
+            return ENOMEM;
+        }
+        for (i = 0; i < *count; i++)
+            l[i] = i;
+        *list = l;
+        return 0;
     }
 
-#ifdef HAVE_MIGR_POLICY
-    if ( options.migrate_user + options.migrate_group
+    /* count delimiters to allocate the array */
+    cnt = 0;
+    for (c = policyarg; *c != '\0'; c++)
+    {
+        if (*c == ',')
+            cnt++;
+    }
+    *count = cnt + 1;
+    l = calloc(*count, sizeof(int));
+    if (l == NULL)
+    {
+        fprintf(stderr, "ERROR: cannot allocate memory\n");
+        return ENOMEM;
+    }
+
+    cnt = 0;
+    arg = policyarg;
+    while ((c = strtok(arg, ",")) != NULL)
+    {
+        arg = NULL;
+        if (!policy_exists(c, &(l[cnt])))
+        {
+            fprintf(stderr, "ERROR: policy '%s' is not declared in config file.\n", c);
+            free(l);
+            return EINVAL;
+        }
+        cnt++;
+    }
+    /* check parsed count */
+    if (cnt != *count)
+    {
+        fprintf(stderr, "ERROR: inconsistent policy count. Invalid syntax in policy option?\n");
+        free(l);
+        return EINVAL;
+    }
+    /* check duplicates */
+    for (i = 0; i < cnt; i++)
+    for (j = 0; j < cnt; j++)
+    {
+        if (i == j)
+            continue;
+        if (l[i] == l[j])
+        {
+            fprintf(stderr, "ERROR: duplicate policy in command line option: '%s'\n",
+                    policies.policy_list[l[i]].name);
+            free(l);
+            return EINVAL;
+        }
+    }
+    *list = l;
+    return 0;
+}
+
+
+
 #ifdef _LUSTRE
-        + options.migrate_ost
+#define TGT_HELP "Allowed values: 'fs', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>', 'ost:<ost_idx>', 'pool:<poolname>'."
+#else
+#define TGT_HELP "Allowed values: 'fs', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>'."
 #endif
-        > 1 )
+
+
+/** convert a target string option to a policy_opt_t structure */
+static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t *opt)
+{
+    char *next;
+    char *c;
+
+    if (EMPTY_STRING(opt_string))
     {
-        fprintf( stderr,
-                 "Error: --migrate-ost, --migrate-user and --migrate-group cannot be used together\n" );
-        exit( 1 );
+        opt->target = TGT_NONE;
+        return 0;
     }
-#endif
+
+    if (!strcasecmp(opt_string, "fs"))
+    {
+        opt->target = TGT_FS;
+        opt->target_value_u.usage_pct = tgt_level; /* -1.0 is interpreted by triggers */
+        return 0;
+    }
+
+    if ((c = strchr(opt_string, ':')) == NULL)
+    {
+        fprintf(stderr, "Invalid target '%s'. "TGT_HELP"\n", opt_string);
+        return EINVAL;
+    }
+    *c = '\0';
+    next = c+1;
+    c = opt_string;
+
+    if (!strcasecmp(c, "fs"))
+    {
+        fprintf(stderr, "No ':' expected after 'fs' target.\n");
+        return EINVAL;
+    }
+    else if (!strcasecmp(c, "user"))
+    {
+        opt->target = TGT_USER;
+        opt->optarg_u.name = next;
+    }
+    else if (!strcasecmp(c, "group"))
+    {
+        opt->target = TGT_GROUP;
+        opt->optarg_u.name = next;
+    }
+    else if (!strcasecmp(c, "file"))
+    {
+        opt->target = TGT_FILE;
+        opt->optarg_u.name = next;
+    }
+    else if (!strcasecmp(c, "class"))
+    {
+        opt->target = TGT_CLASS;
+        opt->optarg_u.name = next;
+    }
+    else if (!strcasecmp(c, "ost"))
+    {
+        char extra_chr[1024];
+        opt->target = TGT_OST;
+        if (sscanf(next, "%u%s", &opt->optarg_u.index, extra_chr) != 1)
+        {
+            fprintf(stderr, "Invalid ost target specification: index expected. E.g. --target=ost:123\n");
+            return EINVAL;
+        }
+        opt->target_value_u.usage_pct = tgt_level;
+    }
+    else if (!strcasecmp(c, "pool"))
+    {
+        opt->target = TGT_POOL;
+        opt->optarg_u.name = next;
+        opt->target_value_u.usage_pct = tgt_level;
+    }
+    else
+    {
+        fprintf(stderr, "Invalid target type '%s'. "TGT_HELP"\n", c);
+        return EINVAL;
+    }
+    return 0;
+}
+
+
+/**
+ * Main daemon routine
+ */
+int main(int argc, char **argv)
+{
+    const char    *bin = basename(argv[0]);
+    int            rc;
+    robinhood_config_t rh_config;
+    int            chgd = 0;
+    char           badcfg[RBH_PATH_MAX];
+    int            action_mask = 0;
+    char           err_msg[4096];
+
+    int           *pol_idx = NULL; /* list of policy indexes */
+    unsigned int   policy_count = 0; /* number of policies in policy_index list */
+    policy_opt_t   policy_opt;
+
+    boot_time = time(NULL);
+
+    rc = rh_read_parameters(argc, argv, &action_mask, &options);
+    if (rc)
+        exit((rc == -1 ? 0 : rc)); /* -1 is returned for normal exit */
 
     /* Template or Defaults options specified ? */
-
-    if ( options.write_template )
+    if (options.write_template)
     {
-        rc = do_write_template( options.template_file );
-        exit( rc );
+        rc = do_write_template(options.template_file);
+        exit(rc);
     }
 
-    if ( options.write_defaults )
+    if (options.write_defaults)
     {
-        rc = WriteConfigDefault( stdout );
-        if ( rc )
+        rc = WriteConfigDefault(stdout);
+        if (rc)
         {
-            fprintf( stderr, "Error %d retrieving default configuration: %s\n", rc,
-                     strerror( rc ) );
+            fprintf(stderr, "Error %d retrieving default configuration: %s\n", rc,
+                     strerror(rc));
         }
-        exit( rc );
+        exit(rc);
     }
 
     /* Initialize global tools */
 #ifdef _LUSTRE
-    if ( ( rc = Lustre_Init(  ) ) )
+    if ((rc = Lustre_Init()))
     {
-        fprintf( stderr, "Error %d initializing liblustreapi\n", rc );
-        exit( 1 );
+        fprintf(stderr, "Error %d initializing liblustreapi\n", rc);
+        exit(1);
     }
 #endif
 
     /* Initilize uidgid cache */
-    if ( InitUidGid_Cache(  ) )
+    if (InitUidGid_Cache())
     {
-        fprintf( stderr, "Error initializing uid/gid cache\n" );
-        exit( 1 );
+        fprintf(stderr, "Error initializing uid/gid cache\n");
+        exit(1);
     }
-
-    /* build config parsing mask */
-    parsing_mask = action2parsing_mask(action_mask);
 
     /* get default config file, if not specified */
     if (SearchConfig(options.config_file, options.config_file, &chgd,
                      badcfg, MAX_OPT_LEN) != 0)
     {
         fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
-        exit(2);
+        exit(ENOENT);
     }
     else if (chgd)
-    {
-        fprintf(stderr, "Using config file '%s'.\n", options.config_file );
-    }
+        fprintf(stderr, "Using config file '%s'.\n", options.config_file);
 
-    if ( ReadRobinhoodConfig( parsing_mask, options.config_file, err_msg,
-                              &rh_config, FALSE ) )
+    /* build config parsing mask */
+    if (options.test_syntax)
+        /* parse all configs */
+        parsing_mask = 0xFFFFFFFF;
+    else
+        parsing_mask = action2parsing_mask(action_mask);
+
+    if (ReadRobinhoodConfig(parsing_mask, options.config_file, err_msg,
+                            &rh_config, FALSE))
     {
-        fprintf( stderr, "Error reading configuration file '%s': %s\n",
-                 options.config_file, err_msg );
-        exit( 1 );
+        fprintf(stderr, "Error reading configuration file '%s': %s\n",
+                 options.config_file, err_msg);
+        exit(1);
     }
     process_config_file = options.config_file;
 
-    if ( options.test_syntax )
+    if (options.test_syntax)
     {
-        printf( "Configuration file has been read successfully\n" );
+        printf("Configuration file '%s' has been read successfully\n",
+               process_config_file);
         exit(0);
     }
 
     /* override config file options with command line parameters */
-    if ( options.force_log )
-        strcpy( rh_config.log_config.log_file, options.log );
-    if ( options.force_log_level )
+    if (options.force_log)
+        strcpy(rh_config.log_config.log_file, options.log);
+    else if (isatty(fileno(stderr)) && !options.detach)
+    {
+        options.force_log = TRUE;
+        strcpy(rh_config.log_config.log_file, "stderr");
+    }
+    if (options.force_log_level)
         rh_config.log_config.debug_level = options.log_level;
 
     /* set global configuration */
     global_config = rh_config.global_config;
 
-    /* set policies info */
+    /* set policy list */
     policies = rh_config.policies;
+
+    if (action_mask & ACTION_MASK_RUN_POLICIES)
+    {
+        /* Parse policy string */
+        rc = policyopt2index_list(options.policy_string, &policy_count,
+                                  &pol_idx);
+        if (rc)
+            exit(rc);
+
+        /* Parse target string */
+        rc = targetopt2policyopt(options.target_string,
+                                 options.usage_target, &policy_opt);
+        if (rc)
+            exit(rc);
+        /* finalize policy options */
+        policy_opt.flags = options.flags;
+    }
+    else if (!EMPTY_STRING(options.target_string))
+    {
+        fprintf(stderr, "Warning: --target option has no effect "
+                "without --run or --check-thresholds.\n");
+    }
 
 #ifdef HAVE_CHANGELOGS
     /* Only enable changelog processing for Lustre filesystems */
@@ -1326,8 +1437,8 @@ int main( int argc, char **argv )
 /* if the filesystem supports changelogs and a scan is requested
  * and the once option is not set, display a warning */
     if ((action_mask & ACTION_MASK_SCAN) && !(options.flags & FLAG_ONCE)
-         && !(action_mask & ACTION_MASK_HANDLE_EVENTS)
-         && strcmp(global_config.fs_type, "lustre") == 0)
+        && !(action_mask & ACTION_MASK_HANDLE_EVENTS)
+        && strcmp(global_config.fs_type, "lustre") == 0)
     {
         fprintf(stderr, "ADVICE: this filesystem is changelog-capable, you should use changelogs instead of scanning.\n");
     }
@@ -1400,7 +1511,7 @@ int main( int argc, char **argv )
     if (options.flags & FLAG_ONCE)
     {
         /* used for dumping stats in one shot mode */
-        pthread_create(&stat_thread, NULL, stats_thr, &running_mask);
+        pthread_create(&stat_thread, NULL, stats_thr, NULL);
     }
 
     if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
@@ -1468,7 +1579,7 @@ int main( int argc, char **argv )
     {
 
         /* Start reading changelogs */
-        rc = ChgLogRdr_Start(&rh_config.chglog_reader_config, options.flags, mdtidx);
+        rc = ChgLogRdr_Start(&rh_config.chglog_reader_config, options.flags, options.mdtidx);
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing ChangeLog Reader", rc );
@@ -1508,240 +1619,64 @@ int main( int argc, char **argv )
         running_mask = 0;
     }
 
-#ifdef HAVE_MIGR_POLICY
-    if ( options.migrate_file )
+    if (action_mask & ACTION_MASK_RUN_POLICIES)
     {
-        rc = MigrateSingle( &rh_config.migr_config, options.migr_target_file, options.flags );
-        DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration completed with status %d", rc );
-    }
-    else if ( action_mask & ACTION_MASK_MIGRATE )
-    {
-        migr_opt_t     migr_opt;
-        migr_opt.flags = options.flags;
+        int i;
+        /* allocate policy_run structure */
+        policy_run = calloc(policy_count, sizeof(policy_info_t));
+        if (!policy_run)
+        {
+            DisplayLog(LVL_CRIT, MAIN_TAG, "Cannot allocate memory");
+            exit(1);
+        }
+        policy_run_cpt = policy_count;
 
-#ifdef _LUSTRE
-        if ( options.migrate_ost )
+        for (i = 0; i < policy_count; i++)
         {
-            /* migrate OST (one-shot) */
-            migr_opt.mode = MIGR_OST;
-            migr_opt.optarg_u.ost_index = options.migr_target_ost;
-        }
-        else
-#endif
-        if ( options.migrate_user )
-        {
-            /* migrate user files (one-shot) */
-            migr_opt.mode = MIGR_USER;
-            migr_opt.optarg_u.name = options.migr_target_user;
-        }
-        else if ( options.migrate_group )
-        {
-            /* purge on FS (one-shot) */
-            migr_opt.mode = MIGR_GROUP;
-            migr_opt.optarg_u.name = options.migr_target_group;
-        }
-        else if ( options.migrate_class )
-        {
-            /* purge on FS (one-shot) */
-            migr_opt.mode = MIGR_CLASS;
-            migr_opt.optarg_u.name = options.migr_target_class;
-        }
-        else if ( options.flags & FLAG_ONCE )
-        {
-            /* one-shot migration on all filesystem */
-            migr_opt.mode = MIGR_ONCE;
-        }
-        else
-        {
-            /* daemon mode */
-            migr_opt.mode = MIGR_DAEMON;
-        }
-
-        rc = Start_Migration( &rh_config.migr_config, migr_opt );
-        if ( rc == ENOENT )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Migration module is disabled." );
-            /* unset it in parsing mask to avoid reloading its config */
-            parsing_mask &= ~MODULE_MASK_MIGRATION;
-            action_mask &= ~ACTION_MASK_MIGRATE;
-        }
-        else if ( rc )
-        {
-            fprintf( stderr, "Error %d initializing Migration module\n", rc );
-            exit( rc );
-        }
-        else
-        {
-            DisplayLog( LVL_VERB, MAIN_TAG, "Migration module successfully initialized" );
-
-            /* Flush logs now, to have a trace in the logs */
-            FlushLogs(  );
-
-            if (options.flags & FLAG_ONCE)
-                running_mask = MODULE_MASK_MIGRATION;
+            rc = policy_module_start(&policy_run[i],
+                                     &policies.policy_list[pol_idx[i]],
+                                     &rh_config.policy_run_cfgs.configs[pol_idx[i]],
+                                     &policy_opt);
+            if (rc == ENOENT)
+                DisplayLog(LVL_CRIT, MAIN_TAG, "Policy %s is disabled.",
+                           policies.policy_list[pol_idx[i]].name);
+            else if (rc)
+            {
+                fprintf(stderr, "Error %d initializing Migration module\n", rc);
+                exit(rc);
+            }
             else
-                running_mask |= MODULE_MASK_MIGRATION;
+            {
+                DisplayLog(LVL_VERB, MAIN_TAG, "Policy %s successfully initialized",
+                           policies.policy_list[pol_idx[i]].name);
+                /* Flush logs now, to have a trace in the logs */
+                FlushLogs();
+            }
 
+            /* For 'one-shot' mode, run policy after policy */
             if (options.flags & FLAG_ONCE)
             {
-                Wait_Migration();
-                DisplayLog( LVL_MAJOR, MAIN_TAG, "Migration pass terminated" );
+                running_mask = MODULE_MASK_POLICY_RUN;
+                policy_run_mask = (1 << i);
+                rc = policy_module_wait(&policy_run[i]);
+                policy_run_mask = 0;
                 running_mask = 0;
+                DisplayLog(LVL_MAJOR, MAIN_TAG,
+                           "%s: policy run terminated (rc = %d).",
+                           policies.policy_list[pol_idx[i]].name,
+                           rc);
             }
-        }
-    }
-#endif
-
-#ifdef HAVE_PURGE_POLICY
-    if ( action_mask & ACTION_MASK_PURGE )
-    {
-        resmon_opt_t   resmon_opt = {0,0,0.0};
-        resmon_opt.flags = options.flags;
-        if ( options.ost_trigger )
-        {
-            /* purge on OST (one-shot) */
-            resmon_opt.mode = RESMON_PURGE_OST;
-            resmon_opt.ost_index = options.purge_target_ost;
-            resmon_opt.target_usage = options.usage_target;
-        }
-        else if ( options.fs_trigger )
-        {
-            /* purge on FS (one-shot) */
-            resmon_opt.mode = RESMON_PURGE_FS;
-            resmon_opt.target_usage = options.usage_target;
-        }
-        else if ( options.purge_class )
-        {
-            /* purge on FS (one-shot) */
-            resmon_opt.mode = RESMON_PURGE_CLASS;
-            resmon_opt.fileclass = options.purge_target_class;
-        }
-        else if ( options.flags & FLAG_ONCE )
-        {
-            /* one-shot mode on all triggers */
-            resmon_opt.mode = RESMON_ALL_TRIGGERS;
-        }
-        else
-        {
-            /* daemon mode */
-            resmon_opt.mode = RESMON_DAEMON;
-        }
-
-        rc = Start_ResourceMonitor( &rh_config.res_mon_config, resmon_opt );
-        if ( rc == ENOENT )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Resource Monitor is disabled." );
-            /* unset it in parsing mask to avoid reloading its config */
-            parsing_mask &= ~MODULE_MASK_RES_MONITOR;
-            action_mask &= ~ACTION_MASK_PURGE;
-        }
-        else if ( rc )
-        {
-            fprintf( stderr, "Error %d initializing Resource Monitor\n", rc );
-            exit( rc );
-        }
-        else
-        {
-            DisplayLog( LVL_VERB, MAIN_TAG, "Resource Monitor successfully initialized" );
-
-            /* Flush logs now, to have a trace in the logs */
-            FlushLogs(  );
-
-            if (options.flags & FLAG_ONCE)
-                running_mask = MODULE_MASK_RES_MONITOR;
             else
-                running_mask |= MODULE_MASK_RES_MONITOR;
-
-            if (options.flags & FLAG_ONCE)
-            {
-                Wait_ResourceMonitor();
-                DisplayLog( LVL_MAJOR, MAIN_TAG, "ResourceMonitor terminated its task" );
-                running_mask = 0;
-            }
+               policy_run_mask |= (1 << i);
         }
+        if (!(options.flags & FLAG_ONCE))
+            running_mask |= MODULE_MASK_POLICY_RUN;
     }
-#endif
 
-#ifdef HAVE_RMDIR_POLICY
-    if ( action_mask & ACTION_MASK_RMDIR )
-    {
-        rc = Start_Rmdir( &rh_config.rmdir_config, options.flags );
-        if ( rc == ENOENT )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Directory removal is disabled." );
-            /* unset it in parsing mask to avoid reloading its config */
-            parsing_mask &= ~MODULE_MASK_RMDIR;
-            action_mask &= ~ACTION_MASK_RMDIR;
-        }
-        else if ( rc )
-        {
-            fprintf( stderr, "Error %d initializing Directory Remover\n", rc );
-            exit( rc );
-        }
-        else
-        {
-            DisplayLog( LVL_VERB, MAIN_TAG, "Directory Remover successfully initialized" );
-
-            /* Flush logs now, to have a trace in the logs */
-            FlushLogs(  );
-
-            if (options.flags & FLAG_ONCE)
-                running_mask = MODULE_MASK_RMDIR;
-            else
-                running_mask |= MODULE_MASK_RMDIR;
-
-            if (options.flags & FLAG_ONCE)
-            {
-                Wait_Rmdir(  );
-                DisplayLog( LVL_MAJOR, MAIN_TAG, "Directory Remover terminated its task" );
-                running_mask = 0;
-            }
-        }
-    }
-#endif
-
-#ifdef HAVE_RM_POLICY
-    if ( action_mask & ACTION_MASK_UNLINK )
-    {
-        rc = Start_HSMRm( &rh_config.hsm_rm_config, options.flags );
-        if ( rc == ENOENT )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "HSM removal is disabled." );
-            /* unset it in parsing mask to avoid reloading its config */
-            parsing_mask &= ~MODULE_MASK_UNLINK;
-            action_mask &= ~ACTION_MASK_UNLINK;
-        }
-        else if ( rc )
-        {
-            fprintf( stderr, "Error %d initializing HSM Removal\n", rc );
-            exit( rc );
-        }
-        else
-        {
-            DisplayLog( LVL_VERB, MAIN_TAG, "HSM removal successfully initialized" );
-
-            /* Flush logs now, to have a trace in the logs */
-            FlushLogs(  );
-
-            if (options.flags & FLAG_ONCE)
-                running_mask = MODULE_MASK_UNLINK;
-            else
-                running_mask |= MODULE_MASK_UNLINK;
-
-            if (options.flags & FLAG_ONCE)
-            {
-                Wait_HSMRm(  );
-                DisplayLog( LVL_MAJOR, MAIN_TAG, "HSM removal terminated" );
-                running_mask = 0;
-            }
-        }
-    }
-#endif
-
-    if ( !(options.flags & FLAG_ONCE) )
+    if (!(options.flags & FLAG_ONCE))
     {
         char tmpstr[1024];
-        module_mask2str(running_mask, tmpstr);
+        running_mask2str(running_mask, policy_run_mask, tmpstr);
         DisplayLog(LVL_MAJOR, MAIN_TAG, "Daemon started (running modules: %s)", tmpstr);
         FlushLogs();
 
@@ -1749,7 +1684,7 @@ int main( int argc, char **argv )
         stats_thr(&running_mask);
 
         /* should never return */
-        exit( 1 );
+        exit(1);
     }
     else
     {

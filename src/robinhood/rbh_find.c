@@ -881,7 +881,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
         int j;
 
         /* match condition on dirs parent */
-        if (!is_expr || (EntryMatches(&id_list[i].id, &attr_list[i],
+        if (!is_expr || (entry_matches(&id_list[i].id, &attr_list[i],
                                       &match_expr, NULL) == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
@@ -903,7 +903,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
 
             for (j = 0; j < chcount; j++)
             {
-                if (!is_expr || (EntryMatches(&chids[j].id, &chattrs[j],
+                if (!is_expr || (entry_matches(&chids[j].id, &chattrs[j],
                                  &match_expr, NULL) == POLICY_MATCH))
                     print_entry(&chids[j], &chattrs[j]);
 
@@ -967,7 +967,7 @@ static int list_bulk(void)
     ATTR(&root_attrs, name)[0] = '\0';
 
     /* match condition on dirs parent */
-    if (!is_expr || (EntryMatches(&root_id, &root_attrs,
+    if (!is_expr || (entry_matches(&root_id, &root_attrs,
                      &match_expr, NULL) == POLICY_MATCH))
     {
         /* don't display dirs if no_dir is specified */
@@ -991,7 +991,7 @@ static int list_bulk(void)
     attrs.attr_mask = disp_mask | query_mask;
     while ((rc = ListMgr_GetNext(it, &id, &attrs)) == DB_SUCCESS)
     {
-        if (!is_expr || (EntryMatches(&id, &attrs, &match_expr, NULL)
+        if (!is_expr || (entry_matches(&id, &attrs, &match_expr, NULL)
                                       == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */

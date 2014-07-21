@@ -1020,6 +1020,7 @@ static void report_activity( int flags )
                     "ERROR retrieving variable " USAGE_MAX_VAR " from database" );
     }
 
+#if 0 /* FIXME: adapt to generic policies */
 #ifdef HAVE_MIGR_POLICY
     if ( ! CSV(flags) )
         printf( "\n" );
@@ -1114,6 +1115,7 @@ static void report_activity( int flags )
     }
     if ( !CSV(flags) )
         printf( "\n" );
+#endif
 
 }
 
@@ -1124,11 +1126,13 @@ static inline const char * class_format( const char * class_name )
 {
     if ( class_name == NULL )
         return "[n/a]";
+#if 0 /* FIXME adapt to new classes */
     if ( !strcasecmp(class_name, CLASS_DEFAULT ) )
         return "[default]";
     else if ( !strcasecmp(class_name, CLASS_IGNORED ) )
         return "[ignored]";
     else
+#endif
         return class_name;
 }
 
@@ -1217,18 +1221,8 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
 
         fv.value.val_str = class_filter;
 
-#ifndef ATTR_INDEX_archive_class
-        /* single test */
-        lmgr_simple_filter_add( filter, ATTR_INDEX_release_class, LIKE, fv, 0 );
-#elif !defined(ATTR_INDEX_release_class)
-        lmgr_simple_filter_add( filter, ATTR_INDEX_archive_class, LIKE, fv, 0 );
-#else /* both */
-        /* archive class or release class */
-        lmgr_simple_filter_add( filter, ATTR_INDEX_archive_class, LIKE, fv,
-                                FILTER_FLAG_BEGIN );
-        lmgr_simple_filter_add( filter, ATTR_INDEX_release_class, LIKE, fv,
-                                FILTER_FLAG_OR | FILTER_FLAG_END );
-#endif
+        /* FIXME: fileclass field may contain multiple classes */
+        lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass, LIKE, fv, 0);
     }
 
     return 0;
@@ -2881,16 +2875,10 @@ static void report_deferred_rm( int flags )
     int            rc, index;
     struct lmgr_rm_list_t * list;
     entry_id_t     id;
-    char   last_known_path[RBH_PATH_MAX] = "";
-#ifdef _HSM_LITE
-    char   bkpath[RBH_PATH_MAX] = "";
-#endif
-
-    time_t soft_rm_time = 0;
-    time_t expiration_time = 0;
+    time_t         tmpd;
     char           date_rm[128];
-    char           date_exp[128];
     struct tm      t;
+    attr_set_t     attrs;
 
     unsigned long long total_count = 0;
     lmgr_filter_t  filter;
@@ -2902,7 +2890,7 @@ static void report_deferred_rm( int flags )
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
     /* list all deferred rm, even if non expired */
-    list = ListMgr_RmList( &lmgr, FALSE, is_filter? &filter : NULL );
+    list = ListMgr_RmList(&lmgr, is_filter? &filter : NULL);
 
     if ( list == NULL )
     {
@@ -2912,60 +2900,46 @@ static void report_deferred_rm( int flags )
     }
 
     if ( CSV(flags) && !NOHEADER(flags) )
-#ifdef _HSM_LITE
-        printf( "%3s, %21s, %-40s, %19s, %19s, %s\n", "rank", "fid",
-                "last_known_path", "lustre_rm", "hsm_rm", "backend_path" );
+#ifdef ATTR_INDEX_backendpath
+        printf("%3s, %21s, %-40s, %19s, %s\n", "rank", "fid",
+               "last_known_path", "rm_time", "backend_path");
 #else
-        printf( "%3s, %21s, %-40s, %19s, %19s\n", "rank", "fid", "last_known_path", "lustre_rm", "hsm_rm" );
+        printf("%3s, %21s, %-40s, %19s\n", "rank", "fid", "last_known_path", "rm_time");
 #endif
 
     index = 0;
-    while ( ( rc = ListMgr_GetNextRmEntry( list, &id, last_known_path,
-#ifdef _HSM_LITE
-                        bkpath,
-#endif
-                        &soft_rm_time, &expiration_time )) == DB_SUCCESS )
+    while ((rc = ListMgr_GetNextRmEntry(list, &id, &attrs)) == DB_SUCCESS)
     {
         total_count++;
 
         index++;
-        /* format last mod */
-        strftime( date_rm, 128, "%Y/%m/%d %T", localtime_r( &soft_rm_time, &t ) );
-        strftime( date_exp, 128, "%Y/%m/%d %T", localtime_r( &expiration_time, &t ) );
+        tmpd = ATTR(&attrs, rm_time);
+        strftime(date_rm, 128, "%Y/%m/%d %T", localtime_r(&tmpd, &t));
 
         if ( CSV(flags) )
-#ifdef _HSM_LITE
-            printf( "%3u, "DFID", %-40s, %19s, %19s, %s\n", index, PFID(&id),
-                    last_known_path, date_rm, date_exp, bkpath );
+#ifdef ATTR_INDEX_backendpath
+            printf("%3u, "DFID", %-40s, %19s, %s\n", index, PFID(&id),
+                   ATTR(&attrs, fullpath), date_rm, ATTR(&attrs, backendpath));
 #else
-            printf( "%3u, "DFID", %-40s, %19s, %19s\n", index, PFID(&id),
-                    last_known_path, date_rm, date_exp );
+            printf("%3u, "DFID", %-40s, %19s\n", index, PFID(&id),
+                    ATTR(&attrs, fullpath), date_rm);
 #endif
         else
         {
             printf( "\n" );
             printf( "Rank:              %u\n", index );
             printf( "Fid:               "DFID"\n", PFID(&id) );
-            if ( !EMPTY_STRING(last_known_path) )
-                printf( "Last known path:   %s\n", last_known_path );
-#ifdef _HSM_LITE
-            if ( !EMPTY_STRING(bkpath) )
-                printf( "Backend path:      %s\n", bkpath );
+            if (ATTR_MASK_TEST(&attrs, fullpath))
+                printf("Last known path:   %s\n", ATTR(&attrs, fullpath));
+#ifdef ATTR_INDEX_backendpath
+            if (ATTR_MASK_TEST(&attrs, backendpath))
+                printf("Backend path:      %s\n", ATTR(&attrs, backendpath));
 #endif
-            printf( "Lustre rm time:    %s\n", date_rm );
-            if ( expiration_time <= time(NULL) )
-                printf( "HSM rm time:       %s (expired)\n", date_exp );
-            else
-                printf( "HSM rm time:       %s\n", date_exp );
+            printf("Rm time:           %s\n", date_rm);
         }
 
         /* prepare next call */
-        last_known_path[0] = '\0';
-#ifdef _HSM_LITE
-        bkpath[0] = '\0';
-#endif
-        soft_rm_time = 0;
-        expiration_time = 0;
+        memset(&attrs, 0, sizeof(attrs));
     }
 
     ListMgr_CloseRmList(list);
@@ -3009,7 +2983,7 @@ static void report_class_info( int flags )
      * - MIN/MAX/AVG file size
      */
     report_field_descr_t class_info[CLASSINFO_FIELDS] = {
-        {0 /* archive or release class */, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
+        {ATTR_INDEX_fileclass, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
 #ifdef ATTR_INDEX_status
         {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, FALSE, 0, FV_NULL},
 #endif
@@ -3029,74 +3003,6 @@ static void report_class_info( int flags )
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
     result_count = CLASSINFO_FIELDS;
 
-#if defined(ATTR_INDEX_archive_class) && defined(ATTR_INDEX_release_class)
-    /* If there are 2 policies (for migration and purge):
-     * select all entries eligible for 1st policy, grouped by the appropriate class
-     * and select all entries eligible for 2st policy, grouped by the appropriate class
-     */
-    /* display archive class */
-    class_info[0].attr_index = ATTR_INDEX_archive_class;
-
-    fv.value.val_uint = STATUS_NEW;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_BEGIN | FILTER_FLAG_ALLOW_NULL );
-    fv.value.val_uint = STATUS_UNKNOWN;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.value.val_uint = STATUS_MODIFIED;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.value.val_uint = STATUS_ARCHIVE_RUNNING;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR | FILTER_FLAG_END );
-
-    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
-                         SPROF(flags)?&size_profile:NULL, &filter, NULL );
-
-    if ( it == NULL )
-    {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR: Could not retrieve class information from database." );
-        return;
-    }
-
-    /* a single class column (release), can print as is */
-    header = !NOHEADER(flags);
-
-    result_count = CLASSINFO_FIELDS;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, SPROF(flags)?&prof:NULL ))
-            == DB_SUCCESS )
-    {
-        display_report( class_info, result_count, result, result_count,
-                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                        flags, header, 0);
-        header = 0; /* display header once */
-
-        total_count += result[1+shift].value_u.val_biguint;
-        total_size += result[3+shift].value_u.val_biguint;
-        result_count = CLASSINFO_FIELDS;
-    }
-
-    ListMgr_CloseReport(it);
-    /* reset filter */
-    lmgr_simple_filter_free( &filter );
-    lmgr_simple_filter_init( &filter );
-
-    fv.value.val_str = STR_TYPE_DIR;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
-
-    /* display release class */
-    printf("\n");
-    class_info[0].attr_index = ATTR_INDEX_release_class;
-
-    fv.value.val_uint = STATUS_SYNCHRO;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_BEGIN );
-    fv.value.val_uint = STATUS_RELEASE_PENDING;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.value.val_uint = STATUS_RESTORE_RUNNING;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR );
-    fv.value.val_uint = STATUS_RELEASED;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, FILTER_FLAG_OR | FILTER_FLAG_END );
-
-    mk_global_filters( &filter, !NOHEADER(flags), NULL );
-    result_count = CLASSINFO_FIELDS;
-
     it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
                          SPROF(flags)?&size_profile:NULL, &filter, NULL );
 
@@ -3126,46 +3032,6 @@ static void report_class_info( int flags )
 
     ListMgr_CloseReport(it);
     lmgr_simple_filter_free( &filter );
-
-#else
-    /* if there is 1 policy: select all entries, grouped by class */
-    #ifdef ATTR_INDEX_archive_class
-        class_info[0].attr_index = ATTR_INDEX_archive_class;
-    #else
-        class_info[0].attr_index = ATTR_INDEX_release_class;
-    #endif
-
-    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
-                         SPROF(flags)?&size_profile:NULL, &filter, NULL );
-
-    if ( it == NULL )
-    {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR: Could not retrieve class information from database." );
-        return;
-    }
-
-    /* a single class column (release), can print as is */
-    header = !NOHEADER(flags);
-
-    result_count = CLASSINFO_FIELDS;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, SPROF(flags)?&prof:NULL ))
-            == DB_SUCCESS )
-    {
-        display_report( class_info, result_count, result, result_count,
-                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                        flags, header, 0);
-        header = 0; /* display header once */
-
-        total_count += result[1+shift].value_u.val_biguint;
-        total_size += result[3+shift].value_u.val_biguint;
-        result_count = CLASSINFO_FIELDS;
-    }
-
-    ListMgr_CloseReport(it);
-    lmgr_simple_filter_free( &filter );
-
-#endif
 
     /* display summary */
     if ( !NOHEADER(flags) )
@@ -3352,11 +3218,13 @@ int main( int argc, char **argv )
                 fprintf(stderr, "WARNING: --filter-class option conflicts with --class-info report type. ignored.\n");
                 break;
             }
+#if 0 /* FIXME adapt to new classes */
             if (!strcasecmp( optarg, "default"))
                 rh_strncpy(class_filter, CLASS_DEFAULT, 1024);
             else if ( !strcasecmp( optarg, "ignored"))
                 rh_strncpy(class_filter, CLASS_IGNORED, 1024);
             else
+#endif
                 rh_strncpy(class_filter, optarg, 1024);
             break;
 
@@ -3371,11 +3239,13 @@ int main( int argc, char **argv )
             class_info = TRUE;
             if ( optarg )
             {
+#if 0 /* FIXME adapt to new classes */
                 if (!strcasecmp( optarg, "default"))
                     rh_strncpy(class_filter, CLASS_DEFAULT, 1024);
                 else if ( !strcasecmp( optarg, "ignored"))
                     rh_strncpy(class_filter, CLASS_IGNORED, 1024);
                 else
+#endif
                     rh_strncpy(class_filter, optarg, 1024);
             }
             break;
@@ -3714,10 +3584,10 @@ int main( int argc, char **argv )
     else
         config.log_config.debug_level = LVL_MAJOR; /* no event message */
 
-    /* XXX set logging to stderr */
-    strcpy( config.log_config.log_file, "stderr" );
-    strcpy( config.log_config.report_file, "stderr" );
-    strcpy( config.log_config.alert_file, "stderr" );
+    /* force logging to stderr */
+    strcpy(config.log_config.log_file, "stderr");
+    strcpy(config.log_config.report_file, "stderr");
+    strcpy(config.log_config.alert_file, "stderr");
 
     /* Initialize logging */
     rc = InitializeLogs( bin, &config.log_config );
