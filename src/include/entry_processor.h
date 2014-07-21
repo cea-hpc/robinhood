@@ -37,7 +37,7 @@ typedef struct alert_item_t
 {
     char           title[ALERT_TITLE_MAX];
     bool_node_t    boolexpr;
-    int            attr_mask;
+    uint64_t       attr_mask;
 } alert_item_t;
 
 typedef struct entry_proc_config_t
@@ -48,7 +48,7 @@ typedef struct entry_proc_config_t
 
     alert_item_t  *alert_list;
     unsigned int   alert_count;
-    int            alert_attr_mask;
+    uint64_t       alert_attr_mask;
 
     unsigned int   match_classes;
 #ifdef ATTR_INDEX_creation_time
@@ -56,7 +56,7 @@ typedef struct entry_proc_config_t
      * migration priority */
     unsigned int   detect_fake_mtime;
 #endif
-    int            diff_mask;
+    uint64_t       diff_mask;
 } entry_proc_config_t;
 
 /* === pipeline stage flags ===  */
@@ -88,7 +88,9 @@ typedef int (*step_batch_function_t) (struct entry_proc_op_t **, int count, lmgr
 /**
  * Callback to check if 2 operations can be batched together.
  */
-typedef int (*test_batchable_func_t)(struct entry_proc_op_t *, struct entry_proc_op_t *, int *full_mask);
+typedef int (*test_batchable_func_t)(struct entry_proc_op_t *,
+                                     struct entry_proc_op_t *,
+                                     uint64_t *full_mask);
 
 /**
  * Definition of a pipeline stage
@@ -198,9 +200,9 @@ typedef struct entry_proc_op_t
     entry_id_t     entry_id;
 
     /* list of attrs to be retrieved from DB */
-    int            db_attr_need;
+    uint64_t       db_attr_need;
     /* list of attrs to be retrieved from FS */
-    int            fs_attr_need;
+    uint64_t       fs_attr_need;
 
     /* attrs from DB (cached) */
     attr_set_t     db_attrs;

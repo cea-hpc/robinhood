@@ -216,7 +216,7 @@ typedef struct rbh_options {
     int            test_syntax;
     int            partial_scan;
     char           partial_scan_path[RBH_PATH_MAX]; /* can be a deep path */
-    int            diff_mask;
+    uint64_t       diff_mask;
 
     char           policy_string[MAX_OPT_LEN];
     char           target_string[RBH_PATH_MAX]; /* can be a deep file */

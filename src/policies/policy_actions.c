@@ -133,7 +133,7 @@ action_func_t action_name2function(const char *fname)
     struct fn_names_t *curr;
     for (curr = fn_names; curr->name != NULL; curr++)
     {
-        if (!strcmp(fname, curr->name))
+        if (!strcasecmp(fname, curr->name))
             return curr->func;
     }
     return NULL;

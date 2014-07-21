@@ -53,7 +53,7 @@ int rbhext_init( const backend_config_t * conf,
 
 
 /** return the mask of needed attributes to know if an entry is to be ignored */
-int rbhext_ignore_need(void);
+uint64_t rbhext_ignore_need(void);
 
 /**
  * Check if an entry is to be ignored i.e. not inserted to the database
@@ -75,9 +75,8 @@ int rbhext_ignore(const entry_id_t *p_id,
  */
 
 /** TODO turn to a status manager */
-int rbhext_status_needs( obj_type_t   entry_type,
-                         unsigned int * p_attr_allow_cached,
-                         unsigned int * p_attr_need_fresh );
+int rbhext_status_needs(obj_type_t entry_type, uint64_t *p_attr_allow_cached,
+                        uint64_t *p_attr_need_fresh);
 
 /**
  * Get the status for an entry.

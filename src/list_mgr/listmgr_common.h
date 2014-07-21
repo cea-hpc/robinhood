@@ -17,6 +17,7 @@
 #include "list_mgr.h"
 #include "listmgr_internal.h"
 #include "database.h"
+#include <inttypes.h>
 
 #define ASSIGN_UNION( _u, _type, _address ) do {            \
                     switch( _type )                         \
@@ -147,15 +148,15 @@
                     } while(0)
 
 /* precomputed masks for testing attr sets efficiently */
-extern int     main_attr_set;
-extern int     names_attr_set;
-extern int     annex_attr_set;
-extern int     gen_attr_set;
-extern int     stripe_attr_set;
-extern int     dir_attr_set;
-extern int     slink_attr_set;
-extern int     acct_attr_set;
-extern int     acct_pk_attr_set;
+extern uint64_t  main_attr_set;
+extern uint64_t  names_attr_set;
+extern uint64_t  annex_attr_set;
+extern uint64_t  gen_attr_set;
+extern uint64_t  stripe_attr_set;
+extern uint64_t  dir_attr_set;
+extern uint64_t  slink_attr_set;
+extern uint64_t  acct_attr_set;
+extern uint64_t  acct_pk_attr_set;
 
 /* extern int     readonly_attr_set; => moved to listmgr.h */
 
@@ -269,21 +270,25 @@ typedef enum {
     SUBSTRACT
 } operation_type;
 
-void           add_source_fields_for_gen( int * attr_mask );
+void           add_source_fields_for_gen(uint64_t *attr_mask);
 void           generate_fields( attr_set_t * p_set );
 
-int            attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_comma,
-                                   int for_update, char *prefix, char *postfix );
+int            attrmask2fieldlist(char *str, uint64_t attr_mask,
+                                  table_enum table, int leading_comma,
+                                  int for_update, char *prefix, char *postfix);
 
-int            attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix,
-                                   const char *right_prefix, const char *comparator, const char *separator );
+int            attrmask2fieldcomparison(char *str, uint64_t attr_mask,
+                                  table_enum table, const char *left_prefix,
+                                  const char *right_prefix,
+                                  const char *comparator, const char *separator);
 
-int            attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix,
-                                   operation_type operation );
+int            attrmask2fieldoperation(char *str, uint64_t attr_mask,
+                                       table_enum table, const char *prefix,
+                                       operation_type operation);
 
-int            attrset2valuelist( lmgr_t * p_mgr, char *str,
-                                  const attr_set_t * p_set, table_enum table,
-                                  int leading_coma );
+int            attrset2valuelist(lmgr_t *p_mgr, char *str,
+                                 const attr_set_t *p_set, table_enum table,
+                                 int leading_coma);
 int            attrset2updatelist(lmgr_t * p_mgr, char *str,
                                   const attr_set_t * p_set, table_enum table,
                                   int leading_coma, int generic_value);
@@ -338,9 +343,10 @@ int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value);
 int fullpath_attr2db(const char *attr, char *db);
 void fullpath_db2attr(const char *db, char *attr);
 
-static inline int sum_masks(attr_set_t **p_attrs, unsigned int count, int t_mask)
+static inline uint64_t sum_masks(attr_set_t **p_attrs, unsigned int count,
+                                 uint64_t t_mask)
 {
-    int m = 0;
+    uint64_t m = 0;
     unsigned int i;
 
     for (i = 0; i < count; i++)

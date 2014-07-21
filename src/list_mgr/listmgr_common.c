@@ -160,21 +160,21 @@ void separated_db2list_inplace(char *list)
 #endif
 
 /* precomputed masks for testing attr sets efficiently */
-int            main_attr_set = 0;
-int            names_attr_set = 0;
-int            annex_attr_set = 0;
-int            stripe_attr_set = 0;
-int            dir_attr_set = 0;
-int            slink_attr_set = 0;
-int            readonly_attr_set = 0;
-int            gen_attr_set = 0;
-int            acct_attr_set = 0;
-int            acct_pk_attr_set = 0;
+uint64_t      main_attr_set = 0;
+uint64_t      names_attr_set = 0;
+uint64_t      annex_attr_set = 0;
+uint64_t      stripe_attr_set = 0;
+uint64_t      dir_attr_set = 0;
+uint64_t      slink_attr_set = 0;
+uint64_t      readonly_attr_set = 0;
+uint64_t      gen_attr_set = 0;
+uint64_t      acct_attr_set = 0;
+uint64_t      acct_pk_attr_set = 0;
 
 void init_attrset_masks( const lmgr_config_t *lmgr_config )
 {
     int            i;
-    int            mask = 1;
+    uint64_t       mask = 1;
 
     main_attr_set = 0;
     names_attr_set = 0;
@@ -238,10 +238,10 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
 /**
  * Add source info of generated fields to attr mask.
  */
-void add_source_fields_for_gen( int * attr_mask )
+void add_source_fields_for_gen(uint64_t * attr_mask)
 {
     int i;
-    int mask = 1;
+    uint64_t mask = 1;
 
     /* add attr mask for source info of generated fields */
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
@@ -259,7 +259,7 @@ void add_source_fields_for_gen( int * attr_mask )
 void           generate_fields( attr_set_t * p_set )
 {
     int i;
-    int mask = 1;
+    uint64_t mask = 1;
 
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
@@ -281,7 +281,7 @@ void           generate_fields( attr_set_t * p_set )
            /* is it generated from another field ? */
            if ( field_infos[i].gen_index != -1 )
            {
-                int src_mask = 1 << field_infos[i].gen_index;
+                uint64_t src_mask = (1 << field_infos[i].gen_index);
                 /* is source set? */
                 if ( (p_set->attr_mask & src_mask) == 0 )
                 {
@@ -319,9 +319,9 @@ void           generate_fields( attr_set_t * p_set )
  * Generate fields automatically from already existing fields,
  * and check the target mask is satisfied.
  */
-int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask )
+int  ListMgr_GenerateFields(attr_set_t *p_set, uint64_t target_mask)
 {
-    int save_mask = p_set->attr_mask;
+    uint64_t save_mask = p_set->attr_mask;
 
     /* are there generated fields that are not set for the target */
     if ( target_mask & ~p_set->attr_mask & gen_attr_set )
@@ -333,8 +333,8 @@ int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask )
         /* still missing? */
         if ( target_mask & ~p_set->attr_mask )
         {
-               DisplayLog( LVL_VERB, LISTMGR_TAG, "Field still missing (can't be generated): %#X",
-                           target_mask & ~p_set->attr_mask );
+               DisplayLog(LVL_VERB, LISTMGR_TAG, "Field still missing (can't be generated): %#"PRIX64,
+                          target_mask & ~p_set->attr_mask);
                /* never leave the function with less info than when entering! */
                p_set->attr_mask |= save_mask;
                return DB_ATTR_MISSING;
@@ -404,13 +404,13 @@ static int print_func_call(char *out, int func_index, const char *prefix)
  * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_comma,
-                        int for_update, char *prefix, char *postfix )
+int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, int leading_comma,
+                       int for_update, char *prefix, char *postfix)
 {
     int            i;
     char          *fields_curr = str;
     unsigned int   nbfields = 0;
-    int            mask = 1;
+    uint64_t       mask = 1;
     char          *for_update_str = "";
 
     /* optim: exit immediatly if no field matches */
@@ -473,10 +473,11 @@ int attrmask2fieldlist( char *str, int attr_mask, table_enum table, int leading_
  * @param operation
  * @return nbr of fields
  */
-int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const char *prefix, operation_type operation )
+int attrmask2fieldoperation(char *str, uint64_t attr_mask, table_enum table,
+                            const char *prefix, operation_type operation)
 {
     int i;
-    int mask = 1;
+    uint64_t mask = 1;
     unsigned int  nbfields = 0;
     char *fields_curr = str;
     char operator;
@@ -518,11 +519,12 @@ int attrmask2fieldoperation( char *str, int attr_mask, table_enum table, const c
  * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldcomparison( char *str, int attr_mask, table_enum table, const char *left_prefix, const char *right_prefix,
-                            const char *comparator, const char * separator )
+int attrmask2fieldcomparison(char *str, uint64_t attr_mask, table_enum table,
+                             const char *left_prefix, const char *right_prefix,
+                             const char *comparator, const char * separator)
 {
     int i;
-    int mask = 1;
+    uint64_t mask = 1;
     unsigned int  nbfields = 0;
     char *fields_curr = str;
 
@@ -723,7 +725,7 @@ int result2attrset( table_enum table, char **result_tab,
     int            i;
     unsigned int   nbfields = 0;
     db_type_u      typeu;
-    int            mask = 1;
+    uint64_t       mask = 1;
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
     {
@@ -1414,7 +1416,7 @@ int lmgr_flush_commit( lmgr_t * p_mgr )
 void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_source_attrset, int update)
 {
     int            i;
-    int            mask = 1;
+    uint64_t       mask = 1;
     db_type_u      typeu;
 
     for ( i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1 )
@@ -1465,7 +1467,7 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
 {
 #ifdef _LUSTRE
     int            i;
-    int            mask = 1;
+    uint64_t       mask = 1;
 
     if (p_set == NULL || p_set->attr_mask == 0)
         return;
@@ -1487,9 +1489,9 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
 int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
 {
     int            i;
-    int            bit = 1;
-    int common_mask = p_tgt->attr_mask & p_src->attr_mask;
-    int diff_mask = 0;
+    uint64_t       bit = 1;
+    uint64_t common_mask = p_tgt->attr_mask & p_src->attr_mask;
+    uint64_t diff_mask = 0;
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, bit <<= 1)
     {
@@ -1711,7 +1713,7 @@ int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line)
 }
 
 /** check attribute mask compatibility for a given table */
-static inline bool table_mask_compat(int m1, int m2)
+static inline bool table_mask_compat(uint64_t m1, uint64_t m2)
 {
     /* attrs in a given table must be the same or 0 */
     if (m1 == 0 || m2 == 0)
@@ -1721,7 +1723,7 @@ static inline bool table_mask_compat(int m1, int m2)
 }
 
 /** Check mask compatibility for request batching. */
-bool lmgr_batch_compat(int m1, int m2)
+bool lmgr_batch_compat(uint64_t m1, uint64_t m2)
 {
     if (!table_mask_compat(m1 & main_attr_set, m2 & main_attr_set))
         return false;

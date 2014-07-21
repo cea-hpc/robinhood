@@ -144,7 +144,7 @@ int rbhext_init( const backend_config_t * conf,
 
 
 /* return the mask of needed attributes to know if an entry is to be ignored */
-int rbhext_ignore_need()
+uint64_t rbhext_ignore_need()
 {
     return ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_type;
 }
@@ -253,9 +253,9 @@ int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
  * \retval <0 on error
  * \retval -ENOTSUP backup is not implemented for this type of entry.
  */
-int rbhext_status_needs( obj_type_t   entry_type,
-                         unsigned int * p_attr_allow_cached,
-                         unsigned int * p_attr_need_fresh )
+int rbhext_status_needs(obj_type_t   entry_type,
+                        uint64_t *p_attr_allow_cached,
+                        uint64_t *p_attr_need_fresh)
 {
     *p_attr_allow_cached = 0;
     *p_attr_need_fresh = 0;

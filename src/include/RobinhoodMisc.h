@@ -207,7 +207,7 @@ int            Lustre_GetNameParent(const char *path, int linkno,
 
 void path_check_update(const entry_id_t *p_id,
                        const char *fid_path, attr_set_t *p_attrs,
-                       int attr_mask);
+                       uint64_t attr_mask);
 
 #define FID_IS_ZERO(_pf) (((_pf)->f_seq == 0) && ((_pf)->f_oid == 0))
 
@@ -367,8 +367,8 @@ const char *mode_string(mode_t mode, char *buf);
  *  \param overide_mask if != 0, overide attrmask with this one
  *  \param brief brief notation for diff
  */
-int            PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set,
-                           int overide_mask, int brief );
+int            PrintAttrs(char *out_str, size_t strsize, const attr_set_t * p_attr_set,
+                          uint64_t overide_mask, int brief);
 
 /**
  *  Apply attribute changes
@@ -376,7 +376,7 @@ int            PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_a
  */
 int            ApplyAttrs(const entry_id_t * p_id,
                           const attr_set_t * p_attr_new, const attr_set_t * p_attr_old,
-                          int change_mask, int dry_run);
+                          uint64_t change_mask, int dry_run);
 
 
 /** Compute greatest common divisor (GCD) of 2 numbers */

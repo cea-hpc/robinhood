@@ -534,6 +534,12 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
 static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
                              attr_set_t *p_attr_set)
 {
+#ifdef _HSM_LITE
+    int rc;
+    uint64_t allow_cached_attrs = 0;
+    uint64_t need_fresh_attrs = 0;
+#endif
+
     ATTR_MASK_INIT(p_attr_set);
 
     /* Retrieve at least: fullpath, last_access, size, blcks
@@ -1142,7 +1148,7 @@ inline static int invalidate_entry(lmgr_t * lmgr, entry_id_t * p_entry_id)
 #endif
 
 /* declaration from listmgr_common.c */
-extern int     readonly_attr_set;
+extern uint64_t     readonly_attr_set;
 
 inline static int update_entry(lmgr_t * lmgr, entry_id_t * p_entry_id, attr_set_t * p_attr_set)
 {
@@ -1801,10 +1807,10 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
 
     unsigned int nb_returned = 0;
     unsigned int nb_aborted = 0;
-    int          attr_mask_sav = 0;
+    uint64_t     attr_mask_sav = 0;
 #ifdef _HSM_LITE
-    unsigned int allow_cached_attrs = 0;
-    unsigned int need_fresh_attrs = 0;
+    uint64_t     allow_cached_attrs = 0;
+    uint64_t     need_fresh_attrs = 0;
 #endif
 
     /* attributes to be retrieved */

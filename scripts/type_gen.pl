@@ -157,8 +157,8 @@ print OUTPUT "#define ATTR_COUNT ".$next_index."\n";
 print OUTPUT "\n";
 foreach $index (sort {0+$a <=> 0+$b}  keys %attrlist )
 {
-        my $mask_val = 1<<$index;
-	printf OUTPUT "#define ATTR_MASK_".${$attrlist{$index}}{name}." \t%#08X\n", $mask_val;
+#        my $mask_val = 1<<$index;
+	printf OUTPUT "#define ATTR_MASK_".${$attrlist{$index}}{name}." \t(1LL << %u)\n", $index;
 }
 
 print OUTPUT "\nstatic const field_info_t field_infos[]=\n{\n";

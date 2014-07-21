@@ -154,7 +154,7 @@ static inline void rbh_scrub_release_list(unsigned int first, unsigned int count
  * \param cb_func, callback function for each set of directory
  */
 int rbh_scrub(lmgr_t   * p_mgr, const wagon_t * id_list,
-              unsigned int id_count, int dir_attr_mask,
+              unsigned int id_count, uint64_t dir_attr_mask,
               scrub_callback_t cb_func,
               void * arg)
 {
@@ -305,7 +305,7 @@ int Path2Id(const char *path, entry_id_t * id)
 
 
 struct __diffattr {
-    int mask;       /* 0 for last */
+    uint64_t mask;       /* 0 for last */
     char * name;    /* NULL for last */
     int negate;     /* negate the given mask */
 } diffattrs[] = {
@@ -337,10 +337,10 @@ struct __diffattr {
 };
 
 /* parse attrset for --diff option */
-int parse_diff_mask(const char * arg, int * diff_mask, char * msg)
+int parse_diff_mask(const char * arg, uint64_t *diff_mask, char * msg)
 {
-    int mask_pos = 0;
-    int mask_neg = 0;
+    uint64_t mask_pos = 0;
+    uint64_t mask_neg = 0;
     struct __diffattr *attr;
     char buff[4096];
     char *curr, *init;

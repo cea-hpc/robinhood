@@ -197,8 +197,8 @@ struct find_opt
 #endif
 #define LSOST_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_stripe_items)
 
-static int disp_mask = ATTR_MASK_type;
-static int query_mask = 0;
+static uint64_t disp_mask = ATTR_MASK_type;
+static uint64_t query_mask = 0;
 
 //static lmgr_filter_t    dir_filter;
 

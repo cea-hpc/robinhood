@@ -1324,9 +1324,10 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
 #define PROF_CNT_LEN     8
 #define PROF_RATIO_LEN   7
 
-static int list2mask(int * attr_list, int attr_count)
+static uint64_t list2mask(int *attr_list, int attr_count)
 {
-    int i, mask, tmpmask;
+    int i;
+    uint64_t mask, tmpmask;
     mask = 0;
     for (i=0; i < attr_count; i++)
     {
@@ -1763,7 +1764,8 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
 static void dump_entries( type_dump type, int int_arg, char * str_arg, value_list_t * ost_list, int flags )
 {
     /* get basic information */
-    int            mask_sav, rc;
+    uint64_t       mask_sav;
+    int rc;
     lmgr_filter_t  filter;
     filter_value_t fv;
     struct lmgr_iterator_t *it;
@@ -2320,7 +2322,8 @@ static void report_topdirs( unsigned int count, int flags )
      * fullpath, owner, dircount, last_mod
      * => sorted by dircount DESC
      */
-    int            mask_sav, rc, index;
+    int            rc, index;
+    uint64_t       mask_sav;
     lmgr_sort_type_t sorttype;
     lmgr_filter_t  filter;
     filter_value_t fv;
@@ -2412,7 +2415,8 @@ static void report_topsize( unsigned int count, int flags )
      * fullpath, owner, size, stripe_info, last_access, last_mod
      * => sorted by size DESC
      */
-    int            mask_sav, rc, index;
+    int            rc, index;
+    uint64_t       mask_sav;
     lmgr_sort_type_t sorttype;
     lmgr_filter_t  filter;
     filter_value_t fv;
@@ -2493,7 +2497,8 @@ static void report_toppurge( unsigned int count, int flags )
      * fullpath, type, last_access, last_mod, size, stripe_info
      * => sorted by last_access ASC
      */
-    int            mask_sav, rc, index;
+    int            rc, index;
+    uint64_t       mask_sav;
     lmgr_sort_type_t sorttype;
     lmgr_filter_t  filter;
     filter_value_t fv;
@@ -2597,7 +2602,8 @@ static void report_toprmdir( unsigned int count, int flags )
      * filter: type=dir, not invalid, not whitelisted, empty
      * => sorted by last_mod ASC
      */
-    int            mask_sav, rc, index;
+    int            rc, index;
+    uint64_t       mask_sav;
     lmgr_sort_type_t sorttype;
     lmgr_filter_t  filter;
     filter_value_t fv;

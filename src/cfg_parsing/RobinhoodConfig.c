@@ -961,8 +961,8 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
 
 
 static int criteria2condition(const type_key_value *key_value,
-        compare_triplet_t *p_triplet, int *p_attr_mask, char *err_msg,
-        compare_criteria_t crit, cfg_param_type type, int attr_mask, int flags)
+        compare_triplet_t *p_triplet, uint64_t *p_attr_mask, char *err_msg,
+        compare_criteria_t crit, cfg_param_type type, uint64_t attr_mask, int flags)
 {
     p_triplet->crit = crit;
     p_triplet->op = syntax2conf_comparator(key_value->op_type);
@@ -1093,7 +1093,7 @@ static int criteria2condition(const type_key_value *key_value,
  *  interpret and check a condition.
  */
 static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_triplet,
-                               int *p_attr_mask, char *err_msg)
+                               uint64_t *p_attr_mask, char *err_msg)
 {
     /* check the name for the condition */
     compare_criteria_t crit = str2criteria(key_value->varname);
@@ -1117,8 +1117,8 @@ static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_t
 /**
  *  Recursive function for building boolean expression.
  */
-static int build_bool_expr( type_bool_expr * p_in_bool_expr, bool_node_t * p_out_node,
-                            int *p_attr_mask, char *err_msg )
+static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_node,
+                           uint64_t *p_attr_mask, char *err_msg)
 {
     int            rc;
 
@@ -1288,8 +1288,8 @@ free_expr1:
 /**
  * Build a policy boolean expression from the given block
  */
-int GetBoolExpr( config_item_t block, const char *block_name,
-                 bool_node_t * p_bool_node, int *p_attr_mask, char *err_msg )
+int GetBoolExpr(config_item_t block, const char *block_name,
+                bool_node_t * p_bool_node, uint64_t *p_attr_mask, char *err_msg)
 {
     generic_item  *curr_block = ( generic_item * ) block;
     generic_item  *subitem;
@@ -1380,7 +1380,7 @@ int FreeBoolExpr( bool_node_t * p_expr, int free_top_node )
  *  of defined classes.
  */
 static int build_set_expr(type_set * p_in_set,
-                          bool_node_t * p_out_node, int *p_attr_mask,
+                          bool_node_t * p_out_node, uint64_t *p_attr_mask,
                           const policies_t *policies, char *err_msg)
 {
     int i, rc;
@@ -1487,7 +1487,7 @@ return rc;
  * Build a policy boolean expression from a union/intersection of fileclasses
  */
 int GetSetExpr(config_item_t block, const char *block_name,
-               bool_node_t * p_bool_node, int *p_attr_mask,
+               bool_node_t * p_bool_node, uint64_t *p_attr_mask,
                const policies_t *policies, char *err_msg)
 {
     generic_item  *curr_block = ( generic_item * ) block;

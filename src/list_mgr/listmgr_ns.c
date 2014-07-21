@@ -82,19 +82,19 @@ static char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz,
  * \param child_attr_list   [out] ptr to array of child attrs
  * \param child_count       [out] number of returned children
  */
-int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                      const wagon_t * parent_list, unsigned int parent_count,
-                      int attr_mask,
-                      wagon_t ** child_id_list, attr_set_t ** child_attr_list,
-                      unsigned int * child_count)
+int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                     const wagon_t *parent_list, unsigned int parent_count,
+                     uint64_t attr_mask,
+                     wagon_t **child_id_list, attr_set_t **child_attr_list,
+                     unsigned int *child_count)
 {
     result_handle_t result;
     char *curr;
     int  filter_main = 0;
     int  filter_annex = 0;
-    int main_attrs = 0;
-    int dnames_attrs = 0;
-    int annex_attrs = 0;
+    uint64_t main_attrs = 0;
+    uint64_t dnames_attrs = 0;
+    uint64_t annex_attrs = 0;
     char query[4096];
     char fieldlist_main[1024] = "";
     char fieldlist_dnames[1024] = "";

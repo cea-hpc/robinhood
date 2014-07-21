@@ -1371,9 +1371,10 @@ const char *mode_string(mode_t mode, char *buf)
 /**
  *  Print attributes to a string
  */
-int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, int overide_mask, int brief )
+int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
+               uint64_t overide_mask, int brief)
 {
-    int            mask = p_attr_set->attr_mask;
+    uint64_t       mask = p_attr_set->attr_mask;
     size_t         written = 0;
     char           tmpbuf[24576];
     const char *   format;
@@ -1707,9 +1708,9 @@ int PrintAttrs( char *out_str, size_t strsize, const attr_set_t * p_attr_set, in
  */
 int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
                           const attr_set_t * p_attr_old,
-                          int change_mask, int dry_run)
+                          uint64_t change_mask, int dry_run)
 {
-    int  mask = p_attr_new->attr_mask & change_mask;
+    uint64_t  mask = p_attr_new->attr_mask & change_mask;
     int rc, err = 0;
     const char *chattr_path = NULL;
 #ifdef _HAVE_FID
@@ -2798,7 +2799,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
 #ifdef _HAVE_FID
 void path_check_update(const entry_id_t *p_id,
                        const char *fid_path, attr_set_t *p_attrs,
-                       int attr_mask)
+                       uint64_t attr_mask)
 {
     int rc;
     if (attr_mask & (ATTR_MASK_name | ATTR_MASK_parent_id))

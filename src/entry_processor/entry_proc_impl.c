@@ -765,7 +765,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                     && entry_proc_pipeline[i].stage_batch_function != NULL)
                 {
                     entry_proc_op_t *p_next;
-                    int batch_mask = p_curr->fs_attrs.attr_mask;
+                    uint64_t batch_mask = p_curr->fs_attrs.attr_mask;
 
                     rh_list_for_each_entry_after(p_next, &pl->entries, p_curr, list)
                     {

@@ -315,7 +315,7 @@ typedef struct lmgr_iter_opt_t
 typedef struct attr_set_t
 {
     /** attributes in the structure */
-    int            attr_mask;
+    uint64_t       attr_mask;
     /** associated values */
     entry_info_t   attr_values;
 } attr_set_t;
@@ -399,7 +399,7 @@ typedef struct lmgr_sort_type_t
 } lmgr_sort_type_t;
 
 /* mask of read-only attributes */
-extern int     readonly_attr_set;
+extern uint64_t readonly_attr_set;
 
 /* -------- Main functions -------- */
 
@@ -740,7 +740,7 @@ void           ListMgr_CloseIterator( struct lmgr_iterator_t *p_iter );
  */
 int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                       const wagon_t * parent_list, unsigned int parent_count,
-                      int attr_mask,
+                      uint64_t attr_mask,
                       wagon_t ** child, attr_set_t ** child_attr_list,
                       unsigned int * child_count);
 
@@ -1015,7 +1015,7 @@ int convert_boolexpr_to_simple_filter( struct bool_node_t * boolexpr, lmgr_filte
 int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *boolexpr );
 
 /** Check that all fields in filter are in the given mask of supported attributes */
-int lmgr_check_filter_fields( lmgr_filter_t * p_filter, unsigned int attr_mask );
+int lmgr_check_filter_fields(lmgr_filter_t * p_filter, uint64_t attr_mask);
 
 /** Convert a set notation (eg. "3,5-8,12") to a list of values
  * \param type[in] the type of output array (DB_INT, DB_UINT, ...)
@@ -1043,10 +1043,10 @@ int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src);
  * Generate fields automatically from already existing fields,
  * and check the target mask is satisfied.
  */
-int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask );
+int  ListMgr_GenerateFields(attr_set_t * p_set, uint64_t target_mask);
 
 /** Check mask compatibility for request batching. */
-bool lmgr_batch_compat(int m1, int m2);
+bool lmgr_batch_compat(uint64_t m1, uint64_t m2);
 
 #endif
 

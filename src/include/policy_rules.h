@@ -183,7 +183,7 @@ typedef struct bool_node_t
 typedef struct whitelist_item_t
 {
     bool_node_t    bool_expr;
-    int            attr_mask;                    /**< summary of attributes involved in boolean expression */
+    uint64_t       attr_mask;   /**< summary of attributes involved in boolean expression */
 } whitelist_item_t;
 
 #ifdef HAVE_RMDIR_POLICY
@@ -200,7 +200,7 @@ typedef struct rmdir_policy_t
     whitelist_item_t *recursive_rmdir_rules;
     unsigned int      recursive_rmdir_count;
 
-    int            global_attr_mask;             /**< minimum set of attributes for checking all rules */
+    uint64_t          global_attr_mask;             /**< minimum set of attributes for checking all rules */
 } rmdir_policy_t;
 
 #define NO_DIR_POLICY( p_pol ) (((p_pol)->whitelist_count + (p_pol)->recursive_rmdir_count == 0) && ((p_pol)->age_rm_empty_dirs == 0))
@@ -227,7 +227,7 @@ typedef struct fileset_item_t
     /** condition for files to be in this fileset */
     bool_node_t    definition;
     /** summary of attributes involved in boolean expression */
-    int            attr_mask;
+    uint64_t       attr_mask;
 
     /* user tunable */
     unsigned int   matchable:1;                /* is the fileset matchable or is it a temporary
@@ -239,7 +239,7 @@ typedef struct fileset_item_t
     action_hint_t *action_hints;
     unsigned int   hints_count;
     /** summary of attributes needed to build hints */
-    int            hints_attr_mask;
+    uint64_t       hints_attr_mask;
 
     /** @TODO aggregation policy */
 
@@ -258,7 +258,7 @@ typedef struct rule_item_t
     /** condition for purging/migrating files */
     bool_node_t    condition;
     /** summary of attributes involved in boolean expression */
-    int            attr_mask;
+    uint64_t       attr_mask;
 
     char           action_hints[HINTS_LEN];
     // TODO: implement action per rule
@@ -277,7 +277,7 @@ typedef struct policy_rules_t
     unsigned int   rule_count;
 
     /* minimum set of attributes for checking rules and building action_hints */
-    int            run_attr_mask;
+    uint64_t       run_attr_mask;
 
 } policy_rules_t;
 
@@ -329,11 +329,11 @@ typedef struct policies_t
 {
     policy_descr_t  *policy_list;
     unsigned int     policy_count;
-    int              global_status_mask; // mask for all policies that provide a get_status function
+    uint64_t         global_status_mask; // mask for all policies that provide a get_status function
 
     fileset_item_t  *fileset_list;
     unsigned int     fileset_count;
-    int              global_fileset_mask; // mask for all filesets
+    uint64_t         global_fileset_mask; // mask for all filesets
 
     unsigned int     manage_deleted:1; // is there any policy that manages deleted entries?
 

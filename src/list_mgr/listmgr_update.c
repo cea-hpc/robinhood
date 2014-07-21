@@ -39,8 +39,8 @@ int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
     /* read only fields in info mask? */
     if ( readonly_attr_set & p_update_set->attr_mask )
     {
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Error: trying to update read only values: attr_mask=%#x",
-                    readonly_attr_set & p_update_set->attr_mask );
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Error: trying to update read only values: attr_mask=%#"PRIX64,
+                    readonly_attr_set & p_update_set->attr_mask);
         return DB_INVALID_ARG;
     }
 

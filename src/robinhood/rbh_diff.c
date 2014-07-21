@@ -102,7 +102,7 @@ typedef struct diff_options {
     int            log_level;
     int            partial_scan;
     char           partial_scan_path[RBH_PATH_MAX];
-    int            diff_mask;
+    uint64_t       diff_mask;
     diff_arg_t     diff_arg;
     char           output_dir[MAX_OPT_LEN];
 

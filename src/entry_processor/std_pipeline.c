@@ -785,7 +785,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 
         /* check what information must be updated.
          * missing info = DB query - retrieved */
-        int db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
+        uint64_t db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
 
         /* get attrs if some is missing */
         if ((db_missing & POSIX_ATTR_MASK) &&
@@ -827,7 +827,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 /* Ensure the fullpath from DB is consistent.
  * Set updt_mask according to the missing info.
  */
-static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, int *updt_mask)
+static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, uint64_t *updt_mask)
 {
 #ifdef _HAVE_FID
     /* If the parent id from the changelog refers to a directory

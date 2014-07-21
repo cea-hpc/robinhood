@@ -43,7 +43,7 @@ typedef int    ( *scrub_callback_t ) ( wagon_t * id_list,
  * \param cb_func, callback function for each set of directory
  */
 int rbh_scrub(lmgr_t   * p_mgr, const wagon_t * id_list,
-              unsigned int id_count, int dir_attr_mask,
+              unsigned int id_count, uint64_t dir_attr_mask,
               scrub_callback_t cb_func,
               void * arg);
 
@@ -63,6 +63,6 @@ static inline void free_wagon(wagon_t *ids, int first, int last)
 }
 
 /* parse attrset for --diff option */
-int parse_diff_mask(const char * arg, int * diff_mask, char * msg);
+int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg);
 
 #endif

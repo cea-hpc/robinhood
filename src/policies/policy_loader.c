@@ -1510,7 +1510,8 @@ static int parse_rule_block(config_item_t config_item,
 {
     char          *rule_name;
     int            is_default = FALSE;
-    int            i, j, k, rc, mask;
+    int            i, j, k, rc;
+    uint64_t       mask;
     int            definition_done = FALSE;
 
     /* initialize output */
@@ -1568,7 +1569,7 @@ static int parse_rule_block(config_item_t config_item,
             /* analyze boolean expression */
             mask = 0;
             rc = GetBoolExpr(sub_item, CONDITION_BLOCK,
-                              &rule_out->condition, &mask, msg_out);
+                             &rule_out->condition, &mask, msg_out);
             if (rc)
                 return rc;
 

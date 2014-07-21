@@ -51,7 +51,8 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
                                int update_if_exists)
 {
     int            rc = 0;
-    int            i, full_mask;
+    int            i;
+    uint64_t       full_mask;
     char           fields[1024]; /* field list */
     pktype        *pklist = NULL;
     var_str        query = VAR_STR_NULL;
@@ -73,7 +74,8 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
         /* check attr mask */
         if (!lmgr_batch_compat(full_mask, p_attrs[i]->attr_mask))
         {
-            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Incompatible attr mask in batched operation: %#x vs. %#x",
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Incompatible attr mask "
+                       "in batched operation: %#"PRIX64" vs. %#"PRIX64,
                        p_attrs[i]->attr_mask, full_mask);
             rc = DB_INVALID_ARG;
             goto out_free;
@@ -309,7 +311,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
     /* read only fields in info mask? */
     if (readonly_attr_set & p_attrs[0]->attr_mask)
     {
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Error: trying to insert read only values: attr_mask=%#x",
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Error: trying to insert read only values: attr_mask=%#"PRIX64,
                    readonly_attr_set & p_attrs[0]->attr_mask);
         return DB_INVALID_ARG;
     }

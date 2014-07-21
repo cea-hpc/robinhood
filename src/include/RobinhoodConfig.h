@@ -416,7 +416,7 @@ int           GetFloatParam(config_item_t block, const char *block_name,
 static struct criteria_descr_t {
     compare_criteria_t crit;
     const char *name;
-    int   attr_mask;
+    uint64_t    attr_mask;
     cfg_param_type type;
     int   parsing_flags;
 } const criteria_descr[] = {
@@ -502,14 +502,14 @@ int read_scalar_params(config_item_t block, const char *block_name,
  */
 int            GetBoolExpr( config_item_t block, const char *block_name,
                             bool_node_t * p_bool_node,
-                            int *p_attr_mask, char *err_msg );
+                            uint64_t *p_attr_mask, char *err_msg );
 
 /**
  * Build a policy boolean expression from a union/intersection of filesets
  */
 int            GetSetExpr(config_item_t block, const char *block_name,
                           bool_node_t * p_bool_node,
-                          int *p_attr_mask, const policies_t *policies,
+                          uint64_t *p_attr_mask, const policies_t *policies,
                           char *err_msg);
 
 
