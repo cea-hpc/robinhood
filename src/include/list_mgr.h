@@ -123,6 +123,7 @@ typedef int stripe_info_t; /* dummy type */
 #define INIT_ONLY    0x00000001 /* set at insert only: stored in an annex table (can't be modified) */
 #define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
+#define REMOVED      0x00000008 /* this attribute only applies to removed entries */
 #define DNAMES       0x01000000 /* field in DNAMES table. */
 #define FUNC_ATTR    0x02000000 /* special attr built using a DB function */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
@@ -283,6 +284,7 @@ int            ReadLmgrConfig( config_file_t config, void *module_config,
 int            ReloadLmgrConfig( void *module_config );
 int            WriteLmgrConfigTemplate( FILE * output );
 int            WriteLmgrConfigDefault( FILE * output );
+
 /** @} */
 
 /* opaque types */
@@ -298,6 +300,7 @@ typedef struct lmgr_iter_opt_t
     unsigned int   force_no_acct:1;              /* don't use acct table for reports */
     unsigned int   allow_no_attr:1;              /* allow returning entries if no attr is available */
 } lmgr_iter_opt_t;
+#define LMGR_ITER_OPT_INIT {.list_count_max = 0, .force_no_acct = 0, .allow_no_attr = 0}
 
 /** Set of attributes for a FS entry */
 typedef struct attr_set_t
@@ -353,7 +356,7 @@ typedef struct lmgr_simple_filter_t
 } lmgr_simple_filter_t;
 
 /* needed here for defining filters */
-#include "policies.h"
+#include "policy_rules.h"
 
 /** generic filter type */
 typedef struct lmgr_filter_t
@@ -526,57 +529,43 @@ int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
  * for delayed removal.
  * \param real_remove_time time when the entry must be really removed.
  */
-int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                   attr_set_t * p_old_attrs,
-                                   time_t real_remove_time );
+int ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
+                       attr_set_t *p_old_attrs,
+                       time_t rm_time);
 
 /**
  * Soft remove a set of entries according to a filter.
  */
-int            ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                                       time_t real_remove_time, rm_cb_func_t );
+int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                           time_t rm_time, rm_cb_func_t);
 
 /**
  * Definitly remove an entry from the delayed removal table.
  */
-int ListMgr_SoftRemove_Discard( lmgr_t * p_mgr, const entry_id_t * p_id );
+int ListMgr_SoftRemove_Discard(lmgr_t *p_mgr, const entry_id_t *p_id);
 
 /**
  * Initialize a list of items removed 'softly', sorted by expiration time.
- * \param expired_only if TRUE, return only items whose real removal time is expired.
+ * Selecting 'expired' entries is done using an rm_time criteria in p_filter
  */
-struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_filter_t * filter );
+struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *filter);
 
 
 /**
  * Get next entry to be removed.
  */
-int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
-                                       entry_id_t * p_id,
-                                       char * last_known_path,
-#ifdef _HSM_LITE
-                                       char * bkpath,
-#endif
-                                       time_t * soft_rm_time,
-                                       time_t * expiration_time );
+int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
+                                      entry_id_t *p_id, attr_set_t *p_attrs);
 
 /**
  * Releases rmlist resources.
  */
-void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter );
+void           ListMgr_CloseRmList(struct lmgr_rm_list_t *p_iter);
 
 /**
  * Get entry to be removed from its fid.
  */
-int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
-                           const entry_id_t * p_id,
-                           char * last_known_path,
-#ifdef _HSM_LITE
-                           char * bkpath,
-#endif
-                           time_t * soft_rm_time,
-                           time_t * expiration_time);
-
+int     ListMgr_GetRmEntry(lmgr_t *p_mgr, const entry_id_t *p_id, attr_set_t *p_attrs);
 
 /** @} */
 
@@ -612,7 +601,7 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
                           ATTR_MASK_status | ATTR_MASK_stripe_info | ATTR_MASK_type | \
                           ATTR_MASK_mode | ATTR_MASK_link )
 
-#define SOFTRM_MASK ( ATTR_MASK_fullpath | ATTR_MASK_backendpath )
+#define SOFTRM_MASK (ATTR_MASK_fullpath | ATTR_MASK_backendpath | ATTR_MASK_rm_time)
 
 /**
  * Filesystem recovery from backup.
@@ -694,7 +683,7 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 
 #elif defined( HAVE_RM_POLICY )
 /* only keep fullpath by default */
-#define SOFTRM_MASK ( ATTR_MASK_fullpath )
+#define SOFTRM_MASK ( ATTR_MASK_fullpath | ATTR_MASK_rm_time)
 #endif
 
 /**
@@ -905,12 +894,13 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 /*
  * Name of variables stored in database
  */
-#define LAST_PURGE_TIME     "LastPurgeTime"
-#define LAST_PURGE_TARGET   "LastPurgeTarget"
-#define LAST_PURGE_STATUS   "LastPurgeStatus"
-#define LAST_MIGR_TIME      "LastMigrTime"
-#define LAST_MIGR_STATUS    "LastMigrStatus"
-#define LAST_MIGR_INFO      "LastMigrInfo"
+// FIXME this is policy dependant
+//#define LAST_PURGE_TIME     "LastPurgeTime"
+//#define LAST_PURGE_TARGET   "LastPurgeTarget"
+//#define LAST_PURGE_STATUS   "LastPurgeStatus"
+//#define LAST_MIGR_TIME      "LastMigrTime"
+//#define LAST_MIGR_STATUS    "LastMigrStatus"
+//#define LAST_MIGR_INFO      "LastMigrInfo"
 #define FS_PATH_VAR         "FS_Path"
 #define USAGE_MAX_VAR       "MaxUsage"
 #define SCAN_INTERVAL_VAR   "ScanInterval"

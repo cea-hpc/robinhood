@@ -825,7 +825,6 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
         rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
         break;
-#ifdef HAVE_RM_POLICY
         case OP_TYPE_SOFT_REMOVE:
             if (log_config.debug_level >= LVL_DEBUG) {
                 char buff[2*RBH_PATH_MAX];
@@ -839,10 +838,8 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                             PFID(&p_op->entry_id), buff);
             }
 
-            rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id, &p_op->fs_attrs,
-                                     time(NULL) + policies.unlink_policy.deferred_remove_delay );
+            rc = ListMgr_SoftRemove(lmgr, &p_op->entry_id, &p_op->fs_attrs, time(NULL));
             break;
-#endif
         default:
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type );
             rc = -1;
@@ -1245,13 +1242,10 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
             ListMgr_ForceCommitFlag( lmgr, TRUE );
 
             /* remove entries listed in previous scans */
-        #ifdef HAVE_RM_POLICY
-            if (policies.unlink_policy.hsm_remove)
+            if (has_deletion_policy())
                 /* @TODO fix for dirs, symlinks, ... */
-                rc = ListMgr_MassSoftRemove(lmgr, &filter,
-                         time(NULL) + policies.unlink_policy.deferred_remove_delay, cb);
+                rc = ListMgr_MassSoftRemove(lmgr, &filter, time(NULL), cb);
             else
-        #endif
                 rc = ListMgr_MassRemove(lmgr, &filter, cb);
 
             /* /!\ TODO : entries must be removed from backend too */

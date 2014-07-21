@@ -182,18 +182,20 @@ retry:
 #ifdef _HSM_LITE
 #define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath, backendpath"
 #define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath, backendpath"
-#define GET_SOFTRM_FIELDS "fullpath, backendpath"
+#define TMP_SOFTRM_FIELDS "fullpath, backendpath"
+#define GET_SOFTRM_FIELDS "fullpath, backendpath, rm_time"
 #else
 #define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath"
 #define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath"
-#define GET_SOFTRM_FIELDS "fullpath"
+#define TMP_SOFTRM_FIELDS "fullpath, rm_time"
+#define GET_SOFTRM_FIELDS "fullpath, rm_time"
 #endif
 
 /**
  * Insert all entries to soft rm table.
  * @TODO check if it works with millions/billion entries
  */
-static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
+static int listmgr_softrm_all( lmgr_t * p_mgr, time_t rm_time )
 {
 #ifndef HAVE_RM_POLICY
     return DB_NOT_SUPPORTED;
@@ -203,23 +205,21 @@ static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
 
     if ( annex_table )
     {
-        sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-                 GET_SOFTRM_FIELDS ", soft_rm_time, real_rm_time) "
+        sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
+                GET_SOFTRM_FIELDS ") "
                 "(SELECT "MAIN_TABLE".id, "BUILD_SOFTRM_FIELDS", "
-                 "%u, %u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
-                 " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
-                 MAIN_TABLE,
-                 (unsigned int)time(NULL),
-                 (unsigned int)due_time );
+                "%u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
+                " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
+                MAIN_TABLE,
+                (unsigned int)rm_time);
     }
     else
     {
-       sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-                 GET_SOFTRM_FIELDS ", soft_rm_time, real_rm_time) "
-                 "(SELECT id, "BUILD_SOFTRM_FIELDS", %u, %u FROM "MAIN_TABLE")",
-                 MAIN_TABLE,
-                 (unsigned int)time(NULL),
-                 (unsigned int)due_time );
+       sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
+               GET_SOFTRM_FIELDS ") "
+               "(SELECT id, "BUILD_SOFTRM_FIELDS", %u FROM "MAIN_TABLE")",
+               MAIN_TABLE,
+               (unsigned int)rm_time);
     }
 
     return db_exec_sql( &p_mgr->conn, query, NULL );
@@ -265,12 +265,12 @@ static int listmgr_rm_all(lmgr_t * p_mgr)
 /**
  * Insert a single entry to soft rm table.
  */
-static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                   const char * entry_path,
+static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
+                                 const char *entry_path,
 #ifdef _HSM_LITE
-                                   const char * backend_path,
+                                 const char *backend_path,
 #endif
-                                   time_t due_time )
+                                 time_t rm_time)
 {
 #ifndef HAVE_RM_POLICY
     return DB_NOT_SUPPORTED;
@@ -280,6 +280,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
     char * curr = query;
     int rc;
 
+    // FIXME not a standard table management
     curr += sprintf( query,
                      "INSERT IGNORE INTO " SOFT_RM_TABLE
                      "(fid, " );
@@ -291,7 +292,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
         curr += sprintf(curr, "backendpath, " );
 #endif
 
-    curr += sprintf(curr, "soft_rm_time, real_rm_time) "
+    curr += sprintf(curr, "rm_time) "
                   "VALUES ('"DFID_NOBRACE"', ", PFID(p_id) );
 
     if ( entry_path )
@@ -307,9 +308,7 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
     }
 #endif
 
-    curr += sprintf( curr, " %u, %u ) ",
-                    (unsigned int)time(NULL),
-                    (unsigned int)due_time );
+    curr += sprintf(curr, "%u) ", (unsigned int)rm_time);
 
     rc = db_exec_sql( &p_mgr->conn, query, NULL );
 
@@ -322,8 +321,8 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
 }
 
 
-static int listmgr_mass_remove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, int soft_rm,
-                                time_t real_remove_time, rm_cb_func_t cb_func )
+static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter, int soft_rm,
+                               time_t rm_time, rm_cb_func_t cb_func)
 {
     int            rc;
     char           query[4096];
@@ -382,7 +381,7 @@ retry:
 
         if (soft_rm)
         {
-            rc = listmgr_softrm_all( p_mgr, real_remove_time );
+            rc = listmgr_softrm_all(p_mgr, rm_time);
             if (lmgr_delayed_retry(p_mgr, rc))
                 goto retry;
             else if (rc)
@@ -639,7 +638,7 @@ retry:
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal" );
 
     if (soft_rm)
-        sprintf( query, "SELECT id, "GET_SOFTRM_FIELDS" FROM %s", tmp_table_name );
+        sprintf( query, "SELECT id, "TMP_SOFTRM_FIELDS" FROM %s", tmp_table_name );
     else
         sprintf( query, "SELECT id FROM %s", tmp_table_name );
 
@@ -679,12 +678,11 @@ retry:
         if (soft_rm)
         {
             /* insert into softrm table */
-            rc = listmgr_softrm_single( p_mgr, &id,
-                                        field_tab[1],
+            rc = listmgr_softrm_single(p_mgr, &id, field_tab[1],
 #ifdef _HSM_LITE
-                                        field_tab[2],
+                                       field_tab[2],
 #endif
-                                        real_remove_time );
+                                       rm_time);
 
             if (lmgr_delayed_retry(p_mgr, rc))
                 goto retry;
@@ -755,23 +753,23 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
 
 #ifdef HAVE_RM_POLICY
 
-int ListMgr_MassSoftRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                            time_t real_remove_time, rm_cb_func_t cb_func )
+int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                           time_t rm_time, rm_cb_func_t cb_func)
 {
     /* soft rm */
-    return listmgr_mass_remove( p_mgr, p_filter, TRUE, real_remove_time, cb_func );
+    return listmgr_mass_remove(p_mgr, p_filter, TRUE, rm_time, cb_func);
 }
 
 /**
  * Remove an entry from the main database, and insert it to secondary table
  * for delayed removal.
- * \param real_remove_time time when the entry must be really removed.
+ * \param real_remove_time time when the entry was removed.
  * \param p_old_attrs contains old attributes, parent+name and backendpath must be set.
  *        If NULL, it is retrieved from the database.
  */
-int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                                   attr_set_t * p_old_attrs,
-                                   time_t real_remove_time )
+int            ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
+                                  attr_set_t *p_old_attrs,
+                                  time_t rm_time)
 {
     int rc;
     const char * entry_path = NULL;
@@ -828,7 +826,7 @@ retry:
 #ifdef _HSM_LITE
     backendpath,
 #endif
-                                real_remove_time );
+                                rm_time );
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
@@ -863,26 +861,23 @@ typedef struct lmgr_rm_list_t
 {
     lmgr_t        *p_mgr;
     result_handle_t select_result;
+    unsigned int  result_len;
 } lmgr_rm_list_t;
 
-struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_filter_t * p_filter )
+/* XXX selecting 'expired' entries is done using a rm_time criteria in p_filter */
+struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter)
 {
-    int rc;
+    int rc, nb;
     lmgr_rm_list_t * p_list = MemAlloc( sizeof(lmgr_rm_list_t) );
     char query[4096];
     char filter_str[1024] = "WHERE ";
-    char * curr_filter = filter_str + strlen(filter_str);
+    char fields[1024];
+    char *curr_filter = filter_str + strlen(filter_str);
 
     if ( !p_list )
         return NULL;
 
-    if ( expired_only )
-    {
-        curr_filter += sprintf( curr_filter, "real_rm_time <= %u ",
-                                (unsigned int)time(NULL) );
-    }
-
-    if ( p_filter )
+    if (p_filter)
     {
         if (p_filter->filter_type != FILTER_SIMPLE )
         {
@@ -892,17 +887,13 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
             return NULL;
         }
         /* are there unsuported fields in this filter? */
-#ifdef _HSM_LITE
-        if ( lmgr_check_filter_fields( p_filter, ATTR_MASK_fullpath | ATTR_MASK_backendpath ) )
-#else
-        if ( lmgr_check_filter_fields( p_filter, ATTR_MASK_fullpath ) )
-#endif
+        if (lmgr_check_filter_fields(p_filter, SOFTRM_MASK))
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unsupported field in filter (in %s())",
                          __FUNCTION__);
             return NULL;
         }
-        if ( filter2str( p_mgr, curr_filter, p_filter, T_SOFTRM, expired_only, FALSE ) < 0)
+        if (filter2str(p_mgr, curr_filter, p_filter, T_SOFTRM, FALSE, FALSE) < 0)
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error converting filter to SQL request" );
             return NULL;
@@ -911,19 +902,15 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
 
     p_list->p_mgr = p_mgr;
 
-#ifdef _HSM_LITE
-    snprintf( query, 4096, "SELECT fid, fullpath, backendpath, soft_rm_time, real_rm_time "
-#else
-    snprintf( query, 4096, "SELECT fid, fullpath, soft_rm_time, real_rm_time "
-#endif
-                "FROM "SOFT_RM_TABLE" "
-                "%s "
-                "ORDER BY real_rm_time ASC",
-                (expired_only || p_filter) ? filter_str:"" );
+    nb = attrmask2fieldlist(fields, SOFTRM_MASK, T_SOFTRM, 0, 0, 0, 0);
+    snprintf(query, 4096, "SELECT fid, %s FROM "SOFT_RM_TABLE" %s "
+             "ORDER BY rm_time ASC", fields, p_filter ?filter_str:"");
+
+    p_list->result_len = nb + 1; /* fid + attrs */
 
     /* execute request (retry on connexion error or deadlock) */
 retry:
-    rc = db_exec_sql( &p_mgr->conn, query, &p_list->select_result );
+    rc = db_exec_sql(&p_mgr->conn, query, &p_list->select_result);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
 
@@ -940,34 +927,27 @@ retry:
     return p_list;
 }
 
-int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
-                                       entry_id_t * p_id,
-                                       char * last_known_path,
-#ifdef _HSM_LITE
-                                       char * bkpath,
-#endif
-                                       time_t * soft_rm_time,
-                                       time_t * expiration_time )
+int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
+                                      entry_id_t *p_id, attr_set_t *p_attrs)
 {
     int            rc = 0;
     int i;
 
-#ifdef _HSM_LITE
-    #define SHIFT 1
-#else
-    #define SHIFT 0
-#endif
+#define MAX_SOFTRM_FIELDS 4
+    /* 0=fid, 1=path, 2=backendpath, 3=rm_time */
+    char *record[MAX_SOFTRM_FIELDS];
 
-    /* 0=fid, 1=path, 2=soft_rm_time, 3=real_rm_time */
-    char          * record[4+SHIFT];
+    if (p_iter->result_len > MAX_SOFTRM_FIELDS)
+        RBH_BUG("unexpected result length > MAX_SOFTRM_FIELDS");
 
-    if ( !p_id )
+    if (!p_id || !p_attrs)
         return DB_INVALID_ARG;
 
-    for ( i=0; i < 4+SHIFT; i++)
+    for ( i=0; i < MAX_SOFTRM_FIELDS; i++)
         record[i] = NULL;
 
-    rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result, record, 4+SHIFT);
+    rc = db_next_record(&p_iter->p_mgr->conn, &p_iter->select_result, record,
+                        p_iter->result_len);
     /* what to do on connexion error? */
 
     if ( rc )
@@ -978,37 +958,9 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
     if ( sscanf( record[0], SFID, RFID(p_id) ) <= 0 )
         return DB_REQUEST_FAILED;
 
-    if ( last_known_path )
-    {
-        if (record[1])
-            strcpy( last_known_path, record[1] );
-        else
-            last_known_path[0] = '\0';
-    }
+    rc = result2attrset(T_SOFTRM, record + 1, p_iter->result_len - 1, p_attrs);
 
-#ifdef _HSM_LITE
-    if ( bkpath )
-    {
-        if (record[2])
-            strcpy( bkpath, record[2] );
-        else
-            bkpath[0] = '\0';
-    }
-#endif
-
-    if ( soft_rm_time )
-    {
-        if ( sscanf( record[2+SHIFT], "%lu", soft_rm_time ) <= 0 )
-            return DB_REQUEST_FAILED;
-    }
-
-    if ( expiration_time )
-    {
-        if ( sscanf( record[3+SHIFT], "%lu", expiration_time ) <= 0 )
-            return DB_REQUEST_FAILED;
-    }
-
-    return DB_SUCCESS;
+    return rc;
 }
 
 
@@ -1022,31 +974,22 @@ void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter )
  * Get entry to be removed from its fid.
  */
 int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
-                           const entry_id_t * p_id,
-                           char * last_known_path,
-#ifdef _HSM_LITE
-                           char * bkpath,
-#endif
-                           time_t * soft_rm_time,
-                           time_t * expiration_time)
+                           const entry_id_t *p_id,
+                           attr_set_t *p_attrs)
 {
     char query[4096];
+    char fields[1024];
     result_handle_t result;
-    int rc, i;
+    int rc, i, nb;
 
-    /* 0=path, 1=soft_rm_time, 2=real_rm_time */
-    char          * record[3+SHIFT];
+    char          *record[MAX_SOFTRM_FIELDS];
 
-    if ( !p_id )
+    if ( !p_id || !p_attrs)
         return DB_INVALID_ARG;
 
-#ifdef _HSM_LITE
-    snprintf( query, 4096, "SELECT fullpath, backendpath, soft_rm_time, real_rm_time "
-#else
-    snprintf( query, 4096, "SELECT fullpath, soft_rm_time, real_rm_time "
-#endif
-              "FROM "SOFT_RM_TABLE" WHERE fid='"DFID_NOBRACE"'",
-              PFID(p_id) );
+    nb = attrmask2fieldlist(fields, SOFTRM_MASK, T_SOFTRM, 0, 0, 0, 0);
+    snprintf(query, 4096, "SELECT %s FROM "SOFT_RM_TABLE" WHERE fid='"DFID_NOBRACE"'",
+             fields, PFID(p_id));
 
     /* execute request (retry on connexion error or timeout) */
 retry:
@@ -1063,10 +1006,10 @@ retry:
         return rc;
     }
 
-    for ( i=0; i < 3+SHIFT; i++)
+    for ( i=0; i < MAX_SOFTRM_FIELDS; i++)
         record[i] = NULL;
 
-    rc = db_next_record( &p_mgr->conn, &result, record, 3+SHIFT);
+    rc = db_next_record(&p_mgr->conn, &result, record, nb);
     if ( rc == DB_END_OF_LIST )
     {
         rc = DB_NOT_EXISTS;
@@ -1074,38 +1017,10 @@ retry:
     } else if ( rc )
          return rc;
 
-    if ( record[0] == NULL )
+    if (record[0] == NULL)
         return DB_REQUEST_FAILED;
 
-    if ( last_known_path )
-    {
-        if (record[0])
-            strcpy( last_known_path, record[0] );
-        else
-            last_known_path[0] = '\0';
-    }
-
-#ifdef _HSM_LITE
-    if ( bkpath )
-    {
-        if (record[1])
-            strcpy( bkpath, record[1] );
-        else
-            bkpath[1] = '\0';
-    }
-#endif
-
-    if ( soft_rm_time )
-    {
-        if ( sscanf( record[1+SHIFT], "%lu", soft_rm_time ) <= 0 )
-            return DB_REQUEST_FAILED;
-    }
-
-    if ( expiration_time )
-    {
-        if ( sscanf( record[2+SHIFT], "%lu", expiration_time ) <= 0 )
-            return DB_REQUEST_FAILED;
-    }
+    rc = result2attrset(T_SOFTRM, record, nb, p_attrs);
 
 free_res:
     db_result_free( &p_mgr->conn, &result );

@@ -358,8 +358,8 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
                 return 0;
 
             /* get info about condition */
-            rc = CriteriaToFilter( boolexpr->content_u.bool_expr.expr1->content_u.condition,
-                                   &index, &comp, &val, &must_free );
+            rc = criteria2filter(boolexpr->content_u.bool_expr.expr1->content_u.condition,
+                                 &index, &comp, &val, &must_free);
 
             if ( rc != 0 || index < 0 )
                 /* do nothing (equivalent to 'AND TRUE') */
@@ -380,8 +380,8 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
              * If attribute is not in DB, we ignore it and get all entries (~ AND TRUE)
              */
             /* get info about condition */
-            rc = CriteriaToFilter( boolexpr->content_u.condition,
-                                   &index, &comp, &val, &must_free );
+            rc = criteria2filter(boolexpr->content_u.condition,
+                                 &index, &comp, &val, &must_free);
 
             if ( rc != 0 || index < 0 || is_read_only_field(index) )
                 /* do nothing (equivalent to 'AND TRUE') */

@@ -123,9 +123,9 @@ nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
 md_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
 invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
 
-# file classes and last update
-release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
-rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
+# fileclasses and last update
+fileclass,        char,           DB_TEXT,   1024,   FREQ_ACCESS
+class_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
 # link content in annex info
 link, char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR

@@ -140,11 +140,13 @@ md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
 # file is tagged invalid for the current pass (internal use)
 invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
 
-# file class and their last update
-archive_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
-arch_cl_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
-release_class,      char,           DB_TEXT,    128,   FREQ_ACCESS
-rel_cl_update,      unsigned int,   DB_UINT,      0,   FREQ_ACCESS
+
+# TODO manage no_release/no_archive flags
+
+# TODO Change fileclass management
+# fileclasses and last update
+fileclass,        char,           DB_TEXT,   1024,   FREQ_ACCESS
+class_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
 # info that is set once for each file
 stripe_info, 	stripe_info_t,  DB_STRIPE_INFO, 0,   INIT_ONLY
@@ -155,3 +157,6 @@ backendpath,	char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO
 last_archive,   unsigned int, DB_UINT, 0, ANNEX_INFO
 last_restore,   unsigned int, DB_UINT, 0, ANNEX_INFO
 link,          char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
+
+#only for removed entries (read-only)
+rm_time, unsigned int, DB_UINT, 0, REMOVED

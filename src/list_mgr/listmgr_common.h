@@ -181,6 +181,7 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
 #define is_read_only_field( _attr_index ) \
                 ( (field_infos[_attr_index].flags & GENERATED) || \
                   (field_infos[_attr_index].flags & DIR_ATTR) || \
+                  (field_infos[_attr_index].flags & REMOVED) || \
                   (field_infos[_attr_index].flags & FUNC_ATTR) )
 
 #define is_stripe_field( _attr_index ) \
@@ -192,6 +193,7 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
                   && !(field_infos[_attr_index].flags & DIR_ATTR) \
+                  && !(field_infos[_attr_index].flags & REMOVED)  \
                   && !(field_infos[_attr_index].flags & FUNC_ATTR) \
                   && !(field_infos[_attr_index].flags & DNAMES) )
 
@@ -206,6 +208,7 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
                   && !(field_infos[_attr_index].flags & DIR_ATTR) \
+                  && !(field_infos[_attr_index].flags & REMOVED)  \
                   && !(field_infos[_attr_index].flags & FUNC_ATTR) )
 
 #define is_names_field( _attr_index ) \

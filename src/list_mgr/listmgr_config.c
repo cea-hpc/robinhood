@@ -28,7 +28,6 @@
 /* exported variable available to list_mgr modules */
 lmgr_config_t  lmgr_config;                      /* module configuration */
 
-
 int SetDefaultLmgrConfig( void *module_config, char *msg_out )
 {
     lmgr_config_t *conf = ( lmgr_config_t * ) module_config;
