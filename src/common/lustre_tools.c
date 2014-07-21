@@ -283,7 +283,8 @@ int File_GetStripeByDirFd( int dirfd, const char *fname,
 /**
  * check if a file has data on the given OST.
  */
-int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo, const stripe_items_t * sitems)
+int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
+              const stripe_items_t * sitems)
 {
     unsigned int stripe_blocks, i;
 
@@ -320,6 +321,59 @@ int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
     /* no matched OST */
     return FALSE;
 }
+
+#define div_upper_round(_n, _d) (((_n)/(_d)) + ((_n) % (_d) ? 1 : 0))
+
+/** computes blocks on the given OST */
+blkcnt_t BlocksOnOST(blkcnt_t blocks, unsigned int ost_index,
+              const stripe_info_t *sinfo, const stripe_items_t *sitems)
+{
+    unsigned long full_stripes, last_stripe_size, match_full, extra_blocks = 0;
+    int i;
+    int stripe_index = -1;
+
+    /* if block=0 the answer is obviously 0 */
+    if (blocks == 0)
+        return 0;
+    /* unsane value, file may not be stripped */
+    if (sinfo->stripe_size == 0)
+        return 0;
+
+    if ((sinfo->stripe_size % DEV_BSIZE) != 0)
+    {
+        DisplayLog(LVL_CRIT, __func__, "Unexpected stripe_size value %lu: not a multiple of DEV_BSIZE (%u)",
+                   sinfo->stripe_size, DEV_BSIZE);
+        return 0;
+    }
+
+    /* what is the stripe index for this OST? */
+    for (i = 0; i < sinfo->stripe_count; i++)
+    {
+        if (sitems->stripe[i].ost_idx == ost_index)
+        {
+            stripe_index = i;
+            break;
+        }
+    }
+    if (stripe_index == -1)
+        /* no data on the given OST */
+        return 0;
+
+    full_stripes = (blocks * DEV_BSIZE) / sinfo->stripe_size;
+    last_stripe_size = (blocks * DEV_BSIZE) % sinfo->stripe_size;
+
+    /* how many full stripes for the given index? */
+    match_full = (full_stripes - stripe_index) / sinfo->stripe_count;
+    /* + an extra stripe? */
+    if (((full_stripes - stripe_index) % sinfo->stripe_count) > 0)
+        match_full ++;
+    else /* last full stripe is just before this OST: extra blocks are on it */
+        extra_blocks = div_upper_round(last_stripe_size, DEV_BSIZE);
+
+    /* return value (in blocks): match_full * stripe_size / DEV_BSIZE + extra_blocks */
+    return (match_full * (sinfo->stripe_size / DEV_BSIZE) + extra_blocks);
+}
+
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 int CreateStriped( const char * path, const stripe_info_t * old_stripe, int overwrite )

@@ -184,6 +184,12 @@ int File_GetStripeByDirFd(int dirfd, const char *fname,
  */
 int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo, const stripe_items_t * sitems);
 
+/**
+ * compute the number of blocks of a file on a given OST.
+ */
+blkcnt_t BlocksOnOST(blkcnt_t blocks, unsigned int ost_index, const stripe_info_t * sinfo,
+              const stripe_items_t * sitems);
+
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 /** Create a file with the given stripe information */
