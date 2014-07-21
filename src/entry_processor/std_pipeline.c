@@ -24,6 +24,7 @@
 #include "entry_processor.h"
 #include "entry_proc_tools.h"
 #include "Memory.h"
+#include "policy_rules.h"
 #ifdef _HSM_LITE
 #include "backend_ext.h"
 #endif
@@ -665,10 +666,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         /* is it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
         {
-#ifdef HAVE_RM_POLICY
-            if ( !policies.unlink_policy.hsm_remove )
+            if (!has_deletion_policy())
             {
-#endif
                 /* hsm_remove is disabled or file doesn't exist in the backend:
                  * If the file was in DB: remove it, else skip the record. */
                 if ( p_op->db_exists )
@@ -680,7 +679,6 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                     /* ignore the record */
                     return STAGE_CHGLOG_CLR;
 
-#ifdef HAVE_RM_POLICY
             }
             else /* hsm removal enabled: must check if there is some cleaning
                   * to be done in the backend */
@@ -708,7 +706,6 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 #endif
                 return STAGE_PRE_APPLY;
             }
-#endif
         }
         else if ( p_op->db_exists ) /* entry still exists and is known in DB */
         {
@@ -998,13 +995,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 
         /* Only need to get md_update if the update policy != always */
-        if (policies.updt_policy.md.policy != UPDT_ALWAYS)
+        if (updt_params.md.when != UPDT_ALWAYS)
             p_op->db_attr_need |= ATTR_MASK_md_update;
 
         /* Only need to get path_update if the update policy != always
          * and if it is not provided in logrec
          */
-        if ((policies.updt_policy.path.policy != UPDT_ALWAYS)
+        if ((updt_params.path.when != UPDT_ALWAYS)
             && (logrec->cr_namelen == 0))
             p_op->db_attr_need |= ATTR_MASK_path_update;
 
@@ -1027,32 +1024,14 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* check if link content is set for this entry */
             p_op->db_attr_need |= ATTR_MASK_link;
 
-        if ( entry_proc_conf.match_file_classes )
+        if (entry_proc_conf.match_classes)
         {
-            /* get fileclass update info to know if we must check it */
-#ifdef HAVE_MIGR_POLICY
-            if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
-                p_op->db_attr_need |= ATTR_MASK_arch_cl_update;
-            p_op->db_attr_need |= ATTR_MASK_archive_class;
-            p_op->db_attr_need |= policies.migr_policies.global_attr_mask;
-#endif
-#ifdef HAVE_PURGE_POLICY
-            if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
-                p_op->db_attr_need |= ATTR_MASK_rel_cl_update;
-            p_op->db_attr_need |= ATTR_MASK_release_class;
-            p_op->db_attr_need |= policies.purge_policies.global_attr_mask;
-#endif
+            if (updt_params.fileclass.when != UPDT_ALWAYS)
+                p_op->db_attr_need |= ATTR_MASK_class_update;
+            p_op->db_attr_need |= policies.global_fileset_mask &
+                                      ~p_op->fs_attrs.attr_mask;
         }
-#ifdef HAVE_RMDIR_POLICY
-        else if (entry_proc_conf.match_dir_classes)
-        {
-             if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
-                 p_op->db_attr_need |= ATTR_MASK_rel_cl_update;
-            p_op->db_attr_need |= ATTR_MASK_release_class;
-            p_op->db_attr_need |= policies.rmdir_policy.global_attr_mask;
-        }
-#endif
-        p_op->db_attr_need |= entry_proc_conf.alert_attr_mask;
+        p_op->db_attr_need |= entry_proc_conf.alert_attr_mask; // TODO manage as a policy
 
 #ifdef _HSM_LITE
         /* what info is needed to check backend status? */
@@ -1203,44 +1182,14 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->db_attr_need &= ~ATTR_MASK_link;
         }
 
-        if ( entry_proc_conf.match_file_classes &&
-             ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
-#ifdef _LUSTRE_HSM
-             !strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_FILE )) /* file */
-#else
-             strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR ) != 0 ) /* non-dir */
-#endif
+        if (entry_proc_conf.match_classes)
         {
-#ifdef HAVE_MIGR_POLICY
-            if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
-                p_op->db_attr_need |= ATTR_MASK_arch_cl_update;
+            if (updt_params.fileclass.when != UPDT_ALWAYS)
+                p_op->db_attr_need |= ATTR_MASK_class_update;
 
-            p_op->db_attr_need |= ATTR_MASK_archive_class;
-            p_op->db_attr_need |= (policies.migr_policies.global_attr_mask
-                                  & ~p_op->fs_attrs.attr_mask);
-#endif
-
-#ifdef HAVE_PURGE_POLICY
-            if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
-                p_op->db_attr_need |= ATTR_MASK_rel_cl_update;
-
-            p_op->db_attr_need |= ATTR_MASK_release_class;
-            p_op->db_attr_need |= (policies.purge_policies.global_attr_mask
-                                  & ~p_op->fs_attrs.attr_mask);
-#endif
+            p_op->db_attr_need |= policies.global_fileset_mask &
+                                    ~p_op->fs_attrs.attr_mask;
         }
-#ifdef HAVE_RMDIR_POLICY
-        else if ( entry_proc_conf.match_dir_classes &&
-             ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
-             !strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR )) /* dir */
-        {
-            if (policies.updt_policy.fileclass.policy != UPDT_ALWAYS)
-                p_op->db_attr_need |= ATTR_MASK_rel_cl_update;
-            p_op->db_attr_need |= ATTR_MASK_release_class;
-            p_op->db_attr_need |= (policies.rmdir_policy.global_attr_mask
-                                  & ~p_op->fs_attrs.attr_mask);
-        }
-#endif
 
         if (p_op->db_attr_need)
         {
@@ -1474,24 +1423,20 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
           rc = errno;
 
         /* get entry attributes */
-        if ( rc != 0 )
+        if (rc != 0)
         {
-            if ( ERR_MISSING(rc) )
+            if (ERR_MISSING(rc))
             {
                 DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s no longer exists", path );
                 /* schedule rm in the backend, if enabled */
-                if ((!p_op->db_exists)
-#ifdef HAVE_RM_POLICY
-                    && (!policies.unlink_policy.hsm_remove)
-#endif
-                )
+                if (!p_op->db_exists && !has_deletion_policy())
                     goto skip_record;
                 else /* else, remove it from db */
                     goto rm_record;
             }
             else
-                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "lstat() failed on %s: %s", path,
-                            strerror( rc ) );
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "lstat() failed on %s: %s", path,
+                           strerror(rc));
             /* If lstat returns an error, drop the log record */
             goto skip_record;
         }
@@ -1500,11 +1445,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* remove pending */
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Entry %s has nlink=0: remove pending", path);
             /* schedule rm in the backend, if enabled */
-            if ((!p_op->db_exists)
-#ifdef HAVE_RM_POLICY
-                && (!policies.unlink_policy.hsm_remove)
-#endif
-            )
+            if (!p_op->db_exists && !has_deletion_policy())
                 goto skip_record;
             else /* else, remove it from db */
                 goto rm_record;
@@ -1702,25 +1643,14 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     #endif
 
     /* match fileclasses if specified in config */
+    //if (entry_proc_conf.match_classes)
+    // FIXME implement fileset macthing
+    //    match_classes(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs);
 
-    /* sure it's a directory */
-    if (ATTR_FSorDB_TEST( p_op, type) && !strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_DIR ))
-    {
-        if (entry_proc_conf.match_dir_classes)
-            check_policies(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs, TRUE);
-    }
-    /* sure it is a supported type and not a dir */
-    else if (!p_op->extra_info.not_supp)
-    {
-        if (entry_proc_conf.match_file_classes)
-            check_policies(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs, TRUE);
-    }
-    /* non-dir or not supported (no check) */
-
-    /* set other info */
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORTING, FALSE );
-    if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
+    /* go to next step */
+    rc = EntryProcessor_Acknowledge(p_op, STAGE_REPORTING, FALSE);
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc);
     return rc;
 
 #ifdef HAVE_CHANGELOGS
@@ -1792,8 +1722,9 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                   entry_proc_conf.alert_list[i].attr_mask ) )
             continue;
 
-        if ( EntryMatches( &p_op->entry_id, &merged_attrs,
-               &entry_proc_conf.alert_list[i].boolexpr, NULL ) == POLICY_MATCH )
+        if (entry_matches(&p_op->entry_id, &merged_attrs,
+                          &entry_proc_conf.alert_list[i].boolexpr, NULL)
+            == POLICY_MATCH)
         {
             /* build alert string and break */
             if ( ATTR_MASK_TEST( &merged_attrs, fullpath ) )
@@ -1935,17 +1866,9 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
          * if update policy == always and fileclass is not changed,
          * don't set update timestamp.
          */
-#ifdef HAVE_PURGE_POLICY
-        if ((policies.updt_policy.fileclass.policy == UPDT_ALWAYS)
-            && !ATTR_MASK_TEST( &p_op->fs_attrs, release_class))
-            ATTR_MASK_UNSET(&p_op->fs_attrs, rel_cl_update);
-#endif
-
-#ifdef HAVE_MIGR_POLICY
-        if ((policies.updt_policy.fileclass.policy == UPDT_ALWAYS)
-            && !ATTR_MASK_TEST( &p_op->fs_attrs, archive_class))
-            ATTR_MASK_UNSET(&p_op->fs_attrs, arch_cl_update);
-#endif
+        if ((updt_params.fileclass.when == UPDT_ALWAYS)
+            && !ATTR_MASK_TEST(&p_op->fs_attrs, fileclass))
+            ATTR_MASK_UNSET(&p_op->fs_attrs, class_update);
 
         /* nothing changed => noop */
         if (p_op->fs_attrs.attr_mask == 0)
@@ -2046,7 +1969,6 @@ int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
         DisplayLog( LVL_FULL, ENTRYPROC_TAG, "RemoveLast("DFID")", PFID(&p_op->entry_id) );
         rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
         break;
-#ifdef HAVE_RM_POLICY
     case OP_TYPE_SOFT_REMOVE:
 
         if (log_config.debug_level >= LVL_DEBUG) {
@@ -2061,10 +1983,8 @@ int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
                         PFID(&p_op->entry_id), buff);
         }
 
-        rc = ListMgr_SoftRemove( lmgr, &p_op->entry_id, &p_op->fs_attrs,
-                                 time(NULL) + policies.unlink_policy.deferred_remove_delay );
+        rc = ListMgr_SoftRemove(lmgr, &p_op->entry_id, &p_op->fs_attrs, time(NULL)); // FIXME get remove time from changelog
         break;
-#endif
     default:
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type );
         rc = -1;
@@ -2247,13 +2167,10 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ListMgr_ForceCommitFlag( lmgr, TRUE );
 
         /* remove entries listed in previous scans */
-    #ifdef HAVE_RM_POLICY
-        if (policies.unlink_policy.hsm_remove)
+        if (has_deletion_policy())
             /* @TODO fix for dirs */
-            rc = ListMgr_MassSoftRemove(lmgr, &filter,
-                     time(NULL) + policies.unlink_policy.deferred_remove_delay, cb);
+            rc = ListMgr_MassSoftRemove(lmgr, &filter, time(NULL), cb);
         else
-    #endif
             rc = ListMgr_MassRemove(lmgr, &filter, cb);
 
         lmgr_simple_filter_free( &filter );

@@ -285,20 +285,11 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
     if (!pipeline)
         return ENOMEM;
 
-    if ( entry_proc_conf.match_file_classes && !is_file_class_defined() )
+    if (entry_proc_conf.match_classes && policies.fileset_count == 0)
     {
-        DisplayLog( LVL_EVENT, ENTRYPROC_TAG, "No class defined in policies, disabling file class matching." );
-        entry_proc_conf.match_file_classes = FALSE;
+        DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "No fileclass defined in configuration, disabling fileclass matching.");
+        entry_proc_conf.match_classes = FALSE;
     }
-
-#ifdef HAVE_RMDIR_POLICY
-    if ( entry_proc_conf.match_dir_classes && !is_dir_class_defined() )
-    {
-        DisplayLog( LVL_EVENT, ENTRYPROC_TAG, "No class defined in policies, disabling dir class matching." );
-        entry_proc_conf.match_dir_classes = FALSE;
-    }
-#endif
-
 
     /* If a limit of pending operations is specified, initialize a token */
     if ( entry_proc_conf.max_pending_operations > 0 )
@@ -1234,13 +1225,13 @@ int EntryProcessor_Terminate( int flush_ops )
     while ( nb_finished_threads < entry_proc_conf.nb_thread )
     {
         if (terminate_flag == FLUSH)
-            DisplayLog( LVL_EVENT, ENTRYPROC_TAG,
-                        "Waiting for entry processor pipeline flush: still %u operations to be done, %u threads running",
-                        count_nb_ops(), entry_proc_conf.nb_thread - nb_finished_threads );
+            DisplayLog(LVL_VERB, ENTRYPROC_TAG,
+                       "Waiting for entry processor pipeline flush: still %u operations to be done, %u threads running",
+                       count_nb_ops(), entry_proc_conf.nb_thread - nb_finished_threads);
         else if (terminate_flag == BREAK)
-            DisplayLog( LVL_EVENT, ENTRYPROC_TAG,
-                        "Waiting for current operations to end: still %u threads running",
-                         entry_proc_conf.nb_thread - nb_finished_threads );
+            DisplayLog(LVL_VERB, ENTRYPROC_TAG,
+                       "Waiting for current operations to end: still %u threads running",
+                       entry_proc_conf.nb_thread - nb_finished_threads);
 
         pthread_cond_wait( &terminate_cond, &terminate_lock );
     }
