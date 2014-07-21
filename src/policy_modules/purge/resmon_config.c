@@ -17,99 +17,117 @@
 #endif
 
 #include "RobinhoodConfig.h"
-#include "resource_monitor.h"
-#include "resmon_purge.h"
+#include "run_policies.h"
 #include "RobinhoodMisc.h"
+#include "Memory.h"
 #include <errno.h>
 
-#define PURGE_PARAM_BLOCK   "Purge_Parameters"
-#define TRIGGER_BLOCK       "Purge_Trigger"
+#define PARAM_SUFFIX   "_parameters"
+#define TRIGGER_SUFFIX       "_trigger"
 
-#define RESMONCFG_TAG       "ResMonConfig"
+#define TAG       "PolicyRunCfg"
 
-int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
+/* contains all run configs */
+policy_run_configs_t run_cfgs = { NULL, 0 };
+
+static int polrun_set_default(policy_run_config_t *cfg)
 {
-    resource_monitor_config_t *conf = ( resource_monitor_config_t * ) module_config;
-    msg_out[0] = '\0';
+    memset(cfg, 0, sizeof(*cfg));
+    cfg->nb_threads = 4;
+    cfg->queue_size = 4096;
+    cfg->db_request_limit = 100000;
+    cfg->max_action_nbr = 0; /* unlimited */
+    cfg->max_action_vol = 0; /* unlimited */
 
-    conf->nb_threads_purge = 4;
-    conf->post_purge_df_latency = 60;   /*1 min */
-    conf->purge_queue_size = 4096;
-    conf->db_request_limit = 100000;
-#ifdef ATTR_INDEX_status
-    conf->check_purge_status_on_startup = TRUE;
-#endif
-    conf->recheck_ignored_classes = TRUE;
+    cfg->trigger_list = NULL;
+    cfg->trigger_count = 0;
 
-    conf->trigger_list = NULL;
-    conf->trigger_count = 0;
+    /* TODO move to policy declaration? */
+    cfg->action_type = ACTION_NONE; /* mandatory */
 
-#ifdef _TMP_FS_MGR
-    conf->purge_command[0] = '\0';
-#endif
+    cfg->check_action_status_delay = 30 * 60; /* 30 min */
+    cfg->action_timeout = 2 * 3600; /* 2h */
+    cfg->report_interval = 10 * 60; /* 10 min */
+
+    cfg->pre_maintenance_window = 24 * 3600; /* 24h */
+    cfg->maint_min_apply_delay = 30 * 60; /* 30 min */
+
+    cfg->suspend_error_pct = 0.0; /* disabled */
+    cfg->suspend_error_min = 0; /* disabled */
+
+    /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
+    cfg->lru_sort_attr =  ATTR_INDEX_last_access;
+
+    cfg->check_action_status_on_startup = TRUE;
+    cfg->recheck_ignored_classes = TRUE;
 
     return 0;
 }
 
-int Write_ResourceMon_ConfigDefault(FILE * output)
+static inline policies_t* runcfg2policies(void *module_config)
 {
-    print_begin_block(output, 0, PURGE_PARAM_BLOCK, NULL);
-    print_line(output, 1, "nb_threads_purge      : 4");
-    print_line(output, 1, "post_purge_df_latency : 1min");
-    print_line(output, 1, "purge_queue_size      : 4096");
-    print_line(output, 1, "db_result_size_max    : 100000");
-#ifdef ATTR_INDEX_status
-    print_line(output, 1, "check_purge_status_on_startup: TRUE");
-#endif
-    print_line(output, 1, "recheck_ignored_classes: TRUE");
-#ifdef _TMP_FS_MGR
-    print_line(output, 1, "purge_command          : <built-in: unlink>");
-#endif
+    /* hack to  get the policy list */
+    return (policies_t *)((ptrdiff_t)module_config
+        - offsetof(robinhood_config_t, policy_run_cfgs)
+        + offsetof(robinhood_config_t, policies));
+}
+
+int policy_run_cfg_set_default(void *module_config, char *msg_out)
+{
+    int i;
+    policy_run_configs_t *cfg = (policy_run_configs_t *)module_config;
+    policies_t *parsed_policies = runcfg2policies(module_config);
+
+    cfg->count = parsed_policies->policy_count;
+    cfg->configs = (policy_run_config_t *)MemCalloc(cfg->count, sizeof(policy_run_config_t));
+    if (cfg->configs == NULL)
+    {
+        strcpy(msg_out, "Memory allocation failed");
+        return ENOMEM;
+    }
+    for (i = 0; i < cfg->count; i++)
+        polrun_set_default(&cfg->configs[i]);
+    return 0;
+}
+
+int policy_run_cfg_write_defaults(FILE *output)
+{
+    print_begin_block(output, 0, "<policy>"PARAM_SUFFIX, NULL);
+    print_line(output, 1, "lru_sort_attr           : last_access");
+    print_line(output, 1, "default_action          : <none> (mandatory parameter)");
+    print_line(output, 1, "max_action_count        : 0 (unlimited)");
+    print_line(output, 1, "max_action_volume       : 0 (unlimited)");
+    print_line(output, 1, "suspend_error_pct       : disabled (0)");
+    print_line(output, 1, "suspend_error_min       : disabled (0)");
+    print_line(output, 1, "report_interval         : 10min");
+    print_line(output, 1, "action_timeout          : 2h");
+    print_line(output, 1, "check_actions_interval  : 30min");
+    print_line(output, 1, "check_actions_on_startup: yes");
+    print_line(output, 1, "recheck_ignored_classes : yes" );
+    print_line(output, 1, "nb_threads              : 4");
+    print_line(output, 1, "queue_size              : 4096");
+    print_line(output, 1, "db_result_size_max      : 100000");
+    print_line(output, 1, "pre_maintenance_window  : 24h");
+    print_line(output, 1, "maint_min_apply_delay   : 30min");
     print_end_block(output, 0);
-
     fprintf(output, "\n");
 
     return 0;
 }
 
-int Write_ResourceMon_ConfigTemplate( FILE * output )
+int policy_run_cfg_write_template(FILE *output)
 {
-    print_begin_block( output, 0, PURGE_PARAM_BLOCK, NULL );
-    print_line( output, 1, "# nbr of thread for performing purge operations" );
-    print_line( output, 1, "nb_threads_purge      = 4 ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1,
-                "# Immediately after purging data, 'df'/'ost df' may not return an exact value," );
-    print_line( output, 1, "# especially if freeing disk space is asynchronous." );
-    print_line( output, 1, "# So, it is necessary to wait for a while after a purge before" );
-    print_line( output, 1, "# issuing a new 'df'/'ost df' command." );
-    print_line( output, 1, "post_purge_df_latency = 1min ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# queue size (for leveraging purge threads load)" );
-    print_line( output, 1, "purge_queue_size      = 4096 ;" );
-
+    print_begin_block(output, 0, TEMPL_POLICY_NAME PARAM_SUFFIX, NULL);
+    print_line(output, 1, "# sort order for applying the policy");
+    print_line(output, 1, "lru_sort_attr = last_access ;");
     fprintf(output, "\n");
-    print_line(output, 1, "# Limit the size of database result sets (save memory)");
-    print_line(output, 1, "db_result_size_max    = 100000 ;");
-
-#ifdef ATTR_INDEX_status
-    fprintf( output, "\n" );
-    print_line( output, 1, "# check status of previous purge operations on startup" );
-    print_line( output, 1, "check_purge_status_on_startup = TRUE ;" );
-#endif
-    print_line( output, 1, "# When applying purge policies, recheck entries");
-    print_line( output, 1, "# that previously matched ignored classes.");
-    print_line( output, 1, "# Enable it after changing fileclass definitions");
-    print_line( output, 1, "# or if entries move from one class to another.");
-    print_line( output, 1, "# This can significantly slow down policy application.");
-    print_line( output, 1, "recheck_ignored_classes = TRUE;" );
-    fprintf( output, "\n" );
-
-#ifdef _TMP_FS_MGR
-    print_line(output, 1, "# By default, purge action is removing the entry");
-    print_line(output, 1, "# from the filesystem. You can define an alternative");
-    print_line(output, 1, "# action by specifying a script command.");
-    print_line(output, 1, "# The following parameters can be specified:");
+    print_line(output, 1, "# Default action for this policy.");
+    print_line(output, 1, "# The syntax to call built-in functions is <module_name>.<action_name>");
+    print_line(output, 1, "# e.g. common.copy, common.unlink, lhsm.archive, lhsm.release...");
+    print_line(output, 1, "default_action = common.unlink ;");
+    print_line(output, 1, "# To call a custom script instead, use the following syntax:");
+    print_line(output, 1, "# default_action = cmd(\"/usr/bin/move_to_trash.sh {path}\") ;");
+    print_line(output, 1, "# Special parameters can passed to the command:");
     print_line(output, 1, "#    {path}: posix path to the entry");
 #ifdef _LUSTRE
 #   ifdef _HAVE_FID
@@ -117,12 +135,52 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
 #   endif
     print_line(output, 1, "#    {fsname}: Lustre fsname");
 #endif
-    print_line(output, 1, "#purge_command = =\"/usr/bin/move_to_trash.sh {path}\";");
-#endif
-    fprintf( output, "\n" );
+    print_line(output, 1, "#    {hints}: pass action_hints to the command");
+    fprintf(output, "\n");
+    print_line(output, 1, "# maximum number of actions per policy run (default: no limit)");
+    print_line(output, 1, "#max_action_count = 100000 ;");
+    print_line(output, 1, "# maximum volume of processed files per policy run (default: no limit)");
+    print_line(output, 1, "#max_action_volume = 10TB ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# nbr of threads to execute policy actions" );
+    print_line(output, 1, "nb_threads = 8;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# suspend current run if 50%% of actions fail (after 100 errors):");
+    print_line(output, 1, "#suspend_error_pct = 50%% ;");
+    print_line(output, 1, "#suspend_error_min = 100 ;");
+    print_line(output, 1, "# interval to report policy run progress:");
+    print_line(output, 1, "#report_interval = 10min;");
+    print_line(output, 1, "# cancel an action after a given time:");
+    print_line(output, 1, "#action_timeout = 2h;");
+    print_line(output, 1, "# interval to check the status of started actions");
+    print_line(output, 1, "#check_actions_interval = 30min;");
+    print_line(output, 1, "# check the status of previously started actions on startup:");
+    print_line(output, 1, "#check_actions_on_startup = yes;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# When applying policies, recheck entries that previously");
+    print_line(output, 1, "# matched ignored classes.");
+    print_line(output, 1, "# Enable it after changing fileclass definitions");
+    print_line(output, 1, "# or if entries move from one class to another.");
+    print_line(output, 1, "# This can significantly slow down policy application.");
+    print_line(output, 1, "#recheck_ignored_classes = yes" );
+    fprintf(output, "\n");
+    print_line(output, 1, "# pre-maintenance feature parameters");
+    print_line(output, 1, "#pre_maintenance_window = 24h;");
+    print_line(output, 1, "#maint_min_apply_delay = 30min;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# internal/tuning parameters");
+    print_line(output, 1, "#queue_size = 4096;");
+    print_line(output, 1, "#db_result_size_max = 100000;");
+    print_end_block(output, 0);
+    fprintf(output, "\n");
 
-    print_end_block( output, 0 );
+    /* TODO Add template triggers */
 
+    return 0;
+}
+
+# if 0
+    
     fprintf( output, "\n" );
 #ifdef _LUSTRE
     print_line( output, 0, "# Trigger purge on individual OST usage" );
@@ -177,22 +235,18 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "alert_high         = TRUE ;" );
     print_end_block( output, 0 );
 
-    fprintf( output, "\n" );
+#endif
 
-    return 0;
-}
-
-static int parse_trigger_block( config_item_t config_blk, const char *block_name,
-                                trigger_item_t * p_trigger_item, char *msg_out )
+static int parse_trigger_block(config_item_t config_blk, const char *block_name,
+                               trigger_item_t * p_trigger_item, char *msg_out)
 {
     int            rc;
     int            rc_hp, rc_lp, rc_hv, rc_lv, rc_hc, rc_lc;
-    unsigned int high_count = 0;
-    unsigned int low_count = 0;
+    unsigned int   high_count = 0;
+    unsigned int   low_count = 0;
     double         h_pct, l_pct;
     unsigned long long h_vol, l_vol;
     uint64_t       h_cnt, l_cnt;
-    int            tmpval;
     int            i;
     char           tmpstr[1024];
     char         **arg_tab;
@@ -205,22 +259,27 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
         "high_threshold_vol", "low_threshold_vol",
         "high_threshold_cnt", "low_threshold_cnt",
         "alert_high", "alert_low",
-        /* for backward compatibility */
-        "high_watermark_pct", "low_watermark_pct",
-        "high_watermark_vol", "low_watermark_vol",
-        "high_watermark_cnt", "low_watermark_cnt",
-        "notify", "notify_hw", "alert_lw",
         NULL
     };
 
+    const cfg_param_t cfg_params[] = {
+        {"max_action_count",    PT_INT,     PFLG_POSITIVE,
+            &p_trigger_item->max_action_nbr, 0},
+        {"max_action_volume",   PT_SIZE,    PFLG_POSITIVE,
+            &p_trigger_item->max_action_vol, 0},
+        {"check_interval", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL | PFLG_MANDATORY,
+            &p_trigger_item->check_interval, 0},
+        {"alert_high", PT_BOOL, 0, &p_trigger_item->alert_hw, 0},
+        {"alert_low", PT_BOOL, 0, &p_trigger_item->alert_lw, 0},
+        {"post_trigger_wait", PT_DURATION, 0, &p_trigger_item->post_trigger_wait, 0},
+        END_OF_PARAMS
+    };
 
-    /* retrieve parameters */
-
-    rc = GetStringParam( config_blk, block_name, "trigger_on",
-                         PARAM_MANDATORY | STR_PARAM_NO_WILDCARDS, tmpstr, 1024, &arg_tab,
-                         &arg_count, msg_out );
-
-    if ( rc )                   /* even ENOENT retruns an error because trigger_on is mandatory */
+    /* retrieve special parameters */
+    rc = GetStringParam(config_blk, block_name, "trigger_on",
+                        PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr,
+                        sizeof(tmpstr), &arg_tab, &arg_count, msg_out);
+    if (rc)                   /* even ENOENT retruns an error because trigger_on is mandatory */
         return rc;
 
     /* initialize list of optional args */
@@ -228,135 +287,120 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     p_trigger_item->list_size = 0;
 
     /* analyze trigger_on parameter */
-    if ( !strcasecmp( tmpstr, "periodic" ) )
+    if (!strcasecmp(tmpstr, "periodic") || !strcasecmp(tmpstr, "scheduled"))
     {
-        p_trigger_item->type = TRIGGER_ALWAYS;
+        p_trigger_item->trigger_type = TRIG_ALWAYS;
+        p_trigger_item->target_type = TGT_FS; /* TODO allow other targets (user, group, fileclass...) */
 
         /* default: alert enabled if LW cannot be reached */
         p_trigger_item->alert_lw = FALSE;
 
         /* no arg expected */
-        if ( arg_count > 0 )
+        if (arg_count > 0)
         {
-            sprintf( msg_out,
-                     "No extra argument expected for trigger type '%s': %u argument(s) found.",
-                     tmpstr, arg_count );
+            sprintf(msg_out,
+                    "No extra argument expected for trigger type '%s': %u argument(s) found.",
+                    tmpstr, arg_count);
             return EINVAL;
         }
     }
-    else if ( !strcasecmp( tmpstr, "global_usage" ) )
+    else if (!strcasecmp(tmpstr, "global_usage"))
     {
-        p_trigger_item->type = TRIGGER_GLOBAL_USAGE;
+        p_trigger_item->trigger_type = TRIG_CONDITION;
+        p_trigger_item->target_type = TGT_FS;
 
         /* default: alert enabled if LW cannot be reached */
         p_trigger_item->alert_lw = TRUE;
 
         /* no arg expected */
-        if ( arg_count > 0 )
+        if (arg_count > 0)
         {
-            sprintf( msg_out,
+            sprintf(msg_out,
                      "No extra argument expected for trigger type '%s': %u argument(s) found.",
-                     tmpstr, arg_count );
+                     tmpstr, arg_count);
             return EINVAL;
         }
     }
-    else if ( !strcasecmp( tmpstr, "OST_usage" ) )
+    else if (!strcasecmp(tmpstr, "OST_usage"))
     {
-        p_trigger_item->type = TRIGGER_OST_USAGE;
+        p_trigger_item->trigger_type = TRIG_CONDITION;
+        p_trigger_item->target_type = TGT_OST;
 
         /* default: alert enabled if LW cannot be reached */
         p_trigger_item->alert_lw = TRUE;
 
         /* no arg expected */
-        if ( arg_count > 0 )
+        if (arg_count > 0)
         {
-            sprintf( msg_out,
+            sprintf(msg_out,
                      "No extra argument expected for trigger type '%s': %u argument(s) found.",
-                     tmpstr, arg_count );
+                     tmpstr, arg_count);
             return EINVAL;
         }
     }
-    else if ( !strcasecmp( tmpstr, "user_usage" ) )
+    else if (!strcasecmp(tmpstr, "user_usage"))
     {
-        p_trigger_item->type = TRIGGER_USER_USAGE;
+        p_trigger_item->trigger_type = TRIG_CONDITION;
+        p_trigger_item->target_type = TGT_USER;
 
         /* default: alert enabled if LW cannot be reached */
         p_trigger_item->alert_lw = TRUE;
 
         /* optional arguments: user list */
-        if ( arg_count > 0 )
+        if (arg_count > 0)
         {
-            p_trigger_item->list = ( char ** ) calloc( arg_count, sizeof( char * ) );
+            p_trigger_item->list = (char **) calloc(arg_count, sizeof(char *));
             p_trigger_item->list_size = arg_count;
-            for ( i = 0; i < arg_count; i++ )
+            for (i = 0; i < arg_count; i++)
             {
-                p_trigger_item->list[i] = ( char * ) malloc( strlen( arg_tab[i] ) + 1 );
-                strcpy( p_trigger_item->list[i], arg_tab[i] );
+                p_trigger_item->list[i] = (char *) malloc(strlen(arg_tab[i]) + 1);
+                strcpy(p_trigger_item->list[i], arg_tab[i]);
             }
         }
     }
-    else if ( !strcasecmp( tmpstr, "group_usage" ) )
+    else if (!strcasecmp(tmpstr, "group_usage"))
     {
-        p_trigger_item->type = TRIGGER_GROUP_USAGE;
+        p_trigger_item->trigger_type = TRIG_CONDITION;
+        p_trigger_item->target_type = TGT_GROUP;
 
         /* default: alert enabled if LW cannot be reached */
         p_trigger_item->alert_lw = TRUE;
 
         /* optional argument: group list */
-        if ( arg_count > 0 )
+        if (arg_count > 0)
         {
-            p_trigger_item->list = ( char ** ) calloc( arg_count, sizeof( char * ) );
+            p_trigger_item->list = (char **) calloc(arg_count, sizeof(char *));
             p_trigger_item->list_size = arg_count;
-            for ( i = 0; i < arg_count; i++ )
+            for (i = 0; i < arg_count; i++)
             {
-                p_trigger_item->list[i] = ( char * ) malloc( strlen( arg_tab[i] ) + 1 );
-                strcpy( p_trigger_item->list[i], arg_tab[i] );
+                p_trigger_item->list[i] = (char *) malloc(strlen(arg_tab[i]) + 1);
+                strcpy(p_trigger_item->list[i], arg_tab[i]);
             }
         }
     }
-    else if ( !strcasecmp( tmpstr, "pool_usage" ) )
+    else if (!strcasecmp(tmpstr, "pool_usage"))
     {
-        p_trigger_item->type = TRIGGER_POOL_USAGE;
+        p_trigger_item->trigger_type = TRIG_CONDITION;
+        p_trigger_item->target_type = TGT_POOL;
 
         /* default: alert enabled if LW cannot be reached */
         p_trigger_item->alert_lw = TRUE;
 
         /* optional arguments: user list */
-        if ( arg_count > 0 )
+        if (arg_count > 0)
         {
-            p_trigger_item->list = ( char ** ) calloc( arg_count, sizeof( char * ) );
+            p_trigger_item->list = (char **) calloc(arg_count, sizeof(char *));
             p_trigger_item->list_size = arg_count;
-            for ( i = 0; i < arg_count; i++ )
+            for (i = 0; i < arg_count; i++)
             {
-                p_trigger_item->list[i] = ( char * ) malloc( strlen( arg_tab[i] ) + 1 );
-                strcpy( p_trigger_item->list[i], arg_tab[i] );
+                p_trigger_item->list[i] = (char *) malloc(strlen(arg_tab[i]) + 1);
+                strcpy(p_trigger_item->list[i], arg_tab[i]);
             }
         }
     }
-    else if ( !strcasecmp( tmpstr, "external_command" ) )
-    {
-        p_trigger_item->type = TRIGGER_CUSTOM_CMD;
-
-        /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = TRUE;
-
-        /* single mandatory argument: command */
-        if ( arg_count != 1 )
-        {
-            sprintf( msg_out,
-                     "A single mandatory argument is expected for trigger type '%s': %u argument(s) found.",
-                     tmpstr, arg_count );
-            return EINVAL;
-        }
-
-        p_trigger_item->list = ( char ** ) malloc( sizeof( char * ) );
-        p_trigger_item->list[0] = ( char * ) malloc( strlen( arg_tab[0] ) + 1 );
-        strcpy( p_trigger_item->list[0], arg_tab[0] );
-        p_trigger_item->list_size = 1;
-    }
     else
     {
-        sprintf( msg_out, "Unexpected value for 'trigger_on' parameter: %s.", tmpstr );
+        sprintf(msg_out, "Unexpected value for 'trigger_on' parameter: %s.", tmpstr);
         return EINVAL;
     }
 
@@ -364,217 +408,144 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
     /* retrieve all threshold params and check their compatibility */
     high_count = low_count = 0;
 
-    rc_hp = GetFloatParam( config_blk, block_name, "high_threshold_pct",
-                         FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &h_pct,
-                         NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc_hp == ENOENT )
-        rc_hp = GetFloatParam( config_blk, block_name, "high_watermark_pct",
-                             FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &h_pct,
-                             NULL, NULL, msg_out );
-
-    if ( ( rc_hp != 0 ) && ( rc_hp != ENOENT ) )
+    rc_hp = GetFloatParam(config_blk, block_name, "high_threshold_pct",
+                          PFLG_POSITIVE | PFLG_ALLOW_PCT_SIGN, &h_pct,
+                          NULL, NULL, msg_out);
+    if ((rc_hp != 0) && (rc_hp != ENOENT))
         return rc_hp;
-    else if ( rc_hp != ENOENT )
+    else if (rc_hp != ENOENT)
         high_count++;
 
-    rc_hv = GetSizeParam( config_blk, block_name, "high_threshold_vol",
-                        INT_PARAM_POSITIVE, &h_vol, NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc_hv == ENOENT )
-        rc_hv = GetSizeParam( config_blk, block_name, "high_watermark_vol",
-                              INT_PARAM_POSITIVE, &h_vol, NULL, NULL, msg_out );
-
-    if ( ( rc_hv != 0 ) && ( rc_hv != ENOENT ) )
+    rc_hv = GetSizeParam(config_blk, block_name, "high_threshold_vol",
+                        PFLG_POSITIVE, &h_vol, NULL, NULL, msg_out);
+    if ((rc_hv != 0) && (rc_hv != ENOENT))
         return rc_hv;
-    else if ( rc_hv != ENOENT )
+    else if (rc_hv != ENOENT)
         high_count++;
 
-    rc_hc = GetInt64Param( config_blk, block_name, "high_threshold_cnt",
-                           INT_PARAM_POSITIVE, &h_cnt, NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc_hc == ENOENT )
-            rc_hc = GetInt64Param( config_blk, block_name, "high_watermark_cnt",
-                                   INT_PARAM_POSITIVE, &h_cnt, NULL, NULL, msg_out );
-    if ( ( rc_hc != 0 ) && ( rc_hc != ENOENT ) )
+    rc_hc = GetInt64Param(config_blk, block_name, "high_threshold_cnt",
+                          PFLG_POSITIVE, &h_cnt, NULL, NULL, msg_out);
+    if ((rc_hc != 0) && (rc_hc != ENOENT))
         return rc_hc;
-    else if ( rc_hc != ENOENT )
+    else if (rc_hc != ENOENT)
         high_count++;
 
-    rc_lp = GetFloatParam( config_blk, block_name, "low_threshold_pct",
-                         FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &l_pct,
-                         NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc_lp == ENOENT )
-        rc_lp = GetFloatParam( config_blk, block_name, "low_watermark_pct",
-                             FLOAT_PARAM_POSITIVE | ALLOW_PCT_SIGN, &l_pct,
-                             NULL, NULL, msg_out );
-
-    if ( ( rc_lp != 0 ) && ( rc_lp != ENOENT ) )
+    rc_lp = GetFloatParam(config_blk, block_name, "low_threshold_pct",
+                         PFLG_POSITIVE | PFLG_ALLOW_PCT_SIGN, &l_pct,
+                         NULL, NULL, msg_out);
+    if ((rc_lp != 0) && (rc_lp != ENOENT))
         return rc_lp;
-    else if ( rc_lp != ENOENT )
+    else if (rc_lp != ENOENT)
         low_count++;
 
-    rc_lv = GetSizeParam( config_blk, block_name, "low_threshold_vol",
-                        INT_PARAM_POSITIVE, &l_vol, NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc_lv == ENOENT )
-        rc_lv = GetSizeParam( config_blk, block_name, "low_watermark_vol",
-                            INT_PARAM_POSITIVE, &l_vol, NULL, NULL, msg_out );
-    if ( ( rc_lv != 0 ) && ( rc_lv != ENOENT ) )
+    rc_lv = GetSizeParam(config_blk, block_name, "low_threshold_vol",
+                        PFLG_POSITIVE, &l_vol, NULL, NULL, msg_out);
+    if ((rc_lv != 0) && (rc_lv != ENOENT))
         return rc_lv;
-    else if ( rc_lv != ENOENT )
+    else if (rc_lv != ENOENT)
         low_count++;
 
-    rc_lc = GetInt64Param( config_blk, block_name, "low_threshold_cnt",
-                           INT_PARAM_POSITIVE, &l_cnt, NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc_lc == ENOENT )
-        rc_lc = GetInt64Param( config_blk, block_name, "low_watermark_cnt",
-                               INT_PARAM_POSITIVE, &l_cnt, NULL, NULL, msg_out );
-    if ( ( rc_lc != 0 ) && ( rc_lc != ENOENT ) )
+    rc_lc = GetInt64Param(config_blk, block_name, "low_threshold_cnt",
+                           PFLG_POSITIVE, &l_cnt, NULL, NULL, msg_out);
+    if ((rc_lc != 0) && (rc_lc != ENOENT))
         return rc_lc;
-    else if ( rc_lc != ENOENT )
+    else if (rc_lc != ENOENT)
         low_count++;
 
-    if ( p_trigger_item->type == TRIGGER_ALWAYS )
+    if (p_trigger_item->trigger_type == TRIG_ALWAYS)
     {
         /* in case of 'periodic' trigger, no thresholds are expected */
-        if ( (high_count > 0) || (low_count > 0) )
+        if ((high_count > 0) || (low_count > 0))
         {
-            strcpy( msg_out,
-                    "No high/low threshold expected for trigger type 'periodic'" );
+            strcpy(msg_out,
+                    "No high/low threshold expected for trigger type 'periodic'");
             return EINVAL;
         }
     }
-    else if ( p_trigger_item->type == TRIGGER_CUSTOM_CMD )
+    else if (high_count > 1)
     {
-        /* in case of an external command, no thresholds are expected */
-        if ( (high_count > 0) || (low_count > 0) )
-        {
-            strcpy( msg_out,
-                    "No high/low thresholds expected for trigger type 'external_command'" );
-            return EINVAL;
-        }
-    }
-    else if ( high_count > 1 )
-    {
-        strcpy( msg_out, "Multiple purge start conditions in trigger." );
+        strcpy(msg_out, "Multiple purge start conditions in trigger.");
         return EINVAL;
     }
-    else if ( low_count > 1 )
+    else if (low_count > 1)
     {
-        strcpy( msg_out, "Multiple purge stop conditions in trigger." );
+        strcpy(msg_out, "Multiple purge stop conditions in trigger.");
         return EINVAL;
     }
-    else if ( high_count == 0 )
+    else if (high_count == 0)
     {
-        strcpy( msg_out, "No purge start condition found in trigger "
+        strcpy(msg_out, "No purge start condition found in trigger "
                          "(mandatory). 'high_threshold_pct', 'high_threshold_vol'"
-                         "or 'high_threshold_cnt' expected" );
+                         "or 'high_threshold_cnt' expected");
         return ENOENT;
     }
-    else if ( low_count == 0 )
+    else if (low_count == 0)
     {
-        strcpy( msg_out, "No purge stop condition found in trigger "
+        strcpy(msg_out, "No purge stop condition found in trigger "
                          "(mandatory). 'low_threshold_pct', 'low_threshold_vol'"
-                         "or 'low_threshold_cnt' expected" );
+                         "or 'low_threshold_cnt' expected");
         return ENOENT;
     }
-    else if ( rc_hc != rc_lc ) /* both 0 or both ENOENT */
+    else if (rc_hc != rc_lc) /* both 0 or both ENOENT */
     {
-        strcpy( msg_out, "Incompatible threshold types: 'high_threshold_cnt' "
-                         "must be used with 'low_threshold_cnt'" );
+        strcpy(msg_out, "Incompatible threshold types: 'high_threshold_cnt' "
+                         "must be used with 'low_threshold_cnt'");
         return ENOENT;
     }
 
     /* NOTE: count threshold for HSM systems only match online files (not released)*/
 
     /* count threshold is only on global usage */
-    if ( (p_trigger_item->type != TRIGGER_GLOBAL_USAGE)
-         && (p_trigger_item->type != TRIGGER_ALWAYS)
-         && (p_trigger_item->type != TRIGGER_USER_USAGE)
-         && (p_trigger_item->type != TRIGGER_GROUP_USAGE)
-         && ( (rc_hc == 0) || (rc_lc == 0) ) )
+    if ((p_trigger_item->trigger_type != TGT_FS)
+         && (p_trigger_item->target_type != TGT_USER)
+         && (p_trigger_item->target_type != TGT_GROUP)
+         && ((rc_hc == 0) || (rc_lc == 0)))
     {
-        strcpy( msg_out, "Threshold on entry count is only supported "
-                         "for 'global_usage', 'user_usage', 'group_usage' and 'periodic' triggers" );
+        strcpy(msg_out, "Threshold on entry count is only supported "
+                         "for 'global_usage', 'user_usage' and 'group_usage' triggers");
         return EINVAL;
     }
 
-    if ( rc_hp == 0 )
+    if (rc_hp == 0)
     {
         p_trigger_item->hw_type = PCT_THRESHOLD;
         p_trigger_item->hw_percent = h_pct;
     }
-    else if ( rc_hv == 0 )
+    else if (rc_hv == 0)
     {
         p_trigger_item->hw_type = VOL_THRESHOLD;
         p_trigger_item->hw_volume = h_vol;
     }
-    else if ( rc_hc == 0 )
+    else if (rc_hc == 0)
     {
         p_trigger_item->hw_type = COUNT_THRESHOLD;
         p_trigger_item->hw_count = h_cnt;
     }
 
-    if ( rc_lp == 0 )
+    if (rc_lp == 0)
     {
         p_trigger_item->lw_type = PCT_THRESHOLD;
         p_trigger_item->lw_percent = l_pct;
     }
-    else if ( rc_lv == 0 )
+    else if (rc_lv == 0)
     {
         p_trigger_item->lw_type = VOL_THRESHOLD;
         p_trigger_item->lw_volume = l_vol;
     }
-    else if ( rc_lc == 0 )
+    else if (rc_lc == 0)
     {
         p_trigger_item->lw_type = COUNT_THRESHOLD;
         p_trigger_item->lw_count = l_cnt;
     }
 
-    /* retrieve check interval parameter */
-
-    rc = GetDurationParam( config_blk, block_name, "check_interval",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL
-                           | PARAM_MANDATORY, &tmpval, NULL,
-                           NULL, msg_out );
-    if ( rc )
+    /* retrieve scalar parameters */
+    rc = read_scalar_params(config_blk, block_name, cfg_params, msg_out);
+    if (rc)
         return rc;
-    p_trigger_item->check_interval = tmpval;
 
-    rc = GetBoolParam( config_blk, block_name, "alert_high", 0,
-                       &tmpval, NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc == ENOENT )
-        rc = GetBoolParam( config_blk, block_name, "notify_hw", 0,
-                           &tmpval, NULL, NULL, msg_out );
-    if ( rc == ENOENT )
-        rc = GetBoolParam( config_blk, block_name, "notify", 0,
-                           &tmpval, NULL, NULL, msg_out );
-
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc == 0 )
-        p_trigger_item->alert_hw = tmpval;
-
-    rc = GetBoolParam( config_blk, block_name, "alert_low", 0,
-                       &tmpval, NULL, NULL, msg_out );
-    /* for backward compatibility */
-    if ( rc == ENOENT )
-        rc = GetBoolParam( config_blk, block_name, "alert_lw", 0,
-                           &tmpval, NULL, NULL, msg_out );
-
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc == 0 )
-        p_trigger_item->alert_lw = tmpval;
-
-    CheckUnknownParameters( config_blk, block_name, trigger_expect );
+    CheckUnknownParameters(config_blk, block_name, trigger_expect);
 
     return 0;
-
 }
 
 #define critical_err_check(_ptr_, _blkname_) do { if (!_ptr_) {\
@@ -583,391 +554,571 @@ static int parse_trigger_block( config_item_t config_blk, const char *block_name
                                     }\
                                 } while (0)
 
-int Read_ResourceMon_Config( config_file_t config,
-                             void *module_config, char *msg_out, int for_reload )
+static int polrun_read_config(config_file_t config, const char *policy_name,
+                              policy_run_config_t *conf,
+                              char *msg_out, int for_reload)
 {
     int            rc;
-    int            intval;
-    resource_monitor_config_t *conf = ( resource_monitor_config_t * ) module_config;
-
     unsigned int   blc_index;
+    char block_name[1024];
+    char tmp[1024];
 
-    static const char *purge_allowed[] = {
-        "nb_threads_purge", "post_purge_df_latency",
-        "purge_queue_size", "db_result_size_max",
-#ifdef ATTR_INDEX_status
-        "check_purge_status_on_startup",
-#endif
+    /* parameter for CheckUnknownParams() */
+    static const char *allowed[] = {
+        "lru_sort_attr", "default_action", "max_action_count",
+        "max_action_volume", "nb_threads", "suspend_error_pct",
+        "suspend_error_min", "report_interval", "action_timeout",
+        "check_actions_interval", "check_actions_on_startup",
         "recheck_ignored_classes",
-#ifdef _TMP_FS_MGR
-        "purge_command",
-#endif
+        "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
+        "db_result_size_max",
         NULL
     };
 
-    /* get PURGE_PARAM block */
+    /* parameter for read_scalar_params() */
+    const cfg_param_t cfg_params[] = {
+        {"max_action_count",    PT_INT,     PFLG_POSITIVE,
+            &conf->max_action_nbr, 0},
+        {"max_action_volume",   PT_SIZE,    PFLG_POSITIVE,
+            &conf->max_action_vol, 0},
+        {"nb_threads",          PT_INT,     PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->nb_threads, 0},
+        {"suspend_error_pct",   PT_FLOAT,   PFLG_POSITIVE | PFLG_ALLOW_PCT_SIGN,
+            &conf->suspend_error_pct, 0},
+        {"suspend_error_min",   PT_INT,      PFLG_POSITIVE,
+            &conf->suspend_error_min, 0},
+        {"report_interval",     PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->report_interval, 0},
+        {"action_timeout",      PT_DURATION, PFLG_POSITIVE,
+            &conf->action_timeout, 0},
+        {"check_actions_interval",      PT_DURATION, PFLG_POSITIVE,
+            &conf->check_action_status_delay, 0},
+        {"check_actions_on_startup",    PT_BOOL,     0,
+            &conf->check_action_status_on_startup, 0},
+        {"recheck_ignored_classes",     PT_BOOL,     0,
+            &conf->recheck_ignored_classes, 0},
+        {"pre_maintenance_window",      PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->pre_maintenance_window, 0},
+        {"maint_min_apply_delay",       PT_DURATION, PFLG_POSITIVE,
+            &conf->maint_min_apply_delay, 0},
+        {"queue_size",          PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
+            &conf->queue_size, 0},
+        {"db_result_size_max",  PT_INT, PFLG_POSITIVE,
+            &conf->db_request_limit, 0},
 
-    config_item_t  param_block = rh_config_FindItemByName( config, PURGE_PARAM_BLOCK );
-    if ( param_block != NULL )
+        {NULL, 0, 0, NULL, 0}
+    };
+    snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, policy_name);
+
+    /* get <policy>_parameters block */
+    config_item_t  param_block = rh_config_FindItemByName(config, block_name);
+
+    /* default_action is mandatory */
+    if (param_block == NULL)
     {
-        /* no error, because no parameter is mandatory */
+        sprintf(msg_out, "Missing mandatory block '%s' (in particular, "
+                "'default_action' parameter must be specified)", block_name);
+        return ENOENT;
+    }
 
-        /* check this is a block... */
-        if ( rh_config_ItemType( param_block ) != CONFIG_ITEM_BLOCK )
-        {
-            strcpy( msg_out, "A block is expected for '" PURGE_PARAM_BLOCK "' item" );
+    /* check this is a block... */
+    if (rh_config_ItemType(param_block) != CONFIG_ITEM_BLOCK)
+    {
+        sprintf(msg_out, "A block is expected for configuration item '%s'", block_name);
+        return EINVAL;
+    }
+
+    /* read all scalar params */
+    rc = read_scalar_params(param_block, block_name, cfg_params, msg_out);
+    if (rc)
+        return rc;
+
+    /* read specific parameters */
+    rc = GetStringParam(param_block, block_name, "lru_sort_attr",
+                        PFLG_NO_WILDCARDS, tmp, sizeof(tmp), NULL, NULL,
+                        msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT) {
+        /* is it a time attribute? */
+#ifdef ATTR_INDEX_last_archive
+        if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ARCHIVE)))
+            conf->lru_sort_attr = ATTR_INDEX_last_archive;
+        else
+#endif
+        if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ACCESS)))
+            conf->lru_sort_attr = ATTR_INDEX_last_access;
+        else if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_MOD)))
+            conf->lru_sort_attr = ATTR_INDEX_last_mod;
+#ifdef ATTR_INDEX_creation_time
+        else if (!strcasecmp(tmp, criteria2str(CRITERIA_CREATION)))
+            conf->lru_sort_attr = ATTR_INDEX_creation_time;
+#endif
+        else {
+            strcpy(msg_out, "time attribute expected for 'lru_sort_attr': creation, last_access, last_mod, last_archive...");
             return EINVAL;
-        }
-
-        /* parse parameters */
-        rc = GetIntParam( param_block, PURGE_PARAM_BLOCK, "nb_threads_purge",
-                          INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, ( int * ) &conf->nb_threads_purge,
-                          NULL, NULL, msg_out );
-        if ( ( rc != 0 ) && ( rc != ENOENT ) )
-            return rc;
-
-        rc = GetDurationParam( param_block, PURGE_PARAM_BLOCK, "post_purge_df_latency", INT_PARAM_POSITIVE, /* 0 is authorized: no delay */
-                               &intval, NULL, NULL, msg_out );
-        if ( ( rc != 0 ) && ( rc != ENOENT ) )
-            return rc;
-        else if ( rc != ENOENT )
-            conf->post_purge_df_latency = intval;
-
-        rc = GetIntParam( param_block, PURGE_PARAM_BLOCK, "purge_queue_size",
-                          INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, ( int * ) &conf->purge_queue_size,
-                          NULL, NULL, msg_out );
-        if ( ( rc != 0 ) && ( rc != ENOENT ) )
-            return rc;
-
-        rc = GetIntParam( param_block, PURGE_PARAM_BLOCK, "db_result_size_max",
-                          INT_PARAM_POSITIVE, ( int * ) &conf->db_request_limit, NULL, NULL, msg_out );
-        if ( ( rc != 0 ) && ( rc != ENOENT ) )
-            return rc;
-
-#ifdef ATTR_INDEX_status
-        rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "check_purge_status_on_startup",
-                           0, &intval, NULL, NULL, msg_out );
-        if ( ( rc != 0 ) && ( rc != ENOENT ) )
-            return rc;
-        else if ( rc != ENOENT )
-            conf->check_purge_status_on_startup = intval;
-#endif
-        rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "recheck_ignored_classes",
-                           0, &intval, NULL, NULL, msg_out );
-        if ( ( rc != 0 ) && ( rc != ENOENT ) )
-            return rc;
-        else if ( rc != ENOENT )
-            conf->recheck_ignored_classes = intval;
-
-        rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "simulation_mode",
-                           0, &intval, NULL, NULL, msg_out );
-        if ( rc == 0 )
-        {
-            DisplayLog( LVL_CRIT, RESMONCFG_TAG,
-                "WARNING: 'simulation_mode' parameter is deprecated. Use '--dry-run' option instead.");
-        }
-
-#ifdef _TMP_FS_MGR
-        rc = GetStringParam(param_block, PURGE_PARAM_BLOCK, "purge_command",
-                         STR_PARAM_ABSOLUTE_PATH, /* can contain wildcards: {path}, {fid}, {fsname} */
-                         conf->purge_command, RBH_PATH_MAX, NULL, NULL, msg_out);
-        if ((rc != 0) && (rc != ENOENT))
-            return rc;
-#endif
-
-        CheckUnknownParameters( param_block, PURGE_PARAM_BLOCK, purge_allowed );
-
-    } /* end of purge parameters */
-
-    /* get PURGE_TRIGGER blocks */
-
-    for ( blc_index = 0; blc_index < rh_config_GetNbBlocks( config ); blc_index++ )
-    {
-        char          *block_name;
-        config_item_t  curr_item = rh_config_GetBlockByIndex( config, blc_index );
-        critical_err_check( curr_item, "root" );
-
-        if ( rh_config_ItemType( curr_item ) != CONFIG_ITEM_BLOCK )
-            continue;
-
-        block_name = rh_config_GetBlockName( curr_item );
-        critical_err_check( block_name, "root" );
-
-        if ( !strcasecmp( block_name, TRIGGER_BLOCK ) )
-        {
-            if ( conf->trigger_count == 0 )
-                conf->trigger_list = ( trigger_item_t * ) malloc( sizeof( trigger_item_t ) );
-            else
-                conf->trigger_list =
-                    ( trigger_item_t * ) realloc( conf->trigger_list,
-                                                  ( conf->trigger_count +
-                                                    1 ) * sizeof( trigger_item_t ) );
-
-            conf->trigger_count++;
-
-            /* analyze trigger block */
-            rc = parse_trigger_block( curr_item, block_name,
-                                      &conf->trigger_list[conf->trigger_count - 1], msg_out );
-
-            if ( rc )
-                return rc;
         }
     }
 
+    char ** extra = NULL;
+    unsigned int extra_cnt = 0;
+    rc = GetStringParam(param_block, block_name, "default_action",
+                        PFLG_NO_WILDCARDS | PFLG_MANDATORY,
+                        tmp, sizeof(tmp), &extra, &extra_cnt, msg_out);
+    if (rc)
+        return rc;
+    if (!strcasecmp(tmp, "cmd"))
+    {
+        /* external command */
+        /* 1 single argument expected */
+        if (extra_cnt != 1)
+        {
+            strcpy(msg_out, "A single argument is expected for cmd. E.g.: default_action = cmd(\"myscript.sh\");");
+            return EINVAL;
+        }
+        /* absolute path expected */
+        else if (extra[0][0] != '/')
+        {
+            strcpy(msg_out, "An absolute path is expected for default_action::cmd");
+            return EINVAL;
+        }
+        rh_strncpy(conf->action_u.command, extra[0], sizeof(conf->action_u.command));
+        conf->action_type = ACTION_COMMAND;
+    }
+    else
+    {
+        if (extra_cnt != 0)
+        {
+            strcpy(msg_out, "No extra argument is expected for default_action");
+            return EINVAL;
+        }
+        conf->action_u.function = action_name2function(tmp);
+        if (conf->action_u.function == NULL)
+        {
+            sprintf(msg_out, "default_action: unknown function '%s'", tmp);
+            return EINVAL;
+        }
+        conf->action_type = ACTION_FUNCTION; 
+    }
+
+    /* warn for unknown parameters */
+    CheckUnknownParameters(param_block, block_name, allowed);
+
+    /* get TRIGGER blocks */
+    snprintf(block_name, sizeof(block_name), "%s"TRIGGER_SUFFIX, policy_name);
+
+    for (blc_index = 0; blc_index < rh_config_GetNbBlocks(config); blc_index++)
+    {
+        char          *curr_bname;
+        config_item_t  curr_item = rh_config_GetBlockByIndex(config, blc_index);
+        critical_err_check(curr_item, "root");
+
+        if (rh_config_ItemType(curr_item) != CONFIG_ITEM_BLOCK)
+            continue;
+
+        curr_bname = rh_config_GetBlockName(curr_item);
+        critical_err_check(curr_bname, "root");
+
+        if (!strcasecmp(curr_bname, block_name))
+        {
+            if (conf->trigger_count == 0)
+                conf->trigger_list = (trigger_item_t *)malloc(sizeof(trigger_item_t));
+            else
+                conf->trigger_list =
+                    (trigger_item_t *)realloc(conf->trigger_list,
+                                              (conf->trigger_count + 1)
+                                              * sizeof(trigger_item_t));
+            conf->trigger_count++;
+
+            /* analyze trigger block */
+            rc = parse_trigger_block(curr_item, curr_bname,
+                                   &conf->trigger_list[conf->trigger_count - 1],
+                                   msg_out);
+            if (rc)
+                return rc;
+        }
+    }
     return 0;
 }
 
+/* read the run cfg for all policies */
+int policy_run_cfg_read(config_file_t config, void *module_config, char *msg_out,
+                        int for_reload)
+{
+    int i, rc = 0;
+    policy_run_configs_t *allconf = (policy_run_configs_t *)module_config;
+    policies_t *parsed_policies = runcfg2policies(module_config);
 
-/** Update purge policy triggers */
-static void update_triggers( trigger_item_t * trigger_list, unsigned int trigger_count )
+    /* allconf->count is supposed to be set by set_default and configs must be allocated.
+     * double check by comparing policy count and policy_run count */
+    if (allconf->count != parsed_policies->policy_count)
+        RBH_BUG("Unexpected policy_run_cfg count != policy count");
+
+    for (i = 0; i < allconf->count; i++)
+    {
+        rc = polrun_read_config(config, parsed_policies->policy_list[i].name,
+                                &allconf->configs[i], msg_out, for_reload);
+        if (rc)
+            return rc;
+    }
+    return rc;
+}
+
+#define NO_TRIG_UPDT_MSG(_what) DisplayLog(LVL_MAJOR, TAG, _what \
+        " changed in config file but cannot be modified dynamically: trigger update cancelled")
+
+static void update_triggers(trigger_item_t *trigger_tgt, unsigned int count_tgt,
+                            trigger_item_t *trigger_new, unsigned int count_new,
+                            int *check_interval_chgd)
 {
     unsigned int   i;
-    int            check_interval_chgd = FALSE;
+    *check_interval_chgd = FALSE;
 
-    if ( trigger_count != resmon_config.trigger_count )
+    if (count_new != count_tgt)
     {
         /* skip trigger checking & update */
-        DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                    "Trigger count changed in config file but cannot be modified dynamically: trigger update cancelled" );
+        NO_TRIG_UPDT_MSG("Trigger count");
         return;
     }
 
     /* check trigger types */
-    for ( i = 0; i < trigger_count; i++ )
+    for (i = 0; i < count_new; i++)
     {
-        if ( trigger_list[i].type != resmon_config.trigger_list[i].type )
+        if (trigger_new[i].trigger_type != trigger_tgt[i].trigger_type
+            || trigger_new[i].target_type != trigger_tgt[i].target_type)
         {
-            DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                        "Trigger type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
-                        trigger_list[i].type, resmon_config.trigger_list[i].type );
+            NO_TRIG_UPDT_MSG("Trigger type");
             return;
         }
-        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD ) &&
-                  ( trigger_list[i].type != TRIGGER_ALWAYS ) &&
-                  ( trigger_list[i].hw_type != resmon_config.trigger_list[i].hw_type ) )
+        else if ((trigger_new[i].trigger_type != TRIG_ALWAYS) &&
+                  (trigger_new[i].hw_type != trigger_tgt[i].hw_type))
         {
-            DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                        "High threshold type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
-                        trigger_list[i].hw_type, resmon_config.trigger_list[i].hw_type );
+            NO_TRIG_UPDT_MSG("High threshold type");
             return;
         }
-        else if ( ( trigger_list[i].type != TRIGGER_CUSTOM_CMD ) &&
-                  ( trigger_list[i].type != TRIGGER_ALWAYS ) &&
-                  ( trigger_list[i].lw_type != resmon_config.trigger_list[i].lw_type ) )
+        else if ((trigger_new[i].trigger_type != TRIG_ALWAYS) &&
+                  (trigger_new[i].lw_type != trigger_tgt[i].lw_type))
         {
-            DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                        "Low threshold type changed (%d<>%d) in config file but cannot be modified dynamically: trigger update cancelled",
-                        trigger_list[i].lw_type, resmon_config.trigger_list[i].lw_type );
+            NO_TRIG_UPDT_MSG("Low threshold type");
             return;
         }
     }
 
-    /* triggers have the same type: update simple parameters: threshold levels and check interval */
-    for ( i = 0; i < trigger_count; i++ )
+    /* triggers have the same type: update simple parameters:
+     * max_action_count, max_action_volume, check_interval, alert_high, alert_low, post_trigger_wait */
+    for (i = 0; i < count_new; i++)
     {
-        if ( trigger_list[i].check_interval != resmon_config.trigger_list[i].check_interval )
+        char tname[256];
+        snprintf(tname, sizeof(tname), "#%u (%s): ", i, trigger2str(&trigger_tgt[i]));
+
+        if (trigger_new[i].check_interval != trigger_tgt[i].check_interval)
         {
-            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "check_interval updated for trigger #%u: %lu->%lu",
-                        i, resmon_config.trigger_list[i].check_interval,
-                        trigger_list[i].check_interval );
-            resmon_config.trigger_list[i].check_interval = trigger_list[i].check_interval;
-            check_interval_chgd = TRUE;
+            DisplayLog(LVL_EVENT, TAG, "check_interval updated for trigger %s: %lu->%lu",
+                       tname, trigger_tgt[i].check_interval, trigger_new[i].check_interval);
+            trigger_tgt[i].check_interval = trigger_new[i].check_interval;
+            *check_interval_chgd = TRUE;
         }
 
-        if ( trigger_list[i].alert_hw != resmon_config.trigger_list[i].alert_hw )
+        if (trigger_new[i].max_action_nbr != trigger_tgt[i].max_action_nbr)
         {
-            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "alert_high updated for trigger #%u: %s->%s",
-                        i, bool2str(resmon_config.trigger_list[i].alert_hw),
-                        bool2str(trigger_list[i].alert_hw) );
-            resmon_config.trigger_list[i].alert_hw = trigger_list[i].alert_hw;
+            DisplayLog(LVL_EVENT, TAG, "max_action_count updated for trigger %s: %u entries ->%u entries",
+                       tname, trigger_tgt[i].max_action_nbr, trigger_new[i].max_action_nbr);
+            trigger_tgt[i].max_action_nbr = trigger_new[i].max_action_nbr;
         }
 
-        if ( trigger_list[i].alert_lw != resmon_config.trigger_list[i].alert_lw )
+        if (trigger_new[i].max_action_vol != trigger_tgt[i].max_action_vol)
         {
-            DisplayLog( LVL_EVENT, RESMONCFG_TAG, "alert_low updated for trigger #%u: %s->%s",
-                        i, bool2str(resmon_config.trigger_list[i].alert_lw),
-                        bool2str(trigger_list[i].alert_lw) );
-            resmon_config.trigger_list[i].alert_lw = trigger_list[i].alert_lw;
+            DisplayLog(LVL_EVENT, TAG, "max_action_volume updated for trigger %s: %Lu bytes->%Lu bytes",
+                       tname, trigger_tgt[i].max_action_vol, trigger_new[i].max_action_vol);
+            trigger_tgt[i].max_action_vol = trigger_new[i].max_action_vol;
         }
 
-        /* no thresholds for custom cmd */
-        if ( trigger_list[i].type == TRIGGER_CUSTOM_CMD )
+        if (trigger_new[i].post_trigger_wait != trigger_tgt[i].post_trigger_wait)
         {
-            if ( strcmp( trigger_list[i].list[0], resmon_config.trigger_list[i].list[0] ) )
-            {
-                DisplayLog( LVL_MAJOR, RESMONCFG_TAG,
-                            "External command for trigger #%u changed in config file but cannot be modified dynamically",
-                            i );
-            }
-            /* do nothing in all cases */
-            continue;
-        } else if ( trigger_list[i].type == TRIGGER_ALWAYS )
+            DisplayLog(LVL_EVENT, TAG, "post_trigger_wait updated for trigger %s: %lu->%lu",
+                       tname, trigger_tgt[i].post_trigger_wait, trigger_new[i].post_trigger_wait);
+            trigger_tgt[i].post_trigger_wait = trigger_new[i].post_trigger_wait;
+        }
+
+        if (trigger_new[i].alert_hw != trigger_tgt[i].alert_hw)
+        {
+            DisplayLog(LVL_EVENT, TAG, "alert_high updated for trigger %s: %s->%s",
+                       tname, bool2str(trigger_tgt[i].alert_hw),
+                       bool2str(trigger_new[i].alert_hw));
+            trigger_tgt[i].alert_hw = trigger_new[i].alert_hw;
+        }
+
+        if (trigger_new[i].alert_lw != trigger_tgt[i].alert_lw)
+        {
+            DisplayLog(LVL_EVENT, TAG, "alert_low updated for trigger %s: %s->%s",
+                       tname, bool2str(trigger_tgt[i].alert_lw),
+                       bool2str(trigger_new[i].alert_lw));
+            trigger_tgt[i].alert_lw = trigger_new[i].alert_lw;
+        }
+
+        if (trigger_new[i].trigger_type == TRIG_ALWAYS)
             /* no threshold for 'periodic' triggers */
             continue;
 
-        switch ( trigger_list[i].hw_type )
+        switch (trigger_new[i].hw_type)
         {
         case PCT_THRESHOLD:
-            if ( trigger_list[i].hw_percent != resmon_config.trigger_list[i].hw_percent )
+            if (trigger_new[i].hw_percent != trigger_tgt[i].hw_percent)
             {
-                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "High threshold updated for trigger #%u: %.2f%%->%.2f%%", i,
-                            resmon_config.trigger_list[i].hw_percent, trigger_list[i].hw_percent );
-                resmon_config.trigger_list[i].hw_percent = trigger_list[i].hw_percent;
+                DisplayLog(LVL_EVENT, TAG, "High threshold updated for trigger %s: "
+                           "%.2f%%->%.2f%%", tname, trigger_tgt[i].hw_percent, trigger_new[i].hw_percent);
+                trigger_tgt[i].hw_percent = trigger_new[i].hw_percent;
             }
             break;
 
         case VOL_THRESHOLD:
-            if ( trigger_list[i].hw_volume != resmon_config.trigger_list[i].hw_volume )
+            if (trigger_new[i].hw_volume != trigger_tgt[i].hw_volume)
             {
-                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "High threshold updated for trigger #%u: %llu bytes->%llu bytes", i,
-                            resmon_config.trigger_list[i].hw_volume, trigger_list[i].hw_volume );
-                resmon_config.trigger_list[i].hw_volume = trigger_list[i].hw_volume;
+                DisplayLog(LVL_EVENT, TAG,
+                           "High threshold updated for trigger %s: %llu bytes->%llu bytes",
+                           tname, trigger_tgt[i].hw_volume, trigger_new[i].hw_volume);
+                trigger_tgt[i].hw_volume = trigger_new[i].hw_volume;
             }
             break;
 
         case COUNT_THRESHOLD:
-            if ( trigger_list[i].hw_count != resmon_config.trigger_list[i].hw_count )
+            if (trigger_new[i].hw_count != trigger_tgt[i].hw_count)
             {
-                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "High threshold updated for trigger #%u: %llu files->%llu files", i,
-                            resmon_config.trigger_list[i].hw_count, trigger_list[i].hw_count );
-                resmon_config.trigger_list[i].hw_count = trigger_list[i].hw_count;
+                DisplayLog(LVL_EVENT, TAG,
+                           "High threshold updated for trigger %s: %llu entries ->%llu entries",
+                           tname, trigger_tgt[i].hw_count, trigger_new[i].hw_count);
+                trigger_tgt[i].hw_count = trigger_new[i].hw_count;
             }
             break;
         }
 
-        switch ( trigger_list[i].lw_type )
+        switch (trigger_new[i].lw_type)
         {
         case PCT_THRESHOLD:
-            if ( trigger_list[i].lw_percent != resmon_config.trigger_list[i].lw_percent )
+            if (trigger_new[i].lw_percent != trigger_tgt[i].lw_percent)
             {
-                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "Low threshold updated for trigger #%u: %.2f%%->%.2f%%", i,
-                            resmon_config.trigger_list[i].lw_percent, trigger_list[i].lw_percent );
-                resmon_config.trigger_list[i].lw_percent = trigger_list[i].lw_percent;
+                DisplayLog(LVL_EVENT, TAG,
+                           "Low threshold updated for trigger %s: %.2f%%->%.2f%%", tname,
+                           trigger_tgt[i].lw_percent, trigger_new[i].lw_percent);
+                trigger_tgt[i].lw_percent = trigger_new[i].lw_percent;
             }
             break;
 
         case VOL_THRESHOLD:
-            if ( trigger_list[i].lw_volume != resmon_config.trigger_list[i].lw_volume )
+            if (trigger_new[i].lw_volume != trigger_tgt[i].lw_volume)
             {
-                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "Low threshold updated for trigger #%u: %llu bytes->%llu bytes", i,
-                            resmon_config.trigger_list[i].lw_volume, trigger_list[i].lw_volume );
-                resmon_config.trigger_list[i].lw_volume = trigger_list[i].lw_volume;
+                DisplayLog(LVL_EVENT, TAG,
+                            "Low threshold updated for trigger %s: %llu bytes->%llu bytes", tname,
+                            trigger_tgt[i].lw_volume, trigger_new[i].lw_volume);
+                trigger_tgt[i].lw_volume = trigger_new[i].lw_volume;
             }
             break;
 
         case COUNT_THRESHOLD:
-            if ( trigger_list[i].lw_count != resmon_config.trigger_list[i].lw_count )
+            if (trigger_new[i].lw_count != trigger_tgt[i].lw_count)
             {
-                DisplayLog( LVL_EVENT, RESMONCFG_TAG,
-                            "Low threshold updated for trigger #%u: %llu files->%llu files", i,
-                            resmon_config.trigger_list[i].lw_count, trigger_list[i].lw_count );
-                resmon_config.trigger_list[i].lw_count = trigger_list[i].lw_count;
+                DisplayLog(LVL_EVENT, TAG,
+                           "Low threshold updated for trigger %s: %llu entries->%llu entries", tname,
+                           trigger_tgt[i].lw_count, trigger_new[i].lw_count);
+                trigger_tgt[i].lw_count = trigger_new[i].lw_count;
             }
             break;
-
         }
-
     }
 
     /* update global interval check (GCD of all check intervals) if one of them changed */
-    if ( check_interval_chgd )
-        ResMon_UpdateCheckInterval(  );
+// TODO move to caller
+//    if (check_interval_chgd)
+//        ResMon_UpdateCheckInterval();
 
     /* triggers have been updated */
     return;
-
 }
 
-static void free_triggers( trigger_item_t * p_triggers, unsigned int count )
+static void free_triggers(trigger_item_t * p_triggers, unsigned int count)
 {
     unsigned int   i, j;
-    for ( i = 0; i < count; i++ )
+    for (i = 0; i < count; i++)
     {
-        if ( ( p_triggers[i].list_size > 0 ) && ( p_triggers[i].list != NULL ) )
+        if ((p_triggers[i].list_size > 0) && (p_triggers[i].list != NULL))
         {
             /* free the strings */
-            for ( j = 0; j < p_triggers[i].list_size; j++ )
+            for (j = 0; j < p_triggers[i].list_size; j++)
             {
-                if ( p_triggers[i].list[j] != NULL )
-                    free( p_triggers[i].list[j] );
+                if (p_triggers[i].list[j] != NULL)
+                    free(p_triggers[i].list[j]);
             }
 
             /* free the arg list */
-            free( p_triggers[i].list );
+            free(p_triggers[i].list);
         }
     }
 
     /* free the trigger list */
-    if ( ( count > 0 ) && ( p_triggers != NULL ) )
-        free( p_triggers );
+    if ((count > 0) && (p_triggers != NULL))
+        free(p_triggers);
 }
 
+#define NO_PARAM_UPDT_MSG(_blk, _name) DisplayLog(LVL_MAJOR, TAG, "%s::%s"    \
+                " changed in config file, but cannot be modified dynamically", \
+                 _blk, _name)
+#define PARAM_UPDT_MSG(_blk, _name, _format, _v1, _v2) DisplayLog(LVL_EVENT,  \
+                TAG, "%s::%s updated: "_format"->"_format, _blk, _name, _v1, _v2)
 
-int Reload_ResourceMon_Config( void *module_config )
+/** reload parameters for a single policy */
+static int polrun_reload(const char *blkname, policy_run_config_t *cfg_tgt,
+                         policy_run_config_t *cfg_new, int *recompute_interval)
 {
-    resource_monitor_config_t *conf = ( resource_monitor_config_t * ) module_config;
-
     /* parameters that can't be modified dynamically */
+    if (cfg_tgt->nb_threads != cfg_new->nb_threads)
+        NO_PARAM_UPDT_MSG(blkname, "nb_threads");
 
-    if ( resmon_config.nb_threads_purge != conf->nb_threads_purge )
-        DisplayLog( LVL_MAJOR, RESMONCFG_TAG, PURGE_PARAM_BLOCK
-                    "::nb_threads_purge changed in config file, but cannot be modified dynamically");
+    if (cfg_tgt->queue_size != cfg_new->queue_size)
+        NO_PARAM_UPDT_MSG(blkname, "queue_size");
 
-    if ( resmon_config.purge_queue_size != conf->purge_queue_size )
-        DisplayLog( LVL_MAJOR, RESMONCFG_TAG, PURGE_PARAM_BLOCK
-                    "::purge_queue_size changed in config file, but cannot be modified dynamically");
+// FIXME can change action functions, but not cmd string
+//    if (strcmp(cfg_new->default_action, cfg_tgt->default_action))
+//        NO_PARAM_UPDT_MSG(blkname, "default_action");
 
-#ifdef _TMP_FS_MGR
-    if (strcmp(conf->purge_command, resmon_config.purge_command))
-        DisplayLog(LVL_MAJOR, RESMONCFG_TAG, PURGE_PARAM_BLOCK
-                   "::purge_command changed in config file, but cannot be modified dynamically");
-#endif
+    if (cfg_tgt->lru_sort_attr != cfg_new->lru_sort_attr)
+        NO_PARAM_UPDT_MSG(blkname, "lru_sort_attr");
 
     /* dynamic parameters */
-
-    if ( resmon_config.post_purge_df_latency != conf->post_purge_df_latency )
+    if (cfg_tgt->max_action_nbr != cfg_new->max_action_nbr)
     {
-        DisplayLog( LVL_EVENT, RESMONCFG_TAG, PURGE_PARAM_BLOCK
-                    "::post_purge_df_latency updated: %lu->%lu",
-                    resmon_config.post_purge_df_latency, conf->post_purge_df_latency );
-        resmon_config.post_purge_df_latency = conf->post_purge_df_latency;
+        PARAM_UPDT_MSG(blkname, "max_action_count", "%u",
+                       cfg_tgt->max_action_nbr, cfg_new->max_action_nbr);
+        cfg_tgt->max_action_nbr = cfg_new->max_action_nbr;
     }
 
-    if ( resmon_config.db_request_limit != conf->db_request_limit )
+    if (cfg_tgt->max_action_vol != cfg_new->max_action_vol)
     {
-        DisplayLog( LVL_EVENT, RESMONCFG_TAG, PURGE_PARAM_BLOCK
-                    "::db_result_size_max updated: %u->%u",
-                    resmon_config.db_request_limit, conf->db_request_limit );
-        resmon_config.db_request_limit = conf->db_request_limit;
+        PARAM_UPDT_MSG(blkname, "max_action_volume", "%Lu",
+                       cfg_tgt->max_action_vol, cfg_new->max_action_vol);
+        cfg_tgt->max_action_vol = cfg_new->max_action_vol;
     }
 
-#ifdef ATTR_INDEX_status
-    if ( resmon_config.check_purge_status_on_startup != conf->check_purge_status_on_startup )
+    if (cfg_tgt->suspend_error_pct != cfg_new->suspend_error_pct)
     {
-        DisplayLog( LVL_EVENT, RESMONCFG_TAG, PURGE_PARAM_BLOCK
-                    "::check_purge_status_on_startup updated: %u->%u",
-                    resmon_config.check_purge_status_on_startup,
-                    conf->check_purge_status_on_startup );
-        resmon_config.check_purge_status_on_startup = conf->check_purge_status_on_startup;
-    }
-#endif
-    if ( resmon_config.recheck_ignored_classes != conf->recheck_ignored_classes )
-    {
-        DisplayLog( LVL_EVENT, RESMONCFG_TAG, PURGE_PARAM_BLOCK
-                    "::recheck_ignored_classes updated: %u->%u",
-                    resmon_config.recheck_ignored_classes, conf->recheck_ignored_classes );
-        resmon_config.recheck_ignored_classes = conf->recheck_ignored_classes;
+        PARAM_UPDT_MSG(blkname, "suspend_error_pct", "%.2f%%",
+                       cfg_tgt->suspend_error_pct, cfg_new->suspend_error_pct);
+        cfg_tgt->suspend_error_pct = cfg_new->suspend_error_pct;
     }
 
+    if (cfg_tgt->suspend_error_min != cfg_new->suspend_error_min)
+    {
+        PARAM_UPDT_MSG(blkname, "suspend_error_min", "%u",
+                       cfg_tgt->suspend_error_min, cfg_new->suspend_error_min);
+        cfg_tgt->suspend_error_min = cfg_new->suspend_error_min;
+    }
 
-    update_triggers( conf->trigger_list, conf->trigger_count );
+    if (cfg_tgt->report_interval != cfg_new->report_interval)
+    {
+        PARAM_UPDT_MSG(blkname, "report_interval", "%lu",
+                       cfg_tgt->report_interval, cfg_new->report_interval);
+        cfg_tgt->report_interval = cfg_new->report_interval;
+    }
 
-    free_triggers( conf->trigger_list, conf->trigger_count );
+    if (cfg_tgt->action_timeout != cfg_new->action_timeout)
+    {
+        PARAM_UPDT_MSG(blkname, "action_timeout", "%lu",
+                       cfg_tgt->action_timeout, cfg_new->action_timeout);
+        cfg_tgt->action_timeout = cfg_new->action_timeout;
+    }
+
+    if (cfg_tgt->check_action_status_delay != cfg_new->check_action_status_delay)
+    {
+        PARAM_UPDT_MSG(blkname, "check_actions_interval", "%lu",
+                       cfg_tgt->check_action_status_delay,
+                       cfg_new->check_action_status_delay);
+        cfg_tgt->check_action_status_delay = cfg_new->check_action_status_delay;
+    }
+
+    if (cfg_tgt->db_request_limit != cfg_new->db_request_limit)
+    {
+        PARAM_UPDT_MSG(blkname, "db_result_size_max", "%u",
+                       cfg_tgt->db_request_limit, cfg_new->db_request_limit);
+        cfg_tgt->db_request_limit = cfg_new->db_request_limit;
+    }
+
+    if (cfg_tgt->pre_maintenance_window != cfg_new->pre_maintenance_window)
+    {
+        PARAM_UPDT_MSG(blkname, "pre_maintenance_window", "%lu",
+                       cfg_tgt->pre_maintenance_window, cfg_new->pre_maintenance_window);
+        cfg_tgt->pre_maintenance_window = cfg_new->pre_maintenance_window;
+    }
+
+    if (cfg_tgt->maint_min_apply_delay != cfg_new->maint_min_apply_delay)
+    {
+        PARAM_UPDT_MSG(blkname, "maint_min_apply_delay", "%lu",
+                       cfg_tgt->maint_min_apply_delay, cfg_new->maint_min_apply_delay);
+        cfg_tgt->maint_min_apply_delay = cfg_new->maint_min_apply_delay;
+    }
+
+    if (cfg_tgt->check_action_status_on_startup != cfg_new->check_action_status_on_startup)
+    {
+        PARAM_UPDT_MSG(blkname, "check_actions_on_startup", "%s",
+                       bool2str(cfg_tgt->check_action_status_on_startup),
+                       bool2str(cfg_new->check_action_status_on_startup));
+        cfg_tgt->check_action_status_on_startup = cfg_new->check_action_status_on_startup;
+    }
+
+    if (cfg_tgt->recheck_ignored_classes != cfg_new->recheck_ignored_classes)
+    {
+        PARAM_UPDT_MSG(blkname, "recheck_ignored_classes", "%s",
+                       bool2str(cfg_tgt->recheck_ignored_classes),
+                       bool2str(cfg_new->recheck_ignored_classes));
+        cfg_tgt->recheck_ignored_classes = cfg_new->recheck_ignored_classes;
+    }
+
+    update_triggers(cfg_tgt->trigger_list, cfg_tgt->trigger_count,
+                    cfg_new->trigger_list, cfg_new->trigger_count,
+                    recompute_interval);
+    free_triggers(cfg_new->trigger_list, cfg_new->trigger_count);
 
     return 0;
+}
+
+/** reload cfg for all policies */
+int policy_run_cfg_reload(void *module_config)
+{
+    int i, rc;
+    int err = 0;
+    policy_run_configs_t *allconf = (policy_run_configs_t *)module_config;
+
+    if (allconf->count != run_cfgs.count)
+    {
+        DisplayLog(LVL_MAJOR, TAG, "New policy count doesn't match previous "
+                   "policy count (%u vs %u): skipping config update.",
+                   allconf->count, run_cfgs.count);
+        return 0;
+    }
+    for (i = 0; i < allconf->count; i++)
+    {
+        int chgd = 0;
+        char block_name[256];
+        const char *pname = policies.policy_list[i].name;
+        snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, pname);
+
+        rc = polrun_reload(block_name, &run_cfgs.configs[i],
+                           &allconf->configs[i], &chgd);
+        if (rc)
+        {
+             DisplayLog(LVL_MAJOR, TAG, "Failed to reload parameters for policy %s (rc=%d)",
+                        pname, rc);
+            if (rc > err)
+                err = rc;
+        }
+        else
+        {
+            DisplayLog(LVL_DEBUG, TAG, "Successfully reloaded config for policy %s",
+                       pname);
+        }
+    }
+
+    /* policy runs may not be in the same order as policies and run_cfgs */
+//    if (chgd && policy_runs.runs != NULL)
+//        policy_module_update_check_interval(&policy_runs.runs[i]);
+
+    return err;
 }
