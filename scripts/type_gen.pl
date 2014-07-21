@@ -141,6 +141,8 @@ foreach $index (sort {0+$a <=> 0+$b}  keys %attrlist )
 		print  OUTPUT ";\n";
 	}
 }
+# additional special field: list of status (size depends on policy definitions)
+    print OUTPUT "\tchar const **sm_status;\n";
 
 print OUTPUT "} entry_info_t;\n\n";
 

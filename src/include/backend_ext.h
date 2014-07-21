@@ -73,6 +73,8 @@ int rbhext_ignore(const entry_id_t *p_id,
  * \retval <0 on error
  * \retval -ENOTSUP backup is not implemented for this type of entry.
  */
+
+/** TODO turn to a status manager */
 int rbhext_status_needs( obj_type_t   entry_type,
                          unsigned int * p_attr_allow_cached,
                          unsigned int * p_attr_need_fresh );
@@ -83,14 +85,10 @@ int rbhext_status_needs( obj_type_t   entry_type,
  * \param[in] p_attrs_in pointer to entry attributes
  * \param[out] p_attrs_changed changed/retrieved attributes
  */
+/** TODO turn to a status manager */
 int rbhext_get_status( const entry_id_t * p_id,
                        const attr_set_t * p_attrs_in,
                        attr_set_t * p_attrs_changed );
-
-typedef enum {
-    RBHEXT_SYNC  = 0,
-    RBHEXT_ASYNC = 1
-} rbhext_arch_meth;
 
 /**
  * Performs an archiving operation.
@@ -100,8 +98,7 @@ typedef enum {
  *        function must update at least the entry status
  *        and the path in the backend.
  */
-int rbhext_archive( rbhext_arch_meth arch_meth,
-                    const entry_id_t * p_id,
+int rbhext_archive( const entry_id_t * p_id,
                     attr_set_t * p_attrs,
                     const char * hints );
 

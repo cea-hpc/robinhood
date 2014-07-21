@@ -2227,9 +2227,9 @@ static void report_usergroup_info( char *name, int flags )
 #if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
     /* for 'release'-capable systems, count sum(size) instead of sum(blocks) that might be zero */
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_SUM, SORT_NONE );
-    field_count++;
-    /* split by file status */
-    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_status, REPORT_GROUP_BY, SORT_NONE);
+//    field_count++;
+//    /* split by file status (@TODO split by all policy statuses) */
+//    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_status, REPORT_GROUP_BY, SORT_NONE);
 #else
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
 #endif

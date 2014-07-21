@@ -350,7 +350,6 @@ static void set_default_rules(policy_rules_t *policy)
     policy->run_attr_mask = 0;
 }
 
-
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, char *msg_out)
 {
@@ -359,8 +358,8 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
 
     static const char *expect[] =
     {
-        "name",
-        // TODO "scope", "status_check_fn", "changelog_cb"
+        "name", "status_manager",
+        // TODO add "scope"
         NULL
     };
 
@@ -371,6 +370,8 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     if (rc != 0)
         return rc;
 
+    /* @TODO check the policy name is not already used! */
+
     /* parse the parameter */
     if (strlen(tmpstr) > POLICY_NAME_LEN - 1)
     {
@@ -378,6 +379,19 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
         return EINVAL;
     }
     strcpy(policy->name, tmpstr);
+
+    rc = GetStringParam(config_blk, block_name, "status_manager",
+                        PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
+                        NULL, NULL, msg_out);
+    if (rc != 0)
+        return rc;
+
+    policy->status_mgr = create_sm_instance(policy->name, tmpstr);
+    if (policy->status_mgr == NULL)
+    {
+        sprintf(msg_out, "Could not load status manager '%s'", tmpstr);
+        return EINVAL;
+    }
 
     CheckUnknownParameters(config_blk, block_name, expect);
     return 0;
@@ -2010,7 +2024,7 @@ int Read_Policies(config_file_t config, void *module_config, char *msg_out, int 
     if (rc)
         return rc;
 
-    /* TODO check fileset hints with policy descriptors */
+    /* load fileset definitions, and check fileset hints against defined policies */
     rc = read_filesets(config, pol, msg_out, for_reload);
     if (rc)
         return rc;
@@ -2034,36 +2048,7 @@ int Write_Policy_Template(FILE * output)
     if (rc)
         return rc;
 
-#if 0 // FIXME write policy templates
-#ifdef HAVE_MIGR_POLICY
-    rc = write_migration_policy_template(output);
-    if (rc)
-        return rc;
-#endif
-
-#ifdef HAVE_RM_POLICY
-    rc = write_unlink_policy_template(output);
-    if (rc)
-        return rc;
-#endif
-
-#ifdef HAVE_PURGE_POLICY
-    rc = write_purge_policy_template(output);
-    if (rc)
-        return rc;
-#endif
-
-#ifdef HAVE_RMDIR_POLICY
-    rc = write_rmdir_policy_template(output);
-    if (rc)
-        return rc;
-#endif
-
-    rc = write_update_policy_template(output);
-    if (rc)
-        return rc;
-#endif
-
+// FIXME write policy templates
     return 0;
 }
 
@@ -2074,36 +2059,8 @@ int Write_Policy_Default(FILE * output)
     rc = write_default_filesets(output);
     if (rc)
         return rc;
-#if 0 // FIXME write policy defaults
-#ifdef HAVE_MIGR_POLICY
-    rc = write_default_policy(output, MIGR_POLICY);
-    if (rc)
-        return rc;
-#endif
 
-#ifdef HAVE_RM_POLICY
-    rc = write_default_unlink_policy(output);
-    if (rc)
-        return rc;
-#endif
-
-#ifdef HAVE_RMDIR_POLICY
-    rc = write_default_rmdir_policy(output);
-    if (rc)
-        return rc;
-#endif
-
-#ifdef HAVE_PURGE_POLICY
-    rc = write_default_policy(output, PURGE_POLICY);
-    if (rc)
-        return rc;
-#endif
-
-    rc = write_default_update_policy(output);
-    if (rc)
-        return rc;
-#endif
-
+// FIXME write policy defaults
     return 0;
 }
 

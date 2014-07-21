@@ -598,16 +598,16 @@ int Lustre_GetNameParent(const char *path, int linkno,
 #ifdef _LUSTRE_HSM
 
 /** get Lustre status and convert it to internal Robinhood status */
-int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
-                         int *no_release, int *no_archive )
+int LustreHSM_GetStatus(const char *path, hsm_status_t * p_status,
+                        bool *no_release, bool *no_archive)
 {
     int            rc;
     struct hsm_user_state file_status;
 
     /* initialize outputs */
     *p_status = STATUS_NEW;
-    *no_release = FALSE;
-    *no_archive = FALSE;
+    *no_release = false;
+    *no_archive = false;
 
     /* get status */
     rc = llapi_hsm_state_get( path, &file_status );
@@ -621,9 +621,9 @@ int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
     /* user flags */
 
     if ( file_status.hus_states & HS_NORELEASE )
-        *no_release = TRUE;
+        *no_release = true;
     if ( file_status.hus_states & HS_NOARCHIVE )
-        *no_archive = TRUE;
+        *no_archive = true;
 
     /* clear them */
     file_status.hus_states &= ~ (HS_NORELEASE|HS_NOARCHIVE);

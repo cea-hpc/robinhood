@@ -275,6 +275,8 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         END_OF_PARAMS
     };
 
+    memset(p_trigger_item, 0, sizeof(*p_trigger_item));
+
     /* retrieve special parameters */
     rc = GetStringParam(config_blk, block_name, "trigger_on",
                         PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr,

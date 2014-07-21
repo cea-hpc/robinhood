@@ -68,21 +68,6 @@ static int lmgr_gen_depth( void * tgt, const void * src )
    return 0;
 }
 
-
-typedef enum
-{
-  STATUS_UNKNOWN = 0,           /* undetermined status */
-  STATUS_NEW,                   /* file has no HSM flags (just created) */
-  STATUS_MODIFIED,              /* file must be archived */
-  STATUS_RESTORE_RUNNING,       /* file is being retrieved */
-  STATUS_ARCHIVE_RUNNING,       /* file is being archived */
-  STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
-  STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
-  STATUS_RELEASE_PENDING,    	/* file is being released */
-
-  STATUS_COUNT                  /* number of possible file status */
-} file_status_t;
-
 %attrdef
 
 # /!\ Entry attribute type must fit with DB type
@@ -115,8 +100,6 @@ last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
 mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
 nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
-#file status compared to external backend
-status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
 # metadata update
 md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
 

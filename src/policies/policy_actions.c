@@ -70,8 +70,7 @@ static int backup_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                           const char *hints, post_action_e *after)
 {
     *after = PA_UPDATE;
-    return rbhext_archive((backend.async_archive ? RBHEXT_ASYNC:RBHEXT_SYNC),
-                          p_entry_id, p_attrs, hints);
+    return rbhext_archive(p_entry_id, p_attrs, hints);
 }
 #endif
 

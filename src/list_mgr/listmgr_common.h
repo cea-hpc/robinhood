@@ -189,34 +189,37 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
                   ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS ) )
 
 #define is_main_field( _attr_index ) \
-                ( (!annex_table || ( field_infos[_attr_index].flags & FREQ_ACCESS )) \
+                (((_attr_index >= ATTR_COUNT) && (_attr_index < ATTR_COUNT + sm_inst_count)) || \
+                ((!annex_table || (field_infos[_attr_index].flags & FREQ_ACCESS)) \
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
                   && !(field_infos[_attr_index].flags & DIR_ATTR) \
                   && !(field_infos[_attr_index].flags & REMOVED)  \
                   && !(field_infos[_attr_index].flags & FUNC_ATTR) \
-                  && !(field_infos[_attr_index].flags & DNAMES) )
+                  && !(field_infos[_attr_index].flags & DNAMES)))
 
 #define is_gen_field( _attr_index ) \
-                ( field_infos[_attr_index].flags & GENERATED )
+                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & GENERATED))
 
 #define is_indexed_field( _attr_index ) \
-                ( field_infos[_attr_index].flags & INDEXED )
+                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & INDEXED))
 
 #define is_annex_field( _attr_index ) \
-                ( annex_table && ( field_infos[_attr_index].flags & ( ANNEX_INFO | INIT_ONLY ) ) \
+                ((_attr_index < ATTR_COUNT) && annex_table \
+                  && (field_infos[_attr_index].flags & (ANNEX_INFO | INIT_ONLY)) \
                   && !is_stripe_field( _attr_index ) \
                   && !(field_infos[_attr_index].flags & GENERATED) \
                   && !(field_infos[_attr_index].flags & DIR_ATTR) \
                   && !(field_infos[_attr_index].flags & REMOVED)  \
-                  && !(field_infos[_attr_index].flags & FUNC_ATTR) )
+                  && !(field_infos[_attr_index].flags & FUNC_ATTR))
 
 #define is_names_field( _attr_index ) \
-                ( field_infos[_attr_index].flags & DNAMES )
+                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & DNAMES))
 
-#define is_funcattr( _attr_index )  ( field_infos[_attr_index].flags & FUNC_ATTR )
-#define is_dirattr( _attr_index )  ( field_infos[_attr_index].flags & DIR_ATTR )
-#define is_slinkattr( _attr_index )  ( field_infos[_attr_index].flags & SLINK_ATTR )
+#define is_funcattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & FUNC_ATTR))
+#define is_dirattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & DIR_ATTR))
+#define is_slinkattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & SLINK_ATTR))
+#define is_sepdlist( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & SEPD_LIST))
 
 #ifdef _HSM_LITE
 #define is_recov_field( _attr_index ) \
@@ -284,8 +287,6 @@ int            attrset2valuelist( lmgr_t * p_mgr, char *str,
 int            attrset2updatelist(lmgr_t * p_mgr, char *str,
                                   const attr_set_t * p_set, table_enum table,
                                   int leading_coma, int generic_value);
-int            mk_result_bind_list( const attr_set_t * p_set, table_enum table,
-                                    db_type_t * type_list, void **buff_list, size_t * size_list );
 
 char          *compar2str( filter_comparator_t compar );
 int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
@@ -350,5 +351,21 @@ static inline int sum_masks(attr_set_t **p_attrs, unsigned int count, int t_mask
 }
 
 void separated_db2list_inplace(char *list);
+
+static inline const char *field_name(int index)
+{
+    if (index < ATTR_COUNT)
+        return field_infos[index].field_name;
+    else /* status */
+        return get_sm_instance(index - ATTR_COUNT)->db_field;
+}
+
+static inline db_type_t field_type(int index)
+{
+    if (index < ATTR_COUNT)
+        return field_infos[index].db_type;
+    else /* status */
+        return DB_TEXT;
+}
 
 #endif

@@ -169,35 +169,11 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc = 0;
     int            next_stage = -1; /* -1 = skip */
-    unsigned int attr_allow_cached = 0;
-#ifdef _HSM_LITE
-    int rc_status_need = 0;
-    unsigned int attr_need_fresh = 0;
-#endif
+    uint64_t attr_allow_cached = 0;
+    uint64_t attr_need_fresh = 0;
 
     const pipeline_stage_t *stage_info =
         &entry_proc_pipeline[p_op->pipeline_stage];
-
-#ifdef _HSM_LITE
-    /* what info is needed to check it?*/
-    rc_status_need = rbhext_status_needs( ListMgr2PolicyType(ATTR(&p_op->fs_attrs, type)),
-                                          &attr_allow_cached,
-                                          &attr_need_fresh );
-    if ( rc == -ENOTSUP )
-    {
-            /* this type can't be backup'ed: no status check */
-            p_op->db_attr_need &= ~ATTR_MASK_status;
-            p_op->fs_attr_need &= ~ATTR_MASK_status;
-            p_op->extra_info.not_supp = TRUE;
-    }
-    else if (rc != 0)
-    {
-        DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
-                    "rbhext_status_needs() returned error %d",
-                    rc_status_need );
-        attr_allow_cached = attr_need_fresh = 0;
-    }
-#endif
 
     p_op->db_attr_need |= entry_proc_conf.diff_mask;
     /* retrieve missing attributes for diff */
@@ -207,6 +183,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (entry_proc_conf.detect_fake_mtime)
          p_op->db_attr_need |= ATTR_MASK_creation_time;
 #endif
+
+    attr_allow_cached = status_allow_cached_attrs();
+    attr_need_fresh = status_need_fresh_attrs();
+    /* XXX check if entry is in policy scope? */
 
     /* what must be retrieved from DB: */
     p_op->db_attr_need |= (attr_allow_cached
@@ -494,6 +474,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     } /* get_stripe needed */
 #endif
 
+#if 0 /* @FIXME scope related */
 #ifdef _LUSTRE_HSM
     /* Lustre-HSM: get status only for files */
     /* (type may have been determined at this point) */
@@ -504,6 +485,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->fs_attr_need &= ~ATTR_MASK_status;
         p_op->extra_info.not_supp = TRUE;
     }
+#endif
 #endif
 
 #ifdef ATTR_INDEX_status

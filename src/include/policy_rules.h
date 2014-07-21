@@ -22,6 +22,7 @@
 
 #include "config_parsing.h"
 #include "list_mgr.h"
+#include "status_manager.h"
 #include <sys/time.h>
 
 
@@ -313,11 +314,12 @@ int            Reload_Policies( void *module_config );
 int            Write_Policy_Template( FILE * output );
 int            Write_Policy_Default( FILE * output );
 
-/* policy descriptor */
+/** policy descriptor */
 typedef struct policy_descr_t {
-    char             name[POLICY_NAME_LEN];
-    /* TODO: add scope, status_check, changelog_cb */
-    policy_rules_t   rules;
+    char                name[POLICY_NAME_LEN];
+    /** TODO: add scope */
+    struct sm_instance *status_mgr;
+    policy_rules_t      rules;
 } policy_descr_t;
 
 /* template policy name */

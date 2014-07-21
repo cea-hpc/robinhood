@@ -124,8 +124,8 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
     return 0;
 }
 
-#define DROP_MESSAGE "\nyou should: 1)backup current DB using 'rbh-config backup_db' 2)empty the DB using 'rbh-config empty_db' 3)start a new FS scan."
-#define DROP_ACCT_MSG "\nyou should: 1)stop robinhood commands 2)drop '"ACCT_TABLE"' table 3)restart robinhood."
+#define DROP_MESSAGE "\nYou should:\n\t1) backup current DB contents using 'rbh-config backup_db'\n\t2) empty the DB using 'rbh-config empty_db'\n\t3) start a new FS scan."
+#define DROP_ACCT_MSG "\nYou should:\n\t1) stop robinhood commands\n\t2) clear accounting info using 'rbh-config reset_acct'\n\t3) restart robinhood."
 
 /**
  * Check table fields.
@@ -162,12 +162,12 @@ static int _check_field_name(const char *name, int *curr_field_index,
                    fieldtab[*curr_field_index]);
         if (!strcmp(table, ACCT_TABLE))
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (unexpected field '%s' in table %s): "DROP_ACCT_MSG,
-                       fieldtab[*curr_field_index], table);
+                       "Incompatible database schema (unexpected field '%s' in table %s: %s expected): "DROP_ACCT_MSG,
+                       fieldtab[*curr_field_index], table, name);
         else
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (unexpected field '%s' in table %s): "DROP_MESSAGE,
-                       fieldtab[*curr_field_index], table);
+                       "Incompatible database schema (unexpected field '%s' in table %s: %s expected): "DROP_MESSAGE,
+                       fieldtab[*curr_field_index], table, name);
         return -1;
     }
 }
@@ -288,7 +288,7 @@ static int check_field_name_type(const char *name, const char *type, int *curr_f
 
 static inline int check_field(int i, int * curr_field_index, char *table, char **fieldtab)
 {
-    return check_field_name(field_infos[i].field_name, curr_field_index, table, fieldtab);
+    return check_field_name(field_name(i), curr_field_index, table, fieldtab);
 }
 
 /* Return 0 if there is no extra field else return 1 */
@@ -488,7 +488,7 @@ static int check_table_main(db_conn_t *pconn)
         if (check_field_name("id", &curr_field_index, MAIN_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        for (i = 0; i < ATTR_COUNT; i++)
+        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
         {
             if (is_main_field(i) && !is_funcattr(i))
             {
@@ -524,14 +524,6 @@ static int create_table_main(db_conn_t *pconn)
     {
         if (is_main_field(i) && !is_funcattr(i))
         {
-#ifdef ATTR_INDEX_status
-            if (i == ATTR_INDEX_status)
-            {
-                default_val.val_int = 0;
-                next += append_field_def(i, next, 0, &default_val);
-            }
-            else
-#endif
             if (i == ATTR_INDEX_owner)
             {
                 default_val.val_str = ACCT_DEFAULT_OWNER;
@@ -546,6 +538,25 @@ static int create_table_main(db_conn_t *pconn)
                  next += append_field_def(i, next, 0, NULL);
         }
     }
+
+    /* append status values (depends on policy definitions) */
+    sm_instance_t *smi;
+    i = 0;
+    while ((smi = get_sm_instance(i)) != NULL)
+    {
+        int j;
+        next += sprintf(next, ",%s_status ENUM(", smi->instance_name);
+        for (j = 0; j < smi->sm->status_count; j++)
+        {
+            next += sprintf(next, "%s'%s'", (j == 0)?"":",",
+                            smi->sm->status_enum[j]);
+        }
+        strcpy(next, ")");
+        next += strlen(next);
+
+        i++;
+    }
+
     strcpy(next, ")");
 
     #ifdef _MYSQL
@@ -570,7 +581,7 @@ static int create_table_main(db_conn_t *pconn)
         if (is_main_field(i) && is_indexed_field(i))
         {
             sprintf(strbuf, "CREATE INDEX %s_index ON " MAIN_TABLE "(%s)",
-                    field_infos[i].field_name, field_infos[i].field_name);
+                    field_name(i), field_name(i));
 
             DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s",
                        strbuf);
@@ -584,7 +595,7 @@ static int create_table_main(db_conn_t *pconn)
                 return rc;
             }
             DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "MAIN_TABLE"(%s) created successfully",
-                       field_infos[i].field_name);
+                       field_name(i));
         }
     }
     return DB_SUCCESS;
@@ -1162,10 +1173,10 @@ static int create_table_acct(db_conn_t *pconn)
         if (is_acct_pk(i))
         {
             if (!first_acct_pk )
-                next += sprintf(next, ", %s", field_infos[i].field_name);
+                next += sprintf(next, ", %s", field_name(i));
             else
             {
-                next += sprintf(next, "%s", field_infos[i].field_name);
+                next += sprintf(next, "%s", field_name(i));
                 first_acct_pk = FALSE;
             }
         }
@@ -1631,13 +1642,11 @@ static int create_trig_acct_update(db_conn_t *pconn)
         {
             if (!is_first_field)
                 next += sprintf(next, ", %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
-                                 field_infos[i].field_name, field_infos[i].field_name,
-                                 field_infos[i].field_name, field_infos[i].field_name);
+                                field_name(i), field_name(i), field_name(i), field_name(i));
             else
             {
                 next += sprintf(next, " %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
-                                 field_infos[i].field_name, field_infos[i].field_name,
-                                 field_infos[i].field_name, field_infos[i].field_name);
+                                field_name(i), field_name(i), field_name(i), field_name(i));
                 is_first_field = FALSE;
             }
         }

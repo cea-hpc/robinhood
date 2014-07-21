@@ -176,12 +176,18 @@ typedef struct field_info_t
 
 
 /* update set mask and attr value */
-#define ATTR_MASK_INIT( _p_set ) ((_p_set)->attr_mask = 0)
+#define ATTR_MASK_INIT( _p_set ) ((_p_set)->attr_mask = 0LL)
 #define ATTR_MASK_SET( _p_set, _attr_name ) ((_p_set)->attr_mask |= ATTR_MASK_##_attr_name)
 #define ATTR_MASK_UNSET( _p_set, _attr_name ) ((_p_set)->attr_mask &= ~ATTR_MASK_##_attr_name)
 #define ATTR_MASK_TEST( _p_set, _attr_name ) ((_p_set)->attr_mask & ATTR_MASK_##_attr_name)
 #define ATTR( _p_set, _attr_name ) ((_p_set)->attr_values._attr_name)
 
+/* set status attribute mask: bits after ATTR_COUNT */
+#define SMI_MASK(_smi_idx)  (1LL << (ATTR_COUNT+(_smi_idx)))
+#define ATTR_MASK_STATUS_SET(_p_set, _smi_idx) ((_p_set)->attr_mask |= SMI_MASK(_smi_idx))
+#define ATTR_MASK_STATUS_UNSET(_p_set, _smi_idx) ((_p_set)->attr_mask &= ~ SMI_MASK(_smi_idx))
+#define ATTR_MASK_STATUS_TEST(_p_set, _smi_idx) ((_p_set)->attr_mask & SMI_MASK(_smi_idx))
+#define STATUS_ATTR(_p_set, _smi_idx) ((_p_set)->attr_values.sm_status[(_smi_idx)])
 
 /* application specific types:
  * these includes MUST define:
@@ -312,7 +318,6 @@ typedef struct attr_set_t
     int            attr_mask;
     /** associated values */
     entry_info_t   attr_values;
-
 } attr_set_t;
 
 /** comparators for filters */

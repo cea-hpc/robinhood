@@ -494,14 +494,14 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
         if ( sort_table == T_MAIN )
         {
             query_end +=
-                sprintf( query_end, " ORDER BY " MAIN_TABLE ".%s ",
-                         field_infos[p_sort_type->attr_index].field_name );
+                sprintf(query_end, " ORDER BY " MAIN_TABLE ".%s ",
+                        field_name(p_sort_type->attr_index));
         }
         else if ( sort_table == T_ANNEX )
         {
             query_end +=
-                sprintf( query_end, " ORDER BY " ANNEX_TABLE ".%s ",
-                         field_infos[p_sort_type->attr_index].field_name );
+                sprintf(query_end, " ORDER BY " ANNEX_TABLE ".%s ",
+                        field_name(p_sort_type->attr_index));
         }
         else if ( sort_table == T_STRIPE_ITEMS )
         {

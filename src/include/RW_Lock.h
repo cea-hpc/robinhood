@@ -22,12 +22,14 @@
 
 #include <pthread.h>
 /* My habit with mutex */
+#ifndef P
 #ifndef DEBUG
 #define P( mutex ) pthread_mutex_lock( &mutex )
 #define V( mutex )  pthread_mutex_unlock( &mutex )
 #else
 #define P( mutex ){ int rc ; if( ( rc = pthread_mutex_lock( &mutex ) ) != 0 ) printf( "  --> Erreur P: %d %d\n", rc, errno ) ;}
 #define V( mutex ){ int rc ; if( ( rc = pthread_mutex_unlock( &mutex ) ) != 0 ) printf( "  --> Erreur V: %d %d\n", rc, errno ) ;}
+#endif
 #endif
 
 /* Type representing the lock itself */

@@ -53,7 +53,7 @@ static inline const char *field_str( unsigned int index )
     if (index == (unsigned int)-1)
         return "id";
     else
-        return field_infos[index].field_name;
+        return field_name(index);
 }
 
 /* Return field flag */
@@ -61,8 +61,10 @@ static inline int field_flag(unsigned int index)
 {
     if (index == (unsigned int)-1)
         return 0;
-    else
+    else if (index < ATTR_COUNT)
         return field_infos[index].flags;
+    else /* status */
+        return 0;
 }
 
 

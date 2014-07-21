@@ -1375,10 +1375,9 @@ close_src:
  *        function must update at least the entry status
  *        and the path in the backend.
  */
-int rbhext_archive( rbhext_arch_meth arch_meth,
-                    const entry_id_t * p_id,
-                    attr_set_t * p_attrs,
-                    const char * hints )
+int rbhext_archive(const entry_id_t * p_id,
+                   attr_set_t * p_attrs,
+                   const char * hints)
 {
     int rc;
     char bkpath[RBH_PATH_MAX];
@@ -1389,9 +1388,6 @@ int rbhext_archive( rbhext_arch_meth arch_meth,
     struct stat void_stat;
     int check_moved = FALSE;
     obj_type_t entry_type;
-
-    if ( arch_meth != RBHEXT_SYNC )
-        return -ENOTSUP;
 
     /* if status is not determined, retrieve it */
     if ( !ATTR_MASK_TEST(p_attrs, status) )

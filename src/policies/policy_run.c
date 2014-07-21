@@ -232,7 +232,7 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
 static int heuristic_end_of_list(policy_info_t *policy, time_t last_time)
 {
     entry_id_t     void_id;
-    attr_set_t     void_attr;
+    attr_set_t     void_attr = {0};
 
     /* list all files if policies are ignored */
     if (ignore_policies(policy))
@@ -534,12 +534,6 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
 static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
                              attr_set_t *p_attr_set)
 {
-#ifdef _HSM_LITE
-    int rc;
-    unsigned int allow_cached_attrs = 0;
-    unsigned int need_fresh_attrs = 0;
-#endif
-
     ATTR_MASK_INIT(p_attr_set);
 
     /* Retrieve at least: fullpath, last_access, size, blcks
@@ -569,7 +563,7 @@ static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
         updt_params.path.when != UPDT_ALWAYS)
         ATTR_MASK_SET(p_attr_set, path_update);
 #endif
-    p_attr_set->attr_mask |= (1 << policy->config->lru_sort_attr);
+    p_attr_set->attr_mask |= (1LL << policy->config->lru_sort_attr);
     /* needed for display */
     ATTR_MASK_SET(p_attr_set, size);
     /* depends on policy params (limits) */
@@ -580,29 +574,20 @@ static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
         ATTR_MASK_SET(p_attr_set, stripe_info);
         ATTR_MASK_SET(p_attr_set, stripe_items);
     }
-    // TODO status management
-    //    ATTR_MASK_SET(p_attr_set, status);
+
+    /* FIXME only if needed by scope? */
+    ATTR_MASK_STATUS_SET(p_attr_set, policy->descr->status_mgr->smi_index);
 
     // TODO class management
     // ATTR_MASK_SET(p_attr_set, release_class);
     // ATTR_MASK_SET(p_attr_set, rel_cl_update);
     p_attr_set->attr_mask |= policy->descr->rules.run_attr_mask;
 
-#ifdef _HSM_LITE
     /* TODO based on scope */
-    ATTR_MASK_SET(p_attr_set, type);
+    //ATTR_MASK_SET(p_attr_set, type);
 
-    /* what information the backend needs from DB? */
-    rc = rbhext_status_needs(TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs);
-    if (rc != 0)
-    {
-        DisplayLog(LVL_MAJOR, tag(policy),
-                   "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
-                   __FUNCTION__, __LINE__, rc);
-        return rc;
-    }
-    p_attr_set->attr_mask |= allow_cached_attrs;
-#endif
+    /* FIXME only if needed by scope? */
+    p_attr_set->attr_mask |= policy->descr->status_mgr->sm->status_needs_attrs_cached;
 
     return 0;
 }
@@ -681,7 +666,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     filter_value_t fval;
     lmgr_sort_type_t sort_type;
 
-    attr_set_t     attr_set;
+    attr_set_t     attr_set = {0};
     entry_id_t     entry_id;
 
     unsigned long long feedback_before[AF_ENUM_COUNT];
@@ -1140,7 +1125,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 #ifndef _HAVE_FID               /* if entries are accessed by FID, we can always get their status */
 inline static int invalidate_entry(lmgr_t * lmgr, entry_id_t * p_entry_id)
 {
-    attr_set_t     new_attr_set;
+    attr_set_t     new_attr_set = {0};
     int            rc;
 
     ATTR_MASK_INIT(&new_attr_set);
@@ -1233,7 +1218,7 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
                           policy->descr->rules.run_attr_mask);
     }
 
-#if 0 // TODO status management
+#if 0 // TODO status management (only if scope is about status)
 #ifdef ATTR_INDEX_status
 #ifdef _LUSTRE_HSM
     /* For Lustre-HSM, don't care about fresh status because 'release'
@@ -1356,7 +1341,7 @@ else
 static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                           queue_item_t * p_item)
 {
-    attr_set_t     new_attr_set;
+    attr_set_t     new_attr_set = {0};
     int            rc;
 
     policy_match_t   match;
@@ -1797,7 +1782,6 @@ int start_worker_threads(policy_info_t *pol)
     return 0;
 }
 
-#ifdef ATTR_INDEX_status
 /**
  * Update the status of outstanding actions
  * \param lmgr          [IN] connexion to database
@@ -1963,4 +1947,3 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
 
     return 0;
 }
-#endif

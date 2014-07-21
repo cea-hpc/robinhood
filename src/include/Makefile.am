@@ -9,7 +9,7 @@ TYPEGEN=$(top_srcdir)/scripts/type_gen.pl
 noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h \
 		uidgidcache.h Memory.h rbh_const.h RobinhoodLogs.h \
 		RobinhoodConfig.h RobinhoodMisc.h config_parsing.h \
-		global_config.h entry_processor.h      \
+		global_config.h entry_processor.h status_manager.h\
 		fs_scan_main.h chglog_reader.h policy_run.h\
 		xplatform_print.h lustre_extended_types.h \
 		policy_rules.h rmdir.h queue.h StringAlloc.h hsm_rm.h \

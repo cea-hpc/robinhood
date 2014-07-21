@@ -372,7 +372,9 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
             /* TODO support FILTER_FLAG_ALLOC_LIST */
 
             /* add condition to filter */
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\"", field_infos[index].field_name );
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\"",
+                       field_name(index));
+
             return lmgr_simple_filter_add_if_not_exist( filter, index, comp, val, flag );
 
          case NODE_CONDITION:
@@ -383,7 +385,7 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
             rc = criteria2filter(boolexpr->content_u.condition,
                                  &index, &comp, &val, &must_free);
 
-            if ( rc != 0 || index < 0 || is_read_only_field(index) )
+            if (rc != 0 || index < 0 || (readonly_fields(1LL << index) != 0))
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
@@ -394,7 +396,9 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
             /* TODO support FILTER_FLAG_ALLOC_LIST */
 
             /* add condition to filter */
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\"", field_infos[index].field_name );
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\"",
+                       field_name(index));
+
             return lmgr_simple_filter_add_if_not_exist( filter, index, comp, val, flag );
 
             return TRUE;
