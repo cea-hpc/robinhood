@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2009 CEA/DAM
+ * Copyright (C) 2009-2014 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -12,106 +12,102 @@
  * accept its terms.
  */
 
-#ifndef _MIGR_ARCH_H
-#define _MIGR_ARCH_H
+/**
+ * \file run_policies.h
+ * \brief This module triggers migrations to HSM or external storage.
+ */
+#ifndef _RUN_POLICIES_H
+#define _RUN_POLICIES_H
 
-#include "queue.h"
-#include "list_mgr.h"
+typedef struct policy_runs_t {
+    policy_info_t *runs;
+    unsigned int count;
+} policy_runs_t;
 
-/* defined in migr_arch.c */
-extern migration_config_t migr_config;
-extern entry_queue_t migr_queue;
+/* defined in policy_triggers.c */
+extern policy_runs_t policy_runs;
 
-/* Migration status */
+
+/* Action status */
 typedef enum
 {
-    MIGR_OK = 0,                                 /* migration has been started correctly */
+    AS_OK = 0,              /* action successful */
 
-    MIGR_ENTRY_MOVED,           /* entry has been moved or deleted */
-    MIGR_ENTRY_WHITELISTED,     /* entry is ignored for migration */
-    MIGR_STATUS_CHGD,           /* HSM status flags has changed */
-    MIGR_NO_POLICY,             /* entry matches no policy */
-    MIGR_BAD_TYPE,              /* migration policy does not apply to this type of entry */
-    MIGR_BUSY,                  /* entry is is use */
-    MIGR_ALREADY,               /* entry migration is already running */
+/* skipped */
+    AS_ACCESSED,            /* entry has been accessed recently */
+    AS_MOVED,               /* entry has been moved or deleted */
+    AS_WHITELISTED,         /* entry is whitelisted  */
+    AS_STATUS_CHANGED,      /* entry status has changed */
+    AS_NO_POLICY,           /* entry matches no policy */
+    AS_BAD_TYPE,            /* policy does not apply to this type of entry */
+    AS_BUSY,                /* entry is is use */
+    AS_ALREADY,             /* action is already running */
 
-    MIGR_PARTIAL_MD,            /* entry metadata is incomplete */
-    MIGR_STAT_FAILURE,          /* stat failure */
-    MIGR_ERROR,                 /* migration call failed */
+/* errors */
+    AS_MISSING_MD,          /* entry metadata is incomplete */
+    AS_STAT_FAILURE,        /* stat failure */
+    AS_ERROR,               /* action failed */
 
-    MIGR_ABORT,                 /* migration aborted by signal */
+    AS_ABORT,               /* action aborted by termination signal */
 
-    MIGR_ST_COUNT               /* last status index */
-} migr_status_t;
+    AS_ENUM_COUNT           /* last status index + 1*/
+} action_status_t;
 
-/* Purge status description */
-static const char __attribute__(( __unused__ )) *migr_status_descr[MIGR_ST_COUNT] = {
-#ifdef _LUSTRE_HSM
-    "migration successfully started",   /* in Lustre-HSM, migration is asynchronous */
-#else
-    "migration successful",     /* other cases */
-#endif
+/* Action status description */
+static const char __attribute__(( __unused__ )) *action_status_descr[AS_ENUM_COUNT] = {
+    "action successful",
+
+    "accessed since last update",
     "moved or deleted since last update",
     "whitelisted/ignored",
-    "status flags have changed",
-    "no matching policy",
-    "bad type for migration",
+    "status has changed",
+    "no matching rule",
+    "entry type out of scope",
     "entry is in use/busy",
-    "migration already running",
+    "action already running",
 
     "incomplete metadata",
     "stat failure",
-    "migration error",
+    "action error",
 
-    "migration aborted"
+    "action aborted"
 };
 
-/* feedback from migration queue */
+/* feedback from action queue (count, volume, ...) */
 typedef enum
 {
-    MIGR_FDBK_NBR = 0,
-    MIGR_FDBK_VOL,
-    MIGR_FDBK_VOL_NOK,
+    AF_NBR_OK,
+    AF_NBR_NOK,
 
-    MIGR_FDBK_COUNT
-} migr_fdbk_t;
+    AF_VOL_OK,
+    AF_VOL_NOK,
 
-typedef enum
+    AF_TARGETED_OK,
+    AF_TARGETED_NOK,
+
+    AF_BLOCKS_OK,
+    AF_BLOCKS_NOK,
+
+    AF_ENUM_COUNT /* last status index + 1*/
+} action_feedback_t;
+
+typedef struct policy_param_t
 {
-    MIGR_FS = 1,
-    MIGR_BY_OST,
-    MIGR_BY_USER,
-    MIGR_BY_GROUP,
-    MIGR_BY_CLASS,
-} migr_type_t;
+    policy_target_t target;
+// XXX no not differ from policy_info->flags? */
+//    int             flags;
+//
+    target_u 	     optarg_u;
+    counters_t       target_cpt;
+    time_modifier_t *time_mod;
+} policy_param_t;
 
-typedef struct migr_param__
-{
-    migr_type_t    type;
-    int            flags;
-    union
-    {
-        unsigned int   ost_index;
-        const char    *user_name;
-        const char    *group_name;
-        const char    *class_name;
-    } param_u;
-    policy_modifier_t * policy_mod;
-} migr_param_t;
+int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
+               action_summary_t *p_summary, lmgr_t *lmgr);
 
+int start_worker_threads(policy_info_t *p_pol_info); /* the number of threads is in p_pol_info->config */
 
-int            perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
-                                  unsigned int *p_nb_migr, unsigned long long *p_migr_vol );
-
-
-int            start_migration_threads( unsigned int nb_threads );
-
-int  check_current_migrations( lmgr_t * lmgr, unsigned int *p_nb_reset,
-                               unsigned int * p_nb_total,
-                               time_t timeout );
-
-void abort_migration( void );
-
-int            migrate_one_file( const char * file, int flags );
+int check_current_actions(policy_info_t *p_pol_info, lmgr_t *lmgr, /* the timeout is in p_pol_info->config */
+                          unsigned int *p_nb_reset, unsigned int *p_nb_total);
 
 #endif

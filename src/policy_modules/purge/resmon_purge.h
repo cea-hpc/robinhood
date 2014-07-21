@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2009 CEA/DAM
+ * Copyright (C) 2009-2014 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -12,108 +12,102 @@
  * accept its terms.
  */
 
-#ifndef _RESMON_PURGE_H
-#define _RESMON_PURGE_H
+/**
+ * \file run_policies.h
+ * \brief This module triggers migrations to HSM or external storage.
+ */
+#ifndef _RUN_POLICIES_H
+#define _RUN_POLICIES_H
 
-#include "queue.h"
-#include "list_mgr.h"
+typedef struct policy_runs_t {
+    policy_info_t *runs;
+    unsigned int count;
+} policy_runs_t;
 
-/* defined in resmon_purge.c */
-extern resource_monitor_config_t resmon_config;
-extern entry_queue_t purge_queue;
+/* defined in policy_triggers.c */
+extern policy_runs_t policy_runs;
 
-/* Purge status */
+
+/* Action status */
 typedef enum
 {
-    PURGE_OK = 0,                                /* entry has been purged correctly */
-    PURGE_ENTRY_ACCESSED,       /* entry has been accessed recently */
-    PURGE_ENTRY_MOVED,          /* entry has been moved or deleted */
-    PURGE_ENTRY_WHITELISTED,    /* entry is whitelisted  */
+    AS_OK = 0,              /* action successful */
 
-#ifdef ATTR_INDEX_status
-    PURGE_STATUS_CHGD,          /* HSM status flags changed */
-#endif
+/* skipped */
+    AS_ACCESSED,            /* entry has been accessed recently */
+    AS_MOVED,               /* entry has been moved or deleted */
+    AS_WHITELISTED,         /* entry is whitelisted  */
+    AS_STATUS_CHANGED,      /* entry status has changed */
+    AS_NO_POLICY,           /* entry matches no policy */
+    AS_BAD_TYPE,            /* policy does not apply to this type of entry */
+    AS_BUSY,                /* entry is is use */
+    AS_ALREADY,             /* action is already running */
 
-    PURGE_NO_POLICY,            /* entry matches no policy */
-    PURGE_PARTIAL_MD,           /* entry metadata was incomplete */
-    PURGE_STAT_FAILURE,         /* stat failure */
-    PURGE_ERROR,                /* unlink failed */
-    PURGE_ABORT,                /* purge aborted by termination signal */
+/* errors */
+    AS_MISSING_MD,          /* entry metadata is incomplete */
+    AS_STAT_FAILURE,        /* stat failure */
+    AS_ERROR,               /* action failed */
 
-    PURGE_ST_COUNT              /* last status index */
-} purge_status_t;
+    AS_ABORT,               /* action aborted by termination signal */
 
-/* Purge status description */
-static const char __attribute__(( __unused__ )) *purge_status_descr[PURGE_ST_COUNT] = {
-    "successfully purged",
+    AS_ENUM_COUNT           /* last status index + 1*/
+} action_status_t;
+
+/* Action status description */
+static const char __attribute__(( __unused__ )) *action_status_descr[AS_ENUM_COUNT] = {
+    "action successful",
+
     "accessed since last update",
     "moved or deleted since last update",
     "whitelisted/ignored",
+    "status has changed",
+    "no matching rule",
+    "entry type out of scope",
+    "entry is in use/busy",
+    "action already running",
 
-#ifdef _LUSTRE_HSM
-    "status flags have changed",
-#endif
-
-    "no matching policy",
     "incomplete metadata",
     "stat failure",
-    "purge error",
-    "purge aborted"
+    "action error",
+
+    "action aborted"
 };
 
-
-/* feedback from purge queue */
+/* feedback from action queue (count, volume, ...) */
 typedef enum
 {
-    PURGE_FDBK_BLOCKS = 0,
-    PURGE_SPECIFIC_COUNT,
+    AF_NBR_OK,
+    AF_NBR_NOK,
 
-    PURGE_FDBK_COUNT
-} purge_fdbk_t;
+    AF_VOL_OK,
+    AF_VOL_NOK,
 
+    AF_TARGETED_OK,
+    AF_TARGETED_NOK,
 
-/* Purge type definitions */
-typedef enum
+    AF_BLOCKS_OK,
+    AF_BLOCKS_NOK,
+
+    AF_ENUM_COUNT /* last status index + 1*/
+} action_feedback_t;
+
+typedef struct policy_param_t
 {
-    PURGE_FS = 1,
-    PURGE_ALL,
-    PURGE_BY_OST,
-    PURGE_BY_POOL,
-    PURGE_BY_USER,
-    PURGE_BY_GROUP,
-    PURGE_BY_CLASS
-} purge_type_t;
+    policy_target_t target;
+// XXX no not differ from policy_info->flags? */
+//    int             flags;
+//
+    target_u 	     optarg_u;
+    counters_t       target_cpt;
+    time_modifier_t *time_mod;
+} policy_param_t;
 
-typedef struct purge_param__
-{
-    purge_type_t   type;
-    int            flags;
-    union
-    {
-        unsigned int   ost_index;
-        const char    *user_name;
-        const char    *group_name;
-        const char    *pool_name;
-        const char    *class_name;
-    } param_u;
-    unsigned long  nb_blocks;
-    unsigned long long nb_inodes;
-} purge_param_t;
+int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
+               action_summary_t *p_summary, lmgr_t *lmgr);
 
+int start_worker_threads(policy_info_t *p_pol_info); /* the number of threads is in p_pol_info->config */
 
-int  perform_purge( lmgr_t * lmgr, purge_param_t * p_purge_param,
-                              unsigned long long *p_blks_purged,
-                              unsigned long long *p_nb_specific );
-
-#ifdef ATTR_INDEX_status
-int  check_current_purges( lmgr_t * lmgr, unsigned int *p_nb_reset,
-                               unsigned int * p_nb_total,
-                               time_t timeout );
-#endif
-
-void abort_purge();
-
-
-int  start_purge_threads( unsigned int nb_threads );
+int check_current_actions(policy_info_t *p_pol_info, lmgr_t *lmgr, /* the timeout is in p_pol_info->config */
+                          unsigned int *p_nb_reset, unsigned int *p_nb_total);
 
 #endif
