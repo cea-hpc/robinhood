@@ -438,12 +438,7 @@ AC_CONFIG_FILES([Makefile
          src/entry_processor/Makefile
          src/fs_scan/Makefile
          src/chglog_reader/Makefile
-         src/policy_matching/Makefile
-         src/policy_modules/Makefile
-         src/policy_modules/purge/Makefile
-         src/policy_modules/migration/Makefile
-         src/policy_modules/hsm_remove/Makefile
-         src/policy_modules/rmdir/Makefile
+         src/policies/Makefile
          src/backend_ext/Makefile
          src/robinhood/Makefile
          src/tools/Makefile
