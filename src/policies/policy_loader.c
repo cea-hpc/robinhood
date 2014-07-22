@@ -1604,14 +1604,9 @@ static int parse_rule_block(config_item_t config_item,
                     return EINVAL;
                 }
                 fs->used_in_policy = TRUE;
-                /* check matchable */
-                if (!fs->matchable)
-                {
-                    sprintf(msg_out,
-                            "Policy rule references a non-matchable fileclass '%s', line %d.", value,
-                            rh_config_GetItemLine(sub_item));
-                    return EINVAL;
-                }
+
+                /* note: matchable is only for the fileclass in DB.
+                 * allow using non-matchable in policies */
 
                 /* check that the fileset is not already referenced in the policy */
                 for (j = 0; j < policy_rules->rule_count; j++)
@@ -2039,7 +2034,7 @@ int Write_Policy_Template(FILE * output)
     if (rc)
         return rc;
 
-#if 0 // FIXME
+#if 0 // FIXME write policy templates
 #ifdef HAVE_MIGR_POLICY
     rc = write_migration_policy_template(output);
     if (rc)
@@ -2079,7 +2074,7 @@ int Write_Policy_Default(FILE * output)
     rc = write_default_filesets(output);
     if (rc)
         return rc;
-#if 0 // FIXME
+#if 0 // FIXME write policy defaults
 #ifdef HAVE_MIGR_POLICY
     rc = write_default_policy(output, MIGR_POLICY);
     if (rc)

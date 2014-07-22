@@ -260,7 +260,7 @@ typedef struct rule_item_t
     int            attr_mask;
 
     char           action_hints[HINTS_LEN];
-    // TODO: different action per rule?
+    // TODO: implement action per rule
 } rule_item_t;
 
 /** list of rules for a policy */
@@ -331,7 +331,7 @@ typedef struct policies_t
 
     fileset_item_t  *fileset_list;
     unsigned int     fileset_count;
-    int              global_fileset_mask; // mask for all matchable filesets
+    int              global_fileset_mask; // mask for all filesets
 
     unsigned int     manage_deleted:1; // is there any policy that manages deleted entries?
 
@@ -340,7 +340,7 @@ extern struct  policies_t policies;
 
 int policy_exists(const char *name, int *index);
 
-// TODO
+// TODO implement match_scope
 //int match_scope(policy, entry);
 //int match_scope_deleted(policy);
 
@@ -397,7 +397,7 @@ static inline int is_dir_class_defined(void)
 #endif
 
 int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
-                  attr_set_t *p_attrs_cached);
+                  const attr_set_t *p_attrs_cached);
 
 /* return values for matching */
 typedef enum {

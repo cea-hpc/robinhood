@@ -102,6 +102,37 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
     }
 }
 
+static void separated_list2db(const char *list, char *db)
+{
+    db[0] = '+';
+    strcpy(db+1,list);
+    strcat(db, "+");
+}
+
+static void separated_list2match(const char *list, char *db)
+{
+    /* <item>  is matched using expression '%+<item>+%' */
+    strcpy(db, "%+");
+    strcat(db,list);
+    strcat(db, "+%");
+}
+
+static void separated_db2list(const char *db, char *list)
+{
+    int len = strlen(db);
+    strncpy(list, db+1, len-2);
+    list[len-2] = '\0';
+}
+
+void separated_db2list_inplace(char *list)
+{
+    int len = strlen(list);
+    int i;
+    for (i = 1; i < len - 1; i++)
+        list[i-1] = list[i];
+    list[len-2] = '\0';
+}
+
 #ifdef _HSM_LITE
 #define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
                                 ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
@@ -538,6 +569,8 @@ int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
         {
             if ( MATCH_TABLE( table, i ) )
             {
+                char tmp[1024];
+
                 if ( leading_coma || ( nbfields > 0 ) )
                 {
                     *values_curr = ',';
@@ -547,9 +580,13 @@ int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
                 ASSIGN_UNION( typeu, field_infos[i].db_type,
                               ( ( char * ) &p_set->attr_values + field_infos[i].offset ) );
 
-                values_curr += printdbtype( p_mgr, values_curr,
-                                            field_infos[i].db_type, &typeu );
-
+                if (field_infos[i].flags & SEPD_LIST)
+                {
+                    separated_list2db(typeu.val_str, tmp);
+                    typeu.val_str = tmp;
+                }
+                values_curr += printdbtype(p_mgr, values_curr,
+                                           field_infos[i].db_type, &typeu);
                 nbfields++;
             }
         }
@@ -596,8 +633,16 @@ int attrset2updatelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
 
             if (!generic_value)
             {
+                char tmp[1024];
+
                 ASSIGN_UNION(typeu, field_infos[i].db_type,
                              ((char *)&p_set->attr_values + field_infos[i].offset));
+
+                if (field_infos[i].flags & SEPD_LIST)
+                {
+                    separated_list2db(typeu.val_str, tmp);
+                    typeu.val_str = tmp;
+                }
                 values_curr += printdbtype(p_mgr, values_curr,
                                            field_infos[i].db_type, &typeu);
             }
@@ -768,6 +813,8 @@ int result2attrset( table_enum table, char **result_tab,
             /* special case for fullpath which must be converted from relative to aboslute */
             if (i == ATTR_INDEX_fullpath)
                 fullpath_db2attr(typeu.val_str, ATTR(p_set, fullpath));
+            else if (field_infos[i].flags & SEPD_LIST)
+                separated_db2list(typeu.val_str, ((char*)&p_set->attr_values + field_infos[i].offset));
             else
                 UNION_GET_VALUE(typeu, field_infos[i].db_type,
                                 ((char *)&p_set->attr_values + field_infos[i].offset));
@@ -1075,6 +1122,15 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                     strcat(fname, field_infos[index].field_name);
                 }
 
+                /* comparator */
+                if (field_infos[index].flags & SEPD_LIST)
+                {
+                    /* always match '%+<item>+%' => use LIKE and UNLIKE */
+                    if (p_filter->filter_simple.filter_compar[i] == EQUAL)
+                        p_filter->filter_simple.filter_compar[i] = LIKE;
+                    else if (p_filter->filter_simple.filter_compar[i] == NOTEQUAL)
+                        p_filter->filter_simple.filter_compar[i] = UNLIKE;
+                }
                 values_curr +=
                     sprintf( values_curr, "%s%s", fname,
                              compar2str( p_filter->filter_simple.filter_compar[i] ) );
@@ -1097,11 +1153,20 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 }
                 else
                 {
-                    /* single value (list only apply to OSTs XXX for now) */
-                    typeu = p_filter->filter_simple.filter_value[i].value;
+                    char tmp [1024];
+                    if (field_infos[index].flags & SEPD_LIST)
+                    {
+                        /* match '%+<item>+%' */
+                        separated_list2match(p_filter->filter_simple.filter_value[i].value.val_str,
+                                             tmp);
+                        typeu.val_str = tmp;
+                    }
+                    else
+                        /* single value (list only apply to OSTs XXX for now) */
+                        typeu = p_filter->filter_simple.filter_value[i].value;
 
-                    values_curr += printdbtype( p_mgr, values_curr,
-                                                field_infos[index].db_type, &typeu );
+                    values_curr += printdbtype(p_mgr, values_curr,
+                                               field_infos[index].db_type, &typeu);
                 }
                 nbfields++;
             }
@@ -1357,7 +1422,7 @@ int lmgr_flush_commit( lmgr_t * p_mgr )
  * If p_target_attrset attributes are unset,
  * retrieve them from p_source_attrset.
  */
-void ListMgr_MergeAttrSets( attr_set_t * p_target_attrset, attr_set_t * p_source_attrset, int update )
+void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_source_attrset, int update)
 {
     int            i;
     int            mask = 1;

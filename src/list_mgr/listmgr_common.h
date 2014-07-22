@@ -349,4 +349,6 @@ static inline int sum_masks(attr_set_t **p_attrs, unsigned int count, int t_mask
     return m;
 }
 
+void separated_db2list_inplace(char *list);
+
 #endif

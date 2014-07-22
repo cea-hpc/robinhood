@@ -125,7 +125,7 @@ no_release,     int, DB_BOOL, 0, FREQ_ACCESS
 no_archive,     int, DB_BOOL, 0, FREQ_ACCESS
 
 # fileclasses and last update
-fileclass,        char,           DB_TEXT,   1024,   FREQ_ACCESS
+fileclass,        char,           DB_TEXT,   1024,   FREQ_ACCESS | SEPD_LIST
 class_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 
 # info that is set once for each file

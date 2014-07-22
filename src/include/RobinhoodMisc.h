@@ -397,6 +397,14 @@ void rh_sleep( unsigned int seconds );
 int str_replace( char * str_in_out, const char * to_be_replaced,
                  const char * replacement );
 
+static inline void replace_char(char *str, char c1, char c2)
+{
+    char *curr;
+    for (curr = str; *curr != '\0'; curr++)
+        if (*curr == c1)
+            *curr = c2;
+}
+
 /**
  * Execute a shell command and analyze the return code
  */

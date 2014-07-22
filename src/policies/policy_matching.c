@@ -265,6 +265,7 @@ obj_type_t lmgr2policy_type(const char *str_type)
  * \param p_must_release OUT: set to TRUE if the db_type_u.val_str string must be released
  * \return -1 if this is not a criteria stored in DB.
  */
+/** @TODO factorize criteria2filter */
 int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
                     int *p_must_release)
@@ -396,8 +397,6 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 
-
-/** @TODO factorize this part of code */
     case CRITERIA_LAST_MOD:
         *p_attr_index = ATTR_INDEX_last_mod;
         *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
@@ -437,8 +436,6 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 #endif
-
-/** end of @TODO factorize this part of code */
 
     case CRITERIA_POOL:
         *p_attr_index = ATTR_INDEX_stripe_info;
@@ -482,7 +479,7 @@ static inline time_t time_modify(time_t orig, const time_modifier_t *p_pol_mod)
     return newtime;
 }
 
-
+/** @TODO factorize eval_condition */
 static policy_match_t eval_condition(const entry_id_t *p_entry_id,
                                      const attr_set_t *p_entry_attr,
                                      const compare_triplet_t *p_triplet,
@@ -1010,8 +1007,103 @@ int class_is_whitelisted(const policy_descr_t *policy, const char * class_id)
 }
 
 
-/** @TODO XXX is this useful? */
+/* Match classes according to p_attrs_cached+p_attrs_new,
+ * set the result in p_attrs_new->fileclass.
+ */
+int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
+                  const attr_set_t *p_attrs_cached)
+{
+    unsigned int i;
+    int          ok = 0;
+    int left = sizeof(ATTR(p_attrs_new, fileclass));
+
+    /* initialize output fileclass */
+    char *pcur = ATTR(p_attrs_new, fileclass);
+    *pcur = '\0';
+
+    /* merge contents of the 2 input attr sets */
+    attr_set_t attr_cp = *p_attrs_new;
+    ListMgr_MergeAttrSets(&attr_cp, p_attrs_cached, FALSE);
+
+    for (i = 0; i < policies.fileset_count; i++)
+    {
+        fileset_item_t *fset = &policies.fileset_list[i];
+
+        if (!fset->matchable)
+        {
+            ok++;
+            continue;
+        }
+
+        switch (_entry_matches(id, &attr_cp, &fset->definition, NULL, TRUE))
+        {
+            case POLICY_MATCH:
+                ok ++;
+                if (EMPTY_STRING(ATTR(p_attrs_new, fileclass)))
+                {
+                    strncpy(pcur, fset->fileset_id, left);
+                    left -= strlen(pcur);
+                    pcur += strlen(pcur);
+                }
+                else if (left > 1)
+                {
+                    *pcur = LIST_SEP;
+                    pcur++;
+                    strncpy(pcur, fset->fileset_id, left - 1);
+                    left -= strlen(pcur)+1;
+                    pcur += strlen(pcur);
+                }
+                break;
+            case POLICY_MISSING_ATTR:
+                DisplayLog(LVL_MAJOR, POLICY_TAG, "Attribute is missing for checking fileset %s",
+                           fset->fileset_id);
+                break;
+            case POLICY_ERR:
+                DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured when checking fileset %s",
+                           fset->fileset_id);
+                break;
+            case POLICY_NO_MATCH:
+                ok ++;
+                /* continue testing other file classes */
+                break;
+        }
+    }
+
+    /* no fileclass could be matched without an error */
+    if (policies.fileset_count != 0 && ok == 0)
+    {
+        ATTR_MASK_UNSET(p_attrs_new, fileclass);
+    }
+    else
+    {
+        ATTR(p_attrs_new, class_update) = time(NULL);
+        ATTR_MASK_SET(p_attrs_new, fileclass);
+        ATTR_MASK_SET(p_attrs_new, class_update);
+    }
+
+    return 0;
+}
+
+
 #if 0
+
+fileset_item_t *GetFilesetById(const char *fileset_id)
+{
+    unsigned int   i;
+
+    for (i = 0; i < policies.filesets.fileset_count; i++)
+    {
+        if (!strcmp(policies.filesets.fileset_list[i].fileset_id, fileset_id))
+            return &policies.filesets.fileset_list[i];
+    }
+
+    return NULL;
+
+}
+
+
+
+/** @TODO XXX is this useful? */
 char          *FilesetMatch(const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr)
 {
     unsigned int   i;

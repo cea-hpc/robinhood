@@ -39,6 +39,8 @@
 #include "config_parsing.h"
 #include "rbh_const.h"
 
+#define LIST_SEP '+'
+
 /* error codes */
 #define DB_SUCCESS              0
 /* XXX 1: unused */
@@ -124,6 +126,7 @@ typedef int stripe_info_t; /* dummy type */
 #define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
 #define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
 #define REMOVED      0x00000008 /* this attribute only applies to removed entries */
+#define SEPD_LIST    0x00000010 /* list with separators (text) */
 #define DNAMES       0x01000000 /* field in DNAMES table. */
 #define FUNC_ATTR    0x02000000 /* special attr built using a DB function */
 #define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
@@ -145,7 +148,7 @@ typedef enum
     DB_BIGINT,  /**< 64 bits integer    */
     DB_BIGUINT, /**< 64 bits unsigned integer */
     DB_BOOL,    /**< boolean            */
-    DB_ENUM_FTYPE    /**< file type enumeration */
+    DB_ENUM_FTYPE,  /**< file type enumeration */
 } db_type_t;
 
 
@@ -1025,7 +1028,7 @@ int lmgr_range2list(const char * set, db_type_t type, value_list_t * p_list);
  *        this boolean indicates if it must be updated in the target.
  */
 void           ListMgr_MergeAttrSets( attr_set_t * p_target_attrset,
-                                      attr_set_t * p_source_attrset,
+                                      const attr_set_t * p_source_attrset,
                                       int update );
 
 /** return the mask of attributes that differ */

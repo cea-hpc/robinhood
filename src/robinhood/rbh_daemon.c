@@ -135,6 +135,7 @@ static struct option option_tab[] = {
      * by ignoring condition in policy rules.
      */
     {"ignore-policies", no_argument, NULL, 'I'},
+    {"force", no_argument, NULL, 'F'},
 
     /* behavior flags */
     {"dry-run", no_argument, NULL, DRY_RUN},
@@ -193,7 +194,7 @@ static struct option option_tab[] = {
     {NULL, 0, NULL, 0}
 };
 
-#define SHORT_OPT_STRING     "SrCt:IOdf:T:DL:l:hVp:"
+#define SHORT_OPT_STRING     "SrCt:IOdf:T:DL:l:hVp:F"
 #define SHORT_OPT_DEPRECATED "PMRi"
 
 #define MAX_OPT_LEN 1024
@@ -287,6 +288,8 @@ static const char *help_string =
     "        For FS, OST or pool targets of purge policies, specifies the target disk usage (in percent).\n"
     "    " _B "-I" B_ ", " _B "--ignore-policies"B_"\n"
     "        Apply policy to all entries in policy scope, without checking policy rules.\n"
+    "    " _B "-F" B_ ", " _B "--force"B_"\n"
+    "        Force applying policies even if no full scan has never been done (partial DB contents).\n"
     "    " _B "--no-limit"B_"\n"
     "        Don't limit the maximum number/volume of policy actions per pass.\n"
     "    " _B "--dry-run"B_"\n"
@@ -1012,6 +1015,9 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
             break;
         case 'I':
             opt->flags |= FLAG_IGNORE_POL;
+            break;
+        case 'F':
+            opt->flags |= FLAG_FORCE_RUN;
             break;
 
         case 'd':

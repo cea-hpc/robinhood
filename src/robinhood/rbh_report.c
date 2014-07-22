@@ -1124,8 +1124,10 @@ typedef enum {DUMP_ALL, DUMP_USR, DUMP_GROUP, DUMP_OST, DUMP_STATUS } type_dump;
 
 static inline const char * class_format( const char * class_name )
 {
-    if ( class_name == NULL )
+    if (class_name == NULL)
         return "[n/a]";
+    else if (EMPTY_STRING(class_name))
+        return "[none]";
 #if 0 /* FIXME adapt to new classes */
     if ( !strcasecmp(class_name, CLASS_DEFAULT ) )
         return "[default]";
@@ -1133,29 +1135,8 @@ static inline const char * class_format( const char * class_name )
         return "[ignored]";
     else
 #endif
-        return class_name;
+    return class_name;
 }
-
-#ifdef ATTR_INDEX_archive_class
-static inline const char * migr_class( const attr_set_t * attrs )
-{
-    if (!ATTR_MASK_TEST(attrs, archive_class))
-        return "";
-    else
-        return class_format( ATTR(attrs, archive_class) );
-}
-#endif
-
-#ifdef ATTR_INDEX_release_class
-static inline const char * release_class( const attr_set_t * attrs )
-{
-    if (!ATTR_MASK_TEST(attrs, release_class))
-        return "";
-    else
-        return class_format( ATTR(attrs, release_class) );
-}
-#endif
-
 
 /*
  * Append global filters on path, class...
@@ -1221,7 +1202,8 @@ static int mk_global_filters( lmgr_filter_t * filter, int do_display, int * init
 
         fv.value.val_str = class_filter;
 
-        /* FIXME: fileclass field may contain multiple classes */
+        /* list manager as a specific fileclass management,
+         * as fileclass attr may be a list of fileclasses */
         lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass, LIKE, fv, 0);
     }
 
@@ -1256,14 +1238,9 @@ static inline const char * attrindex2name(unsigned int index)
 
         case ATTR_INDEX_md_update: return "md updt";
         case ATTR_INDEX_path_update: return "path updt";
-#ifdef ATTR_INDEX_archive_class
-        case ATTR_INDEX_archive_class: return "migr. class";
-        case ATTR_INDEX_arch_cl_update: return "migr. class updt";
-#endif
-#ifdef ATTR_INDEX_release_class
-        case ATTR_INDEX_release_class: return "purge class";
-        case ATTR_INDEX_rel_cl_update: return "purge class updt";
-#endif
+
+        case ATTR_INDEX_fileclass: return "fileclass";
+        case ATTR_INDEX_class_update: return "class updt";
 #ifdef ATTR_INDEX_invalid
         case ATTR_INDEX_invalid: return "invalid";
 #endif
@@ -1315,14 +1292,10 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
 
         case ATTR_INDEX_md_update: return 20;
         case ATTR_INDEX_path_update: return 20;
-#ifdef ATTR_INDEX_archive_class
-        case ATTR_INDEX_archive_class: return 20;
-        case ATTR_INDEX_arch_cl_update: return 20;
-#endif
-#ifdef ATTR_INDEX_release_class
-        case ATTR_INDEX_release_class: return 20;
-        case ATTR_INDEX_rel_cl_update: return 20;
-#endif
+
+        case ATTR_INDEX_fileclass: return 30;
+        case ATTR_INDEX_class_update: return 20;
+
 #ifdef ATTR_INDEX_invalid
         case ATTR_INDEX_invalid: return 3; /* yes/no */
 #endif
@@ -1538,22 +1511,13 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
             strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
             return out;
 
-#ifdef ATTR_INDEX_archive_class
-        case ATTR_INDEX_archive_class:
-            return migr_class(attrs);
-        case ATTR_INDEX_arch_cl_update:
-            tt = ATTR(attrs, arch_cl_update);
+        case ATTR_INDEX_fileclass:
+            return ATTR(attrs, fileclass);
+        case ATTR_INDEX_class_update:
+            tt = ATTR(attrs, class_update);
             strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
             return out;
-#endif
-#ifdef ATTR_INDEX_release_class
-        case ATTR_INDEX_release_class:
-            return release_class(attrs);
-        case ATTR_INDEX_rel_cl_update:
-            tt = ATTR(attrs, rel_cl_update);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-#endif
+
 #ifdef ATTR_INDEX_invalid
         case ATTR_INDEX_invalid: return (ATTR(attrs, invalid) ? "yes" : "no");
 #endif
@@ -1700,15 +1664,8 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
             else
                 FormatFileSize( out, 128, val->value_u.val_biguint * DEV_BSIZE);
             break;
-
-#ifdef ATTR_INDEX_archive_class
-        case ATTR_INDEX_archive_class:
-            return class_format( val->value_u.val_str );
-#endif
-#ifdef ATTR_INDEX_release_class
-        case ATTR_INDEX_release_class:
-            return class_format( val->value_u.val_str );
-#endif
+        case ATTR_INDEX_fileclass:
+            return class_format(val->value_u.val_str);
     }
     return out;
 }
@@ -1827,12 +1784,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
                    ATTR_INDEX_size,
                    ATTR_INDEX_owner,
                    ATTR_INDEX_gr_name,
-#ifdef ATTR_INDEX_archive_class
-                   ATTR_INDEX_archive_class,
-#endif
-#ifdef ATTR_INDEX_release_class
-                   ATTR_INDEX_release_class,
-#endif
+                   ATTR_INDEX_fileclass,
                    ATTR_INDEX_fullpath
                 };
     /* list of attributes to be used for OST dumps */
@@ -2478,12 +2430,7 @@ static void report_topsize( unsigned int count, int flags )
                    ATTR_INDEX_gr_name,
                    ATTR_INDEX_last_access,
                    ATTR_INDEX_last_mod,
-#ifdef ATTR_INDEX_archive_class
-                   ATTR_INDEX_archive_class,
-#endif
-#ifdef ATTR_INDEX_release_class
-                   ATTR_INDEX_release_class,
-#endif
+                   ATTR_INDEX_fileclass,
                    ATTR_INDEX_stripe_info,
                    ATTR_INDEX_stripe_items
                 };
@@ -3201,10 +3148,7 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Missing mandatory argument <path> for --filter-path\n");
                 exit(1);
             }
-            else
-            {
-                rh_strncpy(path_filter, optarg, RBH_PATH_MAX);
-            }
+            rh_strncpy(path_filter, optarg, RBH_PATH_MAX);
             break;
 
         case 'C':
@@ -3213,18 +3157,9 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Missing mandatory argument <class> for --filter-class\n");
                 exit(1);
             }
-            if ( class_info )
-            {
-                fprintf(stderr, "WARNING: --filter-class option conflicts with --class-info report type. ignored.\n");
-                break;
-            }
-#if 0 /* FIXME adapt to new classes */
-            if (!strcasecmp( optarg, "default"))
-                rh_strncpy(class_filter, CLASS_DEFAULT, 1024);
-            else if ( !strcasecmp( optarg, "ignored"))
-                rh_strncpy(class_filter, CLASS_IGNORED, 1024);
+            if (class_info && !EMPTY_STRING(class_filter))
+                fprintf(stderr, "WARNING: --filter-class conflicts with --class-info parameter. ignored.\n");
             else
-#endif
                 rh_strncpy(class_filter, optarg, 1024);
             break;
 
@@ -3233,20 +3168,12 @@ int main( int argc, char **argv )
             if ( class_info )
                 fprintf(stderr, "WARNING: --class-info parameter already specified on command line.\n");
 
-            if ( !EMPTY_STRING(class_filter) )
-                fprintf(stderr, "WARNING: --class-info conflicts with --filter-class parameter. overriding filter.\n");
-
             class_info = TRUE;
-            if ( optarg )
+            if (optarg)
             {
-#if 0 /* FIXME adapt to new classes */
-                if (!strcasecmp( optarg, "default"))
-                    rh_strncpy(class_filter, CLASS_DEFAULT, 1024);
-                else if ( !strcasecmp( optarg, "ignored"))
-                    rh_strncpy(class_filter, CLASS_IGNORED, 1024);
-                else
-#endif
-                    rh_strncpy(class_filter, optarg, 1024);
+                if (!EMPTY_STRING(class_filter))
+                    fprintf(stderr, "WARNING: --class-info conflicts with --filter-class parameter. overriding filter.\n");
+                rh_strncpy(class_filter, optarg, 1024);
             }
             break;
 

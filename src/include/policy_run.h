@@ -47,10 +47,9 @@ typedef enum {
 } policy_target_t;
 
 
-/* TODO 
- *  actions can be:
+/* TODO actions can be:
  *   1) policy wide (always the same for a given policy)
- *   2) trigger wide: specified for each trigger
+ *   2) trigger wide: specified for each trigger (?)
  *   3) policy_case wide: different for each policy case
  */
 
@@ -143,7 +142,17 @@ typedef enum action_type_t
     ACTION_COMMAND
 } action_type_t;
 
-typedef  int (*action_func_t)(const entry_id_t *,attr_set_t *, const char *); /* hints */
+/* what to do with the entry after the policy action.
+ * returned by action_function */
+typedef enum {
+    PA_NONE,
+    PA_RM_ONE,
+    PA_RM_ALL,
+    PA_UPDATE
+} post_action_e;
+
+typedef  int (*action_func_t)(const entry_id_t *,attr_set_t *, const char *,
+                              post_action_e *after); /* hints */
 
 action_func_t action_name2function(const char *fname);
 
@@ -169,7 +178,7 @@ typedef struct policy_run_config_t
     time_t         action_timeout;
 
     /* interval for reporting progress of current policy run */
-    time_t         report_interval;    /* FIXME: parse in config */
+    time_t         report_interval;
 
     time_t         pre_maintenance_window;
     time_t         maint_min_apply_delay;

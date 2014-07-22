@@ -1643,9 +1643,8 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     #endif
 
     /* match fileclasses if specified in config */
-    //if (entry_proc_conf.match_classes)
-    // FIXME implement fileset macthing
-    //    match_classes(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs);
+    if (entry_proc_conf.match_classes)
+        match_classes(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs);
 
     /* go to next step */
     rc = EntryProcessor_Acknowledge(p_op, STAGE_REPORTING, FALSE);

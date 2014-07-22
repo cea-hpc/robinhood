@@ -83,13 +83,6 @@ static void free_queue_item(queue_item_t *item)
     MemFree(item);
 }
 
-typedef enum {
-    PA_NONE,
-    PA_RM_ONE,
-    PA_RM_ALL,
-    PA_UPDATE
-} post_action_e;
-
 static int policy_action(policy_info_t *policy,
                          const entry_id_t *id, attr_set_t *p_attr_set,
                          const char *hints, post_action_e *after)
@@ -104,7 +97,7 @@ static int policy_action(policy_info_t *policy,
     switch(policy->config->action_type)
     {
         case ACTION_FUNCTION:
-            rc = policy->config->action_u.function(id, p_attr_set, hints);
+            rc = policy->config->action_u.function(id, p_attr_set, hints, after);
             break;
         case ACTION_COMMAND:
         {
@@ -143,10 +136,10 @@ static int policy_action(policy_info_t *policy,
             break;
     }
 //    if (rc == 0)
-//        // FIXME policy dependant
+//        // FIXME set post_action_e in case of external command
 //        *after = PA_RM_ONE;
 //    else
-        *after = PA_UPDATE;
+//        *after = PA_UPDATE;
 
     return rc;
 }
@@ -404,8 +397,7 @@ static int set_optimization_filters(policy_info_t *policy,
                 flags = FILTER_FLAG_NOT | FILTER_FLAG_ALLOW_NULL;
             else
                 flags = FILTER_FLAG_NOT;
-            /* FIXME class filter field depends on policy name... */
-            lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass, EQUAL, /* FIXME adapt to new fileclass management */
+            lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass, EQUAL,
                                    fval, flags);
         }
     }
@@ -736,7 +728,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         {
             DisplayLog(LVL_MAJOR, tag(p_pol_info),
                         "Full FS Scan has never been done. Policy ordering would be done on a partial list "
-                        "(use --force to apply the policy anyway)."); // TODO implement -force
+                        "(use --force to apply the policy anyway).");
             return ENOENT;
         }
         else
@@ -825,7 +817,6 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
             break;
 
         case TGT_OST:   /* apply policies to the specified OST */
-
             DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on OST #%u",
                        p_param->optarg_u.index);
 
@@ -853,7 +844,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
              /* retrieve files from this pool */
             fval.value.val_str = p_param->optarg_u.name;
             rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_stripe_info,
-                                        EQUAL, fval, 0);
+                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                        fval, 0);
             if (rc)
                 return rc;
             break;
@@ -862,9 +854,12 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
             DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on '%s' user files",
                        p_param->optarg_u.name);
 
+            ATTR_MASK_SET(&attr_set, owner);
+
             /* retrieve files for this owner */
             fval.value.val_str = p_param->optarg_u.name;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_owner, EQUAL,
+            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_owner,
+                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
                                         fval, 0);
             if (rc)
                 return rc;
@@ -874,16 +869,29 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
             DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on '%s' group files",
                        p_param->optarg_u.name);
 
+            ATTR_MASK_SET(&attr_set, gr_name);
+
             /* retrieve files for this group */
             fval.value.val_str = p_param->optarg_u.name;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_gr_name, EQUAL,
+            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_gr_name,
+                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
                                         fval, 0);
             if (rc)
                 return rc;
             break;
 
         case TGT_CLASS: /* apply policies to the specified fileclass */
-            // TODO Implement for new fileclass management
+            DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on fileclass '%s'",
+                       p_param->optarg_u.name);
+
+            ATTR_MASK_SET(&attr_set, fileclass);
+
+            fval.value.val_str = p_param->optarg_u.name;
+            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_fileclass,
+                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                        fval, 0);
+            if (rc)
+                return rc;
             break;
 
         default:

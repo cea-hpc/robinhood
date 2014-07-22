@@ -26,6 +26,10 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+struct result {
+    db_type_t type;
+    int       flags;
+};
 
 typedef struct lmgr_report_t
 {
@@ -33,7 +37,7 @@ typedef struct lmgr_report_t
     result_handle_t select_result;
 
     /* expected result content */
-    db_type_t     *result_type_array;
+    struct result *result;
     unsigned int   result_count; /* report + profile */
     unsigned int   profile_count; /* profile only */
     unsigned int   ratio_count;  /* nbr of ratio field */
@@ -50,6 +54,15 @@ static inline const char *field_str( unsigned int index )
         return "id";
     else
         return field_infos[index].field_name;
+}
+
+/* Return field flag */
+static inline int field_flag(unsigned int index)
+{
+    if (index == (unsigned int)-1)
+        return 0;
+    else
+        return field_infos[index].flags;
 }
 
 
@@ -75,7 +88,7 @@ static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr,
     if ( report_desc_array[i].filter )
     {
         /* TODO support list filters (IN NOT and IN) */
-        printdbtype( p_mgr, attrstring, p_report->result_type_array[i],
+        printdbtype( p_mgr, attrstring, p_report->result[i].type,
                      &report_desc_array[i].filter_value.value );
 
         if ( report_desc_array[i].report_type != REPORT_GROUP_BY )
@@ -138,42 +151,42 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
             case REPORT_MIN:
                 sprintf( attrstring, "NULL as %s", attrname );
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = DB_TEXT;
+                p_report->result[i].type = DB_TEXT;
                 break;
             case REPORT_MAX:
                 sprintf( attrstring, "NULL as %s", attrname );
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = DB_TEXT;
+                p_report->result[i].type = DB_TEXT;
                 break;
             case REPORT_AVG:
                 sprintf( attrstring, "ROUND(SUM(%s)/SUM(" ACCT_FIELD_COUNT ")) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             case REPORT_SUM:
                 sprintf( attrstring, "SUM(%s) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             case REPORT_COUNT:
                 sprintf( attrstring, "SUM(" ACCT_FIELD_COUNT ") as %s", attrname );
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = DB_BIGUINT;
+                p_report->result[i].type = DB_BIGUINT;
                 break;
             case REPORT_COUNT_DISTINCT:
                 sprintf(attrstring, "COUNT(DISTINCT(%s)) as %s",
                         field_str( report_desc_array[i].attr_index ), attrname);
                 add_string( fields, *curr_field, attrstring );
-                p_report->result_type_array[i] = DB_BIGUINT;
+                p_report->result[i].type = DB_BIGUINT;
                 break;
             case REPORT_GROUP_BY:
                 sprintf( attrstring, "%s as %s", field_str( report_desc_array[i].attr_index ),
                          attrname );
                 add_string( fields, *curr_field, attrstring );
                 add_string( group_by, *curr_group_by, attrname );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             }
 
@@ -194,10 +207,12 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
         {
             sprintf( attrstring, "NULL as %s", attrname );
             add_string( fields, *curr_field, attrstring );
-            p_report->result_type_array[i] = DB_TEXT;
+            p_report->result[i].type = DB_TEXT;
         }
         listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname,
                             having, curr_having, where, curr_where, i );
+
+        p_report->result[i].flags = field_flag(report_desc_array[i].attr_index);
     }
     if (profile_descr)
     {
@@ -208,7 +223,7 @@ static void listmgr_optimizedstat( lmgr_report_t *p_report, lmgr_t * p_mgr,
             {
                 (*curr_field) += sprintf(*curr_field, "%sSUM(%s)", (fields==(*curr_field))?"":",",
                                          sz_field[i]);
-                p_report->result_type_array[i+report_descr_count] = DB_BIGUINT; /* count */
+                p_report->result[i+report_descr_count].type = DB_BIGUINT; /* count */
             }
 
             if (profile_descr->range_ratio_len > 0)
@@ -317,10 +332,9 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 
     p_report->p_mgr = p_mgr;
 
-    p_report->result_type_array =
-        ( db_type_t * ) MemCalloc( report_descr_count + profile_len + ratio,
-                                   sizeof( db_type_t ) );
-    if ( !p_report->result_type_array )
+    p_report->result = (struct result *)MemCalloc(report_descr_count
+                                 + profile_len + ratio, sizeof(struct result));
+    if (!p_report->result)
         goto free_report;
 
     p_report->result_count = report_descr_count + profile_len + ratio;
@@ -410,43 +424,43 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 sprintf( attrstring, "MIN( %s ) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             case REPORT_MAX:
                 sprintf( attrstring, "MAX( %s ) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             case REPORT_AVG:
                 sprintf( attrstring, "ROUND(AVG( %s )) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             case REPORT_SUM:
                 sprintf( attrstring, "SUM( %s ) as %s",
                          field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             case REPORT_COUNT:
                 sprintf( attrstring, "COUNT(*) as %s", attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = DB_BIGUINT;
+                p_report->result[i].type = DB_BIGUINT;
                 break;
             case REPORT_COUNT_DISTINCT:
                 sprintf( attrstring, "COUNT(DISTINCT(%s)) as %s",
                 field_str( report_desc_array[i].attr_index ), attrname );
                 add_string( fields, curr_field, attrstring );
-                p_report->result_type_array[i] = DB_BIGUINT;
+                p_report->result[i].type = DB_BIGUINT;
                 break;
             case REPORT_GROUP_BY:
                 sprintf( attrstring, "%s as %s", field_str( report_desc_array[i].attr_index ),
                          attrname );
                 add_string( fields, curr_field, attrstring );
                 add_string( group_by, curr_group_by, attrname );
-                p_report->result_type_array[i] = field_type( report_desc_array[i].attr_index );
+                p_report->result[i].type = field_type( report_desc_array[i].attr_index );
                 break;
             }
 
@@ -466,6 +480,8 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             /* is this field filtered ? */
             listmgr_fieldfilter( p_report, p_mgr, report_desc_array, attrstring, attrname,
                                 having, &curr_having, where, &curr_where, i );
+
+            p_report->result[i].flags = field_flag(report_desc_array[i].attr_index);
         }
 
         /* generate size profile */
@@ -479,7 +495,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                 curr_field += sprintf(curr_field, ",SUM("ACCT_SZ_VAL("size")">=%u)", i-1);
 
                 for (i=0; i<SZ_PROFIL_COUNT; i++)
-                    p_report->result_type_array[i+report_descr_count] = DB_BIGUINT;
+                    p_report->result[i+report_descr_count].type = DB_BIGUINT;
 
                 if (profile_descr->range_ratio_len > 0)
                 {
@@ -704,9 +720,9 @@ retry:
 
 /* error handlers */
   free_field_tab:
-    MemFree( p_report->result_type_array );
+    MemFree(p_report->result);
   free_report:
-    MemFree( p_report );
+    MemFree(p_report);
     return NULL;
 
 }                               /* ListMgr_Report */
@@ -744,14 +760,16 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
     {
         if ( p_iter->str_tab[i] != NULL )
         {
-            p_value[i].type = p_iter->result_type_array[i];
-            if ( parsedbtype( p_iter->str_tab[i], p_iter->result_type_array[i],
-                   &( p_value[i].value_u ) ) != 1 )
+            p_value[i].type = p_iter->result[i].type;
+            if (parsedbtype(p_iter->str_tab[i], p_iter->result[i].type,
+                            &(p_value[i].value_u)) != 1)
             {
                 DisplayLog( LVL_CRIT, LISTMGR_TAG,
                             "Could not parse result field #%u: value='%s'", i, p_iter->str_tab[i] );
                 return DB_INVALID_ARG;
             }
+            if (p_iter->result[i].flags & SEPD_LIST)
+                separated_db2list_inplace((char*)p_value[i].value_u.val_str);
         }
         else
         {
@@ -774,7 +792,7 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
                 {
                     p_profile->size.file_count[i] = 0;
                 }
-                else if (parsedbtype(p_iter->str_tab[idx], p_iter->result_type_array[idx],
+                else if (parsedbtype(p_iter->str_tab[idx], p_iter->result[idx].type,
                          &dbval) == 1)
                 {
                     p_profile->size.file_count[i] = dbval.val_biguint;
@@ -796,15 +814,15 @@ int ListMgr_GetNextReportItem( struct lmgr_report_t *p_iter, db_value_t * p_valu
 }
 
 
-void ListMgr_CloseReport( struct lmgr_report_t *p_iter )
+void ListMgr_CloseReport(struct lmgr_report_t *p_iter)
 {
-    db_result_free( &p_iter->p_mgr->conn, &p_iter->select_result );
+    db_result_free(&p_iter->p_mgr->conn, &p_iter->select_result);
 
-    if ( p_iter->str_tab != NULL )
-        MemFree( p_iter->str_tab );
+    if (p_iter->str_tab != NULL)
+        MemFree(p_iter->str_tab);
 
-    MemFree( p_iter->result_type_array );
-    MemFree( p_iter );
+    MemFree(p_iter->result);
+    MemFree(p_iter);
 }
 
 int ListMgr_EntryCount(lmgr_t * p_mgr, uint64_t *count)
