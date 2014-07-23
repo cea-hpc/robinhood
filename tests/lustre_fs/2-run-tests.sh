@@ -108,6 +108,9 @@ function clean_caches
 
 function wait_stable_df
 {
+    sync
+    clean_caches
+
     $LFS df $ROOT > /tmp/lfsdf.1
     while (( 1 )); do
         sleep 5
@@ -2829,7 +2832,6 @@ function test_ost_trigger
 	clean_logs
 
     # reset df values
-    clean_caches
     wait_stable_df
 
 	empty_vol=`$LFS df $ROOT | grep OST0000 | awk '{print $3}'`
@@ -2863,7 +2865,6 @@ function test_ost_trigger
     fi
 
 	# wait for df sync
-	sync; clean_caches
     wait_stable_df
 
 	if (( $is_lhsm != 0 )); then
@@ -2914,6 +2915,9 @@ function test_ost_trigger
 	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
 		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
 
+    # sync df values before checking df return
+    wait_stable_df
+
 	full_vol1=`$LFS df $ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
 	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
@@ -2937,7 +2941,6 @@ function test_ost_order
 	clean_logs
 
     # reset df values
-    sync; clean_caches
     wait_stable_df
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
@@ -2979,7 +2982,6 @@ function test_ost_order
         done
     done
 
-    sync; clean_caches
     wait_stable_df
 
     # check thresholds only, then purge
@@ -3025,6 +3027,8 @@ function test_trigger_check
 		return 1
 	fi
 	clean_logs
+
+    wait_stable_df
 
 	if (( $is_hsmlite != 0 )); then
         # this mode may create an extra inode in filesystem: inital scan
@@ -3079,9 +3083,7 @@ function test_trigger_check
 	fi
 
 	# wait for df sync
-	sync
-	clean_caches
-	sync; clean_caches
+    wait_stable_df
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
