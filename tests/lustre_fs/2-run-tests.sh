@@ -5240,6 +5240,14 @@ function test_cfg_parsing
 
 	clean_logs
 
+    # needed for reading password file
+    if [[ ! -f /etc/robinhood.d/.dbpassword ]]; then
+        if [[ ! -d /etc/robinhood.d ]]; then
+            mkdir /etc/robinhood.d
+        fi
+        echo robinhood > /etc/robinhood.d/.dbpassword
+    fi
+
 	if [[ $flavor == "basic" ]]; then
 
 		if (($is_hsmlite)) ; then
