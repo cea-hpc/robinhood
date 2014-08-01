@@ -26,8 +26,8 @@
 #include <stdio.h>
 
 
-#define P( _lock_ )  pthread_spin_lock( &(_lock_) )
-#define V( _lock_ )  pthread_spin_unlock( &(_lock_) )
+#define sP( _lock_ )  pthread_spin_lock( &(_lock_) )
+#define sV( _lock_ )  pthread_spin_unlock( &(_lock_) )
 
 #ifdef _ONE_SHOT
 #   define TIME_NOT_SET ((unsigned int)-1)
@@ -91,7 +91,7 @@ void AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_
     p_child_task->parent_task = p_parent_task;
 
     /* lock the sub-task list of parent */
-    P( p_parent_task->child_list_lock );
+    sP( p_parent_task->child_list_lock );
 
     /* add the sub-task as first list item */
     if ( p_parent_task->child_list == NULL )
@@ -107,7 +107,7 @@ void AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_
         p_parent_task->child_list->prev_child = p_child_task;
         p_parent_task->child_list = p_child_task;
     }
-    V( p_parent_task->child_list_lock );
+    sV( p_parent_task->child_list_lock );
 
 }
 
@@ -123,7 +123,7 @@ int RemoveChildTask( robinhood_task_t * p_parent_task,
     int done;
 
     /* take the lock on sub-task list */
-    P( p_parent_task->child_list_lock );
+    sP( p_parent_task->child_list_lock );
 
     /* remove child task from list */
     if ( p_child_task->next_child != NULL )
@@ -137,7 +137,7 @@ int RemoveChildTask( robinhood_task_t * p_parent_task,
 
     done = ( p_parent_task->child_list == NULL ) && ( p_parent_task->task_finished );
 
-    V( p_parent_task->child_list_lock );
+    sV( p_parent_task->child_list_lock );
 
     /* this task is now orphan */
     p_child_task->parent_task = NULL;
@@ -157,13 +157,13 @@ int FlagTaskAsFinished( robinhood_task_t * p_task )
     int done;
 
     /* take the lock */
-    P( p_task->child_list_lock );
+    sP( p_task->child_list_lock );
 
     p_task->task_finished = TRUE;
 
     done = ( p_task->child_list == NULL );
 
-    V( p_task->child_list_lock );
+    sV( p_task->child_list_lock );
 
     return done;
 
@@ -178,11 +178,11 @@ int TestTaskTermination( robinhood_task_t * p_task )
     int            done;
 
     /* take the lock */
-    P( p_task->child_list_lock );
+    sP( p_task->child_list_lock );
 
     done = ( p_task->task_finished == TRUE ) && ( p_task->child_list == NULL );
 
-    V( p_task->child_list_lock );
+    sV( p_task->child_list_lock );
 
     return done;
 }
