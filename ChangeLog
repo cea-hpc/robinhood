@@ -1,3 +1,12 @@
+Changes between version 2.5.2 and 2.5.3:
+- custom purge_command (fix): fixed vulnerability to malicious file names.
+- changelog processing (fix): fixed errors 'Entry has incomplete path in DB'
+  in some case of rm/create patterns.
+- migration policy (fix): don't trigger copy of files that no longer exist.
+- rbh-config (feature): new option 'reset_acct' to rebuild accounting info.
+- changelog reader (feature): new parameter 'dump_file' to dump all incoming
+  changelog records to a file.
+- Port to Lustre 2.6.
 
 Changes between version 2.5.1 and 2.5.2:
 

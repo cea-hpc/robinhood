@@ -336,6 +336,14 @@ fi
 
 %changelog
 
+* Tue Jul 29 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.3
+- [bugfix] custom purge_command: fixed vulnerability to malicious file names.
+- [bugfix] changelog processing: fixed errors 'Entry has incomplete path in DB' in some case of rm/create patterns.
+- [bugfix] migration policy (fix): don't trigger copy of files that no longer exist.
+- [feature] rbh-config: new option 'reset_acct' to rebuild accounting info.
+- [feature] changelog reader: new parameter 'dump_file' to dump all incoming changelog records to a file.
+- [compat] port to Lustre 2.6.0.
+
 * Wed May 21 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.2
 - rbh-du: fixed major performance regression (since v2.5.0).
 - rbh-find: fixed occasional crash.
