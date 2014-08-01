@@ -409,6 +409,13 @@ int Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int le
                     "Error %d calling llapi_fid2path(%s,%s,%lld,%d), errno=%d."
                     " Cannot retrieve full path for %s",
                     rc, mpath, fid, recno, linkno, errno, fid );
+    /* curr == fullpath => fullpath is root: '/'
+     * so don't remove final slash */
+    else if (curr != fullpath)
+    {
+        while (FINAL_SLASH(fullpath))
+            REMOVE_FINAL_SLASH(fullpath);
+    }
 
     return rc;
 }

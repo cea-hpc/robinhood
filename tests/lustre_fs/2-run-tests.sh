@@ -613,10 +613,10 @@ function test_rmdir
     	check_db_error rh_chglogs.log
 
 	echo "3-Applying rmdir policy ($policy_str)..."
-	$RH -f ./cfg/$config_file --rmdir --once -l EVENT -L rh_purge.log 2>/dev/null
+	$RH -f ./cfg/$config_file --rmdir --once -l FULL -L rh_purge.log 2>/dev/null
 
-	grep "Empty dir removal summary" rh_purge.log || error "did not file summary line in log"
-	grep "Recursive dir removal summary" rh_purge.log || error "did not file summary line in log"
+	grep "Empty dir removal summary" rh_purge.log || error "did not find summary line in log"
+	grep "Recursive dir removal summary" rh_purge.log || error "did not find summary line in log"
 
 	cnt_empty=`grep "Empty dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
 	cnt_recurs=`grep "Recursive dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
@@ -629,7 +629,7 @@ function test_rmdir
 	if (( $cnt_recurs == 2 )); then
 		echo "OK: 2 top-level directories removed"
 	else
-		error "$cnt_resurs directories removed (2 expected)"
+		error "$cnt_recurs directories removed (2 expected)"
 	fi
 
 	cp /dev/null rh_purge.log
