@@ -28,9 +28,10 @@ if [[ "$1" == "mount" || -z "$1" ]]; then
 	fi
 
 	echo "Mounting lustre..."
-	./llmount.sh || exit 1
+	./llmount.sh
 
-	mount | grep lustre
+	mount | grep /mnt/lustre
+    exit $?
 
 elif [[ "$1" == "umount" ]]; then
 
