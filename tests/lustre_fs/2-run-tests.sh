@@ -8758,8 +8758,13 @@ function TEST_OTHER_PARAMETERS_3
     local countRemainFile=0
 	for i in ${rmd[*]}; do
         bi=$(basename $i)
-        [ "$DEBUG" = "1" ] && find $BKROOT -type f -name "${bi}__*"
-	    local found=`find $BKROOT -type f -name "${bi}__*" | wc -l`
+        if (( $is_lhsm > 0 )); then # <fid>
+            [ "$DEBUG" = "1" ] && find $BKROOT -type f -name "${bi}"
+	        local found=`find $BKROOT -type f -name "${bi}" | wc -l`
+        else # <name>__<fid>
+            [ "$DEBUG" = "1" ] && find $BKROOT -type f -name "${bi}__*"
+	        local found=`find $BKROOT -type f -name "${bi}__*" | wc -l`
+        fi
         (( $found != 0 )) && echo "$i remains in backend"
         ((countRemainFile+=$found))
 	done
