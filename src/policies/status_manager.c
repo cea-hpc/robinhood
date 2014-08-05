@@ -277,3 +277,26 @@ const char *get_status_str(const status_manager_t *sm, const char *in_str)
     /* not found */
     return NULL;
 }
+
+/** return the list of allowed status for a status manager */
+char *allowed_status_str(const status_manager_t *sm, char *buf, int sz)
+{
+    int i;
+    char *cur = buf;
+    buf[0] = '\0';
+
+    rh_strncpy(cur, "\"\"(empty)", sz);
+    cur += strlen(cur);
+
+    for (i = 0; i < sm->status_count; i++)
+    {
+        if (!EMPTY_STRING(buf))
+        {
+            *cur = ',';
+            cur++;
+        }
+        rh_strncpy(cur, sm->status_enum[i], sz - (ptrdiff_t)(cur - buf));
+        cur += strlen(cur);
+    }
+    return buf;
+}

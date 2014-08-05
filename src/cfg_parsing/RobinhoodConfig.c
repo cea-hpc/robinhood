@@ -962,8 +962,23 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
 
 static int criteria2condition(const type_key_value *key_value,
         compare_triplet_t *p_triplet, uint64_t *p_attr_mask, char *err_msg,
-        compare_criteria_t crit, cfg_param_type type, uint64_t attr_mask, int flags)
+        compare_criteria_t crit, cfg_param_type type, uint64_t attr_mask, int flags,
+        const sm_instance_t *smi)
 {
+    /* unexpected status in this context */
+    if (flags & PFLG_STATUS)
+    {
+        if (smi == NULL)
+        {
+            sprintf(err_msg, "'%s' criteria is not expected in this context",
+                    key_value->varname);
+            return EINVAL;
+        }
+        *p_attr_mask |= SMI_MASK(smi->smi_index);
+    }
+    else
+        *p_attr_mask |= attr_mask;
+
     p_triplet->crit = crit;
     p_triplet->op = syntax2conf_comparator(key_value->op_type);
     *p_attr_mask |= attr_mask;
@@ -1008,7 +1023,20 @@ static int criteria2condition(const type_key_value *key_value,
                 p_xattr ++;
                 rh_strncpy(p_triplet->xattr_name, p_xattr, sizeof(p_triplet->xattr_name));
             }
-            else if (ANY_LEVEL_MATCH(p_triplet->val.str)) /* don't care for xattr value */
+            else if (flags & PFLG_STATUS)
+            {
+                if ((get_status_str(smi->sm, p_triplet->val.str) == NULL)
+                    && (strlen(p_triplet->val.str) > 0))
+                {
+                     char tmp[RBH_NAME_MAX];
+                     /* non empty config parameter with NULL match => invalid status name */
+                     sprintf(err_msg, "Invalid status '%s' for '%s' status manager: allowed values are %s",
+                             key_value->varvalue, smi->sm->name,
+                             allowed_status_str(smi->sm, tmp, sizeof(tmp)));
+                     return EINVAL;
+                }
+            }
+            else if (ANY_LEVEL_MATCH(p_triplet->val.str)) /* don't care for xattr and status value */
             {
                 if (flags & PFLG_ALLOW_ANY_DEPTH)
                 {
@@ -1093,7 +1121,8 @@ static int criteria2condition(const type_key_value *key_value,
  *  interpret and check a condition.
  */
 static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_triplet,
-                               uint64_t *p_attr_mask, char *err_msg)
+                               uint64_t *p_attr_mask, char *err_msg,
+                               const sm_instance_t *smi)
 {
     /* check the name for the condition */
     compare_criteria_t crit = str2criteria(key_value->varname);
@@ -1111,14 +1140,15 @@ static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_t
 
     return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
                               crit, pcrit->type, pcrit->attr_mask,
-                              pcrit->parsing_flags);
+                              pcrit->parsing_flags, smi);
 }
 
 /**
  *  Recursive function for building boolean expression.
  */
 static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_node,
-                           uint64_t *p_attr_mask, char *err_msg)
+                           uint64_t *p_attr_mask, char *err_msg,
+                           const sm_instance_t *smi)
 {
     int            rc;
 
@@ -1131,8 +1161,9 @@ static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_
         if ( !p_out_node->content_u.condition )
             goto errmem;
 
-        rc = interpret_condition( &p_in_bool_expr->expr_u.key_value,
-                                  p_out_node->content_u.condition, p_attr_mask, err_msg );
+        rc = interpret_condition(&p_in_bool_expr->expr_u.key_value,
+                                 p_out_node->content_u.condition, p_attr_mask,
+                                 err_msg, smi);
         if ( rc )
             goto freecondition;
         return 0;
@@ -1143,8 +1174,8 @@ static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_
 
         /* in case of identity, directly return sub expression */
         if ( p_in_bool_expr->oper == BOOL_OP_IDENTITY )
-            return build_bool_expr( p_in_bool_expr->expr_u.members.expr1, p_out_node, p_attr_mask,
-                                    err_msg );
+            return build_bool_expr(p_in_bool_expr->expr_u.members.expr1,
+                                   p_out_node, p_attr_mask, err_msg, smi);
 
         p_out_node->node_type = NODE_UNARY_EXPR;
         p_out_node->content_u.bool_expr.bool_op = syntax2conf_boolop( p_in_bool_expr->oper );
@@ -1160,8 +1191,9 @@ static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_
             goto errmem;
         p_out_node->content_u.bool_expr.expr2 = NULL;
 
-        rc = build_bool_expr( p_in_bool_expr->expr_u.members.expr1,
-                              p_out_node->content_u.bool_expr.expr1, p_attr_mask, err_msg );
+        rc = build_bool_expr(p_in_bool_expr->expr_u.members.expr1,
+                             p_out_node->content_u.bool_expr.expr1, p_attr_mask,
+                             err_msg, smi);
         if ( rc )
             goto free_expr1;
         return 0;
@@ -1183,8 +1215,9 @@ static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_
         p_out_node->content_u.bool_expr.expr1 = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
         if ( !p_out_node->content_u.bool_expr.expr1 )
             goto errmem;
-        rc = build_bool_expr( p_in_bool_expr->expr_u.members.expr1,
-                              p_out_node->content_u.bool_expr.expr1, p_attr_mask, err_msg );
+        rc = build_bool_expr(p_in_bool_expr->expr_u.members.expr1,
+                             p_out_node->content_u.bool_expr.expr1, p_attr_mask,
+                             err_msg, smi);
 
         if ( rc )
             goto free_expr1;
@@ -1192,8 +1225,9 @@ static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_
         p_out_node->content_u.bool_expr.expr2 = ( bool_node_t * ) malloc( sizeof( bool_node_t ) );
         if ( !p_out_node->content_u.bool_expr.expr2 )
             goto errmem;
-        rc = build_bool_expr( p_in_bool_expr->expr_u.members.expr2,
-                              p_out_node->content_u.bool_expr.expr2, p_attr_mask, err_msg );
+        rc = build_bool_expr(p_in_bool_expr->expr_u.members.expr2,
+                             p_out_node->content_u.bool_expr.expr2, p_attr_mask,
+                             err_msg, smi);
 
         if ( rc )
             goto free_expr2;
@@ -1287,9 +1321,12 @@ free_expr1:
 
 /**
  * Build a policy boolean expression from the given block
+ * \param smi(in) when specifying a policy scope, indicate the
+ *                related status manager ('status' criteria is policy dependant).
  */
 int GetBoolExpr(config_item_t block, const char *block_name,
-                bool_node_t * p_bool_node, uint64_t *p_attr_mask, char *err_msg)
+                bool_node_t * p_bool_node, uint64_t *p_attr_mask, char *err_msg,
+                const sm_instance_t *smi)
 {
     generic_item  *curr_block = ( generic_item * ) block;
     generic_item  *subitem;
@@ -1330,7 +1367,8 @@ int GetBoolExpr(config_item_t block, const char *block_name,
     }
 
     /* now we can analyze the boolean expression */
-    rc = build_bool_expr( &subitem->item.bool_expr, p_bool_node, p_attr_mask, err_msg );
+    rc = build_bool_expr(&subitem->item.bool_expr, p_bool_node, p_attr_mask,
+                         err_msg, smi);
     if ( rc )
         sprintf( err_msg + strlen( err_msg ), ", line %d",
                  rh_config_GetItemLine( ( config_item_t ) subitem ) );

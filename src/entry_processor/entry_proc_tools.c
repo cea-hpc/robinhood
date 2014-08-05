@@ -523,9 +523,10 @@ int Read_EntryProc_Config( config_file_t config, void *module_config,
                 conf->alert_list[conf->alert_count - 1].title[0] = '\0';
 
             /* analyze boolean expression */
-            rc = GetBoolExpr( curr_item, block_name,
-                              &conf->alert_list[conf->alert_count - 1].boolexpr,
-                              &conf->alert_list[conf->alert_count - 1].attr_mask, msg_out );
+            rc = GetBoolExpr(curr_item, block_name,
+                             &conf->alert_list[conf->alert_count - 1].boolexpr,
+                             &conf->alert_list[conf->alert_count - 1].attr_mask,
+                             msg_out, NULL);
 
             if ( rc )
                 return rc;

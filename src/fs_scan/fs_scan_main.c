@@ -404,9 +404,10 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
             conf->ignore_count++;
 
             /* analyze boolean expression */
-            rc = GetBoolExpr( curr_item, block_name,
-                              &conf->ignore_list[conf->ignore_count - 1].bool_expr,
-                              &conf->ignore_list[conf->ignore_count - 1].attr_mask, msg_out );
+            rc = GetBoolExpr(curr_item, block_name,
+                             &conf->ignore_list[conf->ignore_count - 1].bool_expr,
+                             &conf->ignore_list[conf->ignore_count - 1].attr_mask,
+                             msg_out, NULL);
 
             if ( rc )
                 return rc;

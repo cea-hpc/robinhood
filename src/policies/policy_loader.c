@@ -43,6 +43,7 @@
 #define IGNORE_FC             "ignore_fileclass"
 #define CONDITION_BLOCK       "condition"
 #define DEFINITION_BLOCK      "definition"
+#define SCOPE_BLOCK           "scope"
 
 //#define RMDIR_BLOCK      "rmdir_policy"
 #define RM_RECURSE_BLOCK "recursive_rmdir"
@@ -338,6 +339,8 @@ static void free_whitelist(whitelist_item_t * p_items, unsigned int count)
 
 static void set_default_rules(policy_rules_t *policy)
 {
+    memset(policy, 0, sizeof(*policy));
+
     policy->whitelist_rules = NULL;
     policy->whitelist_count = 0;
 
@@ -353,13 +356,14 @@ static void set_default_rules(policy_rules_t *policy)
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, char *msg_out)
 {
-    int            rc;
-    char           tmpstr[1024];
+    int  rc, i;
+    char tmpstr[1024];
+    bool has_scope = false;
+    uint64_t mask;
 
     static const char *expect[] =
     {
-        "name", "status_manager",
-        // TODO add "scope"
+        "name", "status_manager", "scope",
         NULL
     };
 
@@ -391,6 +395,54 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     {
         sprintf(msg_out, "Could not load status manager '%s'", tmpstr);
         return EINVAL;
+    }
+
+    /* parse sub blocks */
+    for (i = 0; i < rh_config_GetNbItems(config_blk); i++)
+    {
+        config_item_t  sub_item = rh_config_GetItemByIndex(config_blk, i);
+        critical_err_check(sub_item, block_name);
+        char          *subitem_name;
+
+        if (rh_config_ItemType(sub_item) == CONFIG_ITEM_BLOCK)
+        {
+            subitem_name = rh_config_GetBlockName(sub_item);
+            critical_err_check(subitem_name, block_name);
+
+            if (strcasecmp(subitem_name, SCOPE_BLOCK) != 0)
+            {
+                sprintf(msg_out, "'%s' sub-block unexpected in %s block, line %d.",
+                         subitem_name, block_name, rh_config_GetItemLine(sub_item));
+                return EINVAL;
+            }
+
+            /* check double declaration */
+            if (has_scope)
+            {
+                sprintf(msg_out, "Double scope declaration in policy %s, line %d.",
+                        policy->name, rh_config_GetItemLine(sub_item));
+                return EINVAL;
+            }
+
+            /* analyze boolean expression */
+            /* pass the status manager instance to interpret status condition
+             * depending on the context */
+            mask = 0;
+            rc = GetBoolExpr(sub_item, SCOPE_BLOCK, &policy->scope, &mask,
+                             msg_out, policy->status_mgr);
+            if (rc)
+                return rc;
+
+            policy->scope_mask = mask;
+            has_scope = true;
+        }
+    }
+
+    if (!has_scope)
+    {
+        sprintf(msg_out, "Missing mandatory 'scope' parameter in %s block",
+                block_name);
+        return ENOENT;
     }
 
     CheckUnknownParameters(config_blk, block_name, expect);
@@ -545,10 +597,11 @@ static int read_rmdir_policy(config_file_t config,  rmdir_policy_t *policy, char
             policy->whitelist_count++;
 
             /* analyze boolean expression */
+            /* XXX allow using 'status' in ignore statement? */
             rc = GetBoolExpr(curr_item, block_name,
                               &policy->whitelist_rules[policy->whitelist_count - 1].bool_expr,
                               &policy->whitelist_rules[policy->whitelist_count - 1].attr_mask,
-                              msg_out);
+                              msg_out, NULL);
 
             if (rc)
                 return rc;
@@ -1284,8 +1337,9 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                             case CONFIG_ITEM_BOOL_EXPR:
                                 /* analyze boolean expression */
                                 rc = GetBoolExpr(sub_item, DEFINITION_BLOCK,
-                                                  &p_policies->fileset_list[i].definition,
-                                                  &p_policies->fileset_list[i].attr_mask, msg_out);
+                                                 &p_policies->fileset_list[i].definition,
+                                                 &p_policies->fileset_list[i].attr_mask,
+                                                 msg_out, NULL);
                                 if (rc)
                                     goto clean_filesets;
                                 break;
@@ -1567,9 +1621,10 @@ static int parse_rule_block(config_item_t config_item,
             }
 
             /* analyze boolean expression */
+            /* XXX allow using 'status' in conditions? */
             mask = 0;
-            rc = GetBoolExpr(sub_item, CONDITION_BLOCK,
-                             &rule_out->condition, &mask, msg_out);
+            rc = GetBoolExpr(sub_item, CONDITION_BLOCK, &rule_out->condition,
+                             &mask, msg_out, NULL);
             if (rc)
                 return rc;
 
@@ -1853,9 +1908,11 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
             if (!strcasecmp(item_name, IGNORE_BLOCK))
             {
                 /* analyze boolean expression */
+                /* XXX allow using 'status' in ignore statement? */
                 rc = GetBoolExpr(curr_item, item_name,
-                                  &rules->whitelist_rules[curr_ign].bool_expr,
-                                  &rules->whitelist_rules[curr_ign].attr_mask, msg_out);
+                                 &rules->whitelist_rules[curr_ign].bool_expr,
+                                 &rules->whitelist_rules[curr_ign].attr_mask,
+                                 msg_out, NULL);
                 if (rc)
                     goto free_policy;
 

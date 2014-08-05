@@ -66,6 +66,7 @@ typedef int    ( *write_config_func_t ) ( FILE * output );
 #define PFLG_COMPARABLE            (1 << 11)
 #define PFLG_NOT_EMPTY             PFLG_NOT_NULL
 #define PFLG_XATTR                 (1 << 12)
+#define PFLG_STATUS                (1 << 13) /* only allowed in some particular context (policy scope) */
 
 /**
  * Types and function to parse a list of simple scalar configuration variables (with no extra args).
@@ -452,9 +453,12 @@ static struct criteria_descr_t {
         PFLG_POSITIVE | PFLG_COMPARABLE},
 #endif
 #ifdef _LUSTRE
-    {CRITERIA_POOL, "ost_pool", ATTR_MASK_stripe_info, 0},
-    {CRITERIA_OST, "ost_index", ATTR_MASK_stripe_items, PFLG_POSITIVE},
+    {CRITERIA_POOL, "ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
+    {CRITERIA_OST, "ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},
 #endif
+    /* status mask is context dependant */
+    {CRITERIA_STATUS, "status", 0, PT_STRING, PFLG_STATUS | PFLG_NO_WILDCARDS},
+    /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the last criteria */
     {CRITERIA_XATTR, XATTR_PREFIX, XATTR_NEED, PT_STRING, PFLG_XATTR},
 };
 
@@ -499,10 +503,12 @@ int read_scalar_params(config_item_t block, const char *block_name,
 
 /**
  * Build a policy boolean expression from the given block
+ * \param smi(in) when specifying a policy scope, indicate the
+ *                related status manager ('status' criteria is policy dependant).
  */
-int            GetBoolExpr( config_item_t block, const char *block_name,
-                            bool_node_t * p_bool_node,
-                            uint64_t *p_attr_mask, char *err_msg );
+int            GetBoolExpr(config_item_t block, const char *block_name,
+                           bool_node_t *p_bool_node, uint64_t *p_attr_mask,
+                           char *err_msg, const sm_instance_t *smi);
 
 /**
  * Build a policy boolean expression from a union/intersection of filesets

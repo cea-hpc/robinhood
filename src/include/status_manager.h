@@ -96,6 +96,8 @@ sm_instance_t *get_sm_instance(unsigned int n);
 /** get the constant string that match the input string */
 const char *get_status_str(const status_manager_t *sm, const char *in_str);
 
+/** return the list of allowed status for a status manager */
+char *allowed_status_str(const status_manager_t *sm, char *buf, int sz);
 
 static inline uint64_t all_status_mask(void)
 {

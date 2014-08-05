@@ -63,6 +63,8 @@ typedef enum {
     CRITERIA_POOL,
     CRITERIA_OST,
 #endif
+    CRITERIA_STATUS,
+    /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the last criteria */
     CRITERIA_XATTR,
 } compare_criteria_t;
 
@@ -316,8 +318,10 @@ int            Write_Policy_Default( FILE * output );
 
 /** policy descriptor */
 typedef struct policy_descr_t {
+    /** @TODO store policy info a persistent way for later check */
     char                name[POLICY_NAME_LEN];
-    /** TODO: add scope */
+    bool_node_t         scope;
+    uint64_t            scope_mask;
     struct sm_instance *status_mgr;
     policy_rules_t      rules;
 } policy_descr_t;
