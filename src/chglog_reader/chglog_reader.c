@@ -25,12 +25,12 @@
 #endif
 
 #include "Memory.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include "entry_processor.h"
 #include "entry_proc_hash.h"
-#include "RobinhoodMisc.h"
+#include "rbh_misc.h"
 #include "global_config.h"
-#include "RobinhoodConfig.h"
+#include "rbh_cfg.h"
 
 #include <pthread.h>
 #include <errno.h>

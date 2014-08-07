@@ -16,9 +16,9 @@
 #include "config.h"
 #endif
 
-#include "RobinhoodConfig.h"
+#include "rbh_cfg.h"
 #include "run_policies.h"
-#include "RobinhoodMisc.h"
+#include "rbh_misc.h"
 #include "Memory.h"
 #include <errno.h>
 

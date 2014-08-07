@@ -20,8 +20,8 @@
 #endif
 
 #include "policy_rules.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include <errno.h>
 #include <fnmatch.h>
 

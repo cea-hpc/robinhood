@@ -9,8 +9,7 @@ AM_LDFLAGS= -lpthread
 DATE=`date '+%F %T'`
 MISC_FLAGS="-DCOMPIL_DATE=\"$(DATE)\""
 
-all_libs=	../logs/liblogs.la \
-	        ../cfg_parsing/libconfigparsing.la \
+all_libs=	../cfg_parsing/libconfigparsing.la \
                 ../fs_scan/libfsscan.la \
                 ../entry_processor/libentryproc.la \
                 ../policies/libpolicies.la

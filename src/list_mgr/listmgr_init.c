@@ -20,8 +20,8 @@
 #include "listmgr_internal.h"
 #include "database.h"
 #include "listmgr_common.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include <stdio.h>
 
 /* exported symbols */

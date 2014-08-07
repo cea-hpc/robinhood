@@ -25,9 +25,9 @@
 #include "policy_run.h"
 #include "uidgidcache.h"
 #include "list_mgr.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "cmd_helpers.h"
 
 #include <unistd.h>

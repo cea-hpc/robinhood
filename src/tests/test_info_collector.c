@@ -15,8 +15,8 @@
 #include "config.h"
 #endif
 
-#include "RobinhoodConfig.h"
-#include "RobinhoodLogs.h"
+#include "rbh_cfg.h"
+#include "rbh_logs.h"
 #include "entry_processor.h"
 #include "info_collector.h"
 #include "uidgidcache.h"

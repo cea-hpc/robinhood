@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 #include "lustre_extended_types.h"
-#include "RobinhoodMisc.h"
+#include "rbh_misc.h"
 
 static void usage(char *argv0)
 {

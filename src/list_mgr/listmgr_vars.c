@@ -22,7 +22,7 @@
 #include "list_mgr.h"
 #include "database.h"
 #include "listmgr_common.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include <stdio.h>
 
 int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value)

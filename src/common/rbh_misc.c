@@ -16,9 +16,9 @@
 #endif
 
 #include "global_config.h"
-#include "RobinhoodMisc.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodConfig.h"
+#include "rbh_misc.h"
+#include "rbh_logs.h"
+#include "rbh_cfg.h"
 #include "xplatform_print.h"
 #include "uidgidcache.h"
 #include <stdlib.h>

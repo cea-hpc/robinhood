@@ -431,7 +431,6 @@ AC_SUBST(ac_configure_args)
 AC_CONFIG_FILES([Makefile
          src/Makefile
          src/include/Makefile
-         src/logs/Makefile
          src/common/Makefile
          src/cfg_parsing/Makefile
          src/list_mgr/Makefile

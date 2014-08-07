@@ -19,8 +19,8 @@
 #define TAG "Triggers"
 #define tag(_p)             ((_p)->descr->name)
 
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include "policy_run.h"
 #include "run_policies.h"
 #include "queue.h"

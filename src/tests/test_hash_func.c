@@ -7,8 +7,8 @@
 #endif
 
 #include "list_mgr.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodLogs.h"
+#include "rbh_cfg.h"
+#include "rbh_logs.h"
 #include <stdio.h>
 
 

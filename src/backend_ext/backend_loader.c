@@ -23,8 +23,8 @@
 
 #include "backend_ext.h"
 #include "backend_mgr.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 
 backend_t	backend;
 

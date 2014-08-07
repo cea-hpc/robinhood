@@ -18,8 +18,8 @@
 
 #define RMDIR_TAG "Rmdir"
 
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include "rmdir.h"
 #include "queue.h"
 #include "Memory.h"

@@ -17,8 +17,8 @@
 
 #define SHOOK_TAG   "Shook"
 
-#include "RobinhoodMisc.h"
-#include "RobinhoodLogs.h"
+#include "rbh_misc.h"
+#include "rbh_logs.h"
 #include <shook_svr.h>
 
 static file_status_t shook2rbh_status(shook_state st)

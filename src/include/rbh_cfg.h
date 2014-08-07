@@ -13,7 +13,7 @@
  */
 
 /**
- *  \file RobinhoodConfig.h
+ *  \file rbh_cfg.h
  *  \brief Module for configuration management and parsing.
  *
  * \addtogroup CONFIG_PARSING
@@ -85,7 +85,7 @@ typedef enum {
 
 
 #include "list_mgr.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include "global_config.h"
 #include "entry_processor.h"
 #include "policy_rules.h"

@@ -18,7 +18,7 @@
 
 #include "list_mgr.h"
 #include "database.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include <stdio.h>
 #include <unistd.h>
 

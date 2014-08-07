@@ -1,4 +1,4 @@
-SUBDIRS=include logs common list_mgr entry_processor fs_scan cfg_parsing policies
+SUBDIRS=include common list_mgr entry_processor fs_scan cfg_parsing policies
 
 if CHANGELOGS
 SUBDIRS+=chglog_reader

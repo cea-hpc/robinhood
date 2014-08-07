@@ -21,7 +21,7 @@
 #include "listmgr_internal.h"
 #include "database.h"
 #include "Memory.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>

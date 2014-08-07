@@ -29,7 +29,7 @@
 
 #include "uidgidcache.h"
 #include "RW_Lock.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include "Memory.h"
 
 #if HAVE_STRING_H

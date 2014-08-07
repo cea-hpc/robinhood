@@ -21,8 +21,8 @@
 #include "entry_processor.h"
 #include "entry_proc_tools.h"
 #include "Memory.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "list.h"
 #include <semaphore.h>
 #include <pthread.h>

@@ -19,8 +19,8 @@
 #include "database.h"
 #include "listmgr_common.h"
 #include "listmgr_stripe.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "Memory.h"
 #include "var_str.h"
 #include <stdio.h>

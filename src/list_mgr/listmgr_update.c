@@ -20,7 +20,7 @@
 #include "database.h"
 #include "listmgr_common.h"
 #include "listmgr_stripe.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

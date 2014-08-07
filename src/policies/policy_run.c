@@ -19,11 +19,11 @@
 #include "policy_run.h"
 #include "run_policies.h"
 #include "list_mgr.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "Memory.h"
 #include "xplatform_print.h"
-#include "RobinhoodConfig.h"
+#include "rbh_cfg.h"
 
 #ifdef _HSM_LITE
 #include "backend_mgr.h"

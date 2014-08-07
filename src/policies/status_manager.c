@@ -17,7 +17,7 @@
 #endif
 
 #include "status_manager.h"
-#include "RobinhoodMisc.h"
+#include "rbh_misc.h"
 #include "Memory.h"
 
 /** list of loaded status managers */

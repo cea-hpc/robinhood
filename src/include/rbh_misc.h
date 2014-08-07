@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * \file  RobinhoodMisc.h
+ * \file  rbh_misc.h
  * \brief Common tools for parsing, converting, checking FS status...
  */
 #ifndef _ROBINHOOD_MISC_H

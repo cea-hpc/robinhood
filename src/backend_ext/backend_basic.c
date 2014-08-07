@@ -23,8 +23,8 @@
 
 #include "backend_ext.h"
 #include "backend_mgr.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "global_config.h"
 #include "xplatform_print.h"
 #include "Memory.h"

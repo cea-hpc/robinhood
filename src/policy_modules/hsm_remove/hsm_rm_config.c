@@ -16,7 +16,7 @@
 #include "config.h"
 #endif
 
-#include "RobinhoodConfig.h"
+#include "rbh_cfg.h"
 #include "hsm_rm.h"
 #include <errno.h>
 

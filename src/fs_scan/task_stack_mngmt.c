@@ -22,8 +22,8 @@
 
 #include "fs_scan.h"
 #include "task_stack_mngmt.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 
 /* Initialize a stack of tasks */
 int InitTaskStack( task_stack_t * p_stack )

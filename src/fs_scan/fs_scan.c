@@ -21,9 +21,9 @@
 #include "global_config.h"
 #include "entry_processor.h"
 #include "fs_scan.h"
-#include "RobinhoodConfig.h"
+#include "rbh_cfg.h"
 #include "RW_Lock.h"
-#include "RobinhoodMisc.h"
+#include "rbh_misc.h"
 #include "list_mgr.h"
 
 #include "task_stack_mngmt.h"

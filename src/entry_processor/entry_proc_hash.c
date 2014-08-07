@@ -24,9 +24,9 @@
 #include "entry_proc_tools.h"
 #include "entry_proc_hash.h"
 #include "Memory.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>

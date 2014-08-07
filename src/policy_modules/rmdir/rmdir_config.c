@@ -16,7 +16,7 @@
 #include "config.h"
 #endif
 
-#include "RobinhoodConfig.h"
+#include "rbh_cfg.h"
 #include "rmdir.h"
 #include "xplatform_print.h"
 #include <errno.h>

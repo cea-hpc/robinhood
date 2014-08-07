@@ -16,8 +16,8 @@
 #endif
 
 #include "global_config.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include <errno.h>
 
 #define GLOBAL_CONFIG_BLOCK "General"

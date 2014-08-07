@@ -18,8 +18,8 @@
 
 #include "list_mgr.h"
 #include "policy_run.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #ifdef _HSM_LITE
 #include "backend_mgr.h"
 #endif

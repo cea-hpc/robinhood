@@ -21,7 +21,7 @@
 #define _STATUS_MGR_H
 
 #include "list_mgr.h"
-#include "RobinhoodMisc.h"
+#include "rbh_misc.h"
 
 struct sm_instance;
 

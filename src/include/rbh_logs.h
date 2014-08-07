@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- *  \file RobinhoodLogs.h
+ *  \file rbh_logs.h
  *  \brief Logs management.
  */
 

@@ -12,8 +12,9 @@ if SHOOK
 PURPOSE_SRC=shook_wrap.c
 endif
 
-libcommontools_la_SOURCES= RW_Lock.c uidgidcache.c RobinhoodMisc.c \
+libcommontools_la_SOURCES= RW_Lock.c uidgidcache.c rbh_misc.c \
                            global_config.c update_params.c queue.c \
+                           rbh_logs.c \
                            $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
 
 indent:

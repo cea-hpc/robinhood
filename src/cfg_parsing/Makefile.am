@@ -18,7 +18,7 @@ conf_yacc.h: conf_yacc.c
 
 noinst_LTLIBRARIES          = libconfigparsing.la
 libconfigparsing_la_SOURCES = conf_yacc.y conf_yacc.h conf_lex.l analyze.c config_parsing.c analyze.h \
-			      RobinhoodConfig.c conf_yacc.c conf_lex.c
+			                  rbh_cfg.c conf_yacc.c conf_lex.c
 
 check_PROGRAMS		    = verif_syntax test_parsing
 

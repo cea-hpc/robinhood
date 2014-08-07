@@ -19,7 +19,7 @@
 #include "config.h"
 #endif
 
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include "Memory.h"
 #include "task_tree_mngmt.h"
 #include <string.h>

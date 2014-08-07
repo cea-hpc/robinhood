@@ -18,8 +18,8 @@
 #include "config.h"
 #endif
 
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include "analyze.h"
 #include "xplatform_print.h"
 #include <errno.h>

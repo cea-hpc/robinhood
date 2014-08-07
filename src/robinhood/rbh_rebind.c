@@ -21,9 +21,9 @@
 #endif
 
 #include "list_mgr.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "xplatform_print.h"
 #include "backend_ext.h"
 #include "cmd_helpers.h"

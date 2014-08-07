@@ -22,9 +22,9 @@
 
 #include "list_mgr.h"
 #include "cmd_helpers.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "xplatform_print.h"
 #include "uidgidcache.h"
 

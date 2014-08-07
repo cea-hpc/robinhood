@@ -20,8 +20,8 @@
 #include "listmgr_common.h"
 #include "listmgr_stripe.h"
 #include "database.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "Memory.h"
 #include <stdio.h>
 #include <stdlib.h>

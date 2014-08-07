@@ -18,8 +18,8 @@
 
 #define HSMRM_TAG "HSM_rm"
 
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include "hsm_rm.h"
 #include "queue.h"
 #include "Memory.h"

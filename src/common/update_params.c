@@ -16,8 +16,8 @@
 #endif
 
 #include "update_params.h"
-#include "RobinhoodConfig.h"
-#include "RobinhoodMisc.h"
+#include "rbh_cfg.h"
+#include "rbh_misc.h"
 #include <errno.h>
 
 #define TAG "UpdtParams"

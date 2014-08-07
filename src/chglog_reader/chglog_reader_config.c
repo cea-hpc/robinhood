@@ -24,8 +24,8 @@
 #endif
 
 #include "chglog_reader.h"
-#include "RobinhoodMisc.h"
-#include "RobinhoodConfig.h"
+#include "rbh_misc.h"
+#include "rbh_cfg.h"
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>

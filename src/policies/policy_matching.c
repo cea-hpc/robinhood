@@ -19,9 +19,9 @@
 #endif
 
 #include "policy_rules.h"
-#include "RobinhoodLogs.h"
-#include "RobinhoodMisc.h"
-#include "RobinhoodConfig.h"
+#include "rbh_logs.h"
+#include "rbh_misc.h"
+#include "rbh_cfg.h"
 #include "uidgidcache.h"
 #include "xplatform_print.h"
 

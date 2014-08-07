@@ -16,10 +16,10 @@
 #endif
 
 #include "list_mgr.h"
-#include "RobinhoodLogs.h"
+#include "rbh_logs.h"
 #include "xplatform_print.h"
 #include "Memory.h"
-#include "RobinhoodMisc.h"
+#include "rbh_misc.h"
 
 #include <errno.h>
 #include <libgen.h>             /* for basename */
