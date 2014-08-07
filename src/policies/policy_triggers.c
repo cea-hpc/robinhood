@@ -1099,16 +1099,16 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
     if (trigger_index != -1)
     {
         /* save the summary to trigger_info */
-        pol->trigger_info[trigger_index].last_cpt = summary->action_cpt;
-        counters_add(&pol->trigger_info[trigger_index].total_cpt, &summary->action_cpt);
+        pol->trigger_info[trigger_index].last_ctr = summary->action_ctr;
+        counters_add(&pol->trigger_info[trigger_index].total_ctr, &summary->action_ctr);
     }
 
     spent = time(NULL) - summary->policy_start;
     if (spent == 0) spent = 1;
 
     FormatDuration(time_buff, sizeof(time_buff), spent);
-    FormatFileSize(vol_buff, sizeof(vol_buff), summary->action_cpt.vol);
-    FormatFileSize(bw_buff, sizeof(bw_buff), summary->action_cpt.vol/spent);
+    FormatFileSize(vol_buff, sizeof(vol_buff), summary->action_ctr.vol);
+    FormatFileSize(bw_buff, sizeof(bw_buff), summary->action_ctr.vol/spent);
 
     /* update last purge time and target */
 //  sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
@@ -1124,8 +1124,8 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    "Policy run summary: time=%s; target=%s; %Lu successful actions (%.2f/sec); "
                    "volume: %s (%s/sec); %u entries skipped; %u errors.",
                    time_buff, param2targetstr(param, buff, sizeof(buff)),
-                   summary->action_cpt.count,
-                   (float)summary->action_cpt.count/(float)spent,
+                   summary->action_ctr.count,
+                   (float)summary->action_ctr.count/(float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
 
         //snprintf(status_str, 1024, "Success (%Lu entries, %Lu blocks released)",
@@ -1151,8 +1151,8 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    "Policy run aborted after %s; target=%s; %Lu successful actions (%.2f/sec); "
                    "volume: %s (%s/sec); %u entries skipped; %u errors.",
                    time_buff, param2targetstr(param, buff, sizeof(buff)),
-                   summary->action_cpt.count,
-                   (float)summary->action_cpt.count/(float)spent,
+                   summary->action_ctr.count,
+                   (float)summary->action_ctr.count/(float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
 
 //        snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
@@ -1166,7 +1166,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
         DisplayLog(LVL_CRIT, tag(pol), "Error running policy on %s: %s. "
                    "%Lu successful actions; volume: %s; %u entries skipped; %u errors.",
                    param2targetstr(param, buff, sizeof(buff)),
-                   strerror(policy_rc), summary->action_cpt.count, vol_buff,
+                   strerror(policy_rc), summary->action_ctr.count, vol_buff,
                    summary->skipped, summary->errors);
 
 //      sprintf(buff, "Error releasing data in %s", global_config.fs_path);
@@ -1218,14 +1218,14 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
     }
 
     while(!pol->aborted &&
-         (rc = trig_target_next(&it, &param.optarg_u, &param.target_cpt,
+         (rc = trig_target_next(&it, &param.optarg_u, &param.target_ctr,
                 &pol->trigger_info[trigger_index])) == 0
          && !pol->aborted) /* recheck condition as trig_target_next() can be long */
     {
         if (!check_only(pol))
         {
             /* complete computed limits with policy and trigger limits */
-            set_limits(pol, trig, &param.target_cpt);
+            set_limits(pol, trig, &param.target_ctr);
 
             if(check_maintenance_mode(pol, &tmod))
                 param.time_mod = &tmod;
@@ -1243,7 +1243,7 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
                               rc);
 
             /* post apply sleep? */
-            if (!pol->aborted && counter_is_set(&summary.action_cpt) &&
+            if (!pol->aborted && counter_is_set(&summary.action_ctr) &&
                 trig->post_trigger_wait > 0)
             {
                 DisplayLog(LVL_EVENT, tag(pol),
@@ -1350,7 +1350,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
             goto out;
         }
 
-        rc = check_statfs_thresholds(&trig, tgtname, &stfs, &param.target_cpt,
+        rc = check_statfs_thresholds(&trig, tgtname, &stfs, &param.target_ctr,
                                      &info);
         if (rc)
             goto out;
@@ -1361,7 +1361,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
             goto out;
         }
 
-        if (!counter_is_set(&param.target_cpt))
+        if (!counter_is_set(&param.target_ctr))
         {
             DisplayLog(LVL_CRIT, tag(pol), "%s is already under the given threshold",
                        tgtname);
@@ -1375,7 +1375,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
         time_modifier_t tmod;
 
         /* complete computed limits with policy global limits */
-        set_limits(pol, NULL, &param.target_cpt);
+        set_limits(pol, NULL, &param.target_ctr);
 
         if(check_maintenance_mode(pol, &tmod))
             param.time_mod = &tmod;
@@ -1727,7 +1727,7 @@ int policy_module_wait(policy_info_t *policy)
     return rc;
 }
 
-static void print_cpt(int level, const char *tag, const char *header,
+static void print_ctr(int level, const char *tag, const char *header,
                       const counters_t* cpt, policy_target_t tgt_type)
 {
     char buff[256];
@@ -1828,12 +1828,12 @@ void policy_module_dump_stats(policy_info_t *policy)
                 break;
             }
 
-            print_cpt(LVL_MAJOR, "STATS", "    last run",
-                      &policy->trigger_info[i].last_cpt,
+            print_ctr(LVL_MAJOR, "STATS", "    last run",
+                      &policy->trigger_info[i].last_ctr,
                       policy->config->trigger_list[i].target_type);
             if (!one_shot(policy))
-                print_cpt(LVL_MAJOR, "STATS", "    total   ",
-                          &policy->trigger_info[i].total_cpt,
+                print_ctr(LVL_MAJOR, "STATS", "    total   ",
+                          &policy->trigger_info[i].total_ctr,
                           policy->config->trigger_list[i].target_type);
         }
     }

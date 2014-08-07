@@ -98,7 +98,7 @@ typedef struct policy_param_t
 //    int             flags;
 //
     target_u 	     optarg_u;
-    counters_t       target_cpt;
+    counters_t       target_ctr;
     time_modifier_t *time_mod;
 } policy_param_t;
 

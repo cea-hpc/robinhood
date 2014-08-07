@@ -129,11 +129,11 @@ obj_type_t lmgr2policy_type(const char *str_type);
 
 typedef union
 {
-    char           str[RBH_PATH_MAX];            /* for all conditions based on a string */
-    unsigned long long size;                     /* for size-based conditions */
-    unsigned int   integer;                      /* for int base conditions */
-    time_t         duration;                     /* for last access and last mod condition */
-    obj_type_t     type;                         /* for conditions based on object type */
+    char               str[RBH_PATH_MAX]; /* for all conditions based on a string */
+    unsigned long long size;              /* for size-based conditions */
+    unsigned int       integer;           /* for int base conditions */
+    time_t             duration;          /* for last access and last mod condition */
+    obj_type_t         type;              /* for conditions based on object type */
 } compare_value_t;
 
 /* indicates that the compare triplet is for mathcing any level
@@ -289,6 +289,7 @@ typedef struct policy_rules_t
 static int inline has_default_policy(policy_rules_t *list)
 {
     int i;
+
     for (i = 0; i < list->rule_count; i++)
     {
         if (!strcasecmp(list->rules[i].rule_id, "default"))
@@ -350,8 +351,11 @@ int policy_exists(const char *name, int *index);
 //int match_scope(policy, entry);
 //int match_scope_deleted(policy);
 
-/** Indicate if a policy is about deleted entries */
-#define has_deletion_policy() (policies.manage_deleted)
+/** Indicate if any policy manages deleted entries */
+static inline bool has_deletion_policy(void)
+{
+    return !!policies.manage_deleted;
+}
 
 #if 0
 typedef struct policies_t

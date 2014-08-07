@@ -57,6 +57,12 @@
 #define XATTR_NAME_LOV "trusted.lov"
 #endif
 
+#ifdef FID_LEN
+#define RBH_FID_LEN (2*FID_LEN)
+#else
+#define RBH_FID_LEN 64
+#endif
+
 /* missing prototypes in lustre1.8 */
 #if defined(HAVE_LLAPI_GETPOOL_INFO) && !defined(_HAVE_FID)
 extern int llapi_get_poollist(const char *name, char **poollist, int list_size,

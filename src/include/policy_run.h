@@ -212,19 +212,30 @@ static inline void counters_add(counters_t *dst, const counters_t *src)
     dst->targeted += src->targeted;
 }
 
-#define counter_is_set(_c) ((_c)->count != 0 || (_c)->vol != 0 || \
-                            (_c)->blocks != 0 || (_c)->targeted != 0)
+/** test if a counter is zero */
+static inline bool counter_is_set(const counters_t *c)
+{
+    return (c->count != 0 || c->vol != 0 ||
+            c->blocks != 0 || c->targeted != 0);
+}
 
-#define counter_reached_limit(_c,_l) ((((_l)->count != 0) && ((_c)->count >= (_l)->count)) || \
-                                      (((_l)->vol != 0) && ((_c)->vol >= (_l)->vol)) || \
-                                      (((_l)->blocks != 0) && ((_c)->blocks >= (_l)->blocks)) || \
-                                      (((_l)->targeted != 0) && ((_c)->targeted >= (_l)->targeted)))
-
+/** test if any of the counter fields reached a limit.
+ * @param c the counter
+ * @param l the limits
+ */
+static inline bool counter_reached_limit(const counters_t *c,
+                                         const counters_t *l)
+{
+    return (((l->count != 0) && (c->count >= l->count))
+           || ((l->vol != 0) && (c->vol >= l->vol))
+           || ((l->blocks != 0) && (c->blocks >= l->blocks))
+           || ((l->targeted != 0) && (c->targeted >= l->targeted)));
+}
 
 typedef struct __action_summary {
     time_t  policy_start;
     time_t  last_report;
-    counters_t  action_cpt;
+    counters_t  action_ctr;
     unsigned int skipped;
     unsigned int errors;
 } action_summary_t;
@@ -249,9 +260,9 @@ typedef struct trigger_status__
     trigger_status_t status;
 
     /* total of triggered actions since startup */
-    counters_t     total_cpt;
+    counters_t     total_ctr;
     /* last triggered actions */
-    counters_t     last_cpt;
+    counters_t     last_ctr;
 
     /* its usage, the last time it was checked for OST and global FS triggers */
     double         last_usage;
@@ -316,10 +327,17 @@ typedef struct policy_opt_t
     } target_value_u;
 } policy_opt_t;
 
-int policy_module_start(policy_info_t *policy, /* out */
-                        policy_descr_t *policy_descr, /* in */
+/**
+ * Start a policy module instance (workers, triggers...).
+ * @param[out] policy this structure is filled with all policy run information and resources.
+ * @param[in] policy_descr describes the policy to be managed.
+ * @param[in] p_config policy run configuration.
+ * @param[in] options run options from command line.
+ */
+int policy_module_start(policy_info_t *policy,         /* out */
+                        policy_descr_t *policy_descr,  /* in */
                         policy_run_config_t *p_config, /* in */
-                        const policy_opt_t *options); /* in */
+                        const policy_opt_t *options);  /* in */
 int policy_module_stop(policy_info_t *policy);
 int policy_module_wait(policy_info_t *policy);
 void policy_module_dump_stats(policy_info_t *policy);

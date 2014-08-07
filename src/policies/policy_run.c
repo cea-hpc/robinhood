@@ -102,7 +102,7 @@ static int policy_action(policy_info_t *policy,
         case ACTION_COMMAND:
         {
             /* execute custom action */
-            char strfid[128];
+            char strfid[RBH_FID_LEN];
             sprintf(strfid, DFID, PFID(id));
 
             /* @TODO to be documented */
@@ -431,9 +431,9 @@ static void report_progress(policy_info_t *policy,
                             const unsigned int *status_tab_current)
 {
     /* policy->progress.last_report contains the stats for the last pass */
-    unsigned int count = policy->progress.action_cpt.count;
-    unsigned long long vol = policy->progress.action_cpt.vol;
-    unsigned long long targeted = policy->progress.action_cpt.targeted;
+    unsigned int count = policy->progress.action_ctr.count;
+    unsigned long long vol = policy->progress.action_ctr.vol;
+    unsigned long long targeted = policy->progress.action_ctr.targeted;
     unsigned int nb_skipped = policy->progress.skipped;
     unsigned int nb_errors = policy->progress.errors;
 
@@ -567,7 +567,7 @@ static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
     /* needed for display */
     ATTR_MASK_SET(p_attr_set, size);
     /* depends on policy params (limits) */
-    if (param->target_cpt.blocks != 0 || param->target_cpt.targeted != 0)
+    if (param->target_ctr.blocks != 0 || param->target_ctr.targeted != 0)
         ATTR_MASK_SET(p_attr_set, blocks);
     if (param->target == TGT_POOL || param->target == TGT_OST)
     {
@@ -608,7 +608,7 @@ static int entry2tgt_amount(const policy_param_t *p_param,
     if (ATTR_MASK_TEST(attrs, blocks))
         pcpt->blocks = ATTR(attrs, blocks);
 
-    if (p_param->target_cpt.targeted != 0)
+    if (p_param->target_ctr.targeted != 0)
     {
         /* When the target amount is not count, vol or blocks
          * This is the case for OST: the target is only a subset of the blocks.
@@ -1070,18 +1070,18 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
             counters_add(&submitted, &entry_amount);
 
         } while (!tgt_amount_reached(&submitted,
-                                     &p_pol_info->progress.action_cpt,
-                                     &p_param->target_cpt));
+                                     &p_pol_info->progress.action_ctr,
+                                     &p_param->target_ctr));
 
         /* Wait for end of purge pass */
         wait_queue_empty(p_pol_info, submitted.count, feedback_before,
                          status_tab_before, feedback_after, status_tab_after, TRUE);
 
         /* how much has been processed? errors? skipped? */
-        p_pol_info->progress.action_cpt.count += feedback_after[AF_NBR_OK] - feedback_before[AF_NBR_OK];
-        p_pol_info->progress.action_cpt.vol += feedback_after[AF_VOL_OK] - feedback_before[AF_VOL_OK];
-        p_pol_info->progress.action_cpt.blocks += feedback_after[AF_BLOCKS_OK] - feedback_before[AF_BLOCKS_OK];
-        p_pol_info->progress.action_cpt.targeted += feedback_after[AF_TARGETED_OK] - feedback_before[AF_TARGETED_OK];
+        p_pol_info->progress.action_ctr.count += feedback_after[AF_NBR_OK] - feedback_before[AF_NBR_OK];
+        p_pol_info->progress.action_ctr.vol += feedback_after[AF_VOL_OK] - feedback_before[AF_VOL_OK];
+        p_pol_info->progress.action_ctr.blocks += feedback_after[AF_BLOCKS_OK] - feedback_before[AF_BLOCKS_OK];
+        p_pol_info->progress.action_ctr.targeted += feedback_after[AF_TARGETED_OK] - feedback_before[AF_TARGETED_OK];
         p_pol_info->progress.skipped += skipped_count(status_tab_after) - skipped_count(status_tab_before);
         p_pol_info->progress.errors += error_count(status_tab_after) - error_count(status_tab_before);
 
@@ -1090,7 +1090,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
             break;
     }
     while ((!end_of_list) &&
-           (!tgt_amount_reached(&p_pol_info->progress.action_cpt, NULL, &p_param->target_cpt)));
+           (!tgt_amount_reached(&p_pol_info->progress.action_ctr, NULL, &p_param->target_ctr)));
 
     lmgr_simple_filter_free(&filter);
     ListMgr_CloseIterator(it);
