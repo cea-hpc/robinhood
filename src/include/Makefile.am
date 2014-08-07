@@ -12,7 +12,7 @@ noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h \
 		global_config.h entry_processor.h status_manager.h\
 		fs_scan_main.h chglog_reader.h policy_run.h\
 		xplatform_print.h lustre_extended_types.h \
-		policy_rules.h rmdir.h queue.h StringAlloc.h hsm_rm.h \
+		policy_rules.h rmdir.h queue.h hsm_rm.h \
 		entry_proc_hash.h list.h var_str.h \
         lustre/lustre_errno.h update_params.h
 

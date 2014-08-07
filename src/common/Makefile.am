@@ -14,7 +14,7 @@ endif
 
 libcommontools_la_SOURCES= RW_Lock.c uidgidcache.c RobinhoodMisc.c \
                            global_config.c update_params.c queue.c \
-                           StringAlloc.c $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
+                           $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
 
 indent:
 	$(top_srcdir)/scripts/indent.sh
