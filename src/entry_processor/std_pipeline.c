@@ -1074,7 +1074,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* Note: this check must be done after processing log record,
          * because it can determine if status is needed */
-        p_op->fs_attr_need |= attrs_for_missing_status(p_op->fs_attr_need);
+        p_op->fs_attr_need |= attrs_for_missing_status(p_op->fs_attr_need, true);
 
         char tmp_buf[RBH_NAME_MAX];
         DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "RECORD: %s "DFID" %#x %s => "

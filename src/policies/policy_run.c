@@ -374,8 +374,8 @@ static int set_optimization_filters(policy_info_t *policy,
      */
     if (rules->rule_count == 1) // TODO won't apply to LUA scripts
     {
-        if (convert_boolexpr_to_simple_filter(&rules->rules[0].condition,
-                                              p_filter))
+        if (convert_boolexpr_to_simple_filter(&rules->rules[0].condition, p_filter,
+                                              policy->descr->status_mgr))
         {
             DisplayLog(LVL_FULL, tag(policy),
                        "Could not convert purge rule '%s' to simple filter.",
@@ -534,12 +534,6 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
 static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
                              attr_set_t *p_attr_set)
 {
-#ifdef _HSM_LITE
-    int rc;
-    uint64_t allow_cached_attrs = 0;
-    uint64_t need_fresh_attrs = 0;
-#endif
-
     ATTR_MASK_INIT(p_attr_set);
 
     /* Retrieve at least: fullpath, last_access, size, blcks
@@ -581,19 +575,16 @@ static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
         ATTR_MASK_SET(p_attr_set, stripe_items);
     }
 
-    /* FIXME only if needed by scope? */
-    ATTR_MASK_STATUS_SET(p_attr_set, policy->descr->status_mgr->smi_index);
+    /* Get attrs to match policy scope */
+    p_attr_set->attr_mask |= policy->descr->scope_mask;
+
+    /* needed (cached) attributes to check status from scope */
+    p_attr_set->attr_mask |= attrs_for_missing_status(p_attr_set->attr_mask, false);
 
     // TODO class management
     // ATTR_MASK_SET(p_attr_set, release_class);
     // ATTR_MASK_SET(p_attr_set, rel_cl_update);
     p_attr_set->attr_mask |= policy->descr->rules.run_attr_mask;
-
-    /* TODO based on scope */
-    //ATTR_MASK_SET(p_attr_set, type);
-
-    /* FIXME only if needed by scope? */
-    p_attr_set->attr_mask |= policy->descr->status_mgr->sm->status_needs_attrs_cached;
 
     return 0;
 }
@@ -752,7 +743,16 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (rc)
         return rc;
 
-    // TODO list entries in scope */
+    /* filter entries in the policy scope */
+    if (convert_boolexpr_to_simple_filter(&p_pol_info->descr->scope, &filter,
+                                          p_pol_info->descr->status_mgr))
+    {
+            DisplayLog(LVL_DEBUG, tag(p_pol_info),
+                       "Could not convert policy scope to simple filter.");
+            // for debug
+            abort();
+    }
+
 
 #if 0
 #ifdef ATTR_INDEX_invalid
@@ -771,33 +771,6 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
                                  fval, FILTER_FLAG_ALLOW_NULL);
     if (rc)
         return rc;
-#endif
-
-#ifdef ATTR_INDEX_status
-    /* only get entries with HSM state SYNCHRO */
-    fval.value.val_int = STATUS_SYNCHRO;
-    rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_status, EQUAL, fval, 0);
-    if (rc)
-        return rc;
-#endif
-
-    /* do not consider directories, if they are stored in DB */
-#ifdef ATTR_INDEX_type
-    if ((field_infos[ATTR_INDEX_type].flags & GENERATED) == 0)
-    {
-
-#if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
-        /* only retrieve files */
-        fval.value.val_str = STR_TYPE_FILE;
-        rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_type, EQUAL, fval, 0);
-#else
-        /* do not retrieve directories */
-        fval.value.val_str = STR_TYPE_DIR;
-        rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_type, NOTEQUAL, fval, 0);
-#endif
-        if (rc)
-            return rc;
-    }
 #endif
 #endif
 

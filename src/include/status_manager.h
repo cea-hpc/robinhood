@@ -124,7 +124,7 @@ static inline uint64_t status_mask_missing(uint64_t missing)
 }
 
 /** Get attribute mask for missing statuses */
-static inline uint64_t attrs_for_missing_status(uint64_t missing)
+static inline uint64_t attrs_for_missing_status(uint64_t missing, bool fresh)
 {
     int i = 0;
     uint64_t m;
@@ -135,7 +135,10 @@ static inline uint64_t attrs_for_missing_status(uint64_t missing)
         if (missing & m)
         {
             sm_instance_t *smi = get_sm_instance(i);
-            ret |= smi->sm->status_needs_attrs_fresh;
+            if (fresh)
+                ret |= smi->sm->status_needs_attrs_fresh;
+            else
+                ret |= smi->sm->status_needs_attrs_cached;
         }
     }
     return ret;

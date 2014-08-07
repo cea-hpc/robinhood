@@ -333,6 +333,8 @@ typedef enum
     UNLIKE,
     IN,
     NOTIN,
+    ISNULL,
+    NOTNULL,
 } filter_comparator_t;
 
 /** filter values associated to db_type field in field_infos array */
@@ -1007,9 +1009,14 @@ int lmgr_simple_filter_add_if_not_exist( lmgr_filter_t * p_filter,
 int            lmgr_simple_filter_free( lmgr_filter_t * p_filter );
 
 
-/** Convert simple expressions to ListMgr filter (append filter) */
-int convert_boolexpr_to_simple_filter( struct bool_node_t * boolexpr, lmgr_filter_t * filter );
-
+/** Convert simple expressions to ListMgr filter (append filter).
+ * Imbrications of AND and OR filters produced by convert_boolexpr_to_simple_filter()
+ * are only supported by listmgr_iterators. Callers that use convert_boolexpr_to_simple_filter()
+ * must take care not using "OR" expression if they are using other listmgr calls
+ */
+struct sm_instance;
+int convert_boolexpr_to_simple_filter(struct bool_node_t *boolexpr, lmgr_filter_t *filter,
+                                      const struct sm_instance *smi);
 
 /** Set a complex filter structure */
 int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *boolexpr );

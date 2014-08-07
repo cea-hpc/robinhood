@@ -400,7 +400,8 @@ static int mkfilters(int exclude_dirs)
             DisplayLog(LVL_FULL, FIND_TAG, "Expression matching: %s", expr);
 
         /* append bool expr to entry filter */
-        convert_boolexpr_to_simple_filter( &match_expr, &entry_filter );
+        /* Do not use 'OR' expression there */
+        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter, NULL); /* FIXME status management in rbh_du/rbh_find */
     }
 
     return 0;

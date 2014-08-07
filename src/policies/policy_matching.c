@@ -263,12 +263,12 @@ obj_type_t lmgr2policy_type(const char *str_type)
  * \param p_compar      OUT: listmgr comparator
  * \param db_type_u     OUT: value
  * \param p_must_release OUT: set to TRUE if the db_type_u.val_str string must be released
- * \return -1 if this is not a criteria stored in DB.
+ * \retval -1 if this is not a criteria stored in DB.
  */
 /** @TODO factorize criteria2filter */
 int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
-                    int *p_must_release)
+                    int *p_must_release, const sm_instance_t *smi)
 {
     int len;
     char * new_str;
@@ -447,7 +447,24 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         *p_attr_index = ATTR_INDEX_stripe_items;
         *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_uint = p_comp->val.integer;
-        /* TODO support sets of OSTs */
+        break;
+
+    case CRITERIA_STATUS:
+        if (smi == NULL)
+            RBH_BUG("status filter with no status manager in the context");
+        *p_attr_index = ATTR_COUNT + smi->smi_index;
+        /* empty value stands for IS NULL */
+        if (EMPTY_STRING(p_comp->val.str))
+        {
+            if (p_comp->op == COMP_EQUAL)
+                *p_compar = ISNULL;
+            else
+                *p_compar = NOTNULL;
+        }
+        else
+            *p_compar = Policy2FilterComparator(p_comp->op);
+
+        p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_XATTR:

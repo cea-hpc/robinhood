@@ -159,6 +159,23 @@ void separated_db2list_inplace(char *list)
 
 #endif
 
+/** get the table for the given attr index */
+static inline table_enum field2table(int i)
+{
+    if (is_main_field(i))
+        return T_MAIN;
+    else if (is_names_field(i))
+        return T_DNAMES;
+    else if (is_annex_field(i))
+        return T_ANNEX;
+    else if (i == ATTR_INDEX_stripe_info)
+        return T_STRIPE_INFO;
+    else if (i == ATTR_INDEX_stripe_items)
+        return T_STRIPE_ITEMS;
+    else
+        return T_NONE;
+}
+
 /* precomputed masks for testing attr sets efficiently */
 uint64_t      main_attr_set = 0;
 uint64_t      names_attr_set = 0;
@@ -844,6 +861,10 @@ char          *compar2str( filter_comparator_t compar )
         return " IN ";
     case NOTIN:
         return " NOT IN ";
+    case ISNULL:
+        return " IS NULL";
+    case NOTNULL:
+        return " IS NOT NULL";
     default:
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Default sign for filter: should never happen !!!" );
         return "=";
@@ -1005,11 +1026,11 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
                 if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT )
                 {
                     /* NOT (x <cmp> <val>) */
-                    curr += sprintf( curr, ") " );
+                    curr += sprintf(curr, ")");
                 }
 
                 if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END )
-                     curr += sprintf( curr, ") " );
+                     curr += sprintf(curr, ")");
 
                 nb_fields ++;
             }
@@ -1021,8 +1042,8 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
 
 
 
-int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
-                table_enum table, int leading_and, int prefix_table )
+int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
+                table_enum table, int leading_and, int prefix_table)
 {
     int            i;
     unsigned int   nbfields = 0;
@@ -1030,10 +1051,10 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
     char          *values_curr = str;
     char           fname[128];
 
-    if ( p_filter->filter_type == FILTER_SIMPLE )
+    if (p_filter->filter_type == FILTER_SIMPLE)
     {
 
-        for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
+        for (i = 0; i < p_filter->filter_simple.filter_count; i++)
         {
             unsigned int   index = p_filter->filter_simple.filter_index[i];
             int match =  MATCH_TABLE(table, index)
@@ -1045,48 +1066,45 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
             fname[0] = '\0';
 
             /* filter on generated fields are not allowed */
-            if (index < ATTR_COUNT)
+            if (is_dirattr(index))
             {
-                if (field_infos[index].flags & DIR_ATTR)
-                {
-                    DisplayLog(LVL_FULL, LISTMGR_TAG, "Special filter on dir attribute '%s'",
-                               field_infos[index].field_name);
-                    continue;
-                }
-                else if (field_infos[index].flags & GENERATED)
-                {
-                    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Cannot use filter on generated field '%s'",
-                               field_infos[index].field_name);
-                    return -DB_INVALID_ARG;
-                }
+                DisplayLog(LVL_FULL, LISTMGR_TAG, "Special filter on dir attribute '%s'",
+                           field_name(index));
+                continue;
+            }
+            else if (is_gen_field(index))
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Cannot use filter on generated field '%s'",
+                           field_name(index));
+                return -DB_INVALID_ARG;
             }
 
-            if ( match )
+            if (match || table == T_NONE)
             {
                 /* add prefixes or parenthesis, etc. */
-                if ( leading_and || ( nbfields > 0 ) )
+                if (leading_and || (nbfields > 0))
                 {
-                    if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_OR )
-                        values_curr += sprintf( values_curr, " OR " );
+                    if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_OR)
+                        values_curr += sprintf(values_curr, " OR ");
                     else
-                        values_curr += sprintf( values_curr, " AND " );
+                        values_curr += sprintf(values_curr, " AND ");
                 }
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN )
-                     values_curr += sprintf( values_curr, "( " );
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN)
+                     values_curr += sprintf(values_curr, "(");
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT )
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT)
                 {
-                    if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL )
+                    if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                         /* (NOT (x <cmp> <val>) OR x IS NULL) */
-                        values_curr += sprintf( values_curr, " (NOT (" );
+                        values_curr += sprintf(values_curr, " (NOT (");
                     else
                         /* NOT (x <cmp> <val>) */
-                         values_curr += sprintf( values_curr, " NOT (" );
+                         values_curr += sprintf(values_curr, " NOT (");
                 }
 
-                if ( (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL )
-                     && !(p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT ) )
+                if ((p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                     && !(p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT))
                 {
                     /* (x <cmp> <val> OR x IS NULL) */
                     values_curr[0] = '(';
@@ -1094,7 +1112,7 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 }
             }
 
-            if ( MATCH_TABLE( table, index ) )
+            if (MATCH_TABLE(table, index) || table == T_NONE)
             {
                 /* exception: fullpath is a real field in SOFT_RM table */
                 if (is_funcattr(index) &&
@@ -1102,13 +1120,15 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 {
                     char tmp[128] = "";
                     if (prefix_table)
-                        sprintf(tmp, "%s.", table2name(table));
+                        sprintf(tmp, "%s.", table2name(table == T_NONE?
+                                field2table(index):table));
                     print_func_call(fname, index, tmp);
                 }
                 else /* std field */
                 {
-                    if ( prefix_table )
-                        sprintf(fname, "%s.", table2name(table));
+                    if (prefix_table)
+                        sprintf(fname, "%s.", table2name(table == T_NONE?
+                                field2table(index):table));
 
                     strcat(fname, field_name(index));
                 }
@@ -1123,51 +1143,56 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                         p_filter->filter_simple.filter_compar[i] = UNLIKE;
                 }
                 values_curr +=
-                    sprintf( values_curr, "%s%s", fname,
-                             compar2str( p_filter->filter_simple.filter_compar[i] ) );
+                    sprintf(values_curr, "%s%s", fname,
+                             compar2str(p_filter->filter_simple.filter_compar[i]));
 
-                /* fullpath already includes root for SOFT_RM table */
-                if ((index == ATTR_INDEX_fullpath) && (table != T_SOFTRM))
+                /* no expected value after IS NULL or IS NOT NULL */
+                if (p_filter->filter_simple.filter_compar[i] != ISNULL
+                    && p_filter->filter_simple.filter_compar[i] != NOTNULL)
                 {
-                    char relative[RBH_PATH_MAX];
-                    if (fullpath_attr2db(p_filter->filter_simple.filter_value[i].value.val_str, relative))
+                    /* fullpath already includes root for SOFT_RM table */
+                    if ((index == ATTR_INDEX_fullpath) && (table != T_SOFTRM))
                     {
-                        /* condition is always false */
-                        values_curr += sprintf(values_curr, "FALSE");
+                        char relative[RBH_PATH_MAX];
+                        if (fullpath_attr2db(p_filter->filter_simple.filter_value[i].value.val_str, relative))
+                        {
+                            /* condition is always false */
+                            values_curr += sprintf(values_curr, "FALSE");
+                        }
+                        else
+                        {
+                            typeu.val_str = relative;
+                            values_curr += printdbtype(p_mgr, values_curr,
+                                                       field_infos[index].db_type, &typeu);
+                        }
                     }
                     else
                     {
-                        typeu.val_str = relative;
+                        char tmp [1024];
+                        if (is_sepdlist(index))
+                        {
+                            /* match '%+<item>+%' */
+                            separated_list2match(p_filter->filter_simple.filter_value[i].value.val_str,
+                                                 tmp);
+                            typeu.val_str = tmp;
+                        }
+                        else
+                            /* single value (list only apply to OSTs XXX for now) */
+                            typeu = p_filter->filter_simple.filter_value[i].value;
+
                         values_curr += printdbtype(p_mgr, values_curr,
-                                                   field_infos[index].db_type, &typeu);
+                                                   field_type(index), &typeu);
                     }
-                }
-                else
-                {
-                    char tmp [1024];
-                    if (is_sepdlist(index))
-                    {
-                        /* match '%+<item>+%' */
-                        separated_list2match(p_filter->filter_simple.filter_value[i].value.val_str,
-                                             tmp);
-                        typeu.val_str = tmp;
-                    }
-                    else
-                        /* single value (list only apply to OSTs XXX for now) */
-                        typeu = p_filter->filter_simple.filter_value[i].value;
-
-                    values_curr += printdbtype(p_mgr, values_curr,
-                                               field_type(index), &typeu);
                 }
                 nbfields++;
             }
-            else if ( ( table == T_STRIPE_ITEMS )
-                      && ( field_infos[index].db_type == DB_STRIPE_ITEMS ) )
+            else if ((table == T_STRIPE_ITEMS || table == T_NONE)
+                      && (field_infos[index].db_type == DB_STRIPE_ITEMS))
             {
-                if ( prefix_table )
-                    sprintf(fname, "%s.", STRIPE_ITEMS_TABLE );
+                if (prefix_table)
+                    sprintf(fname, "%s.", STRIPE_ITEMS_TABLE);
 
-                strcat( fname, "ostidx" );
+                strcat(fname, "ostidx");
 
                 /* single value or a list? */
                 if (p_filter->filter_simple.filter_compar[i] == IN
@@ -1176,14 +1201,14 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                     /* FIXME the length of this query can be very important,
                      * so we may overflow the output string */
                     values_curr += sprintf(values_curr, "%s%s(", fname,
-                                           compar2str( p_filter->filter_simple.filter_compar[i] ));
+                                           compar2str(p_filter->filter_simple.filter_compar[i]));
                     unsigned int j;
                     db_type_u * list = p_filter->filter_simple.filter_value[i].list.values;
 
                     for (j = 0; j < p_filter->filter_simple.filter_value[i].list.count; j++)
                     {
                         values_curr +=
-                            sprintf( values_curr, "%s%u", j==0?"":",", list[j].val_uint );
+                            sprintf(values_curr, "%s%u", j==0?"":",", list[j].val_uint);
                     }
                     strcpy(values_curr, ")");
                     values_curr++;
@@ -1191,52 +1216,52 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
                 else /* single value */
                 {
                     values_curr +=
-                        sprintf( values_curr, "%s%s%u", fname,
-                                 compar2str( p_filter->filter_simple.filter_compar[i] ),
-                                 p_filter->filter_simple.filter_value[i].value.val_uint );
+                        sprintf(values_curr, "%s%s%u", fname,
+                                 compar2str(p_filter->filter_simple.filter_compar[i]),
+                                 p_filter->filter_simple.filter_value[i].value.val_uint);
                 }
 
                 nbfields++;
             }
-            else if ( ( table == T_STRIPE_INFO )
-                      && ( field_infos[index].db_type == DB_STRIPE_INFO ) )
+            else if ((table == T_STRIPE_INFO || table == T_NONE)
+                      && (field_infos[index].db_type == DB_STRIPE_INFO))
             {
 
                 /* We XXX Assume that the only possible filter here is on pool_name */
 
-                if ( prefix_table )
-                    sprintf(fname, "%s.", STRIPE_INFO_TABLE );
+                if (prefix_table)
+                    sprintf(fname, "%s.", STRIPE_INFO_TABLE);
 
-                strcat( fname, "pool_name" );
+                strcat(fname, "pool_name");
 
                 values_curr +=
-                    sprintf( values_curr, "%s%s'%s'", fname,
-                             compar2str( p_filter->filter_simple.filter_compar[i] ),
-                             p_filter->filter_simple.filter_value[i].value.val_str );
+                    sprintf(values_curr, "%s%s'%s'", fname,
+                             compar2str(p_filter->filter_simple.filter_compar[i]),
+                             p_filter->filter_simple.filter_value[i].value.val_str);
 
                 nbfields++;
             }
 
-            if ( match )
+            if (match || table == T_NONE)
             {
-                if ( (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL )
-                     && !(p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT ) )
+                if ((p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                     && !(p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT))
                 {
-                    values_curr += sprintf( values_curr, " OR %s IS NULL)", fname );
+                    values_curr += sprintf(values_curr, " OR %s IS NULL)", fname);
                 }
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT )
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT)
                 {
-                    if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL )
+                    if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                         /* (NOT (x <cmp> <val>) OR x IS NULL) */
-                        values_curr += sprintf( values_curr, ") OR %s IS NULL)", fname );
+                        values_curr += sprintf(values_curr, ") OR %s IS NULL)", fname);
                     else
                         /* NOT (x <cmp> <val>) */
-                        values_curr += sprintf( values_curr, ") " );
+                        values_curr += sprintf(values_curr, ")");
                 }
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END )
-                     values_curr += sprintf( values_curr, ") " );
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END)
+                     values_curr += sprintf(values_curr, ")");
             }
 
         } /* end for */
@@ -1245,7 +1270,6 @@ int filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
     {
         return -DB_NOT_SUPPORTED;
     }
-
     return nbfields;
 }                               /* filter2str */
 

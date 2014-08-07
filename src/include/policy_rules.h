@@ -504,8 +504,10 @@ int update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
  * \param p_must_release OUT: set to TRUE if the db_type_u.val_str string must be released
  * \return -1 if this is not a criteria stored in DB.
  */
+struct sm_instance;
 int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
-                    int *p_must_release);
+                    int *p_must_release, const struct sm_instance *smi);
+
 
 #endif

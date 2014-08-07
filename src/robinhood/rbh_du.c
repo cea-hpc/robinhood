@@ -308,8 +308,9 @@ static int mkfilters( void )
             DisplayLog(LVL_FULL, DU_TAG, "Expression matching: %s", expr);
 
         /* append bool expr to entry filter */
-        convert_boolexpr_to_simple_filter( &match_expr, &entry_filter );
-        convert_boolexpr_to_simple_filter( &match_expr, &parent_filter );
+        /* Do not use 'OR' expression there */
+        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter, NULL); /* FIXME status management in rbh_du/rbh_find */
+        convert_boolexpr_to_simple_filter(&match_expr, &parent_filter, NULL); /* FIXME status management in rbh_du/rbh_find */
     }
 
     return 0;

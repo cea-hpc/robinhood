@@ -298,27 +298,37 @@ int lmgr_simple_filter_free( lmgr_filter_t * p_filter )
 }
 
 /* is it a simple 'AND' expression ? */
-static int is_simple_AND_expr( bool_node_t * boolexpr )
+static int is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
 {
-    switch ( boolexpr->node_type )
+    switch (boolexpr->node_type)
     {
         case NODE_UNARY_EXPR:
-            if (boolexpr->content_u.bool_expr.bool_op != BOOL_NOT )
+            if (boolexpr->content_u.bool_expr.bool_op != BOOL_NOT)
             {
                 /* Error */
-                DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid unary operator %d in %s()",
-                            boolexpr->content_u.bool_expr.bool_op, __FUNCTION__ );
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid unary operator %d in %s()",
+                            boolexpr->content_u.bool_expr.bool_op, __FUNCTION__);
                 return FALSE;
             }
             /* only accept 'NOT condition', but reject 'NOT (cond AND cond)' */
             return  (boolexpr->content_u.bool_expr.expr1->node_type == NODE_CONDITION);
 
         case NODE_BINARY_EXPR:
-            if ( boolexpr->content_u.bool_expr.bool_op == BOOL_AND )
-                return ( is_simple_AND_expr(  boolexpr->content_u.bool_expr.expr1 )
-                         && is_simple_AND_expr(  boolexpr->content_u.bool_expr.expr2 ) );
-            else
+            if (depth > 1)
                 return FALSE;
+            else if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
+                && boolexpr->content_u.bool_expr.bool_op != BOOL_OR)
+                return FALSE;
+
+            /* bool operation context unchanged? */
+            if (boolexpr->content_u.bool_expr.bool_op == op_ctx)
+                return (is_simple_expr(boolexpr->content_u.bool_expr.expr1, depth, op_ctx)
+                        && is_simple_expr(boolexpr->content_u.bool_expr.expr2, depth, op_ctx));
+            else
+                return (is_simple_expr(boolexpr->content_u.bool_expr.expr1, depth + 1,
+                            boolexpr->content_u.bool_expr.bool_op)
+                        && is_simple_expr(boolexpr->content_u.bool_expr.expr2, depth + 1,
+                            boolexpr->content_u.bool_expr.bool_op));
 
         case NODE_CONDITION:
             /* If attribute is in DB, it can be filtered
@@ -327,55 +337,103 @@ static int is_simple_AND_expr( bool_node_t * boolexpr )
             return TRUE;
 
         default:
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression in %s()", __FUNCTION__ );
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression in %s()",
+                       __FUNCTION__);
             return FALSE;
     }
 
 }
 
+static bool allow_null(int attr_index, const filter_comparator_t *comp,
+                       const filter_value_t *val)
+{
+    /* don't add 'OR IS NULL' if NULL is explicitely matched */
+    if (*comp == ISNULL || *comp == NOTNULL)
+        return false;
+
+    /* allow NULL for strings if matching is:
+     * x != 'non empty val' (or x not like 'non empty')
+     * x == '' (or x like '')
+     * DON't allow NULL string if matching is:
+     * x == 'non empty'  (or x like 'non empty')
+     * x != '' (or x not like '')
+     */
+    if (field_type(attr_index) == DB_TEXT ||
+        field_type(attr_index) == DB_ENUM_FTYPE)
+    {
+        if (*comp == EQUAL || *comp == LIKE)
+            /* allow NULL if matching against empty string */
+            return (val->value.val_str == NULL || EMPTY_STRING(val->value.val_str));
+        else if (*comp == NOTEQUAL || *comp == UNLIKE)
+            /* allow NULL if matching != non-empty string */
+            return !(val->value.val_str == NULL || EMPTY_STRING(val->value.val_str));
+        else
+        {
+            /* unexpected case */
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Warning: unhandled case in %s(), line %u",
+                       __func__, __LINE__);
+        }
+    }
+    return true; /* allow, by default */
+}
+
 /* Extract simple pieces of expressions and append them to filter.
  * The resulting filter is expected to return a larger set than the actual condition.
  * Ignore conflicting criterias.
+ * \param expr_flag indicate if BEGIN/END parenthesing is needed
+ * \param depth indicate the current parenthesing depth
+ * \param op_ctx indicate the current operation context: e.g. AND for 'x and y and z'
  */
-static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filter )
+static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
+                              const sm_instance_t *smi, int expr_flag,
+                              int depth, bool_op_t op_ctx)
 {
-    int                 index, rc, flag;
+    int                 index, rc, flag, new_depth;
     filter_comparator_t comp;
     filter_value_t      val;
     int                 must_free;
 
-    switch ( boolexpr->node_type )
+    switch (boolexpr->node_type)
     {
         case NODE_UNARY_EXPR:
-            if (boolexpr->content_u.bool_expr.bool_op != BOOL_NOT )
+            if (boolexpr->content_u.bool_expr.bool_op != BOOL_NOT)
             {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid unary operator %d in %s()",
-                            boolexpr->content_u.bool_expr.bool_op, __FUNCTION__ );
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid unary operator %d in %s()",
+                            boolexpr->content_u.bool_expr.bool_op, __FUNCTION__);
                 return DB_INVALID_ARG;
             }
-            if ( boolexpr->content_u.bool_expr.expr1->node_type != NODE_CONDITION )
+
+            /* TODO is it possible to append a binary expr with parenthesing? e.g. NOT (x AND y) */
+            if (boolexpr->content_u.bool_expr.expr1->node_type != NODE_CONDITION)
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
             /* get info about condition */
             rc = criteria2filter(boolexpr->content_u.bool_expr.expr1->content_u.condition,
-                                 &index, &comp, &val, &must_free);
+                                 &index, &comp, &val, &must_free, smi);
 
-            if ( rc != 0 || index < 0 )
+            if (rc != 0 || index < 0)
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
-            flag = FILTER_FLAG_NOT | FILTER_FLAG_ALLOW_NULL;
+            flag = FILTER_FLAG_NOT;
+
+            if (allow_null(index, &comp, &val))
+                flag |= FILTER_FLAG_ALLOW_NULL;
             if (must_free)
                 flag |= FILTER_FLAG_ALLOC_STR;
+
+            /* propagate parenthesing flag + OR */
+            flag |= (expr_flag & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
+                                  | FILTER_FLAG_OR));
 
             /* TODO support FILTER_FLAG_ALLOC_LIST */
 
             /* add condition to filter */
-            DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\"",
-                       field_name(index));
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\", flags=%#X",
+                       field_name(index), flag);
 
-            return lmgr_simple_filter_add_if_not_exist( filter, index, comp, val, flag );
+            return lmgr_simple_filter_add(filter, index, comp, val, flag);
 
          case NODE_CONDITION:
             /* If attribute is in DB, it can be filtered
@@ -383,52 +441,87 @@ static int append_simple_AND_expr( bool_node_t * boolexpr, lmgr_filter_t * filte
              */
             /* get info about condition */
             rc = criteria2filter(boolexpr->content_u.condition,
-                                 &index, &comp, &val, &must_free);
+                                 &index, &comp, &val, &must_free,
+                                 smi);
 
             if (rc != 0 || index < 0 || (readonly_fields(1LL << index) != 0))
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
-            flag = FILTER_FLAG_ALLOW_NULL;
+            flag = allow_null(index, &comp, &val)? FILTER_FLAG_ALLOW_NULL : 0;
+
             if (must_free)
                 flag |= FILTER_FLAG_ALLOC_STR;
+
+            /* propagate parenthesing flag + OR */
+            flag |= (expr_flag & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
+                                  | FILTER_FLAG_OR));
 
             /* TODO support FILTER_FLAG_ALLOC_LIST */
 
             /* add condition to filter */
-            DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\"",
-                       field_name(index));
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\", flags=%#X",
+                       field_name(index), flag);
 
-            return lmgr_simple_filter_add_if_not_exist( filter, index, comp, val, flag );
+            return lmgr_simple_filter_add(filter, index, comp, val, flag);
 
             return TRUE;
 
         case NODE_BINARY_EXPR:
-            if ( boolexpr->content_u.bool_expr.bool_op == BOOL_AND )
+        {
+            int flag1, flag2;
+
+            /* ensures there are no 2 levels of perenthesing */
+            if (depth > 1)
+                return DB_INVALID_ARG;
+            else if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
+                && boolexpr->content_u.bool_expr.bool_op != BOOL_OR)
+                return DB_INVALID_ARG;
+
+            flag1 = (op_ctx == BOOL_OR)?FILTER_FLAG_OR:0;
+            /* x OR y? */
+            flag2 = (boolexpr->content_u.bool_expr.bool_op == BOOL_OR)?
+                        FILTER_FLAG_OR:0;
+            if (boolexpr->content_u.bool_expr.bool_op == op_ctx)
             {
-                rc = append_simple_AND_expr( boolexpr->content_u.bool_expr.expr1, filter );
-                if ( rc ) return rc;
-                rc = append_simple_AND_expr( boolexpr->content_u.bool_expr.expr2, filter );
-                return rc;
+                new_depth = depth;
+                /* propagate BEGIN/END flags */
+                flag1 |= expr_flag & FILTER_FLAG_BEGIN;
+                flag2 |= expr_flag & FILTER_FLAG_END;
             }
             else
-                return DB_INVALID_ARG;
-            break;
+            {
+                new_depth = depth + 1;
+                /* new level of parenthesing */
+                flag1 |= FILTER_FLAG_BEGIN;
+                flag2 |= FILTER_FLAG_END;
+            }
 
+            rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
+                                    filter, smi, flag1, new_depth,
+                                    boolexpr->content_u.bool_expr.bool_op);
+            if (rc) return rc;
+            rc = append_simple_expr(boolexpr->content_u.bool_expr.expr2,
+                                    filter, smi, flag2, new_depth,
+                                    boolexpr->content_u.bool_expr.bool_op);
+            return rc;
+        }
         default:
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression %#x in %s()",
-                        boolexpr->node_type, __FUNCTION__ );
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression %#x in %s()",
+                        boolexpr->node_type, __FUNCTION__);
             return DB_INVALID_ARG;
     }
 }
 
 /** Convert simple expressions to ListMgr filter (append filter) */
-int convert_boolexpr_to_simple_filter( bool_node_t * boolexpr, lmgr_filter_t * filter )
+int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr, lmgr_filter_t *filter,
+                                      const sm_instance_t *smi)
 {
-    if ( !is_simple_AND_expr( boolexpr ) )
+    if (!is_simple_expr(boolexpr, 0, BOOL_AND))
         return DB_INVALID_ARG;
 
-    return append_simple_AND_expr( boolexpr, filter );
+    /* default filter context is AND */
+    return append_simple_expr(boolexpr, filter, smi, 0, 0, BOOL_AND);
 }
 
 

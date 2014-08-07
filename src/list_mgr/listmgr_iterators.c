@@ -352,6 +352,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             char          *curr_tables = tables;
             char          *first_table = NULL;
             int distinct = 0;
+            char           filter_str[4096] = "";
 
             DisplayLog( LVL_FULL, LISTMGR_TAG,
                         "Filter or sort order on several tables: "
@@ -359,24 +360,21 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                         DNAMES_TABLE ":%d, "
                         STRIPE_INFO_TABLE ":%d, "
                         STRIPE_ITEMS_TABLE ":%d",
-                        filter_main, filter_name, filter_annex,
+                        filter_main, filter_annex, filter_name,
                         filter_stripe_info, filter_stripe_items );
+
+            /* rebuild the whole filter string */
+            if (filter2str(p_mgr, filter_str, p_filter, T_NONE, FALSE, TRUE) > 0)
+                curr_fields += sprintf(curr_fields, "%s", filter_str);
 
             if ( ( filter_main > 0 ) || ( do_sort && ( sort_table == T_MAIN ) ) )
             {
                 first_table = MAIN_TABLE;
-
-                if ( filter_main > 0 )
-                    curr_fields += sprintf( curr_fields, "%s", filter_str_main );
-
                 curr_tables += sprintf( curr_tables, "%s", MAIN_TABLE );
             }
 
             if ( ( filter_annex > 0 ) || ( do_sort && ( sort_table == T_ANNEX ) ) )
             {
-                if ( filter_annex > 0 )
-                    curr_fields += sprintf( curr_fields, "%s", filter_str_annex );
-
                 if (first_table != NULL)
                 {
                     *curr_tables = ',';
@@ -395,9 +393,6 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             if (filter_name > 0)
             {
                 distinct = 1;
-                if (filter_name > 0)
-                    curr_fields += sprintf(curr_fields, "%s", filter_str_name);
-
                 if (first_table != NULL)
                 {
                     *curr_tables = ',';
@@ -414,9 +409,6 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             }
             if ( ( filter_stripe_info > 0 ) || ( do_sort && ( sort_table == T_STRIPE_INFO ) ) )
             {
-                if ( filter_stripe_info > 0 )
-                    curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_info );
-
                 if (first_table != NULL)
                 {
                     *curr_tables = ',';
@@ -434,9 +426,6 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
             if ( ( filter_stripe_items > 0 ) || ( do_sort && ( sort_table == T_STRIPE_ITEMS ) ) )
             {
                 distinct = 1;
-                if ( filter_stripe_items > 0 )
-                    curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_items );
-
                 if (first_table != NULL)
                 {
                     *curr_tables = ',';
