@@ -83,6 +83,7 @@ static void free_queue_item(queue_item_t *item)
     MemFree(item);
 }
 
+/** Execute a policy action. */
 static int policy_action(policy_info_t *policy,
                          const entry_id_t *id, attr_set_t *p_attr_set,
                          const char *hints, post_action_e *after)
@@ -144,6 +145,9 @@ static int policy_action(policy_info_t *policy,
     return rc;
 }
 
+/**
+ * Return the value of the current attribute for sorting the policy LRU.
+ */
 static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
 {
     switch(p->config->lru_sort_attr)
@@ -168,7 +172,7 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
     }
 }
 
-/* set dummy time attributes, to check 'end of list' criteria */
+/** set dummy time attributes, to check 'end of list' criteria */
 static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
                                       time_t value)
 {
@@ -206,8 +210,7 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
     ATTR_MASK_SET(p_attrs, creation_time);
     ATTR(p_attrs, creation_time) = value;
 
-    /* FIXME: guess other times, depending on status scope? */
-#if 0
+#if 0 /* FIXME RBHv3: guess other times, depending on status scope? */
     /* If entry is dirty (migration):
      *      creation_time <= last_archive <= last mod (entry is dirty) <= last_access
      * If entry is synchro (purge):
@@ -227,8 +230,16 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
 #endif
 }
 
+/* alias to lighten the code */
 #define sort_attr_name(_p)  (field_infos[(_p)->config->lru_sort_attr].field_name)
 
+/**
+ * Given the timestamp of the last processed entry, this tries to guess
+ * if next entries still ave a change to match the policy.
+ * Example: if entries are sorted by last access (from the older to the newer)
+ * and if the last listed entry is too recent to match any policy,
+ * then next entries won't match too.
+ */
 static int heuristic_end_of_list(policy_info_t *policy, time_t last_time)
 {
     entry_id_t     void_id;
@@ -246,7 +257,6 @@ static int heuristic_end_of_list(policy_info_t *policy, time_t last_time)
      * If it doesn't match any policy, next entries won't match too
      * because entries are sorted by this attribute, so it is not necessary
      * to continue. */
-
     memset(&void_id, 0, sizeof(entry_id_t));
     memset(&void_attr, 0, sizeof(attr_set_t));
     ATTR_MASK_INIT(&void_attr);
@@ -286,6 +296,9 @@ static inline unsigned int ack_count(const unsigned int *status_tab)
     return sum;
 }
 
+/**
+ *  Sum the number of skipped entries from a status tab
+ */
 static inline unsigned int skipped_count(const unsigned int *status_tab)
 {
     int i;
@@ -301,6 +314,9 @@ static inline unsigned int skipped_count(const unsigned int *status_tab)
     return nb;
 }
 
+/**
+ *  Sum the number of errors from a status tab
+ */
 static inline unsigned int error_count(const unsigned int *status_tab)
 {
     int i;
@@ -313,52 +329,220 @@ static inline unsigned int error_count(const unsigned int *status_tab)
     return nb;
 }
 
-/* return 0 if limit is not reached, a non null value else */
-static inline int check_limit(policy_info_t *policy,
-                              unsigned int count, unsigned long long vol,
-                              unsigned int errors, int verbose)
+/**
+ * Convert queue statistics to counters
+ */
+static void queue_stats2counters(const unsigned long long *feedback_before,
+                                 const unsigned long long *feedback_after,
+                                 const unsigned int *status_tab_before,
+                                 const unsigned int *status_tab_after,
+                                 counters_t *ctr_ok, counters_t *ctr_nok,
+                                 unsigned int *ack, unsigned int *errors,
+                                 unsigned int *skipped)
 {
-    unsigned int total = count + errors;
+    if (ctr_ok)
+        memset(ctr_ok, 0, sizeof(*ctr_ok));
+    if (ctr_nok)
+        memset(ctr_nok, 0, sizeof(*ctr_nok));
+    *ack = 0;
+    *errors = 0;
+    *skipped = 0;
 
+    if (feedback_before != NULL && feedback_after != NULL)
+    {
+        if (ctr_ok)
+        {
+            ctr_ok->count = feedback_after[AF_NBR_OK] - feedback_before[AF_NBR_OK];
+            ctr_ok->vol = feedback_after[AF_VOL_OK] - feedback_before[AF_VOL_OK];
+            ctr_ok->blocks = feedback_after[AF_BLOCKS_OK] - feedback_before[AF_BLOCKS_OK];
+            ctr_ok->targeted = feedback_after[AF_TARGETED_OK] - feedback_before[AF_TARGETED_OK];
+        }
+        if (ctr_nok)
+        {
+            ctr_nok->count = feedback_after[AF_NBR_NOK] - feedback_before[AF_NBR_NOK];
+            ctr_nok->vol = feedback_after[AF_VOL_NOK] - feedback_before[AF_VOL_NOK];
+            ctr_nok->blocks = feedback_after[AF_BLOCKS_NOK] - feedback_before[AF_BLOCKS_NOK];
+            ctr_nok->targeted = feedback_after[AF_TARGETED_NOK] - feedback_before[AF_TARGETED_NOK];
+        }
+    }
+    if (status_tab_before != NULL && status_tab_after != NULL)
+    {
+        *ack = ack_count(status_tab_after) - ack_count(status_tab_before);
+        *skipped = skipped_count(status_tab_after) - skipped_count(status_tab_before);
+        *errors =  error_count(status_tab_after) - error_count(status_tab_before);
+    }
+}
+
+
+/**
+ * Test if the policy run limit has been reached,
+ * or if the max error rate is reached.
+ */
+static bool check_limit(policy_info_t *policy,
+                        const counters_t *ctr_ok,
+                        unsigned int errors,
+                        const counters_t *limit)
+{
+    unsigned int total;
+
+    /* --no-limit option specified? */
     if (no_limit(policy))
-        return 0;
+        return false;
 
-    if ((policy->config->max_action_nbr > 0) &&
-        (count >= policy->config->max_action_nbr))
-    {
-        DisplayLog(verbose ? LVL_EVENT : LVL_DEBUG, tag(policy),
-                   "max count %u is reached for current run.",
-                   policy->config->max_action_nbr);
-        return 1;
-    }
-    if ((policy->config->max_action_vol > 0) &&
-        (vol >= policy->config->max_action_vol))
-    {
-        DisplayLog(verbose ? LVL_EVENT : LVL_DEBUG, tag(policy),
-                   "max volume %llu is reached for current run.",
-                   policy->config->max_action_vol);
-        return 1;
-    }
+    /* counter of successful actions reached the limit? */
+    if (counter_reached_limit(ctr_ok, limit))
+        return true;
 
+    total = ctr_ok->count + errors;
+    if (total == 0)
+        return false;
+
+    /* stop if too many error occured */
     if ((policy->config->suspend_error_pct > 0.0)
         && (policy->config->suspend_error_min > 0)
         && (errors >= policy->config->suspend_error_min))
     {
-        /* total >= errors >= suspend_error_min  > 0 */
+        /* total >= errors >= suspend_error_min  > 0
+         * => total != 0 */
         double pct = 100.0 * (float)errors/(float)total;
         if (pct >= policy->config->suspend_error_pct)
         {
-            DisplayLog(verbose ? LVL_EVENT : LVL_DEBUG, tag(policy),
+            DisplayLog(LVL_EVENT, tag(policy),
                        "error count %u >= %u, error rate %.2f%% >= %.2f => suspending policy run",
                        errors, policy->config->suspend_error_min,
                        pct, policy->config->suspend_error_pct);
-            return 1;
+            return true;
         }
     }
-
-    return 0;
+    return false;
 }
 
+/**
+ * Compute an adaptive delay (in microseconds) to check if pending requests exceed the limit.
+ * The computed value is 10% of the estimated time to process the current queue.
+ */
+#define US_1ms  1000    /* 1ms in microseconds */
+#define US_1s   1000000 /* 1sec in microseconds */
+#define MIN_CHECK_DELAY   (10 * US_1ms) /* 10ms */
+#define MAX_CHECK_DELAY   US_1s
+static unsigned long adaptive_check_delay_us(time_t policy_start,
+                                             unsigned long long nb_processed,
+                                             unsigned long long nb_pending)
+{
+    unsigned long check_delay;
+    unsigned long spent_us = US_1s * (time(NULL) - policy_start);
+    unsigned long us_per_ent;
+
+    /* compute check_delay depending on past processing speed */
+    if (spent_us == 0)
+        spent_us = 100 * US_1ms; /* default to 100ms */
+
+    if (nb_processed > 0)
+    {
+        /* how much time to process these entries? */
+        us_per_ent = spent_us / nb_processed;
+        /* how much to process 10% of current queue? */
+        check_delay = (us_per_ent * nb_pending) / 10;
+        DisplayLog(LVL_FULL, __func__, "%Lu entries processed @ %.2f ms/ent, "
+                   "%Lu pending => check delay = 10%% x %Lu ms = %lu ms",
+                   nb_processed, (float)us_per_ent/US_1ms,
+                   nb_pending, (us_per_ent * nb_pending)/US_1ms,
+                   check_delay/US_1ms);
+    }
+    else
+    {
+        /* nothing was done so far (check again in 10% x spent) */
+        check_delay = spent_us / 10;
+        DisplayLog(LVL_FULL, __func__, "No entry processed, %Lu pending => check delay = 10%% x %lu ms",
+                   nb_pending, spent_us/US_1ms);
+    }
+
+    if (check_delay > MAX_CHECK_DELAY)
+        check_delay = MAX_CHECK_DELAY;
+    else if (check_delay < MIN_CHECK_DELAY)
+        check_delay = MIN_CHECK_DELAY;
+
+    return check_delay;
+}
+
+
+/**
+ * Check if enqueued entries reach the limit.
+ * If so, wait a while to recheck after some entries have been processed.
+ * return if no more entries are pending,
+ *     or if the limit is not reached
+ *     or if the limit is definitely reached.
+ * \retval true if policy run must stop
+ * \retval false if policy run can continue
+ */
+static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
+                              const unsigned long long *feedback_before,
+                              const unsigned int *status_before,
+                              const counters_t *target_ctr)
+{
+    unsigned long long feedback_after[AF_ENUM_COUNT];
+    unsigned int status_after[AS_ENUM_COUNT];
+
+    do {
+        counters_t ctr_ok, ctr_nok, ctr_pending, ctr_pot;
+        unsigned int errors, skipped, ack;
+
+        RetrieveQueueStats(&pol->queue, NULL, NULL, NULL, NULL, NULL,
+                           status_after, feedback_after);
+
+        queue_stats2counters(feedback_before, feedback_after,
+                             status_before, status_after,
+                             &ctr_ok, &ctr_nok, &ack, &errors, &skipped);
+
+        /* compute pending conters (pushed - done) */
+        ctr_pending = *pushed;
+        ctr_pending.count -= ack;
+        ctr_pending.vol -= ctr_ok.vol + ctr_nok.vol;
+        ctr_pending.blocks -= ctr_ok.blocks + ctr_nok.blocks;
+        ctr_pending.targeted -= ctr_ok.targeted + ctr_nok.targeted;
+
+        /* compute total counter */
+        counters_add(&ctr_ok, &pol->progress.action_ctr);
+        skipped += pol->progress.skipped;
+        errors += pol->progress.errors;
+
+        /* check the limit of all acknowledged status */
+        if (check_limit(pol, &ctr_ok, errors, target_ctr))
+            return true;
+
+        /* 2) queue is empty and limit is not reached */
+        if (ctr_pending.count == 0)
+        {
+            DisplayLog(LVL_FULL, tag(pol), "queue is empty => continue enqueuing");
+            return false;
+        }
+
+        /* check the potential limit of successful + pending */
+        ctr_pot = ctr_pending;
+        counters_add(&ctr_pot, &ctr_ok);
+        DisplayLog(LVL_FULL, tag(pol), "OK requests + pending = %Lu",
+                   ctr_pot.count);
+
+        if (check_limit(pol, &ctr_pot, errors, target_ctr))
+        {
+            unsigned long check_delay =
+                            adaptive_check_delay_us(pol->progress.policy_start,
+                                                  ctr_ok.count + errors + skipped,
+                                                  ctr_pending.count);
+            DisplayLog(LVL_DEBUG, tag(pol),
+                       "Limit potentially reached (%Lu requests successful, "
+                       "%Lu requests in queue, volume: %Lu done, %Lu pending), "
+                       "waiting %lums before re-checking.", ctr_ok.count,
+                       ctr_pending.count, ctr_ok.vol, ctr_pending.vol,
+                       check_delay/US_1ms);
+            rh_usleep(check_delay);
+            continue;
+        }
+        else
+            return false;
+    } while(1);
+    RBH_BUG("This line should not be reached");
+}
 
 /**
  * build a filter from policies, to optimize DB queries.
@@ -424,33 +608,26 @@ static int set_optimization_filters(policy_info_t *policy,
     return 0;
 }
 
+/**
+ * report the current policy run progress at regular interval.
+ */
 static void report_progress(policy_info_t *policy,
                             const unsigned long long *pass_begin,
                             const unsigned long long *pass_current,
                             const unsigned int *status_tab_begin,
                             const unsigned int *status_tab_current)
 {
-    /* policy->progress.last_report contains the stats for the last pass */
-    unsigned int count = policy->progress.action_ctr.count;
-    unsigned long long vol = policy->progress.action_ctr.vol;
-    unsigned long long targeted = policy->progress.action_ctr.targeted;
-    unsigned int nb_skipped = policy->progress.skipped;
-    unsigned int nb_errors = policy->progress.errors;
+    counters_t   curr_ctr;
+    unsigned int ack, nb_errors, nb_skipped;
 
-    /* add stats for the current pass */
-    if (pass_begin && pass_current)
-    {
-        count += pass_current[AF_NBR_OK] - pass_begin[AF_NBR_OK];
-        vol += pass_current[AF_VOL_OK] - pass_begin[AF_VOL_OK];
-        targeted += pass_current[AF_TARGETED_OK] - pass_begin[AF_TARGETED_OK];
-    }
-    if (status_tab_begin && status_tab_current)
-    {
-        nb_errors = error_count(status_tab_current)
-                     - error_count(status_tab_begin);
-        nb_skipped = skipped_count(status_tab_current)
-                     - skipped_count(status_tab_begin);
-    }
+    /* get current pass counters */
+    queue_stats2counters(pass_begin, pass_current, status_tab_begin,
+                         status_tab_current, &curr_ctr, NULL, &ack,
+                         &nb_errors, &nb_skipped);
+    /* add counters of previous passes */
+    counters_add(&curr_ctr, &policy->progress.action_ctr);
+    nb_skipped += policy->progress.skipped;
+    nb_errors += policy->progress.errors;
 
     /* say hello every runtime interval */
     if (time(NULL) - policy->progress.last_report >=
@@ -463,22 +640,23 @@ static void report_progress(policy_info_t *policy,
         if (spent == 0)
             return;
         FormatDuration(buf1, 128, spent);
-        FormatFileSize(buf2, 128, vol);
-        FormatFileSize(buf3, 128, vol/spent);
+        FormatFileSize(buf2, 128, curr_ctr.vol);
+        FormatFileSize(buf3, 128, curr_ctr.vol/spent);
 
         DisplayLog(LVL_EVENT, tag(policy), "Policy is running (started %s ago): "
-                   "%u actions succeeded (%.2f/sec); volume: %s (%s/sec); "
+                   "%Lu actions succeeded (%.2f/sec); volume: %s (%s/sec); "
                    "skipped: %u; errors: %u",
-                   buf1, count, (float)count/(float)spent, buf2, buf3,
-                   nb_skipped, nb_errors);
+                   buf1, curr_ctr.count, (float)curr_ctr.count/(float)spent,
+                   buf2, buf3, nb_skipped, nb_errors);
         policy->progress.last_report = time(NULL);
     }
 }
 
 
-/** wait until the queue is empty or migrations timed-out.
- * \return 0 when the queue is empty
- *         ETIME on timeout.
+/**
+ * Wait until the queue is empty or migrations timed-out.
+ * \retval 0 when the queue is empty
+ * \retval ETIME on timeout.
  */
 static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
                             const unsigned long long * feedback_init,
@@ -507,8 +685,22 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
         nb_action_pending = nb_submitted + ack_count(status_tab_init)
                             - ack_count(status_tab_after);
 
-        if ((nb_in_queue != 0) || (nb_action_pending != 0))
+        if ((nb_in_queue > 0) || (nb_action_pending > 0))
         {
+            /* abort this pass if the last action was done a too long time ago */
+              if ((policy->config->action_timeout != 0) &&
+                 (time(NULL) - last_activity > policy->config->action_timeout))
+            {
+                DisplayLog(LVL_MAJOR, tag(policy),
+                           "Policy run time-out: %u actions inactive for %us",
+                            nb_action_pending, (unsigned int)(time(NULL) - last_activity));
+                /* don't wait for current actions to end, continue with other entries */
+                return ETIME;
+            }
+
+            report_progress(policy, feedback_init, feedback_after,
+                            status_tab_init, status_tab_after);
+
             DisplayLog(LVL_DEBUG, tag(policy),
                        "Waiting for the end of current pass: "
                        "still %u entries pending (%u in queue, %u being processed). "
@@ -516,6 +708,7 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
                        nb_action_pending, nb_in_queue,
                        nb_action_pending - nb_in_queue,
                        (unsigned int)(time(NULL) - last_activity));
+
 
             if (long_sleep)
                 rh_sleep(CHECK_QUEUE_INTERVAL);
@@ -530,11 +723,10 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
     return 0;
 }
 
-/* set attributes to be retrieved from db */
-static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
-                             attr_set_t *p_attr_set)
+/** set the mask of attributes to be retrieved from db */
+static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
 {
-    ATTR_MASK_INIT(p_attr_set);
+    uint64_t mask = 0LL;
 
     /* Retrieve at least: fullpath, last_access, size, blcks
      * because they are used for checking if info changed.
@@ -547,52 +739,49 @@ static int init_db_attr_mask(policy_info_t *policy, const policy_param_t *param,
 
 /* needed for remove operations */
 #ifdef HAVE_FID
-    ATTR_MASK_SET(p_attr_set, name);
-    ATTR_MASK_SET(p_attr_set, parent_id);
+    mask |= ATTR_MASK_name | ATTR_MASK_parent_id;
 #endif
     /* needed for posix operations, and for display */
-    ATTR_MASK_SET(p_attr_set, fullpath);
+    mask |= ATTR_MASK_fullpath;
 
 /* needed if update params != never */
     if (updt_params.md.when != UPDT_NEVER &&
         updt_params.md.when != UPDT_ALWAYS )
-        ATTR_MASK_SET(p_attr_set, md_update);
+        mask |= ATTR_MASK_md_update;
 
 #ifdef HAVE_FID
     if (updt_params.path.when != UPDT_NEVER &&
         updt_params.path.when != UPDT_ALWAYS)
-        ATTR_MASK_SET(p_attr_set, path_update);
+        mask |= ATTR_MASK_path_update;
 #endif
-    p_attr_set->attr_mask |= (1LL << policy->config->lru_sort_attr);
-    /* needed for display */
-    ATTR_MASK_SET(p_attr_set, size);
+    mask |= (1LL << policy->config->lru_sort_attr);
+    /* needed for size counter */
+    mask |= ATTR_MASK_size;
     /* depends on policy params (limits) */
     if (param->target_ctr.blocks != 0 || param->target_ctr.targeted != 0)
-        ATTR_MASK_SET(p_attr_set, blocks);
+        mask |= ATTR_MASK_blocks;
     if (param->target == TGT_POOL || param->target == TGT_OST)
     {
-        ATTR_MASK_SET(p_attr_set, stripe_info);
-        ATTR_MASK_SET(p_attr_set, stripe_items);
+        mask |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
     }
 
     /* Get attrs to match policy scope */
-    p_attr_set->attr_mask |= policy->descr->scope_mask;
+    mask |= policy->descr->scope_mask;
 
     /* needed (cached) attributes to check status from scope */
-    p_attr_set->attr_mask |= attrs_for_missing_status(p_attr_set->attr_mask, false);
+    mask |= attrs_for_missing_status(mask, false);
 
     // TODO class management
     // ATTR_MASK_SET(p_attr_set, release_class);
     // ATTR_MASK_SET(p_attr_set, rel_cl_update);
-    p_attr_set->attr_mask |= policy->descr->rules.run_attr_mask;
+    mask |= policy->descr->rules.run_attr_mask;
 
-    return 0;
+    return mask;
 }
 
-/* function to check limits:
-    -> trigger type, limits, stats
-*/
-
+/**
+ * Compute the target amount for an entry.
+ */
 static int entry2tgt_amount(const policy_param_t *p_param,
                             const attr_set_t *attrs,
                             counters_t *pcpt)
@@ -626,59 +815,374 @@ static int entry2tgt_amount(const policy_param_t *p_param,
     return 0;
 }
 
-/** check if a counter (or the sum of 2 counters) exceed the specifed limits */
-static int tgt_amount_reached(const counters_t *pcpt1, const counters_t *pcpt2, const counters_t *plimit)
+/**
+ * Check if a filesystem scan has ever been done.
+ * \retval ENOENT if no scan has been done (no complete filesystem list is available).
+ */
+static int check_scan_done(const policy_info_t *pol, lmgr_t *lmgr)
 {
-    /* no counter? */
-    if (pcpt1 == NULL && pcpt2 == NULL)
-        return FALSE;
-    /* no limit? */
-    if (plimit== NULL)
-        return FALSE;
-    if (plimit->count == 0 && plimit->vol == 0 && plimit->blocks == 0 && plimit->targeted == 0)
-        return FALSE;
+    if (!force_run(pol))
+    {
+        char timestamp[1024];
+        if (ListMgr_GetVar(lmgr, LAST_SCAN_END_TIME, timestamp) != DB_SUCCESS)
+        {
+            DisplayLog(LVL_MAJOR, tag(pol),
+                        "Full FS Scan has never been done. Policy ordering would be done on a partial list "
+                        "(use --force to apply the policy anyway).");
+            return ENOENT;
+        }
+        else
+        {
+            time_t         last_scan = atoi(timestamp);
+            struct tm      date;
 
-    /* single counter check */
-    if (pcpt2 == NULL)
-        return counter_reached_limit(pcpt1, plimit);
-
-    /* double counter check */
-    return (((plimit->count != 0) && (pcpt1->count + pcpt2->count >= plimit->count)) ||
-            ((plimit->vol != 0) && (pcpt1->vol + pcpt2->vol >= plimit->vol)) ||
-            ((plimit->blocks != 0) && (pcpt1->blocks + pcpt2->blocks >= plimit->blocks)) ||
-            ((plimit->targeted != 0) && (pcpt1->targeted + pcpt2->targeted >= plimit->targeted)));
+            localtime_r(&last_scan, &date);
+            DisplayLog(LVL_EVENT, tag(pol),
+    #ifdef HAVE_CHANGELOGS
+                        "Building policy list - last full FS Scan: "
+    #else
+                        "Building policy list from last full FS Scan: "
+    #endif
+                        "%.4d/%.2d/%.2d %.2d:%.2d:%.2d",
+                        1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                        date.tm_hour, date.tm_min, date.tm_sec);
+        }
+    }
+    return 0;
 }
 
+/**
+ * Set a DB filter and attr mask depending on the specified target.
+ * By the way, log target information for this run.
+ */
+static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_param,
+                             lmgr_filter_t  *filter, uint64_t *attr_mask)
+{
+    filter_value_t fval;
 
-/*
- *  Return ENOENT if no list is available
+    switch (p_param->target)
+    {
+        case TGT_FS:    /* apply policies to the filesystem */
+            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run");
+            return 0;
+
+        case TGT_OST:   /* apply policies to the specified OST */
+            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on OST #%u",
+                       p_param->optarg_u.index);
+
+            /* retrieve stripe info and stripe items */
+            *attr_mask |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+
+            /* retrieve files from this OST */
+            fval.value.val_uint = p_param->optarg_u.index;
+            return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_items,
+                                          EQUAL, fval, 0);
+
+        case TGT_FILE:  /* check/apply policies to the specified file */
+            /* TODO: special case? */
+            return ENOTSUP;
+
+        case TGT_POOL:  /* apply policies to the specified pool of OSTs */
+            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on pool '%s'",
+                       p_param->optarg_u.name);
+
+            *attr_mask |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+
+             /* retrieve files from this pool */
+            fval.value.val_str = p_param->optarg_u.name;
+            return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_info,
+                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                          fval, 0);
+
+        case TGT_USER:  /* apply policies to the specified user */
+            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' user files",
+                       p_param->optarg_u.name);
+
+            *attr_mask |= ATTR_MASK_owner;
+
+            /* retrieve files for this owner */
+            fval.value.val_str = p_param->optarg_u.name;
+            return lmgr_simple_filter_add(filter, ATTR_INDEX_owner,
+                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                          fval, 0);
+
+        case TGT_GROUP: /* apply policies to the specified group */
+            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' group files",
+                       p_param->optarg_u.name);
+
+            *attr_mask |= ATTR_MASK_gr_name;
+
+            /* retrieve files for this group */
+            fval.value.val_str = p_param->optarg_u.name;
+            return lmgr_simple_filter_add(filter, ATTR_INDEX_gr_name,
+                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                          fval, 0);
+
+        case TGT_CLASS: /* apply policies to the specified fileclass */
+            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on fileclass '%s'",
+                       p_param->optarg_u.name);
+
+            *attr_mask |= ATTR_MASK_fileclass;
+
+            fval.value.val_str = p_param->optarg_u.name;
+            return lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass,
+                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                          fval, 0);
+
+        default:
+            DisplayLog(LVL_CRIT, tag(pol), "ERROR: unhandled target type %u\n",
+                       p_param->target);
+            return EINVAL;
+    }
+}
+
+/** reset stats before a policy pass */
+static void init_pass_stats(policy_info_t *pol, counters_t *pushed_ctr,
+                            unsigned int   *status_tab_before,
+                            unsigned int   *status_tab_after,
+                            unsigned long long *feedback_before,
+                            unsigned long long *feedback_after)
+{
+        /* Retrieve stats before starting policy,
+         * for computing a delta later.
+         */
+        RetrieveQueueStats(&pol->queue, NULL, NULL, NULL, NULL, NULL,
+                           status_tab_before, feedback_before);
+
+        /* set pushed entries counter = 0 */
+        memset(pushed_ctr, 0, sizeof(*pushed_ctr));
+
+        /* reset after's */
+        memset(feedback_after, 0, AF_ENUM_COUNT * sizeof(*feedback_after));
+        memset(status_tab_after, 0, AS_ENUM_COUNT * sizeof(*status_tab_after));
+}
+
+static void update_pass_stats(policy_info_t *pol,
+                              unsigned int   *status_tab_before,
+                              unsigned int   *status_tab_after,
+                              unsigned long long *feedback_before,
+                              unsigned long long *feedback_after)
+{
+        /* how much has been processed, errors, skipped... */
+        pol->progress.action_ctr.count += feedback_after[AF_NBR_OK]
+                                          - feedback_before[AF_NBR_OK];
+        pol->progress.action_ctr.vol += feedback_after[AF_VOL_OK]
+                                        - feedback_before[AF_VOL_OK];
+        pol->progress.action_ctr.blocks += feedback_after[AF_BLOCKS_OK]
+                                           - feedback_before[AF_BLOCKS_OK];
+        pol->progress.action_ctr.targeted += feedback_after[AF_TARGETED_OK]
+                                             - feedback_before[AF_TARGETED_OK];
+        pol->progress.skipped += skipped_count(status_tab_after)
+                                 - skipped_count(status_tab_before);
+        pol->progress.errors += error_count(status_tab_after)
+                                - error_count(status_tab_before);
+}
+
+/** return codes of fill_workers_queue() */
+typedef enum {
+    pass_eol,
+    pass_limit,
+    pass_aborted,
+    pass_error,
+} pass_status;
+
+/**
+ * Get entries from the DB and push them to the workers queue until:
+ * - end of list is reached
+ * or:
+ * - the policy limit is potentially reached.
+ * @param attr_mask  Mask of attrs to be retrieved from the DB,
+ *                   to be able to match policy rules, scope...
+ */
+static pass_status fill_workers_queue(policy_info_t *pol,
+                              const policy_param_t *p_param,
+                              lmgr_t *lmgr,
+                              struct lmgr_iterator_t **it,
+                              const lmgr_iter_opt_t *req_opt,
+                              const lmgr_sort_type_t *sort_type,
+                              lmgr_filter_t *filter, uint64_t attr_mask,
+                              int *last_sort_time,
+                              unsigned int *db_current_list_count,
+                              unsigned int *db_total_list_count)
+{
+    int                 rc;
+    pass_status         st;
+    attr_set_t          attr_set;
+    entry_id_t          entry_id;
+    counters_t          pushed_ctr;
+    filter_value_t      fval;
+    unsigned long long  feedback_before[AF_ENUM_COUNT];
+    unsigned long long  feedback_after[AF_ENUM_COUNT];
+    unsigned int        status_tab_before[AS_ENUM_COUNT];
+    unsigned int        status_tab_after[AS_ENUM_COUNT];
+
+    init_pass_stats(pol, &pushed_ctr, status_tab_before, status_tab_after,
+                    feedback_before, feedback_after);
+
+    st = pass_limit; /* by default, exit the loop when check_queue_limit is true */
+
+    /* List entries for policy */
+    do
+    {
+        counters_t  entry_amount;
+
+        /* reset attr_mask, if it was altered by last ListMgr_GetNext() call */
+        memset(&attr_set, 0, sizeof(attr_set_t));
+        attr_set.attr_mask = attr_mask;
+
+        memset(&entry_id, 0, sizeof(entry_id_t));
+        rc = ListMgr_GetNext(*it, &entry_id, &attr_set);
+
+        if (aborted(pol))
+        {
+            /* free the last returned entry */
+            if (rc == 0)
+                ListMgr_FreeAttrs(&attr_set);
+
+            DisplayLog(LVL_MAJOR, tag(pol), "Policy run aborted, stop enqueuing requests.");
+            st = pass_aborted;
+            break;
+        }
+        else if (rc == DB_END_OF_LIST)
+        {
+            *db_total_list_count += *db_current_list_count;
+
+            /* if limit = inifinite => END OF LIST */
+            if ((*db_current_list_count == 0)
+                 || ((req_opt->list_count_max > 0) &&
+                    (*db_current_list_count < req_opt->list_count_max)))
+            {
+                DisplayLog(LVL_FULL, tag(pol), "End of list "
+                           "(%u entries returned)", *db_total_list_count);
+                st = pass_eol;
+                break;
+            }
+
+            /* no new useless request */
+            if (heuristic_end_of_list(pol, *last_sort_time))
+            {
+                st = pass_eol;
+                break;
+            }
+
+            /* Free previous iterator */
+            ListMgr_CloseIterator(*it);
+            *it = NULL;
+
+            /* we must wait that migr. queue is empty,
+             * to prevent from processing the same entry twice
+             * (not safe until their md_update has not been updated).
+             */
+            wait_queue_empty(pol, pushed_ctr.count, feedback_before,
+                             status_tab_before, feedback_after,
+                             status_tab_after, FALSE);
+
+            /* perform a new request with next entries */
+
+            /* /!\ if there is already a filter on <sort_attr> or md_update
+             * only replace it, do not add a new filter.
+             */
+
+            /* don't retrieve just-updated entries
+             * (update>=first_request_time) */
+            fval.value.val_int = pol->progress.policy_start;
+            rc = lmgr_simple_filter_add_or_replace(filter,
+                                                   ATTR_INDEX_md_update,
+                                                   LESSTHAN_STRICT, fval,
+                                                   FILTER_FLAG_ALLOW_NULL);
+            if (rc)
+                return pass_error;
+
+            /* filter on <sort_time> */
+            fval.value.val_int = *last_sort_time;
+            rc = lmgr_simple_filter_add_or_replace(filter,
+                                                   pol->config->lru_sort_attr,
+                                                   MORETHAN, fval,
+                                                   FILTER_FLAG_ALLOW_NULL);
+            if (rc)
+                return pass_error;
+
+            DisplayLog(LVL_DEBUG, tag(pol),
+                        "Performing new request with a limit of %u entries"
+                        " and %s >= %d and md_update < %ld ",
+                        req_opt->list_count_max, sort_attr_name(pol),
+                        *last_sort_time, pol->progress.policy_start);
+
+            *db_current_list_count = 0;
+            *it = ListMgr_Iterator(lmgr, filter, sort_type, req_opt);
+            if (*it == NULL)
+            {
+                DisplayLog(LVL_CRIT, tag(pol),
+                            "Error retrieving list of candidates from "
+                            "database. Policy run cancelled.");
+                return pass_error;
+            }
+            continue;
+        }
+        else if (rc != 0)
+        {
+            DisplayLog(LVL_CRIT, tag(pol), "Error %d getting next entry of iterator", rc);
+            st = pass_error;
+            break;
+        }
+
+        (*db_current_list_count)++;
+
+        rc = get_sort_attr(pol, &attr_set);
+        if (rc != -1)
+            *last_sort_time = rc;
+
+        rc = entry2tgt_amount(p_param, &attr_set, &entry_amount);
+        if (rc == -1)
+        {
+            DisplayLog(LVL_MAJOR, tag(pol), "Failed to determine target amount for entry "DFID,
+                       PFID(&entry_id));
+            /* handle next entries */
+            continue;
+        }
+
+        /* Insert candidate to workers queue */
+        rc = Queue_Insert(&pol->queue,
+                entry2queue_item(&entry_id, &attr_set, entry_amount.targeted));
+        if (rc)
+            return pass_error;
+
+        counters_add(&pushed_ctr, &entry_amount);
+
+        /* Enqueue entries to workers queue as long as the specified limit is not reached */
+    } while (!check_queue_limit(pol, &pushed_ctr, feedback_before,
+                                status_tab_before, &p_param->target_ctr));
+
+    /* Make sure the processing queue is empty. */
+    wait_queue_empty(pol, pushed_ctr.count, feedback_before,
+                     status_tab_before, feedback_after, status_tab_after, TRUE);
+
+    update_pass_stats(pol, status_tab_before, status_tab_after,
+                      feedback_before, feedback_after);
+
+    return st;
+}
+
+/**
+ * This is called by triggers (or manual policy runs) to run a pass of a policy.
+ * @param[in,out] p_pol_info   policy information and resources
+ * @param[in]     p_param      parameters of this run (target, limit, ...)
+ * @param[out]    p_summary    summary of the policy run
+ * @param[in]     lmgr         connection to the database
+ *  \retval ENOENT if no file list is available.
  */
 int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
                action_summary_t *p_summary, lmgr_t *lmgr)
 {
-    int            rc;
     struct lmgr_iterator_t *it = NULL;
-
-    lmgr_filter_t  filter;
-    filter_value_t fval;
-    lmgr_sort_type_t sort_type;
-
-    attr_set_t     attr_set = {0};
-    entry_id_t     entry_id;
-
-    unsigned long long feedback_before[AF_ENUM_COUNT];
-    unsigned long long feedback_after[AF_ENUM_COUNT];
-    unsigned int   status_tab_before[AS_ENUM_COUNT];
-    unsigned int   status_tab_after[AS_ENUM_COUNT];
-
-    counters_t submitted;
-
-    int            last_sort_time = 0;
+    int                     rc;
+    pass_status             st;
+    lmgr_filter_t           filter;
+    lmgr_sort_type_t        sort_type;
+    int                     last_sort_time = 0;
     /* XXX first_request_start = policy_start */
-    int            attr_mask_sav;
-    int            end_of_list = FALSE;
-
-    unsigned int   nb_returned, total_returned;
+    uint64_t                attr_mask;
+    unsigned int            nb_returned, total_returned;
 
     lmgr_iter_opt_t opt = LMGR_ITER_OPT_INIT;
 
@@ -693,47 +1197,15 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (p_summary)
         memset(p_summary, 0, sizeof(*p_summary));
 
-    memset(feedback_before, 0, sizeof(feedback_before));
-    memset(feedback_after, 0, sizeof(feedback_after));
-    memset(status_tab_before, 0, sizeof(status_tab_before));
-    memset(status_tab_after, 0, sizeof(status_tab_after));
-
     /* XXX previously here: interpreting target type and amount */
 
-    /**
-     * Do nothing if no previous scan was done.
-     */
-    if (!force_run(p_pol_info))
-    {
-        char timestamp[1024];
-        if (ListMgr_GetVar(lmgr, LAST_SCAN_END_TIME, timestamp) != DB_SUCCESS)
-        {
-            DisplayLog(LVL_MAJOR, tag(p_pol_info),
-                        "Full FS Scan has never been done. Policy ordering would be done on a partial list "
-                        "(use --force to apply the policy anyway).");
-            return ENOENT;
-        }
-        else
-        {
-            time_t         last_scan = atoi(timestamp);
-            struct tm      date;
-
-            localtime_r(&last_scan, &date);
-            DisplayLog(LVL_EVENT, tag(p_pol_info),
-    #ifdef HAVE_CHANGELOGS
-                        "Building policy list - last full FS Scan: "
-    #else
-                        "Building policy list from last full FS Scan: "
-    #endif
-                        "%.4d/%.2d/%.2d %.2d:%.2d:%.2d",
-                        1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                        date.tm_hour, date.tm_min, date.tm_sec);
-        }
-    }
-
-    rc = init_db_attr_mask(p_pol_info, p_param, &attr_set);
+    /* Do nothing if no previous scan was done (except if --force is specified). */
+    rc = check_scan_done(p_pol_info, lmgr);
     if (rc)
         return rc;
+
+    /* set attributes to be retrieved from DB */
+    attr_mask = db_attr_mask(p_pol_info, p_param);
 
     /* sort by last access */
     sort_type.attr_index = p_pol_info->config->lru_sort_attr; // TODO manage random
@@ -747,14 +1219,13 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (convert_boolexpr_to_simple_filter(&p_pol_info->descr->scope, &filter,
                                           p_pol_info->descr->status_mgr))
     {
-            DisplayLog(LVL_DEBUG, tag(p_pol_info),
-                       "Could not convert policy scope to simple filter.");
-            // for debug
-            abort();
+        DisplayLog(LVL_DEBUG, tag(p_pol_info),
+                   "Could not convert policy scope to simple filter.");
+        DisplayLog(LVL_EVENT, tag(p_pol_info),
+                   "Warning: scope definition is too complex and may affect policy run performance");
     }
 
-
-#if 0
+#if 0 /** @TODO rbhv3: still manage 'invalid' entries? */
 #ifdef ATTR_INDEX_invalid
     /* do not retrieve 'invalid' entries */
     fval.value.val_bool = FALSE;
@@ -774,97 +1245,12 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 #endif
 #endif
 
-    switch (p_param->target)
-    {
-        case TGT_FS:    /* apply policies to the filesystem */
-            DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run");
-            break;
+    /* set target filter and attr mask */
+    rc = set_target_filter(p_pol_info, p_param, &filter, &attr_mask);
+    if (rc)
+        return rc;
 
-        case TGT_OST:   /* apply policies to the specified OST */
-            DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on OST #%u",
-                       p_param->optarg_u.index);
-
-            /* retrieve stripe info and stripe items */
-            ATTR_MASK_SET(&attr_set, stripe_info);
-            ATTR_MASK_SET(&attr_set, stripe_items);
-
-            /* retrieve files from this OST */
-            fval.value.val_uint = p_param->optarg_u.index;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_stripe_items,
-                                        EQUAL, fval, 0);
-            if (rc)
-                return rc;
-            break;
-
-        case TGT_FILE:  /* check/apply policies to the specified file */
-            /* TODO: special case? */
-            break;
-
-        case TGT_POOL:  /* apply policies to the specified pool of OSTs */
-            DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on pool '%s'",
-                       p_param->optarg_u.name);
-            ATTR_MASK_SET(&attr_set, stripe_info);
-            ATTR_MASK_SET(&attr_set, stripe_items);
-             /* retrieve files from this pool */
-            fval.value.val_str = p_param->optarg_u.name;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_stripe_info,
-                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
-                                        fval, 0);
-            if (rc)
-                return rc;
-            break;
-
-        case TGT_USER:  /* apply policies to the specified user */
-            DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on '%s' user files",
-                       p_param->optarg_u.name);
-
-            ATTR_MASK_SET(&attr_set, owner);
-
-            /* retrieve files for this owner */
-            fval.value.val_str = p_param->optarg_u.name;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_owner,
-                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
-                                        fval, 0);
-            if (rc)
-                return rc;
-            break;
-
-        case TGT_GROUP: /* apply policies to the specified group */
-            DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on '%s' group files",
-                       p_param->optarg_u.name);
-
-            ATTR_MASK_SET(&attr_set, gr_name);
-
-            /* retrieve files for this group */
-            fval.value.val_str = p_param->optarg_u.name;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_gr_name,
-                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
-                                        fval, 0);
-            if (rc)
-                return rc;
-            break;
-
-        case TGT_CLASS: /* apply policies to the specified fileclass */
-            DisplayLog(LVL_MAJOR, tag(p_pol_info), "Starting policy run on fileclass '%s'",
-                       p_param->optarg_u.name);
-
-            ATTR_MASK_SET(&attr_set, fileclass);
-
-            fval.value.val_str = p_param->optarg_u.name;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_fileclass,
-                                        WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
-                                        fval, 0);
-            if (rc)
-                return rc;
-            break;
-
-        default:
-            DisplayLog(LVL_CRIT, tag(p_pol_info), "ERROR: unhandled target type %u\n",
-                       p_param->target);
-            return EINVAL;
-    }
-
-    /* Flushing messages before performing DB query */
+    /* Flushing messages before performing the long DB sort query */
     FlushLogs();
 
     /* add optimisation filters based on policies */
@@ -875,7 +1261,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     * that do not need fileclass update. Skip this optimization
      * if there is no 'ignore' statement.
      */
-#if 0 // FIXME implement with new fileclass management
+#if 0 // FIXME RBH v3: implement with new fileclass format
     if (policies.purge_policies.whitelist_count > 0)
     {
         if (policies.updt_policy.fileclass.policy == UPDT_NEVER)
@@ -903,7 +1289,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     }
 #endif
 
-    /* start with a limited count of entries, to save memory */
+    /* Do not retrieve all entries at once, as the result may exceed the client memory! */
     opt.list_count_max = p_pol_info->config->db_request_limit;
     nb_returned = 0;
     total_returned = 0;
@@ -918,187 +1304,51 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         return -1;
     }
 
-    attr_mask_sav = attr_set.attr_mask;
     p_pol_info->progress.policy_start = p_pol_info->progress.last_report
         = time(NULL);
 
     /* loop on all policy passes */
     do
     {
-        /* check if progress must be reported.
-         * NULL => only report about p_pol_info->progress contents
-         */
+        /* check if progress must be reported  */
         report_progress(p_pol_info, NULL, NULL, NULL, NULL);
 
-        /* Retrieve stats before starting policy,
-         * for computing a delta later.
-         */
-        RetrieveQueueStats(&p_pol_info->queue, NULL, NULL, NULL, NULL, NULL,
-                           status_tab_before, feedback_before);
-
-        memset(&submitted, 0, sizeof(submitted));
-
-        /* reset after's */
-        memset(feedback_after, 0, sizeof(feedback_after));
-        memset(status_tab_after, 0, sizeof(status_tab_after));
-
-        /* List entries for policy */
-        do
+        /* feed workers until the specified limit is reached or
+         * end of list is reached */
+        st = fill_workers_queue(p_pol_info, p_param, lmgr, &it, &opt, &sort_type,
+                                &filter, attr_mask, &last_sort_time,
+                                &nb_returned, &total_returned);
+        switch (st)
         {
-            counters_t  entry_amount;
-
-            /* reset attr_mask, if it was altered by last ListMgr_GetNext() call */
-            memset(&attr_set, 0, sizeof(attr_set_t));
-            attr_set.attr_mask = attr_mask_sav;
-
-            memset(&entry_id, 0, sizeof(entry_id_t));
-            rc = ListMgr_GetNext(it, &entry_id, &attr_set);
-
-            if (aborted(p_pol_info))
-            {
-                /* free the last returned entry */
-                if (rc == 0)
-                    ListMgr_FreeAttrs(&attr_set);
-
-                DisplayLog(LVL_MAJOR, tag(p_pol_info), "Policy run aborted, stop enqueuing requests.");
-                end_of_list = TRUE;
+            case pass_eol:
+                rc = 0;
                 break;
-            }
-            else if (rc == DB_END_OF_LIST)
-            {
-                total_returned += nb_returned;
-
-                /* if limit = inifinite => END OF LIST */
-                if ((nb_returned == 0)
-                     || ((opt.list_count_max > 0) &&
-                        (nb_returned < opt.list_count_max)))
-                {
-                    DisplayLog(LVL_FULL, tag(p_pol_info), "End of list "
-                                "(%u entries returned)", total_returned);
-                    end_of_list = TRUE;
-                    break;
-                }
-
-                /* no new useless request */
-                if (heuristic_end_of_list(p_pol_info, last_sort_time))
-                {
-                    end_of_list = TRUE;
-                    break;
-                }
-
-                /* Free previous iterator */
-                ListMgr_CloseIterator(it);
-
-                /* we must wait that migr. queue is empty,
-                 * to prevent from processing the same entry twice
-                 * (not safe until their md_update has not been updated).
-                 */
-                wait_queue_empty(p_pol_info, submitted.count, feedback_before,
-                                 status_tab_before, feedback_after,
-                                 status_tab_after, FALSE);
-
-                /* perform a new request with next entries */
-
-                /* /!\ if there is already a filter on <sort_attr> or md_update
-                 * only replace it, do not add a new filter.
-                 */
-
-                /* don't retrieve just-updated entries
-                 * (update>=first_request_time) */
-                fval.value.val_int = p_pol_info->progress.policy_start;
-                rc = lmgr_simple_filter_add_or_replace(&filter,
-                                                        ATTR_INDEX_md_update,
-                                                        LESSTHAN_STRICT, fval,
-                                                        FILTER_FLAG_ALLOW_NULL);
-                if (rc)
-                    return rc;
-
-                /* filter on <sort_time> */
-                fval.value.val_int = last_sort_time;
-                rc = lmgr_simple_filter_add_or_replace(&filter,
-                                                       p_pol_info->config->lru_sort_attr,
-                                                       MORETHAN, fval,
-                                                       FILTER_FLAG_ALLOW_NULL);
-                if (rc)
-                    return rc;
-
-                DisplayLog(LVL_DEBUG, tag(p_pol_info),
-                            "Performing new request with a limit of %u entries"
-                            " and %s >= %d and md_update < %ld ",
-                            opt.list_count_max, sort_attr_name(p_pol_info),
-                            last_sort_time, p_pol_info->progress.policy_start);
-
-                nb_returned = 0;
-                it = ListMgr_Iterator(lmgr, &filter, &sort_type, &opt);
-
-                if (it == NULL)
-                {
-                    lmgr_simple_filter_free(&filter);
-                    DisplayLog(LVL_CRIT, tag(p_pol_info),
-                                "Error retrieving list of candidates from "
-                                "database. Policy run cancelled.");
-                    return -1;
-                }
-                continue;
-            }
-            else if (rc != 0)
-            {
-                DisplayLog(LVL_CRIT, tag(p_pol_info), "Error %d getting next entry of iterator", rc);
+            case pass_aborted:
+                rc = ECANCELED;
                 break;
-            }
+            case pass_limit:
+                rc = 0;
+                break;
+            case pass_error:
+                rc = 1;
+                break;
+        }
 
-            nb_returned++;
-
-            rc = get_sort_attr(p_pol_info, &attr_set);
-            if (rc != -1)
-                last_sort_time = rc;
-
-            rc = entry2tgt_amount(p_param, &attr_set, &entry_amount);
-            if (rc == -1)
-            {
-                DisplayLog(LVL_MAJOR, tag(p_pol_info), "Failed to determine target amount for entry "DFID,
-                           PFID(&entry_id));
-                continue;
-            }
-
-            /* Insert candidate */
-            rc = Queue_Insert(&p_pol_info->queue,
-                    entry2queue_item(&entry_id, &attr_set, entry_amount.targeted));
-            if (rc)
-                return rc;
-
-            counters_add(&submitted, &entry_amount);
-
-        } while (!tgt_amount_reached(&submitted,
-                                     &p_pol_info->progress.action_ctr,
-                                     &p_param->target_ctr));
-
-        /* Wait for end of purge pass */
-        wait_queue_empty(p_pol_info, submitted.count, feedback_before,
-                         status_tab_before, feedback_after, status_tab_after, TRUE);
-
-        /* how much has been processed? errors? skipped? */
-        p_pol_info->progress.action_ctr.count += feedback_after[AF_NBR_OK] - feedback_before[AF_NBR_OK];
-        p_pol_info->progress.action_ctr.vol += feedback_after[AF_VOL_OK] - feedback_before[AF_VOL_OK];
-        p_pol_info->progress.action_ctr.blocks += feedback_after[AF_BLOCKS_OK] - feedback_before[AF_BLOCKS_OK];
-        p_pol_info->progress.action_ctr.targeted += feedback_after[AF_TARGETED_OK] - feedback_before[AF_TARGETED_OK];
-        p_pol_info->progress.skipped += skipped_count(status_tab_after) - skipped_count(status_tab_before);
-        p_pol_info->progress.errors += error_count(status_tab_after) - error_count(status_tab_before);
-
-        /* if getnext returned an error */
-        if (rc)
-            break;
-    }
-    while ((!end_of_list) &&
-           (!tgt_amount_reached(&p_pol_info->progress.action_ctr, NULL, &p_param->target_ctr)));
+        /* exit in all cases except pass_limit (double check the limit in this case):
+         * check the real amount of performed actions (progress.action_ctr) */
+    } while ((st == pass_limit) &&
+             !check_limit(p_pol_info, &p_pol_info->progress.action_ctr,
+                          p_pol_info->progress.errors, &p_param->target_ctr));
 
     lmgr_simple_filter_free(&filter);
-    ListMgr_CloseIterator(it);
+    /* iterator may have been closed in fill_workers_queue() */
+    if (it != NULL)
+        ListMgr_CloseIterator(it);
 
     if (p_summary)
         *p_summary = p_pol_info->progress;
 
-    return (aborted(p_pol_info)?ECANCELED:0);
+    return rc;
 }
 
 #ifndef _HAVE_FID               /* if entries are accessed by FID, we can always get their status */
@@ -1197,7 +1447,7 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
                           policy->descr->rules.run_attr_mask);
     }
 
-#if 0 // TODO status management (only if scope is about status)
+#if 0 // TODO RBHv3: status management (only if scope is about status)
 #ifdef ATTR_INDEX_status
 #ifdef _LUSTRE_HSM
     /* For Lustre-HSM, don't care about fresh status because 'release'
@@ -1381,7 +1631,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     ATTR(&new_attr_set, invalid) = FALSE;
 #endif
 
-#if 0 // TODO manage no_release, no_archive etc.
+#if 0 // TODO RBHv3: manage no_release, no_archive etc.
 #ifdef ATTR_INDEX_no_release
     /* check that the entry has the expected status */
     if (ATTR_MASK_TEST(&new_attr_set, no_release) && ATTR(&new_attr_set, no_release))
@@ -1399,7 +1649,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 #endif
 #endif
 
-#if 0 // TODO status management
+#if 0 // TODO RBHv3: status management
 #ifdef ATTR_INDEX_status
     if (!ATTR_MASK_TEST(&new_attr_set, status))
     {
@@ -1455,7 +1705,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
          *   - Else, perform purge, and remove entry from database /!\ nlink ?.
          */
 
-#if 0 // TODO how to handle atime check with generic policies?
+#if 0 // TODO RBHv3: how to handle atime check with generic policies?
         int atime_check = TRUE;
 
         /* for directories or links, don't check access time as it is modified
@@ -1560,7 +1810,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     attr_sav = new_attr_set;
 
     /* apply action to the entry! */
-    /* TODO action must indicate what to do with the entry
+    /* TODO RBHv3: action must indicate what to do with the entry
      * => db update, rm from filesystem etc... */
     rc = policy_action(pol, &p_item->entry_id, &new_attr_set, hints, &after_action);
 
@@ -1823,7 +2073,7 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
             return rc;
     }
 
-#if 0 // TODO manage status
+#if 0 // TODO RBHv3: manage status
     /* filter on current status RESTORE_RUNNING or RELEASE_PENDING
      * also check values with NULL status */
 
@@ -1876,7 +2126,7 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
         /* check entry */
         if (check_entry(pol, lmgr, &q_item, &q_item.entry_attr) == AS_OK)
         {
-#if 0 // TODO manage status
+#if 0 // TODO RBHv3: manage status
             /* check new status */
             if (ATTR_MASK_TEST(&q_item.entry_attr, status)
                  && (ATTR(&q_item.entry_attr, status) == STATUS_RESTORE_RUNNING))

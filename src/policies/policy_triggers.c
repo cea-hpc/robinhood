@@ -1163,10 +1163,10 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
     else
     {
         update_trigger_status(pol, trigger_index, TRIG_CHECK_ERROR);
-        DisplayLog(LVL_CRIT, tag(pol), "Error running policy on %s: %s. "
+        DisplayLog(LVL_CRIT, tag(pol), "Error running policy on %s. "
                    "%Lu successful actions; volume: %s; %u entries skipped; %u errors.",
                    param2targetstr(param, buff, sizeof(buff)),
-                   strerror(policy_rc), summary->action_ctr.count, vol_buff,
+                   summary->action_ctr.count, vol_buff,
                    summary->skipped, summary->errors);
 
 //      sprintf(buff, "Error releasing data in %s", global_config.fs_path);
