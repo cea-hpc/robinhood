@@ -43,18 +43,15 @@
 #define check_only(_p) ((_p)->flags & FLAG_CHECK_ONLY)
 #define one_shot(_p) ((_p)->flags & FLAG_ONCE)
 
-/* info about all runing policies */
-//policy_runs_t policy_runs = { NULL, 0 };
-
 static void update_trigger_status(policy_info_t *pol, int i, trigger_status_t state)
 {
-    if (i != -1)
-    {
-        pol->trigger_info[i].status = state;
+    if (i < 0)
+        return;
 
-        if (state == TRIG_BEING_CHECKED)
-            pol->trigger_info[i].last_check = time(NULL);
-    }
+    pol->trigger_info[i].status = state;
+
+    if (state == TRIG_BEING_CHECKED)
+        pol->trigger_info[i].last_check = time(NULL);
 }
 
 
@@ -89,11 +86,12 @@ static bool CheckFSDevice(policy_info_t *pol)
     return true;
 }
 
-static unsigned long FSInfo2Blocs512(unsigned long nb_blocks, unsigned long sz_blocks)
+static unsigned long long FSInfo2Blocs512(unsigned long long nb_blocks,
+                                          unsigned long long sz_blocks)
 {
     uint64_t       total_sz;
-    unsigned long  nb_blocks_512;
-    unsigned long  rest;
+    unsigned long long nb_blocks_512;
+    unsigned long long rest;
 
     /* avoid useless computations */
     if (sz_blocks == DEV_BSIZE)
@@ -116,7 +114,7 @@ static unsigned long FSInfo2Blocs512(unsigned long nb_blocks, unsigned long sz_b
 static inline int statfs2usage(const struct statfs *p_statfs,
                                unsigned long long *used_vol,
                                double *used_pct,
-                               unsigned long *total_blocks,
+                               unsigned long long *total_blocks,
                                const char *storage_descr)
 {
     /* check df consistency:
@@ -152,12 +150,11 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
                             const struct statfs *p_statfs, unsigned long long *to_be_purged_512,
                             double *p_used_pct)
 {
-    unsigned long  total_user_blocks, block_target;
-    char           tmp1[128];
-    char           tmp2[128];
-    double         used_pct;
-    unsigned long long used_vol;
-    char           buff[1024];
+    unsigned long long  total_user_blocks, block_target, used_vol;
+    double              used_pct;
+    char                tmp1[128];
+    char                tmp2[128];
+    char                buff[1024];
     int rc;
 
     *to_be_purged_512 = 0; /* FIXME 'purged' is policy specific */
@@ -173,8 +170,8 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
     /* is this a condition on volume or percentage ? */
     if (p_trigger->hw_type == VOL_THRESHOLD)
     {
-        FormatFileSize(tmp1, 128, used_vol);
-        FormatFileSize(tmp2, 128, p_trigger->hw_volume);
+        FormatFileSize(tmp1, sizeof(tmp1), used_vol);
+        FormatFileSize(tmp2, sizeof(tmp2), p_trigger->hw_volume);
 
         /* compare used volume to threshold */
         DisplayLog(LVL_VERB, TAG, "%s usage: %s / high threshold: %s", storage_descr,
@@ -188,24 +185,24 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
         }
         else if (p_trigger->alert_hw)
         {
-           snprintf(buff, 1024, "High threshold reached on %s", storage_descr);
+           snprintf(buff, sizeof(buff), "High threshold reached on %s", storage_descr);
            RaiseAlert(buff, "%s\nspaced used: %s (%.2f%%), high threshold: %s",
                       buff, tmp1, used_pct, tmp2);
         }
         else
         {
             DisplayLog(LVL_MAJOR, TAG, "High threshold reached on %s (%s): "
-                        "spaced used: %s (%.2f%%), high threshold: %s",
-                        storage_descr, global_config.fs_path, tmp1, used_pct, tmp2);
+                       "spaced used: %s (%.2f%%), high threshold: %s",
+                       storage_descr, global_config.fs_path, tmp1, used_pct, tmp2);
         }
     }
     else if (p_trigger->hw_type == PCT_THRESHOLD)
     {
-        unsigned long  used_hw =
-            (unsigned long) ((p_trigger->hw_percent * total_user_blocks) / 100.0);
+        unsigned long long used_hw =
+            (unsigned long long) ((p_trigger->hw_percent * total_user_blocks) / 100.0);
 
         DisplayLog(LVL_VERB, TAG,
-                    "%s usage: %.2f%% (%"PRIu64" blocks) / high threshold: %.2f%% (%lu blocks)",
+                    "%s usage: %.2f%% (%"PRIu64" blocks) / high threshold: %.2f%% (%llu blocks)",
                     storage_descr, used_pct, p_statfs->f_blocks - p_statfs->f_bfree,
                     p_trigger->hw_percent, used_hw);
 
@@ -217,17 +214,18 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
         }
         else if (p_trigger->alert_hw)
         {
-           FormatFileSize(tmp1, 128, used_vol);
-           snprintf(buff, 1024, "High threshold reached on %s", storage_descr);
+           FormatFileSize(tmp1, sizeof(tmp1), used_vol);
+           snprintf(buff, sizeof(buff), "High threshold reached on %s", storage_descr);
            RaiseAlert(buff, "%s\nspaced used: %s (%.2f%%), high threshold: %.2f%%",
                       buff, tmp1, used_pct, p_trigger->hw_percent);
         }
         else
         {
-            FormatFileSize(tmp1, 128, used_vol);
+            FormatFileSize(tmp1, sizeof(tmp1), used_vol);
             DisplayLog(LVL_MAJOR, TAG, "High threshold reached on %s (%s): "
-                        "spaced used: %s (%.2f%%), high threshold: %.2f%%",
-                        storage_descr, global_config.fs_path,  tmp1, used_pct, p_trigger->hw_percent);
+                       "spaced used: %s (%.2f%%), high threshold: %.2f%%",
+                       storage_descr, global_config.fs_path,  tmp1, used_pct,
+                       p_trigger->hw_percent);
         }
     }
 
@@ -239,14 +237,14 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
         block_target = (p_trigger->lw_volume / p_statfs->f_bsize);
         if (p_trigger->lw_volume % p_statfs->f_bsize)
             block_target++;
-        DisplayLog(LVL_VERB, TAG, "Target usage volume: %s (%lu blocks)",
-                    FormatFileSize(tmp1, 128, p_trigger->lw_volume), block_target);
+        DisplayLog(LVL_VERB, TAG, "Target usage volume: %s (%llu blocks)",
+                    FormatFileSize(tmp1, sizeof(tmp1), p_trigger->lw_volume), block_target);
     }
     else if (p_trigger->lw_type == PCT_THRESHOLD)
     {
         block_target =
-            (unsigned long) ((p_trigger->lw_percent * (double) total_user_blocks) / 100.0);
-        DisplayLog(LVL_VERB, TAG, "Target usage percentage: %.2f%% (%lu blocks)",
+            (unsigned long long) ((p_trigger->lw_percent * (double) total_user_blocks) / 100.0);
+        DisplayLog(LVL_VERB, TAG, "Target usage percentage: %.2f%% (%llu blocks)",
                     p_trigger->lw_percent, block_target);
     }
     else
@@ -268,7 +266,7 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
                          p_statfs->f_bsize);
 
     DisplayLog(LVL_EVENT, TAG,
-                "%llu blocks (x%u) must be purged on %s (used=%"PRIu64", target=%lu, block size=%zu)",
+                "%llu blocks (x%u) must be purged on %s (used=%"PRIu64", target=%llu, block size=%zu)",
                 *to_be_purged_512, DEV_BSIZE, storage_descr, p_statfs->f_blocks - p_statfs->f_bfree,
                 block_target, p_statfs->f_bsize);
 
@@ -328,7 +326,7 @@ static int check_count_thresholds(trigger_item_t *p_trigger,
     else if (p_trigger->alert_hw)
     {
        char buff[1024];
-       snprintf(buff, 1024, "High threshold reached on %s", storage_descr);
+       snprintf(buff, sizeof(buff), "High threshold reached on %s", storage_descr);
        RaiseAlert(buff, "%s\nentry count: %llu, high threshold: %llu",
                   buff, inode_used, p_trigger->hw_count);
     }
@@ -355,15 +353,18 @@ static int check_count_thresholds(trigger_item_t *p_trigger,
 /* -------- NEW CODE -------- */
 
 /** get the total number of usable blocks in the filesystem */
-static int total_blocks(unsigned long *total_user_blocks, unsigned long *bsize)
+static int total_blocks(unsigned long long *total_user_blocks,
+                        unsigned long long *bsize)
 {
     struct statfs  stfs;
     char traverse_path[RBH_PATH_MAX];
+
     snprintf(traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path);
 
-    if (statfs( traverse_path, &stfs ) != 0)
+    if (statfs(traverse_path, &stfs) != 0)
     {
         int err = errno;
+
         DisplayLog(LVL_CRIT, TAG, "Could not make a 'df' on %s: error %d: %s",
                    global_config.fs_path, err, strerror(err));
         return err;
@@ -380,12 +381,13 @@ static int get_fs_usage(policy_info_t *pol, struct statfs *stfs)
     snprintf(traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path);
 
     if (!CheckFSDevice(pol))
-        return ENXIO;
+        return ENODEV;
 
     /* retrieve filesystem usage info */
     if (statfs(traverse_path, stfs) != 0)
     {
         int err = errno;
+
         DisplayLog(LVL_CRIT, tag(pol), "Could not make a 'df' on %s: error %d: %s",
                    global_config.fs_path, err, strerror(err));
         return err;
@@ -408,7 +410,7 @@ static bool check_maintenance_mode(policy_info_t *pol,
     if (pol->config->pre_maintenance_window == 0)
         return false;
 
-    /* check maintenance mod */
+    /* check maintenance mode */
     if ((ListMgr_GetVar(&pol->lmgr, NEXT_MAINT_VAR, varstr) != DB_SUCCESS)
          || EMPTY_STRING(varstr))
         return false;
@@ -418,7 +420,7 @@ static bool check_maintenance_mode(policy_info_t *pol,
         return false;
 
     /* build maintenance date */
-    strftime(datestr, 128, "%Y/%m/%d %T", localtime_r(&next_maint, &dt));
+    strftime(datestr, sizeof(datestr), "%Y/%m/%d %T", localtime_r(&next_maint, &dt));
 
     now = time(NULL);
     if (next_maint < now)
@@ -429,7 +431,7 @@ static bool check_maintenance_mode(policy_info_t *pol,
     }
     else if (now < next_maint - pol->config->pre_maintenance_window)
     {
-        FormatDuration(leftstr, 128, next_maint -
+        FormatDuration(leftstr, sizeof(leftstr), next_maint -
                        pol->config->pre_maintenance_window - now);
 
         DisplayLog(LVL_VERB, TAG, "Maintenance time is set (%s): "
@@ -443,7 +445,7 @@ static bool check_maintenance_mode(policy_info_t *pol,
                               (double)pol->config->pre_maintenance_window;
         p_mod->time_min = pol->config->maint_min_apply_delay;
 
-        FormatDuration(leftstr, 128, next_maint - now);
+        FormatDuration(leftstr, sizeof(leftstr), next_maint - now);
         DisplayLog(LVL_MAJOR, TAG, "Currently in maintenance mode "
                    "(maintenance is in %s): time modifier = %.2f%%",
                    leftstr, 100.0 * p_mod->time_factor);
@@ -553,17 +555,17 @@ static inline bool ost_list_is_member(struct ost_list *l,
 static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
                        struct ost_list *excluded)
 {
-    int             ost_index,
-                    rc = 0;
-    int             ost_max = -1;
-    unsigned long   ost_blocks;
-    struct statfs   stat_max,
-                    stat_tmp;
-    double          max_pct = 0.0,
-                    curr_pct;
-    unsigned long long max_vol = 0LL,
-                    curr_vol;
-    char           ostname[128];
+    int                 ost_index,
+                        rc = 0;
+    int                 ost_max = -1;
+    unsigned long long  ost_blocks;
+    struct statfs       stat_max,
+                        stat_tmp;
+    double              max_pct = 0.0,
+                        curr_pct;
+    unsigned long long  max_vol = 0LL,
+                        curr_vol;
+    char                ostname[128];
 
     for (ost_index = 0;; ost_index++)
     {
@@ -577,7 +579,7 @@ static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
             /* continue with next OSTs */
             continue;
 
-        snprintf(ostname, 128, "OST #%u", ost_index);
+        snprintf(ostname, sizeof(ostname), "OST #%u", ost_index);
         if (statfs2usage(&stat_tmp, &curr_vol, &curr_pct, &ost_blocks, ostname))
             /* continue with next OSTs */
             continue;
@@ -616,7 +618,7 @@ static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
 
 /** build report argument for a user or group */
 static void build_user_report_descr(report_field_descr_t info[], trigger_item_t *trig,
-                                    unsigned long high_blk)
+                                    unsigned long long high_blk)
 {
         info[0].attr_index = (trig->target_type == TGT_USER ? ATTR_INDEX_owner :
                               ATTR_INDEX_gr_name);
@@ -648,6 +650,7 @@ static void build_user_report_descr(report_field_descr_t info[], trigger_item_t 
 /** build request filter for user or group triggers */
 static void build_user_report_filter(lmgr_filter_t *filter, trigger_item_t *trig)
 {
+    int            i;
     filter_value_t fv;
     int attr_index = (trig->target_type == TGT_USER ? ATTR_INDEX_owner :
                       ATTR_INDEX_gr_name);
@@ -661,27 +664,27 @@ static void build_user_report_filter(lmgr_filter_t *filter, trigger_item_t *trig
      * If there are several users/groups, add a OR sequence:
      * AND (owner LIKE ... OR owner LIKE ...)
      */
-    if (trig->list_size == 1)
+    for (i = 0; i < trig->list_size; i++)
     {
-        fv.value.val_str = trig->list[0];
-        lmgr_simple_filter_add(filter, attr_index, LIKE, fv, 0);
-    }
-    else if (trig->list_size > 1)
-    {
-        int i;
+        int flag = 0;
 
-        fv.value.val_str = trig->list[0];
-        lmgr_simple_filter_add(filter, attr_index, LIKE, fv,
-                               FILTER_FLAG_BEGIN);
-        for (i = 1; i < trig->list_size-1; i++)
-        {
-            fv.value.val_str = trig->list[i];
-            lmgr_simple_filter_add(filter, attr_index, LIKE, fv,
-                                   FILTER_FLAG_OR);
-        }
         fv.value.val_str = trig->list[i];
-        lmgr_simple_filter_add(filter, attr_index, LIKE, fv,
-                               FILTER_FLAG_OR | FILTER_FLAG_END);
+
+        /* add parenthesis and 'OR' for lists of items */
+        if (trig->list_size > 1)
+        {
+            if (i == 0) /* first item */
+                flag |= FILTER_FLAG_BEGIN;
+            else if (i == trig->list_size - 1) /* last item */
+                flag |= FILTER_FLAG_END;
+
+            /* add OR (except for the first item) */
+            if (i > 0)
+                flag |= FILTER_FLAG_OR;
+        }
+        /* else: single value in list => flag = 0 */
+
+        lmgr_simple_filter_add(filter, attr_index, LIKE, fv, flag);
     }
 }
 
@@ -693,6 +696,7 @@ static int check_statfs_thresholds(trigger_item_t *trig, const char *tgt_name,
     int rc;
     double tmp_usage = 0.0;
     unsigned long long tmp_count = 0;
+
     if (is_count_trigger(trig))
     {
         /* inode count */
@@ -706,7 +710,7 @@ static int check_statfs_thresholds(trigger_item_t *trig, const char *tgt_name,
         /* block threshold */
         rc = check_blocks_thresholds(trig, tgt_name, stfs, &limit->blocks,
                                      &tmp_usage);
-        if (tmp_usage > tinfo->last_usage)
+        if (rc == 0 && tmp_usage > tinfo->last_usage)
             tinfo->last_usage = tmp_usage;
     }
     else
@@ -724,7 +728,7 @@ static int check_statfs_thresholds(trigger_item_t *trig, const char *tgt_name,
 static int check_report_thresholds(trigger_item_t *p_trigger,
                                    db_value_t     *result, unsigned int res_count,
                                    counters_t *limit, trigger_info_t *tinfo,
-                                   unsigned long low_blk512, unsigned long high_blk512)
+                                   unsigned long long low_blk512, unsigned long long high_blk512)
 {
     const char *what = (p_trigger->target_type == TGT_USER ? "user" : "group");
     char buff[1024];
@@ -737,8 +741,8 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
 
     if (is_count_trigger(p_trigger))
     {
-        DisplayLog(LVL_EVENT, TAG,
-                   "%s '%s' exceeds high threshold: used: %llu inodes / high threshold: %llu inodes.",
+        DisplayLog(LVL_EVENT, TAG, "%s '%s' exceeds high threshold: "
+                   "used: %llu inodes / high threshold: %llu inodes.",
                    what, result[0].value_u.val_str,
                    result[1].value_u.val_biguint, p_trigger->hw_count);
 
@@ -769,10 +773,10 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
         if (p_trigger->hw_type == VOL_THRESHOLD)
             FormatFileSize(hw_str, sizeof(hw_str), p_trigger->hw_volume);
         else if (p_trigger->hw_type == PCT_THRESHOLD)
-            snprintf(hw_str, sizeof(128), "%.2f%%", p_trigger->hw_percent);
+            snprintf(hw_str, sizeof(hw_str), "%.2f%%", p_trigger->hw_percent);
 
         DisplayLog(LVL_EVENT, TAG,
-                   "%s '%s' exceeds high threshold: used: %llu blocks / high threshold: %lu blocks (x%u).",
+                   "%s '%s' exceeds high threshold: used: %llu blocks / high threshold: %llu blocks (x%u).",
                    what, result[0].value_u.val_str,
                    result[1].value_u.val_biguint, high_blk512,
                    DEV_BSIZE);
@@ -780,14 +784,15 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
         limit->blocks = result[1].value_u.val_biguint - low_blk512;
 
         DisplayLog(LVL_EVENT, TAG,
-                   "%llu blocks (x%u) must be purged for %s '%s' (used=%llu, target=%lu)", /* FIXME 'purged' is policy specific */
+                   "%llu blocks (x%u) must be purged for %s '%s' (used=%llu, target=%llu)", /* FIXME 'purged' is policy specific */
                    limit->blocks, DEV_BSIZE, what, result[0].value_u.val_str,
                    result[1].value_u.val_biguint, low_blk512);
 
         if (p_trigger->alert_hw)
         {
             char usage_str[128];
-            FormatFileSize(usage_str, 128, result[1].value_u.val_biguint * 512);
+
+            FormatFileSize(usage_str, sizeof(usage_str), result[1].value_u.val_biguint * 512);
             snprintf(buff, sizeof(buff), "Volume quota exceeded for %s '%s' (in %s)",
                      what, result[0].value_u.val_str, global_config.fs_path);
             RaiseAlert(buff, "%s\n%s:       %s\nquota:      %s\nspace used: %s",
@@ -813,20 +818,19 @@ typedef struct target_iterator_t {
 #endif
    } info_u;
    /* for user and groups vol/pct thresholds: save high and low values (in blocks) */
-   unsigned long high_blk512;
-   unsigned long low_blk512;
+   unsigned long long high_blk512;
+   unsigned long long low_blk512;
 } target_iterator_t;
 
 /** compute user blocks and save them into it structure */
 static int compute_user_blocks(trigger_item_t *trig, target_iterator_t *it)
 {
     int rc;
-    unsigned long tb, bs;
+    unsigned long long tb, bs;
 
     /* check users or groups (possible filter on specified users) */
     /* build the DB report iterator */
-    if ((trig->hw_type == PCT_THRESHOLD) ||
-        (trig->lw_type == PCT_THRESHOLD))
+    if ((trig->hw_type == PCT_THRESHOLD) || (trig->lw_type == PCT_THRESHOLD))
     {
         rc = total_blocks(&tb, &bs);
         if (rc)
@@ -1028,6 +1032,7 @@ static int trig_target_next(target_iterator_t *it, target_u *tgt,
     {
         db_value_t     result[2];
         unsigned int   result_count = 2;
+
         while ((rc = ListMgr_GetNextReportItem(it->info_u.db_report,
                         result, &result_count, NULL)) == DB_SUCCESS)
         {
@@ -1195,7 +1200,7 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
     char buff[1024];
 
     if (!CheckFSDevice(pol))
-        return ENXIO;
+        return ENODEV;
 
     memset(&param, 0, sizeof(param));
 
@@ -1221,35 +1226,36 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
                 &pol->trigger_info[trigger_index])) == 0
          && !pol->aborted) /* recheck condition as trig_target_next() can be long */
     {
-        if (!check_only(pol))
+        /* check is done and logged in trig_target_next() */
+        if (check_only(pol))
+            continue;
+
+        /* complete computed limits with policy and trigger limits */
+        set_limits(pol, trig, &param.target_ctr);
+
+        if(check_maintenance_mode(pol, &tmod))
+            param.time_mod = &tmod;
+
+        /* run actions! */
+        DisplayLog(LVL_EVENT, tag(pol), "Applying policy rules to %s",
+                   param2targetstr(&param, buff, sizeof(buff)));
+        update_trigger_status(pol, trigger_index, TRIG_RUNNING);
+
+        memset(&summary, 0, sizeof(summary));
+        /* run the policy */
+        rc = run_policy(pol, &param, &summary, &pol->lmgr);
+
+        report_policy_run(pol, &param, &summary, &pol->lmgr, trigger_index,
+                          rc);
+
+        /* post apply sleep? */
+        if (!pol->aborted && counter_is_set(&summary.action_ctr) &&
+            trig->post_trigger_wait > 0)
         {
-            /* complete computed limits with policy and trigger limits */
-            set_limits(pol, trig, &param.target_ctr);
-
-            if(check_maintenance_mode(pol, &tmod))
-                param.time_mod = &tmod;
-
-            /* run actions! */
-            DisplayLog(LVL_EVENT, tag(pol), "Applying policy rules to %s",
-                       param2targetstr(&param, buff, sizeof(buff)));
-            update_trigger_status(pol, trigger_index, TRIG_RUNNING);
-
-            memset(&summary, 0, sizeof(summary));
-            /* run the policy */
-            rc = run_policy(pol, &param, &summary, &pol->lmgr);
-
-            report_policy_run(pol, &param, &summary, &pol->lmgr, trigger_index,
-                              rc);
-
-            /* post apply sleep? */
-            if (!pol->aborted && counter_is_set(&summary.action_ctr) &&
-                trig->post_trigger_wait > 0)
-            {
-                DisplayLog(LVL_EVENT, tag(pol),
-                           "Waiting %lus before checking other trigger targets.",
-                           trig->post_trigger_wait);
-                rh_sleep( trig->post_trigger_wait);
-            }
+            DisplayLog(LVL_EVENT, tag(pol),
+                       "Waiting %lus before checking other trigger targets.",
+                       trig->post_trigger_wait);
+            rh_sleep(trig->post_trigger_wait);
         }
     }
     trig_target_end(&it);
@@ -1299,7 +1305,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
 
     if (!CheckFSDevice(pol))
     {
-        rc = ENXIO;
+        rc = ENODEV;
         goto out;
     }
 
@@ -1501,7 +1507,7 @@ static void *trigger_check_thr(void *thr_arg)
         /* Finaly update max_usage in persistent stats */
         if (max_usage > 0.0)
         {
-            snprintf(tmpstr, 128, "%.2f", max_usage);
+            snprintf(tmpstr, sizeof(tmpstr), "%.2f", max_usage);
             if (ListMgr_SetVar(&pol->lmgr, USAGE_MAX_VAR, tmpstr) != DB_SUCCESS)
                 DisplayLog(LVL_CRIT, tag(pol),
                            "Error updating value of "USAGE_MAX_VAR
@@ -1727,28 +1733,28 @@ int policy_module_wait(policy_info_t *policy)
 }
 
 static void print_ctr(int level, const char *tag, const char *header,
-                      const counters_t* cpt, policy_target_t tgt_type)
+                      const counters_t* ctr, policy_target_t tgt_type)
 {
     char buff[256];
 
-    if (!counter_is_set(cpt))
+    if (!counter_is_set(ctr))
     {
         DisplayLog(level, tag, "%s: none", header);
         return;
     }
 
-    FormatFileSize(buff, sizeof(buff), cpt->vol);
+    FormatFileSize(buff, sizeof(buff), ctr->vol);
 
     if (tgt_type == TGT_OST || tgt_type == TGT_POOL)
     {
         DisplayLog(level, tag, "%s: %llu entries, total volume %s "
                    "(%llu blocks, %llu in target devices)", header,
-                   cpt->count, buff, cpt->blocks, cpt->targeted);
+                   ctr->count, buff, ctr->blocks, ctr->targeted);
     }
     else
     {
         DisplayLog(level, tag, "%s: %llu entries, total volume %s "
-                   "(%llu blocks)", header, cpt->count, buff, cpt->blocks);
+                   "(%llu blocks)", header, ctr->count, buff, ctr->blocks);
     }
 }
 
@@ -1775,7 +1781,7 @@ void policy_module_dump_stats(policy_info_t *policy)
     {
         for (i = 0; i < policy->config->trigger_count; i++)
         {
-            snprintf(trigstr, 256, "Trigger #%u (%s)", i,
+            snprintf(trigstr, sizeof(trigstr), "Trigger #%u (%s)", i,
                      trigger2str(&policy->config->trigger_list[i]));
 
             switch (policy->trigger_info[i].status)
@@ -1790,18 +1796,18 @@ void policy_module_dump_stats(policy_info_t *policy)
                 DisplayLog(LVL_MAJOR, "STATS", "%-30s: running.", trigstr);
                 break;
             case TRIG_OK:      /* no purge is needed */
-                strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
                          localtime_r(&policy->trigger_info[i].last_check, &paramtm));
                 DisplayLog(LVL_MAJOR, "STATS", "%-30s: OK (last check: %s).", trigstr, tmp_buff);
                 break;
             case TRIG_NO_LIST: /* no list available */
-                strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
                          localtime_r(&policy->trigger_info[i].last_check, &paramtm));
                 DisplayLog(LVL_MAJOR, "STATS", "%-30s: no list available (last check: %s).",
                            trigstr, tmp_buff);
                 break;
             case TRIG_NOT_ENOUGH:      /* not enough candidates */
-                strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
                          localtime_r(&policy->trigger_info[i].last_check, &paramtm));
                 DisplayLog(LVL_MAJOR, "STATS",
                            "%-30s: last run (%s) was incomplete: not enough candidate entries.",
@@ -1809,14 +1815,14 @@ void policy_module_dump_stats(policy_info_t *policy)
                 break;
 
             case TRIG_CHECK_ERROR:     /* Misc Error */
-                strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
                          localtime_r(&policy->trigger_info[i].last_check, &paramtm));
                 DisplayLog(LVL_MAJOR, "STATS", "%-30s: last check failed (%s).",
                            trigstr, tmp_buff);
                 break;
 
             case TRIG_ABORTED:     /*  */
-                strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
                          localtime_r(&policy->trigger_info[i].last_check, &paramtm));
                 DisplayLog(LVL_MAJOR, "STATS", "%-30s: last run aborted (%s)", trigstr,
                            tmp_buff);
@@ -1859,14 +1865,14 @@ void policy_module_dump_stats(policy_info_t *policy)
         DisplayLog(LVL_MAJOR, "STATS", "%llu actions successful/%llu, %s (%llu blocks, %llu in target devices)",
                    feedback_tab[AF_NBR_OK],
                    feedback_tab[AF_NBR_OK]+feedback_tab[AF_NBR_NOK],
-                   FormatFileSize(tmp_buff, 256, feedback_tab[AF_VOL_OK]),
+                   FormatFileSize(tmp_buff, sizeof(tmp_buff), feedback_tab[AF_VOL_OK]),
                    feedback_tab[AF_BLOCKS_OK],
                    feedback_tab[AF_TARGETED_OK]);
     else
          DisplayLog(LVL_MAJOR, "STATS", "%llu actions successful/%llu, %s (%llu blocks)",
                    feedback_tab[AF_NBR_OK],
                    feedback_tab[AF_NBR_OK]+feedback_tab[AF_NBR_NOK],
-                   FormatFileSize(tmp_buff, 256, feedback_tab[AF_VOL_OK]),
+                   FormatFileSize(tmp_buff, sizeof(tmp_buff), feedback_tab[AF_VOL_OK]),
                    feedback_tab[AF_BLOCKS_OK]);
 
 
