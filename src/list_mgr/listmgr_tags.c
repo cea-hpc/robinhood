@@ -30,7 +30,7 @@
  * \param reset indicate if the table is cleaned in case it already exists.
  */
 int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
-                      lmgr_filter_t * p_filter, int reset)
+                      lmgr_filter_t * p_filter, bool reset)
 {
     char select[4096];
     char query[4096];
@@ -83,23 +83,23 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
         /* need to build filters to populate the table */
 
         /* on which table is the filter? */
-        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
-                                  FALSE, TRUE );
+        filter_main = filter2str(p_mgr, filter_str_main, p_filter, T_MAIN,
+                                 false, true);
 
-        if ( annex_table )
-            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                     T_ANNEX, ( filter_main > 0 ), TRUE );
+        if (annex_table)
+            filter_annex = filter2str(p_mgr, filter_str_annex, p_filter,
+                                      T_ANNEX, (filter_main > 0), true);
         else
             filter_annex = 0;
 
         filter_stripe_info =
-            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                      ( filter_main > 0 ) || ( filter_annex > 0 ), TRUE );
+            filter2str(p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
+                       (filter_main > 0) || (filter_annex > 0), true);
 
         filter_stripe_items =
-            filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
-                      ( filter_main > 0 ) || ( filter_annex > 0 )
-                      || ( filter_stripe_info > 0 ), TRUE );
+            filter2str(p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
+                       (filter_main > 0) || (filter_annex > 0)
+                       || (filter_stripe_info > 0), true);
 
         if (filter_main && !( filter_annex || filter_stripe_items || filter_stripe_info ))
         {

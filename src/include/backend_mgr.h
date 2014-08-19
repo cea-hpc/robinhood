@@ -22,17 +22,18 @@ typedef struct backend_config_t
     char shook_cfg[RBH_PATH_MAX];
 #endif
     unsigned int copy_timeout; /* 0=disabled */
-    unsigned int xattr_support:1;
-    unsigned int check_mounted:1;
-    unsigned int archive_symlinks:1;
-    unsigned int sync_archive_data:1;
-    unsigned int compress:1;
-    unsigned int sendfile:1;
+    bool xattr_support;
+    bool check_mounted;
+    bool archive_symlinks;
+    bool sync_archive_data;
+    bool compress;
+    bool sendfile;
 } backend_config_t;
 
 int            SetDefault_Backend_Config( void *module_config, char *msg_out );
-int            Read_Backend_Config( config_file_t config,
-                                    void *module_config, char *msg_out, int for_reload );
+int            Read_Backend_Config(config_file_t config,
+                                   void *module_config, char *msg_out,
+                                   bool for_reload);
 int            Reload_Backend_Config( void *module_config );
 int            Write_Backend_ConfigTemplate( FILE * output );
 int            Write_Backend_ConfigDefault( FILE * output );

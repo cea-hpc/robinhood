@@ -121,7 +121,7 @@ type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
 mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
 nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
 md_update,	unsigned int, DB_UINT, 0, FREQ_ACCESS
-invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
+invalid, 	bool, DB_BOOL, 0, FREQ_ACCESS
 
 # fileclasses and last update
 fileclass,        char,           DB_TEXT,   1024,   FREQ_ACCESS

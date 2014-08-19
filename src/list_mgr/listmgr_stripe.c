@@ -54,9 +54,8 @@ int update_stripe_info(lmgr_t *p_mgr, PK_ARG_T pk, int validator,
         ATTR(&fake_attr, stripe_items) = *p_items;
     }
 
-    return batch_insert_stripe_info(p_mgr, list, &validator, &p_attr, 1, TRUE);
+    return batch_insert_stripe_info(p_mgr, list, &validator, &p_attr, 1, true);
 }
-
 
 int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                         int validator, const stripe_info_t * p_stripe,
@@ -86,7 +85,7 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
 
 int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
                              attr_set_t **p_attrs,
-                             unsigned int count, int update_if_exists)
+                             unsigned int count, bool update_if_exists)
 {
     int     i, rc;
     unsigned int total_si;
@@ -411,7 +410,7 @@ int ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
     entry_id2pk(p_id, PTR_PK(pk));
 retry:
     rc = insert_stripe_info(p_mgr, pk, validator, p_stripe_info, p_stripe_items,
-                            TRUE);
+                            true);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
 

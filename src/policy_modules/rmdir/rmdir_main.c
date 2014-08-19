@@ -161,7 +161,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
         }
 
         /* set posix attrs in attr struct */
-        PosixStat2EntryAttr( &stat_buf, &attr_set, TRUE );
+        PosixStat2EntryAttr(&stat_buf, &attr_set, true);
 
         if ( fsdev != stat_buf.st_dev )
         {
@@ -274,7 +274,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
        if ( dir_id != NULL )
        {
            /* no hardlinks for directories */
-           rc = ListMgr_Remove( lmgr, dir_id, dir_attrs, TRUE );
+           rc = ListMgr_Remove(lmgr, dir_id, dir_attrs, true);
            if (rc)
            {
                 DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
@@ -403,7 +403,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
     unsigned int   submitted_dirs, nb_in_queue, nb_rmdir_pending;
 
     int            attr_mask_sav;
-    int            end_of_list = FALSE;
+    bool           end_of_list = false;
     char           timestamp[1024];
 
     if ( p_nb_removed )
@@ -472,7 +472,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
           return rc;
       }
     /* do not retrieve 'invalid' entries */
-    fval.value.val_bool = FALSE;
+    fval.value.val_bool = false;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
       {
@@ -541,7 +541,7 @@ static int perform_rmdir( unsigned int *p_nb_removed )
 
           if ( rc == DB_END_OF_LIST )
             {
-                end_of_list = TRUE;
+                end_of_list = true;
                 break;
             }
           else if ( rc != 0 )
@@ -651,7 +651,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
     unsigned long long stats_after[RMDIR_FDBK_COUNT];
 
     int            attr_mask_sav;
-    int            end_of_list = FALSE;
+    bool           end_of_list = false;
     char           timestamp[1024];
 
     if ( p_nb_top )
@@ -726,7 +726,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
           return rc;
       }
     /* do not retrieve 'invalid' entries */
-    fval.value.val_bool = FALSE;
+    fval.value.val_bool = false;
     rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, EQUAL, fval, FILTER_FLAG_ALLOW_NULL );
     if ( rc )
       {
@@ -779,7 +779,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
 
           if ( rc == DB_END_OF_LIST )
             {
-                end_of_list = TRUE;
+                end_of_list = true;
                 break;
             }
           else if ( rc != 0 )
@@ -843,9 +843,9 @@ inline static int invalidate_dir( lmgr_t * lmgr, entry_id_t * p_entry_id )
     attr_set_t     new_attr_set;
     int            rc;
 
-    ATTR_MASK_INIT( &new_attr_set );
-    ATTR_MASK_SET( &new_attr_set, invalid );
-    ATTR( &new_attr_set, invalid ) = TRUE;
+    ATTR_MASK_INIT(&new_attr_set);
+    ATTR_MASK_SET(&new_attr_set, invalid);
+    ATTR(&new_attr_set, invalid) = true;
 
     /* update the entry */
     rc = ListMgr_Update( lmgr, p_entry_id, &new_attr_set );
@@ -1005,18 +1005,18 @@ static void   *Thr_Rmdir( void *arg )
             }
 #endif
           /* convert posix attributes to internal structure */
-          PosixStat2EntryAttr( &entry_md, &new_attr_set, TRUE );
+          PosixStat2EntryAttr(&entry_md, &new_attr_set, true);
 
           /* set update time  */
           ATTR_MASK_SET( &new_attr_set, md_update );
           ATTR( &new_attr_set, md_update ) = time(NULL);
 
           /* Merge missing attrs from database */
-          ListMgr_MergeAttrSets( &new_attr_set, &p_item->entry_attr, FALSE );
+          ListMgr_MergeAttrSets(&new_attr_set, &p_item->entry_attr, false);
 
           /* From here, assume that entry is valid */
-          ATTR_MASK_SET( &new_attr_set, invalid );
-          ATTR( &new_attr_set, invalid ) = FALSE;
+          ATTR_MASK_SET(&new_attr_set, invalid);
+          ATTR(&new_attr_set, invalid) = false;
 
           /* 4) check whitelist rules */
 
@@ -1176,9 +1176,9 @@ static void   *Thr_Rmdir( void *arg )
                                    strmod, (time_t)ATTR( &new_attr_set, last_mod ) );
 
                     /* remove it from database */
-                    rc = ListMgr_Remove( &lmgr, &p_item->entry_id,
-                                         &p_item->entry_attr, /* must be based on the DB content = old attrs */
-                                         TRUE ); /* no hardlinks for directories */
+                    rc = ListMgr_Remove(&lmgr, &p_item->entry_id,
+                                        &p_item->entry_attr, /* must be based on the DB content = old attrs */
+                                        true); /* no hardlinks for directories */
                     if ( rc )
                         DisplayLog( LVL_CRIT, RMDIR_TAG,
                                    "Error %d removing directory from database.",
@@ -1194,7 +1194,7 @@ static void   *Thr_Rmdir( void *arg )
             else if ( p_item->rmdir_type == RMDIR_RECURSE )
             {
                 int i;
-                int match = FALSE;
+                bool match = false;
                 unsigned int nb_entries = 0;
                 unsigned long long blocks = 0;
                 unsigned long long rmdir_stats[RMDIR_FDBK_COUNT];
@@ -1207,7 +1207,7 @@ static void   *Thr_Rmdir( void *arg )
                             &policies.rmdir_policy.recursive_rmdir_rules[i].bool_expr, NULL )
                             == POLICY_MATCH )
                     {
-                         match = TRUE;
+                         match = true;
                          break;
                     }
                 }

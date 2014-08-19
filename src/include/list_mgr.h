@@ -26,14 +26,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifndef TRUE
-#define TRUE (1)
-#endif
-
-#ifndef FALSE
-#define FALSE (0)
-#endif
-
 /* database specific types */
 #include "db_types.h"
 #include "config_parsing.h"
@@ -148,7 +140,7 @@ typedef enum
     DB_BIGINT,  /**< 64 bits integer    */
     DB_BIGUINT, /**< 64 bits unsigned integer */
     DB_BOOL,    /**< boolean            */
-    DB_ENUM_FTYPE,  /**< file type enumeration */
+    DB_ENUM_FTYPE  /**< file type enumeration */
 } db_type_t;
 
 
@@ -176,17 +168,17 @@ typedef struct field_info_t
 
 
 /* update set mask and attr value */
-#define ATTR_MASK_INIT( _p_set ) ((_p_set)->attr_mask = 0LL)
-#define ATTR_MASK_SET( _p_set, _attr_name ) ((_p_set)->attr_mask |= ATTR_MASK_##_attr_name)
-#define ATTR_MASK_UNSET( _p_set, _attr_name ) ((_p_set)->attr_mask &= ~ATTR_MASK_##_attr_name)
-#define ATTR_MASK_TEST( _p_set, _attr_name ) ((_p_set)->attr_mask & ATTR_MASK_##_attr_name)
-#define ATTR( _p_set, _attr_name ) ((_p_set)->attr_values._attr_name)
+#define ATTR_MASK_INIT(_p_set) ((_p_set)->attr_mask = 0LL)
+#define ATTR_MASK_SET(_p_set, _attr_name) ((_p_set)->attr_mask |= ATTR_MASK_##_attr_name)
+#define ATTR_MASK_UNSET(_p_set, _attr_name) ((_p_set)->attr_mask &= ~ATTR_MASK_##_attr_name)
+#define ATTR_MASK_TEST(_p_set, _attr_name) !!((_p_set)->attr_mask & ATTR_MASK_##_attr_name)
+#define ATTR(_p_set, _attr_name) ((_p_set)->attr_values._attr_name)
 
 /* set status attribute mask: bits after ATTR_COUNT */
 #define SMI_MASK(_smi_idx)  (1LL << (ATTR_COUNT+(_smi_idx)))
 #define ATTR_MASK_STATUS_SET(_p_set, _smi_idx) ((_p_set)->attr_mask |= SMI_MASK(_smi_idx))
 #define ATTR_MASK_STATUS_UNSET(_p_set, _smi_idx) ((_p_set)->attr_mask &= ~ SMI_MASK(_smi_idx))
-#define ATTR_MASK_STATUS_TEST(_p_set, _smi_idx) ((_p_set)->attr_mask & SMI_MASK(_smi_idx))
+#define ATTR_MASK_STATUS_TEST(_p_set, _smi_idx) !!((_p_set)->attr_mask & SMI_MASK(_smi_idx))
 #define STATUS_ATTR(_p_set, _smi_idx) ((_p_set)->attr_values.sm_status[(_smi_idx)])
 
 /* application specific types:
@@ -215,7 +207,7 @@ typedef union
     unsigned short val_ushort;
     long long      val_bigint;
     unsigned long long val_biguint;
-    int            val_bool;
+    bool           val_bool;
     entry_id_t     val_id;
 } db_type_u;
 
@@ -251,7 +243,7 @@ typedef struct lmgr_t
 {
     db_conn_t      conn;
     unsigned int   last_commit;  /*< 0 if last operation was committed */
-    int            force_commit; /*< flag to force commit */
+    bool           force_commit; /*< force commit on next operation */
     unsigned int   retry_delay;  /*< current retry delay */
     unsigned int   retry_count;  /*< nbr of retries */
     struct timeval first_error;  /*< time of first retried error */
@@ -272,8 +264,8 @@ typedef struct lmgr_config_t
     time_t         connect_retry_max;            /* max retry delay when connection is lost */
 
     /* options to enable accounting */
-    int user_acct;
-    int group_acct;
+    bool user_acct;
+    bool group_acct;
 } lmgr_config_t;
 
 /** Container to associate an ID with its pathname. */
@@ -288,8 +280,8 @@ typedef struct wagon {
  * @{
  */
 int            SetDefaultLmgrConfig( void *module_config, char *msg_out );
-int            ReadLmgrConfig( config_file_t config, void *module_config,
-                               char *msg_out, int for_reload );
+int            ReadLmgrConfig(config_file_t config, void *module_config,
+                              char *msg_out, bool for_reload);
 int            ReloadLmgrConfig( void *module_config );
 int            WriteLmgrConfigTemplate( FILE * output );
 int            WriteLmgrConfigDefault( FILE * output );
@@ -406,7 +398,7 @@ extern uint64_t readonly_attr_set;
 /* -------- Main functions -------- */
 
 /** Initialize the List Manager */
-int            ListMgr_Init( const lmgr_config_t * p_conf, int report_only );
+int            ListMgr_Init(const lmgr_config_t * p_conf, bool report_only);
 
 /** Create a connection to the database for current thread */
 int            ListMgr_InitAccess( lmgr_t * p_mgr );
@@ -416,16 +408,16 @@ int            ListMgr_CloseAccess( lmgr_t * p_mgr );
 
 /**
  * Set force commit behavior.
- * Default is FALSE.
+ * Default is false;
  */
-void           ListMgr_ForceCommitFlag( lmgr_t * p_mgr, int force_commit );
+void           ListMgr_ForceCommitFlag(lmgr_t * p_mgr, bool force_commit);
 
 /**
  * Check if the last operation was really committed
- * @return TRUE if the last operation has been commited,
- * @return FALSE if commit is deferred.
+ * @return true if the last operation has been commited,
+ * @return false if commit is deferred.
  */
-int            ListMgr_GetCommitStatus( lmgr_t * p_mgr );
+bool           ListMgr_GetCommitStatus(lmgr_t *p_mgr);
 
 
 /**
@@ -483,7 +475,7 @@ void           ListMgr_FreeAttrs( attr_set_t * p_attrs );
  */
 int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id,
                    attr_set_t *p_info,
-                   int update_if_exists);
+                   bool update_if_exists);
 /**
  * Insert a batch of entries into the database.
  * All entries must have the same attr mask.
@@ -491,7 +483,7 @@ int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id,
 int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
                                    attr_set_t ** p_attrs,
                                    unsigned int count,
-                                   int update_if_exists);
+                                   bool update_if_exists);
 
 /**
  * Modifies an existing entry in the database.
@@ -509,10 +501,10 @@ int            ListMgr_MassUpdate( lmgr_t * p_mgr, const lmgr_filter_t * p_filte
 typedef void    ( *rm_cb_func_t ) (const entry_id_t *);
 
 /**
- * Removes a name from the database. Remove the entry if last is TRUE.
+ * Removes a name from the database. Remove the entry if last is true.
  */
-int            ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                               const attr_set_t * p_attr_set, int last );
+int            ListMgr_Remove(lmgr_t * p_mgr, const entry_id_t * p_id,
+                              const attr_set_t * p_attr_set, bool last);
 
 /**
  * Removes all entries that match the specified filter.
@@ -525,7 +517,7 @@ int            ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filte
  */
 int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
                     entry_id_t *new_id, attr_set_t *new_attrs,
-                    int src_is_last, int update_target_if_exists);
+                    bool src_is_last, bool update_target_if_exists);
 
 #ifdef HAVE_RM_POLICY
 /**
@@ -587,7 +579,7 @@ int     ListMgr_GetRmEntry(lmgr_t *p_mgr, const entry_id_t *p_id, attr_set_t *p_
  * \param reset indicate if the table is cleaned in case it already exists.
  */
 int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
-                      lmgr_filter_t * p_filter, int reset);
+                      lmgr_filter_t * p_filter, bool reset);
 /** destroy a tag */
 int ListMgr_DestroyTag(lmgr_t * p_mgr, const char *tag_name);
 
@@ -671,10 +663,10 @@ struct lmgr_iterator_t * ListMgr_RecovList( lmgr_t * p_mgr,recov_type_e st );
  *  possibly using the specified filter.
  *  \retval iterator must be release using ListMgr_CloseIterator()
  */
-struct lmgr_iterator_t * ListMgr_RecovResume( lmgr_t * p_mgr,
-                                              const char * dir_path,
-                                              int retry, /* also retry previously erroneous entries */
-                                              const lmgr_iter_opt_t * p_opt );
+struct lmgr_iterator_t * ListMgr_RecovResume(lmgr_t *p_mgr,
+                                             const char *dir_path,
+                                             bool retry, /* also retry previously erroneous entries */
+                                             const lmgr_iter_opt_t *p_opt);
 
 
 int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
@@ -776,7 +768,7 @@ typedef struct report_field_descr_t
     report_type_t  report_type;
     sort_order_t   sort_flag;
 
-    int            filter;      /**< is there a filter on this value ? */
+    bool           filter;      /**< is there a filter on this value ? */
     filter_comparator_t filter_compar;
     filter_value_t filter_value;
 
@@ -1039,9 +1031,9 @@ int lmgr_range2list(const char * set, db_type_t type, value_list_t * p_list);
  * \param update if the attribute is set in both src and tgt,
  *        this boolean indicates if it must be updated in the target.
  */
-void           ListMgr_MergeAttrSets( attr_set_t * p_target_attrset,
-                                      const attr_set_t * p_source_attrset,
-                                      int update );
+void           ListMgr_MergeAttrSets(attr_set_t *p_target_attrset,
+                                     const attr_set_t *p_source_attrset,
+                                     bool update);
 
 /** return the mask of attributes that differ */
 int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src);

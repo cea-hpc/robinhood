@@ -52,16 +52,7 @@
 /* maximum mail content size */
 #define MAX_MAIL_LEN      4096
 
-#ifndef TRUE
-#define TRUE (1)
-#endif
-
-#ifndef FALSE
-#define FALSE (0)
-#endif
-
-
-static int     log_initialized = FALSE;
+static bool log_initialized = false;
 
 log_config_t log_config = {
     .debug_level = LVL_EVENT, /* used for non-initialized logging */
@@ -93,7 +84,7 @@ static log_stream_t report  = RBH_LOG_INITIALIZER;
 static log_stream_t alert   = RBH_LOG_INITIALIZER;
 
 /* syslog info */
-static int syslog_opened = FALSE;
+static bool syslog_opened = false;
 
 /* Check if the log file has been rotated
  * after a given delay.
@@ -123,7 +114,7 @@ typedef struct alert_type
 } alert_type_t;
 
 alert_type_t * alert_list = NULL;
-int alert_batching = FALSE;
+bool alert_batching = false;
 unsigned int alert_count = 0;
 
 
@@ -211,7 +202,7 @@ static int init_log_descr( const char * logname, log_stream_t * p_log )
         if ( !syslog_opened )
         {
             openlog(prog_name, LOG_PID, log_config.syslog_facility );
-            syslog_opened = TRUE;
+            syslog_opened = true;
         }
     }
     else /* log to regular file */
@@ -240,7 +231,7 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
     char descr_cp[256];
     char * curr;
     int i;
-    int match;
+    bool match;
 
     rh_strncpy(descr_cp, descriptor, 256);
     curr = strchr(descr_cp, '.');
@@ -250,13 +241,13 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
         curr++; /* location of syslog level */
     }
 
-    match = FALSE;
+    match = false;
     for ( i = 0; facilitynames[i].c_name != NULL; i++ )
     {
         if ( !strcasecmp(facilitynames[i].c_name, descr_cp) )
         {
             if ( p_fac ) *p_fac = facilitynames[i].c_val;
-            match = TRUE;
+            match = true;
             break;
         }
     }
@@ -266,13 +257,13 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
     if ( curr != NULL )
     {
         /* now doing the same for priority */
-        match = FALSE;
+        match = false;
         for ( i = 0; prioritynames[i].c_name != NULL; i++ )
         {
             if ( !strcasecmp(prioritynames[i].c_name, curr) )
             {
                 if ( p_level ) *p_level = prioritynames[i].c_val;
-                match = TRUE;
+                match = true;
                 break;
             }
         }
@@ -328,15 +319,15 @@ int InitializeLogs(const char *program_name, const log_config_t *config)
     last_time_test = time( NULL );
 
 
-    log_initialized = TRUE;
+    log_initialized = true;
 
     return 0;
 
 }   /* InitializeLogs */
 
-int            TestDisplayLevel( int level )
+int TestDisplayLevel(log_level level)
 {
-    return ( log_config.debug_level >= level );
+    return (log_config.debug_level >= level);
 }
 
 
@@ -422,7 +413,7 @@ static void test_file_names( void )
 /* Convert log level to  string.
  * \return -1 on error.
  */
-int str2debuglevel( char *str )
+log_level str2debuglevel(char *str)
 {
     if ( !strcasecmp( str, "CRIT" ) )
         return LVL_CRIT;
@@ -484,9 +475,8 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
                      1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
                      date.tm_hour, date.tm_min, date.tm_sec,
                      log_config.log_process?"robinhood":"",
-                     (unsigned long)getpid(), th,
-                     (tag && log_config.log_tag)?tag:"",
-                     (tag && log_config.log_tag)?" | ":"");
+                     (unsigned long)getpid(), th, tag?tag:"",
+                     tag?" | ":"");
 
         would_print = vsnprintf(line_log + written, MAX_LINE_LEN - written, format, arglist);
         clean_str(line_log);
@@ -500,7 +490,7 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
     {
         /* add tag to syslog line */
         char new_format[MAX_LINE_LEN];
-        if (tag && log_config.log_tag)
+        if (tag)
             snprintf(new_format, MAX_LINE_LEN, "%s | %s", tag, format);
         else
             rh_strncpy(new_format, format, MAX_LINE_LEN);
@@ -520,8 +510,7 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
                      log_config.log_host?"@":"",
                      log_config.log_host?machine_name:"",
                      (unsigned long)getpid(), th,
-                     (tag && log_config.log_tag)?tag:"",
-                     (tag && log_config.log_tag)?" | ":"");
+                     tag?tag:"", tag?" | ":"");
 
         would_print = vsnprintf(line_log + written, MAX_LINE_LEN - written, format, arglist);
         clean_str(line_log);
@@ -550,7 +539,7 @@ static void display_line_log_( log_stream_t * p_log, const char * tag,
  *  If logs are not initialized, write to stderr.
  */
 
-void DisplayLogFn( int debug_level, const char *tag, const char *format, ... )
+void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ...)
 {
     time_t         now = time( NULL );
     va_list        args;
@@ -596,7 +585,7 @@ void Alert_StartBatching()
         return;
 
     P( alert_mutex );
-    alert_batching = TRUE;
+    alert_batching = true;
     V( alert_mutex );
 }
 
@@ -608,7 +597,7 @@ void Alert_StartBatching()
  * release mutex ASAP if release_mutex_asap is true,
  * else: don't release it.
  */
-static void FlushAlerts(int release_mutex_asap)
+static void FlushAlerts(bool release_mutex_asap)
 {
     alert_type_t * pcurr;
     unsigned int alert_types = 0;
@@ -743,7 +732,7 @@ out:
 static void Alert_Add( const char * title, const char * entry, const char * info )
 {
     alert_type_t * pcurr;
-    int            found = FALSE;
+    bool           found = false;
     unsigned int   entrylen = strlen(entry);
     unsigned int   infolen = strlen(info);
 
@@ -754,7 +743,7 @@ static void Alert_Add( const char * title, const char * entry, const char * info
         if ( !strcmp( pcurr->title, title ) )
         {
             /* OK, found */
-            found = TRUE;
+            found = true;
             break;
         }
     }
@@ -806,7 +795,7 @@ static void Alert_Add( const char * title, const char * entry, const char * info
         (alert_count >= log_config.batch_alert_max))
     {
         /* this also unlocks the mutex as soon as it is possible */
-        FlushAlerts(TRUE);
+        FlushAlerts(true);
         return;
     }
 
@@ -819,9 +808,9 @@ void Alert_EndBatching()
     if ( alert_batching )
     {
         P( alert_mutex );
-        alert_batching = FALSE;
+        alert_batching = false;
         /* release the mutex too */
-        FlushAlerts(TRUE);
+        FlushAlerts(true);
     }
 }
 
@@ -949,13 +938,12 @@ int SetDefaultLogConfig( void *module_config, char *msg_out )
     conf->syslog_priority = LOG_INFO;
 
     conf->batch_alert_max = 1; /* no batching */
-    conf->alert_show_attrs = FALSE;
+    conf->alert_show_attrs = false;
 
     conf->stats_interval = 900; /* 15min */
 
     conf->log_process = 0;
     conf->log_host = 0;
-    conf->log_tag = 1;
 
     return 0;
 }
@@ -970,15 +958,14 @@ int WriteLogConfigDefault(FILE * output)
     print_line(output, 1, "syslog_facility:   local1.info");
     print_line(output, 1, "stats_interval :   15min");
     print_line(output, 1, "batch_alert_max:   1 (no batching)");
-    print_line(output, 1, "alert_show_attrs: FALSE");
-    print_line(output, 1, "log_procname: FALSE");
-    print_line(output, 1, "log_hostname: FALSE");
-    print_line(output, 1, "log_module:   TRUE");
+    print_line(output, 1, "alert_show_attrs: no");
+    print_line(output, 1, "log_procname: no");
+    print_line(output, 1, "log_hostname: no");
     print_end_block(output, 0);
     return 0;
 }
 
-int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int for_reload )
+int ReadLogConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
 {
     int            rc, tmpval;
     char           tmpstr[1024];
@@ -987,7 +974,7 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
     /* all allowed parameters names */
     static const char *allowed_params[] = { "debug_level", "log_file", "report_file",
         "alert_file", "alert_mail", "stats_interval", "batch_alert_max",
-        "alert_show_attrs", "syslog_facility", "log_procname", "log_hostname", "log_module",
+        "alert_show_attrs", "syslog_facility", "log_procname", "log_hostname",
         NULL
     };
 
@@ -1008,7 +995,6 @@ int ReadLogConfig( config_file_t config, void *module_config, char *msg_out, int
         {"alert_show_attrs", PT_BOOL,    0, &conf->alert_show_attrs, 0},
         {"log_procname",     PT_BOOL,    0, &conf->log_process, 0},
         {"log_hostname",     PT_BOOL,    0, &conf->log_host, 0},
-        {"log_module",       PT_BOOL,    0, &conf->log_tag, 0},
 
         {NULL, 0, 0, NULL, 0}
     };
@@ -1149,7 +1135,7 @@ int ReloadLogConfig( void *module_config )
 
         if ( alert_batching )
             /* don't release mutex */
-            FlushAlerts(FALSE);
+            FlushAlerts(false);
 
         log_config.batch_alert_max = conf->batch_alert_max;
         V( alert_mutex );
@@ -1171,15 +1157,6 @@ int ReloadLogConfig( void *module_config )
                     bool2str(log_config.log_host),
                     bool2str(conf->log_host));
         log_config.log_host = conf->log_host;
-    }
-
-    if (conf->log_tag != log_config.log_tag)
-    {
-        DisplayLog(LVL_MAJOR, "LogConfig",
-                    RBH_LOG_CONFIG_BLOCK "::log_module modified: '%s'->'%s'",
-                    bool2str(log_config.log_tag),
-                    bool2str(conf->log_tag));
-        log_config.log_tag = conf->log_tag;
     }
 
     return 0;
@@ -1212,14 +1189,12 @@ int WriteLogConfigTemplate(FILE * output)
     print_line(output, 1, "# N>1: batch N alerts per digest");
     print_line(output, 1, "batch_alert_max = 5000 ;");
     print_line(output, 1, "# Give the detail of entry attributes for each alert?");
-    print_line(output, 1, "alert_show_attrs = FALSE ;");
+    print_line(output, 1, "alert_show_attrs = no ;");
     fprintf(output, "\n");
     print_line(output, 1, "# whether the process name appears in the log line");
-    print_line(output, 1, "log_procname = TRUE;");
+    print_line(output, 1, "log_procname = yes;");
     print_line(output, 1, "# whether the host name appears in the log line");
-    print_line(output, 1, "log_hostname = TRUE;");
-    print_line(output, 1, "# whether the module name appears in the log line");
-    print_line(output, 1, "log_module = TRUE;");
+    print_line(output, 1, "log_hostname = yes;");
     print_end_block(output, 0);
     return 0;
 }

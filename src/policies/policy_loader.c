@@ -93,13 +93,15 @@ int compare_boolexpr(const bool_node_t * expr1, const bool_node_t * expr2)
     {
     case NODE_UNARY_EXPR:
         if (expr1->content_u.bool_expr.bool_op != expr2->content_u.bool_expr.bool_op)
-            return TRUE;
+            return true;
+
         return compare_boolexpr(expr1->content_u.bool_expr.expr1,
                                  expr2->content_u.bool_expr.expr1);
 
     case NODE_BINARY_EXPR:
         if (expr1->content_u.bool_expr.bool_op != expr2->content_u.bool_expr.bool_op)
-            return TRUE;
+            return true;
+
         return (compare_boolexpr
                  (expr1->content_u.bool_expr.expr1, expr2->content_u.bool_expr.expr1)
                  || compare_boolexpr(expr1->content_u.bool_expr.expr2,
@@ -108,16 +110,19 @@ int compare_boolexpr(const bool_node_t * expr1, const bool_node_t * expr2)
     case NODE_CONDITION:
         /* compare criteria */
         if (expr1->content_u.condition->crit != expr2->content_u.condition->crit)
-            return TRUE;
+            return true;
+
         /* compare operator, except for custom cmd and xattr */
         if ((expr1->content_u.condition->crit != CRITERIA_XATTR)
              && (expr1->content_u.condition->op != expr2->content_u.condition->op))
-            return TRUE;
+            return true;
+
         /* same structure */
-        return FALSE;
+        return false;
     }
 
     /* should not happen */
+    RBH_BUG("Unexpected node_type in boolean expression");
     return -1;
 }                               /* compare_boolexpr */
 
@@ -130,13 +135,13 @@ int compare_boolexpr(const bool_node_t * expr1, const bool_node_t * expr2)
  * @return TRUE if expression values have been changed
  * @return FALSE if nothing has been changed
  */
-int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
+bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
 {
     compare_triplet_t *p_triplet1;
     compare_triplet_t *p_triplet2;
     char           tmp_buff1[256];
     char           tmp_buff2[256];
-    int            rc;
+    bool           rc;
 
     switch (tgt->node_type)
     {
@@ -146,7 +151,7 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
     case NODE_BINARY_EXPR:
         rc = update_boolexpr(tgt->content_u.bool_expr.expr1, src->content_u.bool_expr.expr1);
         if (update_boolexpr(tgt->content_u.bool_expr.expr2, src->content_u.bool_expr.expr2))
-            rc = TRUE;
+            rc = true;
         return rc;
 
     case NODE_CONDITION:
@@ -167,10 +172,10 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
                             criteria2str(CRITERIA_SIZE), op2str(p_triplet1->op), tmp_buff1,
                             criteria2str(CRITERIA_SIZE), op2str(p_triplet2->op), tmp_buff2);
                 p_triplet1->val.size = p_triplet2->val.size;
-                return TRUE;
+                return true;
             }
             else
-                return FALSE;
+                return false;
 
             /* integer conditions */
         case CRITERIA_DEPTH:
@@ -187,10 +192,10 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
                             p_triplet1->val.integer, criteria2str(p_triplet2->crit),
                             op2str(p_triplet2->op), p_triplet2->val.integer);
                 p_triplet1->val.integer = p_triplet2->val.integer;
-                return TRUE;
+                return true;
             }
             else
-                return FALSE;
+                return false;
 
             /* duration conditions */
         case CRITERIA_LAST_ACCESS:
@@ -213,10 +218,10 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
                             criteria2str(p_triplet1->crit), op2str(p_triplet1->op), tmp_buff1,
                             criteria2str(p_triplet2->crit), op2str(p_triplet2->op), tmp_buff2);
                 p_triplet1->val.duration = p_triplet2->val.duration;
-                return TRUE;
+                return true;
             }
             else
-                return FALSE;
+                return false;
 
 #ifdef ATTR_INDEX_type
         case CRITERIA_TYPE:
@@ -228,10 +233,10 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
                             type2str(p_triplet1->val.type), criteria2str(p_triplet2->crit),
                             op2str(p_triplet2->op), type2str(p_triplet2->val.type));
                 p_triplet1->val.type = p_triplet2->val.type;
-                return TRUE;
+                return true;
             }
             else
-                return FALSE;
+                return false;
 #endif
 
             /* unmodifiable conditions */
@@ -247,7 +252,7 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
                             "Condition changed on attribute '%s' but this cannot be modified dynamically",
                             criteria2str(p_triplet1->crit));
             }
-            return FALSE;
+            return false;
 
         case CRITERIA_XATTR:
             if (strcmp(p_triplet1->val.str, p_triplet2->val.str)
@@ -256,7 +261,7 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
                 DisplayLog(LVL_MAJOR, RELOAD_TAG,
                             "xattr condition changed, but it cannot be modified dynamically");
             }
-            return FALSE;
+            return false;
 
         default:
             DisplayLog(LVL_CRIT, RELOAD_TAG,
@@ -267,8 +272,8 @@ int update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
     }
 
     /* should not happen */
+    RBH_BUG("Unexpected node_type in boolean expression");
     return -1;
-
 }                               /* update_boolexpr */
 
 
@@ -330,7 +335,7 @@ static void free_whitelist(whitelist_item_t * p_items, unsigned int count)
     /* free boolean expressions */
     for (i = 0; i < count; i++)
     {
-        FreeBoolExpr(&p_items[i].bool_expr, FALSE);
+        FreeBoolExpr(&p_items[i].bool_expr, false);
     }
 
     if ((count > 0) && (p_items != NULL))
@@ -699,7 +704,7 @@ static int reload_rmdir_policy(rmdir_policy_t *policy)
 #ifdef HAVE_RM_POLICY
 static void set_default_unlink_policy(unlink_policy_t * upol)
 {
-    upol->hsm_remove = TRUE; /* hsm_remove enabled */
+    upol->hsm_remove = true; /* hsm_remove enabled */
     upol->deferred_remove_delay = 86400; /* 1 day */
 }
 
@@ -1214,7 +1219,7 @@ static inline void free_filesets(policies_t *p_policies)
 
 /** Read filesets block */
 static int read_filesets(config_file_t config, policies_t *p_policies,
-                         char *msg_out, int for_reload)
+                         char *msg_out, bool for_reload)
 {
     unsigned int   i, j;
     int            rc;
@@ -1248,9 +1253,10 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
     for (i = 0; i < p_policies->fileset_count; i++)
     {
         char          *block_name, *fsname;
+        bool           definition_done;
         config_item_t  curr_class = rh_config_GetItemByIndex(fileset_block, i);
+
         critical_err_check_goto(curr_class, FILESETS_SECTION, clean_filesets);
-        int definition_done;
 
         if (rh_config_ItemType(curr_class) != CONFIG_ITEM_BLOCK)
         {
@@ -1263,7 +1269,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
         block_name = rh_config_GetBlockName(curr_class);
         critical_err_check_goto(block_name, FILESETS_SECTION, clean_filesets);
 
-        definition_done = FALSE;
+        definition_done = false;
 
         if (!strcasecmp(block_name, FILESET_BLOCK))
         {
@@ -1295,7 +1301,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
             rh_strncpy(p_policies->fileset_list[i].fileset_id, fsname,
                        FILESET_ID_LEN);
             /* set default */
-            p_policies->fileset_list[i].matchable = TRUE;
+            p_policies->fileset_list[i].matchable = 1;
 
             /* read file class block content */
             for (j = 0; j < rh_config_GetNbItems(curr_class); j++)
@@ -1363,7 +1369,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                         }
 
                         p_policies->global_fileset_mask |= p_policies->fileset_list[i].attr_mask;
-                        definition_done = TRUE;
+                        definition_done = true;
 
                         if (p_policies->fileset_list[i].attr_mask & (
 #ifdef ATTR_INDEX_last_archive
@@ -1383,7 +1389,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                     case CONFIG_ITEM_VAR:
                     {
                         char          *value = NULL;
-                        int            extra_args = FALSE;
+                        int            extra_args = 0;
 
                         rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra_args);
                         if (rc)
@@ -1563,10 +1569,10 @@ static int parse_rule_block(config_item_t config_item,
                             rule_item_t *rule_out, char *msg_out)
 {
     char          *rule_name;
-    int            is_default = FALSE;
+    bool           is_default = false;
     int            i, j, k, rc;
     uint64_t       mask;
-    int            definition_done = FALSE;
+    bool           definition_done = false;
 
     /* initialize output */
     memset(rule_out, 0, sizeof(rule_item_t));
@@ -1629,14 +1635,15 @@ static int parse_rule_block(config_item_t config_item,
                 return rc;
 
             rule_out->attr_mask |= mask;
-            definition_done = TRUE;
+            definition_done = true;
         }
         else                    /* not a block */
         {
             char          *value = NULL;
-            int            extra_args = FALSE;
+            int            extra_args = 0;
             fileset_item_t *fs;
             char hint_name[POLICY_NAME_LEN + sizeof("_hints") + 1];
+
             sprintf(hint_name, "%s_hints", policy_name);
 
             rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra_args);
@@ -1673,7 +1680,7 @@ static int parse_rule_block(config_item_t config_item,
                             rh_config_GetItemLine(sub_item));
                     return EINVAL;
                 }
-                fs->used_in_policy = TRUE;
+                fs->used_in_policy = 1;
 
                 /* note: matchable is only for the fileclass in DB.
                  * allow using non-matchable in policies */
@@ -1945,7 +1952,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
         else                    /* not a block */
         {
             char          *value;
-            int            extra_args = FALSE;
+            int            extra_args = 0;
 
             rc = rh_config_GetKeyValue(curr_item, &item_name, &value, &extra_args);
             if (rc)
@@ -1981,7 +1988,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                 goto free_policy;
             }
 
-            rules->ignore_list[curr_ign_fc]->used_in_policy = TRUE;
+            rules->ignore_list[curr_ign_fc]->used_in_policy = 1;
 
             /* check that the fileset is not already referenced in a policy */
             for (j = 0; j < curr_rule; j++)
@@ -2072,7 +2079,7 @@ int SetDefault_Policies(void *module_config, char *msg_out)
     return 0;
 }
 
-int Read_Policies(config_file_t config, void *module_config, char *msg_out, int for_reload)
+int Read_Policies(config_file_t config, void *module_config, char *msg_out, bool for_reload)
 {
     policies_t    *pol = (policies_t *)module_config;
     int            rc, i;
@@ -2122,7 +2129,7 @@ int Write_Policy_Default(FILE * output)
     return 0;
 }
 
-int policy_exists(const char *name, int *index)
+bool policy_exists(const char *name, int *index)
 {
     int i;
     for (i = 0; i < policies.policy_count; i++)
@@ -2131,8 +2138,8 @@ int policy_exists(const char *name, int *index)
         {
             if (index != NULL)
                 *index = i;
-            return TRUE;
+            return true;
         }
     }
-    return FALSE;
+    return false;
 }

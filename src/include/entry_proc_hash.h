@@ -32,21 +32,21 @@ struct id_hash_slot
 struct id_hash
 {
     unsigned int hash_size;
-	struct id_hash_slot slot[0];
+	struct id_hash_slot slot[];
 };
 
 /**
  * Creates a new hash table for operation entries.
  * @return the new hash table.
  */
-struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock );
+struct id_hash *id_hash_init(const unsigned int hash_size, bool use_lock);
 
 
 /* display stats about the hash */
 void id_hash_stats(struct id_hash *id_hash, const char *log_str);
 
 /* dump all values in the hash */
-void id_hash_dump(struct id_hash *id_hash, int parent);
+void id_hash_dump(struct id_hash *id_hash, bool parent);
 
 /**
  * @TODO use better hash functions:

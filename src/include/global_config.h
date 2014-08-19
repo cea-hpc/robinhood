@@ -23,6 +23,7 @@
 #include "config_parsing.h"
 #include <sys/param.h>          /* for RBH_PATH_MAX */
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef enum {
     FSKEY_ERROR=0,
@@ -47,12 +48,12 @@ typedef struct global_config_t
     fs_key_t      fs_key;
 
     /* behavior flags */
-    int            stay_in_fs;
-    int            check_mounted;
+    bool          stay_in_fs;
+    bool          check_mounted;
 
 #if defined( _LUSTRE ) && defined ( _MDS_STAT_SUPPORT )
     /** Direct stat to MDS on Lustre filesystems */
-    int            direct_mds_stat;
+    bool          direct_mds_stat;
 #endif
 
 } global_config_t;
@@ -62,8 +63,8 @@ typedef struct global_config_t
  * @{
  */
 int            SetDefaultGlobalConfig( void *module_config, char *msg_out );
-int            ReadGlobalConfig( config_file_t config, void *module_config,
-                                 char *msg_out, int for_reload );
+int            ReadGlobalConfig(config_file_t config, void *module_config,
+                                char *msg_out, bool for_reload);
 int            ReloadGlobalConfig( void *module_config );
 int            WriteGlobalConfigTemplate( FILE * output );
 int            WriteGlobalConfigDefault( FILE * output );

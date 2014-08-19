@@ -46,10 +46,10 @@ typedef struct chglog_reader_config_t
     unsigned int   mdt_count;
 
     /* nbr of changelog records to be agregated for llapi_changelog_clear() */
-    int   batch_ack_count;
+    int    batch_ack_count;
 
-    int   force_polling;
-    int   polling_interval;
+    bool   force_polling;
+    time_t polling_interval;
 
     /* Maximum number of operations to keep in the internal queue. */
     int queue_max_size;
@@ -65,8 +65,8 @@ typedef struct chglog_reader_config_t
     /* Options suported by the MDS. LU-543 and LU-1331 are related to
      * events in changelog, where a rename is overriding a destination
      * file. */
-    int mds_has_lu543;
-    int mds_has_lu1331;
+    bool mds_has_lu543;
+    bool mds_has_lu1331;
 
     /* file to dump all changelog records */
     char dump_file[RBH_PATH_MAX];
@@ -101,8 +101,8 @@ int            ChgLogRdr_StoreStats( lmgr_t * lmgr );
  * @{
  */
 int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out );
-int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
-                                     char *msg_out, int for_reload );
+int            ChgLogRdr_ReadConfig(config_file_t config, void *module_config,
+                                    char *msg_out, bool for_reload);
 int            ChgLogRdr_ReloadConfig( void *module_config );
 int            ChgLogRdr_WriteConfigTemplate( FILE * output );
 int            ChgLogRdr_WriteDefaultConfig( FILE * output );

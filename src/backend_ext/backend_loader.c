@@ -43,12 +43,12 @@ int SetDefault_Backend_Config( void *module_config, char *msg_out )
     strcpy( conf->shook_cfg, "/etc/shook.cfg" );
 #endif
     conf->copy_timeout = 21600; /* =6h (0=disabled) */
-    conf->xattr_support = FALSE;
-    conf->check_mounted = TRUE;
-    conf->archive_symlinks = TRUE;
-    conf->sync_archive_data = TRUE;
-    conf->compress = FALSE;
-    conf->sendfile = FALSE;
+    conf->xattr_support = false;
+    conf->check_mounted = true;
+    conf->archive_symlinks = true;
+    conf->sync_archive_data = true;
+    conf->compress = false;
+    conf->sendfile = false;
     return 0;
 }
 
@@ -58,23 +58,23 @@ int Write_Backend_ConfigDefault( FILE * output )
     print_line( output, 1, "root          : \"/backend\"" );
     print_line( output, 1, "mnt_type      : nfs ");
     print_line(output, 1, "action_cmd    : <built-in copy>");
-    print_line(output, 1, "compress      : FALSE");
-    print_line(output, 1, "sendfile      : FALSE");
+    print_line(output, 1, "compress      : no");
+    print_line(output, 1, "sendfile      : no");
 #ifdef HAVE_SHOOK
      print_line( output, 1, "shook_cfg    : \"/etc/shook.cfg\"" );
 #endif
     print_line(output, 1, "copy_timeout  : 6h");
-    print_line(output, 1, "xattr_support : FALSE");
-    print_line(output, 1, "check_mounted : TRUE");
-    print_line(output, 1, "archive_symlinks: TRUE");
-    print_line(output, 1, "sync_archive_data: TRUE");
+    print_line(output, 1, "xattr_support : no");
+    print_line(output, 1, "check_mounted : yes");
+    print_line(output, 1, "archive_symlinks: yes");
+    print_line(output, 1, "sync_archive_data: yes");
     print_end_block(output, 0);
     return 0;
 }
 
 int Read_Backend_Config( config_file_t config, void *module_config, char *msg_out, int for_reload )
 {
-    int            rc, tmpval;
+    int               rc;
     backend_config_t *conf = ( backend_config_t * ) module_config;
 
     static const char *allowed_params[] = {
@@ -147,62 +147,55 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    /* /!\ xattr_support is part of a bit field, it should not be passed directly: using tmpval instead */
-    rc = GetBoolParam( block, BACKEND_BLOCK, "xattr_support",
-                       0, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc != ENOENT )
-        conf->xattr_support = tmpval;
-
-    /* /!\ check_mounted is part of a bit field, it should not be passed directly: using tmpval instead */
-    rc = GetBoolParam( block, BACKEND_BLOCK, "check_mounted",
-                       0, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc != ENOENT )
-        conf->check_mounted = tmpval;
-
-    /* /!\ archive_symlinks is part of a bit field, it should not be passed directly: using tmpval instead */
-    rc = GetBoolParam( block, BACKEND_BLOCK, "archive_symlinks",
-                       0, &tmpval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
-        return rc;
-    else if ( rc != ENOENT )
-        conf->archive_symlinks = tmpval;
-
-    /* /!\ sync_archive_data is part of a bit field, it should not be passed directly: using tmpval instead */
-    rc = GetBoolParam(block, BACKEND_BLOCK, "sync_archive_data",
-                      0, &tmpval, NULL, NULL, msg_out);
+    rc = GetBoolParam(block, BACKEND_BLOCK, "xattr_support", 0,
+                      &conf->xattr_support, NULL, NULL, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if (rc != ENOENT)
-        conf->sync_archive_data = tmpval;
 
-    rc = GetBoolParam(block, BACKEND_BLOCK, "compress", 0, &tmpval, NULL,
-                      NULL, msg_out);
+    if (config.xattr_support)
+    {
+                DisplayLog(LVL_CRIT, BKL_TAG, "xattr_support option cannot be activated: "
+                           "rebuild robinhood with xattr support");
+                config.xattr_support = false;
+    }
+
+    rc = GetBoolParam(block, BACKEND_BLOCK, "check_mounted", 0,
+                      &conf->check_mounted, NULL, NULL, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if (rc != ENOENT)
-        conf->compress = tmpval;
+
+    rc = GetBoolParam(block, BACKEND_BLOCK, "archive_symlinks", 0,
+                      &conf->archive_symlinks, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+
+    rc = GetBoolParam(block, BACKEND_BLOCK, "sync_archive_data", 0,
+                      &conf->sync_archive_data, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+
+    rc = GetBoolParam(block, BACKEND_BLOCK, "compress", 0, &conf->compress,
+                      NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
 
     if (conf->compress && !EMPTY_STRING(conf->action_cmd))
     {
-        DisplayLog(LVL_MAJOR, BKL_TAG, "Warning: enabling compression is only allowed for built-in copy action: disabling compression");
-        conf->compress = 0;
+        DisplayLog(LVL_MAJOR, BKL_TAG, "Warning: enabling compression is only "
+                   "allowed for built-in copy action: disabling compression");
+        conf->compress = false;
     }
 
-    rc = GetBoolParam(block, BACKEND_BLOCK, "sendfile", 0, &tmpval, NULL,
-                      NULL, msg_out);
+    rc = GetBoolParam(block, BACKEND_BLOCK, "sendfile", 0, &conf->sendfile,
+                      NULL, NULL, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if (rc != ENOENT)
-        conf->sendfile = tmpval;
 
     CheckUnknownParameters(block, BACKEND_BLOCK, allowed_params);
 
     return 0;
 }
+
 int Reload_Backend_Config( void *module_config )
 {
     return 0;
@@ -225,17 +218,17 @@ int Write_Backend_ConfigTemplate( FILE * output )
     print_line(output, 1, "# compress data in archive (built-in copy only)");
     print_line(output, 1, "#compress = yes;");
     print_line(output, 1, "copy_timeout  = 6h;");
-    print_line(output, 1, "xattr_support = FALSE;");
+    print_line(output, 1, "xattr_support = no;");
     print_line(output, 1, "# check if the backend is mounted on startup");
-    print_line(output, 1, "check_mounted = TRUE; ");
+    print_line(output, 1, "check_mounted = yes; ");
     print_line(output, 1, "# archive symlinks to the backend?");
-    print_line(output, 1, "archive_symlinks = TRUE; ");
+    print_line(output, 1, "archive_symlinks = yes; ");
     print_line(output, 1, "# flush archive data on close, to make sure the copy");
     print_line(output, 1, "# is really successful (performance impact for small files)");
-    print_line(output, 1, "sync_archive_data = TRUE; ");
+    print_line(output, 1, "sync_archive_data = yes; ");
     print_line(output, 1, "# use sendfile() to efficiently copy files");
     print_line(output, 1, "# Requires fallocate() and file-to-file sendfile()");
-    print_line(output, 1, "#sendfile = TRUE; ");
+    print_line(output, 1, "#sendfile = yes; ");
     print_end_block(output, 0);
     return 0;
 }

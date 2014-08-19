@@ -165,7 +165,7 @@ static inline void display_version( char *bin_name )
  * \param do_display [in] display filters?
  * \param initialized [in/out] indicate if the filter is initialized.
  */
-static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initialized )
+static int mk_path_filter(lmgr_filter_t *filter, bool do_display, bool *initialized)
 {
     filter_value_t fv;
     char path_regexp[RBH_PATH_MAX] = "";
@@ -177,7 +177,7 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
         if ( (initialized != NULL) && !(*initialized) )
         {
             lmgr_simple_filter_init( filter );
-            *initialized = TRUE;
+            *initialized = true;
         }
         if ( do_display )
             printf("filter path: %s\n", path_filter );
@@ -213,20 +213,20 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
     return 0;
 }
 
-static int is_fid_filter(entry_id_t * id)
+static bool is_fid_filter(entry_id_t * id)
 {
     lustre_fid  fid;
     if ( !EMPTY_STRING( path_filter ) )
     {
         if (sscanf(path_filter, SFID, RFID(&fid)) != FID_SCAN_CNT)
-            return FALSE;
+            return false;
         else {
             if (id)
                 *id = fid;
-            return TRUE;
+            return true;
         }
     }
-    return FALSE;
+    return false;
 }
 
 static inline void display_rm_entry(entry_id_t * id, const char *last_known_path,
@@ -301,10 +301,10 @@ static int list_rm( void )
         lmgr_simple_filter_init( &filter );
 
         /* append global filters */
-        mk_path_filter( &filter, TRUE, NULL );
+        mk_path_filter(&filter, true, NULL);
 
-        /* list all deferred rm, even if non expired */
-        list = ListMgr_RmList( &lmgr, FALSE, &filter );
+        /* list all deferred rm */
+        list = ListMgr_RmList(&lmgr, &filter);
 
         if ( list == NULL )
         {
@@ -391,7 +391,7 @@ static inline void undo_rm_helper( entry_id_t * id, const char *last_known_path,
         /* clean read-only attrs */
         new_attrs.attr_mask &= ~readonly_attr_set;
         /* insert or update it in the db */
-        rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
+        rc = ListMgr_Insert(&lmgr, &new_id, &new_attrs, true);
         if ( rc == 0 )
             printf("Entry successfully updated in the dabatase\n");
         else
@@ -444,10 +444,10 @@ static int undo_rm( void )
         lmgr_simple_filter_init( &filter );
 
         /* append global filters */
-        mk_path_filter( &filter, TRUE, NULL );
+        mk_path_filter(&filter, true, NULL);
 
         /* list files to be recovered */
-        list = ListMgr_RmList( &lmgr, FALSE, &filter );
+        list = ListMgr_RmList(&lmgr, &filter);
 
         if ( list == NULL )
         {
@@ -490,7 +490,7 @@ int main( int argc, char **argv )
     char           config_file[MAX_OPT_LEN] = "";
 
     enum { ACTION_NONE, ACTION_LIST, ACTION_RESTORE } action = ACTION_NONE;
-    int            force_log_level = FALSE;
+    bool           force_log_level = false;
     int            log_level = 0;
 
     int            rc;
@@ -521,7 +521,7 @@ int main( int argc, char **argv )
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            force_log_level = TRUE;
+            force_log_level = true;
             log_level = str2debuglevel( optarg );
             if ( log_level == -1 )
             {
@@ -568,7 +568,7 @@ int main( int argc, char **argv )
     }
 
     /* only read ListMgr config */
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
@@ -604,7 +604,7 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, FALSE );
+    rc = ListMgr_Init(&config.lmgr_config, false);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, LOGTAG, "Error %d initializing list manager", rc );

@@ -202,19 +202,19 @@ static struct option option_tab[] = {
 
 typedef struct rbh_options {
     int            flags;
-    int            detach;
+    bool           detach;
     char           config_file[MAX_OPT_LEN];
     char           template_file[MAX_OPT_LEN];
-    int            write_template;
-    int            write_defaults;
-    int            force_log;
+    bool           write_template;
+    bool           write_defaults;
+    bool           force_log;
     char           log[MAX_OPT_LEN];
-    int            force_log_level;
+    bool           force_log_level;
     int            log_level;
-    int            pid_file;
+    bool           pid_file;
     char           pid_filepath[MAX_OPT_LEN];
-    int            test_syntax;
-    int            partial_scan;
+    bool           test_syntax;
+    bool           partial_scan;
     char           partial_scan_path[RBH_PATH_MAX]; /* can be a deep path */
     uint64_t       diff_mask;
 
@@ -396,7 +396,7 @@ static pthread_t stat_thread;
 
 /* database connexion for updating stats */
 static lmgr_t  lmgr;
-static int     lmgr_init = FALSE;
+static bool    lmgr_init = false;
 static char    boot_time_str[256];
 
 
@@ -491,7 +491,7 @@ static void  *stats_thr( void *arg )
     {
         if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
             return NULL;
-        lmgr_init = TRUE;
+        lmgr_init = true;
     }
 
     DisplayLog( LVL_VERB, MAIN_TAG, "Statistics thread started" );
@@ -505,8 +505,8 @@ static void  *stats_thr( void *arg )
 
 
 static int     terminate_sig = 0;
-static int     reload_sig = FALSE;
-static int     dump_sig = FALSE;
+static bool    reload_sig = false;
+static bool    dump_sig = false;
 static pthread_t sig_thr;
 
 #define SIGHDL_TAG  "SigHdlr"
@@ -518,12 +518,12 @@ static void terminate_handler( int sig )
 
 static void reload_handler( int sig )
 {
-    reload_sig = TRUE;
+    reload_sig = true;
 }
 
 static void usr_handler( int sig )
 {
-    dump_sig = TRUE;
+    dump_sig = true;
 }
 
 
@@ -653,7 +653,7 @@ static void   *signal_handler_thr( void *arg )
             if (running_mask & MODULE_MASK_ENTRY_PROCESSOR)
             {
                 /* drop pipeline waiting operations and terminate threads */
-                EntryProcessor_Terminate( FALSE );
+                EntryProcessor_Terminate(false);
 
 #ifdef HAVE_CHANGELOGS
                 if (running_mask & MODULE_MASK_EVENT_HDLR)
@@ -694,7 +694,7 @@ static void   *signal_handler_thr( void *arg )
             if (lmgr_init)
             {
                 ListMgr_CloseAccess(&lmgr);
-                lmgr_init = FALSE;
+                lmgr_init = false;
             }
 
             DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
@@ -713,7 +713,7 @@ static void   *signal_handler_thr( void *arg )
 
             DisplayLog(LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", options.config_file);
             if (ReadRobinhoodConfig(parsing_mask, options.config_file,
-                                    err_msg, &new_config, TRUE))
+                                    err_msg, &new_config, true))
             {
                 DisplayLog(LVL_CRIT, RELOAD_TAG, "Error reading config: %s", err_msg);
             }
@@ -735,7 +735,7 @@ static void   *signal_handler_thr( void *arg )
                 ReloadRobinhoodConfig(parsing_mask, &new_config);
             }
 
-            reload_sig = FALSE;
+            reload_sig = false;
             FlushLogs(  );
         }
         else if ( dump_sig )
@@ -746,11 +746,11 @@ static void   *signal_handler_thr( void *arg )
             {
                 if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
                     return NULL;
-                lmgr_init = TRUE;
+                lmgr_init = true;
             }
 
             dump_stats(&lmgr, &running_mask, &policy_run_mask);
-            dump_sig = FALSE;
+            dump_sig = false;
         }
     }
 }
@@ -821,7 +821,7 @@ static void create_pid_file( const char *pid_file )
 #define SET_ACTION_FLAG( _f_ )  do {                                    \
                                     if ( is_default_actions )           \
                                     {                                   \
-                                        is_default_actions = FALSE;     \
+                                        is_default_actions = false;     \
                                         *action_mask = _f_;             \
                                     }                                   \
                                     else                                \
@@ -833,7 +833,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
 {
     const char    *bin = basename(argv[0]);
     int            c, option_index = 0;
-    int            is_default_actions = TRUE;
+    bool           is_default_actions = true;
     char           extra_chr[1024];
     char           err_msg[4096];
 
@@ -857,7 +857,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
 
             if (optarg) {       /* optional argument => partial scan*/
                 opt->flags |= FLAG_ONCE;
-                opt->partial_scan = TRUE;
+                opt->partial_scan = true;
                 rh_strncpy(opt->partial_scan_path, optarg, RBH_PATH_MAX);
                 /* clean final slash */
                 if (FINAL_SLASH(opt->partial_scan_path))
@@ -1021,7 +1021,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
             break;
 
         case 'd':
-            opt->detach = TRUE;
+            opt->detach = true;
             break;
         case 'f':
             rh_strncpy(opt->config_file, optarg, MAX_OPT_LEN);
@@ -1029,20 +1029,20 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
         case 'T':
             if ( optarg )       /* optional argument */
                 rh_strncpy(opt->template_file, optarg, MAX_OPT_LEN);
-            opt->write_template = TRUE;
+            opt->write_template = true;
             break;
         case TEST_SYNTAX:
-            opt->test_syntax = TRUE;
+            opt->test_syntax = true;
             break;
         case 'D':
-            opt->write_defaults = TRUE;
+            opt->write_defaults = true;
             break;
         case 'L':
-            opt->force_log = TRUE;
+            opt->force_log = true;
             rh_strncpy(opt->log, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            opt->force_log_level = TRUE;
+            opt->force_log_level = true;
             opt->log_level = str2debuglevel(optarg);
             if (opt->log_level == -1)
             {
@@ -1053,7 +1053,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
             }
             break;
         case 'p':
-            opt->pid_file = TRUE;
+            opt->pid_file = true;
             rh_strncpy(opt->pid_filepath, optarg, MAX_OPT_LEN);
             break;
         case 'h':
@@ -1310,7 +1310,7 @@ int main(int argc, char **argv)
     const char    *bin = basename(argv[0]);
     int            rc;
     robinhood_config_t rh_config;
-    int            chgd = 0;
+    bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
     int            action_mask = 0;
     char           err_msg[4096];
@@ -1377,7 +1377,7 @@ int main(int argc, char **argv)
         parsing_mask = action2parsing_mask(action_mask);
 
     if (ReadRobinhoodConfig(parsing_mask, options.config_file, err_msg,
-                            &rh_config, FALSE))
+                            &rh_config, false))
     {
         fprintf(stderr, "Error reading configuration file '%s': %s\n",
                  options.config_file, err_msg);
@@ -1397,7 +1397,7 @@ int main(int argc, char **argv)
         strcpy(rh_config.log_config.log_file, options.log);
     else if (isatty(fileno(stderr)) && !options.detach)
     {
-        options.force_log = TRUE;
+        options.force_log = true;
         strcpy(rh_config.log_config.log_file, "stderr");
     }
     if (options.force_log_level)
@@ -1502,7 +1502,7 @@ int main(int argc, char **argv)
         DisplayLog( LVL_VERB, MAIN_TAG, "Signal handler thread started successfully" );
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &rh_config.lmgr_config, FALSE );
+    rc = ListMgr_Init(&rh_config.lmgr_config, false);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing list manager", rc );
@@ -1613,7 +1613,7 @@ int main(int argc, char **argv)
     if ( (options.flags & FLAG_ONCE) && (  action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) ) )
     {
         /* Pipeline must be flushed */
-        EntryProcessor_Terminate( TRUE );
+        EntryProcessor_Terminate(true);
 
 #ifdef HAVE_CHANGELOGS
         if ( action_mask & ACTION_MASK_HANDLE_EVENTS )

@@ -74,7 +74,7 @@ static int TestRegexp(const char *regexp, const char *to_be_tested)
 #define PATHREGEXP_IS_CHILD    0x00000001
 #define PATHREGEXP_ANY_LEVEL   0x00000002
 
-static int TestPathRegexp(const char *regexp, const char *to_be_tested,
+static bool TestPathRegexp(const char *regexp, const char *to_be_tested,
                            int flags)
 {
     char full_path[RBH_PATH_MAX];
@@ -106,15 +106,14 @@ static int TestPathRegexp(const char *regexp, const char *to_be_tested,
         printf("MATCH regexp='%s', path='%s', tree = %d\n", full_regexp,
                to_be_tested, is_child);
 #endif
-        return TRUE;
+        return true;
     }
 #ifdef _DEBUG_POLICIES
     printf("NO MATCH regexp='%s', path='%s', tree = %d\n", full_regexp,
            to_be_tested, is_child);
 #endif
 
-    return FALSE;
-
+    return false;
 }                               /* TestRegexp */
 
 
@@ -137,7 +136,7 @@ static inline int size_compare(unsigned long long size1, compare_direction_t com
         return (size1 != size2);
     default:
         DisplayLog(LVL_CRIT, POLICY_TAG, "Invalid comparator for size (%d)", comp);
-        return FALSE;
+        return 0;
     }
 }
 
@@ -159,7 +158,7 @@ static inline int int_compare(int int1, compare_direction_t comp, int int2)
         return (int1 != int2);
     default:
         DisplayLog(LVL_CRIT, POLICY_TAG, "Invalid comparator for int (%d)", comp);
-        return FALSE;
+        return 0;
     }
 }
 
@@ -268,13 +267,13 @@ obj_type_t lmgr2policy_type(const char *str_type)
 /** @TODO factorize criteria2filter */
 int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
-                    int *p_must_release, const sm_instance_t *smi)
+                    bool *p_must_release, const sm_instance_t *smi)
 {
     int len;
     char * new_str;
-    int add_root = FALSE;
+    bool add_root = false;
 
-    *p_must_release = FALSE;
+    *p_must_release = false;
 
     switch(p_comp->crit)
     {
@@ -282,7 +281,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
 
         /* is the path relative ? */
         if (!IS_ABSOLUTE_PATH(p_comp->val.str))
-            add_root = TRUE;
+            add_root = true;
 
         /* fullpath like 'tree/% ' */
 
@@ -299,7 +298,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
             len += strlen(global_config.fs_path) + 1; /* root path + '/' */
 
         new_str = MemAlloc(len+3); /* 3 => '/' '%' '\0' */
-        *p_must_release = TRUE;
+        *p_must_release = true;
 
         if (add_root)
             sprintf(new_str, "%s/%s", global_config.fs_path, p_comp->val.str);
@@ -332,7 +331,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
             /* add root path */
             len = strlen(p_comp->val.str) + strlen(global_config.fs_path) + 1;
             new_str = MemAlloc(len + 1); /* +1 for \0 */
-            *p_must_release = TRUE;
+            *p_must_release = true;
             sprintf(new_str, "%s/%s", global_config.fs_path, p_comp->val.str);
             p_value->value.val_str = new_str;
         }
@@ -896,14 +895,14 @@ static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_se
 policy_match_t entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_entry_attr,
                              bool_node_t *p_node, const time_modifier_t *p_pol_mod)
 {
-    return _entry_matches(p_entry_id, p_entry_attr, p_node, p_pol_mod, FALSE);
+    return _entry_matches(p_entry_id, p_entry_attr, p_node, p_pol_mod, false);
 }
 
 static policy_match_t _is_whitelisted(const policy_descr_t *policy,
                               const entry_id_t *p_entry_id,
                               const attr_set_t *p_entry_attr,
                               fileset_item_t **fileset, /* FIXME: not set? */
-                              int no_warning)
+                              bool no_warning)
 {
     unsigned int   i, count;
     policy_match_t rc = POLICY_NO_MATCH;
@@ -1001,12 +1000,12 @@ policy_match_t is_whitelisted(const policy_descr_t *policy,
                               const attr_set_t *p_entry_attr,
                               fileset_item_t **fileset)
 {
-    return _is_whitelisted(policy, p_entry_id, p_entry_attr, fileset, FALSE);
+    return _is_whitelisted(policy, p_entry_id, p_entry_attr, fileset, false);
 }
 
 
 /** determine if a class is whitelisted for the given policy */
-int class_is_whitelisted(const policy_descr_t *policy, const char * class_id)
+bool class_is_whitelisted(const policy_descr_t *policy, const char * class_id)
 {
     unsigned int   i, count;
     fileset_item_t **fs_list;
@@ -1017,10 +1016,10 @@ int class_is_whitelisted(const policy_descr_t *policy, const char * class_id)
     for (i = 0; i < count; i++)
     {
         if (!strcasecmp(fs_list[i]->fileset_id, class_id))
-            return TRUE;
+            return true;
     }
     /* not found */
-    return FALSE;
+    return false;
 }
 
 
@@ -1040,7 +1039,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
 
     /* merge contents of the 2 input attr sets */
     attr_set_t attr_cp = *p_attrs_new;
-    ListMgr_MergeAttrSets(&attr_cp, p_attrs_cached, FALSE);
+    ListMgr_MergeAttrSets(&attr_cp, p_attrs_cached, false);
 
     for (i = 0; i < policies.fileset_count; i++)
     {
@@ -1052,7 +1051,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
             continue;
         }
 
-        switch (_entry_matches(id, &attr_cp, &fset->definition, NULL, TRUE))
+        switch (_entry_matches(id, &attr_cp, &fset->definition, NULL, true))
         {
             case POLICY_MATCH:
                 ok ++;
@@ -1323,8 +1322,7 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
                                 const time_modifier_t *time_mod,
                                 fileset_item_t **pp_fileset)
 {
-    int            could_not_match = FALSE;
-
+    bool           could_not_match = false;
     int            count, i, j;
     int            default_index = -1;
     rule_item_t *pol_list;
@@ -1332,12 +1330,12 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
     /* if it MATCHES any whitelist condition, return NO_MATCH
      * else, it could potentially match a policy, so we must test them.
      */
-    switch (_is_whitelisted(policy, p_entry_id, p_entry_attr, pp_fileset, TRUE))
+    switch (_is_whitelisted(policy, p_entry_id, p_entry_attr, pp_fileset, true))
     {
         case POLICY_MATCH:
             return POLICY_NO_MATCH;
         case POLICY_MISSING_ATTR:
-            could_not_match = TRUE;
+            could_not_match = true;
             break;
         case POLICY_NO_MATCH:
             break;
@@ -1362,9 +1360,9 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
      */
     for (i = 0; i < count; i++)
     {
-        int            match = FALSE;
-        int            all_no_match = (pol_list[i].target_count > 0 ? TRUE : FALSE);
-        int            missing_attr = FALSE;
+        bool match = false;
+        bool all_no_match = (pol_list[i].target_count > 0 ? true : false);
+        bool missing_attr = false;
 
 #ifdef _DEBUG_POLICIES
         printf("Checking policy %s...\n", pol_list[i].rule_id);
@@ -1387,22 +1385,22 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
 
             switch (_entry_matches(p_entry_id, p_entry_attr,
                                    &pol_list[i].target_list[j]->definition,
-                                   time_mod, TRUE))
+                                   time_mod, true))
             {
             case POLICY_MATCH:
                 DisplayLog(LVL_FULL, POLICY_TAG,
                             "Entry matches target file class '%s' of policy '%s'",
                             pol_list[i].target_list[j]->fileset_id, pol_list[i].rule_id);
-                all_no_match = FALSE;
-                match = TRUE;
+                all_no_match = false;
+                match = true;
                 break;
 
             case POLICY_NO_MATCH:
                 break;
 
             case POLICY_MISSING_ATTR:
-                all_no_match = FALSE;
-                missing_attr = TRUE;
+                all_no_match = false;
+                missing_attr = true;
                 DisplayLog(LVL_FULL, POLICY_TAG, "Attributes are missing to check if entry"
                             " matches file class '%s' (in policy '%s')",
                             pol_list[i].target_list[j]->fileset_id, pol_list[i].rule_id);
@@ -1443,7 +1441,7 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
          * - if we get MISSING_ATTR for the condition, return MISSING_ATTR.
          */
         switch (_entry_matches(p_entry_id, p_entry_attr,
-                               &pol_list[i].condition, time_mod, TRUE))
+                               &pol_list[i].condition, time_mod, true))
         {
         case POLICY_NO_MATCH:
             /* the entry cannot match this item */
@@ -1489,7 +1487,7 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
          */
         switch (_entry_matches(p_entry_id, p_entry_attr,
                                &pol_list[default_index].condition,
-                               time_mod, TRUE))
+                               time_mod, true))
         {
         case POLICY_NO_MATCH:
             return POLICY_NO_MATCH;
@@ -1682,9 +1680,9 @@ int check_policies(const entry_id_t * p_id, attr_set_t * p_attrs_new,
 /**
  *  Check if the fileclass needs to be updated
  */
-int need_fileclass_update(const attr_set_t * p_attrs)
+bool need_fileclass_update(const attr_set_t *p_attrs)
 {
-    int    is_set = FALSE;
+    bool   is_set = false;
     time_t last = 0;
     const char * match= "";
 
@@ -1700,19 +1698,19 @@ int need_fileclass_update(const attr_set_t * p_attrs)
     if (!is_set)
     {
         DisplayLog(LVL_FULL, POLICY_TAG, "Need to update fileclass (not set)");
-        return TRUE;
+        return true;
     }
     else if (updt_params.fileclass.when == UPDT_ALWAYS)
     {
         DisplayLog(LVL_FULL, POLICY_TAG, "Need to update fileclass "
                     "(policy is 'always update')");
-        return TRUE;
+        return true;
     }
     else if (updt_params.fileclass.when == UPDT_NEVER)
     {
         DisplayLog(LVL_FULL, POLICY_TAG, "No fileclass update "
                     "(policy is 'never update')");
-        return FALSE;
+        return false;
     }
     else if (updt_params.fileclass.when == UPDT_PERIODIC)
     {
@@ -1720,19 +1718,17 @@ int need_fileclass_update(const attr_set_t * p_attrs)
         {
             DisplayLog(LVL_FULL, POLICY_TAG, "Need to update fileclass "
                         "(out-of-date) (last match=%"PRI_TT")", last);
-            return TRUE;
+            return true;
         }
         else
         {
             /* retrieve previous fileclass */
             DisplayLog(LVL_FULL, POLICY_TAG, "Previously matched fileclass '%s'"
                         " is still valid (last match=%"PRI_TT")", match, last);
-            return FALSE;
+            return false;
         }
     }
-    DisplayLog(LVL_CRIT, POLICY_TAG, "ERROR: unexpected case in %s, "
-                "line %u: 'update_fileclass' cannot be determined",
-                __FUNCTION__, __LINE__);
+    RBH_BUG("Unexpected case: 'update_fileclass' cannot be determined");
     return -1;
 }
 
@@ -1741,18 +1737,18 @@ int need_fileclass_update(const attr_set_t * p_attrs)
  *  \param p_allow_event [out] if set to TRUE, the path
  *         must be updated on related event.
  */
-int need_info_update(const attr_set_t *p_attrs, int *update_if_event,
+bool need_info_update(const attr_set_t *p_attrs, bool *update_if_event,
                      type_info_t type_info)
 {
-    int do_update = FALSE;
-    int is_set = FALSE;
+    bool do_update = false;
+    bool is_set = false;
     time_t last = 0;
     updt_param_item_t pol;
     const char * why ="<unexpected>";
     const char * what ="";
 
     if (update_if_event != NULL)
-        *update_if_event = FALSE;
+        *update_if_event = false;
 
     if (type_info == UPDT_MD)
     {
@@ -1774,49 +1770,48 @@ int need_info_update(const attr_set_t *p_attrs, int *update_if_event,
 #endif
     else
     {
-        DisplayLog(LVL_CRIT, POLICY_TAG, "Unsupported info type in %s(): %u",
-                   __FUNCTION__, type_info);
+        RBH_BUG("Unsupported info type");
         return -1;
     }
 
 
     if (!is_set)
     {
-        do_update = TRUE;
+        do_update = true;
         why = "not in DB/never updated";
     }
     /* Need to update the path if it is partial */
     else if (ATTR_MASK_TEST(p_attrs, fullpath) &&
              ATTR(p_attrs, fullpath)[0] != '/')
     {
-        do_update = TRUE;
+        do_update = true;
         why = "partial path in DB";
     }
     else if ( pol.when == UPDT_ALWAYS )
     {
-        do_update = TRUE;
+        do_update = true;
         why = "policy is 'always update'";
     }
     else if (pol.when == UPDT_NEVER)
     {
-        do_update = FALSE;
+        do_update = false;
     }
     else if (pol.when == UPDT_ON_EVENT)
     {
-        do_update = FALSE;
+        do_update = false;
         if (update_if_event != NULL)
-            *update_if_event = TRUE;
+            *update_if_event = true;
     }
     else if (pol.when == UPDT_PERIODIC)
     {
        if (time(NULL) - last >= pol.period_max)
        {
-            do_update = TRUE;
+            do_update = true;
             why = "expired";
        }
        else
        {
-            do_update = FALSE;
+            do_update = false;
        }
     }
     else if (pol.when == UPDT_ON_EVENT_PERIODIC)
@@ -1826,18 +1821,18 @@ int need_info_update(const attr_set_t *p_attrs, int *update_if_event,
          * else, update on path-related event. */
        if (time(NULL) - last < pol.period_min)
        {
-            do_update = FALSE;
+            do_update = false;
        }
        else if (time(NULL) - last >= pol.period_max)
        {
-            do_update = TRUE;
+            do_update = true;
             why = "expired";
        }
        else /* allow update on event */
        {
-            do_update = FALSE;
+            do_update = false;
             if (update_if_event != NULL)
-                *update_if_event = TRUE;
+                *update_if_event = true;
        }
     }
     else
@@ -1866,7 +1861,7 @@ static char * analyze_hints_params(char * hints,
                           const entry_id_t * p_entry_id,
                           const attr_set_t * p_entry_attr)
 {
-    int error = FALSE;
+    bool error = false;
     char * pass_begin = hints;
     char * begin_var;
     char * end_var;
@@ -1891,7 +1886,7 @@ static char * analyze_hints_params(char * hints,
         if (!end_var)
         {
            DisplayLog(LVL_CRIT,POLICY_TAG, "ERROR: unmatched '{' in migration hints '%s'", hints);
-           error = TRUE;
+           error = true;
            break;
         }
 
@@ -1910,7 +1905,7 @@ static char * analyze_hints_params(char * hints,
            if (!ATTR_MASK_TEST(p_entry_attr, fullpath))
            {
                 DisplayLog(LVL_CRIT,POLICY_TAG, "ERROR: {path} parameter cannot be replaced in hints '%s'", hints);
-                error = TRUE;
+                error = true;
                 break;
            }
            value = ATTR(p_entry_attr, fullpath);
@@ -1920,7 +1915,7 @@ static char * analyze_hints_params(char * hints,
            if (!ATTR_MASK_TEST(p_entry_attr, name))
            {
                 DisplayLog(LVL_CRIT,POLICY_TAG, "ERROR: {name} parameter cannot be replaced in hints '%s'", hints);
-                error = TRUE;
+                error = true;
                 break;
            }
            value = ATTR(p_entry_attr, name);
@@ -1930,7 +1925,7 @@ static char * analyze_hints_params(char * hints,
            if (!ATTR_MASK_TEST(p_entry_attr, stripe_info))
            {
                 DisplayLog(LVL_CRIT,POLICY_TAG, "ERROR: {ost_pool} parameter cannot be replaced in hints '%s'", hints);
-                error = TRUE;
+                error = true;
                 break;
            }
            value = ATTR(p_entry_attr, stripe_info).pool_name;
@@ -1938,7 +1933,7 @@ static char * analyze_hints_params(char * hints,
         else
         {
             DisplayLog(LVL_CRIT,POLICY_TAG, "ERROR: unknown parameter '%s' in hints '%s'", begin_var, hints);
-            error = TRUE;
+            error = true;
             break;
         }
 

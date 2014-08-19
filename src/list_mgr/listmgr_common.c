@@ -70,6 +70,7 @@ int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * va
 int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 {
     int rc;
+    int tmp;
     switch ( type )
     {
     case DB_ID:
@@ -95,7 +96,10 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
     case DB_BIGUINT:
         return sscanf( str_in, "%llu", &value_out->val_biguint );
     case DB_BOOL:
-        return sscanf( str_in, "%d", &value_out->val_bool );
+        rc = sscanf(str_in, "%d", &tmp);
+        if (rc > 0)
+            value_out->val_bool = !(tmp == 0);
+        return rc;
     default:
         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error: unknown type %d in %s", type, __FUNCTION__ );
         return 0;
@@ -421,8 +425,8 @@ static int print_func_call(char *out, int func_index, const char *prefix)
  * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, int leading_comma,
-                       int for_update, char *prefix, char *postfix)
+int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, bool leading_comma,
+                       bool for_update, char *prefix, char *postfix)
 {
     int            i;
     char          *fields_curr = str;
@@ -604,8 +608,8 @@ static int print_attr_value(lmgr_t * p_mgr, char *out, const attr_set_t *p_set,
  * @param table T_MAIN, T_ANNEX
  * @return nbr of fields
  */
-int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
-                       table_enum table, int leading_coma )
+int attrset2valuelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
+                      table_enum table, bool leading_coma)
 {
     int            i;
     char          *values_curr = str;
@@ -641,7 +645,7 @@ int attrset2valuelist( lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
  * @return nbr of fields
  */
 int attrset2updatelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
-                       table_enum table, int leading_coma, int generic_value)
+                       table_enum table, bool leading_coma, bool generic_value)
 {
     int            i;
     char          *values_curr = str;
@@ -878,8 +882,8 @@ char          *compar2str( filter_comparator_t compar )
  *                           junction needed, depending on the filter
  *                           test looks like "dirattr >= x"
  */
-filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
-                        unsigned int * dir_attr_index)
+filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t *p_filter,
+                        unsigned int *dir_attr_index)
 {
     int i;
     filter_str[0] = '\0';
@@ -928,7 +932,7 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * 
  * \return the number of filtered values
  */
 int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
-                table_enum table, int leading_and, int prefix_table)
+                table_enum table, bool leading_and, bool prefix_table)
 {
     int i;
     char param1[128];
@@ -1043,7 +1047,7 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
 
 
 int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
-                table_enum table, int leading_and, int prefix_table)
+                table_enum table, bool leading_and, bool prefix_table)
 {
     int            i;
     unsigned int   nbfields = 0;
@@ -1323,7 +1327,7 @@ int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
 #endif
 }
 
-unsigned int append_size_range_fields(char * str, int leading_comma, char *prefix)
+unsigned int append_size_range_fields(char * str, bool leading_comma, char *prefix)
 {
     unsigned int i, l;
     l=0;
@@ -1398,7 +1402,7 @@ int lmgr_commit( lmgr_t * p_mgr )
 }
 
 /** Set force commit behavior */
-void ListMgr_ForceCommitFlag( lmgr_t * p_mgr, int force_commit )
+void ListMgr_ForceCommitFlag(lmgr_t *p_mgr, bool force_commit)
 {
     p_mgr->force_commit = force_commit;
 }
@@ -1407,13 +1411,13 @@ void ListMgr_ForceCommitFlag( lmgr_t * p_mgr, int force_commit )
  * @return TRUE if the last operation has been commited,
  * @return FALSE if commit is deferred.
  */
-int ListMgr_GetCommitStatus( lmgr_t * p_mgr )
+bool ListMgr_GetCommitStatus(lmgr_t *p_mgr)
 {
     /* operation was not committed if period > 1 and last_commit is not reset yet */
     if ( ( lmgr_config.commit_behavior > 1 ) && ( p_mgr->last_commit != 0 ) )
-        return FALSE;
+        return false;
     else
-        return TRUE;
+        return true;
 }
 
 int lmgr_flush_commit( lmgr_t * p_mgr )
@@ -1437,7 +1441,7 @@ int lmgr_flush_commit( lmgr_t * p_mgr )
  * If p_target_attrset attributes are unset,
  * retrieve them from p_source_attrset.
  */
-void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_source_attrset, int update)
+void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_source_attrset, bool update)
 {
     int            i;
     uint64_t       mask = 1;

@@ -40,11 +40,11 @@ typedef struct op_extra_info_t
     changelog_record_t log_record;
 
     /** is this entry from changelog ?*/
-    int            is_changelog_record:1;
+    unsigned int is_changelog_record:1;
 #endif
 
     /** unsupported type for migration */
-    int            not_supp:1;
+    unsigned int not_supp:1;
 } op_extra_info_t;
 
 static void inline extra_info_init( op_extra_info_t * p_extra_info )

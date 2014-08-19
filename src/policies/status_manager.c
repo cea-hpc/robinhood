@@ -143,7 +143,7 @@ static status_manager_t *load_status_manager(const char *name)
 
 
 /** indicate if a status manager definition is already loaded */
-static inline int sm_loaded(const char *name, status_manager_t **sm_ptr)
+static inline bool sm_loaded(const char *name, status_manager_t **sm_ptr)
 {
     int i;
     for (i = 0; i < sm_count; i++)
@@ -151,10 +151,10 @@ static inline int sm_loaded(const char *name, status_manager_t **sm_ptr)
         if (!strcasecmp(sm_cache[i]->name, name))
         {
             *sm_ptr = sm_cache[i];
-            return TRUE;
+            return true;
         }
     }
-    return FALSE;
+    return false;
 }
 
 /** get a loaded status manager or allocate a new one */
@@ -181,7 +181,7 @@ static const status_manager_t *sm_get(const char *name)
 
 
 /** check if an instance of shared status manager exists */
-static inline int sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
+static inline bool sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
 {
     int i;
     for (i = 0; i < sm_inst_count; i++)
@@ -189,10 +189,10 @@ static inline int sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
         if (!strcasecmp(sm_inst[i]->sm->name, name))
         {
             *smi_ptr = sm_inst[i];
-            return TRUE;
+            return true;
         }
     }
-    return FALSE;
+    return false;
 }
 
 /** create a status manager instance (if it does not already exist) */

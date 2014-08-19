@@ -134,7 +134,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Directory filter not supported in %s()", __func__ );
             return DB_NOT_SUPPORTED;
         }
-        else if (func_filter(p_mgr, dummy_str, p_filter, T_MAIN, FALSE, FALSE))
+        else if (func_filter(p_mgr, dummy_str, p_filter, T_MAIN, false, false))
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
             return DB_NOT_SUPPORTED;
@@ -143,12 +143,12 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         /* There is always a filter on T_DNAMES, which is the parent condition.
          * Look for optional filters:
          */
-        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
-                                  FALSE, TRUE );
+        filter_main = filter2str(p_mgr, filter_str_main, p_filter, T_MAIN,
+                                 false, true);
 
-        if ( annex_table )
-            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                       T_ANNEX, FALSE, TRUE );
+        if (annex_table)
+            filter_annex = filter2str(p_mgr, filter_str_annex, p_filter,
+                                      T_ANNEX, false, true);
         else
             filter_annex = 0;
 
@@ -156,12 +156,12 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 #if 0
         filter_stripe_info =
             filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                        ( filter_main > 0 ) || ( filter_annex > 0 ), TRUE );
+                        ( filter_main > 0 ) || ( filter_annex > 0 ), true );
 
         filter_stripe_items =
             filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
                         ( filter_main > 0 ) || ( filter_annex > 0 )
-                        || ( filter_stripe_info > 0 ), TRUE );
+                        || ( filter_stripe_info > 0 ), true );
 #endif
     }
 
@@ -171,18 +171,18 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         /* retrieve source info for generated fields */
         add_source_fields_for_gen( &attr_mask );
 
-        main_attrs = attrmask2fieldlist( fieldlist_main, attr_mask, T_MAIN,
-                                         /* leading comma */ TRUE, /* for update */ FALSE,
-                                         /* prefix */ MAIN_TABLE".", /* postfix */ "" );
+        main_attrs = attrmask2fieldlist(fieldlist_main, attr_mask, T_MAIN,
+                                        /* leading comma */ true, /* for update */ false,
+                                        /* prefix */ MAIN_TABLE".", /* postfix */ "");
 
-        dnames_attrs += attrmask2fieldlist( fieldlist_dnames, attr_mask, T_DNAMES,
-                                            /* leading comma */ TRUE, /* for update */ FALSE,
-                                            /* prefix */ DNAMES_TABLE".", /* postfix */ "" );
+        dnames_attrs += attrmask2fieldlist(fieldlist_dnames, attr_mask, T_DNAMES,
+                                           /* leading comma */ true, /* for update */ false,
+                                           /* prefix */ DNAMES_TABLE".", /* postfix */ "");
 
         if ( annex_table )
-            annex_attrs = attrmask2fieldlist( fieldlist_annex, attr_mask, T_ANNEX,
-                                             /* leading comma */ TRUE, /* for update */ FALSE,
-                                             /* prefix */ ANNEX_TABLE".", /* postfix */ "" );
+            annex_attrs = attrmask2fieldlist(fieldlist_annex, attr_mask, T_ANNEX,
+                                             /* leading comma */ true, /* for update */ false,
+                                             /* prefix */ ANNEX_TABLE".", /* postfix */ "");
         else
             annex_attrs = 0;
     }

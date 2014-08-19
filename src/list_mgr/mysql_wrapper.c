@@ -29,7 +29,7 @@
 
 #define _DEBUG_DB
 
-static int mysql_error_convert(int err, int verb)
+static int mysql_error_convert(int err, bool verb)
 {
     switch ( err )
     {
@@ -100,15 +100,15 @@ static int mysql_error_convert(int err, int verb)
     }
 }
 
-int db_is_retryable(int db_err)
+bool db_is_retryable(int db_err)
 {
     switch (db_err)
     {
         case DB_CONNECT_FAILED:
         case DB_DEADLOCK: /* Note: the whole transaction must be retryed */
-            return TRUE;
+            return true;
         default:
-            return FALSE;
+            return false;
     }
 }
 
@@ -206,9 +206,8 @@ char          *db_errmsg( db_conn_t * conn, char *errmsg, unsigned int buflen )
     return errmsg;
 }
 
-static int _db_exec_sql( db_conn_t * conn, const char *query,
-                         result_handle_t * p_result,
-                         int quiet )
+static int _db_exec_sql(db_conn_t *conn, const char *query,
+                        result_handle_t *p_result, bool quiet)
 {
     int            rc;
     int            dberr;
@@ -261,12 +260,12 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
 
 int db_exec_sql_quiet( db_conn_t * conn, const char *query, result_handle_t * p_result )
 {
-    return _db_exec_sql(conn, query, p_result, TRUE );
+    return _db_exec_sql(conn, query, p_result, true);
 }
 
 int db_exec_sql( db_conn_t * conn, const char *query, result_handle_t * p_result )
 {
-    return _db_exec_sql(conn, query, p_result, FALSE );
+    return _db_exec_sql(conn, query, p_result, false);
 }
 
 
@@ -413,13 +412,13 @@ int            db_drop_component( db_conn_t * conn, db_object_e obj_type, const 
 
     if( mysql_get_server_version(conn) < 50032 )
     {
-        sprintf( query, "DROP %s %s ", tname, name );
-        return _db_exec_sql( conn, query, NULL, TRUE );
+        sprintf(query, "DROP %s %s ", tname, name);
+        return _db_exec_sql(conn, query, NULL, true);
     }
     else
     {
-        sprintf( query, "DROP %s IF EXISTS %s ", tname, name );
-        return _db_exec_sql( conn, query, NULL, FALSE );
+        sprintf(query, "DROP %s IF EXISTS %s ", tname, name);
+        return _db_exec_sql(conn, query, NULL, false);
     }
 }
 
@@ -439,7 +438,7 @@ int db_check_component(db_conn_t *conn, db_object_e obj_type, const char *name, 
         sprintf(query, "SELECT EVENT_OBJECT_TABLE FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA='%s'"
                 "AND TRIGGER_NAME='%s'", lmgr_config.db_config.db, name);
 
-        rc = _db_exec_sql(conn, query, &result, FALSE);
+        rc = _db_exec_sql(conn, query, &result, false);
         if ( rc )
             return rc;
 
@@ -489,7 +488,7 @@ int db_check_component(db_conn_t *conn, db_object_e obj_type, const char *name, 
         sprintf(query, "SHOW FUNCTION STATUS WHERE DB='%s' AND NAME='%s'",
                 lmgr_config.db_config.db, name);
 
-        rc = _db_exec_sql(conn, query, &result, FALSE);
+        rc = _db_exec_sql(conn, query, &result, false);
         if ( rc )
             return rc;
 
@@ -533,7 +532,7 @@ int db_create_trigger( db_conn_t * conn, const char *name, const char *event,
     char query[4096];
     sprintf( query, "CREATE TRIGGER %s %s ON %s FOR EACH ROW "
                     "BEGIN %s END", name, event, table, body );
-    return _db_exec_sql( conn, query, NULL, FALSE );
+    return _db_exec_sql(conn, query, NULL, false);
 
 #else
 
@@ -567,6 +566,6 @@ int db_transaction_level(db_conn_t * conn, what_trans_e what_tx, tx_level_e tx_l
         sprintf(query, "SET SESSION TRANSACTION ISOLATION LEVEL %s",
                 txlvl_str(tx_level));
 
-    return _db_exec_sql( conn, query, NULL, FALSE );
+    return _db_exec_sql(conn, query, NULL, false);
 }
 

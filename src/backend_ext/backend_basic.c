@@ -72,15 +72,15 @@ static dev_t backend_dev = 0;
 static char  backend_name[RBH_PATH_MAX] = "";
 
 /* is it a special shell character */
-static inline int is_shell_special(char c)
+static inline bool is_shell_special(char c)
 {
     static const char * specials = "`#$*?!|;&<>[]{}'\"\\";
     const char * curr;
     for (curr = specials; (*curr) != '\0'; curr++)
         if (c == (*curr))
-            return TRUE;
+            return true;
     /* not found */
-    return FALSE;
+    return false;
 }
 
 #define is_allowed_char(_c) (isprint(_c) && !isspace(_c) && !is_shell_special(_c))
@@ -134,8 +134,8 @@ int rbhext_init( const backend_config_t * conf,
 #endif
 
     /* check that backend filesystem is mounted */
-    rc = CheckFSInfo( config.root, config.mnt_type, &backend_dev, backend_name,
-                      config.check_mounted, FALSE );
+    rc = CheckFSInfo(config.root, config.mnt_type, &backend_dev, backend_name,
+                     config.check_mounted, false);
     if ( rc )
         return -rc;
 
@@ -149,10 +149,10 @@ uint64_t rbhext_ignore_need()
     return ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_type;
 }
 
-int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
+bool rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
 {
 #ifndef HAVE_SHOOK
-    return 0;
+    return false;
 #else
     /* if we don't know the full path, but the name looks like
      * an ignored entry, get the path */
@@ -168,13 +168,13 @@ int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
         {
             if (Lustre_GetFullPath(p_id, ATTR(p_attrs,fullpath), RBH_PATH_MAX) != 0)
                 /* ignore, by default */
-                return TRUE;
+                return true;
             else
                 /* continue with path checking */
                 ATTR_MASK_SET(p_attrs, fullpath);
         }
         else /* no possible match */
-            return FALSE;
+            return false;
     }
 
     if (ATTR_MASK_TEST(p_attrs, fullpath))
@@ -186,7 +186,7 @@ int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook lock",
                        ATTR(p_attrs, fullpath));
             /** @TODO raise special event for the file: LOCK/UNLOCK */
-            return TRUE;
+            return true;
         }
         /* check lock dir */
         else if (!fnmatch("*/"LOCK_DIR, ATTR(p_attrs, fullpath ), 0))
@@ -194,7 +194,7 @@ int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
             /* skip the entry */
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook lock dir",
                        ATTR(p_attrs, fullpath));
-            return TRUE;
+            return true;
         }
         /* check restripe dir */
         else if (!fnmatch("*/"RESTRIPE_DIR, ATTR(p_attrs, fullpath ), 0))
@@ -202,7 +202,7 @@ int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
             /* skip the entry */
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook restripe dir",
                        ATTR(p_attrs, fullpath));
-            return TRUE;
+            return true;
         }
     }
 
@@ -216,7 +216,7 @@ int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
             /* skip the entry */
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, "\"%s\" is a shook dir",
                        ATTR(p_attrs, name));
-            return TRUE;
+            return true;
         }
     }
 
@@ -235,10 +235,10 @@ int rbhext_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
         DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Removing shook stripe source %s: no removal in backend!",
                     ATTR_MASK_TEST(p_attrs, fullpath)?
                     ATTR(p_attrs, fullpath) : ATTR(p_attrs, name));
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 #endif
 }
 
@@ -941,7 +941,7 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
     struct stat st;
     mode_t mode;
     int rc;
-    int setattrs = FALSE;
+    bool setattrs = false;
 
     /* to backend or the other way? */
     if ( target == TO_BACKEND )
@@ -1012,12 +1012,12 @@ relative:
             if (get_orig_dir_md(path_copy, &st, target) == 0)
             {
                 mode = st.st_mode & 07777;
-                setattrs = TRUE;
+                setattrs = true;
             }
             else
             {
                 mode = default_mode;
-                setattrs = FALSE;
+                setattrs = false;
             }
 
             DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", path_copy );
@@ -1053,12 +1053,12 @@ relative:
     if (get_orig_dir_md(full_path, &st, target) == 0)
     {
         mode = st.st_mode & 07777;
-        setattrs = TRUE;
+        setattrs = true;
     }
     else
     {
         mode = default_mode;
-        setattrs = FALSE;
+        setattrs = false;
     }
 
     /* finaly create this dir */
@@ -1308,7 +1308,7 @@ out:
 }
 
 static int builtin_copy(const char *src, const char *dst, int dst_flags,
-                        int save_attrs, int flags)
+                        bool save_attrs, int flags)
 {
     struct copy_info cp_nfo;
     int rc, err_close = 0;
@@ -1386,7 +1386,7 @@ int rbhext_archive(const entry_id_t * p_id,
     char * destdir;
     struct stat info;
     struct stat void_stat;
-    int check_moved = FALSE;
+    bool check_moved = false;
     obj_type_t entry_type;
 
     /* if status is not determined, retrieve it */
@@ -1448,7 +1448,7 @@ int rbhext_archive(const entry_id_t * p_id,
         if ( ATTR_MASK_TEST(p_attrs, backendpath) )
         {
             /* need to check if the entry was renamed */
-            check_moved = TRUE;
+            check_moved = true;
             if ( lstat(ATTR(p_attrs,backendpath), &void_stat) != 0 )
             {
                 rc = -errno;
@@ -1511,15 +1511,15 @@ int rbhext_archive(const entry_id_t * p_id,
 
         /* execute the archive command (or built-in, if not set) */
         if (EMPTY_STRING(config.action_cmd))
-            rc = builtin_copy(fspath, tmp, O_WRONLY | O_CREAT | O_TRUNC, TRUE,
+            rc = builtin_copy(fspath, tmp, O_WRONLY | O_CREAT | O_TRUNC, true,
                               (config.compress?COMPRESS_DEST:0) |
                               (config.sendfile?USE_SENDFILE:0));
         else
         {
             if (hints)
-                rc = execute_shell_command(TRUE, config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
+                rc = execute_shell_command(true, config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
             else
-                rc = execute_shell_command(TRUE, config.action_cmd, 3, "ARCHIVE", fspath, tmp);
+                rc = execute_shell_command(true, config.action_cmd, 3, "ARCHIVE", fspath, tmp);
         }
 
         if (rc)
@@ -1628,7 +1628,7 @@ int rbhext_archive(const entry_id_t * p_id,
             }
 
             /* update entry attributes */
-            PosixStat2EntryAttr( &info, p_attrs, TRUE );
+            PosixStat2EntryAttr(&info, p_attrs, true);
         }
     }
     else if ( entry_type == TYPE_LINK )
@@ -1789,10 +1789,10 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     int fd;
     entry_id_t  parent_id;
     mode_t mode_create = 0;
-    int set_mode = FALSE;
-    int stat_done = FALSE;
-    int no_copy = FALSE;
-    int compressed = 0;
+    bool set_mode = false;
+    bool stat_done = false;
+    bool no_copy = false;
+    bool compressed = false;
 
     if (!ATTR_MASK_TEST(p_attrs_old, fullpath) || EMPTY_STRING(ATTR(p_attrs_old, fullpath)))
     {
@@ -1849,7 +1849,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             else
                 return RS_ERROR;
         }
-        stat_done = TRUE;
+        stat_done = true;
         /* set type in attrs_old */
         const char *type = mode2type(st_bk.st_mode);
         if (type != NULL)
@@ -1887,7 +1887,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         }
         else if (rc == EEXIST)
             /* must set the mode */
-            set_mode = TRUE;
+            set_mode = true;
 
         success_status = RS_NON_FILE;
     }
@@ -1940,7 +1940,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             if (bkinfo)
             {
                 st_bk=*bkinfo;
-                stat_done = TRUE;
+                stat_done = true;
                 /* does the backend path looks compressed? */
                 compressed = IS_ZIP_NAME(backend_path);
             }
@@ -1955,7 +1955,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                 }
             }
             else
-                stat_done = TRUE;
+                stat_done = true;
         }
 
         if (!stat_done)
@@ -1968,7 +1968,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
                 return RS_NOBACKUP;
             }
             else
-                no_copy = TRUE;
+                no_copy = true;
         }
 
         if (!no_copy) /* only if there is a copy in backend */
@@ -1981,9 +1981,9 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 
             ATTR_MASK_INIT( &attr_bk );
             /* merge missing posix attrs to p_attrs_old */
-            PosixStat2EntryAttr(&st_bk, &attr_bk, TRUE);
+            PosixStat2EntryAttr(&st_bk, &attr_bk, true);
             /* leave attrs unchanged if they are already set in p_attrs_old */
-            ListMgr_MergeAttrSets(p_attrs_old, &attr_bk, FALSE);
+            ListMgr_MergeAttrSets(p_attrs_old, &attr_bk, false);
         }
 
         /* test if the target does not already exist */
@@ -2024,8 +2024,8 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
         /* restripe the file in Lustre */
         if (ATTR_MASK_TEST(p_attrs_old, stripe_info))
         {
-            CreateStriped(fspath, &ATTR( p_attrs_old, stripe_info ), FALSE);
-            set_mode= TRUE;
+            CreateStriped(fspath, &ATTR(p_attrs_old, stripe_info), false);
+            set_mode = true;
         }
         else {
 #endif
@@ -2079,11 +2079,11 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     #else
             /* full restore (even data) */
             if (EMPTY_STRING(config.action_cmd))
-                rc = builtin_copy(backend_path, fspath, O_WRONLY, FALSE,
+                rc = builtin_copy(backend_path, fspath, O_WRONLY, false,
                                   (compressed?COMPRESSED_SRC:0) |
                                   (config.sendfile?USE_SENDFILE:0));
             else
-                rc = execute_shell_command(TRUE, config.action_cmd, 3, "RESTORE",
+                rc = execute_shell_command(true, config.action_cmd, 3, "RESTORE",
                                            backend_path, fspath);
             if (rc)
                 return RS_ERROR;
@@ -2185,7 +2185,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
             /* According to chown(2) manual: chown may clear sticky bits even if root does it,
              * so, we must set the mode again if it contains special bits */
             if (!set_mode && (mode_create & 07000))
-                set_mode = TRUE;
+                set_mode = true;
         }
     }
 
@@ -2241,7 +2241,7 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
 
     /* set the new attributes */
     ATTR_MASK_INIT( p_attrs_new );
-    PosixStat2EntryAttr( &st_dest, p_attrs_new, TRUE );
+    PosixStat2EntryAttr(&st_dest, p_attrs_new, true);
     strcpy( ATTR( p_attrs_new, fullpath ), fspath );
     ATTR_MASK_SET( p_attrs_new, fullpath );
 
@@ -2392,7 +2392,7 @@ int rbhext_rebind(const char *fs_path, const char *old_bk_path,
 
     /* build attr struct */
     ATTR_MASK_INIT( &attrs_new );
-    PosixStat2EntryAttr( &st, &attrs_new, TRUE );
+    PosixStat2EntryAttr(&st, &attrs_new, true);
     strcpy( ATTR( &attrs_new, fullpath ), fs_path );
     ATTR_MASK_SET( &attrs_new, fullpath );
 

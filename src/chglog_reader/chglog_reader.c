@@ -350,7 +350,7 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
 #ifdef HAVE_CHANGELOG_EXTEND_REC
     if (left > 0 && fid_is_sane(&rec->cr_sfid))
     {
-        len = snprintf(curr, left, " "CL_EXT_FORMAT, CL_EXT_ARG(rec));
+        len = snprintf(curr, left, " "CL_EXT_FORMAT, CL_EXT_ARG((CL_REC_TYPE *)rec));
         curr += len;
         left -= len;
     }
@@ -415,7 +415,7 @@ static void set_name(CL_REC_TYPE * logrec, entry_proc_op_t * p_op)
 
 
 /* Push the oldest (all=FALSE) or all (all=TRUE) entries into the pipeline. */
-static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
+static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
 {
     time_t oldest = time(NULL) - chglog_reader_config.queue_max_age;
     CL_REC_TYPE * rec;
@@ -429,15 +429,15 @@ static void process_op_queue(reader_thr_info_t *p_info, const int push_all)
          * element is still new enough. */
         if (!push_all &&
             (p_info->op_queue_count < chglog_reader_config.queue_max_size) &&
-            (op->changelog_inserted > oldest))
+            (op->timestamp.changelog_inserted > oldest))
             break;
 
         rh_list_del(&op->list);
         rh_list_del(&op->id_hash_list);
 
         rec = op->extra_info.log_record.p_log_rec;
-        DisplayLog(LVL_FULL, CHGLOG_TAG, "pushing cl record #%Lu: age=%ld",
-                   rec->cr_index, time(NULL) - op->changelog_inserted);
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "pushing cl record #%llu: age=%ld",
+                   rec->cr_index, time(NULL) - op->timestamp.changelog_inserted);
         /* Push the entry to the pipeline */
         p_info->last_pushed = rec->cr_index;
 
@@ -472,8 +472,8 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
     op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
 
     /* set log record */
-    op->extra_info_is_set = TRUE;
-    op->extra_info.is_changelog_record = TRUE;
+    op->extra_info_is_set = 1;
+    op->extra_info.is_changelog_record = 1;
     op->extra_info.log_record.p_log_rec = p_rec;
 
     /* set mdt name */
@@ -499,7 +499,7 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
         EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
 
     /* Add the entry on the pending queue ... */
-    op->changelog_inserted = time(NULL);
+    op->timestamp.changelog_inserted = time(NULL);
     rh_list_add_tail(&op->list, &p_info->op_queue);
     p_info->op_queue_count ++;
 
@@ -550,18 +550,18 @@ static const struct {
  *
  * Returns TRUE or FALSE.
  */
-static int can_ignore_record(const reader_thr_info_t *p_info,
-                             const CL_REC_TYPE *logrec_in)
+static bool can_ignore_record(const reader_thr_info_t *p_info,
+                              const CL_REC_TYPE *logrec_in)
 {
     entry_proc_op_t *op, *t1;
     unsigned int ignore_mask;
     struct id_hash_slot *slot;
 
     if (record_filters[logrec_in->cr_type].ignore == IGNORE_NEVER)
-        return FALSE;
+        return false;
 
     if (record_filters[logrec_in->cr_type].ignore == IGNORE_ALWAYS)
-        return TRUE;
+        return true;
 
     /* The ignore field is IGNORE_MASK. At that point, the FID in the
      * changelog record must be set. All the changelog record with the
@@ -586,15 +586,15 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
              */
             if (logrec_in->cr_index == logrec->cr_index + 1)
             {
-                DisplayLog(LVL_FULL, CHGLOG_TAG, "acknowledging %Lu will acknowledge %Lu too",
+                DisplayLog(LVL_FULL, CHGLOG_TAG, "acknowledging %llu will acknowledge %llu too",
                            logrec->cr_index, logrec_in->cr_index);
                 logrec->cr_index++;
             }
-            return TRUE;
+            return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 /**
@@ -759,8 +759,8 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
                 !chglog_reader_config.mds_has_lu1331) {
                 DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-1331 is fixed in this version of Lustre.");
 
-                chglog_reader_config.mds_has_lu543 = 1;
-                chglog_reader_config.mds_has_lu1331 = 1;
+                chglog_reader_config.mds_has_lu543 = true;
+                chglog_reader_config.mds_has_lu1331 = true;
             }
 
             if (!FID_IS_ZERO(&p_rec->cr_tfid))
@@ -824,7 +824,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             (FID_IS_ZERO(&p_rec->cr_tfid) ||
              !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
             /* tfid if 0, or the two fids are different, so we have LU-543. */
-            chglog_reader_config.mds_has_lu543 = 1;
+            chglog_reader_config.mds_has_lu543 = true;
             DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-543 is fixed in this version of Lustre.");
         }
 
@@ -906,7 +906,7 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
 
     if (f_changelog && rc != 0 && rc != 1)
     {
-        fprintf(f_changelog, ">>> llapi_changelog_recv returned error %d (last record = %Lu)\n",
+        fprintf(f_changelog, ">>> llapi_changelog_recv returned error %d (last record = %llu)\n",
                 rc, info->last_read_record);
         fflush(f_changelog);
     }
@@ -938,9 +938,9 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
 
         if ( chglog_reader_config.force_polling )
         {
-            DisplayLog( LVL_FULL, CHGLOG_TAG,
-                        "EOF reached on changelog from %s, reopening in %d sec",
-                        info->mdtdevice, chglog_reader_config.polling_interval);
+            DisplayLog(LVL_FULL, CHGLOG_TAG,
+                       "EOF reached on changelog from %s, reopening in %ld sec",
+                       info->mdtdevice, chglog_reader_config.polling_interval);
             /* sleep during polling interval */
             rh_sleep( chglog_reader_config.polling_interval );
         }
@@ -998,7 +998,7 @@ static void * chglog_reader_thr( void *  arg )
         /* Is it time to flush? */
         if (info->op_queue_count >= chglog_reader_config.queue_max_size ||
             next_push_time <= time(NULL)) {
-            process_op_queue(info, FALSE);
+            process_op_queue(info, false);
 
             next_push_time = time(NULL) + chglog_reader_config.queue_check_interval;
             if (f_changelog)
@@ -1016,7 +1016,7 @@ static void * chglog_reader_thr( void *  arg )
     }
 
     /* Stopping. Flush the internal queue. */
-    process_op_queue(info, TRUE);
+    process_op_queue(info, true);
 
     if (f_changelog)
     {
@@ -1157,7 +1157,7 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
         info->thr_index = i;
         rh_list_init(&info->op_queue);
         info->last_report = time(NULL);
-        info->id_hash = id_hash_init( ID_CHGLOG_HASH_SIZE, FALSE );
+        info->id_hash = id_hash_init(ID_CHGLOG_HASH_SIZE, false);
 
         snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
                   p_config->mdt_def[i].mdt_name );
@@ -1227,7 +1227,7 @@ int            ChgLogRdr_Terminate( void )
     /* ask threads to stop */
     for ( i = 0; i < chglog_reader_config.mdt_count; i++ )
     {
-        reader_info[i].force_stop = TRUE;
+        reader_info[i].force_stop = true;
     }
 
     DisplayLog( LVL_EVENT, CHGLOG_TAG,

@@ -36,7 +36,7 @@ static int clean_names(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     char query[RBH_PATH_MAX+128];
     int rc;
 
-    int filter_names = filter2str(p_mgr, filter_str, p_filter, T_DNAMES, FALSE, FALSE);
+    int filter_names = filter2str(p_mgr, filter_str, p_filter, T_DNAMES, false, false);
     *has_name_filter = filter_names?1:0;
 
     /* if there is a filter on names, clean them independantly, whatever the over filters */
@@ -99,7 +99,7 @@ static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_
 
 
 int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
-                         const attr_set_t *p_attr_set, int last)
+                         const attr_set_t *p_attr_set, bool last)
 {
     char           request[4096];
     int            rc;
@@ -148,8 +148,8 @@ int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
 }
 
 
-int ListMgr_Remove( lmgr_t * p_mgr, const entry_id_t * p_id,
-                    const attr_set_t * p_attr_set, int last )
+int ListMgr_Remove(lmgr_t *p_mgr, const entry_id_t *p_id,
+                   const attr_set_t *p_attr_set, bool last)
 {
     int rc;
 
@@ -420,17 +420,18 @@ retry:
     else
     {
         /* soft rm: just build the name filter for the later request */
-        filter_names = filter2str(p_mgr, filter_str_names, p_filter, T_DNAMES, FALSE, FALSE);
+        filter_names = filter2str(p_mgr, filter_str_names, p_filter, T_DNAMES, false, false);
     }
 
     /* on which table are the filters ?  */
     curr_filter = filter_str;
-    filter_main = filter2str( p_mgr, curr_filter, p_filter, T_MAIN, FALSE /* no leading AND */, TRUE );
+    filter_main = filter2str(p_mgr, curr_filter, p_filter, T_MAIN, false /* no leading AND */, true);
     curr_filter += strlen(curr_filter);
 
-    if ( annex_table )
+    if (annex_table)
     {
-        filter_annex = filter2str( p_mgr, curr_filter, p_filter, T_ANNEX, (curr_filter != filter_str), TRUE );
+        filter_annex = filter2str(p_mgr, curr_filter, p_filter, T_ANNEX,
+                                  (curr_filter != filter_str), true);
         curr_filter += strlen(curr_filter);
     }
     else
@@ -439,10 +440,12 @@ retry:
     /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
     filter_stripe_info =
-        filter2str( p_mgr, curr_filter, p_filter, T_STRIPE_INFO, (curr_filter != filter_str), TRUE );
+        filter2str(p_mgr, curr_filter, p_filter, T_STRIPE_INFO,
+                   (curr_filter != filter_str), true);
     curr_filter += strlen(curr_filter);
     filter_stripe_items =
-        filter2str( p_mgr, curr_filter, p_filter, T_STRIPE_ITEMS, (curr_filter != filter_str), TRUE );
+        filter2str(p_mgr, curr_filter, p_filter, T_STRIPE_ITEMS,
+                   (curr_filter != filter_str), true);
     curr_filter += strlen(curr_filter);
 #endif
 
@@ -748,7 +751,7 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                         rm_cb_func_t cb_func )
 {
     /* not a soft rm */
-    return listmgr_mass_remove( p_mgr, p_filter, FALSE, 0, cb_func );
+    return listmgr_mass_remove(p_mgr, p_filter, false, 0, cb_func);
 }
 
 #ifdef HAVE_RM_POLICY
@@ -757,7 +760,7 @@ int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                            time_t rm_time, rm_cb_func_t cb_func)
 {
     /* soft rm */
-    return listmgr_mass_remove(p_mgr, p_filter, TRUE, rm_time, cb_func);
+    return listmgr_mass_remove(p_mgr, p_filter, true, rm_time, cb_func);
 }
 
 /**
@@ -836,10 +839,10 @@ retry:
     }
 
     /* merge old attrs to missing attrs (can overwrite) */
-    ListMgr_MergeAttrSets(&missing_attrs, p_old_attrs, TRUE);
+    ListMgr_MergeAttrSets(&missing_attrs, p_old_attrs, true);
 
     /* remove the entry from main tables, if it exists */
-    rc = listmgr_remove_no_tx( p_mgr, p_id, &missing_attrs, TRUE );
+    rc = listmgr_remove_no_tx(p_mgr, p_id, &missing_attrs, true);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS)
@@ -893,7 +896,7 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter)
                          __FUNCTION__);
             return NULL;
         }
-        if (filter2str(p_mgr, curr_filter, p_filter, T_SOFTRM, FALSE, FALSE) < 0)
+        if (filter2str(p_mgr, curr_filter, p_filter, T_SOFTRM, false, false) < 0)
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error converting filter to SQL request" );
             return NULL;

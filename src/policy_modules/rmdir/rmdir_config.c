@@ -67,7 +67,7 @@ int Write_Rmdir_ConfigDefault( FILE * output )
 int Read_Rmdir_Config( config_file_t config, void *module_config, char *msg_out, int for_reload )
 {
     int            rc;
-    int            intval;
+    bool           bval;
     rmdir_config_t *conf = ( rmdir_config_t * ) module_config;
 
     static const char * rmdir_allowed[] =
@@ -92,13 +92,11 @@ int Read_Rmdir_Config( config_file_t config, void *module_config, char *msg_out,
       }
 
     /* parse parameters */
-    rc = GetDurationParam( param_block, RMDIR_PARAM_BLOCK, "runtime_interval",
-                           INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, &intval, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+    rc = GetDurationParam(param_block, RMDIR_PARAM_BLOCK, "runtime_interval",
+                          INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL,
+                          &conf->runtime_interval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if ( rc != ENOENT )
-        conf->runtime_interval = intval;
-
 
     rc = GetIntParam( param_block, RMDIR_PARAM_BLOCK, "nb_threads_rmdir",
                       INT_PARAM_POSITIVE | INT_PARAM_NOT_NULL, ( int * ) &conf->nb_threads_rmdir,
@@ -112,9 +110,9 @@ int Read_Rmdir_Config( config_file_t config, void *module_config, char *msg_out,
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetBoolParam( param_block, RMDIR_PARAM_BLOCK, "simulation_mode",
-                       0, &intval, NULL, NULL, msg_out );
-    if ( rc == 0 )
+    rc = GetBoolParam(param_block, RMDIR_PARAM_BLOCK, "simulation_mode",
+                      0, &bval, NULL, NULL, msg_out);
+    if (rc != ENOENT)
     {
         DisplayLog( LVL_EVENT, "RmdirConfig",
             "WARNING: deprecated parameter 'simulation_mode'. Use '--dry-run' option instead.");

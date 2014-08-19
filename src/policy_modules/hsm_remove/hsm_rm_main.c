@@ -170,7 +170,7 @@ static int perform_hsm_rm( unsigned int *p_nb_removed, unsigned int * p_noop, un
     unsigned int   status_tab2[HSMRM_STATUS_COUNT];
 
     unsigned int   submitted_files, nb_in_queue, nb_hsm_rm_pending;
-    int            end_of_list = FALSE;
+    bool            end_of_list = false;
 #ifdef _HSM_LITE
     char           bkpath[RBH_PATH_MAX];
 #endif
@@ -196,7 +196,8 @@ static int perform_hsm_rm( unsigned int *p_nb_removed, unsigned int * p_noop, un
 
     DisplayLog( LVL_EVENT, HSMRM_TAG, "Start removing files in HSM" );
 
-    it = ListMgr_RmList( &lmgr, TRUE, NULL );
+    /** @TODO RBHv3: add filter according to deferred rm delay */
+    it = ListMgr_RmList(&lmgr, NULL);
 
     if ( it == NULL )
       {
@@ -225,7 +226,7 @@ static int perform_hsm_rm( unsigned int *p_nb_removed, unsigned int * p_noop, un
 
           if ( rc == DB_END_OF_LIST )
             {
-                end_of_list = TRUE;
+                end_of_list = true;
                 break;
             }
           else if ( rc != 0 )

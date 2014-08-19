@@ -49,7 +49,7 @@ int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
     /* check how many tables are to be updated */
     if ( main_fields( p_update_set->attr_mask ) )
     {
-        main_count = attrset2updatelist(p_mgr, fields, p_update_set, T_MAIN, FALSE, FALSE);
+        main_count = attrset2updatelist(p_mgr, fields, p_update_set, T_MAIN, false, false);
         if ( main_count < 0 )
             return -main_count;
         if ( main_count > 0 )
@@ -63,7 +63,7 @@ int ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
 
     if ( annex_table && annex_fields( p_update_set->attr_mask ) )
     {
-        annex_count = attrset2updatelist(p_mgr, annex_fields, p_update_set, T_ANNEX, FALSE, FALSE);
+        annex_count = attrset2updatelist(p_mgr, annex_fields, p_update_set, T_ANNEX, false, false);
         if ( annex_count < 0 )
             return -annex_count;
         if ( annex_count > 0 )
@@ -115,14 +115,14 @@ retry:
         values_curr = values + strlen( values );
 
         /* create field and values lists */
-        attrmask2fieldlist( fields_curr, p_update_set->attr_mask, T_DNAMES, TRUE, FALSE, "", "" );
-        attrset2valuelist( p_mgr, values_curr, p_update_set, T_DNAMES, TRUE );
+        attrmask2fieldlist(fields_curr, p_update_set->attr_mask, T_DNAMES, true, false, "", "");
+        attrset2valuelist(p_mgr, values_curr, p_update_set, T_DNAMES, true);
 
         // FIXME this update operation may zero column content if some values are not specified
         set = query + sprintf(query, "INSERT INTO " DNAMES_TABLE "(%s, pkn) VALUES (%s, "HNAME_DEF") "
                 "ON DUPLICATE KEY UPDATE id=VALUES(id)", fields, values);
         /* append the field values for 'ON DUPLICATE KEY...' */
-        attrset2updatelist(p_mgr, set, p_update_set, T_DNAMES, TRUE, TRUE);
+        attrset2updatelist(p_mgr, set, p_update_set, T_DNAMES, true, true);
 
         rc = db_exec_sql( &p_mgr->conn, query, NULL );
         if (lmgr_delayed_retry(p_mgr, rc))
@@ -165,7 +165,7 @@ retry:
             p_items = &ATTR(p_update_set, stripe_items);
 
         rc = update_stripe_info(p_mgr, pk, validator,
-                                &ATTR(p_update_set, stripe_info), p_items, TRUE);
+                                &ATTR(p_update_set, stripe_info), p_items, true);
         if (lmgr_delayed_retry(p_mgr, rc))
             goto retry;
         else if (rc)
@@ -207,11 +207,11 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
     int            filter_stripe_info = 0;
     int            filter_stripe_units = 0;
     int            rc, count;
-    int            impact_all = FALSE;
-    int            filter_unic = FALSE;
+    bool           impact_all = false;
+    bool           filter_unic = false;
     char           fields[2048];
     char           tmp_table_name[256];
-    int            tmp_table_created = FALSE;
+    bool           tmp_table_created = false;
 
     filter_str_main[0] = '\0';
     filter_str_annex[0] = '\0';
@@ -227,47 +227,47 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
 
     if ( p_filter )
     {
-        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
-                                  FALSE, FALSE );
+        filter_main = filter2str(p_mgr, filter_str_main, p_filter, T_MAIN,
+                                 false, false);
 
-        if ( annex_table )
-            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                       T_ANNEX, FALSE, FALSE );
+        if (annex_table)
+            filter_annex = filter2str(p_mgr, filter_str_annex, p_filter,
+                                      T_ANNEX, false, false);
         else
             filter_annex = 0;
 
         filter_stripe_info =
-            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                        FALSE, FALSE );
+            filter2str(p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
+                       false, false);
 
         filter_stripe_units =
-            filter2str( p_mgr, filter_str_stripe_units, p_filter,
-                        T_STRIPE_ITEMS,FALSE, FALSE );
+            filter2str(p_mgr, filter_str_stripe_units, p_filter,
+                       T_STRIPE_ITEMS,false, false);
 
         if ( filter_main + filter_annex + filter_stripe_info + filter_stripe_units == 0 )
         {
             /* all records */
-            impact_all = TRUE;
+            impact_all = true;
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Empty filter: all records will be affected" );
         }
         else if ( filter_main && !( filter_annex || filter_stripe_info || filter_stripe_units ) )
         {
-            filter_unic = TRUE;
+            filter_unic = true;
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " MAIN_TABLE " table" );
         }
         else if ( filter_annex && !( filter_main || filter_stripe_info || filter_stripe_units ) )
         {
-            filter_unic = TRUE;
+            filter_unic = true;
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " ANNEX_TABLE " table" );
         }
         else if ( filter_stripe_info && !( filter_main || filter_annex || filter_stripe_units ) )
         {
-            filter_unic = TRUE;
+            filter_unic = true;
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_INFO_TABLE " table" );
         }
         else if ( filter_stripe_units && !( filter_main || filter_annex || filter_stripe_info ) )
         {
-            filter_unic = TRUE;
+            filter_unic = true;
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_ITEMS_TABLE " table" );
         }
         else
@@ -279,7 +279,7 @@ int ListMgr_MassUpdate( lmgr_t * p_mgr,
     }
     else
     {
-        impact_all = TRUE;
+        impact_all = true;
         DisplayLog( LVL_FULL, LISTMGR_TAG, "Empty filter: all records will be affected" );
     }
 
@@ -295,7 +295,7 @@ retry:
         return rc;
 
     /* perform updates on MAIN TABLE */
-    count = attrset2updatelist(p_mgr, fields, p_attr_set, T_MAIN, FALSE, FALSE);
+    count = attrset2updatelist(p_mgr, fields, p_attr_set, T_MAIN, false, false);
     if ( count < 0 )
         return -count;
     if ( count > 0 )
@@ -333,7 +333,7 @@ retry:
                     else if (rc)
                         goto rollback;
 
-                    tmp_table_created = TRUE;
+                    tmp_table_created = true;
                 }
 
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: passing through unoptimized algorithm" );
@@ -361,7 +361,7 @@ retry:
                     else if (rc)
                         goto rollback;
 
-                    tmp_table_created = TRUE;
+                    tmp_table_created = true;
                 }
 
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: passing through unoptimized algorithm" );
@@ -389,7 +389,7 @@ retry:
                     else if (rc)
                         goto rollback;
 
-                    tmp_table_created = TRUE;
+                    tmp_table_created = true;
                 }
 
                 DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: passing through unoptimized algorithm" );
@@ -418,7 +418,7 @@ retry:
     /* update on annex table ? */
     if ( annex_table )
     {
-        count = attrset2updatelist(p_mgr, fields, p_attr_set, T_ANNEX, FALSE, FALSE);
+        count = attrset2updatelist(p_mgr, fields, p_attr_set, T_ANNEX, false, false);
         if ( count < 0 )
             return -count;
         if ( count > 0 )
@@ -457,7 +457,7 @@ retry:
                         else if (rc)
                             goto rollback;
 
-                        tmp_table_created = TRUE;
+                        tmp_table_created = true;
                     }
 
                     DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: passing through unoptimized algorithm" );
@@ -487,7 +487,7 @@ retry:
                         else if (rc)
                             goto rollback;
 
-                        tmp_table_created = TRUE;
+                        tmp_table_created = true;
                     }
 
                     DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: passing through unoptimized algorithm" );
@@ -516,7 +516,7 @@ retry:
                         else if (rc)
                             goto rollback;
 
-                        tmp_table_created = TRUE;
+                        tmp_table_created = true;
                     }
 
                     DisplayLog( LVL_MAJOR, LISTMGR_TAG, "WARNING: passing through unoptimized algorithm" );
@@ -566,7 +566,7 @@ retry:
 
 int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
                     entry_id_t *new_id, attr_set_t *new_attrs,
-                    int src_is_last, int update_target_if_exists)
+                    bool src_is_last, bool update_target_if_exists)
 {
     char query[4096];
     DEF_PK(oldpk);

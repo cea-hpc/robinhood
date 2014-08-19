@@ -275,7 +275,7 @@ int SendMail( const char *recipient, const char *subject, const char *message )
  * If cfg_in is empty: search any config in config paths
  * /!\ not thread safe
  */
-int SearchConfig(const char *cfg_in, char *cfg_out, int *changed, char *unmatched,
+int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed, char *unmatched,
                  size_t max_len)
 {
     static const char *default_cfg_path = SYSCONFDIR"/robinhood.d/"PURPOSE_EXT;
@@ -283,7 +283,7 @@ int SearchConfig(const char *cfg_in, char *cfg_out, int *changed, char *unmatche
     struct dirent *ent;
     const char *cfg = cfg_in;
 
-    *changed = 1; /* most of the cases */
+    *changed = true; /* most of the cases */
 
     if (cfg == NULL || EMPTY_STRING(cfg))
     {
@@ -338,14 +338,14 @@ int SearchConfig(const char *cfg_in, char *cfg_out, int *changed, char *unmatche
         /* the specified config file exists */
         if (cfg_out != cfg)
             rh_strncpy(cfg_out, cfg, max_len);
-        *changed=0;
+        *changed = false;
         return 0;
     }
     else if (strchr(cfg, '/'))
     {
         /* the argument is a path (not a single name
          * and this path was not found) */
-        *changed=0;
+        *changed = false;
         goto notfound;
     }
     else /* look for a file in the given paths */
@@ -443,7 +443,8 @@ const char * mode2type(mode_t mode)
         return NULL;
 }
 
-void PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int size_info )
+void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set,
+                         bool size_info)
 {
     ATTR_MASK_SET( p_attr_set, owner );
     uid2str( p_inode->st_uid, ATTR( p_attr_set, owner ) );
@@ -572,9 +573,9 @@ static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
  * Also return the associated device number.
  * (for STAY_IN_FS security option).
  */
-int CheckFSInfo( char *path, char *expected_type,
-                 dev_t * p_fs_dev, char * fsname_out,
-                 int check_mounted, int save_fs )
+int CheckFSInfo(char *path, char *expected_type,
+                dev_t *p_fs_dev, char *fsname_out,
+                bool check_mounted, bool save_fs)
 {
     FILE          *fp;
     struct mntent *p_mnt;
@@ -643,9 +644,9 @@ int CheckFSInfo( char *path, char *expected_type,
 
             pathlen = strlen( p_mnt->mnt_dir );
 
-            /* if check_mounted is FALSE, root filesystem is allowed */
-            if ( !check_mounted && ( pathlen > outlen )
-                 && !strcmp( p_mnt->mnt_dir, "/" ) )
+            /* if check_mounted is false, root filesystem is allowed */
+            if (!check_mounted && (pathlen > outlen)
+                && !strcmp(p_mnt->mnt_dir, "/"))
             {
                 DisplayLog( LVL_DEBUG, "CheckFS",
                             "Root mountpoint is allowed for matching %s, type=%s, fs=%s",
@@ -672,15 +673,15 @@ int CheckFSInfo( char *path, char *expected_type,
         }
     }
 
-    if ( outlen <= 0 )
+    if (outlen <= 0)
     {
-        DisplayLog( LVL_CRIT, "CheckFS", "No mount entry matches '%s' in %s", rpath, MOUNTED );
-        DisplayLog( LVL_CRIT, "CheckFS",
-                    "Set 'check_mounted = FALSE' in configuration to force using root filesystem" );
-        endmntent( fp );
+        DisplayLog(LVL_CRIT, "CheckFS", "No mount entry matches '%s' in %s",
+                   rpath, MOUNTED);
+        DisplayLog(LVL_CRIT, "CheckFS",
+                   "Set 'check_mounted = no' in configuration to force using root filesystem");
+        endmntent(fp);
         return ENOENT;
     }
-
 
     /* display the matching entry */
     DisplayLog( LVL_EVENT, "CheckFS",
@@ -810,7 +811,7 @@ int CheckFSInfo( char *path, char *expected_type,
  */
 int InitFS( void )
 {
-    static int initialized = FALSE;
+    static bool initialized = false;
     int rc;
 
     if (initialized)
@@ -828,8 +829,8 @@ int InitFS( void )
     }
 #endif
 
-    rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
-                      global_config.check_mounted, TRUE );
+    rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+                     global_config.check_mounted, true);
     if (rc)
     {
         DisplayLog( LVL_CRIT, "InitFS", "Error %d checking Filesystem", rc );
@@ -837,7 +838,7 @@ int InitFS( void )
     }
 
     /* OK */
-    initialized = TRUE;
+    initialized = true;
     return 0;
 }
 
@@ -861,8 +862,8 @@ int ResetFS( void )
     {
         case FSKEY_FSNAME:
             /* get and compare FS name */
-            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, name,
-                              global_config.check_mounted, FALSE );
+            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, name,
+                             global_config.check_mounted, false);
             if (rc)
                 return rc;
             /* did the name changed ? */
@@ -876,8 +877,8 @@ int ResetFS( void )
                 return -1;
             }
             /* update fsid and devid */
-            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
-                              global_config.check_mounted, TRUE );
+            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+                             global_config.check_mounted, true);
             return rc;
 
         case FSKEY_FSID:
@@ -899,14 +900,14 @@ int ResetFS( void )
                 return -1;
             }
             /* update fsname and devid */
-            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
-                              global_config.check_mounted, TRUE );
+            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+                             global_config.check_mounted, true);
             return rc;
 
         case FSKEY_DEVID:
             /* get and compare dev id */
-            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, &dev, NULL,
-                              global_config.check_mounted, FALSE );
+            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, &dev, NULL,
+                             global_config.check_mounted, false);
             if (rc)
                 return rc;
             /* did the device change? */
@@ -921,8 +922,8 @@ int ResetFS( void )
                 return -1;
             }
             /* update fsname and fsid */
-            rc = CheckFSInfo( global_config.fs_path, global_config.fs_type, NULL, NULL,
-                              global_config.check_mounted, TRUE );
+            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+                             global_config.check_mounted, true);
             return rc;
 
         default:
@@ -1120,17 +1121,19 @@ long long str2bigint( const char *str )
  * Convert a string to a boolean
  * @return -1 on error.
  */
-int str2bool( const char *str )
+int str2bool(const char *str)
 {
-    if ( str == NULL )
+    if (str == NULL)
         return -1;
 
-    if ( !strcmp( str, "1" ) || !strcasecmp( str, "TRUE" ) ||
-         !strcasecmp( str, "YES" ) || !strcasecmp( str, "ENABLED" ) || !strcasecmp( str, "ON" ) )
+    if (!strcmp(str, "1") || !strcasecmp(str, "true") ||
+         !strcasecmp(str, "yes") || !strcasecmp(str, "enabled") ||
+         !strcasecmp(str, "on"))
         return 1;
 
-    if ( !strcmp( str, "0" ) || !strcasecmp( str, "FALSE" ) ||
-         !strcasecmp( str, "NO" ) || !strcasecmp( str, "DISABLED" ) || !strcasecmp( str, "OFF" ) )
+    if (!strcmp(str, "0") || !strcasecmp(str, "false") ||
+         !strcasecmp(str, "no") || !strcasecmp(str, "disabled") ||
+         !strcasecmp(str, "off"))
         return 0;
 
     return -1;
@@ -2523,7 +2526,7 @@ static inline int create_parent_of(const char * child_path, entry_id_t * p_paren
 /* create an object with the given attributes */
 int create_from_attrs(const attr_set_t * attrs_in,
                       attr_set_t * attrs_out,
-                      entry_id_t *new_id, int overwrite, int setstripe)
+                      entry_id_t *new_id, bool overwrite, bool setstripe)
 {
     char link[RBH_PATH_MAX] = "";
     const char * fspath;
@@ -2531,7 +2534,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
     struct stat st_dest;
     int fd;
     mode_t mode_create = 0;
-    int set_mode = FALSE;
+    bool   set_mode = false;
 
     if (!ATTR_MASK_TEST( attrs_in, fullpath ) || !ATTR_MASK_TEST(attrs_in, type))
     {
@@ -2563,7 +2566,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
         if (rc != 0 && rc != -EEXIST)
             return rc;
         else if (rc == -EEXIST)
-            set_mode = TRUE;
+            set_mode = true;
     }
     else if (!strcasecmp(ATTR(attrs_in, type), STR_TYPE_LINK))
     {
@@ -2586,7 +2589,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
     }
     else if (!strcasecmp(ATTR(attrs_in, type), STR_TYPE_FILE))
     {
-        int created = FALSE;
+        int created = false;
 
         if (ATTR_MASK_TEST(attrs_in, mode))
             mode_create = ATTR(attrs_in, mode);
@@ -2602,8 +2605,8 @@ int create_from_attrs(const attr_set_t * attrs_in,
                 rc = CreateStriped( fspath, &ATTR(attrs_in, stripe_info), overwrite );
                 if (rc == 0 || rc == -EEXIST)
                 {
-                    created = TRUE;
-                    set_mode= TRUE;
+                    created = true;
+                    set_mode= true;
                 }
                 else
                     DisplayLog(LVL_MAJOR, CREAT_TAG, "setstripe failed: trying to create file with default striping");
@@ -2615,13 +2618,13 @@ int create_from_attrs(const attr_set_t * attrs_in,
             rc = CreateWithoutStripe( fspath, mode_create & 07777, overwrite );
             if (rc == 0)
             {
-                created = TRUE;
-                set_mode = FALSE;
+                created = true;
+                set_mode = false;
             }
             else if (rc == -EEXIST)
             {
-                created = TRUE;
-                set_mode = TRUE;
+                created = true;
+                set_mode = true;
             }
             else
                 DisplayLog(LVL_MAJOR, CREAT_TAG, "create(O_LOV_DELAY_CREATE) failed: trying to create file with default striping");
@@ -2720,7 +2723,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
             /* According to chown(2) manual: chown may clear sticky bits even if root does it,
              * so, we must set the mode again if it contains special bits */
             if (!set_mode && (mode_create & 07000))
-                set_mode = TRUE;
+                set_mode = true;
         }
     }
 
@@ -2755,7 +2758,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
 #endif
 
     /* update with the new attributes */
-    PosixStat2EntryAttr(&st_dest, attrs_out, TRUE);
+    PosixStat2EntryAttr(&st_dest, attrs_out, true);
 
     /* copy missing info: path, name, link, ...*/
     strcpy( ATTR( attrs_out, fullpath ), fspath );

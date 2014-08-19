@@ -39,7 +39,7 @@ typedef struct fs_scan_config_t
     time_t       max_scan_interval;
     time_t       scan_retry_delay;
     time_t       scan_op_timeout;
-    time_t       exit_on_timeout;
+    bool         exit_on_timeout;
 
     /**
      * interval of the spooler (checks for audits to be launched,
@@ -78,8 +78,8 @@ void           FSScan_StoreStats( lmgr_t * lmgr );
  * @{
  */
 int            FSScan_SetDefaultConfig( void *module_config, char *msg_out );
-int            FSScan_ReadConfig( config_file_t config, void *module_config,
-                                  char *msg_out, int for_reload );
+int            FSScan_ReadConfig(config_file_t config, void *module_config,
+                                 char *msg_out, bool for_reload);
 int            FSScan_ReloadConfig( void *module_config );
 int            FSScan_WriteConfigTemplate( FILE * output );
 int            FSScan_WriteDefaultConfig( FILE * output );

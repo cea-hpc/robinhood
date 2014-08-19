@@ -22,14 +22,7 @@
 #include <pthread.h>
 #include <sys/param.h>
 #include <sys/stat.h>
-
-#ifndef TRUE
-#define TRUE (1)
-#endif
-
-#ifndef FALSE
-#define FALSE (0)
-#endif
+#include <stdbool.h>
 
 
 /* a scanning task */
@@ -63,8 +56,7 @@ typedef struct robinhood_task__
     /* this boolean indicates if the task is finished
      * (not including child tasks)
      */
-    int            task_finished;
-
+    bool            task_finished;
 
     /* these pointers are used for chaining a (child) task
      * into its parent list of childs.

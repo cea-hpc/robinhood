@@ -48,7 +48,7 @@
                         _u.val_biguint = *((unsigned long long*)(_address));  \
                         break;                              \
                       case DB_BOOL:                         \
-                        _u.val_bool = *((int*)(_address));   \
+                        _u.val_bool = *((bool*)(_address));   \
                         break;                              \
                       default:                              \
                         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in ASSIGN_UNION: %d !!!", _type);\
@@ -84,7 +84,7 @@
                         *((unsigned long long*)(_address)) = _u.val_biguint;  \
                         break;                              \
                       case DB_BOOL:                         \
-                        *((int*)(_address)) = _u.val_bool ;   \
+                        *((bool*)(_address)) = _u.val_bool ;   \
                         break;                              \
                       default:                              \
                         DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in UNION_GET_VALUE: %d !!!", _type);\
@@ -138,8 +138,8 @@
                         _diff = (_u1.val_biguint != _u2.val_biguint); \
                         break;                              \
                       case DB_BOOL:                         \
-                        _u1.val_bool = *((int*)(_address1));   \
-                        _u2.val_bool = *((int*)(_address2));   \
+                        _u1.val_bool = *((bool*)(_address1));   \
+                        _u2.val_bool = *((bool*)(_address2));   \
                         _diff = (_u1.val_bool != _u2.val_bool); \
                         break;                              \
                       default:                              \
@@ -274,8 +274,8 @@ void           add_source_fields_for_gen(uint64_t *attr_mask);
 void           generate_fields( attr_set_t * p_set );
 
 int            attrmask2fieldlist(char *str, uint64_t attr_mask,
-                                  table_enum table, int leading_comma,
-                                  int for_update, char *prefix, char *postfix);
+                                  table_enum table, bool leading_comma,
+                                  bool for_update, char *prefix, char *postfix);
 
 int            attrmask2fieldcomparison(char *str, uint64_t attr_mask,
                                   table_enum table, const char *left_prefix,
@@ -288,17 +288,18 @@ int            attrmask2fieldoperation(char *str, uint64_t attr_mask,
 
 int            attrset2valuelist(lmgr_t *p_mgr, char *str,
                                  const attr_set_t *p_set, table_enum table,
-                                 int leading_coma);
+                                 bool leading_coma);
 int            attrset2updatelist(lmgr_t * p_mgr, char *str,
                                   const attr_set_t * p_set, table_enum table,
-                                  int leading_coma, int generic_value);
+                                  bool leading_coma, bool generic_value);
 
-char          *compar2str( filter_comparator_t compar );
-int            filter2str( lmgr_t * p_mgr, char *str, const lmgr_filter_t * p_filter,
-                           table_enum table, int leading_and, int prefix_table );
+char          *compar2str(filter_comparator_t compar);
 
-int            func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
-                           table_enum table, int leading_and, int prefix_table);
+int            filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
+                          table_enum table, bool leading_and, bool prefix_table);
+
+int            func_filter(lmgr_t *p_mgr, char *filter_str, const lmgr_filter_t *p_filter,
+                           table_enum table, bool leading_and, bool prefix_table);
 
 typedef enum
 {
@@ -308,9 +309,9 @@ typedef enum
 } filter_dir_e;
 
 filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
-                        unsigned int * dir_attr_index);
+                        unsigned int *dir_attr_index);
 
-unsigned int  append_size_range_fields(char * str, int leading_comma, char *prefix);
+unsigned int  append_size_range_fields(char * str, bool leading_comma, char *prefix);
 
 
 int            result2attrset( table_enum table, char **result_tab,

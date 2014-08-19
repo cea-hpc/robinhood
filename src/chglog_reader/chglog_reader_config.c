@@ -52,13 +52,13 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
    p_config->mdt_def = &default_mdt_def;
    p_config->mdt_count = 1;
    /* poll until changelog's follow flag is implemented in llapi */
-   p_config->force_polling = TRUE;
+   p_config->force_polling = true;
    p_config->polling_interval = 1; /* 1s */
    p_config->queue_max_size = 1000;
    p_config->queue_max_age = 5; /* 5s */
    p_config->queue_check_interval = 1; /* every second */
-   p_config->mds_has_lu543 = FALSE;
-   p_config->mds_has_lu1331 = FALSE;
+   p_config->mds_has_lu543 = false;
+   p_config->mds_has_lu1331 = false;
    p_config->dump_file[0] = '\0'; /* no dump file */
 
    /* acknowledge 100 records at once */
@@ -68,25 +68,25 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
 }
 
 /** Write default parameters for changelog readers */
-int            ChgLogRdr_WriteDefaultConfig( FILE * output )
+int            ChgLogRdr_WriteDefaultConfig(FILE *output)
 {
-    print_begin_block( output, 0, CHGLOG_CFG_BLOCK, NULL );
-    print_begin_block( output, 1, MDT_DEF_BLOCK, NULL );
-    print_line( output, 2, "mdt_name    :  \"%s\"", default_mdt_def.mdt_name );
-    print_line( output, 2, "reader_id   :  \"%s\"", default_mdt_def.reader_id );
-    print_end_block( output, 1 );
+    print_begin_block(output, 0, CHGLOG_CFG_BLOCK, NULL);
+    print_begin_block(output, 1, MDT_DEF_BLOCK, NULL);
+    print_line(output, 2, "mdt_name    :  \"%s\"", default_mdt_def.mdt_name);
+    print_line(output, 2, "reader_id   :  \"%s\"", default_mdt_def.reader_id);
+    print_end_block(output, 1);
 
-    print_line( output, 1, "batch_ack_count  : 1024" );
-    print_line( output, 1, "force_polling    : TRUE" );
-    print_line( output, 1, "polling_interval : 1s" );
-    print_line( output, 1, "queue_max_size   : 1000" );
-    print_line( output, 1, "queue_max_age    : 5s" );
-    print_line( output, 1, "queue_check_interval : 1s" );
-    print_line(output, 1, "mds_has_lu543    : FALSE");
-    print_line(output, 1, "mds_has_lu1331   : FALSE");
+    print_line(output, 1, "batch_ack_count  : 1024");
+    print_line(output, 1, "force_polling    : yes");
+    print_line(output, 1, "polling_interval : 1s");
+    print_line(output, 1, "queue_max_size   : 1000");
+    print_line(output, 1, "queue_max_age    : 5s");
+    print_line(output, 1, "queue_check_interval : 1s");
+    print_line(output, 1, "mds_has_lu543    : no");
+    print_line(output, 1, "mds_has_lu1331   : no");
     print_line(output, 1, "dump_file        : (none)");
 
-    print_end_block( output, 0 );
+    print_end_block(output, 0);
 
     return 0;
 }
@@ -129,12 +129,12 @@ int            ChgLogRdr_WriteConfigTemplate( FILE * output )
 	print_line( output, 1, "batch_ack_count = 1024 ;");
     fprintf( output, "\n" );
 
-    print_line( output, 1, "force_polling    = ON ;" );
-    print_line( output, 1, "polling_interval = 1s ;" );
-    print_line( output, 1, "queue_max_size   = 1000 ;" );
-    print_line( output, 1, "queue_max_age    = 5s ;" );
-    print_line( output, 1, "queue_check_interval = 1s ;" );
-    fprintf( output, "\n" );
+    print_line(output, 1, "force_polling    = ON ;");
+    print_line(output, 1, "polling_interval = 1s ;");
+    print_line(output, 1, "queue_max_size   = 1000 ;");
+    print_line(output, 1, "queue_max_age    = 5s ;");
+    print_line(output, 1, "queue_check_interval = 1s ;");
+    fprintf(output, "\n");
 
     print_line(output, 1, "# uncomment to dump all changelog records to the file");
     print_line(output, 1, "#dump_file = \"/var/log/robinhood/changelog_dump.log\";");
@@ -208,8 +208,8 @@ static int parse_mdt_block( config_item_t config_blk, const char *block_name,
 }
 
 /** Read configuration for changelog readers */
-int            ChgLogRdr_ReadConfig( config_file_t config, void *module_config,
-                                  char *msg_out, int for_reload )
+int ChgLogRdr_ReadConfig(config_file_t config, void *module_config,
+                         char *msg_out, bool for_reload)
 {
     chglog_reader_config_t * p_config = (chglog_reader_config_t *) module_config;
     unsigned int   blc_index;

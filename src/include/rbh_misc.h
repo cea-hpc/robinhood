@@ -48,7 +48,7 @@
                             || strchr(s,']') || strchr(s,'{') || strchr(s,'}') )
 #define STAR_SLASH_BEGIN( s ) (((s)[0]=='*') && ((s)[1]=='/'))
 
-#define bool2str( _b_ )   ((_b_)?"TRUE":"FALSE")
+#define bool2str(_b_)   ((_b_)?"yes":"no")
 
 #define rh_strncpy(_s1, _s2, _sz) do { strncpy(_s1, _s2, _sz-1); if (_sz > 0) (_s1)[_sz-1] = '\0'; } while(0)
 
@@ -94,7 +94,7 @@ int            SendMail( const char *recipient, const char *subject, const char 
 /**
  * Search for Robinhood config file
  */
-int SearchConfig(const char * cfg_in, char * cfg_out, int * changed, char * unmatched,
+int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed, char * unmatched,
                  size_t max_len);
 
 /**
@@ -108,7 +108,7 @@ void           TestLockFile( time_t * p_last_action );
  * to an attribute set.
  * @param size_info indicates if size info is set in the stat structure.
  */
-void           PosixStat2EntryAttr( struct stat *p_inode, attr_set_t * p_attr_set, int size_info );
+void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set, bool size_info);
 
 /* convert file mode to DB type string */
 const char * mode2type(mode_t mode);
@@ -124,9 +124,9 @@ char          *gid2str( gid_t gid, char *groupname );
  * Also return the associated device number.
  * (for STAY_IN_FS security option).
  */
-int            CheckFSInfo( char *path, char *expected_type,
-                            dev_t * p_fs_dev, char * fsname,
-                            int check_mounted, int save_fs );
+int            CheckFSInfo(char *path, char *expected_type,
+                           dev_t *p_fs_dev, char *fsname,
+                           bool check_mounted, bool save_fs);
 
 
 /**
@@ -165,7 +165,7 @@ int relative_path( const char * fullpath, const char * root, char * rel_path );
 /* create an object with the given attributes */
 int create_from_attrs(const attr_set_t * attrs_in,
                       attr_set_t * attrs_out,
-                      entry_id_t *new_id, int overwrite, int setstripe);
+                      entry_id_t *new_id, bool overwrite, bool setstripe);
 
 #ifdef _LUSTRE
 
@@ -182,7 +182,8 @@ int File_GetStripeByDirFd(int dirfd, const char *fname,
 /**
  * check if a file has data on the given OST.
  */
-int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo, const stripe_items_t * sitems);
+bool DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t *sinfo,
+               const stripe_items_t *sitems);
 
 /**
  * compute the number of blocks of a file on a given OST.
@@ -299,8 +300,8 @@ char          *FormatDuration( char *buff, size_t str_sz, time_t duration );
 char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration );
 
 #ifdef _LUSTRE
-char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items,
-                                 int brief );
+char          *FormatStripeList(char *buff, size_t sz, const stripe_items_t *p_stripe_items,
+                                bool brief);
 
 #endif
 
@@ -442,9 +443,9 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
 
 #ifdef ATTR_INDEX_status
 /** status conversion functions */
-const char * db_status2str( file_status_t status, int csv );
-file_status_t status2dbval( char * status_str );
-const char * allowed_status( void );
+const char *db_status2str(file_status_t status, bool csv);
+file_status_t status2dbval(char * status_str);
+const char *allowed_status(void);
 #endif
 
 #endif

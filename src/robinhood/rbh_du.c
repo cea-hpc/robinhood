@@ -174,15 +174,15 @@ static char * sprint_size(char * buf, uint64_t sz)
             break;
         case disp_kilo:
             if (sz % KB)
-                sprintf(buf, "%Lu", 1+(sz/KB));
+                sprintf(buf, "%llu", 1+(sz/KB));
             else
-                sprintf(buf, "%Lu", sz/KB);
+                sprintf(buf, "%llu", sz/KB);
             break;
         case disp_mega:
             if (sz % MB)
-                sprintf(buf, "%Lu", 1+(sz/MB));
+                sprintf(buf, "%llu", 1+(sz/MB));
             else
-                sprintf(buf, "%Lu", sz/MB);
+                sprintf(buf, "%llu", sz/MB);
             break;
         case disp_human:
             if (sz < KB)
@@ -455,10 +455,10 @@ static int retrieve_root_id(entry_id_t * root_id)
 
 #define REPCNT    4
 static report_field_descr_t dir_info[REPCNT] = {
-    {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_NONE, FALSE, 0, FV_NULL},
-    {0, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL},
-    {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL},
-    {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, FALSE, 0, FV_NULL}
+    {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_NONE, false, 0, FV_NULL},
+    {0, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
+    {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
+    {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL}
 };
 
 /* directory callback */
@@ -511,7 +511,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
  * \param stats array to be filled in
  * \param display_stats the function display the stats by itself
  */
-static int list_all(stats_du_t * stats, int display_stats)
+static int list_all(stats_du_t * stats, bool display_stats)
 {
     attr_set_t  root_attrs;
     entry_id_t  root_id;
@@ -534,7 +534,7 @@ static int list_all(stats_du_t * stats, int display_stats)
 
     if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
     {
-        PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+        PosixStat2EntryAttr(&st, &root_attrs, true);
         ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
     }
 
@@ -580,7 +580,7 @@ static int list_content(char ** id_list, int id_count)
     int i, rc;
     attr_set_t root_attrs;
     entry_id_t root_id;
-    int is_id;
+    bool is_id;
     stats_du_t stats[TYPE_COUNT];
 
     if (prog_options.sum)
@@ -599,11 +599,11 @@ static int list_content(char ** id_list, int id_count)
         if (!prog_options.sum)
             reset_stats(stats);
 
-        is_id = TRUE;
+        is_id = true;
         /* is it a path or fid? */
         if (sscanf(id_list[i], SFID, RFID(&ids[i].id)) != FID_SCAN_CNT)
         {
-            is_id = FALSE;
+            is_id = false;
             /* take it as a path */
             rc = Path2Id(id_list[i], &ids[i].id);
             if (!rc)
@@ -652,7 +652,7 @@ static int list_content(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    PosixStat2EntryAttr(&st, &root_attrs, true);
                     ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
                 }
             }
@@ -665,7 +665,7 @@ static int list_content(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    PosixStat2EntryAttr(&st, &root_attrs, true);
                     ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
                 }
             }
@@ -721,10 +721,10 @@ int main( int argc, char **argv )
     char          *bin = basename( argv[0] );
 
     char           config_file[MAX_OPT_LEN] = "";
-    int            force_log_level = FALSE;
+    bool           force_log_level = false;
     int            log_level = 0;
     int            rc;
-    int            chgd = 0;
+    bool           chgd = false;
     char           err_msg[4096];
     char           badcfg[RBH_PATH_MAX];
 
@@ -797,7 +797,7 @@ int main( int argc, char **argv )
                 rh_strncpy(config_file, optarg, MAX_OPT_LEN);
                 break;
             case 'l':
-                force_log_level = TRUE;
+                force_log_level = true;
                 log_level = str2debuglevel( optarg );
                 if ( log_level == -1 )
                 {
@@ -838,7 +838,7 @@ int main( int argc, char **argv )
 
     /* only read ListMgr config */
 
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
@@ -876,7 +876,7 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, TRUE );
+    rc = ListMgr_Init(&config.lmgr_config, true);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, DU_TAG, "Error %d initializing list manager", rc );
@@ -904,7 +904,7 @@ int main( int argc, char **argv )
         reset_stats(stats);
 
         /* no path in argument: du the entire FS */
-        rc = list_all(stats, TRUE); /* display the stats by itself */
+        rc = list_all(stats, true); /* display the stats by itself */
     }
     else
         rc = list_content(argv+optind, argc-optind);

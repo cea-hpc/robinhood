@@ -283,25 +283,25 @@ int File_GetStripeByDirFd( int dirfd, const char *fname,
 /**
  * check if a file has data on the given OST.
  */
-int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
-              const stripe_items_t * sitems)
+bool DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t *sinfo,
+              const stripe_items_t *sitems)
 {
     unsigned int stripe_blocks, i;
 
     /* if file is empty, the answer is obviously NO */
     if (fsize == 0)
-        return FALSE;
+        return false;
     /* if file size is > (stripe_count-1)*stripe_size, it has at least
      * one byte on the last stripe, and a full stripe block on all previous OSTs.
      * the answer is yes.
      * Note: this test works if stripe count is 1, and file is > 0.
      */
     else if (fsize > (sinfo->stripe_count - 1) * sinfo->stripe_size)
-        return TRUE;
+        return true;
 
     /* insane value, file may not be striped */
     if (sinfo->stripe_size == 0)
-        return FALSE;
+        return false;
 
     /* In the remaining cases, we must check stripe_items.
      * First compute the number of full stripe blocks,
@@ -316,10 +316,10 @@ int DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t * sinfo,
     for (i = 0; i < sinfo->stripe_count && i < stripe_blocks; i++)
     {
         if (sitems->stripe[i].ost_idx == ost_index)
-            return TRUE;
+            return true;
     }
     /* no matched OST */
-    return FALSE;
+    return false;
 }
 
 #define div_upper_round(_n, _d) (((_n)/(_d)) + ((_n) % (_d) ? 1 : 0))
@@ -396,7 +396,7 @@ int CreateStriped( const char * path, const stripe_info_t * old_stripe, int over
                         path, strerror(-rc));
             return rc;
         }
-        return CreateStriped(path, old_stripe, FALSE /*target not expected to exist*/);
+        return CreateStriped(path, old_stripe, false /*target not expected to exist*/);
     }
     else if ( rc != 0 && rc != -EEXIST )
     {
@@ -422,7 +422,7 @@ int CreateWithoutStripe( const char * path, mode_t mode, int overwrite )
                             path, strerror(-rc));
                 return rc;
             }
-            return CreateWithoutStripe(path, mode, FALSE /*target not expected to exist*/);
+            return CreateWithoutStripe(path, mode, false /*target not expected to exist*/);
         }
         DisplayLog(LVL_MAJOR, TAG_CR_STRIPE, "Failed to create %s without striping information: %s",
                    path, strerror(-rc));
@@ -1093,7 +1093,7 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
 }
 #endif
 
-char          *FormatStripeList( char *buff, size_t sz, const stripe_items_t * p_stripe_items, int brief )
+char *FormatStripeList(char *buff, size_t sz, const stripe_items_t *p_stripe_items, bool brief)
 {
     unsigned int   i;
     size_t         written = 0;

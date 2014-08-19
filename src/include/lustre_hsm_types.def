@@ -104,8 +104,8 @@ nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
 md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
 
 # is file eligible for purge/migration? 
-no_release,     int, DB_BOOL, 0, FREQ_ACCESS
-no_archive,     int, DB_BOOL, 0, FREQ_ACCESS
+no_release,     bool, DB_BOOL, 0, FREQ_ACCESS
+no_archive,     bool, DB_BOOL, 0, FREQ_ACCESS
 
 # fileclasses and last update
 fileclass,        char,           DB_TEXT,   1024,   FREQ_ACCESS | SEPD_LIST

@@ -34,7 +34,7 @@ typedef int (*sm_status_func_t)(struct sm_instance *smi,
 typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
                                const CL_REC_TYPE *logrec,
                                const entry_id_t *id, const attr_set_t *attrs,
-                               attr_set_t *refreshed_attrs, int *getit);
+                               attr_set_t *refreshed_attrs, bool *getit);
 
 #define SM_NAME_MAX 128
 

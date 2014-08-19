@@ -63,7 +63,7 @@ int main( int argc, char **argv )
     /* options */
     char           config_file[MAX_OPT_LEN] = "";
     char           badcfg[RBH_PATH_MAX];
-    int            force_log_level = FALSE;
+    bool           force_log_level = false;
     int            log_level = 0;
     int            margin = 0;
     char           output_file[MAX_OPT_LEN] = "/tmp/lov_objid";
@@ -77,7 +77,7 @@ int main( int argc, char **argv )
         switch (c)
         {
             case 'l':
-                force_log_level = TRUE;
+                force_log_level = true;
                 log_level = str2debuglevel(optarg);
                 if (log_level == -1)
                 {
@@ -125,7 +125,7 @@ int main( int argc, char **argv )
 
     /* only read ListMgr config */
 
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
@@ -155,7 +155,7 @@ int main( int argc, char **argv )
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, TRUE );
+    rc = ListMgr_Init(&config.lmgr_config, true);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, TAG, "Error %d initializing list manager", rc );

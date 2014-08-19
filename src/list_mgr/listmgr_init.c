@@ -25,11 +25,11 @@
 #include <stdio.h>
 
 /* exported symbols */
-int            annex_table = FALSE;              /* indicates if an annex table is used */
+bool       annex_table = false;              /* indicates if an annex table is used */
 
 /* global symbols */
 static const char *acct_info_table = NULL;
-static int report_only = FALSE;
+static bool report_only = false;
 
 #define MAX_DB_FIELDS 64
 
@@ -308,7 +308,8 @@ static inline int has_extra_field( int curr_field_index, char *table, char **fie
 /**
  * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
  */
-static unsigned int append_size_range_val(char * str, int leading_comma, char *prefix, const char * op_subs)
+static unsigned int append_size_range_val(char * str, bool leading_comma,
+                                          char *prefix, const char *op_subs)
 {
     unsigned int i, l;
     char value[128];
@@ -332,8 +333,8 @@ static unsigned int append_size_range_val(char * str, int leading_comma, char *p
 /**
  * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
  */
-static unsigned int append_size_range_op(char * str, int leading_comma, char *prefix,
-                                         const char * op_subs, operation_type optype )
+static unsigned int append_size_range_op(char * str, bool leading_comma, char *prefix,
+                                         const char * op_subs, operation_type optype)
 {
     unsigned int i, l;
     char value[128];
@@ -360,15 +361,15 @@ static unsigned int append_size_range_op(char * str, int leading_comma, char *pr
 }
 
 /** check if this mode uses an annex table */
-static inline int have_annex_table(void)
+static inline bool have_annex_table(void)
 {
     int i;
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (field_infos[i].flags & ANNEX_INFO)
-            return TRUE;
+            return true;
     }
-    return FALSE;
+    return false;
 }
 
 /**
@@ -378,8 +379,8 @@ static inline int have_annex_table(void)
 static const char *acct_table(void)
 {
     const char *src_table = NULL;
-    int is_annex = FALSE;
-    int is_main = FALSE;
+    bool is_annex = false;
+    bool is_main = false;
 
     if (lmgr_config.user_acct || lmgr_config.group_acct)
     {
@@ -389,9 +390,9 @@ static const char *acct_table(void)
             if (is_acct_field(i) || is_acct_pk(i))
             {
                 if (is_annex_field(i))
-                    is_annex = TRUE;
+                    is_annex = true;
                 else if (is_main_field(i))
-                    is_main = TRUE;
+                    is_main = true;
                 else
                     /* BUG */
                     RBH_BUG("Accounting field not in "MAIN_TABLE
@@ -984,8 +985,8 @@ static int create_table_stripe_items(db_conn_t *pconn)
 
 static void disable_acct(void)
 {
-    lmgr_config.user_acct = FALSE;
-    lmgr_config.group_acct = FALSE;
+    lmgr_config.user_acct = false;
+    lmgr_config.group_acct = false;
     /* reset acct masks */
     acct_pk_attr_set = 0;
     acct_attr_set = 0;
@@ -1074,16 +1075,16 @@ static int populate_acct_table(db_conn_t *pconn)
 
     /* Initial table population for already existing entries */
     APPEND_TXT(next, "INSERT INTO "ACCT_TABLE"(");
-    attrmask2fieldlist(next, acct_pk_attr_set , T_ACCT, FALSE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_pk_attr_set , T_ACCT, false, false, "", "");
     INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "", "");
     INCR_NEXT(next);
     APPEND_TXT(next, ", "ACCT_FIELD_COUNT);
-    next += append_size_range_fields(next, TRUE, "");
+    next += append_size_range_fields(next, true, "");
     APPEND_TXT(next, ") SELECT ");
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
     INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "SUM(", ")");
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "SUM(", ")");
     INCR_NEXT(next);
     APPEND_TXT(next, " ,COUNT(id), SUM(size=0)");
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
@@ -1091,7 +1092,7 @@ static int populate_acct_table(db_conn_t *pconn)
     next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
 
     next += sprintf(next, " FROM %s  GROUP BY ", acct_info_table);
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
     next = next + strlen(next);
 
     /* set READ COMMITTED isolation level for the next (big!) request
@@ -1127,10 +1128,10 @@ static int create_table_acct(db_conn_t *pconn)
     char strbuf[4096];
     int i, rc;
     char *next;
-    int first_acct_pk = TRUE;
-    int is_first_acct_field = TRUE;
+    bool first_acct_pk = true;
+    bool is_first_acct_field = true;
 
-    if (!lmgr_config.user_acct & !lmgr_config.group_acct)
+    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
         return DB_SUCCESS;
 
     /* table does not exist */
@@ -1142,7 +1143,7 @@ static int create_table_acct(db_conn_t *pconn)
         if (is_acct_pk(i))
         {
             next += append_field_def(i, next, is_first_acct_field, NULL);
-            is_first_acct_field = FALSE;
+            is_first_acct_field = false;
         }
     }
 
@@ -1177,7 +1178,7 @@ static int create_table_acct(db_conn_t *pconn)
             else
             {
                 next += sprintf(next, "%s", field_name(i));
-                first_acct_pk = FALSE;
+                first_acct_pk = false;
             }
         }
     }
@@ -1519,26 +1520,26 @@ static int create_trig_acct_insert(db_conn_t *pconn)
     APPEND_TXT(next, "DECLARE val BIGINT UNSIGNED; "
                      "SET val="ACCT_SZ_VAL("NEW.size")";");
     APPEND_TXT(next, "INSERT INTO " ACCT_TABLE "(");
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
     INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "", "");
     INCR_NEXT(next);
     APPEND_TXT(next, ", " ACCT_FIELD_COUNT);
-    next += append_size_range_fields(next, TRUE, "");
+    next += append_size_range_fields(next, true, "");
     APPEND_TXT(next, ") VALUES (");
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
     INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "");
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "NEW.", "");
     INCR_NEXT(next);
     APPEND_TXT(next, ", 1");
-    next += append_size_range_val(next, TRUE, "NEW.", "val");
+    next += append_size_range_val(next, true, "NEW.", "val");
     APPEND_TXT(next, ") ON DUPLICATE KEY UPDATE ");
     attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "NEW.", ADD);
     INCR_NEXT(next);
     APPEND_TXT(next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1");
 
     /* update size range values */
-    next += append_size_range_op(next, TRUE, "NEW.", "val", ADD);
+    next += append_size_range_op(next, true, "NEW.", "val", ADD);
 
     APPEND_TXT(next,";");
     rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT);
@@ -1579,7 +1580,7 @@ static int create_trig_acct_delete(db_conn_t *pconn)
     APPEND_TXT(next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1");
 
     /* update size range values */
-    next += append_size_range_op(next, TRUE, "OLD.", "val", SUBSTRACT);
+    next += append_size_range_op(next, true, "OLD.", "val", SUBSTRACT);
 
     APPEND_TXT(next, " WHERE ");
     attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
@@ -1613,7 +1614,7 @@ static int create_trig_acct_update(db_conn_t *pconn)
     int  rc, i;
     char strbuf[4096];
     char *next;
-    int is_first_field = TRUE;
+    bool is_first_field = true;
 
     /* Trigger on update */
 
@@ -1647,7 +1648,7 @@ static int create_trig_acct_update(db_conn_t *pconn)
             {
                 next += sprintf(next, " %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
                                 field_name(i), field_name(i), field_name(i), field_name(i));
-                is_first_field = FALSE;
+                is_first_field = false;
             }
         }
     }
@@ -1655,7 +1656,7 @@ static int create_trig_acct_update(db_conn_t *pconn)
     /* update size range values */
     next += sprintf(next, "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
                      is_first_field?" ":", ", sz_field[0], sz_field[0]);
-    is_first_field = FALSE;
+    is_first_field = false;
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
         next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old=%u,0) as SIGNED)+CAST(IFNULL(val_new=%u,0) as SIGNED)",
@@ -1677,28 +1678,28 @@ static int create_trig_acct_update(db_conn_t *pconn)
     INCR_NEXT(next);
     APPEND_TXT(next,  "THEN \n\tINSERT INTO " ACCT_TABLE "(");
     /* generate fields as follows: owner, gr_name */
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
     INCR_NEXT(next);
     /* generate fields as follows: , size, blocks */
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "", "");
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "", "");
     INCR_NEXT(next);
     APPEND_TXT(next, ", " ACCT_FIELD_COUNT);
-    next += append_size_range_fields(next, TRUE, "");
+    next += append_size_range_fields(next, true, "");
     APPEND_TXT(next, ") VALUES (");
     /* generate fields as follows: NEW.owner, NEW.gr_name */
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "NEW.", "");
+    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
     INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, TRUE, FALSE, "NEW.", "");
+    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "NEW.", "");
     INCR_NEXT(next);
     APPEND_TXT(next, ", 1");
-    next += append_size_range_val(next, TRUE, "NEW.", "val_new");
+    next += append_size_range_val(next, true, "NEW.", "val_new");
     APPEND_TXT(next, ") \n\tON DUPLICATE KEY UPDATE ");
     /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
     attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "NEW.", ADD);
     INCR_NEXT(next);
     APPEND_TXT(next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1");
     /* update size range values */
-    next += append_size_range_op(next, TRUE, "NEW.", "val_new", ADD);
+    next += append_size_range_op(next, true, "NEW.", "val_new", ADD);
     APPEND_TXT(next, ";");
 
     APPEND_TXT(next, "\n\tUPDATE " ACCT_TABLE " SET ");
@@ -1706,7 +1707,7 @@ static int create_trig_acct_update(db_conn_t *pconn)
     attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
     INCR_NEXT(next);
     APPEND_TXT(next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 ");
-    next += append_size_range_op(next, TRUE, "OLD.", "val_old", SUBSTRACT);
+    next += append_size_range_op(next, true, "OLD.", "val_old", SUBSTRACT);
     APPEND_TXT(next, " WHERE ");
     attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
     INCR_NEXT(next);
@@ -1886,13 +1887,13 @@ static const dbobj_descr_t  o_list[] = {
  * Initialize the database access module and
  * check and create the schema.
  */
-int ListMgr_Init(const lmgr_config_t * p_conf, int report_access_only)
+int ListMgr_Init(const lmgr_config_t * p_conf, bool report_access_only)
 {
     int            rc;
     db_conn_t      conn;
     const dbobj_descr_t *o;
-    int create_all_functions = FALSE;
-    int create_all_triggers = FALSE;
+    bool create_all_functions = false;
+    bool create_all_triggers = false;
 
     /* store the configuration */
     lmgr_config = *p_conf;
@@ -1917,9 +1918,9 @@ int ListMgr_Init(const lmgr_config_t * p_conf, int report_access_only)
 
     /* check function and trigger version: if wrong, drop and re-create them all */
     if (check_functions_version(&conn) != DB_SUCCESS)
-        create_all_functions = TRUE;
+        create_all_functions = true;
     if (check_triggers_version(&conn) != DB_SUCCESS)
-        create_all_triggers = TRUE;
+        create_all_triggers = true;
 
     for (o = o_list; o->o_name != NULL; o++)
     {
@@ -1992,7 +1993,7 @@ int ListMgr_InitAccess( lmgr_t * p_mgr )
         return rc;
 
     p_mgr->last_commit = 0;
-    p_mgr->force_commit = FALSE;
+    p_mgr->force_commit = false;
     p_mgr->retry_delay = 0;
     p_mgr->retry_count = 0;
     timerclear(&p_mgr->first_error);

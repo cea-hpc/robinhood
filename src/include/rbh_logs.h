@@ -22,19 +22,22 @@
 #include "config_parsing.h"
 #include "rbh_const.h"
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>              /* for FILE */
 #include <sys/param.h>          /* for RBH_PATH_MAX */
 
-#define LVL_CRIT          0
-#define LVL_MAJOR         2
-#define LVL_EVENT         5
-#define LVL_VERB         10
-#define LVL_DEBUG        50
-#define LVL_FULL        100
+typedef enum {
+    LVL_CRIT      =   0,
+    LVL_MAJOR     =   2,
+    LVL_EVENT     =   5,
+    LVL_VERB      =  10,
+    LVL_DEBUG     =  50,
+    LVL_FULL      = 100
+} log_level;
 
 typedef struct log_config__
 {
-    int            debug_level;
+    log_level      debug_level;
     char           log_file[RBH_PATH_MAX];
     char           report_file[RBH_PATH_MAX];
 
@@ -52,32 +55,31 @@ typedef struct log_config__
     time_t         stats_interval;
 
     /* display entry attributes for each entry in alert reports */
-    int alert_show_attrs;
-    int log_process; /* display process name in the log line header */
-    int log_host;    /* display hostname in the log line header */
-    int log_tag;     /* display module name in the log line header */
+    bool alert_show_attrs;
+    bool log_process; /* display process name in the log line header */
+    bool log_host;    /* display hostname in the log line header */
 
 } log_config_t;
 
 extern log_config_t log_config;
 
 int            SetDefaultLogConfig( void *module_config, char *msg_out );
-int            ReadLogConfig( config_file_t config, void *module_config,
-                              char *msg_out, int for_reload );
+int            ReadLogConfig(config_file_t config, void *module_config,
+                             char *msg_out, bool for_reload);
 int            ReloadLogConfig( void *module_config );
 int            WriteLogConfigTemplate( FILE * output );
 int            WriteLogConfigDefault( FILE * output );
 
 /* Converts a debug level string to the associated
  * verbosity level.
- * Returns -1 in case of an error.
+ * Returns (log_level)-1 in case of an error.
  */
-int            str2debuglevel( char *str );
+log_level    str2debuglevel(char *str);
 
 /**
  * Indicates if traces of the given level are to be displayed.
  */
-int            TestDisplayLevel( int level );
+int            TestDisplayLevel(log_level level);
 
 /* Open log and report files,
  * Returns -1 and sets error in case of an error.
@@ -89,8 +91,8 @@ void           FlushLogs(void);
 
 
 /* Displays a log message */
-void           DisplayLogFn( int debug_level, const char *tag, const char *format, ... )
-                    __attribute__((format(printf, 3, 4))); /* 3=format 4=params */
+void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ...)
+                  __attribute__((format(printf, 3, 4))); /* 3=format 4=params */
 #define DisplayLog(dbg_level,tag,format...) \
     do { if (log_config.debug_level >= (dbg_level))   \
             DisplayLogFn((dbg_level), (tag), format); \

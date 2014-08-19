@@ -90,19 +90,20 @@ typedef enum {
 
 /* string representation in policies */
 static const char *type_cfg_name[] = {"?", "symlink", "directory", "file",
-    "chr", "blk", "fifo", "sock"};
+    "char", "block", "fifo", "socket"};
 
 static inline const char *type2str(obj_type_t type)
 {
     if (type > TYPE_SOCK)
         return type_cfg_name[TYPE_NONE];
-    else
-        return type_cfg_name[type];
+
+    return type_cfg_name[type];
 }
 
 static inline obj_type_t str2type(const char *str)
 {
     obj_type_t i;
+
     for (i = TYPE_NONE; i <= TYPE_SOCK; i++)
     {
         if (!strcasecmp(str, type_cfg_name[i]))
@@ -286,22 +287,22 @@ typedef struct policy_rules_t
 #define NO_POLICY(p_list) (((p_list)->whitelist_count + (p_list)->ignore_count \
                            + (p_list)->rule_count) == 0)
 
-static int inline has_default_policy(policy_rules_t *list)
+static bool inline has_default_policy(policy_rules_t *list)
 {
     int i;
 
     for (i = 0; i < list->rule_count; i++)
     {
         if (!strcasecmp(list->rules[i].rule_id, "default"))
-            return TRUE;
+            return true;
     }
-    return FALSE;
+    return false;
 }
 
 #ifdef HAVE_RM_POLICY
 typedef struct unlink_policy
 {
-    int     hsm_remove; /* feature enabled? */
+    bool    hsm_remove; /* feature enabled? */
     time_t  deferred_remove_delay; /* 0=ASAP */
 } unlink_policy_t;
 #endif
@@ -311,8 +312,8 @@ typedef struct unlink_policy
  * ======================================================================*/
 
 int            SetDefault_Policies( void *module_config, char *msg_out );
-int            Read_Policies( config_file_t config, void *module_config,
-                              char *msg_out, int for_reload );
+int            Read_Policies(config_file_t config, void *module_config,
+                             char *msg_out, bool for_reload);
 int            Reload_Policies( void *module_config );
 int            Write_Policy_Template( FILE * output );
 int            Write_Policy_Default( FILE * output );
@@ -345,7 +346,7 @@ typedef struct policies_t
 } policies_t;
 extern struct  policies_t policies;
 
-int policy_exists(const char *name, int *index);
+bool policy_exists(const char *name, int *index);
 
 // TODO implement match_scope
 //int match_scope(policy, entry);
@@ -386,23 +387,23 @@ static inline int is_file_class_defined(void)
 {
 #ifdef HAVE_PURGE_POLICY
     if ( !NO_POLICY( &policies.purge_policies ) )
-        return TRUE;
+        return true;
 #endif
 #ifdef HAVE_MIGR_POLICY
    if ( !NO_POLICY( &policies.migr_policies ) )
-        return TRUE;
+        return true;
 #endif
 
-    return FALSE;
+    return false;
 }
 
 static inline int is_dir_class_defined(void)
 {
 #ifdef HAVE_RMDIR_POLICY
     if ( !NO_DIR_POLICY( &policies.rmdir_policy) )
-        return TRUE;
+        return true;
 #endif
-    return FALSE;
+    return false;
 }
 #endif
 
@@ -471,7 +472,7 @@ policy_match_t is_whitelisted(const policy_descr_t *policy,
                               fileset_item_t **fileset);
 
 /** determine if a class is whitelisted for the given policy */
-int class_is_whitelisted(const policy_descr_t *policy, const char *class_id);
+bool class_is_whitelisted(const policy_descr_t *policy, const char *class_id);
 
 /* check if entry matches a boolean expression */
 policy_match_t entry_matches(const entry_id_t *p_entry_id,
@@ -481,8 +482,8 @@ policy_match_t entry_matches(const entry_id_t *p_entry_id,
 
 /**
  * Compare 2 boolean expressions
- * @return TRUE if expression structure changed.
- * @return FALSE if they have the same structure,
+ * @return 1 if expression structure changed.
+ * @return 0 if they have the same structure,
  * @return  -1 on error.
  */
 int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
@@ -493,10 +494,10 @@ int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
  * /!\ compare_boolexpr() must have returned 0 (else, unguarantied behavior).
  * @param tgt Boolean expression to be updated
  * @param src Boolean expression to take values from.
- * @return TRUE if expression values have been changed
- * @return FALSE if nothing has been changed
+ * @return true if expression values have been changed
+ * @return false if nothing has been changed
  */
-int update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
+bool update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
 
 
 /**
@@ -505,13 +506,13 @@ int update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
  * \param p_attr_index  OUT: related attribute index
  * \param p_compar      OUT: listmgr comparator
  * \param db_type_u     OUT: value
- * \param p_must_release OUT: set to TRUE if the db_type_u.val_str string must be released
+ * \param p_must_release OUT: set to true if the db_type_u.val_str string must be released
  * \return -1 if this is not a criteria stored in DB.
  */
 struct sm_instance;
 int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
-                    int *p_must_release, const struct sm_instance *smi);
+                    bool *p_must_release, const struct sm_instance *smi);
 
 
 #endif

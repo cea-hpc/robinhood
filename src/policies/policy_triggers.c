@@ -61,7 +61,7 @@ static void update_trigger_status(policy_info_t *pol, int i, trigger_status_t st
 /**
  * Function for checking that filesystem hasn't been unmounted
  */
-static int CheckFSDevice(policy_info_t *pol)
+static bool CheckFSDevice(policy_info_t *pol)
 {
     struct stat    root_md;
 
@@ -71,7 +71,7 @@ static int CheckFSDevice(policy_info_t *pol)
     {
         DisplayLog(LVL_CRIT, tag(pol), "Stat on '%s' failed! Error %d: %s",
                     global_config.fs_path, errno, strerror(errno));
-        return FALSE;
+        return false;
     }
     if (root_md.st_dev != pol->fs_dev)
     {
@@ -86,8 +86,7 @@ static int CheckFSDevice(policy_info_t *pol)
         /* update current fsdev */
         pol->fs_dev = get_fsdev();
     }
-
-    return TRUE;
+    return true;
 }
 
 static unsigned long FSInfo2Blocs512(unsigned long nb_blocks, unsigned long sz_blocks)
@@ -269,7 +268,7 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
                          p_statfs->f_bsize);
 
     DisplayLog(LVL_EVENT, TAG,
-                "%Lu blocks (x%u) must be purged on %s (used=%"PRIu64", target=%lu, block size=%zu)",
+                "%llu blocks (x%u) must be purged on %s (used=%"PRIu64", target=%lu, block size=%zu)",
                 *to_be_purged_512, DEV_BSIZE, storage_descr, p_statfs->f_blocks - p_statfs->f_bfree,
                 block_target, p_statfs->f_bsize);
 
@@ -330,7 +329,7 @@ static int check_count_thresholds(trigger_item_t *p_trigger,
     {
        char buff[1024];
        snprintf(buff, 1024, "High threshold reached on %s", storage_descr);
-       RaiseAlert(buff, "%s\nentry count: %Lu, high threshold: %Lu",
+       RaiseAlert(buff, "%s\nentry count: %llu, high threshold: %llu",
                   buff, inode_used, p_trigger->hw_count);
     }
 
@@ -348,7 +347,7 @@ static int check_count_thresholds(trigger_item_t *p_trigger,
     *to_be_purged = inode_used - p_trigger->lw_count;
 
     DisplayLog(LVL_EVENT, TAG,
-               "%llu entries must be purged in %s (used=%Lu, target=%Lu)",
+               "%llu entries must be purged in %s (used=%llu, target=%llu)",
                *to_be_purged, storage_descr, inode_used, p_trigger->lw_count);
     return 0;
 }
@@ -397,8 +396,8 @@ static int get_fs_usage(policy_info_t *pol, struct statfs *stfs)
 /**
  * @return boolean to indicate if we are in a maintenance window.
  */
-static int check_maintenance_mode(policy_info_t *pol,
-                                  time_modifier_t *p_mod)
+static bool check_maintenance_mode(policy_info_t *pol,
+                                   time_modifier_t *p_mod)
 {
     struct  tm dt;
     time_t  next_maint, now;
@@ -407,16 +406,16 @@ static int check_maintenance_mode(policy_info_t *pol,
     char    leftstr[128];
 
     if (pol->config->pre_maintenance_window == 0)
-        return FALSE;
+        return false;
 
     /* check maintenance mod */
     if ((ListMgr_GetVar(&pol->lmgr, NEXT_MAINT_VAR, varstr) != DB_SUCCESS)
          || EMPTY_STRING(varstr))
-        return FALSE;
+        return false;
 
     next_maint = str2int(varstr);
     if (next_maint <= 0) /* invalid value, or disabled */
-        return FALSE;
+        return false;
 
     /* build maintenance date */
     strftime(datestr, 128, "%Y/%m/%d %T", localtime_r(&next_maint, &dt));
@@ -426,7 +425,7 @@ static int check_maintenance_mode(policy_info_t *pol,
     {
         DisplayLog(LVL_DEBUG, TAG, "Maintenance time is in the past (%s): "
                    "no time modifier", datestr);
-        return FALSE;
+        return false;
     }
     else if (now < next_maint - pol->config->pre_maintenance_window)
     {
@@ -435,7 +434,7 @@ static int check_maintenance_mode(policy_info_t *pol,
 
         DisplayLog(LVL_VERB, TAG, "Maintenance time is set (%s): "
                    "maintenance window will start in %s", datestr, leftstr);
-        return FALSE;
+        return false;
     }
     else /* this is the pre maintenance window! */
     {
@@ -448,7 +447,7 @@ static int check_maintenance_mode(policy_info_t *pol,
         DisplayLog(LVL_MAJOR, TAG, "Currently in maintenance mode "
                    "(maintenance is in %s): time modifier = %.2f%%",
                    leftstr, 100.0 * p_mod->time_factor);
-        return TRUE;
+        return true;
     }
 }
 
@@ -539,16 +538,16 @@ static inline void ost_list_free(struct ost_list *l)
     l->list = NULL;
     l->count = 0;
 }
-static inline int ost_list_is_member(struct ost_list *l,
-                                     unsigned int test_member)
+static inline bool ost_list_is_member(struct ost_list *l,
+                                      unsigned int test_member)
 {
     int i;
     for (i = 0; i < l->count; i++)
     {
         if (l->list[i] == test_member)
-            return TRUE;
+            return true;
     }
-    return FALSE;
+    return false;
 }
 
 static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
@@ -623,14 +622,14 @@ static void build_user_report_descr(report_field_descr_t info[], trigger_item_t 
                               ATTR_INDEX_gr_name);
         info[0].report_type = REPORT_GROUP_BY;
         info[0].sort_flag = SORT_NONE;
-        info[0].filter = FALSE;
+        info[0].filter = false;
 
         if (is_count_trigger(trig))
         {
             info[1].attr_index = 0;
             info[1].report_type = REPORT_COUNT;
             info[1].sort_flag = SORT_DESC; /* start with top consumer */
-            info[1].filter = TRUE;
+            info[1].filter = true;
             info[1].filter_compar = MORETHAN_STRICT;
             info[1].filter_value.value.val_biguint = trig->hw_count;
         }
@@ -640,7 +639,7 @@ static void build_user_report_descr(report_field_descr_t info[], trigger_item_t 
             info[1].attr_index = ATTR_INDEX_blocks;
             info[1].report_type = REPORT_SUM;
             info[1].sort_flag = SORT_DESC; /* start with top consumer */
-            info[1].filter = TRUE;
+            info[1].filter = true;
             info[1].filter_compar = MORETHAN_STRICT;
             info[1].filter_value.value.val_biguint = high_blk;
         }
@@ -739,14 +738,14 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
     if (is_count_trigger(p_trigger))
     {
         DisplayLog(LVL_EVENT, TAG,
-                   "%s '%s' exceeds high threshold: used: %Lu inodes / high threshold: %llu inodes.",
+                   "%s '%s' exceeds high threshold: used: %llu inodes / high threshold: %llu inodes.",
                    what, result[0].value_u.val_str,
                    result[1].value_u.val_biguint, p_trigger->hw_count);
 
         limit->count = result[1].value_u.val_biguint - p_trigger->lw_count;
 
         DisplayLog(LVL_EVENT, TAG,
-                   "%Lu files must be purged for %s '%s' (used=%Lu, target=%Lu)", /* FIXME 'purged' is policy specific */
+                   "%llu files must be purged for %s '%s' (used=%llu, target=%llu)", /* FIXME 'purged' is policy specific */
                    limit->count, what, result[0].value_u.val_str,
                    result[1].value_u.val_biguint, p_trigger->lw_count);
 
@@ -757,8 +756,8 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
                      what, result[0].value_u.val_str, global_config.fs_path);
             RaiseAlert(buff, "%s\n"
                              "%s:       %s\n"
-                             "quota:      %Lu inodes\n"
-                             "usage:      %Lu inodes",
+                             "quota:      %llu inodes\n"
+                             "usage:      %llu inodes",
                        buff, what, result[0].value_u.val_str,
                        p_trigger->hw_count, result[1].value_u.val_biguint);
         }
@@ -781,7 +780,7 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
         limit->blocks = result[1].value_u.val_biguint - low_blk512;
 
         DisplayLog(LVL_EVENT, TAG,
-                   "%Lu blocks (x%u) must be purged for %s '%s' (used=%Lu, target=%lu)", /* FIXME 'purged' is policy specific */
+                   "%llu blocks (x%u) must be purged for %s '%s' (used=%llu, target=%lu)", /* FIXME 'purged' is policy specific */
                    limit->blocks, DEV_BSIZE, what, result[0].value_u.val_str,
                    result[1].value_u.val_biguint, low_blk512);
 
@@ -1121,14 +1120,14 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
         update_trigger_status(pol, trigger_index, TRIG_OK);
 
         DisplayLog(LVL_MAJOR, tag(pol),
-                   "Policy run summary: time=%s; target=%s; %Lu successful actions (%.2f/sec); "
+                   "Policy run summary: time=%s; target=%s; %llu successful actions (%.2f/sec); "
                    "volume: %s (%s/sec); %u entries skipped; %u errors.",
                    time_buff, param2targetstr(param, buff, sizeof(buff)),
                    summary->action_ctr.count,
                    (float)summary->action_ctr.count/(float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
 
-        //snprintf(status_str, 1024, "Success (%Lu entries, %Lu blocks released)",
+        //snprintf(status_str, 1024, "Success (%llu entries, %llu blocks released)",
         //         nbr_purged, blocks_purged);
 // FIXME this is policy dependant
 //        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
@@ -1148,14 +1147,14 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
     {
         update_trigger_status(pol, trigger_index, TRIG_ABORTED);
         DisplayLog(LVL_CRIT, tag(pol),
-                   "Policy run aborted after %s; target=%s; %Lu successful actions (%.2f/sec); "
+                   "Policy run aborted after %s; target=%s; %llu successful actions (%.2f/sec); "
                    "volume: %s (%s/sec); %u entries skipped; %u errors.",
                    time_buff, param2targetstr(param, buff, sizeof(buff)),
                    summary->action_ctr.count,
                    (float)summary->action_ctr.count/(float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
 
-//        snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %Lu entries, %Lu blocks)",
+//        snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %llu entries, %llu blocks)",
 //                 global_config.fs_path, nbr_purged, blocks_purged);
 // FIXME this is policy dependant
 //        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
@@ -1164,18 +1163,18 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
     {
         update_trigger_status(pol, trigger_index, TRIG_CHECK_ERROR);
         DisplayLog(LVL_CRIT, tag(pol), "Error running policy on %s. "
-                   "%Lu successful actions; volume: %s; %u entries skipped; %u errors.",
+                   "%llu successful actions; volume: %s; %u entries skipped; %u errors.",
                    param2targetstr(param, buff, sizeof(buff)),
                    summary->action_ctr.count, vol_buff,
                    summary->skipped, summary->errors);
 
 //      sprintf(buff, "Error releasing data in %s", global_config.fs_path);
 //        RaiseAlert(buff, "Error %d performing purge in %s (%s).\n"
-//                    "%Lu entries purged, %Lu blocks.", policy_rc,
+//                    "%llu entries purged, %llu blocks.", policy_rc,
 //                    global_config.fs_path, strerror(policy_rc),
 //                    nbr_purged, blocks_purged);
 
-//        snprintf(status_str, 1024, "Error %d after releasing %Lu entries, %Lu blocks released in %s",
+//        snprintf(status_str, 1024, "Error %d after releasing %llu entries, %llu blocks released in %s",
 //                 policy_rc, nbr_purged, blocks_purged, global_config.fs_path);
 
 // FIXME this is policy dependant
@@ -1688,8 +1687,8 @@ int policy_module_start(policy_info_t *policy, /* out */
 
 int policy_module_stop(policy_info_t *policy)
 {
-    policy->aborted = TRUE; /* seen by all components, from triggers to worker threads
-                             * in policy_run */
+    policy->aborted = 1; /* seen by all components, from triggers to worker threads
+                          * in policy_run */
     return 0;
 }
 
@@ -1742,14 +1741,14 @@ static void print_ctr(int level, const char *tag, const char *header,
 
     if (tgt_type == TGT_OST || tgt_type == TGT_POOL)
     {
-        DisplayLog(level, tag, "%s: %Lu entries, total volume %s "
-                   "(%Lu blocks, %Lu in target devices)", header,
+        DisplayLog(level, tag, "%s: %llu entries, total volume %s "
+                   "(%llu blocks, %llu in target devices)", header,
                    cpt->count, buff, cpt->blocks, cpt->targeted);
     }
     else
     {
-        DisplayLog(level, tag, "%s: %Lu entries, total volume %s "
-                   "(%Lu blocks)", header, cpt->count, buff, cpt->blocks);
+        DisplayLog(level, tag, "%s: %llu entries, total volume %s "
+                   "(%llu blocks)", header, cpt->count, buff, cpt->blocks);
     }
 }
 
@@ -1857,14 +1856,14 @@ void policy_module_dump_stats(policy_info_t *policy)
     }
 
     if (feedback_tab[AF_TARGETED_OK] > 0)
-        DisplayLog(LVL_MAJOR, "STATS", "%Lu actions successful/%Lu, %s (%Lu blocks, %Lu in target devices)",
+        DisplayLog(LVL_MAJOR, "STATS", "%llu actions successful/%llu, %s (%llu blocks, %llu in target devices)",
                    feedback_tab[AF_NBR_OK],
                    feedback_tab[AF_NBR_OK]+feedback_tab[AF_NBR_NOK],
                    FormatFileSize(tmp_buff, 256, feedback_tab[AF_VOL_OK]),
                    feedback_tab[AF_BLOCKS_OK],
                    feedback_tab[AF_TARGETED_OK]);
     else
-         DisplayLog(LVL_MAJOR, "STATS", "%Lu actions successful/%Lu, %s (%Lu blocks)",
+         DisplayLog(LVL_MAJOR, "STATS", "%llu actions successful/%llu, %s (%llu blocks)",
                    feedback_tab[AF_NBR_OK],
                    feedback_tab[AF_NBR_OK]+feedback_tab[AF_NBR_NOK],
                    FormatFileSize(tmp_buff, 256, feedback_tab[AF_VOL_OK]),

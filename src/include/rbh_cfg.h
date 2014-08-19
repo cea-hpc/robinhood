@@ -26,6 +26,7 @@
 #include "config_parsing.h"
 #include <sys/types.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <limits.h>
 
 /**
@@ -33,11 +34,11 @@
  * \addtogroup MODULE_CONFIG_FUNCTIONS
  * @{
  */
-typedef int    ( *set_default_config_func_t ) ( void *module_config, char *msg_out );
-typedef int    ( *read_config_func_t ) ( config_file_t config,
-                                         void *module_config, char *msg_out, int for_reload );
-typedef int    ( *reload_config_func_t ) ( void *module_config );
-typedef int    ( *write_config_func_t ) ( FILE * output );
+typedef int    (*set_default_config_func_t) (void *module_config, char *msg_out);
+typedef int    (*read_config_func_t) (config_file_t config, void *module_config,
+                                      char *msg_out, bool for_reload);
+typedef int    (*reload_config_func_t) (void *module_config);
+typedef int    (*write_config_func_t) (FILE * output);
 /** @} */
 
 /* parameter flags */
@@ -284,9 +285,9 @@ static const module_config_def_t robinhood_module_conf[] = {
  * if everything is OK, returns 0 and fills the structure
  * else, returns an error code and sets a contextual error message in err_msg_out.
  */
-int            ReadRobinhoodConfig( int module_mask, char *file_path,
-                                    char *err_msg_out, robinhood_config_t * config_struct,
-                                    int for_reload );
+int            ReadRobinhoodConfig(int module_mask, char *file_path,
+                                   char *err_msg_out, robinhood_config_t *config_struct,
+                                   bool for_reload);
 
 /**
  * Reload robinhood's configuration file (the one used for last call to ReadRobinhoodConfig),
@@ -340,7 +341,7 @@ int            GetStringParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int            GetBoolParam(config_item_t block, const char *block_name,
-                            const char *var_name, int flags, int *target,
+                            const char *var_name, int flags, bool *target,
                             char ***extra_args_tab, unsigned int *nb_extra_args,
                             char *err_msg );
 
@@ -466,8 +467,8 @@ static const inline char *criteria2str(compare_criteria_t crit)
 {
     if (crit > MAX_CRITERIA)
         return "?";
-    else
-        return criteria_descr[crit].name;
+
+   return criteria_descr[crit].name;
 }
 
 #define NO_CRITERIA ((compare_criteria_t)-1)
@@ -522,7 +523,7 @@ int            GetSetExpr(config_item_t block, const char *block_name,
 /**
  * Free a boolean expression structure
  */
-int            FreeBoolExpr( bool_node_t * p_expr, int free_top_node );
+int            FreeBoolExpr(bool_node_t * p_expr, bool free_top_node);
 
 
 /** give the  string for a compare oparation */

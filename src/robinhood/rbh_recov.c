@@ -77,7 +77,7 @@ static struct option option_tab[] =
 /* global variables */
 
 static lmgr_t  lmgr;
-static int terminate = FALSE; /* abort signal received */
+static bool terminate = false; /* abort signal received */
 
 static char * path_filter = NULL;
 static char path_buff[RBH_PATH_MAX];
@@ -218,10 +218,10 @@ static void terminate_handler( int sig )
     else if ( sig == SIGINT )
         fprintf( stderr, "SIGINT received: performing clean shutdown\n" );
 
-    terminate = TRUE;
+    terminate = true;
 }
 
-static void print_recov_stats( int forecast, const lmgr_recov_stat_t * p_stat )
+static void print_recov_stats(bool forecast, const lmgr_recov_stat_t *p_stat)
 {
     char buff[128];
     unsigned long long diff;
@@ -306,7 +306,7 @@ static int recov_start( void )
     {
         printf( "\nRecovery successfully initialized.\n\n" );
         printf( "It should result in the following state:\n" );
-        print_recov_stats( TRUE, &stats );
+        print_recov_stats(true, &stats);
         return 0;
     }
     else if ( rc == DB_ALREADY_EXISTS )
@@ -318,7 +318,7 @@ static int recov_start( void )
                            + stats.status_count[RS_NON_FILE]  + stats.status_count[RS_FILE_EMPTY]
                            + stats.status_count[RS_NOBACKUP] + stats.status_count[RS_ERROR];
         printf( "The progress of this recovery is %Lu/%Lu entries\n", total, stats.total );
-        print_recov_stats( FALSE, &stats );
+        print_recov_stats(false, &stats);
 
         return -EALREADY;
     }
@@ -352,7 +352,7 @@ static int recov_reset(int force)
         printf( "All entries not yet recovered will be definitely lost!\n\n");
 
         printf( "Current recovery status:\n");
-        print_recov_stats( FALSE, &stats );
+        print_recov_stats(false, &stats);
         printf("\n");
 
         do {
@@ -420,7 +420,7 @@ static int recov_resume( int retry_errors )
             new_attrs.attr_mask &= ~readonly_attr_set;
 
             /* insert the entry in the database, and update recovery status */
-            rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
+            rc = ListMgr_Insert(&lmgr, &new_id, &new_attrs, true);
             if (rc)
             {
                 fprintf(stderr, "DB insert failure for '%s'\n", ATTR(&new_attrs, fullpath));
@@ -460,7 +460,7 @@ static int recov_complete( void )
     {
         printf("\nCannot complete recovery\n\n");
         printf("Current status:\n");
-        print_recov_stats( FALSE, &stats );
+        print_recov_stats(false, &stats);
         return rc;
     }
     else if ( rc == DB_NOT_EXISTS )
@@ -476,7 +476,7 @@ static int recov_complete( void )
     else
     {
         printf("\nRecovery successfully completed:\n");
-        print_recov_stats( FALSE, &stats );
+        print_recov_stats(false, &stats);
         return 0;
     }
 }
@@ -495,7 +495,7 @@ static int recov_status( void )
     }
 
     printf( "Current recovery status:\n");
-    print_recov_stats( FALSE, &stats );
+    print_recov_stats(false, &stats);
     printf("\n");
     return 0;
 }
@@ -587,14 +587,14 @@ int main( int argc, char **argv )
 
     char           config_file[MAX_OPT_LEN] = "";
 
-    int            do_start = FALSE;
-    int            do_reset = FALSE;
-    int            do_resume = FALSE;
-    int            do_complete = FALSE;
-    int            do_status = FALSE;
-    int            list_state = -1;
-    int            force_log_level = FALSE;
+    bool           do_start = false;
+    bool           do_reset = false;
+    bool           do_resume = false;
+    bool           do_complete = false;
+    bool           do_status = false;
+    bool           force_log_level = false;
 
+    int            list_state = -1;
     int            log_level = 0;
     int            local_flags = 0;
 
@@ -611,19 +611,19 @@ int main( int argc, char **argv )
         switch ( c )
         {
         case 'S':
-            do_start = TRUE;
+            do_start = true;
             break;
         case 's':
-            do_status = TRUE;
+            do_status = true;
             break;
         case 'Z':
-            do_reset = TRUE;
+            do_reset = true;
             break;
         case 'c':
-            do_complete = TRUE;
+            do_complete = true;
             break;
         case 'r':
-            do_resume = TRUE;
+            do_resume = true;
             break;
         case 'L':
             if (!strcasecmp(optarg, "all"))
@@ -692,7 +692,7 @@ int main( int argc, char **argv )
             }
             break;
         case 'l':
-            force_log_level = TRUE;
+            force_log_level = true;
             log_level = str2debuglevel( optarg );
             if ( log_level == -1 )
             {
@@ -739,7 +739,7 @@ int main( int argc, char **argv )
 
     /* only read ListMgr config */
 
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
@@ -775,7 +775,7 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, FALSE );
+    rc = ListMgr_Init(&config.lmgr_config, false);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, RECOV_TAG, "Error %d initializing list manager", rc );

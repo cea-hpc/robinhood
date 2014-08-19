@@ -29,7 +29,7 @@
 
 static pthread_t scan_starter_thread;
 static pthread_attr_t starter_attr;
-static int     terminate = FALSE;
+static bool terminate = false;
 
 /* Scan starter thread */
 static void   *scan_starter( void *arg )
@@ -108,7 +108,7 @@ void FSScan_Wait( void )
 /** Stop FS Scan info collector */
 void FSScan_Terminate( void )                         /* @TODO */
 {
-    terminate = TRUE;
+    terminate = true;
 
     Robinhood_StopScanModule( );
 }
@@ -249,7 +249,7 @@ int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
     conf->scan_retry_delay = HOUR;
     conf->nb_threads_scan = 2;
     conf->scan_op_timeout = 0;
-    conf->exit_on_timeout = FALSE;
+    conf->exit_on_timeout = false;
     conf->spooler_check_interval = MINUTE;
     conf->nb_prealloc_tasks = 256;
 
@@ -260,25 +260,25 @@ int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
     return 0;
 }
 
-int FSScan_WriteDefaultConfig( FILE * output )
+int FSScan_WriteDefaultConfig(FILE *output)
 {
-    print_begin_block( output, 0, FSSCAN_CONFIG_BLOCK, NULL );
+    print_begin_block(output, 0, FSSCAN_CONFIG_BLOCK, NULL);
 #ifdef _LUSTRE_HSM
-    print_line( output, 1, "min_scan_interval      :   24h" );
-    print_line( output, 1, "max_scan_interval      :    7d" );
+    print_line(output, 1, "min_scan_interval      :   24h");
+    print_line(output, 1, "max_scan_interval      :    7d");
 #else
-    print_line( output, 1, "min_scan_interval      :    2h" );
-    print_line( output, 1, "max_scan_interval      :   12h" );
+    print_line(output, 1, "min_scan_interval      :    2h");
+    print_line(output, 1, "max_scan_interval      :   12h");
 #endif
-    print_line( output, 1, "scan_retry_delay       :    1h" );
-    print_line( output, 1, "nb_threads_scan        :     2" );
-    print_line( output, 1, "scan_op_timeout        :     0 (disabled)" );
-    print_line( output, 1, "exit_on_timeout        : FALSE" );
-    print_line( output, 1, "spooler_check_interval :  1min" );
-    print_line( output, 1, "nb_prealloc_tasks      :   256" );
-    print_line( output, 1, "ignore                 :  NONE" );
-    print_line( output, 1, "completion_command     :  NONE" );
-    print_end_block( output, 0 );
+    print_line(output, 1, "scan_retry_delay       :    1h");
+    print_line(output, 1, "nb_threads_scan        :     2");
+    print_line(output, 1, "scan_op_timeout        :     0 (disabled)");
+    print_line(output, 1, "exit_on_timeout        :    no");
+    print_line(output, 1, "spooler_check_interval :  1min");
+    print_line(output, 1, "nb_prealloc_tasks      :   256");
+    print_line(output, 1, "ignore                 :  NONE");
+    print_line(output, 1, "completion_command     :  NONE");
+    print_end_block(output, 0);
     return 0;
 }
 
@@ -291,11 +291,11 @@ int FSScan_WriteDefaultConfig( FILE * output )
 
 
 
-int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out, int for_reload )
+int FSScan_ReadConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
 {
     int            rc, blc_index;
     fs_scan_config_t *conf = ( fs_scan_config_t * ) module_config;
-    int scan_intl_set = FALSE;
+    bool scan_intl_set = false;
     time_t scan_intl = 0;
 
     static const char * fsscan_allowed[] =
@@ -352,7 +352,7 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
     if ((rc != 0) && (rc != ENOENT))
         return rc;
     else if (rc == 0)
-        scan_intl_set = TRUE;
+        scan_intl_set = true;
 
     rc = GetDurationParam(fsscan_block, FSSCAN_CONFIG_BLOCK,
                           "max_scan_interval", PFLG_POSITIVE | PFLG_NOT_NULL,
@@ -360,7 +360,7 @@ int FSScan_ReadConfig( config_file_t config, void *module_config, char *msg_out,
     if ((rc != 0) && (rc != ENOENT))
         return rc;
     else if (rc == 0)
-        scan_intl_set = TRUE;
+        scan_intl_set = true;
 
     rc = GetDurationParam(fsscan_block, FSSCAN_CONFIG_BLOCK,
                           "scan_interval", PFLG_POSITIVE | PFLG_NOT_NULL,
@@ -468,8 +468,8 @@ static void free_ignore( whitelist_item_t * p_items, unsigned int count )
 {
     unsigned int i;
 
-    for ( i = 0; i < count; i++ )
-        FreeBoolExpr( &p_items[i].bool_expr, FALSE );
+    for (i = 0; i < count; i++)
+        FreeBoolExpr(&p_items[i].bool_expr, false);
 
     if ( (count > 0) && (p_items!= NULL) )
         free(p_items);
@@ -594,7 +594,7 @@ int FSScan_WriteConfigTemplate( FILE * output )
     print_line( output, 1, "# timeout for operations on the filesystem" );
     print_line( output, 1, "scan_op_timeout        =    1h ;" );
     print_line( output, 1, "# exit if operation timeout is reached?" );
-    print_line( output, 1, "exit_on_timeout        =    TRUE ;" );
+    print_line(output, 1, "exit_on_timeout        =    yes ;");
     print_line( output, 1, "# external command called on scan termination");
     print_line( output, 1, "# special arguments can be specified: {cfg} = config file path,");
     print_line( output, 1, "# {fspath} = path to managed filesystem");

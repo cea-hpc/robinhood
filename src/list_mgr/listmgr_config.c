@@ -50,8 +50,8 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
 #endif
 
-     conf->user_acct = TRUE;
-     conf->group_acct = TRUE;
+     conf->user_acct = true;
+     conf->group_acct = true;
 
     return 0;
 }
@@ -87,7 +87,7 @@ int WriteLmgrConfigDefault( FILE * output )
     return 0;
 }
 
-int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, int for_reload )
+int ReadLmgrConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
 {
     int            rc;
     lmgr_config_t *conf = ( lmgr_config_t * ) module_config;

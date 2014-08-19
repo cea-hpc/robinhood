@@ -233,7 +233,7 @@ int main( int argc, char **argv )
 
     char           config_file[MAX_OPT_LEN] = "";
 
-    int            force_log_level = FALSE;
+    bool           force_log_level = false;
     int            log_level = 0;
 
     int            rc;
@@ -252,7 +252,7 @@ int main( int argc, char **argv )
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            force_log_level = TRUE;
+            force_log_level = true;
             log_level = str2debuglevel( optarg );
             if ( log_level == -1 )
             {
@@ -305,7 +305,7 @@ int main( int argc, char **argv )
     }
 
     /* only read ListMgr config */
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );

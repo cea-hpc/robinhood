@@ -210,7 +210,7 @@ static bool_node_t      match_expr;
 static int              is_expr = 0; /* is it set? */
 
 /* build filters depending on program options */
-static int mkfilters(int exclude_dirs)
+static int mkfilters(bool exclude_dirs)
 {
     filter_value_t fv;
     int compflag;
@@ -654,7 +654,8 @@ static int set_size_filter(char * str)
 
 typedef enum {atime, rh_crtime, mtime} e_time;
 /* parse time filter and set prog_options struct */
-static int set_time_filter(char * str, unsigned int multiplier, int allow_suffix, e_time what)
+static int set_time_filter(char * str, unsigned int multiplier,
+                           bool allow_suffix, e_time what)
 {
     compare_direction_t comp;
     char * curr = str;
@@ -772,7 +773,7 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
     {
         /* leave a space as first char */
         ostbuf[0] = ' ';
-        FormatStripeList(ostbuf+1, sizeof(ostbuf)-2, &ATTR(attrs, stripe_items), TRUE);
+        FormatStripeList(ostbuf+1, sizeof(ostbuf)-2, &ATTR(attrs, stripe_items), true);
     }
 #endif
 
@@ -860,7 +861,7 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
         char * cmd = replace_cmd_parameters(prog_options.exec_cmd, vars);
         if (cmd)
         {
-            execute_shell_command(FALSE, cmd, 0);
+            execute_shell_command(false, cmd, 0);
             free(cmd);
         }
     }
@@ -960,7 +961,7 @@ static int list_bulk(void)
 
     if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
     {
-        PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+        PosixStat2EntryAttr(&st, &root_attrs, true);
         ListMgr_GenerateFields(&root_attrs, disp_mask | query_mask);
     }
     /* root has no name... */
@@ -1035,7 +1036,7 @@ static int list_contents(char ** id_list, int id_count)
     int i, rc;
     attr_set_t root_attrs;
     entry_id_t root_id;
-    int is_id;
+    bool is_id;
 
     rc = retrieve_root_id(&root_id);
     if (rc)
@@ -1047,11 +1048,11 @@ static int list_contents(char ** id_list, int id_count)
 
     for (i = 0; i < id_count; i++)
     {
-        is_id = TRUE;
+        is_id = true;
         /* is it a path or fid? */
         if (sscanf(id_list[i], SFID, RFID(&ids[i].id)) != FID_SCAN_CNT)
         {
-            is_id = FALSE;
+            is_id = false;
             /* take it as a path */
             rc = Path2Id(id_list[i], &ids[i].id);
             if (!rc) {
@@ -1080,7 +1081,7 @@ static int list_contents(char ** id_list, int id_count)
         {
             /* the ID is FS root: use list_bulk instead */
             DisplayLog(LVL_DEBUG, FIND_TAG, "Optimization: switching to bulk DB request mode");
-            mkfilters(FALSE); /* keep dirs */
+            mkfilters(false); /* keep dirs */
             MemFree(ids);
             return list_bulk();
         }
@@ -1102,7 +1103,7 @@ static int list_contents(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    PosixStat2EntryAttr(&st, &root_attrs, true);
                     ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
                 }
             }
@@ -1115,7 +1116,7 @@ static int list_contents(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, TRUE);
+                    PosixStat2EntryAttr(&st, &root_attrs, true);
                     ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
                 }
             }
@@ -1153,13 +1154,13 @@ int main( int argc, char **argv )
     char          *bin = basename( argv[0] );
 
     char           config_file[MAX_OPT_LEN] = "";
-    int            force_log_level = FALSE;
+    bool           force_log_level = false;
     int            log_level = 0;
     int            rc;
-    int            chgd = 0;
     char           err_msg[4096];
-    int            neg = 0;
+    bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
+    bool           neg = false;
 
     /* parse command line options */
     while ((c = getopt_long_only(argc, argv, SHORT_OPT_STRING, option_tab,
@@ -1168,37 +1169,37 @@ int main( int argc, char **argv )
         switch ( c )
         {
         case '!':
-            neg = 1;
+            neg = true;
             break;
         case 'u':
             toggle_option(match_user, "user");
             prog_options.user = optarg;
             prog_options.userneg = neg;
-            neg = 0;
+            neg = false;
             break;
         case 'g':
             toggle_option(match_group, "group");
             prog_options.group = optarg;
             prog_options.groupneg = neg;
-            neg = 0;
+            neg = false;
             break;
         case 'U': /* match numerical (non resolved) users */
             toggle_option(match_user, "user");
             prog_options.user = "[0-9]*";
             prog_options.userneg = neg;
-            neg = 0;
+            neg = false;
             break;
         case 'G': /* match numerical (non resolved) groups */
             toggle_option(match_group, "group");
             prog_options.group = "[0-9]*";
             prog_options.groupneg = neg;
-            neg = 0;
+            neg = false;
             break;
         case 'n':
             toggle_option(match_name, "name");
             prog_options.name = optarg;
             prog_options.nameneg = neg;
-            neg = 0;
+            neg = false;
             break;
 #ifdef _LUSTRE
         case 'o':
@@ -1253,7 +1254,7 @@ int main( int argc, char **argv )
 
         case 'A':
             toggle_option(match_atime, "atime/amin");
-            if (set_time_filter(optarg, 0, TRUE, atime))
+            if (set_time_filter(optarg, 0, true, atime))
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");
@@ -1263,7 +1264,7 @@ int main( int argc, char **argv )
 
         case 'a':
             toggle_option(match_atime, "atime/amin");
-            if (set_time_filter(optarg, 60, TRUE, atime))
+            if (set_time_filter(optarg, 60, true, atime))
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");
@@ -1273,7 +1274,7 @@ int main( int argc, char **argv )
 
         case 'C':
             toggle_option(match_crtime, "crtime");
-            if (set_time_filter(optarg, 0, TRUE, rh_crtime))
+            if (set_time_filter(optarg, 0, true, rh_crtime))
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");
@@ -1283,7 +1284,7 @@ int main( int argc, char **argv )
 
         case 'M':
             toggle_option(match_mtime, "mtime/mmin/msec");
-            if (set_time_filter(optarg, 0, TRUE, mtime))
+            if (set_time_filter(optarg, 0, true, mtime))
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");
@@ -1293,7 +1294,7 @@ int main( int argc, char **argv )
 
         case 'm':
             toggle_option(match_mtime, "mtime/mmin/msec");
-            if (set_time_filter(optarg, 60, FALSE, mtime)) /* don't allow suffix (multiplier is 1min) */
+            if (set_time_filter(optarg, 60, false, mtime)) /* don't allow suffix (multiplier is 1min) */
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");
@@ -1303,7 +1304,7 @@ int main( int argc, char **argv )
 
         case 'z':
             toggle_option(match_mtime, "mtime/mmin/msec");
-            if (set_time_filter(optarg, 1, FALSE, mtime)) /* don't allow suffix (multiplier is 1sec) */
+            if (set_time_filter(optarg, 1, false, mtime)) /* don't allow suffix (multiplier is 1sec) */
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");
@@ -1323,7 +1324,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             prog_options.statusneg = neg;
-            neg = 0;
+            neg = false;
             break;
 #endif
         case 'l':
@@ -1357,7 +1358,7 @@ int main( int argc, char **argv )
             }
             break;
         case 'd':
-            force_log_level = TRUE;
+            force_log_level = true;
             log_level = str2debuglevel( optarg );
             if ( log_level == -1 )
             {
@@ -1404,7 +1405,7 @@ int main( int argc, char **argv )
 
     /* only read ListMgr config */
 
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
@@ -1442,7 +1443,7 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, TRUE );
+    rc = ListMgr_Init(&config.lmgr_config, true);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, FIND_TAG, "Error %d initializing list manager", rc );
@@ -1470,20 +1471,20 @@ int main( int argc, char **argv )
         if (prog_options.bulk != force_nobulk)
         {
             DisplayLog(LVL_DEBUG, FIND_TAG, "Optimization: switching to bulk DB request mode");
-            mkfilters(FALSE); /* keep dirs */
+            mkfilters(false); /* keep dirs */
             return list_bulk();
         }
         else
         {
             char *id = config.global_config.fs_path;
-            mkfilters(TRUE); /* exclude dirs */
+            mkfilters(true); /* exclude dirs */
             /* no path specified, list all entries */
             rc = list_contents(&id, 1);
         }
     }
     else
     {
-        mkfilters(TRUE); /* exclude dirs */
+        mkfilters(true); /* exclude dirs */
         rc = list_contents(argv+optind, argc-optind);
     }
 

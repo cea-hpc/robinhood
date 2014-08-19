@@ -52,41 +52,41 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
     rh_strncpy(conf->fs_type, "", FILENAME_MAX);
 #endif
     rh_strncpy(conf->lock_file, "/var/locks/robinhood.lock", RBH_PATH_MAX);
-    conf->stay_in_fs = TRUE;
-    conf->check_mounted = TRUE;
+    conf->stay_in_fs = true;
+    conf->check_mounted = true;
     conf->fs_key = FSKEY_FSNAME;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    conf->direct_mds_stat = FALSE;
+    conf->direct_mds_stat = false;
 #endif
 
 
     return 0;
 }
 
-int WriteGlobalConfigDefault( FILE * output )
+int WriteGlobalConfigDefault(FILE *output)
 {
-    print_begin_block( output, 0, GLOBAL_CONFIG_BLOCK, NULL );
-    print_line( output, 1, "fs_path       :  [MANDATORY]" );
+    print_begin_block(output, 0, GLOBAL_CONFIG_BLOCK, NULL);
+    print_line(output, 1, "fs_path       :  [MANDATORY]");
 #ifdef _LUSTRE
-    print_line( output, 1, "fs_type       :  lustre" );
+    print_line(output, 1, "fs_type       :  lustre");
 #else
-    print_line( output, 1, "fs_type       :  [MANDATORY]" );
+    print_line(output, 1, "fs_type       :  [MANDATORY]");
 #endif
-    print_line( output, 1, "fs_key        :  fsname" );
-    print_line( output, 1, "lock_file     :  \"/var/locks/robinhood.lock\"" );
-    print_line( output, 1, "stay_in_fs    :  TRUE" );
-    print_line( output, 1, "check_mounted :  TRUE" );
+    print_line(output, 1, "fs_key        :  fsname");
+    print_line(output, 1, "lock_file     :  \"/var/locks/robinhood.lock\"");
+    print_line(output, 1, "stay_in_fs    :  yes");
+    print_line(output, 1, "check_mounted :  yes");
 
-#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    print_line( output, 1, "direct_mds_stat :   FALSE" );
+#if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
+    print_line(output, 1, "direct_mds_stat :   no");
 #endif
 
-    print_end_block( output, 0 );
+    print_end_block(output, 0);
     return 0;
 }
 
-int ReadGlobalConfig( config_file_t config, void *module_config, char *msg_out, int for_reload )
+int ReadGlobalConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
 {
     int            rc;
     global_config_t *conf = ( global_config_t * ) module_config;
@@ -217,43 +217,43 @@ int ReloadGlobalConfig( void *module_config )
 
 }
 
-int WriteGlobalConfigTemplate( FILE * output )
+int WriteGlobalConfigTemplate(FILE *output)
 {
-    print_begin_block( output, 0, GLOBAL_CONFIG_BLOCK, NULL );
+    print_begin_block(output, 0, GLOBAL_CONFIG_BLOCK, NULL);
 
 #ifdef _HAVE_FID
-    print_line( output, 1, "# filesystem to be monitored" );
-    print_line( output, 1, "fs_path = \"/mnt/lustre\" ;" );
-    fprintf( output, "\n" );
+    print_line(output, 1, "# filesystem to be monitored");
+    print_line(output, 1, "fs_path = \"/mnt/lustre\" ;");
+    fprintf(output, "\n");
 #else
-    print_line( output, 1, "# filesystem to be monitored" );
-    print_line( output, 1, "fs_path = \"/tmp\" ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# filesystem type (as returned by 'df' or 'mount' commands)" );
-    print_line( output, 1, "fs_type = \"ext3\" ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# filesystem property used as FS key: fsname, devid or fsid (fsid NOT recommended)");
-    print_line( output, 1, "fs_key = fsname ;" );
-    fprintf( output, "\n" );
+    print_line(output, 1, "# filesystem to be monitored");
+    print_line(output, 1, "fs_path = \"/tmp\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# filesystem type (as returned by 'df' or 'mount' commands)");
+    print_line(output, 1, "fs_type = \"ext3\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# filesystem property used as FS key: fsname, devid or fsid (fsid NOT recommended)");
+    print_line(output, 1, "fs_key = fsname ;");
+    fprintf(output, "\n");
 #endif
 
-    print_line( output, 1, "# file for suspending all actions" );
-    print_line( output, 1, "lock_file = \"/var/locks/robinhood.lock\" ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# check that objects are in the same device as 'fs_path'," );
-    print_line( output, 1, "# so it will not traverse mount points" );
-    print_line( output, 1, "stay_in_fs = TRUE ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# check that the filesystem is mounted" );
-    print_line( output, 1, "check_mounted = TRUE ;" );
+    print_line(output, 1, "# file for suspending all actions");
+    print_line(output, 1, "lock_file = \"/var/locks/robinhood.lock\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# check that objects are in the same device as 'fs_path',");
+    print_line(output, 1, "# so it will not traverse mount points");
+    print_line(output, 1, "stay_in_fs = yes ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# check that the filesystem is mounted");
+    print_line(output, 1, "check_mounted = yes ;");
 
-#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    fprintf( output, "\n" );
-    print_line( output, 1, "# File info is asked directly to MDS on Lustre filesystems");
-    print_line( output, 1, "# (scan faster, but size information is missing)");
-    print_line( output, 1, "direct_mds_stat        =    FALSE ;" );
+#if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
+    fprintf(output, "\n");
+    print_line(output, 1, "# File info is asked directly to MDS on Lustre filesystems");
+    print_line(output, 1, "# (scan faster, but size information is missing)");
+    print_line(output, 1, "direct_mds_stat        =    no ;");
 #endif
 
-    print_end_block( output, 0 );
+    print_end_block(output, 0);
     return 0;
 }

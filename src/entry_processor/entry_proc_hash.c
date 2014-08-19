@@ -32,7 +32,7 @@
 #include <stdio.h>
 
 /** Creates and return a new hash table */
-struct id_hash * id_hash_init( const unsigned int hash_size, int use_lock  )
+struct id_hash *id_hash_init(const unsigned int hash_size, bool use_lock)
 {
     unsigned int i;
 	struct id_hash *hash;
@@ -105,7 +105,7 @@ void id_hash_stats(struct id_hash * id_hash, const char * log_str)
 
 }
 
-void id_hash_dump(struct id_hash * id_hash, int parent)
+void id_hash_dump(struct id_hash * id_hash, bool parent)
 {
     unsigned int   i;
     entry_proc_op_t *op;

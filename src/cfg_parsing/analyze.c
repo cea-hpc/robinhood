@@ -25,20 +25,11 @@
 #include "analyze.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #if HAVE_STRING_H
 #   include <string.h>
 #endif
-
-#ifndef TRUE
-#define TRUE (1)
-#endif
-
-#ifndef FALSE
-#define FALSE (0)
-#endif
-
-
 
 extern int     yylineno;
 

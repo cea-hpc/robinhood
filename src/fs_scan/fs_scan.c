@@ -52,8 +52,8 @@ const char      *partial_scan_root = NULL;
 #define fsscan_once ( fsscan_flags & FLAG_ONCE )
 #define fsscan_nogc ( fsscan_flags & FLAG_NO_GC )
 
-static int     is_lustre_fs = FALSE;
-static int     is_first_scan = FALSE;
+static bool     is_lustre_fs = false;
+static bool     is_first_scan = false;
 
 
 /* information about scanning thread */
@@ -68,7 +68,7 @@ typedef struct thread_scan_info__
     robinhood_task_t *current_task;
 
     /* flag for forcing thread scan to stop */
-    int force_stop;
+    bool force_stop;
 
     /* entries handled since scan started */
     unsigned int   entries_handled;
@@ -99,7 +99,7 @@ robinhood_task_t *root_task = NULL;
 /* statistics */
 static time_t  last_scan_time = 0;
 static unsigned int last_duration = 0;
-static int     last_scan_complete = FALSE;
+static bool    last_scan_complete = false;
 static time_t  scan_start_time = 0;
 
 static struct timeval accurate_start_time = { 0, 0 };
@@ -122,12 +122,12 @@ static pthread_attr_t thread_attrs;
 /* condition about DB special operations when starting/terminating FS scan */
 static pthread_cond_t special_db_op_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t special_db_op_lock = PTHREAD_MUTEX_INITIALIZER;
-static int     waiting_db_op = FALSE;
+static bool     waiting_db_op = false;
 
 static inline void set_db_wait_flag( void )
 {
     P( special_db_op_lock );
-    waiting_db_op = TRUE;
+    waiting_db_op = true;
     V( special_db_op_lock );
 }
 
@@ -153,33 +153,33 @@ static int db_special_op_callback( lmgr_t *lmgr, struct entry_proc_op_t *p_op, v
     }
 
     P( special_db_op_lock );
-    waiting_db_op = FALSE;
+    waiting_db_op = false;
     pthread_cond_signal( &special_db_op_cond );
     V( special_db_op_lock );
     return 0;
 }
 
 /* condition about end of 'one-shot' FS_Scan */
-static int     scan_finished = FALSE;
+static bool     scan_finished = false;
 static pthread_cond_t one_shot_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t one_shot_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static inline void signal_scan_finished( void )
 {
     P( one_shot_lock );
-    scan_finished = TRUE;
+    scan_finished = true;
     pthread_cond_broadcast( &one_shot_cond );
     V( one_shot_lock );
 }
 
-static inline int all_threads_idle( void )
+static inline bool all_threads_idle(void)
 {
     unsigned int i;
-    for ( i = 0; i < fs_scan_config.nb_threads_scan ; i++ )
-        if ( thread_list[i].current_task )
-            return FALSE;
+    for (i = 0; i < fs_scan_config.nb_threads_scan ; i++)
+        if (thread_list[i].current_task)
+            return false;
 
-    return TRUE;
+    return true;
 }
 
 void wait_scan_finished( void )
@@ -207,7 +207,7 @@ static void ResetScanStats( void )
 }
 
 
-static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct stat *p_stat )
+static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct stat *p_stat)
 {
     entry_id_t     tmpid;
     attr_set_t     tmpattr;
@@ -227,9 +227,9 @@ static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct 
     ATTR( &tmpattr, depth ) = depth;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    PosixStat2EntryAttr( p_stat, &tmpattr , !(is_lustre_fs && global_config.direct_mds_stat));
+    PosixStat2EntryAttr(p_stat, &tmpattr , !(is_lustre_fs && global_config.direct_mds_stat));
 #else
-    PosixStat2EntryAttr( p_stat, &tmpattr , TRUE );
+    PosixStat2EntryAttr(p_stat, &tmpattr , true);
 #endif
 
     /* Set entry id */
@@ -245,16 +245,19 @@ static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct 
         switch (entry_matches(&tmpid, &tmpattr, &fs_scan_config.ignore_list[i].bool_expr, NULL))
         {
         case POLICY_MATCH:
-            return TRUE;
+            return true;
+
         case POLICY_MISSING_ATTR:
             DisplayLog( LVL_MAJOR, FSSCAN_TAG, "Attribute is missing for checking ignore rule" );
             if ( rc != POLICY_ERR )
                 rc = POLICY_MISSING_ATTR;
             break;
+
         case POLICY_ERR:
             DisplayLog( LVL_CRIT, FSSCAN_TAG, "An error occured when checking ignore rule" );
             rc = POLICY_ERR;
             break;
+
         case POLICY_NO_MATCH:
             /* continue testing other ignore rules */
             break;
@@ -262,7 +265,6 @@ static int ignore_entry( char *fullpath, char *name, unsigned int depth, struct 
     }
 
     return ( rc != POLICY_NO_MATCH );
-
 }
 
 /* Terminate a filesystem scan (called by the thread
@@ -350,13 +352,13 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         /* if this is an initial scan, don't rm old entries (but flush pipeline still) */
         if (fsscan_nogc || (is_first_scan && !partial_scan_root))
         {
-            op->gc_entries = FALSE;
-            op->gc_names = FALSE;
+            op->gc_entries = 0;
+            op->gc_names = 0;
             op->callback_param = ( void * ) "End of flush";
         }
         else
         {
-            op->gc_names = TRUE;
+            op->gc_names = 1;
 
 #ifdef HAVE_RM_POLICY
             /* Don't clean old entries for partial scan: dangerous if
@@ -364,10 +366,10 @@ static int TerminateScan( int scan_complete, time_t date_fin )
              * Clean names, however.
              */
             if (partial_scan_root)
-                op->gc_entries = FALSE;
+                op->gc_entries = 0;
             else
 #endif
-            op->gc_entries = TRUE;
+            op->gc_entries = 1;
 
             /* set the timestamp of scan in (md_update attribute) */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
@@ -433,7 +435,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         char * cmd = replace_cmd_parameters(fs_scan_config.completion_command, vars);
         if (cmd)
         {
-            execute_shell_command(TRUE, cmd, 0);
+            execute_shell_command(true, cmd, 0);
             free(cmd);
         }
     }
@@ -453,11 +455,11 @@ static int TerminateScan( int scan_complete, time_t date_fin )
  * Function for terminating a task
  * and merging recursively with parent terminated tasks.
  */
-static int RecursiveTaskTermination( thread_scan_info_t * p_info,
-                                     robinhood_task_t * p_task, int bool_scan_complete )
+static int RecursiveTaskTermination(thread_scan_info_t *p_info,
+                                    robinhood_task_t *p_task, bool bool_scan_complete)
 {
     int            st;
-    int            bool_termine;
+    bool           bool_termine;
     robinhood_task_t *current_task = p_task;
 
     /* notify of current action (for watchdog) */
@@ -469,7 +471,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
     if ( bool_termine )
     {
         robinhood_task_t *maman;
-        int            bool_termine_mere;
+        bool              bool_termine_mere;
 
         do
         {
@@ -499,7 +501,7 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
                 timersub( &fin_precise, &accurate_start_time, &duree_precise );
 
                 /* End of mother task, compute and display summary */
-                bool_termine_mere = TRUE;
+                bool_termine_mere = true;
                 count = 0;
                 err_count = 0;
 
@@ -568,7 +570,8 @@ static int RecursiveTaskTermination( thread_scan_info_t * p_info,
 
 }                               /* RecursiveTaskTermination */
 
-static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev, const char *path, int is_root)
+static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev, const char *path,
+                                  bool is_root)
 {
     /* Check that the entry is on the same device as the filesystem we manage.
      * (prevent from mountpoint traversal).
@@ -636,13 +639,13 @@ static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev, const char *
 
 #ifndef _NO_AT_FUNC
 
-static int noatime_permitted = TRUE;
+static bool noatime_permitted = true;
 
 static int openat_noatime(int pfd, const char *name, int rddir)
 {
     int fd = -1;
     int flags = 0;
-    int had_eperm = FALSE;
+    bool had_eperm = false;
 
     /* is it for readdir? */
     if (rddir)
@@ -655,7 +658,7 @@ static int openat_noatime(int pfd, const char *name, int rddir)
         /* try to open with NOATIME flag */
         fd = openat(pfd, name, flags | O_NOATIME);
         if ((fd < 0) && (errno == EPERM))
-            had_eperm = TRUE;
+            had_eperm = true;
     }
     if (fd < 0)
         fd = openat(pfd, name, flags);
@@ -664,7 +667,7 @@ static int openat_noatime(int pfd, const char *name, int rddir)
     if (had_eperm && (fd >= 0))
     {
         DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed with O_NOATIME, and was sucessful without it. Disabling this flag.");
-        noatime_permitted = FALSE;
+        noatime_permitted = false;
     }
 
     return fd;
@@ -674,7 +677,7 @@ static int open_noatime(const char *path, int rddir)
 {
     int fd = -1;
     int flags = 0;
-    int had_eperm = FALSE;
+    bool had_eperm = false;
 
     /* is it for readdir? */
     if (rddir)
@@ -687,7 +690,7 @@ static int open_noatime(const char *path, int rddir)
         /* try to open with NOATIME flag */
         fd = open(path, flags | O_NOATIME);
         if ((fd < 0) && (errno == EPERM))
-            had_eperm = TRUE;
+            had_eperm = true;
     }
 
     if (fd < 0)
@@ -697,7 +700,7 @@ static int open_noatime(const char *path, int rddir)
     if (had_eperm && (fd >= 0))
     {
         DisplayLog(LVL_DEBUG, FSSCAN_TAG, "open failed with O_NOATIME, and was sucessful without it. Disabling this flag.");
-        noatime_permitted = FALSE;
+        noatime_permitted = false;
     }
 
     return fd;
@@ -759,7 +762,7 @@ static int create_child_task(const char *childpath, struct stat *inode, robinhoo
 
     p_task->dir_md = *inode;
     p_task->depth = parent->depth + 1;
-    p_task->task_finished = FALSE;
+    p_task->task_finished = false;
 
     /* add the task to the parent's subtask list */
     AddChildTask(parent, p_task);
@@ -844,7 +847,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
         return 0;
     }
 
-    if (check_entry_dev(inode.st_dev, &fsdev, entry_path, FALSE))
+    if (check_entry_dev(inode.st_dev, &fsdev, entry_path, false))
         return 0; /* not considered as an error */
 
     /* Push all entries except dirs to the pipeline.
@@ -896,7 +899,7 @@ push:
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
             PosixStat2EntryAttr( &inode, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-            PosixStat2EntryAttr(&inode, &op->fs_attrs, TRUE);
+            PosixStat2EntryAttr(&inode, &op->fs_attrs, true);
 #endif
             /* set update time  */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
@@ -918,15 +921,15 @@ push:
             op->entry_id.inode = inode.st_ino;
             op->entry_id.fs_key = get_fskey();
             op->entry_id.validator = inode.st_ctime;
-            op->entry_id_is_set = TRUE;
+            op->entry_id_is_set = 1;
         }
         else
-            op->entry_id_is_set = FALSE;
+            op->entry_id_is_set = 0;
 #else
-        op->entry_id_is_set = FALSE;
+        op->entry_id_is_set = 0;
 #ifndef _NO_AT_FUNC
         /* get fid from fd, using openat on parent fd */
-        int fd = openat_noatime(parentfd, entry_name, FALSE);
+        int fd = openat_noatime(parentfd, entry_name, false);
         if (fd < 0)
             DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed on %d/%s: %s", parentfd, entry_name, strerror(errno));
         else
@@ -936,7 +939,7 @@ push:
                 DisplayLog(LVL_DEBUG, FSSCAN_TAG, "fd2fid failed on %d/%s: %s", parentfd, entry_name, strerror(errno));
             else
             {
-                op->entry_id_is_set = TRUE;
+                op->entry_id_is_set = 1;
                 op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
             }
             close(fd);
@@ -944,7 +947,7 @@ push:
 #endif
 #endif
 
-        op->extra_info_is_set = FALSE;
+        op->extra_info_is_set = 0;
 
 #ifdef _LUSTRE
 #ifdef HAVE_LLAPI_FSWAP_LAYOUTS
@@ -1014,7 +1017,7 @@ push:
 static inline DIR_T dir_open(const char *path)
 {
 #ifndef _NO_AT_FUNC
-    return open_noatime(path, TRUE);
+    return open_noatime(path, true);
 #else
     return opendir(path);
 #endif
@@ -1175,7 +1178,7 @@ static int process_one_task(robinhood_task_t *p_task,
             DisplayLog(LVL_CRIT, FSSCAN_TAG, "Error accessing filesystem: exiting");
             Exit(1);
         }
-        if (check_entry_dev(p_task->dir_md.st_dev, &fsdev, p_task->path, TRUE))
+        if (check_entry_dev(p_task->dir_md.st_dev, &fsdev, p_task->path, true))
             p_task->dir_md.st_dev = fsdev; /* just updated */
 
         rc = get_dirid(p_task->path, &p_task->dir_md, &p_task->dir_id);
@@ -1269,7 +1272,7 @@ static int process_one_task(robinhood_task_t *p_task,
         fakeid = (struct id_map*)&op->entry_id;
         fakeid->high += i;
 #endif
-        op->entry_id_is_set = TRUE;
+        op->entry_id_is_set = 1;
 
         /* Id already known */
         op->pipeline_stage = entry_proc_descr.GET_INFO_DB;
@@ -1312,7 +1315,7 @@ static int process_one_task(robinhood_task_t *p_task,
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
         PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat));
 #else
-        PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, TRUE);
+        PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, true);
 #endif
 #endif
 
@@ -1336,7 +1339,7 @@ static int process_one_task(robinhood_task_t *p_task,
         ATTR(&op->fs_attrs, md_update) = ATTR(&op->fs_attrs, path_update)
             = time(NULL);
 
-        op->extra_info_is_set = FALSE;
+        op->extra_info_is_set = 0;
 
 #ifndef _BENCH_SCAN
         /* Push directory to the pipeline */
@@ -1492,8 +1495,8 @@ int Robinhood_InitScanModule( void )
 
     fsdev = get_fsdev();
 
-    if ( !strcmp( global_config.fs_type, "lustre" ) )
-        is_lustre_fs = TRUE;
+    if (!strcmp(global_config.fs_type, "lustre"))
+        is_lustre_fs = true;
 
     /* initializing thread attrs */
 
@@ -1515,7 +1518,7 @@ int Robinhood_InitScanModule( void )
         thread_list[i].last_action = 0;
         thread_list[i].current_task = NULL;
 
-        thread_list[i].force_stop = FALSE;
+        thread_list[i].force_stop = false;
 
         thread_list[i].entries_handled = 0;
         thread_list[i].entries_errors = 0;
@@ -1560,7 +1563,7 @@ void Robinhood_StopScanModule( void )
     /* terminate scan threads */
     for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
     {
-        thread_list[i].force_stop = TRUE;
+        thread_list[i].force_stop = true;
     }
 
     DisplayLog( LVL_EVENT, FSSCAN_TAG, "Stop request has been sent to all scan threads" );
@@ -1639,7 +1642,7 @@ static int StartScan( void )
     /* always start at the root to get info about parent dirs */
     strcpy(p_parent_task->path, global_config.fs_path);
     p_parent_task->depth = 0;
-    p_parent_task->task_finished = FALSE;
+    p_parent_task->task_finished = false;
 
     /* set the mother task, and remember start time */
     root_task = p_parent_task;
@@ -1669,11 +1672,11 @@ static int StartScan( void )
         ListMgr_SetVar( &lmgr, LAST_SCAN_NB_THREADS, value );
 
         /* check if it is the first scan (avoid RM_OLD_ENTRIES in this case) */
-        is_first_scan = FALSE;
+        is_first_scan = false;
         rc = ListMgr_EntryCount(&lmgr, &count);
 
         if ((rc == DB_SUCCESS) && (count == 0)) {
-            is_first_scan = TRUE;
+            is_first_scan = true;
             DisplayLog(LVL_EVENT, FSSCAN_TAG, "Notice: this is the first scan (DB is empty)");
         }
         else if (rc)
@@ -1726,7 +1729,7 @@ static void   *Thr_scan_recovery( void *arg_thread )
 #endif
 
     /* terminate and free current task */
-    st = RecursiveTaskTermination( p_info, p_info->current_task, FALSE );
+    st = RecursiveTaskTermination(p_info, p_info->current_task, false);
 
     if ( st )
     {
@@ -1783,8 +1786,8 @@ int Robinhood_CheckScanDeadlines( void )
 
     time_t         loc_last_scan_time;
     unsigned int   loc_last_duration;
-    int            loc_scan_complete;
-    int            loc_scan_running;
+    bool           loc_scan_complete;
+    bool           loc_scan_running;
     time_t         loc_start_time;
     time_t         loc_last_action;
     time_t         now;
@@ -1806,7 +1809,7 @@ int Robinhood_CheckScanDeadlines( void )
         unsigned int   i;
         time_t         last_action = 0;
 
-        loc_scan_running = TRUE;
+        loc_scan_running = true;
         loc_start_time = scan_start_time;
 
         for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
@@ -1822,7 +1825,7 @@ int Robinhood_CheckScanDeadlines( void )
     }
     else
     {
-        loc_scan_running = FALSE;
+        loc_scan_running = false;
         loc_start_time = 0;
         loc_last_action = 0;
     }
@@ -2035,7 +2038,7 @@ void Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
 
         p_stats->scanned_entries = 0;
         p_stats->error_count = 0;
-        p_stats->scan_running = TRUE;
+        p_stats->scan_running = true;
         p_stats->start_time = scan_start_time;
 
         for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
@@ -2078,7 +2081,7 @@ void Robinhood_StatsScan( robinhood_fsscan_stat_t * p_stats )
     }
     else
     {
-        p_stats->scan_running = FALSE;
+        p_stats->scan_running = false;
         p_stats->start_time = 0;
         p_stats->last_action = 0;
         p_stats->scanned_entries = 0;

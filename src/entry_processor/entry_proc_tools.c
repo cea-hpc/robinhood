@@ -43,8 +43,8 @@ static struct id_hash *name_hash;
 /** initialize id constraint manager */
 int id_constraint_init( void )
 {
-    id_hash = id_hash_init(ID_HASH_SIZE, TRUE);
-    name_hash = id_hash_init(ID_HASH_SIZE, TRUE);
+    id_hash = id_hash_init(ID_HASH_SIZE, true);
+    name_hash = id_hash_init(ID_HASH_SIZE, true);
     /* exiting the process releases hash resources */
     return (id_hash == NULL || name_hash == NULL)? -1 : 0;
 }
@@ -74,7 +74,7 @@ int id_constraint_register(entry_proc_op_t * p_op, int at_head)
         rh_list_add_tail(&p_op->id_hash_list, &slot->list);
 
     slot->count++;
-    p_op->id_is_referenced = TRUE;
+    p_op->id_is_referenced = 1;
 
     V(slot->lock);
 
@@ -92,7 +92,7 @@ int id_constraint_register(entry_proc_op_t * p_op, int at_head)
             rh_list_add_tail(&p_op->name_hash_list, &slot->list);
 
         slot->count++;
-        p_op->name_is_referenced = TRUE;
+        p_op->name_is_referenced = 1;
 
         V(slot->lock);
     }
@@ -109,11 +109,9 @@ int id_constraint_register(entry_proc_op_t * p_op, int at_head)
 #endif
 
 /**
- * Get the first operation for a given id or parent/name.
- * @return an operation to be processed when it is possible.
- *         NULL else.
+ * Test if a given operation is the first to be processed.
  */
-int id_constraint_is_first_op(entry_proc_op_t *p_op_in)
+bool id_constraint_is_first_op(entry_proc_op_t *p_op_in)
 {
     entry_proc_op_t *op;
     struct id_hash_slot *slot;
@@ -143,7 +141,7 @@ int id_constraint_is_first_op(entry_proc_op_t *p_op_in)
 
     if (is_first == 0)
         /* for sure, there is another operation on the same id before this one */
-        return FALSE;
+        return false;
 
     /* sanity check: registered operation was not found??? */
     if ((is_first == -1) && (p_op_in->id_is_referenced))
@@ -205,7 +203,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
     P( slot->lock );
 
     rh_list_del(&p_op->id_hash_list);
-    p_op->id_is_referenced = FALSE;
+    p_op->id_is_referenced = 0;
     slot->count--;
 
     V( slot->lock );
@@ -221,7 +219,7 @@ int id_constraint_unregister( entry_proc_op_t * p_op )
             P(slot->lock);
 
             rh_list_del(&p_op->name_hash_list);
-            p_op->name_is_referenced = FALSE;
+            p_op->name_is_referenced = 0;
             slot->count--;
 
             V(slot->lock);
@@ -245,8 +243,8 @@ void id_constraint_stats(void)
 
 void id_constraint_dump(void)
 {
-    id_hash_dump(id_hash, FALSE);
-    id_hash_dump(name_hash, TRUE);
+    id_hash_dump(id_hash, false);
+    id_hash_dump(name_hash, true);
 }
 
 /* ------------ Config management functions --------------- */
@@ -262,9 +260,9 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
     conf->nb_thread = 8;
     conf->max_pending_operations = 10000; /* for efficient batching of 1000 ops */
     conf->max_batch_size = 1000;
-    conf->match_classes = TRUE;
+    conf->match_classes = true;
 #ifdef ATTR_INDEX_creation_time
-    conf->detect_fake_mtime = FALSE;
+    conf->detect_fake_mtime = false;
 #endif
 
     conf->alert_list = NULL;
@@ -283,9 +281,9 @@ int Write_EntryProc_ConfigDefault(FILE * output)
     print_line(output, 1, "nb_threads             :  8");
     print_line(output, 1, "max_pending_operations :  10000");
     print_line(output, 1, "max_batch_size         :  1000");
-    print_line(output, 1, "match_classes          :  TRUE");
+    print_line(output, 1, "match_classes          :  yes");
 #ifdef ATTR_INDEX_creation_time
-    print_line(output, 1, "detect_fake_mtime      :  FALSE");
+    print_line(output, 1, "detect_fake_mtime      :  no");
 #endif
     print_line(output, 1, "alert                  :  NONE");
     print_end_block(output, 0);
@@ -419,8 +417,8 @@ static void set_default_pipeline_config(const pipeline_descr_t *descr,
         }
 }
 
-int Read_EntryProc_Config( config_file_t config, void *module_config,
-                           char *msg_out, int for_reload )
+int Read_EntryProc_Config(config_file_t config, void *module_config,
+                          char *msg_out, bool for_reload)
 {
     int            rc, blc_index, i;
     entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
@@ -618,8 +616,8 @@ static void free_alert( alert_item_t * p_items, unsigned int count )
 {
     unsigned int   i;
 
-    for ( i = 0; i < count; i++ )
-        FreeBoolExpr( &p_items[i].boolexpr, FALSE );
+    for (i = 0; i < count; i++)
+        FreeBoolExpr(&p_items[i].boolexpr, false);
 
     if ( ( count > 0 ) && ( p_items != NULL ) )
         free( p_items );
@@ -676,7 +674,7 @@ int Reload_EntryProc_Config( void *module_config )
     if (entry_proc_conf.match_classes && (policies.fileset_count == 0))
     {
         DisplayLog(LVL_EVENT, "EntryProc_Config" , "No fileclass defined in configuration, disabling fileclass matching.");
-        entry_proc_conf.match_classes = FALSE;
+        entry_proc_conf.match_classes = false;
     }
 
     return 0;
@@ -737,19 +735,19 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     }
     fprintf( output, "\n" );
 
-    print_line( output, 1, "# if set to FALSE, classes will only be matched");
-    print_line( output, 1, "# at policy application time (not during a scan or reading changelog)" );
-    print_line( output, 1, "match_classes = TRUE;");
+    print_line(output, 1, "# if set to 'no', classes will only be matched");
+    print_line(output, 1, "# at policy application time (not during a scan or reading changelog)");
+    print_line(output, 1, "match_classes = yes;");
 
 #ifdef ATTR_INDEX_creation_time
-    fprintf( output, "\n" );
-    print_line( output, 1, "# Faking mtime to an old time causes the file to be migrated");
-    print_line( output, 1, "# with top priority. Enabling this parameter detect this behavior");
-    print_line( output, 1, "# and doesn't allow  mtime < creation_time");
-    print_line( output, 1, "detect_fake_mtime = FALSE;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Faking mtime to an old time causes the file to be migrated");
+    print_line(output, 1, "# with top priority. Enabling this parameter detect this behavior");
+    print_line(output, 1, "# and doesn't allow  mtime < creation_time");
+    print_line(output, 1, "detect_fake_mtime = no;");
 #endif
 
-    print_end_block( output, 0 );
+    print_end_block(output, 0);
     return 0;
 }
 

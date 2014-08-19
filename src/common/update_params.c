@@ -83,6 +83,7 @@ static inline const char *update_param2str(updt_param_item_t *pol, char *buffer)
 {
     char tmpbuf1[256];
     char tmpbuf2[256];
+
     switch(pol->when)
     {
         case UPDT_NEVER:
@@ -92,12 +93,12 @@ static inline const char *update_param2str(updt_param_item_t *pol, char *buffer)
         case UPDT_ON_EVENT:
             return "on_event";
         case UPDT_ON_EVENT_PERIODIC:
-            FormatDurationFloat(tmpbuf1, 256, pol->period_min);
-            FormatDurationFloat(tmpbuf2, 256, pol->period_max);
+            FormatDurationFloat(tmpbuf1, sizeof(tmpbuf1), pol->period_min);
+            FormatDurationFloat(tmpbuf2, sizeof(tmpbuf2), pol->period_max);
             sprintf(buffer, "on_event_periodic(%s,%s)", tmpbuf1, tmpbuf2);
             return buffer;
         case UPDT_PERIODIC:
-            FormatDurationFloat(tmpbuf1, 256, pol->period_max);
+            FormatDurationFloat(tmpbuf1, sizeof(tmpbuf1), pol->period_max);
             sprintf(buffer, "periodic(%s)", tmpbuf1);
             return buffer;
         default:
@@ -175,7 +176,7 @@ static int read_update_item(updt_param_item_t *item,  const char *str,
 }
 
 int read_update_params(config_file_t config, void *module_config,
-                       char *msg_out, int for_reload)
+                       char *msg_out, bool for_reload)
 {
     updt_params_t *params = (updt_params_t *)module_config;
     int            rc;
@@ -218,11 +219,11 @@ int read_update_params(config_file_t config, void *module_config,
 
     /* get parameters from this block */
     rc = GetStringParam(updt_block, UPDT_PARAMS_BLOCK, "md_update",
-                        PFLG_NO_WILDCARDS, tmpstr, 1024,
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
                         &options, &nb_options, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if (rc != ENOENT)
+    if (rc != ENOENT)
     {
         /* parse the parameter */
         rc = read_update_item(&params->md, tmpstr, options, nb_options, msg_out);
@@ -232,11 +233,11 @@ int read_update_params(config_file_t config, void *module_config,
 
 #ifdef _HAVE_FID
     rc = GetStringParam(updt_block, UPDT_PARAMS_BLOCK, "path_update",
-                        PFLG_NO_WILDCARDS, tmpstr, 1024,
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
                         &options, &nb_options, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if (rc != ENOENT)
+    if (rc != ENOENT)
     {
         /* parse the parameter */
         rc = read_update_item(&params->path, tmpstr, options, nb_options, msg_out);
@@ -247,11 +248,11 @@ int read_update_params(config_file_t config, void *module_config,
 
     /* get parameters from this block */
     rc = GetStringParam(updt_block, UPDT_PARAMS_BLOCK, "fileclass_update",
-                        PFLG_NO_WILDCARDS, tmpstr, 1024,
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
                         &options, &nb_options, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if (rc != ENOENT)
+    if (rc != ENOENT)
     {
         /* parse the parameter */
         rc = read_update_item(&params->fileclass, tmpstr, options, nb_options,

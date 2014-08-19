@@ -47,17 +47,18 @@ int            RemoveChildTask( robinhood_task_t * p_parent_task,
                                 robinhood_task_t * p_child_task );
 
 
-/* Tag a task as completed i.e. finished its own work
+/**
+ * Tag a task as completed i.e. finished its own work
  * (but it can possibly still have sub-tasks running).
- * Return TRUE if all sub-tasks are terminated too,
- * FALSE otherwise.
+ * \retval true if all sub-tasks are terminated too.
+ * \retval false otherwise.
  */
-int            FlagTaskAsFinished( robinhood_task_t * p_task );
+bool FlagTaskAsFinished(robinhood_task_t *p_task);
 
 /* Test if a task is totally finished (i.e. the parent task
  * is finished, and all its children too )
  */
-int            TestTaskTermination( robinhood_task_t * p_task );
+bool TestTaskTermination(robinhood_task_t *p_task);
 
 
 void           TasksMemInfo( mem_stat_t * p_mem_stat );

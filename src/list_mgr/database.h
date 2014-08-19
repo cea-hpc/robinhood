@@ -58,7 +58,7 @@ char * sz_field[SZ_PROFIL_COUNT] =
 
 
 extern lmgr_config_t lmgr_config;
-extern int     annex_table;                      /* are we using an annex table */
+extern bool          annex_table;  /* are we using an annex table */
 
 
 /* -------------------- Connexion management ---------------- */
@@ -91,7 +91,7 @@ int            db_result_nb_records( db_conn_t * conn, result_handle_t * p_resul
 int            db_result_free( db_conn_t * conn, result_handle_t * p_result );
 
 /* indicate if the error is retryable (transaction must be restarted) */
-int db_is_retryable(int db_err);
+bool db_is_retryable(int db_err);
 
 typedef enum {DBOBJ_TABLE, DBOBJ_TRIGGER, DBOBJ_FUNCTION, DBOBJ_PROC } db_object_e;
 

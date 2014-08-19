@@ -299,16 +299,16 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 
     table_enum     query_tab;
     /* supported report fields: ENTRIES, ANNEX_INFO or ACCT */
-    int            main_table_flag = FALSE;
-    int            annex_table_flag = FALSE;
-    int            acct_table_flag = FALSE;
+    bool           main_table_flag = false;
+    bool           annex_table_flag = false;
+    bool           acct_table_flag = false;
     int            filter_main = 0;
     int            filter_annex = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
     int            filter_names = 0;
     int            filter_acct = 0;
-    int            full_acct = TRUE;
+    bool           full_acct = true;
     lmgr_iter_opt_t opt = {0};
     unsigned int   profile_len = 0;
     unsigned int   ratio = 0;
@@ -359,7 +359,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
 #endif
                 !is_acct_field( report_desc_array[i].attr_index ) &&
                 !is_acct_pk( report_desc_array[i].attr_index ) )
-            full_acct = FALSE;
+            full_acct = false;
     }
     if ( p_filter )
     {
@@ -369,7 +369,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             {
                 if ( !is_acct_pk( p_filter->filter_simple.filter_index[i] ) &&
                         !is_acct_field( p_filter->filter_simple.filter_index[i] ) )
-                    full_acct = FALSE;
+                    full_acct = false;
             }
         }
     }
@@ -380,7 +380,7 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                                profile_descr,
                                fields, &curr_field, group_by, &curr_group_by, order_by, &curr_sort,
                                having, &curr_having, where, &curr_where);
-        acct_table_flag = TRUE;
+        acct_table_flag = true;
     }
     else /* not only ACCT table */
     {
@@ -404,9 +404,9 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
             {
                 /* in what table is this field ? */
                 if ( is_main_field( report_desc_array[i].attr_index ) )
-                    main_table_flag = TRUE;
+                    main_table_flag = true;
                 else if ( is_annex_field( report_desc_array[i].attr_index ) )
-                    annex_table_flag = TRUE;
+                    annex_table_flag = true;
                 else
                 {
                     /* Not supported yet */
@@ -505,14 +505,14 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
                     attrstring[0] = '\0';
                     char *curr_attr = attrstring;
 
-                    curr_attr += sprintf(curr_attr, "SUM(size>=%Lu",
+                    curr_attr += sprintf(curr_attr, "SUM(size>=%llu",
                                          SZ_MIN_BY_INDEX(profile_descr->range_ratio_start));
 
                     /* is the last range = 1T->inf ? */
                     if (profile_descr->range_ratio_start + profile_descr->range_ratio_len >= SZ_PROFIL_COUNT)
                         curr_attr += sprintf(curr_attr, ")");
                     else
-                        curr_attr += sprintf(curr_attr, " and size<%Lu)",
+                        curr_attr += sprintf(curr_attr, " and size<%llu)",
                                          SZ_MIN_BY_INDEX(profile_descr->range_ratio_start+profile_descr->range_ratio_len));
 
                     curr_attr += sprintf(curr_attr, "/COUNT(*) as sizeratio");
@@ -528,47 +528,47 @@ struct lmgr_report_t *ListMgr_Report( lmgr_t * p_mgr,
     {
         if ( ( full_acct && !opt.force_no_acct ) )
         {
-            filter_acct = filter2str( p_mgr, curr_where, p_filter, T_ACCT,
-                                      ( where != curr_where ), TRUE );
+            filter_acct = filter2str(p_mgr, curr_where, p_filter, T_ACCT,
+                                     (where != curr_where), true);
             curr_where += strlen( curr_where );
-            if ( filter_acct )
-                acct_table_flag =TRUE;
+            if (filter_acct)
+                acct_table_flag = true;
         }
         else
         {
             /* filter on main table? */
-            filter_main = filter2str( p_mgr, curr_where, p_filter, T_MAIN,
-                                      ( where != curr_where ), TRUE );
+            filter_main = filter2str(p_mgr, curr_where, p_filter, T_MAIN,
+                                     (where != curr_where), true);
             curr_where += strlen( curr_where );
 
             if ( filter_main )
-                main_table_flag = TRUE;
+                main_table_flag = true;
 
             /* filter on annex table? */
             if ( annex_table )
             {
-                filter_annex = filter2str( p_mgr, curr_where, p_filter, T_ANNEX,
-                                           (where != curr_where), TRUE );
+                filter_annex = filter2str(p_mgr, curr_where, p_filter, T_ANNEX,
+                                          (where != curr_where), true);
                 curr_where += strlen( curr_where );
 
                 if ( filter_annex )
-                    annex_table_flag = TRUE;
+                    annex_table_flag = true;
             }
 
             filter_stripe_info =
-                filter2str( p_mgr, curr_where, p_filter, T_STRIPE_INFO,
-                            (where != curr_where), TRUE );
+                filter2str(p_mgr, curr_where, p_filter, T_STRIPE_INFO,
+                           (where != curr_where), true);
             curr_where += strlen( curr_where );
 
            /*  filter on names table is particular as this may duplicate
              * entries when computing the report (multiple hardlinks) */
             filter_names = filter2str(p_mgr, name_filter_str, p_filter, T_DNAMES,
-                                      FALSE, FALSE );
+                                      false, false);
 
            /*  filter on stripe items table is particular as this may duplicate
              * entries when computing the report (multiple stripes) */
             filter_stripe_items = filter2str(p_mgr, stripe_filter_str, p_filter,
-                                             T_STRIPE_ITEMS, FALSE, FALSE);
+                                             T_STRIPE_ITEMS, false, false);
         }
     }
 
@@ -706,7 +706,7 @@ retry:
         else
             new_opt.list_count_max = 0;
 
-        new_opt.force_no_acct = TRUE;
+        new_opt.force_no_acct = true;
 
         DisplayLog( LVL_EVENT, LISTMGR_TAG, "No accounting info: switching to standard query mode" );
 

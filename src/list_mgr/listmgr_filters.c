@@ -298,7 +298,7 @@ int lmgr_simple_filter_free( lmgr_filter_t * p_filter )
 }
 
 /* is it a simple 'AND' expression ? */
-static int is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
+static bool is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
 {
     switch (boolexpr->node_type)
     {
@@ -308,17 +308,17 @@ static int is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
                 /* Error */
                 DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid unary operator %d in %s()",
                             boolexpr->content_u.bool_expr.bool_op, __FUNCTION__);
-                return FALSE;
+                return false;
             }
             /* only accept 'NOT condition', but reject 'NOT (cond AND cond)' */
             return  (boolexpr->content_u.bool_expr.expr1->node_type == NODE_CONDITION);
 
         case NODE_BINARY_EXPR:
             if (depth > 1)
-                return FALSE;
+                return false;
             else if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
                 && boolexpr->content_u.bool_expr.bool_op != BOOL_OR)
-                return FALSE;
+                return false;
 
             /* bool operation context unchanged? */
             if (boolexpr->content_u.bool_expr.bool_op == op_ctx)
@@ -332,16 +332,15 @@ static int is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
 
         case NODE_CONDITION:
             /* If attribute is in DB, it can be filtered
-             * If attribute is not in DB, we ignore it and get all entries (~ AND TRUE)
+             * If attribute is not in DB, we ignore it and get all entries (~ AND true)
              */
-            return TRUE;
+            return true;
 
         default:
             DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression in %s()",
                        __FUNCTION__);
-            return FALSE;
+            return false;
     }
-
 }
 
 static bool allow_null(int attr_index, const filter_comparator_t *comp,
@@ -391,7 +390,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
     int                 index, rc, flag, new_depth;
     filter_comparator_t comp;
     filter_value_t      val;
-    int                 must_free;
+    bool                must_free;
 
     switch (boolexpr->node_type)
     {
@@ -464,8 +463,6 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                        field_name(index), flag);
 
             return lmgr_simple_filter_add(filter, index, comp, val, flag);
-
-            return TRUE;
 
         case NODE_BINARY_EXPR:
         {

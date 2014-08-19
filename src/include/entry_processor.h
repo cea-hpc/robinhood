@@ -50,11 +50,11 @@ typedef struct entry_proc_config_t
     unsigned int   alert_count;
     uint64_t       alert_attr_mask;
 
-    unsigned int   match_classes;
+    bool           match_classes;
 #ifdef ATTR_INDEX_creation_time
     /* fake mtime in the past causes higher
      * migration priority */
-    unsigned int   detect_fake_mtime;
+    bool           detect_fake_mtime;
 #endif
     uint64_t       diff_mask;
 } entry_proc_config_t;
@@ -88,9 +88,9 @@ typedef int (*step_batch_function_t) (struct entry_proc_op_t **, int count, lmgr
 /**
  * Callback to check if 2 operations can be batched together.
  */
-typedef int (*test_batchable_func_t)(struct entry_proc_op_t *,
-                                     struct entry_proc_op_t *,
-                                     uint64_t *full_mask);
+typedef bool (*test_batchable_func_t)(struct entry_proc_op_t *,
+                                      struct entry_proc_op_t *,
+                                      uint64_t *full_mask);
 
 /**
  * Definition of a pipeline stage
@@ -217,7 +217,7 @@ typedef struct entry_proc_op_t
     union {
         time_t changelog_inserted; /* used by changelog reader */
         struct timeval start_processing_time; /* used by pipeline */
-    };
+    } timestamp;
 
     /* double chained list for pipeline */
     struct list_head list;
@@ -261,8 +261,9 @@ typedef struct entry_proc_op_t
  * @{
  */
 int            SetDefault_EntryProc_Config( void *module_config, char *msg_out );
-int            Read_EntryProc_Config( config_file_t config,
-                                      void *module_config, char *msg_out, int for_reload );
+int            Read_EntryProc_Config(config_file_t config,
+                                     void *module_config, char *msg_out,
+                                     bool for_reload);
 int            Reload_EntryProc_Config( void *module_config );
 int            Write_EntryProc_ConfigTemplate( FILE * output );
 int            Write_EntryProc_ConfigDefault( FILE * output );
@@ -281,7 +282,7 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf,
  * Terminate EntryProcessor
  * \param flush_ops: wait the queue to be flushed
  */
-int EntryProcessor_Terminate( int flush_ops );
+int EntryProcessor_Terminate(bool flush_ops);
 
 /**
  * This function adds a new operation to the queue
@@ -295,18 +296,18 @@ void            EntryProcessor_Push( entry_proc_op_t * p_entry );
  *        from pipeline (basically after the last step).
  */
 int            EntryProcessor_Acknowledge(entry_proc_op_t * p_op,
-                                          unsigned int next_stage, int remove);
+                                          unsigned int next_stage, bool remove);
 
 /** Acknowledge a batch of operations */
 int EntryProcessor_AcknowledgeBatch(entry_proc_op_t **p_op, unsigned int count,
-                                    unsigned int next_stage, int remove);
+                                    unsigned int next_stage, bool remove);
 
 /**
  * Set entry id.
  */
 static void inline EntryProcessor_SetEntryId( entry_proc_op_t * p_op, const entry_id_t * p_id )
 {
-    p_op->entry_id_is_set = TRUE;
+    p_op->entry_id_is_set = 1;
     p_op->entry_id = *p_id;
 
     /* @TODO: remember this reference about this entry id (to check id constraints) */

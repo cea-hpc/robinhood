@@ -42,7 +42,7 @@ int            id_constraint_register( entry_proc_op_t * p_op, int at_head );
 /**
  * Indicate if a given operation is the first for a given id and parent/name.
  */
-int id_constraint_is_first_op(entry_proc_op_t *p_op);
+bool id_constraint_is_first_op(entry_proc_op_t *p_op);
 
 
 /**

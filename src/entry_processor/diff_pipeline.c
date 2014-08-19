@@ -49,7 +49,7 @@ static int  EntryProc_batch_apply(struct entry_proc_op_t **, int, lmgr_t *);
 static int  EntryProc_report_rm( struct entry_proc_op_t *, lmgr_t * );
 
 /* forward declaration to check batchable operations for db_apply stage */
-static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, int *);
+static bool dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, uint64_t *);
 
 /* pipeline stages */
 #define STAGE_GET_FID       0
@@ -119,7 +119,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     {
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                     "Error: not enough information to get fid: parent_id/name or fullpath needed");
-        EntryProcessor_Acknowledge( p_op, -1, TRUE );
+        EntryProcessor_Acknowledge(p_op, -1, true);
         return EINVAL;
     }
 
@@ -138,7 +138,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( rc )
     {
         /* remove the operation from pipeline */
-        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+        rc = EntryProcessor_Acknowledge(p_op, -1, true);
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                         "Error %d acknowledging stage STAGE_GET_FID.", rc );
@@ -148,7 +148,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         EntryProcessor_SetEntryId( p_op, &tmp_id );
 
         /* go to GET_INFO_DB stage */
-        rc = EntryProcessor_Acknowledge( p_op, STAGE_GET_INFO_DB, FALSE );
+        rc = EntryProcessor_Acknowledge(p_op, STAGE_GET_INFO_DB, false);
         if ( rc )
             DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
                         "Error %d acknowledging stage STAGE_GET_FID.", rc );
@@ -156,7 +156,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     return rc;
 #else
     DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error: unexpected stage in a filesystem with no fid: STAGE_GET_FID.");
-    EntryProcessor_Acknowledge( p_op, -1, TRUE );
+    EntryProcessor_Acknowledge(p_op, -1, true);
     return EINVAL;
 #endif
 }
@@ -221,11 +221,11 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         if (rc == DB_SUCCESS)
         {
-            p_op->db_exists = TRUE;
+            p_op->db_exists = 1;
         }
         else if (rc == DB_NOT_EXISTS )
         {
-            p_op->db_exists = FALSE;
+            p_op->db_exists = 0;
             ATTR_MASK_INIT( &p_op->db_attrs );
         }
         else
@@ -234,7 +234,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             DisplayLog(LVL_CRIT, ENTRYPROC_TAG,
                        "Error %d retrieving entry "DFID" from DB: %s.", rc,
                        PFID(&p_op->entry_id), lmgr_err2str(rc));
-            p_op->db_exists = FALSE;
+            p_op->db_exists = 0;
             ATTR_MASK_INIT( &p_op->db_attrs );
         }
     }
@@ -294,7 +294,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
         else
         {
-            p_op->extra_info.not_supp = TRUE;
+            p_op->extra_info.not_supp = 1;
             p_op->fs_attr_need &= ~ATTR_MASK_status;
         }
 #endif
@@ -323,7 +323,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
             else
             {
-                p_op->extra_info.not_supp = TRUE;
+                p_op->extra_info.not_supp = 1;
                 p_op->fs_attr_need &= ~ATTR_MASK_status;
             }
         }
@@ -379,12 +379,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         next_stage = STAGE_GET_INFO_FS;
     }
 
-    if ( next_stage == -1 )
+    if (next_stage == -1)
         /* drop the entry */
-        rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+        rc = EntryProcessor_Acknowledge(p_op, -1, true);
     else
         /* go to next pipeline step */
-        rc = EntryProcessor_Acknowledge( p_op, next_stage, FALSE );
+        rc = EntryProcessor_Acknowledge(p_op, next_stage, false);
 
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
@@ -398,8 +398,11 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
+    char           tmp_buf[RBH_NAME_MAX];
+
 #ifdef _HAVE_FID
     char path[RBH_PATH_MAX];
+
     BuildFidPath( &p_op->entry_id, path );
 #else
     char * path;
@@ -415,18 +418,13 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 #endif
 
-    DisplayLog( LVL_FULL, ENTRYPROC_TAG,
+    DisplayLog(LVL_FULL, ENTRYPROC_TAG,
         DFID": Getattr=%u, Getpath=%u, Readlink=%u"
-#ifdef ATTR_INDEX_status
-        ", GetStatus=%u"
-#endif
-        ", Getstripe=%u",
+        ", Getstatus(%s), Getstripe=%u",
          PFID(&p_op->entry_id), NEED_GETATTR(p_op)?1:0,
          NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
-#ifdef ATTR_INDEX_status
-        NEED_GETSTATUS(p_op)?1:0,
-#endif
-        NEED_GETSTRIPE(p_op)?1:0);
+         name_missing_status(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)),
+         NEED_GETSTRIPE(p_op)?1:0);
 
     /* don't retrieve info which is already fresh */
     p_op->fs_attr_need &= ~p_op->fs_attrs.attr_mask;
@@ -483,7 +481,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
          && strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_FILE ) != 0 )
     {
         p_op->fs_attr_need &= ~ATTR_MASK_status;
-        p_op->extra_info.not_supp = TRUE;
+        p_op->extra_info.not_supp = 1;
     }
 #endif
 #endif
@@ -519,7 +517,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
 #ifdef _HSM_LITE
             /* merge/update attributes */
-            ListMgr_MergeAttrSets( &p_op->fs_attrs, &new_attrs, TRUE );
+            ListMgr_MergeAttrSets(&p_op->fs_attrs, &new_attrs, true);
 #elif defined(_LUSTRE_HSM)
             ATTR_MASK_SET( &p_op->fs_attrs, status );
             ATTR_MASK_SET( &p_op->fs_attrs, no_release );
@@ -540,7 +538,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         else if ( rc == -ENOTSUP )
         {
             /* this type of entry is not managed: ignored */
-            p_op->extra_info.not_supp = TRUE;
+            p_op->extra_info.not_supp = 1;
             /* no status */
             ATTR_MASK_UNSET(&p_op->fs_attrs, status);
         }
@@ -589,7 +587,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     #endif
 
     /* print diff */
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_REPORT_DIFF, FALSE );
+    rc = EntryProcessor_Acknowledge(p_op, STAGE_REPORT_DIFF, false);
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
@@ -597,7 +595,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #ifdef ATTR_INDEX_status
 skip_record:
     /* remove the operation from pipeline */
-    rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+    rc = EntryProcessor_Acknowledge(p_op, -1, true);
 
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
@@ -728,7 +726,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
 
     /* always go to APPLY step, at least to tag the entry */
-    rc = EntryProcessor_Acknowledge( p_op, STAGE_APPLY, FALSE );
+    rc = EntryProcessor_Acknowledge(p_op, STAGE_APPLY, false);
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
                     stage_info->stage_name );
@@ -736,31 +734,32 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 }
 
 /* forward declaration to check batchable operations for db_apply stage */
-static int  dbop_is_batchable(struct entry_proc_op_t *first, struct entry_proc_op_t *next, int *full_attr_mask)
+static bool dbop_is_batchable(struct entry_proc_op_t *first, struct
+entry_proc_op_t *next, uint64_t *full_attr_mask)
 {
     /* batch nothing if not applying to DB */
     if ((diff_arg->apply != APPLY_DB) || (pipeline_flags & FLAG_DRY_RUN))
-        return FALSE;
+        return false;
 
     if (first->db_op_type != OP_TYPE_INSERT
         && first->db_op_type != OP_TYPE_UPDATE
         && first->db_op_type != OP_TYPE_NONE)
-        return FALSE;
+        return false;
     else if (first->db_op_type != next->db_op_type)
-        return FALSE;
+        return false;
     /* starting from here, db_op_type is the same for the 2 operations */
     /* all NOOP operations can be batched */
     else if (first->db_op_type == OP_TYPE_NONE)
-        return TRUE;
+        return true;
     /* different masks can be mixed, as long as attributes for each table are
      * the same or 0. Ask the list manager about that. */
     else if (lmgr_batch_compat(*full_attr_mask, next->fs_attrs.attr_mask))
     {
         *full_attr_mask |= next->fs_attrs.attr_mask;
-        return TRUE;
+        return true;
     }
     else
-        return FALSE;
+        return false;
 }
 
 
@@ -776,37 +775,42 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
     {
         /* insert to DB */
-        switch ( p_op->db_op_type )
+        switch (p_op->db_op_type)
         {
         case OP_TYPE_NONE:
             /* noop */
-            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "NoOp("DFID")", PFID(&p_op->entry_id) );
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "NoOp("DFID")", PFID(&p_op->entry_id));
             rc = 0;
             break;
+
         case OP_TYPE_INSERT:
     #ifdef _HAVE_FID
-            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Insert("DFID")", PFID(&p_op->entry_id) );
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Insert("DFID")", PFID(&p_op->entry_id));
     #endif
-            rc = ListMgr_Insert( lmgr, &p_op->entry_id, &p_op->fs_attrs, FALSE );
+            rc = ListMgr_Insert(lmgr, &p_op->entry_id, &p_op->fs_attrs, false);
             break;
+
         case OP_TYPE_UPDATE:
     #ifdef _HAVE_FID
-            DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Update("DFID")", PFID(&p_op->entry_id) );
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Update("DFID")", PFID(&p_op->entry_id));
     #endif
-            rc = ListMgr_Update( lmgr, &p_op->entry_id, &p_op->fs_attrs );
+            rc = ListMgr_Update(lmgr, &p_op->entry_id, &p_op->fs_attrs);
             break;
-    case OP_TYPE_REMOVE_ONE:
-#ifdef _HAVE_FID
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
-#endif
-        rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, FALSE );
-        break;
-    case OP_TYPE_REMOVE_LAST:
-#ifdef _HAVE_FID
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id) );
-#endif
-        rc = ListMgr_Remove( lmgr, &p_op->entry_id, &p_op->fs_attrs, TRUE );
-        break;
+
+        case OP_TYPE_REMOVE_ONE:
+    #ifdef _HAVE_FID
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id));
+    #endif
+            rc = ListMgr_Remove(lmgr, &p_op->entry_id, &p_op->fs_attrs, false);
+            break;
+
+        case OP_TYPE_REMOVE_LAST:
+    #ifdef _HAVE_FID
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Remove("DFID")", PFID(&p_op->entry_id));
+    #endif
+            rc = ListMgr_Remove(lmgr, &p_op->entry_id, &p_op->fs_attrs, true);
+            break;
+
         case OP_TYPE_SOFT_REMOVE:
             if (log_config.debug_level >= LVL_DEBUG) {
                 char buff[2*RBH_PATH_MAX];
@@ -816,18 +820,18 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                            | ATTR_MASK_backendpath
     #endif
                         , 1);
-                DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
                             PFID(&p_op->entry_id), buff);
             }
 
             rc = ListMgr_SoftRemove(lmgr, &p_op->entry_id, &p_op->fs_attrs, time(NULL));
             break;
         default:
-            DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type );
+            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type);
             rc = -1;
         }
 
-        if ( rc )
+        if (rc)
             DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing database operation: %s.",
                        rc, lmgr_err2str(rc));
     }
@@ -914,7 +918,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
     }
 
-    rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+    rc = EntryProcessor_Acknowledge(p_op, -1, true);
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
                     stage_info->stage_name );
@@ -957,16 +961,19 @@ int EntryProc_batch_apply(struct entry_proc_op_t **ops, int count,
                    PFID(ids[0]));
         rc = 0;
         break;
+
     case OP_TYPE_INSERT:
         DisplayLog(LVL_FULL, ENTRYPROC_TAG, "BatchInsert(%u ops: "DFID"...)",
                    count, PFID(ids[0]));
-        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, FALSE);
+        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, false);
         break;
+
     case OP_TYPE_UPDATE:
         DisplayLog(LVL_FULL, ENTRYPROC_TAG, "BatchUpdate(%u ops: "DFID"...)",
                    count, PFID(ids[0]));
-        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, TRUE);
+        rc = ListMgr_BatchInsert(lmgr, ids, attrs, count, true);
         break;
+
     default:
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Unexpected operation for batch op: %d",
                    ops[0]->db_op_type);
@@ -977,7 +984,7 @@ int EntryProc_batch_apply(struct entry_proc_op_t **ops, int count,
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d performing batch database operation: %s.",
                    rc, lmgr_err2str(rc));
 
-    rc = EntryProcessor_AcknowledgeBatch(ops, count, -1, TRUE);
+    rc = EntryProcessor_AcknowledgeBatch(ops, count, -1, true);
     if (rc)
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,
                    stage_info->stage_name);
@@ -1020,7 +1027,7 @@ static int hsm_recover(lmgr_t * lmgr,
 
             new_attrs.attr_mask &= ~readonly_attr_set;
             rc = ListMgr_Replace(lmgr, p_id, p_oldattr, &new_id, &new_attrs,
-                                 TRUE, TRUE);
+                                 true, true);
             if (rc)
             {
                 DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to replace entry "
@@ -1076,7 +1083,7 @@ static int std_recover(lmgr_t * lmgr,
     attr_set_t new_attrs;
     int rc;
 
-    rc = create_from_attrs(p_oldattr, &new_attrs, &new_id, FALSE, FALSE);
+    rc = create_from_attrs(p_oldattr, &new_attrs, &new_id, false, false);
     if (rc)
     {
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to create entry '%s' (status=%d)",
@@ -1147,7 +1154,7 @@ static int std_recover(lmgr_t * lmgr,
     /* insert the new entry to the DB */
     new_attrs.attr_mask &= ~readonly_attr_set;
     rc = ListMgr_Replace(lmgr, p_id, p_oldattr, &new_id, &new_attrs,
-                         TRUE, TRUE);
+                         true, true);
     if (rc)
     {
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Failed to replace entry "
@@ -1221,7 +1228,7 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
             }
 
             /* force commit after this operation */
-            ListMgr_ForceCommitFlag( lmgr, TRUE );
+            ListMgr_ForceCommitFlag(lmgr, true);
 
             /* remove entries listed in previous scans */
             if (has_deletion_policy())
@@ -1325,9 +1332,9 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     // update last scan end time moved to callback
 
     /* unset force commit flag */
-    ListMgr_ForceCommitFlag( lmgr, FALSE );
+    ListMgr_ForceCommitFlag(lmgr, false);
 
-    rc = EntryProcessor_Acknowledge( p_op, -1, TRUE );
+    rc = EntryProcessor_Acknowledge(p_op, -1, true);
 
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.", rc,

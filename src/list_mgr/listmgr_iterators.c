@@ -215,28 +215,28 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
         filter_dir_type = dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index);
         /* XXX is sort dirattr the same as filter dirattr? */
 
-        filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
-                                  FALSE, TRUE );
+        filter_main = filter2str(p_mgr, filter_str_main, p_filter, T_MAIN,
+                                 false, true);
         filters += (filter_main > 0 ? 1 : 0);
 
-        if ( annex_table )
-            filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                       T_ANNEX, filters, TRUE );
+        if (annex_table)
+            filter_annex = filter2str(p_mgr, filter_str_annex, p_filter,
+                                      T_ANNEX, filters, true);
         else
             filter_annex = 0;
         filters += (filter_annex > 0 ? 1 : 0);
 
-        filter_name = filter2str(p_mgr, filter_str_name, p_filter, T_DNAMES, filters, TRUE);
+        filter_name = filter2str(p_mgr, filter_str_name, p_filter, T_DNAMES, filters, true);
         filters += (filter_name > 0 ? 1 : 0);
 
         filter_stripe_info =
             filter2str(p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                       filters, TRUE);
+                       filters, true);
         filters += (filter_stripe_info > 0 ? 1 : 0);
 
         filter_stripe_items =
             filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
-                        filters, TRUE);
+                        filters, true);
         filters += (filter_stripe_items > 0 ? 1 : 0);
 
 
@@ -364,7 +364,7 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                         filter_stripe_info, filter_stripe_items );
 
             /* rebuild the whole filter string */
-            if (filter2str(p_mgr, filter_str, p_filter, T_NONE, FALSE, TRUE) > 0)
+            if (filter2str(p_mgr, filter_str, p_filter, T_NONE, false, true) > 0)
                 curr_fields += sprintf(curr_fields, "%s", filter_str);
 
             if ( ( filter_main > 0 ) || ( do_sort && ( sort_table == T_MAIN ) ) )
@@ -592,11 +592,11 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
     char          *idstr[3];
     DEF_PK(pk);
 
-    int            entry_disappeared = FALSE;
+    bool           entry_disappeared = false;
 
     do
     {
-        entry_disappeared = FALSE;
+        entry_disappeared = false;
 
         idstr[0] = idstr[1] = idstr[2] = NULL;
         rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result, idstr, 3 );
@@ -613,9 +613,9 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
         rc = pk2entry_id( p_iter->p_mgr, pk, p_id );
 
         /* /!\ If the entry disappeared from DB, we must go to next record */
-        if ( rc == DB_NOT_EXISTS )
-            entry_disappeared = TRUE;
-        else if ( rc )
+        if (rc == DB_NOT_EXISTS)
+            entry_disappeared = true;
+        else if (rc)
             return rc;
 
         /* Idem */
@@ -643,7 +643,7 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
                 rc = 0;
             }
             else
-                entry_disappeared = TRUE;
+                entry_disappeared = true;
         }
     }
     while ( entry_disappeared );        /* goto next record if entry desappered */

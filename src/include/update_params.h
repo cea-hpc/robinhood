@@ -66,16 +66,16 @@ typedef struct updt_params_t
 /**
  *  Check if the fileclass needs to be updated
  */
-int need_fileclass_update(const attr_set_t * p_attrs);
+bool need_fileclass_update(const attr_set_t *p_attrs);
 
 /**
  *  Check if path or metadata needs to be updated
- *  \param p_allow_event [out] if set to TRUE, the path
+ *  \param p_allow_event [out] if set to true, the path
  *         must be updated on related event.
  */
 typedef enum { UPDT_PATH, UPDT_MD } type_info_t;
-int need_info_update(const attr_set_t *p_attrs, int *update_on_event,
-                     type_info_t type_info);
+bool need_info_update(const attr_set_t *p_attrs, bool *update_on_event,
+                      type_info_t type_info);
 
 #define need_path_update(_pa, _pu)    need_info_update((_pa), (_pu), UPDT_PATH)
 #define need_md_update(_pa, _pu)      need_info_update((_pa), (_pu), UPDT_MD)
@@ -84,7 +84,7 @@ int set_default_update_params(void *module_config, char *msg_out);
 int write_default_update_params(FILE *output);
 int write_update_params_template(FILE *output);
 int read_update_params(config_file_t config, void *module_config,
-                       char *msg_out, int for_reload);
+                       char *msg_out, bool for_reload);
 int reload_update_params(void *module_config);
 
 extern updt_params_t  updt_params;

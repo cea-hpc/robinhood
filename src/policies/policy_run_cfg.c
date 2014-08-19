@@ -58,8 +58,8 @@ static int polrun_set_default(policy_run_config_t *cfg)
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     cfg->lru_sort_attr =  ATTR_INDEX_last_access;
 
-    cfg->check_action_status_on_startup = TRUE;
-    cfg->recheck_ignored_classes = TRUE;
+    cfg->check_action_status_on_startup = true;
+    cfg->recheck_ignored_classes = true;
 
     return 0;
 }
@@ -174,12 +174,12 @@ int policy_run_cfg_write_template(FILE *output)
     print_end_block(output, 0);
     fprintf(output, "\n");
 
-    /* TODO Add template triggers */
+    /* @TODO Add template triggers */
 
     return 0;
 }
 
-# if 0
+# if 0 // @TODO RBHv3: write template triggers
     
     fprintf( output, "\n" );
 #ifdef _LUSTRE
@@ -200,10 +200,10 @@ int policy_run_cfg_write_template(FILE *output)
     print_line( output, 1, "low_threshold_pct  = 85%% ;" );
     print_line( output, 1, "check_interval     = 5min ;" );
     print_line( output, 1, "# raise an alert when the high threshold is reached" );
-    print_line( output, 1, "alert_high         = TRUE ;" );
+    print_line( output, 1, "alert_high         = yes ;" );
     print_line( output, 1, "# raise an alert if not enough data can be purged");
     print_line( output, 1, "# to reach the low threshold");
-    print_line( output, 1, "alert_low          = TRUE ;" );
+    print_line( output, 1, "alert_low          = yes ;" );
     print_end_block( output, 0 );
 
     fprintf( output, "\n" );
@@ -232,7 +232,7 @@ int policy_run_cfg_write_template(FILE *output)
     print_line( output, 1, "low_threshold_vol  = 950GB ;" );
     print_line( output, 1, "check_interval     = 12h ;" );
     print_line( output, 1, "# send an alert when the quota is reached" );
-    print_line( output, 1, "alert_high         = TRUE ;" );
+    print_line( output, 1, "alert_high         = yes ;" );
     print_end_block( output, 0 );
 
 #endif
@@ -295,7 +295,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         p_trigger_item->target_type = TGT_FS; /* TODO allow other targets (user, group, fileclass...) */
 
         /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = FALSE;
+        p_trigger_item->alert_lw = false;
 
         /* no arg expected */
         if (arg_count > 0)
@@ -312,7 +312,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         p_trigger_item->target_type = TGT_FS;
 
         /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = TRUE;
+        p_trigger_item->alert_lw = true;
 
         /* no arg expected */
         if (arg_count > 0)
@@ -329,7 +329,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         p_trigger_item->target_type = TGT_OST;
 
         /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = TRUE;
+        p_trigger_item->alert_lw = true;
 
         /* no arg expected */
         if (arg_count > 0)
@@ -346,7 +346,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         p_trigger_item->target_type = TGT_USER;
 
         /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = TRUE;
+        p_trigger_item->alert_lw = true;
 
         /* optional arguments: user list */
         if (arg_count > 0)
@@ -366,7 +366,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         p_trigger_item->target_type = TGT_GROUP;
 
         /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = TRUE;
+        p_trigger_item->alert_lw = true;
 
         /* optional argument: group list */
         if (arg_count > 0)
@@ -386,7 +386,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         p_trigger_item->target_type = TGT_POOL;
 
         /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = TRUE;
+        p_trigger_item->alert_lw = true;
 
         /* optional arguments: user list */
         if (arg_count > 0)
@@ -562,8 +562,9 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
 {
     int            rc;
     unsigned int   blc_index;
-    char block_name[1024];
-    char tmp[1024];
+    char           block_name[1024];
+    char           tmp[1024];
+    config_item_t  param_block;
 
     /* parameter for CheckUnknownParams() */
     static const char *allowed[] = {
@@ -613,8 +614,8 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, policy_name);
 
     /* get <policy>_parameters block */
-    /* TODO be able to aggregate multiple blocks with the same name */
-    config_item_t  param_block = rh_config_FindItemByName(config, block_name);
+    /* @TODO RBHv3: be able to aggregate multiple blocks with the same name */
+    param_block = rh_config_FindItemByName(config, block_name);
 
     /* default_action is mandatory */
     if (param_block == NULL)
@@ -746,7 +747,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
 
 /* read the run cfg for all policies */
 int policy_run_cfg_read(config_file_t config, void *module_config, char *msg_out,
-                        int for_reload)
+                        bool for_reload)
 {
     int i, rc = 0;
     policy_run_configs_t *allconf = (policy_run_configs_t *)module_config;
@@ -772,10 +773,10 @@ int policy_run_cfg_read(config_file_t config, void *module_config, char *msg_out
 
 static void update_triggers(trigger_item_t *trigger_tgt, unsigned int count_tgt,
                             trigger_item_t *trigger_new, unsigned int count_new,
-                            int *check_interval_chgd)
+                            bool *check_interval_chgd)
 {
     unsigned int   i;
-    *check_interval_chgd = FALSE;
+    *check_interval_chgd = false;
 
     if (count_new != count_tgt)
     {
@@ -819,7 +820,7 @@ static void update_triggers(trigger_item_t *trigger_tgt, unsigned int count_tgt,
             DisplayLog(LVL_EVENT, TAG, "check_interval updated for trigger %s: %lu->%lu",
                        tname, trigger_tgt[i].check_interval, trigger_new[i].check_interval);
             trigger_tgt[i].check_interval = trigger_new[i].check_interval;
-            *check_interval_chgd = TRUE;
+            *check_interval_chgd = true;
         }
 
         if (trigger_new[i].max_action_nbr != trigger_tgt[i].max_action_nbr)
@@ -831,7 +832,7 @@ static void update_triggers(trigger_item_t *trigger_tgt, unsigned int count_tgt,
 
         if (trigger_new[i].max_action_vol != trigger_tgt[i].max_action_vol)
         {
-            DisplayLog(LVL_EVENT, TAG, "max_action_volume updated for trigger %s: %Lu bytes->%Lu bytes",
+            DisplayLog(LVL_EVENT, TAG, "max_action_volume updated for trigger %s: %llu bytes->%llu bytes",
                        tname, trigger_tgt[i].max_action_vol, trigger_new[i].max_action_vol);
             trigger_tgt[i].max_action_vol = trigger_new[i].max_action_vol;
         }
@@ -970,7 +971,7 @@ static void free_triggers(trigger_item_t * p_triggers, unsigned int count)
 
 /** reload parameters for a single policy */
 static int polrun_reload(const char *blkname, policy_run_config_t *cfg_tgt,
-                         policy_run_config_t *cfg_new, int *recompute_interval)
+                         policy_run_config_t *cfg_new, bool *recompute_interval)
 {
     /* parameters that can't be modified dynamically */
     if (cfg_tgt->nb_threads != cfg_new->nb_threads)
@@ -996,7 +997,7 @@ static int polrun_reload(const char *blkname, policy_run_config_t *cfg_tgt,
 
     if (cfg_tgt->max_action_vol != cfg_new->max_action_vol)
     {
-        PARAM_UPDT_MSG(blkname, "max_action_volume", "%Lu",
+        PARAM_UPDT_MSG(blkname, "max_action_volume", "%llu",
                        cfg_tgt->max_action_vol, cfg_new->max_action_vol);
         cfg_tgt->max_action_vol = cfg_new->max_action_vol;
     }
@@ -1098,7 +1099,7 @@ int policy_run_cfg_reload(void *module_config)
     }
     for (i = 0; i < allconf->count; i++)
     {
-        int chgd = 0;
+        bool chgd = false;
         char block_name[256];
         const char *pname = policies.policy_list[i].name;
         snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, pname);
@@ -1120,6 +1121,7 @@ int policy_run_cfg_reload(void *module_config)
     }
 
     /* policy runs may not be in the same order as policies and run_cfgs */
+//    FIXME RBHv3
 //    if (chgd && policy_runs.runs != NULL)
 //        policy_module_update_check_interval(&policy_runs.runs[i]);
 

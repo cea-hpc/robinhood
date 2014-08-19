@@ -25,6 +25,7 @@
 #define _DB_TYPES_H
 
 #include "rbh_const.h"
+#include <stdbool.h>
 
 #ifdef _MYSQL
 

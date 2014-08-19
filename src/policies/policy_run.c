@@ -124,7 +124,7 @@ static int policy_action(policy_info_t *policy,
                 DisplayLog(LVL_DEBUG, tag(policy), "%scmd(%s)",
                            dry_run(policy)?"(dry-run)":"", cmd);
                 if (!dry_run(policy))
-                    rc =  execute_shell_command(TRUE, cmd, 0);
+                    rc =  execute_shell_command(true, cmd, 0);
                 free(cmd);
                 /* @TODO handle other hardlinks to the same entry */
             }
@@ -240,18 +240,18 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
  * and if the last listed entry is too recent to match any policy,
  * then next entries won't match too.
  */
-static int heuristic_end_of_list(policy_info_t *policy, time_t last_time)
+static bool heuristic_end_of_list(policy_info_t *policy, time_t last_time)
 {
     entry_id_t     void_id;
     attr_set_t     void_attr = {0};
 
     /* list all files if policies are ignored */
     if (ignore_policies(policy))
-        return FALSE;
+        return false;
 
     /* don't rely on fake times (0, 1 or in the future...) */
     if (last_time <= 1 || last_time > time(NULL))
-        return FALSE;
+        return false;
 
     /* Optimization: we build a void entry with time attr = current sort attr
      * If it doesn't match any policy, next entries won't match too
@@ -276,10 +276,10 @@ static int heuristic_end_of_list(policy_info_t *policy, time_t last_time)
                    "Optimization: entries with %s later than %lu cannot match "
                    "any policy condition. Stop retrieving DB entries.",
                    sort_attr_name(policy), last_time);
-        return TRUE;
+        return true;
     }
     else
-        return FALSE;
+        return false;
 }
 
 /**
@@ -443,8 +443,8 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
         us_per_ent = spent_us / nb_processed;
         /* how much to process 10% of current queue? */
         check_delay = (us_per_ent * nb_pending) / 10;
-        DisplayLog(LVL_FULL, __func__, "%Lu entries processed @ %.2f ms/ent, "
-                   "%Lu pending => check delay = 10%% x %Lu ms = %lu ms",
+        DisplayLog(LVL_FULL, __func__, "%llu entries processed @ %.2f ms/ent, "
+                   "%llu pending => check delay = 10%% x %llu ms = %lu ms",
                    nb_processed, (float)us_per_ent/US_1ms,
                    nb_pending, (us_per_ent * nb_pending)/US_1ms,
                    check_delay/US_1ms);
@@ -453,7 +453,7 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
     {
         /* nothing was done so far (check again in 10% x spent) */
         check_delay = spent_us / 10;
-        DisplayLog(LVL_FULL, __func__, "No entry processed, %Lu pending => check delay = 10%% x %lu ms",
+        DisplayLog(LVL_FULL, __func__, "No entry processed, %llu pending => check delay = 10%% x %lu ms",
                    nb_pending, spent_us/US_1ms);
     }
 
@@ -520,7 +520,7 @@ static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
         /* check the potential limit of successful + pending */
         ctr_pot = ctr_pending;
         counters_add(&ctr_pot, &ctr_ok);
-        DisplayLog(LVL_FULL, tag(pol), "OK requests + pending = %Lu",
+        DisplayLog(LVL_FULL, tag(pol), "OK requests + pending = %llu",
                    ctr_pot.count);
 
         if (check_limit(pol, &ctr_pot, errors, target_ctr))
@@ -530,8 +530,8 @@ static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
                                                   ctr_ok.count + errors + skipped,
                                                   ctr_pending.count);
             DisplayLog(LVL_DEBUG, tag(pol),
-                       "Limit potentially reached (%Lu requests successful, "
-                       "%Lu requests in queue, volume: %Lu done, %Lu pending), "
+                       "Limit potentially reached (%llu requests successful, "
+                       "%llu requests in queue, volume: %llu done, %llu pending), "
                        "waiting %lums before re-checking.", ctr_ok.count,
                        ctr_pending.count, ctr_ok.vol, ctr_pending.vol,
                        check_delay/US_1ms);
@@ -644,7 +644,7 @@ static void report_progress(policy_info_t *policy,
         FormatFileSize(buf3, 128, curr_ctr.vol/spent);
 
         DisplayLog(LVL_EVENT, tag(policy), "Policy is running (started %s ago): "
-                   "%Lu actions succeeded (%.2f/sec); volume: %s (%s/sec); "
+                   "%llu actions succeeded (%.2f/sec); volume: %s (%s/sec); "
                    "skipped: %u; errors: %u",
                    buf1, curr_ctr.count, (float)curr_ctr.count/(float)spent,
                    buf2, buf3, nb_skipped, nb_errors);
@@ -663,7 +663,7 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
                             const unsigned int * status_tab_init,
                             unsigned long long * feedback_after,
                             unsigned int * status_tab_after,
-                            int long_sleep)
+                            bool long_sleep)
 {
     unsigned int nb_in_queue, nb_action_pending;
 
@@ -815,6 +815,12 @@ static int entry2tgt_amount(const policy_param_t *p_param,
     return 0;
 }
 
+#ifdef HAVE_CHANGELOGS
+#define BUILD_LIST_MSG "Building policy list - last full FS Scan:"
+#else
+#define BUILD_LIST_MSG "Building policy list from last full FS Scan:"
+#endif
+
 /**
  * Check if a filesystem scan has ever been done.
  * \retval ENOENT if no scan has been done (no complete filesystem list is available).
@@ -837,13 +843,7 @@ static int check_scan_done(const policy_info_t *pol, lmgr_t *lmgr)
             struct tm      date;
 
             localtime_r(&last_scan, &date);
-            DisplayLog(LVL_EVENT, tag(pol),
-    #ifdef HAVE_CHANGELOGS
-                        "Building policy list - last full FS Scan: "
-    #else
-                        "Building policy list from last full FS Scan: "
-    #endif
-                        "%.4d/%.2d/%.2d %.2d:%.2d:%.2d",
+            DisplayLog(LVL_EVENT, tag(pol), BUILD_LIST_MSG" %.4d/%.2d/%.2d %.2d:%.2d:%.2d",
                         1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
                         date.tm_hour, date.tm_min, date.tm_sec);
         }
@@ -1075,7 +1075,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
              */
             wait_queue_empty(pol, pushed_ctr.count, feedback_before,
                              status_tab_before, feedback_after,
-                             status_tab_after, FALSE);
+                             status_tab_after, false);
 
             /* perform a new request with next entries */
 
@@ -1155,7 +1155,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
 
     /* Make sure the processing queue is empty. */
     wait_queue_empty(pol, pushed_ctr.count, feedback_before,
-                     status_tab_before, feedback_after, status_tab_after, TRUE);
+                     status_tab_before, feedback_after, status_tab_after, true);
 
     update_pass_stats(pol, status_tab_before, status_tab_after,
                       feedback_before, feedback_after);
@@ -1228,7 +1228,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 #if 0 /** @TODO rbhv3: still manage 'invalid' entries? */
 #ifdef ATTR_INDEX_invalid
     /* do not retrieve 'invalid' entries */
-    fval.value.val_bool = FALSE;
+    fval.value.val_bool = false;
     rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_invalid, EQUAL, fval,
                                  FILTER_FLAG_ALLOW_NULL);
     if (rc)
@@ -1237,7 +1237,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
 #ifdef ATTR_INDEX_no_release // no_archive etc...
     /* do not retrieve entries with 'no_release' tag = 1 */
-    fval.value.val_bool = TRUE;
+    fval.value.val_bool = true;
     rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_no_release, NOTEQUAL,
                                  fval, FILTER_FLAG_ALLOW_NULL);
     if (rc)
@@ -1359,7 +1359,7 @@ inline static int invalidate_entry(lmgr_t * lmgr, entry_id_t * p_entry_id)
 
     ATTR_MASK_INIT(&new_attr_set);
     ATTR_MASK_SET(&new_attr_set, invalid);
-    ATTR(&new_attr_set, invalid) = TRUE;
+    ATTR(&new_attr_set, invalid) = true;
 
     /* update the entry */
     rc = ListMgr_Update(lmgr, p_entry_id, &new_attr_set);
@@ -1433,7 +1433,7 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
     }
 
     /* convert posix attributes to attr structure */
-    PosixStat2EntryAttr(&entry_md, new_attr_set, TRUE);
+    PosixStat2EntryAttr(&entry_md, new_attr_set, true);
 
     /* set update time of the stucture */
     ATTR_MASK_SET(new_attr_set, md_update);
@@ -1552,7 +1552,7 @@ else
     }
 
     /* convert posix attributes to attr structure */
-    PosixStat2EntryAttr(&entry_md, new_attr_set, TRUE);
+    PosixStat2EntryAttr(&entry_md, new_attr_set, true);
 
     /* set update time of the stucture */
     ATTR_MASK_SET(new_attr_set, md_update);
@@ -1623,12 +1623,12 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     }
 
     /* Merge with missing attrs from database */
-    ListMgr_MergeAttrSets(&new_attr_set, &p_item->entry_attr, FALSE);
+    ListMgr_MergeAttrSets(&new_attr_set, &p_item->entry_attr, false);
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */
     ATTR_MASK_SET(&new_attr_set, invalid);
-    ATTR(&new_attr_set, invalid) = FALSE;
+    ATTR(&new_attr_set, invalid) = false;
 #endif
 
 #if 0 // TODO RBHv3: manage no_release, no_archive etc.
@@ -1706,7 +1706,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
          */
 
 #if 0 // TODO RBHv3: how to handle atime check with generic policies?
-        int atime_check = TRUE;
+        bool atime_check = true;
 
         /* for directories or links, don't check access time as it is modified
          * by robinhood itself will collecting info about entry.
@@ -1714,7 +1714,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         if (ATTR_MASK_TEST(&p_item->entry_attr, type) &&
             (!strcmp(ATTR(&p_item->entry_attr, type), STR_TYPE_LINK)
              || !strcmp(ATTR(&p_item->entry_attr, type), STR_TYPE_DIR)))
-            atime_check = FALSE;
+            atime_check = false;
 
         if ((atime_check && !ATTR_MASK_TEST(&p_item->entry_attr, last_access))
              || !ATTR_MASK_TEST(&p_item->entry_attr, size))
@@ -1880,7 +1880,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         char           strsize[256];
         char           strfileset[FILESET_ID_LEN+128] = "";
         char           strstorage[24576]="";
-        int            is_stor = FALSE;
+        bool           is_stor = false;
         time_t         t;
 
         /* Action was sucessful */
@@ -1901,7 +1901,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         {
             FormatStripeList(strstorage, sizeof(strstorage),
                 &ATTR(&p_item->entry_attr, stripe_items), 0);
-            is_stor = TRUE;
+            is_stor = true;
         }
         else
             strcpy(strstorage, "<none>");
@@ -2094,7 +2094,7 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
 
 #ifdef ATTR_INDEX_invalid
     /* don't retrieve invalid entries (allow entries with invalid == NULL) */
-    fval.value.val_int = TRUE;
+    fval.value.val_int = true;
     rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_invalid, NOTEQUAL, fval,
             FILTER_FLAG_ALLOW_NULL);
     if (rc)

@@ -138,7 +138,7 @@ status,			file_status_t,  DB_INT,	   0,	 FREQ_ACCESS
 # metadata update
 md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
 # file is tagged invalid for the current pass (internal use)
-invalid, 	int, DB_BOOL, 0, FREQ_ACCESS
+invalid, 	bool, DB_BOOL, 0, FREQ_ACCESS
 
 
 # TODO manage no_release/no_archive flags

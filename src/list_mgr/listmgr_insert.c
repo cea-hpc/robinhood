@@ -85,7 +85,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
     }
 
     /* build batch request for main table */
-    attrmask2fieldlist(fields, full_mask, T_MAIN, TRUE, FALSE, "", "");
+    attrmask2fieldlist(fields, full_mask, T_MAIN, true, false, "", "");
 
     var_str_append(&query, "INSERT INTO " MAIN_TABLE "(id");
     var_str_append(&query, fields);
@@ -99,7 +99,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
             continue;
 
         values_curr = values + sprintf(values, DPK, pklist[i]);
-        attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_MAIN, TRUE);
+        attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_MAIN, true);
 
         /* add "[,](values)" to query */
         var_str_append(&query, first ? "(" : ",(");
@@ -111,7 +111,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
     if (update_if_exists)
     {
         /* append "on duplicate key ..." */
-        attrset2updatelist(p_mgr, values, &fake_attrs, T_MAIN, FALSE, TRUE);
+        attrset2updatelist(p_mgr, values, &fake_attrs, T_MAIN, false, true);
         var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
         var_str_append(&query, values);
     }
@@ -128,7 +128,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
     if ((full_mask & ATTR_MASK_name) && (full_mask & ATTR_MASK_parent_id))
     {
         /* build batch request for names table */
-        attrmask2fieldlist(fields, full_mask, T_DNAMES, TRUE, FALSE, "", "");
+        attrmask2fieldlist(fields, full_mask, T_DNAMES, true, false, "", "");
 
         var_str_append(&query, "INSERT INTO " DNAMES_TABLE "(id");
         var_str_append(&query, fields);
@@ -148,7 +148,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
             }
 
             values_curr = values + sprintf(values, DPK, pklist[i]);
-            attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_DNAMES, TRUE);
+            attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_DNAMES, true);
 
             /* add "[,](values,<pk>)" to query */
             var_str_append(&query, first ? "(" : ",(");
@@ -158,7 +158,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
         }
 
         values_curr = values + sprintf(values, "id=VALUES(id)"); /* not part of the PK */
-        attrset2updatelist(p_mgr, values_curr, &fake_attrs, T_DNAMES, TRUE, TRUE);
+        attrset2updatelist(p_mgr, values_curr, &fake_attrs, T_DNAMES, true, true);
         var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
         var_str_append(&query, values);
 
@@ -181,7 +181,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
         /* Create field and values lists.
          * Do nothing if no fields are to be set.
          */
-        if (attrmask2fieldlist(fields, full_mask, T_ANNEX, TRUE, FALSE, "", "") > 0)
+        if (attrmask2fieldlist(fields, full_mask, T_ANNEX, true, false, "", "") > 0)
         {
 
             var_str_append(&query, "INSERT INTO "ANNEX_TABLE "(id");
@@ -200,7 +200,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
 
                 sprintf(values, DPK, pklist[i]);
                 values_curr = values + strlen(values);
-                attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_ANNEX, TRUE);
+                attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_ANNEX, true);
 
                 /* add "[,](values)" to query */
                 var_str_append(&query, first ? "(" : ",(");
@@ -212,7 +212,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
             /* always update as having the entry in the main table
              * is the reference to know if we knew the entry */
             /* append "on duplicate key ..." */
-            attrset2updatelist(p_mgr, values, &fake_attrs, T_ANNEX, FALSE, TRUE);
+            attrset2updatelist(p_mgr, values, &fake_attrs, T_ANNEX, false, true);
             var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
             var_str_append(&query, values);
 
@@ -242,7 +242,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
 #endif
 
         rc = batch_insert_stripe_info(p_mgr, pklist, validators, p_attrs,
-                                      count, TRUE);
+                                      count, true);
         MemFree(validators);
         if (rc)
             goto out_free;
@@ -257,7 +257,7 @@ out_free:
 
 
 int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id, attr_set_t *p_info,
-                   int update_if_exists)
+                   bool update_if_exists)
 {
     int rc;
     char buff[4096];
@@ -298,7 +298,7 @@ retry:
 int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
                                    attr_set_t ** p_attrs,
                                    unsigned int count,
-                                   int update_if_exists)
+                                   bool update_if_exists)
 {
     int rc;
     char buff[4096];

@@ -30,8 +30,9 @@ typedef struct hsm_rm_config_t
 } hsm_rm_config_t;
 
 int            SetDefault_HSMRm_Config( void *module_config, char *msg_out );
-int            Read_HSMRm_Config( config_file_t config,
-                                  void *module_config, char *msg_out, int for_reload );
+int            Read_HSMRm_Config(config_file_t config,
+                                 void *module_config, char *msg_out,
+                                 bool for_reload);
 int            Reload_HSMRm_Config( void *module_config );
 int            Write_HSMRm_ConfigTemplate( FILE * output );
 int            Write_HSMRm_ConfigDefault( FILE * output );

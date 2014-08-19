@@ -32,8 +32,8 @@ char *process_config_file = "";
  * if everything is OK, returns 0 and fills the structure
  * else, returns an error code and sets a contextual error message in err_msg_out.
  */
-int ReadRobinhoodConfig( int module_mask, char *file_path, char *err_msg_out,
-                         robinhood_config_t * config_struct, int for_reload )
+int ReadRobinhoodConfig(int module_mask, char *file_path, char *err_msg_out,
+                        robinhood_config_t * config_struct, bool for_reload)
 {
     config_file_t  syntax_tree;
     int            rc = 0;
@@ -341,7 +341,7 @@ int            GetStringParam(config_item_t block, const char *block_name,
 }
 
 int  GetBoolParam(config_item_t block, const char *block_name,
-                  const char *var_name, int flags, int *target,
+                  const char *var_name, int flags, bool *target,
                   char ***extra_args_tab, unsigned int *nb_extra_args,
                   char *err_msg )
 {
@@ -349,6 +349,7 @@ int  GetBoolParam(config_item_t block, const char *block_name,
     int            rc, extra;
     char          *name;
     char          *value;
+    int            tmp_bool;
 
     err_msg[0] = '\0';
 
@@ -370,14 +371,15 @@ int  GetBoolParam(config_item_t block, const char *block_name,
         return rc;
     }
 
-    *target = str2bool( value );
-    if ( *target == -1 )
+    tmp_bool = str2bool(value);
+    if (tmp_bool == -1)
     {
-        sprintf( err_msg,
-                 "Invalid value for '%s::%s', line %d: boolean expected (0, 1, TRUE, FALSE, ENABLED, DISABLED)",
-                 block_name, var_name, rh_config_GetItemLine( curr_item ) );
+        sprintf(err_msg,
+                "Invalid value for '%s::%s', line %d: boolean expected (0, 1, true, false, yes, no, enabled, disabled)",
+                block_name, var_name, rh_config_GetItemLine(curr_item));
         return EINVAL;
     }
+    *target = (tmp_bool != 0);
 
     if ( extra )
     {
@@ -924,8 +926,7 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
         }
     }
 
-    /* FIXME leave single '*' (unfortunatly, they will be interpreted like '**') */
-#if 0
+#if 0 /* FIXME leave single '*' (unfortunately, they will be interpreted like '**') */
     for ( curr = strchr(regexpr, '*'); curr != NULL; curr = strchr(curr+2,'*') )
     {
         if ( curr[1] != '*' )
@@ -947,12 +948,12 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
 }
 
 #define CHECK_INT_VALUE(_v, _flg) do {\
-                if (( _flg & PFLG_POSITIVE) && (_v < 0)) { \
+                if (((_flg) & PFLG_POSITIVE) && ((_v) < 0)) { \
                     sprintf(err_msg, "Positive value expected for %s criteria", \
                             key_value->varname); \
                     return EINVAL; \
                 } \
-                if (( _flg & PFLG_NOT_NULL) && (_v == 0)) { \
+                if (((_flg) & PFLG_NOT_NULL) && ((_v) == 0)) { \
                     sprintf(err_msg, "Null value not allowed for %s criteria", \
                             key_value->varname); \
                     return EINVAL; \
@@ -1055,6 +1056,7 @@ static int criteria2condition(const type_key_value *key_value,
                 }
             }
             break;
+
         case PT_SIZE:
             /* a size is expected */
             p_triplet->val.size = str2size(key_value->varvalue);
@@ -1066,6 +1068,7 @@ static int criteria2condition(const type_key_value *key_value,
             }
             CHECK_INT_VALUE(p_triplet->val.size, flags);
             break;
+
         case PT_INT:
             p_triplet->val.integer = str2int(key_value->varvalue);
             if (p_triplet->val.integer == -1)
@@ -1076,6 +1079,7 @@ static int criteria2condition(const type_key_value *key_value,
             }
             CHECK_INT_VALUE(p_triplet->val.integer, flags);
             break;
+
         case PT_DURATION:
             p_triplet->val.duration = str2duration(key_value->varvalue);
             if (p_triplet->val.duration == -1)
@@ -1086,6 +1090,7 @@ static int criteria2condition(const type_key_value *key_value,
             }
             CHECK_INT_VALUE(p_triplet->val.duration, flags);
             break;
+
         case PT_TYPE:
             p_triplet->val.type = str2type(key_value->varvalue);
             if (p_triplet->val.type == TYPE_NONE)
@@ -1095,6 +1100,7 @@ static int criteria2condition(const type_key_value *key_value,
                 return EINVAL;
             }
             break;
+
         default:
             sprintf(err_msg, "Unsupported criteria type for %s",
                     key_value->varname);
@@ -1124,6 +1130,7 @@ static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_t
                                uint64_t *p_attr_mask, char *err_msg,
                                const sm_instance_t *smi)
 {
+    const struct criteria_descr_t *pcrit;
     /* check the name for the condition */
     compare_criteria_t crit = str2criteria(key_value->varname);
 
@@ -1136,7 +1143,8 @@ static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_t
 
     p_triplet->flags = 0;
 
-    const struct criteria_descr_t *pcrit = &criteria_descr[crit];
+    /* lighten the following line of code */
+    pcrit = &criteria_descr[crit];
 
     return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
                               crit, pcrit->type, pcrit->attr_mask,
@@ -1243,7 +1251,7 @@ static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_
     }
 
   errmem:
-    sprintf( err_msg, "Could not allocate memory" );
+    strcpy(err_msg, "Could not allocate memory");
     return ENOMEM;
 
   freecondition:
@@ -1314,7 +1322,7 @@ int AppendBoolCond(bool_node_t * p_in_out_node, compare_direction_t compar,
 free_expr2:
     free(p_in_out_node->content_u.bool_expr.expr2);
 free_expr1:
-    FreeBoolExpr(p_in_out_node->content_u.bool_expr.expr1, TRUE);
+    FreeBoolExpr(p_in_out_node->content_u.bool_expr.expr1, true);
     return rc;
 }
 
@@ -1382,7 +1390,7 @@ int GetBoolExpr(config_item_t block, const char *block_name,
  *  TODO: check these functions, in particular the 'owner'
  *        system, when an expression is a sub-part of another.
  */
-int FreeBoolExpr( bool_node_t * p_expr, int free_top_node )
+int FreeBoolExpr(bool_node_t *p_expr, bool free_top_node)
 {
     if ( p_expr == NULL )
         return -EFAULT;
@@ -1394,15 +1402,15 @@ int FreeBoolExpr( bool_node_t * p_expr, int free_top_node )
         break;
 
     case NODE_UNARY_EXPR:
-        if ( p_expr->content_u.bool_expr.owner )
-            FreeBoolExpr( p_expr->content_u.bool_expr.expr1, TRUE );
+        if (p_expr->content_u.bool_expr.owner)
+            FreeBoolExpr(p_expr->content_u.bool_expr.expr1, true);
         break;
 
     case NODE_BINARY_EXPR:
-        if ( p_expr->content_u.bool_expr.owner )
+        if (p_expr->content_u.bool_expr.owner)
         {
-            FreeBoolExpr( p_expr->content_u.bool_expr.expr1, TRUE );
-            FreeBoolExpr( p_expr->content_u.bool_expr.expr2, TRUE );
+            FreeBoolExpr(p_expr->content_u.bool_expr.expr1, true);
+            FreeBoolExpr(p_expr->content_u.bool_expr.expr2, true);
         }
         break;
     }
@@ -1738,7 +1746,7 @@ void CheckUnknownParameters( config_item_t block, const char *block_name, const 
             char          *name;
             char          *value;
             int            args_flg;
-            int            found = FALSE;
+            bool           found = false;
 
             if ( rh_config_GetKeyValue( curr_item, &name, &value, &args_flg ) == 0 )
             {
@@ -1746,7 +1754,7 @@ void CheckUnknownParameters( config_item_t block, const char *block_name, const 
                 {
                     if ( !strcasecmp( param_array[j], name ) )
                     {
-                        found = TRUE;
+                        found = true;
                         break;
                     }
                 }
@@ -1760,7 +1768,7 @@ void CheckUnknownParameters( config_item_t block, const char *block_name, const 
         else if ( rh_config_ItemType( curr_item ) == CONFIG_ITEM_BLOCK )
         {
             char          *name;
-            int            found = FALSE;
+            bool           found = false;
 
             name = rh_config_GetBlockName( curr_item );
 
@@ -1770,7 +1778,7 @@ void CheckUnknownParameters( config_item_t block, const char *block_name, const 
                 {
                     if ( !strcasecmp( param_array[j], name ) )
                     {
-                        found = TRUE;
+                        found = true;
                         break;
                     }
                 }
@@ -1786,8 +1794,8 @@ void CheckUnknownParameters( config_item_t block, const char *block_name, const 
     }
 }
 
-#define cfg_is_err(_rc, _flgs) ((_rc != 0 && _rc != ENOENT) || \
-                                (_rc == ENOENT && (_flgs & PFLG_MANDATORY)))
+#define cfg_is_err(_rc, _flgs) (((_rc) != 0 && (_rc) != ENOENT) || \
+                               ((_rc) == ENOENT && ((_flgs) & PFLG_MANDATORY)))
 
 int read_scalar_params(config_item_t block, const char *block_name,
                        const cfg_param_t * params, char *msgout)
@@ -1807,13 +1815,15 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+
             case PT_BOOL:
                 rc = GetBoolParam(block, block_name, params[i].name,
-                                  params[i].flags, (int*)params[i].ptr,
+                                  params[i].flags, (bool*)params[i].ptr,
                                   NULL, NULL, msgout);
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+
             case PT_DURATION:
                 /* FIXME Duration gets an int, but the parameter maybe a time_t */
                 rc = GetDurationParam(block, block_name, params[i].name,
@@ -1822,6 +1832,7 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+
             case PT_SIZE:
                 rc = GetSizeParam(block, block_name, params[i].name,
                                   params[i].flags,
@@ -1830,6 +1841,7 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+
             case PT_INT:
                 rc = GetIntParam(block, block_name, params[i].name,
                                   params[i].flags, (int*)params[i].ptr,
@@ -1837,6 +1849,7 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+
             case PT_INT64:
                 rc = GetInt64Param(block, block_name, params[i].name,
                                   params[i].flags, (uint64_t*)params[i].ptr,
@@ -1844,6 +1857,7 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+
             case PT_FLOAT:
                 rc = GetFloatParam(block, block_name, params[i].name,
                                   params[i].flags, (double*)params[i].ptr,
@@ -1851,6 +1865,7 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;
+
             case PT_TYPE:
                 sprintf(msgout, "Unexpected type for %s parameter (type)",
                         params[i].name);

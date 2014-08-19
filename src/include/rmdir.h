@@ -29,8 +29,9 @@ typedef struct rmdir_config_t
 } rmdir_config_t;
 
 int            SetDefault_Rmdir_Config( void *module_config, char *msg_out );
-int            Read_Rmdir_Config( config_file_t config,
-                                  void *module_config, char *msg_out, int for_reload );
+int            Read_Rmdir_Config(config_file_t config,
+                                 void *module_config, char *msg_out,
+                                 bool for_reload);
 int            Reload_Rmdir_Config( void *module_config );
 int            Write_Rmdir_ConfigTemplate( FILE * output );
 int            Write_Rmdir_ConfigDefault( FILE * output );

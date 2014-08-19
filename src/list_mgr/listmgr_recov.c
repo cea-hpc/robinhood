@@ -212,7 +212,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     db_value_t report_val;
     unsigned int nb;
     struct lmgr_report_t * report;
-    report_field_descr_t report_count = {-1, REPORT_COUNT, SORT_NONE, FALSE, 0, FV_NULL};
+    report_field_descr_t report_count = {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL};
 
     char           query[4096];
     char           filter_str[4096] = "";
@@ -249,23 +249,23 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
             return DB_NOT_SUPPORTED;
         }
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_MAIN, FALSE, TRUE) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_MAIN, false, true) > 0)
             filter_curr += strlen(filter_curr);
 
         if (annex_table && (filter2str(p_mgr, filter_curr, p_filter,
-                                       T_ANNEX, has_filters, TRUE) > 0))
+                                       T_ANNEX, has_filters, true) > 0))
             filter_curr += strlen(filter_curr);
 
-        if (filter2str( p_mgr, filter_curr, p_filter, T_DNAMES, has_filters, TRUE) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_DNAMES, has_filters, true) > 0)
         {
             filter_curr += strlen(filter_curr);
             distinct = 1;
         }
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_INFO, has_filters, TRUE) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_INFO, has_filters, true) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_ITEMS, has_filters, TRUE) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_ITEMS, has_filters, true) > 0)
         {
             filter_curr += strlen(filter_curr);
             distinct = 1;
@@ -499,11 +499,11 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
     int            rc = 0;
     char          *result_tab[2+RECOV_FIELD_COUNT]; /* +2 for id and recov_status */
     DEF_PK(pk);
-    int entry_disappeared = FALSE;
+    bool entry_disappeared = false;
 
     do
     {
-        entry_disappeared = FALSE;
+        entry_disappeared = false;
 
         rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result,
                              result_tab, RECOV_FIELD_COUNT+2 );
@@ -528,7 +528,7 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
 
         /* /!\ If the entry disappeared from DB, we must go to next record */
         if ( rc == DB_NOT_EXISTS )
-            entry_disappeared = TRUE;
+            entry_disappeared = true;
         else if ( rc )
             return rc;
 

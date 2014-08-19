@@ -101,8 +101,8 @@ static void dump_entry_op( entry_proc_op_t * p_op )
     printf("stage=%u, being processed=%u, db_exists=%u, id is referenced=%u, db_op_type=%u\n",
             p_op->pipeline_stage, p_op->being_processed, p_op->db_exists,
             p_op->id_is_referenced, p_op->db_op_type );
-    printf("start proc time=%u.%06u\n", (unsigned int)p_op->start_processing_time.tv_sec,
-            (unsigned int)p_op->start_processing_time.tv_usec );
+    printf("start proc time=%u.%06u\n", (unsigned int)p_op->timestamp.start_processing_time.tv_sec,
+           (unsigned int)p_op->timestamp.start_processing_time.tv_usec);
     printf("next=%p, prev=%p\n", p_op->list.next, p_op->list.prev );
 }
 #endif
@@ -188,13 +188,13 @@ static int EntryProc_noop(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
     int rc;
     /* last stage ? */
     if (p_op->pipeline_stage < bench_pipeline_descr.stage_count - 1)
-        rc = EntryProcessor_Acknowledge(p_op, p_op->pipeline_stage+1, FALSE);
+        rc = EntryProcessor_Acknowledge(p_op, p_op->pipeline_stage+1, false);
     else {
         if (p_op->callback_func)
             p_op->callback_func(lmgr, p_op, p_op->callback_param);
 
         /* last stage, remove from the pipeline */
-        rc = EntryProcessor_Acknowledge(p_op, -1, TRUE);
+        rc = EntryProcessor_Acknowledge(p_op, -1, true);
     }
     return rc;
 }
@@ -288,7 +288,7 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
     if (entry_proc_conf.match_classes && policies.fileset_count == 0)
     {
         DisplayLog(LVL_EVENT, ENTRYPROC_TAG, "No fileclass defined in configuration, disabling fileclass matching.");
-        entry_proc_conf.match_classes = FALSE;
+        entry_proc_conf.match_classes = false;
     }
 
     /* If a limit of pending operations is specified, initialize a token */
@@ -380,7 +380,7 @@ void EntryProcessor_Push( entry_proc_op_t * p_entry )
     if ( ( entry_proc_pipeline[insert_stage].stage_flags & STAGE_FLAG_ID_CONSTRAINT )
          && p_entry->entry_id_is_set )
     {
-        id_constraint_register( p_entry, FALSE );
+        id_constraint_register(p_entry, false);
     }
 
     /* insert entry */
@@ -512,7 +512,7 @@ static int move_stage_entries( const unsigned int source_stage_index )
 #endif
             if ( !p_curr->id_is_referenced && p_curr->entry_id_is_set )
             {
-                id_constraint_register( p_curr, FALSE );
+                id_constraint_register(p_curr, false);
             }
         }
     }
@@ -555,7 +555,7 @@ static int move_stage_entries( const unsigned int source_stage_index )
  * @param p_empty Output Boolean. In the case no entry is returned,
  *        this indicates if it is because the pipeline is empty.
  */
-static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
+static entry_proc_op_t **next_work_avail(bool *p_empty, int *op_count)
 {
     entry_proc_op_t *p_curr;
     int            i;
@@ -564,7 +564,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
     if (terminate_flag == BREAK)
         return NULL;
 
-    *p_empty = TRUE;
+    *p_empty = true;
 
     /* check every stage from the last to the first */
     for ( i = entry_proc_descr.stage_count - 1; i >= 0; i-- )
@@ -594,7 +594,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
              */
             if ( pl->nb_threads != 0 )
             {
-                *p_empty = FALSE;
+                *p_empty = false;
                 V( pl->stage_mutex );
 #ifdef _DEBUG_ENTRYPROC
                 printf
@@ -610,7 +610,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
             rh_list_for_each_entry( p_curr, &pl->entries, list )
             {
                 /* the pipeline is not empty */
-                *p_empty = FALSE;
+                *p_empty = false;
 
                 if ( p_curr->pipeline_stage == i )
                 {
@@ -645,7 +645,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                     pl->nb_unprocessed_entries--;
                     pl->nb_current_entries++;
                     pl->nb_threads++;
-                    p_curr->being_processed = TRUE;
+                    p_curr->being_processed = 1;
 
                     V( pl->stage_mutex );
 
@@ -666,7 +666,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
             if ( ( entry_proc_pipeline[i].max_thread_count != 0 )
                  && ( pl->nb_threads >= entry_proc_pipeline[i].max_thread_count ) )
             {
-                *p_empty = FALSE;
+                *p_empty = false;
                 /* thread quota for this stage is at maximum */
                 V( pl->stage_mutex );
 
@@ -688,7 +688,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
             rh_list_for_each_entry( p_curr, &pl->entries, list )
             {
                 /* the pipeline is not empty */
-                *p_empty = FALSE;
+                *p_empty = false;
 
                 /* Special case when the op doesn't have an ID, but
                  * the stage has a constraint. */
@@ -719,14 +719,13 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                         {
                             DisplayLog( LVL_MAJOR, ENTRYPROC_TAG,
                                         "WARNING: Unregistered operation at higher stage" );
-                            id_constraint_register( p_curr, FALSE );
+                            id_constraint_register(p_curr, false);
                         }
 
 #ifdef _DEBUG_ENTRYPROC
-                        printf
-                            ( "Stage[%u] - thread %#lx - entry at higher stage (%u) or is being processed (%s) \n",
-                              i, pthread_self(  ), p_curr->pipeline_stage,
-                              p_curr->being_processed ? "TRUE" : "FALSE" );
+                        printf("Stage[%u] - thread %#lx - entry at higher stage (%u) or is being processed (%s) \n",
+                             i, pthread_self(), p_curr->pipeline_stage,
+                             bool2str(p_curr->being_processed));
 #endif
                         continue;
                     }
@@ -750,7 +749,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                 pl->nb_unprocessed_entries--;
                 pl->nb_current_entries++;
                 pl->nb_threads++;
-                p_curr->being_processed = TRUE;
+                p_curr->being_processed = 1;
 
                 entry_proc_op_t ** listop = MemCalloc(entry_proc_conf.max_batch_size,
                                                       sizeof(entry_proc_op_t*));
@@ -779,7 +778,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                         {
                             pl->nb_unprocessed_entries--;
                             pl->nb_current_entries++;
-                            p_next->being_processed = TRUE;
+                            p_next->being_processed = 1;
 
                             listop[*op_count] = p_next;
                             (*op_count) ++;
@@ -823,7 +822,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
  */
 static entry_proc_op_t **EntryProcessor_GetNextOp(int *count)
 {
-    int            is_empty;
+    bool              is_empty;
     entry_proc_op_t **list_op;
     int i;
     *count = 0;
@@ -859,9 +858,9 @@ static entry_proc_op_t **EntryProcessor_GetNextOp(int *count)
 
     V( work_avail_lock );
 
-    gettimeofday(&(list_op[0]->start_processing_time), NULL);
+    gettimeofday(&(list_op[0]->timestamp.start_processing_time), NULL);
     for (i = 1; i < *count; i++)
-        list_op[i]->start_processing_time = list_op[0]->start_processing_time;
+        list_op[i]->timestamp.start_processing_time = list_op[0]->timestamp.start_processing_time;
 
     return list_op;
 }
@@ -891,7 +890,7 @@ void EntryProcessor_Release( entry_proc_op_t * p_op )
  * Acknownledge a batch of operations.
  */
 int EntryProcessor_AcknowledgeBatch(entry_proc_op_t ** ops, unsigned int count,
-                                    unsigned int next_stage, int remove)
+                                    unsigned int next_stage, bool remove)
 {
     const unsigned int   curr_stage = ops[0]->pipeline_stage;
     list_by_stage_t *pl = &pipeline[curr_stage];
@@ -900,7 +899,7 @@ int EntryProcessor_AcknowledgeBatch(entry_proc_op_t ** ops, unsigned int count,
     int i;
 
     gettimeofday(&now, NULL);
-    timersub(&now, &ops[0]->start_processing_time, &diff);
+    timersub(&now, &ops[0]->timestamp.start_processing_time, &diff);
 
     /* lock current stage */
     P(pl->stage_mutex);
@@ -933,7 +932,7 @@ int EntryProcessor_AcknowledgeBatch(entry_proc_op_t ** ops, unsigned int count,
         }
 
         /* update their status */
-        ops[i]->being_processed = FALSE;
+        ops[i]->being_processed = 0;
         ops[i]->pipeline_stage = next_stage;
 
         /* remove the entry, if it must be */
@@ -995,7 +994,7 @@ int EntryProcessor_AcknowledgeBatch(entry_proc_op_t ** ops, unsigned int count,
  * @param remove This flag indicates that the entry must be removed
  *        from pipeline (basically after the last step).
  */
-int EntryProcessor_Acknowledge(entry_proc_op_t * p_op, unsigned int next_stage, int remove)
+int EntryProcessor_Acknowledge(entry_proc_op_t * p_op, unsigned int next_stage, bool remove)
 {
     return EntryProcessor_AcknowledgeBatch(&p_op, 1, next_stage, remove);
 }
@@ -1019,11 +1018,11 @@ static void print_op_stats(entry_proc_op_t * p_op, unsigned int stage, const cha
 #ifdef HAVE_CHANGELOGS
     if ( p_op->extra_info.is_changelog_record )
     {
-        DisplayLog( LVL_EVENT, "STATS", "%-14s: %s: changelog record #%Lu, fid="DFID", status=%s",
-                    strchr(entry_proc_pipeline[stage].stage_name,'_')+1, what,
-                    p_op->extra_info.log_record.p_log_rec->cr_index,
-                    PFID(&p_op->extra_info.log_record.p_log_rec->cr_tfid),
-                    entry_status_str(p_op, stage));
+        DisplayLog(LVL_EVENT, "STATS", "%-14s: %s: changelog record #%llu, fid="DFID", status=%s",
+                   strchr(entry_proc_pipeline[stage].stage_name,'_')+1, what,
+                   p_op->extra_info.log_record.p_log_rec->cr_index,
+                   PFID(&p_op->extra_info.log_record.p_log_rec->cr_tfid),
+                   entry_status_str(p_op, stage));
     }
     else
 #endif
@@ -1052,7 +1051,7 @@ void EntryProcessor_DumpCurrentStages( void )
 {
     unsigned int   i;
     double         tpe = 0.0;
-    int            is_pending_op = FALSE;
+    bool           is_pending_op = false;
     unsigned int nb_get, nb_ins, nb_upd,nb_rm;
 
     if (!entry_proc_pipeline)
@@ -1095,7 +1094,7 @@ void EntryProcessor_DumpCurrentStages( void )
 
             if (pipeline[i].nb_batches > 0)
                 DisplayLog(LVL_MAJOR, "STATS",
-                           "%2u: %-14s |%5u | %4u | %4u | %9Lu | %5.2f | %.2f%% batched (avg batch size: %.1f)",
+                           "%2u: %-14s |%5u | %4u | %4u | %9llu | %5.2f | %.2f%% batched (avg batch size: %.1f)",
                            i, strchr(entry_proc_pipeline[i].stage_name,'_')+1, /* remove STAGE_ */
                            pipeline[i].nb_unprocessed_entries,
                            pipeline[i].nb_current_entries,
@@ -1105,7 +1104,7 @@ void EntryProcessor_DumpCurrentStages( void )
                            (float)pipeline[i].total_batched_entries/(float)pipeline[i].nb_batches);
             else
                 DisplayLog(LVL_MAJOR, "STATS",
-                           "%2u: %-14s |%5u | %4u | %4u | %9Lu | %5.2f |",
+                           "%2u: %-14s |%5u | %4u | %4u | %9llu | %5.2f |",
                            i, strchr(entry_proc_pipeline[i].stage_name,'_')+1, /* remove STAGE_ */
                            pipeline[i].nb_unprocessed_entries,
                            pipeline[i].nb_current_entries,
@@ -1113,7 +1112,7 @@ void EntryProcessor_DumpCurrentStages( void )
             V( pipeline[i].stage_mutex );
 
             if ( !rh_list_empty(&pipeline[i].entries) )
-                is_pending_op = TRUE;
+                is_pending_op = true;
         }
         nb_get = nb_ins =  nb_upd = nb_rm = 0;
         for (i = 0; i < entry_proc_conf.nb_thread; i++)
@@ -1199,7 +1198,7 @@ static unsigned int count_nb_ops( void )
  * Terminate EntryProcessor
  * \param flush_ops: wait the queue to be flushed
  */
-int EntryProcessor_Terminate( int flush_ops )
+int EntryProcessor_Terminate(bool flush_ops)
 {
 
     P( terminate_lock );

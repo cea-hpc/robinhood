@@ -100,10 +100,10 @@ typedef struct trigger_item_t
 
     /* trigger options: */
     /* raise alert when it is triggered */
-    int alert_hw;
+    bool alert_hw;
 
     /* raise alert when it cannot reach low threshold */
-    int alert_lw;
+    bool alert_lw;
 
 } trigger_item_t;
 
@@ -189,10 +189,10 @@ typedef struct policy_run_config_t
     unsigned int   suspend_error_min;
 
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
-    unsigned int   lru_sort_attr;
+    int    lru_sort_attr;
 
-    int   check_action_status_on_startup;
-    int   recheck_ignored_classes;
+    bool   check_action_status_on_startup;
+    bool   recheck_ignored_classes;
 
 } policy_run_config_t;
 
@@ -304,7 +304,7 @@ int policy_run_cfg_set_default(void *module_config, char *msg_out);
 
 /* load cfg for all policies */
 int policy_run_cfg_read(config_file_t config, void *module_config, char *msg_out,
-                        int for_reload);
+                        bool for_reload);
 /* reload cfg for all policies */
 int policy_run_cfg_reload(void *module_config);
 

@@ -74,7 +74,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
                                int update_if_exists);
 
 int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
-                         const attr_set_t *p_attr_set, int last);
+                         const attr_set_t *p_attr_set, bool last);
 
 typedef struct lmgr_iterator_t
 {

@@ -236,8 +236,8 @@ static inline int import_helper(const char       *backend_path,
             }
         }
 
-        PosixStat2EntryAttr(src_md, &src_attrs, TRUE);
-        ListMgr_MergeAttrSets( &attrs, &src_attrs, FALSE);
+        PosixStat2EntryAttr(src_md, &src_attrs, true);
+        ListMgr_MergeAttrSets(&attrs, &src_attrs, false);
     }
 
     /* create file in Lustre */
@@ -250,7 +250,7 @@ static inline int import_helper(const char       *backend_path,
         new_attrs.attr_mask &= ~readonly_attr_set;
 
         /* insert or update it in the db */
-        rc = ListMgr_Insert( &lmgr, &new_id, &new_attrs, TRUE );
+        rc = ListMgr_Insert(&lmgr, &new_id, &new_attrs, true);
         if ( rc == 0 )
             printf("\tEntry successfully updated in the dabatase\n");
         else
@@ -423,13 +423,13 @@ int main( int argc, char **argv )
     uint64_t       total = 0;
     uint64_t       err = 0;
 
-    int            force_log_level = FALSE;
+    bool           force_log_level = false;
     int            log_level = 0;
 
     int            rc;
     char           err_msg[4096];
     robinhood_config_t config;
-    int     chgd = 0;
+    bool    chgd = false;
     char    badcfg[RBH_PATH_MAX];
 
     struct sigaction act_sigterm;
@@ -444,7 +444,7 @@ int main( int argc, char **argv )
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            force_log_level = TRUE;
+            force_log_level = true;
             log_level = str2debuglevel( optarg );
             if ( log_level == -1 )
             {
@@ -491,7 +491,7 @@ int main( int argc, char **argv )
     }
 
     /* only read ListMgr config */
-    if ( ReadRobinhoodConfig( 0, config_file, err_msg, &config, FALSE ) )
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
@@ -527,7 +527,7 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &config.lmgr_config, FALSE );
+    rc = ListMgr_Init(&config.lmgr_config, false);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, LOGTAG, "Error %d initializing list manager", rc );

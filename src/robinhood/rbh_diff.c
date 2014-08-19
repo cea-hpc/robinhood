@@ -100,7 +100,6 @@ typedef struct diff_options {
     int            flags;
     char           config_file[MAX_OPT_LEN];
     int            log_level;
-    int            partial_scan;
     char           partial_scan_path[RBH_PATH_MAX];
     uint64_t       diff_mask;
     diff_arg_t     diff_arg;
@@ -108,6 +107,7 @@ typedef struct diff_options {
 
     /* bit field */
     unsigned int            force_log_level:1;
+    unsigned int            partial_scan:1;
 } diff_options;
 
 static inline void zero_options(struct diff_options * opts)
@@ -236,7 +236,7 @@ static pthread_t stat_thread;
 
 /* database connexion for updating stats */
 static lmgr_t  lmgr;
-static int     lmgr_init = FALSE;
+static bool    lmgr_init = false;
 static char    start_time_str[256];
 
 static inline int ensure_db_access( void )
@@ -245,7 +245,7 @@ static inline int ensure_db_access( void )
     {
         if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
             return 0;
-        lmgr_init = TRUE;
+        lmgr_init = true;
     }
     return 1;
 }
@@ -290,7 +290,7 @@ static void  *stats_thr( void *arg )
 
 
 static int     terminate_sig = 0;
-static int     dump_sig = FALSE;
+static bool    dump_sig = false;
 static pthread_t sig_thr;
 
 #define SIGHDL_TAG  "SigHdlr"
@@ -302,7 +302,7 @@ static void terminate_handler( int sig )
 
 static void usr_handler( int sig )
 {
-    dump_sig = TRUE;
+    dump_sig = true;
 }
 
 
@@ -376,7 +376,7 @@ static void   *signal_handler_thr( void *arg )
             FlushLogs(  );
 
             /* drop pipeline waiting operations and terminate threads */
-            EntryProcessor_Terminate( FALSE );
+            EntryProcessor_Terminate(false);
             FlushLogs(  );
 
 #ifdef _HSM_LITE
@@ -409,7 +409,7 @@ static void   *signal_handler_thr( void *arg )
             if (!ensure_db_access())
                 return NULL;
             dump_stats(&lmgr);
-            dump_sig = FALSE;
+            dump_sig = false;
         }
     }
 }
@@ -427,9 +427,9 @@ int main( int argc, char **argv )
     int            rc;
     char           err_msg[4096];
     robinhood_config_t rh_config;
-    int chgd = 0;
-    char           badcfg[RBH_PATH_MAX];
-    char           tag_name[256] = "";
+    bool               chgd = false;
+    char               badcfg[RBH_PATH_MAX];
+    char               tag_name[256] = "";
 
     start_time = time( NULL );
 
@@ -441,7 +441,7 @@ int main( int argc, char **argv )
         switch ( c )
         {
         case 's':
-            options.partial_scan = TRUE;
+            options.partial_scan = 1;
             rh_strncpy(options.partial_scan_path, optarg, RBH_PATH_MAX);
             /* clean final slash */
             if (FINAL_SLASH(options.partial_scan_path))
@@ -493,7 +493,7 @@ int main( int argc, char **argv )
             break;
 #endif
         case 'l':
-            options.force_log_level = TRUE;
+            options.force_log_level = 1;
             options.log_level = str2debuglevel( optarg );
             if ( options.log_level == -1 )
             {
@@ -555,9 +555,9 @@ int main( int argc, char **argv )
         fprintf(stderr, "Using config file '%s'.\n", options.config_file );
     }
 
-    if ( ReadRobinhoodConfig( MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR,
-                              options.config_file, err_msg,
-                              &rh_config, FALSE ) )
+    if (ReadRobinhoodConfig(MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR,
+                            options.config_file, err_msg,
+                            &rh_config, false))
     {
         fprintf( stderr, "Error reading configuration file '%s': %s\n",
                  options.config_file, err_msg );
@@ -605,7 +605,7 @@ int main( int argc, char **argv )
 #endif
 
     /* Initialize list manager */
-    rc = ListMgr_Init( &rh_config.lmgr_config, FALSE );
+    rc = ListMgr_Init(&rh_config.lmgr_config, false);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, DIFF_TAG, "Error %d initializing list manager", rc );
@@ -694,11 +694,11 @@ int main( int argc, char **argv )
             val.value.val_str = tmp;
             lmgr_simple_filter_add(&filter, ATTR_INDEX_fullpath, LIKE, val, 0);
 
-            rc = ListMgr_CreateTag(&lmgr, tag_name, &filter, FALSE);
+            rc = ListMgr_CreateTag(&lmgr, tag_name, &filter, false);
             lmgr_simple_filter_free(&filter);
         }
         else
-            rc = ListMgr_CreateTag(&lmgr, tag_name, NULL, FALSE);
+            rc = ListMgr_CreateTag(&lmgr, tag_name, NULL, false);
 
         if (rc)
             exit(rc);
@@ -780,7 +780,7 @@ int main( int argc, char **argv )
     DisplayLog( LVL_MAJOR, DIFF_TAG, "FS Scan finished" );
 
     /* Pipeline must be flushed */
-    EntryProcessor_Terminate( TRUE );
+    EntryProcessor_Terminate(true);
 
 #ifdef LUSTRE_DUMP_FILES
     /* flush the lovea file */
