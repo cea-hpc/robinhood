@@ -78,8 +78,6 @@ static inline int field_flag(unsigned int index)
                     _ptr_ += strlen(_ptr_);     \
                 } while(0)
 
-#define field_type( _f_ )   (field_infos[_f_].db_type)
-
 static void listmgr_fieldfilter( lmgr_report_t *p_report, lmgr_t * p_mgr,
                                     const report_field_descr_t *report_desc_array,
                                     char *attrstring, char *attrname,

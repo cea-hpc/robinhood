@@ -764,7 +764,7 @@ typedef enum
 /** describe a report field */
 typedef struct report_field_descr_t
 {
-    unsigned int   attr_index;
+    int            attr_index; /* -1 for count(*) */
     report_type_t  report_type;
     sort_order_t   sort_flag;
 

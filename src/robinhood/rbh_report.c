@@ -50,24 +50,25 @@
 #define OPT_DUMP_OST    258
 #define OPT_DUMP_STATUS 259
 #define OPT_CLASS_INFO  260
+#define OPT_STATUS_INFO 261
 
-#define SET_NEXT_MAINT    261
-#define CLEAR_NEXT_MAINT  262
+#define SET_NEXT_MAINT    300
+#define CLEAR_NEXT_MAINT  301
 
-#define OPT_BY_COUNT      263
-#define OPT_BY_AVGSIZE    264
-#define OPT_COUNT_MIN     265
+#define OPT_BY_COUNT      310
+#define OPT_BY_AVGSIZE    311
+#define OPT_COUNT_MIN     312
 
-#define OPT_TOPRMDIR      266
+#define OPT_TOPRMDIR      320
 
-#define OPT_SIZE_PROFILE  267
-#define OPT_BY_SZ_RATIO   268
+#define OPT_SIZE_PROFILE  330
+#define OPT_BY_SZ_RATIO   331
 
 /* options flags */
 #define OPT_FLAG_CSV        0x0001
 #define OPT_FLAG_NOHEADER   0x0002
 #define OPT_FLAG_GROUP      0x0004
-#define OPT_FLAG_MATCH_NULL_STATUS 0x0008
+
 #define OPT_FLAG_NO_ACCT 0x0010
 #define OPT_FLAG_SPLITUSERGROUP 0x0020
 #define OPT_FLAG_BY_COUNT       0x0040
@@ -80,7 +81,6 @@
 #define NOHEADER(_x) !!((_x)&OPT_FLAG_NOHEADER)
 #define ISGROUP(_x) !!((_x)&OPT_FLAG_GROUP)
 #define ISSPLITUSERGROUP(_x) !!((_x)&OPT_FLAG_SPLITUSERGROUP)
-#define MATCH_NULL_STATUS(_x) !!((_x)&OPT_FLAG_MATCH_NULL_STATUS)
 #define FORCE_NO_ACCT(_x) !!((_x)&OPT_FLAG_NO_ACCT)
 #define SORT_BY_COUNT(_x) !!((_x)&OPT_FLAG_BY_COUNT)
 #define SORT_BY_AVGSIZE(_x) !!((_x)&OPT_FLAG_BY_AVGSIZE)
@@ -115,6 +115,10 @@ static struct option option_tab[] = {
 
     {"classinfo", optional_argument, NULL, OPT_CLASS_INFO},
     {"class-info", optional_argument, NULL, OPT_CLASS_INFO},
+
+    {"statusinfo", required_argument, NULL, OPT_STATUS_INFO},
+    {"status-info", required_argument, NULL, OPT_STATUS_INFO},
+
     {"topdirs", optional_argument, NULL, 'd'},
     {"top-dirs", optional_argument, NULL, 'd'},
     {"topsize", optional_argument, NULL, 's'},
@@ -137,9 +141,7 @@ static struct option option_tab[] = {
 #ifdef _LUSTRE
     {"dump-ost", required_argument, NULL, OPT_DUMP_OST },
 #endif
-#ifdef ATTR_INDEX_status
     {"dump-status", required_argument, NULL, OPT_DUMP_STATUS },
-#endif
 
     {"szprof", no_argument, NULL, OPT_SIZE_PROFILE}, /* size profile */
     {"size-profile", no_argument, NULL, OPT_SIZE_PROFILE},
@@ -147,6 +149,7 @@ static struct option option_tab[] = {
     /* additional options for topusers etc... */
     {"filter-path", required_argument, NULL, 'P' },
     {"filter-class", required_argument, NULL, 'C' },
+// filter status
     {"split-user-groups", no_argument, NULL, 'S'},
     {"by-count", no_argument, NULL, OPT_BY_COUNT},
     {"by-avgsize", no_argument, NULL, OPT_BY_AVGSIZE},
@@ -194,6 +197,9 @@ static const char *stats_help =
     "    " _B "--class-info" B_ "[=" _U "class_expr" U_ "]\n"
     "        Display Fileclasses summary. Use optional parameter " _U "class_expr" U_ "\n"
     "        for retrieving stats about matching fileclasses.\n"
+    "    " _B "--status-info" B_ " " _U "status_name" U_ "[:"_U "status_value" U_"]\n"
+    "        Display status summary for the given policy or status name.\n"
+    "        Optionally filter on "_U"status_value"U_".\n"
     "    " _B "--entry-info"B_ " "_U "path"U_"|"_U"id"U_", "
            _B "-e" B_ " "_U "path"U_"|"_U"id"U_"\n"
     "        Display all information about the given entry.\n"
@@ -227,8 +233,8 @@ static const char *stats_help =
     "    "  _B "--dump-ost" B_ " " _U "ost_index" U_ "|" _U "ost_set" U_"\n"
     "        Dump all entries on the given OST or set of OSTs (e.g. 3,5-8).\n"
 #endif
-    "    "  _B "--dump-status" B_ " " _U "status" U_ "\n"
-    "        Dump all entries with the given status (%s).\n";
+    "    "  _B "--dump-status" B_ " " _U "status_name"U_":"_U"status_value" U_ "\n"
+    "        Dump all entries with the given status (e.g. lhsm_status:released).\n";
 
 static const char *maintenance_help =
     _B "Maintenance scheduling:" B_ "\n"
@@ -1139,20 +1145,22 @@ static void report_activity( int flags )
 
 typedef enum {DUMP_ALL, DUMP_USR, DUMP_GROUP, DUMP_OST, DUMP_STATUS } type_dump;
 
-static inline const char * class_format( const char * class_name )
+static inline const char *class_format(const char *class_name)
 {
     if (class_name == NULL)
         return "[n/a]";
     else if (EMPTY_STRING(class_name))
         return "[none]";
-#if 0 /* FIXME adapt to new classes */
-    if ( !strcasecmp(class_name, CLASS_DEFAULT ) )
-        return "[default]";
-    else if ( !strcasecmp(class_name, CLASS_IGNORED ) )
-        return "[ignored]";
-    else
-#endif
+
     return class_name;
+}
+
+static inline const char *status_format(const char *name)
+{
+    if (name == NULL)
+        return "[none]";
+
+    return name;
 }
 
 /*
@@ -1231,6 +1239,9 @@ static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
 /* return attr name to be displayed */
 static inline const char * attrindex2name(unsigned int index)
 {
+    if (index >= ATTR_COUNT) /* status */
+        return get_sm_instance(index - ATTR_COUNT)->db_field;
+
     switch(index)
     {
         case ATTR_INDEX_fullpath: return "path";
@@ -1238,9 +1249,6 @@ static inline const char * attrindex2name(unsigned int index)
         case ATTR_INDEX_depth: return "depth";
         case ATTR_INDEX_avgsize: return "avgsize";
         case ATTR_INDEX_dircount: return "dircount";
-#ifdef ATTR_INDEX_status
-        case ATTR_INDEX_status: return "status";
-#endif
         case ATTR_INDEX_type: return "type";
         case ATTR_INDEX_mode: return "mode";
         case ATTR_INDEX_nlink: return "nlink";
@@ -1284,6 +1292,9 @@ static inline const char * attrindex2name(unsigned int index)
 
 static inline unsigned int attrindex2len(unsigned int index, int csv)
 {
+    if (index >= ATTR_COUNT) /* status */
+        return 15;
+
     switch(index)
     {
         case -1: return 10; /* count */
@@ -1291,9 +1302,6 @@ static inline unsigned int attrindex2len(unsigned int index, int csv)
         case ATTR_INDEX_name: return 10;
         case ATTR_INDEX_depth: return 3;
         case ATTR_INDEX_dircount: return 8;
-#ifdef  ATTR_INDEX_status
-        case ATTR_INDEX_status: return 10;
-#endif
         case ATTR_INDEX_type: return 8;
         case ATTR_INDEX_mode:
             return (csv ? 4 : 6);
@@ -1437,6 +1445,8 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
     if  (attr_index != ATTR_INDEX_fullpath /* specific case */
          && (attrs->attr_mask & (1 << attr_index)) == 0)
         return "";
+    if (attr_index >= ATTR_COUNT)
+        return STATUS_ATTR(attrs, attr_index - ATTR_COUNT);
 
     switch(attr_index)
     {
@@ -1532,6 +1542,7 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
 
         case ATTR_INDEX_fileclass:
             return ATTR(attrs, fileclass);
+
         case ATTR_INDEX_class_update:
             tt = ATTR(attrs, class_update);
             strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
@@ -1651,21 +1662,20 @@ static inline const char * attrdesc2name(const report_field_descr_t * desc)
 }
 
 
-static inline const char * result_val2str(const report_field_descr_t * desc,
-                                    const db_value_t * val, int csv,
-                                    char * out)
+static const char *result_val2str(const report_field_descr_t * desc,
+                                  const db_value_t * val, int csv,
+                                  char * out)
 {
     out[0] = '\0';
+
+    if (desc->attr_index >= ATTR_COUNT) /* status */
+        return status_format(val->value_u.val_str);
+
     switch(desc->attr_index)
     {
         case -1: /* count */
             sprintf(out, "%llu", val->value_u.val_biguint);
             break;
-#ifdef  ATTR_INDEX_status
-        case ATTR_INDEX_status:
-            sprintf(out, db_status2str(val->value_u.val_uint,csv));
-            break;
-#endif
         case ATTR_INDEX_type:
         case ATTR_INDEX_owner:
         case ATTR_INDEX_gr_name:
@@ -1694,10 +1704,10 @@ static inline const char * result_val2str(const report_field_descr_t * desc,
 /**
  * Generic function to display a report
  */
-static void display_report( const report_field_descr_t * descr, unsigned int field_count,
-                            const db_value_t * result, unsigned int result_count,
-                            const profile_field_descr_t * prof_descr, profile_u * p_prof,
-                            int flags, int header, int rank )
+static void display_report(const report_field_descr_t *descr, unsigned int field_count,
+                           const db_value_t *result, unsigned int result_count,
+                           const profile_field_descr_t *prof_descr, profile_u *p_prof,
+                           int flags, int header, int rank)
 {
     unsigned int i;
 
@@ -1745,12 +1755,16 @@ static void display_report( const report_field_descr_t * descr, unsigned int fie
             printf("%4d, ", rank);
 
         char tmpstr[1024];
-        printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
-               result_val2str(&descr[0],&result[0], CSV(flags), tmpstr));
-        for (i = 1; i < field_count && i < result_count; i++)
-            if (!DB_IS_NULL(&result[i]))
-                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
+        for (i = 0; i < field_count && i < result_count; i++)
+        {
+            if (!DB_IS_NULL(&result[i]) || i == 0) /* tag first column */
+                printf("%s%*s", i == 0 ? "":", ",
+                       attrindex2len(descr[i].attr_index, CSV(flags)),
                        result_val2str(&descr[i],&result[i], CSV(flags), tmpstr));
+            else
+                printf("%s%*s", i == 0 ? "":", ", attrindex2len(descr[i].attr_index, CSV(flags)), " ");
+        }
+
         if (prof_descr && p_prof)
         {
             if (prof_descr->attr_index == ATTR_INDEX_size)
@@ -1795,24 +1809,29 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     total_size = total_count = 0;
 
     /* list of attributes to be use for all dumps
-     * except ost dump */
+     * except ost dump and status dump */
     static int list_std[] = {
                    ATTR_INDEX_type,
-#ifdef ATTR_INDEX_status
-                   ATTR_INDEX_status,
-#endif
+                   ATTR_INDEX_size,
+                   ATTR_INDEX_owner,
+                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_fileclass
+                };
+
+    static int list_status[] = {
+                   ATTR_INDEX_type,
+                   0, /* to be set in the code */
                    ATTR_INDEX_size,
                    ATTR_INDEX_owner,
                    ATTR_INDEX_gr_name,
                    ATTR_INDEX_fileclass,
-                   ATTR_INDEX_fullpath
+                   ATTR_INDEX_fullpath,
                 };
+
     /* list of attributes to be used for OST dumps */
     static int list_stripe[] = {
                    ATTR_INDEX_type,
-#ifdef ATTR_INDEX_status
-                   ATTR_INDEX_status,
-#endif
+//                   ATTR_INDEX_status,
                    ATTR_INDEX_size,
                    ATTR_INDEX_fullpath,
                    ATTR_INDEX_stripe_info,
@@ -1821,15 +1840,32 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     int * list = NULL;
     int list_cnt = 0;
 
-    if (type != DUMP_OST)
-    {
-        list = list_std;
-        list_cnt = sizeof(list_std)/sizeof(int);
-    }
-    else
+    if (type == DUMP_OST)
     {
         list = list_stripe;
         list_cnt = sizeof(list_stripe)/sizeof(int);
+    }
+    else if (type == DUMP_STATUS)
+    {
+        list = list_status;
+        list_cnt = sizeof(list_status)/sizeof(int);
+        list[1] = ATTR_COUNT + int_arg; /* status index */
+    }
+    else
+    {
+        int i;
+
+        list_cnt = sizeof(list_std)/sizeof(int);
+        /* add all policy status + 1 for fullpath (always last) */
+        list = calloc(list_cnt + sm_inst_count + 1, sizeof(int));
+        if (list == NULL)
+            exit(ENOMEM);
+
+        memcpy(list, list_std, sizeof(list_std));
+        for (i = 0; i < sm_inst_count; i++)
+            list[i+list_cnt] = i + ATTR_COUNT;
+        list_cnt += sm_inst_count + 1; /* +1 for fullpath */
+        list[list_cnt-1] = ATTR_INDEX_fullpath;
     }
 
     lmgr_simple_filter_init( &filter );
@@ -1863,16 +1899,16 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
                 lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, IN, fv, 0 );
             }
             break;
-#ifdef ATTR_INDEX_status
+
        case DUMP_STATUS:
-                fv.value.val_int = int_arg;
-                if ( MATCH_NULL_STATUS( flags ) )
-                    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL,
-                                            fv, FILTER_FLAG_ALLOW_NULL );
-                else
-                    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, 0 );
+                /* int arg: smi index */
+                /* str arg: status value */
+
+                fv.value.val_str = str_arg;
+                lmgr_simple_filter_add(&filter, int_arg + ATTR_COUNT, EQUAL, fv,
+                                       EMPTY_STRING(str_arg)?FILTER_FLAG_ALLOW_NULL:0);
                 break;
-#endif
+
         default:
             DisplayLog( LVL_CRIT, REPORT_TAG,
                     "ERROR: unexpected dump command" );
@@ -1988,13 +2024,7 @@ static void report_fs_info( int flags )
     lmgr_filter_t  filter;
     bool is_filter = false;
 
-#ifdef  ATTR_INDEX_status
-#define FSINFOCOUNT 7
-#define _SHIFT 1
-#else
 #define FSINFOCOUNT 6
-#define _SHIFT 0
-#endif
 
     db_value_t     result[FSINFOCOUNT];
 
@@ -2005,9 +2035,6 @@ static void report_fs_info( int flags )
      * - MIN/MAX/SUM dircount
      */
     report_field_descr_t fs_info[FSINFOCOUNT] = {
-#ifdef  ATTR_INDEX_status
-        {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
-#endif
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
         {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL}, /* XXX ifdef STATUS ? */
@@ -2026,9 +2053,9 @@ static void report_fs_info( int flags )
         fs_info[0].sort_flag = SORT_DESC;
 
     if (count_min) {
-        fs_info[1+_SHIFT].filter = true;
-        fs_info[1+_SHIFT].filter_compar = MORETHAN;
-        fs_info[1+_SHIFT].filter_value.value.val_biguint = count_min;
+        fs_info[1].filter = true;
+        fs_info[1].filter_compar = MORETHAN;
+        fs_info[1].filter_value.value.val_biguint = count_min;
     }
 
     /* no limit */
@@ -2058,21 +2085,21 @@ static void report_fs_info( int flags )
     result_count = FSINFOCOUNT;
 
     while ((rc = ListMgr_GetNextReportItem(it, result, &result_count,
-                                             SPROF(flags)?&prof:NULL))
+                                           SPROF(flags)?&prof:NULL))
               == DB_SUCCESS )
     {
-        if (result[1+_SHIFT].value_u.val_biguint == 0) /* count=0 (don't display)*/
-            display_report( fs_info, FSINFOCOUNT, NULL, result_count,
-                            SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                            flags, display_header, 0 );
+        if (result[1].value_u.val_biguint == 0) /* count=0 (don't display)*/
+            display_report(fs_info, FSINFOCOUNT, NULL, result_count,
+                           SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                           flags, display_header, 0);
         else
-            display_report( fs_info, FSINFOCOUNT, result, result_count,
-                            SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                            flags, display_header, 0 );
+            display_report(fs_info, FSINFOCOUNT, result, result_count,
+                           SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                           flags, display_header, 0);
         display_header = 0; /* just display it once */
 
-        total_count += result[1+_SHIFT].value_u.val_biguint;
-        total_size += result[2+_SHIFT].value_u.val_biguint;
+        total_count += result[1].value_u.val_biguint;
+        total_size += result[2].value_u.val_biguint;
 
         /* prepare next call */
         result_count = FSINFOCOUNT;
@@ -2116,7 +2143,7 @@ static int report_entry(const char *entry, int flags)
     }
 
     /* try to get all attrs */
-    attrs.attr_mask = ~0;
+    attrs.attr_mask = ~0LL;
 
     if (CSV(flags))
         printf("id, "DFID"\n", PFID(&id));
@@ -2128,7 +2155,7 @@ static int report_entry(const char *entry, int flags)
         int mask, i;
         char str[RBH_PATH_MAX];
 
-        for (i = 0, mask = 1; i < ATTR_COUNT; i++, mask <<= 1)
+        for (i = 0, mask = 1; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
         {
             if (mask & attrs.attr_mask)
             {
@@ -2292,13 +2319,13 @@ static void report_usergroup_info( char *name, int flags )
 
     result_count = field_count;
 
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count,
-                                              SPROF(flags)?&prof:NULL ) ) == DB_SUCCESS )
+    while ((rc = ListMgr_GetNextReportItem(it, result, &result_count,
+                                           SPROF(flags)?&prof:NULL)) == DB_SUCCESS)
     {
         result_count = field_count;
-        display_report( user_info, result_count, result, result_count,
-                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                        flags, display_header, 0 );
+        display_report(user_info, result_count, result, result_count,
+                       SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                       flags, display_header, 0);
         display_header = 0; /* just display it once */
 
         total_count += result[1+shift].value_u.val_biguint;
@@ -2498,7 +2525,7 @@ static void report_topsize( unsigned int count, int flags )
     ListMgr_CloseIterator( it );
 }
 
-
+/** @TODO a revoir pour rbh V3 */
 static void report_toppurge( unsigned int count, int flags )
 {
     /* To be retrieved: non whitelisted, non directories, non invalid
@@ -2806,12 +2833,12 @@ static void report_topuser( unsigned int count, int flags )
     }
 
     result_count = TOPUSERCOUNT;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count,
-                              SPROF(flags)?&prof:NULL ) ) == DB_SUCCESS )
+    while ((rc = ListMgr_GetNextReportItem(it, result, &result_count,
+                                           SPROF(flags)?&prof:NULL)) == DB_SUCCESS)
     {
-        display_report( user_info, result_count, result, result_count,
-                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                        flags, rank == 1, rank ); /* display header once */
+        display_report(user_info, result_count, result, result_count,
+                       SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                       flags, rank == 1, rank); /* display header once */
 
         rank++;
 
@@ -2910,13 +2937,7 @@ static void report_deferred_rm( int flags )
 
 static void report_class_info( int flags )
 {
-#ifdef ATTR_INDEX_status
-    #define CLASSINFO_FIELDS 8
-    const int shift = 1;
-#else
     #define CLASSINFO_FIELDS 7
-    const int shift = 0;
-#endif
     db_value_t     result[CLASSINFO_FIELDS];
 
     struct lmgr_report_t *it;
@@ -2925,12 +2946,10 @@ static void report_class_info( int flags )
     int header;
     unsigned int   result_count;
     profile_u prof;
+    bool is_filter = false;
 
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
-
-    /* no filter on type */
-    filter_value_t fv;
 
     /* To be retrieved for each group:
      * - class names and status
@@ -2940,9 +2959,6 @@ static void report_class_info( int flags )
      */
     report_field_descr_t class_info[CLASSINFO_FIELDS] = {
         {ATTR_INDEX_fileclass, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
-#ifdef ATTR_INDEX_status
-        {ATTR_INDEX_status, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
-#endif
         {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
@@ -2951,16 +2967,13 @@ static void report_class_info( int flags )
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, false, 0, FV_NULL},
     };
 
-    /* don't select dirs for policies */
-    fv.value.val_str = STR_TYPE_DIR;
-    lmgr_simple_filter_init( &filter );
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
-
-    mk_global_filters( &filter, !NOHEADER(flags), NULL );
+    lmgr_simple_filter_init(&filter);
+    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
     result_count = CLASSINFO_FIELDS;
 
-    it = ListMgr_Report( &lmgr, class_info, CLASSINFO_FIELDS,
-                         SPROF(flags)?&size_profile:NULL, &filter, NULL );
+    it = ListMgr_Report(&lmgr, class_info, CLASSINFO_FIELDS,
+                        SPROF(flags)? &size_profile : NULL,
+                        is_filter? &filter : NULL, NULL);
 
     if ( it == NULL )
     {
@@ -2973,16 +2986,16 @@ static void report_class_info( int flags )
     header = !NOHEADER(flags);
 
     result_count = CLASSINFO_FIELDS;
-    while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, SPROF(flags)?&prof:NULL ))
-            == DB_SUCCESS )
+    while ((rc = ListMgr_GetNextReportItem(it, result, &result_count, SPROF(flags)?&prof:NULL))
+            == DB_SUCCESS)
     {
-        display_report( class_info, result_count, result, result_count,
-                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                        flags, header, 0);
+        display_report(class_info, result_count, result, result_count,
+                       SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                       flags, header, 0);
         header = 0; /* display header once */
 
-        total_count += result[1+shift].value_u.val_biguint;
-        total_size += result[3+shift].value_u.val_biguint;
+        total_count += result[1].value_u.val_biguint;
+        total_size += result[3].value_u.val_biguint;
         result_count = CLASSINFO_FIELDS;
     }
 
@@ -2999,7 +3012,97 @@ static void report_class_info( int flags )
     }
 }
 
-#ifdef HAVE_MIGR_POLICY
+static void report_status_info(int smi_index, const char* val, int flags)
+{
+    #define STATUSINFO_FIELDS 8
+    db_value_t     result[STATUSINFO_FIELDS];
+
+    struct lmgr_report_t *it;
+    lmgr_filter_t  filter;
+    int            rc;
+    int header;
+    unsigned int   result_count;
+    profile_u prof;
+    bool is_filter = false;
+
+    unsigned long long total_size, total_count;
+    total_size = total_count = 0;
+
+    /* To be retrieved for each group:
+     * - status names and status
+     * - NB entries
+     * - SUM(blocks)
+     * - MIN/MAX/AVG file size
+     */
+    report_field_descr_t status_info[STATUSINFO_FIELDS] = {
+        {ATTR_COUNT + smi_index, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
+        {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
+        {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, false, 0, FV_NULL},
+    };
+
+    lmgr_simple_filter_init(&filter);
+
+    if (val != NULL)
+    {
+        filter_value_t fv;
+
+        fv.value.val_str = val;
+        lmgr_simple_filter_add(&filter, ATTR_COUNT + smi_index, EQUAL, fv,
+                               EMPTY_STRING(val)? FILTER_FLAG_ALLOW_NULL : 0);
+        is_filter = true;
+    }
+
+    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
+    result_count = STATUSINFO_FIELDS;
+
+    /* @TODO add filter on status, if a value is specified */
+
+    it = ListMgr_Report(&lmgr, status_info, STATUSINFO_FIELDS,
+                        SPROF(flags)? &size_profile : NULL,
+                        is_filter? &filter : NULL, NULL);
+    if (it == NULL)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Could not retrieve status information from database.");
+        return;
+    }
+
+    /* a single status column (release), can print as is */
+    header = !NOHEADER(flags);
+
+    result_count = STATUSINFO_FIELDS;
+    while ((rc = ListMgr_GetNextReportItem(it, result, &result_count, SPROF(flags)?&prof:NULL))
+           == DB_SUCCESS)
+    {
+        display_report(status_info, result_count, result, result_count,
+                       SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
+                       flags, header, 0);
+        header = 0; /* display header once */
+
+        total_count += result[2].value_u.val_biguint;
+        total_size += result[4].value_u.val_biguint;
+        result_count = STATUSINFO_FIELDS;
+    }
+
+    ListMgr_CloseReport(it);
+    lmgr_simple_filter_free(&filter);
+
+    /* display summary */
+    if (!NOHEADER(flags))
+    {
+        char strsz[128];
+        FormatFileSize(strsz, 128, total_size);
+        printf("\nTotal: %llu entries, %llu bytes (%s)\n",
+               total_count, total_size, strsz);
+    }
+}
+
+
 static void maintenance_get( int flags )
 {
     char           value[1024];
@@ -3073,7 +3176,87 @@ static void maintenance_set( int flags, time_t when )
                     "ERROR setting variable " NEXT_MAINT_VAR " in database" );
     }
 }
-#endif
+
+static void parse_status_arg(const char *option, char *arg, char **p_st_name, char **p_st_val,
+                             bool mandatory_value)
+{
+    int   sn_len;
+    char *delim;
+
+    if (!arg)
+    {
+        fprintf(stderr, "Missing mandatory argument <status_name>%s for %s\n",
+                mandatory_value?":<status_value>":"[:<status_value>]", option);
+        exit(1);
+    }
+
+    /* the expected argument is <status_name>:<status_value> */
+    delim = strchr(arg, ':');
+    if (delim == NULL && mandatory_value)
+    {
+        fprintf(stderr, "Invalid argument for %s: <status_name>:<status_value> expected\n",
+                option);
+        exit(1);
+    }
+    *p_st_name = arg;
+
+    if (delim != NULL)
+    {
+        *delim = '\0';
+        *p_st_val = delim + 1;
+    }
+    else
+        *p_st_val = NULL;
+
+    if (EMPTY_STRING(*p_st_name))
+    {
+        fprintf(stderr, "Invalid argument for %s: <status_name>%s expected\n",
+                option, mandatory_value?":<status_value>":"[:<status_value>]");
+        exit(1);
+    }
+
+    /* if status_name ends with "_status", remove it */
+    sn_len = strlen(*p_st_name);
+    if ((sn_len > 7) && !strcmp((*p_st_name) + sn_len - 7, "_status"))
+        *((char*)((*p_st_name) + sn_len - 7)) = '\0';
+}
+
+static void check_status_args(const char *status_name, const char *status_value,
+                              const char **str_val_new, sm_instance_t **p_smi)
+{
+        /* resolve the status name now, as config file has been parsed */
+        *str_val_new = status_value;
+        char buff[1024];
+
+        /* get status index by name */
+        *p_smi = smi_by_name(status_name);
+        if (*p_smi == NULL)
+        {
+            int idx;
+            /* try with a policy name */
+            if (policy_exists(status_name, &idx))
+                (*p_smi) = policies.policy_list[idx].status_mgr;
+            else
+            {
+                fprintf(stderr, "ERROR: status manager or policy '%s' is not defined\n", status_name);
+                exit(1);
+            }
+        }
+
+        /* check status value */
+        if (status_value && !EMPTY_STRING(status_value))
+        {
+            *str_val_new = get_status_str((*p_smi)->sm, status_value);
+            if (*str_val_new == NULL)
+            {
+                fprintf(stderr, "ERROR: unexpected value for %s_status: '%s'."
+                        " Expected values are: %s\n", status_name, status_value,
+                        allowed_status_str((*p_smi)->sm, buff, sizeof(buff)));
+                exit(1);
+            }
+        }
+}
+
 
 #define MAX_OPT_LEN 1024
 
@@ -3123,16 +3306,15 @@ int main( int argc, char **argv )
     value_list_t   dump_ost_set = { 0, NULL };
     char           ost_set_str[256] = "";
 #endif
-#ifdef ATTR_INDEX_status
-    bool           dump_status = false;
-    file_status_t  status_to_dump = -1;
-#endif
+    char          *status_name = NULL;
+    char          *status_value = NULL;
 
-#ifdef HAVE_MIGR_POLICY
+    char          *status_info_name = NULL;
+    char          *status_info_value = NULL;
+
     time_t         next_maint = 0;
     bool           get_next_maint = false;
     bool           cancel_next_maint = false;
-#endif
 
     int            flags = 0;
     int            rc;
@@ -3183,6 +3365,12 @@ int main( int argc, char **argv )
                     fprintf(stderr, "WARNING: --class-info conflicts with --filter-class parameter. overriding filter.\n");
                 rh_strncpy(class_filter, optarg, 1024);
             }
+            break;
+
+        case OPT_STATUS_INFO:
+            if (status_info_name)
+                fprintf(stderr, "WARNING: --status-info parameter already specified on command line.\n");
+            parse_status_arg("--status-info", optarg, &status_info_name, &status_info_value, false);
             break;
 
         case 'i':
@@ -3251,29 +3439,9 @@ int main( int argc, char **argv )
             break;
 #endif
 
-#ifdef ATTR_INDEX_status
         case OPT_DUMP_STATUS:
-            dump_status = true;
-            if ( !optarg )
-            {
-                fprintf(stderr, "Missing mandatory argument <status> for --dump-status\n");
-                exit(1);
-            }
-
-            status_to_dump = status2dbval( optarg );
-            if ( status_to_dump == (file_status_t)-1 )
-            {
-                fprintf(stderr, "Unknown status '%s'. Allowed status: %s.\n", optarg,
-                        allowed_status());
-                exit(1);
-            }
-
-            /* match NULL value for unknown status */
-            if ( status_to_dump == STATUS_UNKNOWN )
-                flags |= OPT_FLAG_MATCH_NULL_STATUS;
-
+            parse_status_arg("--dump-status", optarg, &status_name, &status_value, true);
             break;
-#endif
 
         case 'd':
             if ( optarg )
@@ -3466,10 +3634,8 @@ int main( int argc, char **argv )
     if ( !activity && !fs_info && !user_info && !group_info
          && !topsize && !toppurge && !topuser && !dump_all
          && !dump_user && !dump_group && !class_info && !entry_info
+         && (status_name == NULL) && (status_info_name == NULL)
          && !topdirs
-#ifdef ATTR_INDEX_status
-         && !dump_status
-#endif
 #ifdef HAVE_RM_POLICY
         && !deferred_rm
 #endif
@@ -3620,23 +3786,34 @@ int main( int argc, char **argv )
     }
 #endif
 
-#ifdef ATTR_INDEX_status
-    if ( dump_status )
-        dump_entries( DUMP_STATUS, status_to_dump, NULL, NULL, flags );
-#endif
+    if (status_name != NULL)
+    {
+        sm_instance_t *smi;
+        const char *strval;
 
-#ifdef HAVE_MIGR_POLICY
-    if ( cancel_next_maint )
-        maintenance_set( flags, 0 );
+        check_status_args(status_name, status_value, &strval, &smi);
+        dump_entries(DUMP_STATUS, smi->smi_index, (char *)strval, NULL, flags);
+    }
 
-    if ( next_maint != 0 )
-        maintenance_set( flags, next_maint );
+    if (status_info_name != NULL)
+    {
+        sm_instance_t *smi;
+        const char *strval;
 
-    if ( get_next_maint )
+        check_status_args(status_info_name, status_info_value, &strval, &smi);
+        report_status_info(smi->smi_index, strval, flags);
+    }
+
+    if (cancel_next_maint)
+        maintenance_set(flags, 0);
+
+    if (next_maint != 0)
+        maintenance_set(flags, next_maint);
+
+    if (get_next_maint)
         maintenance_get(flags);
-#endif
 
-    ListMgr_CloseAccess( &lmgr );
+    ListMgr_CloseAccess(&lmgr);
 
     return 0;                   /* for compiler */
 
