@@ -191,7 +191,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 }
 
-#ifdef HAVE_RM_POLICY
+#ifdef HAVE_RM_POLICY /** @TODO manage it in RBHv3 */
 /** Indicate if an entry is concerned by soft remove mecanism */
 static inline bool soft_remove_filter(struct entry_proc_op_t *p_op)
 {
@@ -281,13 +281,15 @@ static inline void check_path_info(struct entry_proc_op_t *p_op, const char *rec
  * Infer information from the changelog record (status, ...).
  * \return next pipeline step to be perfomed.
  */
-static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_updt )
+static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
+                                    bool allow_md_updt)
 {
     /* alias to the log record */
     CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
+    uint64_t status_mask_need = 0LL;
 
     /* if this is a CREATE record, we know that its status is NEW. */
-    if ( logrec->cr_type == CL_CREATE )
+    if (logrec->cr_type == CL_CREATE)
     {
         /* not a symlink */
         p_op->fs_attr_need &= ~ATTR_MASK_link;
@@ -296,23 +298,23 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
          * it could come from a previous filesystem that has been reformatted.
          * In this case, force a full update of the entry.
          */
-        if ( p_op->db_exists )
+        if (p_op->db_exists)
         {
-                DisplayLog( LVL_EVENT, ENTRYPROC_TAG,
-                            "CREATE record on already existing entry "DFID"%s%s."
-                            " This is normal if you scanned it previously.",
-                            PFID(&p_op->entry_id),
-                            ATTR_MASK_TEST(&p_op->db_attrs, fullpath)?  ", path=":
-                                (ATTR_MASK_TEST(&p_op->db_attrs, name)?", name=":""),
-                            ATTR_MASK_TEST(&p_op->db_attrs, fullpath)? ATTR(&p_op->db_attrs, fullpath):
-                                (ATTR_MASK_TEST(&p_op->db_attrs, name)?ATTR(&p_op->db_attrs,name):""));
+                DisplayLog(LVL_EVENT, ENTRYPROC_TAG,
+                           "CREATE record on already existing entry "DFID"%s%s."
+                           " This is normal if you scanned it previously.",
+                           PFID(&p_op->entry_id),
+                           ATTR_MASK_TEST(&p_op->db_attrs, fullpath)?", path=":
+                               (ATTR_MASK_TEST(&p_op->db_attrs, name)?", name=":""),
+                           ATTR_MASK_TEST(&p_op->db_attrs, fullpath)?
+                                ATTR(&p_op->db_attrs, fullpath):
+                                (ATTR_MASK_TEST(&p_op->db_attrs, name)?
+                                    ATTR(&p_op->db_attrs,name):""));
 
-#ifdef ATTR_INDEX_creation_time
             /* set insertion time, like for a new entry */
-            ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
-            ATTR( &p_op->fs_attrs, creation_time )
+            ATTR_MASK_SET(&p_op->fs_attrs, creation_time);
+            ATTR(&p_op->fs_attrs, creation_time)
                 = cltime2sec(logrec->cr_time);
-#endif
 
             /* force updating attributes */
             p_op->fs_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_stripe_info;
@@ -322,57 +324,20 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
             /* get status for all policies */
             p_op->fs_attr_need |= all_status_mask();
         }
-#ifdef ATTR_INDEX_status
-        else /* new entry */
-        {
-            ATTR_MASK_SET( &p_op->fs_attrs, status );
-            ATTR( &p_op->fs_attrs, status ) = STATUS_NEW;
-
-            /* new file, status is known */
-            p_op->fs_attr_need &= ~ATTR_MASK_status;
-
-#ifdef ATTR_INDEX_no_archive
-            /* no flag is set for now */
-            ATTR_MASK_SET( &p_op->fs_attrs, no_archive );
-            ATTR( &p_op->fs_attrs, no_archive ) = 0;
-#endif
-#ifdef ATTR_INDEX_no_release
-            /* no flag is set for now */
-            ATTR_MASK_SET( &p_op->fs_attrs, no_release );
-            ATTR( &p_op->fs_attrs, no_release ) = 0;
-#endif
-
-            /* new entry: never archived or restored */
-            ATTR( &p_op->fs_attrs, last_archive ) = 0;
-            ATTR_MASK_SET( &p_op->fs_attrs, last_archive );
-#ifdef HAVE_PURGE_POLICY
-            ATTR( &p_op->fs_attrs, last_restore ) = 0;
-            ATTR_MASK_SET( &p_op->fs_attrs, last_restore );
-#endif
-        }
-#endif
     }
-    else if ( logrec->cr_type == CL_HARDLINK ) {
+    else if (logrec->cr_type == CL_HARDLINK)
+    {
         /* The entry exists but not the name. We only have to
          * create the name. */
 
         /* name and parent should have been provided by the HARDLINK changelog record */
         check_path_info(p_op, "HARDLINK");
     }
-#ifdef HAVE_SHOOK
-    /* shook specific: xattrs on file indicate its current status */
-    else if (logrec->cr_type == CL_XATTR)
-    {
-        /* need to update status */
-        p_op->fs_attr_need |= ATTR_MASK_status;
-    }
-#endif
-    else if ((logrec->cr_type == CL_MKDIR )
-            || (logrec->cr_type == CL_RMDIR ))
+    else if ((logrec->cr_type == CL_MKDIR) || (logrec->cr_type == CL_RMDIR))
     {
         /* entry is a directory */
-        ATTR_MASK_SET( &p_op->fs_attrs, type );
-        strcpy( ATTR( &p_op->fs_attrs, type ), STR_TYPE_DIR );
+        ATTR_MASK_SET(&p_op->fs_attrs, type);
+        strcpy(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR);
 
         /* not a link */
         p_op->fs_attr_need &= ~ATTR_MASK_link;
@@ -381,17 +346,14 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
 
-#ifdef ATTR_INDEX_status
-        p_op->fs_attr_need &= ~ATTR_MASK_status; /* no status for directories (XXX all modes?) */
-#endif
         /* path info should be set */
         check_path_info(p_op, changelog_type2str(logrec->cr_type));
     }
     else if (logrec->cr_type == CL_SOFTLINK)
     {
         /* entry is a symlink */
-        ATTR_MASK_SET( &p_op->fs_attrs, type );
-        strcpy( ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK );
+        ATTR_MASK_SET(&p_op->fs_attrs, type);
+        strcpy(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK);
 
         /* need to get symlink content */
         p_op->fs_attr_need |= ATTR_MASK_link;
@@ -400,177 +362,17 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
         p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
     }
-#if 0 /** @TODO  move to lhsm SM changelog callback */
 #ifdef _LUSTRE_HSM
-    else if ( logrec->cr_type == CL_HSM )
+    else if (logrec->cr_type == CL_HSM)
     {
         /* not a link */
         p_op->fs_attr_need &= ~ATTR_MASK_link;
-
-        switch ( hsm_get_cl_event( logrec->cr_flags ) )
-        {
-            case HE_ARCHIVE:
-               /* is it a successfull copy? */
-               if ( hsm_get_cl_error( logrec->cr_flags ) == CLF_HSM_SUCCESS )
-               {
-                   /* remember last archive time */
-                   ATTR_MASK_SET( &p_op->fs_attrs, last_archive );
-                   ATTR( &p_op->fs_attrs, last_archive )
-                        = cltime2sec( logrec->cr_time );
-
-                   /* if dirty flag is set, the entry is dirty,
-                    * else, it is up to date. */
-                   ATTR_MASK_SET( &p_op->fs_attrs, status );
-                   ATTR( &p_op->fs_attrs, status ) =
-                        (hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY) ?
-                        STATUS_MODIFIED : STATUS_SYNCHRO;
-                   p_op->fs_attr_need &= ~ATTR_MASK_status;
-               }
-               else /* archive failed */
-               {
-                   /* Entry is probably still dirty. If dirty flag is not set,
-                    * we need to ask the actual status */
-                   if ( hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY )
-                   {
-                        ATTR_MASK_SET( &p_op->fs_attrs, status );
-                        ATTR( &p_op->fs_attrs, status ) = STATUS_MODIFIED;
-                        p_op->fs_attr_need &= ~ATTR_MASK_status;
-                   }
-                   else
-                        p_op->fs_attr_need |= ATTR_MASK_status;
-               }
-               break;
-
-            case HE_RESTORE:
-                if ( hsm_get_cl_error( logrec->cr_flags ) == CLF_HSM_SUCCESS )
-                {
-                    /* remember last restore time */
-                    ATTR_MASK_SET( &p_op->fs_attrs, last_restore );
-                    ATTR( &p_op->fs_attrs, last_restore )
-                        = cltime2sec( logrec->cr_time );
-
-                    /* status is 'up-to-date' after a successful restore */
-                    ATTR_MASK_SET( &p_op->fs_attrs, status );
-                    ATTR( &p_op->fs_attrs, status ) = STATUS_SYNCHRO;
-                    p_op->fs_attr_need &= ~ATTR_MASK_status;
-                }
-                else if ( p_op->db_exists )
-                {
-                    /* Entry status remains 'released' */
-#ifdef _DROP_RELEASED
-                    /* remove entry from PE working set */
-                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-                    return STAGE_PRE_APPLY;
-#else
-                    ATTR_MASK_SET(&p_op->fs_attrs, status);
-                    ATTR(&p_op->fs_attrs, status) = STATUS_RELEASED;
-                    p_op->fs_attr_need &= ~ATTR_MASK_status;
-#endif
-                }
-                else /* entry is not in PE working set */
-                {
-                    /* skip and clear the record */
-                    return STAGE_CHGLOG_CLR;
-                }
-                break;
-
-            case HE_RELEASE:
-                if ( hsm_get_cl_error( logrec->cr_flags ) != CLF_HSM_SUCCESS )
-                {
-                    /* release records are not expected to be erroneous */
-                    DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "ERROR: "
-                         "Unexpected HSM release event with error %d",
-                         hsm_get_cl_error(logrec->cr_flags) );
-                    /* make sure of actual entry status */
-                    p_op->fs_attr_need |= ATTR_MASK_status;
-                }
-                else if ( p_op->db_exists )
-                {
-#ifdef _DROP_RELEASED
-                    /* Entry is now 'released': remove it from PE working set */
-                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-                    return STAGE_PRE_APPLY;
-#else
-                    ATTR_MASK_SET(&p_op->fs_attrs, status);
-                    ATTR(&p_op->fs_attrs, status) = STATUS_RELEASED;
-                    p_op->fs_attr_need &= ~ATTR_MASK_status;
-#endif
-                }
-                else /* entry is not in PE working set */
-                {
-                    /* skip and clear the record */
-                    return STAGE_CHGLOG_CLR;
-                }
-                break;
-
-            case HE_STATE:
-                /* state changed: did it become dirty? */
-                if ( hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY )
-                {
-                    ATTR_MASK_SET( &p_op->fs_attrs, status );
-                    ATTR( &p_op->fs_attrs, status ) = STATUS_MODIFIED;
-                    p_op->fs_attr_need &= ~ATTR_MASK_status;
-                }
-                else /* other status change: need to get it */
-                    p_op->fs_attr_need |= ATTR_MASK_status;
-                break;
-
-            case HE_REMOVE:
-            case HE_CANCEL:
-                /* undetermined status after such an event */
-                p_op->fs_attr_need |= ATTR_MASK_status;
-                break;
-            default:
-                DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "ERROR: unknown HSM event:"
-                            "bitfield=%#x, event=%u", logrec->cr_flags,
-                            hsm_get_cl_event( logrec->cr_flags ) );
-                /* skip */
-                return -1;
-        }
     }
-#endif
 #endif
     else if (logrec->cr_type == CL_UNLINK)
     {
         /* name and parent should have been provided by the UNLINK changelog record */
         check_path_info(p_op, "UNLINK");
-    }
-    else if ( logrec->cr_type == CL_MTIME || logrec->cr_type == CL_TRUNC ||
-              (logrec->cr_type == CL_CLOSE))
-    {
-#ifdef ATTR_INDEX_status
-        /* if file is modified or truncated, need to check its status
-         * (probably modified) EXCEPT if its status is already 'modified' */
-        if ( !ATTR_MASK_TEST( &p_op->db_attrs, status )
-             || ((ATTR(&p_op->db_attrs, status) != STATUS_MODIFIED) &&
-                 (ATTR(&p_op->db_attrs, status) != STATUS_NEW)) )
-        {
-            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getstatus needed because this is a MTIME, TRUNC or CLOSE event "
-                        "and status is not already 'modified' or 'new': event=%s, status=%d",
-                        changelog_type2str(logrec->cr_type),
-                        ATTR_MASK_TEST( &p_op->db_attrs, status )?
-                            ATTR(&p_op->db_attrs, status):-1 );
-            p_op->fs_attr_need |= ATTR_MASK_status;
-        }
-#endif
-    }
-    else if (logrec->cr_type == CL_CTIME || (logrec->cr_type == CL_SETATTR))
-    {
-        /* need to update attrs */
-        p_op->fs_attr_need |= POSIX_ATTR_MASK;
-#ifdef ATTR_INDEX_status
-#ifdef HAVE_SHOOK
-        /* in Lustre v2.O, changing trusted xattr generates CTIME/SATTR event */
-        p_op->fs_attr_need |= ATTR_MASK_status;
-
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                    "getstatus and getattr needed because this is a CTIME or SATTR event" );
-#else
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                    "getattr needed because this is a CTIME or SATTR event" );
-#endif
-#endif
     }
 #ifdef HAVE_CL_LAYOUT
     else if (logrec->cr_type == CL_LAYOUT)
@@ -581,19 +383,8 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
 #endif
 
     /* if the entry is already in DB, try to determine if something changed */
-    if ( p_op->db_exists )
+    if (p_op->db_exists)
     {
-#ifdef HAVE_SHOOK
-        /* if the old name is a restripe file, update the status */
-        if (!strncmp(RESTRIPE_TGT_PREFIX, ATTR( &p_op->db_attrs, name ),
-                     strlen(RESTRIPE_TGT_PREFIX)))
-        {
-            p_op->fs_attr_need |= ATTR_MASK_status;
-            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getstatus needed because entry was a restripe target");
-        }
-#endif
-
         if (logrec->cr_type == CL_EXT)
         {
             /* in case of a rename, the path info must be set */
@@ -601,23 +392,26 @@ static int EntryProc_FillFromLogRec( struct entry_proc_op_t *p_op, int allow_md_
         }
 
         /* get the new attributes, in case of a SATTR, HSM... */
-        if ( allow_md_updt && (   ( logrec->cr_type == CL_MTIME )
-                               || ( logrec->cr_type == CL_CTIME )
-                               || ( logrec->cr_type == CL_CLOSE )
-                               || ( logrec->cr_type == CL_TRUNC )
-                               || ( logrec->cr_type == CL_HSM )
-                               || ( logrec->cr_type == CL_SETATTR )) )
+        if (allow_md_updt && ((logrec->cr_type == CL_MTIME)
+                              || (logrec->cr_type == CL_CTIME)
+                              || (logrec->cr_type == CL_CLOSE)
+                              || (logrec->cr_type == CL_TRUNC)
+                              || (logrec->cr_type == CL_HSM)
+                              || (logrec->cr_type == CL_SETATTR)))
         {
-            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getattr needed because this is a TIME, TRUNC, SETATTR, HSM or CLOSE event, and "
-                         "metadata has not been recently updated. event=%s",
-                         changelog_type2str(logrec->cr_type) );
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       "Getattr needed because this is a %s event, and "
+                       "metadata has not been recently updated.",
+                       changelog_type2str(logrec->cr_type));
 
             p_op->fs_attr_need |= POSIX_ATTR_MASK;
         }
     }
 
-    /* other records: keep default value for getstatus_needed */
+    /* Changelog callback */
+    run_all_cl_cb(logrec, &p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
+                  &status_mask_need);
+    p_op->fs_attr_need |= status_mask_need;
 
     return STAGE_GET_INFO_FS;
 }
@@ -1481,7 +1275,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         /** @TODO
                          * manage no_archive, no_release
                          * manage last_archive, last_restore (init: 0 if status is 'new')
-                         * _DROP_RELEASED: remove entry from DB when it is released
                          * if entry is not supported: set extra_info.not_supp
                          */
                     }

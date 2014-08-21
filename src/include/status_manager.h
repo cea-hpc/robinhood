@@ -99,6 +99,10 @@ const char *get_status_str(const status_manager_t *sm, const char *in_str);
 /** return the list of allowed status for a status manager */
 char *allowed_status_str(const status_manager_t *sm, char *buf, int sz);
 
+int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
+                  const attr_set_t *attrs, attr_set_t *refreshed_attrs,
+                  uint64_t *status_need);
+
 static inline uint64_t all_status_mask(void)
 {
     int i;
@@ -195,4 +199,20 @@ static inline char *name_missing_status(uint64_t missing, char *buf, int sz)
     }
     return buf;
 }
+
+static inline sm_instance_t *smi_by_name(const char *smi_name)
+{
+    int i = 0;
+    sm_instance_t *smi;
+    while ((smi = get_sm_instance(i)) != NULL)
+    {
+        if (!strcmp(smi->instance_name, smi_name))
+            return smi;
+        i++;
+    }
+    /* not found */
+    return NULL;
+}
+
+
 #endif
