@@ -389,41 +389,12 @@ static inline void display_version( char *bin_name )
     printf( "\n" );
 }
 
-
-
-
 static lmgr_t  lmgr;
 
 /* global filter variables */
 char path_filter[RBH_PATH_MAX] = "";
 char class_filter[1024] = "";
 unsigned int count_min = 0;
-
-#define KB  1024L
-#define MB  (KB*KB)
-#define GB  (KB*MB)
-#define TB  (KB*GB)
-#define PB  (KB*TB)
-#define EB  (KB*PB)
-
-static char * print_brief_sz(uint64_t sz, char * buf)
-{
-    if (sz < KB)
-        sprintf(buf, "%"PRIu64, sz);
-    else if (sz < MB)
-        sprintf(buf, "%"PRIu64"K", sz/KB);
-    else if (sz < GB)
-        sprintf(buf, "%"PRIu64"M", sz/MB);
-    else if (sz < TB)
-        sprintf(buf, "%"PRIu64"G", sz/GB);
-    else if (sz < PB)
-        sprintf(buf, "%"PRIu64"T", sz/TB);
-    else if (sz < EB)
-        sprintf(buf, "%"PRIu64"P", sz/PB);
-    else
-        sprintf(buf, "%"PRIu64"E", sz/EB);
-    return buf;
-}
 
 /**
  * @param exact exact range value expected
@@ -626,78 +597,6 @@ static int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *val
         return rc;
     }
 }
-
-/**
- * Manage fid2path resolution
- */
-static int TryId2path( lmgr_t * p_mgr, const entry_id_t * p_id,  char * path )
-{
-    static int is_init = 0;
-    static int is_resolvable = 0;
-    int rc;
-    char value[1024];
-
-    if ( !is_init ) {
-        is_init = 1;
-        /* try to get fspath from DB */
-        rc = ListMgr_GetVar(&lmgr, FS_PATH_VAR, value);
-        if (rc)
-            return -1;
-
-        InitUidGid_Cache();
-
-        if (InitFS() == 0)
-            is_resolvable = 1;
-        else
-            return -1;
-    }
-    if ( !is_resolvable )
-        return -1;
-
-#ifdef _HAVE_FID
-    /* filesystem is mounted and fsname can be get: solve the fid */
-    rc = Lustre_GetFullPath( p_id, path, RBH_PATH_MAX );
-    return rc;
-#else
-    entry_id_t root_id;
-    if (Path2Id(global_config.fs_path, &root_id) == 0)
-    {
-        if (entry_id_equal(p_id, &root_id))
-        {
-            strcpy(path, global_config.fs_path);
-            return 0;
-        }
-    }
-    return -1;
-#endif
-}
-
-static const char * ResolvName(const entry_id_t * p_id, attr_set_t * attrs,
-                               char * buff)
-{
-    if (ATTR_MASK_TEST(attrs, fullpath))
-    {
-        return  ATTR(attrs, fullpath);
-    }
-    /* try to get dir path from fid if it's mounted */
-    else if ( TryId2path( &lmgr, p_id, ATTR(attrs, fullpath)) == 0 )
-    {
-        struct stat st;
-        ATTR_MASK_SET(attrs, fullpath);
-
-        /* we're lucky, try lstat now! */
-        if (lstat(ATTR(attrs, fullpath ), &st) == 0)
-            PosixStat2EntryAttr(&st, attrs, true);
-        return ATTR(attrs, fullpath);
-    }
-    else
-    {
-        /* last case: display the raw ID */
-        sprintf(buff, DFID, PFID(p_id));
-        return buff;
-    }
-}
-
 
 static void report_activity( int flags )
 {
@@ -1145,24 +1044,6 @@ static void report_activity( int flags )
 
 typedef enum {DUMP_ALL, DUMP_USR, DUMP_GROUP, DUMP_OST, DUMP_STATUS } type_dump;
 
-static inline const char *class_format(const char *class_name)
-{
-    if (class_name == NULL)
-        return "[n/a]";
-    else if (EMPTY_STRING(class_name))
-        return "[none]";
-
-    return class_name;
-}
-
-static inline const char *status_format(const char *name)
-{
-    if (name == NULL)
-        return "[none]";
-
-    return name;
-}
-
 /*
  * Append global filters on path, class...
  * \param do_display [in] display filters?
@@ -1236,120 +1117,6 @@ static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
     return 0;
 }
 
-/* return attr name to be displayed */
-static inline const char * attrindex2name(unsigned int index)
-{
-    if (index >= ATTR_COUNT) /* status */
-        return get_sm_instance(index - ATTR_COUNT)->db_field;
-
-    switch(index)
-    {
-        case ATTR_INDEX_fullpath: return "path";
-        case ATTR_INDEX_name: return "name";
-        case ATTR_INDEX_depth: return "depth";
-        case ATTR_INDEX_avgsize: return "avgsize";
-        case ATTR_INDEX_dircount: return "dircount";
-        case ATTR_INDEX_type: return "type";
-        case ATTR_INDEX_mode: return "mode";
-        case ATTR_INDEX_nlink: return "nlink";
-        case ATTR_INDEX_parent_id: return "parent_id";
-        case ATTR_INDEX_owner: return "user";
-        case ATTR_INDEX_gr_name: return "group";
-        case ATTR_INDEX_blocks: return "spc_used";
-        case ATTR_INDEX_size: return "size";
-        case ATTR_INDEX_last_access: return "last_access";
-        case ATTR_INDEX_last_mod: return "last_mod";
-        case ATTR_INDEX_creation_time: return "creation";
-        case ATTR_INDEX_link: return "link";
-
-        case ATTR_INDEX_md_update: return "md updt";
-        case ATTR_INDEX_path_update: return "path updt";
-
-        case ATTR_INDEX_fileclass: return "fileclass";
-        case ATTR_INDEX_class_update: return "class updt";
-#ifdef ATTR_INDEX_invalid
-        case ATTR_INDEX_invalid: return "invalid";
-#endif
-#ifdef ATTR_INDEX_last_archive
-        case ATTR_INDEX_last_archive: return "last_archive";
-#endif
-#ifdef ATTR_INDEX_last_restore
-        case ATTR_INDEX_last_restore: return "last_restore";
-#endif
-#ifdef ATTR_INDEX_backendpath
-        case ATTR_INDEX_backendpath: return "backend_path";
-#endif
-
-
-        case ATTR_INDEX_stripe_info: return "stripe_cnt, stripe_size,      pool";
-        case ATTR_INDEX_stripe_items: return "stripes";
-    }
-    return "?";
-}
-
-
-//                "stripe_count", "stripe_size", "pool", "storage_units" );
-
-static inline unsigned int attrindex2len(unsigned int index, int csv)
-{
-    if (index >= ATTR_COUNT) /* status */
-        return 15;
-
-    switch(index)
-    {
-        case -1: return 10; /* count */
-        case ATTR_INDEX_parent_id: return 20;
-        case ATTR_INDEX_name: return 10;
-        case ATTR_INDEX_depth: return 3;
-        case ATTR_INDEX_dircount: return 8;
-        case ATTR_INDEX_type: return 8;
-        case ATTR_INDEX_mode:
-            return (csv ? 4 : 6);
-
-        case ATTR_INDEX_nlink:
-            return 5;
-        case ATTR_INDEX_fullpath: return 40;
-        case ATTR_INDEX_owner: return 10;
-        case ATTR_INDEX_gr_name: return 10;
-
-        case ATTR_INDEX_last_access: return 20;
-        case ATTR_INDEX_last_mod: return 20;
-        case ATTR_INDEX_creation_time: return 20;
-
-        case ATTR_INDEX_md_update: return 20;
-        case ATTR_INDEX_path_update: return 20;
-
-        case ATTR_INDEX_fileclass: return 30;
-        case ATTR_INDEX_class_update: return 20;
-
-#ifdef ATTR_INDEX_invalid
-        case ATTR_INDEX_invalid: return 3; /* yes/no */
-#endif
-#ifdef ATTR_INDEX_last_archive
-        case ATTR_INDEX_last_archive: return 20;
-#endif
-#ifdef ATTR_INDEX_last_restore
-        case ATTR_INDEX_last_restore: return 20;
-#endif
-#ifdef ATTR_INDEX_backendpath
-        case ATTR_INDEX_backendpath: return 40;
-#endif
-
-        case ATTR_INDEX_link: return 20;
-        case ATTR_INDEX_blocks:
-        case ATTR_INDEX_avgsize:
-        case ATTR_INDEX_size:
-            /* 15 digits for 999To, 10 chars for 1024.21 GB */
-            return (csv ? 15 : 10);
-        case ATTR_INDEX_stripe_info: return strlen(attrindex2name(ATTR_INDEX_stripe_info));
-        case ATTR_INDEX_stripe_items: return 30;
-    }
-    return 1;
-}
-
-#define PROF_CNT_LEN     8
-#define PROF_RATIO_LEN   7
-
 static uint64_t list2mask(int *attr_list, int attr_count)
 {
     int i;
@@ -1363,432 +1130,76 @@ static uint64_t list2mask(int *attr_list, int attr_count)
     return mask;
 }
 
-
-static void print_attr_list_custom(int rank_field, int * attr_list, int attr_count,
-                            profile_field_descr_t * p_profile, bool csv,
-                            const char * custom_title, int custom_len)
-{
-    int i;
-    int coma = 0;
-
-    if (rank_field)
-    {
-        printf("rank");
-        coma = 1;
-    }
-    for (i=0; i < attr_count; i++)
-    {
-        if (coma)
-            printf(", %*s", attrindex2len(attr_list[i], csv),
-                   attrindex2name(attr_list[i]));
-        else
-        {
-            printf("%*s", attrindex2len(attr_list[i], csv),
-                   attrindex2name(attr_list[i]));
-            coma = 1;
-        }
-    }
-    if (p_profile)
-    {
-        if (p_profile->attr_index == ATTR_INDEX_size)
-        {
-            for (i=0; i < SZ_PROFIL_COUNT; i++)
-            {
-                if (coma)
-                    printf(", %*s", PROF_CNT_LEN, size_range[i].title);
-                else
-                {
-                    printf("%*s", PROF_CNT_LEN, size_range[i].title);
-                    coma = 1;
-                }
-            }
-            if (p_profile->range_ratio_len > 0)
-            {
-                char tmp[128];
-                char tmp1[128];
-                char tmp2[128];
-                if (p_profile->range_ratio_start + p_profile->range_ratio_len == SZ_PROFIL_COUNT)
-                    sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1));
-                else
-                    sprintf(tmp, "ratio(%s..%s-)",
-                            print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1),
-                            print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start + p_profile->range_ratio_len), tmp2));
-
-                printf(", %*s", PROF_RATIO_LEN, tmp);
-            }
-        }
-    }
-    if (custom_title)
-    {
-        if (coma)
-            printf(", %*s", custom_len, custom_title);
-        else
-            printf("%*s", custom_len, custom_title);
-    }
-    printf("\n");
-}
-
-static inline void print_attr_list(int rank_field, int * attr_list, int attr_count,
-                            profile_field_descr_t * p_profile, bool csv)
-{
-    print_attr_list_custom(rank_field, attr_list, attr_count, p_profile, csv, NULL, 0);
-}
-
-
-static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
-                             int attr_index, int csv, int resolv_id,
-                             char * out, const size_t out_sz)
-{
-    time_t tt;
-    struct tm stm;
-
-    if  (attr_index != ATTR_INDEX_fullpath /* specific case */
-         && (attrs->attr_mask & (1 << attr_index)) == 0)
-        return "";
-    if (attr_index >= ATTR_COUNT)
-        return STATUS_ATTR(attrs, attr_index - ATTR_COUNT);
-
-    switch(attr_index)
-    {
-        case ATTR_INDEX_fullpath:
-            if (ATTR_MASK_TEST(attrs, fullpath))
-                return ATTR(attrs, fullpath);
-            else if (resolv_id)
-                return ResolvName(id, attrs, out);
-            else
-                return "n/a"; /* TODO fid2path if possible? */
-        case ATTR_INDEX_avgsize:
-            if (csv)
-                sprintf(out, "%"PRIu64, ATTR(attrs, avgsize));
-            else
-                FormatFileSize(out, 128, ATTR(attrs, avgsize));
-            return out;
-        case ATTR_INDEX_dircount:
-            sprintf(out, "%u", ATTR(attrs, dircount));
-            return out;
-        case ATTR_INDEX_parent_id:
-            sprintf(out, DFID, PFID(&ATTR(attrs, parent_id)));
-            return out;
-
-        case ATTR_INDEX_link:
-             return ATTR(attrs, link);
-
-        case ATTR_INDEX_type:
-             return ATTR(attrs, type);
-        case ATTR_INDEX_nlink:
-             sprintf(out, "%u", ATTR(attrs, nlink));
-             return out;
-
-        case ATTR_INDEX_depth:
-             sprintf(out, "%u", ATTR(attrs, depth));
-             return out;
-
-        case ATTR_INDEX_name:
-             return ATTR(attrs, name);
-
-        case ATTR_INDEX_mode:
-            if (csv)
-                sprintf(out, "%#03o", ATTR(attrs, mode));
-            else
-            {
-                memset(out, 0, out_sz);
-                mode_string(ATTR(attrs, mode), out);
-            }
-            return out;
-
-        case ATTR_INDEX_owner: return ATTR(attrs, owner);
-        case ATTR_INDEX_gr_name: return ATTR(attrs, gr_name);
-        case ATTR_INDEX_blocks:
-            if (csv)
-                sprintf(out, "%"PRIu64, ATTR(attrs, blocks) * DEV_BSIZE);
-            else
-                FormatFileSize(out, 128, ATTR(attrs, blocks) * DEV_BSIZE);
-            return out;
-
-        case ATTR_INDEX_size:
-            if (csv)
-                sprintf(out, "%"PRIu64, ATTR(attrs, size));
-            else
-                FormatFileSize(out, 128, ATTR(attrs, size));
-            return out;
-
-        case ATTR_INDEX_last_access:
-            tt = ATTR(attrs, last_access);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-
-        case ATTR_INDEX_last_mod:
-            tt = ATTR(attrs, last_mod);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-
-        case ATTR_INDEX_creation_time:
-            tt = ATTR(attrs, creation_time);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-
-        case ATTR_INDEX_md_update:
-            tt = ATTR(attrs, md_update);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-
-        case ATTR_INDEX_path_update:
-            tt = ATTR(attrs, path_update);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-
-        case ATTR_INDEX_fileclass:
-            return ATTR(attrs, fileclass);
-
-        case ATTR_INDEX_class_update:
-            tt = ATTR(attrs, class_update);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-
-#ifdef ATTR_INDEX_invalid
-        case ATTR_INDEX_invalid: return (ATTR(attrs, invalid) ? "yes" : "no");
-#endif
-#ifdef ATTR_INDEX_last_archive
-        case ATTR_INDEX_last_archive:
-            tt = ATTR(attrs, last_archive);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-#endif
-#ifdef ATTR_INDEX_last_restore
-        case ATTR_INDEX_last_restore:
-            tt = ATTR(attrs, last_restore);
-            strftime(out, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-#endif
-#ifdef ATTR_INDEX_backendpath
-        case ATTR_INDEX_backendpath:
-            return ATTR(attrs, backendpath);
-#endif
-
-#ifdef _LUSTRE
-        case ATTR_INDEX_stripe_info:
-            if (csv)
-                sprintf(out, "%10u, %11"PRIu64", %9s",
-                    ATTR( attrs, stripe_info ).stripe_count,
-                    ATTR( attrs, stripe_info ).stripe_size,
-                    ATTR( attrs, stripe_info ).pool_name);
-            else {
-                char tmp[128];
-                FormatFileSize(tmp, 128, ATTR( attrs, stripe_info ).stripe_size);
-                sprintf(out, "%10u, %11s, %9s",
-                    ATTR( attrs, stripe_info ).stripe_count, tmp,
-                    ATTR( attrs, stripe_info ).pool_name);
-            }
-            return out;
-
-        case ATTR_INDEX_stripe_items:
-            FormatStripeList(out, out_sz, &ATTR( attrs, stripe_items ), csv);
-            return out;
-#endif
-    }
-    return "?";
-}
-
-static void print_attr_values_custom(int rank, int *attr_list, int attr_count,
-                              attr_set_t * attrs, const entry_id_t *id,
-                              bool csv, bool resolv_id,
-                              const char *custom, int custom_len)
-{
-    int i, coma = 0;
-    char str[24576];
-    if (rank)
-    {
-        printf("%4d", rank);
-        coma = 1;
-    }
-    for (i=0; i < attr_count; i++)
-    {
-        if (coma)
-            printf(", %*s", attrindex2len(attr_list[i], csv),
-                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str, sizeof(str)));
-        else
-        {
-            printf("%*s", attrindex2len(attr_list[i], csv),
-                   attr2str(attrs, id, attr_list[i], csv, resolv_id, str, sizeof(str)));
-            coma = 1;
-        }
-    }
-    if (custom)
-    {
-        if (coma)
-            printf(", %*s", custom_len, custom);
-        else
-            printf("%*s", custom_len, custom);
-    }
-    printf("\n");
-}
-
-
-
-static inline void print_attr_values(int rank, int * attr_list, int attr_count,
-                              attr_set_t * attrs, const entry_id_t * id,
-                              int csv, int resolv_id)
-{
-    print_attr_values_custom(rank, attr_list, attr_count, attrs, id, csv, resolv_id,
-                             NULL, 0);
-}
-
-/* return attr name to be displayed */
-static inline const char * attrdesc2name(const report_field_descr_t * desc)
-{
-    switch(desc->attr_index)
-    {
-        case -1:
-            if (desc->report_type == REPORT_COUNT)
-                return "count";
-            break;
-        case ATTR_INDEX_size:
-            if (desc->report_type == REPORT_MIN)
-                return "min_size";
-            else if (desc->report_type == REPORT_MAX)
-                return "max_size";
-            else if (desc->report_type == REPORT_AVG)
-                return "avg_size";
-            else if (desc->report_type == REPORT_SUM)
-                return "volume";
-            else
-                return "size";
-        /*default: */
-    }
-    return attrindex2name(desc->attr_index);
-}
-
-
-static const char *result_val2str(const report_field_descr_t * desc,
-                                  const db_value_t * val, int csv,
-                                  char * out)
-{
-    out[0] = '\0';
-
-    if (desc->attr_index >= ATTR_COUNT) /* status */
-        return status_format(val->value_u.val_str);
-
-    switch(desc->attr_index)
-    {
-        case -1: /* count */
-            sprintf(out, "%llu", val->value_u.val_biguint);
-            break;
-        case ATTR_INDEX_type:
-        case ATTR_INDEX_owner:
-        case ATTR_INDEX_gr_name:
-            strcpy(out, val->value_u.val_str);
-            break;
-        case ATTR_INDEX_size:
-            if (csv)
-                sprintf(out, "%llu", val->value_u.val_biguint);
-            else
-                FormatFileSize( out, 128, val->value_u.val_biguint );
-            break;
-        case ATTR_INDEX_blocks:
-            if (csv)
-                sprintf(out, "%llu", val->value_u.val_biguint * DEV_BSIZE);
-            else
-                FormatFileSize( out, 128, val->value_u.val_biguint * DEV_BSIZE);
-            break;
-        case ATTR_INDEX_fileclass:
-            return class_format(val->value_u.val_str);
-    }
-    return out;
-}
-
-
-
 /**
- * Generic function to display a report
+ * Manage fid2path resolution
  */
-static void display_report(const report_field_descr_t *descr, unsigned int field_count,
-                           const db_value_t *result, unsigned int result_count,
-                           const profile_field_descr_t *prof_descr, profile_u *p_prof,
-                           int flags, int header, int rank)
+static int TryId2path(lmgr_t *p_mgr, const entry_id_t *p_id,  char *path)
 {
-    unsigned int i;
+    static int is_init = 0;
+    static int is_resolvable = 0;
+    int rc;
+    char value[1024];
 
-    if (!NOHEADER(flags) && header)
-    {
-        if (rank)
-            printf("rank, ");
+    if (!is_init) {
+        is_init = 1;
+        /* try to get fspath from DB */
+        rc = ListMgr_GetVar(&lmgr, FS_PATH_VAR, value);
+        if (rc)
+            return -1;
 
-        printf("%-*s", attrindex2len(descr[0].attr_index, CSV(flags)),
-               attrdesc2name(&descr[0]));
-        for (i = 1; i < field_count && i < result_count; i++)
-            if (!result || !DB_IS_NULL(&result[i]))
-                printf( ", %*s", attrindex2len(descr[i].attr_index, CSV(flags)),
-                        attrdesc2name(&descr[i]));
-        if (prof_descr)
-        {
-            if (prof_descr->attr_index == ATTR_INDEX_size)
-            {
-                for (i=0; i < SZ_PROFIL_COUNT; i++)
-                    printf(", %*s", PROF_CNT_LEN, size_range[i].title);
+        InitUidGid_Cache();
 
-                if (prof_descr->range_ratio_len > 0)
-                {
-                    char tmp[128];
-                    char tmp1[128];
-                    char tmp2[128];
-                    if (prof_descr->range_ratio_start + prof_descr->range_ratio_len == SZ_PROFIL_COUNT)
-                        sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1));
-                    else
-                        sprintf(tmp, "ratio(%s..%s)",
-                                print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1),
-                                print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start + prof_descr->range_ratio_len) -1, tmp2));
-
-                    printf(", %*s", PROF_RATIO_LEN, tmp);
-                }
-            }
-        }
-
-        printf("\n");
+        if (InitFS() == 0)
+            is_resolvable = 1;
+        else
+            return -1;
     }
+    if (!is_resolvable)
+        return -1;
 
-    if (result)
+#ifdef _HAVE_FID
+    /* filesystem is mounted and fsname can be get: solve the fid */
+    rc = Lustre_GetFullPath(p_id, path, RBH_PATH_MAX);
+    return rc;
+#else
+    entry_id_t root_id;
+    if (Path2Id(global_config.fs_path, &root_id) == 0)
     {
-        if (rank)
-            printf("%4d, ", rank);
-
-        char tmpstr[1024];
-        for (i = 0; i < field_count && i < result_count; i++)
+        if (entry_id_equal(p_id, &root_id))
         {
-            if (!DB_IS_NULL(&result[i]) || i == 0) /* tag first column */
-                printf("%s%*s", i == 0 ? "":", ",
-                       attrindex2len(descr[i].attr_index, CSV(flags)),
-                       result_val2str(&descr[i],&result[i], CSV(flags), tmpstr));
-            else
-                printf("%s%*s", i == 0 ? "":", ", attrindex2len(descr[i].attr_index, CSV(flags)), " ");
+            strcpy(path, global_config.fs_path);
+            return 0;
         }
-
-        if (prof_descr && p_prof)
-        {
-            if (prof_descr->attr_index == ATTR_INDEX_size)
-            {
-                uint64_t tot=0;
-                uint64_t range=0;
-
-                for (i=0; i < SZ_PROFIL_COUNT; i++)
-                {
-                    printf(", %*"PRIu64, PROF_CNT_LEN, p_prof->size.file_count[i]);
-                    tot += p_prof->size.file_count[i];
-                    if ((prof_descr->range_ratio_len > 0) &&
-                        (i >= prof_descr->range_ratio_start) &&
-                        (i < prof_descr->range_ratio_start + prof_descr->range_ratio_len))
-                        range += p_prof->size.file_count[i];
-                }
-
-                if (prof_descr->range_ratio_len > 0)
-                    printf(", %.2f%%", 100.0*range/tot);
-            }
-        }
-
-        printf("\n");
     }
+    return -1;
+#endif
 }
 
+static const char *ResolvName(const entry_id_t *p_id, attr_set_t *attrs,
+                               char *buff)
+{
+    if (ATTR_MASK_TEST(attrs, fullpath))
+    {
+        return  ATTR(attrs, fullpath);
+    }
+    /* try to get dir path from fid if it's mounted */
+    else if (TryId2path(&lmgr, p_id, ATTR(attrs, fullpath)) == 0)
+    {
+        struct stat st;
+        ATTR_MASK_SET(attrs, fullpath);
 
+        /* we're lucky, try lstat now! */
+        if (lstat(ATTR(attrs, fullpath), &st) == 0)
+            PosixStat2EntryAttr(&st, attrs, true);
+        return ATTR(attrs, fullpath);
+    }
+    else
+    {
+        /* last case: display the raw ID */
+        sprintf(buff, DFID, PFID(p_id));
+        return buff;
+    }
+}
 
 static void dump_entries( type_dump type, int int_arg, char * str_arg, value_list_t * ost_list, int flags )
 {
@@ -1954,7 +1365,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
 
         if (type != DUMP_OST)
             print_attr_values(0, list, list_cnt, &attrs, &id,
-                              CSV(flags), false);
+                              CSV(flags), NULL);
 #ifdef _LUSTRE
         else
         {
@@ -1988,7 +1399,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
              * to indicate if file really has data on the given OST.
              */
             print_attr_values_custom(0, list, list_cnt, &attrs, &id,
-                              CSV(flags), false, has_data, custom_len);
+                              CSV(flags), NULL, has_data, custom_len);
         }
 #endif
 
@@ -2043,7 +1454,7 @@ static void report_fs_info( int flags )
     total_size = total_count = 0;
     lmgr_iter_opt_t opt;
     profile_u   prof;
-    int display_header = 1;
+    bool display_header = !NOHEADER(flags);
 
     if (REVERSE(flags))
         fs_info[0].sort_flag = SORT_DESC;
@@ -2087,12 +1498,12 @@ static void report_fs_info( int flags )
         if (result[1].value_u.val_biguint == 0) /* count=0 (don't display)*/
             display_report(fs_info, FSINFOCOUNT, NULL, result_count,
                            SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                           flags, display_header, 0);
+                           CSV(flags), display_header, 0);
         else
             display_report(fs_info, FSINFOCOUNT, result, result_count,
                            SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                           flags, display_header, 0);
-        display_header = 0; /* just display it once */
+                           CSV(flags), display_header, 0);
+        display_header = false; /* just display it once */
 
         total_count += result[1].value_u.val_biguint;
         total_size += result[2].value_u.val_biguint;
@@ -2159,11 +1570,11 @@ static int report_entry(const char *entry, int flags)
                 {
                     if (!CSV(flags))
                         printf("%-15s: \t%s\n", attrindex2name(i),
-                               attr2str(&attrs, &id, i, CSV(flags), false,
+                               attr2str(&attrs, &id, i, CSV(flags), NULL,
                                str, sizeof(str)));
                     else
                         printf("%s, %s\n", attrindex2name(i),
-                               attr2str(&attrs, &id, i, CSV(flags), false,
+                               attr2str(&attrs, &id, i, CSV(flags), NULL,
                                str, sizeof(str)));
                 }
             }
@@ -2196,7 +1607,7 @@ static void report_usergroup_info( char *name, int flags )
     unsigned int   field_count = 0;
     unsigned int   shift = 0;
     bool           is_filter = false;
-    bool           display_header = true;
+    bool           display_header = !NOHEADER(flags);
     unsigned long long total_size, total_count;
     total_size = total_count = 0;
     lmgr_iter_opt_t opt;
@@ -2321,8 +1732,8 @@ static void report_usergroup_info( char *name, int flags )
         result_count = field_count;
         display_report(user_info, result_count, result, result_count,
                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                       flags, display_header, 0);
-        display_header = 0; /* just display it once */
+                       CSV(flags), display_header, 0);
+        display_header = false; /* just display it once */
 
         total_count += result[1+shift].value_u.val_biguint;
 #if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
@@ -2430,7 +1841,7 @@ static void report_topdirs( unsigned int count, int flags )
         index++;
         /* resolv id for dir requests */
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), true);
+                          CSV(flags), ResolvName);
 
         ListMgr_FreeAttrs( &attrs );
 
@@ -2511,7 +1922,7 @@ static void report_topsize( unsigned int count, int flags )
     {
         index++;
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), false);
+                          CSV(flags), NULL);
 
         ListMgr_FreeAttrs( &attrs );
         /* prepare next call */
@@ -2614,7 +2025,7 @@ static void report_toppurge( unsigned int count, int flags )
         index++;
 
         print_attr_values(index, list, list_cnt, &attrs, &id,
-                          CSV(flags), false);
+                          CSV(flags), NULL);
         ListMgr_FreeAttrs( &attrs );
 
         /* prepare next call */
@@ -2734,7 +2145,7 @@ static void report_toprmdir( unsigned int count, int flags )
 
 
         print_attr_values_custom(index, list, list_cnt, &attrs, &id,
-                                 CSV(flags), false, dur, 20);
+                                 CSV(flags), NULL, dur, 20);
 
         ListMgr_FreeAttrs( &attrs );
 
@@ -2834,7 +2245,7 @@ static void report_topuser( unsigned int count, int flags )
     {
         display_report(user_info, result_count, result, result_count,
                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                       flags, rank == 1, rank); /* display header once */
+                       CSV(flags), (rank == 1) && !NOHEADER(flags), rank); /* display header once */
 
         rank++;
 
@@ -2939,7 +2350,7 @@ static void report_class_info( int flags )
     struct lmgr_report_t *it;
     lmgr_filter_t  filter;
     int            rc;
-    int header;
+    bool header;
     unsigned int   result_count;
     profile_u prof;
     bool is_filter = false;
@@ -2987,8 +2398,8 @@ static void report_class_info( int flags )
     {
         display_report(class_info, result_count, result, result_count,
                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                       flags, header, 0);
-        header = 0; /* display header once */
+                       CSV(flags), header, 0);
+        header = false; /* display header once */
 
         total_count += result[1].value_u.val_biguint;
         total_size += result[3].value_u.val_biguint;
@@ -3016,7 +2427,7 @@ static void report_status_info(int smi_index, const char* val, int flags)
     struct lmgr_report_t *it;
     lmgr_filter_t  filter;
     int            rc;
-    int header;
+    bool header;
     unsigned int   result_count;
     profile_u prof;
     bool is_filter = false;
@@ -3077,8 +2488,8 @@ static void report_status_info(int smi_index, const char* val, int flags)
     {
         display_report(status_info, result_count, result, result_count,
                        SPROF(flags)?&size_profile:NULL, SPROF(flags)?&prof:NULL,
-                       flags, header, 0);
-        header = 0; /* display header once */
+                       CSV(flags), header, 0);
+        header = false; /* display header once */
 
         total_count += result[2].value_u.val_biguint;
         total_size += result[4].value_u.val_biguint;

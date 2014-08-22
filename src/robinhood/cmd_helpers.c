@@ -374,4 +374,558 @@ int parse_diff_mask(const char * arg, uint64_t *diff_mask, char * msg)
     return 0;
 }
 
+/** print an attribute from attrs structure */
+const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
+                     int attr_index, int csv, name_func name_resolver,
+                     char *out, size_t out_sz)
+{
+    time_t tt;
+    struct tm stm;
+
+    if  (attr_index != ATTR_INDEX_fullpath /* specific case */
+         && (attrs->attr_mask & (1 << attr_index)) == 0)
+        return "";
+    if (attr_index >= ATTR_COUNT)
+        return STATUS_ATTR(attrs, attr_index - ATTR_COUNT);
+
+    switch(attr_index)
+    {
+        case ATTR_INDEX_fullpath:
+            if (ATTR_MASK_TEST(attrs, fullpath))
+                return ATTR(attrs, fullpath);
+            else if (name_resolver != NULL)
+                return name_resolver(id, attrs, out);
+            else
+                return "n/a"; /* TODO fid2path if possible? */
+        case ATTR_INDEX_avgsize:
+            if (csv)
+                snprintf(out, out_sz, "%"PRIu64, ATTR(attrs, avgsize));
+            else
+                FormatFileSize(out, out_sz, ATTR(attrs, avgsize));
+            return out;
+        case ATTR_INDEX_dircount:
+            snprintf(out, out_sz, "%u", ATTR(attrs, dircount));
+            return out;
+        case ATTR_INDEX_parent_id:
+            snprintf(out, out_sz, DFID, PFID(&ATTR(attrs, parent_id)));
+            return out;
+
+        case ATTR_INDEX_link:
+             return ATTR(attrs, link);
+
+        case ATTR_INDEX_type:
+             return ATTR(attrs, type);
+        case ATTR_INDEX_nlink:
+             snprintf(out, out_sz, "%u", ATTR(attrs, nlink));
+             return out;
+
+        case ATTR_INDEX_depth:
+             snprintf(out, out_sz, "%u", ATTR(attrs, depth));
+             return out;
+
+        case ATTR_INDEX_name:
+             return ATTR(attrs, name);
+
+        case ATTR_INDEX_mode:
+            if (csv)
+                snprintf(out, out_sz, "%#03o", ATTR(attrs, mode));
+            else
+            {
+                memset(out, 0, out_sz);
+                mode_string(ATTR(attrs, mode), out);
+            }
+            return out;
+
+        case ATTR_INDEX_owner: return ATTR(attrs, owner);
+        case ATTR_INDEX_gr_name: return ATTR(attrs, gr_name);
+        case ATTR_INDEX_blocks:
+            if (csv)
+                snprintf(out, out_sz, "%"PRIu64, ATTR(attrs, blocks) * DEV_BSIZE);
+            else
+                FormatFileSize(out, out_sz, ATTR(attrs, blocks) * DEV_BSIZE);
+            return out;
+
+        case ATTR_INDEX_size:
+            if (csv)
+                snprintf(out, out_sz, "%"PRIu64, ATTR(attrs, size));
+            else
+                FormatFileSize(out, out_sz, ATTR(attrs, size));
+            return out;
+
+        case ATTR_INDEX_last_access:
+            tt = ATTR(attrs, last_access);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_last_mod:
+            tt = ATTR(attrs, last_mod);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_creation_time:
+            tt = ATTR(attrs, creation_time);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_md_update:
+            tt = ATTR(attrs, md_update);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_path_update:
+            tt = ATTR(attrs, path_update);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_fileclass:
+            return ATTR(attrs, fileclass);
+
+        case ATTR_INDEX_class_update:
+            tt = ATTR(attrs, class_update);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+#ifdef ATTR_INDEX_invalid
+        case ATTR_INDEX_invalid: return (ATTR(attrs, invalid) ? "yes" : "no");
+#endif
+#ifdef ATTR_INDEX_last_archive
+        case ATTR_INDEX_last_archive:
+            tt = ATTR(attrs, last_archive);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+#endif
+#ifdef ATTR_INDEX_last_restore
+        case ATTR_INDEX_last_restore:
+            tt = ATTR(attrs, last_restore);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+#endif
+#ifdef ATTR_INDEX_backendpath
+        case ATTR_INDEX_backendpath:
+            return ATTR(attrs, backendpath);
+#endif
+
+#ifdef _LUSTRE
+        case ATTR_INDEX_stripe_info:
+            if (csv)
+                snprintf(out, out_sz, "%10u, %11"PRIu64", %9s",
+                    ATTR(attrs, stripe_info).stripe_count,
+                    ATTR(attrs, stripe_info).stripe_size,
+                    ATTR(attrs, stripe_info).pool_name);
+            else {
+                char tmp[128];
+                FormatFileSize(tmp, sizeof(tmp), ATTR(attrs, stripe_info).stripe_size);
+                sprintf(out, "%10u, %11s, %9s",
+                    ATTR(attrs, stripe_info).stripe_count, tmp,
+                    ATTR(attrs, stripe_info).pool_name);
+            }
+            return out;
+
+        case ATTR_INDEX_stripe_items:
+            FormatStripeList(out, out_sz, &ATTR(attrs, stripe_items), csv);
+            return out;
+#endif
+    }
+    return "?";
+}
+
+/** display helper type */
+typedef const char *(*result2str_func)(const db_value_t *val, bool csv,
+                                       char *out, size_t out_sz);
+
+
+/** display helper functions */
+static const char *print_res_status(const db_value_t *val, bool csv,
+                                    char *out, size_t out_sz)
+{
+    return status_format(val->value_u.val_str);
+}
+
+static const char *print_res_class(const db_value_t *val, bool csv,
+                                   char *out, size_t out_sz)
+{
+    return class_format(val->value_u.val_str);
+}
+
+static const char *print_res_count(const db_value_t *val, bool csv,
+                                   char *out, size_t out_sz)
+{
+    snprintf(out, out_sz, "%llu", val->value_u.val_biguint);
+    return out;
+}
+
+static const char *print_res_string(const db_value_t *val, bool csv,
+                                    char *out, size_t out_sz)
+{
+    rh_strncpy(out, val->value_u.val_str, out_sz);
+    return out;
+}
+
+static const char *print_res_size(const db_value_t *val, bool csv,
+                                  char *out, size_t out_sz)
+{
+    if (csv)
+        snprintf(out, out_sz, "%llu", val->value_u.val_biguint);
+    else
+        FormatFileSize(out, out_sz, val->value_u.val_biguint);
+
+    return out;
+}
+
+static const char *print_res_space(const db_value_t *val, bool csv,
+                                   char *out, size_t out_sz)
+{
+    if (csv)
+        snprintf(out, out_sz, "%llu", val->value_u.val_biguint * DEV_BSIZE);
+    else
+        FormatFileSize(out, out_sz, val->value_u.val_biguint * DEV_BSIZE);
+
+    return out;
+}
+
+static const char *print_res_empty(const db_value_t *val, bool csv,
+                                   char *out, size_t out_sz)
+{
+    out[0] = '\0';
+    return out;
+}
+
+/** attribute display specification for reports */
+struct attr_display_spec {
+    int attr_index;
+    const char  *name;
+    unsigned int length_csv;
+    unsigned int length_full;
+    result2str_func result2str;
+} attr[] = {
+        {ATTR_INDEX_fullpath,  "path", 40, 40},
+        {ATTR_INDEX_name,      "name", 10, 10},
+        {ATTR_INDEX_depth,     "depth", 3, 3},
+        {ATTR_INDEX_dircount,  "dircount", 8, 8},
+        {ATTR_INDEX_type,      "type", 8, 8, print_res_string},
+        {ATTR_INDEX_mode,      "mode", 4, 6},
+        {ATTR_INDEX_nlink,     "nlink", 5, 5},
+        {ATTR_INDEX_parent_id, "parent_id", 20, 20},
+        {ATTR_INDEX_owner,     "user", 10, 10, print_res_string},
+        {ATTR_INDEX_gr_name,   "group", 10, 10, print_res_string},
+        {ATTR_INDEX_link,      "link", 20, 20},
+        {ATTR_INDEX_fileclass, "fileclass", 30, 30, print_res_class},
+        /* times */
+        {ATTR_INDEX_last_access,   "last_access", 20, 20},
+        {ATTR_INDEX_last_mod,      "last_mod", 20, 20},
+        {ATTR_INDEX_creation_time, "creation", 20, 20},
+        {ATTR_INDEX_md_update,     "md updt", 20, 20},
+        {ATTR_INDEX_path_update,   "path updt", 20, 20},
+        {ATTR_INDEX_class_update,  "class updt", 20, 20},
+#ifdef ATTR_INDEX_last_archive
+        {ATTR_INDEX_last_archive, "last_archive", 20, 20},
+#endif
+#ifdef ATTR_INDEX_last_restore
+        {ATTR_INDEX_last_restore, "last_restore", 20, 20},
+#endif
+        /* sizes */
+        /* 15 digits for 999To, 10 chars for 1024.21 GB */
+        {ATTR_INDEX_blocks,    "spc_used", 15, 10, print_res_space},
+        {ATTR_INDEX_avgsize,   "avgsize", 15, 10},
+        {ATTR_INDEX_size,      "size", 15, 10, print_res_size},
+
+#ifdef ATTR_INDEX_invalid
+        {ATTR_INDEX_invalid, "invalid", 3, 3}, /* yes/no */
+#endif
+#ifdef ATTR_INDEX_backendpath
+        {ATTR_INDEX_backendpath, "backend_path", 40, 40},
+#endif
+#define STRIPE_TITLE "stripe_cnt, stripe_size,      pool"
+        {ATTR_INDEX_stripe_info,  STRIPE_TITLE, sizeof(STRIPE_TITLE), sizeof(STRIPE_TITLE)},
+        {ATTR_INDEX_stripe_items, "stripes", 30, 30},
+        {-1, "count", 10, 10, print_res_count}, /* count */
+
+        {0, NULL, 0, 0}, /* final element */
+};
+
+static inline struct attr_display_spec *attr_info(int index)
+{
+    int i;
+    static struct attr_display_spec tmp_rec = {-1, "?", 1, 1, NULL};
+
+
+    if (index >= ATTR_COUNT) /* status */
+    {
+        /* build a special decriptor (/!\ not reentrant) */
+        tmp_rec.attr_index = index;
+        tmp_rec.name = get_sm_instance(index - ATTR_COUNT)->db_field;
+        tmp_rec.length_csv = tmp_rec.length_full = 15;
+        tmp_rec.result2str = print_res_status;
+        return &tmp_rec;
+    }
+
+    for (i = 0; attr[i].name != NULL; i++)
+        if (attr[i].attr_index == index)
+            return &attr[i];
+
+    tmp_rec.attr_index = index;
+    tmp_rec.result2str = print_res_empty;
+    return &tmp_rec;
+}
+
+static inline int rec_len(struct attr_display_spec *rec, bool csv)
+{
+    return csv? rec->length_csv : rec->length_full;
+}
+
+const char *attrindex2name(unsigned int index)
+{
+    int i;
+
+    if (index >= ATTR_COUNT) /* status */
+        return get_sm_instance(index - ATTR_COUNT)->db_field;
+
+    for (i = 0; attr[i].name != NULL; i++)
+        if (attr[i].attr_index == index)
+            return attr[i].name;
+
+    return "?";
+}
+
+unsigned int attrindex2len(unsigned int index, int csv)
+{
+    int i;
+
+    if (index >= ATTR_COUNT) /* status */
+        return 15;
+
+    for (i = 0; attr[i].name != NULL; i++)
+        if (attr[i].attr_index == index)
+            return (csv? attr[i].length_csv : attr[i].length_full);
+
+    return 1; /* for '?' */
+}
+
+#define PROF_CNT_LEN     8
+#define PROF_RATIO_LEN   7
+
+/** standard attribute display for reports */
+void print_attr_list_custom(int rank_field, int *attr_list, int attr_count,
+                            profile_field_descr_t *p_profile, bool csv,
+                            const char * custom_title, int custom_len)
+{
+    int i;
+    int coma = 0;
+    struct attr_display_spec *rec;
+
+    if (rank_field)
+    {
+        printf("rank");
+        coma = 1;
+    }
+    for (i=0; i < attr_count; i++)
+    {
+        rec = attr_info(attr_list[i]);
+        if (coma)
+            printf(", %*s", rec_len(rec, csv), rec->name);
+        else
+        {
+            printf("%*s", rec_len(rec, csv), rec->name);
+            coma = 1;
+        }
+    }
+    if (p_profile)
+    {
+        if (p_profile->attr_index == ATTR_INDEX_size)
+        {
+            for (i=0; i < SZ_PROFIL_COUNT; i++)
+            {
+                if (coma)
+                    printf(", %*s", PROF_CNT_LEN, size_range[i].title);
+                else
+                {
+                    printf("%*s", PROF_CNT_LEN, size_range[i].title);
+                    coma = 1;
+                }
+            }
+            if (p_profile->range_ratio_len > 0)
+            {
+                char tmp[128];
+                char tmp1[128];
+                char tmp2[128];
+                if (p_profile->range_ratio_start + p_profile->range_ratio_len == SZ_PROFIL_COUNT)
+                    sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1));
+                else
+                    sprintf(tmp, "ratio(%s..%s-)",
+                            print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start), tmp1),
+                            print_brief_sz( SZ_MIN_BY_INDEX(p_profile->range_ratio_start + p_profile->range_ratio_len), tmp2));
+
+                printf(", %*s", PROF_RATIO_LEN, tmp);
+            }
+        }
+    }
+    if (custom_title)
+    {
+        if (coma)
+            printf(", %*s", custom_len, custom_title);
+        else
+            printf("%*s", custom_len, custom_title);
+    }
+    printf("\n");
+}
+
+void print_attr_values_custom(int rank, int *attr_list, int attr_count,
+                              attr_set_t * attrs, const entry_id_t *id,
+                              bool csv, name_func name_resolver,
+                              const char *custom, int custom_len)
+{
+    int i, coma = 0;
+    char str[24576];
+    struct attr_display_spec *rec;
+
+    if (rank)
+    {
+        printf("%4d", rank);
+        coma = 1;
+    }
+
+    for (i=0; i < attr_count; i++)
+    {
+        rec = attr_info(attr_list[i]);
+        if (coma)
+            printf(", %*s", rec_len(rec, csv),
+                   attr2str(attrs, id, attr_list[i], csv, name_resolver, str, sizeof(str)));
+        else
+        {
+            printf("%*s", rec_len(rec, csv),
+                   attr2str(attrs, id, attr_list[i], csv, name_resolver, str, sizeof(str)));
+            coma = 1;
+        }
+    }
+    if (custom)
+    {
+        if (coma)
+            printf(", %*s", custom_len, custom);
+        else
+            printf("%*s", custom_len, custom);
+    }
+    printf("\n");
+}
+
+/* return attr name to be displayed */
+static inline const char *attrdesc2name(const report_field_descr_t *desc,
+                                        struct attr_display_spec *rec)
+{
+    switch(desc->attr_index)
+    {
+        case -1:
+            if (desc->report_type == REPORT_COUNT)
+                return "count";
+            break;
+        case ATTR_INDEX_size:
+            if (desc->report_type == REPORT_MIN)
+                return "min_size";
+            else if (desc->report_type == REPORT_MAX)
+                return "max_size";
+            else if (desc->report_type == REPORT_AVG)
+                return "avg_size";
+            else if (desc->report_type == REPORT_SUM)
+                return "volume";
+            else
+                return "size";
+        /*default: */
+    }
+    return rec->name;
+}
+
+/**
+ * Generic function to display a report
+ */
+void display_report(const report_field_descr_t *descr, unsigned int field_count,
+                    const db_value_t *result, unsigned int result_count,
+                    const profile_field_descr_t *prof_descr, profile_u *p_prof,
+                    bool csv, bool header, int rank)
+{
+    unsigned int i;
+    struct attr_display_spec *rec;
+
+    if (header)
+    {
+        if (rank)
+            printf("rank, ");
+
+        rec = attr_info(descr[0].attr_index);
+        printf("%-*s", rec_len(rec, csv), attrdesc2name(&descr[0], rec));
+
+        for (i = 1; i < field_count && i < result_count; i++)
+        {
+            if (!result || !DB_IS_NULL(&result[i]))
+            {
+                rec = attr_info(descr[i].attr_index);
+                printf( ", %*s", rec_len(rec, csv), attrdesc2name(&descr[i], rec));
+            }
+        }
+        if (prof_descr)
+        {
+            if (prof_descr->attr_index == ATTR_INDEX_size)
+            {
+                for (i=0; i < SZ_PROFIL_COUNT; i++)
+                    printf(", %*s", PROF_CNT_LEN, size_range[i].title);
+
+                if (prof_descr->range_ratio_len > 0)
+                {
+                    char tmp[128];
+                    char tmp1[128];
+                    char tmp2[128];
+                    if (prof_descr->range_ratio_start + prof_descr->range_ratio_len == SZ_PROFIL_COUNT)
+                        sprintf(tmp, "ratio(%s..inf)", print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1));
+                    else
+                        sprintf(tmp, "ratio(%s..%s)",
+                                print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start), tmp1),
+                                print_brief_sz( SZ_MIN_BY_INDEX(prof_descr->range_ratio_start + prof_descr->range_ratio_len) -1, tmp2));
+
+                    printf(", %*s", PROF_RATIO_LEN, tmp);
+                }
+            }
+        }
+
+        printf("\n");
+    }
+
+    if (result)
+    {
+        if (rank)
+            printf("%4d, ", rank);
+
+        char tmpstr[1024];
+        for (i = 0; i < field_count && i < result_count; i++)
+        {
+            rec = attr_info(descr[i].attr_index);
+
+            if (!DB_IS_NULL(&result[i]) || i == 0) /* tag first column */
+                printf("%s%*s", i == 0 ? "":", ", rec_len(rec, csv),
+                       rec->result2str(&result[i], csv, tmpstr, sizeof(tmpstr)));
+        }
+
+        if (prof_descr && p_prof)
+        {
+            if (prof_descr->attr_index == ATTR_INDEX_size)
+            {
+                uint64_t tot=0;
+                uint64_t range=0;
+
+                for (i=0; i < SZ_PROFIL_COUNT; i++)
+                {
+                    printf(", %*"PRIu64, PROF_CNT_LEN, p_prof->size.file_count[i]);
+                    tot += p_prof->size.file_count[i];
+                    if ((prof_descr->range_ratio_len > 0) &&
+                        (i >= prof_descr->range_ratio_start) &&
+                        (i < prof_descr->range_ratio_start + prof_descr->range_ratio_len))
+                        range += p_prof->size.file_count[i];
+                }
+
+                if (prof_descr->range_ratio_len > 0)
+                    printf(", %.2f%%", 100.0*range/tot);
+            }
+        }
+
+        printf("\n");
+    }
+}
+
 

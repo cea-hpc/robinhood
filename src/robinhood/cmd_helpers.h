@@ -65,4 +65,88 @@ static inline void free_wagon(wagon_t *ids, int first, int last)
 /* parse attrset for --diff option */
 int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg);
 
+#define KB  1024LL
+#define MB  (KB*KB)
+#define GB  (KB*MB)
+#define TB  (KB*GB)
+#define PB  (KB*TB)
+#define EB  (KB*PB)
+
+static inline char *print_brief_sz(uint64_t sz, char * buf)
+{
+    if (sz < KB)
+        sprintf(buf, "%"PRIu64, sz);
+    else if (sz < MB)
+        sprintf(buf, "%lluK", sz/KB);
+    else if (sz < GB)
+        sprintf(buf, "%lluM", sz/MB);
+    else if (sz < TB)
+        sprintf(buf, "%lluG", sz/GB);
+    else if (sz < PB)
+        sprintf(buf, "%lluT", sz/TB);
+    else if (sz < EB)
+        sprintf(buf, "%lluP", sz/PB);
+    else
+        sprintf(buf, "%lluE", sz/EB);
+    return buf;
+}
+
+const char *attrindex2name(unsigned int index);
+unsigned int attrindex2len(unsigned int index, int csv);
+
+/** function to try resolving the name from attributes and id */
+typedef const char *(*name_func)(const entry_id_t *p_id, attr_set_t *attrs,
+                                 char *buff);
+
+const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
+                     int attr_index, int csv, name_func name_resolver,
+                     char *out, size_t out_sz);
+
+void print_attr_list_custom(int rank_field, int *attr_list, int attr_count,
+                            profile_field_descr_t *p_profile, bool csv,
+                            const char *custom_title, int custom_len);
+
+void print_attr_values_custom(int rank, int *attr_list, int attr_count,
+                              attr_set_t * attrs, const entry_id_t *id,
+                              bool csv, name_func name_resolver,
+                              const char *custom, int custom_len);
+
+static inline void print_attr_list(int rank_field, int *attr_list, int attr_count,
+                                   profile_field_descr_t *p_profile, bool csv)
+{
+    print_attr_list_custom(rank_field, attr_list, attr_count, p_profile, csv, NULL, 0);
+}
+
+static inline void print_attr_values(int rank, int *attr_list, int attr_count,
+                                     attr_set_t *attrs, const entry_id_t *id,
+                                     bool csv, name_func name_resolver)
+{
+    print_attr_values_custom(rank, attr_list, attr_count, attrs, id, csv,
+                             name_resolver, NULL, 0);
+}
+
+void display_report(const report_field_descr_t *descr, unsigned int field_count,
+                    const db_value_t *result, unsigned int result_count,
+                    const profile_field_descr_t *prof_descr, profile_u *p_prof,
+                    bool csv, bool header, int rank);
+
+static inline const char *class_format(const char *class_name)
+{
+    if (class_name == NULL)
+        return "[n/a]";
+    else if (EMPTY_STRING(class_name))
+        return "[none]";
+
+    return class_name;
+}
+
+static inline const char *status_format(const char *name)
+{
+    if (name == NULL)
+        return "[none]";
+
+    return name;
+}
+
+
 #endif

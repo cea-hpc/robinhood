@@ -158,13 +158,6 @@ static void reset_stats(stats_du_t * stats)
         stats[i] = stats_zero[i];
 }
 
-#define KB  1024LL
-#define MB  (KB*KB)
-#define GB  (KB*MB)
-#define TB  (KB*GB)
-#define PB  (KB*TB)
-#define EB  (KB*PB)
-
 static char * sprint_size(char * buf, uint64_t sz)
 {
     switch (prog_options.disp_how)
@@ -186,7 +179,7 @@ static char * sprint_size(char * buf, uint64_t sz)
             break;
         case disp_human:
             if (sz < KB)
-                sprintf(buf, "%"PRIu64"", sz);
+                sprintf(buf, "%"PRIu64, sz);
             else if (sz < MB)
                 sprintf(buf, "%.1fK", 1.0*sz/KB);
             else if (sz < GB)
