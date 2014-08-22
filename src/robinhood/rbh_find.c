@@ -953,7 +953,7 @@ static int list_bulk(void)
 
     rc = retrieve_root_id(&root_id);
     if (rc)
-        return rc;
+        memset(&root_id, 0, sizeof(root_id));
 
     /* root is not a part of the DB: print it now */
     ATTR_MASK_SET(&root_attrs, fullpath);
@@ -1161,6 +1161,7 @@ int main( int argc, char **argv )
     bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
     bool           neg = false;
+    bool           fs_init = false;
 
     /* parse command line options */
     while ((c = getopt_long_only(argc, argv, SHORT_OPT_STRING, option_tab,
@@ -1441,7 +1442,12 @@ int main( int argc, char **argv )
     /* Initialize filesystem access */
     rc = InitFS();
     if (rc)
-        exit(rc);
+    {
+        fprintf(stderr, "WARNING: cannot access filesystem %s (%s), find output may be incomplete.\n",
+                global_config.fs_path, strerror(abs(rc)));
+    }
+    else
+        fs_init = true;
 
     /* Initialize list manager */
     rc = ListMgr_Init(&config.lmgr_config, true);
