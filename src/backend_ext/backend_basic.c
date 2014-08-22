@@ -83,9 +83,9 @@ static inline int is_shell_special(char c)
     return FALSE;
 }
 
-#define is_allowed_char(_c) (isascii(_c) && !isspace(_c) && !is_shell_special(_c))
+#define is_allowed_char(_c) (isprint(_c) && !isspace(_c) && !is_shell_special(_c))
 
-/* clean non ascii characters, spaces, special chars, ... */
+/* clean non printable characters, spaces, special chars, ... */
 static void clean_bad_chars(char * path)
 {
     char * curr;
