@@ -22,8 +22,8 @@
 
 #include "queue.h"
 #include "rbh_logs.h"
-#include "rbh_misc.h"
 #include "Memory.h"
+#include "rbh_misc.h"
 
 #include <pthread.h>
 

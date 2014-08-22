@@ -278,15 +278,13 @@ static const char *action_help =
     "\n"
     "    Note: if no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n";
 
-
 static const char *run_help =
     _B "Policy run options:" B_ "\n"
     "    " _B "-t" B_" " _U"target"U_ ", " _B "--target" B_ "=" _U"target"U_ "\n"
     "        Run the policies only on the specified target.\n"
-    "        Target specification can be one of: "
-            _B"fs"B_" (all entries), " _B"user"B_":"_U"username"U_", "
-            _B"group"B_":"_U"grpname"U_", "_B"file"B_":"_U"path"U_", "
-            _B"class"B_":"_U"fileclass"U_
+    "        Target specification can be one of:\n"
+    "           " _B"fs"B_" (all entries), " _B"user"B_":"_U"username"U_", " _B"group"B_":"_U"grpname"U_",\n"
+    "           " _B"file"B_":"_U"path"U_", " _B"class"B_":"_U"fileclass"U_
 #ifdef _LUSTRE
 ", "_B"ost"B_":"_U"ost_idx"U_", "_B"pool"B_":"_U"poolname"U_
 #endif
@@ -307,7 +305,7 @@ static const char *run_help =
     "        policy limits and rule conditions.\n"
     "        This is equivalent to: --once --no-limit --ignore-policies --force\n";
 
-static const char * scan_help =
+static const char *scan_help =
     _B "Scanning options:" B_ "\n"
     "    " _B "--no-gc"B_"\n"
     "        Garbage collection of entries in DB is a long operation when terminating\n"
@@ -360,23 +358,23 @@ static const char *misc_help =
 
 static inline void display_help(const char *bin_name)
 {
-printf(cmd_help, bin_name);
-printf("\n");
-printf(action_help);
-printf("\n");
-printf(run_help);
-printf("\n");
-printf(scan_help);
-printf("\n");
-printf(output_help);
-printf("\n");
-printf(behavior_help);
-printf("\n");
-printf(config_help);
-printf("\n");
-printf(log_help);
-printf("\n");
-printf(misc_help);
+    printf(cmd_help, bin_name);
+    printf("\n");
+    printf(action_help);
+    printf("\n");
+    printf(run_help);
+    printf("\n");
+    printf(scan_help);
+    printf("\n");
+    printf(output_help);
+    printf("\n");
+    printf(behavior_help);
+    printf("\n");
+    printf(config_help);
+    printf("\n");
+    printf(log_help);
+    printf("\n");
+    printf(misc_help);
 }
 
 static inline void display_version(const char *bin_name)

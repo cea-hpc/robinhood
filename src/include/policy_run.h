@@ -24,6 +24,7 @@
 #include "list_mgr.h"
 #include "queue.h"
 #include <sys/types.h>
+#include "rbh_logs.h"
 
 /**
  *  Trigger type

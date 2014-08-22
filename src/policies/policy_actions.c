@@ -23,6 +23,7 @@
 #ifdef _HSM_LITE
 #include "backend_mgr.h"
 #endif
+#include <unistd.h>
 
 #ifdef _LUSTRE_HSM
 /* XXX to be included to LHSM action module */

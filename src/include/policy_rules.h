@@ -21,9 +21,9 @@
 #define _POLICIES_H
 
 #include "config_parsing.h"
-#include "list_mgr.h"
 #include "status_manager.h"
 #include <sys/time.h>
+#include "list_mgr.h"
 
 
 typedef enum {

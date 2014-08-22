@@ -21,7 +21,6 @@
 #define _STATUS_MGR_H
 
 #include "list_mgr.h"
-#include "rbh_misc.h"
 
 struct sm_instance;
 
@@ -172,6 +171,8 @@ static inline uint64_t status_allow_cached_attrs(void)
     }
     return needed;
 }
+
+#include "rbh_misc.h"
 
 /** Get attribute mask for missing statuses */
 static inline char *name_missing_status(uint64_t missing, char *buf, int sz)

@@ -18,8 +18,6 @@
 #ifndef _ROBINHOOD_MISC_H
 #define _ROBINHOOD_MISC_H
 
-#include "list_mgr.h"
-
 #include <sys/stat.h>
 #ifndef __FreeBSD__
 #include <sys/vfs.h>
@@ -102,6 +100,8 @@ int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed, char * unmatc
  * Optionaly updates an action timestamp, at each test.
  */
 void           TestLockFile( time_t * p_last_action );
+
+#include "list_mgr.h"
 
 /**
  * Convert a Posix attributes structure (returned by lstat)

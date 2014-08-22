@@ -16,7 +16,6 @@
 #endif
 
 #include "global_config.h"
-#include "rbh_misc.h"
 #include "rbh_logs.h"
 #include "rbh_cfg.h"
 #include "xplatform_print.h"
@@ -36,6 +35,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <string.h>
+#include "rbh_misc.h"
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
