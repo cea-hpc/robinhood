@@ -346,11 +346,11 @@ typedef struct policies_t
 } policies_t;
 extern struct  policies_t policies;
 
+/**
+ * Test if a policy exists and gives its index in policies.policy_list.
+ * \param[out] index index in the policies.policy_list array.
+ */
 bool policy_exists(const char *name, int *index);
-
-// TODO implement match_scope
-//int match_scope(policy, entry);
-//int match_scope_deleted(policy);
 
 /** Indicate if any policy manages deleted entries */
 static inline bool has_deletion_policy(void)
@@ -444,6 +444,14 @@ rule_item_t *policy_case(const policy_descr_t *policy,
 rule_item_t * class_policy_case(const policy_descr_t *policy,
                                 const char *class_id,
                                 fileset_item_t **pp_fileset);
+
+/** test if an entry is in policy scope */
+policy_match_t match_scope(const policy_descr_t *pol, const attr_set_t *attrs);
+
+//int match_scope_deleted(policy);
+
+
+/** @TODO RBHv3 check if all these functions are used */
 
 /**
  * Check if an entry has a chance to be matched in any policy condition.

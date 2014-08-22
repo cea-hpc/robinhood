@@ -65,6 +65,7 @@ static time_t  boot_time;
 #define NO_GC             265
 #define RUN_POLICIES      266
 #define TGT_USAGE         267
+#define FORCE_ALL         268
 
 /* deprecated params */
 #define FORCE_OST_PURGE   270
@@ -144,6 +145,9 @@ static struct option option_tab[] = {
     {"detach", no_argument, NULL, 'd'},
     {"no-limit", no_argument, NULL, NO_LIMIT},
     {"no-gc", no_argument, NULL, NO_GC},
+    /* generic policies equivalent for --sync: alias to --once --no-limit --ignore-policies --force */
+    {"force-all", no_argument, NULL, FORCE_ALL},
+    {"forceall", no_argument, NULL, FORCE_ALL},
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -169,7 +173,7 @@ static struct option option_tab[] = {
     {"check-watermarks", no_argument, NULL, DEPRECATED_WM},
     {"migrate", no_argument, NULL, 'M'},
     {"archive", no_argument, NULL, 'M'},
-    {"sync", no_argument, NULL, 's'}, /* TODO how to implement it as generic policy? */
+    {"sync", no_argument, NULL, 's'}, /* generic policies equivalent: --force-all */
     {"hsm-remove", no_argument, NULL, 'R'},
     {"hsm-rm", no_argument, NULL, 'R'},
     {"rmdir", no_argument, NULL, 'R'},
@@ -252,9 +256,10 @@ static struct rbh_options options;
 /* Underline end character sequence */
 #define U_ "[0m"
 
-static const char *help_string =
-    _B "Usage:" B_ " %s [options]\n"
-    "\n"
+static const char *cmd_help =
+    _B "Usage:" B_ " %s [options]\n";
+
+static const char *action_help =
     _B "Actions:" B_ "\n"
     "    " _B "-S" B_", " _B "--scan" B_ "[=" _U "dir" U_ "]\n"
     "        Scan the filesystem namespace. If "_U"dir"U_" is specified, only scan the specified subdir.\n"
@@ -271,8 +276,10 @@ static const char *help_string =
     "        Only check trigger thresholds without applying policy actions.\n"
     "        If no policy is specified (or 'all'), check all triggers.\n"
     "\n"
-    "    Note: if no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n"
-    "\n"
+    "    Note: if no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n";
+
+
+static const char *run_help =
     _B "Policy run options:" B_ "\n"
     "    " _B "-t" B_" " _U"target"U_ ", " _B "--target" B_ "=" _U"target"U_ "\n"
     "        Run the policies only on the specified target.\n"
@@ -295,25 +302,33 @@ static const char *help_string =
     "    " _B "--dry-run"B_"\n"
     "        Only report policy actions that would be performed without really doing them.\n"
     "        Note: Robinhood DB is impacted as if the reported actions were realy done.\n"
-    "\n"
+    "    " _B "--force-all"B_"\n"
+    "        Force applying a policy to all eligible entries, without considering\n"
+    "        policy limits and rule conditions.\n"
+    "        This is equivalent to: --once --no-limit --ignore-policies --force\n";
+
+static const char * scan_help =
     _B "Scanning options:" B_ "\n"
     "    " _B "--no-gc"B_"\n"
     "        Garbage collection of entries in DB is a long operation when terminating\n"
     "        a scan. This skips this operation if you don't care about removed\n"
     "        entries (or don't expect entries to be removed).\n"
-    "        This is also recommended for partial scanning (see -scan=dir option).\n"
-    "\n"
+    "        This is also recommended for partial scanning (see -scan=dir option).\n";
+
+static const char *output_help =
     _B "Output options:" B_ "\n"
     "    " _B "--diff"B_"="_U"attrset"U_ "\n"
     "        When scanning or reading changelogs, display changes for the given set of attributes (to stdout).\n"
-    "        "_U"attrset"U_" is a list of values in: path,posix,stripe,all,notimes,noatime.\n"
-    "\n"
+    "        "_U"attrset"U_" is a list of values in: path,posix,stripe,all,notimes,noatime.\n";
+
+static const char *behavior_help =
     _B "Behavior options:" B_ "\n"
     "    " _B "-O" B_ ", " _B "--once" B_ "\n"
     "        Perform only one pass of the specified action and exit.\n"
     "    " _B "-d" B_ ", " _B "--detach" B_ "\n"
-    "        Daemonize the process (detach from parent process).\n"
-    "\n"
+    "        Daemonize the process (detach from parent process).\n";
+
+static const char *config_help =
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "cfg_file" U_ ", " _B "--config-file=" B_ _U "cfg_file" U_ "\n"
     "        Path to configuration file (or short name).\n"
@@ -323,16 +338,19 @@ static const char *help_string =
     "    " _B "-D" B_ ", " _B "--defaults" B_ "\n"
     "        Display default configuration values.\n"
     "    " _B "--test-syntax" B_ "\n"
-    "        Check configuration file and exit.\n"
-    "\n"
+    "        Check configuration file and exit.\n";
+
+static const char *log_help =
     _B"Log options:" B_ "\n"
     "    " _B "-L" B_ " " _U "logfile" U_ ", " _B "--log-file=" B_ _U
     "logfile" U_ "\n" "        Force the path to the log file (overrides configuration value).\n"
     "        Special values \"stdout\" and \"stderr\" can be used.\n"
     "    " _B "-l" B_ " " _U "loglevel" U_ ", " _B "--log-level=" B_ _U "loglevel" U_ "\n"
     "        Force the log verbosity level (overrides configuration value).\n"
-    "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n" "\n" _B
-    "Miscellaneous options:" B_ "\n"
+    "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n";
+
+static const char *misc_help =
+     _B "Miscellaneous options:" B_ "\n"
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
     "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n"
@@ -342,7 +360,23 @@ static const char *help_string =
 
 static inline void display_help(const char *bin_name)
 {
-    printf( help_string, bin_name );
+printf(cmd_help, bin_name);
+printf("\n");
+printf(action_help);
+printf("\n");
+printf(run_help);
+printf("\n");
+printf(scan_help);
+printf("\n");
+printf(output_help);
+printf("\n");
+printf(behavior_help);
+printf("\n");
+printf(config_help);
+printf("\n");
+printf(log_help);
+printf("\n");
+printf(misc_help);
 }
 
 static inline void display_version(const char *bin_name)
@@ -998,7 +1032,8 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
             break;
 
         case 's':
-            /* TODO */
+            fprintf(stderr, "ERROR: --sync option is deprecated. Instead, use --run=<policy_name> --force-all\n");
+            return EINVAL;
             break;
 
         case 'O':
@@ -1018,6 +1053,9 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
             break;
         case 'F':
             opt->flags |= FLAG_FORCE_RUN;
+            break;
+        case FORCE_ALL:
+            opt->flags |= FLAG_ONCE | FLAG_NO_LIMIT | FLAG_IGNORE_POL | FLAG_FORCE_RUN;
             break;
 
         case 'd':

@@ -26,6 +26,8 @@ else
 	echo "Creating directory $ROOT"
 fi
 
+SYNC_OPT="--run=migration --force-all"
+
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
@@ -983,7 +985,7 @@ function link_unlink_remove_test
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 	fi
 
 	# create links on file.1 files
@@ -1077,7 +1079,7 @@ function mass_softrm
 
 	if (( $is_lhsm != 0 )); then
 		flush_data
-		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
 
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 120 || error "Migration timeout"
@@ -1085,7 +1087,7 @@ function mass_softrm
 		$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
 
 	elif (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
 	fi
 	grep "Migration summary" rh_migr.log
 
@@ -1183,7 +1185,7 @@ function purge_test
 	# use robinhood for flushing
 	if (( $is_hsmlite != 0 )); then
 		echo "2bis-Archiving files"
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing migrate-file"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing migrate-file"
 		arch_count=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
 		(( $arch_count == 11 )) || error "$11 archive commands expected"
 	fi
@@ -1360,7 +1362,7 @@ function test_default
 
 	# archive the file (if applicable)
 	if (( $is_hsmlite + $is_lhsm != 0 )); then
-        $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "Migration"
+        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "Migration"
 
         # check archived files
         # *.B files must be archived. other files should be.
@@ -1437,7 +1439,7 @@ function test_undelete
     sz1=$(stat -c '%s' $ROOT/dir2/file1)
 
     # initial scan + archive all
-    $RH -f ./cfg/$config_file --scan --once --sync -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
+    $RH -f ./cfg/$config_file --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
     check_db_error rh_chglogs.log
 
     # remove all and read the changelog
@@ -1516,7 +1518,7 @@ function purge_size_filesets
     	check_db_error rh_chglogs.log
 
 	if (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
     fi
 
 	echo "3-Sleeping $sleep_time seconds..."
@@ -2547,7 +2549,7 @@ function policy_check_purge
         # now apply policies
         if (( $is_lhsm != 0 )); then
                 flush_data
-                $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+                $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
 
                 echo "1ter. Waiting for end of data migration..."
                 wait_done 120 || error "Migration timeout"
@@ -2555,7 +2557,7 @@ function policy_check_purge
 		$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
 
         elif (( $is_hsmlite != 0 )); then
-                $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "flushing data to backend"
+                $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
         fi
 
         # check that release class is still correct
@@ -2645,7 +2647,7 @@ function periodic_class_match_purge
 
 	echo "FS Scan..."
 	if (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 		check_db_error rh_migr.log
 	    else
     		$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
@@ -2802,7 +2804,7 @@ function test_cnt_trigger
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
-		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 		check_db_error rh_migr.log
     else
        	# scan
@@ -2874,7 +2876,7 @@ function test_ost_trigger
 	fi
 
 	if (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
     fi
 
 	# wait for df sync
@@ -3100,7 +3102,7 @@ function test_trigger_check
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
-		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 		check_db_error rh_migr.log
     else
 	  # scan
@@ -3211,7 +3213,7 @@ function test_periodic_trigger
 	echo "2-Populating robinhood database (scan)..."
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
-		$RH -f ./cfg/$config_file --scan --sync -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
   		check_db_error rh_migr.log
     else
 	    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
@@ -3716,7 +3718,7 @@ function partial_paths
 
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
         # check how a child entry is archived
-        $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
         check_db_error rh_migr.log
         if (( $is_hsmlite > 0 )); then
             name=$(find $BKROOT -type f -name "file3__*")
@@ -3845,7 +3847,7 @@ function test_mnt_point
     if (( $is_hsmlite > 0 )); then
         # wait atime > 1s
         sleep 1
-        $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
         check_db_error rh_migr.log
 
         for e in $file_rel; do
@@ -3903,7 +3905,7 @@ function test_compress
     check_status_count report.out new 4
 
     # check how a child entries is archived
-    $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+    $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
     check_db_error rh_migr.log
 
     # check file status
@@ -3943,7 +3945,7 @@ function test_compress
     check_status_count report.out new 3
 
     # archive all dirty data and check status
-    $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+    $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
     check_db_error rh_migr.log
 
     # check file status
@@ -3978,7 +3980,7 @@ function test_compress
     check_status_count report.out synchro 5
     check_status_count report.out modified 2
 
-    $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log
+    $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
     check_db_error rh_migr.log
 
     # check backend files
@@ -4379,7 +4381,7 @@ function test_rename
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
 		echo "  -archiving all data"
-		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
         [ "$DEBUG" = "1" ] && find $BKROOT -type f -ls
 	fi
 
@@ -4953,7 +4955,7 @@ function test_hardlinks
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
 		echo "  -archiving all data"
-		$RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
         [ "$DEBUG" = "1" ] && find $BKROOT -type f -ls
 	fi
 
@@ -5155,13 +5157,8 @@ function test_hl_count
     [ "$DEBUG" = "1" ] && cat report.out
     typeValues="dir;file"
   	countValues="$dcount;$(($dcount * $fcount))"
-    if (( $is_hsmlite + $is_lhsm != 0 )); then
-        # type counts are in 3rd column (because of the status column)
-   	    colSearch=3
-    else
-        # type counts are in 2nd column
-   	    colSearch=2
-    fi
+    # type counts are in 2nd column
+   	colSearch=2
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
 
     #   dump summary with path filter (3 entries)
@@ -5354,7 +5351,7 @@ function test_logs
 	fi
 
     if (( $is_hsmlite != 0 )); then
-        extra_action="--sync"
+        extra_action="$SYNC_OPT"
     else
         extra_action=""
     fi
