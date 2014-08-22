@@ -2213,7 +2213,7 @@ function update_test
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 
 		start=`date "+%s"`
-		# generate a lot of TIME events within 'event_updt_min'
+		# generate a lot of MTIME events within 'event_updt_min'
 		# => must only update once
 		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
 			touch $ROOT/file
@@ -2233,14 +2233,14 @@ function update_test
 		expect_attr=1
 		(( $shook != 0 && $i == 1 )) && expect_attr=4 # .shook dir, .shook/restripe dir, .shook/locks dir
 
-		(( $nb_getattr == $expect_attr )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t)"
+		(( $nb_getattr == $expect_attr )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t), expected=$expect_attr"
 		# the path may be retrieved at the first loop (at creation)
 		# but not during the next loop (as long as enlapsed time < update_period)
 		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
 			nb_getpath=`grep getpath=1 $LOG | wc -l`
 			grep "getpath=1" $LOG
 			echo "nb path update: $nb_getpath"
-			(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath (t=$t)"
+			(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath (t=$t), expected=0"
 		fi
 
 		# wait for 5s to be fully enlapsed
@@ -2315,7 +2315,7 @@ function update_test
 
 	if (( $is_lhsm != 0 )); then
 		# also check that the status is to be retrieved
-		nb_getstatus=`grep getstatus=1 $LOG | wc -l`
+		nb_getstatus=`grep "getstatus(lhsm)" $LOG | wc -l`
 		echo "nb status update: $nb_getstatus"
 		(( $nb_getstatus == 1 )) || error "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
 	fi
@@ -3493,6 +3493,23 @@ function diff_chk
     clean_logs
 }
 
+function check_fcount
+{
+    local nb=$1
+
+    nbfile=$($REPORT -f ./cfg/$config_file -icq | grep file | awk -F ',' '{print $2}' | tr -d ' ')
+    [[ -z $nbfile ]] && nbfile=0
+    [ "$DEBUG" = "1" ] && echo "nb_files=$nbfile"
+
+    [[ $nbfile != $nb ]] && error "Unexpected file count: $nbfile"
+}
+
+function empty_fs
+{
+    	if [[ -n "$ROOT" ]]; then
+	    	 find "$ROOT" -mindepth 1 -delete 2>/dev/null
+    	fi
+}
 
 function test_info_collect2
 {
@@ -3519,35 +3536,56 @@ function test_info_collect2
 
 	if (( $flavor == 1 )); then
 		scan_chk $config_file
+        check_fcount 10000
 		scan_chk $config_file
+        check_fcount 10000
+        empty_fs
 		scan_chk $config_file
+        check_fcount 0
 	elif (( $flavor == 2 )); then
 		readlog_chk $config_file
+        check_fcount 10000
 		scan_chk    $config_file
+        check_fcount 10000
 		# touch entries before reading log
 		../fill_fs.sh $ROOT 10000 >/dev/null
 		readlog_chk $config_file
+        check_fcount 10000
+        empty_fs
 		scan_chk    $config_file
+        check_fcount 0
 	elif (( $flavor == 3 )); then
 		readlog_chk $config_file
+        check_fcount 10000
 		# touch entries before reading log again
 		../fill_fs.sh $ROOT 10000 >/dev/null
 		readlog_chk $config_file
+        check_fcount 10000
 		scan_chk    $config_file
+        check_fcount 10000
+        empty_fs
 		scan_chk    $config_file
+        check_fcount 0
 	elif (( $flavor == 4 )); then
 		scan_chk    $config_file
+        check_fcount 10000
 		scan_chk    $config_file
+        check_fcount 10000
 		readlog_chk $config_file
-		# touch entries before reading log again
-		../fill_fs.sh $ROOT 10000 >/dev/null
+        check_fcount 10000
+        empty_fs
 		readlog_chk $config_file
+        check_fcount 0
 	elif (( $flavor == 5 )); then
         diff_chk $config_file
+        check_fcount 10000
+        empty_fs
         diff_chk $config_file
+        check_fcount 0
 	else
 		error "Unexpexted test flavor '$flavor'"
 	fi
+
 }
 
 function get_db_info
