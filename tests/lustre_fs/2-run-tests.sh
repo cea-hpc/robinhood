@@ -27,6 +27,7 @@ else
 fi
 
 SYNC_OPT="--run=migration --force-all"
+PURGE_OPT="--run=purge --target=fs --no-limit"
 
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
@@ -53,8 +54,8 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     UNDELETE=$RBH_BINDIR/rbh-lhsm-undo-rm
 	CMD=rbh-lhsm
 	PURPOSE="LUSTRE_HSM"
-	ARCH_STR="Start archiving"
-	REL_STR="Releasing"
+	ARCH_STR="migration success for"
+	REL_STR="purge success for"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
 	shook=0
@@ -352,6 +353,10 @@ function migration_test
 	fi
 
 	clean_logs
+	if (( $no_log == 0 )); then
+		echo "Initial scan of empty filesystem"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	fi
 
 	# create and fill 10 files
 
@@ -373,7 +378,7 @@ function migration_test
 	# start a migration files should notbe migrated this time
 	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error ""
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
 		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
@@ -386,7 +391,7 @@ function migration_test
 	echo "3-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != $expected_migr)); then
 		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
 	else
@@ -457,7 +462,7 @@ function migration_test_single
 		error "$count files are not eligible, $expected_migr expected"
 	fi
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
 		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
@@ -481,7 +486,7 @@ function migration_test_single
 		error "$count files migrated, $expected_migr expected"
 	fi
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != $expected_migr)); then
 		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
 	else
@@ -530,7 +535,7 @@ function migrate_symlink
 		error "$count entries are not eligible, 1 expected"
 	fi
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
 		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
@@ -552,7 +557,7 @@ function migrate_symlink
 		error "$count symlink migrated, 1 expected"
 	fi
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 1)); then
 		error "********** TEST FAILED: 1 migration expected, $nb_migr started"
 	else
@@ -751,6 +756,7 @@ function test_lru_policy
 	$RH -f ./cfg/$config_file --run=migration -l FULL -L rh_migr.log  --once || error ""
 
     # if robinhood logs fids, convert them to files
+    # FIXME RBHv3
     if (( $is_lhsm > 0 )); then
         migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
               awk -F, '{print $1}' | xargs -n 1 -r lfs fid2path $ROOT |\
@@ -869,9 +875,12 @@ function xattr_test
 	fi
 
 	clean_logs
+	if (( $no_log == 0 )); then
+		echo "Initial scan of empty filesystem"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	fi
 
 	# create and fill 10 files
-
 	echo "1-Modifing files..."
 	for i in `seq 1 3`; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
@@ -898,7 +907,7 @@ function xattr_test
 	# start a migration files should notbe migrated this time
 	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error ""
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
 		error "********** TEST FAILED: No migration expected, $nb_migr started"
 	else
@@ -911,7 +920,7 @@ function xattr_test
 	echo "3-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once
 
-	nb_migr=`grep "$ARCH_STR" rh_migr.log | grep hints |  wc -l`
+	nb_migr=`grep "$ARCH_STR" rh_migr.log |  wc -l`
 	if (($nb_migr != 3)); then
 		error "********** TEST FAILED: $expected_migr migrations expected, $nb_migr started"
 	else
@@ -1186,15 +1195,15 @@ function purge_test
 	if (( $is_hsmlite != 0 )); then
 		echo "2bis-Archiving files"
 		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing migrate-file"
-		arch_count=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+		arch_count=`grep "$ARCH_STR" rh_migr.log | wc -l`
 		(( $arch_count == 11 )) || error "$11 archive commands expected"
 	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file --run=purge --target=fs --no-limit -l DEBUG -L rh_purge.log --once || error ""
 
-        nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+        nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
         if (($nb_purge != 0)); then
                 error "********** TEST FAILED: No release actions expected, $nb_purge done"
@@ -1206,9 +1215,9 @@ function purge_test
 	sleep $sleep_time
 
 	echo "5-Applying purge policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG -L rh_purge.log --once || error ""
 
-    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+    nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
     if (($nb_purge != $expected_purge)); then
             error "********** TEST FAILED: $expected_purge release actions expected, $nb_purge done"
@@ -1267,7 +1276,7 @@ function test_custom_purge
     fi
 
 	echo "Applying purge policy ($policy_str)..."
-	$RH -f ./cfg/$config_file --purge-fs=0 -l FULL -L rh_purge.log --once || error "purging files"
+	$RH -f ./cfg/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "purging files"
 	check_db_error rh_purge.log
 
 	nb_purge=`grep "Purged" rh_purge.log | wc -l`
@@ -1390,7 +1399,7 @@ function test_default
         # wait for entries to be eligible
         sleep 1
 
-        $RH -f ./cfg/$config_file --purge-fs=0 --once -l DEBUG -L rh_purge.log || error "Purge"
+        $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG -L rh_purge.log || error "Purge"
 
         # check purged files
         # tmpfs: all Y* files can be purged
@@ -1526,15 +1535,15 @@ function purge_size_filesets
 
 	echo "4-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG -L rh_purge.log --once || error ""
 
 	# counting each matching policy $count of each
 	for policy in very_small mid_file default; do
-	        nb_purge=`grep 'using policy' rh_purge.log | grep $policy | wc -l`
+	        nb_purge=`grep 'matching rule' rh_purge.log | grep $policy | wc -l`
 		if (($nb_purge != $count)); then
-			error "********** TEST FAILED: $count release actions expected using policy $policy, $nb_purge done"
+			error "********** TEST FAILED: $count release actions expected matching rule $policy, $nb_purge done"
 		else
-			echo "OK: $nb_purge files released using policy $policy"
+			echo "OK: $nb_purge files released matching rule $policy"
 		fi
 	done
 
@@ -2028,6 +2037,10 @@ function path_test
 	fi
 
 	clean_logs
+	if (( $no_log == 0 )); then
+		echo "Initial scan of empty filesystem"
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	fi
 
 	# create test tree
 
@@ -2352,12 +2365,12 @@ function periodic_class_match_migr
 	check_db_error rh_chglogs.log
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --run=migration --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=fs --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	#we must have 4 lines like this: "Need to update fileclass (not set)"
 	nb_updt=`grep "Need to update fileclass (not set)" rh_migr.log | wc -l`
-	nb_migr_match=`grep "matches the condition for policy 'migr_match'" rh_migr.log | wc -l`
-	nb_default=`grep "matches the condition for policy 'default'" rh_migr.log | wc -l`
+	nb_migr_match=`grep "matches the condition for policy rule 'migr_match'" rh_migr.log | wc -l`
+	nb_default=`grep "matches the condition for policy rule 'default'" rh_migr.log | wc -l`
 
 	(( $nb_updt == 4 )) || error "********** TEST FAILED: wrong count of fileclass update: $nb_updt"
 	(( $nb_migr_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'migr_match': $nb_migr_match"
@@ -2368,7 +2381,7 @@ function periodic_class_match_migr
 
 	# rematch entries: should not update fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=fs --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_migr.log | wc -l`
 	nb_migr_valid=`grep "fileclass 'to_be_migr' is still valid" rh_migr.log | wc -l`
@@ -2386,7 +2399,7 @@ function periodic_class_match_migr
 
 	# rematch entries: should update all fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=fs --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	nb_valid=`grep "is still valid" rh_migr.log | wc -l`
 	nb_updt=`grep "Need to update fileclass (out-of-date)" rh_migr.log | wc -l`
@@ -2577,7 +2590,7 @@ function policy_check_purge
     echo "2. purge/release..."
 
     # now apply policies
-    $RH -f ./cfg/$config_file --purge-fs=0 -l FULL -L rh_purge.log --once || error "running purge"
+    $RH -f ./cfg/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "running purge"
 
     $REPORT -f ./cfg/$config_file --dump -q  > report.out
     st1=`grep ignore1 report.out | cut -d ',' -f $stf | tr -d ' '`
@@ -2597,10 +2610,10 @@ function policy_check_purge
 		&& echo "OK: initial fileclass matching successful"
 
     # check effectively purged files
-    p1_arch=`grep $REL_STR rh_purge.log | grep purge1 | wc -l`
-    d1_arch=`grep $REL_STR rh_purge.log | grep default1 | wc -l`
-    w1_arch=`grep $REL_STR rh_purge.log | grep whitelist1 | wc -l`
-    i1_arch=`grep $REL_STR rh_purge.log | grep ignore1 | wc -l`
+    p1_arch=`grep "$REL_STR" rh_purge.log | grep purge1 | wc -l`
+    d1_arch=`grep "$REL_STR" rh_purge.log | grep default1 | wc -l`
+    w1_arch=`grep "$REL_STR" rh_purge.log | grep whitelist1 | wc -l`
+    i1_arch=`grep "$REL_STR" rh_purge.log | grep ignore1 | wc -l`
 
     (( $w1_arch == 0 )) || error "whitelist1 should not have been purged"
     (( $i1_arch == 0 )) || error "ignore1 should not have been purged"
@@ -2655,7 +2668,7 @@ function periodic_class_match_purge
 	fi
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log --once || error ""
 
 	nb_updt=`grep "Need to update fileclass (not set)" rh_purge.log | wc -l`
 	nb_purge_match=`grep "matches the condition for policy 'purge_match'" rh_purge.log | wc -l`
@@ -2687,7 +2700,7 @@ function periodic_class_match_purge
 	echo "Waiting $update_period sec..."
 	sleep $update_period
 
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log --once || error ""
 
 	nb_valid=`grep "is still valid" rh_purge.log | wc -l`
 	nb_updt=`grep "Need to update fileclass (out-of-date)" rh_purge.log | wc -l`
@@ -5469,9 +5482,9 @@ function test_logs
 		rm -f $log $report $alert
 
 		if (( $stdio )); then
-			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
+			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
 		else
-			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run || error ""
+			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --dry-run || error ""
 		fi
 
 		# extract new syslog messages
@@ -7081,7 +7094,7 @@ function test_migration
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7150,7 +7163,7 @@ function migration_file_type
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7176,7 +7189,7 @@ function migration_file_type
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7257,7 +7270,7 @@ function migration_file_owner
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7338,7 +7351,7 @@ function migration_file_Last
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7424,7 +7437,7 @@ function migration_file_ExtendedAttribut
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7494,7 +7507,7 @@ function migration_OST
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7576,7 +7589,7 @@ function migration_file_OST
             error "********** TEST FAILED (File System): $x is not archived"
             ((nbError++))
 	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | grep $x | wc -l`
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
         if (($countMigrLog == 0)); then
             error "********** TEST FAILED (Log): $x is not archived"
             ((nbError++))
@@ -7898,7 +7911,7 @@ function test_purge
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
-	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
         ((nbError++))
@@ -7958,7 +7971,7 @@ function test_purge_tmp_fs_mgr
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
-	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
         ((nbError++))
@@ -8041,7 +8054,7 @@ function purge_OST
 	$RH -f ./cfg/$config_file --scan $purgeOpt -l DEBUG -L rh_purge.log --once
 
 	nbError=0
-	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
         ((nbError++))
@@ -8907,7 +8920,7 @@ function TEST_OTHER_PARAMETERS_1
 
 	    sleep 5
 	    nbError=0
-	    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	    nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	    if (( $nb_purge != 0 )); then
 	        error "********** TEST FAILED (Log): $nb_purge files purged, but 0 expected"
             ((nbError++))
@@ -8919,7 +8932,7 @@ function TEST_OTHER_PARAMETERS_1
 	    echo "wait robinhood"
 	    wait
 
-	    nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	    nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	    if (( $nb_purge != 10 )); then
 	        error "********** TEST FAILED (Log): $nb_purge files purged, but 10 expected"
             ((nbError++))
@@ -9000,7 +9013,7 @@ function TEST_OTHER_PARAMETERS_2
     fi
 
     # Migration dans fs
-    countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep hints | wc -l`
+    countMigrLog=`grep "$ARCH_STR" rh_migr.log | wc -l`
     if (( $countMigrLog != 10 )); then
         error "********** TEST FAILED (Log): $countMigrLog files migrated, but 10 expected"
         ((nbError++))
@@ -9387,12 +9400,12 @@ runtest_118
 #### policy matching tests  ####
 
 run_test 200	path_test test_path.conf 2 "path matching policies"
-run_test 201	migration_test test1.conf 11 31 "last_mod>30s"
-run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\""
-run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
-run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
+run_test 201	migration_test test1.conf 11 11 "last_mod>10s"
+run_test 202	migration_test test2.conf 5  11 "last_mod>10s and name == \"*[0-5]\""
+run_test 203	migration_test test3.conf 5  11 "complex policy with filesets"
+run_test 204	migration_test test3.conf 10 21 "complex policy with filesets"
 run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
+run_test 206	purge_test test_purge.conf 11 16 "last_access > 15s"
 run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
 run_test 208a	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
 run_test 208b	policy_check_migr test_check_migr.conf 10 "test fileclass matching (migration)"
@@ -9401,7 +9414,7 @@ run_test 209b	policy_check_purge test_check_purge.conf 10 "test fileclass matchi
 run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
 run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
-run_test 213	migration_test_single test1.conf 11 31 "last_mod>30s"
+run_test 213	migration_test_single test1.conf 11 11 "last_mod>11s"
 run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
 run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
 run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
@@ -9409,7 +9422,7 @@ run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by def
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
 run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
-run_test 217	migrate_symlink test1.conf 31 		"symlink migration"
+run_test 217	migrate_symlink test1.conf 11 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 run_test 219    test_rmdir_mix RemovingDir_Mixed.conf 11 "mixed rmdir policies"
 # test sort order by last_archive, last_mod, creation
