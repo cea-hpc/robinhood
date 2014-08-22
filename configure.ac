@@ -4,8 +4,8 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT( [robinhood], [2.5.4], [robinhood-support@lists.sourceforge.net])
-RELEASE="1"
+AC_INIT( [robinhood], [2.99], [robinhood-support@lists.sourceforge.net])
+RELEASE="0.dev"
 
 AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info] )
 AC_SUBST(RELEASE)
@@ -43,7 +43,7 @@ AC_SYS_LARGEFILE
 
 # gcc options
 #CC_OPT="-Wall -Werror"
-CC_OPT="-Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -std=gnu99 -pedantic  -Wno-variadic-macros"
+CC_OPT="-Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -std=gnu99 -Wno-variadic-macros"
 AC_SUBST(CC_OPT)
 
 AC_CHECK_SIZEOF([nlink_t])
