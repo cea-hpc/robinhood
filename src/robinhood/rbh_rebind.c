@@ -314,6 +314,7 @@ int main( int argc, char **argv )
 
     /* set global configuration */
     global_config = config.global_config;
+    updt_params = config.db_update_params;
 
     /* set policies info */
     policies = config.policies;

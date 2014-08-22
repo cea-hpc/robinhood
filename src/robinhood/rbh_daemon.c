@@ -1405,6 +1405,7 @@ int main(int argc, char **argv)
 
     /* set global configuration */
     global_config = rh_config.global_config;
+    updt_params = rh_config.db_update_params;
 
     /* set policy list */
     policies = rh_config.policies;

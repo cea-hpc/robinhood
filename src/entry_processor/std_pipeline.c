@@ -294,6 +294,9 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
         /* not a symlink */
         p_op->fs_attr_need &= ~ATTR_MASK_link;
 
+        /* name and parent should have been provided by the CREATE changelog record */
+        check_path_info(p_op, "CREATE");
+
         /* Sanity check: if the entry already exists in DB,
          * it could come from a previous filesystem that has been reformatted.
          * In this case, force a full update of the entry.
@@ -318,9 +321,6 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
 
             /* force updating attributes */
             p_op->fs_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_stripe_info;
-            /* name and parent should have been provided by the CREATE changelog record */
-            check_path_info(p_op, "CREATE");
-
             /* get status for all policies */
             p_op->fs_attr_need |= all_status_mask();
         }
@@ -568,24 +568,23 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             !ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
             p_op->fs_attr_need |= ATTR_MASK_fullpath;
 
-        /* By default, get status for a new record.
-         * This is overwritten by EntryProc_FillFromLogRec if the status
-         * can be infered from changelog rec. */
-        p_op->fs_attr_need |= all_status_mask();
+        /* EntryProc_FillFromLogRec() will determine
+         * what status are to be retrieved.
+         */
     }
     else /* non-unlink record on known entry */
     {
-        DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID": UPDATE", PFID(&p_op->entry_id));
+        uint64_t db_missing;
 
         p_op->db_op_type = OP_TYPE_UPDATE;
 
         /* check what information must be updated.
          * missing info = DB query - retrieved */
-        uint64_t db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
+        db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
 
         /* get attrs if some is missing */
         if ((db_missing & POSIX_ATTR_MASK) &&
-            (p_op->fs_attrs.attr_mask & POSIX_ATTR_MASK) != POSIX_ATTR_MASK)
+            ((p_op->fs_attrs.attr_mask & POSIX_ATTR_MASK) != POSIX_ATTR_MASK))
             p_op->fs_attr_need |= POSIX_ATTR_MASK;
 
         /* get stripe info if missing (file only) */
@@ -600,8 +599,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK)))
                 p_op->fs_attr_need |= ATTR_MASK_link;
 
-        /* get missing status */
-        p_op->fs_attr_need |= status_mask_missing(db_missing & ~p_op->fs_attrs.attr_mask);
+        /* EntryProc_FillFromLogRec() will determine
+         * what status are to be retrieved. */
 
         /* Check md_update policy */
         if (need_md_update(&p_op->db_attrs, &md_allow_event_updt))
@@ -616,7 +615,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     }
 
     /* infer info from changelog record, then continue to next step */
-    return EntryProc_FillFromLogRec( p_op, md_allow_event_updt );
+    return EntryProc_FillFromLogRec(p_op, md_allow_event_updt);
 }
 #endif /* CHANGELOG support */
 
@@ -806,9 +805,6 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 #endif
 
-#ifdef ATTR_INDEX_status
-        p_op->db_attr_need |= ATTR_MASK_status;
-#endif
 #ifdef ATTR_INDEX_creation_time
         if (entry_proc_conf.detect_fake_mtime)
              p_op->db_attr_need |= ATTR_MASK_creation_time;

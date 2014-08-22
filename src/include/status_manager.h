@@ -114,17 +114,16 @@ static inline uint64_t all_status_mask(void)
     return ret;
 }
 
-static inline uint64_t status_mask_missing(uint64_t missing)
+static inline uint64_t translate_status_mask(uint64_t mask, unsigned int smi_index)
 {
-    uint64_t ret = 0;
-    int i = 0;
-    uint64_t m;
-    for (i = 0, m = (1LL << ATTR_COUNT); i < sm_inst_count; i++, m <<= 1)
-    {
-        if (missing & m)
-            ret |= m;
-    }
-    return ret;
+    uint64_t mask_out;
+
+    if (!(mask & SMI_MASK(0)))
+        return mask;
+
+    mask_out &= ~SMI_MASK(0);
+    mask_out |= SMI_MASK(smi_index);
+    return mask_out;
 }
 
 /** Get attribute mask for missing statuses */
@@ -140,9 +139,9 @@ static inline uint64_t attrs_for_missing_status(uint64_t missing, bool fresh)
         {
             sm_instance_t *smi = get_sm_instance(i);
             if (fresh)
-                ret |= smi->sm->status_needs_attrs_fresh;
+                ret |= translate_status_mask(smi->sm->status_needs_attrs_fresh, i);
             else
-                ret |= smi->sm->status_needs_attrs_cached;
+                ret |= translate_status_mask(smi->sm->status_needs_attrs_cached, i);
         }
     }
     return ret;
@@ -156,7 +155,7 @@ static inline uint64_t status_need_fresh_attrs(void)
     sm_instance_t *smi;
     while ((smi = get_sm_instance(i)) != NULL)
     {
-        needed |= smi->sm->status_needs_attrs_fresh;
+        needed |= translate_status_mask(smi->sm->status_needs_attrs_fresh, i);
         i++;
     }
     return needed;
@@ -168,7 +167,7 @@ static inline uint64_t status_allow_cached_attrs(void)
     sm_instance_t *smi;
     while ((smi = get_sm_instance(i)) != NULL)
     {
-        needed |= smi->sm->status_needs_attrs_cached;
+        needed |= translate_status_mask(smi->sm->status_needs_attrs_cached, i);
         i++;
     }
     return needed;

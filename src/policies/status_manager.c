@@ -245,6 +245,7 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                 }
                 else /* other status change: need to get it */
                     *getit = true;
+
                 break;
 
             case HE_REMOVE:
@@ -271,8 +272,8 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                 !status_equal(smi, attrs, STATUS_MODIFIED)))
         {
             DisplayLog(LVL_DEBUG, LHSM_TAG,
-                       "Getstatus needed because this is a MTIME, TRUNC or CLOSE event "
-                       "and status is not already 'modified' or 'new': event=%s, status=%s",
+                       "Getstatus needed because this is a %s event "
+                       "and status is not already 'modified' or 'new': status=%s",
                        changelog_type2str(logrec->cr_type),
                        ATTR_MASK_STATUS_TEST(attrs, smi->smi_index)?
                          STATUS_ATTR(attrs, smi->smi_index) :"<not set>");
@@ -366,8 +367,12 @@ static int shook_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
 /* -------------- managing status managers ---------- */
 
 static status_manager_t status_mgrs[] = {
-    {"lhsm", SM_SHARED, lhsm_status_list, LHSM_ST_COUNT, ATTR_MASK_type, 0, /* @FIXME cached attr: need old status */
-      lhsm_status, lhsm_cl_cb},
+    /* this policy needs the ols status to process changelog callbacks.
+     * As we don't know the actual index of the status manager instance (smi)
+     * we set it to SMI_MASK(0). It must be translated later by accessors.
+     */
+    {"lhsm", SM_SHARED, lhsm_status_list, LHSM_ST_COUNT,
+     ATTR_MASK_type | SMI_MASK(0), 0, lhsm_status, lhsm_cl_cb},
     {"basic", 0, basic_status_list, BASIC_ST_COUNT, 0, 0, NULL, NULL}, /* @FIXME masks, functions  */
 
     {NULL, 0, NULL, 0, 0, 0, NULL, NULL}
@@ -567,7 +572,9 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
             err_max = rc;
 
         if ((rc == 0) && getstatus)
+        {
             *status_need |= SMI_MASK(i);
+        }
     }
     return err_max;
 }

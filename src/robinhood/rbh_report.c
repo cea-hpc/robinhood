@@ -1466,9 +1466,6 @@ static const char * attr2str(attr_set_t * attrs, const entry_id_t * id,
         case ATTR_INDEX_dircount:
             sprintf(out, "%u", ATTR(attrs, dircount));
             return out;
-#ifdef ATTR_INDEX_status
-        case ATTR_INDEX_status: return db_status2str(ATTR(attrs, status), csv);
-#endif
         case ATTR_INDEX_parent_id:
             sprintf(out, DFID, PFID(&ATTR(attrs, parent_id)));
             return out;
@@ -1831,7 +1828,6 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     /* list of attributes to be used for OST dumps */
     static int list_stripe[] = {
                    ATTR_INDEX_type,
-//                   ATTR_INDEX_status,
                    ATTR_INDEX_size,
                    ATTR_INDEX_fullpath,
                    ATTR_INDEX_stripe_info,
@@ -3676,6 +3672,7 @@ int main( int argc, char **argv )
 
     /* set global configuration */
     global_config = config.global_config;
+    updt_params = config.db_update_params;
 
     /* set policies info */
     policies = config.policies;
