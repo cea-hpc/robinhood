@@ -474,11 +474,11 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     }
     else /* private status manager (1 instance per policy) */
     {
-        /* <status manager name>_<policy name>\0 */
-        smi->instance_name = malloc(strlen(sm->name)+strlen(pol_name)+2);
+        /* same as <policy name>\0 */
+        smi->instance_name = malloc(strlen(pol_name)+1);
         if (smi->instance_name == NULL)
             goto free_smi;
-        sprintf(smi->instance_name, "%s_%s", sm->name, pol_name);
+        sprintf(smi->instance_name, "%s", pol_name);
     }
     /* <instance_name>_status */
     smi->db_field = malloc(strlen(smi->instance_name)+8);

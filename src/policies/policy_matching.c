@@ -175,7 +175,6 @@ static inline int int_compare(int int1, compare_direction_t comp, int int2)
                                            }                                            \
                                      } while (0)
 
-
 static filter_comparator_t Policy2FilterComparator(compare_direction_t comp)
 {
     switch(comp)
@@ -500,6 +499,7 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
                                      const attr_set_t *p_entry_attr,
                                      const compare_triplet_t *p_triplet,
                                      const time_modifier_t *p_pol_mod,
+                                     const sm_instance_t *smi,
                                      int no_warning)
 {
     char           tmpbuff[RBH_PATH_MAX];
@@ -747,6 +747,28 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
     }
 #endif
 
+    case CRITERIA_STATUS:
+        {
+            const char *stval;
+
+            if (smi == NULL)
+                RBH_BUG("status criteria with no status manager in the context");
+
+            /* NULL matches empty value */
+            if (!ATTR_MASK_STATUS_TEST(p_entry_attr, smi->smi_index))
+                stval = "";
+            else
+                stval = STATUS_ATTR(p_entry_attr, smi->smi_index);
+
+            rc = !strcmp(p_triplet->val.str, stval);
+
+            if (p_triplet->op == COMP_EQUAL)
+                return BOOL2POLICY(rc);
+            else
+                return BOOL2POLICY(!rc);
+        }
+        break;
+
     case CRITERIA_XATTR:
     {
         const char * entry_path;
@@ -832,6 +854,7 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 /* function for testing a boolean expression on a given entry */
 static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_entry_attr,
                                      bool_node_t *p_node, const time_modifier_t *p_pol_mod,
+                                     const sm_instance_t *smi, /* to match status criteria */
                                      int no_warning)
 {
     policy_match_t rc;
@@ -849,7 +872,7 @@ static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_se
 
         rc = _entry_matches(p_entry_id, p_entry_attr,
                             p_node->content_u.bool_expr.expr1, p_pol_mod,
-                            no_warning);
+                            smi, no_warning);
 
         if (rc == POLICY_MATCH)
             return POLICY_NO_MATCH;
@@ -864,7 +887,7 @@ static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_se
         /* always test the first expression */
         rc = _entry_matches(p_entry_id, p_entry_attr,
                             p_node->content_u.bool_expr.expr1, p_pol_mod,
-                            no_warning);
+                            smi, no_warning);
 
         /* in some cases, we can stop here */
         if ((p_node->content_u.bool_expr.bool_op == BOOL_OR) && (rc == POLICY_MATCH))
@@ -877,14 +900,14 @@ static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_se
         /* compute the second expression */
         return _entry_matches(p_entry_id, p_entry_attr,
                               p_node->content_u.bool_expr.expr2,
-                              p_pol_mod, no_warning);
+                              p_pol_mod, smi, no_warning);
 
         break;
 
     case NODE_CONDITION:
         /* It's now time to test the value ! */
-        return eval_condition(p_entry_id, p_entry_attr, p_node->content_u.condition, p_pol_mod, no_warning);
-
+        return eval_condition(p_entry_id, p_entry_attr, p_node->content_u.condition,
+                              p_pol_mod, smi, no_warning);
         break;
     }
 
@@ -893,9 +916,10 @@ static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_se
 }
 
 policy_match_t entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_entry_attr,
-                             bool_node_t *p_node, const time_modifier_t *p_pol_mod)
+                             bool_node_t *p_node, const time_modifier_t *p_pol_mod,
+                             const sm_instance_t *smi)
 {
-    return _entry_matches(p_entry_id, p_entry_attr, p_node, p_pol_mod, false);
+    return _entry_matches(p_entry_id, p_entry_attr, p_node, p_pol_mod, smi, false);
 }
 
 static policy_match_t _is_whitelisted(const policy_descr_t *policy,
@@ -917,7 +941,8 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
 
     for (i = 0; i < count; i++)
     {
-        switch (_entry_matches(p_entry_id, p_entry_attr, &list[i].bool_expr, NULL, no_warning))
+        switch (_entry_matches(p_entry_id, p_entry_attr, &list[i].bool_expr, NULL,
+                               policy->status_mgr, no_warning))
         {
         case POLICY_MATCH:
             /* TODO remember the entry is ignored for this policy? */
@@ -955,7 +980,7 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
         printf("Checking if entry matches whitelisted fileset %s...\n", fs_list[i]->fileset_id);
 #endif
         switch (_entry_matches(p_entry_id, p_entry_attr, &fs_list[i]->definition,
-                               NULL, no_warning))
+                               NULL, policy->status_mgr, no_warning))
         {
         case POLICY_MATCH:
         {
@@ -1051,7 +1076,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
             continue;
         }
 
-        switch (_entry_matches(id, &attr_cp, &fset->definition, NULL, true))
+        switch (_entry_matches(id, &attr_cp, &fset->definition, NULL, NULL, true))
         {
             case POLICY_MATCH:
                 ok ++;
@@ -1210,7 +1235,7 @@ rule_item_t *policy_case(const policy_descr_t *policy,
 
             switch (entry_matches(p_entry_id, p_entry_attr,
                                   &pol_list[i].target_list[j]->definition,
-                                  NULL))
+                                  NULL, policy->status_mgr))
             {
             case POLICY_MATCH:
                 DisplayLog(LVL_FULL, POLICY_TAG,
@@ -1385,7 +1410,7 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
 
             switch (_entry_matches(p_entry_id, p_entry_attr,
                                    &pol_list[i].target_list[j]->definition,
-                                   time_mod, true))
+                                   time_mod, policy->status_mgr, true))
             {
             case POLICY_MATCH:
                 DisplayLog(LVL_FULL, POLICY_TAG,
@@ -1441,7 +1466,8 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
          * - if we get MISSING_ATTR for the condition, return MISSING_ATTR.
          */
         switch (_entry_matches(p_entry_id, p_entry_attr,
-                               &pol_list[i].condition, time_mod, true))
+                               &pol_list[i].condition, time_mod,
+                               policy->status_mgr, true))
         {
         case POLICY_NO_MATCH:
             /* the entry cannot match this item */
@@ -1487,7 +1513,7 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
          */
         switch (_entry_matches(p_entry_id, p_entry_attr,
                                &pol_list[default_index].condition,
-                               time_mod, true))
+                               time_mod, policy->status_mgr, true))
         {
         case POLICY_NO_MATCH:
             return POLICY_NO_MATCH;

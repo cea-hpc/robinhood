@@ -39,6 +39,8 @@
 
 #define FIND_TAG "find"
 
+#define LSSTATUS_OPT 260
+
 static struct option option_tab[] =
 {
     {"user", required_argument, NULL, 'u'},
@@ -54,18 +56,19 @@ static struct option option_tab[] =
     {"msec", required_argument, NULL, 'z'},
     {"atime", required_argument, NULL, 'A'},
     {"amin", required_argument, NULL, 'a'},
+    {"status", required_argument, NULL, 'S'},
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
     {"pool", required_argument, NULL, 'P'},
     {"lsost", no_argument, NULL, 'O'},
 #endif
-#ifdef ATTR_INDEX_status
-    {"status", required_argument, NULL, 'S'},
-#endif
+    {"lsclass", no_argument, NULL, 'c'},
+    {"lsstatus", optional_argument, NULL, LSSTATUS_OPT},
+
     {"ls", no_argument, NULL, 'l'},
     {"print", no_argument, NULL, 'p'},
     {"exec", required_argument, NULL, 'E'},
-    /* TODO dry-run mode for exec */
+    /* TODO dry-run mode for exec ? */
 
     /* query options */
     {"not", no_argument, NULL, '!'},
@@ -85,7 +88,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lpOu:g:t:s:n:S:o:P:E:A:M:m:z:f:d:hV!bUG"
+#define SHORT_OPT_STRING    "lpOu:g:t:s:n:S:o:P:E:A:M:C:m:z:f:d:hV!bUGc"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -99,15 +102,23 @@ robinhood_config_t config;
 /* program options */
 struct find_opt
 {
-    const char * user;
-    const char * group;
-    const char * type;
+    const char  *user;
+    const char  *group;
+    const char  *type;
     // size cond: gt/eq/lt <val>
     compare_direction_t sz_compar;
     uint64_t            sz_val;
-    const char * name;
+    const char  *name;
     unsigned int ost_idx;
-    const char * pool;
+    const char  *pool;
+    /* status manager for -lsstatus */
+    const char  *lsstatus_name;
+    sm_instance_t *smi;
+
+    /* status name and value for -status */
+    sm_instance_t *filter_smi;
+    char  *filter_status_name;
+    char  *filter_status_value;
 
     // crtime cond: gt/eq/lt <time>
     compare_direction_t crt_compar;
@@ -121,10 +132,6 @@ struct find_opt
     compare_direction_t acc_compar;
     time_t              acc_val;
 
-#ifdef ATTR_INDEX_status
-    file_status_t status;
-#endif
-
     const char * exec_cmd;
 
     /* query option */
@@ -133,10 +140,11 @@ struct find_opt
            force_nobulk
     } bulk;
 
-
     /* output flags */
     unsigned int ls:1;
     unsigned int lsost:1;
+    unsigned int lsclass:1;
+    unsigned int lsstatus:1;
     unsigned int print:1;
     /* condition flags */
     unsigned int match_user:1;
@@ -151,10 +159,8 @@ struct find_opt
     unsigned int match_ost:1;
     unsigned int match_pool:1;
 #endif
-#ifdef ATTR_INDEX_status
     unsigned int match_status:1;
     unsigned int statusneg:1;
-#endif
 
     /* -not flags */
     unsigned int userneg:1;
@@ -170,32 +176,25 @@ struct find_opt
 
 } prog_options = {
     .user = NULL, .group = NULL, .type = NULL, .name = NULL,
+    .lsstatus_name = NULL, .smi = NULL,
 #ifdef _LUSTRE
-    .match_ost = 0, .match_pool = 0,
+    .match_ost = 0, .match_pool = 0, .pool = NULL,
 #endif
-#ifdef ATTR_INDEX_status
-    .status = STATUS_UNKNOWN,
-#endif
+    .filter_smi = NULL, .filter_status_name = NULL, .filter_status_value = NULL,
     .bulk = bulk_unspec,
-    .ls = 0, .lsost = 0, .print = 1,
+    .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1,
     .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_crtime = 0, .match_mtime = 0, .match_atime = 0,
-#ifdef ATTR_INDEX_status
     .match_status = 0, .statusneg = 0,
-#endif
     .userneg = 0 , .groupneg = 0, .nameneg = 0,
     .no_dir = 0, .dir_only = 0, .exec = 0
 };
 
-#ifdef ATTR_INDEX_status
-#define LS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
-                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link | ATTR_MASK_status)
-#else
 #define LS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
                       ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link )
-#endif
 #define LSOST_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_stripe_items)
+#define LSCLASS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_fileclass)
 
 static uint64_t disp_mask = ATTR_MASK_type;
 static uint64_t query_mask = 0;
@@ -215,7 +214,9 @@ static int mkfilters(bool exclude_dirs)
     filter_value_t fv;
     int compflag;
 
-    /* create boolean expression for matching */
+    /* Create boolean expression for matching.
+     * All expressions are then converted to a DB filter.
+     */
 
     if (prog_options.match_user)
     {
@@ -251,7 +252,6 @@ static int mkfilters(bool exclude_dirs)
 
     if (prog_options.match_name)
     {
-        /* this is not converted to DB filter, but will be used in post checking */
         compare_value_t val;
         strcpy(val.str, prog_options.name);
         if (prog_options.nameneg)
@@ -340,6 +340,26 @@ static int mkfilters(bool exclude_dirs)
     }
 #endif
 
+    if (prog_options.match_status)
+    {
+        compare_value_t val;
+
+        strcpy(val.str, prog_options.filter_status_value);
+
+        if (prog_options.statusneg)
+            compflag = COMP_DIFF;
+        else
+            compflag = COMP_EQUAL;
+
+        if (!is_expr)
+            CreateBoolCond(&match_expr, compflag, CRITERIA_STATUS, val);
+        else
+            AppendBoolCond(&match_expr, compflag, CRITERIA_STATUS, val);
+
+        is_expr = 1;
+        query_mask |= SMI_MASK(prog_options.filter_smi->smi_index);
+    }
+
     /* create DB filters */
     lmgr_simple_filter_init( &entry_filter );
 
@@ -371,27 +391,6 @@ static int mkfilters(bool exclude_dirs)
         lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
     }
 
-#ifdef ATTR_INDEX_status
-    if (prog_options.match_status)
-    {
-        if (prog_options.statusneg)
-            compflag = NOTEQUAL;
-        else
-            compflag = EQUAL;
-        /* not part of user policies, only add it to DB filter */
-        fv.value.val_uint = prog_options.status;
-        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, compflag, fv, 0 );
-    }
-#endif
-
-    if (prog_options.match_name)
-    {
-        fv.value.val_str = prog_options.name;
-        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_name, LIKE, fv, 0 );
-    }
-
-    /* TODO what about pool? */
-
     if (is_expr)
     {
         char expr[RBH_PATH_MAX];
@@ -401,7 +400,7 @@ static int mkfilters(bool exclude_dirs)
 
         /* append bool expr to entry filter */
         /* Do not use 'OR' expression there */
-        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter, NULL); /* FIXME status management in rbh_du/rbh_find */
+        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter, prog_options.filter_smi);
     }
 
     return 0;
@@ -436,10 +435,7 @@ static const char *help_string =
     "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
     "    " _B "-pool" B_ " " _U "ost_pool" U_ "\n"
 #endif
-#ifdef ATTR_INDEX_status
-    "    " _B "-status" B_ " " _U "status" U_ "\n"
-    "       %s\n"
-#endif
+    "    " _B "-status" B_ " " _U "status_name"U_":"_U"status_value" U_ "\n"
     "\n"
     "    " _B "-not" B_ ", "_B"-!"B_" \t Negate next argument\n"
     "\n"
@@ -448,6 +444,8 @@ static const char *help_string =
 #ifdef _LUSTRE
     "    " _B "-lsost" B_" \t Display OST information\n"
 #endif
+    "    " _B "-lsclass" B_" \t Display fileclass information\n"
+    "    " _B "-lsstatus" B_"[="_U"policy"U_"] \t Display status information (optionally: only for the given "_U"policy"U_").\n"
     "    " _B "-print" B_" \t Display the fullpath of matching entries (this is the default, unless -ls, -lsost or -exec are used).\n"
     "\n"
     _B "Actions:" B_ "\n"
@@ -475,11 +473,7 @@ static const char *help_string =
 
 static inline void display_help(char *bin_name)
 {
-#ifdef ATTR_INDEX_status
-    printf(help_string, bin_name, allowed_status());
-#else
     printf(help_string, bin_name);
-#endif
 }
 
 static inline void display_version( char *bin_name )
@@ -754,47 +748,87 @@ static int set_time_filter(char * str, unsigned int multiplier,
 static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
 {
     char ostbuf[24576] = "";
+    char classbuf[1024] = "";
+    char statusbuf[1024] = "";
 
-#ifdef ATTR_INDEX_status
-    if (prog_options.match_status)
-    {
-        if (ATTR_MASK_TEST(attrs, status) && (ATTR(attrs, status) != prog_options.status))
-        {
-            /* no match -> no display */
-            return;
-        }
-    }
-#endif
+    /* HERE: post-filter attributes that are not part of the DB request */
 
 #ifdef _LUSTRE
     /* prepare OST display buffer */
     if (prog_options.lsost && ATTR_MASK_TEST(attrs, stripe_items)
         && (ATTR(attrs, stripe_items).count > 0))
     {
-        /* leave a space as first char */
-        ostbuf[0] = ' ';
-        FormatStripeList(ostbuf+1, sizeof(ostbuf)-2, &ATTR(attrs, stripe_items), true);
+        /* leave 2 spaces as first char */
+        ostbuf[0] = ostbuf[1] = ' ';
+        FormatStripeList(ostbuf+2, sizeof(ostbuf)-2, &ATTR(attrs, stripe_items), true);
     }
 #endif
+
+    /* prepare class display buffer */
+    if (prog_options.lsclass)
+    {
+        /* leave a space before and after */
+        snprintf(classbuf, sizeof(classbuf), " %-20s ",
+                 class_format(ATTR_MASK_TEST(attrs, fileclass)?
+                              ATTR(attrs, fileclass) : NULL));
+    }
+
+    /* prepare status display buffer */
+    if (prog_options.lsstatus)
+    {
+        /* if a status is specified: display it */
+        if (prog_options.smi)
+        {
+            /* if matching a status != lsstatus: display both (filter first) */
+            if (prog_options.match_status)
+            {
+                snprintf(statusbuf, sizeof(statusbuf), " %s:%s,%s:%s ",
+                         prog_options.filter_smi->instance_name,
+                    status_format(ATTR_MASK_STATUS_TEST(attrs, prog_options.filter_smi->smi_index)?
+                                  STATUS_ATTR(attrs, prog_options.filter_smi->smi_index):NULL),
+                         prog_options.smi->instance_name,
+                    status_format(ATTR_MASK_STATUS_TEST(attrs, prog_options.smi->smi_index)?
+                                  STATUS_ATTR(attrs, prog_options.smi->smi_index):NULL));
+            }
+            else /* just the requested lsstatus, with no prefix */
+                snprintf(statusbuf, sizeof(statusbuf), " %-15s ",
+                    status_format(ATTR_MASK_STATUS_TEST(attrs, prog_options.smi->smi_index)?
+                                  STATUS_ATTR(attrs, prog_options.smi->smi_index):NULL));
+        }
+        else
+        {
+            int i;
+            char *curr = statusbuf;
+            int remain = sizeof(statusbuf);
+
+            /* if no status is specified: display them all
+             * (no extra display for filter_status in this case) */
+            for (i = 0; i < sm_inst_count && remain > 0; i++)
+            {
+                curr += snprintf(curr, remain, "%s%s:%s",
+                                 i == 0 ? " " : ",",
+                                 get_sm_instance(i)->instance_name,
+                                 status_format(ATTR_MASK_STATUS_TEST(attrs, i)?
+                                               STATUS_ATTR(attrs, i):NULL));
+                remain = (ptrdiff_t)(sizeof(statusbuf) - (curr - statusbuf));
+            }
+            strncat(curr, " ", remain);
+        }
+    }
+    else if (prog_options.filter_smi)
+    {
+        /* just the matched status, with no prefix */
+        snprintf(statusbuf, sizeof(statusbuf), " %-15s ",
+            status_format(ATTR_MASK_STATUS_TEST(attrs, prog_options.filter_smi->smi_index)?
+                          STATUS_ATTR(attrs, prog_options.filter_smi->smi_index):NULL));
+    }
 
     if (prog_options.ls)
     {
         const char * type;
         char date_str[128];
         char mode_str[128];
-#ifdef ATTR_INDEX_status
-        const char * status_str = "";
 
-        /* add status after type */
-        if (ATTR_MASK_TEST(attrs, status) && (ATTR(attrs, status) != STATUS_UNKNOWN))
-            status_str = db_status2str(ATTR(attrs, status), 1); /* 1 for brief */
-
-        #define STATUS_FORMAT   "%-10s"
-        #define STATUS_VAL ,status_str
-#else
-        #define STATUS_FORMAT   ""
-        #define STATUS_VAL
-#endif
         /* type2char */
         if (!ATTR_MASK_TEST(attrs, type))
             type = "?";
@@ -817,18 +851,18 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
         if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
             && ATTR_MASK_TEST(attrs, link))
             /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
-            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s -> %s\n",
-                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink) STATUS_VAL,
+            printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s -> %s\n",
+                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink),
                    ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, id->fullname, ATTR(attrs,link));
+                   ATTR(attrs, size), date_str, statusbuf, classbuf, id->fullname, ATTR(attrs,link));
         else
             /* display all: id, type, mode, nlink, (status,) owner, group, size, mtime, path */
-            printf(DFID" %-4s %s %3u  "STATUS_FORMAT"%-10s %-10s %15"PRIu64" %20s %s%s\n",
-                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink) STATUS_VAL,
+            printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s%s\n",
+                   PFID(&id->id), type, mode_str, ATTR(attrs, nlink),
                    ATTR(attrs, owner), ATTR(attrs, gr_name),
-                   ATTR(attrs, size), date_str, id->fullname, ostbuf);
+                   ATTR(attrs, size), date_str, statusbuf, classbuf, id->fullname, ostbuf);
     }
-    else if (prog_options.lsost) /* lsost without -ls */
+    else if (prog_options.lsost || prog_options.lsclass || prog_options.lsstatus) /* lsost or lsclass without -ls */
     {
         const char * type;
 
@@ -839,17 +873,17 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             type = type2char(ATTR(attrs, type));
 
         /* display: id, type, size, path */
-        printf(DFID" %-4s %15"PRIu64" %s%s\n",
-               PFID(&id->id), type, ATTR(attrs, size), id->fullname, ostbuf);
+        printf(DFID" %-4s %15"PRIu64" %s%s%s%s\n",
+               PFID(&id->id), type, ATTR(attrs, size), statusbuf, classbuf, id->fullname, ostbuf);
 
     }
     else if (prog_options.print)
     {
         /* just display name */
         if (id->fullname)
-            printf("%s%s\n", id->fullname, ostbuf);
+            printf("%s\n", id->fullname);
         else
-            printf(DFID"%s\n", PFID(&id->id), ostbuf);
+            printf(DFID"\n", PFID(&id->id));
     }
 
     if (prog_options.exec)
@@ -884,7 +918,8 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
 
         /* match condition on dirs parent */
         if (!is_expr || (entry_matches(&id_list[i].id, &attr_list[i],
-                                      &match_expr, NULL) == POLICY_MATCH))
+                                      &match_expr, NULL, prog_options.filter_smi)
+                         == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attr_list[i], type)
@@ -906,7 +941,8 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
             for (j = 0; j < chcount; j++)
             {
                 if (!is_expr || (entry_matches(&chids[j].id, &chattrs[j],
-                                 &match_expr, NULL) == POLICY_MATCH))
+                                 &match_expr, NULL, prog_options.filter_smi)
+                                 == POLICY_MATCH))
                     print_entry(&chids[j], &chattrs[j]);
 
                 ListMgr_FreeAttrs(&chattrs[j]);
@@ -970,7 +1006,7 @@ static int list_bulk(void)
 
     /* match condition on dirs parent */
     if (!is_expr || (entry_matches(&root_id, &root_attrs,
-                     &match_expr, NULL) == POLICY_MATCH))
+                     &match_expr, NULL, prog_options.filter_smi) == POLICY_MATCH))
     {
         /* don't display dirs if no_dir is specified */
         if (! (prog_options.no_dir && ATTR_MASK_TEST(&root_attrs, type)
@@ -993,8 +1029,8 @@ static int list_bulk(void)
     attrs.attr_mask = disp_mask | query_mask;
     while ((rc = ListMgr_GetNext(it, &id, &attrs)) == DB_SUCCESS)
     {
-        if (!is_expr || (entry_matches(&id, &attrs, &match_expr, NULL)
-                                      == POLICY_MATCH))
+        if (!is_expr || (entry_matches(&id, &attrs, &match_expr, NULL,
+                                       prog_options.filter_smi) == POLICY_MATCH))
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attrs, type)
@@ -1172,36 +1208,42 @@ int main( int argc, char **argv )
         case '!':
             neg = true;
             break;
+
         case 'u':
             toggle_option(match_user, "user");
             prog_options.user = optarg;
             prog_options.userneg = neg;
             neg = false;
             break;
+
         case 'g':
             toggle_option(match_group, "group");
             prog_options.group = optarg;
             prog_options.groupneg = neg;
             neg = false;
             break;
+
         case 'U': /* match numerical (non resolved) users */
             toggle_option(match_user, "user");
             prog_options.user = "[0-9]*";
             prog_options.userneg = neg;
             neg = false;
             break;
+
         case 'G': /* match numerical (non resolved) groups */
             toggle_option(match_group, "group");
             prog_options.group = "[0-9]*";
             prog_options.groupneg = neg;
             neg = false;
             break;
+
         case 'n':
             toggle_option(match_name, "name");
             prog_options.name = optarg;
             prog_options.nameneg = neg;
             neg = false;
             break;
+
 #ifdef _LUSTRE
         case 'o':
             toggle_option(match_ost, "ost");
@@ -1216,10 +1258,12 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+
         case 'P':
             toggle_option(match_pool, "pool");
             prog_options.pool = optarg;
             break;
+
         case 'O':
             prog_options.lsost = 1;
             prog_options.print = 0;
@@ -1230,6 +1274,27 @@ int main( int argc, char **argv )
             }
             break;
 #endif
+
+        case 'c':
+            prog_options.lsclass = 1;
+            prog_options.print = 0;
+            disp_mask |= LSCLASS_DISPLAY_MASK;
+            if (neg) {
+                fprintf(stderr, "! (-not) unexpected before -lsclass option\n");
+                exit(1);
+            }
+            break;
+
+        case LSSTATUS_OPT:
+            prog_options.lsstatus = 1;
+            prog_options.print = 0;
+            prog_options.lsstatus_name = optarg;
+            if (neg) {
+                fprintf(stderr, "! (-not) unexpected before -lsstatus option\n");
+                exit(1);
+            }
+            break;
+
         case 't':
             toggle_option(match_type, "type");
             prog_options.type = opt2type(optarg);
@@ -1243,6 +1308,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+
         case 's':
             toggle_option(match_size, "size");
             if (set_size_filter(optarg))
@@ -1314,20 +1380,16 @@ int main( int argc, char **argv )
             break;
 
 
-#ifdef ATTR_INDEX_status
         case 'S':
             toggle_option(match_status, "status");
-            prog_options.status = status2dbval(optarg);
-            if ( prog_options.status == (file_status_t)-1 )
-            {
-                fprintf(stderr, "Unknown status '%s'. Allowed status: %s.\n", optarg,
-                        allowed_status());
-                exit(1);
-            }
+            rc = parse_status_arg("-status", optarg, &prog_options.filter_status_name,
+                                  &prog_options.filter_status_value, true);
+            if (rc)
+                exit(rc);
             prog_options.statusneg = neg;
             neg = false;
             break;
-#endif
+
         case 'l':
             prog_options.ls = 1;
             prog_options.print = 0;
@@ -1337,6 +1399,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+
         case 'p':
             prog_options.print = 1;
             disp_mask |= LS_DISPLAY_MASK;
@@ -1351,6 +1414,7 @@ int main( int argc, char **argv )
             prog_options.exec_cmd = optarg;
             prog_options.print = 0;
             break;
+
         case 'f':
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             if (neg) {
@@ -1358,6 +1422,7 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+
         case 'd':
             force_log_level = true;
             log_level = str2debuglevel( optarg );
@@ -1373,17 +1438,21 @@ int main( int argc, char **argv )
                 exit(1);
             }
             break;
+
         case 'b':
             prog_options.bulk = force_nobulk;
             break;
+
         case 'h':
             display_help( bin );
             exit( 0 );
             break;
+
         case 'V':
             display_version( bin );
             exit( 0 );
             break;
+
         case ':':
         case '?':
         default:
@@ -1468,6 +1537,39 @@ int main( int argc, char **argv )
     {
         DisplayLog( LVL_CRIT, FIND_TAG, "Error %d: cannot connect to database", rc );
         exit(rc);
+    }
+
+    /* manage status args:
+     * lsstatus: check optional argument
+     *           set the display mask appropriately.
+     */
+    if (prog_options.lsstatus)
+    {
+        if (prog_options.lsstatus_name)
+        {
+            const char *dummy;
+            rc = check_status_args(prog_options.lsstatus_name, NULL, &dummy,
+                                   &prog_options.smi);
+            if (rc)
+                exit(rc);
+            disp_mask |= SMI_MASK(prog_options.smi->smi_index);
+        }
+        else /* display all status */
+            disp_mask |= all_status_mask();
+    }
+
+    if (prog_options.match_status)
+    {
+        const char *strval;
+
+        rc = check_status_args(prog_options.filter_status_name,
+                               prog_options.filter_status_value, &strval,
+                               &prog_options.filter_smi);
+        if (rc)
+            exit(rc);
+        /* add it to display mask */
+        disp_mask |= SMI_MASK(prog_options.filter_smi->smi_index);
+        prog_options.filter_status_value = (char *)strval;
     }
 
     if (argc == optind)

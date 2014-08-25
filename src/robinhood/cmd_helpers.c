@@ -374,6 +374,90 @@ int parse_diff_mask(const char * arg, uint64_t *diff_mask, char * msg)
     return 0;
 }
 
+int parse_status_arg(const char *option, char *arg, char **p_st_name, char **p_st_val,
+                     bool mandatory_value)
+{
+    int   sn_len;
+    char *delim;
+
+    if (!arg)
+    {
+        fprintf(stderr, "Missing mandatory argument <status_name>%s for %s\n",
+                mandatory_value?":<status_value>":"[:<status_value>]", option);
+        return EINVAL;
+    }
+
+    /* the expected argument is <status_name>:<status_value> */
+    delim = strchr(arg, ':');
+    if (delim == NULL && mandatory_value)
+    {
+        fprintf(stderr, "Invalid argument for %s: <status_name>:<status_value> expected\n",
+                option);
+        return EINVAL;
+    }
+    *p_st_name = arg;
+
+    if (delim != NULL)
+    {
+        *delim = '\0';
+        *p_st_val = delim + 1;
+    }
+    else
+        *p_st_val = NULL;
+
+    if (EMPTY_STRING(*p_st_name))
+    {
+        fprintf(stderr, "Invalid argument for %s: <status_name>%s expected\n",
+                option, mandatory_value?":<status_value>":"[:<status_value>]");
+        return EINVAL;
+    }
+
+    /* if status_name ends with "_status", remove it */
+    sn_len = strlen(*p_st_name);
+    if ((sn_len > 7) && !strcmp((*p_st_name) + sn_len - 7, "_status"))
+        *((char*)((*p_st_name) + sn_len - 7)) = '\0';
+
+    return 0;
+}
+
+int check_status_args(const char *status_name, const char *status_value,
+                      const char **str_val_new, sm_instance_t **p_smi)
+{
+    /* resolve the status name now, as config file has been parsed */
+    *str_val_new = status_value;
+    char buff[1024];
+
+    /* get status index by name */
+    *p_smi = smi_by_name(status_name);
+    if (*p_smi == NULL)
+    {
+        int idx;
+        /* try with a policy name */
+        if (policy_exists(status_name, &idx))
+            (*p_smi) = policies.policy_list[idx].status_mgr;
+        else
+        {
+            fprintf(stderr, "ERROR: status manager or policy '%s' is not defined\n", status_name);
+            return EINVAL;
+        }
+    }
+
+    /* check status value */
+    if (status_value && !EMPTY_STRING(status_value))
+    {
+        *str_val_new = get_status_str((*p_smi)->sm, status_value);
+        if (*str_val_new == NULL)
+        {
+            fprintf(stderr, "ERROR: unexpected value for %s_status: '%s'."
+                    " Expected values are: %s\n", status_name, status_value,
+                    allowed_status_str((*p_smi)->sm, buff, sizeof(buff)));
+            return EINVAL;
+        }
+    }
+
+    return 0;
+}
+
 /** print an attribute from attrs structure */
 const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
                      int attr_index, int csv, name_func name_resolver,

@@ -1771,7 +1771,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     {
         /* check if the entry matches the policy condition */
         switch(entry_matches(&p_item->entry_id, &new_attr_set, &rule->condition,
-                             pol->time_modifier))
+                             pol->time_modifier, pol->descr->status_mgr))
         {
         case POLICY_NO_MATCH:
             /* entry is not eligible now */

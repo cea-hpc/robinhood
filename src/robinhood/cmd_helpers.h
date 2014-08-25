@@ -62,8 +62,18 @@ static inline void free_wagon(wagon_t *ids, int first, int last)
     }
 }
 
-/* parse attrset for --diff option */
+/** parse attrset for --diff option */
 int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg);
+
+/** parse a status argument <status_name|policy_name>[:<status_value>] */
+int parse_status_arg(const char *option, char *arg, char **p_st_name, char **p_st_val,
+                     bool mandatory_value);
+
+/** check a status argument <status_name|policy_name>[:<status_value>],
+ *  after the configuration has been loaded.
+ */
+int check_status_args(const char *status_name, const char *status_value,
+                      const char **str_val_new, sm_instance_t **p_smi);
 
 #define KB  1024LL
 #define MB  (KB*KB)

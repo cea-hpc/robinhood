@@ -533,7 +533,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
 
     /* sum root if it matches */
     if (!is_expr || (entry_matches(&root_id, &root_attrs,
-                     &match_expr, NULL) == POLICY_MATCH))
+                     &match_expr, NULL, NULL) == POLICY_MATCH))
     {
         unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
         stats[idx].count ++;
@@ -668,7 +668,7 @@ static int list_content(char ** id_list, int id_count)
 
         /* sum root if it matches */
         if (!is_expr || (entry_matches(&ids[i].id, &root_attrs,
-                         &match_expr, NULL) == POLICY_MATCH))
+                         &match_expr, NULL, NULL) == POLICY_MATCH))
         {
             unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
             stats[idx].count ++;

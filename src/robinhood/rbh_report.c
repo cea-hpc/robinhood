@@ -316,9 +316,7 @@ static inline void display_help( char *bin_name )
 {
     printf(cmd_help, bin_name);
     printf("\n");
-// @TODO RBHv3 manage status values
-//    printf(stats_help, allowed_status());
-    printf(stats_help, "FIXME");
+    printf(stats_help);
     printf("\n");
     printf(maintenance_help);
     printf("\n");
@@ -1258,7 +1256,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
         list_cnt = sizeof(list_status)/sizeof(int);
         list[1] = ATTR_COUNT + int_arg; /* status index */
     }
-    else
+    else /* std dump: display all status */
     {
         int i;
 
@@ -2584,87 +2582,6 @@ static void maintenance_set( int flags, time_t when )
     }
 }
 
-static void parse_status_arg(const char *option, char *arg, char **p_st_name, char **p_st_val,
-                             bool mandatory_value)
-{
-    int   sn_len;
-    char *delim;
-
-    if (!arg)
-    {
-        fprintf(stderr, "Missing mandatory argument <status_name>%s for %s\n",
-                mandatory_value?":<status_value>":"[:<status_value>]", option);
-        exit(1);
-    }
-
-    /* the expected argument is <status_name>:<status_value> */
-    delim = strchr(arg, ':');
-    if (delim == NULL && mandatory_value)
-    {
-        fprintf(stderr, "Invalid argument for %s: <status_name>:<status_value> expected\n",
-                option);
-        exit(1);
-    }
-    *p_st_name = arg;
-
-    if (delim != NULL)
-    {
-        *delim = '\0';
-        *p_st_val = delim + 1;
-    }
-    else
-        *p_st_val = NULL;
-
-    if (EMPTY_STRING(*p_st_name))
-    {
-        fprintf(stderr, "Invalid argument for %s: <status_name>%s expected\n",
-                option, mandatory_value?":<status_value>":"[:<status_value>]");
-        exit(1);
-    }
-
-    /* if status_name ends with "_status", remove it */
-    sn_len = strlen(*p_st_name);
-    if ((sn_len > 7) && !strcmp((*p_st_name) + sn_len - 7, "_status"))
-        *((char*)((*p_st_name) + sn_len - 7)) = '\0';
-}
-
-static void check_status_args(const char *status_name, const char *status_value,
-                              const char **str_val_new, sm_instance_t **p_smi)
-{
-        /* resolve the status name now, as config file has been parsed */
-        *str_val_new = status_value;
-        char buff[1024];
-
-        /* get status index by name */
-        *p_smi = smi_by_name(status_name);
-        if (*p_smi == NULL)
-        {
-            int idx;
-            /* try with a policy name */
-            if (policy_exists(status_name, &idx))
-                (*p_smi) = policies.policy_list[idx].status_mgr;
-            else
-            {
-                fprintf(stderr, "ERROR: status manager or policy '%s' is not defined\n", status_name);
-                exit(1);
-            }
-        }
-
-        /* check status value */
-        if (status_value && !EMPTY_STRING(status_value))
-        {
-            *str_val_new = get_status_str((*p_smi)->sm, status_value);
-            if (*str_val_new == NULL)
-            {
-                fprintf(stderr, "ERROR: unexpected value for %s_status: '%s'."
-                        " Expected values are: %s\n", status_name, status_value,
-                        allowed_status_str((*p_smi)->sm, buff, sizeof(buff)));
-                exit(1);
-            }
-        }
-}
-
-
 #define MAX_OPT_LEN 1024
 
 /**
@@ -2777,7 +2694,9 @@ int main( int argc, char **argv )
         case OPT_STATUS_INFO:
             if (status_info_name)
                 fprintf(stderr, "WARNING: --status-info parameter already specified on command line.\n");
-            parse_status_arg("--status-info", optarg, &status_info_name, &status_info_value, false);
+            rc = parse_status_arg("--status-info", optarg, &status_info_name, &status_info_value, false);
+            if (rc)
+                exit(rc);
             break;
 
         case 'i':
@@ -2847,7 +2766,9 @@ int main( int argc, char **argv )
 #endif
 
         case OPT_DUMP_STATUS:
-            parse_status_arg("--dump-status", optarg, &status_name, &status_value, true);
+            rc = parse_status_arg("--dump-status", optarg, &status_name, &status_value, true);
+            if (rc)
+                exit(rc);
             break;
 
         case 'd':
@@ -3199,7 +3120,9 @@ int main( int argc, char **argv )
         sm_instance_t *smi;
         const char *strval;
 
-        check_status_args(status_name, status_value, &strval, &smi);
+        rc = check_status_args(status_name, status_value, &strval, &smi);
+        if (rc)
+            exit(rc);
         dump_entries(DUMP_STATUS, smi->smi_index, (char *)strval, NULL, flags);
     }
 
@@ -3208,7 +3131,9 @@ int main( int argc, char **argv )
         sm_instance_t *smi;
         const char *strval;
 
-        check_status_args(status_info_name, status_info_value, &strval, &smi);
+        rc = check_status_args(status_info_name, status_info_value, &strval, &smi);
+        if (rc)
+            exit(rc);
         report_status_info(smi->smi_index, strval, flags);
     }
 

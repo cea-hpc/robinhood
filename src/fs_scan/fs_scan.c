@@ -242,7 +242,7 @@ static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct 
     rc = POLICY_NO_MATCH;
     for ( i = 0; i < fs_scan_config.ignore_count; i++ )
     {
-        switch (entry_matches(&tmpid, &tmpattr, &fs_scan_config.ignore_list[i].bool_expr, NULL))
+        switch (entry_matches(&tmpid, &tmpattr, &fs_scan_config.ignore_list[i].bool_expr, NULL, NULL))
         {
         case POLICY_MATCH:
             return true;

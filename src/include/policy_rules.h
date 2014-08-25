@@ -483,10 +483,9 @@ policy_match_t is_whitelisted(const policy_descr_t *policy,
 bool class_is_whitelisted(const policy_descr_t *policy, const char *class_id);
 
 /* check if entry matches a boolean expression */
-policy_match_t entry_matches(const entry_id_t *p_entry_id,
-                             const attr_set_t *p_entry_attr,
-                             bool_node_t *p_node,
-                             const time_modifier_t *time_mod);
+policy_match_t entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_entry_attr,
+                             bool_node_t *p_node, const time_modifier_t *p_pol_mod,
+                             const struct sm_instance *smi);
 
 /**
  * Compare 2 boolean expressions

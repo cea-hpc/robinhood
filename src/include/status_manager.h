@@ -67,9 +67,9 @@ typedef struct sm_instance
     /** status manager instance name:
      * If the status manager is shared between policies,
      * it just consists of the status manager name.
-     * Else, it is <status manager name> + <policy name>.
+     * Else, it is named as the policy.
      * The corresponding DB field name is:
-     *    <SM name> + <policy_name(truncated)> + "_status".
+     *    <policy_name(truncated)> + "_status".
      */
     char  *instance_name;
     char  *db_field;

@@ -1407,7 +1407,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             continue;
 
         if (entry_matches(&p_op->entry_id, &merged_attrs,
-                          &entry_proc_conf.alert_list[i].boolexpr, NULL)
+                          &entry_proc_conf.alert_list[i].boolexpr, NULL, NULL)
             == POLICY_MATCH)
         {
             /* build alert string and break */
