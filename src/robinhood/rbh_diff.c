@@ -619,18 +619,18 @@ int main( int argc, char **argv )
     if ( CheckLastFS(  ) != 0 )
         exit( 1 );
 
-    if (options.diff_mask)
-        rh_config.entry_proc_config.diff_mask = options.diff_mask;
-    else
+    if (!options.diff_mask)
     {
         /* parse "all" */
         char tmpstr[] = "all";
-        if (parse_diff_mask(tmpstr, &rh_config.entry_proc_config.diff_mask, err_msg))
+        rc = parse_diff_mask(tmpstr, &options.diff_mask, err_msg);
+        if (rc)
         {
             DisplayLog(LVL_CRIT, DIFF_TAG, "unexpected error parsing diff mask: %s", err_msg);
             exit(1);
         }
     }
+    rh_config.entry_proc_config.diff_mask = translate_all_status_mask(options.diff_mask);
 
 #ifdef LUSTRE_DUMP_FILES
     if (options.diff_arg.apply == APPLY_FS && !(options.flags & FLAG_DRY_RUN))

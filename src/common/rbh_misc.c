@@ -1372,15 +1372,17 @@ const char *mode_string(mode_t mode, char *buf)
 
 
 /**
- *  Print attributes to a string
+ *  Print attributes to a string.
+ *  This is used for alerts and diff display (brief argument).
  */
 int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
-               uint64_t overide_mask, int brief)
+               uint64_t overide_mask, bool brief)
 {
     uint64_t       mask = p_attr_set->attr_mask;
     size_t         written = 0;
     char           tmpbuf[24576];
     const char *   format;
+    int i;
 
     if ( overide_mask )
         mask = mask & overide_mask;
@@ -1634,23 +1636,26 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
     }
 #endif
 
-#ifdef ATTR_INDEX_status
-    if ( mask & ATTR_MASK_status )
+    for (i = 0; i < sm_inst_count; i++)
     {
-        if (brief)
+        if (mask & SMI_MASK(i))
         {
-            written +=
-                snprintf(out_str + written, strsize - written, "status=%s,",
-                         db_status2str(ATTR(p_attr_set, status), 1));
-        }
-        else
-        {
-            written +=
-                snprintf( out_str + written, strsize - written, "Status:  %s\n",
-                         db_status2str(ATTR(p_attr_set, status), 0));
+            sm_instance_t * smi = get_sm_instance(i);
+
+            if (brief)
+            {
+                written +=
+                    snprintf(out_str + written, strsize - written, "%s=%s,",
+                             smi->db_field, STATUS_ATTR(p_attr_set, i));
+            }
+            else
+            {
+                written +=
+                    snprintf(out_str + written, strsize - written, "%s:  %s\n",
+                             smi->db_field, STATUS_ATTR(p_attr_set, i));
+            }
         }
     }
-#endif
 
 #ifdef ATTR_INDEX_backendpath
     if ( mask & ATTR_MASK_backendpath )
@@ -1827,27 +1832,13 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
     }
 #endif
 
-
-#ifdef _LUSTRE
-    if ( mask & ATTR_MASK_stripe_items)
-    {
-    }
-
-    if (mask & ATTR_MASK_stripe_info)
-    {
-    }
-#endif
-
-#ifdef ATTR_INDEX_status
-    if ( mask & ATTR_MASK_status )
-    {
-    }
-#endif
-
+    /* the following changes can't be applied (not supported) */
+    /* stripe_items / stripe_info => restripe the file? */
+    /* status => perform the needed action? */
 
     if ( mask & ATTR_MASK_size )
     {
-        /* if new size is zero: truncate.
+        /** @TODO if new size is zero: truncate.
          * else, we have no idea of what's in the file...
          */
     }
@@ -2300,98 +2291,6 @@ void upperstr(char *str)
     for(i = 0; str[i]; i++)
        str[i] = toupper(str[i]);
 }
-
-
-#ifdef ATTR_INDEX_status
-/* ===  status display and conversion routines === */
-
-/* status conversion array */
-struct status_descr
-{
-    file_status_t db_status;
-    char * short_descr;
-}
-status_array[] =
-{
-#ifdef _LUSTRE_HSM
-    { STATUS_UNKNOWN, "n/a" },
-    { STATUS_NEW, "new" },
-    { STATUS_MODIFIED, "modified" },
-    { STATUS_RESTORE_RUNNING, "retrieving" },
-    { STATUS_ARCHIVE_RUNNING, "archiving" },
-    { STATUS_SYNCHRO, "synchro" },
-    { STATUS_RELEASED, "released" },
-    { STATUS_RELEASE_PENDING, "release_pending" },
-
-    /* alternative names */
-    { STATUS_UNKNOWN, "unknown" },
-    { STATUS_MODIFIED, "dirty" },
-    { STATUS_RESTORE_RUNNING, "restoring" },
-
-#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, released, release_pending"
-
-#elif defined(_HSM_LITE)
-    { STATUS_UNKNOWN, "n/a" },
-    { STATUS_NEW, "new" },
-    { STATUS_MODIFIED, "modified" },
-    { STATUS_RESTORE_RUNNING, "retrieving" },
-    { STATUS_ARCHIVE_RUNNING, "archiving" },
-    { STATUS_SYNCHRO, "synchro" },
-    { STATUS_RELEASED, "released" },
-    { STATUS_RELEASE_PENDING, "release_pending" },
-    { STATUS_REMOVED, "removed" },
-
-    /* alternative names */
-    { STATUS_UNKNOWN, "unknown" },
-    { STATUS_MODIFIED, "dirty" },
-    { STATUS_RESTORE_RUNNING, "restoring" },
-
-#define ALLOWED_STATUS "unknown, new, modified|dirty, retrieving|restoring, archiving, synchro, removed, released, release_pending"
-
-#endif
-    { (file_status_t)-1, NULL }
-};
-
-const char * db_status2str( file_status_t status, int csv )
-{
-    struct status_descr * curr;
-
-    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
-    {
-       if ( status == curr->db_status )
-       {
-           return curr->short_descr;
-       }
-    }
-    /* not found */
-    return "?";
-}
-
-file_status_t status2dbval( char * status_str )
-{
-    struct status_descr * curr;
-    int len;
-
-    if (  (status_str == NULL) || (status_str[0] == '\0') )
-        return (file_status_t)-1;
-
-    len = strlen( status_str );
-
-    for ( curr = status_array; curr->short_descr != NULL; curr ++ )
-    {
-       if ( !strncmp( status_str, curr->short_descr, len ) )
-            return curr->db_status;
-    }
-    /* not found */
-    return (file_status_t)-1;
-}
-
-const char * allowed_status()
-{
-    return ALLOWED_STATUS;
-}
-
-#endif /* status attr exists */
 
 static int path2id(const char *path, entry_id_t *id)
 {

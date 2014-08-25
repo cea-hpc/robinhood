@@ -1560,7 +1560,8 @@ int main(int argc, char **argv)
     if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
     {
         if (options.diff_mask)
-            rh_config.entry_proc_config.diff_mask = options.diff_mask;
+            /* convert status[0] to all status flags */
+            rh_config.entry_proc_config.diff_mask = translate_all_status_mask(options.diff_mask);
 
         /* Initialize Pipeline */
 #ifdef _BENCH_PIPELINE

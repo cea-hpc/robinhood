@@ -315,12 +315,9 @@ struct __diffattr {
     { ATTR_MASK_stripe_info | ATTR_MASK_stripe_items, "stripe", 0 },
 #endif
     { ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id
-     | POSIX_ATTR_MASK | ATTR_MASK_link
+     | POSIX_ATTR_MASK | ATTR_MASK_link | SMI_MASK(0) /* stands for all status */
 #ifdef ATTR_INDEX_creation_time
         | ATTR_MASK_creation_time
-#endif
-#ifdef ATTR_INDEX_status
-        | ATTR_MASK_status
 #endif
 #ifdef _LUSTRE
         | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
@@ -337,7 +334,7 @@ struct __diffattr {
 };
 
 /* parse attrset for --diff option */
-int parse_diff_mask(const char * arg, uint64_t *diff_mask, char * msg)
+int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg)
 {
     uint64_t mask_pos = 0;
     uint64_t mask_neg = 0;

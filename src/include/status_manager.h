@@ -115,14 +115,20 @@ static inline uint64_t all_status_mask(void)
 
 static inline uint64_t translate_status_mask(uint64_t mask, unsigned int smi_index)
 {
-    uint64_t mask_out;
-
     if (!(mask & SMI_MASK(0)))
         return mask;
 
-    mask_out &= ~SMI_MASK(0);
-    mask_out |= SMI_MASK(smi_index);
-    return mask_out;
+    /* remove SMI_MASK(0) and add SMI_MASK(i) */
+    return (mask & ~SMI_MASK(0)) | SMI_MASK(smi_index);
+}
+
+static inline uint64_t translate_all_status_mask(uint64_t mask)
+{
+    if (!(mask & SMI_MASK(0)))
+        return mask;
+
+    /* remove SMI_MASK(0) and add all status mask */
+    return (mask & ~SMI_MASK(0)) | all_status_mask();
 }
 
 /** Get attribute mask for missing statuses */

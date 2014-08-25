@@ -43,9 +43,7 @@ static struct option option_tab[] =
     {"user", required_argument, NULL, 'u'},
     {"group", required_argument, NULL, 'g'},
     {"type", required_argument, NULL, 't'},
-#ifdef ATTR_INDEX_status
     {"status", required_argument, NULL, 'S'},
-#endif
 
     /* output options */
     {"sum", no_argument, NULL, 's'},
@@ -84,20 +82,20 @@ typedef enum { disp_byte, disp_kilo, disp_mega, disp_human } display_unit;
 /* program options */
 struct du_opt
 {
-    const char * user;
-    const char * group;
-    const char * type;
-#ifdef ATTR_INDEX_status
-    file_status_t status;
-#endif
+    const char    *user;
+    const char    *group;
+    const char    *type;
+
+    /* status name and value for -status */
+    sm_instance_t *smi;
+    char          *status_name;
+    char          *status_value;
 
     /* condition flags */
     unsigned int match_user:1;
     unsigned int match_group:1;
     unsigned int match_type:1;
-#ifdef ATTR_INDEX_status
     unsigned int match_status:1;
-#endif
 
     /* behavior flags */
     display_mode    disp_what;
@@ -106,16 +104,10 @@ struct du_opt
 
 } prog_options = {
     .user = NULL, .group = NULL, .type = NULL,
-#ifdef ATTR_INDEX_status
-    .status = STATUS_UNKNOWN,
-#endif
+    .smi = NULL, .status_name = NULL, .status_value = NULL,
     .match_user = 0, .match_group = 0, .match_type = 0,
-#ifdef ATTR_INDEX_status
     .match_status = 0,
-#endif
     .sum = 0, .disp_what = disp_usage, .disp_how = disp_kilo
-
- //   .no_dir = 0, .dir_only = 0
 };
 
 
@@ -238,10 +230,6 @@ static void print_stats(const char * name, stats_du_t * stats)
 /* build filters depending on program options */
 static int mkfilters( void )
 {
-#ifdef ATTR_INDEX_status
-    filter_value_t fv;
-#endif
-
     /* create boolean expression for matching root entries */
     if (prog_options.match_user)
     {
@@ -279,19 +267,24 @@ static int mkfilters( void )
         query_mask |= ATTR_MASK_type;
     }
 
-    /* create DB filters */
-    lmgr_simple_filter_init( &entry_filter );
-    lmgr_simple_filter_init( &parent_filter );
-
-#ifdef ATTR_INDEX_status
     if (prog_options.match_status)
     {
-        /* not part of user policies, only add it to DB filter */
-        fv.value.val_uint = prog_options.status;
-        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
-        lmgr_simple_filter_add( &parent_filter, ATTR_INDEX_status, EQUAL, fv, 0 );
+        compare_value_t val;
+
+        strcpy(val.str, prog_options.status_value);
+        if (!is_expr)
+            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_STATUS, val);
+        else
+            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_STATUS, val);
+
+        is_expr = 1;
+        query_mask |= SMI_MASK(prog_options.smi->smi_index);
     }
-#endif
+
+
+    /* create DB filters */
+    lmgr_simple_filter_init(&entry_filter);
+    lmgr_simple_filter_init(&parent_filter);
 
     if (is_expr)
     {
@@ -302,8 +295,8 @@ static int mkfilters( void )
 
         /* append bool expr to entry filter */
         /* Do not use 'OR' expression there */
-        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter, NULL); /* FIXME status management in rbh_du/rbh_find */
-        convert_boolexpr_to_simple_filter(&match_expr, &parent_filter, NULL); /* FIXME status management in rbh_du/rbh_find */
+        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter, prog_options.smi);
+        convert_boolexpr_to_simple_filter(&match_expr, &parent_filter, prog_options.smi);
     }
 
     return 0;
@@ -318,10 +311,7 @@ static const char *help_string =
     "    " _B "-g" B_ " " _U "group" U_ "\n"
     "    " _B "-t" B_ " " _U "type" U_ "\n"
     "       "TYPE_HELP"\n"
-#ifdef ATTR_INDEX_status
-    "    " _B "-S" B_ " " _U "status" U_ "\n"
-    "       %s\n"
-#endif
+    "    " _B "-S" B_ " " _U "<status_name>"U_":"_U"<status_value>" U_ "\n"
     "\n"
     _B "Output options:" B_ "\n"
     "    " _B "-s" B_ ", "_B "--sum" B_"\n"
@@ -348,13 +338,9 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n"
     "        Display version info\n";
 
-static inline void display_help( char *bin_name )
+static inline void display_help(char *bin_name)
 {
-#ifdef ATTR_INDEX_status
-    printf( help_string, bin_name, allowed_status() );
-#else
-    printf( help_string, bin_name );
-#endif
+    printf(help_string, bin_name);
 }
 
 static inline void display_version( char *bin_name )
@@ -533,7 +519,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
 
     /* sum root if it matches */
     if (!is_expr || (entry_matches(&root_id, &root_attrs,
-                     &match_expr, NULL, NULL) == POLICY_MATCH))
+                     &match_expr, NULL, prog_options.smi) == POLICY_MATCH))
     {
         unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
         stats[idx].count ++;
@@ -668,7 +654,7 @@ static int list_content(char ** id_list, int id_count)
 
         /* sum root if it matches */
         if (!is_expr || (entry_matches(&ids[i].id, &root_attrs,
-                         &match_expr, NULL, NULL) == POLICY_MATCH))
+                         &match_expr, NULL, prog_options.smi) == POLICY_MATCH))
         {
             unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
             stats[idx].count ++;
@@ -775,18 +761,15 @@ int main( int argc, char **argv )
                     exit(1);
                 }
                 break;
-#ifdef ATTR_INDEX_status
+
             case 'S':
+                rc = parse_status_arg("-status", optarg, &prog_options.status_name,
+                                      &prog_options.status_value, true);
+                if (rc)
+                    exit(rc);
                 prog_options.match_status = 1;
-                prog_options.status = status2dbval(optarg);
-                if ( prog_options.status == (file_status_t)-1 )
-                {
-                    fprintf(stderr, "Unknown status '%s'. Allowed status: %s.\n", optarg,
-                            allowed_status());
-                    exit(1);
-                }
                 break;
-#endif
+
             case 'f':
                 rh_strncpy(config_file, optarg, MAX_OPT_LEN);
                 break;
@@ -894,6 +877,18 @@ int main( int argc, char **argv )
     {
         DisplayLog( LVL_CRIT, DU_TAG, "Error %d: cannot connect to database", rc );
         exit(rc);
+    }
+
+    if (prog_options.match_status)
+    {
+        const char *strval;
+
+        rc = check_status_args(prog_options.status_name,
+                               prog_options.status_value, &strval,
+                               &prog_options.smi);
+        if (rc)
+            exit(rc);
+        prog_options.status_value = (char *)strval;
     }
 
     mkfilters();

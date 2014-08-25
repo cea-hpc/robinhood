@@ -216,12 +216,10 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     {
         acct_pk_attr_set |= ATTR_MASK_type;
     }
-#ifdef ATTR_MASK_status
-    if ( lmgr_config->user_acct || lmgr_config->group_acct )
-    {
-        acct_pk_attr_set |= ATTR_MASK_status;
-    }
-#endif
+    /** @TODO RBHv3: implement status accounting
+     * acct_pk_attr_set |= all_status_mask() ?
+     */
+
     /* size: also used for size range stats */
     acct_attr_set |= ATTR_MASK_size | ATTR_MASK_blocks ;
 

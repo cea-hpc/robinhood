@@ -368,8 +368,8 @@ const char *mode_string(mode_t mode, char *buf);
  *  \param overide_mask if != 0, overide attrmask with this one
  *  \param brief brief notation for diff
  */
-int            PrintAttrs(char *out_str, size_t strsize, const attr_set_t * p_attr_set,
-                          uint64_t overide_mask, int brief);
+int            PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
+                          uint64_t overide_mask, bool brief);
 
 /**
  *  Apply attribute changes
@@ -440,12 +440,5 @@ void upperstr(char *str);
 
 /** recursively create a directoy and return its id */
 int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
-
-#ifdef ATTR_INDEX_status
-/** status conversion functions */
-const char *db_status2str(file_status_t status, bool csv);
-file_status_t status2dbval(char * status_str);
-const char *allowed_status(void);
-#endif
 
 #endif

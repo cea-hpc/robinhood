@@ -598,6 +598,7 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
 
 #ifdef _HSM_LITE
 
+/** FIXME RBHv3 RECOV_ATTR_MASK, SOFTRM_MASK */
 #define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
                           ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
                           ATTR_MASK_status | ATTR_MASK_stripe_info | ATTR_MASK_type | \
