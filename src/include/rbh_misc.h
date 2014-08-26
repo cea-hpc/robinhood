@@ -229,30 +229,6 @@ static inline unsigned int cltime2nsec( uint64_t cltime )
 }
 #endif
 
-#ifdef _LUSTRE_HSM
-typedef enum {
-  STATUS_UNKNOWN = 0,           /* undetermined status */
-  STATUS_NEW,                   /* file has no HSM flags (just created) */
-  STATUS_MODIFIED,              /* file must be archived */
-  STATUS_RESTORE_RUNNING,       /* file is being retrieved */
-  STATUS_ARCHIVE_RUNNING,       /* file is being archived */
-  STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
-  STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
-  STATUS_RELEASE_PENDING,      /* file is being released */
-
-  STATUS_COUNT                  /* number of possible file status */
-} hsm_status_t;
-
-int            LustreHSM_GetStatus(const char *path, hsm_status_t * p_status,
-                                   bool *no_release, bool *no_archive);
-
-/** Trigger a HSM action
- * \param action HUA_ARCHIVE, HUA_RESTORE, HUA_RELEASE, HUA_REMOVE, HUA_CANCEL
- */
-int LustreHSM_Action(enum hsm_user_action action, const entry_id_t * p_id,
-                     const char *hints);
-#endif
-
 /** Retrieve OST usage info ('ost df') */
 int            Get_OST_usage( const char *fs_path, unsigned int ost_index, struct statfs *ost_statfs );
 

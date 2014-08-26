@@ -20,18 +20,21 @@
 #include "policy_run.h"
 #include "rbh_logs.h"
 #include "rbh_misc.h"
+#include <unistd.h>
+
 #ifdef _HSM_LITE
 #include "backend_mgr.h"
 #endif
-#include <unistd.h>
 
 #ifdef _LUSTRE_HSM
+#include "lhsm.h"
+
 /* XXX to be included to LHSM action module */
 
 static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                         const char *hints, post_action_e *after)
 {
-    int rc = LustreHSM_Action(HUA_RELEASE, p_entry_id, hints);
+    int rc = lhsm_action(HUA_RELEASE, p_entry_id, hints);
     //    if (rc == 0)
     //{
     /* TODO set new status */
@@ -46,7 +49,7 @@ static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 static int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                         const char *hints, post_action_e *after)
 {
-    int rc = LustreHSM_Action(HUA_ARCHIVE, p_entry_id, hints);
+    int rc = lhsm_action(HUA_ARCHIVE, p_entry_id, hints);
     *after = PA_UPDATE;
     return rc;
 }

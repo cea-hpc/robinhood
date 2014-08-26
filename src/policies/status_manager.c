@@ -21,6 +21,10 @@
 #include "rbh_logs.h"
 #include "Memory.h"
 
+#ifdef _LUSTRE_HSM
+#include "lhsm.h"
+#endif
+
 /** list of loaded status managers */
 static status_manager_t **sm_cache = NULL;
 static unsigned int sm_count = 0;
@@ -97,7 +101,7 @@ static int lhsm_status(struct sm_instance *smi,
         goto clean_status;
 
     /** @TODO store no_release and no_archive as SM specific attributes */
-    rc = LustreHSM_GetStatus(fid_path, &st, &no_release, &no_archive);
+    rc = lhsm_get_status(fid_path, &st, &no_release, &no_archive);
     if (rc)
         goto clean_status;
 
