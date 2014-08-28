@@ -1215,20 +1215,21 @@ static int check_table_softrm(db_conn_t *pconn)
     if (rc == DB_SUCCESS)
     {
         int curr_index = 0;
+        int i;
 
-        if (check_field_name("fid", &curr_index, SOFT_RM_TABLE, fieldtab))
-            return DB_BAD_SCHEMA;
-        if (check_field_name("fullpath", &curr_index, SOFT_RM_TABLE, fieldtab))
-            return DB_BAD_SCHEMA;
-#ifndef _LUSTRE_HSM
-        if (check_field_name("backendpath", &curr_index, SOFT_RM_TABLE, fieldtab))
-            return DB_BAD_SCHEMA;
-#endif
-        if (check_field_name("soft_rm_time", &curr_index, SOFT_RM_TABLE, fieldtab))
-            return DB_BAD_SCHEMA;
-        if (check_field_name("real_rm_time", &curr_index, SOFT_RM_TABLE, fieldtab))
+        /* check primary key */
+        if (check_field_name("id", &curr_index, SOFT_RM_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
+        for (i = 0; i < ATTR_COUNT; i++)
+        {
+            if (is_softrm_field(i)) /* no func attr in softrm table */
+            {
+                if (check_field(i, &curr_index, SOFT_RM_TABLE, fieldtab))
+                    return DB_BAD_SCHEMA;
+            }
+        }
+        /* is there any extra field ? */
         if (has_extra_field(curr_index, SOFT_RM_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
     }
@@ -1243,23 +1244,20 @@ static int check_table_softrm(db_conn_t *pconn)
 
 static int create_table_softrm(db_conn_t *pconn)
 {
-    char strbuf[4096];
-    int rc;
+    char  strbuf[4096];
+    int   rc, i;
+    char *next;
 
-    /* table does not exist */
-    sprintf(strbuf, "CREATE TABLE "SOFT_RM_TABLE" ("
-            "fid "PK_TYPE" PRIMARY KEY, "
-            "fullpath VARCHAR(%u), "
-#ifndef _LUSTRE_HSM
-            "backendpath VARCHAR(%u), "
-#endif
-            "soft_rm_time INT UNSIGNED, "
-            "real_rm_time INT UNSIGNED)",
-             field_infos[ATTR_INDEX_fullpath].db_type_size
-#ifndef _LUSTRE_HSM
-             , field_infos[ATTR_INDEX_backendpath].db_type_size
-#endif
-           );
+    strcpy(strbuf, "CREATE TABLE "SOFT_RM_TABLE" (id "PK_TYPE" PRIMARY KEY");
+    next = strbuf + strlen(strbuf);
+
+    for (i = 0; i < ATTR_COUNT; i++)
+    {
+        if (is_softrm_field(i))
+            next += append_field_def(i, next, 0, NULL);
+    }
+    strcpy(next, ")");
+
 #ifdef _MYSQL
     strcat(strbuf, " ENGINE=");
     strcat(strbuf, lmgr_config.db_config.engine);
@@ -1276,19 +1274,29 @@ static int create_table_softrm(db_conn_t *pconn)
     }
     DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "SOFT_RM_TABLE" created successfully");
 
-    /* main use case is to sort by real_rm_time */
-    strcpy(strbuf, "CREATE INDEX rm_time ON " SOFT_RM_TABLE "(real_rm_time)");
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
-
-    rc = db_exec_sql(pconn, strbuf, NULL);
-    if (rc)
+    /* create indexes on this table */
+    for (i = 0; i < ATTR_COUNT; i++)
     {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create index: Error: %s",
-                   strbuf);
-        return rc;
+        if (is_softrm_field(i) && is_indexed_field(i))
+        {
+            sprintf(strbuf, "CREATE INDEX %s_index ON " SOFT_RM_TABLE "(%s)",
+                    field_name(i), field_name(i));
+
+            DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s",
+                       strbuf);
+
+            rc = db_exec_sql(pconn, strbuf, NULL);
+            if (rc)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to create index: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                return rc;
+            }
+            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "SOFT_RM_TABLE"(%s) created successfully",
+                       field_name(i));
+        }
     }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "SOFT_RM_TABLE" created successfully");
     return DB_SUCCESS;
 }
 #endif

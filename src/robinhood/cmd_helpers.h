@@ -101,6 +101,10 @@ static inline char *print_brief_sz(uint64_t sz, char * buf)
     return buf;
 }
 
+/* special attr indexes for display functions */
+#define ATTR_INDEX_COUNT (-1)
+#define ATTR_INDEX_ID    (-2)
+
 const char *attrindex2name(unsigned int index);
 unsigned int attrindex2len(unsigned int index, int csv);
 

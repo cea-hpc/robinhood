@@ -23,6 +23,7 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "Memory.h"
+#include "var_str.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -178,52 +179,49 @@ retry:
     return rc;
 }
 
-/* path is retrieved only for information: just get one of them */
-#ifdef _HSM_LITE
-#define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath, backendpath"
-#define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath, backendpath"
-#define TMP_SOFTRM_FIELDS "fullpath, backendpath"
-#define GET_SOFTRM_FIELDS "fullpath, backendpath, rm_time"
-#else
-#define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath"
-#define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath"
-#define TMP_SOFTRM_FIELDS "fullpath, rm_time"
-#define GET_SOFTRM_FIELDS "fullpath, rm_time"
-#endif
-
 /**
  * Insert all entries to soft rm table.
  * @TODO check if it works with millions/billion entries
  */
 static int listmgr_softrm_all( lmgr_t * p_mgr, time_t rm_time )
 {
-#ifndef HAVE_RM_POLICY
-    return DB_NOT_SUPPORTED;
-#else
+    char softrm_fields[1024];
+    char main_fields[1024];
+    char annex_fields[1024];
     char query[2048];
+    int nbmain = 0;
+    int nbannex = 0;
+
     /* insert those entries to soft rm table */
 
-    if ( annex_table )
+    /* manage fullpath independantly to make sure it is the first attribute,
+     * as we will set it to one_path(id). */
+    attrmask2fieldlist(softrm_fields, SOFTRM_MASK & ~ATTR_MASK_fullpath, T_SOFTRM,
+                       true,  false, "","");
+
+    if (annex_table)
+        nbannex = attrmask2fieldlist(annex_fields, SOFTRM_MASK, T_ANNEX, true,  false,
+                                     ANNEX_TABLE".", "");
+
+    nbmain = attrmask2fieldlist(main_fields, SOFTRM_MASK, T_MAIN, true,  false,
+                                nbannex > 0 ? MAIN_TABLE".":"", "");
+
+    if (nbannex > 0)
     {
-        sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-                GET_SOFTRM_FIELDS ") "
-                "(SELECT "MAIN_TABLE".id, "BUILD_SOFTRM_FIELDS", "
-                "%u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
+        sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (id,fullpath%s) "
+                "(SELECT "MAIN_TABLE".id,"ONE_PATH_FUNC"("MAIN_TABLE".id)%s%s,%u"
+                " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
                 " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
-                MAIN_TABLE,
-                (unsigned int)rm_time);
+                softrm_fields, main_fields, annex_fields, (unsigned int)rm_time);
     }
     else
     {
-       sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
-               GET_SOFTRM_FIELDS ") "
-               "(SELECT id, "BUILD_SOFTRM_FIELDS", %u FROM "MAIN_TABLE")",
-               MAIN_TABLE,
-               (unsigned int)rm_time);
+       sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (id,fullpath%s) "
+               "(SELECT id,"ONE_PATH_FUNC"(id)%s, %u FROM "MAIN_TABLE")",
+               softrm_fields, main_fields, (unsigned int)rm_time);
     }
 
     return db_exec_sql( &p_mgr->conn, query, NULL );
-#endif
 }
 
 /**
@@ -264,60 +262,47 @@ static int listmgr_rm_all(lmgr_t * p_mgr)
 
 /**
  * Insert a single entry to soft rm table.
+ * p_old_attrs must include rm_time
  */
 static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
-                                 const char *entry_path,
-#ifdef _HSM_LITE
-                                 const char *backend_path,
-#endif
-                                 time_t rm_time)
+                                 attr_set_t *p_old_attrs)
 {
-#ifndef HAVE_RM_POLICY
-    return DB_NOT_SUPPORTED;
-#else
-    char query[4096];
-    char escaped[RBH_PATH_MAX];
-    char * curr = query;
-    int rc;
+    char buf[4096];
+    DEF_PK(pk);
+    var_str query = VAR_STR_NULL;
+    int rc, nb;
 
-    // FIXME not a standard table management
-    curr += sprintf( query,
-                     "INSERT IGNORE INTO " SOFT_RM_TABLE
-                     "(fid, " );
-
-    if ( entry_path )
-        curr += sprintf(curr, "fullpath, " );
-#ifdef _HSM_LITE
-    if ( backend_path )
-        curr += sprintf(curr, "backendpath, " );
-#endif
-
-    curr += sprintf(curr, "rm_time) "
-                  "VALUES ('"DFID_NOBRACE"', ", PFID(p_id) );
-
-    if ( entry_path )
+    if (!ATTR_MASK_TEST(p_old_attrs, rm_time))
     {
-        db_escape_string( &p_mgr->conn, escaped, RBH_PATH_MAX, entry_path );
-        curr += sprintf(curr, "'%s', ", escaped );
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: rm_time attr is supposed to be set in %s()",
+                   __func__);
     }
-#ifdef _HSM_LITE
-    if ( backend_path )
-    {
-        db_escape_string( &p_mgr->conn, escaped, RBH_PATH_MAX, backend_path );
-        curr += sprintf(curr, "'%s', ", escaped );
-    }
-#endif
 
-    curr += sprintf(curr, "%u) ", (unsigned int)rm_time);
+    nb = attrmask2fieldlist(buf, SOFTRM_MASK & p_old_attrs->attr_mask,
+                            T_SOFTRM, true,  false, "","");
 
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
+    var_str_append(&query, "INSERT IGNORE INTO " SOFT_RM_TABLE "(id");
+    if (nb > 0)
+        var_str_append(&query, buf);
+    var_str_append(&query, ") VALUES (");
+
+    entry_id2pk(p_id, PTR_PK(pk));
+    sprintf(buf, DPK, pk);
+    var_str_append(&query, buf);
+
+    attrset2valuelist(p_mgr, buf, p_old_attrs, T_SOFTRM, true);
+    var_str_append(&query, buf);
+    var_str_append(&query, ")");
+
+    rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
 
     if (rc)
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "DB query failed in %s line %d: query=\"%s\", code=%d: %s",
-                    __FUNCTION__, __LINE__, query, rc, db_errmsg( &p_mgr->conn, query, 1024 ) );
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "DB query failed in %s line %d: query=\"%s\", code=%d: %s",
+                   __FUNCTION__, __LINE__, VAR_STR_START(query), rc,
+                   db_errmsg(&p_mgr->conn, buf, 1024));
+    var_str_free(&query);
     return rc;
-#endif
 }
 
 
@@ -341,9 +326,10 @@ static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter, int
     const char* direct_del_table = NULL;
     char           tmp_table_name[256];
     result_handle_t result;
-    char          *field_tab[3]; /* 3 max: id, fullpath, backendpath */
+    char          *field_tab[ATTR_COUNT+1]; /* id + attributes */
     DEF_PK(pk);
     unsigned int   rmcount = 0;
+    int nb;
 
     /* This is needed for creating big temporary table.
      * Set READ COMMITTED isolation level for the next transaction
@@ -532,6 +518,9 @@ retry:
 
     if (soft_rm)
     {
+        char fields[4096];
+        char *curr_fields = fields;
+
         /* always an annex table with softrm modes */
         if (!annex_table)
             RBH_BUG("no annex table with softrm mode");
@@ -562,19 +551,38 @@ retry:
                     sum(path_update < 1377176998 and this_path(parent_id, name) like 'dir1/%') as rm, count(*) as tot
                     FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id=NAMES.id GROUP BY ENTRIES.id HAVING s=tot or fullpath is NULL;
                  */
+
+                attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_MAIN, true,  false,
+                                   MAIN_TABLE".", "");
+                curr_fields += strlen(curr_fields);
+                attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_ANNEX, true,  false,
+                                   ANNEX_TABLE".", "");
+                curr_fields += strlen(curr_fields);
+                attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_DNAMES, true,  false,
+                                   DNAMES_TABLE".", "");
+
+
                 sprintf(query, "CREATE TEMPORARY TABLE %s AS "
-                        "SELECT %s.id, "BUILD_SOFTRM_FIELDS_JOIN_NAMES", SUM(%s) AS rmcnt, COUNT(*) AS tot"
-                        " FROM %s LEFT JOIN "DNAMES_TABLE" ON %s.id="DNAMES_TABLE".id"
-                                " LEFT JOIN "ANNEX_TABLE" ON %s.id="ANNEX_TABLE".id"
-                        " WHERE %s GROUP BY %s.id HAVING rmcnt=tot OR fullpath is NULL",
-                        tmp_table_name, first_table, filter_str_names, first_table,
-                        first_table, first_table, filter_str, first_table);
+                        "SELECT "MAIN_TABLE".id%s,SUM(%s) AS rmcnt,COUNT(*) AS tot"
+                        " FROM "MAIN_TABLE" LEFT JOIN "DNAMES_TABLE" ON "MAIN_TABLE".id="DNAMES_TABLE".id"
+                                " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id="ANNEX_TABLE".id"
+                        " WHERE %s GROUP BY "MAIN_TABLE".id HAVING rmcnt=tot OR fullpath is NULL",
+                        tmp_table_name, fields, filter_str_names, filter_str);
         }
         else /* full scan */
-            sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id), "BUILD_SOFTRM_FIELDS
+        {
+            attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_MAIN, true,  false,
+                               MAIN_TABLE".", "");
+            curr_fields += strlen(curr_fields);
+            attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_ANNEX, true,  false,
+                               ANNEX_TABLE".", "");
+
+            sprintf(query,
+                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT("MAIN_TABLE".id),"
+                 ONE_PATH_FUNC"("MAIN_TABLE".id) AS fullpath%s"
                  " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id = "ANNEX_TABLE".id"
-                 " WHERE %s", tmp_table_name, first_table, first_table, filter_str );
+                 " WHERE %s", tmp_table_name, fields,  filter_str);
+        }
     }
     else
     {
@@ -640,10 +648,16 @@ retry:
     /* do the cleaning in other tables */
     DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal" );
 
+    nb = 1; /* at least 1 for id */
     if (soft_rm)
-        sprintf( query, "SELECT id, "TMP_SOFTRM_FIELDS" FROM %s", tmp_table_name );
+    {
+        char fields[1024];
+        nb += attrmask2fieldlist(fields, SOFTRM_MASK & ~ATTR_MASK_rm_time,
+                                 T_SOFTRM, true, false, "","");
+        sprintf(query, "SELECT id%s FROM %s", fields, tmp_table_name);
+    }
     else
-        sprintf( query, "SELECT id FROM %s", tmp_table_name );
+        sprintf(query, "SELECT id FROM %s", tmp_table_name);
 
     rc = db_exec_sql( &p_mgr->conn, query, &result );
     if (lmgr_delayed_retry(p_mgr, rc))
@@ -657,13 +671,13 @@ retry:
 
     rmcount = 0;
 
-    while ((rc = db_next_record( &p_mgr->conn, &result, field_tab, 3 ))
+    while ((rc = db_next_record(&p_mgr->conn, &result, field_tab, nb))
                 == DB_SUCCESS
-            && ( field_tab[0] != NULL ) )
+            && (field_tab[0] != NULL))
     {
         entry_id_t id;
 
-        if ( sscanf( field_tab[0], SPK, PTR_PK(pk) ) != 1 )
+        if (sscanf(field_tab[0], SPK, PTR_PK(pk)) != 1)
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: '%s'",
                         field_tab[0] );
@@ -671,7 +685,7 @@ retry:
             goto free_res;
         }
 
-        rc = pk2entry_id( p_mgr, pk, &id );
+        rc = pk2entry_id(p_mgr, pk, &id);
         if (rc)
         {
             DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: "DPK, pk);
@@ -680,12 +694,20 @@ retry:
 
         if (soft_rm)
         {
+            attr_set_t old_attrs;
+
+            old_attrs.attr_mask = SOFTRM_MASK & ~ATTR_MASK_rm_time;
+
+            /* parse result attributes + set rm_time for listmgr_softrm_single */
+            rc = result2attrset(T_SOFTRM, field_tab + 1,  nb - 1, &old_attrs);
+            if (rc)
+                goto free_res;
+
+            ATTR_MASK_SET(&old_attrs, rm_time);
+            ATTR(&old_attrs, rm_time) = rm_time;
+
             /* insert into softrm table */
-            rc = listmgr_softrm_single(p_mgr, &id, field_tab[1],
-#ifdef _HSM_LITE
-                                       field_tab[2],
-#endif
-                                       rm_time);
+            rc = listmgr_softrm_single(p_mgr, &id, &old_attrs);
 
             if (lmgr_delayed_retry(p_mgr, rc))
                 goto retry;
@@ -754,8 +776,6 @@ int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
     return listmgr_mass_remove(p_mgr, p_filter, false, 0, cb_func);
 }
 
-#ifdef HAVE_RM_POLICY
-
 int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                            time_t rm_time, rm_cb_func_t cb_func)
 {
@@ -768,53 +788,68 @@ int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
  * for delayed removal.
  * \param real_remove_time time when the entry was removed.
  * \param p_old_attrs contains old attributes, parent+name and backendpath must be set.
+ *        rm_time must be set too.
  *        If NULL, it is retrieved from the database.
  */
 int            ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
-                                  attr_set_t *p_old_attrs,
-                                  time_t rm_time)
+                                  attr_set_t *p_old_attrs)
 {
-    int rc;
-    const char * entry_path = NULL;
-#ifdef _HSM_LITE
-    const char * backendpath = NULL;
-#endif
-    attr_set_t missing_attrs;
-    ATTR_MASK_INIT( &missing_attrs );
+    int        rc;
+    attr_set_t all_attrs = {0};
 
-    /* last known path is needed for insertion in SOFT_RM table */
-    if (ATTR_MASK_TEST( p_old_attrs, fullpath ))
-        entry_path = ATTR(p_old_attrs, fullpath);
-    else
-        ATTR_MASK_SET( &missing_attrs, fullpath );
+    ATTR_MASK_INIT(&all_attrs);
 
-    /* this is needed for remove function */
-    if (!ATTR_MASK_TEST( p_old_attrs, parent_id)
-        || !ATTR_MASK_TEST( p_old_attrs, name))
+    /* get missing attributes for SOFT_RM table from DB */
+    all_attrs.attr_mask = SOFTRM_MASK &~ ATTR_MASK_rm_time
+                          &~ p_old_attrs->attr_mask;
+
+    /* these are needed for remove function */
+    if (!ATTR_MASK_TEST(&all_attrs, parent_id)
+        || !ATTR_MASK_TEST(&all_attrs, name))
     {
-        ATTR_MASK_SET( &missing_attrs, parent_id );
-        ATTR_MASK_SET( &missing_attrs, name );
+        ATTR_MASK_SET(&all_attrs, parent_id);
+        ATTR_MASK_SET(&all_attrs, name);
     }
 
-#ifdef _HSM_LITE
-    if (ATTR_MASK_TEST( p_old_attrs, backendpath ))
-        backendpath = ATTR(p_old_attrs, backendpath);
-    else
-        /* check if the previous entry had a path in backend */
-        ATTR_MASK_SET( &missing_attrs, backendpath );
-#endif
+    if (all_attrs.attr_mask && (ListMgr_Get(p_mgr, p_id, &all_attrs) != DB_SUCCESS))
+        ATTR_MASK_INIT(&all_attrs);
 
-    if ( missing_attrs.attr_mask )
+    if (p_old_attrs != NULL)
+        ListMgr_MergeAttrSets(&all_attrs, p_old_attrs, true);
+
+    /* if fullpath is not determined, try to build it */
+    if (!ATTR_MASK_TEST(&all_attrs, fullpath)
+        && ATTR_MASK_TEST(&all_attrs, parent_id)
+        && ATTR_MASK_TEST(&all_attrs, name))
     {
-        if ( ListMgr_Get( p_mgr, p_id, &missing_attrs ) == DB_SUCCESS )
+        attr_set_t dir_attrs = {0};
+
+        /* try to get parent path, so we can build <parent_path>/<name> */
+        ATTR_MASK_SET(&dir_attrs, fullpath);
+        if ((ListMgr_Get(p_mgr, &ATTR(&all_attrs, parent_id), &dir_attrs) == DB_SUCCESS)
+            && ATTR_MASK_TEST(&dir_attrs, fullpath))
         {
-            if ((entry_path == NULL) && ATTR_MASK_TEST(&missing_attrs, fullpath))
-                entry_path = ATTR(&missing_attrs, fullpath);
-#ifdef _HSM_LITE
-            if ((backendpath == NULL) && ATTR_MASK_TEST( &missing_attrs, backendpath ))
-                backendpath = ATTR(&missing_attrs, backendpath);
-#endif
+            snprintf(ATTR(&all_attrs, fullpath), RBH_PATH_MAX, "%s/%s",
+                     ATTR(&dir_attrs, fullpath), ATTR(&all_attrs, name));
+            ATTR_MASK_SET(&all_attrs, fullpath);
         }
+        else /* display fullpath as <parent_id>/<name>*/
+        {
+            char tmp[RBH_PATH_MAX];
+            DEF_PK(parent_pk);
+
+            /* prefix with parent id */
+            entry_id2pk(&ATTR(&all_attrs, parent_id), PTR_PK(parent_pk));
+            sprintf(tmp, "%s/%s", parent_pk, ATTR(&all_attrs, name));
+            fullpath_db2attr(tmp, ATTR(&all_attrs, fullpath));
+            ATTR_MASK_SET(&all_attrs, fullpath);
+        }
+    }
+
+    if (!ATTR_MASK_TEST(&all_attrs, rm_time))
+    {
+        ATTR_MASK_SET(&all_attrs, rm_time);
+        ATTR(&all_attrs, rm_time) = time(NULL);
     }
 
     /* We want the removal sequence to be atomic */
@@ -825,29 +860,23 @@ retry:
     else if (rc)
         return rc;
 
-    rc = listmgr_softrm_single( p_mgr, p_id, entry_path,
-#ifdef _HSM_LITE
-    backendpath,
-#endif
-                                rm_time );
+    rc = listmgr_softrm_single(p_mgr, p_id, &all_attrs);
+
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
     {
-        lmgr_rollback( p_mgr );
+        lmgr_rollback(p_mgr);
         return rc;
     }
 
-    /* merge old attrs to missing attrs (can overwrite) */
-    ListMgr_MergeAttrSets(&missing_attrs, p_old_attrs, true);
-
     /* remove the entry from main tables, if it exists */
-    rc = listmgr_remove_no_tx(p_mgr, p_id, &missing_attrs, true);
+    rc = listmgr_remove_no_tx(p_mgr, p_id, &all_attrs, true);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS)
     {
-        lmgr_rollback( p_mgr );
+        lmgr_rollback(p_mgr);
         return rc;
     }
 
@@ -905,11 +934,11 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter)
 
     p_list->p_mgr = p_mgr;
 
-    nb = attrmask2fieldlist(fields, SOFTRM_MASK, T_SOFTRM, 0, 0, 0, 0);
-    snprintf(query, 4096, "SELECT fid, %s FROM "SOFT_RM_TABLE" %s "
+    nb = attrmask2fieldlist(fields, SOFTRM_MASK, T_SOFTRM, true, false, "", "");
+    snprintf(query, 4096, "SELECT id%s FROM "SOFT_RM_TABLE" %s "
              "ORDER BY rm_time ASC", fields, p_filter ?filter_str:"");
 
-    p_list->result_len = nb + 1; /* fid + attrs */
+    p_list->result_len = nb + 1; /* id + attrs */
 
     /* execute request (retry on connexion error or deadlock) */
 retry:
@@ -935,9 +964,7 @@ int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
 {
     int            rc = 0;
     int i;
-
-#define MAX_SOFTRM_FIELDS 4
-    /* 0=fid, 1=path, 2=backendpath, 3=rm_time */
+#define MAX_SOFTRM_FIELDS (ATTR_COUNT+1) /* id + attributes */
     char *record[MAX_SOFTRM_FIELDS];
 
     if (p_iter->result_len > MAX_SOFTRM_FIELDS)
@@ -961,6 +988,8 @@ int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
     if ( sscanf( record[0], SFID, RFID(p_id) ) <= 0 )
         return DB_REQUEST_FAILED;
 
+    /* force fields of SOFTRM table */
+    p_attrs->attr_mask = SOFTRM_MASK;
     rc = result2attrset(T_SOFTRM, record + 1, p_iter->result_len - 1, p_attrs);
 
     return rc;
@@ -990,8 +1019,11 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
     if ( !p_id || !p_attrs)
         return DB_INVALID_ARG;
 
-    nb = attrmask2fieldlist(fields, SOFTRM_MASK, T_SOFTRM, 0, 0, 0, 0);
-    snprintf(query, 4096, "SELECT %s FROM "SOFT_RM_TABLE" WHERE fid='"DFID_NOBRACE"'",
+    /* remove fields that are not in SOFTRM table */
+    p_attrs->attr_mask &= SOFTRM_MASK;
+
+    nb = attrmask2fieldlist(fields, p_attrs->attr_mask, T_SOFTRM, 0, 0, 0, 0);
+    snprintf(query, 4096, "SELECT %s FROM "SOFT_RM_TABLE" WHERE id='"DFID_NOBRACE"'",
              fields, PFID(p_id));
 
     /* execute request (retry on connexion error or timeout) */
@@ -1036,7 +1068,7 @@ int ListMgr_SoftRemove_Discard( lmgr_t * p_mgr, const entry_id_t * p_id )
     int rc;
 
     snprintf(query, 1024,
-             "DELETE FROM "SOFT_RM_TABLE" WHERE fid='"DFID_NOBRACE"'",
+             "DELETE FROM "SOFT_RM_TABLE" WHERE id='"DFID_NOBRACE"'",
              PFID(p_id) );
 
 retry:
@@ -1045,8 +1077,4 @@ retry:
         goto retry;
     return rc;
 }
-
-#endif
-
-
 

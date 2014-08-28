@@ -181,6 +181,11 @@ typedef struct field_info_t
 #define ATTR_MASK_STATUS_TEST(_p_set, _smi_idx) !!((_p_set)->attr_mask & SMI_MASK(_smi_idx))
 #define STATUS_ATTR(_p_set, _smi_idx) ((_p_set)->attr_values.sm_status[(_smi_idx)])
 
+#define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
+                         | ATTR_MASK_gr_name | ATTR_MASK_last_access \
+                         | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
+                         | ATTR_MASK_nlink)
+
 /* application specific types:
  * these includes MUST define:
  * - entry_id_t type
@@ -519,7 +524,6 @@ int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
                     entry_id_t *new_id, attr_set_t *new_attrs,
                     bool src_is_last, bool update_target_if_exists);
 
-#ifdef HAVE_RM_POLICY
 /**
  * Soft Rm functions.
  * \addtogroup SOFT_RM_FUNCTIONS
@@ -529,11 +533,10 @@ int ListMgr_Replace(lmgr_t * p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
 /**
  * Remove an entry from the main database, and insert it to secondary table
  * for delayed removal.
- * \param real_remove_time time when the entry must be really removed.
+ * \param p_old_attrs contains rm_time
  */
 int ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
-                       attr_set_t *p_old_attrs,
-                       time_t rm_time);
+                       attr_set_t *p_old_attrs);
 
 /**
  * Soft remove a set of entries according to a filter.
@@ -571,8 +574,6 @@ int     ListMgr_GetRmEntry(lmgr_t *p_mgr, const entry_id_t *p_id, attr_set_t *p_
 
 /** @} */
 
-#endif
-
 /**
  * Create a (persitent) table to tag entries.
  * \param filter indicate this applies to a restricted set of entries.
@@ -604,7 +605,7 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
                           ATTR_MASK_status | ATTR_MASK_stripe_info | ATTR_MASK_type | \
                           ATTR_MASK_mode | ATTR_MASK_link )
 
-#define SOFTRM_MASK (ATTR_MASK_fullpath | ATTR_MASK_backendpath | ATTR_MASK_rm_time)
+#define SOFTRM_MASK (POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_backendpath | ATTR_MASK_rm_time)
 
 /**
  * Filesystem recovery from backup.
@@ -686,7 +687,7 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 
 #elif defined( HAVE_RM_POLICY )
 /* only keep fullpath by default */
-#define SOFTRM_MASK ( ATTR_MASK_fullpath | ATTR_MASK_rm_time)
+#define SOFTRM_MASK (POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_rm_time)
 #endif
 
 /**

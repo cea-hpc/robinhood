@@ -445,8 +445,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                    bool2str(logrec->cr_flags & CLF_UNLINK_LAST));
 #endif
 
-    #ifndef HAVE_RM_POLICY
-        if (p_op->check_if_last_entry) {
+        if (!has_deletion_policy() && p_op->check_if_last_entry) {
             /* When inserting that entry, we didn't know whether the
              * entry was the last one or not, so use the nlink
              * attribute we requested earlier to determine. */
@@ -457,9 +456,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                 logrec->cr_flags |= CLF_UNLINK_LAST;
             }
         }
-    #else
-            /* too dangerous */
-    #endif
+        /* else: too dangerous : we risk to clean an entry in backend
+         * that we should not */
 
         /* is it the last reference to this file? */
         if ( logrec->cr_flags & CLF_UNLINK_LAST )
@@ -1673,7 +1671,10 @@ int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
                         PFID(&p_op->entry_id), buff);
         }
 
-        rc = ListMgr_SoftRemove(lmgr, &p_op->entry_id, &p_op->fs_attrs, time(NULL)); // FIXME get remove time from changelog
+        /* FIXME get remove time from changelog */
+        ATTR_MASK_SET(&p_op->fs_attrs, rm_time);
+        ATTR(&p_op->fs_attrs, rm_time) = time(NULL);
+        rc = ListMgr_SoftRemove(lmgr, &p_op->entry_id, &p_op->fs_attrs);
         break;
 
     default:

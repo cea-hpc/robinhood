@@ -1191,6 +1191,21 @@ static const char *ResolvName(const entry_id_t *p_id, attr_set_t *attrs,
             PosixStat2EntryAttr(&st, attrs, true);
         return ATTR(attrs, fullpath);
     }
+    /* if parent id and name are set: try to resolve parent */
+    else if (ATTR_MASK_TEST(attrs, parent_id) && ATTR_MASK_TEST(attrs, name))
+    {
+        char tmpstr[RBH_PATH_MAX];
+        if (TryId2path(&lmgr, &ATTR(attrs, parent_id), tmpstr) == 0)
+        {
+            snprintf(ATTR(attrs, fullpath), RBH_PATH_MAX, "%s/%s", tmpstr, ATTR(attrs, name));
+            return ATTR(attrs, fullpath);
+        }
+        else /* print <parent_id>/name */
+        {
+            sprintf(buff, DFID"/%s", PFID(&ATTR(attrs, parent_id)), ATTR(attrs, name));
+            return buff;
+        }
+    }
     else
     {
         /* last case: display the raw ID */
@@ -1441,7 +1456,7 @@ static void report_fs_info( int flags )
      */
     report_field_descr_t fs_info[FSINFOCOUNT] = {
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
-        {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL}, /* XXX ifdef STATUS ? */
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
@@ -1661,7 +1676,8 @@ static void report_usergroup_info( char *name, int flags )
     field_count++;
     shift++;
 
-    set_report_rec_nofilter(&user_info[field_count], -1, REPORT_COUNT, SORT_NONE );
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_COUNT,
+                            REPORT_COUNT, SORT_NONE);
     if (count_min) {
         user_info[field_count].filter = true;
         user_info[field_count].filter_compar = MORETHAN;
@@ -2186,7 +2202,7 @@ static void report_topuser( unsigned int count, int flags )
 #else
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_DESC, false, 0, FV_NULL},
 #endif
-        {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, false, 0, FV_NULL},
@@ -2260,17 +2276,28 @@ static void report_topuser( unsigned int count, int flags )
 #ifdef HAVE_RM_POLICY
 static void report_deferred_rm( int flags )
 {
-    int            rc, index;
-    struct lmgr_rm_list_t * list;
+    int            rc;
+    struct lmgr_rm_list_t * rmlist;
     entry_id_t     id;
-    time_t         tmpd;
-    char           date_rm[128];
-    struct tm      t;
     attr_set_t     attrs;
 
     unsigned long long total_count = 0;
+    unsigned long long total_size = 0;
+
     lmgr_filter_t  filter;
     bool is_filter = false;
+
+    static int list[] = {
+                   ATTR_INDEX_rm_time,
+                   ATTR_INDEX_ID, /* id */
+                   ATTR_INDEX_type,
+                   ATTR_INDEX_owner,
+                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_size,
+                   ATTR_INDEX_last_mod,
+                   ATTR_INDEX_fullpath
+                };
+    int list_cnt = sizeof(list)/sizeof(int);
 
     lmgr_simple_filter_init( &filter );
 
@@ -2278,63 +2305,43 @@ static void report_deferred_rm( int flags )
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
     /* list all deferred rm, even if non expired */
-    list = ListMgr_RmList(&lmgr, is_filter? &filter : NULL);
+    rmlist = ListMgr_RmList(&lmgr, is_filter? &filter : NULL);
 
-    if ( list == NULL )
+    if (rmlist == NULL)
     {
         DisplayLog( LVL_CRIT, REPORT_TAG,
                     "ERROR: Could not retrieve removed entries from database." );
         return;
     }
 
-    if ( CSV(flags) && !NOHEADER(flags) )
-#ifdef ATTR_INDEX_backendpath
-        printf("%3s, %21s, %-40s, %19s, %s\n", "rank", "fid",
-               "last_known_path", "rm_time", "backend_path");
-#else
-        printf("%3s, %21s, %-40s, %19s\n", "rank", "fid", "last_known_path", "rm_time");
-#endif
+    if (!NOHEADER(flags))
+        print_attr_list(0, list, list_cnt, NULL, CSV(flags));
 
-    index = 0;
-    while ((rc = ListMgr_GetNextRmEntry(list, &id, &attrs)) == DB_SUCCESS)
+    while ((rc = ListMgr_GetNextRmEntry(rmlist, &id, &attrs)) == DB_SUCCESS)
     {
         total_count++;
+        if (ATTR_MASK_TEST(&attrs, size))
+            total_size += ATTR(&attrs, size);
 
-        index++;
-        tmpd = ATTR(&attrs, rm_time);
-        strftime(date_rm, 128, "%Y/%m/%d %T", localtime_r(&tmpd, &t));
-
-        if ( CSV(flags) )
-#ifdef ATTR_INDEX_backendpath
-            printf("%3u, "DFID", %-40s, %19s, %s\n", index, PFID(&id),
-                   ATTR(&attrs, fullpath), date_rm, ATTR(&attrs, backendpath));
-#else
-            printf("%3u, "DFID", %-40s, %19s\n", index, PFID(&id),
-                    ATTR(&attrs, fullpath), date_rm);
-#endif
-        else
-        {
-            printf( "\n" );
-            printf( "Rank:              %u\n", index );
-            printf( "Fid:               "DFID"\n", PFID(&id) );
-            if (ATTR_MASK_TEST(&attrs, fullpath))
-                printf("Last known path:   %s\n", ATTR(&attrs, fullpath));
-#ifdef ATTR_INDEX_backendpath
-            if (ATTR_MASK_TEST(&attrs, backendpath))
-                printf("Backend path:      %s\n", ATTR(&attrs, backendpath));
-#endif
-            printf("Rm time:           %s\n", date_rm);
-        }
+        print_attr_values(0, list, list_cnt, &attrs, &id, CSV(flags), ResolvName);
 
         /* prepare next call */
         memset(&attrs, 0, sizeof(attrs));
     }
 
-    ListMgr_CloseRmList(list);
+    ListMgr_CloseRmList(rmlist);
 
     /* display summary */
-    if ( !NOHEADER(flags) )
-        printf("\nTotal: %llu entries\n", total_count);
+    if (!NOHEADER(flags))
+    {
+        char strsz[128];
+
+        FormatFileSize(strsz, sizeof(strsz), total_size);
+
+        printf("\nTotal: %llu entries, %llu bytes (%s)\n",
+               total_count, total_size, strsz);
+    }
+
 
 }
 #endif
@@ -2364,7 +2371,7 @@ static void report_class_info( int flags )
      */
     report_field_descr_t class_info[CLASSINFO_FIELDS] = {
         {ATTR_INDEX_fileclass, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
-        {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
@@ -2442,7 +2449,7 @@ static void report_status_info(int smi_index, const char* val, int flags)
     report_field_descr_t status_info[STATUSINFO_FIELDS] = {
         {ATTR_COUNT + smi_index, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
-        {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},

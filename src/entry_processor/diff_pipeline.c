@@ -824,7 +824,9 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                             PFID(&p_op->entry_id), buff);
             }
 
-            rc = ListMgr_SoftRemove(lmgr, &p_op->entry_id, &p_op->fs_attrs, time(NULL));
+            ATTR_MASK_SET(&p_op->fs_attrs, rm_time);
+            ATTR(&p_op->fs_attrs, rm_time) = time(NULL);
+            rc = ListMgr_SoftRemove(lmgr, &p_op->entry_id, &p_op->fs_attrs);
             break;
         default:
             DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Unhandled DB operation type: %d", p_op->db_op_type);

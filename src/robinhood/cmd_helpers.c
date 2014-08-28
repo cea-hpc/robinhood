@@ -464,6 +464,7 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
     struct tm stm;
 
     if  (attr_index != ATTR_INDEX_fullpath /* specific case */
+         && attr_index != ATTR_INDEX_ID
          && (attrs->attr_mask & (1 << attr_index)) == 0)
         return "";
     if (attr_index >= ATTR_COUNT)
@@ -471,6 +472,10 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
 
     switch(attr_index)
     {
+        case ATTR_INDEX_ID:
+            snprintf(out, out_sz, DFID, PFID(id));
+            return out;
+
         case ATTR_INDEX_fullpath:
             if (ATTR_MASK_TEST(attrs, fullpath))
                 return ATTR(attrs, fullpath);
@@ -545,6 +550,11 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
 
         case ATTR_INDEX_creation_time:
             tt = ATTR(attrs, creation_time);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
+        case ATTR_INDEX_rm_time:
+            tt = ATTR(attrs, rm_time);
             strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
             return out;
 
@@ -695,6 +705,7 @@ struct attr_display_spec {
         {ATTR_INDEX_last_access,   "last_access", 20, 20},
         {ATTR_INDEX_last_mod,      "last_mod", 20, 20},
         {ATTR_INDEX_creation_time, "creation", 20, 20},
+        {ATTR_INDEX_rm_time,       "rm_time", 20, 20},
         {ATTR_INDEX_md_update,     "md updt", 20, 20},
         {ATTR_INDEX_path_update,   "path updt", 20, 20},
         {ATTR_INDEX_class_update,  "class updt", 20, 20},
@@ -719,7 +730,8 @@ struct attr_display_spec {
 #define STRIPE_TITLE "stripe_cnt, stripe_size,      pool"
         {ATTR_INDEX_stripe_info,  STRIPE_TITLE, sizeof(STRIPE_TITLE), sizeof(STRIPE_TITLE)},
         {ATTR_INDEX_stripe_items, "stripes", 30, 30},
-        {-1, "count", 10, 10, print_res_count}, /* count */
+        {ATTR_INDEX_COUNT,        "count", 10, 10, print_res_count},
+        {ATTR_INDEX_ID,           "id", 25, 25},
 
         {0, NULL, 0, 0}, /* final element */
 };
@@ -727,7 +739,7 @@ struct attr_display_spec {
 static inline struct attr_display_spec *attr_info(int index)
 {
     int i;
-    static struct attr_display_spec tmp_rec = {-1, "?", 1, 1, NULL};
+    static struct attr_display_spec tmp_rec = {-3, "?", 1, 1, NULL};
 
 
     if (index >= ATTR_COUNT) /* status */
@@ -894,7 +906,7 @@ static inline const char *attrdesc2name(const report_field_descr_t *desc,
 {
     switch(desc->attr_index)
     {
-        case -1:
+        case ATTR_INDEX_COUNT:
             if (desc->report_type == REPORT_COUNT)
                 return "count";
             break;

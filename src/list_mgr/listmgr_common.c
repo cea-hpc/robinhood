@@ -464,7 +464,9 @@ int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, bool lea
                     fields_curr ++;
                 }
 
-                if (is_funcattr(i))
+                if (is_funcattr(i) &&
+                    /* exception: fullpath is a real field in SOFT_RM table */
+                    !((table == T_SOFTRM) && (i == ATTR_INDEX_fullpath)))
                 {
                     fields_curr += print_func_call(fields_curr, i, prefix);
                     fields_curr += sprintf(fields_curr, "%s%s", for_update_str, postfix);

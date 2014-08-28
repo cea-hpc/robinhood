@@ -355,7 +355,12 @@ bool policy_exists(const char *name, int *index);
 /** Indicate if any policy manages deleted entries */
 static inline bool has_deletion_policy(void)
 {
-    return !!policies.manage_deleted;
+    /* FIXME This is a hook for testing,
+     * until we can define policies to
+     * manage deleted entries.
+     */
+//    return !!policies.manage_deleted;
+    return true;
 }
 
 #if 0

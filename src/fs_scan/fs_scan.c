@@ -360,7 +360,6 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         {
             op->gc_names = 1;
 
-#ifdef HAVE_RM_POLICY
             /* Don't clean old entries for partial scan: dangerous if
              * files have been moved from one part of the namespace to another.
              * Clean names, however.
@@ -368,8 +367,7 @@ static int TerminateScan( int scan_complete, time_t date_fin )
             if (partial_scan_root)
                 op->gc_entries = 0;
             else
-#endif
-            op->gc_entries = 1;
+                op->gc_entries = 1;
 
             /* set the timestamp of scan in (md_update attribute) */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
