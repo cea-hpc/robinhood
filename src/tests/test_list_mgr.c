@@ -30,7 +30,7 @@ static inline unsigned int myrand( unsigned int range )
     return ( ( unsigned int ) rand(  ) ) % range;
 }
 
-void random_attrset( attr_set_t * p_set )
+static void random_attrset( attr_set_t * p_set )
 {
     /* insert entry */
     ATTR_MASK_INIT( p_set );
@@ -38,11 +38,13 @@ void random_attrset( attr_set_t * p_set )
 #ifdef _TMP_FS_MGR
 
     p_set->attr_mask |=
-        ATTR_MASK_fullpath | ATTR_MASK_depth | ATTR_MASK_owner | ATTR_MASK_gr_name |
+        ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_depth | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_blksize |
-        ATTR_MASK_last_access | ATTR_MASK_last_mod;
+        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_type;
 
-    sprintf( ATTR( p_set, fullpath ), "/tutu/toto%u/titi%u", myrand( 10000 ), myrand( 10000 ) );
+    sprintf( ATTR( p_set, name ), "titi%u", myrand( 10000 ) );
+    ATTR( p_set, parent_id ).f_seq = 1;
+    ATTR( p_set, parent_id ).f_oid = 1;
     ATTR( p_set, depth ) = myrand( 256 );
     sprintf( ATTR( p_set, owner ), "titi%u", myrand( 1000 ) );
     sprintf( ATTR( p_set, gr_name ), "titi%u", myrand( 1000 ) );
@@ -52,38 +54,46 @@ void random_attrset( attr_set_t * p_set )
     ATTR( p_set, last_access ) = time( NULL ) - myrand( 80000 );
     ATTR( p_set, last_mod ) = time( NULL ) - myrand( 80000 );
     ATTR( p_set, penalty ) = myrand( 3600 );
+    strcpy(ATTR(p_set, type), "file");
 #else
     p_set->attr_mask |=
-        ATTR_MASK_fullpath | ATTR_MASK_owner | ATTR_MASK_gr_name |
+        ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_creation_time | ATTR_MASK_size |
-        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_status;
+        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_type;
 
-    sprintf( ATTR( p_set, fullpath ), "/tutu/toto%u/titi%u", myrand( 10000 ), myrand( 10000 ) );
+    sprintf( ATTR( p_set, name ), "titi%u", myrand( 10000 ) );
+    ATTR( p_set, parent_id ).f_seq = 1;
+    ATTR( p_set, parent_id ).f_oid = 1;
     strcpy( ATTR( p_set, owner ), "root" );
     strcpy( ATTR( p_set, gr_name ), "gpocre" );
     ATTR( p_set, size ) = myrand( 1024 * 1024 );
     ATTR( p_set, last_access ) = time( NULL ) - myrand( 80000 );
     ATTR( p_set, last_mod ) = time( NULL ) - myrand( 80000 );
     ATTR( p_set, creation_time ) = time( NULL ) - 80000 - myrand( 80000 );
-    ATTR( p_set, status ) = ( file_status_t ) myrand( 5 );
-
+    strcpy(ATTR(p_set, type), "file");
 #endif
 
 }
 
 
-void random_stripe_units( stripe_items_t * p_stripe_it )
+static void random_stripe_units( stripe_items_t * p_stripe_it )
 {
     int            i;
 
     for ( i = 0; i < p_stripe_it->count; i++ )
     {
-        p_stripe_it->stripe_units[i] = myrand( 230 );
+        p_stripe_it->stripe[i].ost_idx = myrand( 230 );
     }
 }
 
 
-#define test_rc( _rc ) do { if ( _rc ) { printf("call failed with error %d line %d\n", _rc, __LINE__ ); return(_rc); }} while(0)
+#define test_rc( _rc ) do { \
+        if (_rc)            \
+            {               \
+              printf("call failed with error %d line %d\n", _rc, __LINE__); \
+              return(_rc);  \
+            }               \
+        } while(0)
 
 int main( int argc, char **argv )
 {
@@ -102,10 +112,10 @@ int main( int argc, char **argv )
     char           err_msg[2048];
     robinhood_config_t conf;
 
-    storage_unit_id_t strlist[] = { 1, 3, 5, 7 };
-    stripe_items_t stritems = { 4, strlist };
+//    storage_unit_id_t strlist[] = { 1, 3, 5, 7 };
+//    stripe_items_t stritems = { 4, strlist };
 
-    stripe_info_t  strinfo = { 1024 * 1024, 4, "da14" };
+//    stripe_info_t  strinfo = { 1024 * 1024, 4, "da14" };
 
     srand( time( NULL ) + getpid(  ) );
 
@@ -115,7 +125,7 @@ int main( int argc, char **argv )
         exit( 1 );
     }
     /* only parse config for mandatory module */
-    if ( ReadRobinhoodConfig( 0, argv[1], err_msg, &conf ) )
+    if (ReadRobinhoodConfig(0, argv[1], err_msg, &conf, 0))
     {
         fprintf( stderr, "Error reading configuration:\n%s\n", err_msg );
         exit( 1 );
@@ -123,7 +133,7 @@ int main( int argc, char **argv )
     conf.log_config.debug_level = LVL_FULL;
     InitializeLogs( "test_list_mgr", &conf.log_config );
 
-    rc = ListMgr_Init( &conf.lmgr_config );
+    rc = ListMgr_Init(&conf.lmgr_config, 0);
     test_rc( rc );
 
     rc = ListMgr_InitAccess( &lmgr );
@@ -154,17 +164,17 @@ int main( int argc, char **argv )
 
 /* insert entry */
     random_attrset( &set );
-    ATTR_MASK_SET( &set, stripe_info );
-    ATTR( &set, stripe_info ) = strinfo;
+//    ATTR_MASK_SET( &set, stripe_info );
+//    ATTR( &set, stripe_info ) = strinfo;
 
-    ATTR_MASK_SET( &set, stripe_items );
-    ATTR( &set, stripe_items ) = stritems;
+//    ATTR_MASK_SET( &set, stripe_items );
+//    ATTR( &set, stripe_items ) = stritems;
 
-    printf( "attr mask (before insert/update)=%#X\n", set.attr_mask );
+    printf( "attr mask (before insert/update)=%"PRIx64"\n", set.attr_mask );
 
     if ( !exist )
     {
-        rc = ListMgr_Insert( &lmgr, &id, &set, FALSE );
+        rc = ListMgr_Insert( &lmgr, &id, &set, 0 );
         test_rc( rc );
     }
     else
@@ -173,7 +183,7 @@ int main( int argc, char **argv )
         test_rc( rc );
     }
 
-    printf( "attr mask (after insert/update)=%#X\n", set.attr_mask );
+    printf( "attr mask (after insert/update)=%"PRIx64"\n", set.attr_mask );
 
     rc = ListMgr_Exists( &lmgr, &id );
     if ( rc == 0 )
@@ -189,18 +199,20 @@ int main( int argc, char **argv )
     ATTR_MASK_SET( &set, penalized_access );
 #endif
 
-    printf( "attr mask (before)=%#X\n", set.attr_mask );
+    printf( "attr mask (before)=%"PRIx64"\n", set.attr_mask );
 
     rc = ListMgr_Get( &lmgr, &id, &set );
     test_rc( rc );
 
-    printf( "attr mask (after)=%#X\nstripe: ", set.attr_mask );
+    printf( "attr mask (after)=%"PRIx64"\nstripe: ", set.attr_mask );
 
     for ( i = 0; i < ATTR( &set, stripe_items ).count; i++ )
     {
-        printf( "%u ", ATTR( &set, stripe_items ).stripe_units[i] );
+        printf( "%u ", ATTR( &set, stripe_items ).stripe[i].ost_idx );
     }
     printf( "\n" );
+
+#if 0
 
 #ifdef ATTR_INDEX_penalized_access
     printf( "penalized_access=%u\n", ( unsigned int ) ATTR( &set, penalized_access ) );
@@ -211,21 +223,20 @@ int main( int argc, char **argv )
     if ( rc )
         rc = ListMgr_SetStripe( &lmgr, &id, &strinfo, &stritems );
     printf( "set stripe = %d\n", rc );
+#endif
+
 
     /* remove */
-    rc = ListMgr_Remove( &lmgr, &id );
+    rc = ListMgr_Remove( &lmgr, &id, &set, 1 );
     test_rc( rc );
 
     /* reinsert again */
-    rc = ListMgr_Insert( &lmgr, &id, &set, FALSE );
+    rc = ListMgr_Insert( &lmgr, &id, &set, false );
     test_rc( rc );
 
     /* soft remove */
-    rc = ListMgr_SoftRemove( &lmgr, &id, NULL,
-#ifdef _HSM_LITE
-    NULL,
-#endif
-        time(NULL)+3600 );
+    rc = ListMgr_SoftRemove(&lmgr, &id, &set,
+        time(NULL));
     test_rc( rc );
 
     printf( "starting test in 3s...\n" );
@@ -236,12 +247,12 @@ int main( int argc, char **argv )
     for ( i = 1; i < 20000; i++ )
     {
         random_attrset( &set );
-        ATTR_MASK_SET( &set, stripe_info );
-        ATTR( &set, stripe_info ) = strinfo;
-        ATTR_MASK_SET( &set, stripe_items );
-        ATTR( &set, stripe_items ) = stritems;
-        random_stripe_units( &ATTR( &set, stripe_items ) );
-        sprintf( ATTR( &set, stripe_info ).pool_name, "da%u", myrand( 20 ) );
+//        ATTR_MASK_SET( &set, stripe_info );
+//        ATTR( &set, stripe_info ) = strinfo;
+//        ATTR_MASK_SET( &set, stripe_items );
+//        ATTR( &set, stripe_items ) = stritems;
+//        random_stripe_units( &ATTR( &set, stripe_items ) );
+//        sprintf( ATTR( &set, stripe_info ).pool_name, "da%u", myrand( 20 ) );
 #ifdef FID_PK
         id.f_seq = i;
         id.f_oid = myrand( 1000000 );
@@ -253,7 +264,7 @@ int main( int argc, char **argv )
 
         if ( !ListMgr_Exists( &lmgr, &id ) )
         {
-            rc = ListMgr_Insert( &lmgr, &id, &set, FALSE );
+            rc = ListMgr_Insert( &lmgr, &id, &set, 0 );
             test_rc( rc );
         }
 
@@ -268,13 +279,6 @@ int main( int argc, char **argv )
     printf( "%u entries inserted in %us (%u entries/s)\n", i,
             ( unsigned int ) ( t2 - t1 ), ( unsigned int ) ( i / ( t2 - t1 ) ) );
 
-    /* */
-    db_create_trigger();
-
-
-    exit(0);
-
-
     /* SELECT entries whose status is not STATUS_MODIFIED, mtime <= now - 20000, on OST 100 */
 
     lmgr_simple_filter_init( &filter );
@@ -283,13 +287,13 @@ int main( int argc, char **argv )
     lmgr_simple_filter_add( &filter, ATTR_INDEX_status, NOTEQUAL, fv, 0 );
 #endif
 
-    fv.val_uint = time( NULL ) - 40000;
+    fv.value.val_uint = time( NULL ) - 40000;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_last_mod, LESSTHAN, fv, 0 );
 
-    fv.val_str = "da14";
+    fv.value.val_str = "da14";
     lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_info, EQUAL, fv, 0 );
 
-    fv.val_uint = 100;
+    fv.value.val_uint = 100;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
 
     sorttype.attr_index = ATTR_INDEX_last_access;
@@ -309,7 +313,7 @@ int main( int argc, char **argv )
     set.attr_mask =
         ATTR_MASK_fullpath | ATTR_MASK_owner | ATTR_MASK_gr_name |
         ATTR_MASK_creation_time | ATTR_MASK_size | ATTR_MASK_stripe_info |
-        ATTR_MASK_last_access | ATTR_MASK_last_mod | ATTR_MASK_status ;
+        ATTR_MASK_last_access | ATTR_MASK_last_mod;
 #else
     set.attr_mask =
         ATTR_MASK_fullpath | ATTR_MASK_depth | ATTR_MASK_owner | ATTR_MASK_gr_name |
@@ -351,17 +355,19 @@ int main( int argc, char **argv )
 
     /* soft remove of a given set of entries */
     lmgr_simple_filter_init( &filter );
-    fv.val_uint = time( NULL ) - 40000;
+    fv.value.val_uint = time( NULL ) - 40000;
     lmgr_simple_filter_add( &filter, ATTR_INDEX_last_mod, MORETHAN, fv, 0 );
 
-    rc = ListMgr_MassSoftRemove( &lmgr, &filter, time(NULL)+3600 );
+    rc = ListMgr_MassSoftRemove( &lmgr, &filter, time(NULL), NULL );
     test_rc( rc );
 
     lmgr_simple_filter_free( &filter );
 
     /* soft remove all */
-    rc = ListMgr_MassSoftRemove( &lmgr, NULL, time(NULL)+3600 );
+    rc = ListMgr_MassSoftRemove( &lmgr, NULL, time(NULL), NULL );
     test_rc( rc );
+
+    exit( 0 );
 
 #if 0
     /* Test ListMgr_Report */
@@ -468,7 +474,6 @@ int main( int argc, char **argv )
 
     }
 
-    exit( 0 );
 
     /* impact all */
     ATTR_MASK_INIT( &set );
