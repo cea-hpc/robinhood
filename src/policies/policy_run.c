@@ -89,16 +89,18 @@ static int policy_action(policy_info_t *policy,
                          const char *hints, post_action_e *after)
 {
     int rc = 0;
+    const policy_action_t *actionp = &policy->descr->default_action;
+
     DisplayLog(LVL_EVENT, tag(policy),
                "Applying policy action to: " DFID_NOBRACE ", hints='%s'",
                PFID(id), hints?hints:"<none>");
     if (dry_run(policy))
         return 0;
 
-    switch(policy->config->action_type)
+    switch(actionp->type)
     {
         case ACTION_FUNCTION:
-            rc = policy->config->action_u.function(id, p_attr_set, hints, after);
+            rc = actionp->action_u.function(id, p_attr_set, hints, after);
             break;
         case ACTION_COMMAND:
         {
@@ -116,7 +118,7 @@ static int policy_action(policy_info_t *policy,
                 NULL, NULL
             };
 
-            char *cmd = replace_cmd_parameters(policy->config->action_u.command, vars);
+            char *cmd = replace_cmd_parameters(actionp->action_u.command, vars);
             if (cmd)
             {
                 int rc = 0;
@@ -769,7 +771,7 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
     mask |= policy->descr->scope_mask;
 
     /* needed (cached) attributes to check status from scope */
-    mask |= attrs_for_missing_status(mask, false);
+    mask |= attrs_for_status_mask(mask, false);
 
     // TODO class management
     // ATTR_MASK_SET(p_attr_set, release_class);

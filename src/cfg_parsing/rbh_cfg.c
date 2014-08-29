@@ -68,9 +68,9 @@ int ReadRobinhoodConfig(int module_mask, char *file_path, char *err_msg_out,
 
         if ( rc )
         {
-            sprintf( err_msg_out,
-                     "Error %d setting default configuration for module '%s':\n%s",
-                     rc, p_curr->module_name, msg_buf );
+            sprintf(err_msg_out,
+                    "Error %d setting default %s configuration:\n%s",
+                    rc, p_curr->module_name, msg_buf);
             goto config_free;
         }
 
@@ -78,9 +78,9 @@ int ReadRobinhoodConfig(int module_mask, char *file_path, char *err_msg_out,
 
         if ( rc != 0 )
         {
-            sprintf( err_msg_out,
-                     "Error %d reading configuration for module '%s':\n%s",
-                     rc, p_curr->module_name, msg_buf );
+            sprintf(err_msg_out,
+                    "Error %d reading %s configuration:\n%s",
+                    rc, p_curr->module_name, msg_buf);
             goto config_free;
         }
     }
@@ -120,8 +120,8 @@ int ReloadRobinhoodConfig( int module_mask, robinhood_config_t * new_config )
         rc_temp = p_curr->reload_func( module_config );
         if ( rc_temp )
         {
-            DisplayLog( LVL_CRIT, RELOAD_TAG, "Error %d reloading configuration for module '%s'",
-                        rc_temp, p_curr->module_name );
+            DisplayLog(LVL_CRIT, RELOAD_TAG, "Error %d reloading %s configuration",
+                       rc_temp, p_curr->module_name);
             rc = rc_temp;
         }
         else
@@ -982,7 +982,6 @@ static int criteria2condition(const type_key_value *key_value,
 
     p_triplet->crit = crit;
     p_triplet->op = syntax2conf_comparator(key_value->op_type);
-    *p_attr_mask |= attr_mask;
 
     switch(type)
     {
@@ -1873,5 +1872,24 @@ int read_scalar_params(config_item_t block, const char *block_name,
         }
     }
     return 0;
+}
+
+int str2lru_attr(const char *str)
+{
+#ifdef ATTR_INDEX_last_archive
+        if (!strcasecmp(str, criteria2str(CRITERIA_LAST_ARCHIVE)))
+            return ATTR_INDEX_last_archive;
+        else
+#endif
+        if (!strcasecmp(str, criteria2str(CRITERIA_LAST_ACCESS)))
+            return ATTR_INDEX_last_access;
+        else if (!strcasecmp(str, criteria2str(CRITERIA_LAST_MOD)))
+            return ATTR_INDEX_last_mod;
+#ifdef ATTR_INDEX_creation_time
+        else if (!strcasecmp(str, criteria2str(CRITERIA_CREATION)))
+            return ATTR_INDEX_creation_time;
+#endif
+        else
+            return -1;
 }
 

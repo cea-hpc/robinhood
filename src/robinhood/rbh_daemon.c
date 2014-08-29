@@ -129,7 +129,7 @@ static struct option option_tab[] = {
     {"check-thresholds", optional_argument, NULL, 'C'},
 
     /* specifies a policy target */
-    {"target", required_argument, NULL, 't'}, /* ost, pool, fs, class, user, group, file... */
+    {"target", required_argument, NULL, 't'}, /* ost, pool, all, class, user, group, file... */
     {"usage-target", required_argument, NULL, TGT_USAGE}, /* usage target FS, OST or pool */
 
     /* For policies, this forces to apply policy to files in policy scope,
@@ -283,7 +283,7 @@ static const char *run_help =
     "    " _B "-t" B_" " _U"target"U_ ", " _B "--target" B_ "=" _U"target"U_ "\n"
     "        Run the policies only on the specified target.\n"
     "        Target specification can be one of:\n"
-    "           " _B"fs"B_" (all entries), " _B"user"B_":"_U"username"U_", " _B"group"B_":"_U"grpname"U_",\n"
+    "           " _B"all"B_" (all entries), " _B"user"B_":"_U"username"U_", " _B"group"B_":"_U"grpname"U_",\n"
     "           " _B"file"B_":"_U"path"U_", " _B"class"B_":"_U"fileclass"U_
 #ifdef _LUSTRE
 ", "_B"ost"B_":"_U"ost_idx"U_", "_B"pool"B_":"_U"poolname"U_
@@ -1118,7 +1118,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_FS_PURGE:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=fs --usage-target=<pct>\n",
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=all --usage-target=<pct>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_CLASS_PURGE:
@@ -1271,7 +1271,7 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
         return 0;
     }
 
-    if (!strcasecmp(opt_string, "fs"))
+    if (!strcasecmp(opt_string, "all"))
     {
         opt->target = TGT_FS;
         opt->target_value_u.usage_pct = tgt_level; /* -1.0 is interpreted by triggers */
@@ -1287,9 +1287,9 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
     next = c+1;
     c = opt_string;
 
-    if (!strcasecmp(c, "fs"))
+    if (!strcasecmp(c, "all"))
     {
-        fprintf(stderr, "No ':' expected after 'fs' target.\n");
+        fprintf(stderr, "No ':' expected after 'all' target.\n");
         return EINVAL;
     }
     else if (!strcasecmp(c, "user"))

@@ -299,6 +299,36 @@ static bool inline has_default_policy(policy_rules_t *list)
     return false;
 }
 
+typedef enum
+{
+    ACTION_NONE,
+    ACTION_FUNCTION,
+    ACTION_COMMAND
+} action_type_e;
+
+/* what to do with the entry after the policy action.
+ * returned by action_function */
+typedef enum {
+    PA_NONE,
+    PA_RM_ONE,
+    PA_RM_ALL,
+    PA_UPDATE
+} post_action_e;
+
+typedef  int (*action_func_t)(const entry_id_t *,attr_set_t *, const char *,
+                              post_action_e *after); /* hints */
+
+action_func_t action_name2function(const char *fname);
+
+typedef struct policy_action_t
+{
+	action_type_e  type;
+    union {
+	    char            command[RBH_PATH_MAX];
+        action_func_t   function;
+    } action_u; /* command for ACTION_COMMAND, function for ACTION_FUNCTION, ... */
+} policy_action_t ;
+
 #ifdef HAVE_RM_POLICY
 typedef struct unlink_policy
 {
@@ -325,6 +355,9 @@ typedef struct policy_descr_t {
     bool_node_t         scope;
     uint64_t            scope_mask;
     struct sm_instance *status_mgr;
+    policy_action_t     default_action;
+    /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
+    int    default_lru_sort_attr; /* default value for policy_run_config_t.lru_sort_attr */
     policy_rules_t      rules;
 } policy_descr_t;
 
@@ -355,12 +388,7 @@ bool policy_exists(const char *name, int *index);
 /** Indicate if any policy manages deleted entries */
 static inline bool has_deletion_policy(void)
 {
-    /* FIXME This is a hook for testing,
-     * until we can define policies to
-     * manage deleted entries.
-     */
-//    return !!policies.manage_deleted;
-    return true;
+    return !!policies.manage_deleted;
 }
 
 #if 0

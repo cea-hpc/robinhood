@@ -27,7 +27,7 @@ else
 fi
 
 SYNC_OPT="--run=migration --force-all"
-PURGE_OPT="--run=purge --target=fs --no-limit"
+PURGE_OPT="--run=purge --target=all --no-limit"
 
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
@@ -260,8 +260,6 @@ function clean_fs
 	fi
 
 	sleep 1
-#	echo "Impacting rm in HSM..."
-#	$RH -f ./cfg/immediate_rm.conf --readlog --hsm-remove -l DEBUG -L rh_rm.log --once || error ""
 	echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db robinhood_lustre > /dev/null
 
@@ -376,7 +374,7 @@ function migration_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
@@ -389,7 +387,7 @@ function migration_test
 	sleep $sleep_time
 
 	echo "3-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != $expected_migr)); then
@@ -753,7 +751,7 @@ function test_lru_policy
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
 
-	$RH -f ./cfg/$config_file --run=migration -l FULL -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log  --once || error ""
 
     # if robinhood logs fids, convert them to files
     # FIXME RBHv3
@@ -779,7 +777,7 @@ function test_lru_policy
     :> rh_migr.log
 
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once
 
     if (( $is_lhsm > 0 )); then
         migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
@@ -847,7 +845,7 @@ function test_suspend_on_error
         done
     fi
 
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
 
     nb_fail_match=$(grep "hints='fail'" rh_migr.log | wc -l)
     nb_ok_match=$(grep "<no_hints>" rh_migr.log | wc -l)
@@ -905,7 +903,7 @@ function xattr_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
@@ -918,7 +916,7 @@ function xattr_test
 	sleep $sleep_time
 
 	echo "3-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log |  wc -l`
 	if (($nb_migr != 3)); then
@@ -1201,7 +1199,7 @@ function purge_test
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --run=purge --target=fs --no-limit -l DEBUG -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file --run=purge --target=all --no-limit -l DEBUG -L rh_purge.log --once || error ""
 
         nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
@@ -1585,7 +1583,7 @@ function test_maint_mode
     	check_db_error rh_chglogs.log
 
     	# migrate (nothing must be migrated, no maint mode reported)
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
 	grep "Maintenance time" rh_migr.log && error "No maintenance mode expected"
 	grep "Currently in maintenance mode" rh_migr.log && error "No maintenance mode expected"
 
@@ -1594,7 +1592,7 @@ function test_maint_mode
 	$REPORT -f ./cfg/$config_file --next-maintenance=$maint_time || error "setting maintenance time"
 
 	# right now, migration window is in the future
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
 	grep "maintenance window will start in" rh_migr.log || errot "Future maintenance not report in the log"
 
 	# sleep enough to be in the maintenance window
@@ -1609,7 +1607,7 @@ function test_maint_mode
 	# start migrations while we do not reach maintenance time
 	while (( `date +%s` < $t0 + $window + 10 )); do
 		cp /dev/null rh_migr.log
-		$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+		$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
 		grep "Currently in maintenance mode" rh_migr.log || error "Should be in maintenance window now"
 
 		# check that files are migrated after min_delay and before the policy delay
@@ -1629,7 +1627,7 @@ function test_maint_mode
 
 	(( `date +%s` > $t0 + $window + 15 )) || sleep $(( $t0 + $window + 15 - `date +%s` ))
 	# shouldn't be in maintenance now
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
 	grep "Maintenance time is in the past" rh_migr.log || error "Maintenance window should be in the past now"
 }
 
@@ -2165,7 +2163,7 @@ function path_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
 
 	# count the number of file for each policy
 	nb_pol1=`grep hints rh_migr.log | grep absolute_path | wc -l`
@@ -2365,7 +2363,7 @@ function periodic_class_match_migr
 	check_db_error rh_chglogs.log
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --run=migration --target=fs --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	#we must have 4 lines like this: "Need to update fileclass (not set)"
 	nb_updt=`grep "Need to update fileclass (not set)" rh_migr.log | wc -l`
@@ -2381,7 +2379,7 @@ function periodic_class_match_migr
 
 	# rematch entries: should not update fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --target=fs --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	nb_default_valid=`grep "fileclass '@default@' is still valid" rh_migr.log | wc -l`
 	nb_migr_valid=`grep "fileclass 'to_be_migr' is still valid" rh_migr.log | wc -l`
@@ -2399,7 +2397,7 @@ function periodic_class_match_migr
 
 	# rematch entries: should update all fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --target=fs --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log --once || error ""
 
 	nb_valid=`grep "is still valid" rh_migr.log | wc -l`
 	nb_updt=`grep "Need to update fileclass (out-of-date)" rh_migr.log | wc -l`

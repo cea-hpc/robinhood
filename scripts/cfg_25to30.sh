@@ -29,3 +29,8 @@ while [ -n "${old_blocks[$i]}" ]; do
 done
 
 echo "new config file created: $tmp"
+
+### change runtime_interval to trigger
+### change hsm_remove_policy parameters
+### backup_new_files is in policy scope
+

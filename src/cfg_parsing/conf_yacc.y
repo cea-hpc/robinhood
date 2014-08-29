@@ -107,7 +107,8 @@ listblock:
     ;
 
 block:
-    IDENTIFIER BEGIN_BLOCK listitems END_BLOCK {$$=rh_config_CreateBlock($1,NULL,$3);}
+    IDENTIFIER IDENTIFIER BEGIN_BLOCK listitems END_BLOCK {$$=rh_config_CreateBlock($1,$2,$4);}
+    | IDENTIFIER BEGIN_BLOCK listitems END_BLOCK {$$=rh_config_CreateBlock($1,NULL,$3);}
     ;
 
 listitems:

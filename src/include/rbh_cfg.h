@@ -210,51 +210,51 @@ extern char *process_config_file;
  * Array of configuration routines for all modules.
  */
 static const module_config_def_t robinhood_module_conf[] = {
-    {"Global", SetDefaultGlobalConfig, ReadGlobalConfig, ReloadGlobalConfig,
+    {"global", SetDefaultGlobalConfig, ReadGlobalConfig, ReloadGlobalConfig,
      WriteGlobalConfigTemplate, WriteGlobalConfigDefault,
      offsetof( robinhood_config_t, global_config ), MODULE_MASK_ALWAYS},
-    {"Log", SetDefaultLogConfig, ReadLogConfig, ReloadLogConfig,
+    {"log", SetDefaultLogConfig, ReadLogConfig, ReloadLogConfig,
      WriteLogConfigTemplate, WriteLogConfigDefault,
      offsetof( robinhood_config_t, log_config ), MODULE_MASK_ALWAYS},
 #ifdef _HSM_LITE
-    {"Backend", SetDefault_Backend_Config, Read_Backend_Config,
+    {"backend", SetDefault_Backend_Config, Read_Backend_Config,
         Reload_Backend_Config, Write_Backend_ConfigTemplate,
         Write_Backend_ConfigDefault,
         offsetof( robinhood_config_t, backend_config ),
         MODULE_MASK_ALWAYS
     },
 #endif
-    {"List Manager", SetDefaultLmgrConfig, ReadLmgrConfig, ReloadLmgrConfig,
+    {"list manager", SetDefaultLmgrConfig, ReadLmgrConfig, ReloadLmgrConfig,
      WriteLmgrConfigTemplate, WriteLmgrConfigDefault,
      offsetof( robinhood_config_t, lmgr_config ), MODULE_MASK_ALWAYS},
 
-    {"Attr Update", set_default_update_params, read_update_params, reload_update_params,
+    {"attr update", set_default_update_params, read_update_params, reload_update_params,
      write_update_params_template, write_default_update_params,
      offsetof(robinhood_config_t, db_update_params), MODULE_MASK_ALWAYS},
 
-    {"Entry Processor", SetDefault_EntryProc_Config, Read_EntryProc_Config,
+    {"entry processor", SetDefault_EntryProc_Config, Read_EntryProc_Config,
      Reload_EntryProc_Config, Write_EntryProc_ConfigTemplate,
      Write_EntryProc_ConfigDefault, offsetof( robinhood_config_t,
                                               entry_proc_config ),
      MODULE_MASK_ENTRY_PROCESSOR},
 
-    {"FS Scan", FSScan_SetDefaultConfig, FSScan_ReadConfig, FSScan_ReloadConfig,
+    {"FS scan", FSScan_SetDefaultConfig, FSScan_ReadConfig, FSScan_ReloadConfig,
      FSScan_WriteConfigTemplate, FSScan_WriteDefaultConfig,
      offsetof( robinhood_config_t, fs_scan_config ), MODULE_MASK_FS_SCAN},
 #ifdef HAVE_CHANGELOGS
-    {"ChangeLog Reader", ChgLogRdr_SetDefaultConfig, ChgLogRdr_ReadConfig, ChgLogRdr_ReloadConfig,
+    {"changelog reader", ChgLogRdr_SetDefaultConfig, ChgLogRdr_ReadConfig, ChgLogRdr_ReloadConfig,
      ChgLogRdr_WriteConfigTemplate, ChgLogRdr_WriteDefaultConfig,
      offsetof( robinhood_config_t, chglog_reader_config ), MODULE_MASK_EVENT_HDLR},
 #endif
 
     /* TODO manage fileclasses separately? */
 
-    {"Policies", SetDefault_Policies, Read_Policies, Reload_Policies,
+    {"policy", SetDefault_Policies, Read_Policies, Reload_Policies,
      Write_Policy_Template, Write_Policy_Default,
      offsetof(robinhood_config_t, policies),
      MODULE_MASK_ALWAYS},
 
-    {"PolicyRun", policy_run_cfg_set_default, policy_run_cfg_read,
+    {"policy run", policy_run_cfg_set_default, policy_run_cfg_read,
      policy_run_cfg_reload, policy_run_cfg_write_template,
      policy_run_cfg_write_defaults, offsetof(robinhood_config_t, policy_run_cfgs),
      MODULE_MASK_POLICY_RUN},
@@ -487,6 +487,11 @@ static const inline compare_criteria_t str2criteria(const char *str)
 
     return NO_CRITERIA;
 }
+
+#define ALLOWED_LRU_ATTRS_STR "creation, last_access, last_mod, last_archive, rm_time"
+int str2lru_attr(const char *str);
+
+
 
 /* generic config parsing using structure {type, name, flags, tgtptr} */
 

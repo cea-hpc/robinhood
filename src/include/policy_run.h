@@ -136,27 +136,6 @@ static inline char *trigger2str(const trigger_item_t *trig)
     return NULL;
 }
 
-typedef enum action_type_t
-{
-    ACTION_NONE,
-    ACTION_FUNCTION,
-    ACTION_COMMAND
-} action_type_t;
-
-/* what to do with the entry after the policy action.
- * returned by action_function */
-typedef enum {
-    PA_NONE,
-    PA_RM_ONE,
-    PA_RM_ALL,
-    PA_UPDATE
-} post_action_e;
-
-typedef  int (*action_func_t)(const entry_id_t *,attr_set_t *, const char *,
-                              post_action_e *after); /* hints */
-
-action_func_t action_name2function(const char *fname);
-
 typedef struct policy_run_config_t
 {
     unsigned int   nb_threads;
@@ -168,12 +147,6 @@ typedef struct policy_run_config_t
 
     trigger_item_t *trigger_list;
     unsigned int   trigger_count;
-
-	action_type_t  action_type;
-    union {
-	    char            command[RBH_PATH_MAX];
-        action_func_t   function;
-    } action_u; /* command for ACTION_COMMAND, function for ACTION_FUNCTION, ... */
 
     time_t         check_action_status_delay;
     time_t         action_timeout;

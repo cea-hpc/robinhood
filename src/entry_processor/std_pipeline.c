@@ -864,7 +864,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* Note: this check must be done after processing log record,
          * because it can determine if status is needed */
-        p_op->fs_attr_need |= attrs_for_missing_status(p_op->fs_attr_need, true);
+        p_op->fs_attr_need |= attrs_for_status_mask(p_op->fs_attr_need, true);
 
         char tmp_buf[RBH_NAME_MAX];
         DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "RECORD: %s "DFID" %#x %s => "
@@ -875,7 +875,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                    logrec->cr_name:"<null>",
                    NEED_GETSTRIPE(p_op)?1:0, NEED_GETATTR(p_op)?1:0,
                    NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
-                   name_missing_status(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)));
+                   name_status_mask(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)));
     }
     else /* entry from FS scan */
     {
@@ -1109,7 +1109,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ", Getstatus(%s), Getstripe=%u",
          PFID(&p_op->entry_id), NEED_GETATTR(p_op)?1:0,
          NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
-         name_missing_status(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)),
+         name_status_mask(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)),
          NEED_GETSTRIPE(p_op)?1:0);
 
     /* don't retrieve info which is already fresh */

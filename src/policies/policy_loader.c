@@ -77,7 +77,6 @@ policies_t policies = {0};
                                     }\
                                 } while (0)
 
-
 /**
  * Compare 2 boolean expressions
  * @return TRUE if expression structure changed.
@@ -361,45 +360,115 @@ static void set_default_rules(policy_rules_t *policy)
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, char *msg_out)
 {
-    int  rc, i;
-    char tmpstr[1024];
-    bool has_scope = false;
-    uint64_t mask;
+    int          rc, i;
+    const char  *name;
+    char         tmpstr[1024];
+    bool         has_scope = false;
+    uint64_t     mask;
+    char       **extra = NULL;
+    unsigned int extra_cnt = 0;
 
     static const char *expect[] =
     {
-        "name", "status_manager", "scope",
+        "status_manager", "scope", "default_action",
+        "default_lru_sort_attr",
         NULL
     };
 
-    /* get parameters from this block */
-    rc = GetStringParam(config_blk, block_name, "name",
-                        PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
-                        NULL, NULL, msg_out);
-    if (rc != 0)
-        return rc;
+    name = rh_config_GetBlockId(config_blk);
+    if (!name)
+    {
+        strcpy(msg_out, "Missing name for '"POLICY_DECLARATION"' block "
+               "(ex: "POLICY_DECLARATION" my_policy { ...");
+        return ENOENT;
+    }
 
     /* @TODO check the policy name is not already used! */
 
     /* parse the parameter */
-    if (strlen(tmpstr) > POLICY_NAME_LEN - 1)
+    if (strlen(name) > POLICY_NAME_LEN - 1)
     {
         sprintf(msg_out, "Policy name is too long (max: %u).", POLICY_NAME_LEN - 1);
         return EINVAL;
     }
-    strcpy(policy->name, tmpstr);
+    rh_strncpy(policy->name, name, sizeof(policy->name));
+
+    rc = GetStringParam(config_blk, block_name, "default_action",
+                        PFLG_NO_WILDCARDS | PFLG_MANDATORY,
+                        tmpstr, sizeof(tmpstr), &extra, &extra_cnt, msg_out);
+    if (rc)
+        return rc;
+    if (!strcasecmp(tmpstr, "cmd"))
+    {
+        /* external command */
+        /* 1 single argument expected */
+        if (extra_cnt != 1)
+        {
+            strcpy(msg_out, "A single argument is expected for cmd. E.g.: default_action = cmd(\"myscript.sh\");");
+            return EINVAL;
+        }
+        /* absolute path expected */
+        else if (extra[0][0] != '/')
+        {
+            strcpy(msg_out, "An absolute path is expected for default_action::cmd");
+            return EINVAL;
+        }
+        rh_strncpy(policy->default_action.action_u.command, extra[0],
+                   sizeof(policy->default_action.action_u.command));
+        policy->default_action.type = ACTION_COMMAND;
+    }
+    else
+    {
+        if (extra_cnt != 0)
+        {
+            strcpy(msg_out, "No extra argument is expected for default_action");
+            return EINVAL;
+        }
+        policy->default_action.action_u.function = action_name2function(tmpstr);
+        if (policy->default_action.action_u.function == NULL)
+        {
+            sprintf(msg_out, "default_action: unknown function '%s'", tmpstr);
+            return EINVAL;
+        }
+        policy->default_action.type = ACTION_FUNCTION;
+    }
+
+    rc = GetStringParam(config_blk, block_name, "default_lru_sort_attr",
+                        PFLG_NO_WILDCARDS | PFLG_MANDATORY, tmpstr, sizeof(tmpstr), NULL, NULL,
+                        msg_out);
+    if (rc)
+        return rc;
+    /* is it a time attribute? */
+    rc = str2lru_attr(tmpstr);
+    if (rc == -1)
+    {
+        strcpy(msg_out, "time attribute expected for 'default_lru_sort_attr': "
+               ALLOWED_LRU_ATTRS_STR"...");
+        return EINVAL;
+    }
+    else
+        policy->default_lru_sort_attr = rc;
 
     rc = GetStringParam(config_blk, block_name, "status_manager",
                         PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
                         NULL, NULL, msg_out);
+    if (rc == ENOENT)
+        strcat(msg_out, "If you don't need a status manager, you should explicitely specify: status_manager=none");
     if (rc != 0)
         return rc;
 
-    policy->status_mgr = create_sm_instance(policy->name, tmpstr);
-    if (policy->status_mgr == NULL)
+    if (!strcasecmp(tmpstr, "none"))
     {
-        sprintf(msg_out, "Could not load status manager '%s'", tmpstr);
-        return EINVAL;
+        policy->status_mgr = NULL;
+    }
+    else
+    {
+        policy->status_mgr = create_sm_instance(policy->name, tmpstr);
+        if (policy->status_mgr == NULL)
+        {
+            sprintf(msg_out, "Could not load status manager '%s'", tmpstr);
+            return EINVAL;
+        }
     }
 
     /* parse sub blocks */
@@ -445,7 +514,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
 
     if (!has_scope)
     {
-        sprintf(msg_out, "Missing mandatory 'scope' parameter in %s block",
+        sprintf(msg_out, "Missing mandatory parameter 'scope' in block '%s'",
                 block_name);
         return ENOENT;
     }
@@ -460,6 +529,7 @@ static int read_policy_definitions(config_file_t config, policies_t *pol,
 {
     unsigned int blc_index;
     int rc;
+
     for (blc_index = 0; blc_index < rh_config_GetNbBlocks(config); blc_index++)
     {
         char *block_name;
@@ -1564,7 +1634,7 @@ static int read_unlink_policy(config_file_t config, unlink_policy_t * pol, char 
 static int parse_rule_block(config_item_t config_item,
                             const char *block_name,
                             const policies_t *all_policies, /* to check filesets */
-                            const char *policy_name, /* to build specific parameter name like '<policy>_hints' */
+                            const policy_descr_t *policy, /* to build specific parameter name like '<policy>_hints', check status manager properties... */
                             const policy_rules_t *policy_rules, /* to check other rule names in the policy */
                             rule_item_t *rule_out, char *msg_out)
 {
@@ -1627,10 +1697,10 @@ static int parse_rule_block(config_item_t config_item,
             }
 
             /* analyze boolean expression */
-            /* XXX allow using 'status' in conditions? */
+            /* allow using 'status' related info in conditions */
             mask = 0;
             rc = GetBoolExpr(sub_item, CONDITION_BLOCK, &rule_out->condition,
-                             &mask, msg_out, NULL);
+                             &mask, msg_out, policy->status_mgr);
             if (rc)
                 return rc;
 
@@ -1644,7 +1714,7 @@ static int parse_rule_block(config_item_t config_item,
             fileset_item_t *fs;
             char hint_name[POLICY_NAME_LEN + sizeof("_hints") + 1];
 
-            sprintf(hint_name, "%s_hints", policy_name);
+            sprintf(hint_name, "%s_hints", policy->name);
 
             rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra_args);
             if (rc)
@@ -1915,11 +1985,11 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
             if (!strcasecmp(item_name, IGNORE_BLOCK))
             {
                 /* analyze boolean expression */
-                /* XXX allow using 'status' in ignore statement? */
+                /* allow using status related info in ignore statement? */
                 rc = GetBoolExpr(curr_item, item_name,
                                  &rules->whitelist_rules[curr_ign].bool_expr,
                                  &rules->whitelist_rules[curr_ign].attr_mask,
-                                 msg_out, NULL);
+                                 msg_out, policy_descr->status_mgr);
                 if (rc)
                     goto free_policy;
 
@@ -1932,7 +2002,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
             {
                 /* parse 'policy' block */
                 rc = parse_rule_block(curr_item, item_name, p_policies,
-                                      policy_descr->name, rules,
+                                      policy_descr, rules,
                                       &rules->rules[curr_rule],
                                       msg_out);
                 if (rc)
@@ -2084,6 +2154,8 @@ int Read_Policies(config_file_t config, void *module_config, char *msg_out, bool
     policies_t    *pol = (policies_t *)module_config;
     int            rc, i;
 
+    memset(pol, 0, sizeof(pol));
+
     /* read policy declarations, allocate policy descriptors */
     rc = read_policy_definitions(config, pol, msg_out, for_reload);
     if (rc)
@@ -2114,6 +2186,29 @@ int Write_Policy_Template(FILE * output)
         return rc;
 
 // FIXME write policy templates
+/*
+    print_line(output, 1, "# default sort order for the policy (this is");
+    print_line(output, 1, "# overridden by policy parameters::lru_sort_attr)");
+    print_line(output, 1, "#default_lru_sort_attr = last_access ;");
+
+    print_line(output, 1, "# Default action for this policy.");
+    print_line(output, 1, "# The syntax to call built-in functions is <module_name>.<action_name>");
+    print_line(output, 1, "# e.g. common.copy, common.unlink, lhsm.archive, lhsm.release...");
+    print_line(output, 1, "default_action = common.unlink ;");
+    print_line(output, 1, "# To call a custom script instead, use the following syntax:");
+    print_line(output, 1, "# default_action = cmd(\"/usr/bin/move_to_trash.sh {path}\") ;");
+    print_line(output, 1, "# Special parameters can passed to the command:");
+    print_line(output, 1, "#    {path}: posix path to the entry");
+#ifdef _LUSTRE
+#   ifdef _HAVE_FID
+    print_line(output, 1, "#    {fid}: fid of the entry");
+#   endif
+    print_line(output, 1, "#    {fsname}: Lustre fsname");
+#endif
+    print_line(output, 1, "#    {hints}: pass action_hints to the command");
+    fprintf(output, "\n");
+*/
+
     return 0;
 }
 

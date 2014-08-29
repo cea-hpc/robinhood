@@ -37,7 +37,7 @@ static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     int rc = lhsm_action(HUA_RELEASE, p_entry_id, hints);
     //    if (rc == 0)
     //{
-    /* TODO set new status */
+    /* TODO set new status: in status manager? */
     //    ATTR_MASK_SET( &new_attr_set, status );
     //    ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
     //}
@@ -53,6 +53,15 @@ static int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     *after = PA_UPDATE;
     return rc;
 }
+
+static int lhsm_hsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                           const char *hints, post_action_e *after)
+{
+    int rc = lhsm_action(HUA_REMOVE, p_entry_id, hints);
+    *after = (rc != 0 ? PA_NONE : PA_RM_ONE);
+    return rc;
+}
+
 #endif
 
 #ifdef _HSM_LITE
@@ -121,6 +130,7 @@ static struct fn_names_t
 #ifdef _LUSTRE_HSM
     {"lhsm.archive", lhsm_archive},
     {"lhsm.release", lhsm_release},
+    {"lhsm.hsm_remove", lhsm_hsm_remove},
 #endif
 #ifdef _HSM_LITE
     {"backup.archive", backup_archive},

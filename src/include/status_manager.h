@@ -122,6 +122,7 @@ static inline uint64_t translate_status_mask(uint64_t mask, unsigned int smi_ind
     return (mask & ~SMI_MASK(0)) | SMI_MASK(smi_index);
 }
 
+/** translate a generic mask SMI_MASK(0) to all status mask (except status for deleted entries) */
 static inline uint64_t translate_all_status_mask(uint64_t mask)
 {
     if (!(mask & SMI_MASK(0)))
@@ -131,8 +132,8 @@ static inline uint64_t translate_all_status_mask(uint64_t mask)
     return (mask & ~SMI_MASK(0)) | all_status_mask();
 }
 
-/** Get attribute mask for missing statuses */
-static inline uint64_t attrs_for_missing_status(uint64_t missing, bool fresh)
+/** Get attribute mask for status in the given mask */
+static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
 {
     int i = 0;
     uint64_t m;
@@ -140,7 +141,7 @@ static inline uint64_t attrs_for_missing_status(uint64_t missing, bool fresh)
 
     for (i = 0, m = (1LL << ATTR_COUNT); i < sm_inst_count; i++, m <<= 1)
     {
-        if (missing & m)
+        if (mask & m)
         {
             sm_instance_t *smi = get_sm_instance(i);
             if (fresh)
@@ -180,8 +181,8 @@ static inline uint64_t status_allow_cached_attrs(void)
 
 #include "rbh_misc.h"
 
-/** Get attribute mask for missing statuses */
-static inline char *name_missing_status(uint64_t missing, char *buf, int sz)
+/** Get name of status in the given mask */
+static inline char *name_status_mask(uint64_t mask, char *buf, int sz)
 {
     int i = 0;
     uint64_t m;
@@ -190,7 +191,7 @@ static inline char *name_missing_status(uint64_t missing, char *buf, int sz)
 
     for (i = 0, m = (1LL << ATTR_COUNT); i < sm_inst_count; i++, m <<= 1)
     {
-        if (missing & m)
+        if (mask & m)
         {
             sm_instance_t *smi = get_sm_instance(i);
             /* append smi name */

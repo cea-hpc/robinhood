@@ -30,7 +30,7 @@
 /* contains all run configs */
 policy_run_configs_t run_cfgs = { NULL, 0 };
 
-static int polrun_set_default(policy_run_config_t *cfg)
+static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
     cfg->nb_threads = 4;
@@ -41,9 +41,6 @@ static int polrun_set_default(policy_run_config_t *cfg)
 
     cfg->trigger_list = NULL;
     cfg->trigger_count = 0;
-
-    /* TODO move to policy declaration? */
-    cfg->action_type = ACTION_NONE; /* mandatory */
 
     cfg->check_action_status_delay = 30 * 60; /* 30 min */
     cfg->action_timeout = 2 * 3600; /* 2h */
@@ -56,7 +53,7 @@ static int polrun_set_default(policy_run_config_t *cfg)
     cfg->suspend_error_min = 0; /* disabled */
 
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
-    cfg->lru_sort_attr =  ATTR_INDEX_last_access;
+    cfg->lru_sort_attr =  pol->default_lru_sort_attr;
 
     cfg->check_action_status_on_startup = true;
     cfg->recheck_ignored_classes = true;
@@ -86,15 +83,14 @@ int policy_run_cfg_set_default(void *module_config, char *msg_out)
         return ENOMEM;
     }
     for (i = 0; i < cfg->count; i++)
-        polrun_set_default(&cfg->configs[i]);
+        polrun_set_default(&parsed_policies->policy_list[i], &cfg->configs[i]);
     return 0;
 }
 
 int policy_run_cfg_write_defaults(FILE *output)
 {
     print_begin_block(output, 0, "<policy>"PARAM_SUFFIX, NULL);
-    print_line(output, 1, "lru_sort_attr           : last_access");
-    print_line(output, 1, "default_action          : <none> (mandatory parameter)");
+    print_line(output, 1, "lru_sort_attr           : default_lru_sort_attr (from 'define_policy' block)");
     print_line(output, 1, "max_action_count        : 0 (unlimited)");
     print_line(output, 1, "max_action_volume       : 0 (unlimited)");
     print_line(output, 1, "suspend_error_pct       : disabled (0)");
@@ -118,24 +114,9 @@ int policy_run_cfg_write_defaults(FILE *output)
 int policy_run_cfg_write_template(FILE *output)
 {
     print_begin_block(output, 0, TEMPL_POLICY_NAME PARAM_SUFFIX, NULL);
-    print_line(output, 1, "# sort order for applying the policy");
-    print_line(output, 1, "lru_sort_attr = last_access ;");
-    fprintf(output, "\n");
-    print_line(output, 1, "# Default action for this policy.");
-    print_line(output, 1, "# The syntax to call built-in functions is <module_name>.<action_name>");
-    print_line(output, 1, "# e.g. common.copy, common.unlink, lhsm.archive, lhsm.release...");
-    print_line(output, 1, "default_action = common.unlink ;");
-    print_line(output, 1, "# To call a custom script instead, use the following syntax:");
-    print_line(output, 1, "# default_action = cmd(\"/usr/bin/move_to_trash.sh {path}\") ;");
-    print_line(output, 1, "# Special parameters can passed to the command:");
-    print_line(output, 1, "#    {path}: posix path to the entry");
-#ifdef _LUSTRE
-#   ifdef _HAVE_FID
-    print_line(output, 1, "#    {fid}: fid of the entry");
-#   endif
-    print_line(output, 1, "#    {fsname}: Lustre fsname");
-#endif
-    print_line(output, 1, "#    {hints}: pass action_hints to the command");
+    print_line(output, 1, "# sort order for applying the policy (overrides ");
+    print_line(output, 1, "# default_lru_sort_attr from policy definition)");
+    print_line(output, 1, "#lru_sort_attr = last_access ;");
     fprintf(output, "\n");
     print_line(output, 1, "# maximum number of actions per policy run (default: no limit)");
     print_line(output, 1, "#max_action_count = 100000 ;");
@@ -568,7 +549,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
 
     /* parameter for CheckUnknownParams() */
     static const char *allowed[] = {
-        "lru_sort_attr", "default_action", "max_action_count",
+        "lru_sort_attr", "max_action_count",
         "max_action_volume", "nb_threads", "suspend_error_pct",
         "suspend_error_min", "report_interval", "action_timeout",
         "check_actions_interval", "check_actions_on_startup",
@@ -614,15 +595,13 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, policy_name);
 
     /* get <policy>_parameters block */
-    /* @TODO RBHv3: be able to aggregate multiple blocks with the same name */
     param_block = rh_config_FindItemByName(config, block_name);
-
-    /* default_action is mandatory */
     if (param_block == NULL)
     {
-        sprintf(msg_out, "Missing mandatory block '%s' (in particular, "
-                "'default_action' parameter must be specified)", block_name);
-        return ENOENT;
+        sprintf(msg_out, "No parameter block found for policy '%s' (%s)",
+                policy_name, block_name);
+        /* not mandatory */
+        return 0;
     }
 
     /* check this is a block... */
@@ -645,64 +624,15 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         return rc;
     else if (rc != ENOENT) {
         /* is it a time attribute? */
-#ifdef ATTR_INDEX_last_archive
-        if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ARCHIVE)))
-            conf->lru_sort_attr = ATTR_INDEX_last_archive;
+        rc = str2lru_attr(tmp);
+        if (rc == -1)
+        {
+            strcpy(msg_out, "time attribute expected for 'lru_sort_attr': "
+                   ALLOWED_LRU_ATTRS_STR"...");
+            return EINVAL;
+        }
         else
-#endif
-        if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ACCESS)))
-            conf->lru_sort_attr = ATTR_INDEX_last_access;
-        else if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_MOD)))
-            conf->lru_sort_attr = ATTR_INDEX_last_mod;
-#ifdef ATTR_INDEX_creation_time
-        else if (!strcasecmp(tmp, criteria2str(CRITERIA_CREATION)))
-            conf->lru_sort_attr = ATTR_INDEX_creation_time;
-#endif
-        else {
-            strcpy(msg_out, "time attribute expected for 'lru_sort_attr': creation, last_access, last_mod, last_archive...");
-            return EINVAL;
-        }
-    }
-
-    char ** extra = NULL;
-    unsigned int extra_cnt = 0;
-    rc = GetStringParam(param_block, block_name, "default_action",
-                        PFLG_NO_WILDCARDS | PFLG_MANDATORY,
-                        tmp, sizeof(tmp), &extra, &extra_cnt, msg_out);
-    if (rc)
-        return rc;
-    if (!strcasecmp(tmp, "cmd"))
-    {
-        /* external command */
-        /* 1 single argument expected */
-        if (extra_cnt != 1)
-        {
-            strcpy(msg_out, "A single argument is expected for cmd. E.g.: default_action = cmd(\"myscript.sh\");");
-            return EINVAL;
-        }
-        /* absolute path expected */
-        else if (extra[0][0] != '/')
-        {
-            strcpy(msg_out, "An absolute path is expected for default_action::cmd");
-            return EINVAL;
-        }
-        rh_strncpy(conf->action_u.command, extra[0], sizeof(conf->action_u.command));
-        conf->action_type = ACTION_COMMAND;
-    }
-    else
-    {
-        if (extra_cnt != 0)
-        {
-            strcpy(msg_out, "No extra argument is expected for default_action");
-            return EINVAL;
-        }
-        conf->action_u.function = action_name2function(tmp);
-        if (conf->action_u.function == NULL)
-        {
-            sprintf(msg_out, "default_action: unknown function '%s'", tmp);
-            return EINVAL;
-        }
-        conf->action_type = ACTION_FUNCTION; 
+            conf->lru_sort_attr = rc;
     }
 
     /* warn for unknown parameters */

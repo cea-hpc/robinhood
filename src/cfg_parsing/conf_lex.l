@@ -109,7 +109,7 @@ LETTER          [a-zA-Z_.]
 IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 
 /* INCLUDE state is used for picking the name of the include file */
-%START  YY_INIT BLOC INBLOC STRING1 STRING2 ESC1 INCLUDE INCL_STRING INCL_ESC
+%START  YY_INIT INBLOC STRING1 STRING2 ESC1 INCLUDE INCL_STRING INCL_ESC
 
 %%
 
@@ -249,12 +249,11 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                     /* identifier */
                     DEBUG_LEX("[bloc:%s]\n",yytext);
                     rh_strncpy(yylval.str_val,yytext,MAXSTRLEN);
-                    BEGIN BLOC;
                     return IDENTIFIER;
                  }
 
 
-<BLOC>"{"        {/* debut de bloc */
+<YY_INIT>"{"        {/* debut de bloc */
                         DEBUG_LEX("BEGIN_BLOCK\n");
                         BEGIN INBLOC;
                         accolades++;
