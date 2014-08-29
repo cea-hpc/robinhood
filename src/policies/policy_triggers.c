@@ -335,7 +335,7 @@ static int check_count_thresholds(trigger_item_t *p_trigger,
     DisplayLog(LVL_VERB, TAG, "Target entry count: %llu",
                 p_trigger->lw_count);
 
-    if (inode_used < p_trigger->lw_count)
+    if (inode_used <= p_trigger->lw_count)
     {
         DisplayLog(LVL_EVENT, TAG,
                     "Inode count is already under low threshold. Do nothing.");

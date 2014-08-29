@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2009, 2010 CEA/DAM
+ * Copyright (C) 2009-2014 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -161,7 +161,7 @@ int policy_run_cfg_write_template(FILE *output)
 }
 
 # if 0 // @TODO RBHv3: write template triggers
-    
+
     fprintf( output, "\n" );
 #ifdef _LUSTRE
     print_line( output, 0, "# Trigger purge on individual OST usage" );
@@ -218,20 +218,188 @@ int policy_run_cfg_write_template(FILE *output)
 
 #endif
 
+struct trig_target_def {
+    const char      *name;
+    trigger_type_t   type;
+    policy_target_t  target;
+    bool             allow_args;
+};
+
+/** list of possible triggers and their caracteristics */
+static const struct trig_target_def target_defs[] = {
+    /* periodic and scheduled are synonymes */
+    { "periodic",       TRIG_ALWAYS,    TGT_FS, false },
+    { "scheduled",      TRIG_ALWAYS,    TGT_FS, false },
+
+    { "global_usage",   TRIG_CONDITION, TGT_FS, false },
+    { "ost_usage",      TRIG_CONDITION, TGT_OST, false },
+    { "user_usage",     TRIG_CONDITION, TGT_USER, true },
+    { "group_usage",    TRIG_CONDITION, TGT_GROUP, true },
+    { "pool_usage",     TRIG_CONDITION, TGT_POOL, true },
+
+    { NULL, 0, 0, false } /* terminal element */
+};
+
+static const struct trig_target_def *str2trigger_def(const char *str)
+{
+    const struct trig_target_def *def;
+
+    for (def = target_defs; def->name != NULL; def++)
+    {
+        if (!strcasecmp(def->name, str))
+            return def;
+    }
+    return NULL;
+}
+
+/** fills the target fields of a trigger item */
+static int set_trigger_target(trigger_item_t *p_trigger,
+                              const struct trig_target_def *def,
+                              char **args, unsigned int arg_count,
+                              char *msg_out)
+{
+    int i;
+
+    p_trigger->trigger_type = def->type;
+    p_trigger->target_type = def->target;
+
+    /* default: alert enabled if LW cannot be reached.
+     * No thresholds for TRIG_ALWAYS. */
+    p_trigger->alert_lw = ((def->type == TRIG_ALWAYS) ? false : true);
+
+    /* optional arguments: target list (user list, group list, pool list) */
+    if (arg_count > 0)
+    {
+        if (!def->allow_args)
+        {
+            sprintf(msg_out, "No extra argument expected for trigger type"
+                    " '%s': %u argument(s) found.", def->name, arg_count);
+            return EINVAL;
+        }
+
+        p_trigger->list = (char **) calloc(arg_count, sizeof(char *));
+        p_trigger->list_size = arg_count;
+        for (i = 0; i < arg_count; i++)
+        {
+            p_trigger->list[i] = strdup(args[i]);
+            if (p_trigger->list[i] == NULL)
+            {
+                sprintf(msg_out, "Failed to allocate memory: %s", strerror(errno));
+                return ENOMEM;
+            }
+        }
+    }
+    return 0;
+}
+
+static inline const char *mk_threshold_param(const char *prefix, const char *suffix,
+                                             char *buff)
+{
+    sprintf(buff, "%s_threshold_%s", prefix, suffix);
+    return buff;
+}
+
+/** read thresholds params, check their consistency and fills the trigger item.
+ *  @param[in] prefix "high" or "low"
+ *  @param[in] p_trigger to check compatibility with trigger type and target.
+ */
+static int read_threshold_params(config_item_t config_blk, const char *block_name,
+                                 const char *prefix, const trigger_item_t *p_trigger,
+                                 trigger_value_type_t *type, threshold_u *val, char *msg_out)
+{
+    unsigned int cnt = 0;
+    uint64_t     tmpval;
+    int          rc;
+    char         buff[128]; /* oversized for param name */
+
+    rc = GetFloatParam(config_blk, block_name,
+                       mk_threshold_param(prefix, "pct", buff),
+                       PFLG_POSITIVE | PFLG_ALLOW_PCT_SIGN, &val->percent,
+                       NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT)) /* real error */
+        return rc;
+    if (rc == 0)
+    {
+        *type = PCT_THRESHOLD;
+        cnt++;
+    }
+
+    rc = GetSizeParam(config_blk, block_name,
+                      mk_threshold_param(prefix, "vol", buff),
+                      PFLG_POSITIVE, &val->volume, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    if (rc == 0)
+    {
+        *type = VOL_THRESHOLD;
+        cnt++;
+    }
+
+    rc = GetInt64Param(config_blk, block_name,
+                       mk_threshold_param(prefix, "cnt", buff),
+                       PFLG_POSITIVE, &tmpval, NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    if (rc == 0)
+    {
+        *type = COUNT_THRESHOLD;
+        val->count = (unsigned long long)tmpval; /* unsigned long long to uint64_t */
+        cnt++;
+    }
+
+    /* check params consistency */
+    if (p_trigger->trigger_type == TRIG_ALWAYS)
+    {
+        if (cnt > 0)
+        {
+            /* in case of 'periodic' triggers, no thresholds are expected */
+            strcpy(msg_out, "No high/low threshold expected for 'periodic' trigger");
+            return EINVAL;
+        }
+        else /* no extra check needed */
+            return 0;
+    }
+
+    if (cnt > 1)
+    {
+        sprintf(msg_out, "Multiple %s_threshold parameters in trigger", prefix);
+        return EINVAL;
+    }
+
+    if (cnt == 0)
+    {
+        sprintf(msg_out, "No %s_threshold found in trigger (mandatory): "
+                         " '%s_threshold_pct', '%s_threshold_vol'"
+                         "or '%s_threshold_cnt' expected", prefix, prefix,
+                         prefix, prefix);
+        return ENOENT;
+    }
+
+    /* count threshold is only support for global FS usage */
+    if ((*type == COUNT_THRESHOLD)
+         && (p_trigger->trigger_type != TGT_FS)
+         && (p_trigger->target_type != TGT_USER)
+         && (p_trigger->target_type != TGT_GROUP))
+    {
+        strcpy(msg_out, "Threshold on entry count is only supported "
+                         "for 'global_usage', 'user_usage' and 'group_usage' triggers");
+        return EINVAL;
+    }
+
+    return 0;
+}
+
+
+/** parse a trigger block from configuration and fills a trigger item */
 static int parse_trigger_block(config_item_t config_blk, const char *block_name,
-                               trigger_item_t * p_trigger_item, char *msg_out)
+                               trigger_item_t *p_trigger_item, char *msg_out)
 {
     int            rc;
-    int            rc_hp, rc_lp, rc_hv, rc_lv, rc_hc, rc_lc;
-    unsigned int   high_count = 0;
-    unsigned int   low_count = 0;
-    double         h_pct, l_pct;
-    unsigned long long h_vol, l_vol;
-    uint64_t       h_cnt, l_cnt;
-    int            i;
     char           tmpstr[1024];
     char         **arg_tab;
     unsigned int   arg_count;
+
+    const struct trig_target_def *def;
 
     static const char *trigger_expect[] =
     {
@@ -248,11 +416,14 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
             &p_trigger_item->max_action_nbr, 0},
         {"max_action_volume",   PT_SIZE,    PFLG_POSITIVE,
             &p_trigger_item->max_action_vol, 0},
-        {"check_interval", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL | PFLG_MANDATORY,
+        {"check_interval",      PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL | PFLG_MANDATORY,
             &p_trigger_item->check_interval, 0},
-        {"alert_high", PT_BOOL, 0, &p_trigger_item->alert_hw, 0},
-        {"alert_low", PT_BOOL, 0, &p_trigger_item->alert_lw, 0},
-        {"post_trigger_wait", PT_DURATION, 0, &p_trigger_item->post_trigger_wait, 0},
+        {"alert_high",          PT_BOOL,     0,
+            &p_trigger_item->alert_hw, 0},
+        {"alert_low",           PT_BOOL,     0,
+            &p_trigger_item->alert_lw, 0},
+        {"post_trigger_wait",   PT_DURATION, 0,
+            &p_trigger_item->post_trigger_wait, 0},
         END_OF_PARAMS
     };
 
@@ -269,259 +440,36 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
     p_trigger_item->list = NULL;
     p_trigger_item->list_size = 0;
 
-    /* analyze trigger_on parameter */
-    if (!strcasecmp(tmpstr, "periodic") || !strcasecmp(tmpstr, "scheduled"))
-    {
-        p_trigger_item->trigger_type = TRIG_ALWAYS;
-        p_trigger_item->target_type = TGT_FS; /* TODO allow other targets (user, group, fileclass...) */
-
-        /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = false;
-
-        /* no arg expected */
-        if (arg_count > 0)
-        {
-            sprintf(msg_out,
-                    "No extra argument expected for trigger type '%s': %u argument(s) found.",
-                    tmpstr, arg_count);
-            return EINVAL;
-        }
-    }
-    else if (!strcasecmp(tmpstr, "global_usage"))
-    {
-        p_trigger_item->trigger_type = TRIG_CONDITION;
-        p_trigger_item->target_type = TGT_FS;
-
-        /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = true;
-
-        /* no arg expected */
-        if (arg_count > 0)
-        {
-            sprintf(msg_out,
-                     "No extra argument expected for trigger type '%s': %u argument(s) found.",
-                     tmpstr, arg_count);
-            return EINVAL;
-        }
-    }
-    else if (!strcasecmp(tmpstr, "OST_usage"))
-    {
-        p_trigger_item->trigger_type = TRIG_CONDITION;
-        p_trigger_item->target_type = TGT_OST;
-
-        /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = true;
-
-        /* no arg expected */
-        if (arg_count > 0)
-        {
-            sprintf(msg_out,
-                     "No extra argument expected for trigger type '%s': %u argument(s) found.",
-                     tmpstr, arg_count);
-            return EINVAL;
-        }
-    }
-    else if (!strcasecmp(tmpstr, "user_usage"))
-    {
-        p_trigger_item->trigger_type = TRIG_CONDITION;
-        p_trigger_item->target_type = TGT_USER;
-
-        /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = true;
-
-        /* optional arguments: user list */
-        if (arg_count > 0)
-        {
-            p_trigger_item->list = (char **) calloc(arg_count, sizeof(char *));
-            p_trigger_item->list_size = arg_count;
-            for (i = 0; i < arg_count; i++)
-            {
-                p_trigger_item->list[i] = (char *) malloc(strlen(arg_tab[i]) + 1);
-                strcpy(p_trigger_item->list[i], arg_tab[i]);
-            }
-        }
-    }
-    else if (!strcasecmp(tmpstr, "group_usage"))
-    {
-        p_trigger_item->trigger_type = TRIG_CONDITION;
-        p_trigger_item->target_type = TGT_GROUP;
-
-        /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = true;
-
-        /* optional argument: group list */
-        if (arg_count > 0)
-        {
-            p_trigger_item->list = (char **) calloc(arg_count, sizeof(char *));
-            p_trigger_item->list_size = arg_count;
-            for (i = 0; i < arg_count; i++)
-            {
-                p_trigger_item->list[i] = (char *) malloc(strlen(arg_tab[i]) + 1);
-                strcpy(p_trigger_item->list[i], arg_tab[i]);
-            }
-        }
-    }
-    else if (!strcasecmp(tmpstr, "pool_usage"))
-    {
-        p_trigger_item->trigger_type = TRIG_CONDITION;
-        p_trigger_item->target_type = TGT_POOL;
-
-        /* default: alert enabled if LW cannot be reached */
-        p_trigger_item->alert_lw = true;
-
-        /* optional arguments: user list */
-        if (arg_count > 0)
-        {
-            p_trigger_item->list = (char **) calloc(arg_count, sizeof(char *));
-            p_trigger_item->list_size = arg_count;
-            for (i = 0; i < arg_count; i++)
-            {
-                p_trigger_item->list[i] = (char *) malloc(strlen(arg_tab[i]) + 1);
-                strcpy(p_trigger_item->list[i], arg_tab[i]);
-            }
-        }
-    }
-    else
+    def = str2trigger_def(tmpstr);
+    if (def == NULL)
     {
         sprintf(msg_out, "Unexpected value for 'trigger_on' parameter: %s.", tmpstr);
         return EINVAL;
     }
+    rc = set_trigger_target(p_trigger_item, def, arg_tab, arg_count, msg_out);
+    if (rc)
+        return rc;
 
+    /* retrieve high and low thresholds params and check their compatibility */
+    rc = read_threshold_params(config_blk, block_name, "high", p_trigger_item,
+                               &p_trigger_item->hw_type, &p_trigger_item->hw_u, msg_out);
+    if (rc)
+        return rc;
 
-    /* retrieve all threshold params and check their compatibility */
-    high_count = low_count = 0;
+    rc = read_threshold_params(config_blk, block_name, "low", p_trigger_item,
+                               &p_trigger_item->lw_type, &p_trigger_item->lw_u, msg_out);
+    if (rc)
+        return rc;
 
-    rc_hp = GetFloatParam(config_blk, block_name, "high_threshold_pct",
-                          PFLG_POSITIVE | PFLG_ALLOW_PCT_SIGN, &h_pct,
-                          NULL, NULL, msg_out);
-    if ((rc_hp != 0) && (rc_hp != ENOENT))
-        return rc_hp;
-    else if (rc_hp != ENOENT)
-        high_count++;
-
-    rc_hv = GetSizeParam(config_blk, block_name, "high_threshold_vol",
-                        PFLG_POSITIVE, &h_vol, NULL, NULL, msg_out);
-    if ((rc_hv != 0) && (rc_hv != ENOENT))
-        return rc_hv;
-    else if (rc_hv != ENOENT)
-        high_count++;
-
-    rc_hc = GetInt64Param(config_blk, block_name, "high_threshold_cnt",
-                          PFLG_POSITIVE, &h_cnt, NULL, NULL, msg_out);
-    if ((rc_hc != 0) && (rc_hc != ENOENT))
-        return rc_hc;
-    else if (rc_hc != ENOENT)
-        high_count++;
-
-    rc_lp = GetFloatParam(config_blk, block_name, "low_threshold_pct",
-                         PFLG_POSITIVE | PFLG_ALLOW_PCT_SIGN, &l_pct,
-                         NULL, NULL, msg_out);
-    if ((rc_lp != 0) && (rc_lp != ENOENT))
-        return rc_lp;
-    else if (rc_lp != ENOENT)
-        low_count++;
-
-    rc_lv = GetSizeParam(config_blk, block_name, "low_threshold_vol",
-                        PFLG_POSITIVE, &l_vol, NULL, NULL, msg_out);
-    if ((rc_lv != 0) && (rc_lv != ENOENT))
-        return rc_lv;
-    else if (rc_lv != ENOENT)
-        low_count++;
-
-    rc_lc = GetInt64Param(config_blk, block_name, "low_threshold_cnt",
-                           PFLG_POSITIVE, &l_cnt, NULL, NULL, msg_out);
-    if ((rc_lc != 0) && (rc_lc != ENOENT))
-        return rc_lc;
-    else if (rc_lc != ENOENT)
-        low_count++;
-
-    if (p_trigger_item->trigger_type == TRIG_ALWAYS)
+    if ((p_trigger_item->trigger_type != TRIG_ALWAYS)
+        && (p_trigger_item->hw_type != p_trigger_item->lw_type))
     {
-        /* in case of 'periodic' trigger, no thresholds are expected */
-        if ((high_count > 0) || (low_count > 0))
-        {
-            strcpy(msg_out,
-                    "No high/low threshold expected for trigger type 'periodic'");
-            return EINVAL;
-        }
-    }
-    else if (high_count > 1)
-    {
-        strcpy(msg_out, "Multiple purge start conditions in trigger.");
+        strcpy(msg_out, "Incompatible high/low threshold types");
         return EINVAL;
     }
-    else if (low_count > 1)
-    {
-        strcpy(msg_out, "Multiple purge stop conditions in trigger.");
-        return EINVAL;
-    }
-    else if (high_count == 0)
-    {
-        strcpy(msg_out, "No purge start condition found in trigger "
-                         "(mandatory). 'high_threshold_pct', 'high_threshold_vol'"
-                         "or 'high_threshold_cnt' expected");
-        return ENOENT;
-    }
-    else if (low_count == 0)
-    {
-        strcpy(msg_out, "No purge stop condition found in trigger "
-                         "(mandatory). 'low_threshold_pct', 'low_threshold_vol'"
-                         "or 'low_threshold_cnt' expected");
-        return ENOENT;
-    }
-    else if (rc_hc != rc_lc) /* both 0 or both ENOENT */
-    {
-        strcpy(msg_out, "Incompatible threshold types: 'high_threshold_cnt' "
-                         "must be used with 'low_threshold_cnt'");
-        return ENOENT;
-    }
+    /** FIXME RBHv3 count threshold for HSM systems should only match online files (not released)*/
 
-    /* NOTE: count threshold for HSM systems only match online files (not released)*/
-
-    /* count threshold is only on global usage */
-    if ((p_trigger_item->trigger_type != TGT_FS)
-         && (p_trigger_item->target_type != TGT_USER)
-         && (p_trigger_item->target_type != TGT_GROUP)
-         && ((rc_hc == 0) || (rc_lc == 0)))
-    {
-        strcpy(msg_out, "Threshold on entry count is only supported "
-                         "for 'global_usage', 'user_usage' and 'group_usage' triggers");
-        return EINVAL;
-    }
-
-    if (rc_hp == 0)
-    {
-        p_trigger_item->hw_type = PCT_THRESHOLD;
-        p_trigger_item->hw_percent = h_pct;
-    }
-    else if (rc_hv == 0)
-    {
-        p_trigger_item->hw_type = VOL_THRESHOLD;
-        p_trigger_item->hw_volume = h_vol;
-    }
-    else if (rc_hc == 0)
-    {
-        p_trigger_item->hw_type = COUNT_THRESHOLD;
-        p_trigger_item->hw_count = h_cnt;
-    }
-
-    if (rc_lp == 0)
-    {
-        p_trigger_item->lw_type = PCT_THRESHOLD;
-        p_trigger_item->lw_percent = l_pct;
-    }
-    else if (rc_lv == 0)
-    {
-        p_trigger_item->lw_type = VOL_THRESHOLD;
-        p_trigger_item->lw_volume = l_vol;
-    }
-    else if (rc_lc == 0)
-    {
-        p_trigger_item->lw_type = COUNT_THRESHOLD;
-        p_trigger_item->lw_count = l_cnt;
-    }
-
-    /* retrieve scalar parameters */
+    /* retrieve other scalar parameters */
     rc = read_scalar_params(config_blk, block_name, cfg_params, msg_out);
     if (rc)
         return rc;
@@ -531,8 +479,8 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
     return 0;
 }
 
-#define critical_err_check(_ptr_, _blkname_) do { if (!_ptr_) {\
-                                        sprintf( msg_out, "Internal error reading %s block in config file", _blkname_); \
+#define critical_err_check(_ptr_, _blkname_) do { if (!(_ptr_)) {\
+                                        sprintf(msg_out, "Internal error reading %s block in config file", (_blkname_)); \
                                         return EFAULT; \
                                     }\
                                 } while (0)

@@ -60,6 +60,13 @@ typedef enum {
     COUNT_THRESHOLD         /**< threshold is specified as a number of entries */
 } trigger_value_type_t;
 
+typedef union
+{
+    unsigned long long volume;
+    unsigned long long count;
+    double             percent;
+} threshold_u;
+
 typedef struct trigger_item_t
 {
     trigger_type_t  trigger_type;
@@ -73,24 +80,14 @@ typedef struct trigger_item_t
     unsigned long long max_action_vol; /* overrides global config */
 
     trigger_value_type_t hw_type;
-    union
-    {
-        unsigned long long volume;
-        unsigned long long count;
-        double             percent;
-    } hw_u;
+    threshold_u          hw_u;
 
 #define hw_volume    hw_u.volume
 #define hw_percent   hw_u.percent
 #define hw_count     hw_u.count
 
     trigger_value_type_t lw_type;
-    union
-    {
-        unsigned long long volume;
-        unsigned long long count;
-        double             percent;
-    } lw_u;
+    threshold_u          lw_u;
 
 #define lw_volume   lw_u.volume
 #define lw_percent  lw_u.percent
