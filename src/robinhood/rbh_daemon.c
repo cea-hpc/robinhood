@@ -1253,9 +1253,9 @@ static int policyopt2index_list(char *policyarg, unsigned int *count, int **list
 
 
 #ifdef _LUSTRE
-#define TGT_HELP "Allowed values: 'fs', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>', 'ost:<ost_idx>', 'pool:<poolname>'."
+#define TGT_HELP "Allowed values: 'all', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>', 'ost:<ost_idx>', 'pool:<poolname>'."
 #else
-#define TGT_HELP "Allowed values: 'fs', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>'."
+#define TGT_HELP "Allowed values: 'all', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>'."
 #endif
 
 

@@ -542,10 +542,16 @@ static int create_table_main(db_conn_t *pconn)
 
     /* append status values (depends on policy definitions) */
     sm_instance_t *smi;
-    i = 0;
-    while ((smi = get_sm_instance(i)) != NULL)
+
+    for (i = 0, smi = get_sm_instance(0); smi != NULL;
+         i++, smi = get_sm_instance(i))
     {
         int j;
+
+        /* status managers with SM_NODB tag have no info in DB */
+        if (smi->sm->flags & SM_NODB)
+            continue;
+
         next += sprintf(next, ",%s_status ENUM(", smi->instance_name);
         for (j = 0; j < smi->sm->status_count; j++)
         {
@@ -554,8 +560,6 @@ static int create_table_main(db_conn_t *pconn)
         }
         strcpy(next, ")");
         next += strlen(next);
-
-        i++;
     }
 
     strcpy(next, ")");

@@ -435,6 +435,21 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         break;
 #endif
 
+#ifdef ATTR_INDEX_rm_time
+    case CRITERIA_RMTIME:
+        if (smi == NULL || !(smi->sm->flags & SM_DELETED))
+        {
+            DisplayLog(LVL_CRIT, POLICY_TAG, "rm_time condition out of a 'remove' policy");
+            return -1;
+        }
+
+        /* XXX should only be used in a policy about 'removed' entries */
+        *p_attr_index = ATTR_INDEX_rm_time;
+        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
+        break;
+#endif
+
     case CRITERIA_POOL:
         *p_attr_index = ATTR_INDEX_stripe_info;
         *p_compar = Policy2FilterComparator(p_comp->op);
@@ -687,6 +702,25 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
         break;
 #endif
+
+#ifdef ATTR_INDEX_rm_time
+    case CRITERIA_RMTIME:
+        if (smi == NULL || !(smi->sm->flags & SM_DELETED))
+        {
+            DisplayLog(LVL_CRIT, POLICY_TAG, "rm_time condition out of a 'remove' policy");
+            return POLICY_ERR;
+        }
+
+        /* rm_time is required */
+        CHECK_ATTR(p_entry_attr, rm_time, no_warning);
+
+        rc = int_compare(time(NULL) - ATTR(p_entry_attr, rm_time), p_triplet->op,
+                          time_modify(p_triplet->val.duration, p_pol_mod));
+        return BOOL2POLICY(rc);
+
+        break;
+#endif
+
 
 #ifdef _LUSTRE
     case CRITERIA_POOL:

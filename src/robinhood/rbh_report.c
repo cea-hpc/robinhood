@@ -1276,16 +1276,23 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
         int i;
 
         list_cnt = sizeof(list_std)/sizeof(int);
-        /* add all policy status + 1 for fullpath (always last) */
+        /* add all policy status (except for removed entries) + 1 for fullpath (always last) */
         list = calloc(list_cnt + sm_inst_count + 1, sizeof(int));
         if (list == NULL)
             exit(ENOMEM);
 
         memcpy(list, list_std, sizeof(list_std));
         for (i = 0; i < sm_inst_count; i++)
-            list[i+list_cnt] = i + ATTR_COUNT;
-        list_cnt += sm_inst_count + 1; /* +1 for fullpath */
-        list[list_cnt-1] = ATTR_INDEX_fullpath;
+        {
+            if ((get_sm_instance(i)->sm->flags & SM_NODB) == 0)
+            {
+                list[list_cnt] = i + ATTR_COUNT;
+                list_cnt++;
+            }
+        }
+        /* add fullpath */
+        list[list_cnt] = ATTR_INDEX_fullpath;
+        list_cnt ++; /* +1 for fullpath */
     }
 
     lmgr_simple_filter_init( &filter );

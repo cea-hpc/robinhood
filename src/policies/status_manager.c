@@ -367,10 +367,17 @@ static int shook_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
 #endif /* HAVE_SHOOK */
 
 
+/* ---------- removed status manager ---------- */
+
+static const  char* rm_status_list[] = {"removed"};
+
 
 /* -------------- managing status managers ---------- */
 
 static status_manager_t status_mgrs[] = {
+    /* special status manager for removed entries */
+    {"removed", SM_SHARED | SM_NODB | SM_DELETED, rm_status_list, 1, 0, 0, NULL, NULL},
+
     /* this policy needs the ols status to process changelog callbacks.
      * As we don't know the actual index of the status manager instance (smi)
      * we set it to SMI_MASK(0). It must be translated later by accessors.

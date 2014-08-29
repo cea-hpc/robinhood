@@ -453,6 +453,10 @@ static struct criteria_descr_t {
     {CRITERIA_CREATION ,"creation", ATTR_MASK_creation_time, PT_DURATION,
         PFLG_POSITIVE | PFLG_COMPARABLE},
 #endif
+#ifdef ATTR_INDEX_rm_time
+    {CRITERIA_RMTIME ,"rm_time", ATTR_MASK_rm_time, PT_DURATION,
+        PFLG_POSITIVE | PFLG_COMPARABLE | PFLG_STATUS}, /* needs a 'remove' status manager */
+#endif
 #ifdef _LUSTRE
     {CRITERIA_POOL, "ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
     {CRITERIA_OST, "ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},

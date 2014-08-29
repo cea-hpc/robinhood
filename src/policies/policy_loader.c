@@ -358,7 +358,8 @@ static void set_default_rules(policy_rules_t *policy)
 }
 
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
-                             policy_descr_t *policy, char *msg_out)
+                             policy_descr_t *policy, bool *manage_deleted,
+                             char *msg_out)
 {
     int          rc, i;
     const char  *name;
@@ -453,12 +454,13 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                         PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
                         NULL, NULL, msg_out);
     if (rc == ENOENT)
-        strcat(msg_out, "If you don't need a status manager, you should explicitely specify: status_manager=none");
+        strcat(msg_out, "\nIf you don't need a status manager, you should explicitely specify: status_manager=none");
     if (rc != 0)
         return rc;
 
     if (!strcasecmp(tmpstr, "none"))
     {
+        /** FIXME warning: segfault factory!!! */
         policy->status_mgr = NULL;
     }
     else
@@ -469,6 +471,9 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
             sprintf(msg_out, "Could not load status manager '%s'", tmpstr);
             return EINVAL;
         }
+
+        if (policy->status_mgr->sm->flags & SM_DELETED)
+            *manage_deleted = true;
     }
 
     /* parse sub blocks */
@@ -544,6 +549,8 @@ static int read_policy_definitions(config_file_t config, policies_t *pol,
 
         if (!strcasecmp(block_name, POLICY_DECLARATION))
         {
+            bool manage_deleted = false;
+
             if (pol->policy_count == 0)
                 pol->policy_list = (policy_descr_t *)malloc(sizeof(policy_descr_t));
             else
@@ -557,9 +564,12 @@ static int read_policy_definitions(config_file_t config, policies_t *pol,
             /* analyze policy declaration */
             rc = parse_policy_decl(curr_item, block_name,
                                    &pol->policy_list[pol->policy_count - 1],
-                                   msg_out);
+                                   &manage_deleted, msg_out);
             if (rc)
                 return rc;
+
+            if (manage_deleted)
+                pol->manage_deleted = 1;
         }
     }
     return 0;

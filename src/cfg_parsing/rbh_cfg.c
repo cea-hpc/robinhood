@@ -975,7 +975,19 @@ static int criteria2condition(const type_key_value *key_value,
                     key_value->varname);
             return EINVAL;
         }
-        *p_attr_mask |= SMI_MASK(smi->smi_index);
+        else if (!strcasecmp(key_value->varname, "status"))
+            /* status attribute */
+            *p_attr_mask |= SMI_MASK(smi->smi_index);
+        else if (smi->sm->flags & SM_DELETED)
+            /* attribute for deleted entries (e.g. rm_time) */
+            *p_attr_mask |= attr_mask;
+        else
+        {
+            /* this status manager does not support deleted entries */
+            sprintf(err_msg, "Attribute '%s' only applies to deleted entries but status manager '%s' does not manage deleted entries",
+                    key_value->varname, smi->sm->name);
+            return EINVAL;
+        }
     }
     else
         *p_attr_mask |= attr_mask;
@@ -1023,7 +1035,9 @@ static int criteria2condition(const type_key_value *key_value,
                 p_xattr ++;
                 rh_strncpy(p_triplet->xattr_name, p_xattr, sizeof(p_triplet->xattr_name));
             }
-            else if (flags & PFLG_STATUS)
+            /* PFLG_STATUS flag means the attibute is only allowed in a policy scope.
+             * this is the case of 'status', but also 'rm_time'... */
+            else if ((flags & PFLG_STATUS) && !strcasecmp(key_value->varname, "status"))
             {
                 if ((get_status_str(smi->sm, p_triplet->val.str) == NULL)
                     && (strlen(p_triplet->val.str) > 0))
@@ -1660,6 +1674,9 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 #ifdef ATTR_INDEX_creation_time
     case CRITERIA_CREATION:
 #endif
+#ifdef ATTR_INDEX_rm_time
+    case CRITERIA_RMTIME:
+#endif
         FormatDurationFloat( tmp_buff, 256, p_triplet->val.duration );
         return snprintf( out_str, str_size, "%s %s %s", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), tmp_buff );
@@ -1888,6 +1905,10 @@ int str2lru_attr(const char *str)
 #ifdef ATTR_INDEX_creation_time
         else if (!strcasecmp(str, criteria2str(CRITERIA_CREATION)))
             return ATTR_INDEX_creation_time;
+#endif
+#ifdef ATTR_INDEX_rm_time
+        else if (!strcasecmp(str, criteria2str(CRITERIA_RMTIME)))
+            return ATTR_INDEX_rm_time;
 #endif
         else
             return -1;

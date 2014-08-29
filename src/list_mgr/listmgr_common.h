@@ -179,25 +179,32 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
                 ( (1 << _attr_index) & acct_pk_attr_set )
 /* ------------ */
 
+#define is_status_field(_attr_index) \
+            (((_attr_index) >= ATTR_COUNT) && ((_attr_index) < ATTR_COUNT + sm_inst_count))
+
+#define is_no_db_status(_attr_index) (is_status_field(_attr_index) && \
+                    ((get_sm_instance((_attr_index) - ATTR_COUNT)->sm->flags & SM_NODB) != 0))
+
 #define is_read_only_field( _attr_index ) \
-                ( (field_infos[_attr_index].flags & GENERATED) || \
-                  (field_infos[_attr_index].flags & DIR_ATTR) || \
-                  (field_infos[_attr_index].flags & REMOVED) || \
-                  (field_infos[_attr_index].flags & FUNC_ATTR) )
+                (((_attr_index < ATTR_COUNT) && \
+                 ((field_infos[_attr_index].flags & (GENERATED | DIR_ATTR | REMOVED | FUNC_ATTR)) != 0)) \
+                || is_no_db_status(_attr_index))
 
 #define is_stripe_field( _attr_index ) \
-                ( ( field_infos[_attr_index].db_type == DB_STRIPE_INFO ) || \
-                  ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS ) )
+                ((_attr_index < ATTR_COUNT) && \
+                 ((field_infos[_attr_index].db_type == DB_STRIPE_INFO) || \
+                  ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS)))
 
-#define is_main_field( _attr_index ) \
-                (((_attr_index >= ATTR_COUNT) && (_attr_index < ATTR_COUNT + sm_inst_count)) || \
-                ((!annex_table || (field_infos[_attr_index].flags & FREQ_ACCESS)) \
-                  && !is_stripe_field( _attr_index ) \
-                  && !(field_infos[_attr_index].flags & GENERATED) \
-                  && !(field_infos[_attr_index].flags & DIR_ATTR) \
-                  && !(field_infos[_attr_index].flags & REMOVED)  \
-                  && !(field_infos[_attr_index].flags & FUNC_ATTR) \
-                  && !(field_infos[_attr_index].flags & DNAMES)))
+#define is_names_field( _attr_index ) \
+                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & DNAMES))
+
+#define is_main_field(_attr_index) \
+                ((is_status_field(_attr_index) && !is_no_db_status(_attr_index)) \
+                 || (((_attr_index) < ATTR_COUNT) && \
+                    ((!annex_table || (field_infos[_attr_index].flags & FREQ_ACCESS)) \
+                      && !is_stripe_field(_attr_index)       \
+                      && !is_read_only_field(_attr_index)    \
+                      && !is_names_field(_attr_index))))
 
 #define is_gen_field( _attr_index ) \
                 ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & GENERATED))
@@ -209,13 +216,8 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
                 ((_attr_index < ATTR_COUNT) && annex_table \
                   && (field_infos[_attr_index].flags & (ANNEX_INFO | INIT_ONLY)) \
                   && !is_stripe_field( _attr_index ) \
-                  && !(field_infos[_attr_index].flags & GENERATED) \
-                  && !(field_infos[_attr_index].flags & DIR_ATTR) \
-                  && !(field_infos[_attr_index].flags & REMOVED)  \
-                  && !(field_infos[_attr_index].flags & FUNC_ATTR))
-
-#define is_names_field( _attr_index ) \
-                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & DNAMES))
+                  && !is_read_only_field(_attr_index) \
+                  && !is_names_field(_attr_index))
 
 #define is_funcattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & FUNC_ATTR))
 #define is_dirattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & DIR_ATTR))

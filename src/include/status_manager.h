@@ -41,7 +41,9 @@ typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
 typedef struct status_manager {
     const char *name;
 
-#define SM_SHARED (1<<0) /* indicate the status manager can be shared between policies */
+#define SM_SHARED (1<<0)  /* indicate the status manager can be shared between policies */
+#define SM_NODB   (1<<1)  /* the status is not stored in DB */
+#define SM_DELETED (1<<2) /* management of deleted entries */
     int         flags;
 
     /* possible values for status */
@@ -102,17 +104,28 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
                   const attr_set_t *attrs, attr_set_t *refreshed_attrs,
                   uint64_t *status_need);
 
+
+/** return the mask of all status, expect those for deleted entries */
 static inline uint64_t all_status_mask(void)
 {
     int i;
     uint64_t ret = 0;
 
     for (i = 0; i < sm_inst_count; i++)
+    {
+        sm_instance_t *smi = get_sm_instance(i);
+
+        /* is there an information to be stored in DB? */
+        if (smi->sm->flags & SM_NODB)
+            continue;
+
         ret |= SMI_MASK(i);
+    }
 
     return ret;
 }
 
+/** translate a generic mask SMI_MASK(0) to the given smi index */
 static inline uint64_t translate_status_mask(uint64_t mask, unsigned int smi_index)
 {
     if (!(mask & SMI_MASK(0)))

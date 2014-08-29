@@ -59,6 +59,9 @@ typedef enum {
 #ifdef ATTR_INDEX_creation_time
     CRITERIA_CREATION,
 #endif
+#ifdef ATTR_INDEX_rm_time
+    CRITERIA_RMTIME,
+#endif
 #ifdef _LUSTRE
     CRITERIA_POOL,
     CRITERIA_OST,
