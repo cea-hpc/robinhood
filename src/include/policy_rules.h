@@ -344,12 +344,12 @@ typedef struct unlink_policy
  * Function for managing all policy configuration (migration, purge, unlink)
  * ======================================================================*/
 
-int            SetDefault_Policies( void *module_config, char *msg_out );
-int            Read_Policies(config_file_t config, void *module_config,
+int            set_default_policies(void *module_config, char *msg_out);
+int            read_policies(config_file_t config, void *module_config,
                              char *msg_out, bool for_reload);
-int            Reload_Policies( void *module_config );
-int            Write_Policy_Template( FILE * output );
-int            Write_Policy_Default( FILE * output );
+int            reload_policies(void *module_config);
+int            write_policy_template(FILE *output);
+int            write_policy_default(FILE *output);
 
 /** policy descriptor */
 typedef struct policy_descr_t {

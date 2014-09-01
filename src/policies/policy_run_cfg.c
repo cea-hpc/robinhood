@@ -603,14 +603,12 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
 
         if (!strcasecmp(curr_bname, block_name))
         {
-            if (conf->trigger_count == 0)
-                conf->trigger_list = (trigger_item_t *)malloc(sizeof(trigger_item_t));
-            else
-                conf->trigger_list =
-                    (trigger_item_t *)realloc(conf->trigger_list,
-                                              (conf->trigger_count + 1)
-                                              * sizeof(trigger_item_t));
             conf->trigger_count++;
+            /* realloc behaves as malloc when trigger_list is NULL */
+            conf->trigger_list =(trigger_item_t *)realloc(conf->trigger_list,
+                                  conf->trigger_count * sizeof(trigger_item_t));
+            if (conf->trigger_list == NULL)
+                return ENOMEM;
 
             /* analyze trigger block */
             rc = parse_trigger_block(curr_item, curr_bname,

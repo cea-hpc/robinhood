@@ -52,15 +52,7 @@
 #define CHK_TAG     "PolicyCheck"
 #define LOADER_TAG  "PolicyLoader"
 
-static const policies_t  policy_initializer = {
-    .policy_list = NULL,
-    .policy_count = 0,
-    .global_status_mask = 0,
-    .fileset_list = NULL,
-    .fileset_count = 0,
-    .global_fileset_mask = 0,
-    .manage_deleted = 0
-};
+static const policies_t  policy_initializer = {0};
 policies_t policies = {0};
 
 
@@ -343,18 +335,8 @@ static void free_whitelist(whitelist_item_t * p_items, unsigned int count)
 
 static void set_default_rules(policy_rules_t *policy)
 {
+    /* no rule by default */
     memset(policy, 0, sizeof(*policy));
-
-    policy->whitelist_rules = NULL;
-    policy->whitelist_count = 0;
-
-    policy->ignore_list = NULL;
-    policy->ignore_count = 0;
-
-    policy->rules = NULL;
-    policy->rule_count = 0;
-
-    policy->run_attr_mask = 0;
 }
 
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
@@ -1200,9 +1182,8 @@ static int hints_mask(const char *hints)
 }
 
 /* add hints for the given policy and fileset */
-static inline int append_policy_hint(fileset_item_t *fset, policy_descr_t *p,
-                                     const char *hint, char *msg_out,
-                                     int cfg_line)
+static int append_policy_hint(fileset_item_t *fset, policy_descr_t *p,
+                              const char *hint, char *msg_out, int cfg_line)
 {
     int i, m;
 
@@ -1210,6 +1191,7 @@ static inline int append_policy_hint(fileset_item_t *fset, policy_descr_t *p,
     m = hints_mask(hint);
     if (m < 0)
         return EINVAL;
+
     fset->hints_attr_mask |= m;
     p->rules.run_attr_mask |= m;
 
@@ -1220,14 +1202,14 @@ static inline int append_policy_hint(fileset_item_t *fset, policy_descr_t *p,
         {
             /* append ',' + hint */
             int prev_len = strlen(fset->action_hints[i].hint_str);
-            if (prev_len + strlen(hint) + 1 > HINTS_LEN)
+
+            if (snprintf(fset->action_hints[i].hint_str + prev_len,
+                         HINTS_LEN - prev_len, ",%s", hint) >= HINTS_LEN - prev_len)
             {
                 sprintf(msg_out, "String too long for %s_hints line %d (max: %d).",
                         p->name, cfg_line, HINTS_LEN);
                 return EOVERFLOW;
             }
-            fset->action_hints[i].hint_str[prev_len] = ',';
-            strcpy(fset->action_hints[i].hint_str + prev_len + 1, hint);
             return 0;
         }
     }
@@ -1253,9 +1235,13 @@ static inline int append_policy_hint(fileset_item_t *fset, policy_descr_t *p,
     return 0;
 }
 
-/* test if the variable name is a policy hint */
-#define match_policy_action_hints(_s) (!fnmatch("*_hints", _s, FNM_CASEFOLD))
+/** test if the variable name is a policy hint */
+static inline bool match_policy_action_hints(const char *s)
+{
+    return !fnmatch("*_hints", s, FNM_CASEFOLD);
+}
 
+/** parse and check a policy action hint from a fileset config item */
 static int parse_policy_action_hints(policies_t *p_policies, const char *hint_name,
                                      const char *value, fileset_item_t *curr_fset,
                                      char *msg_out, int cfg_line)
@@ -1265,11 +1251,10 @@ static int parse_policy_action_hints(policies_t *p_policies, const char *hint_na
     char *c;
     int i;
 
-    strncpy(buff, hint_name, MAX_HINT_NAME_LEN);
-    buff[MAX_HINT_NAME_LEN-1] = '\0';
+    rh_strncpy(buff, hint_name, MAX_HINT_NAME_LEN);
     c = strrchr(buff, '_');
     if (c == NULL)
-        RBH_BUG("parse_policy_action_hints() called for an item that doesn't satisfies match_policy_action_hints()");
+        RBH_BUG("parse_policy_action_hints() called for an item that doesn't satisfy match_policy_action_hints()");
     *c = '\0';
     /* check the policy name exists */
     for (i = 0; i < p_policies->policy_count; i++)
@@ -1283,7 +1268,7 @@ static int parse_policy_action_hints(policies_t *p_policies, const char *hint_na
     return ENOENT; /* policy not found */
 }
 
-static inline void free_filesets(policies_t *p_policies)
+static void free_filesets(policies_t *p_policies)
 {
     int i;
     for (i = 0; i < p_policies->fileset_count; i++)
@@ -1641,12 +1626,19 @@ static int read_unlink_policy(config_file_t config, unlink_policy_t * pol, char 
 #endif
 
 
+/** parse a rule config block and fill rule_item_t structure
+ * @param[in]  all_policies  Needed to check fileset definition
+ * @param[in]  policy        Needed to uild specific parameter name like '<policy>_hints',
+  *                          check status manager properties...
+ * @param[in]  policy_rules  Needed to check other rule names in the policy
+ * @param[out] rule          The rule structure to fill-in
+ */
 static int parse_rule_block(config_item_t config_item,
                             const char *block_name,
-                            const policies_t *all_policies, /* to check filesets */
-                            const policy_descr_t *policy, /* to build specific parameter name like '<policy>_hints', check status manager properties... */
-                            const policy_rules_t *policy_rules, /* to check other rule names in the policy */
-                            rule_item_t *rule_out, char *msg_out)
+                            const policies_t *all_policies,
+                            const policy_descr_t *policy,
+                            const policy_rules_t *policy_rules,
+                            rule_item_t *rule, char *msg_out)
 {
     char          *rule_name;
     bool           is_default = false;
@@ -1655,7 +1647,7 @@ static int parse_rule_block(config_item_t config_item,
     bool           definition_done = false;
 
     /* initialize output */
-    memset(rule_out, 0, sizeof(rule_item_t));
+    memset(rule, 0, sizeof(rule_item_t));
 
     /* get policy id */
     rule_name = rh_config_GetBlockId(config_item);
@@ -1676,7 +1668,7 @@ static int parse_rule_block(config_item_t config_item,
     is_default = !strcasecmp(rule_name, "default");
 
     /* save policy id */
-    rh_strncpy(rule_out->rule_id, rule_name, sizeof(rule_out->rule_id));
+    rh_strncpy(rule->rule_id, rule_name, sizeof(rule->rule_id));
 
     /* read file block content */
     for (i = 0; i < rh_config_GetNbItems(config_item); i++)
@@ -1709,12 +1701,12 @@ static int parse_rule_block(config_item_t config_item,
             /* analyze boolean expression */
             /* allow using 'status' related info in conditions */
             mask = 0;
-            rc = GetBoolExpr(sub_item, CONDITION_BLOCK, &rule_out->condition,
+            rc = GetBoolExpr(sub_item, CONDITION_BLOCK, &rule->condition,
                              &mask, msg_out, policy->status_mgr);
             if (rc)
                 return rc;
 
-            rule_out->attr_mask |= mask;
+            rule->attr_mask |= mask;
             definition_done = true;
         }
         else                    /* not a block */
@@ -1791,25 +1783,13 @@ static int parse_rule_block(config_item_t config_item,
                 }
 
                 /* append the fileset list */
-                if (rule_out->target_list == NULL)
-                {
-                    rule_out->target_list =
-                        (fileset_item_t **) malloc(sizeof(fileset_item_t *));
-                    rule_out->target_count = 1;
-                    rule_out->target_list[0] = fs;
-                }
-                else
-                {
-                    rule_out->target_list = (fileset_item_t **)
-                        realloc(rule_out->target_list, (rule_out->target_count + 1) *
-                                 sizeof(fileset_item_t *));
-                    rule_out->target_list[rule_out->target_count] = fs;
-                    rule_out->target_count++;
-                }
+                rule->target_count++;
+                rule->target_list = (fileset_item_t **)realloc(rule->target_list,
+                                        rule->target_count * sizeof(fileset_item_t *));
+                rule->target_list[rule->target_count-1] = fs;
 
                 /* add fileset mask to policy mask */
-                rule_out->attr_mask |= fs->attr_mask;
-
+                rule->attr_mask |= fs->attr_mask;
             }
             /* allowed syntaxes:    hints, <policyname>_hints, action_hints */
             else if (!strcasecmp(subitem_name, "hints") ||
@@ -1828,10 +1808,10 @@ static int parse_rule_block(config_item_t config_item,
                 rc = hints_mask(value);
                 if (rc < 0)
                     return rc;
-                rule_out->attr_mask |= rc;
+                rule->attr_mask |= rc;
 
                 /* append hints */
-                if (EMPTY_STRING(rule_out->action_hints))
+                if (EMPTY_STRING(rule->action_hints))
                 {
                     if (strlen(value) > HINTS_LEN)
                     {
@@ -1840,11 +1820,11 @@ static int parse_rule_block(config_item_t config_item,
                         return EOVERFLOW;
                     }
 
-                    strcpy(rule_out->action_hints, value);
+                    strcpy(rule->action_hints, value);
                 }
                 else            /* append with ',' */
                 {
-                    int            prev_len = strlen(rule_out->action_hints);
+                    int            prev_len = strlen(rule->action_hints);
                     if (prev_len + strlen(value) + 1 > HINTS_LEN)
                     {
                         sprintf(msg_out, "String too large for %s line %d (max: %d).",
@@ -1852,8 +1832,8 @@ static int parse_rule_block(config_item_t config_item,
                         return EOVERFLOW;
                     }
 
-                    rule_out->action_hints[prev_len] = ',';
-                    strcpy(rule_out->action_hints + prev_len + 1, value);
+                    rule->action_hints[prev_len] = ',';
+                    strcpy(rule->action_hints + prev_len + 1, value);
                 }
             }
 #ifdef _LUSTRE_HSM
@@ -1928,7 +1908,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
 
     policy_rules_t *rules;
     config_item_t   section;
-    /* 16: strlen("_policy") + aligned margin */
+    /* 16: strlen("_policy") + aligned padding */
     char            section_name[POLICY_NAME_LEN+16] = "";
 
 /* macros for cleaner code */
@@ -2110,7 +2090,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     return rc;
 }
 
-int Reload_Policies(void *module_config)
+int reload_policies(void *module_config)
 {
     policies_t *p_policies = (policies_t*)module_config;
 
@@ -2150,7 +2130,7 @@ int Reload_Policies(void *module_config)
 }
 
 
-int SetDefault_Policies(void *module_config, char *msg_out)
+int set_default_policies(void *module_config, char *msg_out)
 {
     policies_t    *pol = (policies_t *)module_config;
 
@@ -2159,7 +2139,8 @@ int SetDefault_Policies(void *module_config, char *msg_out)
     return 0;
 }
 
-int Read_Policies(config_file_t config, void *module_config, char *msg_out, bool for_reload)
+int read_policies(config_file_t config, void *module_config, char *msg_out,
+                  bool for_reload)
 {
     policies_t    *pol = (policies_t *)module_config;
     int            rc, i;
@@ -2187,7 +2168,7 @@ int Read_Policies(config_file_t config, void *module_config, char *msg_out, bool
     return 0;
 }
 
-int Write_Policy_Template(FILE * output)
+int write_policy_template(FILE * output)
 {
     int            rc;
 
@@ -2222,7 +2203,7 @@ int Write_Policy_Template(FILE * output)
     return 0;
 }
 
-int Write_Policy_Default(FILE * output)
+int write_policy_default(FILE * output)
 {
     int            rc;
 

@@ -249,8 +249,8 @@ static const module_config_def_t robinhood_module_conf[] = {
 
     /* TODO manage fileclasses separately? */
 
-    {"policy", SetDefault_Policies, Read_Policies, Reload_Policies,
-     Write_Policy_Template, Write_Policy_Default,
+    {"policy", set_default_policies, read_policies, reload_policies,
+     write_policy_template, write_policy_default,
      offsetof(robinhood_config_t, policies),
      MODULE_MASK_ALWAYS},
 
