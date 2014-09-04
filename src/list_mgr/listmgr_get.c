@@ -251,11 +251,11 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 
         rc = db_next_record(&p_mgr->conn, &result, result_tab,
                             main_count + annex_count + name_count);
-        if ( rc == DB_END_OF_LIST )
-        {
+        /* END_OF_LIST means it does not exist */
+        if (rc == DB_END_OF_LIST)
             rc = DB_NOT_EXISTS;
+        if (rc)
             goto free_res;
-        }
 
         /* set info from result */
         if (main_count)

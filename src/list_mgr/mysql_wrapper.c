@@ -248,8 +248,12 @@ static int _db_exec_sql( db_conn_t * conn, const char *query,
     else
     {
         /* fetch results to the client */
-        if ( p_result )
-            *p_result = mysql_store_result( conn );
+        if (p_result)
+        {
+            *p_result = mysql_store_result(conn);
+            if (*p_result == NULL)
+                return DB_NOT_EXISTS;
+        }
 
         return DB_SUCCESS;
     }
