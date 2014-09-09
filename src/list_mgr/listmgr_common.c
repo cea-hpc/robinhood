@@ -26,42 +26,60 @@
 #include "xplatform_print.h"
 #include <stdio.h>
 
-int printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * value_ptr )
+void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *value_ptr )
 {
-    char tmpstr[4096];
-
-    switch ( type )
+    switch (type)
     {
-    case DB_ID:
-        /* convert id to str */
-        entry_id2pk(&value_ptr->val_id, tmpstr);
-        return sprintf( str, DPK, tmpstr );
-    case DB_TEXT:
-        /* escape special characters in value */
-        db_escape_string( &p_mgr->conn, tmpstr, 4096, value_ptr->val_str );
-        return sprintf( str, "'%s'", tmpstr );
-    case DB_INT:
-        return sprintf( str, "%d", value_ptr->val_int );
-    case DB_UINT:
-        return sprintf( str, "%u", value_ptr->val_uint );
-    case DB_SHORT:
-        return sprintf( str, "%hd", value_ptr->val_short );
-    case DB_USHORT:
-        return sprintf( str, "%hu", value_ptr->val_ushort );
-    case DB_BIGINT:
-        return sprintf( str, "%lld", value_ptr->val_bigint );
-    case DB_BIGUINT:
-        return sprintf( str, "%llu", value_ptr->val_biguint );
-    case DB_BOOL:
-        if ( value_ptr->val_bool )
-            return sprintf( str, "1" );
-        else
-            return sprintf( str, "0" );
-    case DB_ENUM_FTYPE:
-        return sprintf( str, "'%s'", value_ptr->val_str );
-    default:
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error: unknown type %d in %s", type, __FUNCTION__ );
-        return 0;
+        case DB_ID:
+        {
+            DEF_PK(tmpstr);
+
+            /* convert id to str */
+            entry_id2pk(&value_ptr->val_id, tmpstr);
+            g_string_append_printf(str, DPK, tmpstr);
+            break;
+        }
+        case DB_TEXT:
+        {
+            /* escape special characters in value */
+            int   len = 2*strlen(value_ptr->val_str) + 1; /* as required by MySQL manual */
+            char *tmpstr = MemAlloc(len);
+
+            db_escape_string(&p_mgr->conn, tmpstr, len, value_ptr->val_str);
+            g_string_append_printf(str, "'%s'", tmpstr);
+            MemFree(tmpstr);
+            break;
+        }
+        case DB_INT:
+            g_string_append_printf(str, "%d", value_ptr->val_int);
+            break;
+        case DB_UINT:
+            g_string_append_printf(str, "%u", value_ptr->val_uint);
+            break;
+        case DB_SHORT:
+            g_string_append_printf(str, "%hd", value_ptr->val_short);
+            break;
+        case DB_USHORT:
+            g_string_append_printf(str, "%hu", value_ptr->val_ushort);
+            break;
+        case DB_BIGINT:
+            g_string_append_printf(str, "%lld", value_ptr->val_bigint);
+            break;
+        case DB_BIGUINT:
+            g_string_append_printf(str, "%llu", value_ptr->val_biguint);
+            break;
+        case DB_BOOL:
+            if (value_ptr->val_bool)
+                g_string_append(str, "1");
+            else
+                g_string_append(str, "0");
+            break;
+        case DB_ENUM_FTYPE:
+            /* don't escape: type value is trusted (not from user) */
+            g_string_append_printf(str, "'%s'", value_ptr->val_str);
+            break;
+        default:
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unknown type %d in %s", type, __FUNCTION__);
     }
 }
 
@@ -106,26 +124,26 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
     }
 }
 
-static void separated_list2db(const char *list, char *db)
+static void separated_list2db(const char *list, char *db, int size)
 {
     db[0] = '+';
-    strcpy(db+1,list);
+    strncpy(db+1, list, size-3); /* leave room for '+\0' */
     strcat(db, "+");
 }
 
-static void separated_list2match(const char *list, char *db)
+static void separated_list2match(const char *list, char *db, int size)
 {
     /* <item>  is matched using expression '%+<item>+%' */
     strcpy(db, "%+");
-    strcat(db,list);
+    strncat(db, list, size-5); /* leave room for '+%\0' */
     strcat(db, "+%");
 }
 
-static void separated_db2list(const char *db, char *list)
+static void separated_db2list(const char *db, char *list, int size)
 {
-    int len = strlen(db);
-    strncpy(list, db+1, len-2);
-    list[len-2] = '\0';
+    int len = MIN(strlen(db) - 2, size - 1);
+    strncpy(list, db+1, len);
+    list[len] = '\0';
 }
 
 void separated_db2list_inplace(char *list)
@@ -216,9 +234,11 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     {
         acct_pk_attr_set |= ATTR_MASK_type;
     }
-    /** @TODO RBHv3: implement status accounting
-     * acct_pk_attr_set |= all_status_mask() ?
+    /** @TODO RBHv3: implement status accounting.
+     * /!\ as a given status can be NULL, it can't be part of the PK.
+     * Then, is it possible to group by it?
      */
+    acct_pk_attr_set |= all_status_mask();
 
     /* size: also used for size range stats */
     acct_attr_set |= ATTR_MASK_size | ATTR_MASK_blocks ;
@@ -395,39 +415,35 @@ static const function_def_t *get_function_by_attr(int attr_index)
 }
 
 /* print function call */
-static int print_func_call(char *out, int func_index, const char *prefix)
+static void print_func_call(GString *str, int func_index, const char *prefix)
 {
-    char *curr = out;
     const function_def_t *func = get_function_by_attr(func_index); 
     char **args;
     if (func == NULL) /* unexpected: BUG */
         RBH_BUG("call for non-function attr");
 
-    curr += sprintf(curr, "%s(", func->fn_name);
+    g_string_append_printf(str, "%s(", func->fn_name);
     for (args = func->fn_args; *args != NULL; args++)
     {
         if (args == func->fn_args) /* first arg */
-            curr += sprintf(curr, "%s%s", prefix, *args);
+            g_string_append_printf(str, "%s%s", prefix, *args);
         else
-            curr += sprintf(curr, ",%s%s", prefix, *args);
+            g_string_append_printf(str, ",%s%s", prefix, *args);
     }
-    strcpy(curr, ")"); /* ) \0 */
-    curr++;
-    return curr-out;
+    g_string_append(str, ")");
 }
 
 /**
  * @param table T_MAIN, T_ANNEX, T_ACCT
- * @param prefif
+ * @param prefix
  * @param postfix
  * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, bool leading_comma,
+int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool leading_comma,
                        bool for_update, char *prefix, char *postfix)
 {
     int            i;
-    char          *fields_curr = str;
     unsigned int   nbfields = 0;
     uint64_t       mask = 1;
     char          *for_update_str = "";
@@ -435,7 +451,7 @@ int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, bool lea
     /* optim: exit immediatly if no field matches */
     if ((table == T_MAIN) && !main_fields(attr_mask))
         return 0;
-    if ((table == T_ANNEX) && (!annex_table || !annex_fields(attr_mask)))
+    if ((table == T_ANNEX) && !annex_fields(attr_mask))
         return 0;
     if ((table == T_DNAMES) && !names_fields(attr_mask))
         return 0;
@@ -446,43 +462,38 @@ int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, bool lea
         return -DB_READ_ONLY_ATTR;
     }
 
-    if ( for_update )
+    if (for_update)
         for_update_str = "=?";
 
-    if ( ( table == T_STRIPE_INFO ) || ( table == T_STRIPE_ITEMS ) )
+    if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
     {
-        if ( attr_mask & mask )
+        if (attr_mask & mask)
         {
-            if (MATCH_TABLE( table, i ))
+            if (MATCH_TABLE(table, i))
             {
                 if (leading_comma || (nbfields > 0))
-                {
-                    *fields_curr = ',';
-                    fields_curr ++;
-                }
+                    g_string_append(str, ",");
 
                 if (is_funcattr(i) &&
                     /* exception: fullpath is a real field in SOFT_RM table */
                     !((table == T_SOFTRM) && (i == ATTR_INDEX_fullpath)))
                 {
-                    fields_curr += print_func_call(fields_curr, i, prefix);
-                    fields_curr += sprintf(fields_curr, "%s%s", for_update_str, postfix);
+                    print_func_call(str, i, prefix);
+                    g_string_append_printf(str, "%s%s", for_update_str, postfix);
                 }
                 else
                 {
-                    fields_curr +=
-                        sprintf(fields_curr, "%s%s%s%s", prefix, field_name(i),
-                                for_update_str, postfix);
+                    g_string_append_printf(str, "%s%s%s%s", prefix, field_name(i),
+                                           for_update_str, postfix);
                 }
                 nbfields++;
             }
         }
     }
     return nbfields;
-
 }
 
 /**
@@ -494,34 +505,28 @@ int attrmask2fieldlist(char *str, uint64_t attr_mask, table_enum table, bool lea
  * @param operation
  * @return nbr of fields
  */
-int attrmask2fieldoperation(char *str, uint64_t attr_mask, table_enum table,
+int attrmask2fieldoperation(GString *str, uint64_t attr_mask, table_enum table,
                             const char *prefix, operation_type operation)
 {
     int i;
     uint64_t mask = 1;
     unsigned int  nbfields = 0;
-    char *fields_curr = str;
     char operator;
 
-    if ( operation == SUBSTRACT )
+    if (operation == SUBSTRACT)
         operator = '-';
     else
         operator = '+';
 
-    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+    for (i = 0; i < ATTR_COUNT; i++, mask <<= 1)
     {
-        if ( attr_mask & mask )
+        if (attr_mask & mask)
         {
-            if ( MATCH_TABLE( table, i ) )
+            if (MATCH_TABLE(table, i))
             {
-                if ( nbfields == 0 )
-                    fields_curr +=
-                        sprintf( fields_curr, "%s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ", field_infos[i].field_name,
-                                field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
-                else
-                    fields_curr +=
-                        sprintf( fields_curr, ", %s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ", field_infos[i].field_name,
-                                field_infos[i].field_name, operator, prefix, field_infos[i].field_name );
+                g_string_append_printf(str, "%s%s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ",
+                                nbfields == 0 ? "" : ",", field_name(i), field_name(i),
+                                operator, prefix, field_name(i));
                 nbfields++;
             }
         }
@@ -540,31 +545,24 @@ int attrmask2fieldoperation(char *str, uint64_t attr_mask, table_enum table,
  * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldcomparison(char *str, uint64_t attr_mask, table_enum table,
+int attrmask2fieldcomparison(GString *str, uint64_t attr_mask, table_enum table,
                              const char *left_prefix, const char *right_prefix,
                              const char *comparator, const char * separator)
 {
     int i;
     uint64_t mask = 1;
     unsigned int  nbfields = 0;
-    char *fields_curr = str;
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
     {
-        if ( attr_mask & mask )
+        if (attr_mask & mask)
         {
-            if ( MATCH_TABLE( table, i ) )
+            if (MATCH_TABLE(table, i))
             {
-                if ( nbfields == 0 )
-                    fields_curr +=
-                        sprintf(fields_curr, "%s%s%s%s%s ", left_prefix,
-                                field_name(i), comparator, right_prefix,
-                                field_name(i));
-                else
-                    fields_curr +=
-                        sprintf(fields_curr, "%s %s%s%s%s%s ", separator,
-                                left_prefix, field_name(i), comparator,
-                                right_prefix, field_name(i));
+                g_string_append_printf(str, "%s %s%s%s%s%s ", 
+                            nbfields == 0 ? "" : separator, left_prefix,
+                            field_name(i), comparator, right_prefix,
+                            field_name(i));
                 nbfields++;
             }
         }
@@ -572,10 +570,10 @@ int attrmask2fieldcomparison(char *str, uint64_t attr_mask, table_enum table,
     return nbfields;
 }
 
-static int print_attr_value(lmgr_t * p_mgr, char *out, const attr_set_t *p_set,
-                            int attr_index)
+static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
+                             int attr_index)
 {
-    char tmp[1024]; /* max size of separated list */
+    char tmp[1024];
     db_type_u typeu;
     db_type_t t;
 
@@ -586,7 +584,7 @@ static int print_attr_value(lmgr_t * p_mgr, char *out, const attr_set_t *p_set,
 
         if (is_sepdlist(attr_index))
         {
-            separated_list2db(typeu.val_str, tmp);
+            separated_list2db(typeu.val_str, tmp, sizeof(tmp));
             typeu.val_str = tmp;
         }
         t = field_infos[attr_index].db_type;
@@ -599,7 +597,7 @@ static int print_attr_value(lmgr_t * p_mgr, char *out, const attr_set_t *p_set,
     else
         RBH_BUG("Attribute index exceeds max value (ATTR_COUNT + sm_inst_count)");
 
-    return printdbtype(p_mgr, out, t, &typeu);
+    printdbtype(p_mgr, str, t, &typeu);
 }
 
 
@@ -608,35 +606,30 @@ static int print_attr_value(lmgr_t * p_mgr, char *out, const attr_set_t *p_set,
  * @param table T_MAIN, T_ANNEX
  * @return nbr of fields
  */
-int attrset2valuelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
+int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
                       table_enum table, bool leading_coma)
 {
     int            i;
-    char          *values_curr = str;
     unsigned int   nbfields = 0;
     uint64_t       mask = 1;
 
-    if ( ( table == T_STRIPE_INFO ) || ( table == T_STRIPE_ITEMS ) )
+    if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
     {
-        if ( p_set->attr_mask & mask )
+        if (p_set->attr_mask & mask)
         {
-            if ( MATCH_TABLE( table, i ) )
+            if (MATCH_TABLE(table, i))
             {
-                if ( leading_coma || ( nbfields > 0 ) )
-                {
-                    *values_curr = ',';
-                    values_curr++;
-                }
-                values_curr += print_attr_value(p_mgr, values_curr, p_set, i);
+                if (leading_coma || (nbfields > 0))
+                    g_string_append(str, ",");
+
+                print_attr_value(p_mgr, str, p_set, i);
                 nbfields++;
             }
         }
     }
-    /* null terminating char */
-    values_curr[0] = '\0';
     return nbfields;
 }
 
@@ -644,15 +637,14 @@ int attrset2valuelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
  * @param table T_MAIN, T_ANNEX
  * @return nbr of fields
  */
-int attrset2updatelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
+int attrset2updatelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
                        table_enum table, bool leading_coma, bool generic_value)
 {
     int            i;
-    char          *values_curr = str;
     unsigned int   nbfields = 0;
     uint64_t       mask = 1;
 
-    if ( ( table == T_STRIPE_INFO ) || ( table == T_STRIPE_ITEMS ) )
+    if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
     if (readonly_fields(p_set->attr_mask))
@@ -664,20 +656,17 @@ int attrset2updatelist(lmgr_t * p_mgr, char *str, const attr_set_t * p_set,
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
     {
-        if ( ( p_set->attr_mask & mask ) && MATCH_TABLE( table, i ) )
+        if ((p_set->attr_mask & mask) && MATCH_TABLE(table, i))
         {
-            if ( leading_coma || ( nbfields > 0 ) )
-            {
-                *values_curr = ',';
-                values_curr++;
-            }
+            if (leading_coma || (nbfields > 0))
+                g_string_append(str, ",");
 
-            values_curr += sprintf(values_curr, "%s=", field_name(i));
+            g_string_append_printf(str, "%s=", field_name(i));
 
             if (generic_value)
-                values_curr += sprintf(values_curr, "VALUES(%s)", field_name(i));
+                g_string_append_printf(str, "VALUES(%s)", field_name(i));
             else
-                values_curr += print_attr_value(p_mgr, values_curr, p_set, i);
+                print_attr_value(p_mgr, str, p_set, i);
 
             nbfields++;
         }
@@ -815,13 +804,13 @@ int result2attrset( table_enum table, char **result_tab,
                     get_status_str(get_sm_instance(i - ATTR_COUNT)->sm, typeu.val_str);
                 if (p_set->attr_values.sm_status[i-ATTR_COUNT] == NULL)
                 {
-                    DisplayLog(LVL_CRIT, LISTMGR_TAG, "ERROR: unexpected status value '%s': DB may be corrupted",
-                               typeu.val_str);
+                    /* status = '' => not set */
                     p_set->attr_mask &= ~(1 << i);
                 }
             }
             else if (is_sepdlist(i))
-                separated_db2list(typeu.val_str, ((char*)&p_set->attr_values + field_infos[i].offset));
+                separated_db2list(typeu.val_str, ((char*)&p_set->attr_values + field_infos[i].offset),
+                                  field_infos[i].db_type_size+1); /* C size is db_type_size+1 */
             else
                 UNION_GET_VALUE(typeu, field_infos[i].db_type,
                                 ((char *)&p_set->attr_values + field_infos[i].offset));
@@ -876,17 +865,17 @@ char          *compar2str( filter_comparator_t compar )
 }
 
 /**
- * return FILTERDIR_NONE if there is no filter on dirattrs
- * return FILTERDIR_EMPTY if the test is 'dircount == 0' (no junction needed)
- * return FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, condition on avgsize
+ * @param filter_str initialized GString.
+ * @retval FILTERDIR_NONE if there is no filter on dirattrs
+ * @retval FILTERDIR_EMPTY if the test is 'dircount == 0' (no junction needed)
+ * @retval FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, condition on avgsize
  *                           junction needed, depending on the filter
  *                           test looks like "dirattr >= x"
  */
-filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t *p_filter,
+filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filter,
                         unsigned int *dir_attr_index)
 {
     int i;
-    filter_str[0] = '\0';
 
 #ifdef ATTR_INDEX_dircount
     if ( p_filter->filter_type == FILTER_SIMPLE )
@@ -903,21 +892,31 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t *p
                   && (p_filter->filter_simple.filter_compar[i] == EQUAL))
             {
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on empty directory" );
+
                 /* empty directories are those with no parent_id in NAMES table */
-                strcpy( filter_str, "id NOT IN (SELECT distinct(parent_id) from "DNAMES_TABLE")" );
-                *dir_attr_index = index;
+                if (filter_str != NULL) /* allow passing no string */
+                    g_string_append(filter_str, "id NOT IN (SELECT distinct(parent_id) "
+                                    "FROM "DNAMES_TABLE")");
+                if (dir_attr_index != NULL) /* allow passing no index */
+                    *dir_attr_index = index;
+
                 return FILTERDIR_EMPTY;
             }
             else
             {
-                char val[1024];
-                /* single value (list only apply to OSTs XXX for now) */
-                db_type_u typeu = p_filter->filter_simple.filter_value[i].value;
-                printdbtype( p_mgr, val, field_infos[index].db_type, &typeu );
+                /* dirattrN <comparator> */
+                if (filter_str != NULL)
+                {
+                    g_string_append_printf(filter_str, "dirattr%s",
+                             compar2str(p_filter->filter_simple.filter_compar[i]));
 
-                sprintf(filter_str, "dirattr%s%s", compar2str( p_filter->filter_simple.filter_compar[i] ),
-                        val);
-                *dir_attr_index = index;
+                    /* value: (list only apply to OSTs XXX for now) */
+                    db_type_u typeu = p_filter->filter_simple.filter_value[i].value;
+                    printdbtype(p_mgr, filter_str, field_infos[index].db_type, &typeu);
+                }
+
+                if (dir_attr_index != NULL)
+                    *dir_attr_index = index;
                 return FILTERDIR_OTHER;
             }
         }
@@ -928,114 +927,117 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t *p
 
 /**
  * build filter for stored FUNCTIONs
- * \param str_id: filter for entry id string (eg. id, TABLE.id...)
- * \return the number of filtered values
+ * @param filter_str    initialized GString
+ * @return the number of filtered values
  */
-int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
+int func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filter,
                 table_enum table, bool leading_and, bool prefix_table)
 {
     int i;
     char param1[128];
     char param2[128];
     unsigned int nb_fields = 0;
-    char * curr = filter_str;
 
-    curr[0] = '\0';
-
-    if ( p_filter->filter_type == FILTER_SIMPLE )
+    if (p_filter->filter_type == FILTER_SIMPLE)
     {
-        for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
+        for (i = 0; i < p_filter->filter_simple.filter_count; i++)
         {
             unsigned int index = p_filter->filter_simple.filter_index[i];
 
             if (is_funcattr(index))
             {
-                char val[RBH_PATH_MAX];
                 db_type_u typeu;
 
                 param1[0] = '\0';
                 param2[0] = '\0';
 
+                if (filter_str == NULL) /* no need to check other stuff */
+                    goto end_of_loop;
+
                 /* add prefixes or parenthesis, etc. */
-                if ( leading_and || ( nb_fields > 0 ) )
+                if (leading_and || (nb_fields > 0))
                 {
-                    if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_OR )
-                        curr += sprintf( curr, " OR " );
+                    if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_OR)
+                        g_string_append(filter_str, " OR ");
                     else
-                        curr += sprintf( curr, " AND " );
+                        g_string_append(filter_str, " AND ");
                 }
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN )
-                     curr += sprintf( curr, "( " );
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN)
+                    g_string_append(filter_str, "(");
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT )
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT)
                 {
                     /* NOT (x <cmp> <val>) */
-                     curr += sprintf( curr, " NOT (" );
+                    g_string_append(filter_str, " NOT (");
                 }
 
                 if (index == ATTR_INDEX_fullpath)
                 {
                     char relative[RBH_PATH_MAX];
+
                     if (fullpath_attr2db(p_filter->filter_simple.filter_value[i].value.val_str, relative))
                     {
                         /* condition is always false */
-                        curr += sprintf(curr, "FALSE");
+                        g_string_append(filter_str, "FALSE");
                         return 1;
                     }
                     typeu.val_str = relative;
-                    printdbtype( p_mgr, val, field_infos[index].db_type, &typeu );
 
                     /* if the filter applies to DNAMES, exactly filter on each row,
                      * else, filter on any path */
                     if (table == T_DNAMES)
                     {
-                        if ( prefix_table ) {
-                            sprintf(param1, "%s.parent_id", table2name(table));
-                            sprintf(param2, "%s.name", table2name(table));
+                        if (prefix_table) {
+                            snprintf(param1, sizeof(param1), "%s.parent_id", table2name(table));
+                            snprintf(param2,  sizeof(param2), "%s.name", table2name(table));
                         }
                         else
                         {
-                            strcpy(param1, "parent_id");
-                            strcpy(param2, "name");
+                            rh_strncpy(param1, "parent_id", sizeof(param1));
+                            rh_strncpy(param2, "name", sizeof(param2));
                         }
+
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            curr += sprintf(curr, "(");
-                        curr += sprintf(curr, THIS_PATH_FUNC"(%s,%s)%s%s", param1, param2,
-                                compar2str( p_filter->filter_simple.filter_compar[i] ),
-                                val);
+                            g_string_append(filter_str, "(");
+
+                        g_string_append_printf(filter_str, THIS_PATH_FUNC"(%s,%s)%s",
+                            param1, param2, compar2str(p_filter->filter_simple.filter_compar[i]));
+                        printdbtype(p_mgr, filter_str, field_infos[index].db_type, &typeu);
+
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            curr += sprintf(curr, " OR "THIS_PATH_FUNC"(%s,%s) IS NULL)", param1, param2);
+                            g_string_append_printf(filter_str,
+                                " OR "THIS_PATH_FUNC"(%s,%s) IS NULL)", param1, param2);
                     }
                     else
                     {
-                        if ( prefix_table )
-                            sprintf(param1, "%s.id", table2name(table));
+                        if (prefix_table)
+                            snprintf(param1, sizeof(param1), "%s.id", table2name(table));
                         else
-                            strcpy(param1, "id");
+                            rh_strncpy(param1, "id", sizeof(param1));
 
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            curr += sprintf(curr, "(");
+                            g_string_append(filter_str, "(");
 
-                        curr += sprintf(curr, ONE_PATH_FUNC"(%s)%s%s", param1,
-                                compar2str( p_filter->filter_simple.filter_compar[i] ),
-                                val);
+                        g_string_append_printf(filter_str, ONE_PATH_FUNC"(%s)%s", param1,
+                                compar2str(p_filter->filter_simple.filter_compar[i]));
+                        printdbtype(p_mgr, filter_str, field_infos[index].db_type, &typeu);
 
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            curr += sprintf(curr, " OR "ONE_PATH_FUNC"(%s) IS NULL)", param1);
+                            g_string_append_printf(filter_str,
+                                    " OR "ONE_PATH_FUNC"(%s) IS NULL)", param1);
                     }
                 }
 
                 /* add closing parenthesis, etc...*/
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT )
-                {
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT)
                     /* NOT (x <cmp> <val>) */
-                    curr += sprintf(curr, ")");
-                }
+                    g_string_append(filter_str, ")");
 
-                if ( p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END )
-                     curr += sprintf(curr, ")");
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END)
+                    g_string_append(filter_str, ")");
 
+            end_of_loop:
                 nb_fields ++;
             }
         }
@@ -1044,16 +1046,57 @@ int func_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter
 }
 
 
+static void attr2filter_field(GString *str, table_enum table,
+                              unsigned int attr, bool prefix_table)
+{
+    if (MATCH_TABLE(table, attr) || (table == T_NONE))
+    {
+        /* exception: fullpath is a real field in SOFT_RM table */
+        if (is_funcattr(attr) &&
+            !((table == T_SOFTRM) && (attr == ATTR_INDEX_fullpath)))
+        {
+            char prefix[128] = "";
 
+            if (prefix_table)
+                snprintf(prefix, sizeof(prefix), "%s.", table2name(table == T_NONE?
+                        field2table(attr):table));
 
-int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
+            print_func_call(str, attr, prefix);
+        }
+        else /* std field */
+        {
+            if (prefix_table)
+                g_string_append_printf(str, "%s.",
+                    table2name(table == T_NONE? field2table(attr):table));
+
+            g_string_append(str, field_name(attr));
+        }
+    }
+    else if ((table == T_STRIPE_ITEMS || table == T_NONE)
+              && (field_infos[attr].db_type == DB_STRIPE_ITEMS))
+    {
+        if (prefix_table)
+            g_string_append_printf(str, "%s.", STRIPE_ITEMS_TABLE);
+
+        g_string_append(str, "ostidx");
+    }
+    else if ((table == T_STRIPE_INFO || table == T_NONE)
+              && (field_infos[attr].db_type == DB_STRIPE_INFO))
+    {
+        /* XXX Assume that the only possible filter here is on pool_name */
+        if (prefix_table)
+            g_string_append_printf(str, "%s.", STRIPE_INFO_TABLE);
+
+        g_string_append(str, "pool_name");
+    }
+}
+
+int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 table_enum table, bool leading_and, bool prefix_table)
 {
     int            i;
     unsigned int   nbfields = 0;
     db_type_u      typeu;
-    char          *values_curr = str;
-    char           fname[128];
 
     if (p_filter->filter_type == FILTER_SIMPLE)
     {
@@ -1061,13 +1104,11 @@ int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
         for (i = 0; i < p_filter->filter_simple.filter_count; i++)
         {
             unsigned int   index = p_filter->filter_simple.filter_index[i];
-            int match =  MATCH_TABLE(table, index)
+            bool match =  MATCH_TABLE(table, index)
                          || ((table == T_STRIPE_ITEMS) && (index < ATTR_COUNT)
                               && (field_infos[index].db_type == DB_STRIPE_ITEMS))
                          || ((table == T_STRIPE_INFO) && (index < ATTR_COUNT)
                               && (field_infos[index].db_type == DB_STRIPE_INFO));
-
-            fname[0] = '\0';
 
             /* filter on generated fields are not allowed */
             if (is_dirattr(index))
@@ -1089,55 +1130,34 @@ int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
                 if (leading_and || (nbfields > 0))
                 {
                     if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_OR)
-                        values_curr += sprintf(values_curr, " OR ");
+                        g_string_append(str, " OR ");
                     else
-                        values_curr += sprintf(values_curr, " AND ");
+                        g_string_append(str, " AND ");
                 }
 
                 if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN)
-                     values_curr += sprintf(values_curr, "(");
+                    g_string_append(str, "(");
 
                 if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT)
                 {
                     if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                         /* (NOT (x <cmp> <val>) OR x IS NULL) */
-                        values_curr += sprintf(values_curr, " (NOT (");
+                        g_string_append(str, " (NOT (");
                     else
                         /* NOT (x <cmp> <val>) */
-                         values_curr += sprintf(values_curr, " NOT (");
+                        g_string_append(str, " NOT (");
                 }
-
-                if ((p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                     && !(p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT))
-                {
+                else if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                     /* (x <cmp> <val> OR x IS NULL) */
-                    values_curr[0] = '(';
-                    values_curr++;
-                }
+                    g_string_append(str, "(");
             }
+
+            /* append field name or function call */
+            attr2filter_field(str, table, index, prefix_table);
 
             if (MATCH_TABLE(table, index) || table == T_NONE)
             {
-                /* exception: fullpath is a real field in SOFT_RM table */
-                if (is_funcattr(index) &&
-                    !((table == T_SOFTRM) && (index == ATTR_INDEX_fullpath)))
-                {
-                    char tmp[128] = "";
-                    if (prefix_table)
-                        sprintf(tmp, "%s.", table2name(table == T_NONE?
-                                field2table(index):table));
-                    print_func_call(fname, index, tmp);
-                }
-                else /* std field */
-                {
-                    if (prefix_table)
-                        sprintf(fname, "%s.", table2name(table == T_NONE?
-                                field2table(index):table));
-
-                    strcat(fname, field_name(index));
-                }
-
-                /* comparator */
+                /* append comparator */
                 if (is_sepdlist(index))
                 {
                     /* always match '%+<item>+%' => use LIKE and UNLIKE */
@@ -1146,9 +1166,7 @@ int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
                     else if (p_filter->filter_simple.filter_compar[i] == NOTEQUAL)
                         p_filter->filter_simple.filter_compar[i] = UNLIKE;
                 }
-                values_curr +=
-                    sprintf(values_curr, "%s%s", fname,
-                             compar2str(p_filter->filter_simple.filter_compar[i]));
+                g_string_append(str, compar2str(p_filter->filter_simple.filter_compar[i]));
 
                 /* no expected value after IS NULL or IS NOT NULL */
                 if (p_filter->filter_simple.filter_compar[i] != ISNULL
@@ -1158,34 +1176,34 @@ int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
                     if ((index == ATTR_INDEX_fullpath) && (table != T_SOFTRM))
                     {
                         char relative[RBH_PATH_MAX];
+
                         if (fullpath_attr2db(p_filter->filter_simple.filter_value[i].value.val_str, relative))
                         {
                             /* condition is always false */
-                            values_curr += sprintf(values_curr, "FALSE");
+                            g_string_append(str, "FALSE");
                         }
                         else
                         {
                             typeu.val_str = relative;
-                            values_curr += printdbtype(p_mgr, values_curr,
-                                                       field_infos[index].db_type, &typeu);
+                            printdbtype(p_mgr, str, field_infos[index].db_type, &typeu);
                         }
                     }
                     else
                     {
-                        char tmp [1024];
+                        char tmp[1024];
+
                         if (is_sepdlist(index))
                         {
                             /* match '%+<item>+%' */
                             separated_list2match(p_filter->filter_simple.filter_value[i].value.val_str,
-                                                 tmp);
+                                                 tmp, sizeof(tmp));
                             typeu.val_str = tmp;
                         }
                         else
                             /* single value (list only apply to OSTs XXX for now) */
                             typeu = p_filter->filter_simple.filter_value[i].value;
 
-                        values_curr += printdbtype(p_mgr, values_curr,
-                                                   field_type(index), &typeu);
+                        printdbtype(p_mgr, str, field_type(index), &typeu);
                     }
                 }
                 nbfields++;
@@ -1193,81 +1211,67 @@ int filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
             else if ((table == T_STRIPE_ITEMS || table == T_NONE)
                       && (field_infos[index].db_type == DB_STRIPE_ITEMS))
             {
-                if (prefix_table)
-                    sprintf(fname, "%s.", STRIPE_ITEMS_TABLE);
-
-                strcat(fname, "ostidx");
-
                 /* single value or a list? */
                 if (p_filter->filter_simple.filter_compar[i] == IN
                     || (p_filter->filter_simple.filter_compar[i] == NOTIN))
                 {
-                    /* FIXME the length of this query can be very important,
-                     * so we may overflow the output string */
-                    values_curr += sprintf(values_curr, "%s%s(", fname,
-                                           compar2str(p_filter->filter_simple.filter_compar[i]));
                     unsigned int j;
-                    db_type_u * list = p_filter->filter_simple.filter_value[i].list.values;
+                    db_type_u *list;
 
+                    g_string_append_printf(str, "%s(", compar2str(
+                        p_filter->filter_simple.filter_compar[i]));
+
+                    list = p_filter->filter_simple.filter_value[i].list.values;
                     for (j = 0; j < p_filter->filter_simple.filter_value[i].list.count; j++)
                     {
-                        values_curr +=
-                            sprintf(values_curr, "%s%u", j==0?"":",", list[j].val_uint);
+                        g_string_append_printf(str, "%s%u", j==0?"":",", list[j].val_uint);
                     }
-                    strcpy(values_curr, ")");
-                    values_curr++;
+                    g_string_append(str, ")");
                 }
                 else /* single value */
                 {
-                    values_curr +=
-                        sprintf(values_curr, "%s%s%u", fname,
+                    g_string_append_printf(str, "%s%u",
                                  compar2str(p_filter->filter_simple.filter_compar[i]),
                                  p_filter->filter_simple.filter_value[i].value.val_uint);
                 }
-
                 nbfields++;
             }
             else if ((table == T_STRIPE_INFO || table == T_NONE)
                       && (field_infos[index].db_type == DB_STRIPE_INFO))
             {
-
-                /* We XXX Assume that the only possible filter here is on pool_name */
-
-                if (prefix_table)
-                    sprintf(fname, "%s.", STRIPE_INFO_TABLE);
-
-                strcat(fname, "pool_name");
-
-                values_curr +=
-                    sprintf(values_curr, "%s%s'%s'", fname,
+                g_string_append_printf(str, "%s'%s'",
                              compar2str(p_filter->filter_simple.filter_compar[i]),
                              p_filter->filter_simple.filter_value[i].value.val_str);
-
                 nbfields++;
             }
 
             if (match || table == T_NONE)
             {
-                if ((p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                     && !(p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT))
-                {
-                    values_curr += sprintf(values_curr, " OR %s IS NULL)", fname);
-                }
 
                 if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT)
                 {
                     if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                    {
                         /* (NOT (x <cmp> <val>) OR x IS NULL) */
-                        values_curr += sprintf(values_curr, ") OR %s IS NULL)", fname);
+                        g_string_append(str, ") OR ");
+                        attr2filter_field(str, table, index, prefix_table);
+                        g_string_append(str, " IS NULL)");
+                    }
                     else
                         /* NOT (x <cmp> <val>) */
-                        values_curr += sprintf(values_curr, ")");
+                        g_string_append(str, ")");
+                }
+                else if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                {
+                    /* OR x IS NULL */
+                    g_string_append(str, " OR ");
+                    attr2filter_field(str, table, index, prefix_table);
+                    g_string_append(str," IS NULL)");
                 }
 
                 if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END)
-                     values_curr += sprintf(values_curr, ")");
+                    g_string_append(str, ")");
             }
-
         } /* end for */
     }
     else
@@ -1290,6 +1294,96 @@ const char * dirattr2str(unsigned int attr_index)
             return NULL;
     }
 }
+
+/** Helper to build a where clause from a list of fields to be filtered
+ * @param where initialized empty GString.
+ * @param[out] counts count of filter fields in each table.
+ * @return the number of created filters.
+ */
+int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                 struct field_count *counts, bool ignore_name_filter,
+                 bool leading_and, GString *where)
+{
+    int nbs = 0;
+
+    /* on which table are the filters ?  */
+    counts->nb_main = filter2str(p_mgr, where, p_filter, T_MAIN,
+                                        leading_and, true);
+    nbs += counts->nb_main;
+    counts->nb_annex = filter2str(p_mgr, where, p_filter, T_ANNEX,
+                                         (nbs > 0) || leading_and, true);
+    nbs += counts->nb_annex;
+
+    if (!ignore_name_filter)
+    {
+        counts->nb_names = filter2str(p_mgr, where, p_filter, T_DNAMES,
+                                             (nbs > 0) || leading_and, true);
+        nbs += counts->nb_names;
+    }
+
+    /* stripes are only managed for Lustre filesystems */
+#ifdef _LUSTRE
+    counts->nb_stripe_info = filter2str(p_mgr, where, p_filter, T_STRIPE_INFO,
+                                               (nbs > 0) || leading_and, true);
+    nbs += counts->nb_stripe_info;
+    counts->nb_stripe_items = filter2str(p_mgr, where, p_filter, T_STRIPE_ITEMS,
+                                               (nbs > 0) || leading_and, true);
+    nbs += counts->nb_stripe_items;
+#endif
+
+    return nbs;
+}
+
+/** helper to lighten filter_from function */
+static inline void append_from_clause(table_enum tab, GString *from,
+                                      table_enum *first_table)
+{
+    const char *tname = table2name(tab);
+
+    if (*first_table == T_NONE)
+    {
+        *first_table = tab;
+        g_string_assign(from, tname);
+    }
+    else
+        g_string_append_printf(from, " LEFT JOIN %s ON %s.id=%s.id", tname, /** @FIXME LEFT JOIN or INNER JOIN??? */
+                               table2name(*first_table), tname);
+}
+
+
+/** Helper to build a 'from' clause (table junction) depending on filter counts
+ * It must be called only if filter is non empty.
+ * @param[in] counts filter counts filled-in by filter_where() function.
+ * @param[in,out] from initialized empty GString.
+ * @param[in] is_first_tab indicate if there is already a first table
+ * @param[in, out] first_table the first table in the junction.
+ * @param[out] select_distinct_id indicate if the request must select distinct ids.
+ */
+void filter_from(lmgr_t *p_mgr, const struct field_count *counts,
+                 bool ignore_names_filter, GString *from, bool is_first_tab,
+                 table_enum *first_table, bool *select_distinct_id)
+{
+    if (!is_first_tab)
+        *first_table = T_NONE;
+
+    if (counts->nb_main)
+        append_from_clause(T_MAIN, from, first_table);
+    if (counts->nb_annex)
+        append_from_clause(T_ANNEX, from, first_table);
+    if (counts->nb_names && !ignore_names_filter)
+    {
+        *select_distinct_id = true;
+        append_from_clause(T_DNAMES, from, first_table);
+    }
+    if (counts->nb_stripe_info)
+        append_from_clause(T_STRIPE_INFO, from, first_table);
+    if (counts->nb_stripe_items)
+    {
+        *select_distinct_id = true;
+        append_from_clause(T_STRIPE_ITEMS, from, first_table);
+    }
+}
+
 
 /* special masks values for id2pk and pk2id */
 #define MASK_ID2PK  0
@@ -1327,14 +1421,14 @@ int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id )
 #endif
 }
 
-unsigned int append_size_range_fields(char * str, bool leading_comma, char *prefix)
+void append_size_range_fields(GString *str, bool leading_comma,
+                              const char *prefix)
 {
-    unsigned int i, l;
-    l=0;
+    unsigned int i;
+
     for (i = 0; i < SZ_PROFIL_COUNT; i++)
-        l += sprintf( str+l, "%s %s%s", leading_comma || (i > 0)?",":"",
-                      prefix, sz_field[i] );
-    return l;
+        g_string_append_printf(str, "%s %s%s", leading_comma || (i > 0)?",":"",
+                               prefix, sz_field[i]);
 }
 
 /* those functions are used for begin/commit/rollback */
@@ -1762,4 +1856,63 @@ bool lmgr_batch_compat(uint64_t m1, uint64_t m2)
     if (!table_mask_compat(m1 & stripe_attr_set, m2 & stripe_attr_set))
         return false;
     return true;
+}
+
+/** Set READ COMMITTED isolation level for the next transaction
+ * so locks can be released immediatly after the record is read.
+ * - This can only be done if we are outside a transaction
+ * - If the mode is autocommit, do it just before the big request
+ *   (in big_request_now()).
+ */
+void big_request_in_tx(lmgr_t *p_mgr)
+{
+    if ((p_mgr->last_commit == 0) && (lmgr_config.commit_behavior != 0))
+    {
+        if (db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED))
+        {
+            char errmsg[1024];
+
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Failed to set READ_COMMITTED isolation level: Error: %s",
+                       db_errmsg(&p_mgr->conn, errmsg, sizeof(errmsg)));
+            /* continue anyway */
+        }
+    }
+}
+
+/** Set READ COMMITTED isolation level for the next request (autocommit mode).
+ */
+void big_request_now(lmgr_t *p_mgr)
+{
+    if (lmgr_config.commit_behavior == 0)
+    {
+        /* set READ COMMITTED isolation level for the next (big!) request
+         * so locks can be released immediatly after the record is read */
+        if (db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED))
+        {
+            char errmsg[1024];
+
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Failed to set READ_COMMITTED isolation level: Error: %s",
+                       db_errmsg(&p_mgr->conn, errmsg, sizeof(errmsg)));
+            /* continue anyway */
+        }
+    }
+}
+
+int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk, entry_id_t *p_id)
+{
+    int rc;
+
+    if (sscanf(str, SPK, p_pk) != 1)
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: '%s'",
+                   str);
+        return DB_INVALID_ARG;
+    }
+
+    rc = pk2entry_id(p_mgr, p_pk, p_id);
+    if (rc)
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: "DPK, p_pk);
+    return rc;
 }

@@ -214,6 +214,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
     struct lmgr_report_t * report;
     report_field_descr_t report_count = {-1, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL};
 
+/** @TODO use glib strings */
     char           query[4096];
     char           filter_str[4096] = "";
     char          *filter_curr = filter_str;
@@ -240,9 +241,10 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
 
     if ( p_filter )
     {
-	 /* dummy vars */
+        /* dummy vars */
         char           filter_dir_str[512] = "";
         unsigned int   filter_dir_index = 0;
+
         if (dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index) != FILTERDIR_NONE)
         {
             DisplayLog( LVL_CRIT, LISTMGR_TAG, "Directory filter not supported for recovery");
@@ -252,8 +254,7 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
         if (filter2str(p_mgr, filter_curr, p_filter, T_MAIN, false, true) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (annex_table && (filter2str(p_mgr, filter_curr, p_filter,
-                                       T_ANNEX, has_filters, true) > 0))
+        if (filter2str(p_mgr, filter_curr, p_filter, T_ANNEX, has_filters, true) > 0))
             filter_curr += strlen(filter_curr);
 
         if (filter2str(p_mgr, filter_curr, p_filter, T_DNAMES, has_filters, true) > 0)
@@ -507,14 +508,17 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
 
         rc = db_next_record( &p_iter->p_mgr->conn, &p_iter->select_result,
                              result_tab, RECOV_FIELD_COUNT+2 );
-
         if ( rc )
             return rc;
         if ( result_tab[0] == NULL ) /* no id? */
             return DB_REQUEST_FAILED;
 
-        if ( sscanf( result_tab[0], SPK, PTR_PK(pk) ) != 1 )
-            return DB_REQUEST_FAILED;
+        rc = parse_entry_id(p_iter->p_mgr, result_tab[0], PTR_PK(pk), p_id);
+        /* /!\ If the entry disappeared from DB, we must go to next record */
+        if (rc == DB_NOT_EXISTS)
+            entry_disappeared = true;
+        else if (rc)
+            return rc;
 
         if ( result_tab[1] == NULL ) { /* no status */
             if (last_status)
@@ -522,16 +526,6 @@ int ListMgr_RecovGetNext( struct lmgr_iterator_t *p_iter,
         }
         else if (last_status)
             *last_status = str2int(result_tab[1]);
-
-        /* retrieve entry id (except validator) */
-        rc = pk2entry_id( p_iter->p_mgr, pk, p_id );
-
-        /* /!\ If the entry disappeared from DB, we must go to next record */
-        if ( rc == DB_NOT_EXISTS )
-            entry_disappeared = true;
-        else if ( rc )
-            return rc;
-
     }
     while ( entry_disappeared );        /* goto next record if entry desappered */
 

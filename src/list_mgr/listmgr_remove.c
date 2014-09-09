@@ -23,7 +23,6 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "Memory.h"
-#include "var_str.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,120 +30,145 @@
 
 
 static int clean_names(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                       int *has_name_filter)
+                       unsigned int *nb_filter_names)
 {
-    char filter_str[RBH_PATH_MAX];
-    char query[RBH_PATH_MAX+128];
-    int rc;
+    int      rc = DB_SUCCESS;
+    GString *req;
 
-    int filter_names = filter2str(p_mgr, filter_str, p_filter, T_DNAMES, false, false);
-    *has_name_filter = filter_names?1:0;
+    req = g_string_new("DELETE FROM "DNAMES_TABLE" WHERE ");
+    *nb_filter_names = filter2str(p_mgr, req, p_filter, T_DNAMES, false, false);
 
-    /* if there is a filter on names, clean them independantly, whatever the over filters */
-    if (filter_names)
-    {
-        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Direct deletion in "DNAMES_TABLE" table");
-        sprintf(query, "DELETE FROM "DNAMES_TABLE" WHERE %s", filter_str);
+    if (*nb_filter_names == 0)
+        goto out;
 
-        rc = db_exec_sql(&p_mgr->conn, query, NULL);
-        if (rc)
-            return rc;
-    }
-    return DB_SUCCESS;
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Direct deletion in "DNAMES_TABLE" table");
+    rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+out:
+    g_string_free(req, TRUE);
+    return rc;
 }
 
+/** helper for listmgr_remove_single */
+static inline void append_table_join(GString *fields, GString *tables, GString *where,
+                                     const char *tname, const char *talias,
+                                     PK_ARG_T pk, const char **first_table)
+{
+    g_string_append_printf(fields, "%s%s.*", *first_table == NULL?"":",", talias);
 
-#define APPEND_TABLE_JOIN(_table_name, _alias) do { \
-        curr_fields += sprintf(curr_fields, "%s%c.*", curr_fields == fields?"":",", _alias); \
-        if (curr_tables == tables) { \
-            first_table = _alias; \
-            curr_tables += sprintf(curr_tables, "%s %c", _table_name, _alias); \
-        } else \
-            curr_tables += sprintf(curr_tables, " LEFT JOIN %s %c ON %c.id = %c.id", \
-                                   _table_name, _alias, first_table, _alias); \
-        if (EMPTY_STRING(where)) \
-            sprintf(where, "%c.id="DPK, _alias, pk); \
-    } while (0)
+    if (GSTRING_EMPTY(tables))
+    {
+        *first_table = talias;
+        g_string_printf(tables, "%s %s", tname, talias);
+    }
+    else
+        g_string_append_printf(tables, " LEFT JOIN %s %s ON %s.id = %s.id",
+                               tname, talias, *first_table, talias);
 
+    if (GSTRING_EMPTY(where))
+        g_string_printf(where, "%s.id="DPK, talias, pk);
+}
 
+/** removal of a single entry (no transaction management) */
 static int listmgr_remove_single(lmgr_t *p_mgr, PK_ARG_T pk, table_enum exclude_tab)
 {
-    char fields[1024];
-    char tables[1024];
-    char first_table = '\0';
-    char where[1024] = "";
-    char request[4096];
-    char *curr_fields = fields;
-    char *curr_tables = tables;
+    const char *first_table = NULL;
+    GString *req, *tables, *where;
+    int rc;
+
+    req = g_string_new("DELETE ");
+    tables = g_string_new(NULL);
+    where = g_string_new(NULL);
 
     if (exclude_tab != T_MAIN)
-        APPEND_TABLE_JOIN(MAIN_TABLE, 'M');
+        append_table_join(req, tables, where, MAIN_TABLE, "M", pk, &first_table);
     if (exclude_tab != T_ANNEX)
-        APPEND_TABLE_JOIN(ANNEX_TABLE, 'A');
+        append_table_join(req, tables, where, ANNEX_TABLE, "A", pk, &first_table);
     if (exclude_tab != T_DNAMES)
-        APPEND_TABLE_JOIN(DNAMES_TABLE, 'N');
+        append_table_join(req, tables, where, DNAMES_TABLE, "N", pk, &first_table);
 #ifdef _LUSTRE
     if (exclude_tab != T_STRIPE_INFO)
-        APPEND_TABLE_JOIN(STRIPE_INFO_TABLE, 'I');
+        append_table_join(req, tables, where, STRIPE_INFO_TABLE, "I", pk, &first_table);
     if (exclude_tab != T_STRIPE_ITEMS)
-        APPEND_TABLE_JOIN(STRIPE_ITEMS_TABLE, 'S');
+        append_table_join(req, tables, where, STRIPE_ITEMS_TABLE, "S", pk, &first_table);
 #endif
 
-    /* doing this in a single request instead of 1 DELETE per table
-     * results in a huge speed up (246sec -> 59s).
-     */
-    sprintf(request, "DELETE %s FROM %s WHERE %s", fields, tables, where);
+    /* Doing this in a single request instead of 1 DELETE per table
+     * results in a huge speed up (246sec -> 59s).  */
+    /* - req already contains "DELETE filed_list"
+     * - using GSTRING_SAFE in case where or tables is still NULL */
+    g_string_append_printf(req, " FROM %s WHERE %s", GSTRING_SAFE(tables),
+                           GSTRING_SAFE(where));
+    rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
 
-    return db_exec_sql(&p_mgr->conn, request, NULL);
+    g_string_free(req, TRUE);
+    g_string_free(tables, TRUE);
+    g_string_free(where, TRUE);
+
+    return rc;
 }
 
 
 int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
                          const attr_set_t *p_attr_set, bool last)
 {
-    char           request[4096];
-    int            rc;
+    GString *req;
+    int      rc = DB_SUCCESS;
     DEF_PK(pk);
     DEF_PK(ppk);
 
     entry_id2pk(p_id, PTR_PK(pk));
+
+    req = g_string_new(NULL);
 
     if (last)
     {
         /* remove from all tables except from NAMES (handled at the end of this function) */
         rc = listmgr_remove_single(p_mgr, pk, T_DNAMES);
         if (rc)
-            return rc;
-    } else {
+            goto out;
+    }
+    else
+    {
         /* XXX else update attributes according to attributes contents? */
 
-#ifdef ATTR_INDEX_nlink
         /* Since we're removing one entry but not the file, decrement nlink. */
-        sprintf( request, "UPDATE " MAIN_TABLE " set nlink=nlink-1 where id="DPK, pk);
-        rc = db_exec_sql( &p_mgr->conn, request, NULL );
-        if ( rc )
-            return rc;
-#endif
+        g_string_printf(req, "UPDATE "MAIN_TABLE" SET nlink=nlink-1 WHERE id="DPK, pk);
+        rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+        if (rc)
+            goto out;
     }
 
     /* Allow removing entry from MAIN_TABLE without removing it from NAMES */
     if (p_attr_set && ATTR_MASK_TEST(p_attr_set, parent_id) && ATTR_MASK_TEST(p_attr_set, name))
     {
-        char escaped[RBH_NAME_MAX*2];
+        char *escaped;
+        int   len;
 
-        entry_id2pk(&ATTR( p_attr_set, parent_id ), PTR_PK(ppk));
+        entry_id2pk(&ATTR(p_attr_set, parent_id), PTR_PK(ppk));
 
-        db_escape_string(&p_mgr->conn, escaped, RBH_NAME_MAX*2, ATTR(p_attr_set, name));
+        /* according to MySQL documentation, escaped string can be up to 2*orig_len+1 */
+        len = 2 * strlen(ATTR(p_attr_set, name)) + 1;
+        escaped = MemAlloc(len);
+        if (escaped == NULL)
+        {
+            rc = DB_NO_MEMORY;
+            goto out;
+        }
+        db_escape_string(&p_mgr->conn, escaped, len, ATTR(p_attr_set, name));
 
-        sprintf(request, "DELETE FROM " DNAMES_TABLE " WHERE pkn="HNAME_FMT" AND id="DPK,
-                ppk, escaped, pk);
-        rc = db_exec_sql( &p_mgr->conn, request, NULL );
-        if ( rc )
+        g_string_printf(req, "DELETE FROM "DNAMES_TABLE" WHERE pkn="HNAME_FMT" AND id="DPK,
+                        ppk, escaped, pk);
+        MemFree(escaped);
+
+        rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+        if (rc)
             return rc;
     }
     else if (!p_attr_set || !ATTR_MASK_TEST(p_attr_set, parent_id) || !ATTR_MASK_TEST(p_attr_set, name))
         DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to delete entry from "DNAMES_TABLE);
 
+out:
+    g_string_free(req, TRUE);
     return rc;
 }
 
@@ -162,16 +186,16 @@ retry:
     else if (rc)
         return rc;
 
-    rc = listmgr_remove_no_tx( p_mgr, p_id, p_attr_set, last );
+    rc = listmgr_remove_no_tx(p_mgr, p_id, p_attr_set, last);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
     {
-        lmgr_rollback( p_mgr );
+        lmgr_rollback(p_mgr);
         return rc;
     }
 
-    rc = lmgr_commit( p_mgr );
+    rc = lmgr_commit(p_mgr);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     if (!rc)
@@ -181,47 +205,44 @@ retry:
 
 /**
  * Insert all entries to soft rm table.
- * @TODO check if it works with millions/billion entries
+ * @TODO check how it behaves with millions/billion entries.
  */
-static int listmgr_softrm_all( lmgr_t * p_mgr, time_t rm_time )
+static int listmgr_softrm_all(lmgr_t *p_mgr, time_t rm_time)
 {
-    char softrm_fields[1024];
-    char main_fields[1024];
-    char annex_fields[1024];
-    char query[2048];
-    int nbmain = 0;
-    int nbannex = 0;
-
-    /* insert those entries to soft rm table */
+    int      rc, nbannex = 0;
+    GString *req, *annex_fields;
 
     /* manage fullpath independantly to make sure it is the first attribute,
-     * as we will set it to one_path(id). */
-    attrmask2fieldlist(softrm_fields, SOFTRM_MASK & ~ATTR_MASK_fullpath, T_SOFTRM,
+     * as we will set it to "one_path(id)". */
+    req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id,fullpath");
+    attrmask2fieldlist(req, SOFTRM_MASK & ~ATTR_MASK_fullpath, T_SOFTRM,
                        true,  false, "","");
 
-    if (annex_table)
-        nbannex = attrmask2fieldlist(annex_fields, SOFTRM_MASK, T_ANNEX, true,  false,
-                                     ANNEX_TABLE".", "");
-
-    nbmain = attrmask2fieldlist(main_fields, SOFTRM_MASK, T_MAIN, true,  false,
-                                nbannex > 0 ? MAIN_TABLE".":"", "");
+    annex_fields = g_string_new(NULL);
+    nbannex = attrmask2fieldlist(annex_fields, SOFTRM_MASK, T_ANNEX, true,  false,
+                                 ANNEX_TABLE".", "");
 
     if (nbannex > 0)
     {
-        sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (id,fullpath%s) "
-                "(SELECT "MAIN_TABLE".id,"ONE_PATH_FUNC"("MAIN_TABLE".id)%s%s,%u"
-                " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
-                " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
-                softrm_fields, main_fields, annex_fields, (unsigned int)rm_time);
+        g_string_append_printf(req, ") (SELECT "MAIN_TABLE".id,"ONE_PATH_FUNC"("MAIN_TABLE".id)");
+        attrmask2fieldlist(req, SOFTRM_MASK, T_MAIN, true,  false, MAIN_TABLE".", "");
+        g_string_append(req, GSTRING_SAFE(annex_fields));
+        g_string_append_printf(req, ",%u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
+                               " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
+                               (unsigned int)rm_time);
     }
     else
     {
-       sprintf(query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (id,fullpath%s) "
-               "(SELECT id,"ONE_PATH_FUNC"(id)%s, %u FROM "MAIN_TABLE")",
-               softrm_fields, main_fields, (unsigned int)rm_time);
+        g_string_append_printf(req, ") (SELECT id,"ONE_PATH_FUNC"(id)");
+        attrmask2fieldlist(req, SOFTRM_MASK, T_MAIN, true,  false, "", "");
+        g_string_append_printf(req, ",%u FROM "MAIN_TABLE")", (unsigned int)rm_time);
     }
 
-    return db_exec_sql( &p_mgr->conn, query, NULL );
+    rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+
+    g_string_free(annex_fields, TRUE);
+    g_string_free(req, TRUE);
+    return rc;
 }
 
 /**
@@ -242,12 +263,9 @@ static int listmgr_rm_all(lmgr_t * p_mgr)
         return rc;
 #endif
 
-    if (annex_table)
-    {
-        rc = db_exec_sql(&p_mgr->conn, "DELETE FROM " ANNEX_TABLE, NULL);
-        if (rc)
-            return rc;
-    }
+    rc = db_exec_sql(&p_mgr->conn, "DELETE FROM " ANNEX_TABLE, NULL);
+    if (rc)
+        return rc;
 
     rc = db_exec_sql(&p_mgr->conn, "DELETE FROM " MAIN_TABLE, NULL);
     if (rc)
@@ -267,10 +285,10 @@ static int listmgr_rm_all(lmgr_t * p_mgr)
 static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
                                  attr_set_t *p_old_attrs)
 {
-    char buf[4096];
     DEF_PK(pk);
-    var_str query = VAR_STR_NULL;
-    int rc, nb;
+    int  rc;
+    char err_buf[1024];
+    GString *req;
 
     if (!ATTR_MASK_TEST(p_old_attrs, rm_time))
     {
@@ -278,253 +296,45 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
                    __func__);
     }
 
-    nb = attrmask2fieldlist(buf, SOFTRM_MASK & p_old_attrs->attr_mask,
-                            T_SOFTRM, true,  false, "","");
-
-    var_str_append(&query, "INSERT IGNORE INTO " SOFT_RM_TABLE "(id");
-    if (nb > 0)
-        var_str_append(&query, buf);
-    var_str_append(&query, ") VALUES (");
+    req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id");
+    attrmask2fieldlist(req, SOFTRM_MASK & p_old_attrs->attr_mask,
+                       T_SOFTRM, true,  false, "","");
+    g_string_append(req, ") VALUES (");
 
     entry_id2pk(p_id, PTR_PK(pk));
-    sprintf(buf, DPK, pk);
-    var_str_append(&query, buf);
+    g_string_append_printf(req, DPK, pk);
 
-    attrset2valuelist(p_mgr, buf, p_old_attrs, T_SOFTRM, true);
-    var_str_append(&query, buf);
-    var_str_append(&query, ")");
+    attrset2valuelist(p_mgr, req, p_old_attrs, T_SOFTRM, true);
+    g_string_append(req, ")");
 
-    rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
-
+    rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
     if (rc)
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "DB query failed in %s line %d: query=\"%s\", code=%d: %s",
-                   __FUNCTION__, __LINE__, VAR_STR_START(query), rc,
-                   db_errmsg(&p_mgr->conn, buf, 1024));
-    var_str_free(&query);
+                   __FUNCTION__, __LINE__, req->str, rc,
+                   db_errmsg(&p_mgr->conn, err_buf, sizeof(err_buf)));
+    g_string_free(req, TRUE);
     return rc;
 }
 
-
-static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter, int soft_rm,
-                               time_t rm_time, rm_cb_func_t cb_func)
+/** create a temporary table with all entries to be deleted */
+static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                               const struct field_count *counts,
+                               const char *tmpname, bool soft_rm,
+                               table_enum query_tab, GString *from,
+                               GString *filter_names, GString *where,
+                               bool distinct)
 {
-    int            rc;
-    char           query[4096];
-    char           filter_str[2048];
-    char           filter_str_names[2048];
-    char           *curr_filter;
-    int            filter_main = 0;
-    int            filter_annex = 0;
-    int            filter_names = 0;
-    int            filter_stripe_info = 0;
-    int            filter_stripe_items = 0;
-    char           from[1024];
-    char           *curr_from;
-    const char* first_table = NULL;
-    table_enum     query_tab = T_MAIN;
-    const char* direct_del_table = NULL;
-    char           tmp_table_name[256];
-    result_handle_t result;
-    char          *field_tab[ATTR_COUNT+1]; /* id + attributes */
-    DEF_PK(pk);
-    unsigned int   rmcount = 0;
-    int nb;
+    GString *req = NULL;
+    int      rc;
 
-    /* This is needed for creating big temporary table.
-     * Set READ COMMITTED isolation level for the next transaction
-     * so locks can be released immediatly after the record is read.
-     * - This can only be done if we are outside a transaction
-     * - If the mode is autocommit, do it just before the create tmp table
-     *   statement.
-     */
-    if ((p_mgr->last_commit == 0) && (lmgr_config.commit_behavior != 0))
-    {
-        rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
-        if ( rc )
-        {
-            char errmsg[1024];
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
-            /* continue anyway */
-        }
-    }
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Creating temporary table");
 
-    /* We want the remove operation to be atomic */
-retry:
-    rc = lmgr_begin(p_mgr);
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
-    else if (rc)
-        return rc;
-
-    if ( !p_filter
-         || ( ( p_filter->filter_type == FILTER_SIMPLE )
-              && ( p_filter->filter_simple.filter_count == 0 ) )
-         || ( ( p_filter->filter_type == FILTER_BOOLEXPR )
-              && ( p_filter->filter_boolexpr == NULL ) ) )
-    {
-
-        if (soft_rm)
-        {
-            rc = listmgr_softrm_all(p_mgr, rm_time);
-            if (lmgr_delayed_retry(p_mgr, rc))
-                goto retry;
-            else if (rc)
-                goto rollback;
-        }
-
-        /* Remove all !!! */
-        DisplayLog( LVL_EVENT, LISTMGR_TAG,
-                    "No filter is specified: removing entries from all tables." );
-        rc = listmgr_rm_all(p_mgr);
-        if (lmgr_delayed_retry(p_mgr, rc))
-            goto retry;
-        else if (rc)
-            goto rollback;
-
-        /* FIXME how many entries removed? */
-        rc = lmgr_commit(p_mgr);
-        if (lmgr_delayed_retry(p_mgr, rc))
-            goto retry;
-        else
-            return rc;
-    }
-
-    if (!soft_rm)
-    {
-        /* no soft_rm:
-         * 1) clean names if there is a filter on them.
-         * 2) clean related entries in other tables if there is no remaining path.
-         */
-        rc = clean_names(p_mgr, p_filter, &filter_names);
-        if (lmgr_delayed_retry(p_mgr, rc))
-            goto retry;
-        else if (rc)
-            goto rollback;
-    }
-    else
-    {
-        /* soft rm: just build the name filter for the later request */
-        filter_names = filter2str(p_mgr, filter_str_names, p_filter, T_DNAMES, false, false);
-    }
-
-    /* on which table are the filters ?  */
-    curr_filter = filter_str;
-    filter_main = filter2str(p_mgr, curr_filter, p_filter, T_MAIN, false /* no leading AND */, true);
-    curr_filter += strlen(curr_filter);
-
-    if (annex_table)
-    {
-        filter_annex = filter2str(p_mgr, curr_filter, p_filter, T_ANNEX,
-                                  (curr_filter != filter_str), true);
-        curr_filter += strlen(curr_filter);
-    }
-    else
-        filter_annex = 0;
-
-    /* stripes are only managed for Lustre filesystems */
-#ifdef _LUSTRE
-    filter_stripe_info =
-        filter2str(p_mgr, curr_filter, p_filter, T_STRIPE_INFO,
-                   (curr_filter != filter_str), true);
-    curr_filter += strlen(curr_filter);
-    filter_stripe_items =
-        filter2str(p_mgr, curr_filter, p_filter, T_STRIPE_ITEMS,
-                   (curr_filter != filter_str), true);
-    curr_filter += strlen(curr_filter);
-#endif
-
-    /* sanity check */
-    if (filter_main + filter_annex + filter_stripe_info + filter_stripe_items
-        + filter_names == 0)
-    {
-        /* should have been detected in the beginning of this function ! */
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "How come empty filter has not been detected" );
-        rc = DB_REQUEST_FAILED;
-        goto rollback;
-    }
-    else if (filter_main + filter_annex + filter_stripe_info + filter_stripe_items == 0)
-    {
-        /* it is about names only (done by clean_names) */
-        goto names_only;
-    }
-
-    DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Creating temporary table" );
-
-    curr_from = from;
-    if (filter_main)
-    {
-        strcpy(curr_from, MAIN_TABLE);
-        curr_from = curr_from + strlen(curr_from);
-        first_table = MAIN_TABLE;
-        query_tab = T_MAIN;
-    }
-    if (filter_annex)
-    {
-        if (first_table)
-            curr_from += sprintf(curr_from, " LEFT JOIN "ANNEX_TABLE" ON %s.id="ANNEX_TABLE".id",
-                                 first_table);
-        else
-        {
-            strcpy(from, ANNEX_TABLE);
-            curr_from = from + strlen(from);
-            first_table = ANNEX_TABLE;
-            query_tab = T_ANNEX;
-        }
-    }
-    if (filter_stripe_info)
-    {
-        if (first_table)
-            curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_INFO_TABLE" ON %s.id="STRIPE_INFO_TABLE".id",
-                                 first_table);
-        else
-        {
-            strcpy(from, STRIPE_INFO_TABLE);
-            curr_from = from + strlen(from);
-            first_table = STRIPE_INFO_TABLE;
-            query_tab = T_STRIPE_INFO;
-        }
-    }
-    if ( filter_stripe_items )
-    {
-        if (first_table)
-            /* this may create duplicate records for multiple stripes, but it
-             * doesn't matter as the request gets DISTINCT(id) */
-            curr_from += sprintf(curr_from, " LEFT JOIN "STRIPE_ITEMS_TABLE" ON %s.id="STRIPE_ITEMS_TABLE".id",
-                                 first_table);
-        else
-        {
-            strcpy(from, STRIPE_ITEMS_TABLE);
-            curr_from = from + strlen(from);
-            first_table = STRIPE_ITEMS_TABLE;
-            query_tab = T_STRIPE_ITEMS;
-        }
-    }
-
-    if (first_table == NULL)
-    {
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Error: unexpected case: filters= "
-                        MAIN_TABLE ":%d, " ANNEX_TABLE ":%d, "
-                        STRIPE_ITEMS_TABLE ":%d, " STRIPE_INFO_TABLE ":%d",
-                        filter_main, filter_annex, filter_stripe_items, filter_stripe_info );
-        rc = DB_REQUEST_FAILED;
-        goto rollback;
-    }
-
-    sprintf( tmp_table_name, "TMP_TABLE_%u_%u",
-       ( unsigned int ) getpid(  ), ( unsigned int ) pthread_self(  ) );
+    req = g_string_new("CREATE TEMPORARY TABLE");
+    g_string_append_printf(req, " %s AS ", tmpname);
 
     if (soft_rm)
     {
-        char fields[4096];
-        char *curr_fields = fields;
-
-        /* always an annex table with softrm modes */
-        if (!annex_table)
-            RBH_BUG("no annex table with softrm mode");
-
         /* case A: full scan (no filter on fullpath), all non-updated entries are to be removed + all unseen names must be cleaned.
          *          => filter_names + soft_rm
          * case B: partial scan, we don't remove objects from ENTRIES (only from NAMES).
@@ -552,41 +362,31 @@ retry:
                     FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id=NAMES.id GROUP BY ENTRIES.id HAVING s=tot or fullpath is NULL;
                  */
 
-                attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_MAIN, true,  false,
-                                   MAIN_TABLE".", "");
-                curr_fields += strlen(curr_fields);
-                attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_ANNEX, true,  false,
-                                   ANNEX_TABLE".", "");
-                curr_fields += strlen(curr_fields);
-                attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_DNAMES, true,  false,
-                                   DNAMES_TABLE".", "");
-
-
-                sprintf(query, "CREATE TEMPORARY TABLE %s AS "
-                        "SELECT "MAIN_TABLE".id%s,SUM(%s) AS rmcnt,COUNT(*) AS tot"
-                        " FROM "MAIN_TABLE" LEFT JOIN "DNAMES_TABLE" ON "MAIN_TABLE".id="DNAMES_TABLE".id"
-                                " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id="ANNEX_TABLE".id"
-                        " WHERE %s GROUP BY "MAIN_TABLE".id HAVING rmcnt=tot OR fullpath is NULL",
-                        tmp_table_name, fields, filter_str_names, filter_str);
+                g_string_append(req,"SELECT "MAIN_TABLE".id");
+                attrmask2fieldlist(req, SOFTRM_MASK, T_MAIN, true,  false, MAIN_TABLE".", "");
+                attrmask2fieldlist(req, SOFTRM_MASK, T_ANNEX, true,  false, ANNEX_TABLE".", "");
+                attrmask2fieldlist(req, SOFTRM_MASK, T_DNAMES, true,  false, DNAMES_TABLE".", "");
+                g_string_append_printf(req, ",SUM(%s) AS rmcnt,COUNT(*) AS tot FROM "MAIN_TABLE
+                                       " LEFT JOIN "DNAMES_TABLE" ON "MAIN_TABLE".id="DNAMES_TABLE".id"
+                                       " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id="ANNEX_TABLE".id"
+                                       " WHERE %s GROUP BY "MAIN_TABLE".id"
+                                       " HAVING rmcnt=tot OR fullpath is NULL",
+                                       GSTRING_SAFE(filter_names), GSTRING_SAFE(where));
         }
         else /* full scan */
         {
-            attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_MAIN, true,  false,
-                               MAIN_TABLE".", "");
-            curr_fields += strlen(curr_fields);
-            attrmask2fieldlist(curr_fields, SOFTRM_MASK, T_ANNEX, true,  false,
-                               ANNEX_TABLE".", "");
+            g_string_append(req,"SELECT "MAIN_TABLE".id," ONE_PATH_FUNC"("MAIN_TABLE".id) AS fullpath");
+            attrmask2fieldlist(req, SOFTRM_MASK, T_MAIN, true,  false, MAIN_TABLE".", "");
+            attrmask2fieldlist(req, SOFTRM_MASK, T_ANNEX, true,  false, ANNEX_TABLE".", "");
 
-            sprintf(query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT("MAIN_TABLE".id),"
-                 ONE_PATH_FUNC"("MAIN_TABLE".id) AS fullpath%s"
-                 " FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id = "ANNEX_TABLE".id"
-                 " WHERE %s", tmp_table_name, fields,  filter_str);
+            g_string_append_printf(req, " FROM "MAIN_TABLE
+                                   " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id="ANNEX_TABLE".id"
+                                   " WHERE %s", GSTRING_SAFE(where));
         }
     }
     else
     {
-        if (filter_names)
+        if (counts->nb_names > 0)
         {
             /* Only delete entries with no remaining name */
             /* 2 requests were tested here, with a significant performance difference: use the fastest.
@@ -596,101 +396,185 @@ retry:
              *  mysql> select * from ENTRIES LEFT JOIN NAMES on ENTRIES.id=NAMES.id WHERE NAMES.id IS NULL;
              *  Empty set (16.09 sec)
              */
-            sprintf(curr_filter, " AND %s.id NOT IN (SELECT DISTINCT(id) FROM "
-                                                     DNAMES_TABLE")", first_table);
+            g_string_append_printf(where, " AND %s.id NOT IN "
+                                   "(SELECT DISTINCT(id) FROM "DNAMES_TABLE")",
+                                   table2name(query_tab));
         }
-        sprintf( query,
-                 "CREATE TEMPORARY TABLE %s AS SELECT DISTINCT(%s.id) FROM %s"
-                 " WHERE %s", tmp_table_name, first_table, from, filter_str );
+        if (distinct)
+            g_string_append_printf(req, "SELECT DISTINCT(%s.id) FROM %s"
+                                   " WHERE %s", table2name(query_tab),
+                                   GSTRING_SAFE(from), GSTRING_SAFE(where));
+        else
+            g_string_append_printf(req, "SELECT %s.id FROM %s" " WHERE %s",
+                                   table2name(query_tab), GSTRING_SAFE(from),
+                                   GSTRING_SAFE(where));
     }
 
-    /* in autocommit mode, set the transaction level, just before the needed statement */
-    if (lmgr_config.commit_behavior == 0)
-    {
-        /* set READ COMMITTED isolation level for the next (big!) request
-         * so locks can be released immediatly after the record is read */
-        rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
-        if ( rc )
-        {
-            char errmsg[1024];
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
-            /* continue anyway */
-        }
-    }
+    /* creating TMP table is a big request: reduce locking level */
+    big_request_now(p_mgr);
 
     /* create the temporary table */
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
-    else if (rc)
-        goto rollback;
+    rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+    g_string_free(req, TRUE);
+    return rc;
+}
 
-    /* if the filter is only a single table, entries can be directly deleted in it */
-    if (((filter_main?1:0) + (filter_annex?1:0) + (filter_stripe_info?1:0) +
-        (filter_stripe_items?1:0) + (filter_names?1:0)== 1)
-        && (query_tab != T_STRIPE_ITEMS)) /* can't delete directly in stripe_items with the select criteria */
+/** Perform removal or soft removal for all entries matching a filter
+ * (no transaction management).
+ */
+static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                                     bool soft_rm, time_t rm_time, rm_cb_func_t cb_func,
+                                     unsigned int *rm_count)
+{
+    struct field_count counts = {0};
+    table_enum          query_tab;
+    bool                distinct = false;
+    bool                direct_del = false;
+    char                tmp_table_name[256];
+    char           *field_tab[ATTR_COUNT+1]; /* id + attributes */
+    result_handle_t result;
+    DEF_PK(pk);
+    GString        *filter_names = NULL;
+    GString        *from = NULL;
+    GString        *where = NULL;
+    GString        *req = NULL;
+    int             rc;
+    unsigned int    nb;
+
+    if (no_filter(p_filter))
     {
-        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Direct deletion in %s table", first_table );
+        if (soft_rm)
+        {
+            rc = listmgr_softrm_all(p_mgr, rm_time);
+            if (rc)
+                return rc;
+        }
 
-        /* if filter is on annex, we can directly use filter in WHERE clause */
-        sprintf( query, "DELETE FROM %s WHERE %s", first_table, filter_str );
+        /* Remove all !!! */
+        DisplayLog(LVL_EVENT, LISTMGR_TAG,
+                    "No filter is specified: removing entries from all tables.");
+        return listmgr_rm_all(p_mgr);
+    }
 
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if (lmgr_delayed_retry(p_mgr, rc))
-            goto retry;
-        else if (rc)
-            goto rollback;
+    if (!soft_rm)
+    {
+        /* no soft_rm:
+         * 1) clean names if there is a filter on them.
+         * 2) clean related entries in other tables if there is no remaining path.
+         */
+        rc = clean_names(p_mgr, p_filter, &counts.nb_names);
+        if (rc)
+            return rc;
+    }
+    else
+    {
+        filter_names = g_string_new(NULL);
+        /* soft rm: just build the name filter for the later request */
+        counts.nb_names = filter2str(p_mgr, filter_names, p_filter, T_DNAMES, false, false);
+    }
+
+    from = g_string_new(NULL);
+    where = g_string_new(NULL);
+
+    /* build the where clause */
+    if (filter_where(p_mgr, p_filter, &counts, true, false, where) == 0)
+    {
+        if (unlikely(counts.nb_names == 0))
+        {
+            /* empty filter should have been detected earlier */
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "How come empty filter has not been detected?!");
+            rc = DB_REQUEST_FAILED;
+            goto free_str;
+        }
+
+        /* filter is only on names table */
+        if (soft_rm)
+            rc = clean_names(p_mgr, p_filter, &counts.nb_names);
+        /* else (no softrm): name cleaning has been done at the beginning of the function */
         else
-            direct_del_table = first_table;
+            rc = 0;
+
+        goto free_str;
+    }
+
+    /* build the from clause */
+    filter_from(p_mgr, &counts, true, from, false, &query_tab, &distinct);
+
+    /* sanity check */
+    if (unlikely(query_tab == T_NONE || GSTRING_EMPTY(from)))
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Error: unexpected case: filters= "
+                   MAIN_TABLE ":%u, " ANNEX_TABLE ":%u, "DNAMES_TABLE": %u,"
+                   STRIPE_ITEMS_TABLE ":%u, " STRIPE_INFO_TABLE ":%u",
+                   counts.nb_main, counts.nb_annex, counts.nb_names,
+                   counts.nb_stripe_items, counts.nb_stripe_info);
+        rc = DB_REQUEST_FAILED;
+        goto free_str;
+    }
+
+    snprintf(tmp_table_name, sizeof(tmp_table_name), "TMP_TABLE_%u_%u",
+        (unsigned int)getpid(), (unsigned int)pthread_self());
+
+    rc = create_tmp_table_rm(p_mgr, p_filter, &counts, tmp_table_name, soft_rm,
+                             query_tab, from, filter_names, where, distinct);
+    if (rc)
+        goto free_str;
+
+    req = g_string_new(NULL);
+
+    /* If the filter is only a single table, entries can be directly deleted in it. */
+    /* NOTE: can't delete directly in stripe_items with the select criteria. */
+    if ((nb_field_tables(&counts) == 1) && (query_tab != T_STRIPE_ITEMS))
+    {
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Direct deletion in %s table", table2name(query_tab));
+        direct_del = true;
+
+        /* if filter is on a single table, we can directly use filter in WHERE clause */
+        g_string_printf(req, "DELETE FROM %s WHERE %s", table2name(query_tab),
+                        GSTRING_SAFE(where));
+
+        rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+        if (rc)
+            goto free_str;
     }
 
     /* do the cleaning in other tables */
-    DisplayLog( LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal" );
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal");
 
-    nb = 1; /* at least 1 for id */
+
+    /* get all records from the tmp table to clean them from other tables */
+    nb = 1; /* at least 1 field for id */
     if (soft_rm)
     {
-        char fields[1024];
-        nb += attrmask2fieldlist(fields, SOFTRM_MASK & ~ATTR_MASK_rm_time,
+        g_string_assign(req, "SELECT id");
+        nb += attrmask2fieldlist(req, SOFTRM_MASK & ~ATTR_MASK_rm_time,
                                  T_SOFTRM, true, false, "","");
-        sprintf(query, "SELECT id%s FROM %s", fields, tmp_table_name);
+        g_string_append_printf(req, " FROM %s", tmp_table_name);
     }
     else
-        sprintf(query, "SELECT id FROM %s", tmp_table_name);
+        g_string_printf(req, "SELECT id FROM %s", tmp_table_name);
 
-    rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
-    else if (rc)
-        goto rollback;
+    rc = db_exec_sql(&p_mgr->conn, req->str, &result);
+    if (rc)
+        goto free_str;
 
-    DisplayLog( LVL_DEBUG, LISTMGR_TAG,
-                "%d identifiers to be removed from all tables",
-                db_result_nb_records( &p_mgr->conn, &result ) );
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG,
+               "%d identifiers to be removed from all tables",
+               db_result_nb_records(&p_mgr->conn, &result));
 
-    rmcount = 0;
+    *rm_count = 0;
 
+    /* for each returned record from tmp table */
     while ((rc = db_next_record(&p_mgr->conn, &result, field_tab, nb))
                 == DB_SUCCESS
             && (field_tab[0] != NULL))
     {
         entry_id_t id;
 
-        if (sscanf(field_tab[0], SPK, PTR_PK(pk)) != 1)
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: '%s'",
-                        field_tab[0] );
-            rc = DB_INVALID_ARG;
-            goto free_res;
-        }
-
-        rc = pk2entry_id(p_mgr, pk, &id);
+        rc = parse_entry_id(p_mgr, field_tab[0], PTR_PK(pk), &id);
         if (rc)
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: "DPK, pk);
             goto free_res;
-        }
 
         if (soft_rm)
         {
@@ -708,69 +592,98 @@ retry:
 
             /* insert into softrm table */
             rc = listmgr_softrm_single(p_mgr, &id, &old_attrs);
-
-            if (lmgr_delayed_retry(p_mgr, rc))
-                goto retry;
-            else if (rc)
+            if (rc)
                 goto free_res;
         }
 
         /* delete all entries related to this id (except from query table if we did
          * a direct deletion in it) */
-        rc = listmgr_remove_single(p_mgr, pk, direct_del_table ? query_tab : T_NONE);
-        if (lmgr_delayed_retry(p_mgr, rc))
-            goto retry;
-        else if (rc)
+        rc = listmgr_remove_single(p_mgr, pk, direct_del ? query_tab : T_NONE);
+        if (rc)
             goto free_res;
 
         if (cb_func)
             cb_func(&id);
 
-        rmcount++;
+        (*rm_count)++;
     }
 
-    db_result_free( &p_mgr->conn, &result );
+    db_result_free(&p_mgr->conn, &result);
 
-    if ( ( rc != 0 ) && ( rc != DB_END_OF_LIST ) )
-        return rc;
+    if ((rc != 0) && (rc != DB_END_OF_LIST))
+        goto free_str;
 
-    DisplayLog( LVL_DEBUG, LISTMGR_TAG,
-                "End of indirect removal: %u identifiers removed", rmcount );
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG,
+               "End of indirect removal: %u identifiers removed", *rm_count);
 
     /* drop tmp table */
-    rc = db_drop_component( &p_mgr->conn, DBOBJ_TABLE, tmp_table_name);
-    if ( rc )
-        goto rollback;
+    rc = db_drop_component(&p_mgr->conn, DBOBJ_TABLE, tmp_table_name);
+    if (rc)
+        return rc;
 
-names_only:
-    /* condition on names only (partial scan that clean unseen names).
-     * If no soft_rm, it was do at the beginning of the function.
-     */
+    /* Condition on names only (partial scan cleans not found names). */
     if (soft_rm && filter_names)
-    {
-        rc = clean_names(p_mgr, p_filter, &filter_names);
-        if (lmgr_delayed_retry(p_mgr, rc))
-            goto retry;
-        else if (rc)
-            goto rollback;
-    }
+        rc = clean_names(p_mgr, p_filter, &counts.nb_names);
+    /* else, it has been done at the beginning of the function */
+
+    goto free_str;
+
+free_res:
+    db_result_free(&p_mgr->conn, &result);
+
+free_str:
+    if (from != NULL)
+        g_string_free(from, TRUE);
+    if (filter_names != NULL)
+        g_string_free(filter_names, TRUE);
+    if (where != NULL)
+        g_string_free(where, TRUE);
+
+    return rc;
+}
+
+
+/** handles a mass_remove transaction */
+static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                               bool soft_rm, time_t rm_time, rm_cb_func_t cb_func)
+{
+    int             rc;
+    unsigned int    rmcount = 0;
+
+    /* creating the TMP table is a big request: reduce locking level */
+    big_request_in_tx(p_mgr);
+
+    /* We want the remove operation to be atomic */
+retry:
+    rc = lmgr_begin(p_mgr);
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
+        return rc;
+
+    rc = listmgr_mass_remove_no_tx(p_mgr, p_filter, soft_rm, rm_time, cb_func, &rmcount);
+
+    if (lmgr_delayed_retry(p_mgr, rc))
+        goto retry;
+    else if (rc)
+        goto rollback;
 
     rc = lmgr_commit(p_mgr);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
-    if (!rc)
-        p_mgr->nbop[OPIDX_RM]+=rmcount;
+
+    if (rc == DB_SUCCESS)
+        p_mgr->nbop[OPIDX_RM] += rmcount;
+
     return rc;
 
-free_res:
-    db_result_free( &p_mgr->conn, &result );
 rollback:
-    lmgr_rollback( p_mgr );
+    lmgr_rollback(p_mgr);
     return rc;
 }
 
-int ListMgr_MassRemove( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
-                        rm_cb_func_t cb_func )
+int ListMgr_MassRemove(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+                        rm_cb_func_t cb_func)
 {
     /* not a soft rm */
     return listmgr_mass_remove(p_mgr, p_filter, false, 0, cb_func);
@@ -899,64 +812,70 @@ typedef struct lmgr_rm_list_t
 /* XXX selecting 'expired' entries is done using a rm_time criteria in p_filter */
 struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter)
 {
-    int rc, nb;
-    lmgr_rm_list_t * p_list = MemAlloc( sizeof(lmgr_rm_list_t) );
-    char query[4096];
-    char filter_str[1024] = "WHERE ";
-    char fields[1024];
-    char *curr_filter = filter_str + strlen(filter_str);
 
-    if ( !p_list )
+    int             rc, nb;
+    lmgr_rm_list_t *p_list = MemAlloc(sizeof(lmgr_rm_list_t));
+    GString        *req;
+
+    if (!p_list)
         return NULL;
+
+    req = g_string_new("SELECT id");
+    nb = attrmask2fieldlist(req, SOFTRM_MASK, T_SOFTRM, true, false, "", "");
+    g_string_append(req, " FROM "SOFT_RM_TABLE);
 
     if (p_filter)
     {
-        if (p_filter->filter_type != FILTER_SIMPLE )
+        if (p_filter->filter_type != FILTER_SIMPLE)
         {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
                        "Unsupported filter in %s(): simple filter expected",
-                       __FUNCTION__ );
-            return NULL;
+                       __FUNCTION__);
+            goto free_err;
         }
         /* are there unsuported fields in this filter? */
         if (lmgr_check_filter_fields(p_filter, SOFTRM_MASK))
         {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unsupported field in filter (in %s())",
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unsupported field in filter (in %s())",
                          __FUNCTION__);
-            return NULL;
+            goto free_err;
         }
-        if (filter2str(p_mgr, curr_filter, p_filter, T_SOFTRM, false, false) < 0)
+        g_string_append(req, " WHERE ");
+        if (filter2str(p_mgr, req, p_filter, T_SOFTRM, false, false) <= 0)
         {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error converting filter to SQL request" );
-            return NULL;
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error converting filter to SQL request");
+            goto free_err;
         }
     }
+    g_string_append(req, " ORDER BY rm_time ASC");
 
     p_list->p_mgr = p_mgr;
-
-    nb = attrmask2fieldlist(fields, SOFTRM_MASK, T_SOFTRM, true, false, "", "");
-    snprintf(query, 4096, "SELECT id%s FROM "SOFT_RM_TABLE" %s "
-             "ORDER BY rm_time ASC", fields, p_filter ?filter_str:"");
-
     p_list->result_len = nb + 1; /* id + attrs */
 
     /* execute request (retry on connexion error or deadlock) */
-retry:
-    rc = db_exec_sql(&p_mgr->conn, query, &p_list->select_result);
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
+    do {
+        rc = db_exec_sql(&p_mgr->conn, req->str, &p_list->select_result);
+    } while (lmgr_delayed_retry(p_mgr, rc));
 
-    if ( rc )
+    if (rc)
     {
         char msg_buff[1024];
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "DB query failed in %s line %d: query=\"%s\",code=%d, %s",
-                    __FUNCTION__, __LINE__, query, rc, db_errmsg( &p_mgr->conn, msg_buff, 1024 ) );
-        MemFree(p_list);
-        return NULL;
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "DB query failed in %s line %d: query=\"%s\",code=%d, %s",
+                   __FUNCTION__, __LINE__, req->str, rc,
+                   db_errmsg(&p_mgr->conn, msg_buff, sizeof(1024)));
+        goto free_err;
     }
 
+    /* success */
+    g_string_free(req, TRUE);
     return p_list;
+
+free_err: /* error */
+    g_string_free(req, TRUE);
+    MemFree(p_list);
+    return NULL;
 }
 
 int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
@@ -973,19 +892,19 @@ int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
     if (!p_id || !p_attrs)
         return DB_INVALID_ARG;
 
-    for ( i=0; i < MAX_SOFTRM_FIELDS; i++)
+    for (i=0; i < MAX_SOFTRM_FIELDS; i++)
         record[i] = NULL;
 
     rc = db_next_record(&p_iter->p_mgr->conn, &p_iter->select_result, record,
                         p_iter->result_len);
     /* what to do on connexion error? */
 
-    if ( rc )
+    if (rc)
         return rc;
-    if ( record[0] == NULL )
+    if (record[0] == NULL)
         return DB_REQUEST_FAILED;
 
-    if ( sscanf( record[0], SFID, RFID(p_id) ) <= 0 )
+    if (sscanf(record[0], SFID, RFID(p_id)) <= 0)
         return DB_REQUEST_FAILED;
 
     /* force fields of SOFTRM table */
@@ -996,10 +915,10 @@ int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
 }
 
 
-void           ListMgr_CloseRmList( struct lmgr_rm_list_t *p_iter )
+void           ListMgr_CloseRmList(struct lmgr_rm_list_t *p_iter)
 {
-    db_result_free( &p_iter->p_mgr->conn, &p_iter->select_result );
-    MemFree( p_iter );
+    db_result_free(&p_iter->p_mgr->conn, &p_iter->select_result);
+    MemFree(p_iter);
 }
 
 /**
@@ -1009,48 +928,48 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
                            const entry_id_t *p_id,
                            attr_set_t *p_attrs)
 {
-    char query[4096];
-    char fields[1024];
     result_handle_t result;
-    int rc, i, nb;
+    int             rc, i, nb;
+    GString        *req;
+    char           *record[MAX_SOFTRM_FIELDS];
 
-    char          *record[MAX_SOFTRM_FIELDS];
-
-    if ( !p_id || !p_attrs)
+    if (!p_id || !p_attrs)
         return DB_INVALID_ARG;
 
     /* remove fields that are not in SOFTRM table */
     p_attrs->attr_mask &= SOFTRM_MASK;
 
-    nb = attrmask2fieldlist(fields, p_attrs->attr_mask, T_SOFTRM, 0, 0, 0, 0);
-    snprintf(query, 4096, "SELECT %s FROM "SOFT_RM_TABLE" WHERE id='"DFID_NOBRACE"'",
-             fields, PFID(p_id));
+    req = g_string_new("SELECT ");
+    nb = attrmask2fieldlist(req, p_attrs->attr_mask, T_SOFTRM, 0, 0, 0, 0);
+    g_string_append_printf(req, " FROM "SOFT_RM_TABLE" WHERE id='"DFID_NOBRACE"'",
+                           PFID(p_id));
 
     /* execute request (retry on connexion error or timeout) */
-retry:
-    rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
+    do {
+        rc = db_exec_sql(&p_mgr->conn, req->str, &result);
+    } while (lmgr_delayed_retry(p_mgr, rc));
 
     if (rc)
     {
         char msg_buff[1024];
-        DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                    "DB query failed in %s line %d: query=\"%s\",code=%d, %s",
-                    __FUNCTION__, __LINE__, query, rc, db_errmsg( &p_mgr->conn, msg_buff, 1024 ) );
-        return rc;
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "DB query failed in %s line %d: query=\"%s\",code=%d, %s",
+                   __FUNCTION__, __LINE__, req->str, rc,
+                   db_errmsg(&p_mgr->conn, msg_buff, sizeof(msg_buff)));
+        goto free_str;
     }
 
-    for ( i=0; i < MAX_SOFTRM_FIELDS; i++)
+    for (i=0; i < MAX_SOFTRM_FIELDS; i++)
         record[i] = NULL;
 
     rc = db_next_record(&p_mgr->conn, &result, record, nb);
-    if ( rc == DB_END_OF_LIST )
+    if (rc == DB_END_OF_LIST)
     {
         rc = DB_NOT_EXISTS;
         goto free_res;
-    } else if ( rc )
-         return rc;
+    } else if (rc)
+        goto free_str;
 
     if (record[0] == NULL)
         return DB_REQUEST_FAILED;
@@ -1058,23 +977,25 @@ retry:
     rc = result2attrset(T_SOFTRM, record, nb, p_attrs);
 
 free_res:
-    db_result_free( &p_mgr->conn, &result );
+    db_result_free(&p_mgr->conn, &result);
+free_str:
+    g_string_free(req, TRUE);
     return rc;
 }
 
-int ListMgr_SoftRemove_Discard( lmgr_t * p_mgr, const entry_id_t * p_id )
+int ListMgr_SoftRemove_Discard(lmgr_t * p_mgr, const entry_id_t * p_id)
 {
-    char query[1024];
-    int rc;
+    int      rc;
+    GString *req;
 
-    snprintf(query, 1024,
-             "DELETE FROM "SOFT_RM_TABLE" WHERE id='"DFID_NOBRACE"'",
-             PFID(p_id) );
+    req = g_string_new("DELETE FROM "SOFT_RM_TABLE" WHERE id=");
+    g_string_append_printf(req, "'"DFID_NOBRACE"'", PFID(p_id));
 
-retry:
-    rc = db_exec_sql(&p_mgr->conn, query, NULL);
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
+    do {
+        rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+    } while(lmgr_delayed_retry(p_mgr, rc));
+
+    g_string_free(req, TRUE);
     return rc;
 }
 

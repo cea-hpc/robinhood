@@ -26,7 +26,7 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "xplatform_print.h"
-#include "uidgidcache.h"
+#include "Memory.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -574,12 +574,12 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
 
 /**
  *  Read variable from DB and allocate value.
- *  @param value must be of size 1024.
  **/
-static int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *value )
+static int getvar_helper(lmgr_t *p_mgr, const char *varname, char *value, int size)
 {
     int rc;
-    rc = ListMgr_GetVar( &lmgr, varname, value);
+
+    rc = ListMgr_GetVar(&lmgr, varname, value, size);
     if ( rc == DB_SUCCESS )
         return 0;
     else if ( rc == DB_NOT_EXISTS )
@@ -596,7 +596,7 @@ static int ListMgr_GetVar_helper( lmgr_t * p_mgr, const char *varname, char *val
     }
 }
 
-static void report_activity( int flags )
+static void report_activity(int flags)
 {
     char           value[1024];
     time_t         timestamp;
@@ -608,50 +608,50 @@ static void report_activity( int flags )
     int            nb_threads;
 
 
-    if ( !CSV(flags) )
-        printf( "\nFilesystem scan activity:\n\n" );
+    if (!CSV(flags))
+        printf("\nFilesystem scan activity:\n\n");
 
 #ifndef _LUSTRE_HSM
     /* Scan interval */
-    if ( ListMgr_GetVar_helper( &lmgr, SCAN_INTERVAL_VAR, value ) == 0 )
+    if (getvar_helper(&lmgr, SCAN_INTERVAL_VAR, value) == 0)
     {
-        timestamp = str2int( value );
-        FormatDurationFloat( date, 128, timestamp );
-        if ( CSV(flags) )
-            printf( "current_scan_interval, %s\n", date );
+        timestamp = str2int(value);
+        FormatDurationFloat(date, 128, timestamp);
+        if (CSV(flags))
+            printf("current_scan_interval, %s\n", date);
         else
-            printf( "    Current scan interval:   %s\n\n", date );
+            printf("    Current scan interval:   %s\n\n", date);
     }
 #endif
 
     /* Previous FS scan */
 
-    if ( ListMgr_GetVar_helper( &lmgr, PREV_SCAN_START_TIME, value ) == 0 )
+    if (getvar_helper(&lmgr, PREV_SCAN_START_TIME, value, sizeof(value)) == 0)
     {
-        timestamp = str2int( value );
-        if ( timestamp >= 0 ) {
-            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-            if ( !CSV(flags) )
+        timestamp = str2int(value);
+        if (timestamp >= 0) {
+            strftime(date, 128, "%Y/%m/%d %T", localtime_r(&timestamp, &t));
+            if (!CSV(flags))
             {
-                printf( "    Previous filesystem scan:\n" );
-                printf( "            start:           %s\n", date );
+                printf("    Previous filesystem scan:\n");
+                printf("            start:           %s\n", date);
             }
             else
                 printf("previous_scan_start, %s\n", date);
 
-            if ( ListMgr_GetVar_helper( &lmgr, PREV_SCAN_END_TIME, value ) == 0 )
+            if (getvar_helper(&lmgr, PREV_SCAN_END_TIME, value, sizeof(value)) == 0)
             {
-                timestamp2 = str2int( value );
-                if ( timestamp2 >= timestamp )
+                timestamp2 = str2int(value);
+                if (timestamp2 >= timestamp)
                 {
-                    int dur = (int)difftime( timestamp2, timestamp );
-                    if ( !CSV(flags) )
+                    int dur = (int)difftime(timestamp2, timestamp);
+                    if (!CSV(flags))
                     {
-                        FormatDuration( value, 1024, dur );
-                        printf( "            duration:        %s\n\n", value);
+                        FormatDuration(value, 1024, dur);
+                        printf("            duration:        %s\n\n", value);
                     }
                     else
-                        printf( "previous_scan_duration, %i sec\n", dur );
+                        printf("previous_scan_duration, %i sec\n", dur);
                 }
             }
         }
@@ -660,216 +660,216 @@ static void report_activity( int flags )
     /* Last FS scan */
 
     // status
-    rc = ListMgr_GetVar_helper( &lmgr, LAST_SCAN_STATUS, scan_status );
+    rc = getvar_helper(&lmgr, LAST_SCAN_STATUS, scan_status, sizeof(scan_status));
 
-    if ( rc == 0 )
+    if (rc == 0)
     {
-        if ( !CSV(flags) )
+        if (!CSV(flags))
         {
-            printf( "    Last filesystem scan:\n" );
-            printf( "            status:          %s\n", scan_status );
+            printf("    Last filesystem scan:\n");
+            printf("            status:          %s\n", scan_status);
         }
         else
-            printf( "last_scan_status, %s\n", scan_status );
+            printf("last_scan_status, %s\n", scan_status);
     }
-    else if ( rc == DB_NOT_EXISTS )
+    else if (rc == DB_NOT_EXISTS)
     {
-        if ( CSV(flags) )
-            printf( "last_scan_status, no scan done\n" );
+        if (CSV(flags))
+            printf("last_scan_status, no scan done\n");
         else
-            printf( "    Filesystem has never been scanned\n" );
+            printf("    Filesystem has never been scanned\n");
     }
 
     // start
-    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_START_TIME, value ) == 0 )
-        timestamp = str2int( value );
+    if (getvar_helper(&lmgr, LAST_SCAN_START_TIME, value, sizeof(value)) == 0)
+        timestamp = str2int(value);
     else
         timestamp = -1;
 
-    if ( timestamp > 0 )
+    if (timestamp > 0)
     {
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( CSV(flags) )
-            printf( "last_scan_start, %s\n", date );
+        strftime(date, 128, "%Y/%m/%d %T", localtime_r(&timestamp, &t));
+        if (CSV(flags))
+            printf("last_scan_start, %s\n", date);
         else {
-            int ago = difftime( time( NULL ), timestamp );
-            if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+            int ago = difftime(time(NULL), timestamp);
+            if (!strcmp(scan_status, SCAN_STATUS_RUNNING))
             {
-                FormatDuration( value, 1024, ago );
-                printf( "            start:           %s (%s ago)\n", date, value );
+                FormatDuration(value, 1024, ago);
+                printf("            start:           %s (%s ago)\n", date, value);
             }
             else
-                printf( "            start:           %s\n", date );
+                printf("            start:           %s\n", date);
         }
     }
 
     // last action
-    if( !strcmp( scan_status, SCAN_STATUS_RUNNING ) &&
-        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_LAST_ACTION_TIME, value ) == 0 )
+    if(!strcmp(scan_status, SCAN_STATUS_RUNNING) &&
+       getvar_helper(&lmgr, LAST_SCAN_LAST_ACTION_TIME, value, sizeof(value)) == 0)
     {
-        timestamp2 = str2int( value );
+        timestamp2 = str2int(value);
         if (timestamp2 > 0)
         {
-            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
-            if ( CSV(flags) )
-                printf( "last_action_time, %s\n", date );
+            strftime(date, 128, "%Y/%m/%d %T", localtime_r(&timestamp2, &t));
+            if (CSV(flags))
+                printf("last_action_time, %s\n", date);
             else {
-                int ago = difftime( time( NULL ), timestamp2 );
-                if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+                int ago = difftime(time(NULL), timestamp2);
+                if (!strcmp(scan_status, SCAN_STATUS_RUNNING))
                 {
-                    FormatDuration( value, 1024, ago );
-                    printf( "            last action:     %s (%s ago)\n", date, value );
+                    FormatDuration(value, 1024, ago);
+                    printf("            last action:     %s (%s ago)\n", date, value);
                 }
                 else
-                    printf( "            last action:     %s\n", date );
+                    printf("            last action:     %s\n", date);
             }
         }
     }
 
     // end
-    if ( ListMgr_GetVar_helper( &lmgr, LAST_SCAN_END_TIME, value ) == 0 )
+    if (getvar_helper(&lmgr, LAST_SCAN_END_TIME, value, sizeof(value)) == 0)
     {
-        timestamp2 = str2int( value );
-        if ( timestamp2 >= timestamp )
+        timestamp2 = str2int(value);
+        if (timestamp2 >= timestamp)
         {
-            strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp2, &t ) );
-            if ( CSV(flags) )
-                printf( "last_scan_end, %s\n", date );
+            strftime(date, 128, "%Y/%m/%d %T", localtime_r(&timestamp2, &t));
+            if (CSV(flags))
+                printf("last_scan_end, %s\n", date);
             else
-                printf( "            end:             %s\n", date );
+                printf("            end:             %s\n", date);
 
             // duration
-            if ( timestamp > 0 )
+            if (timestamp > 0)
             {
-                int dur = (int)difftime( timestamp2, timestamp );
-                if ( CSV(flags) )
-                    printf( "last_scan_duration, %i sec\n", dur);
+                int dur = (int)difftime(timestamp2, timestamp);
+                if (CSV(flags))
+                    printf("last_scan_duration, %i sec\n", dur);
                 else
                 {
-                    FormatDuration( value, 1024, dur );
-                    printf( "            duration:        %s\n", value);
+                    FormatDuration(value, 1024, dur);
+                    printf("            duration:        %s\n", value);
                 }
             }
         }
     }
 
-    rc = ListMgr_GetVar_helper( &lmgr, LAST_SCAN_ENTRIES_SCANNED, value);
+    rc = getvar_helper(&lmgr, LAST_SCAN_ENTRIES_SCANNED, value, sizeof(value));
     if (rc == 0)
     {
         // entries scanned
-        if ( !CSV(flags) )
+        if (!CSV(flags))
         {
-            printf( "\n" );
-            printf( "         Statistics:\n" );
+            printf("\n");
+            printf("         Statistics:\n");
         }
-        if ( CSV(flags) )
-            printf( "entries_scanned, %s\n", value );
+        if (CSV(flags))
+            printf("entries_scanned, %s\n", value);
         else
-            printf( "            entries scanned: %s\n", value );
+            printf("            entries scanned: %s\n", value);
 
         // errors
-        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_ERRORS, value);
-        if ( CSV(flags) )
-            printf( "scan_errors, %s\n", value );
+        getvar_helper(&lmgr, LAST_SCAN_ERRORS, value, sizeof(value));
+        if (CSV(flags))
+            printf("scan_errors, %s\n", value);
         else
-            printf( "            errors:          %s\n", value );
+            printf("            errors:          %s\n", value);
 
         // timeouts
-        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_TIMEOUTS, value);
-        if ( CSV(flags) )
-            printf( "scan_timeouts, %s\n", value );
+        getvar_helper(&lmgr, LAST_SCAN_TIMEOUTS, value, sizeof(value));
+        if (CSV(flags))
+            printf("scan_timeouts, %s\n", value);
         else
-            printf( "            timeouts:        %s\n", value );
+            printf("            timeouts:        %s\n", value);
 
         // nb threads
-        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_NB_THREADS, value );
-        nb_threads = atoi( value );
-        if ( CSV(flags) )
-            printf( "scan_nb_threads, %i\n", nb_threads );
+        getvar_helper(&lmgr, LAST_SCAN_NB_THREADS, value, sizeof(value));
+        nb_threads = atoi(value);
+        if (CSV(flags))
+            printf("scan_nb_threads, %i\n", nb_threads);
         else
-            printf( "            # threads:       %i\n", nb_threads );
+            printf("            # threads:       %i\n", nb_threads);
 
         // average speed
-        ListMgr_GetVar_helper( &lmgr, LAST_SCAN_AVGMSPE, value);
+        getvar_helper(&lmgr, LAST_SCAN_AVGMSPE, value, sizeof(value));
         double speed = 0.0;
         double avgmspe = atof(value);
-        if ( avgmspe > 0 )
-            speed = ( 1000.0 / avgmspe ) * nb_threads;
-        if ( CSV(flags) )
-            printf( "scan_average_speed, %.2f entries/sec\n", speed );
+        if (avgmspe > 0)
+            speed = (1000.0 / avgmspe) * nb_threads;
+        if (CSV(flags))
+            printf("scan_average_speed, %.2f entries/sec\n", speed);
         else
-            printf( "            average speed:   %.2f entries/sec\n", speed );
+            printf("            average speed:   %.2f entries/sec\n", speed);
 
         // current speed
-        if ( !strcmp( scan_status, SCAN_STATUS_RUNNING ) )
+        if (!strcmp(scan_status, SCAN_STATUS_RUNNING))
         {
-            ListMgr_GetVar_helper( &lmgr, LAST_SCAN_CURMSPE, value);
+            getvar_helper(&lmgr, LAST_SCAN_CURMSPE, value, sizeof(value));
             double speed = 0.0;
             double curmspe = atof(value);
             if (curmspe > 0.0)
-                speed = ( 1000.0 / curmspe ) * nb_threads;
-            if ( CSV(flags) )
-                printf( "scan_current_speed, %.2f\n", speed );
+                speed = (1000.0 / curmspe) * nb_threads;
+            if (CSV(flags))
+                printf("scan_current_speed, %.2f\n", speed);
             else
-                printf( "        >>> current speed:   %.2f entries/sec\n", speed );
+                printf("        >>> current speed:   %.2f entries/sec\n", speed);
         }
     }
 
-    if ( !CSV(flags) )
-        printf( "\n" );
+    if (!CSV(flags))
+        printf("\n");
 
 #ifdef HAVE_CHANGELOGS
     /* changelog stats */
-    rc = ListMgr_GetVar( &lmgr, CL_LAST_READ_REC_ID, value );
-    if ( rc == DB_SUCCESS )
+    rc = ListMgr_GetVar(&lmgr, CL_LAST_READ_REC_ID, value, sizeof(value));
+    if (rc == DB_SUCCESS)
     {
         int i;
         unsigned int interval;
 
-        if ( CSV(flags) )
-            printf( "changelog_last_record_id, %s\n", value );
+        if (CSV(flags))
+            printf("changelog_last_record_id, %s\n", value);
         else
         {
-            printf( "\nChangelog stats:\n\n" );
-            printf( "        Last read record id:      %s\n", value );
+            printf("\nChangelog stats:\n\n");
+            printf("        Last read record id:      %s\n", value);
         }
 
-        if ( ListMgr_GetVar( &lmgr, CL_LAST_READ_REC_TIME, value ) == DB_SUCCESS )
+        if (ListMgr_GetVar(&lmgr, CL_LAST_READ_REC_TIME, value, sizeof(value)) == DB_SUCCESS)
         {
-            if ( CSV(flags) )
-                printf( "changelog_last_record_time, %s\n", value );
+            if (CSV(flags))
+                printf("changelog_last_record_time, %s\n", value);
             else
-                printf( "        Last read record time:    %s\n", value );
+                printf("        Last read record time:    %s\n", value);
         }
 
-        if ( ListMgr_GetVar( &lmgr, CL_LAST_READ_TIME, value ) == DB_SUCCESS )
+        if (ListMgr_GetVar(&lmgr, CL_LAST_READ_TIME, value, sizeof(value)) == DB_SUCCESS)
         {
-            if ( CSV(flags) )
-                printf( "changelog_cl_recv_time, %s\n", value );
+            if (CSV(flags))
+                printf("changelog_cl_recv_time, %s\n", value);
             else
-                printf( "        Last receive time:        %s\n", value );
+                printf("        Last receive time:        %s\n", value);
         }
 
-        if ( ListMgr_GetVar( &lmgr, CL_LAST_COMMITTED, value ) == DB_SUCCESS )
+        if (ListMgr_GetVar(&lmgr, CL_LAST_COMMITTED, value, sizeof(value)) == DB_SUCCESS)
         {
-            if ( CSV(flags) )
-                printf( "changelog_last_committed_id, %s\n", value );
+            if (CSV(flags))
+                printf("changelog_last_committed_id, %s\n", value);
             else
-                printf( "        Last committed record id: %s\n", value );
+                printf("        Last committed record id: %s\n", value);
         }
 
-        if ( !CSV(flags) )
+        if (!CSV(flags))
         {
             printf("        Changelog stats:\n");
             printf("                %5s  %15s \t(%s)\t(%s)\n", "type",
-                   "total", "diff", "rate" );
+                   "total", "diff", "rate");
         }
         else
             printf("%11s, %12s, %8s, %s\n",
-                   "record_type", "total", "diff", "rate (ops/sec)" );
+                   "record_type", "total", "diff", "rate (ops/sec)");
 
         /* get diff interval */
-        if ( ListMgr_GetVar( &lmgr, CL_DIFF_INTERVAL, value ) != DB_SUCCESS )
+        if (ListMgr_GetVar(&lmgr, CL_DIFF_INTERVAL, value, sizeof(value)) != DB_SUCCESS)
             interval = 0;
         else
             interval = str2int(value);
@@ -882,16 +882,16 @@ static void report_activity( int flags )
             unsigned long long diff;
             double rate;
 
-            sprintf( varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i) );
-            sprintf( varname2, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i) );
+            sprintf(varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i));
+            sprintf(varname2, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i));
 
-            rc = ListMgr_GetVar( &lmgr, varname, value );
-            if (rc == DB_NOT_EXISTS )
+            rc = ListMgr_GetVar(&lmgr, varname, value, sizeof(value));
+            if (rc == DB_NOT_EXISTS)
                 strcpy(value, "0");
             else if (rc != 0)
                 strcpy(value, "db_error");
 
-            if ((interval > 0) && (ListMgr_GetVar( &lmgr, varname2, diff_str ) == DB_SUCCESS))
+            if ((interval > 0) && (ListMgr_GetVar(&lmgr, varname2, diff_str, sizeof(value)) == DB_SUCCESS))
             {
                 diff = str2bigint(diff_str);
                 rate = (0.0+diff)/(0.0+interval);
@@ -913,31 +913,31 @@ static void report_activity( int flags )
 
         }
 
-        if ( !CSV(flags) )
-            printf( "\n" );
+        if (!CSV(flags))
+            printf("\n");
     }
 #endif
 
     /* max usage */
-    rc = ListMgr_GetVar( &lmgr, USAGE_MAX_VAR, value );
-    if ( rc == DB_SUCCESS )
+    rc = ListMgr_GetVar(&lmgr, USAGE_MAX_VAR, value, sizeof(value));
+    if (rc == DB_SUCCESS)
     {
-        if ( CSV(flags) )
-            printf( "usage_max, %s\n", value );
+        if (CSV(flags))
+            printf("usage_max, %s\n", value);
         else
-            printf( "Storage unit usage max:   %s%%\n", value );
+            printf("Storage unit usage max:   %s%%\n", value);
     }
-    else if ( rc == DB_NOT_EXISTS )
+    else if (rc == DB_NOT_EXISTS)
     {
-        if ( CSV(flags) )
-            printf( "usage_max, not checked\n" );
+        if (CSV(flags))
+            printf("usage_max, not checked\n");
         else
-            printf( "Storage usage has never been checked\n" );
+            printf("Storage usage has never been checked\n");
     }
     else
     {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR retrieving variable " USAGE_MAX_VAR " from database" );
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR retrieving variable " USAGE_MAX_VAR " from database");
     }
 
 #if 0 /* FIXME: adapt to generic policies */
@@ -1141,11 +1141,9 @@ static int TryId2path(lmgr_t *p_mgr, const entry_id_t *p_id,  char *path)
     if (!is_init) {
         is_init = 1;
         /* try to get fspath from DB */
-        rc = ListMgr_GetVar(&lmgr, FS_PATH_VAR, value);
+        rc = ListMgr_GetVar(&lmgr, FS_PATH_VAR, value, sizeof(value));
         if (rc)
             return -1;
-
-        InitUidGid_Cache();
 
         if (InitFS() == 0)
             is_resolvable = 1;
@@ -2530,7 +2528,7 @@ static void maintenance_get( int flags )
     struct tm      t;
     int            rc;
 
-    rc = ListMgr_GetVar( &lmgr, NEXT_MAINT_VAR, value );
+    rc = ListMgr_GetVar( &lmgr, NEXT_MAINT_VAR, value, sizeof(value));
     if ( rc == DB_SUCCESS )
     {
         timestamp = atoi( value );
@@ -2995,6 +2993,10 @@ int main( int argc, char **argv )
         display_help( bin );
         exit( 1 );
     }
+
+    rc = rbh_init_internals();
+    if (rc != 0)
+        exit(rc);
 
     /* get default config file, if not specified */
     if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)

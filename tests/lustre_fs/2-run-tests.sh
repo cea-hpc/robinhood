@@ -3432,18 +3432,19 @@ function test_info_collect
     # 4 file + 3 dirs -> 7 changelogs
     # (all close are suppressed)
     ((db_expect=7))
+    close_expect=4
 
 	if (( $no_log == 0 )); then
-        if (( $nb_close != 4 )); then
+        if (( $nb_close != $close_expect )); then
             if [[ $LVERSION = 2.[01]* ]] ; then
                 # CLOSE record is only expected since Lustre 2.2
                 # for previous versions, just display a warning
-                echo "warning: no close record (lustre version $LVERSION)"
+                echo "warning: $nb_close close record (lustre version $LVERSION), $close_expect expected"
             elif [[ $LVERSION = 2.[234]* ]] ; then
                 # CLOSE is expected from 2.2 to 2.4
-                error ": unexpected number of close: $nb_close / 4"
+                error ": unexpected number of close: $nb_close / $close_expect"
             else
-                echo "warning: no close record (lustre version $LVERSION)"
+                echo "warning: $nb_close close record (lustre version $LVERSION), $close_expect expected"
             fi
             return 1
         fi

@@ -28,73 +28,80 @@
 #include <stdlib.h>
 
 
-int ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id )
+int ListMgr_Exists(lmgr_t *p_mgr, const entry_id_t *p_id)
 {
-    char           request[4096];
-    int            rc;
+    GString        *req;
+    int             rc;
     result_handle_t result;
-    char          *str_count = NULL;
-    DEF_PK( pk );
+    char           *str_count = NULL;
+    DEF_PK(pk);
 
     /* retrieve primary key */
     entry_id2pk(p_id, PTR_PK(pk));
 
     /* verify it exists in main table */
-
-    sprintf( request, "SELECT id FROM " MAIN_TABLE " WHERE id="DPK, pk );
+    req = g_string_new("SELECT id FROM " MAIN_TABLE " WHERE id=");
+    g_string_append_printf(req, DPK, pk);
 
 retry:
-    /* execute the request */
-    rc = db_exec_sql(&p_mgr->conn, request, &result);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    /* execute the request (must return negative value on error) */
+    rc = -db_exec_sql(&p_mgr->conn, req->str, &result);
+    if (lmgr_delayed_retry(p_mgr, -rc))
         goto retry;
     else if (rc)
-        return -rc;
+        goto free_str;
 
-    rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
+    rc = db_next_record(&p_mgr->conn, &result, &str_count, 1);
     if (rc == 0)
-        rc = 1;
+        rc = 1; /* return 1 if entry exists */
     else if (rc != DB_END_OF_LIST)
     {
-        if (lmgr_delayed_retry(p_mgr, rc))
+        if (lmgr_delayed_retry(p_mgr, -rc))
             goto retry;
-        rc = -rc;
     }
     else
         rc = 0;
 
-    db_result_free( &p_mgr->conn, &result );
+    db_result_free(&p_mgr->conn, &result);
+
+free_str:
+    g_string_free(req, TRUE);
     return rc;
 }
 
 /** retrieve directory attributes (nbr of entries, avg size of entries)*/
 int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs )
 {
-    if (ATTR_MASK_TEST( p_attrs, type) &&  (strcmp( ATTR(p_attrs, type), STR_TYPE_DIR ) != 0))
+    GString         *req;
+    result_handle_t  result;
+    char            *str_info[1];
+    int              rc = 0;
+    int              tmp_val;
+    long long        tmp_long;
+
+    if (ATTR_MASK_TEST(p_attrs, type) &&
+        (strcmp(ATTR(p_attrs, type), STR_TYPE_DIR) != 0))
     {
-        DisplayLog( LVL_FULL, LISTMGR_TAG, "Type='%s' != 'dir' => unsetting dirattrs in attr mask",
-                    ATTR(p_attrs, type) );
+        DisplayLog(LVL_FULL, LISTMGR_TAG,
+                   "Type='%s' != 'dir' => unsetting dirattrs in attr mask",
+                   ATTR(p_attrs, type));
         p_attrs->attr_mask &= ~dir_attr_set;
         return 0;
     }
-#ifdef ATTR_INDEX_dircount
-    char            query[1024];
-    result_handle_t result;
-    char            *str_info[1];
-    int rc = 0;
-    int       tmp_val;
-    long long tmp_long;
+
+    req = g_string_new(NULL);
 
     /* get child entry count from DNAMES_TABLE */
-
     if (ATTR_MASK_TEST(p_attrs, dircount))
     {
-        sprintf( query, "SELECT %s FROM "DNAMES_TABLE" WHERE parent_id="DPK,
-                 dirattr2str(ATTR_INDEX_dircount), dir_pk );
-        rc = db_exec_sql( &p_mgr->conn, query, &result );
-        if ( rc )
-            return rc;
-        rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
+        g_string_printf(req, "SELECT %s FROM "DNAMES_TABLE" WHERE parent_id="DPK,
+                        dirattr2str(ATTR_INDEX_dircount), dir_pk);
+
+        rc = db_exec_sql(&p_mgr->conn, req->str, &result);
+        if (rc)
+            goto free_str;
+
+        rc = db_next_record(&p_mgr->conn, &result, str_info, 1);
         if (rc == DB_END_OF_LIST)
         {
             ATTR_MASK_UNSET(p_attrs, dircount);
@@ -111,7 +118,7 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
                 if (tmp_val != -1)
                 {
                     ATTR_MASK_SET(p_attrs, dircount);
-                    ATTR( p_attrs, dircount ) = tmp_val;
+                    ATTR(p_attrs, dircount) = tmp_val;
                     rc = DB_SUCCESS;
                 }
                 else
@@ -119,20 +126,23 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
                     rc = DB_REQUEST_FAILED;
             }
         }
-        db_result_free( &p_mgr->conn, &result );
+        db_result_free(&p_mgr->conn, &result);
         if (rc)
-            return rc;
+            goto free_str;
     }
 
     /* get avgsize of child entries from MAIN_TABLE */
     if (ATTR_MASK_TEST(p_attrs, avgsize))
     {
-        sprintf( query, "SELECT %s FROM "MAIN_TABLE" m, "DNAMES_TABLE" d WHERE m.id = d.id and type='file' and d.parent_id="DPK,
-                 dirattr2str(ATTR_INDEX_avgsize), dir_pk );
-        rc = db_exec_sql( &p_mgr->conn, query, &result );
-        if ( rc )
-            return rc;
-        rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
+        g_string_printf(req, "SELECT %s FROM "MAIN_TABLE" m, "DNAMES_TABLE" d"
+                        " WHERE m.id = d.id and type='file' and d.parent_id="DPK,
+                        dirattr2str(ATTR_INDEX_avgsize), dir_pk);
+
+        rc = db_exec_sql(&p_mgr->conn, req->str, &result);
+        if (rc)
+            goto free_str;
+
+        rc = db_next_record(&p_mgr->conn, &result, str_info, 1);
         if (rc == DB_END_OF_LIST)
             ATTR_MASK_UNSET(p_attrs, avgsize);
         else if (rc == DB_SUCCESS)
@@ -149,7 +159,7 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
                 if (tmp_long != -1LL)
                 {
                     ATTR_MASK_SET(p_attrs, avgsize);
-                    ATTR( p_attrs, avgsize ) = tmp_long;
+                    ATTR(p_attrs, avgsize) = tmp_long;
                     rc = DB_SUCCESS;
                 }
                 else
@@ -157,11 +167,12 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
                     rc = DB_REQUEST_FAILED;
             }
         }
-        db_result_free( &p_mgr->conn, &result );
+        db_result_free(&p_mgr->conn, &result);
     }
 
+free_str:
+    g_string_free(req, TRUE);
     return rc;
-#endif
 }
 
 /**
@@ -169,85 +180,95 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
  */
 int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 {
-    int            rc;
-    char           fieldlist[4096] = "";
-    char          *first_table = NULL;
-    char           from[1024] = "";
-    char           query[4096] = "";
-    /* we assume there is not more than 128 fields */
-    char          *result_tab[128];
+    int             rc;
+    char           *first_table = NULL;
+    GString        *req, *from;
+    /* attribute count is up to 1 per bit (8 per byte).
+     * x2 for bullet proofing */
+    char           *result_tab[2*8*sizeof(p_info->attr_mask)];
     result_handle_t result;
-    int checkmain = 1;
-    int main_count = 0, annex_count = 0, name_count = 0;
+    bool            checkmain   = true;
+    int             main_count  = 0,
+                    annex_count = 0,
+                    name_count  = 0;
 
     if (p_info == NULL)
         return 0;
 
     /* init entry info */
-    memset( &p_info->attr_values, 0, sizeof( entry_info_t ) );
-    fieldlist[0] = '\0';
+    memset(&p_info->attr_values, 0, sizeof(entry_info_t));
+    req = g_string_new("SELECT ");
+    from = g_string_new(" FROM ");
 
     /* retrieve source info for generated fields */
-    add_source_fields_for_gen( &p_info->attr_mask );
+    add_source_fields_for_gen(&p_info->attr_mask);
 
     /* get info from main table (if asked) */
-    main_count = attrmask2fieldlist(fieldlist, p_info->attr_mask, T_MAIN, false,
+    main_count = attrmask2fieldlist(req, p_info->attr_mask, T_MAIN, false,
                                     false, "", "");
     if (main_count < 0)
-        return -main_count;
+    {
+        rc = -main_count;
+        goto free_str;
+    }
     else if (main_count > 0)
     {
-        checkmain = 0;
+        checkmain = false;
         first_table = MAIN_TABLE;
-        sprintf(from, MAIN_TABLE);
+        g_string_append(from, MAIN_TABLE);
     }
 
-    annex_count = attrmask2fieldlist(fieldlist + strlen(fieldlist),
-                                     p_info->attr_mask, T_ANNEX,
+    annex_count = attrmask2fieldlist(req, p_info->attr_mask, T_ANNEX,
                                      first_table != NULL, false, "", "");
     if (annex_count < 0)
-        return -annex_count;
+    {
+        rc = -annex_count;
+        goto free_str;
+    }
     else if (annex_count > 0)
     {
-        if (first_table)
-            sprintf(from + strlen(from), " LEFT JOIN "ANNEX_TABLE" ON %s.id="
-                    ANNEX_TABLE".id", first_table);
+        if (first_table != NULL)
+            g_string_append_printf(from, " LEFT JOIN "ANNEX_TABLE" ON %s.id="
+                                   ANNEX_TABLE".id", first_table);
         else
         {
             first_table = ANNEX_TABLE;
-            sprintf(from, ANNEX_TABLE);
+            g_string_append(from, ANNEX_TABLE);
         }
     }
 
-    name_count = attrmask2fieldlist(fieldlist + strlen(fieldlist),
-                                    p_info->attr_mask, T_DNAMES,
+    name_count = attrmask2fieldlist(req, p_info->attr_mask, T_DNAMES,
                                     first_table != NULL, false, "", "");
     if (name_count < 0)
-        return -name_count;
+    {
+        rc = -name_count;
+        goto free_str;
+    }
     else if (name_count > 0)
     {
         if (first_table)
             /* it's OK to JOIN with NAMES table here even if there are multiple paths,
              * as we only take one result record. The important thing is to return
              * consistent values for parent_id, name and fullpath. */
-            sprintf(from + strlen(from), " LEFT JOIN "DNAMES_TABLE" ON %s.id="
-                    DNAMES_TABLE".id", first_table);
+            g_string_append_printf(from, " LEFT JOIN "DNAMES_TABLE" ON %s.id="
+                                   DNAMES_TABLE".id", first_table);
         else
         {
             first_table = DNAMES_TABLE;
-            sprintf(from, DNAMES_TABLE);
+            g_string_append(from, DNAMES_TABLE);
         }
     }
 
     if (first_table != NULL)
     {
         int shift = 0;
-        sprintf(query, "SELECT %s FROM %s WHERE %s.id="DPK, fieldlist, from,
-                first_table, pk);
 
-        rc = db_exec_sql(&p_mgr->conn, query, &result);
+        g_string_append_printf(req, "%s WHERE %s.id="DPK, from->str,
+                               first_table, pk);
+
+        rc = db_exec_sql(&p_mgr->conn, req->str, &result);
         if (rc)
-            return rc;
+            goto free_str;
 
         rc = db_next_record(&p_mgr->conn, &result, result_tab,
                             main_count + annex_count + name_count);
@@ -294,23 +315,22 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 
     /* get stripe info if asked */
 #ifdef _LUSTRE
-    if (stripe_fields( p_info->attr_mask ))
+    if (stripe_fields(p_info->attr_mask))
     {
-        rc = get_stripe_info( p_mgr, pk, &ATTR( p_info, stripe_info ),
-                              ATTR_MASK_TEST( p_info, stripe_items ) ? &ATTR( p_info,
-                                                                              stripe_items ) :
-                              NULL );
-        if ( rc == DB_ATTR_MISSING || rc == DB_NOT_EXISTS )
+        rc = get_stripe_info(p_mgr, pk, &ATTR(p_info, stripe_info),
+                             ATTR_MASK_TEST(p_info, stripe_items)?
+                                &ATTR(p_info, stripe_items) : NULL);
+        if (rc == DB_ATTR_MISSING || rc == DB_NOT_EXISTS)
         {
             p_info->attr_mask &= ~ATTR_MASK_stripe_info;
 
-            if ( ATTR_MASK_TEST( p_info, stripe_items ) )
+            if (ATTR_MASK_TEST(p_info, stripe_items))
                 p_info->attr_mask &= ~ATTR_MASK_stripe_items;
         }
-        else if ( rc )
-            return rc;
+        else if (rc)
+            goto free_str;
         else
-            checkmain = 0; /* entry exists */
+            checkmain = false; /* entry exists */
     }
 #else
     /* always clean them */
@@ -318,11 +338,11 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 #endif
 
     /* special field dircount */
-    if (dirattr_fields( p_info->attr_mask ))
+    if (dirattr_fields(p_info->attr_mask))
     {
         if (listmgr_get_dirattrs(p_mgr, pk, p_info))
         {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattrs failed for "DPK, pk );
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattrs failed for "DPK, pk);
             p_info->attr_mask &= ~dir_attr_set;
         }
     }
@@ -330,30 +350,38 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     if (checkmain)
     {
         /* verify it exists in main table */
-        sprintf( query, "SELECT id FROM " MAIN_TABLE " WHERE id="DPK, pk );
+        g_string_printf(req, "SELECT id FROM " MAIN_TABLE " WHERE id="DPK, pk);
 
         /* execute the request */
-        rc = db_exec_sql( &p_mgr->conn, query, &result );
-        if ( rc )
-            return rc;
-
-        rc = db_next_record( &p_mgr->conn, &result, result_tab, 1 );
-        db_result_free( &p_mgr->conn, &result );
+        rc = db_exec_sql(&p_mgr->conn, req->str, &result);
         if (rc)
-            return DB_NOT_EXISTS;
+            goto free_str;
+
+        rc = db_next_record(&p_mgr->conn, &result, result_tab, 1);
+        db_result_free(&p_mgr->conn, &result);
+        if (rc)
+        {
+            rc = DB_NOT_EXISTS;
+            goto free_str;
+        }
     }
 
     /* compute generated fields if asked */
-    generate_fields( p_info );
+    generate_fields(p_info);
 
+    /* update operation stats */
     p_mgr->nbop[OPIDX_GET]++;
 
-    return DB_SUCCESS;
+    rc = DB_SUCCESS;
+    goto free_str;
 
   free_res:
-    db_result_free( &p_mgr->conn, &result );
+    db_result_free(&p_mgr->conn, &result);
+  free_str:
+    g_string_free(req, TRUE);
+    g_string_free(from, TRUE);
     return rc;
-}                               /* listmgr_get_by_pk */
+} /* listmgr_get_by_pk */
 
 
 
@@ -376,27 +404,27 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
                                const char *name, entry_id_t * fid)
 {
     result_handle_t result;
-    char           query[4096];
-    char           escaped[RBH_NAME_MAX*2];
+    GString        *req = NULL;
+    char            escaped[RBH_NAME_MAX*2+1];
     DEF_PK(pk);
     int rc;
     char            *str_info[1];
 
     entry_id2pk(parent_fid, PTR_PK(pk));
 
-    db_escape_string(&p_mgr->conn, escaped, RBH_NAME_MAX*2, name);
+    db_escape_string(&p_mgr->conn, escaped, sizeof(escaped), name);
 
-    sprintf(query, "SELECT id FROM "DNAMES_TABLE" WHERE pkn="HNAME_FMT,
-            pk, escaped);
+    req = g_string_new("SELECT id FROM "DNAMES_TABLE" WHERE pkn=");
+    g_string_append_printf(req, HNAME_FMT, pk, escaped);
 
 retry:
-    rc = db_exec_sql(&p_mgr->conn, query, &result);
+    rc = db_exec_sql(&p_mgr->conn, req->str, &result);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
-        return rc;
+        goto free_str;
 
-    rc = db_next_record( &p_mgr->conn, &result, str_info, 1 );
+    rc = db_next_record(&p_mgr->conn, &result, str_info, 1);
 
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
@@ -405,7 +433,9 @@ retry:
 
     rc = pk2entry_id(p_mgr, str_info[0], fid);
 
-  free_res:
-    db_result_free( &p_mgr->conn, &result );
+free_res:
+    db_result_free(&p_mgr->conn, &result);
+free_str:
+    g_string_free(req, TRUE);
     return rc;
 }

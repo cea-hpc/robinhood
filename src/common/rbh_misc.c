@@ -949,7 +949,7 @@ int CheckLastFS( void )
         DisplayLog( LVL_CRIT, "CheckFS", "Error %d connecting to database", rc );
         return rc;
     }
-    rc = ListMgr_GetVar( &lmgr, FS_PATH_VAR, value );
+    rc = ListMgr_GetVar(&lmgr, FS_PATH_VAR, value, sizeof(value));
     if ( rc == DB_SUCCESS )
     {
         if ( strcmp( value, global_config.fs_path ) )

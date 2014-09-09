@@ -58,8 +58,6 @@ char * sz_field[SZ_PROFIL_COUNT] =
 
 
 extern lmgr_config_t lmgr_config;
-extern bool          annex_table;  /* are we using an annex table */
-
 
 /* -------------------- Connexion management ---------------- */
 
@@ -93,7 +91,7 @@ int            db_result_free( db_conn_t * conn, result_handle_t * p_result );
 /* indicate if the error is retryable (transaction must be restarted) */
 bool db_is_retryable(int db_err);
 
-typedef enum {DBOBJ_TABLE, DBOBJ_TRIGGER, DBOBJ_FUNCTION, DBOBJ_PROC } db_object_e;
+typedef enum {DBOBJ_TABLE, DBOBJ_TRIGGER, DBOBJ_FUNCTION, DBOBJ_PROC, DBOBJ_INDEX} db_object_e;
 
 static inline const char *dbobj2str(db_object_e ot)
 {
@@ -103,6 +101,7 @@ static inline const char *dbobj2str(db_object_e ot)
         case DBOBJ_TRIGGER:  return "trigger";
         case DBOBJ_FUNCTION: return "function";
         case DBOBJ_PROC:     return "procedure";
+        case DBOBJ_INDEX:    return "index";
     }
     return NULL;
 }
@@ -125,7 +124,7 @@ int            db_create_trigger( db_conn_t * conn, const char *name, const char
 /* -------------------- miscellaneous routines ---------------- */
 
 /* escape a string in a SQL request */
-void db_escape_string( db_conn_t * conn, char * str_out, size_t out_size, const char * str_in );
+int db_escape_string(db_conn_t *conn, char *str_out, size_t out_size, const char *str_in);
 
 /* retrieve error message */
 char          *db_errmsg( db_conn_t * conn, char *errmsg, unsigned int buflen );

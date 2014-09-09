@@ -23,7 +23,6 @@
 #endif
 
 #include "policy_run.h"
-#include "uidgidcache.h"
 #include "list_mgr.h"
 #include "rbh_cfg.h"
 #include "rbh_logs.h"
@@ -527,21 +526,10 @@ int main( int argc, char **argv )
         exit( 1 );
     }
 
-    /* Initialize global tools */
-#ifdef _LUSTRE
-    if ( ( rc = Lustre_Init(  ) ) )
-    {
-        fprintf( stderr, "Error %d initializing liblustreapi\n", rc );
-        exit( 1 );
-    }
-#endif
-
-    /* Initilize uidgid cache */
-    if ( InitUidGid_Cache(  ) )
-    {
-        fprintf( stderr, "Error initializing uid/gid cache\n" );
-        exit( 1 );
-    }
+    /* initialize internal resources (glib, llapi, internal resources...) */
+    rc = rbh_init_internals();
+    if (rc != 0)
+        exit(rc);
 
     /* get default config file, if not specified */
     if (SearchConfig(options.config_file, options.config_file, &chgd,

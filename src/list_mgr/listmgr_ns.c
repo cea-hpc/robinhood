@@ -32,45 +32,37 @@
 /**
  * print parent condition depending on parent list count:
  *      parent_id == xxx or parent_id IN ( xxx, yyy, zzz )
+ * \return db error code
  */
-static char * parent_cond(lmgr_t * p_mgr, char * buff, size_t buffsz,
-                          const wagon_t * parent_list, unsigned int parent_count,
-                          const char * prefix)
+static int append_parent_cond(lmgr_t *p_mgr, GString *str, const wagon_t *parent_list,
+                              unsigned int parent_count, const char *prefix)
 {
     DEF_PK(pk);
 
-    if (parent_count == 0)
+    if (unlikely(parent_count == 0))
     {
         DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Warning: parent list is empty in %s()", __func__ );
-        return NULL;
+        return DB_INVALID_ARG;
     }
-    if (parent_count == 1)
+
+    if (likely(parent_count == 1)) /* the only expected for now */
     {
         entry_id2pk(&parent_list[0].id, PTR_PK(pk));
-        sprintf(buff, "%sparent_id="DPK, prefix ? prefix : "", pk);
+        g_string_append_printf(str, "%sparent_id="DPK, prefix ? prefix : "", pk);
     }
     else
     {
         int i;
-        char * curr = buff;
-        curr += sprintf(curr, "%sparent_id IN (", prefix ? prefix : "");
+
+        g_string_append_printf(str, "%sparent_id IN (", prefix ? prefix : "");
         for (i = 0; i < parent_count; i++)
         {
             entry_id2pk(&parent_list[i].id, PTR_PK(pk));
-            if ((ssize_t)(curr - buff) + strlen(pk) + 2 >= buffsz)
-            {
-                DisplayLog(LVL_CRIT, LISTMGR_TAG, "ERROR: request overflow in %s(): parent_list length=%u, current buff_usage=%zu",
-                           __func__, parent_count, (size_t)(curr - buff));
-                return NULL;
-            }
-            if (i == 0)
-                curr += sprintf(curr, DPK, pk);
-            else
-                curr += sprintf(curr, ","DPK, pk);
+            g_string_append_printf(str, "%s"DPK, (i == 0)? "":",", pk);
         }
-        strcpy(curr, ")");
+        g_string_append(str,")");
     }
-    return buff;
+    return DB_SUCCESS;
 }
 
 /**
@@ -89,147 +81,105 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                      unsigned int *child_count)
 {
     result_handle_t result;
-    char *curr;
-    int  filter_main = 0;
-    int  filter_annex = 0;
-    uint64_t main_attrs = 0;
-    uint64_t dnames_attrs = 0;
-    uint64_t annex_attrs = 0;
-    char query[4096];
-    char fieldlist_main[1024] = "";
-    char fieldlist_dnames[1024] = "";
-    char fieldlist_annex[1024] = "";
-    char filter_str_main[1024] = "";
-    char filter_str_annex[1024] = "";
-    char tmp[2048];
     char *path = NULL;
     int path_len;
-    char * pc;
-    int rc, i;
+    int                rc, i;
+    GString           *req = NULL;
+    GString           *from = NULL;
+    GString           *where = NULL;
+    struct field_count field_cnt = {0};
+    struct field_count filter_cnt = {0};
+    table_enum         query_tab = T_DNAMES;
+    bool               distinct = false;
 
-    /* TODO: querying children from several parent cannot work, since
+    /* XXX: querying children from several parent cannot work, since
      * we need to get the paths of the children. Or we could do a
      * lookup into parent_list to find the right one. In the meantime,
      * try not to mess up the code. */
-    if (parent_count != 1)
+    if (unlikely(parent_count != 1))
         RBH_BUG("cannot get children for several parent simultaneously");
 
     /* always request for name to build fullpath in wagon */
     attr_mask |= ATTR_MASK_name;
 
-    /* request is always on the MAIN table (which contains [parent_id, id] relationship */
+    /* request is always on the DNAMES table (which contains [parent_id, id] relationship */
 
-    /* /!\ possible cases:
-     * - simplest: the fields of the filter and the attributes to be retrieved are in the MAIN table
-     * - harder: the fields of the filter and attributes are in a different table
-     */
+    req = g_string_new("SELECT "DNAMES_TABLE".id");
 
-    /* 1) location of filters */
-    if ( p_filter )
-    {
-        char           dummy_str[1024];
-        unsigned int   dummy_uint;
-        if (dir_filter(p_mgr, dummy_str, p_filter, &dummy_uint) != FILTERDIR_NONE)
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Directory filter not supported in %s()", __func__ );
-            return DB_NOT_SUPPORTED;
-        }
-        else if (func_filter(p_mgr, dummy_str, p_filter, T_MAIN, false, false))
-        {
-            DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__ );
-            return DB_NOT_SUPPORTED;
-        }
-
-        /* There is always a filter on T_DNAMES, which is the parent condition.
-         * Look for optional filters:
-         */
-        filter_main = filter2str(p_mgr, filter_str_main, p_filter, T_MAIN,
-                                 false, true);
-
-        if (annex_table)
-            filter_annex = filter2str(p_mgr, filter_str_annex, p_filter,
-                                      T_ANNEX, false, true);
-        else
-            filter_annex = 0;
-
-        /* @TODO to be implemented */
-#if 0
-        filter_stripe_info =
-            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                        ( filter_main > 0 ) || ( filter_annex > 0 ), true );
-
-        filter_stripe_items =
-            filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
-                        ( filter_main > 0 ) || ( filter_annex > 0 )
-                        || ( filter_stripe_info > 0 ), true );
-#endif
-    }
-
-    /* 2) location of requested attributes */
+    /* append fields for all tables */
     if (attr_mask)
     {
         /* retrieve source info for generated fields */
-        add_source_fields_for_gen( &attr_mask );
+        add_source_fields_for_gen(&attr_mask);
 
-        main_attrs = attrmask2fieldlist(fieldlist_main, attr_mask, T_MAIN,
-                                        /* leading comma */ true, /* for update */ false,
-                                        /* prefix */ MAIN_TABLE".", /* postfix */ "");
+        field_cnt.nb_names = attrmask2fieldlist(req, attr_mask, T_DNAMES, true, false,
+                                                DNAMES_TABLE".", "");
 
-        dnames_attrs += attrmask2fieldlist(fieldlist_dnames, attr_mask, T_DNAMES,
-                                           /* leading comma */ true, /* for update */ false,
-                                           /* prefix */ DNAMES_TABLE".", /* postfix */ "");
+        field_cnt.nb_main = attrmask2fieldlist(req, attr_mask, T_MAIN,
+                                          /* leading comma */ true,
+                                          /* for update */ false,
+                                          /* prefix */ MAIN_TABLE".",
+                                          /* postfix */ "");
 
-        if ( annex_table )
-            annex_attrs = attrmask2fieldlist(fieldlist_annex, attr_mask, T_ANNEX,
-                                             /* leading comma */ true, /* for update */ false,
-                                             /* prefix */ ANNEX_TABLE".", /* postfix */ "");
-        else
-            annex_attrs = 0;
+        field_cnt.nb_annex = attrmask2fieldlist(req, attr_mask, T_ANNEX, true, false,
+                                                ANNEX_TABLE".", "");
     }
     else
     {
         /* no returned attrs */
-        if (child_attr_list)
+        if (child_attr_list != NULL)
             *child_attr_list = NULL;
     }
-    pc = parent_cond(p_mgr, tmp, sizeof(tmp), parent_list, parent_count, DNAMES_TABLE".");
-    if (!pc)
-        return DB_BUFFER_TOO_SMALL;
 
-    curr = query;
+    where = g_string_new(NULL);
 
-    /* SELECT clause */
-    /* id + dname fields */
-    curr += sprintf(curr, "SELECT "DNAMES_TABLE".id%s", fieldlist_dnames);
-    /* main attrs */
-    if (main_attrs)
-        curr += sprintf(curr, "%s", fieldlist_main);
-    /* annex attrs */
-    if (annex_attrs)
-        curr += sprintf(curr, "%s", fieldlist_annex);
+    /* starts with condition on parent */
+    rc = append_parent_cond(p_mgr, where, parent_list, parent_count, DNAMES_TABLE".");
+    if (rc != DB_SUCCESS)
+        goto free_str;
 
-    /* FROM clause */
-    curr += sprintf(curr, " FROM "DNAMES_TABLE);
-    if (main_attrs || filter_main)
-        curr += sprintf(curr, " LEFT JOIN "MAIN_TABLE
-                              " ON "DNAMES_TABLE".id="MAIN_TABLE".id");
-    if (annex_attrs || filter_annex)
-        curr += sprintf(curr, " LEFT JOIN "ANNEX_TABLE
-                              " ON "DNAMES_TABLE".id="ANNEX_TABLE".id");
+    /* check filters on other tables */
+    if (!no_filter(p_filter))
+    {
+        if (unlikely(dir_filter(p_mgr, NULL, p_filter, NULL) != FILTERDIR_NONE))
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Directory filter not supported in %s()", __func__);
+            rc = DB_NOT_SUPPORTED;
+            goto free_str;
+        }
+        else if (unlikely(func_filter(p_mgr, NULL, p_filter, T_MAIN, false, false)))
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__);
+            rc = DB_NOT_SUPPORTED;
+            goto free_str;
+        }
 
-    /* WHERE clause */
-    curr += sprintf(curr, " WHERE %s", pc);
-    if (filter_main)
-        curr += sprintf(curr, " AND %s", filter_str_main);
-    if (filter_annex)
-        curr += sprintf(curr, " AND %s", filter_str_annex);
+        /* There is always a filter on T_DNAMES, which is the parent condition.
+         * Look for optional filters.
+         */
+        filter_where(p_mgr, p_filter, &filter_cnt, true, true, where);
+    }
+
+    from = g_string_new(DNAMES_TABLE);
+
+    /* add filter_count + field_count to build the FROM clause.
+     * Preserve field count which is needed to interpret the result.
+     */
+    filter_cnt.nb_main += field_cnt.nb_main;
+    filter_cnt.nb_annex += field_cnt.nb_annex;
+    filter_cnt.nb_names += field_cnt.nb_names;
+    /* query tab is DNAMES, ignore_names=true, is_first_tab=T_DNAMES */
+    filter_from(p_mgr, &filter_cnt, true, from, true, &query_tab, &distinct);
+
+    /* build the whole request */
+    g_string_append_printf(req, " FROM %s WHERE %s", from->str, where->str);
 
 retry:
-    rc = db_exec_sql(&p_mgr->conn, query, &result);
+    rc = db_exec_sql(&p_mgr->conn, req->str, &result);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
-        return rc;
+        goto free_str;
 
     /* copy result to output structures */
     *child_count = db_result_nb_records(&p_mgr->conn, &result);
@@ -237,7 +187,10 @@ retry:
     /* allocate entry_id array */
     *child_id_list = MemCalloc(*child_count, sizeof(wagon_t));
     if (*child_id_list == NULL)
-        return DB_NO_MEMORY;
+    {
+        rc = DB_NO_MEMORY;
+        goto free_str;
+    }
 
     if (child_attr_list)
     {
@@ -254,17 +207,18 @@ retry:
     path_len = strlen(parent_list[0].fullname) + RBH_NAME_MAX + 2;
     path = malloc(path_len);
     if (!path) {
-        DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Can't alloc enough memory (%d bytes)",
-                    path_len );
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Can't alloc enough memory (%d bytes)",
+                    path_len);
         rc = DB_NO_MEMORY;
         goto array_free;
     }
 
     for (i = 0; i < *child_count; i++)
     {
-        char *res[128]; /* 128 fields per row is large enough */
-        rc = db_next_record(&p_mgr->conn, &result, res, 128);
-        if ( rc )
+        char *res[128]; /* 128 fields per record is large enough */
+
+        rc = db_next_record(&p_mgr->conn, &result, res, sizeof(res)/sizeof(*res));
+        if (rc)
             goto array_free;
 
         /* copy id to array */
@@ -273,59 +227,69 @@ retry:
         /* copy attributes to array */
         if (child_attr_list)
         {
+            unsigned int shift = 1; /* first was NAMES.id */
+
             (*child_attr_list)[i].attr_mask = attr_mask;
 
             /* first id, then dnames attrs, then main attrs, then annex attrs */
-            if (dnames_attrs)
+            if (field_cnt.nb_names > 0)
             {
                 /* shift of 1 for id */
-                rc = result2attrset( T_DNAMES, res + 1, dnames_attrs, &((*child_attr_list)[i]) );
-                if ( rc )
+                rc = result2attrset(T_DNAMES, res + shift, field_cnt.nb_names, &((*child_attr_list)[i]));
+                if (rc)
                     goto array_free;
+                shift += field_cnt.nb_names;
             }
 
-            if (main_attrs)
+            if (field_cnt.nb_main > 0)
             {
                 /* first id, then main attrs, then annex attrs */
                 /* shift of 1 for id */
-                rc = result2attrset( T_MAIN, res + dnames_attrs + 1, main_attrs, &((*child_attr_list)[i]) );
-                if ( rc )
+                rc = result2attrset(T_MAIN, res + shift, field_cnt.nb_main, &((*child_attr_list)[i]));
+                if (rc)
                     goto array_free;
+                shift += field_cnt.nb_main;
             }
 
-            if (annex_attrs)
+            if (field_cnt.nb_annex > 0)
             {
                 /* shift of main_attrs count */
-                rc = result2attrset( T_ANNEX, res + dnames_attrs + main_attrs + 1, annex_attrs,
-                                     &((*child_attr_list)[i]) );
-                if ( rc )
+                rc = result2attrset(T_ANNEX, res + shift, field_cnt.nb_annex,
+                                     &((*child_attr_list)[i]));
+                if (rc)
                     goto array_free;
+                shift += field_cnt.nb_annex;
             }
 
+#if 0 /* no chance it happens? */
 #ifdef _LUSTRE
             if (stripe_fields(attr_mask))
             {
-                if (get_stripe_info( p_mgr, res[0], &ATTR(&(*child_attr_list)[i], stripe_info),
-                                     &ATTR(&(*child_attr_list)[i], stripe_items) ))
+                if (get_stripe_info(p_mgr, res[0], &ATTR(&(*child_attr_list)[i], stripe_info),
+                                     &ATTR(&(*child_attr_list)[i], stripe_items)))
                 {
                     ATTR_MASK_UNSET(&(*child_attr_list)[i], stripe_info);
                     ATTR_MASK_UNSET(&(*child_attr_list)[i], stripe_items);
                 }
             }
 #endif
-
+#endif
             generate_fields(&((*child_attr_list)[i]));
 
             /* Note: path is properly sized already to not overflow. */
-            sprintf(path, "%s/%s", parent_list[0].fullname,
-                    (*child_attr_list)[i].attr_values.name);
+            snprintf(path, path_len, "%s/%s", parent_list[0].fullname,
+                     (*child_attr_list)[i].attr_values.name);
             (*child_id_list)[i].fullname = strdup(path);
         }
     }
 
     if (path)
         free(path);
-    db_result_free( &p_mgr->conn, &result );
+
+    db_result_free(&p_mgr->conn, &result);
+    g_string_free(req, TRUE);
+    g_string_free(from, TRUE);
+    g_string_free(where, TRUE);
     return 0;
 
 array_free:
@@ -338,5 +302,12 @@ array_free:
     }
     MemFree(*child_id_list);
     *child_id_list = NULL;
+free_str:
+    if (req != NULL)
+        g_string_free(req, TRUE);
+    if (from != NULL)
+        g_string_free(from, TRUE);
+    if (where != NULL)
+        g_string_free(where, TRUE);
     return rc;
 }

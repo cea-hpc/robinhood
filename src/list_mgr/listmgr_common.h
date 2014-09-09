@@ -18,6 +18,7 @@
 #include "listmgr_internal.h"
 #include "database.h"
 #include <inttypes.h>
+#include <glib.h>
 
 #define ASSIGN_UNION( _u, _type, _address ) do {            \
                     switch( _type )                         \
@@ -201,7 +202,7 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
 #define is_main_field(_attr_index) \
                 ((is_status_field(_attr_index) && !is_no_db_status(_attr_index)) \
                  || (((_attr_index) < ATTR_COUNT) && \
-                    ((!annex_table || (field_infos[_attr_index].flags & FREQ_ACCESS)) \
+                    ((field_infos[_attr_index].flags & FREQ_ACCESS) \
                       && !is_stripe_field(_attr_index)       \
                       && !is_read_only_field(_attr_index)    \
                       && !is_names_field(_attr_index))))
@@ -213,7 +214,7 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
                 ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & INDEXED))
 
 #define is_annex_field( _attr_index ) \
-                ((_attr_index < ATTR_COUNT) && annex_table \
+                ((_attr_index < ATTR_COUNT) \
                   && (field_infos[_attr_index].flags & (ANNEX_INFO | INIT_ONLY)) \
                   && !is_stripe_field( _attr_index ) \
                   && !is_read_only_field(_attr_index) \
@@ -233,9 +234,8 @@ void           init_attrset_masks( const lmgr_config_t *lmgr_config );
                 ( (1 << _attr_index) & SOFTRM_MASK )
 #endif
 
-int            printdbtype( lmgr_t * p_mgr, char *str, db_type_t type, const db_type_u * value_ptr );
-
-int            parsedbtype( char *instr, db_type_t type, db_type_u * value_out );
+void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *value_ptr);
+int  parsedbtype(char *instr, db_type_t type, db_type_u *value_out);
 
 typedef enum
 {
@@ -275,33 +275,59 @@ typedef enum {
 void           add_source_fields_for_gen(uint64_t *attr_mask);
 void           generate_fields( attr_set_t * p_set );
 
-int            attrmask2fieldlist(char *str, uint64_t attr_mask,
+int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk, entry_id_t *p_id);
+
+int            attrmask2fieldlist(GString *str, uint64_t attr_mask,
                                   table_enum table, bool leading_comma,
                                   bool for_update, char *prefix, char *postfix);
 
-int            attrmask2fieldcomparison(char *str, uint64_t attr_mask,
+int            attrmask2fieldcomparison(GString *str, uint64_t attr_mask,
                                   table_enum table, const char *left_prefix,
                                   const char *right_prefix,
                                   const char *comparator, const char *separator);
 
-int            attrmask2fieldoperation(char *str, uint64_t attr_mask,
+int            attrmask2fieldoperation(GString *str, uint64_t attr_mask,
                                        table_enum table, const char *prefix,
                                        operation_type operation);
 
-int            attrset2valuelist(lmgr_t *p_mgr, char *str,
+int            attrset2valuelist(lmgr_t *p_mgr, GString *str,
                                  const attr_set_t *p_set, table_enum table,
                                  bool leading_coma);
-int            attrset2updatelist(lmgr_t * p_mgr, char *str,
+int            attrset2updatelist(lmgr_t * p_mgr, GString *str,
                                   const attr_set_t * p_set, table_enum table,
                                   bool leading_coma, bool generic_value);
 
 char          *compar2str(filter_comparator_t compar);
 
-int            filter2str(lmgr_t *p_mgr, char *str, const lmgr_filter_t *p_filter,
+int            filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                           table_enum table, bool leading_and, bool prefix_table);
 
-int            func_filter(lmgr_t *p_mgr, char *filter_str, const lmgr_filter_t *p_filter,
+int            func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filter,
                            table_enum table, bool leading_and, bool prefix_table);
+
+struct field_count {
+    unsigned int nb_main;
+    unsigned int nb_annex;
+    unsigned int nb_names;
+    unsigned int nb_stripe_info;
+    unsigned int nb_stripe_items;
+};
+int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+                 struct field_count *counts, bool ignore_name_filter,
+                 bool leading_and, GString *where);
+void filter_from(lmgr_t *p_mgr, const struct field_count *counts,
+                 bool ignore_names_filter, GString *from, bool is_first_tab,
+                 table_enum *first_table, bool *select_distinct_id);
+
+/* return the number of filter tables */
+static inline unsigned int nb_field_tables(const struct field_count *counts)
+{
+   return (counts->nb_main?1:0) + (counts->nb_annex?1:0)
+        + (counts->nb_stripe_info?1:0) + (counts->nb_stripe_items?1:0)
+        + (counts->nb_names?1:0);
+}
+
+
 
 typedef enum
 {
@@ -310,11 +336,11 @@ typedef enum
     FILTERDIR_OTHER,       /* other condition on directory attribute */
 } filter_dir_e;
 
-filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
-                        unsigned int *dir_attr_index);
+filter_dir_e dir_filter(lmgr_t * p_mgr, GString* filter_str,
+                        const lmgr_filter_t * p_filter, unsigned int *dir_attr_index);
 
-unsigned int  append_size_range_fields(char * str, bool leading_comma, char *prefix);
-
+void append_size_range_fields(GString *str, bool leading_comma,
+                              const char *prefix);
 
 int            result2attrset( table_enum table, char **result_tab,
                                unsigned int res_count, attr_set_t * p_set );
@@ -339,8 +365,11 @@ int            lmgr_flush_commit( lmgr_t * p_mgr );
 #define lmgr_delayed_retry(_l, _e) _lmgr_delayed_retry(_l, _e, __func__, __LINE__)
 int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line);
 
+void big_request_in_tx(lmgr_t *p_mgr);
+void big_request_now(lmgr_t *p_mgr);
+
 /* get/set variable in DB */
-int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value);
+int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value, int bufsize);
 int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value);
 
 int fullpath_attr2db(const char *attr, char *db);
@@ -375,6 +404,16 @@ static inline db_type_t field_type(int index)
         return field_infos[index].db_type;
     else /* status */
         return DB_TEXT;
+}
+
+/** helper to check empty filter */
+static inline bool no_filter(const lmgr_filter_t *p_filter)
+{
+    return (p_filter == NULL ||
+            ((p_filter->filter_type == FILTER_SIMPLE)
+             && (p_filter->filter_simple.filter_count == 0)) ||
+            ((p_filter->filter_type == FILTER_BOOLEXPR)
+             && (p_filter->filter_boolexpr == NULL)));
 }
 
 #endif

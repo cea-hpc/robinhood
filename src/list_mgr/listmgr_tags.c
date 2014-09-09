@@ -32,200 +32,69 @@
 int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
                       lmgr_filter_t * p_filter, bool reset)
 {
-    char select[4096];
-    char query[4096];
-    int rc;
-    char           filter_str_main[2048];
-    char           filter_str_annex[2048];
-    char           filter_str_stripe_info[2048];
-    char           filter_str_stripe_items[2048];
-    int            filter_main = 0;
-    int            filter_annex = 0;
-    int            filter_stripe_info = 0;
-    int            filter_stripe_items = 0;
-    char           fields[2048];
-    char           tables[2048];
-    filter_str_main[0] = '\0';
-    filter_str_annex[0] = '\0';
-    filter_str_stripe_info[0] = '\0';
-    filter_str_stripe_items[0] = '\0';
+    GString         *req = NULL;
+    GString         *from = NULL;
+    GString         *where = NULL;
+    table_enum       query_tab = T_NONE;
+    bool             distinct = false;
+    int              rc;
+    struct field_count fcnt = {0};
 
-    /* This is needed for creating big temporary table.
-     * Set READ COMMITTED isolation level for the next transaction
-     * so locks can be released immediatly after the record is read.
-     * - This can only be done if we are outside a transaction
-     * - If the mode is autocommit, do it just before the create tmp table
-     *   statement.
-     */
-    if ((p_mgr->last_commit == 0) && (lmgr_config.commit_behavior != 0))
-    {
-        rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
-        if ( rc )
-        {
-            char errmsg[1024];
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
-            /* continue anyway */
-        }
-    }
+    /* create table statement */
+    req = g_string_new("CREATE TABLE ");
+    g_string_append_printf(req, "TAG_%s (id "PK_TYPE" PRIMARY KEY) AS ",
+                           tag_name);
 
-    if ( !p_filter
-         || ( ( p_filter->filter_type == FILTER_SIMPLE )
-              && ( p_filter->filter_simple.filter_count == 0 ) )
-         || ( ( p_filter->filter_type == FILTER_BOOLEXPR )
-              && ( p_filter->filter_boolexpr == NULL ) ) )
+    /* now build the SELECT clause */
+    if (no_filter(p_filter))
     {
         /* no filter, create a table with all ids */
-        strcpy(select, "SELECT id FROM "MAIN_TABLE );
+        g_string_append(req, "SELECT id FROM "MAIN_TABLE);
     }
     else
     {
-        /* need to build filters to populate the table */
+        /* need to build criteria string to populate the table */
+        from = g_string_new(NULL);
 
-        /* on which table is the filter? */
-        filter_main = filter2str(p_mgr, filter_str_main, p_filter, T_MAIN,
-                                 false, true);
+        /* build the FROM clause */
+        filter_from(p_mgr, &fcnt, false, from, false, &query_tab, &distinct);
 
-        if (annex_table)
-            filter_annex = filter2str(p_mgr, filter_str_annex, p_filter,
-                                      T_ANNEX, (filter_main > 0), true);
+        if (nb_field_tables(&fcnt) == 0)
+        {
+            /* finally, no filter */
+            g_string_append(req, "SELECT id FROM "MAIN_TABLE);
+        }
         else
-            filter_annex = 0;
-
-        filter_stripe_info =
-            filter2str(p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                       (filter_main > 0) || (filter_annex > 0), true);
-
-        filter_stripe_items =
-            filter2str(p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
-                       (filter_main > 0) || (filter_annex > 0)
-                       || (filter_stripe_info > 0), true);
-
-        if (filter_main && !( filter_annex || filter_stripe_items || filter_stripe_info ))
         {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " MAIN_TABLE " table" );
-            sprintf(select, "SELECT id FROM " MAIN_TABLE " WHERE %s", filter_str_main);
-        }
-        else if (filter_annex && !( filter_main || filter_stripe_items || filter_stripe_info ))
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " ANNEX_TABLE " table" );
-            sprintf(select, "SELECT id FROM " ANNEX_TABLE " WHERE %s", filter_str_annex);
-        }
-        else if (filter_stripe_info && !(filter_main || filter_annex || filter_stripe_items ))
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_INFO_TABLE " table" );
-            sprintf(select, "SELECT id FROM " STRIPE_INFO_TABLE " WHERE %s", filter_str_stripe_info);
-        }
-        else if ( filter_stripe_items && !( filter_main || filter_annex || filter_stripe_info ))
-        {
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " STRIPE_ITEMS_TABLE " table" );
-            sprintf(select, "SELECT DISTINCT(id) FROM " STRIPE_ITEMS_TABLE" WHERE %s", filter_str_stripe_items);
-        }
-        else /* filter on several tables */
-        {
-            char          *curr_fields = fields;
-            char          *curr_tables = tables;
-            char          *first_table = NULL;
+            where = g_string_new(NULL);
+            filter_where(p_mgr, p_filter, &fcnt, false, false, where);
 
-            DisplayLog( LVL_FULL, LISTMGR_TAG,
-                        "Filter on several tables: "
-                        MAIN_TABLE ":%d, " ANNEX_TABLE ":%d, "
-                        STRIPE_INFO_TABLE ":%d, "
-                        STRIPE_ITEMS_TABLE ":%d",
-                        filter_main, filter_annex, filter_stripe_info, filter_stripe_items );
+            if (distinct)
+                g_string_printf(req, "SELECT DISTINCT(%s.id) AS id",
+                                table2name(query_tab));
+            else
+                g_string_printf(req, "SELECT %s.id AS id",
+                                table2name(query_tab));
 
-            if (filter_main > 0)
-            {
-                first_table = MAIN_TABLE;
-                curr_fields += sprintf( curr_fields, "%s", filter_str_main );
-                curr_tables += sprintf( curr_tables, "%s", MAIN_TABLE );
-            }
-
-            if (filter_annex > 0)
-            {
-                curr_fields += sprintf( curr_fields, "%s", filter_str_annex );
-
-                if (first_table != NULL)
-                {
-                    *curr_tables = ',';
-                    curr_tables++;
-
-                    /* add junction condition */
-                    curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
-                                           MAIN_TABLE, ANNEX_TABLE );
-                }
-                else
-                    first_table = ANNEX_TABLE;
-
-                curr_tables += sprintf(curr_tables, "%s", ANNEX_TABLE);
-            }
-
-            if (filter_stripe_items > 0)
-            {
-                curr_fields += sprintf(curr_fields, "%s", filter_str_stripe_items);
-
-                if (first_table != NULL)
-                {
-                    *curr_tables = ',';
-                    curr_tables++;
-
-                    /* add junction condition */
-                    if (filter_main > 0)
-                        curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
-                                               MAIN_TABLE, STRIPE_ITEMS_TABLE);
-                    if (filter_annex > 0)
-                        curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
-                                               ANNEX_TABLE, STRIPE_ITEMS_TABLE);
-                }
-                else
-                    first_table = STRIPE_ITEMS_TABLE;
-
-                curr_tables += sprintf( curr_tables, "%s", STRIPE_ITEMS_TABLE );
-            }
-
-            if (filter_stripe_info > 0)
-            {
-                curr_fields += sprintf( curr_fields, "%s", filter_str_stripe_info );
-
-                if (first_table != NULL)
-                {
-                    *curr_tables = ',';
-                    curr_tables++;
-
-                    /* add junction condition */
-                    if (filter_main > 0)
-                        curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
-                                               MAIN_TABLE, STRIPE_INFO_TABLE);
-                    if (filter_annex > 0)
-                        curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
-                                               ANNEX_TABLE, STRIPE_INFO_TABLE);
-                    if (filter_stripe_items > 0)
-                        curr_fields += sprintf(curr_fields, " AND %s.id=%s.id",
-                                               STRIPE_ITEMS_TABLE, STRIPE_INFO_TABLE);
-                }
-                else
-                    first_table = STRIPE_INFO_TABLE;
-
-                curr_tables += sprintf( curr_tables, "%s", STRIPE_INFO_TABLE );
-            }
-
-            sprintf(select, "SELECT %s.id as id FROM %s WHERE %s",
-                    first_table, tables, fields);
+            g_string_append_printf(req, "FROM %s WHERE %s", from->str, where->str);
         }
     }
 
-    sprintf(query, "CREATE TABLE TAG_%s (id "PK_TYPE" PRIMARY KEY) AS %s",
-            tag_name, select);
+    /* Creating a big table in the next transaction. */
+    big_request_in_tx(p_mgr);
 
 retry:
     rc = lmgr_begin( p_mgr );
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
-        return rc;
+        goto free_str;
+
+    /* big request right now */
+    big_request_now(p_mgr);
 
     /* create the table */
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
+    rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
@@ -236,10 +105,18 @@ retry:
     rc = lmgr_commit(p_mgr);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
-    return rc;
+
+    goto free_str;
 
 rollback:
-    lmgr_rollback( p_mgr );
+    lmgr_rollback(p_mgr);
+free_str:
+    if (req != NULL)
+        g_string_free(req, TRUE);
+    if (from != NULL)
+        g_string_free(from, TRUE);
+    if (where != NULL)
+        g_string_free(where, TRUE);
     return rc;
 }
 

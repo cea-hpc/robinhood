@@ -24,104 +24,117 @@
 #include "rbh_misc.h"
 #include <stdio.h>
 
-/* exported symbols */
-bool       annex_table = false;              /* indicates if an annex table is used */
-
 /* global symbols */
 static const char *acct_info_table = NULL;
 static bool report_only = false;
 
 #define MAX_DB_FIELDS 64
 
-#define APPEND_TXT( _n, _str ) do { strcpy( _n, _str );  _n = _n + strlen( _n ); } while (0)
-#define INCR_NEXT( _n ) do { _n = _n + strlen( _n ); } while (0)
 
-static inline int append_field_def( int i, char *next, int is_first, db_type_u *default_value )
+static void append_status_def(const sm_instance_t *smi, GString *str, int is_first)
 {
-    switch ( field_infos[i].db_type )
+    int i;
+
+    g_string_append_printf(str, "%s%s_status ENUM('', ", is_first?"":",", smi->instance_name);
+    for (i = 0; i < smi->sm->status_count; i++)
+    {
+        g_string_append_printf(str, "%s'%s'", (i == 0)?"":",",
+                               smi->sm->status_enum[i]);
+    }
+    /* end of "ENUM (" */
+    g_string_append(str, ") DEFAULT ''");
+}
+
+static void append_field_def(int i, GString *str, int is_first, db_type_u *default_value)
+{
+    if (i >= ATTR_COUNT)
+    {
+        append_status_def(get_sm_instance(i - ATTR_COUNT), str, is_first);
+        return;
+    }
+
+    switch (field_infos[i].db_type)
     {
     case DB_STRIPE_INFO:   /* never in main table (ignored) */
     case DB_STRIPE_ITEMS:
         break;
     case DB_TEXT:
-        if ( field_infos[i].db_type_size < 256 )
         {
-            if ( default_value )
-                return sprintf( next, "%s %s VARCHAR(%u) DEFAULT '%s'",is_first ? "" : ",",
-                    field_infos[i].field_name, field_infos[i].db_type_size, default_value->val_str );
+            char strtype[128];
+
+            /* VARCHAR is up to 255. For larger strings, use TEXT. */
+            if (field_infos[i].db_type_size < 256)
+                snprintf(strtype, sizeof(strtype),"VARCHAR(%u)", field_infos[i].db_type_size);
             else
-                return sprintf( next, "%s %s VARCHAR(%u)",is_first ? "" : ",",
-                    field_infos[i].field_name, field_infos[i].db_type_size );
-        }
-        else
-        {
-            if ( default_value )
-                return sprintf( next, "%s %s TEXT DEFAULT '%s'", is_first ? "" : ",", field_infos[i].field_name,
-                    default_value->val_str );
+                rh_strncpy(strtype, "TEXT", sizeof(strtype));
+
+            if (default_value)
+                g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
+                    field_infos[i].field_name, strtype, default_value->val_str);
             else
-                return sprintf( next, "%s %s TEXT", is_first ? "" : ",", field_infos[i].field_name );
+                g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
+                    field_infos[i].field_name, strtype);
         }
         break;
     case DB_INT:
-        if ( default_value )
-            return sprintf( next, "%s %s INT DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
-                default_value->val_int );
+        if (default_value)
+            g_string_append_printf(str, "%s %s INT DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_int);
         else
-            return sprintf( next, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name );
+            g_string_append_printf(str, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_UINT:
-        if ( default_value )
-            return sprintf( next, "%s %s INT UNSIGNED DEFAULT %u", is_first ? "" : ",", field_infos[i].field_name,
-                default_value->val_uint );
+        if (default_value)
+            g_string_append_printf(str, "%s %s INT UNSIGNED DEFAULT %u", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_uint);
         else
-            return sprintf( next, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+            g_string_append_printf(str, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_SHORT:
-        if ( default_value )
-            return sprintf( next, "%s %s SMALLINT DEFAULT %hd", is_first ? "" : ",", field_infos[i].field_name,
-                default_value->val_short );
+        if (default_value)
+            g_string_append_printf(str, "%s %s SMALLINT DEFAULT %hd", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_short);
         else
-            return sprintf( next, "%s %s SMALLINT", is_first ? "" : ",", field_infos[i].field_name );
+            g_string_append_printf(str, "%s %s SMALLINT", is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_USHORT:
-        if ( default_value )
-            return sprintf( next, "%s %s SMALLINT UNSIGNED DEFAULT %hu", is_first ? "" : ",", field_infos[i].field_name,
-                default_value->val_ushort );
+        if (default_value)
+            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED DEFAULT %hu", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_ushort);
         else
-            return sprintf( next, "%s %s SMALLINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_BIGINT:
-        if ( default_value )
-            return sprintf( next, "%s %s BIGINT DEFAULT %lld", is_first ? "" : ",", field_infos[i].field_name,
-                default_value->val_bigint );
+        if (default_value)
+            g_string_append_printf(str, "%s %s BIGINT DEFAULT %lld", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_bigint);
         else
-            return sprintf( next, "%s %s BIGINT", is_first ? "" : ",", field_infos[i].field_name );
+            g_string_append_printf(str, "%s %s BIGINT", is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_BIGUINT:
-        if ( default_value )
-            return sprintf( next, "%s %s BIGINT UNSIGNED DEFAULT %llu", is_first ? "" : ",", field_infos[i].field_name,
-                default_value->val_biguint );
+        if (default_value)
+            g_string_append_printf(str, "%s %s BIGINT UNSIGNED DEFAULT %llu", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_biguint);
         else
-            return sprintf( next, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name );
+            g_string_append_printf(str, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_BOOL:
-        if ( default_value )
-            return sprintf( next, "%s %s BOOLEAN DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
-                default_value->val_bool );
+        if (default_value)
+            g_string_append_printf(str, "%s %s BOOLEAN DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
+                default_value->val_bool);
         else
-            return sprintf( next, "%s %s BOOLEAN", is_first ? "" : ",", field_infos[i].field_name );
+            g_string_append_printf(str, "%s %s BOOLEAN", is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_ID:
-        return sprintf( next, "%s %s "PK_TYPE, is_first ? "" : ",", field_infos[i].field_name );
+        g_string_append_printf(str, "%s %s "PK_TYPE, is_first ? "" : ",", field_infos[i].field_name);
         break;
     case DB_ENUM_FTYPE:
-        return sprintf( next, "%s %s ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')",
+        g_string_append_printf(str, "%s %s ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')",
                         is_first ? "" : ",", field_infos[i].field_name,
                         STR_TYPE_LINK, STR_TYPE_DIR, STR_TYPE_FILE, STR_TYPE_CHR,
-                        STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK );
+                        STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK);
         break;
     }
-    return 0;
 }
 
 #define DROP_MESSAGE "\nYou should:\n\t1) backup current DB contents using 'rbh-config backup_db'\n\t2) empty the DB using 'rbh-config empty_db'\n\t3) start a new FS scan."
@@ -308,68 +321,52 @@ static inline int has_extra_field( int curr_field_index, char *table, char **fie
 /**
  * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
  */
-static unsigned int append_size_range_val(char * str, bool leading_comma,
-                                          char *prefix, const char *op_subs)
+static void append_size_range_val(GString *request, bool leading_comma,
+                                  char *prefix, const char *op_subs)
 {
-    unsigned int i, l;
+    unsigned int i;
     char value[128];
-    l=0;
 
     if (op_subs && op_subs[0])
-        strcpy(value, op_subs);
+        strncpy(value, op_subs, sizeof(value));
     else
-        sprintf(value, ACCT_SZ_VAL("%ssize"), prefix);
+        snprintf(value, sizeof(value), ACCT_SZ_VAL("%ssize"), prefix);
 
-    l = sprintf( str, "%s %ssize=0", leading_comma?",":"", prefix );
+    g_string_append_printf(request, "%s %ssize=0", leading_comma?",":"", prefix);
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        l += sprintf( str+l, ", IFNULL(%s=%u,0)", value, i-1 );
+        g_string_append_printf(request, ", IFNULL(%s=%u,0)", value, i-1);
     }
     /* last */
-    l += sprintf( str+l, ", IFNULL(%s>=%u,0)", value, i-1 );
-    return l;
+    g_string_append_printf(request, ", IFNULL(%s>=%u,0)", value, i-1);
 }
 
 /**
  * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
  */
-static unsigned int append_size_range_op(char * str, bool leading_comma, char *prefix,
-                                         const char * op_subs, operation_type optype)
+static void append_size_range_op(GString *request, bool leading_comma, char *prefix,
+                                 const char * op_subs, operation_type optype)
 {
-    unsigned int i, l;
-    char value[128];
-    const char * op = (optype == ADD)?"+":"-";
-    l=0;
+    unsigned int i;
+    char         value[128];
+    const char  *op = (optype == ADD)?"+":"-";
 
     if (op_subs && op_subs[0])
-        strcpy(value, op_subs);
+        strncpy(value, op_subs, sizeof(value));
     else
-        sprintf(value,  ACCT_SZ_VAL("%ssize"), prefix);
+        snprintf(value, sizeof(value), ACCT_SZ_VAL("%ssize"), prefix);
 
-    l = sprintf( str, "%s %s=CAST(%s as SIGNED)%sCAST((%ssize=0) as SIGNED)", leading_comma?",":"",
-                 sz_field[0], sz_field[0], op, prefix);
+    g_string_append_printf(request, "%s %s=CAST(%s as SIGNED)%sCAST((%ssize=0) as SIGNED)",
+                           leading_comma?",":"", sz_field[0], sz_field[0], op, prefix);
 
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        l += sprintf( str+l, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s=%u,0) as SIGNED)", sz_field[i], sz_field[i], op,
-                      value, i-1 );
+        g_string_append_printf(request, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s=%u,0) as SIGNED)",
+                               sz_field[i], sz_field[i], op, value, i-1);
     }
     /* last */
-    l += sprintf( str+l, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s>=%u,0) as SIGNED)", sz_field[i], sz_field[i],
-                         op, value, i-1 );
-    return l;
-}
-
-/** check if this mode uses an annex table */
-static inline bool have_annex_table(void)
-{
-    int i;
-    for (i = 0; i < ATTR_COUNT; i++)
-    {
-        if (field_infos[i].flags & ANNEX_INFO)
-            return true;
-    }
-    return false;
+    g_string_append_printf(request, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s>=%u,0) as SIGNED)",
+                           sz_field[i], sz_field[i], op, value, i-1);
 }
 
 /**
@@ -385,7 +382,7 @@ static const char *acct_table(void)
     if (lmgr_config.user_acct || lmgr_config.group_acct)
     {
         int i;
-        for (i = 0; i < ATTR_COUNT; i++)
+        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
         {
             if (is_acct_field(i) || is_acct_pk(i))
             {
@@ -421,8 +418,8 @@ typedef int (*check_create_tab_func_t)(db_conn_t *);
 
 static int check_table_vars(db_conn_t *pconn)
 {
-    char  strbuf[4096];
-    char *fieldtab[MAX_DB_FIELDS];
+    char    strbuf[4096];
+    char   *fieldtab[MAX_DB_FIELDS];
 
     int rc = db_list_table_fields(pconn, VAR_TABLE, fieldtab, MAX_DB_FIELDS,
                                   strbuf, sizeof(strbuf));
@@ -447,31 +444,62 @@ static int check_table_vars(db_conn_t *pconn)
     return rc;
 }
 
-static int create_table_vars(db_conn_t *pconn)
+/** wrapper for table creation request + display of log messages */
+static int run_create_table(db_conn_t *pconn, const char *table_name,
+                            const char *request)
 {
-    char strbuf[4096];
     int rc;
 
-    /* table does not exist */
-    strcpy(strbuf, "CREATE TABLE "VAR_TABLE" ("
-           "varname VARCHAR(255) PRIMARY KEY, "
-           "value TEXT)");
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
-
-    rc = db_exec_sql(pconn, strbuf, NULL);
-    if (rc)
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", request);
+    rc = db_exec_sql(pconn, request, NULL);
+    if (rc != DB_SUCCESS)
     {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                    db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        char errmsg[1024];
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Failed to create table %s: Error: %s",
+                   table_name, db_errmsg(pconn, errmsg, sizeof(errmsg)));
         return rc;
     }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "VAR_TABLE" created successfully");
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table %s created successfully", table_name);
     return DB_SUCCESS;
+}
+
+/** wrapper for index: creation request + display of log messages */
+static int run_create_index(db_conn_t *pconn, const char *table_name,
+                            const char *field, const char *request)
+{
+    int rc;
+
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", request);
+    rc = db_exec_sql(pconn, request, NULL);
+    if (rc != DB_SUCCESS)
+    {
+        char errmsg[1024];
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Failed to create index of %s(%s): Error: %s",
+                   table_name, field, db_errmsg(pconn, errmsg, sizeof(errmsg)));
+        return rc;
+    }
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on %s(%s) created successfully",
+               table_name, field);
+    return DB_SUCCESS;
+}
+
+static void append_engine(GString *request)
+{
+#ifdef _MYSQL
+    g_string_append_printf(request, " ENGINE=%s", lmgr_config.db_config.engine);
+#endif
+}
+
+static int create_table_vars(db_conn_t *pconn)
+{
+    int      rc;
+    GString *request = g_string_new("CREATE TABLE "VAR_TABLE" ("
+                            "varname VARCHAR(255) PRIMARY KEY, "
+                            "value TEXT)");
+    append_engine(request);
+    rc = run_create_table(pconn, VAR_TABLE, request->str);
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 static int check_table_main(db_conn_t *pconn)
@@ -513,13 +541,11 @@ static int check_table_main(db_conn_t *pconn)
 
 static int create_table_main(db_conn_t *pconn)
 {
-    char        strbuf[4096];
-    char       *next;
+    GString    *request;
     int         i, rc;
     db_type_u   default_val;
 
-    strcpy(strbuf, "CREATE TABLE "MAIN_TABLE" (id "PK_TYPE" PRIMARY KEY");
-    next = strbuf + strlen(strbuf);
+    request = g_string_new("CREATE TABLE "MAIN_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
     for (i = 0; i < ATTR_COUNT; i++)
     {
@@ -528,15 +554,15 @@ static int create_table_main(db_conn_t *pconn)
             if (i == ATTR_INDEX_owner)
             {
                 default_val.val_str = ACCT_DEFAULT_OWNER;
-                next += append_field_def(i, next, 0, &default_val);
+                append_field_def(i, request, 0, &default_val);
             }
             else if (i == ATTR_INDEX_gr_name)
             {
                 default_val.val_str = ACCT_DEFAULT_GROUP;
-                next += append_field_def(i, next, 0, &default_val);
+                append_field_def(i, request, 0, &default_val);
             }
             else
-                 next += append_field_def(i, next, 0, NULL);
+                 append_field_def(i, request, 0, NULL);
         }
     }
 
@@ -546,64 +572,37 @@ static int create_table_main(db_conn_t *pconn)
     for (i = 0, smi = get_sm_instance(0); smi != NULL;
          i++, smi = get_sm_instance(i))
     {
-        int j;
-
         /* status managers with SM_NODB tag have no info in DB */
         if (smi->sm->flags & SM_NODB)
             continue;
 
-        next += sprintf(next, ",%s_status ENUM(", smi->instance_name);
-        for (j = 0; j < smi->sm->status_count; j++)
-        {
-            next += sprintf(next, "%s'%s'", (j == 0)?"":",",
-                            smi->sm->status_enum[j]);
-        }
-        strcpy(next, ")");
-        next += strlen(next);
+        append_status_def(smi, request, 0);
     }
+    /* end of field list (null terminated) */
+    g_string_append(request, ")");
+    append_engine(request);
 
-    strcpy(next, ")");
-
-    #ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-    #endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
-
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = run_create_table(pconn, MAIN_TABLE, request->str);
     if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "MAIN_TABLE" created successfully");
+        goto free_str;
 
     /* create indexes on this table */
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_main_field(i) && is_indexed_field(i))
         {
-            sprintf(strbuf, "CREATE INDEX %s_index ON " MAIN_TABLE "(%s)",
-                    field_name(i), field_name(i));
-
-            DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s",
-                       strbuf);
-
-            rc = db_exec_sql(pconn, strbuf, NULL);
+            g_string_printf(request, "CREATE INDEX %s_index ON " MAIN_TABLE "(%s)",
+                            field_name(i), field_name(i));
+            rc = run_create_index(pconn, MAIN_TABLE, field_name(i), request->str);
             if (rc)
-            {
-                DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                           "Failed to create index: Error: %s",
-                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
-                return rc;
-            }
-            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "MAIN_TABLE"(%s) created successfully",
-                       field_name(i));
+                goto free_str;
         }
     }
-    return DB_SUCCESS;
+    rc = DB_SUCCESS;
+
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 static int check_table_dnames(db_conn_t *pconn)
@@ -647,74 +646,45 @@ static int check_table_dnames(db_conn_t *pconn)
 
 static int create_table_dnames(db_conn_t *pconn)
 {
-    char        strbuf[4096];
-    char       *next;
+    GString    *request;
     int         i, rc;
 
-    /* table does not exist */
-    strcpy(strbuf, "CREATE TABLE "DNAMES_TABLE" (id "PK_TYPE", "
-                   "pkn VARCHAR(40) PRIMARY KEY");
-    next = strbuf + strlen(strbuf);
+    request = g_string_new("CREATE TABLE "DNAMES_TABLE" (id "PK_TYPE", "
+                           "pkn VARCHAR(40) PRIMARY KEY");
 
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_names_field(i) && !is_funcattr(i))
         {
-            next += append_field_def(i, next, 0, NULL);
+            append_field_def(i, request, 0, NULL);
         }
     }
-    strcpy(next, ")");
+    g_string_append(request, ")");
+    append_engine(request);
 
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
-
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = run_create_table(pconn, DNAMES_TABLE, request->str);
     if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "DNAMES_TABLE" created successfully");
+        goto free_str;
 
     /* create indexes on this table */
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_names_field(i) && is_indexed_field(i))
         {
-            sprintf(strbuf, "CREATE INDEX %s_index ON " DNAMES_TABLE "(%s)",
-                    field_infos[i].field_name, field_infos[i].field_name);
-
-            DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
-
-            rc = db_exec_sql(pconn, strbuf, NULL);
+            g_string_printf(request, "CREATE INDEX %s_index ON " DNAMES_TABLE "(%s)",
+                            field_name(i), field_name(i));
+            rc = run_create_index(pconn, DNAMES_TABLE, field_name(i), request->str);
             if (rc)
-            {
-                DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                           "Failed to create index: Error: %s",
-                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
-                return rc;
-            }
-            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "DNAMES_TABLE"(%s) created successfully",
-                       field_infos[i].field_name);
+                goto free_str;
         }
     }
 
     /* this index is needed to build the fullpath of entries */
-    rc = db_exec_sql(pconn, "CREATE INDEX id_index ON "DNAMES_TABLE"(id)", NULL);
-    if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create index: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog( LVL_VERB, LISTMGR_TAG, "Index on "DNAMES_TABLE"(id) created successfully");
-    return DB_SUCCESS;
+    rc = run_create_index(pconn, DNAMES_TABLE, "id",
+                      "CREATE INDEX id_index ON "DNAMES_TABLE"(id)");
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 static int check_table_annex(db_conn_t *pconn)
@@ -722,9 +692,6 @@ static int check_table_annex(db_conn_t *pconn)
     int rc, i;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
-
-    if (!annex_table)
-        return DB_SUCCESS;
 
     rc = db_list_table_fields(pconn, ANNEX_TABLE, fieldtab, MAX_DB_FIELDS,
                               strbuf, sizeof(strbuf));
@@ -761,62 +728,42 @@ static int check_table_annex(db_conn_t *pconn)
 
 static int create_table_annex(db_conn_t *pconn)
 {
-    char        strbuf[4096];
-    char       *next;
-    int         i, rc;
+    GString  *request;
+    int       i, rc;
 
-    if (!annex_table)
-        return DB_SUCCESS;
-
-    strcpy( strbuf, "CREATE TABLE "ANNEX_TABLE" (id "PK_TYPE" PRIMARY KEY");
-    next = strbuf + strlen(strbuf);
+    request = g_string_new("CREATE TABLE "ANNEX_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_annex_field(i) && !is_funcattr(i))
         {
-            next += append_field_def(i, next, 0, NULL);
+            append_field_def(i, request, 0, NULL);
         }
     }
-    strcpy( next, ")" );
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+    g_string_append(request, ")");
+    append_engine(request);
 
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = run_create_table(pconn, ANNEX_TABLE, request->str);
     if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "ANNEX_TABLE" created successfully");
+        goto free_str;
 
     /* create indexes on this table */
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_annex_field(i) && is_indexed_field(i))
         {
-            sprintf( strbuf, "CREATE INDEX %s_index ON " ANNEX_TABLE "(%s)",
-                     field_infos[i].field_name, field_infos[i].field_name );
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf );
-
-            rc = db_exec_sql(pconn, strbuf, NULL);
+            g_string_printf(request, "CREATE INDEX %s_index ON " ANNEX_TABLE "(%s)",
+                            field_name(i), field_name(i));
+            rc = run_create_index(pconn, ANNEX_TABLE, field_name(i), request->str);
             if (rc)
-            {
-                DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                           "Failed to create index: Error: %s",
-                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
-                return rc;
-            }
-            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "ANNEX_TABLE"(%s) created successfully",
-                       field_infos[i].field_name);
+                goto free_str;
         }
     }
-    return DB_SUCCESS;
+    rc = DB_SUCCESS;
+
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 #ifdef _LUSTRE
@@ -874,30 +821,20 @@ static int check_table_stripe_info(db_conn_t *pconn)
 
 static int create_table_stripe_info(db_conn_t *pconn)
 {
-    char strbuf[4096];
-    int  rc;
+    GString *request;
+    int      rc;
 
-    sprintf(strbuf,
-            "CREATE TABLE " STRIPE_INFO_TABLE
+    request = g_string_new(NULL);
+    g_string_printf(request, "CREATE TABLE " STRIPE_INFO_TABLE
             " (id "PK_TYPE" PRIMARY KEY, validator INT, "
-            "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u))",
+            "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, "
+            "pool_name VARCHAR(%u))",
             MAX_POOL_LEN - 1);
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+    append_engine(request);
 
-    rc = db_exec_sql(pconn, strbuf, NULL);
-    if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "STRIPE_INFO_TABLE" created successfully");
-    return DB_SUCCESS;
+    rc = run_create_table(pconn, STRIPE_INFO_TABLE, request->str);
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 static int check_table_stripe_items(db_conn_t *pconn)
@@ -938,52 +875,29 @@ static int check_table_stripe_items(db_conn_t *pconn)
 
 static int create_table_stripe_items(db_conn_t *pconn)
 {
-    char strbuf[4096];
+    GString *request;
     int  rc;
 
-    sprintf(strbuf, "CREATE TABLE "STRIPE_ITEMS_TABLE
-            " (id "PK_TYPE", stripe_index INT UNSIGNED, ostidx INT UNSIGNED, details BINARY(%u))",
-            STRIPE_DETAIL_SZ);
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+    request = g_string_new(NULL);
+    g_string_printf(request, "CREATE TABLE "STRIPE_ITEMS_TABLE
+                    " (id "PK_TYPE", stripe_index INT UNSIGNED, "
+                    "ostidx INT UNSIGNED, details BINARY(%u))",
+                    STRIPE_DETAIL_SZ);
+    append_engine(request);
 
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = run_create_table(pconn, STRIPE_ITEMS_TABLE, request->str);
+    g_string_free(request, TRUE);
     if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
         return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "STRIPE_ITEMS_TABLE" created successfully");
 
-    strcpy(strbuf, "CREATE INDEX id_index ON "STRIPE_ITEMS_TABLE"(id)");
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = run_create_index(pconn, STRIPE_ITEMS_TABLE, "id",
+                          "CREATE INDEX id_index ON "STRIPE_ITEMS_TABLE"(id)");
     if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create index: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
         return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "STRIPE_ITEMS_TABLE"(id) created successfully");
 
-    strcpy(strbuf, "CREATE INDEX st_index ON "STRIPE_ITEMS_TABLE"(ostidx)");
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s", strbuf);
-    rc = db_exec_sql(pconn, strbuf, NULL);
-    if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create index: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "STRIPE_ITEMS_TABLE"(ostidx) created successfully");
-    return DB_SUCCESS;
+    rc = run_create_index(pconn, STRIPE_ITEMS_TABLE, "ostidx",
+                          "CREATE INDEX ost_index ON "STRIPE_ITEMS_TABLE"(ostidx)");
+    return rc;
 }
 #endif
 
@@ -1013,7 +927,7 @@ static int check_table_acct(db_conn_t *pconn)
         int curr_field_index = 0;
 
         /* check primary key */
-        for (i = 0; i < ATTR_COUNT; i++)
+        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
         {
             if (is_acct_pk(i))
             {
@@ -1022,7 +936,7 @@ static int check_table_acct(db_conn_t *pconn)
             }
         }
         /* check other fields */
-        for (i = 0; i < ATTR_COUNT; i++)
+        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
         {
             if (is_acct_field(i))
             {
@@ -1066,9 +980,9 @@ static int check_table_acct(db_conn_t *pconn)
 
 static int populate_acct_table(db_conn_t *pconn)
 {
-    char strbuf[4096];
-    char *next = strbuf;
-    int i, rc;
+    int      i, rc;
+    GString *request = NULL;
+    char err_buf[1024];
 
     if (acct_info_table == NULL)
         RBH_BUG("Can't populate "ACCT_TABLE" with no source table");
@@ -1078,133 +992,121 @@ static int populate_acct_table(db_conn_t *pconn)
     FlushLogs();
 
     /* Initial table population for already existing entries */
-    APPEND_TXT(next, "INSERT INTO "ACCT_TABLE"(");
-    attrmask2fieldlist(next, acct_pk_attr_set , T_ACCT, false, false, "", "");
-    INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "", "");
-    INCR_NEXT(next);
-    APPEND_TXT(next, ", "ACCT_FIELD_COUNT);
-    next += append_size_range_fields(next, true, "");
-    APPEND_TXT(next, ") SELECT ");
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
-    INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "SUM(", ")");
-    INCR_NEXT(next);
-    APPEND_TXT(next, " ,COUNT(id), SUM(size=0)");
-    for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
-            next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")"=%u,0))", i-1);
-    next += sprintf(next, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
 
-    next += sprintf(next, " FROM %s  GROUP BY ", acct_info_table);
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
-    next = next + strlen(next);
+    /* INSERT <fields>... */
+    request = g_string_new("INSERT INTO "ACCT_TABLE"(");
+    attrmask2fieldlist(request, acct_pk_attr_set , T_ACCT, false, false, "", "");
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "", "");
+    g_string_append(request, ", "ACCT_FIELD_COUNT);
+    append_size_range_fields(request, true, "");
+
+    /* ...SELECT <fields>... */
+    g_string_append(request, ") SELECT ");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "SUM(", ")");
+    g_string_append(request, ",COUNT(id),SUM(size=0)");
+    for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
+        g_string_append_printf(request, ",SUM(IFNULL("ACCT_SZ_VAL("size")"=%u,0))", i-1);
+    g_string_append_printf(request, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
+
+    /* FROM ... GROUP BY ... */
+    g_string_append_printf(request, " FROM %s  GROUP BY ", acct_info_table);
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
 
     /* set READ COMMITTED isolation level for the next (big!) request
      * so locks can be released immediatly after the record is read */
     rc = db_transaction_level(pconn, TRANS_NEXT, TXL_READ_COMMITTED);
     if (rc)
     {
-        char errmsg_buf[1024];
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to set READ_COMMITTED isolation level: Error: %s",
-                   db_errmsg(pconn, errmsg_buf, sizeof(errmsg_buf)));
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
         /* try to continue */
     }
 
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = db_exec_sql(pconn, request->str, NULL);
+    g_string_free(request, TRUE);
     if (rc)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to populate accounting table: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
 
         /* drop this table, to leave the db in a consistent state (if ACCT_TABLE exists, it must be populated) */
         if (db_drop_component(pconn, DBOBJ_TABLE, ACCT_TABLE))
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
                        "Failed to drop table: Error: %s",
-                       db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                       db_errmsg(pconn, err_buf, sizeof(err_buf)));
     }
     return rc;
 }
 
 static int create_table_acct(db_conn_t *pconn)
 {
-    char strbuf[4096];
-    int i, rc;
-    char *next;
-    bool first_acct_pk = true;
-    bool is_first_acct_field = true;
+    GString *request;
+    int      i, rc;
+    bool     first_acct_pk = true;
+    bool     is_first_acct_field = true;
 
     if (!lmgr_config.user_acct && !lmgr_config.group_acct)
         return DB_SUCCESS;
 
-    /* table does not exist */
-    strcpy(strbuf, "CREATE TABLE "ACCT_TABLE" (");
-    next = strbuf + strlen(strbuf);
+    request = g_string_new("CREATE TABLE "ACCT_TABLE" (");
 
-    for (i = 0; i < ATTR_COUNT; i++)
+    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
     {
         if (is_acct_pk(i))
         {
-            next += append_field_def(i, next, is_first_acct_field, NULL);
+            append_field_def(i, request, is_first_acct_field, NULL);
             is_first_acct_field = false;
         }
     }
 
-    for (i = 0; i < ATTR_COUNT; i++)
+    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
     {
         if (is_acct_field(i))
-        {
-            next += append_field_def(i, next, is_first_acct_field, NULL);
-        }
+            append_field_def(i, request, is_first_acct_field, NULL);
     }
 
     /* count field */
-    strcpy (next, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED");
-    next = next + strlen(next);
+    g_string_append(request, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED");
 
     /* size range fields */
     for (i = 0; i < SZ_PROFIL_COUNT; i++)
     {
-        next += sprintf(next, ", %s BIGINT UNSIGNED DEFAULT 0", sz_field[i]);
+        g_string_append_printf(request, ", %s BIGINT UNSIGNED DEFAULT 0",
+                               sz_field[i]);
     }
 
     /* PK definition */
-    strcpy (next, ", PRIMARY KEY ( ");
-    next = next + strlen(next);
+    g_string_append(request, ", PRIMARY KEY ( ");
 
-    for (i = 0; i < ATTR_COUNT; i++)
+    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
     {
         if (is_acct_pk(i))
         {
             if (!first_acct_pk )
-                next += sprintf(next, ", %s", field_name(i));
+                g_string_append_printf(request, ", %s", field_name(i));
             else
             {
-                next += sprintf(next, "%s", field_name(i));
+                g_string_append_printf(request, "%s", field_name(i));
                 first_acct_pk = false;
             }
         }
     }
-    strcpy(next,"))");
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
+    g_string_append(request, "))");
+    append_engine(request);
 
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = run_create_table(pconn, ACCT_TABLE, request->str);
     if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                    db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "ACCT_TABLE" created successfully");
+        goto free_str;
 
     /* now populate it */
-    return populate_acct_table(pconn);
+    rc = populate_acct_table(pconn);
+
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 #ifdef HAVE_RM_POLICY
@@ -1248,60 +1150,41 @@ static int check_table_softrm(db_conn_t *pconn)
 
 static int create_table_softrm(db_conn_t *pconn)
 {
-    char  strbuf[4096];
-    int   rc, i;
-    char *next;
+    GString *request;
+    int      rc, i;
 
-    strcpy(strbuf, "CREATE TABLE "SOFT_RM_TABLE" (id "PK_TYPE" PRIMARY KEY");
-    next = strbuf + strlen(strbuf);
+    request = g_string_new("CREATE TABLE "SOFT_RM_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_softrm_field(i))
-            next += append_field_def(i, next, 0, NULL);
+            append_field_def(i, request, 0, NULL);
     }
-    strcpy(next, ")");
+    g_string_append(request, ")");
+    append_engine(request);
 
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
-    DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
-
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = run_create_table(pconn, SOFT_RM_TABLE, request->str);
     if (rc)
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to create table: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
-    }
-    DisplayLog(LVL_VERB, LISTMGR_TAG, "Table "SOFT_RM_TABLE" created successfully");
+        goto free_str;
 
     /* create indexes on this table */
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_softrm_field(i) && is_indexed_field(i))
         {
-            sprintf(strbuf, "CREATE INDEX %s_index ON " SOFT_RM_TABLE "(%s)",
-                    field_name(i), field_name(i));
+            g_string_printf(request, "CREATE INDEX %s_index ON " SOFT_RM_TABLE "(%s)",
+                            field_name(i), field_name(i));
 
-            DisplayLog(LVL_FULL, LISTMGR_TAG, "Index creation request =\n%s",
-                       strbuf);
-
-            rc = db_exec_sql(pconn, strbuf, NULL);
+            rc = run_create_index(pconn, SOFT_RM_TABLE, field_name(i), request->str);
             if (rc)
-            {
-                DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                           "Failed to create index: Error: %s",
-                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
-                return rc;
-            }
-            DisplayLog(LVL_VERB, LISTMGR_TAG, "Index on "SOFT_RM_TABLE"(%s) created successfully",
-                       field_name(i));
+                goto free_str;
         }
     }
-    return DB_SUCCESS;
+    rc = DB_SUCCESS;
+
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 #endif
 
@@ -1318,7 +1201,7 @@ static int check_functions_version(db_conn_t *conn)
     char val[1024];
 
     /* check the functions version */
-    rc = lmgr_get_var(conn, VERSION_VAR_FUNC, val);
+    rc = lmgr_get_var(conn, VERSION_VAR_FUNC, val, sizeof(val));
     if (rc == DB_SUCCESS)
     {
         if (strcmp(val, FUNCTIONSET_VERSION))
@@ -1378,7 +1261,7 @@ static int check_triggers_version(db_conn_t *pconn)
         return DB_SUCCESS; /* don't care about triggers */
 
     /* check the triggers version */
-    rc = lmgr_get_var(pconn, VERSION_VAR_TRIG, val);
+    rc = lmgr_get_var(pconn, VERSION_VAR_TRIG, val, sizeof(val));
     if (rc == DB_SUCCESS)
     {
         if (strcmp(val, TRIGGERSET_VERSION))
@@ -1426,6 +1309,7 @@ static int check_trig_acct_insert(db_conn_t *pconn)
 {
     int rc;
     char strbuf[4096];
+
     if (!lmgr_config.user_acct && !lmgr_config.group_acct)
     {
         /* no acct: must delete trigger */
@@ -1523,110 +1407,112 @@ static int check_trig_acct_update(db_conn_t *pconn)
 
 static int create_trig_acct_insert(db_conn_t *pconn)
 {
-    int  rc;
-    char strbuf[4096];
-    char *next;
+    int      rc;
+    GString *request;
+    char     errbuf[1024];
 
     /* Trigger on insert */
-    next = strbuf;
-    APPEND_TXT(next, "DECLARE val BIGINT UNSIGNED; "
-                     "SET val="ACCT_SZ_VAL("NEW.size")";");
-    APPEND_TXT(next, "INSERT INTO " ACCT_TABLE "(");
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
-    INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "", "");
-    INCR_NEXT(next);
-    APPEND_TXT(next, ", " ACCT_FIELD_COUNT);
-    next += append_size_range_fields(next, true, "");
-    APPEND_TXT(next, ") VALUES (");
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
-    INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "NEW.", "");
-    INCR_NEXT(next);
-    APPEND_TXT(next, ", 1");
-    next += append_size_range_val(next, true, "NEW.", "val");
-    APPEND_TXT(next, ") ON DUPLICATE KEY UPDATE ");
-    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "NEW.", ADD);
-    INCR_NEXT(next);
-    APPEND_TXT(next,", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1");
+    request = g_string_new("DECLARE val BIGINT UNSIGNED; "
+                           "SET val="ACCT_SZ_VAL("NEW.size")"; "
+                           "INSERT INTO " ACCT_TABLE "(");
+    /* INSERT(list of fields... */
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "", "");
+    g_string_append(request, ", " ACCT_FIELD_COUNT);
+    append_size_range_fields(request, true, "");
 
-    /* update size range values */
-    next += append_size_range_op(next, true, "NEW.", "val", ADD);
+    /* ... ) VALUES (... */
+    g_string_append(request, ") VALUES (");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "NEW.", "");
+    g_string_append(request, ",1");
+    append_size_range_val(request, true, "NEW.", "val");
+    g_string_append(request, ") ON DUPLICATE KEY UPDATE ");
 
-    APPEND_TXT(next,";");
+    /* on duplicate key update... */
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "NEW.", ADD);
+    g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1");
+    append_size_range_op(request, true, "NEW.", "val", ADD);
+    g_string_append(request, ";");
+
     rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT);
     if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to drop " ACCT_TRIGGER_INSERT " trigger: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
+                   db_errmsg(pconn, errbuf, sizeof(errbuf)));
+        goto free_str;
     }
 
     rc = db_create_trigger(pconn, ACCT_TRIGGER_INSERT, "AFTER INSERT",
-                           acct_info_table, strbuf);
+                           acct_info_table, request->str);
     if (rc)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to create "ACCT_TRIGGER_INSERT" trigger: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
+                   db_errmsg(pconn, errbuf, sizeof(errbuf)));
+        goto free_str;
     }
+    rc = DB_SUCCESS;
     DisplayLog(LVL_VERB, LISTMGR_TAG, "Trigger "ACCT_TRIGGER_INSERT" created successfully");
-    return DB_SUCCESS;
+
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 static int create_trig_acct_delete(db_conn_t *pconn)
 {
-    int  rc;
-    char strbuf[4096];
-    char *next;
+    int      rc;
+    GString *request;
+    char     err_buf[1024];
 
     /* Trigger on delete */
-    next = strbuf;
-    APPEND_TXT(next, "DECLARE val BIGINT UNSIGNED; "
-                      "SET val="ACCT_SZ_VAL("OLD.size")";");
-    APPEND_TXT(next, "UPDATE " ACCT_TABLE " SET ");
-    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
-    INCR_NEXT(next);
-    APPEND_TXT(next,", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1");
+    request = g_string_new("DECLARE val BIGINT UNSIGNED; "
+                           "SET val="ACCT_SZ_VAL("OLD.size")";"
+                           "UPDATE " ACCT_TABLE " SET ");
+    /* update ACCT_TABLE SET ... */
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
+    g_string_append(request, ", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1");
+    append_size_range_op(request, true, "OLD.", "val", SUBSTRACT);
 
-    /* update size range values */
-    next += append_size_range_op(next, true, "OLD.", "val", SUBSTRACT);
-
-    APPEND_TXT(next, " WHERE ");
-    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
-    INCR_NEXT(next);
-    APPEND_TXT(next, ";");
+    /* ... WHERE ... */
+    g_string_append(request, " WHERE ");
+    attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
+    g_string_append(request, ";");
 
     rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_DELETE);
     if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to drop " ACCT_TRIGGER_DELETE " trigger: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+        goto free_str;
     }
 
     rc = db_create_trigger(pconn, ACCT_TRIGGER_DELETE, "BEFORE DELETE",
-                           acct_info_table, strbuf);
+                           acct_info_table, request->str);
     if (rc)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to create " ACCT_TRIGGER_DELETE " trigger: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+        goto free_str;
     }
     DisplayLog(LVL_VERB, LISTMGR_TAG, "Trigger "ACCT_TRIGGER_DELETE" created successfully");
-    return DB_SUCCESS;
+    rc = DB_SUCCESS;
+
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 static int create_trig_acct_update(db_conn_t *pconn)
 {
-    int  rc, i;
-    char strbuf[4096];
-    char *next;
-    bool is_first_field = true;
+    int      rc, i;
+    bool     is_first_field = true;
+    GString *request;
+    char     err_buf[1024];
 
     /* Trigger on update */
 
@@ -1635,116 +1521,108 @@ static int create_trig_acct_update(db_conn_t *pconn)
      * and add new information to the new raw.
      */
     /* Simple case: owner and group are still the same */
-    next = strbuf;
-    APPEND_TXT(next, "DECLARE val_old, val_new BIGINT UNSIGNED;");
-    APPEND_TXT(next, "SET val_old="ACCT_SZ_VAL("OLD.size")"; "
-                      "SET val_new="ACCT_SZ_VAL("NEW.size")";");
-    APPEND_TXT(next, "\nIF ");
+    request = g_string_new("DECLARE val_old, val_new BIGINT UNSIGNED;"
+                           "SET val_old="ACCT_SZ_VAL("OLD.size")"; "
+                           "SET val_new="ACCT_SZ_VAL("NEW.size")";\n"
+                           "IF ");
     /* generate comparison like NEW.owner=OLD.owner AND NEW.gr_name=OLD.gr_name */
-    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND");
-    INCR_NEXT(next);
-    APPEND_TXT(next, "THEN \n\t IF ");
+    attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND");
+    g_string_append(request, "THEN \n\t IF ");
     /********* if one of the attribute value has changed: update the acct table *********/
     /* generate comparison like NEW.size<>=OLD.size OR NEW.blocks<>OLD.blocks */
-    attrmask2fieldcomparison(next, acct_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
-    INCR_NEXT(next);
-    APPEND_TXT(next, "THEN \n\t\t UPDATE " ACCT_TABLE " SET ");
+    attrmask2fieldcomparison(request, acct_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
+    g_string_append(request, "THEN \n\t\t UPDATE " ACCT_TABLE " SET ");
     for (i = 0; i < ATTR_COUNT; i++)
     {
         if (is_acct_field(i))
         {
             if (!is_first_field)
-                next += sprintf(next, ", %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
-                                field_name(i), field_name(i), field_name(i), field_name(i));
+                g_string_append_printf(request, ", %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
+                                       field_name(i), field_name(i), field_name(i), field_name(i));
             else
             {
-                next += sprintf(next, " %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
-                                field_name(i), field_name(i), field_name(i), field_name(i));
+                g_string_append_printf(request, " %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
+                                       field_name(i), field_name(i), field_name(i), field_name(i));
                 is_first_field = false;
             }
         }
     }
 
     /* update size range values */
-    next += sprintf(next, "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
-                     is_first_field?" ":", ", sz_field[0], sz_field[0]);
+    g_string_append_printf(request, "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
+                           is_first_field?" ":", ", sz_field[0], sz_field[0]);
     is_first_field = false;
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old=%u,0) as SIGNED)+CAST(IFNULL(val_new=%u,0) as SIGNED)",
-                         sz_field[i], sz_field[i], i-1, i-1);
+        g_string_append_printf(request, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old=%u,0) as SIGNED)+CAST(IFNULL(val_new=%u,0) as SIGNED)",
+                               sz_field[i], sz_field[i], i-1, i-1);
     }
     /* last */
-    next += sprintf(next, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old>=%u,0) as SIGNED)+CAST(IFNULL(val_new>=%u,0) as SIGNED)",
-                     sz_field[i], sz_field[i], i-1, i-1);
-
-    APPEND_TXT(next, " WHERE ");
+    g_string_append_printf(request, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old>=%u,0) as SIGNED)+CAST(IFNULL(val_new>=%u,0) as SIGNED)",
+                           sz_field[i], sz_field[i], i-1, i-1);
+    g_string_append(request, " WHERE ");
     /* generate comparison as follows: owner=NEW.owner AND gr_name=NEW.gr_name */
-    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "NEW.", "=", "AND");
-    INCR_NEXT(next);
-    APPEND_TXT(next, "; \n\t END IF; \nELSEIF ");
+    attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "", "NEW.", "=", "AND");
+    g_string_append(request, "; \n\t END IF; \nELSEIF ");
 
     /* tricky case: owner and/or group changed */
 
-    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
-    INCR_NEXT(next);
-    APPEND_TXT(next,  "THEN \n\tINSERT INTO " ACCT_TABLE "(");
+    attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
+    g_string_append(request, "THEN \n\tINSERT INTO " ACCT_TABLE "(");
     /* generate fields as follows: owner, gr_name */
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "", "");
-    INCR_NEXT(next);
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
     /* generate fields as follows: , size, blocks */
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "", "");
-    INCR_NEXT(next);
-    APPEND_TXT(next, ", " ACCT_FIELD_COUNT);
-    next += append_size_range_fields(next, true, "");
-    APPEND_TXT(next, ") VALUES (");
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "", "");
+    g_string_append(request, ", " ACCT_FIELD_COUNT);
+    append_size_range_fields(request, true, "");
+    g_string_append(request, ") VALUES (");
     /* generate fields as follows: NEW.owner, NEW.gr_name */
-    attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
-    INCR_NEXT(next);
-    attrmask2fieldlist(next, acct_attr_set, T_ACCT, true, false, "NEW.", "");
-    INCR_NEXT(next);
-    APPEND_TXT(next, ", 1");
-    next += append_size_range_val(next, true, "NEW.", "val_new");
-    APPEND_TXT(next, ") \n\tON DUPLICATE KEY UPDATE ");
-    /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
-    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "NEW.", ADD);
-    INCR_NEXT(next);
-    APPEND_TXT(next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1");
-    /* update size range values */
-    next += append_size_range_op(next, true, "NEW.", "val_new", ADD);
-    APPEND_TXT(next, ";");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "NEW.", "");
+    g_string_append(request, ",1");
+    append_size_range_val(request, true, "NEW.", "val_new");
 
-    APPEND_TXT(next, "\n\tUPDATE " ACCT_TABLE " SET ");
+    g_string_append(request, ") \n\tON DUPLICATE KEY UPDATE ");
+    /* generate operations as follows: size=size+New.size, blocks=blocks+NEW.blocks */
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "NEW.", ADD);
+    g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT  "+1");
+    /* update size range values */
+    append_size_range_op(request, true, "NEW.", "val_new", ADD);
+    g_string_append(request, ";\n"
+                    "\tUPDATE " ACCT_TABLE " SET ");
+
     /* generate operations as follows: size=size-Old.size, blocks=blocks-Old.blocks */
-    attrmask2fieldoperation(next, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
-    INCR_NEXT(next);
-    APPEND_TXT(next, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 ");
-    next += append_size_range_op(next, true, "OLD.", "val_old", SUBSTRACT);
-    APPEND_TXT(next, " WHERE ");
-    attrmask2fieldcomparison(next, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
-    INCR_NEXT(next);
-    APPEND_TXT(next, ";\nEND IF;\n");
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
+    g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 ");
+    append_size_range_op(request, true, "OLD.", "val_old", SUBSTRACT);
+    g_string_append(request, " WHERE ");
+    attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
+    g_string_append(request, ";\nEND IF;\n");
 
     rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE);
     if (rc != DB_SUCCESS && rc != DB_TRG_NOT_EXISTS)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to drop "ACCT_TRIGGER_UPDATE" trigger: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+        goto free_str;
     }
 
     rc = db_create_trigger(pconn, ACCT_TRIGGER_UPDATE, "AFTER UPDATE",
-                           acct_info_table, strbuf);
+                           acct_info_table, request->str);
     if (rc)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to create "ACCT_TRIGGER_UPDATE" trigger: Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
-        return rc;
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+        goto free_str;
     }
     DisplayLog(LVL_VERB, LISTMGR_TAG, "Trigger "ACCT_TRIGGER_UPDATE" created successfully");
-    return DB_SUCCESS;
+    rc = DB_SUCCESS;
+
+free_str:
+    g_string_free(request, TRUE);
+    return rc;
 }
 
 
@@ -1758,8 +1636,9 @@ static int check_func_onepath(db_conn_t *pconn)
 
 static int create_func_onepath(db_conn_t *pconn)
 {
-    int  rc;
-    char strbuf[4096];
+    int      rc;
+    GString *request;
+    char     err_buf[1024];
 
     /* XXX /!\ do not modify the code of DB functions
      * without changing FUNCTIONSET_VERSION!!!!
@@ -1769,12 +1648,13 @@ static int create_func_onepath(db_conn_t *pconn)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to drop function '"ONE_PATH_FUNC"': Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
         return rc;
     }
     /* creating function to get one path for a file */
     /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same id in a given request */
-    snprintf(strbuf, sizeof(strbuf), "CREATE FUNCTION "ONE_PATH_FUNC"(param "PK_TYPE")"
+    request = g_string_new(NULL);
+    g_string_printf(request, "CREATE FUNCTION "ONE_PATH_FUNC"(param "PK_TYPE")"
         " RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
             " DECLARE p VARCHAR(%u) DEFAULT NULL;"
@@ -1792,11 +1672,13 @@ static int create_func_onepath(db_conn_t *pconn)
         /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
         /* size of name */field_infos[ATTR_INDEX_name].db_type_size);
 
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = db_exec_sql(pconn, request->str, NULL);
     if (rc)
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to create function '"ONE_PATH_FUNC"': Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+
+    g_string_free(request, TRUE);
     return rc;
 }
 
@@ -1807,8 +1689,9 @@ static int check_func_thispath(db_conn_t *pconn)
 
 static int create_func_thispath(db_conn_t *pconn)
 {
-    int rc;
-    char        strbuf[4096];
+    int      rc;
+    GString *request;
+    char     err_buf[1024];
     /* XXX /!\ do not modify the code of DB functions
      * without changing FUNCTIONSET_VERSION!!!!
      */
@@ -1819,13 +1702,14 @@ static int create_func_thispath(db_conn_t *pconn)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to drop function '"THIS_PATH_FUNC"': Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
         return rc;
     }
 
     /* creating function to get a path for a file, for the given parent and name  */
     /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same parent+name in a given request */
-    snprintf(strbuf, sizeof(strbuf), "CREATE FUNCTION "THIS_PATH_FUNC"(pid_arg "PK_TYPE ", n_arg VARCHAR(%u))"
+    request = g_string_new(NULL);
+    g_string_printf(request, "CREATE FUNCTION "THIS_PATH_FUNC"(pid_arg "PK_TYPE ", n_arg VARCHAR(%u))"
         " RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
             " DECLARE p VARCHAR(%u) DEFAULT NULL;"
@@ -1845,11 +1729,13 @@ static int create_func_thispath(db_conn_t *pconn)
         /* size of fullpath */field_infos[ATTR_INDEX_fullpath].db_type_size,
         /* size of name */field_infos[ATTR_INDEX_name].db_type_size);
 
-    rc = db_exec_sql(pconn, strbuf, NULL);
+    rc = db_exec_sql(pconn, request->str, NULL);
     if (rc)
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to create function '"THIS_PATH_FUNC"': Error: %s",
-                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+
+    g_string_free(request, TRUE);
     return rc;
 }
 
@@ -1910,9 +1796,6 @@ int ListMgr_Init(const lmgr_config_t * p_conf, bool report_access_only)
     /* store the configuration */
     lmgr_config = *p_conf;
     report_only = report_access_only;
-
-    /* determine if an annex table is used */
-    annex_table = have_annex_table();
 
     /* initilize attr masks for each table */
     init_attrset_masks(&lmgr_config);

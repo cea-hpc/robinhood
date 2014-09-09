@@ -22,7 +22,9 @@
 #endif
 
 #include <libgen.h>             /* Posix versions of dirname/basename */
+#include <glib.h>
 
+#include "uidgidcache.h"
 #include "cmd_helpers.h"
 #include "rbh_cfg.h"
 #include "rbh_logs.h"
@@ -463,10 +465,12 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
     time_t tt;
     struct tm stm;
 
+    /* if attr is not set in mask, print nothing */
     if  (attr_index != ATTR_INDEX_fullpath /* specific case */
          && attr_index != ATTR_INDEX_ID
          && (attrs->attr_mask & (1 << attr_index)) == 0)
         return "";
+
     if (attr_index >= ATTR_COUNT)
         return STATUS_ATTR(attrs, attr_index - ATTR_COUNT);
 
@@ -1021,4 +1025,28 @@ void display_report(const report_field_descr_t *descr, unsigned int field_count,
     }
 }
 
+/** initialize internal resources (glib, llapi, internal resources...) */
+int rbh_init_internals(void)
+{
+    int rc;
 
+    g_thread_init(NULL);
+
+    /* Initialize global tools */
+#ifdef _LUSTRE
+    if ((rc = Lustre_Init())!= 0)
+    {
+        fprintf(stderr, "Error %d initializing liblustreapi\n", rc);
+        return rc;
+    }
+#endif
+
+    /* Initilize uidgid cache */
+    if (InitUidGid_Cache())
+    {
+        fprintf(stderr, "Error initializing uid/gid cache\n");
+        return 1;
+    }
+
+    return 0;
+}

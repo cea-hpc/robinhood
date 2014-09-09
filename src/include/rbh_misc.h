@@ -46,6 +46,10 @@
                             || strchr(s,']') || strchr(s,'{') || strchr(s,'}') )
 #define STAR_SLASH_BEGIN( s ) (((s)[0]=='*') && ((s)[1]=='/'))
 
+#define GSTRING_SAFE(_g) (((_g)->str == NULL)?"":(_g)->str)
+#define GSTRING_EMPTY(_g) (EMPTY_STRING(GSTRING_SAFE(_g)))
+
+
 #define bool2str(_b_)   ((_b_)?"yes":"no")
 
 #define rh_strncpy(_s1, _s2, _sz) do { strncpy(_s1, _s2, _sz-1); if (_sz > 0) (_s1)[_sz-1] = '\0'; } while(0)
@@ -65,6 +69,14 @@
 #endif
 #ifndef V
 #define V(_mutex_) pthread_mutex_unlock(&(_mutex_))
+#endif
+
+#ifdef __GNUC__
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#else
+#define likely(x)       (x)
+#define unlikely(x)     (x)
 #endif
 
 /* displaying FID */

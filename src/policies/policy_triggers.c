@@ -411,7 +411,7 @@ static bool check_maintenance_mode(policy_info_t *pol,
         return false;
 
     /* check maintenance mode */
-    if ((ListMgr_GetVar(&pol->lmgr, NEXT_MAINT_VAR, varstr) != DB_SUCCESS)
+    if ((ListMgr_GetVar(&pol->lmgr, NEXT_MAINT_VAR, varstr, sizeof(varstr)) != DB_SUCCESS)
          || EMPTY_STRING(varstr))
         return false;
 

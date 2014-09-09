@@ -832,7 +832,8 @@ static int check_scan_done(const policy_info_t *pol, lmgr_t *lmgr)
     if (!force_run(pol))
     {
         char timestamp[1024];
-        if (ListMgr_GetVar(lmgr, LAST_SCAN_END_TIME, timestamp) != DB_SUCCESS)
+
+        if (ListMgr_GetVar(lmgr, LAST_SCAN_END_TIME, timestamp, sizeof(timestamp)) != DB_SUCCESS)
         {
             DisplayLog(LVL_MAJOR, tag(pol),
                         "Full FS Scan has never been done. Policy ordering would be done on a partial list "

@@ -1170,9 +1170,10 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
         {
             char lastcl_var[256];
             char val_str[1024];
+
             sprintf(lastcl_var, "%s_%s", CL_LAST_COMMITTED,
                     p_config->mdt_def[i].mdt_name);
-            if (ListMgr_GetVar(&lmgr, lastcl_var, val_str) == DB_SUCCESS)
+            if (ListMgr_GetVar(&lmgr, lastcl_var, val_str, sizeof(val_str)) == DB_SUCCESS)
             {
                   last_rec = str2bigint(val_str);
                   if (last_rec == -1LL)
@@ -1432,8 +1433,9 @@ int            ChgLogRdr_StoreStats( lmgr_t * lmgr )
         char varname[256];
         char last_val[256];
         unsigned long long last, current, diff;
+
         sprintf( varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i) );
-        if ( ListMgr_GetVar( lmgr, varname, last_val ) != DB_SUCCESS )
+        if (ListMgr_GetVar(lmgr, varname, last_val, sizeof(last_val)) != DB_SUCCESS)
             last = 0;
         else
             last = str2bigint(last_val);

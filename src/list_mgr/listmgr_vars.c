@@ -25,112 +25,96 @@
 #include "rbh_logs.h"
 #include <stdio.h>
 
-int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value)
+int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value, int bufsize)
 {
-    char           request[4096];
-    int            rc;
+    int             rc;
     result_handle_t result;
-    char          *str_val = NULL;
+    char           *str_val = NULL;
+    GString        *req = NULL;
 
     if (!varname || !value)
         return DB_INVALID_ARG;
 
-    sprintf(request, "SELECT value FROM "VAR_TABLE" WHERE varname='%s'",
-            varname);
+    req = g_string_new("SELECT value FROM "VAR_TABLE" WHERE varname=");
+    g_string_append_printf(req, "'%s'", varname);
 
     /* execute the request */
-    rc = db_exec_sql(pconn, request, &result);
+    rc = db_exec_sql(pconn, req->str, &result);
     if (rc)
-        return rc;
+        goto free_str;
 
     rc = db_next_record(pconn, &result, &str_val, 1);
 
     if (rc == DB_END_OF_LIST)
-    {
-        db_result_free(pconn, &result);
-        return DB_NOT_EXISTS;
-    }
-    else if (rc)
-    {
-        db_result_free(pconn, &result);
-        return rc;
-    }
+        rc = DB_NOT_EXISTS;
+
+    if (rc)
+        goto free_res;
+
     if (str_val == NULL)
     {
-        db_result_free(pconn, &result);
-        return DB_REQUEST_FAILED;
+        rc = DB_REQUEST_FAILED;
+        goto free_res;
     }
 
-    /* result */
-    strcpy(value, str_val);
-    db_result_free(pconn, &result);
+    /* copy the result */
+    if (strlen(str_val) >= bufsize)
+    {
+        rc = DB_BUFFER_TOO_SMALL;
+    }
+    else
+    {
+        strcpy(value, str_val);
+        rc = DB_SUCCESS;
+    }
 
-    return DB_SUCCESS;
+free_res:
+    db_result_free(pconn, &result);
+free_str:
+    g_string_free(req, TRUE);
+    return rc;
 }
 
 int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value)
 {
-    char           query[4096];
+    GString       *query;
     int            rc;
-#ifdef _MYSQL
     char           escaped[1024];
 
     /* delete var if value is NULL */
     if (value == NULL)
     {
-        sprintf(query, "DELETE FROM "VAR_TABLE" WHERE varname = '%s'",
-                 varname);
-        return db_exec_sql(pconn, query, NULL);
+        query = g_string_new("DELETE FROM "VAR_TABLE" WHERE varname =");
+        g_string_append_printf(query, "'%s'", varname);
+
+        rc = db_exec_sql(pconn, query->str, NULL);
+        goto out;
     }
+    else
+        query = g_string_new(NULL);
 
     /* escape special characters in value */
-    db_escape_string(pconn, escaped, 1024, value);
+    rc = db_escape_string(pconn, escaped, sizeof(escaped), value);
+    if (rc != DB_SUCCESS)
+        goto out;
 
-    sprintf(query,
-             "INSERT INTO "VAR_TABLE" (varname, value) VALUES ('%s', '%s') "
-             "ON DUPLICATE KEY UPDATE value = '%s'", varname, escaped, escaped);
-#elif defined(_SQLITE)
-    /* using slqite3_snprintf with "%q" format, to escape strings */
-    sqlite3_snprintf(4096, query,
-             "INSERT INTO "VAR_TABLE" (varname, value) VALUES ('%s', '%q')",
-             varname, value, value);
-#else
-#error "ListMgr_SetVar() not yet implemented for this database engine"
-#endif
+    g_string_printf(query, "INSERT INTO "VAR_TABLE" (varname,value) VALUES ('%s','%s') "
+            "ON DUPLICATE KEY UPDATE value='%s'", varname, escaped, escaped);
 
-    rc = db_exec_sql(pconn, query, NULL);
-
-    if (rc == DB_ALREADY_EXISTS)
-    {
-        DisplayLog(LVL_DEBUG, LISTMGR_TAG,
-                    "Entry already exists in %s(). Updating it.",
-                    __FUNCTION__);
-        /* insert failed, try to update */
-#ifdef _MYSQL
-        sprintf(query,
-                 "UPDATE " VAR_TABLE " SET value = '%s' WHERE varname = '%s'",
-                 escaped, varname);
-#elif defined(_SQLITE)
-        /* using slqite3_snprintf with "%q" format, to escape strings */
-        sqlite3_snprintf(4096, query,
-                          "UPDATE " VAR_TABLE " SET value = '%q' WHERE varname = '%s'",
-                          value, varname);
-#endif
-
-        rc = db_exec_sql(pconn, query, NULL);
-    }
+    rc = db_exec_sql(pconn, query->str, NULL);
+out:
+    g_string_free(query, TRUE);
     return rc;
 }
 
 /**
  *  Get variable value.
- *  @param value must be of size 1024.
  */
-int ListMgr_GetVar(lmgr_t *p_mgr, const char *varname, char *value)
+int ListMgr_GetVar(lmgr_t *p_mgr, const char *varname, char *value, int bufsize)
 {
     int rc;
 retry:
-    rc = lmgr_get_var(&p_mgr->conn, varname, value);
+    rc = lmgr_get_var(&p_mgr->conn, varname, value, bufsize);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
 

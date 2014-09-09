@@ -579,10 +579,10 @@ int     ListMgr_GetRmEntry(lmgr_t *p_mgr, const entry_id_t *p_id, attr_set_t *p_
  * \param filter indicate this applies to a restricted set of entries.
  * \param reset indicate if the table is cleaned in case it already exists.
  */
-int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
-                      lmgr_filter_t * p_filter, bool reset);
+int ListMgr_CreateTag(lmgr_t *p_mgr, const char *tag_name,
+                      lmgr_filter_t *p_filter, bool reset);
 /** destroy a tag */
-int ListMgr_DestroyTag(lmgr_t * p_mgr, const char *tag_name);
+int ListMgr_DestroyTag(lmgr_t *p_mgr, const char *tag_name);
 
 /**
  * Tag an entry (in the set specified by CreateTag filter)
@@ -944,15 +944,14 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 #define MAX_VAR_LEN     1024
 /**
  *  Gets variable value.
- *  @param value must be at least of size 1024.
  */
-int            ListMgr_GetVar( lmgr_t * p_mgr, const char *varname, char *value );
+int ListMgr_GetVar(lmgr_t *p_mgr, const char *varname, char *value, int bufsize);
 
 /**
  *  Sets variable value.
- *  @param value size must not exceed 1024.
+ *  @param value size must not exceed 1024 (size of DB field).
  */
-int            ListMgr_SetVar( lmgr_t * p_mgr, const char *varname, const char *value );
+int ListMgr_SetVar(lmgr_t *p_mgr, const char *varname, const char *value);
 
 /** @} */
 

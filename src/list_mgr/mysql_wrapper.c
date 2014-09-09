@@ -327,7 +327,7 @@ int db_list_table_types(db_conn_t * conn, const char *table,
     int            i, rc, curr_output;
     char          *curr_ptr = inbuffer;
 
-    sprintf( request, "SHOW COLUMNS FROM %s", table );
+    snprintf(request, sizeof(request), "SHOW COLUMNS FROM %s", table );
     rc = db_exec_sql_quiet( conn, request, &result );
 
     if ( rc )
@@ -378,10 +378,17 @@ unsigned long long db_last_id( db_conn_t * conn )
 
 
 /* escape a string in a SQL request */
-void db_escape_string( db_conn_t * conn, char * str_out, size_t out_size, const char * str_in )
+int db_escape_string( db_conn_t * conn, char * str_out, size_t out_size, const char * str_in )
 {
-        /* escape special characters in value */
-        mysql_real_escape_string( conn, str_out, str_in, strlen( str_in ) );
+    int len_in = strlen(str_in);
+
+    /* output size must be at least 2 x instrlen + 1 for the worst case */
+   if (out_size < 2 * len_in + 1)
+        return DB_BUFFER_TOO_SMALL;
+
+    /* escape special characters in value */
+    mysql_real_escape_string(conn, str_out, str_in, len_in);
+    return DB_SUCCESS;
 }
 
 

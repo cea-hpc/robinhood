@@ -22,11 +22,11 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "Memory.h"
-#include "var_str.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-static void no_name_warning(PK_PARG_T pk, attr_set_t *p_attrs, unsigned int count)
+static void no_name_warning(const PK_PARG_T pk, const attr_set_t *p_attrs,
+                            unsigned int count)
 {
     DEF_PK(ppk);
     char msg[256];
@@ -45,26 +45,131 @@ static void no_name_warning(PK_PARG_T pk, attr_set_t *p_attrs, unsigned int coun
 }
 
 
+/**
+ * Check if a given entry must be inserted to a given table.
+ * May display a warning in some cases.
+ * @retval false if the entry must be skipped for the given table.
+ * @retval true  if the entry must be inserted to the given table.
+ */
+static bool entry_filter(table_enum table, bool update,
+                         const PK_PARG_T pk, const attr_set_t *p_attrs)
+{
+    switch(table)
+    {
+        case T_MAIN:
+            /* don't set this entry if no attribute is in match_mask */
+            if ((p_attrs->attr_mask & main_attr_set) == 0)
+                return false;
+            return true;
+        case T_DNAMES:
+            /* don't set this entry if parent or name is missing */
+            if (!ATTR_MASK_TEST(p_attrs, name) || !ATTR_MASK_TEST(p_attrs, parent_id))
+            {
+                /* warn for create operations without name information */
+                if (!update)
+                    no_name_warning(pk, p_attrs, 1);
+                return false;
+            }
+            return true;
+        case T_ANNEX:
+            if ((p_attrs->attr_mask & annex_attr_set) == 0)
+                return false;
+            return true;
+        default:
+            return true;
+    }
+}
+
+/**
+ * Build and execute a batch insert request for the given table.
+ * @param full_mask     the sum of all entries attribute masks
+ * @param match_mask    insert an entry in the table if it matches attrs in
+ *                      this mask.
+ * @param mandatory_mask don't insert an entry in the table if it misses an
+ *                       attribute in this mask.
+ */
+static int run_batch_insert(lmgr_t *p_mgr,
+                            uint64_t full_mask,
+                            pktype *const pklist,
+                            attr_set_t **p_attrs, unsigned int count,
+                            table_enum table,
+                            bool update, bool id_is_pk,
+                            const char* extra_field_name,
+                            const char* extra_field_value)
+{
+    GString    *req = NULL;
+    int         rc = DB_SUCCESS;
+    int         i;
+    bool        first;
+
+    if (unlikely(extra_field_name != NULL && extra_field_value == NULL))
+        return DB_INVALID_ARG;
+
+    /* build batch request for the table */
+    req = g_string_new("INSERT INTO ");
+    g_string_append_printf(req, "%s(id", table2name(table));
+
+    /* do nothing if no field is to be set */
+    if ((attrmask2fieldlist(req, full_mask, table, true, false, "", "") <= 0)
+        && (extra_field_name == NULL))
+        goto free_str;
+
+    if (extra_field_name != NULL)
+        g_string_append_printf(req,",%s) VALUES ", extra_field_name);
+    else
+        g_string_append(req, ") VALUES ");
+
+    first = true;
+    /* append ",(id,values)" to the query */
+    for (i = 0; i < count; i++)
+    {
+        if (!entry_filter(table, update, pklist[i], p_attrs[i]))
+            continue;
+
+        g_string_append_printf(req, "%s("DPK, first ? "" : ",", pklist[i]);
+        attrset2valuelist(p_mgr, req, p_attrs[i], table, true);
+
+        if (extra_field_value != NULL)
+            g_string_append_printf(req,",%s)", extra_field_value);
+        else
+            g_string_append(req,")");
+        first = false;
+    }
+
+    if (update)
+    {
+        /* fake attribute struct, to write "field=VALUES(field)"
+         * based on full_mask attr mask */
+        attr_set_t  fake_attrs = *(p_attrs[0]);
+
+        g_string_append(req, " ON DUPLICATE KEY UPDATE ");
+        /* explicitely update the id if it is not part of the pk */
+        if (!id_is_pk)
+            g_string_append(req, "id=VALUES(id),");
+
+        /* append x=VALUES(x) for all values */
+        fake_attrs.attr_mask = full_mask;
+        attrset2updatelist(p_mgr, req, &fake_attrs, table, false, true);
+    }
+
+    rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
+
+free_str:
+    g_string_free(req, TRUE);
+    return rc;
+}
+
 int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
                                attr_set_t **p_attrs,
                                unsigned int count,
-                               int update_if_exists)
+                               bool update_if_exists)
 {
     int            rc = 0;
     int            i;
     uint64_t       full_mask;
-    char           fields[1024]; /* field list */
     pktype        *pklist = NULL;
-    var_str        query = VAR_STR_NULL;
-    char           values[4096] = "";
-    char          *values_curr = NULL;
-    bool           first;
-    /* fake attribute struct, to write generic name fields */
-    attr_set_t fake_attrs = *(p_attrs[0]);
 
     full_mask = sum_masks(p_attrs, count, ~0);
-    fake_attrs.attr_mask = full_mask;
-
     pklist = (pktype *)MemCalloc(count, sizeof(pktype));
     if (pklist == NULL)
         return DB_NO_MEMORY;
@@ -84,147 +189,43 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
         entry_id2pk(p_ids[i], PTR_PK(pklist[i])); /* The same for all tables? */
     }
 
-    /* build batch request for main table */
-    attrmask2fieldlist(fields, full_mask, T_MAIN, true, false, "", "");
-
-    var_str_append(&query, "INSERT INTO " MAIN_TABLE "(id");
-    var_str_append(&query, fields);
-    var_str_append(&query, ") VALUES ");
-
-    first = true;
-    for (i = 0; i < count; i++)
-    {
-        /* don't set this entry if no attribute is in main table */
-        if ((p_attrs[i]->attr_mask & main_attr_set) == 0)
-            continue;
-
-        values_curr = values + sprintf(values, DPK, pklist[i]);
-        attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_MAIN, true);
-
-        /* add "[,](values)" to query */
-        var_str_append(&query, first ? "(" : ",(");
-        var_str_append(&query, values);
-        var_str_append(&query, ")");
-        first = false;
-    }
-
-    if (update_if_exists)
-    {
-        /* append "on duplicate key ..." */
-        attrset2updatelist(p_mgr, values, &fake_attrs, T_MAIN, false, true);
-        var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
-        var_str_append(&query, values);
-    }
-
-    rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
+    rc = run_batch_insert(p_mgr, full_mask, pklist, p_attrs,
+                          count, T_MAIN, update_if_exists,
+                          true, NULL, NULL);
     if (rc)
         goto out_free;
-
-    var_str_reset(&query);
 
     /* allow inserting entries in MAIN_TABLE, without name information */
 
     /* both parent and name are defined */
     if ((full_mask & ATTR_MASK_name) && (full_mask & ATTR_MASK_parent_id))
     {
-        /* build batch request for names table */
-        attrmask2fieldlist(fields, full_mask, T_DNAMES, true, false, "", "");
-
-        var_str_append(&query, "INSERT INTO " DNAMES_TABLE "(id");
-        var_str_append(&query, fields);
-        var_str_append(&query, ",pkn) VALUES ");
-
-        first = true;
-        for (i = 0; i < count; i++)
-        {
-            /* don't set this entry if parent or name is missing */
-            if (!ATTR_MASK_TEST(p_attrs[i], name) || !ATTR_MASK_TEST(p_attrs[i], parent_id))
-            {
-                /* warn for create operations without name information */
-                if (!update_if_exists)
-                    no_name_warning(pklist[i], p_attrs[i], 1);
-
-                continue;
-            }
-
-            values_curr = values + sprintf(values, DPK, pklist[i]);
-            attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_DNAMES, true);
-
-            /* add "[,](values,<pk>)" to query */
-            var_str_append(&query, first ? "(" : ",(");
-            var_str_append(&query, values);
-            var_str_append(&query, ","HNAME_DEF")");
-            first = false;
-        }
-
-        values_curr = values + sprintf(values, "id=VALUES(id)"); /* not part of the PK */
-        attrset2updatelist(p_mgr, values_curr, &fake_attrs, T_DNAMES, true, true);
-        var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
-        var_str_append(&query, values);
-
-        rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
+        rc = run_batch_insert(p_mgr, full_mask, pklist, p_attrs, count,
+                              T_DNAMES, true, false, "pkn", HNAME_DEF);
         if (rc)
             goto out_free;
-
-    } else if (!update_if_exists) { /* only warn for create operations */
-
+    }
+    else if (!update_if_exists) /* warn for create operations without name information */
+    {
         /* if we get here, the name information is missing in all fields.
          * use entry[0] as example for the warning message. */
         no_name_warning(pklist[0], p_attrs[0], count);
     }
 
-    var_str_reset(&query);
+    /* insert info in annex table */
+    /* Always update as having the entry in the main table
+     * is the reference to know if we knew the entry */
 
-    /* insert all info in annex table, if any */
-    if (annex_table && (full_mask & annex_attr_set))
-    {
-        /* Create field and values lists.
-         * Do nothing if no fields are to be set.
-         */
-        if (attrmask2fieldlist(fields, full_mask, T_ANNEX, true, false, "", "") > 0)
-        {
-
-            var_str_append(&query, "INSERT INTO "ANNEX_TABLE "(id");
-            var_str_append(&query, fields);
-            var_str_append(&query, ") VALUES ");
-
-            first = true;
-            for (i = 0; i < count; i++)
-            {
-                char           values[4096] = "";
-                char          *values_curr = NULL;
-
-                /* don't set this entry if no attribute is in annex table */
-                if ((p_attrs[i]->attr_mask & annex_attr_set) == 0)
-                    continue;
-
-                sprintf(values, DPK, pklist[i]);
-                values_curr = values + strlen(values);
-                attrset2valuelist(p_mgr, values_curr, p_attrs[i], T_ANNEX, true);
-
-                /* add "[,](values)" to query */
-                var_str_append(&query, first ? "(" : ",(");
-                var_str_append(&query, values);
-                var_str_append(&query, ")");
-                first = false;
-            }
-
-            /* always update as having the entry in the main table
-             * is the reference to know if we knew the entry */
-            /* append "on duplicate key ..." */
-            attrset2updatelist(p_mgr, values, &fake_attrs, T_ANNEX, false, true);
-            var_str_append(&query, " ON DUPLICATE KEY UPDATE ");
-            var_str_append(&query, values);
-
-            rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
-            if (rc)
-                goto out_free;
-        }
-    }
+    /* append "on duplicate key ..." */
+    rc = run_batch_insert(p_mgr, full_mask, pklist, p_attrs, count, T_ANNEX,
+                          true, true, NULL, NULL);
+    if (rc)
+        goto out_free;
 
 #ifdef _LUSTRE
     /* batch insert of striping info */
-    if (ATTR_MASK_TEST(&fake_attrs, stripe_info) || ATTR_MASK_TEST(&fake_attrs, stripe_items))
+    if ((full_mask & ATTR_MASK_stripe_info)
+         || (full_mask & ATTR_MASK_stripe_items))
     {
         /* create validator list */
         int *validators = (int*)MemCalloc(count, sizeof(int));
@@ -250,7 +251,6 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
 #endif
 
 out_free:
-    var_str_free(&query);
     MemFree(pklist);
     return rc;
 }
@@ -260,7 +260,7 @@ int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id, attr_set_t *p_info,
                    bool update_if_exists)
 {
     int rc;
-    char buff[4096];
+    char err_buff[4096];
 
     /* retry the whole transaction when the error is retryable */
 retry:
@@ -278,7 +278,8 @@ retry:
         lmgr_rollback(p_mgr);
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "DB query failed in %s line %d: code=%d: %s",
-                   __FUNCTION__, __LINE__, rc, db_errmsg(&p_mgr->conn, buff, 4096));
+                   __FUNCTION__, __LINE__, rc,
+                   db_errmsg(&p_mgr->conn, err_buff, sizeof(err_buff)));
         return rc;
     }
     rc = lmgr_commit(p_mgr);
@@ -301,7 +302,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
                                    bool update_if_exists)
 {
     int rc;
-    char buff[4096];
+    char err_buff[4096];
 
     if (count == 0)
         return DB_SUCCESS;
@@ -334,7 +335,8 @@ retry:
         lmgr_rollback(p_mgr);
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "DB query failed in %s line %d: code=%d: %s",
-                   __FUNCTION__, __LINE__, rc, db_errmsg(&p_mgr->conn, buff, 4096));
+                   __FUNCTION__, __LINE__, rc,
+                   db_errmsg(&p_mgr->conn, err_buff, sizeof(err_buff)));
         return rc;
     }
 

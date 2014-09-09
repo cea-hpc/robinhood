@@ -25,6 +25,7 @@
 # macro for defining dependencies
 
 %define pkg_dependencies       \
+BuildRequires: glib2-devel     \
 %if %{with lhsm}               \
 BuildRequires: libattr-devel   \
 %endif                         \

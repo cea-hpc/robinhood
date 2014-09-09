@@ -304,6 +304,10 @@ int main( int argc, char **argv )
         fprintf(stderr, "Using config file '%s'.\n", config_file );
     }
 
+    rc = rbh_init_internals();
+    if (rc != 0)
+        exit(rc);
+
     /* only read ListMgr config */
     if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
     {

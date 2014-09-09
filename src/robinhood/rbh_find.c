@@ -1462,6 +1462,10 @@ int main( int argc, char **argv )
         }
     }
 
+    rc = rbh_init_internals();
+    if (rc != 0)
+        exit(rc);
+
     /* get default config file, if not specified */
     if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
     {

@@ -56,6 +56,11 @@ AC_CHECK_SIZEOF([pthread_t])
 
 AX_ENABLE_FLAG([strict], [Compile with -Wall -Werror], [-Wall -Werror])
 
+PKG_CHECK_MODULES(GLIB2, [glib-2.0])
+PKG_CHECK_MODULES(GTHREAD2, [gthread-2.0])
+CFLAGS="$CFLAGS $GLIB2_CFLAGS $GTHREAD2_CFLAGS"
+LDFLAGS="$LDFLAGS $GLIB2_LIBS $GTHREAD2_LIBS"
+
 # debug flags
 AX_ENABLE_FLAG([debug-db], [enables debug traces for database operations], [-D_DEBUG_DB])
 AX_ENABLE_FLAG([debug-parsing], [enables debug traces for configuration file parsing], [-D_DEBUG_PARSING])

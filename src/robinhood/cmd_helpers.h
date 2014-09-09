@@ -32,6 +32,9 @@
 /* Underline end character sequence */
 #define U_ "[0m"
 
+/** initialize internal resources (glib, llapi, internal resources...) */
+int rbh_init_internals(void);
+
 /** The caller's function to be called for scanned entries */
 typedef int    ( *scrub_callback_t ) ( wagon_t * id_list,
                                        attr_set_t * attr_list,

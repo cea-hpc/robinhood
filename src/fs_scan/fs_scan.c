@@ -1655,10 +1655,10 @@ static int StartScan( void )
     if (!no_db)
     {
         /* archive previous scan start/end time */
-        if ( ListMgr_GetVar( &lmgr, LAST_SCAN_START_TIME, timestamp ) == DB_SUCCESS )
-             ListMgr_SetVar( &lmgr, PREV_SCAN_START_TIME, timestamp );
-        if ( ListMgr_GetVar( &lmgr, LAST_SCAN_END_TIME, timestamp ) == DB_SUCCESS )
-             ListMgr_SetVar( &lmgr, PREV_SCAN_END_TIME, timestamp );
+        if (ListMgr_GetVar(&lmgr, LAST_SCAN_START_TIME, timestamp, sizeof(timestamp)) == DB_SUCCESS)
+             ListMgr_SetVar(&lmgr, PREV_SCAN_START_TIME, timestamp);
+        if (ListMgr_GetVar(&lmgr, LAST_SCAN_END_TIME, timestamp, sizeof(timestamp)) == DB_SUCCESS)
+             ListMgr_SetVar(&lmgr, PREV_SCAN_END_TIME, timestamp);
 
         /* store current scan start time and status in db */
         sprintf( timestamp, "%lu", ( unsigned long ) scan_start_time );
@@ -1754,9 +1754,9 @@ static void UpdateMaxUsage( void )
         return;
     }
 
-    if ( ListMgr_GetVar( &lmgr, USAGE_MAX_VAR, tmpval ) == DB_SUCCESS )
+    if (ListMgr_GetVar(&lmgr, USAGE_MAX_VAR, tmpval, sizeof(tmpval)) == DB_SUCCESS)
     {
-        if ( sscanf( tmpval, "%lf", &val ) == 1 )
+        if (sscanf(tmpval, "%lf", &val) == 1)
             usage_max = val;
     }
 
