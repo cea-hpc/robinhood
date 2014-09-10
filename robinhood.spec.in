@@ -25,7 +25,11 @@
 # macro for defining dependencies
 
 %define pkg_dependencies       \
+%if %{with lhsm}               \
+BuildRequires: libattr-devel   \
+%endif                         \
 %if %{with lustre}             \
+BuildRequires: libattr-devel   \
 %if %{defined lpackage}        \
 Requires: %{lpackage} >= %{lversion}         \
 BuildRequires: %{lpackage} >= %{lversion}    \
@@ -101,6 +105,7 @@ This uses robinhood database to display misc. user and group stats.
 %package recov-tools
 Summary: Tools for MDS recovery.
 Group: Applications/System
+BuildRequires: libattr-devel
 
 %description recov-tools
 Tools for MDS recovery.
