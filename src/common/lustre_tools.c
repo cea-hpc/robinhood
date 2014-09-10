@@ -30,7 +30,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#ifdef HAVE_ATTR_XATTR_H
 #include <attr/xattr.h>
+#endif
 
 #include "lustre_extended_types.h"
 
