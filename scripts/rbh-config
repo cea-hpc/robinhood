@@ -593,7 +593,8 @@ function backup_db
     timestamp=`date "+%Y%m%d-%H%M%S"`
     bkfile="$DEST_DIR/$RBH_DB.backup.$timestamp.sql"
 
-    mysqldump --password="$pass_root" $RBH_DB > "$bkfile"
+    # single-transaction avoids wide locking for InnoDB engine.
+    mysqldump --single-transaction --password="$pass_root" $RBH_DB > "$bkfile"
     if (( $? != 0 )); then
         echo "Backup failed"
         exit 1
