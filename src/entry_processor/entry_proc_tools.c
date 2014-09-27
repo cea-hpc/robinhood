@@ -797,3 +797,64 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
     print_end_block( output, 0 );
     return 0;
 }
+
+/** try to convert a time_t to a human readable form */
+void time2human_helper(time_t t, const char *attr_name, char *str,
+                       size_t size, const struct entry_proc_op_t *p_op)
+{
+    struct tm res;
+
+    /* initialize as 'out of range' */
+    strncpy(str, "<out of range>", size);
+
+    if (localtime_r(&t, &res) != NULL)
+        strftime(str, size, "%Y/%m/%d %T", &res);
+    else if (ATTR_FSorDB_TEST(p_op, fullpath))
+        DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Invalid or corrupted %s detected for %s: %lu",
+                   attr_name, ATTR_FSorDB(p_op, fullpath), t);
+    else
+        DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Invalid or corrupted %s detected for "DFID": %lu",
+                   attr_name, PFID(&p_op->entry_id), t);
+}
+
+void check_and_warn_fake_mtime(const struct entry_proc_op_t *p_op)
+{
+    char        mt[128];
+    char        ct[128];
+
+    /* check if mtime is before estimated creation time */
+    if (ATTR(&p_op->fs_attrs, last_mod) < ATTR_FSorDB(p_op, creation_time))
+    {
+        time2human_helper(ATTR(&p_op->fs_attrs, last_mod), "mtime", mt,
+                          sizeof(mt), p_op);
+
+        time2human_helper(ATTR(&p_op->fs_attrs, creation_time), "crtime", ct,
+                          sizeof(ct), p_op);
+
+        if (ATTR_FSorDB_TEST(p_op, fullpath))
+            DisplayLog(LVL_VERB, ENTRYPROC_TAG,
+                       "Fake mtime detected for '%s': mtime=%s, creation=%s",
+                       ATTR_FSorDB(p_op, fullpath), mt, ct);
+        else
+            DisplayLog(LVL_VERB, ENTRYPROC_TAG,
+                       "Fake mtime detected for "DFID": mtime=%s, creation=%s",
+                       PFID(&p_op->entry_id), mt, ct);
+    }
+    /* a 24h delay can be explained by different timezones */
+    else if (ATTR(&p_op->fs_attrs, last_mod) > time(NULL) + 86400)
+    {
+        time2human_helper(ATTR(&p_op->fs_attrs, last_mod), "mtime", mt,
+                          sizeof(mt), p_op);
+
+        if (ATTR_FSorDB_TEST(p_op, fullpath))
+            DisplayLog(LVL_EVENT, ENTRYPROC_TAG,
+                       "Fake mtime detected for '%s': mtime=%s is in the future",
+                       ATTR_FSorDB(p_op, fullpath), mt);
+        else
+            DisplayLog(LVL_EVENT, ENTRYPROC_TAG,
+                       "Fake mtime detected for "DFID": mtime=%s is in the future",
+                       PFID(&p_op->entry_id), mt);
+    }
+}
+
+

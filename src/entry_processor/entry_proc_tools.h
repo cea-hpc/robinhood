@@ -56,4 +56,9 @@ void id_constraint_stats(void);
 /* dump all values */
 void id_constraint_dump(void);
 
+void time2human_helper(time_t t, const char *attr_name, char *str,
+                       size_t size, const struct entry_proc_op_t *p_op);
+
+void check_and_warn_fake_mtime(const struct entry_proc_op_t *p_op);
+
 #endif

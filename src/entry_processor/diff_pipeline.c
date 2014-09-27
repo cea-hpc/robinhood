@@ -485,30 +485,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
 #ifdef ATTR_INDEX_creation_time
-    if (entry_proc_conf.detect_fake_mtime)
+    if (entry_proc_conf.detect_fake_mtime
+        && ATTR_FSorDB_TEST(p_op, creation_time)
+        && ATTR_MASK_TEST(&p_op->fs_attrs, last_mod))
     {
-        if (ATTR_FSorDB_TEST(p_op, creation_time)
-            && ATTR_MASK_TEST(&p_op->fs_attrs, last_mod)
-            && ATTR(&p_op->fs_attrs, last_mod) < ATTR_FSorDB(p_op, creation_time))
-        {
-            time_t val;
-            char mt[128];
-            char ct[128];
-            struct tm      t;
-            val = ATTR(&p_op->fs_attrs, last_mod);
-            strftime(mt, 128, "%Y/%m/%d %T", localtime_r(&val, &t));
-            val = ATTR_FSorDB(p_op, creation_time);
-            strftime(ct, 128, "%Y/%m/%d %T", localtime_r(&val, &t));
-
-            if (ATTR_FSorDB_TEST(p_op, fullpath))
-                DisplayLog(LVL_VERB, ENTRYPROC_TAG,
-                           "Fake mtime detected for %s: mtime=%s, creation=%s",
-                           ATTR_FSorDB(p_op, fullpath), mt, ct);
-            else
-                DisplayLog(LVL_VERB, ENTRYPROC_TAG,
-                           "Fake mtime detected for "DFID": mtime=%s, creation=%s",
-                           PFID(&p_op->entry_id), mt, ct);
-        }
+        check_and_warn_fake_mtime(p_op);
     }
 #endif
 
