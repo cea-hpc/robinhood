@@ -194,17 +194,44 @@ void wait_scan_finished( void )
 /**
  * Reset Scan thread statistics (before and after a scan)
  */
-static void ResetScanStats( void )
+static void ResetScanStats(bool do_lock)
 {
     int            i;
-    for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
+
+    if (do_lock)
+        P(lock_scan);
+
+    for (i = 0; i < fs_scan_config.nb_threads_scan; i++)
     {
         thread_list[i].entries_handled = 0;
         thread_list[i].entries_errors = 0;
-        timerclear( &thread_list[i].time_consumed );
-        timerclear( &thread_list[i].last_processing_time );
+        timerclear(&thread_list[i].time_consumed);
+        timerclear(&thread_list[i].last_processing_time);
     }
+
+    if (do_lock)
+        V(lock_scan);
 }
+
+
+static uint64_t scan_count(bool do_lock)
+{
+    int      i;
+    uint64_t count;
+
+    if (do_lock)
+        P(lock_scan);
+
+    for (i = 0; i < fs_scan_config.nb_threads_scan; i++)
+        count += thread_list[i].entries_handled;
+
+    if (do_lock)
+        V(lock_scan);
+
+    return count;
+}
+
+
 
 
 static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct stat *p_stat)
@@ -274,51 +301,32 @@ static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct 
  * been updated during the scan.
  * It also updates scan dates and root task.
  */
-static int TerminateScan( int scan_complete, time_t date_fin )
+static int TerminateScan(int scan_complete, time_t end)
 {
-    int     i;
-    time_t  last_action = 0;
-    char    timestamp[128];
-    char    tmp[1024];
-    unsigned int count = 0;
-    lmgr_t  lmgr;
-    int no_db = 0;
+    char         timestamp[128];
+    char         tmp[1024];
+    lmgr_t       lmgr;
+    bool         no_db = false;
 
-    if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+    if (ListMgr_InitAccess( &lmgr ) != DB_SUCCESS)
     {
-        no_db = 1;
+        no_db = true;
         DisplayLog(LVL_MAJOR, FSSCAN_TAG, "WARNING: won't be able to update scan stats");
     }
 
     /* store the last scan end date */
     if (!no_db) {
-        sprintf( timestamp, "%lu", ( unsigned long ) date_fin );
-        ListMgr_SetVar( &lmgr, LAST_SCAN_END_TIME, timestamp );
+        sprintf(timestamp, "%lu", (unsigned long)end);
+        ListMgr_SetVar(&lmgr, LAST_SCAN_END_TIME, timestamp);
     }
-
-    /* update the last action date and get entry count */
-    P( lock_scan );
-    for ( i = 0; i < fs_scan_config.nb_threads_scan; i++ )
-    {
-        if ( ( thread_list[i].current_task != NULL )
-             && ( thread_list[i].last_action > last_action ) )
-        {
-            last_action = thread_list[i].last_action;
-            count += thread_list[i].entries_handled;
-        }
-    }
-    V( lock_scan );
 
     if (!no_db) {
-        sprintf( timestamp, "%lu", ( unsigned long ) last_action );
-        ListMgr_SetVar( &lmgr, LAST_SCAN_LAST_ACTION_TIME, timestamp );
         /* invoke FSScan_StoreStats, so stats are updated at least once during the scan */
-
-        FSScan_StoreStats( &lmgr ) ;
+        FSScan_StoreStats(&lmgr) ;
         /* and update the scan status */
         if (partial_scan_root)
         {
-            snprintf(tmp, 1024, "%s (%s)", SCAN_STATUS_PARTIAL, partial_scan_root);
+            snprintf(tmp, sizeof(tmp), "%s (%s)", SCAN_STATUS_PARTIAL, partial_scan_root);
             ListMgr_SetVar( &lmgr, LAST_SCAN_STATUS, tmp );
         }
         else
@@ -329,8 +337,8 @@ static int TerminateScan( int scan_complete, time_t date_fin )
         ListMgr_CloseAccess(&lmgr);
     }
 
-    /* if scan is erroneous and no entry was listed, don't flush pipeline. */
-    if ((count > 0) || scan_complete)
+    /* if no entry was listed or scan is faulty, don't flush the pipeline. */
+    if ((scan_count(true) > 0) || scan_complete)
     {
         entry_proc_op_t *op;
 
@@ -393,19 +401,19 @@ static int TerminateScan( int scan_complete, time_t date_fin )
 #endif
     }
 
-    /* reset threads stats */
-    ResetScanStats(  );
-
     /* take a lock on scan info */
     P( lock_scan );
 
+    /* reset threads stats */
+    ResetScanStats(false);
+
     /* reinitialize scan status */
     last_scan_complete = scan_complete;
-    last_scan_time = date_fin;
-    last_duration = date_fin - scan_start_time;
+    last_scan_time = end;
+    last_duration = end - scan_start_time;
     scan_start_time = 0;
 
-    timerclear( &accurate_start_time );
+    timerclear(&accurate_start_time);
 
     root_task = NULL;
 
@@ -1686,7 +1694,7 @@ static int StartScan( void )
     }
 
     /* reset threads stats */
-    ResetScanStats(  );
+    ResetScanStats(false);
 
     /* unlock scanning status */
     V( lock_scan );
