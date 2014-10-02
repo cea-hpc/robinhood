@@ -53,11 +53,8 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
     }
     else
     {
-        /* need to build criteria string to populate the table */
-        from = g_string_new(NULL);
-
-        /* build the FROM clause */
-        filter_from(p_mgr, &fcnt, false, from, false, &query_tab, &distinct);
+        where = g_string_new(NULL);
+        filter_where(p_mgr, p_filter, &fcnt, false, false, where);
 
         if (nb_field_tables(&fcnt) == 0)
         {
@@ -66,8 +63,9 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
         }
         else
         {
-            where = g_string_new(NULL);
-            filter_where(p_mgr, p_filter, &fcnt, false, false, where);
+            /* build the FROM clause */
+            from = g_string_new(NULL);
+            filter_from(p_mgr, &fcnt, false, from, false, &query_tab, &distinct);
 
             if (distinct)
                 g_string_printf(req, "SELECT DISTINCT(%s.id) AS id",

@@ -305,6 +305,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
     GString           *having = NULL;
     GString           *group_by = NULL;
     GString           *order_by = NULL;
+    GString           *filter_name = NULL;
 
 
     /* check profile argument and increase output array if needed */
@@ -452,16 +453,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
             }
 
             /* is this field sorted ? */
-            if (report_desc_array[i].sort_flag == SORT_ASC)
-            {
-                coma_if_needed(order_by);
-                g_string_append_printf(order_by, "%s ASC", attrname);
-            }
-            else if (report_desc_array[i].sort_flag == SORT_DESC)
-            {
-                coma_if_needed(order_by);
-                g_string_append_printf(order_by, "%s DESC", attrname);
-            }
+            append_sort_order(order_by, attrname, report_desc_array[i].sort_flag);
 
             /* is this field filtered ? */
             listmgr_fieldfilter(p_report, p_mgr, report_desc_array, attrname,
@@ -523,8 +515,12 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
         }
         else
         {
-            filter_where(p_mgr, p_filter, &fcnt, false, !GSTRING_EMPTY(where),
+            /* process NAMES filters appart, as with must then join with DISTINCT(id) */
+            filter_where(p_mgr, p_filter, &fcnt, true, !GSTRING_EMPTY(where),
                          where);
+
+            filter_name = g_string_new(NULL);
+            fcnt.nb_names = filter2str(p_mgr, filter_name, p_filter, T_DNAMES, false, false);
         }
     }
 
@@ -542,18 +538,17 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
     {
         bool distinct;
 
-        filter_from(p_mgr, &fcnt, false, req, false, &query_tab, &distinct);
+        filter_from(p_mgr, &fcnt, true, req, false, &query_tab, &distinct);
 
-#if 0 /* FIXME: was performing this for names and stripe items */
-    /* filters on NAMES or STRIPE_ITEMS
-     * must be managed differently, as they
-     * can create duplicates (non uniq id) */
-        curr_from += sprintf(curr_from," INNER JOIN (SELECT DISTINCT(id)"
-                                     " FROM "DNAMES_TABLE" WHERE %s) N"
-                                     " ON %s.id=N.id", name_filter_str,
-                                     first_table);
-#endif
-
+        if (filter_name != NULL && !GSTRING_EMPTY(filter_name))
+        {
+            g_string_append_printf(req, " INNER JOIN (SELECT DISTINCT(id)"
+                            " FROM "DNAMES_TABLE" WHERE %s) N"
+                            " ON %s.id=N.id", filter_name->str,
+                            table2name(query_tab));
+        /* FIXME: what if NAMES is the query tab? */
+        }
+        /* FIXME: do the same for stripe items */
     }
 
     /* Build the request */

@@ -158,6 +158,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
          * Look for optional filters.
          */
         filter_where(p_mgr, p_filter, &filter_cnt, true, true, where);
+        /** @FIXME process other filters on NAMES */
     }
 
     from = g_string_new(DNAMES_TABLE);

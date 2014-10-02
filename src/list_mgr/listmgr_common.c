@@ -1092,7 +1092,7 @@ static void attr2filter_field(GString *str, table_enum table,
 }
 
 int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
-                table_enum table, bool leading_and, bool prefix_table)
+               table_enum table, bool leading_and, bool prefix_table)
 {
     int            i;
     unsigned int   nbfields = 0;
@@ -1304,34 +1304,57 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                  struct field_count *counts, bool ignore_name_filter,
                  bool leading_and, GString *where)
 {
-    int nbs = 0;
+    int nb; /* can be < 0 */
+    unsigned int all = 0;
 
     /* on which table are the filters ?  */
-    counts->nb_main = filter2str(p_mgr, where, p_filter, T_MAIN,
-                                        leading_and, true);
-    nbs += counts->nb_main;
-    counts->nb_annex = filter2str(p_mgr, where, p_filter, T_ANNEX,
-                                         (nbs > 0) || leading_and, true);
-    nbs += counts->nb_annex;
+    nb = filter2str(p_mgr, where, p_filter, T_MAIN,
+                    leading_and, true);
+    if (nb > 0)
+    {
+        counts->nb_main += nb;
+        all += nb;
+    }
+
+    nb = filter2str(p_mgr, where, p_filter, T_ANNEX,
+                    (all > 0) || leading_and, true);
+    if (nb > 0)
+    {
+        counts->nb_annex += nb;
+        all += nb;
+    }
 
     if (!ignore_name_filter)
     {
-        counts->nb_names = filter2str(p_mgr, where, p_filter, T_DNAMES,
-                                             (nbs > 0) || leading_and, true);
-        nbs += counts->nb_names;
+        nb = filter2str(p_mgr, where, p_filter, T_DNAMES,
+                        (all > 0) || leading_and, true);
+        if (nb > 0)
+        {
+            counts->nb_names += nb;
+            all += nb;
+        }
     }
 
     /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
-    counts->nb_stripe_info = filter2str(p_mgr, where, p_filter, T_STRIPE_INFO,
-                                               (nbs > 0) || leading_and, true);
-    nbs += counts->nb_stripe_info;
-    counts->nb_stripe_items = filter2str(p_mgr, where, p_filter, T_STRIPE_ITEMS,
-                                               (nbs > 0) || leading_and, true);
-    nbs += counts->nb_stripe_items;
+    nb = filter2str(p_mgr, where, p_filter, T_STRIPE_INFO,
+                     (all > 0) || leading_and, true);
+    if (nb > 0)
+    {
+        counts->nb_stripe_info += nb;
+        all += nb;
+    }
+
+    nb = filter2str(p_mgr, where, p_filter, T_STRIPE_ITEMS,
+                    (all > 0) || leading_and, true);
+    if (nb > 0)
+    {
+        counts->nb_stripe_items += nb;
+        all += nb;
+    }
 #endif
 
-    return nbs;
+    return all;
 }
 
 /** helper to lighten filter_from function */
@@ -1343,11 +1366,14 @@ static inline void append_from_clause(table_enum tab, GString *from,
     if (*first_table == T_NONE)
     {
         *first_table = tab;
-        g_string_assign(from, tname);
+        g_string_append(from, tname);
     }
     else
         g_string_append_printf(from, " LEFT JOIN %s ON %s.id=%s.id", tname, /** @FIXME LEFT JOIN or INNER JOIN??? */
                                table2name(*first_table), tname);
+
+    /* XXX INNER join if there is a criteria on right table? */
+
 }
 
 
