@@ -2292,6 +2292,8 @@ static void report_deferred_rm( int flags )
     lmgr_filter_t  filter;
     bool is_filter = false;
 
+    lmgr_sort_type_t sort;
+
     static int list[] = {
                    ATTR_INDEX_rm_time,
                    ATTR_INDEX_ID, /* id */
@@ -2309,8 +2311,12 @@ static void report_deferred_rm( int flags )
     /* append global filters */
     mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
 
+    /* order by rmtime asc */
+    sort.attr_index = ATTR_INDEX_rm_time;
+    sort.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
+
     /* list all deferred rm, even if non expired */
-    rmlist = ListMgr_RmList(&lmgr, is_filter? &filter : NULL);
+    rmlist = ListMgr_RmList(&lmgr, is_filter? &filter : NULL, &sort);
 
     if (rmlist == NULL)
     {
@@ -2461,6 +2467,13 @@ static void report_status_info(int smi_index, const char* val, int flags)
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, false, 0, FV_NULL},
     };
+
+
+    if (count_min) {
+        status_info[2].filter = true;
+        status_info[2].filter_compar = MORETHAN;
+        status_info[2].filter_value.value.val_biguint = count_min;
+    }
 
     lmgr_simple_filter_init(&filter);
 

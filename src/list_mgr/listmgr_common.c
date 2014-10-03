@@ -794,7 +794,8 @@ int result2attrset( table_enum table, char **result_tab,
             }
 
             /* special case for fullpath which must be converted from relative to aboslute */
-            if (i == ATTR_INDEX_fullpath)
+            /* fullpath already includes root for SOFT_RM table */
+            if ((i == ATTR_INDEX_fullpath) && (table != T_SOFTRM))
                 fullpath_db2attr(typeu.val_str, ATTR(p_set, fullpath));
             else if (i >= ATTR_COUNT)
             {

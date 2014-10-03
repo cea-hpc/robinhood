@@ -169,6 +169,9 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
         case ATTR_INDEX_last_restore:
             return (ATTR_MASK_TEST(p_attrs, last_restore)?
                     ATTR(p_attrs, last_restore) : -1);
+        case ATTR_INDEX_rm_time:
+            return (ATTR_MASK_TEST(p_attrs, rm_time)?
+                    ATTR(p_attrs, rm_time) : -1);
         default:
             return -1;
     }
@@ -982,6 +985,76 @@ static void update_pass_stats(policy_info_t *pol,
                                 - error_count(status_tab_before);
 }
 
+/* these types allow generic iteration on std entries or removed entries */
+
+typedef enum {IT_LIST, IT_RMD} it_type_e;
+
+struct policy_iter {
+    it_type_e it_type;
+    union {
+        struct lmgr_iterator_t *std_iter;
+        struct lmgr_rm_list_t *rmd_iter;
+    } it;
+};
+
+static inline int iter_next(struct policy_iter *it, entry_id_t *p_id, attr_set_t *p_attrs)
+{
+    switch(it->it_type)
+    {
+        case IT_LIST:
+            return ListMgr_GetNext(it->it.std_iter, p_id, p_attrs);
+        case IT_RMD:
+            return ListMgr_GetNextRmEntry(it->it.rmd_iter, p_id, p_attrs);
+    }
+    return DB_INVALID_ARG;
+}
+
+static inline void iter_close(struct policy_iter *it)
+{
+    switch(it->it_type)
+    {
+        case IT_LIST:
+            if (it->it.std_iter == NULL)
+                return;
+            ListMgr_CloseIterator(it->it.std_iter);
+            it->it.std_iter = NULL;
+            break;
+        case IT_RMD:
+            if (it->it.rmd_iter == NULL)
+                return;
+            ListMgr_CloseRmList(it->it.rmd_iter);
+            it->it.rmd_iter = NULL;
+            break;
+    }
+}
+
+static inline int iter_open(lmgr_t *lmgr,
+                            it_type_e type,
+                            struct policy_iter *it,
+                            lmgr_filter_t *filter,
+                            const lmgr_sort_type_t *sort_type,
+                            const lmgr_iter_opt_t *opt)
+{
+     it->it_type = type;
+     switch(type)
+     {
+        case IT_LIST:
+            it->it.std_iter = ListMgr_Iterator(lmgr, filter, sort_type, opt);
+            if (it->it.std_iter == NULL)
+                return DB_REQUEST_FAILED;
+            break;
+
+        case IT_RMD:
+            it->it.rmd_iter = ListMgr_RmList(lmgr, filter, sort_type);
+            if (it->it.rmd_iter == NULL)
+                return DB_REQUEST_FAILED;
+            break;
+    }
+    return DB_SUCCESS;
+}
+
+
+
 /** return codes of fill_workers_queue() */
 typedef enum {
     pass_eol,
@@ -1001,7 +1074,7 @@ typedef enum {
 static pass_status fill_workers_queue(policy_info_t *pol,
                               const policy_param_t *p_param,
                               lmgr_t *lmgr,
-                              struct lmgr_iterator_t **it,
+                              struct policy_iter *it,
                               const lmgr_iter_opt_t *req_opt,
                               const lmgr_sort_type_t *sort_type,
                               lmgr_filter_t *filter, uint64_t attr_mask,
@@ -1035,7 +1108,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
         attr_set.attr_mask = attr_mask;
 
         memset(&entry_id, 0, sizeof(entry_id_t));
-        rc = ListMgr_GetNext(*it, &entry_id, &attr_set);
+        rc = iter_next(it, &entry_id, &attr_set);
 
         if (aborted(pol))
         {
@@ -1070,8 +1143,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
             }
 
             /* Free previous iterator */
-            ListMgr_CloseIterator(*it);
-            *it = NULL;
+            iter_close(it);
 
             /* we must wait that migr. queue is empty,
              * to prevent from processing the same entry twice
@@ -1107,18 +1179,18 @@ static pass_status fill_workers_queue(policy_info_t *pol,
                 return pass_error;
 
             DisplayLog(LVL_DEBUG, tag(pol),
-                        "Performing new request with a limit of %u entries"
-                        " and %s >= %d and md_update < %ld ",
-                        req_opt->list_count_max, sort_attr_name(pol),
-                        *last_sort_time, pol->progress.policy_start);
+                       "Performing new request with a limit of %u entries"
+                       " and %s >= %d and md_update < %ld ",
+                       req_opt->list_count_max, sort_attr_name(pol),
+                       *last_sort_time, pol->progress.policy_start);
 
             *db_current_list_count = 0;
-            *it = ListMgr_Iterator(lmgr, filter, sort_type, req_opt);
-            if (*it == NULL)
+            rc = iter_open(lmgr, it->it_type, it, filter, sort_type, req_opt);
+            if (rc != DB_SUCCESS)
             {
                 DisplayLog(LVL_CRIT, tag(pol),
-                            "Error retrieving list of candidates from "
-                            "database. Policy run cancelled.");
+                           "Error %d retrieving list of candidates from "
+                           "database. Policy run cancelled.", rc);
                 return pass_error;
             }
             continue;
@@ -1178,7 +1250,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
 int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
                action_summary_t *p_summary, lmgr_t *lmgr)
 {
-    struct lmgr_iterator_t *it = NULL;
+    struct policy_iter      it = {0};
     int                     rc;
     pass_status             st;
     lmgr_filter_t           filter;
@@ -1298,14 +1370,16 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     nb_returned = 0;
     total_returned = 0;
 
-    it = ListMgr_Iterator(lmgr, &filter, &sort_type, &opt);
-    if (it == NULL)
+
+    rc = iter_open(lmgr, smi_manage_deleted(p_pol_info->descr->status_mgr)? IT_RMD: IT_LIST,
+                   &it, &filter, &sort_type, &opt);
+    if (rc != DB_SUCCESS)
     {
         lmgr_simple_filter_free(&filter);
         DisplayLog(LVL_CRIT, tag(p_pol_info),
                     "Error retrieving list of candidates from database. "
                     "Policy run cancelled.");
-        return -1;
+        return rc;
     }
 
     p_pol_info->progress.policy_start = p_pol_info->progress.last_report
@@ -1346,8 +1420,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     lmgr_simple_filter_free(&filter);
     /* iterator may have been closed in fill_workers_queue() */
-    if (it != NULL)
-        ListMgr_CloseIterator(it);
+    iter_close(&it);
 
     if (p_summary)
         *p_summary = p_pol_info->progress;
@@ -1619,15 +1692,20 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
     ATTR_MASK_INIT(&new_attr_set);
 
-    rc = check_entry(pol, lmgr, p_item, &new_attr_set);
-    if (rc != AS_OK)
+    if (!smi_manage_deleted(pol->descr->status_mgr))
     {
-        policy_ack(&pol->queue, rc, &p_item->entry_attr, p_item->targeted);
-        goto end;
-    }
+        rc = check_entry(pol, lmgr, p_item, &new_attr_set);
+        if (rc != AS_OK)
+        {
+            policy_ack(&pol->queue, rc, &p_item->entry_attr, p_item->targeted);
+            goto end;
+        }
 
-    /* Merge with missing attrs from database */
-    ListMgr_MergeAttrSets(&new_attr_set, &p_item->entry_attr, false);
+        /* Merge with missing attrs from database */
+        ListMgr_MergeAttrSets(&new_attr_set, &p_item->entry_attr, false);
+    }
+    else
+        new_attr_set = p_item->entry_attr;
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */
@@ -1878,7 +1956,10 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
         DisplayLog(LVL_DEBUG, tag(pol), "Error applying action on entry %s: %s",
                    ATTR(&new_attr_set, fullpath), err_str);
-        update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+
+        /* no update for deleted entries */
+        if (!smi_manage_deleted(pol->descr->status_mgr))
+            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
 
         policy_ack(&pol->queue, AS_ERROR, &p_item->entry_attr,
                    p_item->targeted);
@@ -1935,7 +2016,14 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                       sort_attr_name(pol), t, (is_stor ? ", stripes=" : ""),
                       (is_stor ? strstorage : ""));
 
-        if (after_action == PA_UPDATE)
+        if (smi_manage_deleted(pol->descr->status_mgr) &&
+            (after_action == PA_RM_ONE || after_action == PA_RM_ALL))
+        {
+            rc = ListMgr_SoftRemove_Discard(lmgr, &p_item->entry_id);
+            if (rc)
+                DisplayLog(LVL_CRIT, tag(pol), "Error %d removing entry from database.", rc);
+        }
+        else if (after_action == PA_UPDATE)
             update_entry(lmgr, &p_item->entry_id, &new_attr_set);
         else if (after_action ==  PA_RM_ONE)
         {
@@ -2019,6 +2107,8 @@ int start_worker_threads(policy_info_t *pol)
     }
     return 0;
 }
+
+
 
 /**
  * Update the status of outstanding actions

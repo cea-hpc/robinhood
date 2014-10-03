@@ -389,6 +389,7 @@ extern struct  policies_t policies;
 bool policy_exists(const char *name, int *index);
 
 /** Indicate if any policy manages deleted entries */
+
 static inline bool has_deletion_policy(void)
 {
     return !!policies.manage_deleted;
@@ -556,6 +557,5 @@ struct sm_instance;
 int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
                     bool *p_must_release, const struct sm_instance *smi);
-
 
 #endif

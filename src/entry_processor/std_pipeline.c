@@ -480,6 +480,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                   * to be done in the backend */
             {
 #ifdef _LUSTRE_HSM
+                /** FIXME to be handles in lhsm_removed CL callback */
                 if (logrec->cr_flags & CLF_UNLINK_HSM_EXISTS)
                     /* if CLF_UNLINK_HSM_EXISTS is set, we must clean something in the backend */
                     p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
@@ -495,7 +496,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                 if (!p_op->db_exists)
                     /* ignore the record */
                     return STAGE_CHGLOG_CLR;
-                else if (soft_remove_filter(p_op))
+                else if (soft_remove_filter(p_op)) /** FIXME to be provided by status manager */
                     p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
                 else
                     p_op->db_op_type = OP_TYPE_REMOVE_LAST;

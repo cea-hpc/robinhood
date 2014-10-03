@@ -465,6 +465,10 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
     case CRITERIA_STATUS:
         if (smi == NULL)
             RBH_BUG("status filter with no status manager in the context");
+        else if (smi->sm->flags & SM_NODB)
+            /* not stored in DB */
+            return -1;
+
         *p_attr_index = ATTR_COUNT + smi->smi_index;
         /* empty value stands for IS NULL */
         if (EMPTY_STRING(p_comp->val.str))

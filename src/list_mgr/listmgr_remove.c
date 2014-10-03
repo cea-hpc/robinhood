@@ -810,9 +810,9 @@ typedef struct lmgr_rm_list_t
 } lmgr_rm_list_t;
 
 /* XXX selecting 'expired' entries is done using a rm_time criteria in p_filter */
-struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter)
+struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
+                                      const lmgr_sort_type_t *p_sort_type)
 {
-
     int             rc, nb;
     lmgr_rm_list_t *p_list = MemAlloc(sizeof(lmgr_rm_list_t));
     GString        *req;
@@ -834,10 +834,11 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter)
             goto free_err;
         }
         /* are there unsuported fields in this filter? */
-        if (lmgr_check_filter_fields(p_filter, SOFTRM_MASK))
+        if (lmgr_check_filter_fields(p_filter, SOFTRM_MASK, &rc))
         {
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unsupported field in filter (in %s())",
-                         __FUNCTION__);
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unsupported field in filter: %s (in %s())",
+                       rc == -1 ? "supported filter type" :
+                       field_name(p_filter->filter_simple.filter_index[rc]), __func__);
             goto free_err;
         }
         g_string_append(req, " WHERE ");
@@ -847,7 +848,25 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter)
             goto free_err;
         }
     }
-    g_string_append(req, " ORDER BY rm_time ASC");
+
+    /* is there a sort order ? */
+    if (p_sort_type == NULL || p_sort_type->order == SORT_NONE)
+    {
+        /* default is rm_time */
+        g_string_append(req, " ORDER BY rm_time ASC");
+    }
+    else if (!is_softrm_field(p_sort_type->attr_index))
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "ERROR: attribute '%s' is not part of %s table",
+                   field_name(p_sort_type->attr_index), SOFT_RM_TABLE);
+        goto free_err;
+    }
+    else
+    {
+        g_string_append_printf(req, " ORDER BY %s %s",
+                               field_name(p_sort_type->attr_index),
+                               p_sort_type->order == SORT_ASC ? "ASC" : "DESC");
+    }
 
     p_list->p_mgr = p_mgr;
     p_list->result_len = nb + 1; /* id + attrs */

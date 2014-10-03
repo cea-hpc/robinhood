@@ -453,7 +453,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
             return EINVAL;
         }
 
-        if (policy->status_mgr->sm->flags & SM_DELETED)
+        if (smi_manage_deleted(policy->status_mgr))
             *manage_deleted = true;
     }
 

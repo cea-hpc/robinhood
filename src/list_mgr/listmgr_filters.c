@@ -532,9 +532,17 @@ int lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *bo
 
 }
 
-int lmgr_check_filter_fields(lmgr_filter_t *p_filter, uint64_t attr_mask)
+/** Check that all fields in filter are in the given mask of supported attributes
+ * @param index if not NULL, it is set to the index of the unsupported filter.
+ *              and -1 for other errors.
+ */
+int lmgr_check_filter_fields(lmgr_filter_t *p_filter, uint64_t attr_mask, int *index)
 {
     int i;
+
+    if (index)
+        *index = -1;
+
     if (p_filter->filter_type != FILTER_SIMPLE)
         return DB_INVALID_ARG;
 
@@ -542,9 +550,12 @@ int lmgr_check_filter_fields(lmgr_filter_t *p_filter, uint64_t attr_mask)
     {
         uint64_t fmask = (1 << p_filter->filter_simple.filter_index[i]);
         if (fmask & ~attr_mask)
+        {
+            if (index)
+                *index = i;
             return DB_NOT_SUPPORTED;
+        }
     }
 
     return DB_SUCCESS;
-
 }

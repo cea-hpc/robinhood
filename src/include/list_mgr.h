@@ -553,7 +553,8 @@ int ListMgr_SoftRemove_Discard(lmgr_t *p_mgr, const entry_id_t *p_id);
  * Initialize a list of items removed 'softly', sorted by expiration time.
  * Selecting 'expired' entries is done using an rm_time criteria in p_filter
  */
-struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *filter);
+struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *filter,
+                                      const lmgr_sort_type_t *p_sort_type);
 
 
 /**
@@ -699,11 +700,10 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 /**
  * Retrieves an iterator on entries that match the given filter.
  */
-struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
-                                          const lmgr_filter_t * p_filter,
-                                          const lmgr_sort_type_t *
-                                          p_sort_type, const lmgr_iter_opt_t * p_opt );
-
+struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
+                                         const lmgr_filter_t *p_filter,
+                                         const lmgr_sort_type_t *p_sort_type,
+                                         const lmgr_iter_opt_t *p_opt);
 /**
  * Get next entry from iterator.
  */
@@ -1014,8 +1014,11 @@ int convert_boolexpr_to_simple_filter(struct bool_node_t *boolexpr, lmgr_filter_
 /** Set a complex filter structure */
 int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *boolexpr );
 
-/** Check that all fields in filter are in the given mask of supported attributes */
-int lmgr_check_filter_fields(lmgr_filter_t * p_filter, uint64_t attr_mask);
+/** Check that all fields in filter are in the given mask of supported attributes
+ * @param index if not NULL, it is set to the index of the unsupported filter.
+ *              and -1 for other errors.
+ */
+int lmgr_check_filter_fields(lmgr_filter_t * p_filter, uint64_t attr_mask, int *index);
 
 /** Convert a set notation (eg. "3,5-8,12") to a list of values
  * \param type[in] the type of output array (DB_INT, DB_UINT, ...)

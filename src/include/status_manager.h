@@ -234,5 +234,12 @@ static inline sm_instance_t *smi_by_name(const char *smi_name)
     return NULL;
 }
 
+static inline bool smi_manage_deleted(sm_instance_t *smi)
+{
+    if (smi == NULL)
+        return false;
+    return !!(smi->sm->flags & SM_DELETED);
+}
+
 
 #endif
