@@ -442,7 +442,6 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
 
     if (!strcasecmp(tmpstr, "none"))
     {
-        /** FIXME warning: segfault factory!!! */
         policy->status_mgr = NULL;
     }
     else

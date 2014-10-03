@@ -433,7 +433,14 @@ int check_status_args(const char *status_name, const char *status_value,
         int idx;
         /* try with a policy name */
         if (policy_exists(status_name, &idx))
+        {
             (*p_smi) = policies.policy_list[idx].status_mgr;
+            if (*p_smi == NULL)
+            {
+                fprintf(stderr, "ERROR: policy '%s' doesn't manage status\n", status_name);
+                return ENOENT;
+            }
+        }
         else
         {
             fprintf(stderr, "ERROR: status manager or policy '%s' is not defined\n", status_name);

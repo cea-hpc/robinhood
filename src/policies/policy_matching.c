@@ -959,13 +959,16 @@ policy_match_t entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_e
 static policy_match_t _is_whitelisted(const policy_descr_t *policy,
                               const entry_id_t *p_entry_id,
                               const attr_set_t *p_entry_attr,
-                              fileset_item_t **fileset, /* FIXME: not set? */
+                              fileset_item_t **fileset,
                               bool no_warning)
 {
     unsigned int   i, count;
     policy_match_t rc = POLICY_NO_MATCH;
     whitelist_item_t *list;
     fileset_item_t **fs_list;
+
+    if (fileset != NULL)
+        *fileset = NULL;
 
     /* /!\ ignorelist is 'ignore_fileclass'
      *     whitelist is 'ignore'
@@ -1021,6 +1024,9 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
 #ifdef _DEBUG_POLICIES
             printf("   -> match\n");
 #endif
+            if (fileset != NULL)
+                *fileset = fs_list[i];
+
             /* TODO remember if the policy matches a ignore rule for this policy? */
             return POLICY_MATCH;
         }

@@ -773,10 +773,11 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
     /* needed (cached) attributes to check status from scope */
     mask |= attrs_for_status_mask(mask, false);
 
-    // TODO class management
-    // ATTR_MASK_SET(p_attr_set, release_class);
-    // ATTR_MASK_SET(p_attr_set, rel_cl_update);
+    /* needed attributes to check policy rules */
     mask |= policy->descr->rules.run_attr_mask;
+
+    // TODO class management
+
 
     return mask;
 }
@@ -1689,6 +1690,11 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
         if (match == POLICY_MATCH)
         {
+            DisplayLog(LVL_DEBUG, tag(pol),
+                       "Entry %s matches ignored target %s.",
+                       ATTR(&p_item->entry_attr, fullpath),
+                       p_fileset? p_fileset->fileset_id:"(ignore rule)");
+
             update_entry(lmgr, &p_item->entry_id, &new_attr_set);
             policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
             goto end;

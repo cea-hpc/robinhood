@@ -1326,6 +1326,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     #endif
 
     /* match fileclasses if specified in config */
+    /* FIXME: check fileclass update parameters */
     if (entry_proc_conf.match_classes)
         match_classes(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs);
 

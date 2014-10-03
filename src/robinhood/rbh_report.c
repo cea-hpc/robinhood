@@ -3150,6 +3150,12 @@ int main( int argc, char **argv )
         rc = check_status_args(status_info_name, status_info_value, &strval, &smi);
         if (rc)
             exit(rc);
+        if (smi->sm->flags & SM_NODB)
+        {
+            fprintf(stderr, "ERROR: status report is not supported for '%s' status manager\n",
+                    smi->instance_name);
+            exit(EINVAL);
+        }
         report_status_info(smi->smi_index, strval, flags);
     }
 

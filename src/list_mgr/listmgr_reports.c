@@ -313,8 +313,8 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
     {
         if (profile_descr->attr_index != ATTR_INDEX_size)
         {
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Profile on attribute #%u is not supported",
-                       profile_descr->attr_index);
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Profile on attribute '%s' (index=%u) is not supported",
+                       field_name(profile_descr->attr_index), profile_descr->attr_index);
             return NULL;
         }
         profile_len = SZ_PROFIL_COUNT;
@@ -389,8 +389,8 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
                 {
                     /* Not supported yet */
                     DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                                "Error: report on attribute #%u is not supported (report item #%u).",
-                                report_desc_array[i].attr_index, i);
+                                "Error: report on attribute '%s' (index=%u) is not supported (report item #%u).",
+                                field_name(report_desc_array[i].attr_index), report_desc_array[i].attr_index, i);
                     rc = DB_NOT_SUPPORTED;
                     goto free_str;
                 }
@@ -599,6 +599,8 @@ retry:
         g_string_free(order_by, TRUE);
         g_string_free(having, TRUE);
         g_string_free(where, TRUE);
+        if (filter_name != NULL)
+            g_string_free(filter_name, TRUE);
 
         return ListMgr_Report(p_mgr, report_desc_array, report_descr_count,
                                profile_descr,
@@ -606,12 +608,17 @@ retry:
     }
 
 free_str:
-    g_string_free(req, TRUE);
+    /* these are always allocated */
     g_string_free(fields, TRUE);
     g_string_free(group_by, TRUE);
     g_string_free(order_by, TRUE);
     g_string_free(having, TRUE);
     g_string_free(where, TRUE);
+    /* these may not be allocated */
+    if (req != NULL)
+        g_string_free(req, TRUE);
+    if (filter_name != NULL)
+        g_string_free(filter_name, TRUE);
 
     if (rc == DB_SUCCESS)
         return p_report;
