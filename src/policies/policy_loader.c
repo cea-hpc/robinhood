@@ -1477,7 +1477,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                             if (rc)
                                 goto clean_filesets;
                         }
-                        else if (!strcasecmp(subitem_name,"match"))
+                        else if (!strcasecmp(subitem_name, "match"))
                         {
                             if (extra_args)
                             {

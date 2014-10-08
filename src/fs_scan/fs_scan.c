@@ -726,26 +726,6 @@ static void check_dir_error(int rc)
     }
 }
 
-
-static inline int get_dirid(const char *path, struct stat *st, entry_id_t *id)
-{
-#ifdef _HAVE_FID
-    int rc;
-    rc = Lustre_GetFidFromPath(path, id);
-    if (rc)
-        DisplayLog(LVL_CRIT, FSSCAN_TAG,
-                   "Skipping %s because its FID couldn't be resolved",
-                   path);
-    check_dir_error(rc);
-    return rc;
-#else
-    id->inode = st->st_ino;
-    id->fs_key = get_fskey();
-    id->validator = st->st_ctime;
-    return 0;
-#endif
-}
-
 static int create_child_task(const char *childpath, struct stat *inode, robinhood_task_t *parent)
 {
     robinhood_task_t *p_task;
@@ -763,7 +743,7 @@ static int create_child_task(const char *childpath, struct stat *inode, robinhoo
     rh_strncpy(p_task->path, childpath, RBH_PATH_MAX);
 
     /* set parent id */
-    if ((rc = get_dirid(childpath, inode, &p_task->dir_id)))
+    if ((rc = path2id(childpath, &p_task->dir_id, inode)) != 0)
         goto out_free;
 
     p_task->dir_md = *inode;
@@ -1187,7 +1167,7 @@ static int process_one_task(robinhood_task_t *p_task,
         if (check_entry_dev(p_task->dir_md.st_dev, &fsdev, p_task->path, true))
             p_task->dir_md.st_dev = fsdev; /* just updated */
 
-        rc = get_dirid(p_task->path, &p_task->dir_md, &p_task->dir_id);
+        rc = path2id(p_task->path, &p_task->dir_id, &p_task->dir_md);
         if (rc)
         {
             (*nb_errors)++;

@@ -203,23 +203,16 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
             }
         }
 
-#ifdef _HAVE_FID
-       /* get id for this entry */
-       rc = Lustre_GetFidFromPath( ATTR(&attr_set, fullpath), &id );
-       if (rc)
-       {
+        rc = path2id(ATTR(&attr_set, fullpath), &id, &stat_buf);
+        if (rc)
+        {
             DisplayLog( LVL_CRIT, RMDIR_TAG, "Failed to retrieve id for %s, skipping entry: %s",
                         ATTR(&attr_set, fullpath), strerror(-rc) );
             continue;
-       }
-#else
-       id.fs_key = get_fskey();
-       id.inode  = stat_buf.st_ino;
-       id.validator = stat_buf.st_ctime;
-#endif
+        }
 
-       if (S_ISDIR(stat_buf.st_mode))
-       {
+        if (S_ISDIR(stat_buf.st_mode))
+        {
            rc = Recursive_Rmdir_ByPath( lmgr, &id, &attr_set, p_blocks, p_count );
            if (rc)
            {
@@ -228,9 +221,9 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
                             ATTR(&attr_set, fullpath), strerror(rc) );
                 err = rc;
            }
-       }
-       else /* non directory entry */
-       {
+        }
+        else /* non directory entry */
+        {
             if (!dry_run)
             {
                 if (unlink(ATTR(&attr_set, fullpath)))
@@ -253,7 +246,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
                 DisplayLog( LVL_CRIT, RMDIR_TAG, "Error %d removing entry from database (%s)",
                             rc, ATTR(&attr_set, fullpath) );
            }
-       }
+        }
     } while( 1 );
 
    closedir(dirp);

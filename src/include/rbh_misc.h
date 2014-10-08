@@ -429,4 +429,10 @@ void upperstr(char *str);
 /** recursively create a directoy and return its id */
 int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
 
+/**
+ * Get id for the given path.
+ * @param[in] st stat struct if available.
+ */
+int path2id(const char *path, entry_id_t *id, struct stat *st);
+
 #endif

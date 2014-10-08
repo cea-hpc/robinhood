@@ -328,8 +328,8 @@ static void   *signal_handler_thr( void *arg )
         exit( 1 );
     }
     else
-        DisplayLog( LVL_EVENT, SIGHDL_TAG,
-                    "Signals SIGTERM and SIGINT (daemon shutdown) are ready to be used" );
+        DisplayLog(LVL_VERB, SIGHDL_TAG,
+                   "Signals SIGTERM and SIGINT (daemon shutdown) are ready to be used");
 
     memset( &act_sigusr, 0, sizeof( act_sigusr ) );
     act_sigusr.sa_flags = 0;
@@ -352,7 +352,7 @@ static void   *signal_handler_thr( void *arg )
         exit( 1 );
     }
     else
-        DisplayLog( LVL_EVENT, SIGHDL_TAG, "Signal SIGUSR1 (stats dump) is ready to be used" );
+        DisplayLog(LVL_VERB, SIGHDL_TAG, "Signal SIGUSR1 (stats dump) is ready to be used");
 
 
     /* signal flag checking loop */

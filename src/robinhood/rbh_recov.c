@@ -822,8 +822,8 @@ int main( int argc, char **argv )
         exit( 1 );
     }
     else
-        DisplayLog( LVL_VERB, RECOV_TAG,
-                    "Signals SIGTERM and SIGINT (abort command) are ready to be used" );
+        DisplayLog(LVL_VERB, RECOV_TAG,
+                   "Signals SIGTERM and SIGINT (abort command) are ready to be used");
 
     if (do_status)
         rc = recov_status();

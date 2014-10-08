@@ -1743,25 +1743,8 @@ static inline int create_parent_of_clone_attrs(const char * child_path, entry_id
         return rc;
 
     /* retrieve parent fid */
-#ifdef _HAVE_FID
-    rc = Lustre_GetFidFromPath( destdir, p_parent_id );
-    if (rc)
-        return rc;
-#else
-    struct stat parent_stat;
-    if (lstat(destdir, &parent_stat))
-    {
-        rc = -errno;
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "ERROR: cannot stat target directory '%s': %s",
-                    destdir, strerror(-rc) );
-        return rc;
-    }
-    /* build id from dev/inode*/
-    parent_id.inode = parent_stat.st_ino;
-    parent_id.device = parent_stat.st_dev;
-    parent_id.validator = parent_stat.st_ctime;
-#endif
-    return 0;
+    rc = path2id(destdir, p_parent_id);
+    return rc;
 }
 
 #define IS_ZIP_NAME(_n) (_n[strlen(_n) - 1] == 'z')
@@ -2245,17 +2228,9 @@ recov_status_t rbhext_recover( const entry_id_t * p_old_id,
     strcpy( ATTR( p_attrs_new, fullpath ), fspath );
     ATTR_MASK_SET( p_attrs_new, fullpath );
 
-#ifdef _HAVE_FID
-    /* get the new fid */
-    rc = Lustre_GetFidFromPath( fspath, p_new_id );
+    rc = path2id(fspath, p_new_id);
     if (rc)
         return RS_ERROR;
-#else
-    /* build id from dev/inode*/
-    p_new_id->inode =  st_dest.st_ino;
-    p_new_id->device =  st_dest.st_dev;
-    p_new_id->validator =  st_dest.st_ctime;
-#endif
 
     /* set parent id */
     ATTR_MASK_SET( p_attrs_new, parent_id );

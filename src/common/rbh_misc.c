@@ -167,9 +167,7 @@ static void _set_mount_point( char *mntpnt )
     }
 }
 
-static int path2id(const char *path, entry_id_t *id);
-
-static int set_fs_info(char *name, char * mountp, dev_t dev, fsid_t fsid)
+static int set_fs_info(char *name, char *mountp, dev_t dev, fsid_t fsid)
 {
     int rc = 0;
 
@@ -198,7 +196,7 @@ static int set_fs_info(char *name, char * mountp, dev_t dev, fsid_t fsid)
     }
 
     /* now, path2id can be called */
-    rc = path2id(global_config.fs_path, &root_id);
+    rc = path2id(global_config.fs_path, &root_id, NULL);
     if (rc)
         DisplayLog(LVL_CRIT, "FSInfo", "Failed to get id for root directory %s: %s",
                    mountp, strerror(-rc));
@@ -2292,29 +2290,36 @@ void upperstr(char *str)
        str[i] = toupper(str[i]);
 }
 
-static int path2id(const char *path, entry_id_t *id)
+int path2id(const char *path, entry_id_t *id, struct stat *st)
 {
     int rc;
+
 #ifdef _HAVE_FID
-    rc = Lustre_GetFidFromPath( path, id );
+    rc = Lustre_GetFidFromPath(path, id);
     if (rc)
         return rc;
 #else
-    struct stat st;
-    if (lstat(path, &st))
+    struct stat stn;
+
+    if (st == NULL)
     {
-        rc = -errno;
-        DisplayLog( LVL_CRIT,"path2id", "ERROR: cannot stat '%s': %s",
-                    path, strerror(-rc) );
-        return rc;
+        if (lstat(path, &stn))
+        {
+            rc = -errno;
+            DisplayLog(LVL_CRIT, __func__, "ERROR: cannot stat '%s': %s",
+                       path, strerror(-rc));
+            return rc;
+        }
+        st = &stn;
     }
     /* build id from dev/inode*/
-    id->inode = st.st_ino;
+    id->inode = st->st_ino;
     id->fs_key = get_fskey();
-    id->validator = st.st_ctime;
+    id->validator = st->st_ctime;
 #endif
     return 0;
 }
+
 
 #define MKDIR_TAG "MkDir"
 int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id)
@@ -2388,7 +2393,7 @@ get_id:
     /* must return directory id */
     if (dir_id)
     {
-        rc = path2id(full_path, dir_id);
+        rc = path2id(full_path, dir_id, NULL);
         if (rc)
             return rc;
     }
@@ -2636,25 +2641,17 @@ int create_from_attrs(const attr_set_t * attrs_in,
                         fspath, strerror(errno) );
     }
 
-    if ( lstat( fspath, &st_dest ) )
+    if (lstat(fspath, &st_dest))
     {
         rc = -errno;
-        DisplayLog( LVL_CRIT, CREAT_TAG, "ERROR: lstat() failed on restored entry '%s': %s",
-                    fspath, strerror(-rc) );
+        DisplayLog(LVL_CRIT, CREAT_TAG, "ERROR: lstat() failed on restored entry '%s': %s",
+                   fspath, strerror(-rc));
         return rc;
     }
 
-#ifdef _HAVE_FID
-    /* get the new fid */
-    rc = Lustre_GetFidFromPath( fspath, new_id );
+    rc = path2id(fspath, new_id, &st_dest);
     if (rc)
         return rc;
-#else
-    /* build id from dev/inode*/
-    new_id->inode =  st_dest.st_ino;
-    new_id->fs_key = get_fskey();
-    new_id->validator =  st_dest.st_ctime;
-#endif
 
     /* update with the new attributes */
     PosixStat2EntryAttr(&st_dest, attrs_out, true);

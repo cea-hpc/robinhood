@@ -56,6 +56,8 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="migration success for"
 	REL_STR="purge success for"
+	HSMRM_STR="hsm_remove success for"
+    STATUS_MGR="lhsm"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
 	shook=0
@@ -374,7 +376,7 @@ function migration_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
@@ -387,7 +389,7 @@ function migration_test
 	sleep $sleep_time
 
 	echo "3-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != $expected_migr)); then
@@ -423,7 +425,7 @@ function migration_test_single
 	count=0
 	echo "2-Trying to migrate files before we know them..."
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --migrate-file $ROOT/file.$i -L rh_migr.log -l EVENT 2>/dev/null
+		$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i -L rh_migr.log -l DEBUG 2>/dev/null
 		grep "$ROOT/file.$i" rh_migr.log | grep "not known in database" && count=$(($count+1))
 	done
 
@@ -450,8 +452,8 @@ function migration_test_single
 	echo "4-Applying migration policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --migrate-file $ROOT/file.$i -l EVENT -L rh_migr.log 2>/dev/null
-		grep "$ROOT/file.$i" rh_migr.log | grep "whitelisted" && count=$(($count+1))
+		$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
+		grep "$ROOT/file.$i" rh_migr.log | grep "doesn't match condition for policy rule" && count=$(($count+1))
 	done
 
 	if (( $count == $expected_migr )); then
@@ -474,8 +476,8 @@ function migration_test_single
 	count=0
 	echo "5-Applying migration policy again ($policy_str)..."
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --migrate-file $ROOT/file.$i -l EVENT -L rh_migr.log 2>/dev/null
-		grep "$ROOT/file.$i" rh_migr.log | grep "successful" && count=$(($count+1))
+		$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
+		grep "$ROOT/file.$i" rh_migr.log | grep "$ARCH_STR" && count=$(($count+1))
 	done
 
 	if (( $count == $expected_migr )); then
@@ -491,6 +493,8 @@ function migration_test_single
 		echo "OK: $nb_migr files migrated"
 	fi
 }
+
+
 
 # migrate a symlink
 function migrate_symlink
@@ -524,7 +528,7 @@ function migrate_symlink
 	count=0
 	echo "3-Applying migration policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
-	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f ./cfg/$config_file  --run=migration --target=file:$ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
 	grep "$ROOT/link.1" rh_migr.log | grep "whitelisted" && count=$(($count+1))
 
 	if (( $count == 1 )); then
@@ -546,7 +550,7 @@ function migrate_symlink
 
 	count=0
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
 	grep "$ROOT/link.1" rh_migr.log | grep "successful" && count=$(($count+1))
 
 	if (( $count == 1 )); then
@@ -575,7 +579,7 @@ function migrate_symlink
 
 	cp /dev/null rh_migr.log
 	echo "7-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --migrate-file $ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f ./cfg/$config_file --run=migration --target=$ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
 
 	count=`grep "$ROOT/link.1" rh_migr.log | grep "skipping entry" | wc -l`
 
@@ -751,7 +755,7 @@ function test_lru_policy
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
 
-	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
 
     # if robinhood logs fids, convert them to files
     # FIXME RBHv3
@@ -777,7 +781,7 @@ function test_lru_policy
     :> rh_migr.log
 
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  
 
     if (( $is_lhsm > 0 )); then
         migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
@@ -845,7 +849,7 @@ function test_suspend_on_error
         done
     fi
 
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
     nb_fail_match=$(grep "hints='fail'" rh_migr.log | wc -l)
     nb_ok_match=$(grep "<no_hints>" rh_migr.log | wc -l)
@@ -903,7 +907,7 @@ function xattr_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
@@ -916,7 +920,7 @@ function xattr_test
 	sleep $sleep_time
 
 	echo "3-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log |  wc -l`
 	if (($nb_migr != 3)); then
@@ -1018,9 +1022,9 @@ function link_unlink_remove_test
 
 	# deferred remove delay is not reached: nothing should be removed
 	echo "6-Performing HSM remove requests (before delay expiration)..."
-	$RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log --once || error "hsm_remove"
+	$RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
-	nb_rm=`grep "Remove request successful" rh_rm.log | wc -l`
+	nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
 	if (($nb_rm != 0)); then
 		echo "********** test failed: no removal expected, $nb_rm done"
 	else
@@ -1031,9 +1035,9 @@ function link_unlink_remove_test
 	sleep $sleep_time
 
 	echo "8-Performing HSM remove requests (after delay expiration)..."
-	$RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log --once || error "hsm_remove"
+	$RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
-	nb_rm=`grep "Remove request successful" rh_rm.log | wc -l`
+	nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
 	if (($nb_rm != $expected_rm)); then
 		error "********** TEST FAILED: $expected_rm removals expected, $nb_rm done"
 	else
@@ -1099,7 +1103,7 @@ function mass_softrm
 	grep "Migration summary" rh_migr.log
 
 	echo "Checking stats after 1st scan..."
-	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v "n/a" > fsinfo.1
+	$REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 | grep -v ' dir,' > fsinfo.1
 	cat fsinfo.1
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.1
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
@@ -1125,7 +1129,7 @@ function mass_softrm
 	grep "Full scan of" rh_scan.log | tail -1
 
 	echo "Checking stats after 2nd scan..."
-	$REPORT -f ./cfg/$config_file --fs-info --csv -q | grep -v "n/a" > fsinfo.2
+	$REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 | grep -v ' dir,' > fsinfo.2
 	cat fsinfo.2
 	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.2
 	# 100 files were in the removed directory
@@ -1192,14 +1196,14 @@ function purge_test
 	# use robinhood for flushing
 	if (( $is_hsmlite != 0 )); then
 		echo "2bis-Archiving files"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing migrate-file"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing migration policy"
 		arch_count=`grep "$ARCH_STR" rh_migr.log | wc -l`
 		(( $arch_count == 11 )) || error "$11 archive commands expected"
 	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --run=purge --target=all --no-limit -l DEBUG -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file --run=purge --target=all --no-limit -l DEBUG -L rh_purge.log  || error ""
 
         nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
@@ -1587,7 +1591,7 @@ function test_maint_mode
     	check_db_error rh_chglogs.log
 
     	# migrate (nothing must be migrated, no maint mode reported)
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 	grep "Maintenance time" rh_migr.log && error "No maintenance mode expected"
 	grep "Currently in maintenance mode" rh_migr.log && error "No maintenance mode expected"
 
@@ -1596,7 +1600,7 @@ function test_maint_mode
 	$REPORT -f ./cfg/$config_file --next-maintenance=$maint_time || error "setting maintenance time"
 
 	# right now, migration window is in the future
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 	grep "maintenance window will start in" rh_migr.log || errot "Future maintenance not report in the log"
 
 	# sleep enough to be in the maintenance window
@@ -1611,7 +1615,7 @@ function test_maint_mode
 	# start migrations while we do not reach maintenance time
 	while (( `date +%s` < $t0 + $window + 10 )); do
 		cp /dev/null rh_migr.log
-		$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+		$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 		grep "Currently in maintenance mode" rh_migr.log || error "Should be in maintenance window now"
 
 		# check that files are migrated after min_delay and before the policy delay
@@ -1631,7 +1635,7 @@ function test_maint_mode
 
 	(( `date +%s` > $t0 + $window + 15 )) || sleep $(( $t0 + $window + 15 - `date +%s` ))
 	# shouldn't be in maintenance now
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error "executing --run=migration action"
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 	grep "Maintenance time is in the past" rh_migr.log || error "Maintenance window should be in the past now"
 }
 
@@ -2167,7 +2171,7 @@ function path_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	# count the number of file for each policy
 	nb_pol1=`grep hints rh_migr.log | grep absolute_path | wc -l`
@@ -2367,7 +2371,7 @@ function periodic_class_match_migr
 	check_db_error rh_chglogs.log
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error ""
 
 	#we must have 4 lines like this: Entry xxx matches target file class
 	nb_updt=`grep "matches target file class" rh_migr.log | wc -l`
@@ -2388,7 +2392,7 @@ function periodic_class_match_migr
 
 	# rematch entries: should update all fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error ""
 
 	nb_updt=`grep "matches target file class" rh_migr.log | wc -l`
 	nb_whitelist=`grep "matches ignored target" rh_migr.log | wc -l`
@@ -2442,7 +2446,7 @@ function policy_check_migr
     echo "2. migrate..."
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log --once || error "running migration"
+	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error "running migration"
 
     $REPORT -f ./cfg/$config_file --dump -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
@@ -2468,7 +2472,7 @@ function policy_check_migr
 
 	# rematch entries
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log --once || error "running $RH --run=migration"
+	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error "running $RH --run=migration"
 
     # check effectively migrated files
     m1_arch=`grep "$ARCH_STR" rh_migr.log | grep migrate1 | wc -l`
@@ -2651,7 +2655,7 @@ function periodic_class_match_purge
 	fi
 
 	# now apply policies
-	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log  || error ""
 
 	nb_updt=`grep "matches target file class" rh_purge.log | wc -l`
 	nb_whitelist=`grep "matches ignored target" rh_purge.log | wc -l`
@@ -2685,7 +2689,7 @@ function periodic_class_match_purge
 	echo "Waiting $update_period sec..."
 	sleep $update_period
 
-	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log --once || error ""
+	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log  || error ""
 
 	nb_updt=`grep "matches target file class" rh_purge.log | wc -l`
 	nb_whitelist=`grep "matches ignored target" rh_purge.log | wc -l`
@@ -2808,7 +2812,7 @@ function test_cnt_trigger
     fi
 
 	# apply purge trigger
-	$RH -f ./cfg/$config_file --run=purge --once -l FULL -L rh_purge.log
+	$RH -f ./cfg/$config_file --run=purge  -l FULL -L rh_purge.log
 
 	if (($is_lhsm != 0 )); then
 		nb_release=`grep "Released" rh_purge.log | wc -l`
@@ -2896,7 +2900,7 @@ function test_ost_trigger
 	$REPORT -f ./cfg/$config_file -i
 
 	# apply purge trigger
-	$RH -f ./cfg/$config_file --run=purge --once -l DEBUG -L rh_purge.log || error "applying purge policy"
+	$RH -f ./cfg/$config_file --run=purge  -l DEBUG -L rh_purge.log || error "applying purge policy"
 
 	grep summary rh_purge.log || error "No purge was done"
     [ "$DEBUG" = "1" ] && cat rh_purge.log
@@ -3346,7 +3350,7 @@ function fileclass_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  --once || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	# count the number of file for each policy
 	nb_pol1=`grep hints rh_migr.log | grep even_and_B | wc -l`
@@ -5755,18 +5759,18 @@ function recovery_test
     # archive and modify files
     for i in `seq 1 $total`; do
         if (( $i <= $nb_full )); then
-            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
                 grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
                     || error "$ROOT/dir.$i/link.$i should not have been migrated"
             fi
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
-            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
                 grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
@@ -5776,7 +5780,7 @@ function recovery_test
             mv "$ROOT/dir.$i/link.$i" "$ROOT/dir.$i/link_new.$i" || error "renaming link"
             mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-            $RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/file.$i"
             touch "$ROOT/dir.$i/file.$i"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
@@ -6204,15 +6208,15 @@ function import_test
 	# archive and modify files
 	for i in `seq 1 $total`; do
 		if (( $i <= $nb_full )); then
-			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename)) )); then
-			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
 			mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
 			mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-			$RH -f ./cfg/$config_file --migrate-file "$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
 			touch "$ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
@@ -7125,7 +7129,7 @@ function migration_file_type
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/link.1 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/link.1 -l DEBUG -L rh_migr.log 
 
     nbError=0
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7152,7 +7156,7 @@ function migration_file_type
     done
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7220,7 +7224,7 @@ function migration_file_owner
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -7233,7 +7237,7 @@ function migration_file_owner
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.3 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.3 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7293,7 +7297,7 @@ function migration_file_Last
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -7314,7 +7318,7 @@ function migration_file_Last
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7374,7 +7378,7 @@ function migration_file_ExtendedAttribut
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.4 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.4 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -7387,7 +7391,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.5 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.5 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7399,7 +7403,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7538,7 +7542,7 @@ function migration_file_OST
 	done
 
 	echo "3-Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/file.2 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.2 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -7551,7 +7555,7 @@ function migration_file_OST
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --migrate-file=$ROOT/file.3 -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.3 -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7883,7 +7887,7 @@ function test_purge
 
         if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 	        echo "Update Archiving files"
-	        $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG  -L rh_migr.log --once
+	        $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG  -L rh_migr.log 
             (( $is_lhsm > 0 )) && wait_done 60
 	    fi
     fi
@@ -8897,7 +8901,7 @@ function TEST_OTHER_PARAMETERS_1
 
 	if (( $is_hsmlite == 0 || $shook != 0 || $is_lhsm != 0 )); then
 	    echo "Reading changelogs and Applying purge policy..."
-	    $RH -f ./cfg/$config_file --scan --run=purge -l DEBUG -L rh_purge.log --once &
+	    $RH -f ./cfg/$config_file --scan --run=purge -l DEBUG -L rh_purge.log  &
 
 	    sleep 5
 	    nbError=0
@@ -8920,7 +8924,7 @@ function TEST_OTHER_PARAMETERS_1
 	    fi
     else #backup mod
 	    echo "Launch Migration in background"
-	    $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log --once &
+	    $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log  &
 
 	    sleep 5
         wait_done 60
@@ -9055,7 +9059,7 @@ function TEST_OTHER_PARAMETERS_3
 	done
 
 	echo "Archives files"
-	$RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9167,7 +9171,7 @@ function TEST_OTHER_PARAMETERS_4
 	done
 
 	echo "Migrate files (must fail)"
-	$RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log --once
+	$RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9186,7 +9190,7 @@ function TEST_OTHER_PARAMETERS_4
 
     echo "Migrate files"
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log --once &
+	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  &
 	pid=$!
     kill -9 $pid
 
@@ -9394,14 +9398,14 @@ run_test 209a	periodic_class_match_purge test_updt.conf 10 "fileclass matching 1
 run_test 209b	policy_check_purge test_check_purge.conf 10 "fileclass matching 2 (purge)"
 run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
-run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
-run_test 213	migration_test_single test1.conf 11 11 "last_mod>11s"
+run_test 212	link_unlink_remove_test test_rm1.conf 1 11 "deferred hsm_remove"
+run_test 213	migration_test_single test1.conf 11 11 "simple migration policy"
 run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
 run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
 run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
 run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
-run_test 215	mass_softrm    test_rm1.conf 31 1000    "rm are detected between 2 scans"
+run_test 215	mass_softrm    test_rm1.conf 11 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
 run_test 217	migrate_symlink test1.conf 11 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
@@ -9504,10 +9508,10 @@ run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--migrate"
 run_test 626 test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
 run_test 627 test_migration MigrationUser.conf 0 1 "file.3" "--migrate-user=testuser" "TEST_MIGRATION_USER"
 run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--migrate-group=testgroup" "TEST_MIGRATION_GROUP"
-run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--migrate-file=$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
+run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--run=migration --target=file:$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
 run_test 630 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
-run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--migrate-file=$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
-run_test 632 test_migration MigrationFile_Size.conf 1 1 "file.8" "--migrate-file=$ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
+run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--run=migration --target=file:$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
+run_test 632 test_migration MigrationFile_Size.conf 1 1 "file.8" "--run=migration --target=file:$ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
 run_test 633 migration_file_Last MigrationFile_LastAccess.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_ACCESS"
 run_test 634 migration_file_Last MigrationFile_LastModification.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_MODIFICATION"
 run_test 635 migration_file_OST MigrationFile_OST.conf 1 "file.3" "TEST_MIGRATION_FILE_OST"

@@ -1237,7 +1237,7 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
             param.time_mod = &tmod;
 
         /* run actions! */
-        DisplayLog(LVL_EVENT, tag(pol), "Applying policy rules to %s",
+        DisplayLog(LVL_EVENT, tag(pol), "Checking policy rules for %s",
                    param2targetstr(&param, buff, sizeof(buff)));
         update_trigger_status(pol, trigger_index, TRIG_RUNNING);
 
@@ -1386,7 +1386,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
             param.time_mod = &tmod;
 
         /* run actions! */
-        DisplayLog(LVL_EVENT, tag(pol), "Applying policy rules to %s",
+        DisplayLog(LVL_EVENT, tag(pol), "Checking policy rules for %s",
                    param2targetstr(&param, buff, sizeof(buff)));
 
         memset(&summary, 0, sizeof(summary));

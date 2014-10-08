@@ -596,8 +596,8 @@ static void   *signal_handler_thr( void *arg )
         exit( 1 );
     }
     else
-        DisplayLog( LVL_EVENT, SIGHDL_TAG,
-                    "Signals SIGTERM and SIGINT (daemon shutdown) are ready to be used" );
+        DisplayLog(LVL_VERB, SIGHDL_TAG,
+                   "Signals SIGTERM and SIGINT (daemon shutdown) are ready to be used");
 
     memset( &act_sighup, 0, sizeof( act_sighup ) );
     act_sighup.sa_flags = 0;
@@ -609,7 +609,7 @@ static void   *signal_handler_thr( void *arg )
         exit( 1 );
     }
     else
-        DisplayLog( LVL_EVENT, SIGHDL_TAG, "Signal SIGHUP (config reloading) is ready to be used" );
+        DisplayLog(LVL_VERB, SIGHDL_TAG, "Signal SIGHUP (config reloading) is ready to be used");
 
     memset( &act_sigusr, 0, sizeof( act_sigusr ) );
     act_sigusr.sa_flags = 0;
@@ -621,7 +621,7 @@ static void   *signal_handler_thr( void *arg )
         exit( 1 );
     }
     else
-        DisplayLog( LVL_EVENT, SIGHDL_TAG, "Signal SIGUSR1 (stats dump) is ready to be used" );
+        DisplayLog(LVL_VERB, SIGHDL_TAG, "Signal SIGUSR1 (stats dump) is ready to be used");
 
 
     /* signal flag checking loop */
@@ -1447,6 +1447,10 @@ int main(int argc, char **argv)
                                  options.usage_target, &policy_opt);
         if (rc)
             exit(rc);
+
+        if (policy_opt.target != TGT_NONE)
+            options.flags |= FLAG_ONCE;
+
         /* finalize policy options */
         policy_opt.flags = options.flags;
     }

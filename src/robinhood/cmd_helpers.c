@@ -255,11 +255,14 @@ int Path2Id(const char *path, entry_id_t * id)
 {
     int rc;
     unsigned int len;
-    const char * mnt = get_mount_point(&len);
-    char rpath[RBH_PATH_MAX];
+    char        rpath[RBH_PATH_MAX];
+    const char *mnt;
+    char       *tmp_path;
 
-    char * tmp_path = realpath( path, NULL );
-    if ( tmp_path == NULL )
+    mnt = get_mount_point(&len);
+    tmp_path = realpath(path, NULL);
+
+    if (tmp_path == NULL)
     {
         rc = -errno;
         DisplayLog(LVL_CRIT, P2ID_TAG, "Error in realpath(%s): %s",
@@ -289,20 +292,9 @@ int Path2Id(const char *path, entry_id_t * id)
                        path, mnt);
         return -EINVAL;
     }
-#ifndef _HAVE_FID
-    struct stat inode;
-    if (lstat(path, &inode))
-        return -errno;
 
-    id->inode = inode.st_ino;
-    id->fs_key = get_fskey();
-    id->validator = inode.st_ctime;
-    return 0;
-#else
-    /* perform path2fid */
-    rc = Lustre_GetFidFromPath(path, id);
+    rc = path2id(path, id, NULL);
     return rc;
-#endif
 }
 
 

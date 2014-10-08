@@ -92,8 +92,8 @@ static int policy_action(policy_info_t *policy,
     const policy_action_t *actionp = &policy->descr->default_action;
 
     DisplayLog(LVL_EVENT, tag(policy),
-               "Applying policy action to: " DFID_NOBRACE ", hints='%s'",
-               PFID(id), hints?hints:"<none>");
+               "Executing policy action on: " DFID_NOBRACE " (%s), hints='%s'",
+               PFID(id), ATTR(p_attr_set, fullpath), hints?hints:"<none>");
     if (dry_run(policy))
         return 0;
 
@@ -885,10 +885,6 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_items,
                                           EQUAL, fval, 0);
 
-        case TGT_FILE:  /* check/apply policies to the specified file */
-            /* TODO: special case? */
-            return ENOTSUP;
-
         case TGT_POOL:  /* apply policies to the specified pool of OSTs */
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on pool '%s'",
                        p_param->optarg_u.name);
@@ -935,6 +931,11 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             return lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass,
                                           WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
                                           fval, 0);
+
+        case TGT_FILE:
+            /* this is supposed to be handled by specific code: single_file_run() */
+            RBH_BUG("ERROR: file target type is supposed to be handled in a different function");
+            return ENOTSUP;
 
         default:
             DisplayLog(LVL_CRIT, tag(pol), "ERROR: unhandled target type %u\n",
@@ -1239,6 +1240,66 @@ static pass_status fill_workers_queue(policy_info_t *pol,
     return st;
 }
 
+/* forward declaration */
+static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
+                          queue_item_t *p_item, bool free_item);
+/**
+ * Apply policy to a single file.
+ */
+static int single_file_run(policy_info_t *pol, lmgr_t *lmgr,
+                           const policy_param_t *p_param,
+                           action_summary_t *p_summary)
+{
+    queue_item_t  item;
+    int           rc;
+    unsigned int        status_before[AS_ENUM_COUNT];
+    unsigned int        status_after[AS_ENUM_COUNT];
+    unsigned long long  feedback_before[AF_ENUM_COUNT];
+    unsigned long long  feedback_after[AF_ENUM_COUNT];
+
+    memset(&item, 0, sizeof(item));
+
+    RetrieveQueueStats(&pol->queue, NULL, NULL, NULL, NULL, NULL,
+                       status_before, feedback_before);
+
+    pol->progress.policy_start = pol->progress.last_report = time(NULL);
+
+    /* resolve the fid of the target */
+    rc = path2id(p_param->optarg_u.name, &item.entry_id, NULL);
+    if (rc)
+        return rc;
+
+    /* needed attributes to apply the policy */
+    item.entry_attr.attr_mask = db_attr_mask(pol, p_param);
+
+    /* get fid from DB */
+    rc = ListMgr_Get(lmgr, &item.entry_id, &item.entry_attr);
+    if (rc)
+    {
+        if (rc == DB_NOT_EXISTS)
+            DisplayLog(LVL_MAJOR, tag(pol), "%s: this entry is not known in database",
+                       p_param->optarg_u.name);
+        /* expect a posix error code */
+        rc = EINVAL;
+        return rc;
+    }
+
+    /* apply the policy to the entry */
+    process_entry(pol, lmgr, &item, false);
+
+    ListMgr_FreeAttrs(&item.entry_attr);
+
+    RetrieveQueueStats(&pol->queue, NULL, NULL, NULL, NULL, NULL,
+                       status_after, feedback_after);
+    update_pass_stats(pol, status_before, status_after,
+                      feedback_before, feedback_after);
+
+    if (p_summary)
+        *p_summary = pol->progress;
+
+    return 0;
+}
+
 /**
  * This is called by triggers (or manual policy runs) to run a pass of a policy.
  * @param[in,out] p_pol_info   policy information and resources
@@ -1274,6 +1335,10 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         memset(p_summary, 0, sizeof(*p_summary));
 
     /* XXX previously here: interpreting target type and amount */
+
+    /* special case: apply policy on a single file */
+    if (p_param->target == TGT_FILE)
+        return single_file_run(p_pol_info, lmgr, p_param, p_summary);
 
     /* Do nothing if no previous scan was done (except if --force is specified). */
     rc = check_scan_done(p_pol_info, lmgr);
@@ -1369,7 +1434,6 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     opt.list_count_max = p_pol_info->config->db_request_limit;
     nb_returned = 0;
     total_returned = 0;
-
 
     rc = iter_open(lmgr, smi_manage_deleted(p_pol_info->descr->status_mgr)? IT_RMD: IT_LIST,
                    &it, &filter, &sort_type, &opt);
@@ -1645,7 +1709,7 @@ else
  * Manage an entry by path or by fid, depending on FS
  */
 static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
-                          queue_item_t * p_item)
+                          queue_item_t * p_item, bool free_item)
 {
     attr_set_t     new_attr_set = {0};
     int            rc;
@@ -1847,6 +1911,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                        &p_fileset);
     if (!rule)
     {
+        DisplayLog(LVL_DEBUG, tag(pol), "Entry %s matches no policy rule",
+                   ATTR(&p_item->entry_attr, fullpath));
+
         update_entry(lmgr, &p_item->entry_id, &new_attr_set);
         policy_ack(&pol->queue, AS_NO_POLICY, &p_item->entry_attr,
                    p_item->targeted);
@@ -1862,6 +1929,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         {
         case POLICY_NO_MATCH:
             /* entry is not eligible now */
+            DisplayLog(LVL_DEBUG, tag(pol), "Entry %s doesn't match condition for policy rule '%s'",
+                       ATTR(&p_item->entry_attr, fullpath), rule->rule_id);
+
             update_entry(lmgr, &p_item->entry_id, &new_attr_set);
             policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
             goto end;
@@ -2051,7 +2121,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     }
 
   end:
-    free_queue_item(p_item);
+    if (free_item)
+        free_queue_item(p_item);
     return;
 }
 
@@ -2074,7 +2145,7 @@ static void   *thr_policy_run(void *arg)
     }
 
     while (Queue_Get(&pol->queue, &p_queue_entry) == 0)
-        process_entry(pol, &lmgr, (queue_item_t *)p_queue_entry);
+        process_entry(pol, &lmgr, (queue_item_t *)p_queue_entry, true);
 
     /* Error occured in purge queue management... */
     DisplayLog(LVL_CRIT, tag(pol), "An error occured in policy run queue management. Exiting.");
