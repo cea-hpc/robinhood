@@ -58,7 +58,7 @@ static int mysql_error_convert(int err, int verb)
     case ER_LOCK_WAIT_TIMEOUT:
         if (verb)
         {
-            if (lmgr_config.db_config.innodb)
+            if (!strcasecmp(lmgr_config.db_config.engine, "InnoDB"))
                 DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Lock timeout detected. "
                            "Consider increasing \"innodb_lock_wait_timeout\" in MySQL config.");
             else

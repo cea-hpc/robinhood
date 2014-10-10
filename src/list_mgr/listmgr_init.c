@@ -342,8 +342,8 @@ static int create_table_vars(db_conn_t *pconn)
            "varname VARCHAR(255) PRIMARY KEY, "
            "value TEXT)");
 #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
 #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
@@ -435,8 +435,8 @@ static int create_table_main(db_conn_t *pconn)
     strcpy(next, ")");
 
     #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
     #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
@@ -536,8 +536,8 @@ static int create_table_dnames(db_conn_t *pconn)
     strcpy(next, ")");
 
 #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
 #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
@@ -650,8 +650,8 @@ static int create_table_annex(db_conn_t *pconn)
     }
     strcpy( next, ")" );
 #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
 #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
@@ -737,8 +737,8 @@ static int create_table_stripe_info(db_conn_t *pconn)
             "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u))",
             MAX_POOL_LEN - 1);
 #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
 #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
@@ -799,8 +799,8 @@ static int create_table_stripe_items(db_conn_t *pconn)
             " (id "PK_TYPE", stripe_index INT UNSIGNED, ostidx INT UNSIGNED, details BINARY(%u))",
             STRIPE_DETAIL_SZ);
 #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
 #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
@@ -1042,8 +1042,8 @@ static int create_table_acct(db_conn_t *pconn)
     }
     strcpy(next,"))");
 #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
 #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
@@ -1119,8 +1119,8 @@ static int create_table_softrm(db_conn_t *pconn)
 #endif
            );
 #ifdef _MYSQL
-    if (lmgr_config.db_config.innodb)
-        strcat(strbuf, " ENGINE=InnoDB");
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
 #endif
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 

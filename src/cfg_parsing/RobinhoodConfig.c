@@ -279,6 +279,16 @@ int GetStringParam( config_item_t block,
 
     /* checks */
 
+    if (flags & STR_PARAM_NOT_EMPTY)
+    {
+        if (EMPTY_STRING(target))
+        {
+            sprintf(err_msg, "Unexpected empty parameter '%s::%s', line %d", block_name,
+                    var_name, rh_config_GetItemLine(curr_item));
+            return EINVAL;
+        }
+    }
+
     /* are stdio names allowed ? */
     if ( flags & STDIO_ALLOWED )
     {

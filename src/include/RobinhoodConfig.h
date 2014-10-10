@@ -300,6 +300,8 @@ void           print_line( FILE * output, unsigned int indent, const char *forma
 #define FLOAT_PARAM_NOT_NULL            INT_PARAM_NOT_NULL
 #define ALLOW_PCT_SIGN                  0x00000100
 
+#define STR_PARAM_NOT_EMPTY             0x00000200
+
 #define BOOLEXPR_TIME_YOUNGER
 #define BOOLEXPR_TIME_OLDER
 

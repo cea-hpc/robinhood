@@ -45,7 +45,7 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
     conf->db_config.password[0] = '\0';
     conf->db_config.port = 0;
     conf->db_config.socket[0] = '\0';
-    conf->db_config.innodb = TRUE;
+    strcpy(conf->db_config.engine, "InnoDB");
 #elif defined (_SQLITE)
     strcpy( conf->db_config.filepath, "/var/robinhood/robinhood_sqlite_db" );
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
@@ -75,7 +75,7 @@ int WriteLmgrConfigDefault( FILE * output )
     print_line( output, 2, "password|password_file : [MANDATORY]" );
     print_line( output, 2, "port    :   (MySQL default)" );
     print_line( output, 2, "socket  :   NONE" );
-    print_line( output, 2, "innodb  :   enabled" );
+    print_line( output, 2, "engine  :   InnoDB" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)
     print_begin_block( output, 1, SQLITE_CONFIG_BLOCK, NULL );
@@ -113,7 +113,7 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
 #ifdef _MYSQL
     static const char *db_allowed[] = {
         "server", "db", "user", "password", "password_file", "port", "socket",
-        "innodb", NULL
+        "innodb", "engine", NULL
     };
 #elif defined (_SQLITE)
     static const char *db_allowed[] = {
@@ -298,13 +298,37 @@ int ReadLmgrConfig( config_file_t config, void *module_config, char *msg_out, in
 
     rc = GetStringParam( db_block, MYSQL_CONFIG_BLOCK, "socket",
                          STR_PARAM_NO_WILDCARDS | STR_PARAM_ABSOLUTE_PATH,
-                         conf->db_config.socket, RBH_PATH_MAX, NULL, NULL, msg_out );
+                         conf->db_config.socket, sizeof(conf->db_config.socket), NULL, NULL, msg_out );
     if ( ( rc != 0 ) && ( rc != ENOENT ) )
         return rc;
 
-    rc = GetBoolParam( db_block, MYSQL_CONFIG_BLOCK, "innodb", 0,
-                       &conf->db_config.innodb, NULL, NULL, msg_out );
-    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+
+    rc = GetStringParam(db_block, MYSQL_CONFIG_BLOCK, "engine",
+                        STR_PARAM_NO_WILDCARDS | STR_PARAM_NOT_EMPTY,
+                        conf->db_config.engine, sizeof(conf->db_config.engine),
+                        NULL, NULL, msg_out);
+    if (rc == ENOENT)
+    {
+        int dummy = TRUE;
+
+        /* try to get innodb parameter for backward compat */
+        rc = GetBoolParam(db_block, MYSQL_CONFIG_BLOCK, "innodb", 0,
+                          &dummy, NULL, NULL, msg_out);
+        if ((rc != 0) && (rc != ENOENT))
+            return rc;
+        else if (rc == 0)
+        {
+            if (dummy)
+                rh_strncpy(conf->db_config.engine, "InnoDB", sizeof(conf->db_config.engine));
+            else
+                rh_strncpy(conf->db_config.engine, "MyISAM", sizeof(conf->db_config.engine));
+
+            DisplayLog(LVL_CRIT, "LmgrConfig",
+                       "WARNING: 'innodb' parameter is deprecated (specify \"engine = %s\" instead)",
+                       conf->db_config.engine);
+        }
+    }
+    else if (rc != 0)/* other error */
         return rc;
 
     CheckUnknownParameters( db_block, MYSQL_CONFIG_BLOCK, db_allowed );
@@ -453,7 +477,7 @@ int WriteLmgrConfigTemplate( FILE * output )
     print_line( output, 2, "password_file = \"/etc/robinhood.d/.dbpassword\" ;" );
     print_line( output, 2, "# port   = 3306 ;" );
     print_line( output, 2, "# socket = \"/tmp/mysql.sock\" ;" );
-    print_line( output, 2, "innodb = enabled ;" );
+    print_line( output, 2, "engine = InnoDB ;" );
     print_end_block( output, 1 );
 #elif defined (_SQLITE)
     print_begin_block( output, 1, SQLITE_CONFIG_BLOCK, NULL );
