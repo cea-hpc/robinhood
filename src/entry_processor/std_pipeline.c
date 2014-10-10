@@ -1430,6 +1430,11 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     check_fullpath(&p_op->db_attrs, &p_op->entry_id, &p_op->fs_attr_need);
 
+    #ifdef _BENCH_DB
+        /* don't get info from filesystem */
+        next_stage = STAGE_PRE_APPLY;
+    #endif
+
 next_step:
     if ( next_stage == -1 )
         /* drop the entry */

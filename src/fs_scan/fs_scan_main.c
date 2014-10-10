@@ -184,15 +184,17 @@ void FSScan_DumpStats( void )
 
     if ( stats.scan_running )
     {
+        time_t now = time(NULL);
+
         DisplayLog( LVL_MAJOR, "STATS", "scan is running:" );
 
         strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &stats.start_time, &paramtm ) );
-        FormatDurationFloat( tmp_buff2, 256, time( NULL ) - stats.start_time );
+        FormatDurationFloat( tmp_buff2, 256, now - stats.start_time );
 
         DisplayLog( LVL_MAJOR, "STATS", "     started at : %s (%s ago)", tmp_buff, tmp_buff2 );
 
         strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &stats.last_action, &paramtm ) );
-        FormatDurationFloat( tmp_buff2, 256, time( NULL ) - stats.last_action );
+        FormatDurationFloat( tmp_buff2, 256, now - stats.last_action );
 
         DisplayLog( LVL_MAJOR, "STATS", "     last action: %s (%s ago)", tmp_buff, tmp_buff2 );
 
@@ -200,29 +202,22 @@ void FSScan_DumpStats( void )
         {
             double         speed;
 
-            DisplayLog( LVL_MAJOR, "STATS", "     progress   : %u entries scanned (%u errors)",
-                        stats.scanned_entries, stats.error_count );
+            DisplayLog(LVL_MAJOR, "STATS", "     progress   : %u entries scanned (%u errors)",
+                       stats.scanned_entries, stats.error_count);
 
-            if ( stats.avg_ms_per_entry > 0.0 )
-                speed = ( 1000.0 / stats.avg_ms_per_entry ) * fs_scan_config.nb_threads_scan;
-            else
-                speed = 0.0;
-
-            DisplayLog( LVL_MAJOR, "STATS",
-                        "     avg. speed : %.2f ms/entry/thread -> %.2f entries/sec",
-                        stats.avg_ms_per_entry, speed );
-
-            if ( stats.curr_ms_per_entry > 0.0 )
+            if (stats.curr_ms_per_entry > 0.0)
                 speed = ( 1000.0 / stats.curr_ms_per_entry ) * fs_scan_config.nb_threads_scan;
             else
                 speed = 0.0;
 
-            DisplayLog( LVL_MAJOR, "STATS",
-                        "     inst. speed: %.2f ms/entry/thread -> %.2f entries/sec",
-                        stats.curr_ms_per_entry, speed );
+            DisplayLog(LVL_MAJOR, "STATS",     "     inst. speed (potential): %9.2f entries/sec (%4.2f ms/entry/thread)",
+                       speed, stats.curr_ms_per_entry);
 
+            if (now - stats.start_time > 0)
+                DisplayLog(LVL_MAJOR, "STATS", "     avg. speed  (effective): %9.2f entries/sec (%4.2f ms/entry/thread)",
+                           (float)stats.scanned_entries/(float)(now - stats.start_time),
+                           stats.avg_ms_per_entry);
         }
-
     }
 
     if (stats.nb_hang > 0)
