@@ -1243,7 +1243,7 @@ static int process_one_task(robinhood_task_t *p_task,
 #ifdef _BENCH_DB
         /* add i to the entry id */
         fakeid = (struct id_map*)&op->entry_id;
-        fakeid->low += i;
+        fakeid->high += i;
 #endif
         op->entry_id_is_set = TRUE;
 
