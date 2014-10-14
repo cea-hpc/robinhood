@@ -16,11 +16,11 @@
  * \file  global_config.h
  * \brief Global configuration parameters
  */
-#ifndef _GENERAL_H
-#define _GENERAL_H
+#ifndef _GLB_CFG_H
+#define _GLB_CFG_H
 
+#include "rbh_cfg.h"
 #include "rbh_const.h"
-#include "config_parsing.h"
 #include <sys/param.h>          /* for RBH_PATH_MAX */
 #include <stdio.h>
 #include <stdbool.h>
@@ -58,21 +58,10 @@ typedef struct global_config_t
 
 } global_config_t;
 
-/**
- * \addtogroup MODULE_CONFIG_FUNCTIONS
- * @{
- */
-int            SetDefaultGlobalConfig( void *module_config, char *msg_out );
-int            ReadGlobalConfig(config_file_t config, void *module_config,
-                                char *msg_out, bool for_reload);
-int            ReloadGlobalConfig( void *module_config );
-int            WriteGlobalConfigTemplate( FILE * output );
-int            WriteGlobalConfigDefault( FILE * output );
-/** @} */
-
 /** global config structure available to all modules */
-extern global_config_t global_config;
+extern global_config_t    global_config;
 
-
+/** handlers for global config */
+extern mod_cfg_funcs_t   global_cfg_hdlr;
 
 #endif

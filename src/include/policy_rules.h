@@ -20,170 +20,9 @@
 #ifndef _POLICIES_H
 #define _POLICIES_H
 
-#include "config_parsing.h"
-#include "status_manager.h"
-#include <sys/time.h>
+#include "rbh_boolexpr.h"
 #include "list_mgr.h"
-
-
-typedef enum {
-    COMP_NONE = 0,              /**<     not set */
-    COMP_GRTHAN,                /**<     > */
-    COMP_GRTHAN_EQ,             /**<     >= */
-    COMP_LSTHAN,                /**<     < */
-    COMP_LSTHAN_EQ,             /**<     <= */
-    COMP_EQUAL,                 /**<     == */
-    COMP_DIFF,                  /**<     != */
-    COMP_LIKE,                  /**<     regexp matching */
-    COMP_UNLIKE                 /**<     regexp not matching */
-} compare_direction_t;
-
-typedef enum {
-    CRITERIA_TREE = 0,
-    CRITERIA_PATH,
-    CRITERIA_FILENAME,
-    CRITERIA_TYPE,
-    CRITERIA_OWNER,
-    CRITERIA_GROUP,
-    CRITERIA_SIZE,
-    CRITERIA_DEPTH,
-    CRITERIA_DIRCOUNT,
-    CRITERIA_LAST_ACCESS,
-    CRITERIA_LAST_MOD,
-#ifdef ATTR_INDEX_last_restore
-    CRITERIA_LAST_RESTORE,
-#endif
-#ifdef ATTR_INDEX_last_archive
-    CRITERIA_LAST_ARCHIVE,
-#endif
-#ifdef ATTR_INDEX_creation_time
-    CRITERIA_CREATION,
-#endif
-#ifdef ATTR_INDEX_rm_time
-    CRITERIA_RMTIME,
-#endif
-#ifdef _LUSTRE
-    CRITERIA_POOL,
-    CRITERIA_OST,
-#endif
-    CRITERIA_STATUS,
-    /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the last criteria */
-    CRITERIA_XATTR,
-} compare_criteria_t;
-
-typedef enum {
-    BOOL_ERR = 0,
-    BOOL_NOT,
-    BOOL_OR,
-    BOOL_AND
-} bool_op_t;
-
-
-typedef enum {
-    TYPE_NONE = 0,
-    TYPE_LINK,
-    TYPE_DIR,
-    TYPE_FILE,
-    TYPE_CHR,
-    TYPE_BLK,
-    TYPE_FIFO,
-    TYPE_SOCK
-} obj_type_t;
-
-
-/* string representation in policies */
-static const char *type_cfg_name[] = {"?", "symlink", "directory", "file",
-    "char", "block", "fifo", "socket"};
-
-static inline const char *type2str(obj_type_t type)
-{
-    if (type > TYPE_SOCK)
-        return type_cfg_name[TYPE_NONE];
-
-    return type_cfg_name[type];
-}
-
-static inline obj_type_t str2type(const char *str)
-{
-    obj_type_t i;
-
-    for (i = TYPE_NONE; i <= TYPE_SOCK; i++)
-    {
-        if (!strcasecmp(str, type_cfg_name[i]))
-            return i;
-    }
-    return TYPE_NONE;
-}
-
-/* string representation in database (not in config file)
- *
- * When adding a new type, fix the database enum in
- * listmgr_init.c:append_field_def() */
-#define STR_TYPE_LINK   "symlink"
-#define STR_TYPE_DIR    "dir"
-#define STR_TYPE_FILE   "file"
-#define STR_TYPE_CHR    "chr"
-#define STR_TYPE_BLK    "blk"
-#define STR_TYPE_FIFO   "fifo"
-#define STR_TYPE_SOCK   "sock"
-
-/* type conversion functions */
-const char *policy2lmgr_type(obj_type_t type);
-obj_type_t lmgr2policy_type(const char *str_type);
-
-typedef union
-{
-    char               str[RBH_PATH_MAX]; /* for all conditions based on a string */
-    unsigned long long size;              /* for size-based conditions */
-    unsigned int       integer;           /* for int base conditions */
-    time_t             duration;          /* for last access and last mod condition */
-    obj_type_t         type;              /* for conditions based on object type */
-} compare_value_t;
-
-/* indicates that the compare triplet is for mathcing any level
- * of directories.
- */
-#define CMP_FLG_ANY_LEVEL 0x00000001
-
-/* whitelist rules are defined by a tree of comparators */
-
-/** <attribute> <comparator> <value> triplet */
-typedef struct compare_triplet_t
-{
-    int flags;
-    compare_criteria_t crit;
-    char               xattr_name[RBH_NAME_MAX]; /* for xattrs */
-    compare_direction_t op;
-    compare_value_t val;
-} compare_triplet_t;
-
-/** Type of boolean expression: unary, binary or criteria */
-typedef enum {
-    NODE_CONDITION,
-    NODE_UNARY_EXPR,
-    NODE_BINARY_EXPR
-} node_type_t;
-
-/** Recursive definition of a Boolean expression */
-typedef struct bool_node_t
-{
-    node_type_t    node_type;
-    union
-    {
-        compare_triplet_t *condition;            /**< for final condition on any field */
-        struct
-        {
-            bool_op_t      bool_op;              /**< boolean operator */
-            struct bool_node_t *expr1;           /**< for unary or binary operators */
-            struct bool_node_t *expr2;           /**< for binary operators */
-
-            /* this tag indicates if expressions 1 and 2
-             * are allocated by the owner of this structure
-             * (boolean expression or set of classes) */
-            unsigned int owner:1;
-        } bool_expr;
-    } content_u;
-} bool_node_t;
+#include <sys/time.h>
 
 /** whitelist item is just a boolean expression */
 typedef struct whitelist_item_t
@@ -219,7 +58,7 @@ typedef struct rmdir_policy_t
 #define FILESET_ID_LEN   128
 #define HINTS_LEN       4096
 
-typedef struct action_hint_t
+typedef struct action_hint_t /** FIXME replace with a list of parameters */
 {
     struct policy_descr_t *policy; /* hint for what policy? */
     char                   hint_str[HINTS_LEN]; /* the hints itself */
@@ -318,8 +157,12 @@ typedef enum {
     PA_UPDATE
 } post_action_e;
 
-typedef  int (*action_func_t)(const entry_id_t *,attr_set_t *, const char *,
-                              post_action_e *after); /* hints */
+typedef int (*db_cb_func_t)(void *cb_arg, operation_type_t op,
+                            const entry_id_t *id, const attr_set_t *attrs);
+
+typedef int (*action_func_t)(const entry_id_t *id, attr_set_t *attrs,
+                             const char *hints, post_action_e *what_after,
+                             db_cb_func_t db_cb_fn, void *db_cb_arg);
 
 action_func_t action_name2function(const char *fname);
 
@@ -344,12 +187,8 @@ typedef struct unlink_policy
  * Function for managing all policy configuration (migration, purge, unlink)
  * ======================================================================*/
 
-int            set_default_policies(void *module_config, char *msg_out);
-int            read_policies(config_file_t config, void *module_config,
-                             char *msg_out, bool for_reload);
-int            reload_policies(void *module_config);
-int            write_policy_template(FILE *output);
-int            write_policy_default(FILE *output);
+/** config handlers */
+extern mod_cfg_funcs_t policies_cfg_hdlr;
 
 /** policy descriptor */
 typedef struct policy_descr_t {

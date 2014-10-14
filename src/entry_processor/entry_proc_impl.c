@@ -29,13 +29,12 @@
 #include <errno.h>
 #include <stdlib.h>
 
-
 static sem_t pipeline_token;
 
 /* each stage of the pipeline consist of the following information: */
 typedef struct __list_by_stage__
 {
-    struct list_head entries;
+    struct rh_list_head entries;
     unsigned int   nb_threads;                   /* number of threads working on this stage */
     unsigned int   nb_unprocessed_entries;       /* number of entries to be processed in this list */
     unsigned int   nb_current_entries;           /* number of entries being processed in the list */
@@ -55,7 +54,7 @@ static list_by_stage_t * pipeline = NULL;
 /* EXPORTED VARIABLES: current pipeline in operation */
 pipeline_stage_t * entry_proc_pipeline = NULL;
 pipeline_descr_t   entry_proc_descr = {0};
-void * entry_proc_arg = NULL;
+void *entry_proc_arg = NULL;
 
 
 static pthread_mutex_t work_avail_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -230,12 +229,10 @@ static int mk_bench_pipeline(unsigned int stages)
 /**
  *  Initialize entry processor pipeline
  */
-int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e flavor, int flags,
-                         void * arg )
+int EntryProcessor_Init(pipeline_flavor_e flavor, int flags, void *arg)
 {
     int i;
 
-    entry_proc_conf = *p_conf;
     pipeline_flags = flags;
     entry_proc_arg = arg;
 
@@ -254,10 +251,12 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
         case STD_PIPELINE:
             entry_proc_pipeline = std_pipeline; /* pointer */
             entry_proc_descr = std_pipeline_descr; /* full copy */
+            /* arg is a diff_mask */
             break;
         case DIFF_PIPELINE:
             entry_proc_pipeline = diff_pipeline; /* pointer */
             entry_proc_descr = diff_pipeline_descr; /* full copy */
+            /* arg is a diff_arg */
             break;
         default:
             DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Pipeline flavor not supported");
@@ -265,8 +264,8 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
     }
 #endif
 
-    DisplayLog(LVL_FULL, "EntryProc_Config", "nb_threads=%u", p_conf->nb_thread);
-    DisplayLog(LVL_FULL, "EntryProc_Config", "max_batch_size=%u", p_conf->max_batch_size);
+    DisplayLog(LVL_FULL, "EntryProc_Config", "nb_threads=%u", entry_proc_conf.nb_thread);
+    DisplayLog(LVL_FULL, "EntryProc_Config", "max_batch_size=%u", entry_proc_conf.max_batch_size);
     for (i = 0; i < entry_proc_descr.stage_count; i++)
     {
         if (entry_proc_pipeline[i].stage_flags & STAGE_FLAG_SEQUENTIAL)
@@ -292,21 +291,20 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
     }
 
     /* If a limit of pending operations is specified, initialize a token */
-    if ( entry_proc_conf.max_pending_operations > 0 )
-        sem_init( &pipeline_token, 0, entry_proc_conf.max_pending_operations );
+    if (entry_proc_conf.max_pending_operations > 0)
+        sem_init(&pipeline_token, 0, entry_proc_conf.max_pending_operations);
 
-    for ( i = 0; i < entry_proc_descr.stage_count; i++ )
+    for (i = 0; i < entry_proc_descr.stage_count; i++)
     {
+        memset(&pipeline[i], 0, sizeof(*pipeline));
         rh_list_init(&pipeline[i].entries);
-        pipeline[i].nb_threads = 0;
-        pipeline[i].nb_unprocessed_entries = 0;
-        pipeline[i].nb_current_entries = 0;
-        pipeline[i].nb_processed_entries = 0;
-        pipeline[i].total_processed = 0;
-        pipeline[i].nb_batches = 0;
-        pipeline[i].total_batched_entries = 0;
-        timerclear( &pipeline[i].total_processing_time );
-        pthread_mutex_init( &pipeline[i].stage_mutex, NULL );
+#ifdef _DEBUG_ENTRYPROC
+        printf("entry list for stage %u: list=%p, next=%p, prev=%p\n",
+               i, &pipeline[i].entries, pipeline[i].entries.next,
+               pipeline[i].entries.prev);
+#endif
+        timerclear(&pipeline[i].total_processing_time);
+        pthread_mutex_init(&pipeline[i].stage_mutex, NULL);
     }
 
     /* init id constraint manager */
@@ -330,6 +328,10 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
             return errno;
         }
     }
+
+#ifdef _DEBUG_ENTRYPROC
+    EntryProcessor_DumpCurrentStages(  );
+#endif
 
     return 0;
 }
@@ -383,6 +385,13 @@ void EntryProcessor_Push( entry_proc_op_t * p_entry )
         id_constraint_register(p_entry, false);
     }
 
+#ifdef _DEBUG_ENTRYPROC
+        printf("inserting to stage %u: list=%p, next=%p, prev=%p\n",
+               insert_stage, &pipeline[insert_stage].entries,
+               pipeline[insert_stage].entries.next,
+               pipeline[insert_stage].entries.prev);
+#endif
+
     /* insert entry */
     rh_list_add_tail(&p_entry->list, &pipeline[insert_stage].entries);
 
@@ -417,7 +426,7 @@ static int move_stage_entries( const unsigned int source_stage_index )
     int            i;
     unsigned int   pipeline_stage_min;
     unsigned int   insert_stage;
-    struct list_head rem;
+    struct rh_list_head rem;
     list_by_stage_t *pl;
 
     /* nothing to do if we are already at last step */

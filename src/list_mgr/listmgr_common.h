@@ -19,6 +19,7 @@
 #include "database.h"
 #include <inttypes.h>
 #include <glib.h>
+#include "status_manager.h"
 
 #define ASSIGN_UNION( _u, _type, _address ) do {            \
                     switch( _type )                         \
@@ -158,83 +159,195 @@ extern uint64_t  dir_attr_set;
 extern uint64_t  slink_attr_set;
 extern uint64_t  acct_attr_set;
 extern uint64_t  acct_pk_attr_set;
+extern uint64_t  softrm_attr_set;
 
 /* extern int     readonly_attr_set; => moved to listmgr.h */
 
-void           init_attrset_masks( const lmgr_config_t *lmgr_config );
+void           init_attrset_masks(const lmgr_config_t *lmgr_config);
 
-#define main_fields( _attr_mask )      ( (_attr_mask) & main_attr_set )
-#define names_fields( _attr_mask )      ( (_attr_mask) & names_attr_set )
-#define annex_fields( _attr_mask )     ( (_attr_mask) & annex_attr_set )
-#define gen_fields( _attr_mask )       ( (_attr_mask) & gen_attr_set )
-#define stripe_fields( _attr_mask )    ( (_attr_mask) & stripe_attr_set )
-#define readonly_fields( _attr_mask )  ( (_attr_mask) & readonly_attr_set )
-#define dirattr_fields( _attr_mask )   ( (_attr_mask) & dir_attr_set )
-#define slinkattr_fields( _attr_mask )   ( (_attr_mask) & slink_attr_set )
+/** return the sub mask of main fields in attr_mask */
+static inline uint64_t main_fields(uint64_t attr_mask)
+{
+    return attr_mask & main_attr_set;
+}
 
-/* these 2 functions can only be used after init_attrset_masks() has been called */
-#define is_acct_field( _attr_index ) \
-                ( (1 << _attr_index) & acct_attr_set )
+/** return the sub mask of name fields in attr_mask */
+static inline uint64_t names_fields(uint64_t attr_mask)
+{
+    return attr_mask & names_attr_set;
+}
 
-#define is_acct_pk( _attr_index ) \
-                ( (1 << _attr_index) & acct_pk_attr_set )
+/** return the sub mask of annex fields in attr_mask */
+static inline uint64_t annex_fields(uint64_t attr_mask)
+{
+    return attr_mask & annex_attr_set;
+}
+
+/** return the sub mask of generated fields in attr_mask */
+static inline uint64_t gen_fields(uint64_t attr_mask)
+{
+    return attr_mask & gen_attr_set;
+}
+
+/** return the sub mask of stripe fields in attr_mask */
+static inline uint64_t stripe_fields(uint64_t attr_mask)
+{
+    return attr_mask & stripe_attr_set;
+}
+
+/** return the sub mask of readonly fields in attr_mask */
+static inline uint64_t readonly_fields(uint64_t attr_mask)
+{
+    return attr_mask & readonly_attr_set;
+}
+
+/** return the sub mask of directory specific attributes in attr_mask */
+static inline uint64_t dirattr_fields(uint64_t attr_mask)
+{
+    return attr_mask & dir_attr_set;
+}
+
+/** return the sub mask of symlink specific attributes in attr_mask */
+static inline uint64_t slinkattr_fields(uint64_t attr_mask)
+{
+    return attr_mask & slink_attr_set;
+}
+
+/**
+ * indicate if the field is in ACCT_STAT table
+ * /!\ Can only be used after init_attrset_masks() has been called
+ */
+static inline bool is_acct_field(unsigned int attr_index)
+{
+    return !!((1 << attr_index) & acct_attr_set);
+}
+
+/**
+ * indicate if the field is part of the ACCT_STAT primary key
+ * /!\ Can only be used after init_attrset_masks() has been called
+ */
+static inline bool is_acct_pk(unsigned int attr_index)
+{
+    return !!((1 << attr_index) & acct_pk_attr_set);
+}
+
+/**
+ * indicate if the field is part of the SOFTRM table
+ * /!\ Can only be used after init_attrset_masks() has been called
+ */
+static inline bool is_softrm_field(unsigned int attr_index)
+{
+    return !!((1 << attr_index) & softrm_attr_set);
+}
+
 /* ------------ */
 
-#define is_status_field(_attr_index) \
-            (((_attr_index) >= ATTR_COUNT) && ((_attr_index) < ATTR_COUNT + sm_inst_count))
+/** indicate if the attribute is a status field */
+static inline bool is_status_field(unsigned int attr_index)
+{
+    return !!((attr_index >= ATTR_COUNT) &&
+              (attr_index < ATTR_COUNT + sm_inst_count));
+}
 
-#define is_no_db_status(_attr_index) (is_status_field(_attr_index) && \
-                    ((get_sm_instance((_attr_index) - ATTR_COUNT)->sm->flags & SM_NODB) != 0))
+/** indicate if the attribute is a status field not stored in DB */
+static inline bool is_no_db_status(unsigned int attr_index)
+{
+    return is_status_field(attr_index) &&
+           ((get_sm_instance(attr_index - ATTR_COUNT)->sm->flags & SM_NODB) != 0);
+}
 
-#define is_read_only_field( _attr_index ) \
-                (((_attr_index < ATTR_COUNT) && \
-                 ((field_infos[_attr_index].flags & (GENERATED | DIR_ATTR | REMOVED | FUNC_ATTR)) != 0)) \
-                || is_no_db_status(_attr_index))
+/** check if one of the given flags is set for the given field */
+static inline bool test_field_flag(unsigned int attr_index, int flags)
+{
+    return ((field_infos[attr_index].flags & flags) != 0);
+}
 
-#define is_stripe_field( _attr_index ) \
-                ((_attr_index < ATTR_COUNT) && \
-                 ((field_infos[_attr_index].db_type == DB_STRIPE_INFO) || \
-                  ( field_infos[_attr_index].db_type == DB_STRIPE_ITEMS)))
+/** indicate if the field is read only */
+static inline bool is_read_only_field(unsigned int attr_index)
+{
+    return ((attr_index < ATTR_COUNT)
+                && test_field_flag(attr_index, GENERATED | DIR_ATTR | REMOVED | FUNC_ATTR))
+           || is_no_db_status(attr_index);
+}
 
-#define is_names_field( _attr_index ) \
-                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & DNAMES))
+/** indicate if the field is stripe information */
+static inline bool is_stripe_field(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT)
+           && ((field_infos[attr_index].db_type == DB_STRIPE_INFO)
+               || (field_infos[attr_index].db_type == DB_STRIPE_ITEMS));
+}
 
-#define is_main_field(_attr_index) \
-                ((is_status_field(_attr_index) && !is_no_db_status(_attr_index)) \
-                 || (((_attr_index) < ATTR_COUNT) && \
-                    ((field_infos[_attr_index].flags & FREQ_ACCESS) \
-                      && !is_stripe_field(_attr_index)       \
-                      && !is_read_only_field(_attr_index)    \
-                      && !is_names_field(_attr_index))))
+/** indicate if the field is in NAMES table */
+static inline bool is_names_field(unsigned int attr_index)
+{
+    return ((attr_index < ATTR_COUNT) && test_field_flag(attr_index, DNAMES));
+}
 
-#define is_gen_field( _attr_index ) \
-                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & GENERATED))
+/** indicate if the field is in main table */
+static inline bool is_main_field(unsigned int attr_index)
+{
+    return (is_status_field(attr_index) && !is_no_db_status(attr_index))
+           || ((attr_index < ATTR_COUNT)
+               && test_field_flag(attr_index, FREQ_ACCESS)
+               && !is_stripe_field(attr_index)
+               && !is_read_only_field(attr_index)
+               && !is_names_field(attr_index));
+}
 
-#define is_indexed_field( _attr_index ) \
-                ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & INDEXED))
+static inline bool is_gen_field(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT) && test_field_flag(attr_index, GENERATED);
+}
 
-#define is_annex_field( _attr_index ) \
-                ((_attr_index < ATTR_COUNT) \
-                  && (field_infos[_attr_index].flags & (ANNEX_INFO | INIT_ONLY)) \
-                  && !is_stripe_field( _attr_index ) \
-                  && !is_read_only_field(_attr_index) \
-                  && !is_names_field(_attr_index))
+static inline bool is_indexed_field(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT) && test_field_flag(attr_index, INDEXED);
+}
 
-#define is_funcattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & FUNC_ATTR))
-#define is_dirattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & DIR_ATTR))
-#define is_slinkattr( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & SLINK_ATTR))
-#define is_sepdlist( _attr_index )  ((_attr_index < ATTR_COUNT) && (field_infos[_attr_index].flags & SEPD_LIST))
+static inline bool is_annex_field(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT)
+           && test_field_flag(attr_index, ANNEX_INFO | INIT_ONLY)
+           && !is_stripe_field(attr_index)
+           && !is_read_only_field(attr_index)
+           && !is_names_field(attr_index);
+}
 
-#ifdef _HSM_LITE
-#define is_recov_field( _attr_index ) \
-                ( (1 << _attr_index) & RECOV_ATTR_MASK )
+static inline bool is_funcattr(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT) && test_field_flag(attr_index, FUNC_ATTR);
+}
+
+static inline bool is_dirattr(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT) && test_field_flag(attr_index, DIR_ATTR);
+}
+
+static inline bool is_slinkattr(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT) && test_field_flag(attr_index, SLINK_ATTR);
+}
+
+static inline bool is_sepdlist(unsigned int attr_index)
+{
+    return (attr_index < ATTR_COUNT)  && test_field_flag(attr_index, SEPD_LIST);
+}
+
+static inline bool is_recov_field(unsigned int attr_index)
+{
+#if 0 /** TODO implement recovery in RBHv3 */
+    /* needed fields for disaster recovery */
+    return !!((1 << attr_index) & RECOV_ATTR_MASK);
+#else
+    return false;
 #endif
-#ifdef HAVE_RM_POLICY
-#define is_softrm_field( _attr_index ) \
-                ( (1 << _attr_index) & SOFTRM_MASK )
-#endif
+}
 
+/** printing a value to a DB request */
 void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *value_ptr);
+
+/** parse a value from DB */
 int  parsedbtype(char *instr, db_type_t type, db_type_u *value_out);
 
 typedef enum

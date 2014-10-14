@@ -24,6 +24,8 @@
 #include "rbh_cfg.h"
 #include "uidgidcache.h"
 #include "xplatform_print.h"
+#include "rbh_boolexpr.h"
+#include "status_manager.h"
 
 #include <string.h>
 #include <libgen.h>
@@ -219,41 +221,6 @@ static compare_direction_t oppose_compare(compare_direction_t comp)
     }
 }
 
-const char *policy2lmgr_type(obj_type_t type)
-{
-     switch (type)
-     {
-        case TYPE_LINK: return STR_TYPE_LINK;
-        case TYPE_DIR: return STR_TYPE_DIR;
-        case TYPE_FILE: return STR_TYPE_FILE;
-        case TYPE_CHR: return STR_TYPE_CHR;
-        case TYPE_BLK: return STR_TYPE_BLK;
-        case TYPE_FIFO: return STR_TYPE_FIFO;
-        case TYPE_SOCK: return STR_TYPE_SOCK;
-        default: return NULL;
-     }
-}
-
-obj_type_t lmgr2policy_type(const char *str_type)
-{
-    if (!strcasecmp(str_type, STR_TYPE_LINK))
-        return TYPE_LINK;
-    else if (!strcasecmp(str_type, STR_TYPE_DIR))
-        return TYPE_DIR;
-    else if (!strcasecmp(str_type, STR_TYPE_FILE))
-        return TYPE_FILE;
-    else if (!strcasecmp(str_type, STR_TYPE_CHR))
-        return TYPE_CHR;
-    else if (!strcasecmp(str_type, STR_TYPE_BLK))
-        return TYPE_BLK;
-    else if (!strcasecmp(str_type, STR_TYPE_FIFO))
-        return TYPE_FIFO;
-    else if (!strcasecmp(str_type, STR_TYPE_SOCK))
-        return TYPE_SOCK;
-    else
-        return TYPE_NONE;
-}
-
 /**
  * Convert criteria to ListMgr data
  * \param p_comp        IN: the condition to be converted
@@ -352,7 +319,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
 
         *p_attr_index = ATTR_INDEX_type;
         *p_compar = Policy2FilterComparator(p_comp->op);
-        p_value->value.val_str = policy2lmgr_type(p_comp->val.type);
+        p_value->value.val_str = type2db(p_comp->val.type);
         break;
 #endif
     case CRITERIA_OWNER: /* owner like 'owner' */
@@ -590,7 +557,7 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         /* type is required */
         CHECK_ATTR(p_entry_attr, type, no_warning);
 
-        typedb = policy2lmgr_type(p_triplet->val.type);
+        typedb = type2db(p_triplet->val.type);
         if (typedb == NULL)
             return POLICY_ERR;
         else
@@ -1846,7 +1813,6 @@ static char * analyze_hints_params(char * hints,
     } while(1);
 
     return pass_begin;
-
 }
 
 char          *build_action_hints(const policy_descr_t *policy,

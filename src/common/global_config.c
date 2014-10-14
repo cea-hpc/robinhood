@@ -16,19 +16,18 @@
 #endif
 
 #include "global_config.h"
-#include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
 #include "rbh_misc.h"
+#include "rbh_logs.h"
 #include <errno.h>
 
 #define GLOBAL_CONFIG_BLOCK "General"
 
-
 /* exported variable available to all modules */
 global_config_t global_config;
 
-
 /* name 2 fskey value */
-static inline fs_key_t name2fskey( const char * name )
+static inline fs_key_t name2fskey(const char *name)
 {
     if (!strcasecmp(name, "fsname"))
         return FSKEY_FSNAME;
@@ -40,10 +39,9 @@ static inline fs_key_t name2fskey( const char * name )
         return FSKEY_ERROR;
 }
 
-int SetDefaultGlobalConfig( void *module_config, char *msg_out )
+static void global_cfg_set_default(void *module_config)
 {
-    global_config_t *conf = ( global_config_t * ) module_config;
-    msg_out[0] = '\0';
+    global_config_t *conf = (global_config_t *)module_config;
 
     rh_strncpy(conf->fs_path, "", RBH_PATH_MAX);
 #ifdef _LUSTRE
@@ -59,12 +57,9 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
     conf->direct_mds_stat = false;
 #endif
-
-
-    return 0;
 }
 
-int WriteGlobalConfigDefault(FILE *output)
+static void global_cfg_write_default(FILE *output)
 {
     print_begin_block(output, 0, GLOBAL_CONFIG_BLOCK, NULL);
     print_line(output, 1, "fs_path       :  [MANDATORY]");
@@ -81,15 +76,14 @@ int WriteGlobalConfigDefault(FILE *output)
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     print_line(output, 1, "direct_mds_stat :   no");
 #endif
-
     print_end_block(output, 0);
-    return 0;
 }
 
-int ReadGlobalConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
+static int global_cfg_read(config_file_t config, void *module_config,
+                           char *msg_out)
 {
-    int            rc;
-    global_config_t *conf = ( global_config_t * ) module_config;
+    int              rc;
+    global_config_t *conf = (global_config_t *)module_config;
 
     static const char *allowed_params[] = {
         "fs_path", "fs_type", "lock_file", "stay_in_fs", "check_mounted",
@@ -163,61 +157,66 @@ int ReadGlobalConfig(config_file_t config, void *module_config, char *msg_out, b
     /* check unknown parameters */
     CheckUnknownParameters( general_block, GLOBAL_CONFIG_BLOCK, allowed_params );
 
-
     return 0;
 }
 
-int ReloadGlobalConfig( void *module_config )
+static int global_cfg_set(void *module_config, bool reload)
 {
-    global_config_t *conf = ( global_config_t * ) module_config;
+    global_config_t *conf = (global_config_t *)module_config;
 
-    if ( strcmp( conf->fs_path, global_config.fs_path ) )
-        DisplayLog( LVL_MAJOR, "GlobalConfig",
-                    GLOBAL_CONFIG_BLOCK
-                    "::fs_path changed in config file, but cannot be modified dynamically" );
-    if ( strcmp( conf->fs_type, global_config.fs_type ) )
-        DisplayLog( LVL_MAJOR, "GlobalConfig",
-                    GLOBAL_CONFIG_BLOCK
-                    "::fs_type changed in config file, but cannot be modified dynamically" );
-
-    if ( strcmp( conf->lock_file, global_config.lock_file ) )
+    if (!reload)
     {
-        DisplayLog( LVL_MAJOR, "GlobalConfig",
-                    GLOBAL_CONFIG_BLOCK "::lock_file updated: '%s'->'%s'",
-                    global_config.lock_file, conf->lock_file );
-        strcpy( global_config.fs_path, conf->lock_file );
+        /* copy the whole structure content */
+        global_config = *conf;
+        return 0;
     }
 
-    if ( global_config.stay_in_fs != conf->stay_in_fs )
+    if (strcmp(conf->fs_path, global_config.fs_path))
+        DisplayLog(LVL_MAJOR, "GlobalConfig",
+                   GLOBAL_CONFIG_BLOCK
+                   "::fs_path changed in config file, but cannot be modified dynamically");
+    if (strcmp(conf->fs_type, global_config.fs_type))
+        DisplayLog(LVL_MAJOR, "GlobalConfig",
+                   GLOBAL_CONFIG_BLOCK
+                   "::fs_type changed in config file, but cannot be modified dynamically");
+
+    if (strcmp(conf->lock_file, global_config.lock_file))
     {
-        DisplayLog( LVL_EVENT, "GlobalConfig", GLOBAL_CONFIG_BLOCK "::stay_in_fs updated: %s->%s",
-                    bool2str( global_config.stay_in_fs ), bool2str( conf->stay_in_fs ) );
+        DisplayLog(LVL_MAJOR, "GlobalConfig",
+                   GLOBAL_CONFIG_BLOCK "::lock_file updated: '%s'->'%s'",
+                   global_config.lock_file, conf->lock_file);
+        strcpy(global_config.fs_path, conf->lock_file);
+    }
+
+    if (global_config.stay_in_fs != conf->stay_in_fs)
+    {
+        DisplayLog(LVL_EVENT, "GlobalConfig", GLOBAL_CONFIG_BLOCK "::stay_in_fs updated: %s->%s",
+                   bool2str(global_config.stay_in_fs), bool2str(conf->stay_in_fs));
         global_config.stay_in_fs = conf->stay_in_fs;
     }
 
-    if ( global_config.check_mounted != conf->check_mounted )
+    if (global_config.check_mounted != conf->check_mounted)
     {
-        DisplayLog( LVL_EVENT, "GlobalConfig",
-                    GLOBAL_CONFIG_BLOCK "::check_mounted updated: %s->%s",
-                    bool2str( global_config.check_mounted ), bool2str( conf->check_mounted ) );
+        DisplayLog(LVL_EVENT, "GlobalConfig",
+                   GLOBAL_CONFIG_BLOCK "::check_mounted updated: %s->%s",
+                   bool2str(global_config.check_mounted), bool2str(conf->check_mounted));
         global_config.check_mounted = conf->check_mounted;
     }
 
-#if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    if ( conf->direct_mds_stat != global_config.direct_mds_stat )
+#if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
+    if (conf->direct_mds_stat != global_config.direct_mds_stat)
     {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    GLOBAL_CONFIG_BLOCK "::direct_mds_stat updated: %u->%u",
-                    global_config.direct_mds_stat, conf->direct_mds_stat );
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   GLOBAL_CONFIG_BLOCK "::direct_mds_stat updated: %u->%u",
+                   global_config.direct_mds_stat, conf->direct_mds_stat);
         global_config.direct_mds_stat = conf->direct_mds_stat;
     }
 #endif
 
     return 0;
-
 }
 
-int WriteGlobalConfigTemplate(FILE *output)
+static void global_cfg_write_template(FILE *output)
 {
     print_begin_block(output, 0, GLOBAL_CONFIG_BLOCK, NULL);
 
@@ -253,7 +252,29 @@ int WriteGlobalConfigTemplate(FILE *output)
     print_line(output, 1, "# (scan faster, but size information is missing)");
     print_line(output, 1, "direct_mds_stat        =    no ;");
 #endif
-
     print_end_block(output, 0);
-    return 0;
 }
+
+static void *global_cfg_new(void)
+{
+    return calloc(1, sizeof(global_config_t));
+}
+
+static void global_cfg_free(void *cfg)
+{
+    if (cfg != NULL)
+        free(cfg);
+}
+
+/** structure with config handling functions */
+mod_cfg_funcs_t global_cfg_hdlr = {
+    .module_name = "global",
+    .new = global_cfg_new,
+    .free = global_cfg_free,
+    .set_default = global_cfg_set_default,
+    .read = global_cfg_read,
+    .set_config = global_cfg_set,
+    .write_default = global_cfg_write_default,
+    .write_template =  global_cfg_write_template
+};
+

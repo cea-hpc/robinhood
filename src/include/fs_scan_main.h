@@ -28,8 +28,24 @@
 
 #include "config_parsing.h"
 #include "policy_rules.h"
+#include <stdbool.h>
 
-/** Configuration for FS scan Module */
+/** start scanning module */
+int            FSScan_Start(int flags, const char *partial_root);
+
+/** terminate scanning module */
+void           FSScan_Terminate( void );
+
+/** wait for scan termination */
+void           FSScan_Wait( void );
+
+/** dump scan stats */
+void           FSScan_DumpStats( void );
+
+/** store scan stats in db */
+void           FSScan_StoreStats( lmgr_t * lmgr );
+
+/** Configuration of the FS scan Module */
 typedef struct fs_scan_config_t
 {
     /* scan options */
@@ -57,32 +73,8 @@ typedef struct fs_scan_config_t
 
 } fs_scan_config_t;
 
-
-/** start scanning module */
-int            FSScan_Start( fs_scan_config_t * module_config, int flags, const char * partial_root );
-
-/** terminate scanning module */
-void           FSScan_Terminate( void );
-
-/** wait for scan termination */
-void           FSScan_Wait( void );
-
-/** dump scan stats */
-void           FSScan_DumpStats( void );
-
-/** store scan stats in db */
-void           FSScan_StoreStats( lmgr_t * lmgr );
-
-/**
- * \addtogroup MODULE_CONFIG_FUNCTIONS
- * @{
- */
-int            FSScan_SetDefaultConfig( void *module_config, char *msg_out );
-int            FSScan_ReadConfig(config_file_t config, void *module_config,
-                                 char *msg_out, bool for_reload);
-int            FSScan_ReloadConfig( void *module_config );
-int            FSScan_WriteConfigTemplate( FILE * output );
-int            FSScan_WriteDefaultConfig( FILE * output );
+/** config handlers */
+extern mod_cfg_funcs_t fs_scan_cfg_hdlr;
 
 #endif
 

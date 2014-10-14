@@ -21,6 +21,7 @@
 #define _STATUS_MGR_H
 
 #include "list_mgr.h"
+#include "policy_rules.h"
 
 struct sm_instance;
 
@@ -35,16 +36,50 @@ typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
                                const entry_id_t *id, const attr_set_t *attrs,
                                attr_set_t *refreshed_attrs, bool *getit);
 
+/** function prototype for status manager "executor" */
+typedef int (*sm_executor_func_t)(struct sm_instance *smi,
+                                  const policy_action_t *action,
+ /* arguments for the action : */ const entry_id_t *id, attr_set_t *attrs,
+                                  const char *hints, post_action_e *what_after,
+                                  db_cb_func_t db_cb_fn, void *db_cb_arg);
+
+/** function prototype to determine if a deleted entry must be inserted to SOFTRM table
+ * @return <0 on error, 0 for false, 1 for true.
+ */
+typedef int (*softrm_filter_func_t)(struct sm_instance *smi,
+                                    const entry_id_t *id, const attr_set_t *attrs);
+
+/** Function to undelete an entry.
+ *  If multiple status manager can undelete an entry,
+ *  the first one, or the best one (option driven) create it,
+ *  and the next satatus managers are called with already_recovered = true.
+ * @paramo[in] p_old_id old entry id
+ * @paramo[in] p_old_attrs old entry attributes (from SOFTRM table)
+ * @param [in,out] p_new_id new entry id (already set if already_recovered==true)
+ * @param [in,out] p_new_attrs new entry attributes (already set if already_recovered==true)
+ * @param [out] p_new_attrs new entry attributes
+ */
+typedef recov_status_t (*undelete_func_t)(struct sm_instance *smi,
+                                          const entry_id_t *p_old_id,
+                                          const attr_set_t *p_old_attrs,
+                                          entry_id_t *p_new_id,
+                                          attr_set_t *p_new_attrs,
+                                          bool already_recovered);
+
+typedef int (*init_func_t)(struct sm_instance *smi, int flags);
+
 #define SM_NAME_MAX 128
+
+typedef enum {
+    SM_SHARED   = (1<<0), /* indicate the status manager can be shared between policies */
+    SM_NODB     = (1<<1), /* the status is not stored in DB */
+    SM_DELETED  = (1<<2), /* this status manager can manage deleted entries */
+} sm_flags;
 
 /** status manager definition */
 typedef struct status_manager {
     const char *name;
-
-#define SM_SHARED (1<<0)  /* indicate the status manager can be shared between policies */
-#define SM_NODB   (1<<1)  /* the status is not stored in DB */
-#define SM_DELETED (1<<2) /* management of deleted entries */
-    int         flags;
+    sm_flags    flags;
 
     /* possible values for status */
     const char ** status_enum;
@@ -62,6 +97,35 @@ typedef struct status_manager {
 
     /** callback for policy actions */
     /// FIXME how to know what action has been done?
+
+    /** If provided, the status manager wraps the action run */
+    sm_executor_func_t  executor;
+
+    /* ---- mask and function to manage deleted entries ---- */
+
+    /** needed attributes to determine if the entry is to be moved to softrm */
+    uint64_t                softrm_filter_mask;
+    /** determine if a deleted entry must be inserted to softrm table */
+    softrm_filter_func_t    softrm_filter_func;
+
+    /** mask of attributes to be saved in SOFTRM table (needed to re-create the inode,
+     *  schedule the 'remove' policy and recover/rebind the entry). */
+    uint64_t                softrm_table_mask;
+
+    /** undelete an entry */
+    undelete_func_t         undelete_func; /* NULL if the status manager can't run 'undelete' */
+
+    /* XXX about full disaster recovery: must recreate all metadata (incl. symlinks => need link field)
+       not only the entries managed by the policy. */
+
+    /* ---- setup functions ---- */
+
+    /** functions to load Status Manager configuration */
+    const mod_cfg_funcs_t  *cfg_funcs;
+
+    /** Initialize status manager resources */
+    init_func_t             init_func;
+
 } status_manager_t;
 
 typedef struct sm_instance
@@ -79,6 +143,7 @@ typedef struct sm_instance
     const status_manager_t *sm;
     /** instance index: useful for status attribute index. */
     unsigned int smi_index;
+
 } sm_instance_t;
 
 extern unsigned int sm_inst_count; /* defined in status_manager.c */
@@ -145,6 +210,16 @@ static inline uint64_t translate_all_status_mask(uint64_t mask)
     return (mask & ~SMI_MASK(0)) | all_status_mask();
 }
 
+static inline uint64_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
+{
+    if (fresh)
+        return translate_status_mask(smi->sm->status_needs_attrs_fresh,
+                                     smi->smi_index);
+    else
+        return translate_status_mask(smi->sm->status_needs_attrs_cached,
+                                     smi->smi_index);
+}
+
 /** Get attribute mask for status in the given mask */
 static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
 {
@@ -166,7 +241,6 @@ static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
     return ret;
 }
 
-
 static inline uint64_t status_need_fresh_attrs(void)
 {
     uint64_t needed = 0;
@@ -179,6 +253,7 @@ static inline uint64_t status_need_fresh_attrs(void)
     }
     return needed;
 }
+
 static inline uint64_t status_allow_cached_attrs(void)
 {
     uint64_t needed = 0;
@@ -190,6 +265,28 @@ static inline uint64_t status_allow_cached_attrs(void)
         i++;
     }
     return needed;
+}
+
+static inline bool smi_manage_deleted(sm_instance_t *smi)
+{
+    if (smi == NULL)
+        return false;
+    return !!(smi->sm->flags & SM_DELETED); /* the status manager handles file removal */
+}
+
+static inline uint64_t sm_softrm_fields(void)
+{
+    uint64_t       all = 0;
+    int            i = 0;
+    sm_instance_t *smi;
+
+    while ((smi = get_sm_instance(i)) != NULL)
+    {
+        if (smi_manage_deleted(smi))
+            all |= translate_status_mask(smi->sm->softrm_table_mask, i);
+        i++;
+    }
+    return all;
 }
 
 #include "rbh_misc.h"
@@ -233,13 +330,5 @@ static inline sm_instance_t *smi_by_name(const char *smi_name)
     /* not found */
     return NULL;
 }
-
-static inline bool smi_manage_deleted(sm_instance_t *smi)
-{
-    if (smi == NULL)
-        return false;
-    return !!(smi->sm->flags & SM_DELETED);
-}
-
 
 #endif

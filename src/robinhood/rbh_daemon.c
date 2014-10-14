@@ -33,6 +33,11 @@
 #include "rbh_misc.h"
 #include "cmd_helpers.h"
 
+/* needed to dump their stats */
+#include "fs_scan_main.h"
+#include "chglog_reader.h"
+#include "entry_processor.h"
+
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -44,10 +49,6 @@
 
 #ifdef _LUSTRE
 #include "lustre_extended_types.h"
-#endif
-
-#ifdef _HSM_LITE
-#include "backend_mgr.h"
 #endif
 
 #define MAIN_TAG    "Main"
@@ -488,8 +489,8 @@ static void dump_stats(lmgr_t *lmgr, const int *module_mask,
 #ifdef HAVE_CHANGELOGS
         if ( *module_mask & MODULE_MASK_EVENT_HDLR )
         {
-            ChgLogRdr_DumpStats(  );
-            ChgLogRdr_StoreStats( lmgr );
+            cl_reader_dump_stats();
+            cl_reader_store_stats(lmgr);
         }
 #endif
         if ( *module_mask & MODULE_MASK_ENTRY_PROCESSOR )
@@ -666,7 +667,7 @@ static void   *signal_handler_thr( void *arg )
             if (running_mask & MODULE_MASK_EVENT_HDLR)
             {
                 /* stop changelog processing */
-                ChgLogRdr_Terminate(  );
+                cl_reader_terminate(  );
                 FlushLogs(  );
             }
 #endif
@@ -690,7 +691,7 @@ static void   *signal_handler_thr( void *arg )
                 if (running_mask & MODULE_MASK_EVENT_HDLR)
                 {
                     /* Ack last changelog records. */
-                    ChgLogRdr_Done( );
+                    cl_reader_done();
                 }
 #endif
                 FlushLogs(  );
@@ -703,7 +704,7 @@ static void   *signal_handler_thr( void *arg )
                 && policy_run != NULL)
             {
                 int i;
-                for (i = 0; i <  policy_run_cpt; i++)
+                for (i = 0; i < policy_run_cpt; i++)
                 {
                     if (policy_run_mask & (1<<i))
                     {
@@ -718,10 +719,6 @@ static void   *signal_handler_thr( void *arg )
                 }
             }
 
-            /* 6 - shutdown backend access */
-#ifdef _HSM_LITE
-            Backend_Stop();
-#endif
             if (lmgr_init)
             {
                 ListMgr_CloseAccess(&lmgr);
@@ -735,35 +732,25 @@ static void   *signal_handler_thr( void *arg )
             exit( 128 + terminate_sig );
 
         }
-        else if ( reload_sig )
+        else if (reload_sig)
         {
-            char  err_msg[4096];
-            robinhood_config_t new_config;
-
             DisplayLog(LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration");
+            DisplayLog(LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", config_file_path());
 
-            DisplayLog(LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", options.config_file);
-            if (ReadRobinhoodConfig(parsing_mask, options.config_file,
-                                    err_msg, &new_config, true))
+            if(rbh_cfg_reload(parsing_mask) == 0)
             {
-                DisplayLog(LVL_CRIT, RELOAD_TAG, "Error reading config: %s", err_msg);
-            }
-            else
-            {
-                if ( options.force_log && strcmp(options.log, new_config.log_config.log_file ))
+                if (options.force_log && strcmp(options.log, log_config.log_file))
                 {
-                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing log file (forced on command line): %s)",
+                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Restoring log file option (forced on command line): %s)",
                                 options.log );
-                    strcpy( new_config.log_config.log_file, options.log );
+                    strcpy(log_config.log_file, options.log);
                 }
-                if ( options.force_log_level && (options.log_level != new_config.log_config.debug_level))
+                if (options.force_log_level && (options.log_level != log_config.debug_level))
                 {
-                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Not changing log level (forced on command line): %d)",
-                                options.log_level );
-                    new_config.log_config.debug_level = options.log_level;
+                    DisplayLog(LVL_EVENT, RELOAD_TAG, "Restoring log level option (forced on command line): %d)",
+                               options.log_level);
+                    log_config.debug_level = options.log_level;
                 }
-
-                ReloadRobinhoodConfig(parsing_mask, &new_config);
             }
 
             reload_sig = false;
@@ -807,7 +794,7 @@ static inline int do_write_template( const char *file )
     else
         stream = stdout;
 
-    rc = WriteConfigTemplate( stream );
+    rc = rbh_cfg_write_template(stream);
     if ( rc )
         fprintf( stderr, "Error writing configuration template: %s\n", strerror( rc ) );
     else if ( stream != stdout )
@@ -1344,7 +1331,6 @@ int main(int argc, char **argv)
 {
     const char    *bin = basename(argv[0]);
     int            rc;
-    robinhood_config_t rh_config;
     bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
     int            action_mask = 0;
@@ -1369,11 +1355,11 @@ int main(int argc, char **argv)
 
     if (options.write_defaults)
     {
-        rc = WriteConfigDefault(stdout);
+        rc = rbh_cfg_write_default(stdout);
         if (rc)
         {
             fprintf(stderr, "Error %d retrieving default configuration: %s\n", rc,
-                     strerror(rc));
+                    strerror(rc));
         }
         exit(rc);
     }
@@ -1400,39 +1386,31 @@ int main(int argc, char **argv)
     else
         parsing_mask = action2parsing_mask(action_mask);
 
-    if (ReadRobinhoodConfig(parsing_mask, options.config_file, err_msg,
-                            &rh_config, false))
+    /* load and set module configuration */
+    if(rbh_cfg_load(parsing_mask, options.config_file, err_msg))
     {
         fprintf(stderr, "Error reading configuration file '%s': %s\n",
-                 options.config_file, err_msg);
+                options.config_file, err_msg);
         exit(1);
     }
-    process_config_file = options.config_file;
 
     if (options.test_syntax)
     {
         printf("Configuration file '%s' has been read successfully\n",
-               process_config_file);
+               options.config_file);
         exit(0);
     }
 
     /* override config file options with command line parameters */
     if (options.force_log)
-        strcpy(rh_config.log_config.log_file, options.log);
+        strcpy(log_config.log_file, options.log);
     else if (isatty(fileno(stderr)) && !options.detach)
     {
         options.force_log = true;
-        strcpy(rh_config.log_config.log_file, "stderr");
+        strcpy(log_config.log_file, "stderr");
     }
     if (options.force_log_level)
-        rh_config.log_config.debug_level = options.log_level;
-
-    /* set global configuration */
-    global_config = rh_config.global_config;
-    updt_params = rh_config.db_update_params;
-
-    /* set policy list */
-    policies = rh_config.policies;
+        log_config.debug_level = options.log_level;
 
     if (action_mask & ACTION_MASK_RUN_POLICIES)
     {
@@ -1480,68 +1458,59 @@ int main(int argc, char **argv)
 #endif
 
     /* Initialize logging */
-    rc = InitializeLogs( bin, &rh_config.log_config );
-    if ( rc )
+    rc = InitializeLogs(bin);
+    if (rc)
     {
-        fprintf( stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
-                 rc, errno, strerror( errno ) );
-        exit( rc );
+        fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
+                 rc, errno, strerror(errno));
+        exit(rc);
     }
 
     /* deamonize program if detach flag is set */
-    if ( options.detach )
+    if (options.detach)
     {
-        rc = daemon( 0, 0 );
+        rc = daemon(0, 0);
 
-        if ( rc )
+        if (rc)
         {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Error detaching process from parent: %s",
-                        strerror( errno ) );
-            fprintf( stderr, "Error detaching process from parent: %s\n", strerror( errno ) );
-            exit( 1 );
+            DisplayLog(LVL_CRIT, MAIN_TAG, "Error detaching process from parent: %s",
+                        strerror(errno));
+            fprintf(stderr, "Error detaching process from parent: %s\n", strerror(errno));
+            exit(1);
         }
     }
 
-    if ( options.pid_file )
-        create_pid_file( options.pid_filepath );
+    if (options.pid_file)
+        create_pid_file(options.pid_filepath);
 
     /* Initialize filesystem access */
     rc = InitFS();
     if (rc)
         exit(rc);
 
-#ifdef _HSM_LITE
-    rc = Backend_Start( &rh_config.backend_config, options.flags );
-    if ( rc )
-    {
-        DisplayLog( LVL_CRIT, MAIN_TAG, "Error initializing backend" );
-        exit( 1 );
-    }
-#endif
-
     /* create signal handling thread */
     rc = pthread_create(&sig_thr, NULL, signal_handler_thr, NULL);
-    if ( rc )
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, MAIN_TAG, "Error starting signal handler thread: %s",
-                    strerror( errno ) );
-        exit( 1 );
+        DisplayLog(LVL_CRIT, MAIN_TAG, "Error starting signal handler thread: %s",
+                    strerror(errno));
+        exit(1);
     }
     else
-        DisplayLog( LVL_VERB, MAIN_TAG, "Signal handler thread started successfully" );
+        DisplayLog(LVL_VERB, MAIN_TAG, "Signal handler thread started successfully");
 
     /* Initialize list manager */
-    rc = ListMgr_Init(&rh_config.lmgr_config, false);
-    if ( rc )
+    rc = ListMgr_Init(false);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing list manager", rc );
-        exit( rc );
+        DisplayLog(LVL_CRIT, MAIN_TAG, "Error %d initializing list manager", rc);
+        exit(rc);
     }
     else
-        DisplayLog( LVL_VERB, MAIN_TAG, "ListManager successfully initialized" );
+        DisplayLog(LVL_VERB, MAIN_TAG, "ListManager successfully initialized");
 
-    if ( CheckLastFS(  ) != 0 )
-        exit( 1 );
+    if (CheckLastFS() != 0)
+        exit(1);
 
     if (options.flags & FLAG_ONCE)
     {
@@ -1553,16 +1522,14 @@ int main(int argc, char **argv)
     {
         if (options.diff_mask)
             /* convert status[0] to all status flags */
-            rh_config.entry_proc_config.diff_mask = translate_all_status_mask(options.diff_mask);
+            options.diff_mask = translate_all_status_mask(options.diff_mask);
 
         /* Initialize Pipeline */
 #ifdef _BENCH_PIPELINE
         int nb_stages = 3;
-        rc = EntryProcessor_Init(&rh_config.entry_proc_config, 0, options.flags,
-                                 &nb_stages);
+        rc = EntryProcessor_Init(0, options.flags, &nb_stages);
 #else
-        rc = EntryProcessor_Init(&rh_config.entry_proc_config, STD_PIPELINE,
-                                 options.flags, NULL);
+        rc = EntryProcessor_Init(STD_PIPELINE, options.flags, &options.diff_mask);
 #endif
         if ( rc )
         {
@@ -1582,10 +1549,9 @@ int main(int argc, char **argv)
 
         /* Start FS scan */
         if (options.partial_scan)
-            rc = FSScan_Start( &rh_config.fs_scan_config, options.flags,
-                               options.partial_scan_path );
+            rc = FSScan_Start(options.flags, options.partial_scan_path);
         else
-            rc = FSScan_Start( &rh_config.fs_scan_config, options.flags, NULL );
+            rc = FSScan_Start(options.flags, NULL);
 
         if ( rc )
         {
@@ -1615,7 +1581,7 @@ int main(int argc, char **argv)
     {
 
         /* Start reading changelogs */
-        rc = ChgLogRdr_Start(&rh_config.chglog_reader_config, options.flags, options.mdtidx);
+        rc = cl_reader_start(options.flags, options.mdtidx);
         if ( rc )
         {
             DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing ChangeLog Reader", rc );
@@ -1634,7 +1600,7 @@ int main(int argc, char **argv)
 
         if ( options.flags & FLAG_ONCE )
         {
-            ChgLogRdr_Wait(  );
+            cl_reader_wait();
             DisplayLog( LVL_MAJOR, MAIN_TAG, "Event Processing finished" );
         }
     }
@@ -1649,7 +1615,7 @@ int main(int argc, char **argv)
         if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
         {
             /* Ack last changelog records. */
-            ChgLogRdr_Done( );
+            cl_reader_done();
         }
 #endif
         running_mask = 0;
@@ -1671,7 +1637,7 @@ int main(int argc, char **argv)
         {
             rc = policy_module_start(&policy_run[i],
                                      &policies.policy_list[pol_idx[i]],
-                                     &rh_config.policy_run_cfgs.configs[pol_idx[i]],
+                                     &run_cfgs.configs[pol_idx[i]],
                                      &policy_opt);
             if (rc == ENOENT)
                 DisplayLog(LVL_CRIT, MAIN_TAG, "Policy %s is disabled.",

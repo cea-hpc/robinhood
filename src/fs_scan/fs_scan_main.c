@@ -22,7 +22,8 @@
 #include "fs_scan_main.h"
 #include "fs_scan.h"
 #include "rbh_misc.h"
-#include "rbh_cfg.h"
+#include "rbh_logs.h"
+#include "rbh_cfg_helpers.h"
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
@@ -63,10 +64,10 @@ static void   *scan_starter( void *arg )
 
 
 /** Start FS Scan info collector */
-int FSScan_Start( fs_scan_config_t *module_config, int flags, const char * partial_root )
+int FSScan_Start(int flags, const char * partial_root)
 {
     int            rc;
-    fs_scan_config = *module_config;
+
     fsscan_flags = flags;
     partial_scan_root = partial_root;
 
@@ -234,17 +235,18 @@ void FSScan_DumpStats( void )
 #define HOUR 3600
 #define DAY (24*HOUR)
 
-int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
+static void fs_scan_cfg_set_default(void *module_config)
 {
-    fs_scan_config_t *conf = ( fs_scan_config_t * ) module_config;
-    msg_out[0] = '\0';
+    fs_scan_config_t *conf = (fs_scan_config_t *)module_config;
 
-#ifdef _LUSTRE_HSM
-    conf->min_scan_interval = 24 * HOUR;
-    conf->max_scan_interval = 7 * DAY;
+#ifdef HAVE_CHANGELOGS
+    /* scan rarely */
+    conf->min_scan_interval = 7 * DAY;
+    conf->max_scan_interval = 30 * DAY;
 #else
-    conf->min_scan_interval = 2 * HOUR;
-    conf->max_scan_interval = 12 * HOUR;
+    /* scan often */
+    conf->min_scan_interval = 1 * DAY;
+    conf->max_scan_interval = 7 * DAY;
 #endif
     conf->scan_retry_delay = HOUR;
     conf->nb_threads_scan = 2;
@@ -256,19 +258,17 @@ int FSScan_SetDefaultConfig( void *module_config, char *msg_out )
     conf->ignore_list = NULL;
     conf->ignore_count = 0;
     rh_strncpy(conf->completion_command, "", RBH_PATH_MAX);
-
-    return 0;
 }
 
-int FSScan_WriteDefaultConfig(FILE *output)
+static void fs_scan_cfg_write_default(FILE *output)
 {
     print_begin_block(output, 0, FSSCAN_CONFIG_BLOCK, NULL);
 #ifdef _LUSTRE_HSM
-    print_line(output, 1, "min_scan_interval      :   24h");
-    print_line(output, 1, "max_scan_interval      :    7d");
+    print_line(output, 1, "min_scan_interval      :    7d");
+    print_line(output, 1, "max_scan_interval      :   30d");
 #else
-    print_line(output, 1, "min_scan_interval      :    2h");
-    print_line(output, 1, "max_scan_interval      :   12h");
+    print_line(output, 1, "min_scan_interval      :    1d");
+    print_line(output, 1, "max_scan_interval      :    7d");
 #endif
     print_line(output, 1, "scan_retry_delay       :    1h");
     print_line(output, 1, "nb_threads_scan        :     2");
@@ -279,7 +279,6 @@ int FSScan_WriteDefaultConfig(FILE *output)
     print_line(output, 1, "ignore                 :  NONE");
     print_line(output, 1, "completion_command     :  NONE");
     print_end_block(output, 0);
-    return 0;
 }
 
 
@@ -289,12 +288,10 @@ int FSScan_WriteDefaultConfig(FILE *output)
                                     }\
                                 } while (0)
 
-
-
-int FSScan_ReadConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
+static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int            rc, blc_index;
-    fs_scan_config_t *conf = ( fs_scan_config_t * ) module_config;
+    fs_scan_config_t *conf = ( fs_scan_config_t *)module_config;
     bool scan_intl_set = false;
     time_t scan_intl = 0;
 
@@ -418,7 +415,6 @@ int FSScan_ReadConfig(config_file_t config, void *module_config, char *msg_out, 
     CheckUnknownParameters( fsscan_block, FSSCAN_CONFIG_BLOCK, fsscan_allowed );
 
     return 0;
-
 }
 
 #define RELOAD_TAG  "FS_Scan_Config"
@@ -476,10 +472,8 @@ static void free_ignore( whitelist_item_t * p_items, unsigned int count )
 }
 
 
-int FSScan_ReloadConfig( void *module_config )
+static int fs_scan_cfg_reload(fs_scan_config_t *conf)
 {
-    fs_scan_config_t *conf = ( fs_scan_config_t * ) module_config;
-
     /* Parameters that can be modified dynamically */
 
     if ( conf->min_scan_interval != fs_scan_config.min_scan_interval )
@@ -557,13 +551,22 @@ int FSScan_ReloadConfig( void *module_config )
     update_ignore( fs_scan_config.ignore_list, fs_scan_config.ignore_count,
                    conf->ignore_list, conf->ignore_count, FSSCAN_CONFIG_BLOCK );
 
-    /* free conf structure */
-    free_ignore( conf->ignore_list, conf->ignore_count );
 
     return 0;
 }
 
-int FSScan_WriteConfigTemplate( FILE * output )
+static int fs_scan_cfg_set(void *cfg, bool reload)
+{
+    fs_scan_config_t *conf = (fs_scan_config_t *)cfg;
+
+    if (reload)
+        return fs_scan_cfg_reload(conf);
+
+    fs_scan_config = *conf;
+    return 0;
+}
+
+static void fs_scan_cfg_write_template(FILE *output)
 {
     print_begin_block( output, 0, FSSCAN_CONFIG_BLOCK, NULL );
 
@@ -616,6 +619,32 @@ int FSScan_WriteConfigTemplate( FILE * output )
     print_line( output, 2, "( name == \".snapdir\" or name == \".snapshot\" )" );
     print_end_block( output, 1 );
     print_end_block( output, 0 );
-    return 0;
-
 }
+
+static void * fs_scan_cfg_new(void)
+{
+    return calloc(1, sizeof(fs_scan_config_t));
+}
+
+static void fs_scan_cfg_free(void *cfg)
+{
+    if (cfg != NULL)
+    {
+        fs_scan_config_t *conf = (fs_scan_config_t*)cfg;
+
+        /* free conf structure */
+        if (conf->ignore_list != NULL)
+            free_ignore(conf->ignore_list, conf->ignore_count);
+    }
+}
+
+mod_cfg_funcs_t fs_scan_cfg_hdlr = {
+    .module_name = "FS scan",
+    .new = fs_scan_cfg_new,
+    .free = fs_scan_cfg_free,
+    .set_default = fs_scan_cfg_set_default,
+    .read = fs_scan_cfg_read,
+    .set_config = fs_scan_cfg_set,
+    .write_default = fs_scan_cfg_write_default,
+    .write_template =  fs_scan_cfg_write_template
+};

@@ -16,8 +16,9 @@
 #endif
 
 #include "list_mgr.h"
-#include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
 #include "rbh_misc.h"
+#include "rbh_logs.h"
 #include <errno.h>
 
 #define LMGR_CONFIG_BLOCK "ListManager"
@@ -25,13 +26,12 @@
 #define MYSQL_CONFIG_BLOCK "MySQL"
 #define SQLITE_CONFIG_BLOCK "SQLite"
 
-/* exported variable available to list_mgr modules */
-lmgr_config_t  lmgr_config;                      /* module configuration */
+/** exported variable available for list_mgr internals */
+lmgr_config_t  lmgr_config;
 
-int SetDefaultLmgrConfig( void *module_config, char *msg_out )
+static void lmgr_cfg_set_default(void *module_config)
 {
-    lmgr_config_t *conf = ( lmgr_config_t * ) module_config;
-    msg_out[0] = '\0';
+    lmgr_config_t *conf = (lmgr_config_t *)module_config;
 
     conf->commit_behavior = 1; /* transaction */
     conf->connect_retry_min = 1;
@@ -52,11 +52,9 @@ int SetDefaultLmgrConfig( void *module_config, char *msg_out )
 
      conf->user_acct = true;
      conf->group_acct = true;
-
-    return 0;
 }
 
-int WriteLmgrConfigDefault( FILE * output )
+static void lmgr_cfg_write_default(FILE *output)
 {
     print_begin_block( output, 0, LMGR_CONFIG_BLOCK, NULL );
     print_line( output, 1, "commit_behavior             : transaction" );
@@ -84,13 +82,12 @@ int WriteLmgrConfigDefault( FILE * output )
 #endif
 
     print_end_block( output, 0 );
-    return 0;
 }
 
-int ReadLmgrConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
+static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int            rc;
-    lmgr_config_t *conf = ( lmgr_config_t * ) module_config;
+    lmgr_config_t *conf = (lmgr_config_t *)module_config;
     char         **options = NULL;
     unsigned int   nb_options = 0;
     char           tmpstr[1024];
@@ -311,11 +308,8 @@ int ReadLmgrConfig(config_file_t config, void *module_config, char *msg_out, boo
     return 0;
 }
 
-
-int ReloadLmgrConfig( void *module_config )
+static int lmgr_cfg_reload(lmgr_config_t *conf)
 {
-    lmgr_config_t *conf = ( lmgr_config_t * ) module_config;
-
     if ( conf->commit_behavior != lmgr_config.commit_behavior )
         DisplayLog( LVL_MAJOR, "LmgrConfig",
                     LMGR_CONFIG_BLOCK
@@ -378,8 +372,18 @@ int ReloadLmgrConfig( void *module_config )
     return 0;
 }
 
+static int lmgr_cfg_set(void *cfg, bool reload)
+{
+    lmgr_config_t *conf = (lmgr_config_t *)cfg;
 
-int WriteLmgrConfigTemplate( FILE * output )
+    if (reload)
+        return lmgr_cfg_reload(conf);
+
+    lmgr_config = *conf;
+    return 0;
+}
+
+static void lmgr_cfg_write_template(FILE *output)
 {
     print_begin_block( output, 0, LMGR_CONFIG_BLOCK, NULL );
 
@@ -423,6 +427,26 @@ int WriteLmgrConfigTemplate( FILE * output )
 #endif
 
     print_end_block( output, 0 );
-
-    return 0;
 }
+
+static void *lmgr_cfg_new(void)
+{
+    return calloc(1, sizeof(lmgr_config_t));
+}
+
+static void lmgr_cfg_free(void *cfg)
+{
+    if (cfg != NULL)
+        free(cfg);
+}
+
+mod_cfg_funcs_t lmgr_cfg_hdlr = {
+    .module_name = "list manager",
+    .new = lmgr_cfg_new,
+    .free = lmgr_cfg_free,
+    .set_default = lmgr_cfg_set_default,
+    .read = lmgr_cfg_read,
+    .set_config = lmgr_cfg_set,
+    .write_default = lmgr_cfg_write_default,
+    .write_template =  lmgr_cfg_write_template
+};

@@ -27,7 +27,9 @@
 #define _CHGLOG_READER_H
 
 #include "config_parsing.h"
+#include "rbh_const.h"
 #include "list_mgr.h"
+#include <stdbool.h>
 
 #define MDT_NAME_MAX  32
 #define READER_ID_MAX 16
@@ -73,41 +75,29 @@ typedef struct chglog_reader_config_t
 
 } chglog_reader_config_t;
 
-extern chglog_reader_config_t chglog_reader_config;
-
 /** start ChangeLog Readers
  * \param mdt_index -1 for all
  */
-int            ChgLogRdr_Start(chglog_reader_config_t * p_config,
-                               int flags, int mdt_index);
+int            cl_reader_start(int flags, int mdt_index);
 
 /** terminate ChangeLog Readers */
-int            ChgLogRdr_Terminate( void );
+int            cl_reader_terminate(void);
 
 /** wait for ChangeLog Readers termination */
-int            ChgLogRdr_Wait( void );
+int            cl_reader_wait(void);
 
 /** Release last changelog records, and dump the final stats. */
-int            ChgLogRdr_Done( void );
+int            cl_reader_done(void);
 
 /** dump changelog processing stats */
-int            ChgLogRdr_DumpStats( void );
+int            cl_reader_dump_stats(void);
 
 /** store changelog stats to db */
-int            ChgLogRdr_StoreStats( lmgr_t * lmgr );
+int            cl_reader_store_stats(lmgr_t *lmgr);
 
-/**
- * \addtogroup MODULE_CONFIG_FUNCTIONS
- * @{
- */
-int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out );
-int            ChgLogRdr_ReadConfig(config_file_t config, void *module_config,
-                                    char *msg_out, bool for_reload);
-int            ChgLogRdr_ReloadConfig( void *module_config );
-int            ChgLogRdr_WriteConfigTemplate( FILE * output );
-int            ChgLogRdr_WriteDefaultConfig( FILE * output );
+/** config handlers */
+extern mod_cfg_funcs_t cl_reader_cfg_hdlr;
 
 #endif
 
-/** @} */
 /** @} */

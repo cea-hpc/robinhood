@@ -16,8 +16,10 @@
 #endif
 
 #include "update_params.h"
-#include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
 #include "rbh_misc.h"
+#include "rbh_logs.h"
+#include <time.h>
 #include <errno.h>
 
 #define TAG "UpdtParams"
@@ -28,7 +30,7 @@
 /* exported variable available to all modules */
 updt_params_t updt_params;
 
-int set_default_update_params(void *module_config, char *msg_out)
+static void set_default_update_params(void *module_config)
 {
     updt_params_t *params = (updt_params_t *)module_config;
 
@@ -39,11 +41,9 @@ int set_default_update_params(void *module_config, char *msg_out)
     params->path.period_max = 3600;
 #endif
     params->fileclass.when = UPDT_ALWAYS;
-
-    return 0;
 }
 
-int write_default_update_params(FILE *output)
+static void write_default_update_params(FILE *output)
 {
     print_begin_block(output, 0, UPDT_PARAMS_BLOCK, NULL);
     print_line(output, 1, "md_update        : always;");
@@ -52,11 +52,9 @@ int write_default_update_params(FILE *output)
 #endif
     print_line(output, 1, "fileclass_update : always;");
     print_end_block(output, 0);
-
-    return 0;
 }
 
-int write_update_params_template(FILE * output)
+static void write_update_params_template(FILE * output)
 {
     print_begin_block(output, 0, UPDT_PARAMS_BLOCK, NULL);
     print_line(output, 1, "# possible policies for refreshing metadata and path in database:");
@@ -76,7 +74,6 @@ int write_update_params_template(FILE * output)
     print_line(output, 1, "fileclass_update = always ;");
 
     print_end_block(output, 0);
-    return 0;
 }
 
 static inline const char *update_param2str(updt_param_item_t *pol, char *buffer)
@@ -175,8 +172,8 @@ static int read_update_item(updt_param_item_t *item,  const char *str,
     return 0;
 }
 
-int read_update_params(config_file_t config, void *module_config,
-                       char *msg_out, bool for_reload)
+static int read_update_params(config_file_t config, void *module_config,
+                              char *msg_out)
 {
     updt_params_t *params = (updt_params_t *)module_config;
     int            rc;
@@ -273,7 +270,7 @@ int read_update_params(config_file_t config, void *module_config,
     return 0;
 }
 
-int reload_update_params(void *module_config)
+static int reload_update_params(void *module_config)
 {
     char buff1[256];
     char buff2[256];
@@ -313,6 +310,41 @@ int reload_update_params(void *module_config)
 
     return 0;
 }
+
+static int update_params_set(void *module_config, bool reload)
+{
+    updt_params_t *conf = (updt_params_t *)module_config;
+
+    if (reload)
+        return reload_update_params(module_config);
+
+    updt_params = *conf;
+    return 0;
+}
+
+static void *updt_param_new(void)
+{
+    return calloc(1, sizeof(updt_params_t));
+}
+
+static void updt_param_free(void *cfg)
+{
+    if (cfg != NULL)
+        free(cfg);
+}
+
+/* export config functions */
+mod_cfg_funcs_t updt_params_hdlr = {
+    .module_name = "updt params",
+    .new = updt_param_new,
+    .free = updt_param_free,
+    .set_default = set_default_update_params,
+    .read = read_update_params,
+    .set_config = update_params_set,
+    .write_default = write_default_update_params,
+    .write_template =  write_update_params_template,
+};
+
 
 /**
  *  Check if the fileclass needs to be updated

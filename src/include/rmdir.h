@@ -36,7 +36,7 @@ int            Reload_Rmdir_Config( void *module_config );
 int            Write_Rmdir_ConfigTemplate( FILE * output );
 int            Write_Rmdir_ConfigDefault( FILE * output );
 
-int            Start_Rmdir( rmdir_config_t * config, int flags );
+int            Start_Rmdir(int flags);
 int            Wait_Rmdir( void );
 void           Dump_Rmdir_Stats( void );
 

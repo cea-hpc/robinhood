@@ -19,6 +19,24 @@
 
 #include "entry_processor.h"
 
+typedef struct entry_proc_config_t
+{
+    unsigned int   nb_thread;
+    unsigned int   max_pending_operations;
+    unsigned int   max_batch_size;
+
+    alert_item_t  *alert_list;
+    unsigned int   alert_count;
+    uint64_t       alert_attr_mask;
+
+    bool           match_classes;
+#ifdef ATTR_INDEX_creation_time
+    /* fake mtime in the past causes higher
+     * migration priority */
+    bool           detect_fake_mtime;
+#endif
+} entry_proc_config_t;
+
 extern entry_proc_config_t entry_proc_conf;
 extern int                 pipeline_flags;
 

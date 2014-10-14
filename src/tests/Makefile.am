@@ -6,18 +6,18 @@ check_PROGRAMS=create_nostripe test_forcestripe test_hash_func test_uidgidcache 
 all_libs=	../cfg_parsing/libconfigparsing.la \
                 ../fs_scan/libfsscan.la \
                 ../entry_processor/libentryproc.la \
+                ../list_mgr/liblistmgr.la \
                 ../policies/libpolicies.la
 
 if CHANGELOGS
 all_libs += ../chglog_reader/libchglog_rd.la
 endif
+
 if HSM_LITE
 all_libs += ../backend_ext/libbackend_ext.la
 endif
 
 all_libs += ../robinhood/librbhhelpers.la ../list_mgr/liblistmgr.la ../common/libcommontools.la
-
-
 
 test_forcestripe_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
 

@@ -25,7 +25,6 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "xplatform_print.h"
-#include "backend_ext.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -748,14 +747,6 @@ int main( int argc, char **argv )
         fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
         exit( 1 );
     }
-    process_config_file = config_file;
-
-    /* set global configuration */
-    global_config = config.global_config;
-    updt_params = config.db_update_params;
-
-    /* set policies info */
-    policies = config.policies;
 
     if ( force_log_level )
         config.log_config.debug_level = log_level;

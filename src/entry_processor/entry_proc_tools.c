@@ -23,7 +23,7 @@
 #include "entry_proc_hash.h"
 #include "Memory.h"
 #include "rbh_logs.h"
-#include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
 #include "rbh_misc.h"
 #include <pthread.h>
 #include <stdlib.h>
@@ -252,10 +252,9 @@ void id_constraint_dump(void)
 #define ENTRYPROC_CONFIG_BLOCK  "EntryProcessor"
 #define ALERT_BLOCK "Alert"
 
-int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
+static void entry_proc_cfg_set_default(void *module_config)
 {
-    entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
-    msg_out[0] = '\0';
+    entry_proc_config_t *conf = (entry_proc_config_t *)module_config;
 
     conf->nb_thread = 8;
     conf->max_pending_operations = 10000; /* for efficient batching of 1000 ops */
@@ -268,13 +267,9 @@ int SetDefault_EntryProc_Config( void *module_config, char *msg_out )
     conf->alert_list = NULL;
     conf->alert_count = 0;
     conf->alert_attr_mask = 0;
-
-    conf->diff_mask = 0;
-
-    return 0;
 }
 
-int Write_EntryProc_ConfigDefault(FILE * output)
+static void entry_proc_cfg_write_default(FILE *output)
 {
     print_begin_block(output, 0, ENTRYPROC_CONFIG_BLOCK, NULL);
     print_line(output, 1, "# batching strategy");
@@ -287,15 +282,11 @@ int Write_EntryProc_ConfigDefault(FILE * output)
 #endif
     print_line(output, 1, "alert                  :  NONE");
     print_end_block(output, 0);
-    return 0;
 }
 
 
-
-
-
 #define critical_err_check(_ptr_, _blkname_) do { if (!_ptr_) {\
-                                        sprintf( msg_out, "Internal error reading %s block in config file", _blkname_); \
+                                        sprintf(msg_out, "Internal error reading %s block in config file", _blkname_); \
                                         return EFAULT; \
                                     }\
                                 } while (0)
@@ -417,11 +408,10 @@ static void set_default_pipeline_config(const pipeline_descr_t *descr,
         }
 }
 
-int Read_EntryProc_Config(config_file_t config, void *module_config,
-                          char *msg_out, bool for_reload)
+static int entry_proc_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int            rc, blc_index, i;
-    entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
+    entry_proc_config_t *conf = (entry_proc_config_t *)module_config;
     unsigned int next_idx = 0;
 
     /* buffer to store arg names */
@@ -471,18 +461,18 @@ int Read_EntryProc_Config(config_file_t config, void *module_config,
                    "avoid pipeline step starvation!");
 
     /* look for '<stage>_thread_max' parameters (for all pipelines) */
-    if (!for_reload)
-    {
-        /* set default pipeline config according to EntryProc config */
-        set_default_pipeline_config(&std_pipeline_descr, std_pipeline, conf);
 
-        rc = load_pipeline_config(&std_pipeline_descr, std_pipeline, conf,
-                                  entryproc_block, msg_out);
-        if (rc)
-            return rc;
+    /* Set default pipeline config according to EntryProc config
+     * FIXME this modifies the global config variable, even when reloading!
+     */
+    set_default_pipeline_config(&std_pipeline_descr, std_pipeline, conf);
 
-        // TODO load_pipeline_config(&diff_pipeline_descr, &diff_pipeline);
-    }
+    rc = load_pipeline_config(&std_pipeline_descr, std_pipeline, conf,
+                              entryproc_block, msg_out);
+    if (rc)
+        return rc;
+
+    // TODO load_pipeline_config(&diff_pipeline_descr, &diff_pipeline);
 
     /* TODO Check consistency of performance strategy: batching vs. multithread DB operations */
 
@@ -623,20 +613,17 @@ static void free_alert( alert_item_t * p_items, unsigned int count )
         free( p_items );
 }
 
-
-int Reload_EntryProc_Config( void *module_config )
+static int entry_proc_cfg_reload(entry_proc_config_t *conf)
 {
-    entry_proc_config_t *conf = ( entry_proc_config_t * ) module_config;
+    if (conf->nb_thread != entry_proc_conf.nb_thread)
+        DisplayLog(LVL_MAJOR, "EntryProc_Config",
+                   ENTRYPROC_CONFIG_BLOCK
+                   "::nb_threads changed in config file, but cannot be modified dynamically");
 
-    if ( conf->nb_thread != entry_proc_conf.nb_thread )
-        DisplayLog( LVL_MAJOR, "EntryProc_Config",
-                    ENTRYPROC_CONFIG_BLOCK
-                    "::nb_threads changed in config file, but cannot be modified dynamically" );
-
-    if ( conf->max_pending_operations != entry_proc_conf.max_pending_operations )
-        DisplayLog( LVL_MAJOR, "EntryProc_Config",
-                    ENTRYPROC_CONFIG_BLOCK
-                    "::max_pending_operations changed in config file, but cannot be modified dynamically" );
+    if (conf->max_pending_operations != entry_proc_conf.max_pending_operations)
+        DisplayLog(LVL_MAJOR, "EntryProc_Config",
+                   ENTRYPROC_CONFIG_BLOCK
+                   "::max_pending_operations changed in config file, but cannot be modified dynamically");
 
     if (conf->max_batch_size != entry_proc_conf.max_batch_size)
     {
@@ -655,21 +642,18 @@ int Reload_EntryProc_Config( void *module_config )
     }
 
 #ifdef ATTR_INDEX_creation_time
-    if ( conf->detect_fake_mtime != entry_proc_conf.detect_fake_mtime )
+    if (conf->detect_fake_mtime != entry_proc_conf.detect_fake_mtime)
     {
-        DisplayLog( LVL_MAJOR, "EntryProc_Config",
-                    ENTRYPROC_CONFIG_BLOCK"::detect_fake_mtime updated: '%s'->'%s'",
-                    bool2str(entry_proc_conf.detect_fake_mtime), bool2str(conf->detect_fake_mtime) );
+        DisplayLog(LVL_MAJOR, "EntryProc_Config",
+                   ENTRYPROC_CONFIG_BLOCK"::detect_fake_mtime updated: '%s'->'%s'",
+                   bool2str(entry_proc_conf.detect_fake_mtime), bool2str(conf->detect_fake_mtime));
         entry_proc_conf.detect_fake_mtime = conf->detect_fake_mtime;
     }
 #endif
 
     /* Check alert rules  */
-    update_alerts( entry_proc_conf.alert_list, entry_proc_conf.alert_count,
-                   conf->alert_list, conf->alert_count, ENTRYPROC_CONFIG_BLOCK );
-
-
-    free_alert( conf->alert_list, conf->alert_count );
+    update_alerts(entry_proc_conf.alert_list, entry_proc_conf.alert_count,
+                  conf->alert_list, conf->alert_count, ENTRYPROC_CONFIG_BLOCK);
 
     if (entry_proc_conf.match_classes && (policies.fileset_count == 0))
     {
@@ -680,7 +664,18 @@ int Reload_EntryProc_Config( void *module_config )
     return 0;
 }
 
-int Write_EntryProc_ConfigTemplate( FILE * output )
+static int entry_proc_cfg_set(void *cfg, bool reload)
+{
+    entry_proc_config_t *config = cfg;
+
+    if (reload)
+        return entry_proc_cfg_reload(config);
+
+    entry_proc_conf = *config;
+    return 0;
+}
+
+static void entry_proc_cfg_write_template(FILE *output)
 {
     int            i;
 
@@ -748,7 +743,6 @@ int Write_EntryProc_ConfigTemplate( FILE * output )
 #endif
 
     print_end_block(output, 0);
-    return 0;
 }
 
 /** try to convert a time_t to a human readable form */
@@ -869,4 +863,32 @@ void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 #endif
 
 
+static void *entry_proc_cfg_new(void)
+{
+    return calloc(1, sizeof(entry_proc_config_t));
+}
 
+static void entry_proc_cfg_free(void *cfg)
+{
+    if (cfg != NULL)
+    {
+        entry_proc_config_t *conf = (entry_proc_config_t *)cfg;
+
+        if (conf->alert_list != NULL)
+            free_alert(conf->alert_list, conf->alert_count);
+
+        free(cfg);
+    }
+}
+
+/* export config functions */
+mod_cfg_funcs_t entry_proc_cfg_hdlr = {
+    .module_name = "entry processor",
+    .new = entry_proc_cfg_new,
+    .free = entry_proc_cfg_free,
+    .set_default = entry_proc_cfg_set_default,
+    .read = entry_proc_cfg_read,
+    .set_config = entry_proc_cfg_set,
+    .write_default = entry_proc_cfg_write_default,
+    .write_template =  entry_proc_cfg_write_template
+};

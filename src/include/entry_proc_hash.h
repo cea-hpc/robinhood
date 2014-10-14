@@ -18,13 +18,11 @@
 #ifndef _ENTRY_PROC_HASH_H
 #define _ENTRY_PROC_HASH_H
 
-#include "entry_processor.h"
-
 /* A hash table slot. */
 struct id_hash_slot
 {
     pthread_mutex_t lock;
-    struct list_head list;      /* list of ops */
+    struct rh_list_head list;      /* list of ops */
     unsigned int count;
 };
 

@@ -19,6 +19,8 @@
 #ifndef _RUN_POLICIES_H
 #define _RUN_POLICIES_H
 
+#include "policy_run.h"
+
 typedef struct policy_runs_t {
     policy_info_t *runs;
     unsigned int count;

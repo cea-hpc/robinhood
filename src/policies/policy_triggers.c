@@ -1612,7 +1612,7 @@ int policy_module_start(policy_info_t *policy, /* out */
     {
         DisplayLog(LVL_CRIT, tag(policy),
             "No policy rules defined in configuration file... "
-            "Disabling actions scheduling.");
+            "Disabling action scheduling.");
         return ENOENT;
     }
 

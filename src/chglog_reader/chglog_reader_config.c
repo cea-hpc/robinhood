@@ -14,7 +14,7 @@
 
 
 /**
- * \file    chglog_reader_config.c
+ * \file    cl_reader_config.c
  * \author  Th. Leibovici
  * \brief   Configuration for Lustre MDT Changelog processing module.
  */
@@ -26,14 +26,18 @@
 #include "chglog_reader.h"
 #include "rbh_misc.h"
 #include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
+#include "rbh_logs.h"
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
 
+#define TAG "ChgLogCfg" /* for logs */
+
 #define CHGLOG_CFG_BLOCK    "ChangeLog"
 #define MDT_DEF_BLOCK       "MDT"
 
-chglog_reader_config_t chglog_reader_config;
+chglog_reader_config_t cl_reader_config;
 
 static mdt_def_t default_mdt_def =
     {
@@ -43,11 +47,9 @@ static mdt_def_t default_mdt_def =
 
 
 /** Set changelog reader default configuration */
-int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
+static void cl_reader_set_default_cfg(void *module_config)
 {
    chglog_reader_config_t * p_config = (chglog_reader_config_t *) module_config;
-
-   msg_out[0] = '\0';
 
    p_config->mdt_def = &default_mdt_def;
    p_config->mdt_count = 1;
@@ -61,14 +63,12 @@ int            ChgLogRdr_SetDefaultConfig( void *module_config, char *msg_out )
    p_config->mds_has_lu1331 = false;
    p_config->dump_file[0] = '\0'; /* no dump file */
 
-   /* acknowledge 100 records at once */
+   /* acknowledge 1024 records at once */
    p_config->batch_ack_count = 1024;
-
-   return 0;
 }
 
 /** Write default parameters for changelog readers */
-int            ChgLogRdr_WriteDefaultConfig(FILE *output)
+static void cl_reader_write_default(FILE *output)
 {
     print_begin_block(output, 0, CHGLOG_CFG_BLOCK, NULL);
     print_begin_block(output, 1, MDT_DEF_BLOCK, NULL);
@@ -87,12 +87,10 @@ int            ChgLogRdr_WriteDefaultConfig(FILE *output)
     print_line(output, 1, "dump_file        : (none)");
 
     print_end_block(output, 0);
-
-    return 0;
 }
 
 /** Write a configuration template for changelog readers */
-int            ChgLogRdr_WriteConfigTemplate( FILE * output )
+static void cl_reader_write_template(FILE *output)
 {
     print_line( output, 0, "# Parameters for processing MDT changelogs :");
     print_begin_block( output, 0, CHGLOG_CFG_BLOCK, NULL );
@@ -140,8 +138,6 @@ int            ChgLogRdr_WriteConfigTemplate( FILE * output )
     print_line(output, 1, "#dump_file = \"/var/log/robinhood/changelog_dump.log\";");
 
     print_end_block( output, 0 );
-
-    return 0;
 }
 
 #define critical_err_check(_ptr_, _blkname_) do { if (!_ptr_) {\
@@ -208,8 +204,8 @@ static int parse_mdt_block( config_item_t config_blk, const char *block_name,
 }
 
 /** Read configuration for changelog readers */
-int ChgLogRdr_ReadConfig(config_file_t config, void *module_config,
-                         char *msg_out, bool for_reload)
+static int cl_reader_read_cfg(config_file_t config, void *module_config,
+                              char *msg_out)
 {
     chglog_reader_config_t * p_config = (chglog_reader_config_t *) module_config;
     unsigned int   blc_index;
@@ -308,6 +304,90 @@ int ChgLogRdr_ReadConfig(config_file_t config, void *module_config,
 #endif
 
     return 0;
-
 }
 
+#define NO_PARAM_UPDT_MSG(_blk, _name) DisplayLog(LVL_MAJOR, TAG, "%s::%s"     \
+                " changed in config file, but cannot be modified dynamically", \
+                 _blk, _name)
+#define PARAM_UPDT_MSG(_blk, _name, _format, _v1, _v2) DisplayLog(LVL_EVENT,  \
+                TAG, "%s::%s updated: "_format"->"_format, _blk, _name, _v1, _v2)
+
+#define SCALAR_PARAM_UPDT(_cfg, _val_field, _blk, _name, _format, _format_func) do { \
+        if ((_cfg)->_val_field != cl_reader_config._val_field) { \
+            PARAM_UPDT_MSG(_blk, _name, _format, _format_func(cl_reader_config._val_field), \
+                          _format_func((_cfg)->_val_field)); \
+            cl_reader_config._val_field = (_cfg)->_val_field; \
+        } \
+} while(0)
+
+/** reload parameters for a single policy */
+static int cl_reader_reload_cfg(chglog_reader_config_t *cfg)
+{
+    SCALAR_PARAM_UPDT(cfg, force_polling, CHGLOG_CFG_BLOCK, "force_polling", "%s", bool2str);
+    SCALAR_PARAM_UPDT(cfg, polling_interval, CHGLOG_CFG_BLOCK, "polling_interval", "%ld", );
+    SCALAR_PARAM_UPDT(cfg, batch_ack_count, CHGLOG_CFG_BLOCK, "batch_ack_count", "%u", );
+    SCALAR_PARAM_UPDT(cfg, queue_max_size, CHGLOG_CFG_BLOCK, "queue_max_size", "%u", );
+    SCALAR_PARAM_UPDT(cfg, queue_max_age, CHGLOG_CFG_BLOCK, "queue_max_age", "%ld", );
+    SCALAR_PARAM_UPDT(cfg, queue_check_interval, CHGLOG_CFG_BLOCK, "queue_check_interval", "%ld", );
+
+    if (cfg->mds_has_lu543 != cl_reader_config.mds_has_lu543)
+        NO_PARAM_UPDT_MSG(CHGLOG_CFG_BLOCK, "mds_has_lu543");
+    if (cfg->mds_has_lu1331 != cl_reader_config.mds_has_lu1331)
+        NO_PARAM_UPDT_MSG(CHGLOG_CFG_BLOCK, "mds_has_lu1331");
+
+    if (cfg->mdt_count != cl_reader_config.mdt_count)
+        NO_PARAM_UPDT_MSG(CHGLOG_CFG_BLOCK, MDT_DEF_BLOCK" count");
+    else
+    {
+        int i;
+
+        for (i = 0; i < cfg->mdt_count; i++)
+        {
+            if (strcmp(cfg->mdt_def[i].mdt_name, cl_reader_config.mdt_def[i].mdt_name))
+                NO_PARAM_UPDT_MSG(CHGLOG_CFG_BLOCK"::"MDT_DEF_BLOCK, "mdt_name");
+            if (strcmp(cfg->mdt_def[i].reader_id, cl_reader_config.mdt_def[i].reader_id))
+                NO_PARAM_UPDT_MSG(CHGLOG_CFG_BLOCK"::"MDT_DEF_BLOCK, "reader_id");
+        }
+    }
+
+    return 0;
+}
+
+
+
+static int cl_reader_cfg_set(void *arg,  bool reload)
+{
+    chglog_reader_config_t *cfg = (chglog_reader_config_t*)arg;
+
+    if (reload)
+        return cl_reader_reload_cfg(cfg);
+    else
+        cl_reader_config = *cfg;
+    return 0;
+}
+
+static void *cl_reader_cfg_new(void)
+{
+    return calloc(1, sizeof(chglog_reader_config_t));
+}
+
+static void cl_reader_cfg_free(void *arg)
+{
+    chglog_reader_config_t *cfg = (chglog_reader_config_t *)arg;
+
+    if ((cfg->mdt_def != NULL) && (cfg->mdt_def != &default_mdt_def))
+        free(cfg->mdt_def);
+    free(cfg);
+}
+
+/** config handling functions */
+mod_cfg_funcs_t cl_reader_cfg_hdlr = {
+    .module_name = "changelog reader",
+    .new = cl_reader_cfg_new,
+    .free = cl_reader_cfg_free,
+    .set_default = cl_reader_set_default_cfg,
+    .read = cl_reader_read_cfg,
+    .set_config = cl_reader_cfg_set,
+    .write_default = cl_reader_write_default,
+    .write_template = cl_reader_write_template
+};

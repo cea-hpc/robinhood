@@ -19,6 +19,9 @@
 #define _RBH_CMD_HELPERS_H
 
 #include "list_mgr.h"
+#include "xplatform_print.h"
+#include "rbh_misc.h"
+#include "status_manager.h"
 
 /* special character sequences for displaying help */
 

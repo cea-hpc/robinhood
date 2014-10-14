@@ -21,9 +21,8 @@
 #include "rbh_logs.h"
 #include "Memory.h"
 
-#ifdef _LUSTRE_HSM
-#include "lhsm.h"
-#endif
+#include "../modules/lhsm.h" /** FIXME drop this when dynamic module management is implemented */
+#include "../modules/backup.h" /** FIXME drop this when dynamic module management is implemented */
 
 /** list of loaded status managers */
 static status_manager_t **sm_cache = NULL;
@@ -50,277 +49,17 @@ void sm_status_free(char const ***p_tab)
 
 /* contents of status_manager:
 name, flags, status_enum, status_count, status_needs_attrs_cached,
-status_needs_attrs_fresh, get_status_func, changelog_cb
+status_needs_attrs_fresh, get_status_func, changelog_cb.
+
+For status manager that handle removed entries the 2 masks are:
+    - to determine if the entry is to be saved in softrm table
+    - fields to save in softrm table (needed for undelete or recovery)
 */
 
 /* -------------- Basic status manager implementation ------------------- */
 
 #define BASIC_ST_COUNT 2
 static const  char* basic_status_list[] = {"ok", "failed"}; /* + not set */
-
-/* -------------- Lustre/HSM status manager implementation -------------- */
-
-#ifdef _LUSTRE_HSM
-
-/* tag for logs */
-#define LHSM_TAG "lhsm"
-
-#define LHSM_ST_COUNT   7
-/* XXX /!\ Must match hsm_status_t order */
-static const  char* lhsm_status_list[] = {"new","modified","retrieving","archiving",
-                                          "synchro","released","release_pending"};
-
-static const char *hsm_status2str(hsm_status_t st)
-{
-    if ((st >= STATUS_COUNT) || (st == STATUS_UNKNOWN))
-        return NULL;
-    else
-        return lhsm_status_list[st-1]; /* st=1 => new */
-}
-
-/** get the HSM status of an entry */
-static int lhsm_status(struct sm_instance *smi,
-                       const entry_id_t *id, const attr_set_t *attrs,
-                       attr_set_t *refreshed_attrs)
-{
-    int rc;
-    char fid_path[RBH_PATH_MAX];
-    hsm_status_t st = STATUS_UNKNOWN;
-    bool no_release = false, no_archive = false;
-
-    if (ATTR_MASK_TEST(attrs, type) &&
-        strcmp(ATTR(attrs, type), STR_TYPE_FILE) != 0)
-    {
-        /* not a file: no status */
-        rc = 0;
-        goto clean_status;
-    }
-
-    rc = BuildFidPath(id, fid_path);
-    if (rc)
-        goto clean_status;
-
-    /** @TODO store no_release and no_archive as SM specific attributes */
-    rc = lhsm_get_status(fid_path, &st, &no_release, &no_archive);
-    if (rc)
-        goto clean_status;
-
-    /* set status in refreshed attrs */
-    const char *str_st = hsm_status2str(st);
-    if (str_st == NULL)
-        goto clean_status;
-
-    /* check allocation of sm_status array */
-    sm_status_ensure_alloc(&refreshed_attrs->attr_values.sm_status);
-    if (refreshed_attrs->attr_values.sm_status == NULL)
-    {
-        rc = -ENOMEM;
-        goto clean_status;
-    }
-
-    STATUS_ATTR(refreshed_attrs, smi->smi_index) = str_st;
-    ATTR_MASK_STATUS_SET(refreshed_attrs, smi->smi_index);
-
-    return 0;
-
-clean_status:
-    if (refreshed_attrs->attr_values.sm_status != NULL)
-        /* don't free it as it contains a const char* */
-        STATUS_ATTR(refreshed_attrs, smi->smi_index) = NULL;
-
-    /* Clean the status from the mask */
-    ATTR_MASK_STATUS_UNSET(refreshed_attrs, smi->smi_index);
-
-    return rc;
-}
-
-/** helper to set the LHSM status in attribute structure */
-static inline void set_lhsm_status(struct sm_instance *smi, attr_set_t *attrs, hsm_status_t status)
-{
-    /* new file, status is known */
-    sm_status_ensure_alloc(&attrs->attr_values.sm_status);
-    STATUS_ATTR(attrs, smi->smi_index) = hsm_status2str(status);
-    ATTR_MASK_STATUS_SET(attrs, smi->smi_index);
-}
-
-/** helper to compare a LHSM status */
-static bool status_equal(struct sm_instance *smi, const attr_set_t *attrs, hsm_status_t status)
-{
-    return !strcmp(STATUS_ATTR(attrs, smi->smi_index), hsm_status2str(status));
-}
-
-/** changelog callback */
-static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
-                      const entry_id_t *id, const attr_set_t *attrs,
-                       attr_set_t *refreshed_attrs, bool *getit)
-{
-    /* If this is a CREATE record, we know its status is NEW
-     * (except if it is already set to another value) */
-    if (logrec->cr_type == CL_CREATE)
-    {
-        if (!ATTR_MASK_STATUS_TEST(attrs, smi->smi_index))
-        {
-            /* new file, status is new */
-            set_lhsm_status(smi, refreshed_attrs, STATUS_NEW);
-            /* no need to retrieve it from filesystem */
-            *getit = false;
-        }
-        /* else: file is already known. Preserve the known status. */
-
-        /* FIXME RBHv3 manage no_archive, no_release, last_archive, last_restore */
-    }
-    else if ((logrec->cr_type == CL_MKDIR) || (logrec->cr_type == CL_RMDIR))
-    {
-        /* no status for directories */
-        *getit = false;
-    }
-    else if (logrec->cr_type == CL_HSM)
-    {
-        switch (hsm_get_cl_event(logrec->cr_flags))
-        {
-            case HE_ARCHIVE:
-                /* is it a successfull copy? */
-                if (hsm_get_cl_error(logrec->cr_flags) == CLF_HSM_SUCCESS)
-                {
-                    /** @TODO RBHv3 remember last archive time */
-
-                    /* if dirty flag is set in the changelog record, the entry is dirty,
-                     * else, it is up to date. */
-                    set_lhsm_status(smi, refreshed_attrs,
-                        (hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY) ?
-                        STATUS_MODIFIED : STATUS_SYNCHRO);
-                    *getit = false;
-                }
-                else /* archive failed */
-                {
-                    /* Entry is probably still dirty. If dirty flag is not set,
-                     * we need to ask the actual status */
-                    if (hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY)
-                    {
-                        set_lhsm_status(smi, refreshed_attrs, STATUS_MODIFIED);
-                        *getit = false;
-                    }
-                    else /* archive failed but entry is not dirty?
-                          * retrieve the status from filesystem */
-                        *getit = true;
-                }
-                break;
-
-            case HE_RESTORE:
-                if (hsm_get_cl_error(logrec->cr_flags) == CLF_HSM_SUCCESS)
-                {
-                    /** @TODO RBHv3 remember last restore time */
-
-                    /* status is 'up-to-date' after a successful restore */
-                    set_lhsm_status(smi, refreshed_attrs, STATUS_SYNCHRO);
-                    *getit = false;
-                }
-                else /* failed restore */
-                {
-                    /* Entry status remains 'released' */
-                    set_lhsm_status(smi, refreshed_attrs, STATUS_RELEASED);
-                    *getit = false;
-                }
-                break;
-
-            case HE_RELEASE:
-                if (hsm_get_cl_error(logrec->cr_flags) != CLF_HSM_SUCCESS)
-                {
-                    /* release records are not expected to be erroneous */
-                    DisplayLog(LVL_CRIT, LHSM_TAG, "ERROR: "
-                         "Unexpected HSM release event with error %d",
-                         hsm_get_cl_error(logrec->cr_flags));
-                    /* make sure of actual entry status */
-                    *getit = true;
-                }
-                else /* successful release */
-                {
-                    set_lhsm_status(smi, refreshed_attrs, STATUS_RELEASED);
-                    *getit = false;
-                }
-                break;
-
-            case HE_STATE:
-                /* state changed: did it become dirty? */
-                if (hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY)
-                {
-                    set_lhsm_status(smi, refreshed_attrs, STATUS_MODIFIED);
-                    *getit = false;
-                }
-                else /* other status change: need to get it */
-                    *getit = true;
-
-                break;
-
-            case HE_REMOVE:
-            case HE_CANCEL:
-                /* undetermined status after such an event */
-                *getit = true;
-                break;
-
-            default:
-                DisplayLog(LVL_CRIT, LHSM_TAG, "ERROR: unknown HSM event:"
-                            "bitfield=%#x, event=%u", logrec->cr_flags,
-                            hsm_get_cl_event(logrec->cr_flags));
-                /* skip */
-                return EINVAL;
-        }
-    }
-    else if (logrec->cr_type == CL_MTIME || logrec->cr_type == CL_TRUNC ||
-              (logrec->cr_type == CL_CLOSE))
-    {
-        /* If file is modified or truncated, need to check its status
-         * (probably modified) EXCEPT if its status is already 'modified' */
-        if (!ATTR_MASK_STATUS_TEST(attrs, smi->smi_index)
-            || (!status_equal(smi, attrs, STATUS_NEW) &&
-                !status_equal(smi, attrs, STATUS_MODIFIED)))
-        {
-            DisplayLog(LVL_DEBUG, LHSM_TAG,
-                       "Getstatus needed because this is a %s event "
-                       "and status is not already 'modified' or 'new': status=%s",
-                       changelog_type2str(logrec->cr_type),
-                       ATTR_MASK_STATUS_TEST(attrs, smi->smi_index)?
-                         STATUS_ATTR(attrs, smi->smi_index) :"<not set>");
-            *getit = true;
-        }
-    }
-    /* other records: keep default value for status need */
-    return 0;
-}
-
-/** @TODO to be managed in pipeline or in changelog callback: */
-#if 0
-
-/** Indicate if an entry is concerned by soft remove mecanism */
-static inline bool soft_remove_filter(struct entry_proc_op_t *p_op)
-{
-    if (ATTR_FSorDB_TEST(p_op, type)
-        && !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_DIR))
-    {
-        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
-        return false;
-    }
-    else if (ATTR_FSorDB_TEST(p_op, status)
-        && (ATTR_FSorDB(p_op, status) == STATUS_NEW))
-    {
-        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
-                    PFID(&p_op->entry_id));
-        return false;
-    }
-    return true;
-}
-
-                if (logrec->cr_flags & CLF_UNLINK_HSM_EXISTS)
-                    /* if CLF_UNLINK_HSM_EXISTS is set, we must clean something in the backend */
-                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-                else if (p_op->db_exists)
-                    /* nothing in the backend, just clean the entry in DB */
-                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-                else
-                    /* ignore the record */
-                    return STAGE_CHGLOG_CLR;
-#endif
-#endif /* _LUSTRE_HSM */
 
 /* -------------- shook status manager implementation ---------- */
 
@@ -366,41 +105,27 @@ static int shook_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
 }
 #endif /* HAVE_SHOOK */
 
-
-/* ---------- removed status manager ---------- */
-
-static const  char* rm_status_list[] = {"removed"};
-
+static status_manager_t basic_sm = {
+    .name = "basic",
+    .status_enum = basic_status_list,
+    .status_count = BASIC_ST_COUNT
+};
 
 /* -------------- managing status managers ---------- */
-
-static status_manager_t status_mgrs[] = {
-    /* special status manager for removed entries */
-    {"removed", SM_SHARED | SM_NODB | SM_DELETED, rm_status_list, 1, 0, 0, NULL, NULL},
-
-    /* this policy needs the ols status to process changelog callbacks.
-     * As we don't know the actual index of the status manager instance (smi)
-     * we set it to SMI_MASK(0). It must be translated later by accessors.
-     */
-    {"lhsm", SM_SHARED, lhsm_status_list, LHSM_ST_COUNT,
-     ATTR_MASK_type | SMI_MASK(0), 0, lhsm_status, lhsm_cl_cb},
-    {"basic", 0, basic_status_list, BASIC_ST_COUNT, 0, 0, NULL, NULL}, /* @FIXME masks, functions  */
-
-    {NULL, 0, NULL, 0, 0, 0, NULL, NULL}
-};
 
 /** TODO load status manager from dynamic module */
 static status_manager_t *load_status_manager(const char *name)
 {
-    status_manager_t *curr;
-    for (curr = status_mgrs; curr->name != NULL; curr++)
-    {
-        if (!strcasecmp(name, curr->name))
-            return curr;
-    }
+    /** @TODO load from a dynamic module */
+    if (!strcasecmp(name, "lhsm"))
+        return &lhsm_sm;
+    else if (!strcasecmp(name, "backup"))
+        return &backup_sm;
+    else if (!strcasecmp(name, "basic"))
+        return &basic_sm;
+
     return NULL;
 }
-
 
 /** indicate if a status manager definition is already loaded */
 static inline bool sm_loaded(const char *name, status_manager_t **sm_ptr)
@@ -496,6 +221,9 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     if (smi->db_field == NULL)
         goto free_str1;
     sprintf(smi->db_field, "%s_status", smi->instance_name);
+
+    /* @TODO load its configuration */
+    /* @TODO initialize it */
 
     /* add it the the list of SMIs */
     sm_inst_count++;

@@ -175,11 +175,11 @@ static int _check_field_name(const char *name, int *curr_field_index,
                    fieldtab[*curr_field_index]);
         if (!strcmp(table, ACCT_TABLE))
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (unexpected field '%s' in table %s: %s expected): "DROP_ACCT_MSG,
+                       "Incompatible database schema (unexpected field '%s' in table %s: '%s' expected): "DROP_ACCT_MSG,
                        fieldtab[*curr_field_index], table, name);
         else
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (unexpected field '%s' in table %s: %s expected): "DROP_MESSAGE,
+                       "Incompatible database schema (unexpected field '%s' in table %s: '%s' expected): "DROP_MESSAGE,
                        fieldtab[*curr_field_index], table, name);
         return -1;
     }
@@ -566,7 +566,13 @@ static int create_table_main(db_conn_t *pconn)
         }
     }
 
-    /* append status values (depends on policy definitions) */
+    /** Append status values (depends on policy definitions)
+     * @TODO RBHv3: enhance status management in DB:
+     * - support change in policy definitions (not order-sensitive? alter table?).
+     * - store previous policy definitions to detect changes.
+     * - For read-only usage, load status manager instances from DB
+     *       instead of relying on client configuration.
+     */
     sm_instance_t *smi;
 
     for (i = 0, smi = get_sm_instance(0); smi != NULL;
@@ -1109,7 +1115,6 @@ free_str:
     return rc;
 }
 
-#ifdef HAVE_RM_POLICY
 static int check_table_softrm(db_conn_t *pconn)
 {
     int rc;
@@ -1186,8 +1191,6 @@ free_str:
     g_string_free(request, TRUE);
     return rc;
 }
-#endif
-
 
 #define VERSION_VAR_FUNC    "VersionFunctionSet"
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
@@ -1761,9 +1764,7 @@ static const dbobj_descr_t  o_list[] = {
     {DBOBJ_TABLE, STRIPE_ITEMS_TABLE, check_table_stripe_items,
                                       create_table_stripe_items},
 #endif
-#ifdef HAVE_RM_POLICY
     {DBOBJ_TABLE, SOFT_RM_TABLE, check_table_softrm, create_table_softrm},
-#endif
 
     /* triggers */
     {DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT, check_trig_acct_insert,
@@ -1785,7 +1786,7 @@ static const dbobj_descr_t  o_list[] = {
  * Initialize the database access module and
  * check and create the schema.
  */
-int ListMgr_Init(const lmgr_config_t * p_conf, bool report_access_only)
+int ListMgr_Init(bool report_access_only)
 {
     int            rc;
     db_conn_t      conn;
@@ -1793,8 +1794,7 @@ int ListMgr_Init(const lmgr_config_t * p_conf, bool report_access_only)
     bool create_all_functions = false;
     bool create_all_triggers = false;
 
-    /* store the configuration */
-    lmgr_config = *p_conf;
+    /* store the parameter as a global variable */
     report_only = report_access_only;
 
     /* initilize attr masks for each table */

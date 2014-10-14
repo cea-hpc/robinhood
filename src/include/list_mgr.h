@@ -28,10 +28,8 @@
 
 /* database specific types */
 #include "db_types.h"
-#include "config_parsing.h"
 #include "rbh_const.h"
-
-#define LIST_SEP '+'
+#include "config_parsing.h"
 
 /* error codes */
 #define DB_SUCCESS              0
@@ -82,90 +80,17 @@ static inline const char *lmgr_err2str(int err)
 /* Tag in logfile */
 #define LISTMGR_TAG     "ListMgr"
 
-#ifdef _LUSTRE
-/* stripe info for Lustre */
-
-typedef struct stripe_item_t
-{
-    unsigned int ost_idx; /* ost index */
-    unsigned int ost_gen; /* always 0 ? */
-    uint64_t obj_id;      /* object index on OST */
-    uint64_t obj_seq;     /* sequence from object fid */
-} stripe_item_t;
-
-typedef struct stripe_info_t
-{
-    uint64_t       stripe_size;
-    unsigned int   stripe_count;
-    char           pool_name[MAX_POOL_LEN];
-#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
-    int            validator;
-#endif
-} stripe_info_t;
-
-typedef struct stripe_items_t
-{
-    unsigned int   count;
-    stripe_item_t *stripe;   /* list of stripe pieces */
-} stripe_items_t;
-#else
-typedef int stripe_items_t; /* dummy type */
-typedef int stripe_info_t; /* dummy type */
-#endif
-
-/* access pattern for fields in database */
-#define INIT_ONLY    0x00000001 /* set at insert only: stored in an annex table (can't be modified) */
-#define ANNEX_INFO   0x00000002 /* annex information, rarely accessed: stored in an annex table */
-#define FREQ_ACCESS  0x00000004 /* frequently updated, or used as select filter: stored in the main table */
-#define REMOVED      0x00000008 /* this attribute only applies to removed entries */
-#define SEPD_LIST    0x00000010 /* list with separators (text) */
-#define DNAMES       0x01000000 /* field in DNAMES table. */
-#define FUNC_ATTR    0x02000000 /* special attr built using a DB function */
-#define GENERATED    0x10000000 /* field not stored in database: generated in SELECT requests (read-only) */
-#define INDEXED      0x20000000 /* this field must be indexed */
-#define DIR_ATTR     0x40000000 /* need to aggregate directory info (specific DB request) */
-#define SLINK_ATTR   0x80000000 /* specific attr for symlinks */
-
-/** type of fields in database */
-typedef enum
-{
-    DB_ID,           /**< entry id */
-    DB_STRIPE_INFO,  /**< stripe info */
-    DB_STRIPE_ITEMS,  /**< stripe items */
-    DB_TEXT,    /**< string/text        */
-    DB_INT,     /**< signed integer     */
-    DB_UINT,    /**< unsigned integer   */
-    DB_SHORT,   /**< short integer     */
-    DB_USHORT,  /**< short unsigned integer   */
-    DB_BIGINT,  /**< 64 bits integer    */
-    DB_BIGUINT, /**< 64 bits unsigned integer */
-    DB_BOOL,    /**< boolean            */
-    DB_ENUM_FTYPE  /**< file type enumeration */
-} db_type_t;
-
+typedef enum {
+    RS_FILE_OK     = 0, /* non-empty file/symlink can be recovered */
+    RS_FILE_DELTA  = 1, /* file recovered at previous version */
+    RS_FILE_EMPTY  = 2, /* empty file recovered */
+    RS_NON_FILE    = 3, /* non-file recovered */
+    RS_NOBACKUP    = 4, /* entry can't be recovered: no backup */
+    RS_ERROR       = 5, /* recovery error */
+    RS_COUNT
+} recov_status_t;
 
 #define DB_IS_NULL( _p_v ) ( ((_p_v)->type == DB_TEXT) && ((_p_v)->value_u.val_str == NULL) )
-
-/** generic function from generating fields:
- * 1st parameter points to the field to be generated.
- * 2nd parameter is the source field.
- */
-typedef int    ( *gen_func_t ) ( void *, const void * );
-
-
-/** generic field definition for all applications */
-
-typedef struct field_info_t
-{
-    char          *field_name;
-    db_type_t      db_type;
-    unsigned int   db_type_size;                 /**< size for strings */
-    int            flags;
-    off_t          offset;
-    int            gen_index;    /* source attr index for generating this info */
-    gen_func_t     gen_func;    /* function for automatic generation */
-} field_info_t;
-
 
 /* update set mask and attr value */
 #define ATTR_MASK_INIT(_p_set) ((_p_set)->attr_mask = 0LL)
@@ -186,6 +111,20 @@ typedef struct field_info_t
                          | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
                          | ATTR_MASK_nlink)
 
+#define LIST_SEP '+'
+
+/* String representation in database (not in config file)
+ *
+ * When adding a new type, fix the database enum in
+ * listmgr_init.c:append_field_def() */
+#define STR_TYPE_LINK   "symlink"
+#define STR_TYPE_DIR    "dir"
+#define STR_TYPE_FILE   "file"
+#define STR_TYPE_CHR    "chr"
+#define STR_TYPE_BLK    "blk"
+#define STR_TYPE_FIFO   "fifo"
+#define STR_TYPE_SOCK   "sock"
+
 /* application specific types:
  * these includes MUST define:
  * - entry_id_t type
@@ -193,15 +132,7 @@ typedef struct field_info_t
  * - entry_info_t type
  * - field_info_t field_infos[] array
  */
-#ifdef _LUSTRE_HSM
-#include "lustre_hsm_types.h"
-#elif defined(_TMP_FS_MGR)
-#include "tmp_fs_mgr_types.h"
-#elif defined(_HSM_LITE)
-#include "hsmlite_types.h"
-#else
-#error "No application was specified"
-#endif
+#include "db_schema.h"
 
 typedef union
 {
@@ -273,25 +204,14 @@ typedef struct lmgr_config_t
     bool group_acct;
 } lmgr_config_t;
 
+/** config handlers */
+extern mod_cfg_funcs_t lmgr_cfg_hdlr;
+
 /** Container to associate an ID with its pathname. */
 typedef struct wagon {
     entry_id_t id;
     char *fullname;
 } wagon_t;
-
-/**
- * Configuration management routines
- * \addtogroup MODULE_CONFIG_FUNCTIONS
- * @{
- */
-int            SetDefaultLmgrConfig( void *module_config, char *msg_out );
-int            ReadLmgrConfig(config_file_t config, void *module_config,
-                              char *msg_out, bool for_reload);
-int            ReloadLmgrConfig( void *module_config );
-int            WriteLmgrConfigTemplate( FILE * output );
-int            WriteLmgrConfigDefault( FILE * output );
-
-/** @} */
 
 /* opaque types */
 struct lmgr_iterator_t;
@@ -362,8 +282,42 @@ typedef struct lmgr_simple_filter_t
     unsigned int   prealloc;
 } lmgr_simple_filter_t;
 
-/* needed here for defining filters */
+/* needed here for defining filters, obj_type_t... */
 #include "policy_rules.h"
+
+/** string representation in DB */
+static const char *type_db_name[] = {
+    NULL,
+    STR_TYPE_LINK,
+    STR_TYPE_DIR,
+    STR_TYPE_FILE,
+    STR_TYPE_CHR,
+    STR_TYPE_BLK,
+    STR_TYPE_FIFO,
+    STR_TYPE_SOCK
+};
+
+static const inline char *type2db(obj_type_t type)
+{
+    if (type > TYPE_SOCK)
+        return type_db_name[TYPE_NONE];
+
+    return type_db_name[type];
+}
+
+static inline obj_type_t db2type(const char *str)
+{
+    obj_type_t i;
+
+    for (i = TYPE_NONE; i <= TYPE_SOCK; i++)
+    {
+        if (!strcasecmp(str, type_db_name[i]))
+            return i;
+    }
+    return TYPE_NONE;
+}
+
+
 
 /** generic filter type */
 typedef struct lmgr_filter_t
@@ -403,7 +357,7 @@ extern uint64_t readonly_attr_set;
 /* -------- Main functions -------- */
 
 /** Initialize the List Manager */
-int            ListMgr_Init(const lmgr_config_t * p_conf, bool report_only);
+int            ListMgr_Init(bool report_only);
 
 /** Create a connection to the database for current thread */
 int            ListMgr_InitAccess( lmgr_t * p_mgr );
@@ -600,29 +554,24 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
 
 #ifdef _HSM_LITE
 
-/** FIXME RBHv3 RECOV_ATTR_MASK, SOFTRM_MASK */
+/** FIXME RBHv3 RECOV_ATTR_MASK, SOFTRM_MASK
+ * For recovery: status manager needs entry status + backend info.
+ * For undelete: status manager needs backend info.
+ */
+#if 0
 #define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
                           ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
                           ATTR_MASK_status | ATTR_MASK_stripe_info | ATTR_MASK_type | \
                           ATTR_MASK_mode | ATTR_MASK_link )
 
 #define SOFTRM_MASK (POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_backendpath | ATTR_MASK_rm_time)
+#endif
 
 /**
  * Filesystem recovery from backup.
  * \addtogroup RECOVERY_FUNCTIONS
  * @{
  */
-
-typedef enum {
-    RS_FILE_OK     = 0, /* non-empty file/symlink can be recovered */
-    RS_FILE_DELTA  = 1, /* file recovered at previous version */
-    RS_FILE_EMPTY  = 2, /* empty file recovered */
-    RS_NON_FILE    = 3, /* non-file recovered */
-    RS_NOBACKUP    = 4, /* entry can't be recovered: no backup */
-    RS_ERROR       = 5, /* recovery error */
-    RS_COUNT
-} recov_status_t;
 
 typedef struct _lmgr_recov_stat
 {
@@ -688,7 +637,10 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
 
 #elif defined( HAVE_RM_POLICY )
 /* only keep fullpath by default */
+#if 0
 #define SOFTRM_MASK (POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_rm_time)
+    POSIX, fullpath, fields with REMOVED flag, fields asked by status manager.
+#endif
 #endif
 
 /**

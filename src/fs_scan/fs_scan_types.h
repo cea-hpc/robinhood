@@ -24,7 +24,6 @@
 #include <sys/stat.h>
 #include <stdbool.h>
 
-
 /* a scanning task */
 
 typedef struct robinhood_task__
@@ -96,6 +95,5 @@ typedef struct tasks_stack__
     robinhood_task_t *tasks_at_depth[MAX_TASK_DEPTH + 1];
 
 } task_stack_t;
-
 
 #endif

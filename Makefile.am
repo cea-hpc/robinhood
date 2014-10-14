@@ -26,22 +26,15 @@ else
   dbversion=`rpm -qa "sqlite-devel*" --qf "%{Version}\n" | tail -1 | cut -d "." -f 1-2`
 endif
 
-if TMP_FS_MGR
-  purpose=tmp_fs_mgr
-endif
 if LUSTRE_HSM
-  purpose=lustre_hsm
   rpmbuild_opt += --with lhsm
 endif
 if SHOOK
-  purpose=shook
   rpmbuild_opt += --with shook
 endif
-if BACKUP
-  purpose=backup
-  rpmbuild_opt += --with backup
+if HSM_LITE
+  rpmbuild_opt += --with hsm_lite
 endif
-
 
 
 new: clean all
@@ -49,21 +42,21 @@ new: clean all
 rpms: robinhood.spec dist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
-		--define="dbversion $(dbversion)" --define="purpose $(purpose)" --define="_prefix $(prefix)" \
+		--define="dbversion $(dbversion)" --define="_prefix $(prefix)" \
         --define="_sysconfdir @CONFDIR@" \
 		-ta $(distdir).tar.gz
 
 rpm: robinhood.spec dist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
-		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
+		--define="dbversion $(dbversion)" \
         --define="_sysconfdir @CONFDIR@" \
 		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
 srpm: robinhood.spec dist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
-		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
+		--define="dbversion $(dbversion)" \
         --define="_sysconfdir @CONFDIR@" \
 		-ts $(distdir).tar.gz
 

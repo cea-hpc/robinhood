@@ -29,30 +29,27 @@ fi
 SYNC_OPT="--run=migration --target=all --force-all"
 PURGE_OPT="--run=purge --target=all"
 
+RH="$RBH_BINDIR/robinhood $RBH_OPT"
+REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
+FIND=$RBH_BINDIR/rbh-find
+DU=$RBH_BINDIR/rbh-du
+DIFF=$RBH_BINDIR/rbh-diff
+RECOV="$RBH_BINDIR/rbh-recov $RBH_OPT"
+UNDELETE=$RBH_BINDIR/rbh-undelete
+IMPORT="$RBH_BINDIR/rbh-import $RBH_OPT"
+CMD=robinhood
+
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
 	shook=0
-	RH="$RBH_BINDIR/robinhood $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
-	FIND=$RBH_BINDIR/rbh-find
-	DU=$RBH_BINDIR/rbh-du
-    DIFF=$RBH_BINDIR/rbh-diff
-	CMD=robinhood
 	REL_STR="Purged"
 	PURPOSE="TMP_FS_MGR"
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_lhsm=1
 	is_hsmlite=0
 	shook=0
-	RH="$RBH_BINDIR/rbh-lhsm $RBH_OPT"
-	REPORT=$RBH_BINDIR/rbh-lhsm-report
-	FIND=$RBH_BINDIR/rbh-lhsm-find
-	DU=$RBH_BINDIR/rbh-lhsm-du
-    DIFF=$RBH_BINDIR/rbh-lhsm-diff
-    UNDELETE=$RBH_BINDIR/rbh-lhsm-undo-rm
-	CMD=rbh-lhsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="migration success for"
 	REL_STR="purge success for"
@@ -62,16 +59,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
 	shook=0
 	is_hsmlite=1
-
-	RH="$RBH_BINDIR/rbh-backup $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-backup-report $RBH_OPT"
-	RECOV="$RBH_BINDIR/rbh-backup-recov $RBH_OPT"
-	IMPORT="$RBH_BINDIR/rbh-backup-import $RBH_OPT"
-	FIND=$RBH_BINDIR/rbh-backup-find
-	DU=$RBH_BINDIR/rbh-backup-du
-    DIFF=$RBH_BINDIR/rbh-backup-diff
-    UNDELETE=$RBH_BINDIR/rbh-backup-undo-rm
-	CMD=rbh-backup
+    STATUS_MGR="backup"
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
 	mkdir -p $BKROOT
@@ -79,16 +67,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	is_lhsm=0
 	is_hsmlite=1
 	shook=1
-
-	RH="$RBH_BINDIR/rbh-shook $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-shook-report $RBH_OPT"
-	RECOV="$RBH_BINDIR/rbh-shook-recov $RBH_OPT"
-	IMPORT="$RBH_BINDIR/rbh-shook-import $RBH_OPT"
-	FIND=$RBH_BINDIR/rbh-shook-find
-	DU=$RBH_BINDIR/rbh-shook-du
-    DIFF=$RBH_BINDIR/rbh-shook-diff
-    UNDELETE=$RBH_BINDIR/rbh-shook-undo-rm
-	CMD=rbh-shook
+    STATUS_MGR="shook"
 	ARCH_STR="Starting backup"
 	REL_STR="Purged"
 	mkdir -p $BKROOT

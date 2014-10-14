@@ -21,19 +21,33 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <errno.h>
-#include "lustre_extended_types.h"
+#include "rbh_types.h"
 #include "global_config.h"
 
-/********************************************************
- *       Types For Lustre-HSM Policy Engine             *
- ********************************************************/
+#ifdef _LUSTRE
+#include "lustre_extended_types.h"
+#endif
+
+#if (defined (_LUSTRE) && defined(_HAVE_FID))
 
 #define FID_PK
-
 typedef lustre_fid entry_id_t;
 
 #define entry_id_equal( _p_id_1, _p_id_2 ) ( ((_p_id_1)->f_seq == (_p_id_2)->f_seq) && ((_p_id_1)->f_oid == (_p_id_2)->f_oid)  )
 
+#else
+
+#define INUM_PK
+typedef struct __entry_id__
+{
+  uint64_t fs_key;
+  ino_t inode;
+  int validator;
+} entry_id_t;
+
+#define entry_id_equal( _p_id_1, _p_id_2 ) ( ((_p_id_1)->fs_key == (_p_id_2)->fs_key) && ((_p_id_1)->inode == (_p_id_2)->inode)  )
+
+#endif
 
 static int lmgr_gen_depth( void * tgt, const void * src )
 {
@@ -102,8 +116,11 @@ mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
 nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
 # metadata update
 md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
+# FIXME only for non Lustre 2.x
+invalid, 	 bool, DB_BOOL, 0, FREQ_ACCESS
 
 # is file eligible for purge/migration? 
+# FIXME Lustre/HSM relative
 no_release,     bool, DB_BOOL, 0, FREQ_ACCESS
 no_archive,     bool, DB_BOOL, 0, FREQ_ACCESS
 
@@ -115,9 +132,12 @@ class_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 stripe_info, 	stripe_info_t,  DB_STRIPE_INFO, 0,   INIT_ONLY
 stripe_items,   stripe_items_t, DB_STRIPE_ITEMS, 0,  INIT_ONLY
 
-#backend relative info
+# FIXME backend relative info
+backendpath,	char,         DB_TEXT, RBH_PATH_MAX,  ANNEX_INFO
 last_archive,   unsigned int, DB_UINT, 0, ANNEX_INFO
 last_restore,   unsigned int, DB_UINT, 0, ANNEX_INFO
+
+# link content in annex info
 link,          char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
 
 #only for removed entries (read-only)

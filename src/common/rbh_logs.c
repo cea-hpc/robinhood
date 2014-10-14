@@ -20,8 +20,7 @@
 #include "config.h"
 #endif
 
-
-#include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "xplatform_print.h"
@@ -277,17 +276,13 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
 
 /* Open log files */
 
-int InitializeLogs(const char *program_name, const log_config_t *config)
+int InitializeLogs(const char *program_name)
 {
     struct utsname uts;
     char          *tmp;
     int            rc;
 
-    /* store module configuration */
-    log_config = *config;
-
     /* get node name */
-
     if ( uname( &uts ) == -1 )
         strcpy( machine_name, "???" );
     else
@@ -921,11 +916,9 @@ void WaitStatsInterval( void )
 
 #define RBH_LOG_CONFIG_BLOCK "Log"
 
-int SetDefaultLogConfig( void *module_config, char *msg_out )
+static void log_cfg_set_default(void *module_config)
 {
     log_config_t  *conf = ( log_config_t * ) module_config;
-    msg_out[0] = '\0';
-
 
     conf->debug_level = LVL_EVENT;
     rh_strncpy(conf->log_file, "/var/log/robinhood.log", RBH_PATH_MAX);
@@ -944,11 +937,9 @@ int SetDefaultLogConfig( void *module_config, char *msg_out )
 
     conf->log_process = 0;
     conf->log_host = 0;
-
-    return 0;
 }
 
-int WriteLogConfigDefault(FILE * output)
+static void log_cfg_write_default(FILE * output)
 {
     print_begin_block(output, 0, RBH_LOG_CONFIG_BLOCK, NULL);
     print_line(output, 1, "debug_level    :   EVENT");
@@ -962,10 +953,45 @@ int WriteLogConfigDefault(FILE * output)
     print_line(output, 1, "log_procname: no");
     print_line(output, 1, "log_hostname: no");
     print_end_block(output, 0);
-    return 0;
 }
 
-int ReadLogConfig(config_file_t config, void *module_config, char *msg_out, bool for_reload)
+static void log_cfg_write_template(FILE * output)
+{
+    print_begin_block(output, 0, RBH_LOG_CONFIG_BLOCK, NULL);
+
+    print_line(output, 1, "# Log verbosity level");
+    print_line(output, 1, "# Possible values are: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL");
+    print_line(output, 1, "debug_level = EVENT ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Log file");
+    print_line(output, 1, "log_file = \"/var/log/robinhood.log\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# File for reporting purge events");
+    print_line(output, 1, "report_file = \"/var/log/robinhood_reports.log\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# set alert_file, alert_mail or both depending on the alert method you wish");
+    print_line(output, 1, "alert_file = \"/var/log/robinhood_alerts.log\" ;");
+    print_line(output, 1, "alert_mail = \"root@localhost\" ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Interval for dumping stats (to logfile)");
+    print_line(output, 1, "stats_interval = 20min ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Alert batching (to send a digest instead of 1 alert per file)");
+    print_line(output, 1, "# 0: unlimited batch size, 1: no batching (1 alert per file),");
+    print_line(output, 1, "# N>1: batch N alerts per digest");
+    print_line(output, 1, "batch_alert_max = 5000 ;");
+    print_line(output, 1, "# Give the detail of entry attributes for each alert?");
+    print_line(output, 1, "alert_show_attrs = no ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# whether the process name appears in the log line");
+    print_line(output, 1, "log_procname = yes;");
+    print_line(output, 1, "# whether the host name appears in the log line");
+    print_line(output, 1, "log_hostname = yes;");
+    print_end_block(output, 0);
+}
+
+
+static int log_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int            rc, tmpval;
     char           tmpstr[1024];
@@ -1064,10 +1090,8 @@ int ReadLogConfig(config_file_t config, void *module_config, char *msg_out, bool
     return 0;
 }
 
-int ReloadLogConfig( void *module_config )
+static int log_cfg_reload(log_config_t *conf)
 {
-    log_config_t  *conf = ( log_config_t * ) module_config;
-
     if ( conf->debug_level != log_config.debug_level )
     {
         DisplayLog( LVL_MAJOR, "LogConfig", RBH_LOG_CONFIG_BLOCK "::debug_level modified: '%d'->'%d'",
@@ -1160,41 +1184,39 @@ int ReloadLogConfig( void *module_config )
     }
 
     return 0;
-
 }
 
-int WriteLogConfigTemplate(FILE * output)
+static int log_cfg_set(void *cfg, bool reload)
 {
-    print_begin_block(output, 0, RBH_LOG_CONFIG_BLOCK, NULL);
+    log_config_t *config =(log_config_t*)cfg;
 
-    print_line(output, 1, "# Log verbosity level");
-    print_line(output, 1, "# Possible values are: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL");
-    print_line(output, 1, "debug_level = EVENT ;");
-    fprintf(output, "\n");
-    print_line(output, 1, "# Log file");
-    print_line(output, 1, "log_file = \"/var/log/robinhood.log\" ;");
-    fprintf(output, "\n");
-    print_line(output, 1, "# File for reporting purge events");
-    print_line(output, 1, "report_file = \"/var/log/robinhood_reports.log\" ;");
-    fprintf(output, "\n");
-    print_line(output, 1, "# set alert_file, alert_mail or both depending on the alert method you wish");
-    print_line(output, 1, "alert_file = \"/var/log/robinhood_alerts.log\" ;");
-    print_line(output, 1, "alert_mail = \"root@localhost\" ;");
-    fprintf(output, "\n");
-    print_line(output, 1, "# Interval for dumping stats (to logfile)");
-    print_line(output, 1, "stats_interval = 20min ;");
-    fprintf(output, "\n");
-    print_line(output, 1, "# Alert batching (to send a digest instead of 1 alert per file)");
-    print_line(output, 1, "# 0: unlimited batch size, 1: no batching (1 alert per file),");
-    print_line(output, 1, "# N>1: batch N alerts per digest");
-    print_line(output, 1, "batch_alert_max = 5000 ;");
-    print_line(output, 1, "# Give the detail of entry attributes for each alert?");
-    print_line(output, 1, "alert_show_attrs = no ;");
-    fprintf(output, "\n");
-    print_line(output, 1, "# whether the process name appears in the log line");
-    print_line(output, 1, "log_procname = yes;");
-    print_line(output, 1, "# whether the host name appears in the log line");
-    print_line(output, 1, "log_hostname = yes;");
-    print_end_block(output, 0);
+    if (reload)
+        return log_cfg_reload(config);
+
+    log_config = *config;
     return 0;
 }
+
+static void *log_cfg_new(void)
+{
+    return calloc(1, sizeof(log_config_t));
+}
+
+static void log_cfg_free(void *cfg)
+{
+    if (cfg != NULL)
+        free(cfg);
+}
+
+/* export config functions */
+mod_cfg_funcs_t log_cfg_hdlr = {
+    .module_name = "logs",
+    .new = log_cfg_new,
+    .free = log_cfg_free,
+    .set_default = log_cfg_set_default,
+    .read = log_cfg_read,
+    .set_config = log_cfg_set,
+    .write_default = log_cfg_write_default,
+    .write_template =  log_cfg_write_template
+};
+

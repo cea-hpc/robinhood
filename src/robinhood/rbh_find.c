@@ -97,7 +97,6 @@ static struct option option_tab[] =
 /* global variables */
 
 static lmgr_t  lmgr;
-robinhood_config_t config;
 
 /* program options */
 struct find_opt
@@ -192,7 +191,7 @@ struct find_opt
 };
 
 #define LS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
-                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link )
+                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link)
 #define LSOST_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_stripe_items)
 #define LSCLASS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_fileclass)
 
@@ -361,7 +360,7 @@ static int mkfilters(bool exclude_dirs)
     }
 
     /* create DB filters */
-    lmgr_simple_filter_init( &entry_filter );
+    lmgr_simple_filter_init(&entry_filter);
 
     /* analyze type filter */
     if (prog_options.match_type)
@@ -388,7 +387,7 @@ static int mkfilters(bool exclude_dirs)
     {
         /* filter non directories (directories are handled during recursive DB scan) */
         fv.value.val_str = STR_TYPE_DIR;
-        lmgr_simple_filter_add( &entry_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
+        lmgr_simple_filter_add(&entry_filter, ATTR_INDEX_type, NOTEQUAL, fv, 0);
     }
 
     if (is_expr)
@@ -476,61 +475,61 @@ static inline void display_help(char *bin_name)
     printf(help_string, bin_name);
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(char *bin_name)
 {
-    printf( "\n" );
-    printf( "Product:         " PACKAGE_NAME " 'find' command\n" );
-    printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
-    printf( "Build:           " COMPIL_DATE "\n" );
-    printf( "\n" );
-    printf( "Compilation switches:\n" );
+    printf("\n");
+    printf("Product:         " PACKAGE_NAME " 'find' command\n");
+    printf("Version:         " PACKAGE_VERSION "-"RELEASE"\n");
+    printf("Build:           " COMPIL_DATE "\n");
+    printf("\n");
+    printf("Compilation switches:\n");
 
 /* purpose of this daemon */
 #ifdef _LUSTRE_HSM
-    printf( "    Lustre-HSM Policy Engine\n" );
+    printf("    Lustre-HSM Policy Engine\n");
 #elif defined(_TMP_FS_MGR)
-    printf( "    Temporary filesystem manager\n" );
+    printf("    Temporary filesystem manager\n");
 #elif defined(_HSM_LITE)
-    printf( "    Backup filesystem to external storage\n" );
+    printf("    Backup filesystem to external storage\n");
 #else
 #error "No purpose was specified"
 #endif
 
 /* Access by Fid ? */
 #ifdef _HAVE_FID
-    printf( "    Address entries by FID\n" );
+    printf("    Address entries by FID\n");
 #else
-    printf( "    Address entries by path\n" );
+    printf("    Address entries by path\n");
 #endif
 
 #ifdef HAVE_CHANGELOGS
-    printf( "    MDT Changelogs supported\n" );
+    printf("    MDT Changelogs supported\n");
 #else
-    printf( "    MDT Changelogs disabled\n" );
+    printf("    MDT Changelogs disabled\n");
 #endif
 
 
-    printf( "\n" );
+    printf("\n");
 #ifdef _LUSTRE
 #ifdef LUSTRE_VERSION
-    printf( "Lustre Version: " LUSTRE_VERSION "\n" );
+    printf("Lustre Version: " LUSTRE_VERSION "\n");
 #else
-    printf( "Lustre FS support\n" );
+    printf("Lustre FS support\n");
 #endif
 #else
-    printf( "No Lustre support\n" );
+    printf("No Lustre support\n");
 #endif
 
 #ifdef _MYSQL
-    printf( "Database binding: MySQL\n" );
+    printf("Database binding: MySQL\n");
 #elif defined(_SQLITE)
-    printf( "Database binding: SQLite\n" );
+    printf("Database binding: SQLite\n");
 #else
 #error "No database was specified"
 #endif
-    printf( "\n" );
-    printf( "Report bugs to: <" PACKAGE_BUGREPORT ">\n" );
-    printf( "\n" );
+    printf("\n");
+    printf("Report bugs to: <" PACKAGE_BUGREPORT ">\n");
+    printf("\n");
 }
 
 static const char * type2char(const char * type)
@@ -684,7 +683,7 @@ static int set_time_filter(char * str, unsigned int multiplier,
                 prog_options.crt_val =  val * 86400;
         }
         else
-        if ( what == mtime )
+        if (what == mtime)
         {
             prog_options.mod_compar = comp;
             if (multiplier != 0)
@@ -730,7 +729,7 @@ static int set_time_filter(char * str, unsigned int multiplier,
             prog_options.crt_val = val;
         }
         else
-        if ( what == mtime )
+        if (what == mtime)
         {
             prog_options.mod_compar = comp;
             prog_options.mod_val = val;
@@ -904,7 +903,7 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
 
 /* directory callback */
 static int dircb(wagon_t * id_list, attr_set_t * attr_list,
-                 unsigned int entry_count, void * dummy )
+                 unsigned int entry_count, void * dummy)
 {
     /* retrieve child entries for all directories */
     int i, rc;
@@ -923,13 +922,13 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
         {
             /* don't display dirs if no_dir is specified */
             if (! (prog_options.no_dir && ATTR_MASK_TEST(&attr_list[i], type)
-                   && !strcasecmp(ATTR(&attr_list[i], type), STR_TYPE_DIR)) )
+                   && !strcasecmp(ATTR(&attr_list[i], type), STR_TYPE_DIR)))
                 print_entry(&id_list[i], &attr_list[i]);
         }
 
         if (!prog_options.dir_only)
         {
-            rc = ListMgr_GetChild( &lmgr, &entry_filter, id_list+i, 1,
+            rc = ListMgr_GetChild(&lmgr, &entry_filter, id_list+i, 1,
                                    disp_mask | query_mask,
                                    &chids, &chattrs, &chcount);
             if (rc)
@@ -959,13 +958,13 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
 /**
  *  Get id of root dir
  */
-static int retrieve_root_id(entry_id_t * root_id)
+static int retrieve_root_id(entry_id_t *root_id)
 {
     int rc;
-    rc = Path2Id(config.global_config.fs_path, root_id);
+    rc = Path2Id(global_config.fs_path, root_id);
     if (rc)
         DisplayLog(LVL_MAJOR, FIND_TAG, "Can't access filesystem's root %s: %s",
-                   config.global_config.fs_path, strerror(-rc));
+                   global_config.fs_path, strerror(-rc));
     return rc;
 }
 
@@ -993,7 +992,7 @@ static int list_bulk(void)
 
     /* root is not a part of the DB: print it now */
     ATTR_MASK_SET(&root_attrs, fullpath);
-    strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
+    strcpy(ATTR(&root_attrs, fullpath), global_config.fs_path);
 
     if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
     {
@@ -1100,7 +1099,7 @@ static int list_contents(char ** id_list, int id_count)
 #if _HAVE_FID
             /* Take it as an FID. */
             char path[RBH_PATH_MAX];
-            rc = Lustre_GetFullPath( &ids[i].id, path, sizeof(path));
+            rc = Lustre_GetFullPath(&ids[i].id, path, sizeof(path));
             if (!rc)
                 ids[i].fullname = strdup(path);
 #endif
@@ -1137,10 +1136,10 @@ static int list_contents(char ** id_list, int id_count)
                 ATTR_MASK_SET(&root_attrs, fullpath);
                 strcpy(ATTR(&root_attrs, fullpath), id_list[i]);
 
-                if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
                 {
                     PosixStat2EntryAttr(&st, &root_attrs, true);
-                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                    ListMgr_GenerateFields(&root_attrs, disp_mask | query_mask);
                 }
             }
             else if (entry_id_equal(&ids[i].id, &root_id))
@@ -1148,12 +1147,12 @@ static int list_contents(char ** id_list, int id_count)
                 /* this is root id */
                 struct stat st;
                 ATTR_MASK_SET(&root_attrs, fullpath);
-                strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
+                strcpy(ATTR(&root_attrs, fullpath), global_config.fs_path);
 
-                if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
+                if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
                 {
                     PosixStat2EntryAttr(&st, &root_attrs, true);
-                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                    ListMgr_GenerateFields(&root_attrs, disp_mask | query_mask);
                 }
             }
 
@@ -1172,7 +1171,7 @@ out:
 
 #define toggle_option(_opt, _name)              \
             do {                                \
-                if (prog_options. _opt )        \
+                if (prog_options. _opt)        \
                     fprintf(stderr, "warning: -%s option already specified: will be overridden\n", \
                             _name);             \
                 prog_options. _opt = 1;         \
@@ -1184,10 +1183,10 @@ out:
 /**
  * Main daemon routine
  */
-int main( int argc, char **argv )
+int main(int argc, char **argv)
 {
     int            c, option_index = 0;
-    char          *bin = basename( argv[0] );
+    char          *bin = basename(argv[0]);
 
     char           config_file[MAX_OPT_LEN] = "";
     bool           force_log_level = false;
@@ -1201,9 +1200,9 @@ int main( int argc, char **argv )
 
     /* parse command line options */
     while ((c = getopt_long_only(argc, argv, SHORT_OPT_STRING, option_tab,
-                            &option_index )) != -1)
+                            &option_index)) != -1)
     {
-        switch ( c )
+        switch (c)
         {
         case '!':
             neg = true;
@@ -1425,8 +1424,8 @@ int main( int argc, char **argv )
 
         case 'd':
             force_log_level = true;
-            log_level = str2debuglevel( optarg );
-            if ( log_level == -1 )
+            log_level = str2debuglevel(optarg);
+            if (log_level == -1)
             {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
@@ -1444,20 +1443,20 @@ int main( int argc, char **argv )
             break;
 
         case 'h':
-            display_help( bin );
-            exit( 0 );
+            display_help(bin);
+            exit(0);
             break;
 
         case 'V':
-            display_version( bin );
-            exit( 0 );
+            display_version(bin);
+            exit(0);
             break;
 
         case ':':
         case '?':
         default:
-            display_help( bin );
-            exit( 1 );
+            display_help(bin);
+            exit(1);
             break;
         }
     }
@@ -1474,42 +1473,34 @@ int main( int argc, char **argv )
     }
     else if (chgd)
     {
-        fprintf(stderr, "Using config file '%s'.\n", config_file );
+        fprintf(stderr, "Using config file '%s'.\n", config_file);
     }
 
-    /* only read ListMgr config */
-
-    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
+    /* only read common config (listmgr, ...) (mask=0) */
+    if(rbh_cfg_load(0, config_file, err_msg))
     {
-        fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
-        exit( 1 );
+        fprintf(stderr, "Error reading configuration file '%s': %s\n",
+                config_file, err_msg);
+        exit(1);
     }
-    process_config_file = config_file;
 
-    /* set global configuration */
-    global_config = config.global_config;
-    updt_params = config.db_update_params;
-
-    /* set policies info */
-    policies = config.policies;
-
-    if ( force_log_level )
-        config.log_config.debug_level = log_level;
+    if (force_log_level)
+        log_config.debug_level = log_level;
     else
-        config.log_config.debug_level = LVL_MAJOR; /* no event message */
+        log_config.debug_level = LVL_MAJOR; /* no event message */
 
     /* Set logging to stderr */
-    strcpy( config.log_config.log_file, "stderr" );
-    strcpy( config.log_config.report_file, "stderr" );
-    strcpy( config.log_config.alert_file, "stderr" );
+    strcpy(log_config.log_file, "stderr");
+    strcpy(log_config.report_file, "stderr");
+    strcpy(log_config.alert_file, "stderr");
 
     /* Initialize logging */
-    rc = InitializeLogs( bin, &config.log_config );
-    if ( rc )
+    rc = InitializeLogs(bin);
+    if (rc)
     {
-        fprintf( stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
-                 rc, errno, strerror( errno ) );
-        exit( rc );
+        fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
+                 rc, errno, strerror(errno));
+        exit(rc);
     }
 
     /* Initialize filesystem access */
@@ -1522,24 +1513,24 @@ int main( int argc, char **argv )
     else
         fs_init = true;
 
-    /* Initialize list manager */
-    rc = ListMgr_Init(&config.lmgr_config, true);
-    if ( rc )
+    /* Initialize list manager (report only) */
+    rc = ListMgr_Init(true);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, FIND_TAG, "Error %d initializing list manager", rc );
-        exit( rc );
+        DisplayLog(LVL_CRIT, FIND_TAG, "Error %d initializing list manager", rc);
+        exit(rc);
     }
     else
-        DisplayLog( LVL_DEBUG, FIND_TAG, "ListManager successfully initialized" );
+        DisplayLog(LVL_DEBUG, FIND_TAG, "ListManager successfully initialized");
 
-    if (CheckLastFS(  ) != 0)
+    if (CheckLastFS() != 0)
         exit(1);
 
     /* Create database access */
     rc = ListMgr_InitAccess(&lmgr);
     if (rc)
     {
-        DisplayLog( LVL_CRIT, FIND_TAG, "Error %d: cannot connect to database", rc );
+        DisplayLog(LVL_CRIT, FIND_TAG, "Error %d: cannot connect to database", rc);
         exit(rc);
     }
 
@@ -1589,7 +1580,7 @@ int main( int argc, char **argv )
         }
         else
         {
-            char *id = config.global_config.fs_path;
+            char *id = global_config.fs_path;
             mkfilters(true); /* exclude dirs */
             /* no path specified, list all entries */
             rc = list_contents(&id, 1);
@@ -1601,7 +1592,7 @@ int main( int argc, char **argv )
         rc = list_contents(argv+optind, argc-optind);
     }
 
-    ListMgr_CloseAccess( &lmgr );
+    ListMgr_CloseAccess(&lmgr);
 
     return rc;
 }

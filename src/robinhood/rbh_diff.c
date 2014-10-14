@@ -29,6 +29,12 @@
 #include "rbh_misc.h"
 #include "cmd_helpers.h"
 
+/* needed to dump their stats */
+#include "fs_scan_main.h"
+#include "chglog_reader.h"
+#include "entry_processor.h"
+
+
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -40,10 +46,6 @@
 
 #ifdef _LUSTRE
 #include "lustre_extended_types.h"
-#endif
-
-#ifdef _HSM_LITE
-#include "backend_mgr.h"
 #endif
 
 #define DIFF_TAG    "diff"
@@ -70,7 +72,7 @@ static struct option option_tab[] = {
     {"diff", required_argument, NULL, 'd'}, /* list of diff attrs (default is all) */
 
     {"dry-run", no_argument, NULL, 'D'}, /* dry-run */
-#ifdef _HSM_LITE
+#ifdef _HSM_LITE /** FIXME check policies */
     {"from-backend", no_argument, NULL, 'b'}, /* recover lost files from backend */
 #endif
 #ifdef LUSTRE_DUMP_FILES
@@ -100,7 +102,6 @@ typedef struct diff_options {
     char           config_file[MAX_OPT_LEN];
     int            log_level;
     char           partial_scan_path[RBH_PATH_MAX];
-    uint64_t       diff_mask;
     diff_arg_t     diff_arg;
     char           output_dir[MAX_OPT_LEN];
 
@@ -170,65 +171,65 @@ static const char *help_string =
     "        Display version info\n";
 
 
-static inline void display_help( char *bin_name )
+static inline void display_help(char *bin_name)
 {
-    printf( help_string, bin_name );
+    printf(help_string, bin_name);
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(char *bin_name)
 {
-    printf( "\n" );
-    printf( "Product:         " PACKAGE_NAME "\n" );
-    printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
-    printf( "Build:           " COMPIL_DATE "\n" );
-    printf( "\n" );
-    printf( "Compilation switches:\n" );
+    printf("\n");
+    printf("Product:         " PACKAGE_NAME "\n");
+    printf("Version:         " PACKAGE_VERSION "-"RELEASE"\n");
+    printf("Build:           " COMPIL_DATE "\n");
+    printf("\n");
+    printf("Compilation switches:\n");
 
 /* purpose of this daemon */
 #ifdef _LUSTRE_HSM
-    printf( "    Lustre-HSM Policy Engine\n" );
+    printf("    Lustre-HSM Policy Engine\n");
 #elif defined(_TMP_FS_MGR)
-    printf( "    Temporary filesystem manager\n" );
+    printf("    Temporary filesystem manager\n");
 #elif defined(_HSM_LITE)
-    printf( "    Basic HSM binding\n" );
+    printf("    Basic HSM binding\n");
 #else
 #error "No purpose was specified"
 #endif
 
 /* Access by Fid ? */
 #ifdef _HAVE_FID
-    printf( "    Address entries by FID\n" );
+    printf("    Address entries by FID\n");
 #else
-    printf( "    Address entries by path\n" );
+    printf("    Address entries by path\n");
 #endif
 #ifdef HAVE_CHANGELOGS
-    printf( "    MDT Changelogs supported\n" );
+    printf("    MDT Changelogs supported\n");
 #else
-    printf( "    MDT Changelogs disabled\n" );
+    printf("    MDT Changelogs disabled\n");
 #endif
 
 
-    printf( "\n" );
+    printf("\n");
 #ifdef _LUSTRE
 #ifdef LUSTRE_VERSION
-    printf( "Lustre Version: " LUSTRE_VERSION "\n" );
+    printf("Lustre Version: " LUSTRE_VERSION "\n");
 #else
-    printf( "Lustre FS support\n" );
+    printf("Lustre FS support\n");
 #endif
 #else
-    printf( "No Lustre support\n" );
+    printf("No Lustre support\n");
 #endif
 
 #ifdef _MYSQL
-    printf( "Database binding: MySQL\n" );
+    printf("Database binding: MySQL\n");
 #elif defined(_SQLITE)
-    printf( "Database binding: SQLite\n" );
+    printf("Database binding: SQLite\n");
 #else
 #error "No database was specified"
 #endif
-    printf( "\n" );
-    printf( "Report bugs to: <" PACKAGE_BUGREPORT ">\n" );
-    printf( "\n" );
+    printf("\n");
+    printf("Report bugs to: <" PACKAGE_BUGREPORT ">\n");
+    printf("\n");
 }
 
 static pthread_t stat_thread;
@@ -238,51 +239,51 @@ static lmgr_t  lmgr;
 static bool    lmgr_init = false;
 static char    start_time_str[256];
 
-static inline int ensure_db_access( void )
+static inline int ensure_db_access(void)
 {
-    if ( !lmgr_init )
+    if (!lmgr_init)
     {
-        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+        if (ListMgr_InitAccess(&lmgr) != DB_SUCCESS)
             return 0;
         lmgr_init = true;
     }
     return 1;
 }
 
-static void dump_stats( lmgr_t * lmgr )
+static void dump_stats(lmgr_t * lmgr)
 {
         char           tmp_buff[256];
         time_t         now;
         struct tm      date;
 
-        now = time( NULL );
-        strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &now, &date ) );
+        now = time(NULL);
+        strftime(tmp_buff, 256, "%Y/%m/%d %T", localtime_r(&now, &date));
 
-        DisplayLog( LVL_MAJOR, "STATS",
-                    "==================== Dumping stats at %s =====================", tmp_buff );
-        DisplayLog( LVL_MAJOR, "STATS", "Diff start time: %s", start_time_str );
+        DisplayLog(LVL_MAJOR, "STATS",
+                    "==================== Dumping stats at %s =====================", tmp_buff);
+        DisplayLog(LVL_MAJOR, "STATS", "Diff start time: %s", start_time_str);
 
         FSScan_DumpStats();
         EntryProcessor_DumpCurrentStages();
 
         /* Flush stats */
-        FlushLogs(  );
+        FlushLogs();
 }
 
-static void  *stats_thr( void *arg )
+static void  *stats_thr(void *arg)
 {
     struct tm      date;
 
-    strftime( start_time_str, 256, "%Y/%m/%d %T", localtime_r( &start_time, &date ) );
+    strftime(start_time_str, 256, "%Y/%m/%d %T", localtime_r(&start_time, &date));
 
     if (!ensure_db_access())
         return NULL;
 
-    DisplayLog( LVL_VERB, DIFF_TAG, "Statistics thread started" );
+    DisplayLog(LVL_VERB, DIFF_TAG, "Statistics thread started");
 
-    while ( 1 )
+    while (1)
     {
-        WaitStatsInterval(  );
+        WaitStatsInterval();
         dump_stats(&lmgr);
     }
 }
@@ -294,50 +295,50 @@ static pthread_t sig_thr;
 
 #define SIGHDL_TAG  "SigHdlr"
 
-static void terminate_handler( int sig )
+static void terminate_handler(int sig)
 {
     terminate_sig = sig;
 }
 
-static void usr_handler( int sig )
+static void usr_handler(int sig)
 {
     dump_sig = true;
 }
 
 
-static void   *signal_handler_thr( void *arg )
+static void   *signal_handler_thr(void *arg)
 {
     struct sigaction act_sigterm;
     struct sigaction act_sigusr;
 
     /* create signal handlers */
-    memset( &act_sigterm, 0, sizeof( act_sigterm ) );
+    memset(&act_sigterm, 0, sizeof(act_sigterm));
     act_sigterm.sa_flags = 0;
     act_sigterm.sa_handler = terminate_handler;
-    if ( sigaction( SIGTERM, &act_sigterm, NULL ) == -1
-         || sigaction( SIGINT, &act_sigterm, NULL ) == -1 )
+    if (sigaction(SIGTERM, &act_sigterm, NULL) == -1
+         || sigaction(SIGINT, &act_sigterm, NULL) == -1)
     {
-        DisplayLog( LVL_CRIT, SIGHDL_TAG,
+        DisplayLog(LVL_CRIT, SIGHDL_TAG,
                     "Error while setting signal handlers for SIGTERM and SIGINT: %s",
-                    strerror( errno ) );
+                    strerror(errno));
         if (options.diff_arg.db_tag != NULL && ensure_db_access())
         {
             fprintf(stderr, "Cleaning diff table...\n");
             ListMgr_DestroyTag(&lmgr, options.diff_arg.db_tag);
         }
-        exit( 1 );
+        exit(1);
     }
     else
         DisplayLog(LVL_VERB, SIGHDL_TAG,
                    "Signals SIGTERM and SIGINT (daemon shutdown) are ready to be used");
 
-    memset( &act_sigusr, 0, sizeof( act_sigusr ) );
+    memset(&act_sigusr, 0, sizeof(act_sigusr));
     act_sigusr.sa_flags = 0;
     act_sigusr.sa_handler = usr_handler;
-    if ( sigaction( SIGUSR1, &act_sigusr, NULL ) == -1 )
+    if (sigaction(SIGUSR1, &act_sigusr, NULL) == -1)
     {
-        DisplayLog( LVL_CRIT, SIGHDL_TAG, "Error while setting signal handlers for SIGUSR1: %s",
-                    strerror( errno ) );
+        DisplayLog(LVL_CRIT, SIGHDL_TAG, "Error while setting signal handlers for SIGUSR1: %s",
+                    strerror(errno));
         if (options.diff_arg.db_tag != NULL && ensure_db_access())
         {
             fprintf(stderr, "Cleaning diff table...\n");
@@ -349,7 +350,7 @@ static void   *signal_handler_thr( void *arg )
             if (options.diff_arg.fid_remap_file)
                 fflush(options.diff_arg.fid_remap_file);
         }
-        exit( 1 );
+        exit(1);
     }
     else
         DisplayLog(LVL_VERB, SIGHDL_TAG, "Signal SIGUSR1 (stats dump) is ready to be used");
@@ -357,34 +358,29 @@ static void   *signal_handler_thr( void *arg )
 
     /* signal flag checking loop */
 
-    while ( 1 )
+    while (1)
     {
         /* check for signal every second */
-        rh_sleep( 1 );
+        rh_sleep(1);
 
-        if ( terminate_sig != 0 )
+        if (terminate_sig != 0)
         {
-            if ( terminate_sig == SIGTERM )
-                DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGTERM received: performing clean daemon shutdown" );
-            else if ( terminate_sig == SIGINT )
-                DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
-            FlushLogs(  );
+            if (terminate_sig == SIGTERM)
+                DisplayLog(LVL_MAJOR, SIGHDL_TAG, "SIGTERM received: performing clean daemon shutdown");
+            else if (terminate_sig == SIGINT)
+                DisplayLog(LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown");
+            FlushLogs();
 
             /* stop FS scan (blocking) */
-            FSScan_Terminate(  );
-            FlushLogs(  );
+            FSScan_Terminate();
+            FlushLogs();
 
             /* drop pipeline waiting operations and terminate threads */
             EntryProcessor_Terminate(false);
-            FlushLogs(  );
+            FlushLogs();
 
-#ifdef _HSM_LITE
-            /* shutdown backend access */
-            Backend_Stop();
-#endif
-
-            DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
-            FlushLogs(  );
+            DisplayLog(LVL_MAJOR, SIGHDL_TAG, "Exiting.");
+            FlushLogs();
 
             if (options.diff_arg.db_tag != NULL && ensure_db_access())
             {
@@ -399,11 +395,11 @@ static void   *signal_handler_thr( void *arg )
             }
 
             /* indicate the process terminated due to a signal */
-            exit( 128 + terminate_sig );
+            exit(128 + terminate_sig);
         }
-        else if ( dump_sig )
+        else if (dump_sig)
         {
-            DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGUSR1 received: dumping stats" );
+            DisplayLog(LVL_MAJOR, SIGHDL_TAG, "SIGUSR1 received: dumping stats");
 
             if (!ensure_db_access())
                 return NULL;
@@ -418,26 +414,25 @@ static void   *signal_handler_thr( void *arg )
 /**
  * Main daemon routine
  */
-int main( int argc, char **argv )
+int main(int argc, char **argv)
 {
     int            c, i, option_index = 0;
-    char          *bin = basename( argv[0] );
+    char          *bin = basename(argv[0]);
 
     int            rc;
     char           err_msg[4096];
-    robinhood_config_t rh_config;
-    bool               chgd = false;
-    char               badcfg[RBH_PATH_MAX];
-    char               tag_name[256] = "";
+    bool           chgd = false;
+    char           badcfg[RBH_PATH_MAX];
+    char           tag_name[256] = "";
 
-    start_time = time( NULL );
+    start_time = time(NULL);
 
-    zero_options( &options );
+    zero_options(&options);
 
     /* parse command line options */
-    while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab, &option_index ) ) != -1 )
+    while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab, &option_index)) != -1)
     {
-        switch ( c )
+        switch (c)
         {
         case 's':
             options.partial_scan = 1;
@@ -448,11 +443,11 @@ int main( int argc, char **argv )
             break;
 
         case 'd':
-            if (parse_diff_mask(optarg, &options.diff_mask, err_msg))
+            if (parse_diff_mask(optarg, &options.diff_arg.diff_mask, err_msg))
             {
                 fprintf(stderr,
                         "Invalid argument for --diff: %s\n", err_msg);
-                exit( 1 );
+                exit(1);
             }
             break;
 
@@ -467,7 +462,7 @@ int main( int argc, char **argv )
                 {
                     fprintf(stderr, "Invalid argument for --apply: '%s' (fs or db expected)\n",
                             optarg);
-                    exit( 1 );
+                    exit(1);
                 }
             }
             else
@@ -493,37 +488,37 @@ int main( int argc, char **argv )
 #endif
         case 'l':
             options.force_log_level = 1;
-            options.log_level = str2debuglevel( optarg );
-            if ( options.log_level == -1 )
+            options.log_level = str2debuglevel(optarg);
+            if (options.log_level == -1)
             {
-                fprintf( stderr,
+                fprintf(stderr,
                          "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
-                         optarg );
-                exit( 1 );
+                         optarg);
+                exit(1);
             }
             break;
         case 'h':
-            display_help( bin );
-            exit( 0 );
+            display_help(bin);
+            exit(0);
             break;
         case 'V':
-            display_version( bin );
-            exit( 0 );
+            display_version(bin);
+            exit(0);
             break;
         case ':':
         case '?':
         default:
             fprintf(stderr,"Run '%s --help' for more details.\n", bin);
-            exit( 1 );
+            exit(1);
             break;
         }
     }
 
     /* check there is no extra arguments */
-    if ( optind != argc )
+    if (optind != argc)
     {
-        fprintf( stderr, "Error: unexpected argument on command line: %s\n", argv[optind] );
-        exit( 1 );
+        fprintf(stderr, "Error: unexpected argument on command line: %s\n", argv[optind]);
+        exit(1);
     }
 
     /* initialize internal resources (glib, llapi, internal resources...) */
@@ -540,43 +535,34 @@ int main( int argc, char **argv )
     }
     else if (chgd)
     {
-        fprintf(stderr, "Using config file '%s'.\n", options.config_file );
+        fprintf(stderr, "Using config file '%s'.\n", options.config_file);
     }
 
-    if (ReadRobinhoodConfig(MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR,
-                            options.config_file, err_msg,
-                            &rh_config, false))
+    if(rbh_cfg_load(MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR,
+                    options.config_file, err_msg))
     {
-        fprintf( stderr, "Error reading configuration file '%s': %s\n",
-                 options.config_file, err_msg );
-        exit( 1 );
+        fprintf(stderr, "Error reading configuration file '%s': %s\n",
+                options.config_file, err_msg);
+        exit(1);
     }
-    process_config_file = options.config_file;
-
-    /* set global configuration */
-    global_config = rh_config.global_config;
-    updt_params = rh_config.db_update_params;
-
-    /* set policies info */
-    policies = rh_config.policies;
 
     if (options.force_log_level)
-        rh_config.log_config.debug_level = options.log_level;
+        log_config.debug_level = options.log_level;
     else
-        rh_config.log_config.debug_level = LVL_CRIT; /* no event message */
+        log_config.debug_level = LVL_CRIT; /* least messages as possible */
 
     /* Set logging to stderr */
-    strcpy( rh_config.log_config.log_file, "stderr" );
-    strcpy( rh_config.log_config.report_file, "stderr" );
-    strcpy( rh_config.log_config.alert_file, "stderr" );
+    strcpy(log_config.log_file, "stderr");
+    strcpy(log_config.report_file, "stderr");
+    strcpy(log_config.alert_file, "stderr");
 
     /* Initialize logging */
-    rc = InitializeLogs( bin, &rh_config.log_config );
-    if ( rc )
+    rc = InitializeLogs(bin);
+    if (rc)
     {
-        fprintf( stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
-                 rc, errno, strerror( errno ) );
-        exit( rc );
+        fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
+                 rc, errno, strerror(errno));
+        exit(rc);
     }
 
     /* Initialize filesystem access */
@@ -584,41 +570,32 @@ int main( int argc, char **argv )
     if (rc)
         exit(rc);
 
-#ifdef _HSM_LITE
-    rc = Backend_Start( &rh_config.backend_config, options.flags );
-    if ( rc )
-    {
-        DisplayLog( LVL_CRIT, DIFF_TAG, "Error initializing backend" );
-        exit( 1 );
-    }
-#endif
-
     /* Initialize list manager */
-    rc = ListMgr_Init(&rh_config.lmgr_config, false);
-    if ( rc )
+    rc = ListMgr_Init(false);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, DIFF_TAG, "Error %d initializing list manager", rc );
-        exit( rc );
+        DisplayLog(LVL_CRIT, DIFF_TAG, "Error %d initializing list manager", rc);
+        exit(rc);
     }
     else
-        DisplayLog( LVL_VERB, DIFF_TAG, "ListManager successfully initialized" );
+        DisplayLog(LVL_VERB, DIFF_TAG, "ListManager successfully initialized");
 
 
-    if ( CheckLastFS(  ) != 0 )
-        exit( 1 );
+    if (CheckLastFS() != 0)
+        exit(1);
 
-    if (!options.diff_mask)
+    if (options.diff_arg.diff_mask == 0)
     {
         /* parse "all" */
         char tmpstr[] = "all";
-        rc = parse_diff_mask(tmpstr, &options.diff_mask, err_msg);
+        rc = parse_diff_mask(tmpstr, &options.diff_arg.diff_mask, err_msg);
         if (rc)
         {
             DisplayLog(LVL_CRIT, DIFF_TAG, "unexpected error parsing diff mask: %s", err_msg);
             exit(1);
         }
     }
-    rh_config.entry_proc_config.diff_mask = translate_all_status_mask(options.diff_mask);
+    options.diff_arg.diff_mask = translate_all_status_mask(options.diff_arg.diff_mask);
 
 #ifdef LUSTRE_DUMP_FILES
     if (options.diff_arg.apply == APPLY_FS && !(options.flags & FLAG_DRY_RUN))
@@ -675,7 +652,7 @@ int main( int argc, char **argv )
         {
             lmgr_filter_t  filter;
             filter_value_t val;
-            lmgr_simple_filter_init( &filter );
+            lmgr_simple_filter_init(&filter);
 
             char tmp[RBH_PATH_MAX];
             strcpy(tmp, options.partial_scan_path);
@@ -694,15 +671,14 @@ int main( int argc, char **argv )
     }
 
     /* Initialise Pipeline */
-    rc = EntryProcessor_Init(&rh_config.entry_proc_config, DIFF_PIPELINE,
-                             options.flags, &options.diff_arg);
-    if ( rc )
+    rc = EntryProcessor_Init(DIFF_PIPELINE, options.flags, &options.diff_arg);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, DIFF_TAG, "Error %d initializing EntryProcessor pipeline", rc );
+        DisplayLog(LVL_CRIT, DIFF_TAG, "Error %d initializing EntryProcessor pipeline", rc);
         goto clean_tag;
     }
     else
-        DisplayLog( LVL_VERB, DIFF_TAG, "EntryProcessor successfully initialized" );
+        DisplayLog(LVL_VERB, DIFF_TAG, "EntryProcessor successfully initialized");
 
     fprintf(stderr, "Starting scan\n");
 
@@ -733,40 +709,39 @@ int main( int argc, char **argv )
 
     /* Start FS scan */
     if (options.partial_scan)
-        rc = FSScan_Start(&rh_config.fs_scan_config, options.flags,
-                          options.partial_scan_path);
+        rc = FSScan_Start(options.flags, options.partial_scan_path);
     else
-        rc = FSScan_Start(&rh_config.fs_scan_config, options.flags, NULL);
+        rc = FSScan_Start(options.flags, NULL);
 
-    if ( rc )
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, DIFF_TAG, "Error %d initializing FS Scan module", rc );
+        DisplayLog(LVL_CRIT, DIFF_TAG, "Error %d initializing FS Scan module", rc);
         goto clean_tag;
     }
     else
-        DisplayLog( LVL_VERB, DIFF_TAG, "FS Scan module successfully initialized" );
+        DisplayLog(LVL_VERB, DIFF_TAG, "FS Scan module successfully initialized");
 
     /* Flush logs now, to have a trace in the logs */
-    FlushLogs(  );
+    FlushLogs();
 
     /* both pipeline and scan are now running, can now trap events and display stats */
 
     /* create signal handling thread */
-    rc = pthread_create( &sig_thr, NULL, signal_handler_thr, NULL );
-    if ( rc )
+    rc = pthread_create(&sig_thr, NULL, signal_handler_thr, NULL);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, DIFF_TAG, "Error starting signal handler thread: %s",
-                    strerror( errno ) );
+        DisplayLog(LVL_CRIT, DIFF_TAG, "Error starting signal handler thread: %s",
+                    strerror(errno));
         goto clean_tag;
     }
     else
-        DisplayLog( LVL_VERB, DIFF_TAG, "Signal handler thread started successfully" );
+        DisplayLog(LVL_VERB, DIFF_TAG, "Signal handler thread started successfully");
 
     pthread_create(&stat_thread, NULL, stats_thr, NULL);
 
     /* wait for FS scan to end */
-    FSScan_Wait(  );
-    DisplayLog( LVL_MAJOR, DIFF_TAG, "FS Scan finished" );
+    FSScan_Wait();
+    DisplayLog(LVL_MAJOR, DIFF_TAG, "FS Scan finished");
 
     /* Pipeline must be flushed */
     EntryProcessor_Terminate(true);
@@ -775,19 +750,21 @@ int main( int argc, char **argv )
     /* flush the lovea file */
     if (options.diff_arg.lovea_file)
     {
-        fprintf(stderr, " > LOV EA information written to %s/"LOVEA_FNAME"\n", options.output_dir);
+        fprintf(stderr, " > LOV EA information written to %s/"LOVEA_FNAME"\n",
+                options.output_dir);
         fclose(options.diff_arg.lovea_file);
     }
     if (options.diff_arg.fid_remap_file)
     {
-        fprintf(stderr, " > FID remapping written to %s/"FIDREMAP_FNAME"\n", options.output_dir);
+        fprintf(stderr, " > FID remapping written to %s/"FIDREMAP_FNAME"\n",
+                options.output_dir);
         fclose(options.diff_arg.fid_remap_file);
     }
 #endif
 
     fprintf(stderr, "End of scan\n");
 
-    DisplayLog( LVL_MAJOR, DIFF_TAG, "All tasks done! Exiting." );
+    DisplayLog(LVL_MAJOR, DIFF_TAG, "All tasks done! Exiting.");
     rc = 0;
 
 clean_tag:

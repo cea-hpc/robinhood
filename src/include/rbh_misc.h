@@ -265,11 +265,6 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
 
 #endif /* lustre */
 
-#ifdef HAVE_SHOOK
-int ShookGetStatus(const char * path, file_status_t * p_status);
-int ShookRecoverById(const entry_id_t * p_id, file_status_t * p_status);
-#endif
-
 /**
  * Shoot a thread.
  */
@@ -433,6 +428,6 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
  * Get id for the given path.
  * @param[in] st stat struct if available.
  */
-int path2id(const char *path, entry_id_t *id, struct stat *st);
+int path2id(const char *path, entry_id_t *id, const struct stat *st);
 
 #endif

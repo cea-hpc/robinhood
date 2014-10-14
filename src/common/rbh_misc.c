@@ -15,9 +15,9 @@
 #include "config.h"
 #endif
 
+#include "rbh_cfg.h"
 #include "global_config.h"
 #include "rbh_logs.h"
-#include "rbh_cfg.h"
 #include "xplatform_print.h"
 #include "uidgidcache.h"
 #include <stdlib.h>
@@ -36,6 +36,7 @@
 #include <ctype.h>
 #include <string.h>
 #include "rbh_misc.h"
+#include "status_manager.h"
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
@@ -276,7 +277,7 @@ int SendMail( const char *recipient, const char *subject, const char *message )
 int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed, char *unmatched,
                  size_t max_len)
 {
-    static const char *default_cfg_path = SYSCONFDIR"/robinhood.d/"PURPOSE_EXT;
+    static const char *default_cfg_path = SYSCONFDIR"/robinhood.d/";
     DIR *dir;
     struct dirent *ent;
     const char *cfg = cfg_in;
@@ -969,8 +970,9 @@ int CheckLastFS( void )
     {
         DisplayLog( LVL_FULL, "CheckFS", FS_PATH_VAR "='%s'.", global_config.fs_path );
         rc = ListMgr_SetVar( &lmgr, FS_PATH_VAR, global_config.fs_path );
-        if ( rc )
-            DisplayLog( LVL_CRIT, "CheckFS", "Error %d setting variable 'FS_path'", rc );
+        if (rc)
+            DisplayLog(LVL_CRIT, "CheckFS", "Error %d setting variable 'FS_path'%s", rc,
+                       rc == DB_NOT_EXISTS? " (likely: database schema is not created yet, and you have a read-only DB access).":"");
     }
     else
     {
@@ -2290,7 +2292,7 @@ void upperstr(char *str)
        str[i] = toupper(str[i]);
 }
 
-int path2id(const char *path, entry_id_t *id, struct stat *st)
+int path2id(const char *path, entry_id_t *id, const struct stat *st)
 {
     int rc;
 

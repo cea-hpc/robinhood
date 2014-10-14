@@ -595,7 +595,6 @@ int Lustre_GetNameParent(const char *path, int linkno,
 }
 #endif
 
-
 /** Retrieve OST usage info ('ost df')
  *  @return 0 on success
  *          ENODEV if ost_index > ost index max of this FS

@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2009, 2010 CEA/DAM
+ * Copyright (C) 2014 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -16,109 +16,16 @@
 #include "config.h"
 #endif
 
-#include "list_mgr.h"
 #include "policy_run.h"
-#include "rbh_logs.h"
-#include "rbh_misc.h"
-#include <unistd.h>
 
-#ifdef _HSM_LITE
-#include "backend_mgr.h"
-#endif
+#include "../modules/common_actions.h" /** FIXME drop this when dynamic module management is implemented (for actions) */
 
 #ifdef _LUSTRE_HSM
-#include "lhsm.h"
-
-/* XXX to be included to LHSM action module */
-
-static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                        const char *hints, post_action_e *after)
-{
-    int rc = lhsm_action(HUA_RELEASE, p_entry_id, hints);
-    //    if (rc == 0)
-    //{
-    /* TODO set new status: in status manager? */
-    //    ATTR_MASK_SET( &new_attr_set, status );
-    //    ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
-    //}
-
-    *after = PA_UPDATE;
-    return rc;
-}
-
-static int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                        const char *hints, post_action_e *after)
-{
-    int rc = lhsm_action(HUA_ARCHIVE, p_entry_id, hints);
-    *after = PA_UPDATE;
-    return rc;
-}
-
-static int lhsm_hsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                           const char *hints, post_action_e *after)
-{
-    int rc = lhsm_action(HUA_REMOVE, p_entry_id, hints);
-    *after = (rc != 0 ? PA_NONE : PA_RM_ONE);
-    return rc;
-}
-
+#include "../modules/lhsm.h" /** FIXME drop this when dynamic module management is implemented (for status managers) */
 #endif
-
 #ifdef _HSM_LITE
-#ifdef HAVE_SHOOK
-/* XXX to be included to shook module */
-static int shook_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                         const char *hints, post_action_e *after)
-{
-    int rc = rbhext_release(p_entry_id, p_attrs);
-    *after = PA_UPDATE;
-    return rc;
-}
+#include "../modules/backup.h" /** FIXME drop this when dynamic module management is implemented (for status managers) */
 #endif
-
-/* XXX shook_archive == backup_archive ? */
-
-/* XXX to be included to backup module */
-static int backup_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                          const char *hints, post_action_e *after)
-{
-    *after = PA_UPDATE;
-    return rbhext_archive(p_entry_id, p_attrs, hints);
-}
-#endif
-
-/* XXX to be included to common module */
-static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                         const char *hints, post_action_e *after)
-{
-    const char *path = NULL;
-
-    *after = PA_UPDATE;
-
-    if (ATTR_MASK_TEST(p_attrs,fullpath))
-        path = ATTR(p_attrs,fullpath);
-    else
-        return EINVAL;
-
-    if (unlink(path) != 0)
-        return errno;
-
-    *after = PA_RM_ONE;
-    return 0;
-}
-
-/* just log! */
-static int common_log(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                      const char *hints, post_action_e *after)
-{
-    DisplayLog(LVL_MAJOR, "LogAction", "fid="DFID", path=%s, hints=%s",
-               PFID(p_entry_id),
-               ATTR_MASK_TEST(p_attrs,fullpath)?ATTR(p_attrs,fullpath):"",
-               hints?hints:"");
-
-    *after = PA_UPDATE;
-    return 0;
-}
 
 static struct fn_names_t
 {
@@ -127,17 +34,16 @@ static struct fn_names_t
 } fn_names[] = {
     {"common.unlink", common_unlink},
     {"common.log",    common_log},
+    {"common.copy",   common_copy}, /* allow hint: nosync, copyback */
+    {"common.sendfile", common_sendfile}, /* allow hint: nosync, copyback */
+    {"common.gzip",   common_gzip}, /* mandatory if backend.compress is enabled. allow hint: nosync, copyback (uncompress) */
 #ifdef _LUSTRE_HSM
     {"lhsm.archive", lhsm_archive},
     {"lhsm.release", lhsm_release},
-    {"lhsm.hsm_remove", lhsm_hsm_remove},
+    {"lhsm.hsm_remove", lhsm_remove},
 #endif
-#ifdef _HSM_LITE
-    {"backup.archive", backup_archive},
 #ifdef HAVE_SHOOK
-    {"shook.archive", backup_archive},
-    {"shook.release", shook_release},
-#endif
+    {"shook.release", rbh_shook_release},
 #endif
     {NULL, NULL}
 };

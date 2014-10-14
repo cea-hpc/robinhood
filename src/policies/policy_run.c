@@ -23,12 +23,8 @@
 #include "rbh_misc.h"
 #include "Memory.h"
 #include "xplatform_print.h"
-#include "rbh_cfg.h"
-
-#ifdef _HSM_LITE
-#include "backend_mgr.h"
-#include "backend_ext.h"
-#endif
+#include "update_params.h"
+#include "status_manager.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -89,6 +85,7 @@ static int policy_action(policy_info_t *policy,
                          const char *hints, post_action_e *after)
 {
     int rc = 0;
+    sm_instance_t *smi = policy->descr->status_mgr;
     const policy_action_t *actionp = &policy->descr->default_action;
 
     DisplayLog(LVL_EVENT, tag(policy),
@@ -97,46 +94,56 @@ static int policy_action(policy_info_t *policy,
     if (dry_run(policy))
         return 0;
 
-    switch(actionp->type)
+    /* If the status manager has an 'executor', make it run the action.
+     * Else, run directly the action function. */
+    if (smi->sm->executor != NULL)
     {
-        case ACTION_FUNCTION:
-            rc = actionp->action_u.function(id, p_attr_set, hints, after);
-            break;
-        case ACTION_COMMAND:
+        /* @TODO provide a DB callback */
+        rc = smi->sm->executor(smi, actionp, id, p_attr_set, hints,
+                               after, NULL, NULL);
+    }
+    else
+    {
+        switch(actionp->type)
         {
-            /* execute custom action */
-            char strfid[RBH_FID_LEN];
-            sprintf(strfid, DFID, PFID(id));
-
-            /* @TODO to be documented */
-            const char *vars[] = {
-                "path", ATTR_MASK_TEST(p_attr_set, fullpath)?ATTR(p_attr_set, fullpath):"",
-                "fsname", get_fsname(),
-                "fid", strfid,
-                "hints", hints,
-                "policy", tag(policy),
-                NULL, NULL
-            };
-
-            char *cmd = replace_cmd_parameters(actionp->action_u.command, vars);
-            if (cmd)
+            case ACTION_FUNCTION:
+                /* @TODO provide a DB callback */
+                rc = actionp->action_u.function(id, p_attr_set, hints, after, NULL, NULL);
+                break;
+            case ACTION_COMMAND:
             {
-                int rc = 0;
-                /* call custom purge command instead of unlink() */
-                DisplayLog(LVL_DEBUG, tag(policy), "%scmd(%s)",
-                           dry_run(policy)?"(dry-run)":"", cmd);
-                if (!dry_run(policy))
+                /* execute custom action */
+                char strfid[RBH_FID_LEN];
+                sprintf(strfid, DFID, PFID(id));
+
+                /* @TODO to be documented */
+                const char *vars[] = {
+                    "path", ATTR_MASK_TEST(p_attr_set, fullpath)?ATTR(p_attr_set, fullpath):"",
+                    "fsname", get_fsname(),
+                    "fid", strfid,
+                    "hints", hints,
+                    "policy", tag(policy),
+                    NULL, NULL
+                };
+
+                char *cmd = replace_cmd_parameters(actionp->action_u.command, vars);
+                if (cmd)
+                {
+                    int rc = 0;
+                    /* call custom purge command instead of unlink() */
+                    DisplayLog(LVL_DEBUG, tag(policy), "cmd(%s)", cmd);
                     rc =  execute_shell_command(true, cmd, 0);
-                free(cmd);
-                /* @TODO handle other hardlinks to the same entry */
+                    free(cmd);
+                    /* @TODO handle other hardlinks to the same entry */
+                }
+                else
+                    rc = errno;
+                break;
             }
-            else
-                rc = errno;
-            break;
+            case ACTION_NONE:
+                rc = 0;
+                break;
         }
-        case ACTION_NONE:
-            rc = 0;
-            break;
     }
 //    if (rc == 0)
 //        // FIXME set post_action_e in case of external command
@@ -780,7 +787,6 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
     mask |= policy->descr->rules.run_attr_mask;
 
     // TODO class management
-
 
     return mask;
 }
@@ -2201,10 +2207,6 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
     unsigned int nb_returned = 0;
     unsigned int nb_aborted = 0;
     uint64_t     attr_mask_sav = 0;
-#ifdef _HSM_LITE
-    uint64_t     allow_cached_attrs = 0;
-    uint64_t     need_fresh_attrs = 0;
-#endif
 
     /* attributes to be retrieved */
     ATTR_MASK_INIT(&q_item.entry_attr);
@@ -2212,19 +2214,8 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
     ATTR_MASK_SET(&q_item.entry_attr, path_update);
     /* /!\ don't retrieve status, to force getting it from the filesystem */
 
-#ifdef _HSM_LITE
-    ATTR_MASK_SET(&q_item.entry_attr, type);
-
-    /* what information the backend needs from DB? */
-    rc = rbhext_status_needs(TYPE_NONE, &allow_cached_attrs, &need_fresh_attrs);
-    if (rc != 0)
-    {
-        DisplayLog(LVL_MAJOR, tag(pol), "Unexpected error from rbhext_status_needs(), in %s line %u: %d",
-                   __FUNCTION__, __LINE__, rc);
-        return rc;
-    }
-    q_item.entry_attr.attr_mask |= allow_cached_attrs;
-#endif
+    /* needed attributes from DB */
+    q_item.entry_attr.attr_mask |= smi_needed_attrs(pol->descr->status_mgr, false);
 
     attr_mask_sav = q_item.entry_attr.attr_mask;
 

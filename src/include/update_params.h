@@ -24,7 +24,7 @@
 #include "list_mgr.h"
 
 /**
- * Update strategy
+ * Update behaviors
  * \addtogroup Update management
  * @{
  */
@@ -80,14 +80,11 @@ bool need_info_update(const attr_set_t *p_attrs, bool *update_on_event,
 #define need_path_update(_pa, _pu)    need_info_update((_pa), (_pu), UPDT_PATH)
 #define need_md_update(_pa, _pu)      need_info_update((_pa), (_pu), UPDT_MD)
 
-int set_default_update_params(void *module_config, char *msg_out);
-int write_default_update_params(FILE *output);
-int write_update_params_template(FILE *output);
-int read_update_params(config_file_t config, void *module_config,
-                       char *msg_out, bool for_reload);
-int reload_update_params(void *module_config);
+/** config handlers */
+extern mod_cfg_funcs_t updt_params_hdlr;
 
-extern updt_params_t  updt_params;
+/** make parameters available to all modules */
+extern updt_params_t updt_params;
 /** @} */
 
 #endif

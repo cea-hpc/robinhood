@@ -21,6 +21,7 @@
 
 #include "config_parsing.h"
 #include "rbh_const.h"
+#include "rbh_cfg.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>              /* for FILE */
@@ -61,14 +62,11 @@ typedef struct log_config__
 
 } log_config_t;
 
+/* Allow forcing log files etc... */
 extern log_config_t log_config;
 
-int            SetDefaultLogConfig( void *module_config, char *msg_out );
-int            ReadLogConfig(config_file_t config, void *module_config,
-                             char *msg_out, bool for_reload);
-int            ReloadLogConfig( void *module_config );
-int            WriteLogConfigTemplate( FILE * output );
-int            WriteLogConfigDefault( FILE * output );
+/** config parsing helpers */
+extern mod_cfg_funcs_t log_cfg_hdlr;
 
 /* Converts a debug level string to the associated
  * verbosity level.
@@ -84,7 +82,7 @@ int            TestDisplayLevel(log_level level);
 /* Open log and report files,
  * Returns -1 and sets error in case of an error.
  */
-int InitializeLogs(const char *prog_name, const log_config_t *log_config);
+int InitializeLogs(const char *prog_name);
 
 /* flush logs */
 void           FlushLogs(void);

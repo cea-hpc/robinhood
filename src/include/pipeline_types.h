@@ -42,9 +42,6 @@ typedef struct op_extra_info_t
     /** is this entry from changelog ?*/
     unsigned int is_changelog_record:1;
 #endif
-
-    /** unsupported type for migration */
-    unsigned int not_supp:1;
 } op_extra_info_t;
 
 static void inline extra_info_init( op_extra_info_t * p_extra_info )
@@ -68,6 +65,7 @@ typedef enum {
 typedef struct _diff_arg
 {
     enum {NO_APPLY = 0, APPLY_FS, APPLY_DB} apply;
+    uint64_t diff_mask;
     const char * db_tag;
     FILE * lovea_file;
     FILE * fid_remap_file;

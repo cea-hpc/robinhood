@@ -74,7 +74,6 @@ static struct option option_tab[] =
 /* global variables */
 
 static lmgr_t  lmgr;
-robinhood_config_t config;
 
 typedef enum { disp_usage, disp_count, disp_size, disp_details } display_mode;
 typedef enum { disp_byte, disp_kilo, disp_mega, disp_human } display_unit;
@@ -258,7 +257,7 @@ static int mkfilters( void )
     if (prog_options.match_type)
     {
         compare_value_t val;
-        val.type = lmgr2policy_type(prog_options.type);
+        val.type = db2type(prog_options.type);
         if (!is_expr)
             CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_TYPE, val);
         else
@@ -425,10 +424,10 @@ static const char * opt2type(const char * type_opt)
 static int retrieve_root_id(entry_id_t * root_id)
 {
     int rc;
-    rc = Path2Id(config.global_config.fs_path, root_id);
+    rc = Path2Id(global_config.fs_path, root_id);
     if (rc)
         DisplayLog(LVL_MAJOR, DU_TAG, "Can't access filesystem's root %s: %s",
-                   config.global_config.fs_path, strerror(-rc));
+                   global_config.fs_path, strerror(-rc));
     return rc;
 }
 
@@ -471,7 +470,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
         result_count = REPCNT;
         while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) ) == DB_SUCCESS )
         {
-            unsigned int idx = lmgr2policy_type(result[0].value_u.val_str);
+            unsigned int idx = db2type(result[0].value_u.val_str);
             stats[idx].count += result[1].value_u.val_biguint;
             stats[idx].blocks += result[2].value_u.val_biguint;
             stats[idx].size += result[3].value_u.val_biguint;
@@ -509,7 +508,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
 
     /* root is not a part of the DB: sum it now if it matches */
     ATTR_MASK_SET(&root_attrs, fullpath);
-    strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
+    strcpy(ATTR(&root_attrs, fullpath), global_config.fs_path);
 
     if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
     {
@@ -521,7 +520,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
     if (!is_expr || (entry_matches(&root_id, &root_attrs,
                      &match_expr, NULL, prog_options.smi) == POLICY_MATCH))
     {
-        unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
+        unsigned int idx = db2type(ATTR(&root_attrs, type));
         stats[idx].count ++;
         stats[idx].blocks += ATTR(&root_attrs, blocks);
         stats[idx].size += ATTR(&root_attrs, size);
@@ -534,7 +533,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
     result_count = REPCNT;
     while ( ( rc = ListMgr_GetNextReportItem( it, result, &result_count, NULL ) ) == DB_SUCCESS )
     {
-        unsigned int idx = lmgr2policy_type(result[0].value_u.val_str);
+        unsigned int idx = db2type(result[0].value_u.val_str);
         stats[idx].count += result[1].value_u.val_biguint;
         stats[idx].blocks += result[2].value_u.val_biguint;
         stats[idx].size += result[3].value_u.val_biguint;
@@ -545,7 +544,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
     ListMgr_CloseReport( it );
 
     if (display_stats)
-        print_stats(config.global_config.fs_path, stats);
+        print_stats(global_config.fs_path, stats);
 
     return 0;
 }
@@ -640,7 +639,7 @@ static int list_content(char ** id_list, int id_count)
                 /* this is root id */
                 struct stat st;
                 ATTR_MASK_SET(&root_attrs, fullpath);
-                strcpy(ATTR(&root_attrs, fullpath), config.global_config.fs_path);
+                strcpy(ATTR(&root_attrs, fullpath), global_config.fs_path);
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
@@ -656,7 +655,7 @@ static int list_content(char ** id_list, int id_count)
         if (!is_expr || (entry_matches(&ids[i].id, &root_attrs,
                          &match_expr, NULL, prog_options.smi) == POLICY_MATCH))
         {
-            unsigned int idx = lmgr2policy_type(ATTR(&root_attrs, type));
+            unsigned int idx = db2type(ATTR(&root_attrs, type));
             stats[idx].count ++;
             stats[idx].blocks += ATTR(&root_attrs, blocks);
             stats[idx].size += ATTR(&root_attrs, size);
@@ -814,42 +813,34 @@ int main( int argc, char **argv )
     }
     else if (chgd)
     {
-        fprintf(stderr, "Using config file '%s'.\n", config_file );
+        fprintf(stderr, "Using config file '%s'.\n", config_file);
     }
 
-    /* only read ListMgr config */
-
-    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
+    /* only read common config (listmgr, ...) (mask=0) */
+    if(rbh_cfg_load(0, config_file, err_msg))
     {
-        fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
-        exit( 1 );
+        fprintf(stderr, "Error reading configuration file '%s': %s\n",
+                config_file, err_msg);
+        exit(1);
     }
-    process_config_file = config_file;
 
-    /* set global configuration */
-    global_config = config.global_config;
-    updt_params = config.db_update_params;
-
-    /* set policies info */
-    policies = config.policies;
-
-    if ( force_log_level )
-        config.log_config.debug_level = log_level;
+    if (force_log_level)
+        log_config.debug_level = log_level;
     else
-        config.log_config.debug_level = LVL_MAJOR; /* no event message */
+        log_config.debug_level = LVL_MAJOR; /* no event message */
 
     /* Set logging to stderr */
-    strcpy( config.log_config.log_file, "stderr" );
-    strcpy( config.log_config.report_file, "stderr" );
-    strcpy( config.log_config.alert_file, "stderr" );
+    strcpy(log_config.log_file, "stderr");
+    strcpy(log_config.report_file, "stderr");
+    strcpy(log_config.alert_file, "stderr");
 
     /* Initialize logging */
-    rc = InitializeLogs( bin, &config.log_config );
-    if ( rc )
+    rc = InitializeLogs(bin);
+    if (rc)
     {
-        fprintf( stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
-                 rc, errno, strerror( errno ) );
-        exit( rc );
+        fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
+                rc, errno, strerror(errno));
+        exit(rc);
     }
 
     /* Initialize filesystem access */
@@ -863,7 +854,7 @@ int main( int argc, char **argv )
         fs_init = true;
 
     /* Initialize list manager */
-    rc = ListMgr_Init(&config.lmgr_config, true);
+    rc = ListMgr_Init(true);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, DU_TAG, "Error %d initializing list manager", rc );

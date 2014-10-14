@@ -21,7 +21,7 @@
 #include "global_config.h"
 #include "entry_processor.h"
 #include "fs_scan.h"
-#include "rbh_cfg.h"
+#include "rbh_logs.h"
 #include "RW_Lock.h"
 #include "rbh_misc.h"
 #include "list_mgr.h"
@@ -432,7 +432,7 @@ static int TerminateScan(int scan_complete, time_t end)
     if (scan_complete && !EMPTY_STRING(fs_scan_config.completion_command))
     {
         const char *vars[] = {
-            "cfg", process_config_file,
+            "cfg", config_file_path(),
             "fspath", global_config.fs_path,
             NULL, NULL
         };
@@ -672,7 +672,7 @@ static int openat_noatime(int pfd, const char *name, int rddir)
     /* openat successful but not with NOATIME => no longer use this flag */
     if (had_eperm && (fd >= 0))
     {
-        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed with O_NOATIME, and was sucessful without it. Disabling this flag.");
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed with O_NOATIME, but was successful without it: disabling NOATIME.");
         noatime_permitted = false;
     }
 
@@ -705,7 +705,7 @@ static int open_noatime(const char *path, int rddir)
     /* open successful but not with NOATIME => no longer use this flag */
     if (had_eperm && (fd >= 0))
     {
-        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "open failed with O_NOATIME, and was sucessful without it. Disabling this flag.");
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "open failed with O_NOATIME, but was successful without it: disabling NOATIME.");
         noatime_permitted = false;
     }
 
@@ -873,8 +873,8 @@ push:
         strcpy( ATTR( &op->fs_attrs, fullpath ), entry_path );
 
 #ifdef ATTR_INDEX_invalid
-        ATTR_MASK_SET( &op->fs_attrs, invalid );
-        ATTR( &op->fs_attrs, invalid ) = FALSE;
+        ATTR_MASK_SET(&op->fs_attrs, invalid);
+        ATTR(&op->fs_attrs, invalid) = false;
 #endif
 
         ATTR_MASK_SET( &op->fs_attrs, depth );
@@ -1288,7 +1288,7 @@ static int process_one_task(robinhood_task_t *p_task,
 
 #ifdef ATTR_INDEX_invalid
         ATTR_MASK_SET(&op->fs_attrs, invalid);
-        ATTR(&op->fs_attrs, invalid) = FALSE;
+        ATTR(&op->fs_attrs, invalid) = false;
 #endif
 
         ATTR_MASK_SET(&op->fs_attrs, depth);

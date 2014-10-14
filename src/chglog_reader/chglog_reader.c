@@ -30,7 +30,8 @@
 #include "entry_proc_hash.h"
 #include "rbh_misc.h"
 #include "global_config.h"
-#include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
+#include "chglog_reader.h"
 
 #include <pthread.h>
 #include <errno.h>
@@ -96,7 +97,7 @@ typedef struct reader_thr_info_t
     void * chglog_hdlr;
 
     /** Queue of pending changelogs to push to the pipeline. */
-    struct list_head op_queue;
+    struct rh_list_head op_queue;
     unsigned int op_queue_count;
 
     /** Store the ops for easier access. Each element in the hash
@@ -125,23 +126,16 @@ typedef struct reader_thr_info_t
 /* Number of entries in each readers' op hash table. */
 #define ID_CHGLOG_HASH_SIZE 7919
 
-chglog_reader_config_t chglog_reader_config;
+extern chglog_reader_config_t cl_reader_config;
 static int behavior_flags = 0;
 
 /* stop reading logs when reaching end of file? */
 #define one_shot ( behavior_flags & FLAG_ONCE )
 
 /** array of reader info */
-static reader_thr_info_t  * reader_info = NULL;
+static reader_thr_info_t  *reader_info = NULL;
 static FILE *f_changelog = NULL;
 
-
-/** Reload configuration for changelog readers */
-int            ChgLogRdr_ReloadConfig( void *module_config )
-{
-    /** @TODO Reload ChangeLog reader config dynamically */
-    return 0;
-}
 
 /**
  * Close the changelog for a thread.
@@ -204,11 +198,11 @@ static int clear_changelog_records(reader_thr_info_t * p_info)
 
     DisplayLog(LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %llu)",
                p_info->mdtdevice,
-               chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
+               cl_reader_config.mdt_def[p_info->thr_index].reader_id,
                p_info->last_committed_record);
 
     rc = llapi_changelog_clear(p_info->mdtdevice,
-                    chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
+                    cl_reader_config.mdt_def[p_info->thr_index].reader_id,
                     p_info->last_committed_record);
 
     if (rc)
@@ -216,7 +210,7 @@ static int clear_changelog_records(reader_thr_info_t * p_info)
             DisplayLog( LVL_CRIT, CHGLOG_TAG,
                         "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %llu) returned %d",
                         p_info->mdtdevice,
-                        chglog_reader_config.mdt_def[p_info->thr_index].reader_id,
+                        cl_reader_config.mdt_def[p_info->thr_index].reader_id,
                         p_info->last_committed_record, rc );
     } else {
         p_info->last_cleared_record = p_info->last_committed_record;
@@ -256,10 +250,10 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
      *      - if the delta to last cleared record is high enough.
      * do nothing in all other cases:
      */
-    if ((chglog_reader_config.batch_ack_count > 1)
+    if ((cl_reader_config.batch_ack_count > 1)
          && (logrec->cr_index < p_info->last_pushed)
          && ((logrec->cr_index - p_info->last_cleared_record)
-             < chglog_reader_config.batch_ack_count))
+             < cl_reader_config.batch_ack_count))
     {
         DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s cl_record: %llu, last_cleared: %llu, last_pushed: %llu\n",
                    p_info->mdtdevice, logrec->cr_index,
@@ -278,11 +272,11 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
         /* save the last committed record, so we don't get old records from
          * other registrated readers when restarting */
         sprintf(var_tmp, "%s_%s", CL_LAST_COMMITTED,
-                chglog_reader_config.mdt_def[p_info->thr_index].mdt_name);
+                cl_reader_config.mdt_def[p_info->thr_index].mdt_name);
         sprintf(val_tmp, "%llu", p_info->last_committed_record);
         if (ListMgr_SetVar(lmgr, var_tmp, val_tmp))
             DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Failed to save last committed record for %s",
-                       chglog_reader_config.mdt_def[p_info->thr_index].mdt_name);
+                       cl_reader_config.mdt_def[p_info->thr_index].mdt_name);
     }
 
     return rc;
@@ -417,7 +411,7 @@ static void set_name(CL_REC_TYPE * logrec, entry_proc_op_t * p_op)
 /* Push the oldest (all=FALSE) or all (all=TRUE) entries into the pipeline. */
 static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
 {
-    time_t oldest = time(NULL) - chglog_reader_config.queue_max_age;
+    time_t oldest = time(NULL) - cl_reader_config.queue_max_age;
     CL_REC_TYPE * rec;
 
     DisplayLog(LVL_FULL, CHGLOG_TAG, "processing changelog queue");
@@ -428,7 +422,7 @@ static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
         /* Stop when the queue is below our limit, and when the oldest
          * element is still new enough. */
         if (!push_all &&
-            (p_info->op_queue_count < chglog_reader_config.queue_max_size) &&
+            (p_info->op_queue_count < cl_reader_config.queue_max_size) &&
             (op->timestamp.changelog_inserted > oldest))
             break;
 
@@ -478,7 +472,7 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
 
     /* set mdt name */
     op->extra_info.log_record.mdt =
-        chglog_reader_config.mdt_def[p_info->thr_index].mdt_name;
+        cl_reader_config.mdt_def[p_info->thr_index].mdt_name;
 
     if (flags & PLR_FLG_FREE2)
         op->extra_info_free_func = free_extra_info2;
@@ -622,7 +616,7 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
 
         *insert_flags = PLR_FLG_FREE2;
 
-        if (!chglog_reader_config.mds_has_lu543) {
+        if (!cl_reader_config.mds_has_lu543) {
             /* The server doesn't tell whether the rename operation will
              * remove a file. */
             *insert_flags |= GET_FID_FROM_DB;
@@ -631,7 +625,7 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
 #ifdef CLF_RENAME_LAST
         /* The client support LU-1331 (since CLF_RENAME_LAST is
          * defined) but that may not be the case of the server. */
-        if (chglog_reader_config.mds_has_lu1331) {
+        if (cl_reader_config.mds_has_lu1331) {
             rec->cr_flags = (rec_in->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
         } else
 #endif
@@ -695,7 +689,7 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
 }
 #endif
 
-#define mdtname(_info) chglog_reader_config.mdt_def[(_info)->thr_index].mdt_name
+#define mdtname(_info) cl_reader_config.mdt_def[(_info)->thr_index].mdt_name
 
 /**
  * This handles a single log record.
@@ -755,12 +749,12 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
 
             /* The MDS sent an extended record, so we have both LU-543
              * and LU-1331. */
-            if (!chglog_reader_config.mds_has_lu543 ||
-                !chglog_reader_config.mds_has_lu1331) {
+            if (!cl_reader_config.mds_has_lu543 ||
+                !cl_reader_config.mds_has_lu1331) {
                 DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-1331 is fixed in this version of Lustre.");
 
-                chglog_reader_config.mds_has_lu543 = true;
-                chglog_reader_config.mds_has_lu1331 = true;
+                cl_reader_config.mds_has_lu543 = true;
+                cl_reader_config.mds_has_lu1331 = true;
             }
 
             if (!FID_IS_ZERO(&p_rec->cr_tfid))
@@ -820,11 +814,11 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             goto done;
         }
 
-        if (!chglog_reader_config.mds_has_lu543 &&
+        if (!cl_reader_config.mds_has_lu543 &&
             (FID_IS_ZERO(&p_rec->cr_tfid) ||
              !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
             /* tfid if 0, or the two fids are different, so we have LU-543. */
-            chglog_reader_config.mds_has_lu543 = true;
+            cl_reader_config.mds_has_lu543 = true;
             DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-543 is fixed in this version of Lustre.");
         }
 
@@ -936,13 +930,13 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
         /* Close, wait and open the log again (from last_read_record + 1) */
         log_close(info);
 
-        if ( chglog_reader_config.force_polling )
+        if ( cl_reader_config.force_polling )
         {
             DisplayLog(LVL_FULL, CHGLOG_TAG,
                        "EOF reached on changelog from %s, reopening in %ld sec",
-                       info->mdtdevice, chglog_reader_config.polling_interval);
+                       info->mdtdevice, cl_reader_config.polling_interval);
             /* sleep during polling interval */
-            rh_sleep( chglog_reader_config.polling_interval );
+            rh_sleep( cl_reader_config.polling_interval );
         }
         else
         {
@@ -990,17 +984,17 @@ static void * chglog_reader_thr( void *  arg )
     reader_thr_info_t * info = (reader_thr_info_t*) arg;
     CL_REC_TYPE * p_rec = NULL;
     cl_status_e st;
-    time_t next_push_time = time(NULL) + chglog_reader_config.queue_check_interval; /* Next time we will have to push. */
+    time_t next_push_time = time(NULL) + cl_reader_config.queue_check_interval; /* Next time we will have to push. */
 
     /* loop until a TERM signal is caught */
     while ( !info->force_stop )
     {
         /* Is it time to flush? */
-        if (info->op_queue_count >= chglog_reader_config.queue_max_size ||
+        if (info->op_queue_count >= cl_reader_config.queue_max_size ||
             next_push_time <= time(NULL)) {
             process_op_queue(info, false);
 
-            next_push_time = time(NULL) + chglog_reader_config.queue_check_interval;
+            next_push_time = time(NULL) + cl_reader_config.queue_check_interval;
             if (f_changelog)
                 fflush(f_changelog);
         }
@@ -1051,8 +1045,7 @@ static void action_sigchld( int sig )
 
 
 /** start ChangeLog Reader module */
-int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
-                               int flags, int mdt_index)
+int cl_reader_start(int flags, int mdt_index)
 {
     int i, rc;
     char mdtdevice[128];
@@ -1060,32 +1053,32 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
     struct sigaction act_sigchld ;
 #endif
 
-    for (i = 0; i < p_config->mdt_count; i++)
+    for (i = 0; i < cl_reader_config.mdt_count; i++)
     {
         if (mdt_index == -1 || mdt_index == i)
             DisplayLog(LVL_FULL, CHGLOG_TAG, "mdt[%u] = %s", i,
-                       p_config->mdt_def[i].mdt_name);
+                       cl_reader_config.mdt_def[i].mdt_name);
     }
 
     /* check parameters */
-    if ( (p_config->mdt_count == 0) || (p_config->mdt_def == NULL) )
+    if ( (cl_reader_config.mdt_count == 0) || (cl_reader_config.mdt_def == NULL) )
     {
         DisplayLog( LVL_CRIT, CHGLOG_TAG,
                     "ERROR: no MDT ChangeLog has been defined in configuration" );
         return EINVAL;
     }
 #ifndef HAVE_DNE
-    else if ((p_config->mdt_count > 1) || (mdt_index > 0))
+    else if ((cl_reader_config.mdt_count > 1) || (mdt_index > 0))
     {
         DisplayLog(LVL_CRIT, CHGLOG_TAG,
                    "ERROR: multiple MDTs are not supported with this version of Lustre");
         return ENOTSUP;
     }
 #endif
-    else if (mdt_index >= (int)p_config->mdt_count)
+    else if (mdt_index >= (int)cl_reader_config.mdt_count)
     {
         DisplayLog(LVL_CRIT, CHGLOG_TAG, "The specified mdt_index (%d) exceeds the MDT count in configuration file (%u)",
-                   mdt_index, p_config->mdt_count);
+                   mdt_index, cl_reader_config.mdt_count);
         return EINVAL;
     }
 
@@ -1093,28 +1086,27 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
     {
         /* hack the configuration structure to keep only the specified MDT */
         if (mdt_index != 0)
-            p_config->mdt_def[0] = p_config->mdt_def[mdt_index];
-        p_config->mdt_count = 1;
+            cl_reader_config.mdt_def[0] = cl_reader_config.mdt_def[mdt_index];
+        cl_reader_config.mdt_count = 1;
         DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Starting changelog reader only for %s, as specified by command line",
-                   p_config->mdt_def[0].mdt_name);
+                   cl_reader_config.mdt_def[0].mdt_name);
     }
 
     /* saves the current config and parameter flags */
-    chglog_reader_config = *p_config;
     behavior_flags = flags;
 
-    if (!EMPTY_STRING(p_config->dump_file))
+    if (!EMPTY_STRING(cl_reader_config.dump_file))
     {
-        f_changelog = fopen(p_config->dump_file, "a");
+        f_changelog = fopen(cl_reader_config.dump_file, "a");
         if (f_changelog == NULL)
             DisplayLog(LVL_CRIT, CHGLOG_TAG, "Failed to open %s to dump incoming changelogs",
-                       p_config->dump_file);
+                       cl_reader_config.dump_file);
         else
-            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Dumping changelogs to: %s", p_config->dump_file);
+            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Dumping changelogs to: %s", cl_reader_config.dump_file);
     }
 
     /* create thread params */
-    reader_info = (reader_thr_info_t*)MemCalloc(p_config->mdt_count,
+    reader_info = (reader_thr_info_t*)MemCalloc(cl_reader_config.mdt_count,
                                                 sizeof(reader_thr_info_t));
 
     if ( reader_info == NULL )
@@ -1146,7 +1138,7 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
         dbget = 0;
 
     /* create one reader per MDT */
-    for ( i = 0; i < p_config->mdt_count ; i++ )
+    for ( i = 0; i < cl_reader_config.mdt_count ; i++ )
     {
         reader_thr_info_t * info = &reader_info[i];
 
@@ -1160,10 +1152,10 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
         info->id_hash = id_hash_init(ID_CHGLOG_HASH_SIZE, false);
 
         snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
-                  p_config->mdt_def[i].mdt_name );
+                  cl_reader_config.mdt_def[i].mdt_name );
 
         info->mdtdevice = strdup(mdtdevice);
-        info->flags = ((one_shot || p_config->force_polling)?0:CHANGELOG_FLAG_FOLLOW)
+        info->flags = ((one_shot || cl_reader_config.force_polling)?0:CHANGELOG_FLAG_FOLLOW)
             | CHANGELOG_FLAG_BLOCK;
 
         if (dbget)
@@ -1172,7 +1164,7 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
             char val_str[1024];
 
             sprintf(lastcl_var, "%s_%s", CL_LAST_COMMITTED,
-                    p_config->mdt_def[i].mdt_name);
+                    cl_reader_config.mdt_def[i].mdt_name);
             if (ListMgr_GetVar(&lmgr, lastcl_var, val_str, sizeof(val_str)) == DB_SUCCESS)
             {
                   last_rec = str2bigint(val_str);
@@ -1221,12 +1213,12 @@ int            ChgLogRdr_Start(chglog_reader_config_t *p_config,
 
 
 /** terminate ChangeLog Readers */
-int            ChgLogRdr_Terminate( void )
+int cl_reader_terminate(void)
 {
     unsigned int i;
 
     /* ask threads to stop */
-    for ( i = 0; i < chglog_reader_config.mdt_count; i++ )
+    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
     {
         reader_info[i].force_stop = true;
     }
@@ -1234,19 +1226,18 @@ int            ChgLogRdr_Terminate( void )
     DisplayLog( LVL_EVENT, CHGLOG_TAG,
                 "Stop request has been sent to all ChangeLog reader threads" );
 
-    ChgLogRdr_Wait(  );
+    cl_reader_wait(  );
 
     return 0;
 }
 
-
 /** wait for ChangeLog Readers termination */
-int            ChgLogRdr_Wait( void )
+int cl_reader_wait(void)
 {
     int i;
     void * ret;
 
-    for ( i = 0; i < chglog_reader_config.mdt_count; i++ )
+    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
     {
         pthread_join( reader_info[i].thr_id, &ret );
     }
@@ -1257,11 +1248,11 @@ int            ChgLogRdr_Wait( void )
 }
 
 /** Release last changelog records, and dump the final stats. */
-int            ChgLogRdr_Done( void )
+int cl_reader_done(void)
 {
     int i;
 
-    for ( i = 0; i < chglog_reader_config.mdt_count; i++ )
+    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
     {
         reader_thr_info_t * info = &reader_info[i];
 
@@ -1271,13 +1262,13 @@ int            ChgLogRdr_Done( void )
         log_close(info);
     }
 
-    ChgLogRdr_DumpStats();
+    cl_reader_dump_stats();
 
     return 0;
 }
 
 /** dump changelog processing stats */
-int            ChgLogRdr_DumpStats( void )
+int cl_reader_dump_stats(void)
 {
     unsigned int i,j;
     char tmp_buff[256];
@@ -1286,7 +1277,7 @@ int            ChgLogRdr_DumpStats( void )
 
     /* ask threads to stop */
 
-    for ( i = 0; i < chglog_reader_config.mdt_count; i++ )
+    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
     {
         double speed, speed2;
         unsigned int interval, interval2 = 0;
@@ -1296,9 +1287,9 @@ int            ChgLogRdr_DumpStats( void )
         DisplayLog( LVL_MAJOR, "STATS", "   fs_name    =   %s",
                     get_fsname() );
         DisplayLog( LVL_MAJOR, "STATS", "   mdt_name   =   %s",
-                    chglog_reader_config.mdt_def[i].mdt_name );
+                    cl_reader_config.mdt_def[i].mdt_name );
         DisplayLog( LVL_MAJOR, "STATS", "   reader_id  =   %s",
-                    chglog_reader_config.mdt_def[i].reader_id );
+                    cl_reader_config.mdt_def[i].reader_id );
         DisplayLog( LVL_MAJOR, "STATS", "   records read        = %llu",
                     reader_info[i].nb_read );
         DisplayLog( LVL_MAJOR, "STATS", "   interesting records = %llu",
@@ -1335,7 +1326,7 @@ int            ChgLogRdr_DumpStats( void )
                 interval = now - reader_info[i].last_report;
                 /* interval except time for reopening */
                 interval2 = interval - (reader_info[i].nb_reopen - reader_info[i].last_reopen)
-                            * chglog_reader_config.polling_interval;
+                            * cl_reader_config.polling_interval;
 
                 /* compute speed (rec/sec) */
                 speed = (double)(reader_info[i].last_read_record - reader_info[i].last_report_record_id)/(double)interval;
@@ -1396,7 +1387,7 @@ int            ChgLogRdr_DumpStats( void )
 }
 
 /** store changelog stats to the database */
-int            ChgLogRdr_StoreStats( lmgr_t * lmgr )
+int cl_reader_store_stats(lmgr_t *lmgr)
 {
     unsigned int i;
     char tmp_buff[256];
@@ -1404,9 +1395,9 @@ int            ChgLogRdr_StoreStats( lmgr_t * lmgr )
 
     /* ask threads to stop */
 
-    if ( chglog_reader_config.mdt_count > 1 )
+    if ( cl_reader_config.mdt_count > 1 )
         DisplayLog( LVL_MAJOR, CHGLOG_TAG, "WARNING: more than 1 MDT changelog reader, only 1st reader stats will be stored in DB" );
-    else if ( chglog_reader_config.mdt_count < 1 )
+    else if ( cl_reader_config.mdt_count < 1 )
         return ENOENT; /* nothing to be stored */
 
     sprintf( tmp_buff, "%llu", reader_info[0].last_read_record );

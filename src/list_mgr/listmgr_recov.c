@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if 0 /** @TODO reimplement in rbh v3 */
+
 #define MAX_DB_FIELDS 64
 
 /* table: id+... */
@@ -570,4 +572,5 @@ int ListMgr_RecovSetState( lmgr_t * p_mgr, const entry_id_t * p_id,
     return db_exec_sql( &p_mgr->conn, query, NULL );
 }
 
+#endif
 

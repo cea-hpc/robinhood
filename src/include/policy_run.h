@@ -21,7 +21,7 @@
 
 #include "rbh_const.h"
 #include "config_parsing.h"
-#include "list_mgr.h"
+#include "policy_rules.h"
 #include "queue.h"
 #include <sys/types.h>
 #include "rbh_logs.h"
@@ -263,24 +263,15 @@ typedef struct policy_info_t
 } policy_info_t;
 
 /** policies runtime config */
-typedef struct policy_run_configs_t {
+typedef struct policy_run_config_list_t {
     policy_run_config_t *configs;
     unsigned int count;
-} policy_run_configs_t;
+} policy_run_config_list_t;
 /** defined in policies/policy_run_cfg.c */
-extern policy_run_configs_t run_cfgs;
+extern policy_run_config_list_t run_cfgs;
 
-/* set default for all policies */
-int policy_run_cfg_set_default(void *module_config, char *msg_out);
-
-/* load cfg for all policies */
-int policy_run_cfg_read(config_file_t config, void *module_config, char *msg_out,
-                        bool for_reload);
-/* reload cfg for all policies */
-int policy_run_cfg_reload(void *module_config);
-
-int policy_run_cfg_write_template(FILE *output);
-int policy_run_cfg_write_defaults(FILE *output);
+/** config handlers */
+extern mod_cfg_funcs_t policy_run_cfg_hdlr;
 
 typedef union {
     unsigned int index;

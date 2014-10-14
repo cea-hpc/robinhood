@@ -1,11 +1,7 @@
-SUBDIRS=include common list_mgr entry_processor fs_scan cfg_parsing policies
+SUBDIRS=include common list_mgr entry_processor fs_scan cfg_parsing modules policies
 
 if CHANGELOGS
 SUBDIRS+=chglog_reader
-endif
-
-if HSM_LITE
-SUBDIRS+=backend_ext
 endif
 
 SUBDIRS += robinhood tools tests

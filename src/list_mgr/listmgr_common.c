@@ -155,31 +155,17 @@ void separated_db2list_inplace(char *list)
     list[len-2] = '\0';
 }
 
-#ifdef _HSM_LITE
-#define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
-                                ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
-                                ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
-                                ( ( _t == T_RECOV ) && is_recov_field( _i ) ) || \
-                                ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ) || \
-                                ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
-                                ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
-
-#elif defined( HAVE_RM_POLICY )
-#define MATCH_TABLE( _t, _i )   ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
-                                ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
-                                ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
-                                ( ( _t == T_SOFTRM ) && is_softrm_field( _i ) ) || \
-                                ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
-                                ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
-
-#else
-#define MATCH_TABLE( _t, _i ) ( ( ( _t == T_MAIN ) && is_main_field( _i ) ) || \
-                                ( ( _t == T_DNAMES ) && is_names_field( _i ) ) || \
-                                ( ( _t == T_ANNEX ) && is_annex_field( _i ) ) || \
-                                ( ( _t == T_ACCT ) && is_acct_field( _i ) ) || \
-                                ( ( _t == T_ACCT ) && is_acct_pk( _i ) ) )
-
-#endif
+/* TODO use pre-generated field masks? */
+static inline bool match_table(table_enum t, unsigned int attr_index)
+{
+    return ((t == T_MAIN) && is_main_field(attr_index)) ||
+               ((t == T_DNAMES) && is_names_field(attr_index)) ||
+               ((t == T_ANNEX) && is_annex_field(attr_index)) ||
+               ((t == T_RECOV) && is_recov_field(attr_index)) ||
+               ((t == T_SOFTRM) && is_softrm_field(attr_index)) ||
+               ((t == T_ACCT) && is_acct_field(attr_index)) ||
+               ((t == T_ACCT) && is_acct_pk(attr_index));
+}
 
 /** get the table for the given attr index */
 static inline table_enum field2table(int i)
@@ -209,8 +195,9 @@ uint64_t      readonly_attr_set = 0;
 uint64_t      gen_attr_set = 0;
 uint64_t      acct_attr_set = 0;
 uint64_t      acct_pk_attr_set = 0;
+uint64_t      softrm_attr_set = 0;
 
-void init_attrset_masks( const lmgr_config_t *lmgr_config )
+void init_attrset_masks(const lmgr_config_t *lmgr_config)
 {
     int            i;
     uint64_t       mask = 1;
@@ -225,12 +212,13 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
     acct_attr_set = 0;
     dir_attr_set = 0;
     slink_attr_set = 0;
+    softrm_attr_set = 0;
 
-    if ( lmgr_config->user_acct )
+    if (lmgr_config->user_acct)
         acct_pk_attr_set |= ATTR_MASK_owner;
-    if ( lmgr_config->group_acct )
+    if (lmgr_config->group_acct)
         acct_pk_attr_set |= ATTR_MASK_gr_name;
-    if ( lmgr_config->user_acct || lmgr_config->group_acct )
+    if (lmgr_config->user_acct || lmgr_config->group_acct)
     {
         acct_pk_attr_set |= ATTR_MASK_type;
     }
@@ -240,37 +228,53 @@ void init_attrset_masks( const lmgr_config_t *lmgr_config )
      */
     acct_pk_attr_set |= all_status_mask();
 
+    /* The following fields must be in SOFT_RM table:
+     * Posix attributes + fullpath + fields with REMOVED flag
+     * + fields indicated by status managers for SOFT_RM.
+     */
+    softrm_attr_set |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | sm_softrm_fields();
+
     /* size: also used for size range stats */
     acct_attr_set |= ATTR_MASK_size | ATTR_MASK_blocks ;
 
-    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+    for (i = 0; i < ATTR_COUNT; i++, mask <<= 1)
     {
         /* is it read only ? */
-        if ( is_read_only_field( i ) )
+        if (is_read_only_field(i))
             readonly_attr_set |= mask;
 
+        /* (fields with remove flag) other flags set previously */
+        if (test_field_flag(i, REMOVED))
+            softrm_attr_set |= mask;
+
         /* The ID field is both in NAMES and MAIN. (XXX not an attribute) */
-        if ( is_names_field( i ) )
+        if (is_names_field(i))
             names_attr_set |= mask;
 
-        if ( is_main_field( i ) )
+        if (is_main_field(i))
             main_attr_set |= mask;
-        else if ( is_gen_field( i ) )
+        else if (is_gen_field(i))
             gen_attr_set |= mask;
-        else if ( is_annex_field( i ) )
+        else if (is_annex_field(i))
             annex_attr_set |= mask;
-        else if ( is_stripe_field( i ) )
+        else if (is_stripe_field(i))
             stripe_attr_set |= mask;
-        else if ( is_dirattr( i ) )
+        else if (is_dirattr(i))
             dir_attr_set |= mask;
 
         /* not mutually exclusive with previous */
-        if ( is_slinkattr( i ) )
+        if (is_slinkattr(i))
             slink_attr_set |= mask;
     }
+
     /* add status to main table */
     for (i = 0; i < sm_inst_count; i++)
+    {
         main_attr_set |= SMI_MASK(i);
+
+        if (is_softrm_field(i + ATTR_COUNT))
+            softrm_attr_set |= mask;
+    }
 }
 
 
@@ -472,7 +476,7 @@ int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool 
     {
         if (attr_mask & mask)
         {
-            if (MATCH_TABLE(table, i))
+            if (match_table(table, i))
             {
                 if (leading_comma || (nbfields > 0))
                     g_string_append(str, ",");
@@ -522,7 +526,7 @@ int attrmask2fieldoperation(GString *str, uint64_t attr_mask, table_enum table,
     {
         if (attr_mask & mask)
         {
-            if (MATCH_TABLE(table, i))
+            if (match_table(table, i))
             {
                 g_string_append_printf(str, "%s%s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ",
                                 nbfields == 0 ? "" : ",", field_name(i), field_name(i),
@@ -557,7 +561,7 @@ int attrmask2fieldcomparison(GString *str, uint64_t attr_mask, table_enum table,
     {
         if (attr_mask & mask)
         {
-            if (MATCH_TABLE(table, i))
+            if (match_table(table, i))
             {
                 g_string_append_printf(str, "%s %s%s%s%s%s ", 
                             nbfields == 0 ? "" : separator, left_prefix,
@@ -620,7 +624,7 @@ int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
     {
         if (p_set->attr_mask & mask)
         {
-            if (MATCH_TABLE(table, i))
+            if (match_table(table, i))
             {
                 if (leading_coma || (nbfields > 0))
                     g_string_append(str, ",");
@@ -656,7 +660,7 @@ int attrset2updatelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
     {
-        if ((p_set->attr_mask & mask) && MATCH_TABLE(table, i))
+        if ((p_set->attr_mask & mask) && match_table(table, i))
         {
             if (leading_coma || (nbfields > 0))
                 g_string_append(str, ",");
@@ -739,7 +743,7 @@ int result2attrset( table_enum table, char **result_tab,
 
     for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
     {
-        if ((p_set->attr_mask & mask) && MATCH_TABLE(table, i))
+        if ((p_set->attr_mask & mask) && match_table(table, i))
         {
             if (log_config.debug_level >= LVL_FULL && result_tab != NULL)
             {
@@ -1050,7 +1054,7 @@ int func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filte
 static void attr2filter_field(GString *str, table_enum table,
                               unsigned int attr, bool prefix_table)
 {
-    if (MATCH_TABLE(table, attr) || (table == T_NONE))
+    if (match_table(table, attr) || (table == T_NONE))
     {
         /* exception: fullpath is a real field in SOFT_RM table */
         if (is_funcattr(attr) &&
@@ -1105,7 +1109,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
         for (i = 0; i < p_filter->filter_simple.filter_count; i++)
         {
             unsigned int   index = p_filter->filter_simple.filter_index[i];
-            bool match =  MATCH_TABLE(table, index)
+            bool match =  match_table(table, index)
                          || ((table == T_STRIPE_ITEMS) && (index < ATTR_COUNT)
                               && (field_infos[index].db_type == DB_STRIPE_ITEMS))
                          || ((table == T_STRIPE_INFO) && (index < ATTR_COUNT)
@@ -1156,7 +1160,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
             /* append field name or function call */
             attr2filter_field(str, table, index, prefix_table);
 
-            if (MATCH_TABLE(table, index) || table == T_NONE)
+            if (match_table(table, index) || table == T_NONE)
             {
                 /* append comparator */
                 if (is_sepdlist(index))

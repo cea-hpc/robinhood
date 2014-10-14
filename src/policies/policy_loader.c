@@ -20,8 +20,10 @@
 #endif
 
 #include "policy_rules.h"
-#include "rbh_cfg.h"
+#include "rbh_logs.h"
 #include "rbh_misc.h"
+#include "rbh_cfg_helpers.h"
+#include "status_manager.h"
 #include <errno.h>
 #include <fnmatch.h>
 
@@ -453,6 +455,8 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
             return EINVAL;
         }
 
+        /* FIXME if the status manager manage deleted entries,
+         * it doesn't mean the current policy does... */
         if (smi_manage_deleted(policy->status_mgr))
             *manage_deleted = true;
     }
@@ -511,7 +515,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
 
 
 static int read_policy_definitions(config_file_t config, policies_t *pol,
-                                   char *msg_out, int for_reload)
+                                   char *msg_out)
 {
     unsigned int blc_index;
     int rc;
@@ -607,8 +611,7 @@ static int write_rmdir_policy_template(FILE * output)
 }
 
 
-static int read_rmdir_policy(config_file_t config,  rmdir_policy_t *policy, char *msg_out,
-                             int for_reload)
+static int read_rmdir_policy(config_file_t config,  rmdir_policy_t *policy, char *msg_out)
 {
     unsigned int   blc_index;
     int            rc, tmpval;
@@ -730,8 +733,7 @@ static int read_rmdir_policy(config_file_t config,  rmdir_policy_t *policy, char
     return 0;
 }
 
-#if 0
-/* USED FOR NOW */
+#if 0 /** FIXME RBHv3 UNUSED FOR NOW */
 __attribute__((unused))
 static int reload_rmdir_policy(rmdir_policy_t *policy)
 {
@@ -1283,7 +1285,7 @@ static void free_filesets(policies_t *p_policies)
 
 /** Read filesets block */
 static int read_filesets(config_file_t config, policies_t *p_policies,
-                         char *msg_out, bool for_reload)
+                         char *msg_out)
 {
     unsigned int   i, j;
     int            rc;
@@ -1576,8 +1578,7 @@ fileset_item_t *get_fileset_by_name(const policies_t *p_policies, const char *na
 #if 0
 #ifdef HAVE_RM_POLICY
 /** Read filesets block */
-static int read_unlink_policy(config_file_t config, unlink_policy_t * pol, char *msg_out,
-                               int for_reload)
+static int read_unlink_policy(config_file_t config, unlink_policy_t * pol, char *msg_out)
 {
     int            rc;
     int            intval;
@@ -1869,9 +1870,24 @@ static int parse_rule_block(config_item_t config_item,
 
 }
 
+static void free_policy_rules(policy_rules_t *rules)
+{
+if (rules->rules)
+    /** FIXME rules contents must also be freed */
+    free(rules->rules);
+if (rules->ignore_list)
+    free(rules->ignore_list);
+if (rules->whitelist_count > 0)
+    free_whitelist(rules->whitelist_rules, rules->whitelist_count);
+else if (rules->whitelist_rules) /* preallocated? */
+    free(rules->whitelist_rules);
+}
 
-
-
+static void free_policy_descr(policy_descr_t *descr)
+{
+    /** FIXME free scope + sm_instance (+default action parameters) */
+    free_policy_rules(&descr->rules);
+}
 
 /* macro for preallocating array depending on configuration blocks in Read_Policy_ */
 #define PREALLOC_ARRAY_CONFIG(_block_name_, _type_, _array_var, _goto_label)      \
@@ -1900,7 +1916,7 @@ static int parse_rule_block(config_item_t config_item,
 
 
 static int read_policy(config_file_t config, const policies_t *p_policies, char *msg_out,
-                       int for_reload, policy_descr_t *policy_descr)
+                       policy_descr_t *policy_descr)
 {
     unsigned int   i, j, k;
     int            rc, count;
@@ -2089,10 +2105,10 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     return rc;
 }
 
-int reload_policies(void *module_config)
-{
-    policies_t *p_policies = (policies_t*)module_config;
+/** @TODO manage SM config + SM init */
 
+static int reload_policies(policies_t *p_policies)
+{
     if (p_policies->policy_count != policies.policy_count)
     {
         /* policy count changed */
@@ -2128,38 +2144,45 @@ int reload_policies(void *module_config)
     return 0;
 }
 
+static int set_policies(void *cfg,  bool reload)
+{
+    policies_t *p_policies = (policies_t *)cfg;
 
-int set_default_policies(void *module_config, char *msg_out)
+    if (reload)
+        return reload_policies(p_policies);
+    else
+        policies = *p_policies;
+    return 0;
+}
+
+static void set_default_policies(void *module_config)
 {
     policies_t    *pol = (policies_t *)module_config;
 
     *pol = policy_initializer;
-
-    return 0;
 }
 
-int read_policies(config_file_t config, void *module_config, char *msg_out,
-                  bool for_reload)
+static int read_policies(config_file_t config, void *cfg, char *msg_out)
 {
-    policies_t    *pol = (policies_t *)module_config;
+    policies_t    *pol = (policies_t *)cfg;
     int            rc, i;
 
     memset(pol, 0, sizeof(pol));
 
     /* read policy declarations, allocate policy descriptors */
-    rc = read_policy_definitions(config, pol, msg_out, for_reload);
+    rc = read_policy_definitions(config, pol, msg_out);
     if (rc)
         return rc;
 
     /* load fileset definitions, and check fileset hints against defined policies */
-    rc = read_filesets(config, pol, msg_out, for_reload);
+    rc = read_filesets(config, pol, msg_out);
     if (rc)
         return rc;
 
     /* iterate on declared policies */
     for (i = 0; i < pol->policy_count; i++)
     {
-        rc = read_policy(config, pol, msg_out, for_reload, &pol->policy_list[i]);
+        rc = read_policy(config, pol, msg_out, &pol->policy_list[i]);
         if (rc)
             return rc;
     }
@@ -2167,13 +2190,9 @@ int read_policies(config_file_t config, void *module_config, char *msg_out,
     return 0;
 }
 
-int write_policy_template(FILE * output)
+static void write_policy_template(FILE *output)
 {
-    int            rc;
-
-    rc = write_template_filesets(output);
-    if (rc)
-        return rc;
+    write_template_filesets(output);
 
 // FIXME write policy templates
 /*
@@ -2198,21 +2217,48 @@ int write_policy_template(FILE * output)
     print_line(output, 1, "#    {hints}: pass action_hints to the command");
     fprintf(output, "\n");
 */
-
-    return 0;
 }
 
-int write_policy_default(FILE * output)
+static void write_policy_default(FILE * output)
 {
-    int            rc;
-
-    rc = write_default_filesets(output);
-    if (rc)
-        return rc;
-
+    write_default_filesets(output);
 // FIXME write policy defaults
-    return 0;
 }
+
+static void *policies_cfg_new(void)
+{
+    return calloc(1, sizeof(policies_t));
+}
+static void policies_cfg_free(void *arg)
+{
+    policies_t *cfg = (policies_t*)arg;
+    int i;
+
+    if (cfg == NULL)
+        return;
+
+    for (i = 0; i < cfg->policy_count; i++)
+        free_policy_descr(&cfg->policy_list[i]);
+
+    free(cfg->policy_list);
+    cfg->policy_list = NULL;
+    cfg->policy_count = 0;
+
+    free_filesets(cfg);
+    free(cfg);
+}
+
+
+mod_cfg_funcs_t policies_cfg_hdlr = {
+    .module_name = "policies",
+    .new         = policies_cfg_new,
+    .free        = policies_cfg_free,
+    .set_default = set_default_policies,
+    .read        = read_policies,
+    .set_config  = set_policies,
+    .write_default  = write_policy_default,
+    .write_template = write_policy_template
+};
 
 bool policy_exists(const char *name, int *index)
 {

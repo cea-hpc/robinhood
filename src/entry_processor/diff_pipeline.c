@@ -24,20 +24,15 @@
 #include "entry_processor.h"
 #include "entry_proc_tools.h"
 #include "Memory.h"
-#ifdef _HSM_LITE
-#include "backend_ext.h"
-#endif
+#include "status_manager.h"
 #include <errno.h>
 #include <time.h>
-#ifdef HAVE_SHOOK
-#include <shook_svr.h>
-#include <fnmatch.h>
-#endif
 #include <unistd.h>
 
 #define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
 
-#define diff_arg ((diff_arg_t*)(entry_proc_arg))
+#define diff_arg ((diff_arg_t*)entry_proc_arg)
+#define diff_mask (diff_arg->diff_mask)
 
 /* forward declaration of EntryProc functions of pipeline */
 static int  EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
@@ -52,14 +47,16 @@ static int  EntryProc_report_rm( struct entry_proc_op_t *, lmgr_t * );
 static bool dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, uint64_t *);
 
 /* pipeline stages */
-#define STAGE_GET_FID       0
-#define STAGE_GET_INFO_DB   1
-#define STAGE_GET_INFO_FS   2
-#define STAGE_REPORT_DIFF   3
-#define STAGE_APPLY         4
-#define STAGE_REPORT_RM     5 /* special stage at the end of FS scan */
+enum {
+    STAGE_GET_FID = 0,
+    STAGE_GET_INFO_DB,
+    STAGE_GET_INFO_FS,
+    STAGE_REPORT_DIFF,
+    STAGE_APPLY,
+    STAGE_REPORT_RM,
 
-#define PIPELINE_STAGE_COUNT (STAGE_REPORT_RM+1)
+    PIPELINE_STAGE_COUNT /* keep it at last */
+};
 
 const pipeline_descr_t diff_pipeline_descr =
 {
@@ -175,9 +172,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     const pipeline_stage_t *stage_info =
         &entry_proc_pipeline[p_op->pipeline_stage];
 
-    p_op->db_attr_need |= entry_proc_conf.diff_mask;
+    p_op->db_attr_need |= diff_mask;
     /* retrieve missing attributes for diff */
-    p_op->fs_attr_need |= (entry_proc_conf.diff_mask & ~p_op->fs_attrs.attr_mask);
+    p_op->fs_attr_need |= (diff_mask & ~p_op->fs_attrs.attr_mask);
 
 #ifdef ATTR_INDEX_creation_time
     if (entry_proc_conf.detect_fake_mtime)
@@ -243,6 +240,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->db_exists = ListMgr_Exists( lmgr, &p_op->entry_id );
     }
 
+    /* get status for all policies */
+    p_op->fs_attr_need |= all_status_mask();
+    p_op->fs_attr_need |= (attr_need_fresh & ~ p_op->fs_attrs.attr_mask);
+
     if ( !p_op->db_exists )
     {
         /* new entry */
@@ -306,7 +307,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 #ifdef ATTR_INDEX_status
         /* only if status is in diff_mask */
-        if (entry_proc_conf.diff_mask & ATTR_MASK_status)
+        if (diff_mask & ATTR_MASK_status)
         {
             if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
     #ifdef _LUSTRE_HSM
@@ -329,7 +330,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 #endif
 
-        if (entry_proc_conf.diff_mask & ATTR_MASK_link)
+        if (diff_mask & ATTR_MASK_link)
         {
             if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) /* likely set */
             {
@@ -364,7 +365,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 #ifdef _LUSTRE
         /* only if stripe is in diff_mask || db_apply */
-        if ((entry_proc_conf.diff_mask & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items))
+        if ((diff_mask & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items))
             || (diff_arg->apply == APPLY_DB))
         {
             /* get stripe only for files */
@@ -472,83 +473,73 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     } /* get_stripe needed */
 #endif
 
-#if 0 /* @FIXME scope related */
-#ifdef _LUSTRE_HSM
-    /* Lustre-HSM: get status only for files */
-    /* (type may have been determined at this point) */
-    if ( NEED_GETSTATUS(p_op)
-         && ATTR_FSorDB_TEST( p_op, type )
-         && strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_FILE ) != 0 )
+    if (NEED_ANYSTATUS(p_op))
     {
-        p_op->fs_attr_need &= ~ATTR_MASK_status;
-        p_op->extra_info.not_supp = 1;
-    }
-#endif
-#endif
-
-#ifdef ATTR_INDEX_status
-    if (NEED_GETSTATUS(p_op))
-    {
-#ifdef _HSM_LITE
-        attr_set_t merged_attrs; /* attrs from FS+DB */
-        attr_set_t new_attrs; /* attrs from backend */
+        int i;
+        sm_instance_t *smi;
+        attr_set_t merged_attrs = {0}; /* attrs from FS+DB */
+        attr_set_t new_attrs = {0}; /* attributes + status */
 
         ATTR_MASK_INIT(&merged_attrs);
-        ATTR_MASK_INIT(&new_attrs);
 
         ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
         ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
 
-        /* get entry status */
-        rc = rbhext_get_status( &p_op->entry_id, &merged_attrs, &new_attrs );
-#elif defined(_LUSTRE_HSM)
-        rc = LustreHSM_GetStatus( path, &ATTR( &p_op->fs_attrs, status ),
-                                  &ATTR( &p_op->fs_attrs, no_release ),
-                                  &ATTR( &p_op->fs_attrs, no_archive ) );
-#endif
-        if ( ERR_MISSING( abs( rc )) )
+        /* get status for all policies (if missing) */
+        i = 0;
+        while ((smi = get_sm_instance(i)) != NULL)
         {
-            DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Entry %s no longer exists",
-                       path);
-             /* entry will be garbage collected at the end of the scan */
-            goto skip_record;
-        }
-        else if ( rc == 0 )
-        {
-#ifdef _HSM_LITE
-            /* merge/update attributes */
-            ListMgr_MergeAttrSets(&p_op->fs_attrs, &new_attrs, true);
-#elif defined(_LUSTRE_HSM)
-            ATTR_MASK_SET( &p_op->fs_attrs, status );
-            ATTR_MASK_SET( &p_op->fs_attrs, no_release );
-            ATTR_MASK_SET( &p_op->fs_attrs, no_archive );
-#endif
+            ATTR_MASK_INIT(&new_attrs); /* clean the mask without freeing sm_status */
 
-            /* if the entry has no flags, the entry has never been archived or restored */
-            if ( ATTR( &p_op->fs_attrs, status ) == STATUS_NEW )
+            /** @TODO test if entry is in policy scope */
+            if (NEED_GETSTATUS(p_op, i))
             {
-                ATTR_MASK_SET( &p_op->fs_attrs, last_archive );
-                ATTR( &p_op->fs_attrs, last_archive ) = 0;
-#ifdef HAVE_PURGE_POLICY
-                ATTR_MASK_SET( &p_op->fs_attrs, last_restore );
-                ATTR( &p_op->fs_attrs, last_restore ) = 0;
-#endif
-            }
-        }
-        else if ( rc == -ENOTSUP )
-        {
-            /* this type of entry is not managed: ignored */
-            p_op->extra_info.not_supp = 1;
-            /* no status */
-            ATTR_MASK_UNSET(&p_op->fs_attrs, status);
-        }
+                if (smi->sm->get_status_func != NULL)
+                {
+                    /* this also check if entry is ignored for this policy */
+                    rc =  smi->sm->get_status_func(smi, &p_op->entry_id,
+                                                   &merged_attrs, &new_attrs);
+                    if (ERR_MISSING(abs(rc)))
+                    {
+                        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Entry %s no longer exists",
+                                   path);
+                        /* changelog: an UNLINK event will be raised, so we ignore current record
+                         * scan: entry will be garbage collected at the end of the scan */
+                        goto skip_record;
+                    }
+                    else if (rc != 0)
+                    {
+                        DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "Failed to get status for %s (%s status manager): error %d",
+                                   path, smi->sm->name, rc);
+                    }
+                    else
+                    {
+                        /* merge/update attributes */
+                        ListMgr_MergeAttrSets(&p_op->fs_attrs, &new_attrs, true);
 
-    } /* get_status needed */
-#endif
+                        /** @TODO
+                         * manage no_archive, no_release
+                         * manage last_archive, last_restore (init: 0 if status is 'new')
+                         * if entry is not supported: set extra_info.not_supp
+                         */
+                    }
+                }
+            }
+            i++;
+        }
+        /* free allocated status, once merged */
+        sm_status_free(&new_attrs.attr_values.sm_status);
+    }
+
+    /* readlink only for symlinks */
+    if (NEED_READLINK(p_op) && ATTR_FSorDB_TEST(p_op, type)
+        && strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK) != 0)
+        p_op->fs_attr_need &= ~ATTR_MASK_link;
 
     if (NEED_READLINK(p_op))
     {
         ssize_t len = readlink(path, ATTR(&p_op->fs_attrs, link), RBH_PATH_MAX);
+
         if (len >= 0)
         {
             ATTR_MASK_SET(&p_op->fs_attrs, link);
@@ -563,28 +554,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "readlink failed on %s: %s", path, strerror(errno));
     }
 
-    /* check if the entry must be ignored */
-    #ifdef _HSM_LITE
-    {
-        attr_set_t merged_attrs; /* attrs from FS+DB */
-        ATTR_MASK_INIT(&merged_attrs);
-
-        ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
-        ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
-
-        /* ignored entries will always go there, as they are considered as new */
-        /* use the same merged attributes to check the ignore condition */
-        if (rbhext_ignore(&p_op->entry_id, &merged_attrs))
-        {
-            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
-                       "Special file or dir '%s' skipped",
-                       (ATTR_FSorDB_TEST(p_op, fullpath )?
-                        ATTR_FSorDB(p_op, fullpath):
-                        ATTR_FSorDB(p_op, name)));
-            goto skip_record;
-        }
-    }
-    #endif
+    /** FIXME some special files should be ignored i.e. not inserted in DB. */
 
     /* print diff */
     rc = EntryProcessor_Acknowledge(p_op, STAGE_REPORT_DIFF, false);
@@ -592,7 +562,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
 
-#ifdef ATTR_INDEX_status
 skip_record:
     /* remove the operation from pipeline */
     rc = EntryProcessor_Acknowledge(p_op, -1, true);
@@ -600,7 +569,6 @@ skip_record:
     if ( rc )
         DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
     return rc;
-#endif
 }
 
 
@@ -618,19 +586,19 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* Only keep fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
-        int diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
+        uint64_t loc_diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
 
         /* In scan mode, always keep md_update and path_update,
          * to avoid their cleaning at the end of the scan.
          * Also keep name and parent as they are keys in DNAMES table.
          */
-        int to_keep = ATTR_MASK_parent_id | ATTR_MASK_name;
+        uint64_t to_keep = ATTR_MASK_parent_id | ATTR_MASK_name;
 
         /* the mask to be displayed > diff_mask (include to_keep flags) */
-        int display_mask = entry_proc_conf.diff_mask & diff_mask;
+        uint64_t display_mask = diff_mask & loc_diff_mask;
 
         /* keep fullpath if parent or name changed (friendly display) */
-        if (diff_mask & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
+        if (loc_diff_mask & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
             to_keep |= ATTR_MASK_fullpath;
             display_mask |= ATTR_MASK_fullpath;
         }
@@ -640,7 +608,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             to_keep |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
 
         /* remove other unchanged attrs or attrs not in db mask */
-        p_op->fs_attrs.attr_mask &= (diff_mask | to_keep | ~p_op->db_attrs.attr_mask);
+        p_op->fs_attrs.attr_mask &= (loc_diff_mask | to_keep | ~p_op->db_attrs.attr_mask);
 
         /* nothing changed => noop */
         if (p_op->fs_attrs.attr_mask == 0)
@@ -648,7 +616,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* no op */
             p_op->db_op_type = OP_TYPE_NONE;
         }
-        else if ((diff_mask & entry_proc_conf.diff_mask) && (display_mask != 0))
+        else if ((loc_diff_mask & diff_mask) && (display_mask != 0))
         {
             char attrchg[RBH_PATH_MAX] = "";
 
@@ -676,7 +644,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
         }
     }
-    else if (entry_proc_conf.diff_mask)
+    else if (diff_mask)
     {
         if (p_op->db_op_type == OP_TYPE_INSERT)
         {
@@ -907,9 +875,9 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 }
                 break;
             case OP_TYPE_UPDATE:
-                /*attributes to be changed: p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask */
+                /*attributes to be changed: p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & diff_mask */
                 rc = ApplyAttrs(&p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
-                                p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & entry_proc_conf.diff_mask,
+                                p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & diff_mask,
                                 pipeline_flags & FLAG_DRY_RUN);
                 break;
 
@@ -1019,7 +987,10 @@ static int hsm_recover(lmgr_t * lmgr,
     const char * status_str;
 
     /* try to recover from backend */
-    st = rbhext_recover(p_id, p_oldattr, &new_id, &new_attrs, NULL);
+
+    /** FIXME use undelete function from a status manager */
+    st = RS_ERROR;
+    //st = rbhext_recover(p_id, p_oldattr, &new_id, &new_attrs, NULL);
     switch (st)
     {
         case RS_FILE_OK:
@@ -1191,7 +1162,7 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     rm_cb_func_t cb = NULL;
 
     /* callback func for diff display */
-    if (entry_proc_conf.diff_mask)
+    if (diff_mask)
         cb = no_tag_cb;
 
     /* If gc_entries or gc_names are not set,
@@ -1287,6 +1258,7 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
                             /* try to recover the entry from the backend */
                             DisplayReport("%srecover(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
                                           ATTR(&attrs, fullpath));
+                            /** FIXME use undelete function from status manager */
                             if (!(pipeline_flags & FLAG_DRY_RUN))
                                 hsm_recover(lmgr, &id, &attrs);
                         }

@@ -7,26 +7,13 @@ MISC_FLAGS="-DCOMPIL_DATE=\"$(DATE)\""
 all_libs= ../cfg_parsing/libconfigparsing.la \
                 ../fs_scan/libfsscan.la \
                 ../entry_processor/libentryproc.la \
-                ../policy_matching/libpolicies.la
+                ../policies/libpolicies.la
 
 if CHANGELOGS
 all_libs += ../chglog_reader/libchglog_rd.la
 endif
-if TMP_FS_MGR
-all_libs += ../policy_modules/purge/libresmonitor.la
-all_libs += ../policy_modules/rmdir/librmdir.la
-endif
-if LUSTRE_HSM
-all_libs += ../policy_modules/purge/libresmonitor.la
-all_libs += ../policy_modules/migration/libmigration.la
-all_libs += ../policy_modules/hsm_remove/libhsmrm.la
-endif
+
 if HSM_LITE
-if SHOOK
-all_libs += ../policy_modules/purge/libresmonitor.la
-endif
-all_libs += ../policy_modules/migration/libmigration.la
-all_libs += ../policy_modules/hsm_remove/libhsmrm.la
 all_libs += ../backend_ext/libbackend_ext.la
 endif
 

@@ -16,9 +16,12 @@ conf_yacc.h: conf_yacc.c
 # cleaning FLEX/BISON generated files
 #CLEANFILES = conf_yacc.h conf_yacc.c conf_lex.c
 
-noinst_LTLIBRARIES          = libconfigparsing.la
+noinst_LTLIBRARIES          = libconfigparsing.la librbhcfg.la
+
 libconfigparsing_la_SOURCES = conf_yacc.y conf_yacc.h conf_lex.l analyze.c config_parsing.c analyze.h \
-			                  rbh_cfg.c conf_yacc.c conf_lex.c
+			                  rbh_cfg_helpers.c rbh_boolexpr.c conf_yacc.c conf_lex.c
+
+librbhcfg_la_SOURCES        = rbh_cfg.c
 
 check_PROGRAMS		    = verif_syntax test_parsing
 

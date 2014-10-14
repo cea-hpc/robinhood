@@ -26,11 +26,9 @@
 
 %define pkg_dependencies       \
 BuildRequires: glib2-devel     \
-%if %{with lhsm}               \
 BuildRequires: libattr-devel   \
-%endif                         \
+BuildRequires: mailx \
 %if %{with lustre}             \
-BuildRequires: libattr-devel   \
 %if %{defined lpackage}        \
 Requires: %{lpackage} >= %{lversion}         \
 BuildRequires: %{lpackage} >= %{lversion}    \
@@ -39,7 +37,6 @@ BuildRequires: %{lpackage} >= %{lversion}    \
 %if %{with mysql}                            \
 BuildRequires: /usr/include/mysql/mysql.h    \
 %endif \
-BuildRequires: mailx \
 %{nil}
 
 # target install dir for web gui

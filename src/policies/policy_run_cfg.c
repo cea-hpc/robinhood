@@ -16,7 +16,7 @@
 #include "config.h"
 #endif
 
-#include "rbh_cfg.h"
+#include "rbh_cfg_helpers.h"
 #include "run_policies.h"
 #include "rbh_misc.h"
 #include "Memory.h"
@@ -28,7 +28,7 @@
 #define TAG       "PolicyRunCfg"
 
 /* contains all run configs */
-policy_run_configs_t run_cfgs = { NULL, 0 };
+policy_run_config_list_t run_cfgs = { NULL, 0 };
 
 static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cfg)
 {
@@ -61,33 +61,33 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     return 0;
 }
 
-static inline policies_t* runcfg2policies(void *module_config)
-{
-    /* hack to  get the policy list */
-    return (policies_t *)((ptrdiff_t)module_config
-        - offsetof(robinhood_config_t, policy_run_cfgs)
-        + offsetof(robinhood_config_t, policies));
-}
-
-int policy_run_cfg_set_default(void *module_config, char *msg_out)
+static void policy_run_cfg_set_default(void *module_config)
 {
     int i;
-    policy_run_configs_t *cfg = (policy_run_configs_t *)module_config;
-    policies_t *parsed_policies = runcfg2policies(module_config);
+    policy_run_config_list_t *cfg = (policy_run_config_list_t *)module_config;
 
-    cfg->count = parsed_policies->policy_count;
-    cfg->configs = (policy_run_config_t *)MemCalloc(cfg->count, sizeof(policy_run_config_t));
-    if (cfg->configs == NULL)
-    {
-        strcpy(msg_out, "Memory allocation failed");
-        return ENOMEM;
-    }
     for (i = 0; i < cfg->count; i++)
-        polrun_set_default(&parsed_policies->policy_list[i], &cfg->configs[i]);
-    return 0;
+        polrun_set_default(&policies.policy_list[i], &cfg->configs[i]);
 }
 
-int policy_run_cfg_write_defaults(FILE *output)
+static void *policy_run_cfg_new(void)
+{
+    policy_run_config_list_t *cfg;
+
+    cfg = calloc(1, sizeof(policy_run_config_list_t));
+    if (cfg == NULL)
+        return NULL;
+
+    /* safe because policies configuration is always parsed before policy run config */
+    cfg->count = policies.policy_count;
+    cfg->configs = (policy_run_config_t *)calloc(cfg->count, sizeof(policy_run_config_t));
+    if (cfg->configs == NULL)
+        return NULL;
+
+    return cfg;
+}
+
+static void policy_run_cfg_write_default(FILE *output)
 {
     print_begin_block(output, 0, "<policy>"PARAM_SUFFIX, NULL);
     print_line(output, 1, "lru_sort_attr           : default_lru_sort_attr (from 'define_policy' block)");
@@ -107,11 +107,9 @@ int policy_run_cfg_write_defaults(FILE *output)
     print_line(output, 1, "maint_min_apply_delay   : 30min");
     print_end_block(output, 0);
     fprintf(output, "\n");
-
-    return 0;
 }
 
-int policy_run_cfg_write_template(FILE *output)
+static void policy_run_cfg_write_template(FILE *output)
 {
     print_begin_block(output, 0, TEMPL_POLICY_NAME PARAM_SUFFIX, NULL);
     print_line(output, 1, "# sort order for applying the policy (overrides ");
@@ -156,8 +154,6 @@ int policy_run_cfg_write_template(FILE *output)
     fprintf(output, "\n");
 
     /* @TODO Add template triggers */
-
-    return 0;
 }
 
 # if 0 // @TODO RBHv3: write template triggers
@@ -486,8 +482,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
                                 } while (0)
 
 static int polrun_read_config(config_file_t config, const char *policy_name,
-                              policy_run_config_t *conf,
-                              char *msg_out, int for_reload)
+                              policy_run_config_t *conf, char *msg_out)
 {
     int            rc;
     unsigned int   blc_index;
@@ -622,22 +617,20 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
 }
 
 /* read the run cfg for all policies */
-int policy_run_cfg_read(config_file_t config, void *module_config, char *msg_out,
-                        bool for_reload)
+static int policy_run_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int i, rc = 0;
-    policy_run_configs_t *allconf = (policy_run_configs_t *)module_config;
-    policies_t *parsed_policies = runcfg2policies(module_config);
+    policy_run_config_list_t *allconf = (policy_run_config_list_t *)module_config;
 
     /* allconf->count is supposed to be set by set_default and configs must be allocated.
      * double check by comparing policy count and policy_run count */
-    if (allconf->count != parsed_policies->policy_count)
+    if (allconf->count != policies.policy_count)
         RBH_BUG("Unexpected policy_run_cfg count != policy count");
 
     for (i = 0; i < allconf->count; i++)
     {
-        rc = polrun_read_config(config, parsed_policies->policy_list[i].name,
-                                &allconf->configs[i], msg_out, for_reload);
+        rc = polrun_read_config(config, policies.policy_list[i].name,
+                                &allconf->configs[i], msg_out);
         if (rc)
             return rc;
     }
@@ -954,34 +947,31 @@ static int polrun_reload(const char *blkname, policy_run_config_t *cfg_tgt,
     update_triggers(cfg_tgt->trigger_list, cfg_tgt->trigger_count,
                     cfg_new->trigger_list, cfg_new->trigger_count,
                     recompute_interval);
-    free_triggers(cfg_new->trigger_list, cfg_new->trigger_count);
-
     return 0;
 }
 
 /** reload cfg for all policies */
-int policy_run_cfg_reload(void *module_config)
+static int policy_run_cfg_reload(policy_run_config_list_t *conf)
 {
     int i, rc;
     int err = 0;
-    policy_run_configs_t *allconf = (policy_run_configs_t *)module_config;
 
-    if (allconf->count != run_cfgs.count)
+    if (conf->count != run_cfgs.count)
     {
         DisplayLog(LVL_MAJOR, TAG, "New policy count doesn't match previous "
                    "policy count (%u vs %u): skipping config update.",
-                   allconf->count, run_cfgs.count);
+                   conf->count, run_cfgs.count);
         return 0;
     }
-    for (i = 0; i < allconf->count; i++)
+    for (i = 0; i < conf->count; i++)
     {
         bool chgd = false;
         char block_name[256];
         const char *pname = policies.policy_list[i].name;
         snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, pname);
 
-        rc = polrun_reload(block_name, &run_cfgs.configs[i],
-                           &allconf->configs[i], &chgd);
+        rc = polrun_reload(block_name, &run_cfgs.configs[i], &conf->configs[i],
+                           &chgd);
         if (rc)
         {
              DisplayLog(LVL_MAJOR, TAG, "Failed to reload parameters for policy %s (rc=%d)",
@@ -1003,3 +993,47 @@ int policy_run_cfg_reload(void *module_config)
 
     return err;
 }
+
+static int policy_run_cfg_set(void *config, bool reload)
+{
+    policy_run_config_list_t *cfg =(policy_run_config_list_t *)config;
+
+    if (reload)
+        return policy_run_cfg_reload(cfg);
+
+    run_cfgs = *cfg;
+    return 0;
+}
+
+
+static void policy_run_cfg_free(void *config)
+{
+    policy_run_config_list_t *cfg =(policy_run_config_list_t *)config;
+
+    if (cfg != NULL)
+    {
+        int i;
+
+        if (cfg->configs != NULL)
+        {
+            for (i = 0; i < cfg->count; i++)
+            {
+                if (cfg->configs[i].trigger_list != NULL)
+                    free_triggers(cfg->configs[i].trigger_list, cfg->configs[i].trigger_count);
+            }
+            free(cfg->configs);
+        }
+        free(cfg);
+    }
+}
+
+mod_cfg_funcs_t policy_run_cfg_hdlr = {
+    .module_name = "policy run",
+    .new = policy_run_cfg_new,
+    .free = policy_run_cfg_free,
+    .set_default = policy_run_cfg_set_default,
+    .read = policy_run_cfg_read,
+    .set_config = policy_run_cfg_set,
+    .write_default = policy_run_cfg_write_default,
+    .write_template =  policy_run_cfg_write_template
+};

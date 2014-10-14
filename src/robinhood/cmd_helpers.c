@@ -31,6 +31,7 @@
 #include "rbh_misc.h"
 #include "Memory.h"
 #include "xplatform_print.h"
+#include "status_manager.h"
 
 #define SCRUB_TAG "Scrubber"
 #define P2ID_TAG "Path2Id"

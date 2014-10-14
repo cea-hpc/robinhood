@@ -25,9 +25,11 @@
 #ifndef _ENTRY_PROC_H
 #define _ENTRY_PROC_H
 
-#include "list_mgr.h"
 #include "list.h"
 #include "config_parsing.h"
+#include "rbh_boolexpr.h"
+#include <stdint.h>
+#include "list_mgr.h"
 
 /* Tag for Logs */
 #define ENTRYPROC_TAG   "EntryProc"
@@ -39,25 +41,6 @@ typedef struct alert_item_t
     bool_node_t    boolexpr;
     uint64_t       attr_mask;
 } alert_item_t;
-
-typedef struct entry_proc_config_t
-{
-    unsigned int   nb_thread;
-    unsigned int   max_pending_operations;
-    unsigned int   max_batch_size;
-
-    alert_item_t  *alert_list;
-    unsigned int   alert_count;
-    uint64_t       alert_attr_mask;
-
-    bool           match_classes;
-#ifdef ATTR_INDEX_creation_time
-    /* fake mtime in the past causes higher
-     * migration priority */
-    bool           detect_fake_mtime;
-#endif
-    uint64_t       diff_mask;
-} entry_proc_config_t;
 
 /* === pipeline stage flags ===  */
 
@@ -132,17 +115,6 @@ extern void * entry_proc_arg; /* pipeline specific arguments */
  * - op_extra_info_t type
  */
 #include "pipeline_types.h"
-
-/** type of operation to be performed on database */
-typedef enum operation_type_t
-{
-    OP_TYPE_NONE = 0,
-    OP_TYPE_INSERT,
-    OP_TYPE_UPDATE,
-    OP_TYPE_REMOVE_ONE,         /* remove name only; inode still exists */
-    OP_TYPE_REMOVE_LAST,        /* remove last name to inode and inode */
-    OP_TYPE_SOFT_REMOVE
-} operation_type_t;
 
 /**
  * callback function definition
@@ -220,13 +192,13 @@ typedef struct entry_proc_op_t
     } timestamp;
 
     /* double chained list for pipeline */
-    struct list_head list;
+    struct rh_list_head list;
 
     /* double chained list for hash storage (used by constraint on id) */
-    struct list_head id_hash_list;
+    struct rh_list_head id_hash_list;
 
     /* double chained list for hash storage (used by constraint on parent/name) */
-    struct list_head name_hash_list;
+    struct rh_list_head name_hash_list;
 
 } entry_proc_op_t;
 
@@ -248,30 +220,15 @@ typedef struct entry_proc_op_t
 #define NEED_GETATTR(_op) ((_op)->fs_attr_need & POSIX_ATTR_MASK )
 #define NEED_READLINK(_op) ((_op)->fs_attr_need & ATTR_MASK_link)
 
+/** config handlers */
+extern mod_cfg_funcs_t entry_proc_cfg_hdlr;
 
 /* ===== entry processor calls ===== */
 
 /**
- * \addtogroup MODULE_CONFIG_FUNCTIONS
- * @{
- */
-int            SetDefault_EntryProc_Config( void *module_config, char *msg_out );
-int            Read_EntryProc_Config(config_file_t config,
-                                     void *module_config, char *msg_out,
-                                     bool for_reload);
-int            Reload_EntryProc_Config( void *module_config );
-int            Write_EntryProc_ConfigTemplate( FILE * output );
-int            Write_EntryProc_ConfigDefault( FILE * output );
-/**
- * @}
- */
-
-/**
  *  Initialize entry processor pipeline
  */
-int EntryProcessor_Init( const entry_proc_config_t * p_conf,
-                         pipeline_flavor_e flavor, int flags,
-                         void * arg );
+int EntryProcessor_Init(pipeline_flavor_e flavor, int flags, void *arg);
 
 /**
  * Terminate EntryProcessor

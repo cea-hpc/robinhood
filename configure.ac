@@ -84,9 +84,19 @@ AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns
 # program to be used for mailing
 AX_PROG_MAIL
 
+
+build_lustre="OFF"
+build_backup="OFF"
+build_lhsm="OFF"
+build_shook="OFF"
+
 AC_ARG_ENABLE( [lustre], AS_HELP_STRING([--disable-lustre],
                [Disable all lustre specific features]),
                [support_lustre="$enableval"],[support_lustre="yes"] )
+
+# shook requires Lustre + FID support + shook library
+# hsm_lite requires Lustre + FID support
+# lustre_hsm requires Lustre >= 2.5
 
 if test "x$support_lustre" = "xyes" ; then
     # Lustre location
@@ -101,6 +111,7 @@ if test "x$support_lustre" = "xyes" ; then
     AC_CHECK_LIB([lustreapi], [llapi_obd_statfs], [have_liblustre_api="yes"])
     AM_CONDITIONAL( LUSTRE, test  "x$have_liblustre_api" = "xyes" )
     AC_SUBST(LUSTRE)
+    build_lustre="ON"
 
     # lustre relative information and checks
     if test "x$have_liblustre_api" = "xyes" ; then
@@ -160,7 +171,11 @@ if test "x$support_lustre" = "xyes" ; then
             # only check for fid if fid support is not disabled
         if test "x$fid_support" = "xyes" ; then
                 AC_CHECK_LIB([lustreapi], [llapi_fid2path], [have_fid="yes"])
-            test "x$have_fid" = "xyes" && AC_DEFINE(_HAVE_FID, 1, [lustre supports fids])
+                if test "x$have_fid" = "xyes"; then
+                    AC_DEFINE(_HAVE_FID, 1, [lustre supports fids])
+                    AC_DEFINE(_HSM_LITE, 1, [HSM lite support])
+                    build_backup="ON"
+                fi
         fi
 
         # check if fd2fid function exists
@@ -232,124 +247,52 @@ if test "x$support_lustre" = "xyes" ; then
         ])
         test "x$have_obj_id" = "xyes" && AC_DEFINE(HAVE_OBJ_ID, 1, [lov_user_ost_data_v1 has l_object_id field])
 
+        # Lustre/HSM feature needs Lustre 2.5.0. As some hsm calls were already landed as empty nutshells in 2.4
+        # we rely on this new call of 2.5.0: llapi_hsm_state_get_fd().
+        AC_CHECK_LIB([lustreapi], llapi_hsm_state_get_fd, [have_lustre_hsm="yes"])
+        if test "x$have_lustre_hsm" = "xyes"; then
+            AC_DEFINE([_LUSTRE_HSM], [1], [Lustre/HSM feature is present])
+            build_lhsm="ON"
+        fi
 
+        # test if library is available for shook mode
+        AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
+        # fix with dynamic module management
+        if test "x$have_shook" = "xyes"; then
+            PURPOSE_LDFLAGS="-lshooksvr" # FIXME only the module must be linked ahainst it
+            #AC_DEFINE([HAVE_SHOOK], [1], [libshook is available]) # specified in module compil flags
+            build_shook="ON"
+        fi
     fi
 
     AM_CONDITIONAL(CHANGELOGS,  test  "x$have_llapi_changelog_start" = "xyes" )
     AM_CONDITIONAL(USER_LOVEA, [test  "x$have_new_lustre_header" != "xtrue" && test "x$have_llapi_changelog_start" = "xyes"])
+    AM_CONDITIONAL(LUSTRE_HSM,  test "x$have_lustre_hsm" = "xyes")
+    AM_CONDITIONAL(SHOOK,       test  "x$have_shook" = "xyes")
+    # XXX HSM-LITE tagged sections of the code require Lustre 2.x
+    AM_CONDITIONAL(HSM_LITE,    test "x$have_fid" = "xyes")
 else
     AM_CONDITIONAL(LUSTRE, test 0 = 1 )
     AM_CONDITIONAL(CHANGELOGS, test 0 = 1 ) 
-    AM_CONDITIONAL( USER_LOVEA, test  0 = 1 )
+    AM_CONDITIONAL(USER_LOVEA, test  0 = 1 )
+    AM_CONDITIONAL(LUSTRE_HSM,     test 0 = 1)
+    AM_CONDITIONAL(SHOOK,       test  0 = 1)
+    AM_CONDITIONAL(HSM_LITE,    test 0 = 1)
 
 fi # end of Lustre support
 
 AC_CHECK_HEADERS([attr/xattr.h],[],[AC_MSG_ERROR([libattr-devel is not installed.])])
 
-
 AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="yes"],[have_pthread_getsequence_np="no"])
     test "x$have_pthread_getsequence_np" = "xyes" && AC_DEFINE(HAVE_PTHREAD_GETSEQUENCE_NP, 1, [pthread_getsequence_np function exists])
 
-# Purpose ?
-
-AC_ARG_WITH( [purpose], AS_HELP_STRING([--with-purpose=TMPFS|LUSTRE_HSM|HSM_LITE|BACKUP|SHOOK],[specify the purpose of the daemon] ),
-             PURPOSE="$withval", PURPOSE="TMP_FS_MGR")
-
-AM_CONDITIONAL(LUSTRE_HSM,     test "$PURPOSE" = "LUSTRE_HSM")
-AM_CONDITIONAL(TMP_FS_MGR,     test "$PURPOSE" = "TMP_FS_MGR" -o "$PURPOSE" = "TMPFS" )
-AM_CONDITIONAL(HSM_LITE, test "$PURPOSE" = "HSM_LITE" -o  "$PURPOSE" = "SHOOK" -o  "$PURPOSE" = "BACKUP" )
-
-# purpose dependent flags
-case $PURPOSE in
-        LUSTRE_HSM)
-        # check pre-requisites
-        if test "x$have_liblustre_api" != "xyes" ; then
-            AC_MSG_ERROR([liblustreapi of lustre 2.x must be installed for compiling Lustre-HSM policy engine])
-        fi
-        if test "x$have_fid" != "xyes" ; then
-            AC_MSG_ERROR([type lustre_fid is missing (needed for Lustre-HSM purpose)])
-        fi
-
-        PURPOSE_CFLAGS="-D_LUSTRE_HSM"
-        PURPOSE_BIN="rbh-lhsm"
-        PURPOSE_EXT="lhsm"
-        PURPOSE_SVC="robinhood-lhsm"
-        AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for Lustre-HSM purpose])
-        AC_DEFINE([HAVE_RM_POLICY], [1], [HSM removal policy for Lustre-HSM purpose])
-        AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for Lustre-HSM purpose])
-        ;;
-    TMP_FS_MGR | TMPFS)
-        PURPOSE_CFLAGS="-D_TMP_FS_MGR"
-        PURPOSE_BIN="robinhood"
-        PURPOSE_EXT="tmpfs"
-        PURPOSE_SVC="robinhood"
-        AC_DEFINE([HAVE_RMDIR_POLICY], [1], [Dir removal policy for TMP_FS_MGR purpose])
-        AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for TMP_FS_MGR purpose])
-        ;;
-    
-    BACKUP | HSM_LITE | SHOOK)
-        # check pre-requisites
-        if test "x$have_liblustre_api" != "xyes" ; then
-            AC_MSG_ERROR([For now, HSM-lite purpose is only supported on Lustre v2 filesystem])
-        fi
-        if test "x$have_fid" != "xyes" ; then
-            AC_MSG_ERROR([For now, HSM-lite purpose is only supported on Lustre v2 filesystem])
-        fi
-
-        PURPOSE_CFLAGS="-D_HSM_LITE"
-
-        AC_DEFINE([HAVE_MIGR_POLICY], [1], [Migration policy for HSM-lite purpose])
-        AC_DEFINE([HAVE_RM_POLICY], [1], [Backend removal policy for HSM-lite purpose])
-
-        if test "$PURPOSE" = "SHOOK" -o "$PURPOSE" = "HSM_LITE"; then
-            # test if library is available for shook mode
-            AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
-
-            if test "x$have_shook" != "xyes" ; then
-                if test "$PURPOSE" != "HSM_LITE"; then
-                    AC_MSG_ERROR([libshooksvr not found, cannot build robinhood using shook])
-                fi
-                # HSM_LITE mode without shook: OK (just display a warning)
-                AC_MSG_WARN([libshooksvr not found, switching to backup mode only])
-
-                PURPOSE_BIN="rbh-backup"
-                PURPOSE_EXT="backup"
-                PURPOSE_SVC="robinhood-backup"
-            else
-                # Shook mode with Shook library: OK
-                AC_MSG_NOTICE([libshooksvr is installed, full HSM-lite support is enabled]) 
-                PURPOSE_LDFLAGS="-lshooksvr"
-                AC_DEFINE([HAVE_PURGE_POLICY], [1], [Purge policy for HSM-lite purpose])
-                AC_DEFINE([HAVE_SHOOK], [1], [libshook based HSM binding])
-
-                PURPOSE_BIN="rbh-shook"
-                PURPOSE_EXT="shook"
-                PURPOSE_SVC="robinhood-shook"
-            fi
-        else
-            # backup mode
-            AC_MSG_NOTICE([Compiling robinhood with backup mode])
-            PURPOSE_BIN="rbh-backup"
-            PURPOSE_EXT="backup"
-            PURPOSE_SVC="robinhood-backup"
-        fi
-        ;;
-
-    *)
-        AC_MSG_ERROR([This purpose is not supported yet])
-        ;;
-esac
-
-AM_CONDITIONAL(SHOOK, test  "$PURPOSE_EXT" = "shook")
-AM_CONDITIONAL(BACKUP, test  "$PURPOSE_EXT" = "backup")
 
 AC_SUBST(PURPOSE_CFLAGS)
 AC_SUBST(PURPOSE_LDFLAGS)
-AC_SUBST(PURPOSE_BIN)
-AC_SUBST(PURPOSE_EXT)
-AC_SUBST(PURPOSE_SVC)
-AC_DEFINE_UNQUOTED([PURPOSE_EXT],"$PURPOSE_EXT", [Directory extension for the given usage])
-
+#AC_SUBST(PURPOSE_BIN)
+#AC_SUBST(PURPOSE_EXT)
+#AC_SUBST(PURPOSE_SVC)
+#AC_DEFINE_UNQUOTED([PURPOSE_EXT],"$PURPOSE_EXT", [Directory extension for the given usage])
 
 CFLAGS="$CFLAGS -I\$(top_srcdir)/src/include"
 
@@ -442,8 +385,8 @@ AC_CONFIG_FILES([Makefile
          src/entry_processor/Makefile
          src/fs_scan/Makefile
          src/chglog_reader/Makefile
+         src/modules/Makefile
          src/policies/Makefile
-         src/backend_ext/Makefile
          src/robinhood/Makefile
          src/tools/Makefile
          src/tests/Makefile
@@ -458,3 +401,9 @@ AC_CONFIG_FILES([Makefile
          doc/doxygen/doxygen.cfg
          scripts/make_mans.sh])
 AC_OUTPUT
+
+AC_MSG_NOTICE([Summary:])
+AC_MSG_NOTICE([Lustre     support is $build_lustre])
+AC_MSG_NOTICE([Backup     support is $build_backup])
+AC_MSG_NOTICE([Lustre/HSM support is $build_lhsm])
+AC_MSG_NOTICE([Shook      support is $build_shook])
