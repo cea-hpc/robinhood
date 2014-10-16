@@ -1643,7 +1643,6 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 #ifdef _LUSTRE_HSM
         /* copy is asynchronous */
         action_str = "starting archive";
-        err_str = strerror(-rc);
 #elif defined(_HSM_LITE)
         if (backend.async_archive)
             action_str = "starting archive";
@@ -1653,6 +1652,11 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 #else
         #error "Unexpected flavor"
 #endif
+        if (-rc < 126)
+            err_str = strerror(-rc);
+        else
+            err_str = "command execution failed";
+
 
         DisplayLog( LVL_MAJOR, MIGR_TAG, "Error %s of '%s': %s", action_str,
                     ATTR( &p_item->entry_attr, fullpath ), err_str );

@@ -2071,34 +2071,50 @@ static char * escape_shell_arg( const char * in, char * out )
 int execute_shell_command(int quiet, const char * cmd, int argc, ...)
 {
 #define SHCMD "ShCmd"
+    static const char quiet_string[]  = ">/dev/null 2>/dev/null";
+    char argbuf[4096];
     va_list arglist;
-    char cmdline[4096];
-    char argbuf[1024];
-    char * curr = cmdline;
+    char *cmdline;
+    char *curr;
     int rc, i;
     int exrc;
+    size_t s = 0;
 
-    curr += sprintf( cmdline, "%s", cmd );
+    /* count needed bytes */
+    s = strlen(cmd);
+    va_start(arglist, argc);
+    for (i = 0; i < argc; i++)
+        s += 2*strlen(va_arg(arglist, char *)) + 3; /* 2N+2 for escaping, +1 for white space */
+    va_end(arglist);
+    s += sizeof(quiet_string) + 1; /* +1 for '\0' */
+
+    cmdline = MemAlloc(s);
+    if (cmdline == NULL)
+        return -ENOMEM;
+
+    curr = cmdline;
+    curr += sprintf(cmdline, "%s", cmd);
 
     va_start(arglist, argc);
     for (i = 0; i < argc; i++)
-        curr += sprintf( curr, " %s",
-                         escape_shell_arg( va_arg(arglist, char *), argbuf ));
+        curr += sprintf(curr, " %s",
+                        escape_shell_arg(va_arg(arglist, char *), argbuf));
     va_end(arglist);
     if (quiet)
-        curr += sprintf(curr, " %s", " >/dev/null 2>/dev/null");
+        curr += sprintf(curr, " %s", quiet_string);
 
     DisplayLog(LVL_DEBUG, SHCMD, "Executing command: %s", cmdline);
     rc = system(cmdline);
 
-    if ( WIFEXITED(rc) )
+    if (WIFEXITED(rc))
     {
-        const char * str_error;
+        const char *str_error;
         exrc = WEXITSTATUS(rc);
         if (exrc == 0)
         {
             DisplayLog(LVL_DEBUG, SHCMD, "Command successful");
-            return 0;
+            rc = 0;
+            goto outfree;
         }
 
         /* shell special return values */
@@ -2124,6 +2140,8 @@ int execute_shell_command(int quiet, const char * cmd, int argc, ...)
             rc = -EINTR;
     }
 
+outfree:
+    MemFree(cmdline);
     return rc;
 }
 
