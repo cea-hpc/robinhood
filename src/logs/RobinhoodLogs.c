@@ -36,6 +36,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #define SYSLOG_NAMES /* to get the array of syslog facilities */
 #include <syslog.h>
@@ -438,6 +439,19 @@ int str2debuglevel( char *str )
     return -1;
 }
 
+/** replace 'non-printable chars with '?' */
+static void clean_str(char *str)
+{
+    char *c;
+
+    for (c = str; *c != '\0'; c++)
+    {
+        if ((*c != '\n') && (!isprint(*c)))
+            *c = '?';
+    }
+}
+
+
 static void display_line_log( log_stream_t * p_log, const char * tag,
                        const char *format, va_list arglist )
 {
@@ -475,6 +489,7 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
                      (tag && log_config.log_tag)?" | ":"");
 
         would_print = vsnprintf(line_log + written, MAX_LINE_LEN - written, format, arglist);
+        clean_str(line_log);
 
         if (would_print >= MAX_LINE_LEN - written)
             fprintf(stderr, "%s... <Line truncated. Original size=%u>\n", line_log, would_print);
@@ -509,6 +524,7 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
                      (tag && log_config.log_tag)?" | ":"");
 
         would_print = vsnprintf(line_log + written, MAX_LINE_LEN - written, format, arglist);
+        clean_str(line_log);
 
         if ( p_log->f_log != NULL )
         {
