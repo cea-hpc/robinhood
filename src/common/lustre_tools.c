@@ -182,6 +182,16 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
     }
 }
 
+static void set_empty_stripe(stripe_info_t *p_stripe_info,
+                             stripe_items_t *p_stripe_items)
+{
+    if (p_stripe_info)
+        memset(p_stripe_info, 0, sizeof(stripe_info_t));
+
+    if (p_stripe_items)
+        memset(p_stripe_items, 0, sizeof(stripe_items_t));
+}
+
 #define LUM_SIZE_MAX (sizeof(struct lov_user_md_v3) + (LOV_MAX_STRIPE_COUNT * sizeof(struct lov_user_ost_data_v1)))
 
 int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
@@ -202,10 +212,14 @@ int File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
 
     if ( rc != 0 )
     {
-        if ( rc == -ENODATA )
+        if (rc == -ENODATA)
+        {
             DisplayLog( LVL_DEBUG, TAG_STRIPE,
                         "File %s has no stripe information",
                         entry_path );
+            set_empty_stripe(p_stripe_info, p_stripe_items);
+            rc = 0;
+        }
         else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
             DisplayLog( LVL_CRIT, TAG_STRIPE,
                         "Error %d getting stripe info for %s", rc,
@@ -239,10 +253,14 @@ int File_GetStripeByDirFd( int dirfd, const char *fname,
 
     if ( rc != 0 )
     {
-        if ( rc == -ENODATA )
+        if (rc == -ENODATA)
+        {
             DisplayLog( LVL_DEBUG, TAG_STRIPE,
                         "File %s has no stripe information",
                         fname );
+            set_empty_stripe(p_stripe_info, p_stripe_items);
+            return 0;
+        }
         else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
             DisplayLog( LVL_CRIT, TAG_STRIPE,
                         "Error %d getting stripe info for %s", rc,

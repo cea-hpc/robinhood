@@ -65,6 +65,10 @@ int update_stripe_info(lmgr_t *p_mgr, PK_ARG_T pk, int validator,
     if (rc && !insert_if_absent)
         return rc;
 
+    /* don't insert empty stripe */
+    if (p_stripe != NULL && p_stripe->stripe_count == 0)
+        return 0;
+
     return insert_stripe_info(p_mgr, pk, validator, p_stripe, p_items, FALSE);
 }
 
@@ -198,6 +202,7 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
                              unsigned int count, int update_if_exists)
 {
     int     i, rc;
+    unsigned int total_si;
     char    tmp[1024];
     var_str query = VAR_STR_NULL;
 
@@ -248,6 +253,9 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
 
     var_str_append(&query, "INSERT INTO " STRIPE_ITEMS_TABLE
                            " ("STRIPE_ITEMS_FIELDS") VALUES ");
+
+    total_si = 0;
+
     /* loop on all entries and all stripe items */
     for (i = 0; i < count; i++)
     {
@@ -258,6 +266,8 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
         for (s = 0; s < p_items->count; s++)
         {
             char buff[2*STRIPE_DETAIL_SZ+1];
+
+            total_si++;
             if (buf2hex(buff, sizeof(buff), (unsigned char *)(&p_items->stripe[s].ost_gen), STRIPE_DETAIL_SZ ) < 0)
             {
                 DisplayLog(LVL_CRIT, LISTMGR_TAG, "Buffer too small to store details stripe info");
@@ -269,7 +279,9 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
         }
     }
 
-    rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
+    /* only execute it if there was some stripe items */
+    if (total_si > 0)
+        rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
 
 out:
     var_str_free(&query);
