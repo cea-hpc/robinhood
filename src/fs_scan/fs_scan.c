@@ -704,6 +704,20 @@ static int open_noatime(const char *path, int rddir)
 }
 #endif
 
+/** disable GC if a transient directory error occured */
+static void check_dir_error(int rc)
+{
+    if (rc != 0 && abs(rc) != ENOENT && abs(rc) != ESTALE)
+    {
+        /* If we cannot read the directory, we must avoid dropping all
+         * its entries from the DB => Switch to NO_GC mode. */
+        fsscan_flags |= FLAG_NO_GC;
+        DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                   "Disabling GC because the namespace can't be fully scanned");
+    }
+}
+
+
 static inline int get_dirid(const char *path, struct stat *st, entry_id_t *id)
 {
 #ifdef _HAVE_FID
@@ -713,6 +727,7 @@ static inline int get_dirid(const char *path, struct stat *st, entry_id_t *id)
         DisplayLog(LVL_CRIT, FSSCAN_TAG,
                    "Skipping %s because its FID couldn't be resolved",
                    path);
+    check_dir_error(rc);
     return rc;
 #else
     id->inode = st->st_ino;
@@ -1026,6 +1041,8 @@ static int process_one_dir(robinhood_task_t *p_task,
                    OPENDIR_STR" failed on %s (%s)",
                    p_task->path, strerror(-rc));
         (*nb_errors)++;
+        check_dir_error(rc);
+
         return rc;
     }
 
