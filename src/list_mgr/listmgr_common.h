@@ -334,4 +334,16 @@ int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value);
 int fullpath_attr2db(const char *attr, char *db);
 void fullpath_db2attr(const char *db, char *attr);
 
+static inline int sum_masks(attr_set_t **p_attrs, unsigned int count, int t_mask)
+{
+    int m = 0;
+    unsigned int i;
+
+    for (i = 0; i < count; i++)
+    {
+        m |= (p_attrs[i]->attr_mask & t_mask);
+    }
+    return m;
+}
+
 #endif

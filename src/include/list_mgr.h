@@ -24,6 +24,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifndef TRUE
 #define TRUE (1)
@@ -1040,6 +1041,9 @@ int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src);
  * and check the target mask is satisfied.
  */
 int  ListMgr_GenerateFields( attr_set_t * p_set, int target_mask );
+
+/** Check mask compatibility for request batching. */
+bool lmgr_batch_compat(int m1, int m2);
 
 #endif
 

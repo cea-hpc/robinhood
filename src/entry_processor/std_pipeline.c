@@ -51,7 +51,7 @@ static int  EntryProc_chglog_clr( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_rm_old_entries( struct entry_proc_op_t *, lmgr_t * );
 
 /* forward declaration to check batchable operations for db_apply stage */
-static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *);
+static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, int *);
 
 /* pipeline stages */
 enum {
@@ -1870,7 +1870,8 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 }
 
 static int  dbop_is_batchable(struct entry_proc_op_t *first,
-                              struct entry_proc_op_t *next)
+                              struct entry_proc_op_t *next,
+                              int *full_attr_mask)
 {
     if (first->db_op_type != OP_TYPE_INSERT
         && first->db_op_type != OP_TYPE_UPDATE
@@ -1882,9 +1883,15 @@ static int  dbop_is_batchable(struct entry_proc_op_t *first,
     /* all NOOP operations can be batched */
     else if (first->db_op_type == OP_TYPE_NONE)
         return TRUE;
+    /* different masks can be mixed, as long as attributes for each table are
+     * the same or 0. Ask the list manager about that. */
+    else if (lmgr_batch_compat(*full_attr_mask, next->fs_attrs.attr_mask))
+    {
+        *full_attr_mask |= next->fs_attrs.attr_mask;
+        return TRUE;
+    }
     else
-        /* batch operations with the same attr mask */
-        return (first->fs_attrs.attr_mask == next->fs_attrs.attr_mask);
+        return FALSE;
 }
 
 /** operation cleaning before the db_apply step */

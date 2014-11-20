@@ -204,32 +204,42 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
     int     i, rc;
     unsigned int total_si;
     char    tmp[1024];
+    bool    first;
     var_str query = VAR_STR_NULL;
 
-    if (!ATTR_MASK_TEST(p_attrs[0], stripe_info))
-        return DB_INVALID_ARG;
-
-    /* build batch request for STRIPE_INFO table */
-    var_str_append(&query, "INSERT INTO "STRIPE_INFO_TABLE
-                   " ("STRIPE_INFO_FIELDS") VALUES ");
-    for (i = 0; i < count; i++)
+    if (sum_masks(p_attrs, count, ATTR_MASK_stripe_info) != 0)
     {
-        sprintf(tmp, "%s("DPK",%u,%u,%u,'%s')", i == 0 ? "" : ",",
-                pklist[i], validators[i], ATTR(p_attrs[i], stripe_info).stripe_count,
-                (unsigned int)ATTR(p_attrs[i], stripe_info).stripe_size,
-                ATTR(p_attrs[i], stripe_info).pool_name);
-        var_str_append(&query, tmp);
+        /* build batch request for STRIPE_INFO table */
+        var_str_append(&query, "INSERT INTO "STRIPE_INFO_TABLE
+                       " ("STRIPE_INFO_FIELDS") VALUES ");
+
+        first = true;
+        for (i = 0; i < count; i++)
+        {
+            /* no request if the entry has no stripe info */
+            if (!ATTR_MASK_TEST(p_attrs[i], stripe_info))
+                continue;
+
+            sprintf(tmp, "%s("DPK",%u,%u,%u,'%s')", first ? "" : ",",
+                    pklist[i], validators[i], ATTR(p_attrs[i], stripe_info).stripe_count,
+                    (unsigned int)ATTR(p_attrs[i], stripe_info).stripe_size,
+                    ATTR(p_attrs[i], stripe_info).pool_name);
+            var_str_append(&query, tmp);
+            first = false;
+        }
+
+        if (update_if_exists)
+            /* append "on duplicate key ..." */
+            var_str_append(&query, " ON DUPLICATE KEY UPDATE "STRIPE_INFO_SET_VALUES);
+
+        if (!first) /* do nothing if no entry had stripe info */
+        {
+            rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
+            if (rc)
+                goto out;
+        }
+        var_str_reset(&query);
     }
-
-    if (update_if_exists)
-        /* append "on duplicate key ..." */
-        var_str_append(&query, " ON DUPLICATE KEY UPDATE "STRIPE_INFO_SET_VALUES);
-
-    rc = db_exec_sql(&p_mgr->conn, VAR_STR_START(query), NULL);
-    if (rc)
-        goto out;
-
-    var_str_reset(&query);
 
     /* Stripe items more tricky because we want to delete previous items on update */
     /* If update_if_exists is false, insert them all as a batch.
@@ -239,6 +249,10 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
     {
         for (i = 0; i < count; i++)
         {
+            /* no request if the entry has no stripe items */
+            if (!ATTR_MASK_TEST(p_attrs[i], stripe_items))
+                continue;
+
             sprintf(tmp, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pklist[i]);
 
             rc = db_exec_sql(&p_mgr->conn, tmp, NULL);
@@ -247,20 +261,25 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
         }
     }
 
-    /* bulk insert stripe items */
-    if (!ATTR_MASK_TEST(p_attrs[0], stripe_items))
+    /* bulk insert stripe items (if any is set) */
+    if (sum_masks(p_attrs, count, ATTR_MASK_stripe_items) == 0)
         goto out;
 
     var_str_append(&query, "INSERT INTO " STRIPE_ITEMS_TABLE
                            " ("STRIPE_ITEMS_FIELDS") VALUES ");
 
     total_si = 0;
-
+    first = true;
     /* loop on all entries and all stripe items */
+
     for (i = 0; i < count; i++)
     {
         int s;
         const stripe_items_t * p_items;
+
+       /* skip the entry if it has no stripe items */
+        if (!ATTR_MASK_TEST(p_attrs[i], stripe_items))
+            continue;
 
         p_items = &ATTR(p_attrs[i], stripe_items);
         for (s = 0; s < p_items->count; s++)
@@ -273,9 +292,10 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
                 DisplayLog(LVL_CRIT, LISTMGR_TAG, "Buffer too small to store details stripe info");
                 memset(buff, 0, sizeof(buff));
             }
-            sprintf(tmp, "%s("DPK",%u,%u,x'%s')", (i == 0) && (s == 0) ? "" : ",",
+            sprintf(tmp, "%s("DPK",%u,%u,x'%s')", first && (s == 0) ? "" : ",",
                     pklist[i], s, p_items->stripe[s].ost_idx, buff);
             var_str_append(&query, tmp);
+            first = false;
         }
     }
 

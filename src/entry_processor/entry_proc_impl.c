@@ -774,6 +774,8 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                     && entry_proc_pipeline[i].stage_batch_function != NULL)
                 {
                     entry_proc_op_t *p_next;
+                    int batch_mask = p_curr->fs_attrs.attr_mask;
+
                     rh_list_for_each_entry_after(p_next, &pl->entries, p_curr, list)
                     {
                         if (*op_count >= entry_proc_conf.max_batch_size)
@@ -782,7 +784,7 @@ static entry_proc_op_t **next_work_avail(int *p_empty, int *op_count)
                             /* entry is already beeing processed or is at a different stage */
                             break;
 
-                        if (entry_proc_pipeline[i].test_batchable(p_curr, p_next))
+                        if (entry_proc_pipeline[i].test_batchable(p_curr, p_next, &batch_mask))
                         {
                             pl->nb_unprocessed_entries--;
                             pl->nb_current_entries++;

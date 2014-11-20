@@ -49,7 +49,7 @@ static int  EntryProc_batch_apply(struct entry_proc_op_t **, int, lmgr_t *);
 static int  EntryProc_report_rm( struct entry_proc_op_t *, lmgr_t * );
 
 /* forward declaration to check batchable operations for db_apply stage */
-static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *);
+static int  dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, int *);
 
 /* pipeline stages */
 #define STAGE_GET_FID       0
@@ -779,7 +779,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 }
 
 /* forward declaration to check batchable operations for db_apply stage */
-static int  dbop_is_batchable(struct entry_proc_op_t *first, struct entry_proc_op_t *next)
+static int  dbop_is_batchable(struct entry_proc_op_t *first, struct entry_proc_op_t *next, int *full_attr_mask)
 {
     /* batch nothing if not applying to DB */
     if ((diff_arg->apply != APPLY_DB) || (pipeline_flags & FLAG_DRY_RUN))
@@ -795,9 +795,15 @@ static int  dbop_is_batchable(struct entry_proc_op_t *first, struct entry_proc_o
     /* all NOOP operations can be batched */
     else if (first->db_op_type == OP_TYPE_NONE)
         return TRUE;
+    /* different masks can be mixed, as long as attributes for each table are
+     * the same or 0. Ask the list manager about that. */
+    else if (lmgr_batch_compat(*full_attr_mask, next->fs_attrs.attr_mask))
+    {
+        *full_attr_mask |= next->fs_attrs.attr_mask;
+        return TRUE;
+    }
     else
-        /* batch operations with the same attr mask */
-        return (first->fs_attrs.attr_mask == next->fs_attrs.attr_mask);
+        return FALSE;
 }
 
 

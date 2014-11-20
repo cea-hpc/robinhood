@@ -89,7 +89,7 @@ typedef int (*step_batch_function_t) (struct entry_proc_op_t **, int count, lmgr
 /**
  * Callback to check if 2 operations can be batched together.
  */
-typedef int (*test_batchable_func_t)(struct entry_proc_op_t *, struct entry_proc_op_t *);
+typedef int (*test_batchable_func_t)(struct entry_proc_op_t *, struct entry_proc_op_t *, int *full_mask);
 
 /**
  * Definition of a pipeline stage

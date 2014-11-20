@@ -1634,3 +1634,27 @@ int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line)
     lmgr->retry_count ++;
     return 1;
 }
+
+/** check attribute mask compatibility for a given table */
+static inline bool table_mask_compat(int m1, int m2)
+{
+    /* attrs in a given table must be the same or 0 */
+    if (m1 == 0 || m2 == 0)
+        return true;
+    else
+        return (m1 == m2);
+}
+
+/** Check mask compatibility for request batching. */
+bool lmgr_batch_compat(int m1, int m2)
+{
+    if (!table_mask_compat(m1 & main_attr_set, m2 & main_attr_set))
+        return false;
+    if (!table_mask_compat(m1 & names_attr_set, m2 & names_attr_set))
+        return false;
+    if (!table_mask_compat(m1 & annex_attr_set, m2 & annex_attr_set))
+        return false;
+    if (!table_mask_compat(m1 & stripe_attr_set, m2 & stripe_attr_set))
+        return false;
+    return true;
+}
