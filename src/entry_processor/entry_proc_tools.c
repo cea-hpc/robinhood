@@ -857,4 +857,63 @@ void check_and_warn_fake_mtime(const struct entry_proc_op_t *p_op)
     }
 }
 
+#ifdef _LUSTRE
+static void clear_stripe_info(attr_set_t *attrs)
+{
+    ATTR_MASK_UNSET(attrs, stripe_info);
+    if (ATTR_MASK_TEST(attrs, stripe_items))
+    {
+        /* free stripe structure */
+        if (ATTR(attrs, stripe_items).stripe)
+            MemFree(ATTR(attrs, stripe_items).stripe);
+        ATTR_MASK_UNSET(attrs, stripe_items);
+    }
+}
+
+void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
+{
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+                /* Since Lustre2.4, entry striping can change (lfs swap_layouts, lfs hsm_release...)
+                 * so scanning must update file stripe information. */
+                /* Possible cases:
+                 * - File striping is not set in fs_attrs: check it exists in DB
+                 *      If not, get stripe info from filesystem
+                 * - File striping is set in fs_attrs:
+                 *      - Check stripe validator in DB: if OK, don't update DB info
+                 *      - if an error is reported, update with the new values.
+                 */
+                if (!ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info))
+                {
+#endif
+                    /* check it exists in DB */
+                    if (ListMgr_CheckStripe(lmgr, &p_op->entry_id, VALID_EXISTS) != DB_SUCCESS)
+                    {
+                        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is missing/invalid in DB");
+
+                        /* don't need to get stripe if we already have fresh stripe info from FS */
+                        if (!(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
+                              && ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)))
+                        {
+                                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+                        }
+                    }
+                    else /* stripe is OK, don't update stripe items */
+                        clear_stripe_info(&p_op->fs_attrs);
+
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+                }
+                else if (ListMgr_CheckStripe(lmgr, &p_op->entry_id,
+                                   ATTR(&p_op->fs_attrs, stripe_info).validator)
+                         == DB_SUCCESS)
+                {
+                    /* don't update */
+                    clear_stripe_info(&p_op->fs_attrs);
+                }
+                else /* keep stripe info in fs_attrs, as it must be updated */
+                    DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Stripe information has changed");
+#endif
+}
+#endif
+
+
 

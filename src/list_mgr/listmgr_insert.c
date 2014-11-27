@@ -232,7 +232,12 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
             goto out_free;
         }
         for (i = 0; i < count; i++)
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+            validators[i] = ATTR_MASK_TEST(p_attrs[i], stripe_info)?
+                                ATTR(p_attrs[i],stripe_info).validator:VALID_NOSTRIPE;
+#else
             validators[i] = VALID(p_ids[i]);
+#endif
 
         rc = batch_insert_stripe_info(p_mgr, pklist, validators, p_attrs,
                                       count, TRUE);

@@ -188,16 +188,18 @@ if test "x$support_lustre" = "xyes" ; then
                     #include <asm/types.h>
                     #include <lustre/lustre_user.h>
                 ])
-
             fi
 
             if test "x$have_llapi_changelog_start" = "xyes" && \
                test "x$have_fid" != "xyes"; then
                 AC_MSG_ERROR([Conflicting options: fid must be enabled for enabling MDT changelogs management])
             fi
-
-
     	fi
+
+        # llapi_swap_layouts exists since Lustre2.4 release
+        # since then, entry striping can change so scanning must update file stripe information
+        AC_CHECK_LIB([lustreapi], [llapi_fswap_layouts], [have_llapi_fswap_layouts="yes"])
+        test "x$have_llapi_fswap_layouts" = "xyes" && AC_DEFINE(HAVE_LLAPI_FSWAP_LAYOUTS, 1, [llapi_fswap_layouts is available])
 
         AX_ENABLE_FLAG( [llapi-fork-support], [Must be enabled if liblustreapi uses fork()], [-D_LLAPI_FORKS] )
         AX_ENABLE_FLAG( [mds-stat], [ioctl() to MDC instead of POSIX stat()], [-D_MDS_STAT_SUPPORT] )

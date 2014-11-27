@@ -1451,6 +1451,10 @@ int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
                         != ATTR(p_src, stripe_info).stripe_size)
                     || (ATTR(p_tgt, stripe_info).stripe_count
                         != ATTR(p_src, stripe_info).stripe_count)
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+                    || (ATTR(p_tgt, stripe_info).validator
+                        != ATTR(p_src, stripe_info).validator)
+#endif
                     || (strcmp(ATTR(p_tgt, stripe_info).pool_name,
                            ATTR(p_src, stripe_info).pool_name) != 0))
                 {

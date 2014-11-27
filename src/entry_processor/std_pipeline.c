@@ -897,7 +897,6 @@ static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, int *updt_ma
 #endif
 }
 
-
 /**
  * check if the entry exists in the database and what info
  * must be retrieved.
@@ -1387,38 +1386,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->fs_attr_need |= ATTR_MASK_parent_id;
 
 #ifdef _LUSTRE
-            /* get stripe only for files */
-            if ( ATTR_MASK_TEST( &p_op->fs_attrs, type )
-                 && !strcmp( ATTR( &p_op->fs_attrs, type ), STR_TYPE_FILE ))
+            /* check stripe only for files */
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
+                 && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_FILE)
+                 && !strcmp( global_config.fs_type, "lustre"))
             {
-                /* only get stripe for files */
-                if (!strcmp( global_config.fs_type, "lustre" ))
-                {
-                    /* Does file has stripe info ? */
-                    if ( ListMgr_CheckStripe( lmgr, &p_op->entry_id ) != DB_SUCCESS )
-                    {
-                        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is missing/invalid in DB" );
-
-                        /* don't need to get stripe if we already have fresh stripe info from FS */
-                        if (!(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
-                              && ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)))
-                        {
-                                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
-                        }
-                    }
-                    else
-                    {
-                        /* don't update stripe info (it is still valid) */
-                        ATTR_MASK_UNSET(&p_op->fs_attrs, stripe_info);
-                        if (ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items))
-                        {
-                            /* free stripe structure */
-                            if (ATTR(&p_op->fs_attrs, stripe_items).stripe)
-                                MemFree(ATTR(&p_op->fs_attrs, stripe_items).stripe);
-                            ATTR_MASK_UNSET(&p_op->fs_attrs, stripe_items);
-                        }
-                    }
-                }
+                check_stripe_info(p_op, lmgr);
             }
 #endif
             next_stage = STAGE_GET_INFO_FS;

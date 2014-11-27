@@ -79,6 +79,9 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
             p_stripe_info->stripe_size = p_lum->lmm_stripe_size;
             p_stripe_info->stripe_count = p_lum->lmm_stripe_count;
             p_stripe_info->pool_name[0] = '\0';
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+            p_stripe_info->validator = p_lum->lmm_layout_gen;
+#endif
         }
 
         if ( p_stripe_items )
@@ -132,6 +135,9 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
             p_stripe_info->stripe_count = p_lum3->lmm_stripe_count;
             strncpy(p_stripe_info->pool_name, p_lum3->lmm_pool_name, LOV_MAXPOOLNAME);
             p_stripe_info->pool_name[MAX_POOL_LEN-1] = '\0';
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+            p_stripe_info->validator = p_lum3->lmm_layout_gen;
+#endif
         }
 
         if ( p_stripe_items )
@@ -186,7 +192,12 @@ static void set_empty_stripe(stripe_info_t *p_stripe_info,
                              stripe_items_t *p_stripe_items)
 {
     if (p_stripe_info)
+    {
         memset(p_stripe_info, 0, sizeof(stripe_info_t));
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+        p_stripe_info->validator = VALID_NOSTRIPE;
+#endif
+    }
 
     if (p_stripe_items)
         memset(p_stripe_items, 0, sizeof(stripe_items_t));

@@ -153,12 +153,18 @@ retry:
 #ifdef _LUSTRE
     if ( ATTR_MASK_TEST( p_update_set, stripe_info ) )
     {
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+        int validator = ATTR(p_update_set, stripe_info).validator;
+#else
+        int validator = VALID(p_id);
+#endif
+
         const stripe_items_t *p_items = NULL;
 
         if (ATTR_MASK_TEST(p_update_set, stripe_items))
             p_items = &ATTR(p_update_set, stripe_items);
 
-        rc = update_stripe_info(p_mgr, pk, VALID(p_id),
+        rc = update_stripe_info(p_mgr, pk, validator,
                                 &ATTR(p_update_set, stripe_info), p_items, TRUE);
         if (lmgr_delayed_retry(p_mgr, rc))
             goto retry;

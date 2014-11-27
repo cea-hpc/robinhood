@@ -3,6 +3,7 @@
 # vim:expandtab:shiftwidth=4:tabstop=4:
 
 [ -z "$LFS" ] && LFS=lfs
+[ -z "$MULTIOP" ] && MULTIOP=/usr/lib64/lustre/tests/multiop
 
 ROOT="/mnt/lustre"
 
@@ -161,6 +162,9 @@ function error
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
 
+    # exit on error
+    [ "$EXIT_ON_ERROR" = "1" ] && exit 1
+
     # avoid displaying the same log many times
     [ "$DEBUG" = "1" ] || clean_logs
 }
@@ -315,12 +319,19 @@ function check_db_error
 
 function get_id
 {
-    p=$1
+    local p=$1
     if (( $lustre_major >= 2 )); then
         lfs path2fid $p | tr -d '[]'
     else
          stat -c "/%i" $p
     fi
+}
+
+function create_nostripe
+{
+    local f=$1
+    $MULTIOP "$f" oO_RDWR:O_CREAT:O_LOV_DELAY_CREATE || return 1
+    $LFS getstripe "$f" | grep "no stripe info" || error "$f should not have stripe info"
 }
 
 function migration_test
@@ -4537,6 +4548,296 @@ function test_layout
 
     rm -f $DSTFILE
 }
+
+function flavor2rbh_cmd
+{
+    case "$1" in
+        scan)
+            echo "$RH --scan --once -L stderr"
+            ;;
+        scandiff1) # default
+            echo "$RH --scan --once --diff=all -L stderr"
+            ;;
+        scandiff2) # explicit nostripe
+            echo "$RH --scan --once --diff=posix -L stderr"
+            ;;
+        scandiff3) # explicit stripe
+            echo "$RH --scan --once --diff=stripe -L stderr"
+            ;;
+        diffna1) # default
+            echo "$DIFF --diff=all"
+            ;;
+        diffna2) # explicit nostripe
+            echo "$DIFF --diff=posix"
+            ;;
+        diffna3) # explicit stripe
+            echo "$DIFF --diff=stripe"
+            ;;
+        diff1) # default
+            echo "$DIFF --apply=db"
+            ;;
+        diff2) # explicit nostripe
+            echo "$DIFF --diff=posix --apply=db"
+            ;;
+        diff3) # explicit stripe
+            echo "$DIFF --diff=stripe --apply=db"
+            ;;
+        cl)
+            echo "$RH --readlog --once -L stderr"
+            ;;
+        cldiff1) # default
+            echo "$RH --readlog --once --diff=all -L stderr"
+            ;;
+        cldiff2) # explicit nostripe
+            echo "$RH --readlog --once --diff=posix -L stderr"
+            ;;
+        cldiff3) # explicit stripe
+            echo "$RH --readlog --once --diff=stripe -L stderr"
+            ;;
+    esac
+}
+
+function run_scan_cmd
+{
+    local cfg=$1
+    local mode=$2
+
+    local cmd=$(flavor2rbh_cmd $mode)
+
+    :> rh.out
+    $cmd -f ./cfg/$cfg -l FULL > rh.out 2>> rh.log || error "running $cmd"
+	check_db_error rh.log
+    grep -E "Warning" rh.log && grep -E "doesn't match stripe count" rh.log > /dev/null && error "Stripe count mismatch detected"
+}
+
+function scan_check_no_update
+{
+    cfg=$1
+    mode=$2
+    
+    # no stripe update expected for 2nd run
+    :> rh.log
+    :> rh.out
+    run_scan_cmd $cfg $mode
+    grep STRIPE_I rh.log | egrep -i "INSERT|DELETE|UPDATE" && error "No stripe update expected during second run"
+}
+
+# check diff output (rh.out) when [[ $flavor = *"diff"* ]]
+function check_stripe_diff
+{
+    old="$1"
+    new="$2"
+    expect=$3
+    if [ $expect = 1 ]; then
+        if [ -n "$old" ]; then
+            egrep "^\-" rh.out | egrep "$old"  || error "pattern '- ... $old' not found in diff output"
+        fi
+        if [ -n "$new" ]; then
+            egrep "^\+" rh.out | egrep "$new"  || error "pattern '+ ... $new' not found in diff output"
+        fi
+    else
+        if [ -n "$old" ]; then
+            egrep "^\-" rh.out | egrep "$old"  && error "pattern '- ... $old' not expected in diff output"
+        fi
+        if [ -n "$new" ]; then
+            egrep "^\+" rh.out | egrep "$new"  && error "pattern '+ ... $new' not expected in diff output"
+        fi
+    fi
+}
+
+function check_stripe
+{
+    local cfg=$1
+    local f=$2
+    local pattern=$3
+
+    :> rh.out
+    $REPORT -f ./cfg/$cfg -c -e $f > rh.out 2>> rh.log || error "$f not in RBH DB"
+	check_db_error rh.log
+    egrep "^stripes," rh.out | egrep "$pattern" || error "pattern \"$pattern\" not found in report output: $(cat rh.out)"
+}
+
+function stripe_update
+{
+    config_file=$1
+    flavor=$2 # way to update stripe info (scan, scan diff <mask1>, scan diff <mask2>,
+              # diff (no apply, apply=db)x(mask1, ..maskN), changelog...)
+              # see function flavor2rbh_opt().
+
+    :> rh.out
+    :> rh.log
+
+    has_swap=0
+    $LFS help | grep swap_layout > /dev/null && has_swap=1
+    getstripe=1 # allow getstripe
+    [ $has_swap = 1 ] && getstripe=0 # no getstripe expected
+    diff=0
+    [[ $flavor = "cl"* ]] && clean_logs
+    [[ $flavor = "cl"* ]] && getstripe=1 # getstripe allowed
+
+    # only diff1 and 3 should display stripe changes
+    [[ $flavor = *"diff"* ]] && [[ $flavor != *"2" ]] && diff=1
+    rm -f $ROOT/file.*
+
+    echo "test setup: checking diff=$diff, getstripe allowed=$getstripe, has_swap=$has_swap"
+
+    echo "- non-striped file"
+    # case 1 (all Lustre versions): create an unstriped file, then stripe it
+    create_nostripe $ROOT/file.1 || error "creating unstriped file"
+    run_scan_cmd $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "" "stripe_count=0" 1
+    check_stripe $config_file $ROOT/file.1 "none"
+
+    # no update expected for second run
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
+    check_stripe $config_file $ROOT/file.1 "none"
+
+    # stripe it
+    echo "- stripe file"
+    lfs setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
+    idx=$(lfs getstripe -i $ROOT/file.1)
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    run_scan_cmd $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
+    check_stripe $config_file $ROOT/file.1 "ost#$idx"
+
+    # no update expected for second run
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
+    check_stripe $config_file $ROOT/file.1 "ost#$idx"
+
+    # other cases: play with layout_swap (skip for Lustre < 2.4)
+    if (( $has_swap == 0 )); then
+        echo "No layout swap: skipping the end of the test"
+        return 0
+    fi
+
+    # swap with another striped file
+    lfs setstripe -c 1 $ROOT/file.2 || error "creating striped file"
+    idx2=$(lfs getstripe -i $ROOT/file.2)
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
+    echo "- swap it with striped file"
+    lfs swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    run_scan_cmd $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
+    check_stripe $config_file $ROOT/file.1 "ost#$idx2"
+
+    # no update expected for second run
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
+    check_stripe $config_file $ROOT/file.1 "ost#$idx2"
+
+    # swap with non-striped file
+    create_nostripe $ROOT/file.3 || error "creating unstriped file"
+    echo "- swap it with non-striped file"
+    lfs swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    run_scan_cmd $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
+    check_stripe $config_file $ROOT/file.1 "none"
+
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
+    check_stripe $config_file $ROOT/file.1 "none"
+
+    return 0
+}
+
+function stripe_no_update
+{
+    config_file=$1
+    flavor=$2 # way to update stripe info (scan, scan diff <mask1>, scan diff <mask2>,
+              # diff (no apply, apply=db)x(mask1, ..maskN), changelog...)
+              # see function flavor2rbh_opt().
+
+    :> rh.out
+    :> rh.log
+    has_swap=0
+    $LFS help | grep swap_layout > /dev/null && has_swap=1
+    getstripe=1 # allow getstripe
+    [ $has_swap = 1 ] && getstripe=0 # no getstripe expected
+    # only diff1 and 3 should display stripe changes
+    diff=0
+    [[ $flavor = *"diff"* ]] && [[ $flavor != *"2" ]] && diff=1
+
+    rm -f $ROOT/file.*
+
+    echo "test setup: checking diff=$diff, getstripe allowed=$getstripe, has_swap=$has_swap"
+
+    # initial scan
+    run_scan_cmd $config_file "scan"
+
+    echo "- non-striped file"
+    # case 1 (all Lustre versions): create an unstriped file, then stripe it
+    create_nostripe $ROOT/file.1 || error "creating unstriped file"
+    # no update expected for the given specified run
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "" "stripe_count=0" 1
+    # update db contents
+    run_scan_cmd $config_file "scan"
+    check_stripe $config_file $ROOT/file.1 "none"
+
+    # stripe it
+    echo "- stripe file"
+    lfs setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
+    idx=$(lfs getstripe -i $ROOT/file.1)
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
+    run_scan_cmd $config_file "scan"
+    check_stripe $config_file $ROOT/file.1 "ost#$idx"
+
+    # other cases: play with layout_swap (skip for Lustre < 2.4)
+
+    if (( $has_swap == 0 )); then
+        echo "No layout swap: skipping the end of the test"
+        return 0
+    fi
+
+    # swap with another striped file
+    lfs setstripe -c 1 $ROOT/file.2 || error "creating striped file"
+    idx2=$(lfs getstripe -i $ROOT/file.2)
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
+    echo "- swap it with striped file"
+    lfs swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
+    run_scan_cmd $config_file "scan"
+    check_stripe $config_file $ROOT/file.1 "ost#$idx2"
+
+    # swap with non-striped file
+    create_nostripe $ROOT/file.3 || error "creating unstriped file"
+    echo "- swap it with non-striped file"
+    lfs swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    scan_check_no_update $config_file $flavor
+    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
+    run_scan_cmd $config_file "scan"
+    check_stripe $config_file $ROOT/file.1 "none"
+
+    return 0
+}
+
 
 # test link/unlink/rename
 # flavors=readlog, scan, partial scan
@@ -9015,7 +9316,32 @@ run_test 112     test_hl_count info_collect.conf "reports with hardlinks"
 run_test 113     test_diff_apply_fs info_collect2.conf  "diff"  "rbh-diff --apply=fs"
 run_test 114     test_root_changelog info_collect.conf "changelog record on root entry"
 run_test 115     partial_paths info_collect.conf "test behavior when handling partial paths"
-run_test 116     test_mnt_point  test_mnt_point.conf "test with mount point != fs_path"
+run_test 116     test_mnt_point test_mnt_point.conf "test with mount point != fs_path"
+
+function runtest_117
+{
+    cfg=common.conf
+    char=a
+    for flavor in scan scandiff1 scandiff2 scandiff3 diff1 diff2 diff3 cl cldiff1 cldiff2 cldiff3; do
+        run_test 117$char stripe_update $cfg $flavor "stripe information update (flavor=$flavor)"
+        # increment char
+        char=$(echo $char | tr "a-y" "b-z")
+    done
+}
+runtest_117
+
+function runtest_118
+{
+    cfg=common.conf
+    char=a
+    for flavor in diffna1 diffna2 diffna3; do
+        run_test 118$char stripe_no_update $cfg $flavor "stripe information => update (flavor=$flavor)"
+        # increment char
+        char=$(echo $char | tr "a-y" "b-z")
+    done
+}
+runtest_118
+
 
 #### policy matching tests  ####
 

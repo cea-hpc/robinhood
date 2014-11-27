@@ -61,4 +61,8 @@ void time2human_helper(time_t t, const char *attr_name, char *str,
 
 void check_and_warn_fake_mtime(const struct entry_proc_op_t *p_op);
 
+#ifdef _LUSTRE
+void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr);
+#endif
+
 #endif

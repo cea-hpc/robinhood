@@ -32,44 +32,29 @@
 
 #define STRIPE_ITEMS_FIELDS "id,stripe_index,ostidx,details"
 
-static int delete_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk )
-{
-    int            rc;
-    char           query[4096];
-
-    sprintf( query, "DELETE FROM " STRIPE_ITEMS_TABLE " WHERE id="DPK, pk );
-
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    if ( rc )
-        return rc;
-
-    sprintf( query, "DELETE FROM " STRIPE_INFO_TABLE " WHERE id="DPK, pk );
-
-    rc = db_exec_sql( &p_mgr->conn, query, NULL );
-    if ( rc )
-        return rc;
-
-    return 0;
-}
-
 int update_stripe_info(lmgr_t *p_mgr, PK_ARG_T pk, int validator,
                        const stripe_info_t *p_stripe,
                        const stripe_items_t *p_items, int insert_if_absent)
 {
-    int rc;
+    attr_set_t fake_attr;
+    attr_set_t *p_attr = &fake_attr;
+    pktype list[1];
 
-    if (p_stripe == NULL)
-        return DB_INVALID_ARG;
+    rh_strncpy(list[0], pk, sizeof(*list));
 
-    rc = delete_stripe_info(p_mgr, pk);
-    if (rc && !insert_if_absent)
-        return rc;
+    ATTR_MASK_INIT(&fake_attr);
+    if (p_stripe)
+    {
+        ATTR_MASK_SET(&fake_attr, stripe_info);
+        ATTR(&fake_attr, stripe_info) = *p_stripe;
+    }
+    if (p_items)
+    {
+        ATTR_MASK_SET(&fake_attr, stripe_items);
+        ATTR(&fake_attr, stripe_items) = *p_items;
+    }
 
-    /* don't insert empty stripe */
-    if (p_stripe != NULL && p_stripe->stripe_count == 0)
-        return 0;
-
-    return insert_stripe_info(p_mgr, pk, validator, p_stripe, p_items, FALSE);
+    return batch_insert_stripe_info(p_mgr, list, &validator, &p_attr, 1, TRUE);
 }
 
 
@@ -78,123 +63,25 @@ int insert_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk,
                         const stripe_items_t * p_items,
                         int update_if_exists )
 {
-    int            i, rc;
-    int            created = FALSE;
+    attr_set_t fake_attr;
+    attr_set_t *p_attr = &fake_attr;
+    pktype list[1];
 
-    if ( p_stripe == NULL )
-        return DB_INVALID_ARG;
+    rh_strncpy(list[0], pk, sizeof(*list));
 
-    do
+    ATTR_MASK_INIT(&fake_attr);
+    if (p_stripe)
     {
-        char short_query[4096];
-        /* First insert info into STRIPE_INFO_TABLE,
-         * so if a file is already present with the same id,
-         * we will remove its previous stripe info */
-
-        sprintf( short_query, "INSERT INTO " STRIPE_INFO_TABLE
-                 "("STRIPE_INFO_FIELDS") "
-                 "VALUES ("DPK",%u,%u,%u,'%s')", pk, validator,
-                 p_stripe->stripe_count, ( unsigned int ) p_stripe->stripe_size,
-                 p_stripe->pool_name );
-
-        if ( update_if_exists )
-            rc = db_exec_sql_quiet( &p_mgr->conn, short_query, NULL );
-        else
-            rc = db_exec_sql( &p_mgr->conn, short_query, NULL );
-
-        if ( rc == 0 )
-        {
-            created = TRUE;
-        }
-        else if ( (rc == DB_ALREADY_EXISTS) && update_if_exists )
-        {
-            /* remove previous stripe info */
-            DisplayLog( LVL_EVENT, LISTMGR_TAG,
-                        "A stripe info already exists with this identifier, removing it" );
-            rc = delete_stripe_info( p_mgr, pk );
-        }
-
-        if ( rc != 0 )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "DB query failed in %s line %d: code=%d: %s",
-                        __FUNCTION__, __LINE__, rc, db_errmsg( &p_mgr->conn, short_query, 4096 ) );
-            return rc;
-        }
-
+        ATTR_MASK_SET(&fake_attr, stripe_info);
+        ATTR(&fake_attr, stripe_info) = *p_stripe;
     }
-    while ( !created );         /* retry loop in case a similar entry already exists */
-
-    /* then insert stripe items */
-    if ( (p_items != NULL) && (p_items->count > 0) )
+    if (p_items)
     {
-        ssize_t         len;
-        unsigned int    est_len;
-        char            *query = NULL;
-        char buff[2*STRIPE_DETAIL_SZ+1];
-
-        /* estimate query size = fix part + stripe_count * ( 4 + pklen + ost_idx_len + index_len + 2*detail_len )
-         *                     = ~64(oversize to 128) + stripe_count * 128
-         */
-        est_len = 128 + p_items->count * (128+2*STRIPE_DETAIL_SZ);
-        DisplayLog( LVL_FULL, LISTMGR_TAG, "Estimated query size for %u stripe = %u",  p_items->count, est_len );
-        query = MemAlloc(est_len);
-        if (query == NULL) {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Not enough memory to build SQL query (length = %u)", est_len );
-            return DB_NO_MEMORY;
-        }
-
-        strcpy( query, "INSERT INTO " STRIPE_ITEMS_TABLE "(id, stripe_index, ostidx, details) VALUES " );
-        len = strlen( query );
-
-        /* first stripe item */
-        if (buf2hex(buff, sizeof(buff), (unsigned char *)(&p_items->stripe[0].ost_gen), STRIPE_DETAIL_SZ ) < 0){
-            DisplayLog( LVL_CRIT, LISTMGR_TAG, "Buffer too small to store details stripe info");
-            buff[2*STRIPE_DETAIL_SZ] = '\0';
-        }
-        else
-            DisplayLog( LVL_FULL, LISTMGR_TAG, "Stripe details encoding = x'%s'", buff);
-
-        len += snprintf( query + len, est_len - len, "("DPK",0,%u,x'%s')", pk,
-                         p_items->stripe[0].ost_idx, buff );
-
-        /* next items */
-        for ( i = 1; i < p_items->count; i++ )
-        {
-            /* first stripe item */
-            if (buf2hex(buff, sizeof(buff), (unsigned char *)(&p_items->stripe[i].ost_gen), STRIPE_DETAIL_SZ ) < 0){
-                DisplayLog( LVL_CRIT, LISTMGR_TAG, "Buffer too small to store details stripe info");
-                buff[2*STRIPE_DETAIL_SZ] = '\0';
-            }
-            else
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "Stripe details encoding = x'%s'", buff);
-
-            len += snprintf( query + len, est_len - len, ",("DPK",%u,%u,x'%s')", pk,
-                             i, p_items->stripe[i].ost_idx, buff );
-
-            if ( len >= est_len )
-            {
-                DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                            "Error in %s(): query too long (>%u bytes long), stripe_count=%d",
-                            __FUNCTION__, est_len, p_items->count );
-                MemFree( query );
-                return DB_BUFFER_TOO_SMALL;
-            }
-        }
-
-        rc = db_exec_sql( &p_mgr->conn, query, NULL );
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "DB query failed in %s line %d: code=%d: %s",
-                        __FUNCTION__, __LINE__, rc, db_errmsg( &p_mgr->conn, query, 4096 ) );
-            MemFree( query );
-            return rc;
-        }
-        MemFree( query );
+        ATTR_MASK_SET(&fake_attr, stripe_items);
+        ATTR(&fake_attr, stripe_items) = *p_items;
     }
 
-    return 0;
+    return batch_insert_stripe_info(p_mgr, list, &validator, &p_attr, 1, update_if_exists);
 }
 
 int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
@@ -220,7 +107,7 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
             if (!ATTR_MASK_TEST(p_attrs[i], stripe_info))
                 continue;
 
-            sprintf(tmp, "%s("DPK",%u,%u,%u,'%s')", first ? "" : ",",
+            sprintf(tmp, "%s("DPK",%d,%u,%u,'%s')", first ? "" : ",",
                     pklist[i], validators[i], ATTR(p_attrs[i], stripe_info).stripe_count,
                     (unsigned int)ATTR(p_attrs[i], stripe_info).stripe_size,
                     ATTR(p_attrs[i], stripe_info).pool_name);
@@ -309,41 +196,51 @@ out:
 }
 
 
+#define STRIPE_FIELD_COUNT 4
+
 int get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe_info,
                      stripe_items_t * p_items )
 {
     char           query[1024];
-    char          *res[3];
+    char          *res[STRIPE_FIELD_COUNT];
     result_handle_t result;
     int            i;
     int            rc = DB_SUCCESS;
 
     /* retrieve basic stripe info */
-    sprintf( query,
-             "SELECT stripe_count, stripe_size, pool_name FROM " STRIPE_INFO_TABLE " WHERE id="DPK,
-             pk );
+    sprintf(query,
+             "SELECT stripe_count,stripe_size,pool_name,validator FROM " STRIPE_INFO_TABLE " WHERE id="DPK,
+             pk);
 
-    rc = db_exec_sql( &p_mgr->conn, query, &result );
-    if ( rc )
+    rc = db_exec_sql(&p_mgr->conn, query, &result);
+    if (rc)
         goto out;
 
-    rc = db_next_record( &p_mgr->conn, &result, res, 3 );
-    if ( rc == DB_END_OF_LIST )
+    rc = db_next_record(&p_mgr->conn, &result, res, STRIPE_FIELD_COUNT);
+    if (rc == DB_END_OF_LIST)
         rc = DB_NOT_EXISTS;
-    if ( rc )
+    if (rc)
         goto res_free;
 
-    if ( res[0] == NULL || res[1] == NULL || res[2] == NULL )
+    for (i = 0 ; i < STRIPE_FIELD_COUNT; i++)
     {
-        rc = DB_ATTR_MISSING;
-        goto res_free;
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "stripe_res[%u] = %s", i,
+                   res[i]?res[i]:"<null>");
+        if (res[i] == NULL)
+        {
+            rc = DB_ATTR_MISSING;
+            goto res_free;
+        }
     }
 
-    p_stripe_info->stripe_count = atoi( res[0] );
-    p_stripe_info->stripe_size = atoi( res[1] );
+    p_stripe_info->stripe_count = atoi(res[0]);
+    p_stripe_info->stripe_size = atoi(res[1]);
     rh_strncpy(p_stripe_info->pool_name, res[2], MAX_POOL_LEN);
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+    p_stripe_info->validator = atoi(res[3]);
+#endif
 
-    db_result_free( &p_mgr->conn, &result );
+    db_result_free(&p_mgr->conn, &result);
 
     if ( p_items )
     {
@@ -431,13 +328,18 @@ void free_stripe_items( stripe_items_t * p_stripe_items )
 
 
 /* check that validator is matching for a given entry */
-int ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id )
+int ListMgr_CheckStripe(lmgr_t * p_mgr, const entry_id_t * p_id, int validator)
 {
     char           query[1024];
     char          *res;
     result_handle_t result;
     int            rc = DB_SUCCESS;
     DEF_PK(pk);
+
+#ifndef HAVE_LLAPI_FSWAP_LAYOUTS
+    if (validator != VALID_EXISTS)
+        validator = VALID(p_id);
+#endif
 
     entry_id2pk(p_id, PTR_PK(pk));
 
@@ -466,17 +368,31 @@ retry:
         goto res_free;
     }
 
-    if ( atoi( res ) != VALID(p_id) )
+    if (validator == VALID_EXISTS)
     {
-        delete_stripe_info( p_mgr, pk );
+        DisplayLog(LVL_FULL, LISTMGR_TAG, DFID": validator exists (%s): OK",
+                   PFID(p_id), res);
+        /* just check it exists */
+        rc = DB_SUCCESS;
+    }
+    else if (atoi(res) != validator)
+    {
+        DisplayLog(LVL_FULL, LISTMGR_TAG, DFID": stripe change detected: gen %s->%d",
+                   PFID(p_id), res, validator);
         rc = DB_OUT_OF_DATE;
     }
-    else
+    else /* validator matches */
+    {
+        DisplayLog(LVL_FULL, LISTMGR_TAG, DFID": stripe gen is unchanged (%d)",
+                   PFID(p_id) ,validator);
         rc = DB_SUCCESS;
+    }
 
   res_free:
     db_result_free( &p_mgr->conn, &result );
   out:
+    DisplayLog(LVL_FULL, LISTMGR_TAG, DFID": %s returns with status=%d",
+               PFID(p_id), __func__, rc);
     return rc;
 }
 
@@ -486,10 +402,15 @@ int ListMgr_SetStripe( lmgr_t * p_mgr, const entry_id_t * p_id,
 {
     DEF_PK(pk);
     int rc;
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+    int validator = (p_stripe_info?p_stripe_info->validator:VALID_NOSTRIPE);
+#else
+    int validator = VALID(p_id);
+#endif
 
     entry_id2pk(p_id, PTR_PK(pk));
 retry:
-    rc = insert_stripe_info(p_mgr, pk, VALID(p_id), p_stripe_info, p_stripe_items,
+    rc = insert_stripe_info(p_mgr, pk, validator, p_stripe_info, p_stripe_items,
                             TRUE);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;

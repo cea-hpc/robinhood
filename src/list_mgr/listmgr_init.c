@@ -733,7 +733,7 @@ static int create_table_stripe_info(db_conn_t *pconn)
 
     sprintf(strbuf,
             "CREATE TABLE " STRIPE_INFO_TABLE
-            " (id "PK_TYPE" PRIMARY KEY, validator INT UNSIGNED, "
+            " (id "PK_TYPE" PRIMARY KEY, validator INT, " /* @FIXME used to be an unsigned! */
             "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u))",
             MAX_POOL_LEN - 1);
 #ifdef _MYSQL

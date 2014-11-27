@@ -947,7 +947,14 @@ push:
         op->extra_info_is_set = FALSE;
 
 #ifdef _LUSTRE
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+        /** since Lustre2.4 release, entry striping can change (have_llapi_fswap_layouts)
+         * so scanning must update file stripe information.
+         */
+        if (no_md || S_ISREG(inode.st_mode))
+#else
         if ((no_md || S_ISREG(inode.st_mode)) && is_first_scan)
+#endif
         {
             /* Fetch the stripes information now. This is faster than
              * doing it later in the pipeline. However if that fails now,

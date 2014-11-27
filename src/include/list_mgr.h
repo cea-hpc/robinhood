@@ -104,6 +104,9 @@ typedef struct stripe_info_t
     uint64_t       stripe_size;
     unsigned int   stripe_count;
     char           pool_name[MAX_POOL_LEN];
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+    int            validator;
+#endif
 } stripe_info_t;
 
 typedef struct stripe_items_t
@@ -429,11 +432,14 @@ int            ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id );
  * Check that validator is matching for the given entry.
  * @param p_mgr pointer to a DB connection
  * @param p_id pointer to an entry identifier (including validator)
+ * @param validator VALID_EXISTS, VALID_NOSTRIPE, or validator value.
  * @return DB_OUT_OF_DATE if stripe doesn't match, and remove stripe info.
  * @return DB_NOT_EXISTS  if there is no stripe info available.
  * @return DB_SUCCESS     if stripe is valid.
  */
-int            ListMgr_CheckStripe( lmgr_t * p_mgr, const entry_id_t * p_id );
+#define VALID_EXISTS -2   /* check if the stripe exists */
+#define VALID_NOSTRIPE -1 /* check if the stripe is empty */
+int            ListMgr_CheckStripe(lmgr_t * p_mgr, const entry_id_t * p_id, int validator);
 
 /**
  * Insert new stripe info if it is not known yet,
