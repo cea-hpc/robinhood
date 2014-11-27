@@ -407,6 +407,8 @@ char *quote_shell_arg(const char *arg);
  */
 char * replace_cmd_parameters(const char * cmd_in, const char **replace_array);
 
+/** convert to upper case */
+void upperstr(char *str);
 
 /** recursively create a directoy and return its id */
 int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);

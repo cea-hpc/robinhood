@@ -318,9 +318,9 @@ int db_result_nb_records( db_conn_t * conn, result_handle_t * p_result )
 
 
 
-int db_list_table_fields( db_conn_t * conn, const char *table,
-                          char **outtab,
-                          unsigned int outtabsize, char *inbuffer, unsigned int inbuffersize )
+int db_list_table_types(db_conn_t * conn, const char *table,
+                        char **outtab, char **typetab,
+                        unsigned int outtabsize, char *inbuffer, unsigned int inbuffersize)
 {
     char           request[4096];
     MYSQL_RES     *result;
@@ -350,12 +350,26 @@ int db_list_table_fields( db_conn_t * conn, const char *table,
         strcpy( curr_ptr, row[0] );
         outtab[curr_output] = curr_ptr;
         curr_ptr += strlen( curr_ptr ) + 1;
+
+        if (typetab)
+        {
+            strcpy( curr_ptr, row[1] );
+            typetab[curr_output] = curr_ptr;
+            curr_ptr += strlen( curr_ptr ) + 1;
+        }
         curr_output++;
     }
     mysql_free_result( result );
 
     return DB_SUCCESS;
+}
 
+int db_list_table_fields(db_conn_t * conn, const char *table,
+                         char **outtab, unsigned int outtabsize,
+                         char *inbuffer, unsigned int inbuffersize)
+{
+    return db_list_table_types(conn, table, outtab, NULL, outtabsize,
+                               inbuffer, inbuffersize);
 }
 
 unsigned long long db_last_id( db_conn_t * conn )

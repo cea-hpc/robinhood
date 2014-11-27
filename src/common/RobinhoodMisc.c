@@ -34,7 +34,7 @@
 #include <utime.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
+#include <ctype.h>
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
@@ -2286,6 +2286,14 @@ err_free_quoted:
 err_free:
     free(pass_begin);
     return NULL;
+}
+
+void upperstr(char *str)
+{
+    int i = 0;
+
+    for(i = 0; str[i]; i++)
+       str[i] = toupper(str[i]);
 }
 
 

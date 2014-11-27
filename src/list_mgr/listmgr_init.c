@@ -21,6 +21,7 @@
 #include "database.h"
 #include "listmgr_common.h"
 #include "RobinhoodLogs.h"
+#include "RobinhoodMisc.h"
 #include <stdio.h>
 
 /* exported symbols */
@@ -133,7 +134,7 @@ static inline int append_field_def( int i, char *next, int is_first, db_type_u *
  * @return 0 on success
  * @return -1 on error
  */
-static int check_field_name(const char *name, int *curr_field_index,
+static int _check_field_name(const char *name, int *curr_field_index,
                             char *table, char **fieldtab)
 {
     if ((*curr_field_index >= MAX_DB_FIELDS)
@@ -153,7 +154,6 @@ static int check_field_name(const char *name, int *curr_field_index,
     if (!strcmp(name, fieldtab[*curr_field_index]))
     {
         DisplayLog(LVL_FULL, LISTMGR_TAG, "%s OK", name);
-        (*curr_field_index)++;
         return 0;
     }
     else
@@ -171,6 +171,99 @@ static int check_field_name(const char *name, int *curr_field_index,
         return -1;
     }
 }
+
+static int check_field_name(const char *name, int *curr_field_index,
+                            char *table, char **fieldtab)
+{
+    if (_check_field_name(name,curr_field_index,table,fieldtab) == 0)
+    {
+        (*curr_field_index)++;
+        return 0;
+    }
+    return -1;
+}
+
+static void drop_chars(char *str, int start_off, int end_off)
+{
+    /* drop len chars */
+    int len = (end_off - start_off + 1);
+    char *c;
+
+    for (c = str+start_off; *(c+len) != '\0'; c++)
+        *c = *(c+len);
+
+    *c = '\0';
+}
+
+static int check_type(const char *db_type, const char *expected)
+{
+    /* convert "int(10)" to "int",
+     *         "smallint(5)" to "smallint",
+     *         "bigint(20)" to bigint" ...
+     */
+    char tmp[1024];
+    char *w1, *w2;
+
+    rh_strncpy(tmp, db_type, sizeof(tmp));
+
+    /* convert to upper case */
+    upperstr(tmp);
+
+    /* remove parenthesis */
+    if ((w1 = strstr(tmp, "INT(")) != NULL)
+    {
+        /* move w1 to '(' */
+        w1 += 3;
+        w2 = strchr(w1, ')');
+        if (w2 != NULL)
+            drop_chars(tmp, (w1 - tmp), (w2 - tmp));
+    }
+
+    if (strcmp(tmp, expected))
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "DB type '%s' doesn't match the expected type '%s'",
+                   tmp, expected);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int convert_field_type(db_conn_t *pconn, const char *table,
+                              const char *field, const char *type)
+{
+    char query[1024];
+    int rc;
+
+    snprintf(query, sizeof(query), "ALTER TABLE %s MODIFY COLUMN %s %s", table, field, type);
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of %s.%s to '%s'...", table, field, type);
+    rc = db_exec_sql(pconn, query, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to run database conversion: Error: %s",
+                    db_errmsg(pconn, query, sizeof(query)));
+        return rc;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s successfully converted", table, field);
+    return 0;
+}
+
+/** @return -1 on error, 0 if OK, 1 if conversion is required */
+static int check_field_name_type(const char *name, const char *type, int *curr_field_index,
+                                 char *table, char **fieldtab, char **typetab)
+{
+    if (_check_field_name(name, curr_field_index, table, fieldtab) != 0)
+        return -1;
+
+    if (check_type(typetab[*curr_field_index], type))
+        return 1;
+
+    (*curr_field_index)++;
+    return 0;
+}
+
 
 static inline int check_field(int i, int * curr_field_index, char *table, char **fieldtab)
 {
@@ -695,9 +788,10 @@ static int check_table_stripe_info(db_conn_t *pconn)
     int rc;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    char *typetab[MAX_DB_FIELDS];
 
-    rc = db_list_table_fields(pconn, STRIPE_INFO_TABLE, fieldtab, MAX_DB_FIELDS,
-                              strbuf, sizeof(strbuf));
+    rc = db_list_table_types(pconn, STRIPE_INFO_TABLE, fieldtab, typetab,
+                              MAX_DB_FIELDS, strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
         int curr_field_index = 0;
@@ -705,8 +799,23 @@ static int check_table_stripe_info(db_conn_t *pconn)
         /* check primary key */
         if (check_field_name("id", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
-        if (check_field_name("validator", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
-            return DB_BAD_SCHEMA;
+        /* compat with 2.5.3- */
+        switch(check_field_name_type("validator", "INT", &curr_field_index, STRIPE_INFO_TABLE,
+                                     fieldtab, typetab))
+        {
+            case -1: return DB_BAD_SCHEMA;
+            case 1:
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Detected type change for "
+                           STRIPE_INFO_TABLE".validator (<= 2.5.3): running conversion");
+                /* run type conversion */
+                rc = convert_field_type(pconn, STRIPE_INFO_TABLE, "validator", "INT");
+                if (rc)
+                    return rc;
+                curr_field_index ++;
+                break;
+            case 0: /* OK */
+                break;
+        }
         if (check_field_name("stripe_count", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
         if (check_field_name("stripe_size", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
@@ -733,7 +842,7 @@ static int create_table_stripe_info(db_conn_t *pconn)
 
     sprintf(strbuf,
             "CREATE TABLE " STRIPE_INFO_TABLE
-            " (id "PK_TYPE" PRIMARY KEY, validator INT, " /* @FIXME used to be an unsigned! */
+            " (id "PK_TYPE" PRIMARY KEY, validator INT, "
             "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u))",
             MAX_POOL_LEN - 1);
 #ifdef _MYSQL

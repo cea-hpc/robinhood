@@ -136,6 +136,11 @@ int            db_list_table_fields( db_conn_t * conn, const char *table,
                                      unsigned int outtabsize,
                                      char *inbuffer, unsigned int inbuffersize );
 
+/** list table fields and their type */
+int db_list_table_types(db_conn_t * conn, const char *table,
+                        char **outtab, char **typetab,
+                        unsigned int outtabsize, char *inbuffer, unsigned int inbuffersize);
+
 /* id of the last inserted row */
 unsigned long long db_last_id( db_conn_t * conn );
 
