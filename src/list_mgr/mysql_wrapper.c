@@ -22,10 +22,11 @@
 #include "Memory.h"
 #include <stdio.h>
 #include <unistd.h>
+#include <glib.h>
+#include <time.h>
 /* mysql includes */
 #include <mysqld_error.h>
 #include <errmsg.h>
-#include <time.h>
 
 #define _DEBUG_DB
 
@@ -535,18 +536,19 @@ int db_create_trigger( db_conn_t * conn, const char *name, const char *event,
                                const char *table, const char *body )
 {
 #ifdef _MYSQL5
+    int rc;
+    GString *request = g_string_new("CREATE TRIGGER ");
 
-    char query[4096];
-    sprintf( query, "CREATE TRIGGER %s %s ON %s FOR EACH ROW "
-                    "BEGIN %s END", name, event, table, body );
-    return _db_exec_sql(conn, query, NULL, false);
-
+    g_string_append_printf(request, "%s %s ON %s FOR EACH ROW "
+                           "BEGIN %s END", name, event, table, body);
+    rc = _db_exec_sql(conn, request->str, NULL, false);
+    g_string_free(request, TRUE);
+    return rc;
 #else
 
     DisplayLog( LVL_CRIT, LISTMGR_TAG, "Trigger %s was not created: "
                 "you should upgrade to MYSQL 5 to use triggers", name  );
     return DB_NOT_SUPPORTED;
-
 #endif
 }
 
