@@ -38,38 +38,33 @@ RECOV="$RBH_BINDIR/rbh-recov $RBH_OPT"
 UNDELETE=$RBH_BINDIR/rbh-undelete
 IMPORT="$RBH_BINDIR/rbh-import $RBH_OPT"
 CMD=robinhood
+ARCH_STR="migration success for"
+REL_STR="purge success for"
+HSMRM_STR="hsm_remove success for"
 
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
 	shook=0
-	REL_STR="Purged"
 	PURPOSE="TMP_FS_MGR"
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_lhsm=1
 	is_hsmlite=0
 	shook=0
 	PURPOSE="LUSTRE_HSM"
-	ARCH_STR="migration success for"
-	REL_STR="purge success for"
-	HSMRM_STR="hsm_remove success for"
     STATUS_MGR="lhsm"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
 	shook=0
 	is_hsmlite=1
     STATUS_MGR="backup"
-	ARCH_STR="Starting backup"
-	REL_STR="Purged"
 	mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
 	is_lhsm=0
 	is_hsmlite=1
 	shook=1
     STATUS_MGR="shook"
-	ARCH_STR="Starting backup"
-	REL_STR="Purged"
 	mkdir -p $BKROOT
 fi
 
@@ -1260,7 +1255,7 @@ function test_custom_purge
 	$RH -f ./cfg/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "purging files"
 	check_db_error rh_purge.log
 
-	nb_purge=`grep "Purged" rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (($nb_purge != 13)); then
 		error "********** TEST FAILED: 13 purge actions expected, $nb_purge done"
 	else
@@ -2791,13 +2786,9 @@ function test_cnt_trigger
     fi
 
 	# apply purge trigger
-	$RH -f ./cfg/$config_file --run=purge  -l FULL -L rh_purge.log
+	$RH -f ./cfg/$config_file --run=purge --once -l FULL -L rh_purge.log
 
-	if (($is_lhsm != 0 )); then
-		nb_release=`grep "Released" rh_purge.log | wc -l`
-	else
-		nb_release=`grep "Purged" rh_purge.log | wc -l`
-	fi
+	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
 
 	if (($nb_release == $exp_purge_count)); then
 		echo "OK: $nb_release files released"
@@ -2879,7 +2870,7 @@ function test_ost_trigger
 	$REPORT -f ./cfg/$config_file -i
 
 	# apply purge trigger
-	$RH -f ./cfg/$config_file --run=purge  -l DEBUG -L rh_purge.log || error "applying purge policy"
+	$RH -f ./cfg/$config_file --run=purge --once -l DEBUG -L rh_purge.log || error "applying purge policy"
 
 	grep summary rh_purge.log || error "No purge was done"
     [ "$DEBUG" = "1" ] && cat rh_purge.log
@@ -3098,11 +3089,7 @@ function test_trigger_check
 
 	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root, $expect_count_user entries for user root"
 
-	if (($is_lhsm != 0 )); then
-		nb_release=`grep "Released" rh_purge.log | wc -l`
-	else
-		nb_release=`grep "Purged" rh_purge.log | wc -l`
-	fi
+	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
 
 	count_trig=`grep " entries must be purged in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	[ -n "$count_trig" ] || count_trig=0

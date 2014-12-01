@@ -434,9 +434,11 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     else
         policy->default_lru_sort_attr = rc;
 
+    extra = NULL;
+    extra_cnt = 0;
     rc = GetStringParam(config_blk, block_name, "status_manager",
                         PFLG_MANDATORY | PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
-                        NULL, NULL, msg_out);
+                        &extra, &extra_cnt, msg_out);
     if (rc == ENOENT)
         strcat(msg_out, "\nIf you don't need a status manager, you should explicitely specify: status_manager=none");
     if (rc != 0)
@@ -445,6 +447,12 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     if (!strcasecmp(tmpstr, "none"))
     {
         policy->status_mgr = NULL;
+        if (extra_cnt > 0)
+        {
+            sprintf(msg_out, "No argument expected after 'status_manager = none': found '%s'",
+                    extra[0]);
+            return EINVAL;
+        }
     }
     else
     {
@@ -455,10 +463,26 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
             return EINVAL;
         }
 
-        /* FIXME if the status manager manage deleted entries,
-         * it doesn't mean the current policy does... */
-        if (smi_manage_deleted(policy->status_mgr))
+        /* does this policy manage deleted entries? */
+        if (extra_cnt == 1 && (!strcasecmp(extra[0], "removed")
+                             || !strcasecmp(extra[0], "deleted")))
+        {
+            /* the status manager must handle them */
+            if (!smi_manage_deleted(policy->status_mgr))
+            {
+                sprintf(msg_out, "'%s' is specified for status manager '%s' whereas it cannot handle deleted entries.",
+                        extra[0], tmpstr);
+                return EINVAL;
+            }
+            policy->manage_deleted = true;
             *manage_deleted = true;
+        }
+        else if (extra_cnt != 0)
+        {
+            sprintf(msg_out, "Too many arguments (%u) found for status manager '%s'",
+                    extra_cnt, tmpstr);
+            return EINVAL;
+        }
     }
 
     /* parse sub blocks */

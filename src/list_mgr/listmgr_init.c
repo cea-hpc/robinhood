@@ -1132,7 +1132,7 @@ static int check_table_softrm(db_conn_t *pconn)
         if (check_field_name("id", &curr_index, SOFT_RM_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        for (i = 0; i < ATTR_COUNT; i++)
+        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
         {
             if (is_softrm_field(i)) /* no func attr in softrm table */
             {
@@ -1160,7 +1160,7 @@ static int create_table_softrm(db_conn_t *pconn)
 
     request = g_string_new("CREATE TABLE "SOFT_RM_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
-    for (i = 0; i < ATTR_COUNT; i++)
+    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
     {
         if (is_softrm_field(i))
             append_field_def(i, request, 0, NULL);

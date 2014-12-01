@@ -280,6 +280,7 @@ static inline uint64_t sm_softrm_fields(void)
     int            i = 0;
     sm_instance_t *smi;
 
+    /** XXX based on policies or status managers? */
     while ((smi = get_sm_instance(i)) != NULL)
     {
         if (smi_manage_deleted(smi))

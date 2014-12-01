@@ -1441,7 +1441,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     nb_returned = 0;
     total_returned = 0;
 
-    rc = iter_open(lmgr, smi_manage_deleted(p_pol_info->descr->status_mgr)? IT_RMD: IT_LIST,
+    rc = iter_open(lmgr, p_pol_info->descr->manage_deleted? IT_RMD: IT_LIST,
                    &it, &filter, &sort_type, &opt);
     if (rc != DB_SUCCESS)
     {
@@ -1762,7 +1762,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
     ATTR_MASK_INIT(&new_attr_set);
 
-    if (!smi_manage_deleted(pol->descr->status_mgr))
+    if (!pol->descr->manage_deleted)
     {
         rc = check_entry(pol, lmgr, p_item, &new_attr_set);
         if (rc != AS_OK)
@@ -2034,7 +2034,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                    ATTR(&new_attr_set, fullpath), err_str);
 
         /* no update for deleted entries */
-        if (!smi_manage_deleted(pol->descr->status_mgr))
+        if (!pol->descr->manage_deleted)
             update_entry(lmgr, &p_item->entry_id, &new_attr_set);
 
         policy_ack(&pol->queue, AS_ERROR, &p_item->entry_attr,
@@ -2092,7 +2092,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                       sort_attr_name(pol), t, (is_stor ? ", stripes=" : ""),
                       (is_stor ? strstorage : ""));
 
-        if (smi_manage_deleted(pol->descr->status_mgr) &&
+        if (pol->descr->manage_deleted &&
             (after_action == PA_RM_ONE || after_action == PA_RM_ALL))
         {
             rc = ListMgr_SoftRemove_Discard(lmgr, &p_item->entry_id);

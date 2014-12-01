@@ -201,6 +201,7 @@ typedef struct policy_descr_t {
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     int    default_lru_sort_attr; /* default value for policy_run_config_t.lru_sort_attr */
     policy_rules_t      rules;
+    bool                manage_deleted; /* does this policy manage deleted entries */
 } policy_descr_t;
 
 /* template policy name */
