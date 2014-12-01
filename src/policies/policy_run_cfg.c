@@ -403,7 +403,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         "high_threshold_pct", "low_threshold_pct",
         "high_threshold_vol", "low_threshold_vol",
         "high_threshold_cnt", "low_threshold_cnt",
-        "alert_high", "alert_low",
+        "alert_high", "alert_low", "post_trigger_wait",
         NULL
     };
 
@@ -485,7 +485,6 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
                               policy_run_config_t *conf, char *msg_out)
 {
     int            rc;
-    unsigned int   blc_index;
     char           block_name[1024];
     char           tmp[1024];
     config_item_t  param_block;
@@ -581,13 +580,24 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     /* warn for unknown parameters */
     CheckUnknownParameters(param_block, block_name, allowed);
 
+    return 0;
+}
+
+
+static int polrun_read_triggers(config_file_t config, const char *policy_name,
+                                policy_run_config_t *conf, char *msg_out)
+{
+    int            rc;
+    unsigned int   blk_index;
+    char           block_name[1024];
+
     /* get TRIGGER blocks */
     snprintf(block_name, sizeof(block_name), "%s"TRIGGER_SUFFIX, policy_name);
 
-    for (blc_index = 0; blc_index < rh_config_GetNbBlocks(config); blc_index++)
+    for (blk_index = 0; blk_index < rh_config_GetNbBlocks(config); blk_index++)
     {
         char          *curr_bname;
-        config_item_t  curr_item = rh_config_GetBlockByIndex(config, blc_index);
+        config_item_t  curr_item = rh_config_GetBlockByIndex(config, blk_index);
         critical_err_check(curr_item, "root");
 
         if (rh_config_ItemType(curr_item) != CONFIG_ITEM_BLOCK)
@@ -613,6 +623,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
                 return rc;
         }
     }
+
     return 0;
 }
 
@@ -633,8 +644,13 @@ static int policy_run_cfg_read(config_file_t config, void *module_config, char *
                                 &allconf->configs[i], msg_out);
         if (rc)
             return rc;
+
+        rc = polrun_read_triggers(config, policies.policy_list[i].name,
+                                &allconf->configs[i], msg_out);
+        if (rc)
+            return rc;
     }
-    return rc;
+    return 0;
 }
 
 #define NO_TRIG_UPDT_MSG(_what) DisplayLog(LVL_MAJOR, TAG, _what \
