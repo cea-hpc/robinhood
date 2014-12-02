@@ -233,11 +233,32 @@ static int convert_field_type(db_conn_t *pconn, const char *table,
                               const char *field, const char *type)
 {
     char query[1024];
+    char t1[128];
+    char t2[128];
+    char timestr[256] = "";
     int rc;
+    lmgr_t lmgr;
+    uint64_t count = 0;
+    time_t estimated_max = 0;
+
+    lmgr.conn = *pconn;
+
+    /* get entry count for estimating conversion time (5-10s/million entries) */
+    rc = ListMgr_EntryCount(&lmgr, &count);
+    if (rc == DB_SUCCESS)
+    {
+        /* set max to 1 in case count is small, which results in 0s-1s frame */
+        estimated_max = 1+(count/100000); /* 10s/1000000 */
+        /* min is half of it */
+        snprintf(timestr, sizeof(timestr), " (estimated duration: %s-%s)",
+                 FormatDurationFloat(t1, sizeof(t1), estimated_max/2),
+                 FormatDurationFloat(t2, sizeof(t2), estimated_max));
+    }
 
     snprintf(query, sizeof(query), "ALTER TABLE %s MODIFY COLUMN %s %s", table, field, type);
 
-    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of %s.%s to '%s'...", table, field, type);
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of %s.%s to '%s'...%s",
+               table, field, type, timestr);
     rc = db_exec_sql(pconn, query, NULL);
     if (rc)
     {
