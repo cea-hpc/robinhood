@@ -32,10 +32,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
-
-#ifdef HAVE_ATTR_XATTR_H
 #include <attr/xattr.h>
-#endif
 
 #define POLICY_TAG "Policy"
 
@@ -739,7 +736,6 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 #endif
 
     case CRITERIA_XATTR:
-#ifdef HAVE_ATTR_XATTR_H
     {
         const char * entry_path;
         char value[1024];
@@ -810,11 +806,6 @@ static policy_match_t eval_condition( const entry_id_t * p_entry_id,
 
         break;
     }
-#else
-    DisplayLog(LVL_CRIT, POLICY_TAG, "robinhood has not been compiled with xattr support: cannot evaluate condition" );
-    return POLICY_ERR;
-    break;
-#endif
 
     case CRITERIA_CUSTOM_CMD:
         /* fullpath is required if fids are not available */
@@ -2091,4 +2082,3 @@ void free_migration_hints( char *hints )
 }
 
 #endif
-

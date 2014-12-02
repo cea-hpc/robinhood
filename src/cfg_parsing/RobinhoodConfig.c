@@ -1410,11 +1410,6 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
     }
     else if ( !strncasecmp( key_value->varname, XATTR_PREFIX".", strlen(XATTR_PREFIX".") ) )
     {
-#ifndef HAVE_ATTR_XATTR_H
-        sprintf( err_msg, "Cannot specify conditions on xattrs because the program was compiled without xattr support. "
-                 "Install libattr-devel and rebuild robinhood." );
-        return ENOTSUP;
-#else
         char * p_xattr = strchr( key_value->varname, '.' );
         p_xattr ++;
 
@@ -1435,7 +1430,6 @@ static int interpret_condition( type_key_value * key_value, compare_triplet_t * 
                      p_triplet->xattr_name  );
             return EINVAL;
         }
-#endif
     }
     else
     {

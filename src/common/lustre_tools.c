@@ -32,10 +32,7 @@
 #include <fcntl.h>
 
 #ifdef _HAVE_FID
-/* needed by Lustre_GetNameParent() */
-#ifdef HAVE_ATTR_XATTR_H
-#include <attr/xattr.h>
-#endif
+#include <attr/xattr.h>         /* needed by Lustre_GetNameParent() */
 #endif
 
 #include "lustre_extended_types.h"

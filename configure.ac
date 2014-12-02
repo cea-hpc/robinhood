@@ -239,7 +239,7 @@ else
 
 fi # end of Lustre support
 
-AC_CHECK_HEADERS([attr/xattr.h],[],[AC_MSG_WARN([libattr-devel is not installed: the program will be compiled without xattr support.])])
+AC_CHECK_HEADERS([attr/xattr.h],[],[AC_MSG_ERROR([libattr-devel is not installed.])])
 
 
 AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="yes"],[have_pthread_getsequence_np="no"])

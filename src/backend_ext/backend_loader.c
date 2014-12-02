@@ -155,14 +155,6 @@ int Read_Backend_Config( config_file_t config, void *module_config, char *msg_ou
     else if ( rc != ENOENT )
         conf->xattr_support = tmpval;
 
-#ifndef HAVE_ATTR_XATTR_H
-    if ( config.xattr_support )
-    {
-                DisplayLog(LVL_CRIT, BKL_TAG, "xattr_support option cannot be activated: you need recompile robinhood with xattr support");
-                config.xattr_support = 0;
-    }
-#endif
-
     /* /!\ check_mounted is part of a bit field, it should not be passed directly: using tmpval instead */
     rc = GetBoolParam( block, BACKEND_BLOCK, "check_mounted",
                        0, &tmpval, NULL, NULL, msg_out );
