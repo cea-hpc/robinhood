@@ -1,3 +1,24 @@
+Changes between version 2.5.3 and 2.5.4:
+* [lustre] Lustre 2.4+: detect all stripe changes and update the DB accordingly.
+* [scan] Prevent from dropping entries from DB when opendir or stat fail.
+* [DB] Optimization to batch more DB requests.
+* [DB] Allow using any MySQL engine (new config parameter: listmanager::mysql::engine)
+* [rbh-config] Avoid backup_db to lock the whole tables with innodb.
+* [bugfix] Improve robustness to corrupted mtimes.
+* [bugfix] Fix possible crash in db_exec_sql.
+* [bugfix] Fix possible overflow when executing a custom archive command.
+* [backup mode] Clean all non-printable characters in backend path.
+* [pkg] libattr-devel is now mandatory to build robinhood.
+
+2.5.4 release notes:
+* "innodb = enabled/disabled": this parameter will be deprecated.
+  It has to be replaced by "engine = innodb".
+* (Lustre only) one of the field types changed in the DB.
+  It will be automatically converted the first time rbh 2.5.4 starts.
+  The conversion takes about 5s per million entries.
+* Admin guides are now available online (http://robinhood.sf.net > "Online documentation")
+  "odt" and "pdf" versions are no longer maintained.
+
 Changes between version 2.5.2 and 2.5.3:
 - custom purge_command (fix): fixed vulnerability to malicious file names.
 - changelog processing (fix): fixed errors 'Entry has incomplete path in DB'

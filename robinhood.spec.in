@@ -341,6 +341,18 @@ fi
 
 %changelog
 
+* Mon Dec 08 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.4
+- [lustre] Lustre 2.4+: detect all stripe changes and update the DB accordingly.
+- [scan] Prevent from dropping entries from DB when opendir or stat fail.
+- [DB] Optimization to batch more DB requests.
+- [DB] Allow using any MySQL engine (new config parameter: listmanager::mysql::engine).
+- [rbh-config] Avoid backup_db to lock the whole tables with innodb.
+- [bugfix] Improve robustness to corrupted mtimes.
+- [bugfix] Fix possible crash in db_exec_sql.
+- [bugfix] Fix possible overflow when executing a custom archive command.
+- [backup mode] Clean all non-printable characters in backend path.
+- [pkg] libattr-devel is now mandatory to build robinhood.
+
 * Tue Jul 29 2014 Thomas Leibovici <thomas.leibovici@cea.fr> 2.5.3
 - [bugfix] custom purge_command: fixed vulnerability to malicious file names.
 - [bugfix] changelog processing: fixed errors 'Entry has incomplete path in DB' in some case of rm/create patterns.
