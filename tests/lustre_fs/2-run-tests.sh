@@ -154,11 +154,11 @@ function error_reset
 function error
 {
 	echo "ERROR $@"
- 	grep -i error *.log | grep -v "(0 errors)" | grep -v "LastScanErrors"
+ 	grep -i -B 5 -A 1 error *.log | grep -v "(0 errors)" | grep -v "LastScanErrors"
 	NB_ERROR=$(($NB_ERROR+1))
 
 	if (($junit)); then
-	 	grep -i error *.log | grep -v "(0 errors)" | grep -v "LastScanErrors" >> $TMPERR_FILE
+	 	grep -i -B 5 -A 1 error *.log | grep -v "(0 errors)" | grep -v "LastScanErrors" >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
 
