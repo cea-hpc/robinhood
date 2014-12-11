@@ -44,40 +44,49 @@ HSMRM_STR="hsm_remove success for"
 
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
-	is_lhsm=0
-	is_hsmlite=0
-	shook=0
-	PURPOSE="TMP_FS_MGR"
+    is_lhsm=0
+    is_hsmlite=0
+    shook=0
+    PURPOSE="TMP_FS_MGR"
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
-	is_lhsm=1
-	is_hsmlite=0
-	shook=0
-	PURPOSE="LUSTRE_HSM"
-    STATUS_MGR="lhsm"
+    is_lhsm=1
+    is_hsmlite=0
+    shook=0
+    PURPOSE="LUSTRE_HSM"
+    export STATUS_MGR="lhsm"
+    export DEFAULT_ARCHIVE="lhsm.archive";
+    export DEFAULT_PURGE="lhsm.release";
+    export DEFAULT_HSMRM="lhsm.hsm_remove";
 elif [[ $PURPOSE = "BACKUP" ]]; then
-	is_lhsm=0
-	shook=0
-	is_hsmlite=1
-    STATUS_MGR="backup"
-	mkdir -p $BKROOT
+    is_lhsm=0
+    shook=0
+    is_hsmlite=1
+    export STATUS_MGR="backup"
+    export DEFAULT_ARCHIVE="common.copy";
+    export DEFAULT_PURGE="common.log";
+    export DEFAULT_HSMRM="common.unlink"; # in backend? 
+    mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
-	is_lhsm=0
-	is_hsmlite=1
-	shook=1
-    STATUS_MGR="shook"
-	mkdir -p $BKROOT
+    is_lhsm=0
+    is_hsmlite=1
+    shook=1
+    export STATUS_MGR="shook"
+    export DEFAULT_ARCHIVE="common.copy";
+    export DEFAULT_PURGE="shook.release";
+    export DEFAULT_HSMRM="common.unlink"; # in backend? 
+    mkdir -p $BKROOT
 fi
 
 LVERSION=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}"`
 
 function flush_data
 {
-	if [[ -n "$SYNC" ]]; then
-	  # if the agent is on the same node as the writter, we are not sure
-	  # data has been flushed to OSTs
-	  echo "Flushing data to OSTs"
-	  sync
-	fi
+    if [[ -n "$SYNC" ]]; then
+      # if the agent is on the same node as the writter, we are not sure
+      # data has been flushed to OSTs
+      echo "Flushing data to OSTs"
+      sync
+    fi
 }
 
 function clean_caches
@@ -581,7 +590,7 @@ function test_rmdir
 
 	# initial scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-    	check_db_error rh_chglogs.log
+   	check_db_error rh_chglogs.log
 
 	EMPTY=empty
 	NONEMPTY=smthg
@@ -673,6 +682,9 @@ function test_lru_policy
 	fi
 
 	clean_logs
+	# initial scan
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+   	check_db_error rh_chglogs.log
 
 	# create test tree with 10 files
     # time | files         |  0   1   2   3   4   5   6   7   8   9
