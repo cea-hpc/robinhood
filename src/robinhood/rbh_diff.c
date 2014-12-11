@@ -570,6 +570,11 @@ int main(int argc, char **argv)
     if (rc)
         exit(rc);
 
+    /* Initialize status managers */
+    rc = smi_init_all(options.flags);
+    if (rc)
+        exit(rc);
+
     /* Initialize list manager */
     rc = ListMgr_Init(false);
     if (rc)

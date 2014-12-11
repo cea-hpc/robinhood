@@ -770,6 +770,11 @@ int main( int argc, char **argv )
     if (rc)
         exit(rc);
 
+    /* Initialize status managers (XXX all or just the one used for recovery?) */
+    rc = smi_init_all(options.flags);
+    if (rc)
+        exit(rc);
+
     /* Initialize list manager */
     rc = ListMgr_Init(&config.lmgr_config, false);
     if ( rc )

@@ -337,6 +337,11 @@ int main( int argc, char **argv )
     if (rc)
         exit(rc);
 
+    /* Initialize status managers (XXX all or just the one used for rebind?) */
+    rc = smi_init_all(options.flags);
+    if (rc)
+        exit(rc);
+
 #ifdef _HSM_LITE
     rc = Backend_Start( &config.backend_config, 0 );
     if ( rc )

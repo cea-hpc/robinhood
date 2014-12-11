@@ -1386,7 +1386,7 @@ int main(int argc, char **argv)
     else
         parsing_mask = action2parsing_mask(action_mask);
 
-    /* load and set module configuration */
+    /* load and set modules configuration */
     if(rbh_cfg_load(parsing_mask, options.config_file, err_msg))
     {
         fprintf(stderr, "Error reading configuration file '%s': %s\n",
@@ -1485,6 +1485,11 @@ int main(int argc, char **argv)
 
     /* Initialize filesystem access */
     rc = InitFS();
+    if (rc)
+        exit(rc);
+
+    /* Initialize status managers */
+    rc = smi_init_all(options.flags);
     if (rc)
         exit(rc);
 

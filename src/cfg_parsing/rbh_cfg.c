@@ -32,6 +32,7 @@
 #include "chglog_reader.h"
 #include "policy_rules.h"
 #include "policy_run.h"
+#include "status_manager.h"
 
 char config_file[RBH_PATH_MAX] = "";
 
@@ -49,7 +50,9 @@ struct mod_cfgs {
     {&cl_reader_cfg_hdlr,  MODULE_MASK_EVENT_HDLR},
 #endif
     /* TODO manage fileclasses separately? */
-    {&policies_cfg_hdlr,   MODULE_MASK_ALWAYS}, /* must always be set before run_cfg */
+    /* must always be called before smi_cfg, run_cfg */
+    {&policies_cfg_hdlr,   MODULE_MASK_ALWAYS},
+    {&smi_cfg_hdlr,        MODULE_MASK_ALWAYS},
     {&policy_run_cfg_hdlr, MODULE_MASK_POLICY_RUN},
 
     {NULL, 0}
@@ -103,6 +106,8 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
         }
 
         p_curr->funcs->set_default(cfg);
+
+        DisplayLog(LVL_DEBUG, "CfgLoader", "Loading %s config", p_curr->funcs->module_name);
 
         rc = p_curr->funcs->read(syntax_tree, cfg, msg_buf);
         if (rc != 0)

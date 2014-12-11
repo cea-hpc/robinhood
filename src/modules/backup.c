@@ -87,7 +87,7 @@ typedef struct backup_config_t
 
 } backup_config_t;
 
-/* backup config is global */
+/* backup config is global as the status manager is shared */
 static backup_config_t config;
 
 /** XXX OLD params:

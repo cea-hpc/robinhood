@@ -159,16 +159,22 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name);
 /** get the Nth status manager instance */
 sm_instance_t *get_sm_instance(unsigned int n);
 
+/** wraps config handlers for all status managers */
+extern mod_cfg_funcs_t smi_cfg_hdlr;
+
+/** initialize all status managers (if they have init functions) */
+int smi_init_all(int flags);
+
 /** get the constant string that match the input string */
 const char *get_status_str(const status_manager_t *sm, const char *in_str);
 
 /** return the list of allowed status for a status manager */
 char *allowed_status_str(const status_manager_t *sm, char *buf, int sz);
 
+/** call changelog callbacks for all status manager instances */
 int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
                   const attr_set_t *attrs, attr_set_t *refreshed_attrs,
                   uint64_t *status_need);
-
 
 /** return the mask of all status, expect those for deleted entries */
 static inline uint64_t all_status_mask(void)
@@ -322,6 +328,7 @@ static inline sm_instance_t *smi_by_name(const char *smi_name)
 {
     int i = 0;
     sm_instance_t *smi;
+
     while ((smi = get_sm_instance(i)) != NULL)
     {
         if (!strcmp(smi->instance_name, smi_name))

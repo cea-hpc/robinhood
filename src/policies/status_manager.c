@@ -318,4 +318,190 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
     return err_max;
 }
 
+/** initialize all status managers having init function */
+int smi_init_all(int flags)
+{
+    int rc;
+    int i = 0;
+    sm_instance_t *smi;
 
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->init_func == NULL)
+            continue;
+
+        rc = smi->sm->init_func(smi, flags);
+        if (rc != 0)
+        {
+            DisplayLog(LVL_CRIT, "smi_init", "Failed to initialize status manager %s: error=%d",
+                       smi->instance_name, rc);
+            return rc;
+        }
+        else
+            DisplayLog(LVL_VERB, "smi_init", "Status manager %s successfully initialized",
+                       smi->instance_name);
+    }
+    return 0;
+}
+
+static void *smi_cfg_new(void)
+{
+    void **smi_cfg_tab;
+    sm_instance_t *smi;
+    int i;
+
+    smi_cfg_tab = calloc(sm_inst_count, sizeof(void*));
+    if (smi_cfg_tab == NULL)
+        return NULL;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->cfg_funcs == NULL
+            || smi->sm->cfg_funcs->new == NULL)
+        {
+            smi_cfg_tab[i] = NULL;
+            continue;
+        }
+
+        smi_cfg_tab[i] = smi->sm->cfg_funcs->new();
+        if (smi_cfg_tab[i] == NULL)
+            goto reverse_free;
+    }
+
+    return smi_cfg_tab;
+
+reverse_free:
+    /* allocation failed for last 'i' (do nothing if it was the first) */
+    while (i != 0)
+    {
+        i--;
+        smi = get_sm_instance(i);
+        if (smi->sm->cfg_funcs == NULL
+            || smi->sm->cfg_funcs->free == NULL)
+        {
+            smi_cfg_tab[i] = NULL;
+            continue;
+        }
+        smi->sm->cfg_funcs->free(smi_cfg_tab[i]);
+        smi_cfg_tab[i] = NULL;
+    }
+    free(smi_cfg_tab);
+
+    return NULL;
+}
+
+static void smi_cfg_free(void *arg)
+{
+    void **smi_cfg_tab = arg;
+    sm_instance_t *smi;
+    int i;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->cfg_funcs != NULL
+            && smi->sm->cfg_funcs->free != NULL)
+            smi->sm->cfg_funcs->free(smi_cfg_tab[i]);
+        smi_cfg_tab[i] = NULL;
+    }
+    free(smi_cfg_tab);
+}
+
+static void smi_cfg_set_default(void *arg)
+{
+    void **smi_cfg_tab = arg;
+    sm_instance_t *smi;
+    int i;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->cfg_funcs != NULL
+            && smi->sm->cfg_funcs->set_default != NULL)
+            smi->sm->cfg_funcs->set_default(smi_cfg_tab[i]);
+    }
+}
+
+static int smi_cfg_read(config_file_t config, void *cfg, char *msg_out)
+{
+    void **smi_cfg_tab = cfg;
+    sm_instance_t *smi;
+    int i, rc;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->cfg_funcs == NULL
+            || smi->sm->cfg_funcs->read == NULL)
+            continue;
+
+        DisplayLog(LVL_DEBUG, "smi_cfg", "Loading status manager '%s' config", smi->instance_name);
+
+        rc = smi->sm->cfg_funcs->read(config, smi_cfg_tab[i], msg_out);
+        if (rc != 0)
+            return rc;
+    }
+    return 0;
+}
+
+static int smi_cfg_set(void *cfg,  bool reload)
+{
+    void **smi_cfg_tab = cfg;
+    sm_instance_t *smi;
+    int i, rc;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->cfg_funcs == NULL
+            || smi->sm->cfg_funcs->set_config == NULL)
+            continue;
+
+        rc = smi->sm->cfg_funcs->set_config(smi_cfg_tab[i], reload);
+        if (rc != 0)
+            return rc;
+    }
+    return 0;
+}
+
+static void smi_cfg_write_default(FILE *f)
+{
+    sm_instance_t *smi;
+    int i;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->cfg_funcs != NULL
+            && smi->sm->cfg_funcs->write_default != NULL)
+            smi->sm->cfg_funcs->write_default(f);
+    }
+}
+
+static void smi_cfg_write_template(FILE *f)
+{
+    sm_instance_t *smi;
+    int i;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        if (smi->sm->cfg_funcs != NULL
+            && smi->sm->cfg_funcs->write_template != NULL)
+            smi->sm->cfg_funcs->write_template(f);
+    }
+}
+
+/** wraps config handlers for all status managers */
+mod_cfg_funcs_t smi_cfg_hdlr = {
+    .module_name = "status managers",
+    .new = smi_cfg_new,
+    .free = smi_cfg_free,
+    .set_default = smi_cfg_set_default,
+    .read = smi_cfg_read,
+    .set_config = smi_cfg_set,
+    .write_default = smi_cfg_write_default,
+    .write_template = smi_cfg_write_template,
+};
