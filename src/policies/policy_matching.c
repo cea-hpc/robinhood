@@ -754,18 +754,17 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
     case CRITERIA_STATUS:
         {
-            const char *stval;
-
             if (smi == NULL)
                 RBH_BUG("status criteria with no status manager in the context");
 
-            /* NULL matches empty value */
             if (!ATTR_MASK_STATUS_TEST(p_entry_attr, smi->smi_index))
-                stval = "";
-            else
-                stval = STATUS_ATTR(p_entry_attr, smi->smi_index);
+                return POLICY_MISSING_ATTR;
 
-            rc = !strcmp(p_triplet->val.str, stval);
+            rc = !strcmp(p_triplet->val.str, STATUS_ATTR(p_entry_attr, smi->smi_index));
+
+            DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID": status = '%s' compared with '%s' => %d",
+                       PFID(p_entry_id), STATUS_ATTR(p_entry_attr, smi->smi_index),
+                       p_triplet->val.str, rc);
 
             if (p_triplet->op == COMP_EQUAL)
                 return BOOL2POLICY(rc);
@@ -858,7 +857,7 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
 /* function for testing a boolean expression on a given entry */
 static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_entry_attr,
-                                     bool_node_t *p_node, const time_modifier_t *p_pol_mod,
+                                     const bool_node_t *p_node, const time_modifier_t *p_pol_mod,
                                      const sm_instance_t *smi, /* to match status criteria */
                                      int no_warning)
 {
@@ -1874,6 +1873,71 @@ char          *build_action_hints(const policy_descr_t *policy,
         output = NULL;
 
     return output;
+}
+
+policy_match_t match_scope(const policy_descr_t *pol, const entry_id_t *id,
+                           const attr_set_t *attrs, bool warn)
+{
+    return _entry_matches(id, attrs, &pol->scope, NULL, pol->status_mgr, !warn);
+}
+
+#define LOG_MATCH(_m, _id, _n) do { \
+        if (log_config.debug_level >= LVL_FULL) { \
+            if ((_m) == POLICY_MATCH) \
+                DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID" matches scope for policy %s", \
+                           PFID((_id)), (_n)); \
+            else if ((_m) == POLICY_NO_MATCH) \
+                DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID" doesn't match scope for policy %s", \
+                           PFID((_id)), (_n)); \
+            else if ((_m) == POLICY_MISSING_ATTR) \
+                DisplayLog(LVL_FULL, POLICY_TAG, "missing attr to determine if entry "DFID" matches scope for policy %s", \
+                           PFID((_id)), (_n)); \
+            else \
+                DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID": error matching scope for policy %s", \
+                       PFID((_id)), (_n)); \
+        } \
+    } while(0)
+
+void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
+                              bool tolerant, uint64_t *mask)
+{
+    unsigned int i;
+    policy_match_t match;
+
+    for (i = 0; i < policies.policy_count; i++)
+    {
+        uint64_t curr_mask;
+
+        /* no status */
+        if (policies.policy_list[i].status_mgr == NULL)
+            continue;
+
+        curr_mask = SMI_MASK(policies.policy_list[i].status_mgr->smi_index);
+
+        /* Avoid rematching if the status is already set in the mask,
+         * as it is already matched by another policy. */
+        if ((*mask) & curr_mask)
+            continue;
+
+        if (tolerant)
+        {
+            match = match_scope(&policies.policy_list[i], id, attrs, false);
+            LOG_MATCH(match, id, policies.policy_list[i].name);
+
+            /* set the current attr bit if it is not sure it doesn't match */
+            if (match != POLICY_NO_MATCH)
+                *mask |= curr_mask;
+        }
+        else
+        {
+            match = match_scope(&policies.policy_list[i], id, attrs, true);
+            LOG_MATCH(match, id, policies.policy_list[i].name);
+
+            /* set the current attr bit if it is sure it matches */
+            if (match == POLICY_MATCH)
+                *mask |= curr_mask;
+        }
+    }
 }
 
 void free_action_hints(char *hints)

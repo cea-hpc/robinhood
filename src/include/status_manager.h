@@ -174,9 +174,9 @@ char *allowed_status_str(const status_manager_t *sm, char *buf, int sz);
 /** call changelog callbacks for all status manager instances */
 int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
                   const attr_set_t *attrs, attr_set_t *refreshed_attrs,
-                  uint64_t *status_need);
+                  uint64_t *status_need, uint64_t status_mask);
 
-/** return the mask of all status, expect those for deleted entries */
+/** return the mask of all status, expect those not stored in DB */
 static inline uint64_t all_status_mask(void)
 {
     int i;
@@ -226,7 +226,10 @@ static inline uint64_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
                                      smi->smi_index);
 }
 
-/** Get attribute mask for status in the given mask */
+/** Get attribute mask for status in the given mask.
+ *  Note: it doesn't check policy scope, as is its supposed to
+ *  be checked to build the input mask.
+ */
 static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
 {
     int i = 0;
@@ -247,27 +250,37 @@ static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
     return ret;
 }
 
-static inline uint64_t status_need_fresh_attrs(void)
+/** Get fresh needed attribute for the given status mask */
+static inline uint64_t status_need_fresh_attrs(uint64_t status_mask)
 {
     uint64_t needed = 0;
+    uint64_t m;
     int i = 0;
     sm_instance_t *smi;
+
     while ((smi = get_sm_instance(i)) != NULL)
     {
-        needed |= translate_status_mask(smi->sm->status_needs_attrs_fresh, i);
+        m = SMI_MASK(i);
+        if ((m & status_mask) != 0)
+            needed |= translate_status_mask(smi->sm->status_needs_attrs_fresh, i);
         i++;
     }
     return needed;
 }
 
-static inline uint64_t status_allow_cached_attrs(void)
+/** Get cached needed attribute for the given status mask */
+static inline uint64_t status_allow_cached_attrs(uint64_t status_mask)
 {
     uint64_t needed = 0;
     int i = 0;
     sm_instance_t *smi;
+    uint64_t m;
+
     while ((smi = get_sm_instance(i)) != NULL)
     {
-        needed |= translate_status_mask(smi->sm->status_needs_attrs_cached, i);
+        m = SMI_MASK(i);
+        if ((m & status_mask) != 0)
+            needed |= translate_status_mask(smi->sm->status_needs_attrs_cached, i);
         i++;
     }
     return needed;
@@ -286,7 +299,7 @@ static inline uint64_t sm_softrm_fields(void)
     int            i = 0;
     sm_instance_t *smi;
 
-    /** XXX based on policies or status managers? */
+    /** XXX based on policies or status managers? what about the scope? */
     while ((smi = get_sm_instance(i)) != NULL)
     {
         if (smi_manage_deleted(smi))

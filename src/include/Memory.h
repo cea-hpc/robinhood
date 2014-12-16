@@ -37,7 +37,7 @@
 #else
 
 #define MemAlloc( s )       malloc( s )
-#define MemCalloc( n, s )   calloc( n, s )
+#define MemCalloc( _n, _s )   calloc((_n), (_s))
 #define MemRealloc( p, s )  realloc( p, s )
 #define MemFree( p )        free( p )
 #define MemErrno            errno

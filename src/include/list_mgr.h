@@ -309,7 +309,7 @@ static inline obj_type_t db2type(const char *str)
 {
     obj_type_t i;
 
-    for (i = TYPE_NONE; i <= TYPE_SOCK; i++)
+    for (i = TYPE_NONE + 1; i <= TYPE_SOCK; i++)
     {
         if (!strcasecmp(str, type_db_name[i]))
             return i;

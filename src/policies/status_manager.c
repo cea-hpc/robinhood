@@ -257,6 +257,9 @@ const char *get_status_str(const status_manager_t *sm, const char *in_str)
 {
     int i;
 
+    if (in_str == NULL || EMPTY_STRING(in_str))
+        return NULL;
+
     for (i = 0; i < sm->status_count; i++)
     {
         if (!strcmp(sm->status_enum[i], in_str))
@@ -291,7 +294,7 @@ char *allowed_status_str(const status_manager_t *sm, char *buf, int sz)
 
 int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
                   const attr_set_t *attrs, attr_set_t *refreshed_attrs,
-                  uint64_t *status_need)
+                  uint64_t *status_need, uint64_t status_mask)
 {
     int rc, err_max = 0;
     int i = 0;
@@ -303,6 +306,10 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
         bool getstatus = false;
 
         if (smi->sm->changelog_cb == NULL)
+            continue;
+
+        /* entry not in policy scope */
+        if ((SMI_MASK(i) & status_mask) == 0)
             continue;
 
         rc = smi->sm->changelog_cb(smi, logrec, id, attrs, refreshed_attrs,

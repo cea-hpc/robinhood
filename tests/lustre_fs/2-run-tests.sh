@@ -914,29 +914,29 @@ function xattr_test
 	else
 		echo "OK: $nb_migr files migrated"
 
-		if (( $is_hsmlite != 0 )); then
-			# checking policy
-			nb_migr_arch1=`grep "hints='fileclass=xattr_bar'" rh_migr.log | wc -l`
-			nb_migr_arch2=`grep "hints='fileclass=xattr_foo'" rh_migr.log | wc -l`
-			nb_migr_arch3=`grep "using policy 'default'" rh_migr.log | wc -l`
-			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
-				error "********** wrong policy cases: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
-				cp rh_migr.log /tmp/xattr_test.$$
-				echo "Log saved as /tmp/xattr_test.$$"
-			else
-				echo "OK: 1 file for each policy case"
-			fi
-		else
-			# checking archive nums
-			nb_migr_arch1=`grep "archive_id=1" rh_migr.log | wc -l`
-			nb_migr_arch2=`grep "archive_id=2" rh_migr.log | wc -l`
-			nb_migr_arch3=`grep "archive_id=3" rh_migr.log | wc -l`
-			if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
-				error "********** wrong archive_ids: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
-			else
-				echo "OK: 1 file to each archive_id"
-			fi
-		fi
+        # checking policy rule
+        nb_migr_arch1=`grep "Executing policy action" rh_migr.log | grep "fileclass=xattr_bar" | wc -l`
+        nb_migr_arch2=`grep "Executing policy action" rh_migr.log | grep "fileclass=xattr_foo" | wc -l`
+        nb_migr_arch3=`grep "matches the condition for policy rule 'default'" rh_migr.log | wc -l`
+
+        if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
+            error "********** wrong policy cases: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+            cp rh_migr.log /tmp/xattr_test.$$
+            echo "Log saved as /tmp/xattr_test.$$"
+        else
+            echo "OK: 1 file for each policy case"
+        fi
+
+        # checking archive nums
+        nb_migr_arch1=`grep "Executing policy action" rh_migr.log | grep "archive_id=1" | wc -l`
+        nb_migr_arch2=`grep "Executing policy action" rh_migr.log | grep "archive_id=2" | wc -l`
+        nb_migr_arch3=`grep "Executing policy action" rh_migr.log | grep "archive_id=3" | wc -l`
+
+        if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
+            error "********** wrong archive_ids: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
+        else
+            echo "OK: 1 file to each archive_id"
+        fi
 	fi
 
 }
@@ -1587,7 +1587,7 @@ function test_maint_mode
 
 	# right now, migration window is in the future
 	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
-	grep "maintenance window will start in" rh_migr.log || errot "Future maintenance not report in the log"
+	grep "maintenance window will start in" rh_migr.log || error "Future maintenance not report in the log"
 
 	# sleep enough to be in the maintenance window
 	sleep 11
@@ -6511,8 +6511,8 @@ function check_disabled
                                set_skipped
                                return 1
                        fi
-                       cmd='--purge'
-                       match='Resource Monitor is disabled'
+                       cmd='--run=purge'
+                       match='Policy purge is disabled'
                        ;;
                migration)
                        if (( $is_hsmlite + $is_lhsm == 0 )); then
@@ -6520,8 +6520,8 @@ function check_disabled
                                set_skipped
                                return 1
                        fi
-                       cmd='--migrate'
-                       match='Migration module is disabled'
+                       cmd='--run=migration'
+                       match='Policy migration is disabled'
                        ;;
                hsm_remove)
                        if (( $is_hsmlite + $is_lhsm == 0 )); then
@@ -6529,8 +6529,8 @@ function check_disabled
                                set_skipped
                                return 1
                        fi
-                       cmd='--hsm-remove'
-                       match='HSM removal successfully initialized' # enabled by default
+                       cmd='--run=hsm_remove'
+                       match='Policy hsm_remove is disabled'
                        ;;
                rmdir)
                        if (( $is_hsmlite + $is_lhsm != 0 )); then
@@ -6543,7 +6543,7 @@ function check_disabled
                        ;;
                class)
                        cmd='--scan'
-                       match='disabling file class matching'
+                       match='disabling fileclass matching'
                        ;;
                *)
                        error "unexpected flavor $flavor"

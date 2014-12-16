@@ -561,7 +561,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
 
         if (soft_rm)
         {
-            attr_set_t old_attrs;
+            attr_set_t old_attrs = {0};
 
             old_attrs.attr_mask = softrm_attr_set & ~ATTR_MASK_rm_time;
 

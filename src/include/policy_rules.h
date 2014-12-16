@@ -323,7 +323,16 @@ rule_item_t * class_policy_case(const policy_descr_t *policy,
                                 fileset_item_t **pp_fileset);
 
 /** test if an entry is in policy scope */
-policy_match_t match_scope(const policy_descr_t *pol, const attr_set_t *attrs);
+policy_match_t match_scope(const policy_descr_t *pol, const entry_id_t *id,
+                           const attr_set_t *attrs, bool warn);
+
+/** Add status attributes mask according to all matching policy scopes.
+ * @param tolerant if false, display a warning and don't set a status in the mask attributes are missing to check the scope.
+ *                 if true, set a status in the mask if the entry can't be matched against a scope (no warning is issued).
+ */
+void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attr,
+                              bool tolerant, uint64_t *mask);
+
 
 //int match_scope_deleted(policy);
 

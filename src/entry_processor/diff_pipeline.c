@@ -164,13 +164,20 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
  */
 int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
-    int            rc = 0;
-    int            next_stage = -1; /* -1 = skip */
+    int      rc = 0;
+    int      next_stage = -1; /* -1 = skip */
     uint64_t attr_allow_cached = 0;
     uint64_t attr_need_fresh = 0;
+    uint64_t status_scope;
 
     const pipeline_stage_t *stage_info =
         &entry_proc_pipeline[p_op->pipeline_stage];
+
+    /* check if entry is in policies scope */
+    add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
+                             &status_scope);
+
+    /* XXX also retrieve needed attributes to check the scope? */
 
     p_op->db_attr_need |= diff_mask;
     /* retrieve missing attributes for diff */
@@ -181,8 +188,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
          p_op->db_attr_need |= ATTR_MASK_creation_time;
 #endif
 
-    attr_allow_cached = status_allow_cached_attrs();
-    attr_need_fresh = status_need_fresh_attrs();
+    attr_allow_cached = status_allow_cached_attrs(status_scope);
+    attr_need_fresh = status_need_fresh_attrs(status_scope);
     /* XXX check if entry is in policy scope? */
 
     /* what must be retrieved from DB: */
@@ -240,8 +247,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         p_op->db_exists = ListMgr_Exists( lmgr, &p_op->entry_id );
     }
 
-    /* get status for all policies */
-    p_op->fs_attr_need |= all_status_mask();
+    /* get status for all policies with a matching scope */
+    add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
+                             &p_op->fs_attr_need);
     p_op->fs_attr_need |= (attr_need_fresh & ~ p_op->fs_attrs.attr_mask);
 
     if ( !p_op->db_exists )
@@ -485,13 +493,18 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
         ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
 
-        /* get status for all policies (if missing) */
+        /* match policy scopes according to newly set information:
+         * remove needed status from mask and append the updated one. */
+        p_op->fs_attr_need &= ~all_status_mask();
+        /* FIXME this fails if scope attributes are missing */
+        add_matching_scopes_mask(&p_op->entry_id, &merged_attrs, false,
+                                 &p_op->fs_attr_need);
+
         i = 0;
         while ((smi = get_sm_instance(i)) != NULL)
         {
             ATTR_MASK_INIT(&new_attrs); /* clean the mask without freeing sm_status */
 
-            /** @TODO test if entry is in policy scope */
             if (NEED_GETSTATUS(p_op, i))
             {
                 if (smi->sm->get_status_func != NULL)

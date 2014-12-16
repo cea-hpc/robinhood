@@ -132,9 +132,7 @@ static struct option option_tab[] = {
 #endif
     {"topusers", optional_argument, NULL, 'U'},
     {"top-users", optional_argument, NULL, 'U'},
-#ifdef HAVE_RM_POLICY
     {"deferred-rm", no_argument, NULL, 'R' },
-#endif
     {"dump", no_argument, NULL, 'D' },
     {"dump-all", no_argument, NULL, 'D' }, /* for backward compatibility */
     {"dump-user", required_argument, NULL, OPT_DUMP_USER },
@@ -220,10 +218,8 @@ static const char *stats_help =
 #endif
     "    " _B "--top-users" B_ "[=" _U "cnt" U_ "], " _B "-U" B_ " " _U "cnt" U_ "\n"
     "        Display top disk space consumers. Optional argument indicates the number of users to be returned (default: 20).\n"
-#ifdef HAVE_RM_POLICY
     "    " _B "--deferred-rm" B_ ", " _B "-R" B_ "\n"
     "        Display files to be removed from HSM.\n"
-#endif
     "    "  _B "--dump" B_ ", " _B "-D" B_ "\n"
     "        Dump all filesystem entries.\n"
     "    "  _B "--dump-user" B_ " " _U "username" U_ "\n"
@@ -2279,13 +2275,12 @@ static void report_topuser( unsigned int count, int flags )
 
 }
 
-#ifdef HAVE_RM_POLICY
 static void report_deferred_rm( int flags )
 {
     int            rc;
     struct lmgr_rm_list_t * rmlist;
     entry_id_t     id;
-    attr_set_t     attrs;
+    attr_set_t     attrs = {0};
 
     unsigned long long total_count = 0;
     unsigned long long total_size = 0;
@@ -2356,7 +2351,6 @@ static void report_deferred_rm( int flags )
 
 
 }
-#endif
 
 
 static void report_class_info( int flags )
@@ -2642,9 +2636,7 @@ int main( int argc, char **argv )
     int            toppurge = 0;
     int            toprmdir = 0;
     int            topuser = 0;
-#ifdef HAVE_RM_POLICY
     int            deferred_rm = 0;
-#endif
 
     bool           dump_all = false;
     bool           dump_user = false;
@@ -2876,11 +2868,9 @@ int main( int argc, char **argv )
                 topuser = DEFAULT_TOP_SIZE;
             break;
 
-#ifdef HAVE_RM_POLICY
         case 'R':
             deferred_rm = true;
             break;
-#endif
 
 #ifdef HAVE_MIGR_POLICY
         case CLEAR_NEXT_MAINT:
@@ -2989,9 +2979,7 @@ int main( int argc, char **argv )
          && !dump_user && !dump_group && !class_info && !entry_info
          && (status_name == NULL) && (status_info_name == NULL)
          && !topdirs
-#ifdef HAVE_RM_POLICY
         && !deferred_rm
-#endif
 #ifdef HAVE_RMDIR_POLICY
          && !toprmdir
 #endif
@@ -3108,10 +3096,8 @@ int main( int argc, char **argv )
     if ( topuser )
         report_topuser( topuser, flags );
 
-#ifdef HAVE_RM_POLICY
     if ( deferred_rm )
         report_deferred_rm( flags );
-#endif
 
     if ( dump_all )
         dump_entries( DUMP_ALL, 0, NULL, NULL, flags );
