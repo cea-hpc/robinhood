@@ -297,9 +297,10 @@ AC_SUBST(PURPOSE_LDFLAGS)
 CFLAGS="$CFLAGS -I\$(top_srcdir)/src/include"
 
 # Db ?
-
-AC_ARG_WITH( [db], AS_HELP_STRING([--with-db=MYSQL|SQLITE (default=MYSQL)],[type of database engine] ),
-             DB="$withval", DB="MYSQL")
+#AC_ARG_WITH( [db], AS_HELP_STRING([--with-db=MYSQL|SQLITE (default=MYSQL)],[type of database engine] ),
+#             DB="$withval", DB="MYSQL")
+# SQLITE support is deprecated
+DB="MYSQL"
 
 AM_CONDITIONAL(USE_MYSQL_DB,    test "$DB" = "MYSQL")
 AM_CONDITIONAL(USE_SQLITE_DB,   test "$DB" = "SQLITE")
@@ -406,4 +407,4 @@ AC_MSG_NOTICE([Summary:])
 AC_MSG_NOTICE([Lustre     support is $build_lustre])
 AC_MSG_NOTICE([Backup     support is $build_backup])
 AC_MSG_NOTICE([Lustre/HSM support is $build_lhsm])
-AC_MSG_NOTICE([Shook      support is $build_shook])
+test -d "/ccc" && AC_MSG_NOTICE([Shook      support is $build_shook])
