@@ -39,7 +39,8 @@
 #define OLD_RULE_BLOCK        "policy"
 #define RULE_BLOCK            "rule"
 
-#define POLICIES_BLOCK        "policies"
+#define OLD_POLICIES_BLOCK    "policies"
+#define POLICIES_BLOCK        "rules"
 
 #define IGNORE_BLOCK          "ignore"
 #define IGNORE_FC             "ignore_fileclass"
@@ -1503,12 +1504,12 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                             if (rc)
                                 goto clean_filesets;
                         }
-                        else if (!strcasecmp(subitem_name, "match"))
+                        else if (!strcasecmp(subitem_name, "report"))
                         {
                             if (extra_args)
                             {
                                 sprintf(msg_out,
-                                        "Unexpected arguments for 'match' parameter, line %d.",
+                                        "Unexpected arguments for 'report' parameter, line %d.",
                                         rh_config_GetItemLine(sub_item));
                                 rc = EINVAL;
                                 goto clean_filesets;
@@ -1517,7 +1518,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                             if (tmp == -1)
                             {
                                 sprintf(msg_out,
-                                        "Boolean expected for 'match' parameter, line %d.",
+                                        "Boolean expected for 'report' parameter, line %d.",
                                         rh_config_GetItemLine(sub_item));
                                 rc = EINVAL;
                                 goto clean_filesets;
@@ -1956,19 +1957,36 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
 #define curr_ign_fc     rules->ignore_count
 #define curr_rule       rules->rule_count
 
-    snprintf(section_name, sizeof(section_name)-1, "%s_%s", /* XXX ->or "rules" ??? */
-             policy_descr->name, POLICIES_BLOCK);
-    section_name[sizeof(section_name)-1] = '\0';
-
     /* initialize output */
     memset(rules, 0, sizeof(*rules));
+
+    /* check if the new name exists first */
+    snprintf(section_name, sizeof(section_name)-1, "%s_%s",
+             policy_descr->name, POLICIES_BLOCK);
+    section_name[sizeof(section_name)-1] = '\0';
 
     /* get policy section */
     section = rh_config_FindItemByName(config, section_name);
 
-    /* not mandatory */
     if (section == NULL)
-        return 0;
+    {
+        snprintf(section_name, sizeof(section_name)-1, "%s_%s",
+                 policy_descr->name, OLD_POLICIES_BLOCK);
+        section_name[sizeof(section_name)-1] = '\0';
+
+        /* get policy section */
+        section = rh_config_FindItemByName(config, section_name);
+
+        if (section != NULL)
+            /* Deprecation warning */
+            DisplayLog(LVL_MAJOR, LOADER_TAG, "WARNING: '*_"OLD_POLICIES_BLOCK
+                       "' block names are deprecated. Rename '%s' block to "
+                       "'%s_"POLICIES_BLOCK"'.", section_name,
+                       policy_descr->name);
+        else
+            /* not mandatory */
+            return 0;
+    }
 
     /* prealloc config arrays */
     PREALLOC_ARRAY_CONFIG(IGNORE_BLOCK, whitelist_item_t, whitelist_rules, err);
