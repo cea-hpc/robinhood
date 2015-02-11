@@ -218,6 +218,9 @@ static inline uint64_t translate_all_status_mask(uint64_t mask)
 
 static inline uint64_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
 {
+    if (smi == NULL)
+        return 0;
+
     if (fresh)
         return translate_status_mask(smi->sm->status_needs_attrs_fresh,
                                      smi->smi_index);
