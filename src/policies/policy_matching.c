@@ -758,7 +758,14 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
                 RBH_BUG("status criteria with no status manager in the context");
 
             if (!ATTR_MASK_STATUS_TEST(p_entry_attr, smi->smi_index))
+            {
+               if (!no_warning)
+                   DisplayLog(LVL_MAJOR, POLICY_TAG,
+                       "Missing \"status\" attribute for evaluating boolean"
+                       " expression on "DFID, PFID(p_entry_id));
+
                 return POLICY_MISSING_ATTR;
+            }
 
             rc = !strcmp(p_triplet->val.str, STATUS_ATTR(p_entry_attr, smi->smi_index));
 

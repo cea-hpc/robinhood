@@ -105,7 +105,7 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
             if (!ATTR_MASK_TEST(p_attrs[i], stripe_info))
                 continue;
 
-            g_string_append_printf(req, "%s("DPK",%u,%u,%u,'%s')", first ? "" : ",",
+            g_string_append_printf(req, "%s("DPK",%d,%u,%u,'%s')", first ? "" : ",",
                             pklist[i], validators[i],
                             ATTR(p_attrs[i], stripe_info).stripe_count,
                             (unsigned int)ATTR(p_attrs[i], stripe_info).stripe_size,
@@ -179,7 +179,7 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
                 memset(buff, 0, sizeof(buff));
             }
             g_string_append_printf(req, "%s("DPK",%u,%u,x'%s')",
-                                   (i == 0) && (s == 0) ? "" : ",", pklist[i],
+                                   first && (s == 0) ? "" : ",", pklist[i],
                                    s, p_items->stripe[s].ost_idx, buff);
             first = false;
         }
