@@ -1604,8 +1604,8 @@ int policy_module_start(policy_info_t *policy, /* out */
     if ((options->target == TGT_NONE) && (p_config->trigger_count == 0))
     {
         DisplayLog(LVL_CRIT, tag(policy),
-                   "No trigger defined in configuration file. "
-                   "Disabling action scheduling.");
+                   "No trigger defined in configuration file, and no target "
+                   "specified on command line. Disabling action scheduling.");
         return ENOENT;
     }
     else if (NO_POLICY(&policy_descr->rules) && !(options->flags & FLAG_IGNORE_POL))

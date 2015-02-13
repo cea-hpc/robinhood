@@ -1888,20 +1888,23 @@ policy_match_t match_scope(const policy_descr_t *pol, const entry_id_t *id,
     return _entry_matches(id, attrs, &pol->scope, NULL, pol->status_mgr, !warn);
 }
 
-#define LOG_MATCH(_m, _id, _n) do { \
+#define LOG_MATCH(_m, _id, _a, _p) do { \
         if (log_config.debug_level >= LVL_FULL) { \
             if ((_m) == POLICY_MATCH) \
                 DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID" matches scope for policy %s", \
-                           PFID((_id)), (_n)); \
+                           PFID((_id)), (_p)->name); \
             else if ((_m) == POLICY_NO_MATCH) \
                 DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID" doesn't match scope for policy %s", \
-                           PFID((_id)), (_n)); \
+                           PFID((_id)), (_p)->name); \
             else if ((_m) == POLICY_MISSING_ATTR) \
-                DisplayLog(LVL_FULL, POLICY_TAG, "missing attr to determine if entry "DFID" matches scope for policy %s", \
-                           PFID((_id)), (_n)); \
+                DisplayLog(LVL_FULL, POLICY_TAG, "missing attrs to determine " \
+                           "if entry "DFID" matches scope for policy %s: "     \
+                           "scope_mask=%#LX, attr_mask=%#LX, missing=%#LX",    \
+                           PFID((_id)), (_p)->name, (ull_t)((_p)->scope_mask), \
+                           (ull_t)((_a)->attr_mask), (ull_t)((_p)->scope_mask & ~(_a)->attr_mask)); \
             else \
                 DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID": error matching scope for policy %s", \
-                       PFID((_id)), (_n)); \
+                       PFID((_id)), (_p)->name); \
         } \
     } while(0)
 
@@ -1929,7 +1932,7 @@ void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
         if (tolerant)
         {
             match = match_scope(&policies.policy_list[i], id, attrs, false);
-            LOG_MATCH(match, id, policies.policy_list[i].name);
+            LOG_MATCH(match, id, attrs, &policies.policy_list[i]);
 
             /* set the current attr bit if it is not sure it doesn't match */
             if (match != POLICY_NO_MATCH)
@@ -1938,7 +1941,7 @@ void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
         else
         {
             match = match_scope(&policies.policy_list[i], id, attrs, true);
-            LOG_MATCH(match, id, policies.policy_list[i].name);
+            LOG_MATCH(match, id, attrs, &policies.policy_list[i]);
 
             /* set the current attr bit if it is sure it matches */
             if (match == POLICY_MATCH)

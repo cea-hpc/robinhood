@@ -917,12 +917,14 @@ push:
         /* get fid from fd, using openat on parent fd */
         int fd = openat_noatime(parentfd, entry_name, false);
         if (fd < 0)
-            DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed on %d/%s: %s", parentfd, entry_name, strerror(errno));
+            DisplayLog(LVL_DEBUG, FSSCAN_TAG, "openat failed on <parent_fd=%d>/%s: %s",
+                       parentfd, entry_name, strerror(errno));
         else
         {
             rc = Lustre_GetFidByFd(fd, &op->entry_id);
             if (rc)
-                DisplayLog(LVL_DEBUG, FSSCAN_TAG, "fd2fid failed on %d/%s: %s", parentfd, entry_name, strerror(errno));
+                DisplayLog(LVL_DEBUG, FSSCAN_TAG, "fd2fid failed on <parent_fd=%d>/%s: %s",
+                           parentfd, entry_name, strerror(errno));
             else
             {
                 op->entry_id_is_set = 1;

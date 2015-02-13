@@ -244,6 +244,7 @@ static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
         if (mask & m)
         {
             sm_instance_t *smi = get_sm_instance(i);
+
             if (fresh)
                 ret |= translate_status_mask(smi->sm->status_needs_attrs_fresh, i);
             else

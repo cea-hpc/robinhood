@@ -2981,7 +2981,7 @@ function test_ost_order
     wait_stable_df
 
     # check thresholds only, then purge
-    for opt in "--check-thresholds" "--purge"; do
+    for opt in "--check-thresholds=purge" "--run=purge"; do
         :> rh_purge.log
         $RH -f ./cfg/$config_file $opt --once -l DEBUG -L rh_purge.log || error "command $opt error"
         [ "$DEBUG" = "1" ] && cat rh_purge.log
@@ -3092,7 +3092,7 @@ function test_trigger_check
     fi
 
 	# check purge triggers
-	$RH -f ./cfg/$config_file --check-thresholds --once -l FULL -L rh_purge.log
+	$RH -f ./cfg/$config_file --check-thresholds=purge --once -l FULL -L rh_purge.log
 
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
@@ -5918,7 +5918,7 @@ function recov_filters
 
     echo "scan and archive"
     # scan and archive
-    $RH -f ./cfg/$config_file --scan --sync -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning or migrating"
+    $RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning or migrating"
 
     if [[ $flavor == since ]]; then
 	    $LFS changelog_clear lustre-MDT0000 cl1 0
@@ -5936,7 +5936,7 @@ function recov_filters
         ln -s "this is an initial symlink" $ROOT/dir.match/slink || error "creating symlink slink_new"
 
         # don't update non-modified objects, migrate other candidates
-        $RH -f ./cfg/$config_file --readlog --sync -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
+        $RH -f ./cfg/$config_file --readlog $SYNC_OPT -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
     fi
 
     echo "making deltas"
@@ -6989,6 +6989,42 @@ function update_files_migration
     dd if=/dev/zero of=$ROOT/dir2/file.9 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.9"
 }
 
+# return an error count
+function check_migrate_arr
+{
+    errors=0
+
+    for n in $*
+    do
+        (( $is_lhsm > 0 )) && [[ $n = *"link"* ]] && continue
+
+        # lustre/HSM: search in backend by fid
+        if (( $is_lhsm > 0 )); then
+            x=$(find $ROOT -name "$n" | xargs -n 1 -r $LFS path2fid | tr -d '[]')
+        else
+            x="$n"
+        fi
+
+        [ "$DEBUG" = "1" ] && ls -R $BKROOT | grep $x
+        
+        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
+        if (($countMigrFile == 0)); then
+            error "********** TEST FAILED (File System): $x is not archived"
+            ((errors++))
+	    fi
+
+        [ "$DEBUG" = "1" ] && grep "$ARCH_STR" rh_migr.log | grep "$n"
+
+        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep "$n" | wc -l`
+        if (($countMigrLog == 0)); then
+            error "********** TEST FAILED (Log): $n is not archived"
+            ((errors++))
+	    fi
+    done
+    return $errors
+}
+
+
 function test_migration
 {
 	# Realise a unit test for migration functionalities
@@ -7046,23 +7082,8 @@ function test_migration
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
     fi
 
-    nbError=0
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && [[ $x = *"link"* ]] && continue
-        # lustre/HSM: search by fid
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+    check_migrate_arr $migrate_arr
+    nbError=$?
 
     if (($nbError == 0 )); then
         echo "OK: test successful"
@@ -7118,20 +7139,8 @@ function migration_file_type
             ((nbError++))
     fi
 
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+    check_migrate_arr $migrate_arr
+    ((nbError+=$?))
 
 	echo "Applying migration policy..."
 	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
@@ -7144,20 +7153,9 @@ function migration_file_type
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
             ((nbError++))
     fi
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+
+    check_migrate_arr $migrate_arr
+    ((nbError+=$?))
 
     if (($nbError == 0 )); then
         echo "OK: test successful"
@@ -7225,20 +7223,9 @@ function migration_file_owner
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
             ((nbError++))
     fi
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+
+    check_migrate_arr $migrate_arr
+    ((nbError+=$?))
 
     if (($nbError == 0 )); then
         echo "OK: test successful"
@@ -7306,20 +7293,9 @@ function migration_file_Last
         error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
             ((nbError++))
     fi
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+
+    check_migrate_arr $migrate_arr
+    ((nbError+=$?))
 
     if (($nbError == 0 )); then
         echo "OK: test successful"
@@ -7392,20 +7368,8 @@ function migration_file_ExtendedAttribut
        ((nbError++))
     fi
 
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+    check_migrate_arr $migrate_arr
+    ((nbError+=$?))
 
     if (($nbError == 0 )); then
         echo "OK: test successful"
@@ -7462,20 +7426,8 @@ function migration_OST
         ((nbError++))
     fi
 
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+    check_migrate_arr $migrate_arr
+    ((nbError+=$?))
 
 	echo $nbError
     if (($nbError == 0 )); then
@@ -7544,20 +7496,8 @@ function migration_file_OST
         ((nbError++))
     fi
 
-    for x in $migrate_arr
-    do
-        (( $is_lhsm > 0 )) && x=$(find $ROOT -name $x | xargs -n 1 -r $LFS path2fid | tr -d '[]')
-        countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
-        if (($countMigrFile == 0)); then
-            error "********** TEST FAILED (File System): $x is not archived"
-            ((nbError++))
-	    fi
-        countMigrLog=`grep "$ARCH_STR" rh_migr.log | grep $x | wc -l`
-        if (($countMigrLog == 0)); then
-            error "********** TEST FAILED (Log): $x is not archived"
-            ((nbError++))
-	    fi
-    done
+    check_migrate_arr $migrate_arr
+    ((nbError+=$?))
 
     if (($nbError == 0 )); then
         echo "OK: test successful"
@@ -7617,7 +7557,7 @@ function trigger_purge_QUOTA_EXCEEDED
     done
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
+	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
 
     countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
@@ -7670,7 +7610,7 @@ function trigger_purge_OST_QUOTA_EXCEEDED
     done
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
+	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
 
     countMigrLog=`grep "High threshold reached on OST #0" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
@@ -7760,7 +7700,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_purge.log --once
+	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
 
     countMigrLog=`grep "$usage exceeds high threshold" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
@@ -7811,8 +7751,8 @@ function update_files_Purge
 
     for i in `seq 1 500`; do
 		echo "aaaaaaaaaaaaaaaaaaaa" >> $ROOT/dir2/file.8
-	done
-	more $ROOT/dir2/file.8 >/dev/null 2>/dev/null
+    done
+	cat $ROOT/dir2/file.8 >/dev/null 2>/dev/null
 }
 
 function test_purge
@@ -7853,7 +7793,7 @@ function test_purge
 	# use robinhood for flushing
     if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "Archiving files"
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
 
 	if(($sleep_time != 0)); then
@@ -7864,13 +7804,13 @@ function test_purge
         update_files_Purge
 
         if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
-	        echo "Update Archiving files"
-	        $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG  -L rh_migr.log 
+	        echo "Update and archiving files"
+	        $RH -f ./cfg/$config_file --scan --run=migration --target=all --once -l DEBUG  -L rh_migr.log
             (( $is_lhsm > 0 )) && wait_done 60
 	    fi
     fi
 
-	echo "Scan and apply purge policy..."
+	echo "Scan and apply purge policy ($purgeOpt)..."
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
@@ -8009,7 +7949,7 @@ function purge_OST
 	# use robinhood for flushing
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
 		echo "2bis-Archiving files"
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
         (( $is_lhsm > 0 )) && wait_done 60
 	fi
 
@@ -8533,7 +8473,7 @@ function test_report_generation_1
     echo "FIXME: test is disturbed by file and symlink reading"
     if (( 0 )); then
         if (( $is_hsmlite + $is_lhsm != 0 )); then
-        $RH -f ./cfg/$config_file --sync -l DEBUG -L rh_migr.log  --once || error "performing migration"
+        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log  --once || error "performing migration"
         $REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
         typeValues="link\.3;link\.1;link\.2;file\.1"
         countValues="1;2;3;4"
@@ -8861,7 +8801,7 @@ function TEST_OTHER_PARAMETERS_1
 	# use robinhood for flushing (
 	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && shook == 1) )); then
 		echo "Archiving files"
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
 
 	echo "Report : --dump --filter-class test_purge"
@@ -9037,7 +8977,7 @@ function TEST_OTHER_PARAMETERS_3
 	done
 
 	echo "Archives files"
-	$RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --once -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9149,7 +9089,7 @@ function TEST_OTHER_PARAMETERS_4
 	done
 
 	echo "Migrate files (must fail)"
-	$RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --once -l DEBUG -L rh_migr.log 
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9224,7 +9164,7 @@ function TEST_OTHER_PARAMETERS_5
 	clean_logs
 
     echo "Launch scan in background..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds -l DEBUG -L rh_scan.log &
+	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_scan.log &
 	pid=$!
 
 	sleep 2
@@ -9467,25 +9407,25 @@ run_test 607 test_alerts_OST Alert_OST.conf "TEST_ALERT_OST"
 run_test 608 test_alerts Alert_ExtendedAttribute.conf "extAttributes" 0 "TEST_ALERT_EXTENDED_ATTRIBUT"
 run_test 609 test_alerts Alert_Dircount.conf "dircount" 0 "TEST_ALERT_DIRCOUNT"
 
-run_test 610 test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.8" "--migrate" "TEST_test_migration_PATH_NAME"
-run_test 611 test_migration MigrationStd_Type.conf 0 8 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--migrate" "TEST_MIGRATION_STD_TYPE"
-run_test 612 test_migration MigrationStd_Owner.conf 0 1 "file.3" "--migrate" "TEST_MIGRATION_STD_OWNER"
-run_test 613 test_migration MigrationStd_Size.conf 0 2 "file.6;file.7" "--migrate" "TEST_MIGRATION_STD_SIZE"
-run_test 614 test_migration MigrationStd_LastAccess.conf 12 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--migrate" "TEST_MIGRATION_STD_LAST_ACCESS"
-run_test 615 test_migration MigrationStd_LastModification.conf 31 2 "file.8;file.9" "--migrate" "TEST_MIGRATION_STD_LAST_MODIFICATION"
-run_test 616 migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--migrate" "TEST_MIGRATION_STD_OST"
-run_test 617 test_migration MigrationStd_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_STD_EXTENDED_ATTRIBUT"
-run_test 618 migration_OST MigrationOST.conf 2 "file.3;file.4" "--migrate-ost=1" "TEST_MIGRATION_OST"
-run_test 619 test_migration MigrationClass_Path_Name.conf 0 3 "file.6;file.7;file.8" "--migrate" "TEST_MIGRATION_CLASS_PATH_NAME"
-run_test 620 test_migration MigrationClass_Type.conf 0 2 "link.1;link.2" "--migrate" "TEST_MIGRATION_CLASS_TYPE"
-run_test 621 test_migration MigrationClass_Owner.conf 0 1 "file.3" "--migrate" "TEST_MIGRATION_CLASS_OWNER"
-run_test 622 test_migration MigrationClass_Size.conf 0 2 "file.6;file.7" "--migrate" "TEST_MIGRATION_CLASS_SIZE"
-run_test 623 test_migration MigrationClass_LastAccess.conf 31 8 "file.1;file.2;file.4;file.5;file.6;file.7;link.1;link.2" "--migrate" "TEST_MIGRATION_CLASS_LAST_ACCESS"
-run_test 624 test_migration MigrationClass_LastModification.conf 31 2 "file.8;file.9" "--migrate" "TEST_MIGRATION_CLASS_LAST_MODIFICATION"
-run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--migrate" "TEST_MIGRATION_CLASS_OST"
-run_test 626 test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--migrate" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
-run_test 627 test_migration MigrationUser.conf 0 1 "file.3" "--migrate-user=testuser" "TEST_MIGRATION_USER"
-run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--migrate-group=testgroup" "TEST_MIGRATION_GROUP"
+run_test 610 test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_test_migration_PATH_NAME"
+run_test 611 test_migration MigrationStd_Type.conf 0 8 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_STD_TYPE"
+run_test 612 test_migration MigrationStd_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_STD_OWNER"
+run_test 613 test_migration MigrationStd_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_STD_SIZE"
+run_test 614 test_migration MigrationStd_LastAccess.conf 12 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_ACCESS"
+run_test 615 test_migration MigrationStd_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_MODIFICATION"
+run_test 616 migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_OST"
+run_test 617 test_migration MigrationStd_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_EXTENDED_ATTRIBUT"
+run_test 618 migration_OST MigrationOST.conf 2 "file.3;file.4" "--run=migration --target=ost:1" "TEST_MIGRATION_OST"
+run_test 619 test_migration MigrationClass_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_CLASS_PATH_NAME"
+run_test 620 test_migration MigrationClass_Type.conf 0 2 "link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_TYPE"
+run_test 621 test_migration MigrationClass_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OWNER"
+run_test 622 test_migration MigrationClass_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_CLASS_SIZE"
+run_test 623 test_migration MigrationClass_LastAccess.conf 11 8 "file.1;file.2;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_ACCESS"
+run_test 624 test_migration MigrationClass_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_MODIFICATION"
+run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OST"
+run_test 626 test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
+run_test 627 test_migration MigrationUser.conf 0 1 "file.3" "--run=migration --target=user:testuser" "TEST_MIGRATION_USER"
+run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--run=migration --target=group:testgroup" "TEST_MIGRATION_GROUP"
 run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--run=migration --target=file:$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
 run_test 630 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
 run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--run=migration --target=file:$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
@@ -9497,26 +9437,26 @@ run_test 636 migration_file_ExtendedAttribut MigrationFile_ExtendedAttribut.conf
 
 run_test 637 trigger_purge_QUOTA_EXCEEDED TriggerPurge_QuotaExceeded.conf "TEST_TRIGGER_PURGE_QUOTA_EXCEEDED"
 run_test 638 trigger_purge_OST_QUOTA_EXCEEDED TriggerPurge_OstQuotaExceeded.conf "TEST_TRIGGER_PURGE_OST_QUOTA_EXCEEDED"
-run_test 639 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_UserQuotaExceeded.conf "User 'root'" "TEST_TRIGGER_PURGE_USER_QUOTA_EXCEEDED"
-run_test 640 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_GroupQuotaExceeded.conf "Group 'root'" "TEST_TRIGGER_PURGE_GROUP_QUOTA_EXCEEDED"
+run_test 639 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_UserQuotaExceeded.conf "user 'root'" "TEST_TRIGGER_PURGE_USER_QUOTA_EXCEEDED"
+run_test 640 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_GroupQuotaExceeded.conf "group 'root'" "TEST_TRIGGER_PURGE_GROUP_QUOTA_EXCEEDED"
 
-run_test 641 test_purge PurgeStd_Path_Name.conf 0 7 "file.6;file.7;file.8" "--purge" "TEST_PURGE_STD_PATH_NAME"
-run_test 642 test_purge_tmp_fs_mgr PurgeStd_Type.conf 0 8 "link.1;link.2" "--purge" "TEST_PURGE_STD_TYPE"
-run_test 643 test_purge PurgeStd_Owner.conf 0 9 "file.3" "--purge" "TEST_PURGE_STD_OWNER"
-run_test 644 test_purge PurgeStd_Size.conf 0 8 "file.6;file.7" "--purge" "TEST_PURGE_STD_SIZE"
-run_test 645 test_purge PurgeStd_LastAccess.conf 10 9 "file.8" "--purge" "TEST_PURGE_STD_LAST_ACCESS"
-run_test 646 test_purge PurgeStd_LastModification.conf 30 9 "file.8" "--purge" "TEST_PURGE_STD_LAST_MODIFICATION"
-run_test 647 purge_OST PurgeStd_OST.conf 2 "file.3;file.4" "--purge" "TEST_PURGE_STD_OST"
-run_test 648 test_purge PurgeStd_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_STD_EXTENDED_ATTRIBUT"
-run_test 649 purge_OST PurgeOST.conf 2 "file.3;file.4" "--purge-ost=1,0" "TEST_PURGE_OST"
-run_test 650 test_purge PurgeClass_Path_Name.conf 0 9 "file.1" "--purge" "TEST_PURGE_CLASS_PATH_NAME"
-run_test 651 test_purge PurgeClass_Type.conf 0 2 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--purge" "TEST_PURGE_CLASS_TYPE"
-run_test 652 test_purge PurgeClass_Owner.conf 0 3 "file.1;file.2;file.4;file.5;file.6;file.7;file.8" "--purge" "TEST_PURGE_CLASS_OWNER"
-run_test 653 test_purge PurgeClass_Size.conf 0 8 "file.6;file.7" "--purge" "TEST_PURGE_CLASS_SIZE"
-run_test 654 test_purge PurgeClass_LastAccess.conf 60 9 "file.8" "--purge" "TEST_PURGE_CLASS_LAST_ACCESS"
-run_test 655 test_purge PurgeClass_LastModification.conf 60 9 "file.8" "--purge" "TEST_PURGE_CLASS_LAST_MODIFICATION"
-run_test 656 purge_OST PurgeClass_OST.conf 2 "file.3;file.4" "--purge" "TEST_PURGE_CLASS_OST"
-run_test 657 test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--purge" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
+run_test 641 test_purge PurgeStd_Path_Name.conf 0 7 "file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_STD_PATH_NAME"
+run_test 642 test_purge_tmp_fs_mgr PurgeStd_Type.conf 0 8 "link.1;link.2" "--run=purge --target=all" "TEST_PURGE_STD_TYPE"
+run_test 643 test_purge PurgeStd_Owner.conf 0 9 "file.3" "--run=purge --target=all" "TEST_PURGE_STD_OWNER"
+run_test 644 test_purge PurgeStd_Size.conf 0 8 "file.6;file.7" "--run=purge --target=all" "TEST_PURGE_STD_SIZE"
+run_test 645 test_purge PurgeStd_LastAccess.conf 10 9 "file.8" "--run=purge --target=all" "TEST_PURGE_STD_LAST_ACCESS"
+run_test 646 test_purge PurgeStd_LastModification.conf 30 9 "file.8" "--run=purge --target=all" "TEST_PURGE_STD_LAST_MODIFICATION"
+run_test 647 purge_OST PurgeStd_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_STD_OST"
+run_test 648 test_purge PurgeStd_ExtendedAttribut.conf 0 9 "file.4" "--run=purge --target=all" "TEST_PURGE_STD_EXTENDED_ATTRIBUT"
+run_test 649 purge_OST PurgeOST.conf 2 "file.3;file.4" "--run=purge --target=ost:1 --usage-target=0" "TEST_PURGE_OST"
+run_test 650 test_purge PurgeClass_Path_Name.conf 0 9 "file.1" "--run=purge --target=all" "TEST_PURGE_CLASS_PATH_NAME"
+run_test 651 test_purge PurgeClass_Type.conf 0 2 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_TYPE"
+run_test 652 test_purge PurgeClass_Owner.conf 0 3 "file.1;file.2;file.4;file.5;file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_OWNER"
+run_test 653 test_purge PurgeClass_Size.conf 0 8 "file.6;file.7" "--run=purge --target=all" "TEST_PURGE_CLASS_SIZE"
+run_test 654 test_purge PurgeClass_LastAccess.conf 20 9 "file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_LAST_ACCESS"
+run_test 655 test_purge PurgeClass_LastModification.conf 20 9 "file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_LAST_MODIFICATION"
+run_test 656 purge_OST PurgeClass_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_OST"
+run_test 657 test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
 
 run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 31 "TEST_REMOVING_EMPTY_DIR"
 run_test 659 test_removing RemovingDir_Path_Name.conf "pathName" 0 "TEST_REMOVING_DIR_PATH_NAME"

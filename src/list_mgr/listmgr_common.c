@@ -79,7 +79,7 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *v
             g_string_append_printf(str, "'%s'", value_ptr->val_str);
             break;
         default:
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unknown type %d in %s", type, __FUNCTION__);
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __FUNCTION__);
     }
 }
 
@@ -119,7 +119,7 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
             value_out->val_bool = !(tmp == 0);
         return rc;
     default:
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error: unknown type %d in %s", type, __FUNCTION__ );
+        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __FUNCTION__ );
         return 0;
     }
 }
@@ -1054,7 +1054,7 @@ int func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filte
 static void attr2filter_field(GString *str, table_enum table,
                               unsigned int attr, bool prefix_table)
 {
-    if (match_table(table, attr) || (table == T_NONE))
+    if (match_table(table, attr) || (table == T_NONE && !is_stripe_field(attr)))
     {
         /* exception: fullpath is a real field in SOFT_RM table */
         if (is_funcattr(attr) &&
@@ -1063,8 +1063,8 @@ static void attr2filter_field(GString *str, table_enum table,
             char prefix[128] = "";
 
             if (prefix_table)
-                snprintf(prefix, sizeof(prefix), "%s.", table2name(table == T_NONE?
-                        field2table(attr):table));
+                snprintf(prefix, sizeof(prefix), "%s.",
+                         table2name(table == T_NONE? field2table(attr):table));
 
             print_func_call(str, attr, prefix);
         }
@@ -1129,7 +1129,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 return -DB_INVALID_ARG;
             }
 
-            if (match || table == T_NONE)
+            if (match || (table == T_NONE))
             {
                 /* add prefixes or parenthesis, etc. */
                 if (leading_and || (nbfields > 0))
@@ -1160,7 +1160,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
             /* append field name or function call */
             attr2filter_field(str, table, index, prefix_table);
 
-            if (match_table(table, index) || table == T_NONE)
+            if (match_table(table, index) || (table == T_NONE && !is_stripe_field(index)))
             {
                 /* append comparator */
                 if (is_sepdlist(index))

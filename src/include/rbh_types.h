@@ -16,6 +16,9 @@
 
 #include <stdint.h>
 
+/** shorter alias for "unsigned long long" */
+typedef unsigned long long ull_t;
+
 #ifdef _LUSTRE
 /* stripe info for Lustre */
 
@@ -50,7 +53,7 @@ typedef int stripe_info_t; /* dummy type */
 /** type of fields in database */
 typedef enum
 {
-    DB_ID,           /**< entry id */
+    DB_ID = 0,       /**< entry id */
     DB_STRIPE_INFO,  /**< stripe info */
     DB_STRIPE_ITEMS,  /**< stripe items */
     DB_TEXT,    /**< string/text        */
