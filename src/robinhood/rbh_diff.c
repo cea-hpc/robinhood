@@ -98,7 +98,7 @@ static struct option option_tab[] = {
 #define MAX_TYPE_LEN 256
 
 typedef struct diff_options {
-    int            flags;
+    run_flags_t    flags;
     char           config_file[MAX_OPT_LEN];
     int            log_level;
     char           partial_scan_path[RBH_PATH_MAX];
@@ -114,7 +114,7 @@ static inline void zero_options(struct diff_options * opts)
 {
     /* default value is 0 for most options */
     memset(opts, 0, sizeof(struct diff_options));
-    opts->flags = FLAG_ONCE;
+    opts->flags = RUNFLG_ONCE;
     strcpy(opts->output_dir, ".");
 }
 
@@ -470,7 +470,7 @@ int main(int argc, char **argv)
             break;
 
         case 'D':
-                options.flags |= FLAG_DRY_RUN;
+                options.flags |= RUNFLG_DRY_RUN;
             break;
 
         case 'f':
@@ -603,7 +603,7 @@ int main(int argc, char **argv)
     options.diff_arg.diff_mask = translate_all_status_mask(options.diff_arg.diff_mask);
 
 #ifdef LUSTRE_DUMP_FILES
-    if (options.diff_arg.apply == APPLY_FS && !(options.flags & FLAG_DRY_RUN))
+    if (options.diff_arg.apply == APPLY_FS && !(options.flags & RUNFLG_DRY_RUN))
     {
         /* open the file to write LOV EA and FID remapping */
         if (!EMPTY_STRING(options.output_dir))
@@ -637,7 +637,7 @@ int main(int argc, char **argv)
 
     /* if no DB apply action is specified, can't use md_update field for checking
      * removed entries. So, create a special tag for that. */
-    if ((options.diff_arg.apply != APPLY_DB) || (options.flags & FLAG_DRY_RUN))
+    if ((options.diff_arg.apply != APPLY_DB) || (options.flags & RUNFLG_DRY_RUN))
     {
         fprintf(stderr, "Preparing diff table...\n");
 

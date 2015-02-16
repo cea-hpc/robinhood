@@ -17,7 +17,7 @@
 #include "list_mgr.h"
 #include "listmgr_internal.h"
 #include "database.h"
-#include <inttypes.h>
+#include <stdint.h>
 #include <glib.h>
 #include "status_manager.h"
 
@@ -392,7 +392,7 @@ int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk, entry_id_t *p
 
 int            attrmask2fieldlist(GString *str, uint64_t attr_mask,
                                   table_enum table, bool leading_comma,
-                                  bool for_update, char *prefix, char *postfix);
+                                  bool for_update, char *prefix, char *suffix);
 
 int            attrmask2fieldcomparison(GString *str, uint64_t attr_mask,
                                   table_enum table, const char *left_prefix,

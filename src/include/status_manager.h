@@ -71,18 +71,18 @@ typedef int (*init_func_t)(struct sm_instance *smi, int flags);
 #define SM_NAME_MAX 128
 
 typedef enum {
-    SM_SHARED   = (1<<0), /* indicate the status manager can be shared between policies */
-    SM_NODB     = (1<<1), /* the status is not stored in DB */
-    SM_DELETED  = (1<<2), /* this status manager can manage deleted entries */
+    SM_SHARED   = (1<<0), /**< indicate the status manager can be shared between policies */
+    SM_NODB     = (1<<1), /**< the status is not stored in DB */
+    SM_DELETED  = (1<<2), /**< this status manager can manage deleted entries */
 } sm_flags;
 
-/** status manager definition */
+/** Status manager definition */
 typedef struct status_manager {
     const char *name;
     sm_flags    flags;
 
-    /* possible values for status */
-    const char ** status_enum;
+    /** possible values for status */
+    const char  **status_enum;
     unsigned int  status_count;
 
     /** masks of needed attributes (cached or fresh) to get the status of an entry */
@@ -128,6 +128,10 @@ typedef struct status_manager {
 
 } status_manager_t;
 
+/** Status manager instance.
+ * There can be one instance of a status manager
+ * by policy, in the case status manager in not shared.
+ */
 typedef struct sm_instance
 {
     /** status manager instance name:
@@ -138,15 +142,16 @@ typedef struct sm_instance
      *    <policy_name(truncated)> + "_status".
      */
     char  *instance_name;
+    /** name of the related field in DB, using for storing status. */
     char  *db_field;
     /** pointer to the status manager definition */
     const status_manager_t *sm;
     /** instance index: useful for status attribute index. */
     unsigned int smi_index;
-
 } sm_instance_t;
 
-extern unsigned int sm_inst_count; /* defined in status_manager.c */
+/** number of loaded status manager instances */
+extern unsigned int sm_inst_count; /* defined in 'status_manager.c' */
 
 /** allocate status array */
 void sm_status_ensure_alloc(char const ***p_tab);
@@ -162,21 +167,44 @@ sm_instance_t *get_sm_instance(unsigned int n);
 /** wraps config handlers for all status managers */
 extern mod_cfg_funcs_t smi_cfg_hdlr;
 
-/** initialize all status managers (if they have init functions) */
+/** initialize all status managers (if they have init functions)
+ * @param flags daemon runtime flags
+ */
 int smi_init_all(int flags);
 
-/** get the constant string that match the input string */
+/** get the constant string that matches the input string
+ * @param[in] sm status manager that manages the matched status name
+ * @param[in] in_str status name to match
+ */
 const char *get_status_str(const status_manager_t *sm, const char *in_str);
 
-/** return the list of allowed status for a status manager */
+/** return the list of allowed statuses for a status manager
+ * (to be displayed in command help).
+ * @param[in]     sm   status manager to query for its status list
+ * @param[in,out] buf  buffer to write status list string
+ * @param[in]     sz   buffer size
+ * @return buf
+ */
 char *allowed_status_str(const status_manager_t *sm, char *buf, int sz);
 
-/** call changelog callbacks for all status manager instances */
-int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
-                  const attr_set_t *attrs, attr_set_t *refreshed_attrs,
-                  uint64_t *status_need, uint64_t status_mask);
+/** Call changelog callbacks for all status manager instances
+ * @param[in]     logrec   incoming changelog record
+ * @param[in]     id       related entry id
+ * @param[in]     attrs    related entry attrs (current)
+ * @param[out]    refreshed_attrs  updated entry attrs
+ * @param[in,out] status_need   points to the mask of needed attributes
+ *                              to determine entry status.
+ * @param[in]     status_mask   mask of status managers that apply to the entry
+ *                              (determined by policy scopes).
+ */
+int run_all_cl_cb(const CL_REC_TYPE *logrec,
+                  const entry_id_t  *id,
+                  const attr_set_t  *attrs,
+                  attr_set_t        *refreshed_attrs,
+                  uint64_t          *status_need,
+                  uint64_t           status_mask);
 
-/** return the mask of all status, expect those not stored in DB */
+/** return the mask of all statuses, expect those not stored in DB */
 static inline uint64_t all_status_mask(void)
 {
     int i;
@@ -206,7 +234,7 @@ static inline uint64_t translate_status_mask(uint64_t mask, unsigned int smi_ind
     return (mask & ~SMI_MASK(0)) | SMI_MASK(smi_index);
 }
 
-/** translate a generic mask SMI_MASK(0) to all status mask (except status for deleted entries) */
+/** translate a generic mask SMI_MASK(0) to all status masks (except status for deleted entries) */
 static inline uint64_t translate_all_status_mask(uint64_t mask)
 {
     if (!(mask & SMI_MASK(0)))
@@ -216,6 +244,13 @@ static inline uint64_t translate_all_status_mask(uint64_t mask)
     return (mask & ~SMI_MASK(0)) | all_status_mask();
 }
 
+/**
+ * Return needed attributes to determine entry status for the given
+ * status manager instance.
+ * @param fresh true, to get the list of attributes that must be up-to-date,
+ *              false, to get the list of attribute that can be cached
+ *                  (retrieved from DB).
+ */
 static inline uint64_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
 {
     if (smi == NULL)
@@ -229,9 +264,10 @@ static inline uint64_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
                                      smi->smi_index);
 }
 
-/** Get attribute mask for status in the given mask.
- *  Note: it doesn't check policy scope, as is its supposed to
- *  be checked to build the input mask.
+/**
+ * Get attribute mask for status in the given mask.
+ * Note: it doesn't check policy scope, as is its supposed to
+ * be checked to build the input mask.
  */
 static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
 {
@@ -290,6 +326,7 @@ static inline uint64_t status_allow_cached_attrs(uint64_t status_mask)
     return needed;
 }
 
+/** indicate if the status manager handles file deletion */
 static inline bool smi_manage_deleted(sm_instance_t *smi)
 {
     if (smi == NULL)
@@ -297,6 +334,11 @@ static inline bool smi_manage_deleted(sm_instance_t *smi)
     return !!(smi->sm->flags & SM_DELETED); /* the status manager handles file removal */
 }
 
+/**
+ * Retrieve the mask of attributes to be saved in SOFTRM table for all policies.
+ * (needed to re-create the inode, schedule the 'remove' policy,
+ * and recover/rebind the entry).
+ */
 static inline uint64_t sm_softrm_fields(void)
 {
     uint64_t       all = 0;
@@ -315,7 +357,7 @@ static inline uint64_t sm_softrm_fields(void)
 
 #include "rbh_misc.h"
 
-/** Get name of status in the given mask */
+/** build a string with the list of statuses in the given mask */
 static inline char *name_status_mask(uint64_t mask, char *buf, int sz)
 {
     int i = 0;
@@ -341,6 +383,7 @@ static inline char *name_status_mask(uint64_t mask, char *buf, int sz)
     return buf;
 }
 
+/** retrieve a status manager from its name */
 static inline sm_instance_t *smi_by_name(const char *smi_name)
 {
     int i = 0;

@@ -40,8 +40,8 @@
 /* ------------ Types and global variables ------------ */
 
 #define is_count_trigger(_t_) ((_t_)->hw_type == COUNT_THRESHOLD)
-#define check_only(_p) ((_p)->flags & FLAG_CHECK_ONLY)
-#define one_shot(_p) ((_p)->flags & FLAG_ONCE)
+#define check_only(_p) ((_p)->flags & RUNFLG_CHECK_ONLY)
+#define one_shot(_p) ((_p)->flags & RUNFLG_ONCE)
 
 static void update_trigger_status(policy_info_t *pol, int i, trigger_status_t state)
 {
@@ -1608,7 +1608,7 @@ int policy_module_start(policy_info_t *policy, /* out */
                    "specified on command line. Disabling action scheduling.");
         return ENOENT;
     }
-    else if (NO_POLICY(&policy_descr->rules) && !(options->flags & FLAG_IGNORE_POL))
+    else if (NO_POLICY(&policy_descr->rules) && !(options->flags & RUNFLG_IGNORE_POL))
     {
         DisplayLog(LVL_CRIT, tag(policy),
             "No policy rules defined in configuration file... "

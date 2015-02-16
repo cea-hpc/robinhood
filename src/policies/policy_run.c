@@ -34,11 +34,11 @@
 
 #define CHECK_QUEUE_INTERVAL    1
 
-#define ignore_policies(_p) ((_p)->flags & FLAG_IGNORE_POL)
-#define dry_run(_p)         ((_p)->flags & FLAG_DRY_RUN)
+#define ignore_policies(_p) ((_p)->flags & RUNFLG_IGNORE_POL)
+#define dry_run(_p)         ((_p)->flags & RUNFLG_DRY_RUN)
 #define aborted(_p)         ((_p)->aborted)
-#define no_limit(_p)        ((_p)->flags & FLAG_NO_LIMIT)
-#define force_run(_p)       ((_p)->flags & FLAG_FORCE_RUN)
+#define no_limit(_p)        ((_p)->flags & RUNFLG_NO_LIMIT)
+#define force_run(_p)       ((_p)->flags & RUNFLG_FORCE_RUN)
 #define tag(_p)             ((_p)->descr->name)
 
 #define TAG "PolicyRun"
@@ -89,14 +89,15 @@ static int policy_action(policy_info_t *policy,
     const policy_action_t *actionp = &policy->descr->default_action;
 
     DisplayLog(LVL_EVENT, tag(policy),
-               "Executing policy action on: " DFID_NOBRACE " (%s), hints='%s'",
-               PFID(id), ATTR(p_attr_set, fullpath), hints?hints:"<none>");
+               "%sExecuting policy action on: " DFID_NOBRACE " (%s), hints='%s'",
+               dry_run(policy)?"(dry-run) ":"", PFID(id),
+               ATTR(p_attr_set, fullpath), hints?hints:"<none>");
     if (dry_run(policy))
         return 0;
 
     /* If the status manager has an 'executor', make it run the action.
      * Else, run directly the action function. */
-    if (smi->sm->executor != NULL)
+    if (smi != NULL && smi->sm->executor != NULL)
     {
         /* @TODO provide a DB callback */
         rc = smi->sm->executor(smi, actionp, id, p_attr_set, hints,
@@ -110,18 +111,18 @@ static int policy_action(policy_info_t *policy,
                 /* @TODO provide a DB callback */
                 rc = actionp->action_u.function(id, p_attr_set, hints, after, NULL, NULL);
                 break;
-            case ACTION_COMMAND:
+            case ACTION_COMMAND: /* execute custom action */
             {
-                /* execute custom action */
                 char strfid[RBH_FID_LEN];
                 sprintf(strfid, DFID, PFID(id));
 
-                /* @TODO to be documented */
+                /* @TODO document allowed parameters in user documentation */
                 const char *vars[] = {
-                    "path", ATTR_MASK_TEST(p_attr_set, fullpath)?ATTR(p_attr_set, fullpath):"",
+                    "path",   ATTR_MASK_TEST(p_attr_set, fullpath)?
+                                 ATTR(p_attr_set, fullpath):"",
                     "fsname", get_fsname(),
-                    "fid", strfid,
-                    "hints", hints,
+                    "fid",    strfid,
+                    "hints",  hints,
                     "policy", tag(policy),
                     NULL, NULL
                 };
@@ -247,7 +248,7 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
 
 /**
  * Given the timestamp of the last processed entry, this tries to guess
- * if next entries still ave a change to match the policy.
+ * if next entries still have a chance to match the policy.
  * Example: if entries are sorted by last access (from the older to the newer)
  * and if the last listed entry is too recent to match any policy,
  * then next entries won't match too.
@@ -433,21 +434,21 @@ static bool check_limit(policy_info_t *policy,
  * Compute an adaptive delay (in microseconds) to check if pending requests exceed the limit.
  * The computed value is 10% of the estimated time to process the current queue.
  */
-#define US_1ms  1000    /* 1ms in microseconds */
-#define US_1s   1000000 /* 1sec in microseconds */
-#define MIN_CHECK_DELAY   (10 * US_1ms) /* 10ms */
-#define MAX_CHECK_DELAY   US_1s
+#define USEC_PER_MSEC 1000      /* 1ms */
+#define USEC_PER_SEC  1000000   /* 1s */
+#define MIN_CHECK_DELAY   (10 * USEC_PER_MSEC) /* 10ms */
+#define MAX_CHECK_DELAY   USEC_PER_SEC
 static unsigned long adaptive_check_delay_us(time_t policy_start,
                                              unsigned long long nb_processed,
                                              unsigned long long nb_pending)
 {
     unsigned long check_delay;
-    unsigned long spent_us = US_1s * (time(NULL) - policy_start);
+    unsigned long spent_us = USEC_PER_SEC * (time(NULL) - policy_start);
     unsigned long us_per_ent;
 
     /* compute check_delay depending on past processing speed */
     if (spent_us == 0)
-        spent_us = 100 * US_1ms; /* default to 100ms */
+        spent_us = 100 * USEC_PER_MSEC; /* default to 100ms */
 
     if (nb_processed > 0)
     {
@@ -457,16 +458,16 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
         check_delay = (us_per_ent * nb_pending) / 10;
         DisplayLog(LVL_FULL, __func__, "%llu entries processed @ %.2f ms/ent, "
                    "%llu pending => check delay = 10%% x %llu ms = %lu ms",
-                   nb_processed, (float)us_per_ent/US_1ms,
-                   nb_pending, (us_per_ent * nb_pending)/US_1ms,
-                   check_delay/US_1ms);
+                   nb_processed, (float)us_per_ent/USEC_PER_MSEC,
+                   nb_pending, (us_per_ent * nb_pending)/USEC_PER_MSEC,
+                   check_delay/USEC_PER_MSEC);
     }
     else
     {
         /* nothing was done so far (check again in 10% x spent) */
         check_delay = spent_us / 10;
         DisplayLog(LVL_FULL, __func__, "No entry processed, %llu pending => check delay = 10%% x %lu ms",
-                   nb_pending, spent_us/US_1ms);
+                   nb_pending, spent_us/USEC_PER_MSEC);
     }
 
     if (check_delay > MAX_CHECK_DELAY)
@@ -546,7 +547,7 @@ static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
                        "%llu requests in queue, volume: %llu done, %llu pending), "
                        "waiting %lums before re-checking.", ctr_ok.count,
                        ctr_pending.count, ctr_ok.vol, ctr_pending.vol,
-                       check_delay/US_1ms);
+                       check_delay/USEC_PER_MSEC);
             rh_usleep(check_delay);
             continue;
         }
@@ -796,18 +797,18 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
  */
 static int entry2tgt_amount(const policy_param_t *p_param,
                             const attr_set_t *attrs,
-                            counters_t *pcpt)
+                            counters_t *p_ctr)
 {
-    memset(pcpt, 0, sizeof(*pcpt));
+    memset(p_ctr, 0, sizeof(*p_ctr));
 
-    pcpt->count = 1;
+    p_ctr->count = 1;
     if (ATTR_MASK_TEST(attrs, size))
-        pcpt->vol = ATTR(attrs, size);
+        p_ctr->vol = ATTR(attrs, size);
     else if (ATTR_MASK_TEST(attrs, blocks))
-        pcpt->vol = ATTR(attrs, blocks) * DEV_BSIZE;
+        p_ctr->vol = ATTR(attrs, blocks) * DEV_BSIZE;
 
     if (ATTR_MASK_TEST(attrs, blocks))
-        pcpt->blocks = ATTR(attrs, blocks);
+        p_ctr->blocks = ATTR(attrs, blocks);
 
     if (p_param->target_ctr.targeted != 0)
     {
@@ -820,7 +821,7 @@ static int entry2tgt_amount(const policy_param_t *p_param,
             return -1;
         }
 
-        pcpt->targeted = BlocksOnOST(pcpt->blocks, p_param->optarg_u.index,
+        p_ctr->targeted = BlocksOnOST(p_ctr->blocks, p_param->optarg_u.index,
                                      &ATTR(attrs, stripe_info), &ATTR(attrs, stripe_items));
     }
 
@@ -1064,11 +1065,11 @@ static inline int iter_open(lmgr_t *lmgr,
 
 /** return codes of fill_workers_queue() */
 typedef enum {
-    pass_eol,
-    pass_limit,
-    pass_aborted,
-    pass_error,
-} pass_status;
+    PASS_EOL,
+    PASS_LIMIT,
+    PASS_ABORTED,
+    PASS_ERROR,
+} pass_status_e;
 
 /**
  * Get entries from the DB and push them to the workers queue until:
@@ -1078,7 +1079,7 @@ typedef enum {
  * @param attr_mask  Mask of attrs to be retrieved from the DB,
  *                   to be able to match policy rules, scope...
  */
-static pass_status fill_workers_queue(policy_info_t *pol,
+static pass_status_e fill_workers_queue(policy_info_t *pol,
                               const policy_param_t *p_param,
                               lmgr_t *lmgr,
                               struct policy_iter *it,
@@ -1090,7 +1091,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
                               unsigned int *db_total_list_count)
 {
     int                 rc;
-    pass_status         st;
+    pass_status_e       st;
     attr_set_t          attr_set;
     entry_id_t          entry_id;
     counters_t          pushed_ctr;
@@ -1103,7 +1104,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
     init_pass_stats(pol, &pushed_ctr, status_tab_before, status_tab_after,
                     feedback_before, feedback_after);
 
-    st = pass_limit; /* by default, exit the loop when check_queue_limit is true */
+    st = PASS_LIMIT; /* by default, exit the loop when check_queue_limit is true */
 
     /* List entries for policy */
     do
@@ -1124,7 +1125,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
                 ListMgr_FreeAttrs(&attr_set);
 
             DisplayLog(LVL_MAJOR, tag(pol), "Policy run aborted, stop enqueuing requests.");
-            st = pass_aborted;
+            st = PASS_ABORTED;
             break;
         }
         else if (rc == DB_END_OF_LIST)
@@ -1138,14 +1139,14 @@ static pass_status fill_workers_queue(policy_info_t *pol,
             {
                 DisplayLog(LVL_FULL, tag(pol), "End of list "
                            "(%u entries returned)", *db_total_list_count);
-                st = pass_eol;
+                st = PASS_EOL;
                 break;
             }
 
             /* no new useless request */
             if (heuristic_end_of_list(pol, *last_sort_time))
             {
-                st = pass_eol;
+                st = PASS_EOL;
                 break;
             }
 
@@ -1174,7 +1175,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
                                                    LESSTHAN_STRICT, fval,
                                                    FILTER_FLAG_ALLOW_NULL);
             if (rc)
-                return pass_error;
+                return PASS_ERROR;
 
             /* filter on <sort_time> */
             fval.value.val_int = *last_sort_time;
@@ -1183,7 +1184,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
                                                    MORETHAN, fval,
                                                    FILTER_FLAG_ALLOW_NULL);
             if (rc)
-                return pass_error;
+                return PASS_ERROR;
 
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Performing new request with a limit of %u entries"
@@ -1198,14 +1199,14 @@ static pass_status fill_workers_queue(policy_info_t *pol,
                 DisplayLog(LVL_CRIT, tag(pol),
                            "Error %d retrieving list of candidates from "
                            "database. Policy run cancelled.", rc);
-                return pass_error;
+                return PASS_ERROR;
             }
             continue;
         }
         else if (rc != 0)
         {
             DisplayLog(LVL_CRIT, tag(pol), "Error %d getting next entry of iterator", rc);
-            st = pass_error;
+            st = PASS_ERROR;
             break;
         }
 
@@ -1228,7 +1229,7 @@ static pass_status fill_workers_queue(policy_info_t *pol,
         rc = Queue_Insert(&pol->queue,
                 entry2queue_item(&entry_id, &attr_set, entry_amount.targeted));
         if (rc)
-            return pass_error;
+            return PASS_ERROR;
 
         counters_add(&pushed_ctr, &entry_amount);
 
@@ -1312,6 +1313,7 @@ static int single_file_run(policy_info_t *pol, lmgr_t *lmgr,
  * @param[in]     p_param      parameters of this run (target, limit, ...)
  * @param[out]    p_summary    summary of the policy run
  * @param[in]     lmgr         connection to the database
+ *  \return 0 on success, a POSIX error code else, -1 for internal failure.
  *  \retval ENOENT if no file list is available.
  */
 int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
@@ -1319,7 +1321,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 {
     struct policy_iter      it = {0};
     int                     rc;
-    pass_status             st;
+    pass_status_e           st;
     lmgr_filter_t           filter;
     lmgr_sort_type_t        sort_type;
     int                     last_sort_time = 0;
@@ -1468,23 +1470,23 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
                                 &nb_returned, &total_returned);
         switch (st)
         {
-            case pass_eol:
+            case PASS_EOL:
                 rc = 0;
                 break;
-            case pass_aborted:
+            case PASS_ABORTED:
                 rc = ECANCELED;
                 break;
-            case pass_limit:
+            case PASS_LIMIT:
                 rc = 0;
                 break;
-            case pass_error:
-                rc = 1;
+            case PASS_ERROR:
+                rc = -1;
                 break;
         }
 
         /* exit in all cases except pass_limit (double check the limit in this case):
          * check the real amount of performed actions (progress.action_ctr) */
-    } while ((st == pass_limit) &&
+    } while ((st == PASS_LIMIT) &&
              !check_limit(p_pol_info, &p_pol_info->progress.action_ctr,
                           p_pol_info->progress.errors, &p_param->target_ctr));
 
@@ -1561,7 +1563,7 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
     /* 1) Build fid path */
     BuildFidPath(&p_item->entry_id, fid_path);
 
-    /* 2) Perform lstat on entry (size is need!):
+    /* 2) Perform lstat on entry (size is needed!):
      * important to respect LRU sort order (TODO: not if sort order is not in POSIX attrs)
      */
     if (lstat(fid_path, &entry_md) != 0)
@@ -2215,7 +2217,8 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
     /* /!\ don't retrieve status, to force getting it from the filesystem */
 
     /* needed attributes from DB */
-    q_item.entry_attr.attr_mask |= smi_needed_attrs(pol->descr->status_mgr, false);
+    if (pol->descr->status_mgr != NULL)
+        q_item.entry_attr.attr_mask |= smi_needed_attrs(pol->descr->status_mgr, false);
 
     attr_mask_sav = q_item.entry_attr.attr_mask;
 

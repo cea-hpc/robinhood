@@ -46,11 +46,11 @@
 #include <libgen.h>
 
 fs_scan_config_t fs_scan_config;
-int              fsscan_flags = 0;
+run_flags_t      fsscan_flags = 0;
 const char      *partial_scan_root = NULL;
 
-#define fsscan_once ( fsscan_flags & FLAG_ONCE )
-#define fsscan_nogc ( fsscan_flags & FLAG_NO_GC )
+#define fsscan_once (fsscan_flags & RUNFLG_ONCE)
+#define fsscan_nogc (fsscan_flags & RUNFLG_NO_GC)
 
 static bool     is_lustre_fs = false;
 static bool     is_first_scan = false;
@@ -720,7 +720,7 @@ static void check_dir_error(int rc)
     {
         /* If we cannot read the directory, we must avoid dropping all
          * its entries from the DB => Switch to NO_GC mode. */
-        fsscan_flags |= FLAG_NO_GC;
+        fsscan_flags |= RUNFLG_NO_GC;
         DisplayLog(LVL_CRIT, FSSCAN_TAG,
                    "Disabling GC because the namespace can't be fully scanned");
     }
@@ -1175,9 +1175,6 @@ static int process_one_task(robinhood_task_t *p_task,
             (*nb_errors)++;
             return rc;
         }
-
-        /* test lock before starting scan */
-        TestLockFile(&p_info->last_action);
     }
 
     /* As long as the current task path is (strictly)

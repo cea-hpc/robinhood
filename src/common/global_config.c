@@ -49,7 +49,6 @@ static void global_cfg_set_default(void *module_config)
 #else
     rh_strncpy(conf->fs_type, "", FILENAME_MAX);
 #endif
-    rh_strncpy(conf->lock_file, "/var/locks/robinhood.lock", RBH_PATH_MAX);
     conf->stay_in_fs = true;
     conf->check_mounted = true;
     conf->fs_key = FSKEY_FSNAME;
@@ -69,7 +68,6 @@ static void global_cfg_write_default(FILE *output)
     print_line(output, 1, "fs_type       :  [MANDATORY]");
 #endif
     print_line(output, 1, "fs_key        :  fsname");
-    print_line(output, 1, "lock_file     :  \"/var/locks/robinhood.lock\"");
     print_line(output, 1, "stay_in_fs    :  yes");
     print_line(output, 1, "check_mounted :  yes");
 
@@ -86,7 +84,7 @@ static int global_cfg_read(config_file_t config, void *module_config,
     global_config_t *conf = (global_config_t *)module_config;
 
     static const char *allowed_params[] = {
-        "fs_path", "fs_type", "lock_file", "stay_in_fs", "check_mounted",
+        "fs_path", "fs_type", "stay_in_fs", "check_mounted",
         "direct_mds_stat", "fs_key", NULL
     };
     const cfg_param_t cfg_params[] = {
@@ -98,8 +96,6 @@ static int global_cfg_read(config_file_t config, void *module_config,
         PFLG_MANDATORY |
 #endif
         PFLG_NO_WILDCARDS, conf->fs_type, sizeof(conf->fs_type)},
-        {"lock_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS,
-         conf->lock_file, sizeof(conf->lock_file)},
         {"stay_in_fs", PT_BOOL, 0, &conf->stay_in_fs, 0},
         {"check_mounted", PT_BOOL, 0, &conf->check_mounted, 0},
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
@@ -180,14 +176,6 @@ static int global_cfg_set(void *module_config, bool reload)
                    GLOBAL_CONFIG_BLOCK
                    "::fs_type changed in config file, but cannot be modified dynamically");
 
-    if (strcmp(conf->lock_file, global_config.lock_file))
-    {
-        DisplayLog(LVL_MAJOR, "GlobalConfig",
-                   GLOBAL_CONFIG_BLOCK "::lock_file updated: '%s'->'%s'",
-                   global_config.lock_file, conf->lock_file);
-        strcpy(global_config.fs_path, conf->lock_file);
-    }
-
     if (global_config.stay_in_fs != conf->stay_in_fs)
     {
         DisplayLog(LVL_EVENT, "GlobalConfig", GLOBAL_CONFIG_BLOCK "::stay_in_fs updated: %s->%s",
@@ -235,10 +223,6 @@ static void global_cfg_write_template(FILE *output)
     print_line(output, 1, "fs_key = fsname ;");
     fprintf(output, "\n");
 #endif
-
-    print_line(output, 1, "# file for suspending all actions");
-    print_line(output, 1, "lock_file = \"/var/locks/robinhood.lock\" ;");
-    fprintf(output, "\n");
     print_line(output, 1, "# check that objects are in the same device as 'fs_path',");
     print_line(output, 1, "# so it will not traverse mount points");
     print_line(output, 1, "stay_in_fs = yes ;");

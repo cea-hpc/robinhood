@@ -229,7 +229,7 @@ static int mk_bench_pipeline(unsigned int stages)
 /**
  *  Initialize entry processor pipeline
  */
-int EntryProcessor_Init(pipeline_flavor_e flavor, int flags, void *arg)
+int EntryProcessor_Init(pipeline_flavor_e flavor, run_flags_t flags, void *arg)
 {
     int i;
 

@@ -119,7 +119,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                                           /* leading comma */ true,
                                           /* for update */ false,
                                           /* prefix */ MAIN_TABLE".",
-                                          /* postfix */ "");
+                                          /* suffix */ "");
 
         field_cnt.nb_annex = attrmask2fieldlist(req, attr_mask, T_ANNEX, true, false,
                                                 ANNEX_TABLE".", "");

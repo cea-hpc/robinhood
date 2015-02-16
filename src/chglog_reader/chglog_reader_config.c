@@ -127,7 +127,7 @@ static void cl_reader_write_template(FILE *output)
 	print_line( output, 1, "batch_ack_count = 1024 ;");
     fprintf( output, "\n" );
 
-    print_line(output, 1, "force_polling    = ON ;");
+    print_line(output, 1, "force_polling    = yes ;");
     print_line(output, 1, "polling_interval = 1s ;");
     print_line(output, 1, "queue_max_size   = 1000 ;");
     print_line(output, 1, "queue_max_age    = 5s ;");

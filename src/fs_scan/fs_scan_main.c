@@ -39,7 +39,7 @@ static void   *scan_starter( void *arg )
 
     DisplayLog( LVL_VERB, FSSCAN_TAG, "Launching FS Scan starter thread" );
 
-    if ( fsscan_flags & FLAG_ONCE )
+    if (fsscan_flags & RUNFLG_ONCE)
     {
         rc = Robinhood_CheckScanDeadlines(  );
         if ( rc )
@@ -64,7 +64,7 @@ static void   *scan_starter( void *arg )
 
 
 /** Start FS Scan info collector */
-int FSScan_Start(int flags, const char * partial_root)
+int FSScan_Start(run_flags_t flags, const char * partial_root)
 {
     int            rc;
 

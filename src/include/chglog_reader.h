@@ -78,7 +78,7 @@ typedef struct chglog_reader_config_t
 /** start ChangeLog Readers
  * \param mdt_index -1 for all
  */
-int            cl_reader_start(int flags, int mdt_index);
+int            cl_reader_start(run_flags_t flags, int mdt_index);
 
 /** terminate ChangeLog Readers */
 int            cl_reader_terminate(void);

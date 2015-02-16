@@ -155,7 +155,7 @@ void separated_db2list_inplace(char *list)
     list[len-2] = '\0';
 }
 
-/* TODO use pre-generated field masks? */
+/* @TODO use pre-generated field masks? */
 static inline bool match_table(table_enum t, unsigned int attr_index)
 {
     return ((t == T_MAIN) && is_main_field(attr_index)) ||
@@ -440,12 +440,12 @@ static void print_func_call(GString *str, int func_index, const char *prefix)
 /**
  * @param table T_MAIN, T_ANNEX, T_ACCT
  * @param prefix
- * @param postfix
+ * @param suffix
  * @param separator
  * @return nbr of fields
  */
 int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool leading_comma,
-                       bool for_update, char *prefix, char *postfix)
+                       bool for_update, char *prefix, char *suffix)
 {
     int            i;
     unsigned int   nbfields = 0;
@@ -486,12 +486,12 @@ int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool 
                     !((table == T_SOFTRM) && (i == ATTR_INDEX_fullpath)))
                 {
                     print_func_call(str, i, prefix);
-                    g_string_append_printf(str, "%s%s", for_update_str, postfix);
+                    g_string_append_printf(str, "%s%s", for_update_str, suffix);
                 }
                 else
                 {
                     g_string_append_printf(str, "%s%s%s%s", prefix, field_name(i),
-                                           for_update_str, postfix);
+                                           for_update_str, suffix);
                 }
                 nbfields++;
             }

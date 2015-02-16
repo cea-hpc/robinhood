@@ -228,7 +228,7 @@ extern mod_cfg_funcs_t entry_proc_cfg_hdlr;
 /**
  *  Initialize entry processor pipeline
  */
-int EntryProcessor_Init(pipeline_flavor_e flavor, int flags, void *arg);
+int EntryProcessor_Init(pipeline_flavor_e flavor, run_flags_t flags, void *arg);
 
 /**
  * Terminate EntryProcessor

@@ -719,7 +719,7 @@ static bool dbop_is_batchable(struct entry_proc_op_t *first, struct
 entry_proc_op_t *next, uint64_t *full_attr_mask)
 {
     /* batch nothing if not applying to DB */
-    if ((diff_arg->apply != APPLY_DB) || (pipeline_flags & FLAG_DRY_RUN))
+    if ((diff_arg->apply != APPLY_DB) || (pipeline_flags & RUNFLG_DRY_RUN))
         return false;
 
     if (first->db_op_type != OP_TYPE_INSERT
@@ -753,7 +753,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
-    if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
+    if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & RUNFLG_DRY_RUN))
     {
         /* insert to DB */
         switch (p_op->db_op_type)
@@ -860,9 +860,10 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
                     {
                         /* rmdir */
-                        DisplayReport("%srmdir(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                        DisplayReport("%srmdir(%s)",
+                                      (pipeline_flags & RUNFLG_DRY_RUN)?"(dry-run) ":"",
                                       ATTR(&p_op->fs_attrs, fullpath));
-                        if (!(pipeline_flags & FLAG_DRY_RUN))
+                        if (!(pipeline_flags & RUNFLG_DRY_RUN))
                         {
                             if (rmdir(ATTR(&p_op->fs_attrs, fullpath)))
                                 DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "rmdir(%s) failed: %s",
@@ -872,9 +873,9 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     else
                     {
                         /* unlink */
-                        DisplayReport("%sunlink(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                        DisplayReport("%sunlink(%s)", (pipeline_flags & RUNFLG_DRY_RUN)?"(dry-run) ":"",
                                       ATTR(&p_op->fs_attrs, fullpath));
-                        if (!(pipeline_flags & FLAG_DRY_RUN))
+                        if (!(pipeline_flags & RUNFLG_DRY_RUN))
                         {
                             if (unlink(ATTR(&p_op->fs_attrs, fullpath)))
                                 DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "unlink(%s) failed: %s",
@@ -891,7 +892,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 /*attributes to be changed: p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & diff_mask */
                 rc = ApplyAttrs(&p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
                                 p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & diff_mask,
-                                pipeline_flags & FLAG_DRY_RUN);
+                                pipeline_flags & RUNFLG_DRY_RUN);
                 break;
 
 
@@ -1184,7 +1185,7 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     if (p_op->gc_entries || p_op->gc_names)
     {
         /* call MassRemove only if APPLY_DB is set */
-        if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & FLAG_DRY_RUN))
+        if ((diff_arg->apply == APPLY_DB) && !(pipeline_flags & RUNFLG_DRY_RUN))
         {
             lmgr_simple_filter_init(&filter);
 
@@ -1269,19 +1270,21 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
                         if (diff_arg->recov_from_backend)
                         {
                             /* try to recover the entry from the backend */
-                            DisplayReport("%srecover(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                            DisplayReport("%srecover(%s)",
+                                          (pipeline_flags & RUNFLG_DRY_RUN)?"(dry-run) ":"",
                                           ATTR(&attrs, fullpath));
                             /** FIXME use undelete function from status manager */
-                            if (!(pipeline_flags & FLAG_DRY_RUN))
+                            if (!(pipeline_flags & RUNFLG_DRY_RUN))
                                 hsm_recover(lmgr, &id, &attrs);
                         }
                         else
 #endif
                         {
                             /* create the file with no stripe and generate lovea information to be set on MDT */
-                            DisplayReport("%screate(%s)", (pipeline_flags & FLAG_DRY_RUN)?"(dry-run) ":"",
+                            DisplayReport("%screate(%s)",
+                                          (pipeline_flags & RUNFLG_DRY_RUN)?"(dry-run) ":"",
                                           ATTR(&attrs, fullpath));
-                            if (!(pipeline_flags & FLAG_DRY_RUN))
+                            if (!(pipeline_flags & RUNFLG_DRY_RUN))
                                 std_recover(lmgr, &id, &attrs);
                         }
                     }

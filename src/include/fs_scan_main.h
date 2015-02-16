@@ -31,7 +31,7 @@
 #include <stdbool.h>
 
 /** start scanning module */
-int            FSScan_Start(int flags, const char *partial_root);
+int            FSScan_Start(run_flags_t flags, const char *partial_root);
 
 /** terminate scanning module */
 void           FSScan_Terminate( void );

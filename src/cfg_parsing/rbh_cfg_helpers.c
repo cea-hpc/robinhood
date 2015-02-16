@@ -33,7 +33,7 @@ static inline bool is_stdname(const char *name)
  * Misc. tools for config parsing
  */
 int            GetStringParam(config_item_t block, const char *block_name,
-                              const char *var_name, int flags, char *target,
+                              const char *var_name, param_flags_t flags, char *target,
                               unsigned int target_size, char ***extra_args_tab,
                               unsigned int *nb_extra_args, char *err_msg)
 {
@@ -134,7 +134,7 @@ int            GetStringParam(config_item_t block, const char *block_name,
 }
 
 int  GetBoolParam(config_item_t block, const char *block_name,
-                  const char *var_name, int flags, bool *target,
+                  const char *var_name, param_flags_t flags, bool *target,
                   char ***extra_args_tab, unsigned int *nb_extra_args,
                   char *err_msg )
 {
@@ -200,7 +200,7 @@ int  GetBoolParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int GetDurationParam(config_item_t block, const char *block_name,
-                     const char *var_name, int flags, time_t *target,
+                     const char *var_name, param_flags_t flags, time_t *target,
                      char ***extra_args_tab,
                      unsigned int *nb_extra_args, char *err_msg)
 {
@@ -282,7 +282,7 @@ int GetDurationParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int GetSizeParam(config_item_t block, const char *block_name,
-                 const char *var_name, int flags,
+                 const char *var_name, param_flags_t flags,
                  unsigned long long *target, char ***extra_args_tab,
                  unsigned int *nb_extra_args, char *err_msg)
 {
@@ -360,7 +360,7 @@ int GetSizeParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int            GetIntParam(config_item_t block, const char *block_name,
-                           const char *var_name, int flags, int *target,
+                           const char *var_name, param_flags_t flags, int *target,
                            char ***extra_args_tab, unsigned int *nb_extra_args,
                            char *err_msg)
 {
@@ -450,7 +450,7 @@ int            GetIntParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int GetInt64Param(config_item_t block, const char *block_name,
-                  const char *var_name, int flags, uint64_t *target,
+                  const char *var_name, param_flags_t flags, uint64_t *target,
                   char ***extra_args_tab, unsigned int *nb_extra_args,
                   char *err_msg)
 {
@@ -547,7 +547,7 @@ int GetInt64Param(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int           GetFloatParam(config_item_t block, const char *block_name,
-                            const char *var_name, int flags, double *target,
+                            const char *var_name, param_flags_t flags, double *target,
                             char ***extra_args_tab, unsigned int *nb_extra_args,
                             char *err_msg)
 {

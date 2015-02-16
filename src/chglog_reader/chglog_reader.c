@@ -127,10 +127,10 @@ typedef struct reader_thr_info_t
 #define ID_CHGLOG_HASH_SIZE 7919
 
 extern chglog_reader_config_t cl_reader_config;
-static int behavior_flags = 0;
+static run_flags_t behavior_flags = 0;
 
 /* stop reading logs when reaching end of file? */
-#define one_shot ( behavior_flags & FLAG_ONCE )
+#define one_shot ( behavior_flags & RUNFLG_ONCE )
 
 /** array of reader info */
 static reader_thr_info_t  *reader_info = NULL;
@@ -1045,7 +1045,7 @@ static void action_sigchld( int sig )
 
 
 /** start ChangeLog Reader module */
-int cl_reader_start(int flags, int mdt_index)
+int cl_reader_start(run_flags_t flags, int mdt_index)
 {
     int i, rc;
     char mdtdevice[128];

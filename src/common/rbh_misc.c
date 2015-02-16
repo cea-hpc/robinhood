@@ -378,28 +378,6 @@ notfound:
     return -ENOENT;
 }
 
-
-#define TEST_LOCK_FILE_PERIOD 10
-
-/*
- * This function is blocking as long as the lock file is present.
- * Optionaly updates an action timestamp, at each test.
- */
-void TestLockFile( time_t * p_last_action )
-{
-
-    while ( access( global_config.lock_file, F_OK ) == 0 )
-    {
-        if ( p_last_action )
-            *p_last_action = time( NULL );
-
-        DisplayLog( LVL_MAJOR, "LOCK", "Lock file %s detected, waiting %ds",
-                    global_config.lock_file, TEST_LOCK_FILE_PERIOD );
-        rh_sleep( TEST_LOCK_FILE_PERIOD );
-    }
-
-}
-
 char          *uid2str( uid_t uid, char *username )
 {
     struct passwd *p = GetPwUid( uid );

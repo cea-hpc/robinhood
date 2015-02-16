@@ -27,8 +27,8 @@
 
 /* defined in fs_scan.c */
 extern fs_scan_config_t fs_scan_config;
-extern int     fsscan_flags;
-extern const char * partial_scan_root;
+extern run_flags_t      fsscan_flags;
+extern const char      *partial_scan_root;
 
 /* Audit module relative types */
 

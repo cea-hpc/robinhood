@@ -305,11 +305,13 @@ static char  backend_name[RBH_PATH_MAX] = "";
 /* is it a special shell character */
 static inline bool is_shell_special(char c)
 {
-    static const char * specials = "`#$*?!|;&<>[]{}'\"\\";
-    const char * curr;
+    static const char specials[] = "`#$*?!|;&<>[]{}'\"\\";
+    const char *curr;
+
     for (curr = specials; (*curr) != '\0'; curr++)
         if (c == (*curr))
             return true;
+
     /* not found */
     return false;
 }

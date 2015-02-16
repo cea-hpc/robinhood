@@ -257,7 +257,7 @@ typedef struct policy_info_t
     time_t           first_eligible;
     time_modifier_t *time_modifier;
     time_t           gcd_interval; /* gcd of check intervals (gcd(triggers))*/
-    int              flags; /* from policy_opt */
+    run_flags_t      flags; /* from policy_opt */
     unsigned int     aborted:1; /* abort status */
     volatile unsigned int waiting:1; /* a thread is already trying to join the trigger thread */
 } policy_info_t;
@@ -281,7 +281,7 @@ typedef union {
 typedef struct policy_opt_t
 {
     policy_target_t target;
-    int             flags;
+    run_flags_t     flags;
     target_u        optarg_u;
     union
     {

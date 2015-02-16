@@ -26,28 +26,30 @@
 #include "rbh_cfg.h"
 
 /* parameter flags */
-#define PFLG_MANDATORY             (1 << 0)
-
-#define PFLG_ABSOLUTE_PATH         (1 << 1)
-#define PFLG_REMOVE_FINAL_SLASH    (1 << 2)
-#define PFLG_NO_WILDCARDS          (1 << 3)
-#define PFLG_MAIL                  (1 << 4)
-#define PFLG_STDIO_ALLOWED         (1 << 5)
+typedef enum param_flags {
+    PFLG_MANDATORY          = (1 << 0),
+    PFLG_ABSOLUTE_PATH      = (1 << 1),
+    PFLG_REMOVE_FINAL_SLASH = (1 << 2),
+    PFLG_NO_WILDCARDS       = (1 << 3),
+    PFLG_MAIL               = (1 << 4),
+    PFLG_STDIO_ALLOWED      = (1 << 5),
 
 /* for int and float params */
-#define PFLG_POSITIVE              (1 << 6)
-#define PFLG_NOT_NULL              (1 << 7)
+    PFLG_POSITIVE           = (1 << 6),
+    PFLG_NOT_NULL           = (1 << 7),
 
 /* float params only */
-#define PFLG_ALLOW_PCT_SIGN        (1 << 8)
+    PFLG_ALLOW_PCT_SIGN     = (1 << 8),
 
 /* extra flags for values in policy expressions */
-#define PFLG_ALLOW_ANY_DEPTH       (1 << 9) /* allow ** */
-#define PFLG_NO_SLASH              (1 << 10)
-#define PFLG_COMPARABLE            (1 << 11)
-#define PFLG_NOT_EMPTY             PFLG_NOT_NULL
-#define PFLG_XATTR                 (1 << 12)
-#define PFLG_STATUS                (1 << 13) /* only allowed in some particular context (policy scope) */
+    PFLG_ALLOW_ANY_DEPTH    = (1 << 9), /**< allow '**' */
+    PFLG_NO_SLASH           = (1 << 10),
+    PFLG_COMPARABLE         = (1 << 11),
+    PFLG_XATTR              = (1 << 12),
+    PFLG_STATUS             = (1 << 13), /**< only allowed in some particular context (policy scope) */
+
+    PFLG_NOT_EMPTY          = PFLG_NOT_NULL
+} param_flags_t;
 
 /* ==== Tools for retrieving parameters from conf and checking them ==== */
 
@@ -60,7 +62,7 @@
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int            GetStringParam(config_item_t block, const char *block_name,
-                              const char *var_name, int flags, char *target,
+                              const char *var_name, param_flags_t flags, char *target,
                               unsigned int target_size, char ***extra_args_tab,
                               unsigned int *nb_extra_args, char *err_msg);
 /**
@@ -70,7 +72,7 @@ int            GetStringParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int            GetBoolParam(config_item_t block, const char *block_name,
-                            const char *var_name, int flags, bool *target,
+                            const char *var_name, param_flags_t flags, bool *target,
                             char ***extra_args_tab, unsigned int *nb_extra_args,
                             char *err_msg );
 
@@ -81,7 +83,7 @@ int            GetBoolParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int            GetDurationParam(config_item_t block, const char *block_name,
-                                const char *var_name, int flags, time_t *target,
+                                const char *var_name, param_flags_t flags, time_t *target,
                                 char ***extra_args_tab,
                                 unsigned int *nb_extra_args, char *err_msg);
 /**
@@ -91,7 +93,7 @@ int            GetDurationParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int            GetSizeParam(config_item_t block, const char *block_name,
-                            const char *var_name, int flags,
+                            const char *var_name, param_flags_t flags,
                             unsigned long long *target, char ***extra_args_tab,
                             unsigned int *nb_extra_args, char *err_msg);
 
@@ -104,7 +106,7 @@ int            GetSizeParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int            GetIntParam(config_item_t block, const char *block_name,
-                           const char *var_name, int flags, int *target,
+                           const char *var_name, param_flags_t flags, int *target,
                            char ***extra_args_tab, unsigned int *nb_extra_args,
                            char *err_msg);
 
@@ -116,7 +118,7 @@ int            GetIntParam(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int GetInt64Param(config_item_t block, const char *block_name,
-                  const char *var_name, int flags, uint64_t *target,
+                  const char *var_name, param_flags_t flags, uint64_t *target,
                   char ***extra_args_tab, unsigned int *nb_extra_args,
                   char *err_msg);
 
@@ -127,7 +129,7 @@ int GetInt64Param(config_item_t block, const char *block_name,
  *          EINVAL if the parameter does not satisfy restrictions
  */
 int           GetFloatParam(config_item_t block, const char *block_name,
-                            const char *var_name, int flags, double *target,
+                            const char *var_name, param_flags_t flags, double *target,
                             char ***extra_args_tab, unsigned int *nb_extra_args,
                             char *err_msg);
 
@@ -152,7 +154,7 @@ typedef enum {
 typedef struct cfg_param_t {
     const char     *name; /* NULL for last name */
     cfg_param_type  type;
-    int             flags;
+    param_flags_t   flags;
     void           *ptr;
     size_t          ptrsize;
 } cfg_param_t;

@@ -89,7 +89,7 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t * p_filter, unsigned int
     filter_value_t *p_value = &p_filter->filter_simple.filter_value[index];
     int flag = p_filter->filter_simple.filter_flags[index];
 
-    /* TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR and FILTER_FLAG_ALLOC_LIST */
+    /* @TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR and FILTER_FLAG_ALLOC_LIST */
 
     if ( (comparator == LIKE) || (comparator == UNLIKE) )
     {
@@ -130,7 +130,7 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t * p_filter, unsigned int
 
 static void lmgr_simple_filter_free_buffers(lmgr_filter_t * p_filter, unsigned int index)
 {
-    /* TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR and FILTER_FLAG_ALLOC_LIST */
+    /* @TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR and FILTER_FLAG_ALLOC_LIST */
 
     /* check if previous value must be released */
     if ( ( p_filter->filter_simple.filter_flags[index] & FILTER_FLAG_ALLOC_STR )
@@ -402,7 +402,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 return DB_INVALID_ARG;
             }
 
-            /* TODO is it possible to append a binary expr with parenthesing? e.g. NOT (x AND y) */
+            /* XXX is it possible to append a binary expr with parenthesing? e.g. NOT (x AND y) */
             if (boolexpr->content_u.bool_expr.expr1->node_type != NODE_CONDITION)
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
@@ -426,7 +426,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             flag |= (expr_flag & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
                                   | FILTER_FLAG_OR));
 
-            /* TODO support FILTER_FLAG_ALLOC_LIST */
+            /* @TODO support FILTER_FLAG_ALLOC_LIST */
 
             /* add condition to filter */
             DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\", flags=%#X",
@@ -456,7 +456,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             flag |= (expr_flag & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
                                   | FILTER_FLAG_OR));
 
-            /* TODO support FILTER_FLAG_ALLOC_LIST */
+            /* @TODO support FILTER_FLAG_ALLOC_LIST */
 
             /* add condition to filter */
             DisplayLog(LVL_FULL, LISTMGR_TAG, "Appending filter on \"%s\", flags=%#X",

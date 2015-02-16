@@ -205,7 +205,7 @@ static struct option option_tab[] = {
 #define MAX_TYPE_LEN 256
 
 typedef struct rbh_options {
-    int            flags;
+    run_flags_t    flags;
     bool           detach;
     char           config_file[MAX_OPT_LEN];
     char           template_file[MAX_OPT_LEN];
@@ -874,7 +874,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
             SET_ACTION_FLAG( ACTION_MASK_SCAN );
 
             if (optarg) {       /* optional argument => partial scan*/
-                opt->flags |= FLAG_ONCE;
+                opt->flags |= RUNFLG_ONCE;
                 opt->partial_scan = true;
                 rh_strncpy(opt->partial_scan_path, optarg, RBH_PATH_MAX);
                 /* clean final slash */
@@ -900,7 +900,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
              */
         case 'C':
             SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
-            opt->flags |= FLAG_CHECK_ONLY;
+            opt->flags |= RUNFLG_CHECK_ONLY;
             /* 4 cases:
              *  --run=foo,bar --check-thresholds=bah,boo
              *      => reject if arguments are different
@@ -960,7 +960,7 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
         case RUN_POLICIES:
             SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
             /* avoid conflicts with check-policies */
-            if (opt->flags & FLAG_CHECK_ONLY)
+            if (opt->flags & RUNFLG_CHECK_ONLY)
             {
                 if (optarg != NULL && !EMPTY_STRING(optarg))
                     fprintf(stderr, "ERROR: --run is redundant with --check-thresholds\n"
@@ -1021,25 +1021,26 @@ static int rh_read_parameters(int argc, char **argv, int *action_mask,
             break;
 
         case 'O':
-            opt->flags |= FLAG_ONCE;
+            opt->flags |= RUNFLG_ONCE;
             break;
         case NO_LIMIT:
-            opt->flags |= FLAG_NO_LIMIT;
+            opt->flags |= RUNFLG_NO_LIMIT;
             break;
         case NO_GC:
-            opt->flags |= FLAG_NO_GC;
+            opt->flags |= RUNFLG_NO_GC;
             break;
         case DRY_RUN:
-            opt->flags |= FLAG_DRY_RUN;
+            opt->flags |= RUNFLG_DRY_RUN;
             break;
         case 'I':
-            opt->flags |= FLAG_IGNORE_POL;
+            opt->flags |= RUNFLG_IGNORE_POL;
             break;
         case 'F':
-            opt->flags |= FLAG_FORCE_RUN;
+            opt->flags |= RUNFLG_FORCE_RUN;
             break;
         case FORCE_ALL:
-            opt->flags |= FLAG_ONCE | FLAG_NO_LIMIT | FLAG_IGNORE_POL | FLAG_FORCE_RUN;
+            opt->flags |= RUNFLG_ONCE | RUNFLG_NO_LIMIT | RUNFLG_IGNORE_POL
+                          | RUNFLG_FORCE_RUN;
             break;
 
         case 'd':
@@ -1427,7 +1428,7 @@ int main(int argc, char **argv)
             exit(rc);
 
         if (policy_opt.target != TGT_NONE)
-            options.flags |= FLAG_ONCE;
+            options.flags |= RUNFLG_ONCE;
 
         /* finalize policy options */
         policy_opt.flags = options.flags;
@@ -1449,7 +1450,7 @@ int main(int argc, char **argv)
 
 /* if the filesystem supports changelogs and a scan is requested
  * and the once option is not set, display a warning */
-    if ((action_mask & ACTION_MASK_SCAN) && !(options.flags & FLAG_ONCE)
+    if ((action_mask & ACTION_MASK_SCAN) && !(options.flags & RUNFLG_ONCE)
         && !(action_mask & ACTION_MASK_HANDLE_EVENTS)
         && strcmp(global_config.fs_type, "lustre") == 0)
     {
@@ -1517,7 +1518,7 @@ int main(int argc, char **argv)
     if (CheckLastFS() != 0)
         exit(1);
 
-    if (options.flags & FLAG_ONCE)
+    if (options.flags & RUNFLG_ONCE)
     {
         /* used for dumping stats in one shot mode */
         pthread_create(&stat_thread, NULL, stats_thr, NULL);
@@ -1569,12 +1570,12 @@ int main(int argc, char **argv)
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
 
-        if (options.flags & FLAG_ONCE)
+        if (options.flags & RUNFLG_ONCE)
             running_mask = MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
         else
             running_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
 
-        if (options.flags & FLAG_ONCE)
+        if (options.flags & RUNFLG_ONCE)
         {
             FSScan_Wait(  );
             DisplayLog( LVL_MAJOR, MAIN_TAG, "FS Scan finished" );
@@ -1598,12 +1599,12 @@ int main(int argc, char **argv)
         /* Flush logs now, to have a trace in the logs */
         FlushLogs(  );
 
-        if (options.flags & FLAG_ONCE)
+        if (options.flags & RUNFLG_ONCE)
             running_mask = MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
         else
             running_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
 
-        if ( options.flags & FLAG_ONCE )
+        if (options.flags & RUNFLG_ONCE)
         {
             cl_reader_wait();
             DisplayLog( LVL_MAJOR, MAIN_TAG, "Event Processing finished" );
@@ -1611,7 +1612,7 @@ int main(int argc, char **argv)
     }
 #endif
 
-    if ( (options.flags & FLAG_ONCE) && (  action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) ) )
+    if ( (options.flags & RUNFLG_ONCE) && (  action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) ) )
     {
         /* Pipeline must be flushed */
         EntryProcessor_Terminate(true);
@@ -1661,7 +1662,7 @@ int main(int argc, char **argv)
             }
 
             /* For 'one-shot' mode, run policy after policy */
-            if (options.flags & FLAG_ONCE)
+            if (options.flags & RUNFLG_ONCE)
             {
                 running_mask = MODULE_MASK_POLICY_RUN;
                 policy_run_mask = (1 << i);
@@ -1676,11 +1677,11 @@ int main(int argc, char **argv)
             else
                policy_run_mask |= (1 << i);
         }
-        if (!(options.flags & FLAG_ONCE))
+        if (!(options.flags & RUNFLG_ONCE))
             running_mask |= MODULE_MASK_POLICY_RUN;
     }
 
-    if (!(options.flags & FLAG_ONCE))
+    if (!(options.flags & RUNFLG_ONCE))
     {
         char tmpstr[1024];
         running_mask2str(running_mask, policy_run_mask, tmpstr);

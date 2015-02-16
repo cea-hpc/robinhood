@@ -57,13 +57,15 @@ typedef struct mod_cfg_funcs {
 const char *config_file_path(void);
 
 /* behavior flags for all modules */
-#define FLAG_DRY_RUN    0x00000001
-#define FLAG_IGNORE_POL 0x00000002
-#define FLAG_ONCE       0x00000004
-#define FLAG_NO_LIMIT   0x00000008
-#define FLAG_CHECK_ONLY 0x00000010 /* only check triggers, don't purge */
-#define FLAG_NO_GC      0x00000020 /* don't clean orphan entries after scan */
-#define FLAG_FORCE_RUN  0x00000040 /* force running policy even if no scan was complete */
+typedef enum run_flags {
+    RUNFLG_DRY_RUN    = (1 << 0),
+    RUNFLG_IGNORE_POL = (1 << 1),
+    RUNFLG_ONCE       = (1 << 2),
+    RUNFLG_NO_LIMIT   = (1 << 3),
+    RUNFLG_CHECK_ONLY = (1 << 4), /* only check triggers, don't purge */
+    RUNFLG_NO_GC      = (1 << 5), /* don't clean orphan entries after scan */
+    RUNFLG_FORCE_RUN  = (1 << 6), /* force running policy even if no scan was complete */
+} run_flags_t;
 
 /* Config module masks:
  * Global, Log, and List Manager are always initialized.
