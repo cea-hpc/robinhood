@@ -1290,13 +1290,23 @@ static int builtin_copy_sendfile(const struct copy_info *cp_nfo, int flags)
     }
 #endif
 
-    rc = sendfile(dstfd, srcfd, NULL, fsize);
-    if (rc)
-    {
-        rc = -errno;
-        DisplayLog(LVL_MAJOR, CP_TAG, "Failed to sendfile(%s->%s): %s",
-                   cp_nfo->src, cp_nfo->dst, strerror(-rc));
-        goto out;
+    /* sendfile() copy loop. The function seems to reliably return every 2GB.
+     * Make sure the whole file gets copied. The NULL offset delegates current
+     * offset management to sendfile. */
+    while (fsize > 0) {
+        ssize_t rw;
+
+        rw = sendfile(dstfd, srcfd, NULL, fsize);
+        if (rw < 0)
+        {
+            rc = -errno;
+            DisplayLog(LVL_MAJOR, CP_TAG, "Failed to sendfile(%s->%s): %s",
+                       cp_nfo->src, cp_nfo->dst, strerror(-rc));
+            goto out;
+        }
+
+        assert(rw <= (ssize_t)fsize);
+        fsize -= rw;
     }
 
     rc = flush_data(srcfd, dstfd);
