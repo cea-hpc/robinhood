@@ -3,7 +3,7 @@
 # vim:expandtab:shiftwidth=4:tabstop=4:
 
 [ -z "$LFS" ] && LFS=lfs
-[ -z "$MULTIOP" ] && MULTIOP=/usr/lib64/lustre/tests/multiop
+[ -z "$TESTOPEN" ] && TESTOPEN=/usr/lib64/lustre/tests/openfile
 
 ROOT="/mnt/lustre"
 
@@ -330,7 +330,7 @@ function get_id
 function create_nostripe
 {
     local f=$1
-    $MULTIOP "$f" oO_RDWR:O_CREAT:O_LOV_DELAY_CREATE || return 1
+    $TESTOPEN -f O_RDWR:O_CREAT:O_LOV_DELAY_CREATE -m 0644 "$f" || return 1
     $LFS getstripe "$f" | grep "no stripe info" || error "$f should not have stripe info"
 }
 
@@ -4672,6 +4672,13 @@ function stripe_update
     getstripe=1 # allow getstripe
     [ $has_swap = 1 ] && getstripe=0 # no getstripe expected
     diff=0
+
+	if [[ $flavor = "cl"* ]] && (( $no_log )); then
+        echo "Changelogs not supported on this config: skipped"
+        set_skipped
+        return 1
+    fi
+
     [[ $flavor = "cl"* ]] && clean_logs
     [[ $flavor = "cl"* ]] && getstripe=1 # getstripe allowed
 
@@ -4695,19 +4702,23 @@ function stripe_update
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
     check_stripe $config_file $ROOT/file.1 "none"
 
+    # check if "getstripe -g" exists
+    has_gen=0
+    $LFS getstripe -g $ROOT/ 2>/dev/null && has_gen=1
+
     # stripe it
     echo "- stripe file"
     lfs setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
     idx=$(lfs getstripe -i $ROOT/file.1)
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
     check_stripe $config_file $ROOT/file.1 "ost#$idx"
 
     # no update expected for second run
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
@@ -4725,14 +4736,14 @@ function stripe_update
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
     echo "- swap it with striped file"
     lfs swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
     check_stripe $config_file $ROOT/file.1 "ost#$idx2"
 
     # no update expected for second run
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
@@ -4742,13 +4753,13 @@ function stripe_update
     create_nostripe $ROOT/file.3 || error "creating unstriped file"
     echo "- swap it with non-striped file"
     lfs swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
     check_stripe $config_file $ROOT/file.1 "none"
 
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
@@ -4774,6 +4785,12 @@ function stripe_no_update
     diff=0
     [[ $flavor = *"diff"* ]] && [[ $flavor != *"2" ]] && diff=1
 
+	if [[ $flavor = "cl"* ]] && (( $no_log )); then
+        echo "Changelogs not supported on this config: skipped"
+        set_skipped
+        return 1
+    fi
+
     rm -f $ROOT/file.*
 
     echo "test setup: checking diff=$diff, getstripe allowed=$getstripe, has_swap=$has_swap"
@@ -4792,12 +4809,16 @@ function stripe_no_update
     run_scan_cmd $config_file "scan"
     check_stripe $config_file $ROOT/file.1 "none"
 
+    # check if "getstripe -g" exists
+    has_gen=0
+    $LFS getstripe -g $ROOT/ 2>/dev/null && has_gen=1
+
     # stripe it
     echo "- stripe file"
     lfs setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
     idx=$(lfs getstripe -i $ROOT/file.1)
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
@@ -4817,7 +4838,7 @@ function stripe_no_update
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
     echo "- swap it with striped file"
     lfs swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
@@ -4828,7 +4849,7 @@ function stripe_no_update
     create_nostripe $ROOT/file.3 || error "creating unstriped file"
     echo "- swap it with non-striped file"
     lfs swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1

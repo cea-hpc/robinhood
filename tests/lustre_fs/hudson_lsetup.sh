@@ -2,6 +2,8 @@
 
 HUDSON_DIR=$HUDSON_HOME
 NODE_LABEL=lustre
+export OSTSIZE=400000
+export OSTCOUNT=4
 
 if [[ "$1" == "mount" || -z "$1" ]]; then
 
