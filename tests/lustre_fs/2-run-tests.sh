@@ -7,8 +7,9 @@
 
 ROOT="/mnt/lustre"
 
-RBH_BINDIR="../../src/robinhood"
 #RBH_BINDIR="/usr/sbin"
+RBH_BINDIR="../../src/robinhood"
+RBH_MODDIR="../../src/modules/.libs"
 
 BKROOT="/tmp/backend"
 RBH_OPT=""
@@ -41,6 +42,9 @@ CMD=robinhood
 ARCH_STR="migration success for"
 REL_STR="purge success for"
 HSMRM_STR="hsm_remove success for"
+
+LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-$RBH_MODDIR}
+export LD_LIBRARY_PATH
 
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then

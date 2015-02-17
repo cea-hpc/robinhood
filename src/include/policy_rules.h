@@ -164,8 +164,6 @@ typedef int (*action_func_t)(const entry_id_t *id, attr_set_t *attrs,
                              const char *hints, post_action_e *what_after,
                              db_cb_func_t db_cb_fn, void *db_cb_arg);
 
-action_func_t action_name2function(const char *fname);
-
 typedef struct policy_action_t
 {
 	action_type_e  type;

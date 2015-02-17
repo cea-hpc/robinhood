@@ -5,8 +5,12 @@ BKROOT="/tmp/backend"
 RBH_OPT=""
 DB=robinhood_test
 
-RBH_BINDIR="../../src/robinhood"
 #RBH_BINDIR="/usr/sbin"
+RBH_BINDIR="../../src/robinhood"
+RBH_MODDIR="../../src/modules/.libs"
+
+LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-$RBH_MODDIR}
+export LD_LIBRARY_PATH
 
 XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"

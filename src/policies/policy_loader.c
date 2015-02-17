@@ -22,6 +22,7 @@
 #include "policy_rules.h"
 #include "rbh_logs.h"
 #include "rbh_misc.h"
+#include "rbh_modules.h"
 #include "rbh_cfg_helpers.h"
 #include "status_manager.h"
 #include <errno.h>
@@ -404,7 +405,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
             strcpy(msg_out, "No extra argument is expected for default_action");
             return EINVAL;
         }
-        policy->default_action.action_u.function = action_name2function(tmpstr);
+        policy->default_action.action_u.function = module_get_action_by_name(tmpstr);
         if (policy->default_action.action_u.function == NULL)
         {
             sprintf(msg_out, "default_action: unknown function '%s'", tmpstr);

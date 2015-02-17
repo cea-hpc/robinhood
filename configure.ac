@@ -22,9 +22,6 @@ AC_PREFIX_DEFAULT([/usr])
 
 AC_GNU_SOURCE
 
-# disable shared libraries generation
-AC_ENABLE_SHARED(no)
-
 # required for automake 1.12 (since fedora 18)
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 

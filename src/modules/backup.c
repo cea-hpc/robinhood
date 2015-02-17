@@ -12,20 +12,15 @@
  * accept its terms.
  */
 
-/**
- * \file   backend_basic.c
- * \author Th. Leibovici
- * \brief  basic backend implementation
- */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include "backup.h"
+#include "mod_internal.h"
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "rbh_cfg_helpers.h"
-#include "global_config.h"
+#include "rbh_modules.h"
 #include "xplatform_print.h"
 #include "Memory.h"
 #include <stdlib.h>
@@ -42,8 +37,6 @@
 #include <fnmatch.h>
 #include <zlib.h>
 #include <sys/sendfile.h>
-/* HACK for undelete: need a common copy function */
-#include "common_actions.h"
 
 #ifdef HAVE_SHOOK
 #include <shook_svr.h>
@@ -63,6 +56,8 @@
 #define BACKUP_BLOCK "backup_config"
 #define BKL_TAG "backup_cfg"
 #endif
+
+
 
 typedef struct backup_config_t
 {
@@ -99,6 +94,33 @@ static backup_config_t config;
     sendfile => managed as distinct policy action (will be backup.copy and backup.sendfile)
  */
 
+static int backup_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                       const char *hints, post_action_e *after,
+                       db_cb_func_t db_cb_fn, void *db_cb_arg)
+{
+    int rc;
+    int flags = hints2flags(hints);
+    /* flags for restore vs. flags for archive */
+    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+
+    /* actions expect to get a source path in 'fullpath' and
+     * targetpath in 'backendpath' */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) ||
+        !ATTR_MASK_TEST(p_attrs, backendpath))
+    {
+        DisplayLog(LVL_MAJOR, CP_TAG,
+                   "Missing mandatory attribute to perform file copy "
+                   "fullpath or backendpath)");
+        return -EINVAL;
+    }
+
+    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
+                      oflg, !(flags & COPYBACK), flags);
+
+    *after = PA_UPDATE;
+    return rc;
+}
+
 static void backup_cfg_set_default(void *module_config)
 {
     backup_config_t *conf = (backup_config_t *) module_config;
@@ -117,7 +139,7 @@ static void backup_cfg_set_default(void *module_config)
     conf->recovery_action.action_u.function = rbh_shook_recov_file;
 #else
     conf->recovery_action.type = ACTION_FUNCTION;
-    conf->recovery_action.action_u.function = common_copy;
+    conf->recovery_action.action_u.function = backup_copy;
 #endif
 }
 
@@ -1760,9 +1782,9 @@ static int backup_executor(sm_instance_t *smi, const policy_action_t *action,
  * \retval  -ENOENT entry not in backend
  * \retval  -EINVAL empty path provided
  */
-int backup_remove(const entry_id_t *id, attr_set_t *attrs,
-                  const char *hints, post_action_e *what_after,
-                  db_cb_func_t db_cb_fn, void *db_cb_arg)
+static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
+                         const char *hints, post_action_e *what_after,
+                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
 
@@ -2647,3 +2669,21 @@ status_manager_t backup_sm = {
     .cfg_funcs = &backup_cfg_hdlr,
     .init_func = backup_init
 };
+
+const char *mod_get_name(void)
+{
+    return "backup";
+}
+
+status_manager_t *mod_get_status_manager(void)
+{
+    return &backup_sm;
+}
+
+action_func_t mod_get_action_by_name(const char *action_name)
+{
+    if (strcmp(action_name, "backup.remove") == 0)
+        return backup_remove;
+    else
+        return NULL;
+}

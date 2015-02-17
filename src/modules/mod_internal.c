@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2014 CEA/DAM
+ * Copyright (C) 2015 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -18,7 +18,10 @@
 #include "list_mgr.h"
 #include "rbh_logs.h"
 #include "rbh_misc.h"
-#include "common_actions.h"
+#include "rbh_modules.h"
+#include "mod_internal.h"
+#include "policy_rules.h"
+#include "status_manager.h"
 #include "Memory.h"
 #include <unistd.h>
 #include <utime.h>
@@ -27,40 +30,15 @@
 #include <zlib.h>
 
 
-/** perform a standard unlink() action */
-int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                  const char *hints, post_action_e *after,
-                  db_cb_func_t db_cb_fn, void *db_cb_arg)
-{
-    const char *path = NULL;
-
-    *after = PA_UPDATE;
-
-    if (ATTR_MASK_TEST(p_attrs,fullpath))
-        path = ATTR(p_attrs,fullpath);
-    else
-        return EINVAL;
-
-    if (unlink(path) != 0)
-        return errno;
-
-    *after = PA_RM_ONE;
-    return 0;
-}
-
-/** just log it! */
-int common_log(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-               const char *hints, post_action_e *after,
-               db_cb_func_t db_cb_fn, void *db_cb_arg)
-{
-    DisplayLog(LVL_MAJOR, "LogAction", "fid="DFID", path=%s, hints=%s",
-               PFID(p_entry_id),
-               ATTR_MASK_TEST(p_attrs,fullpath)?ATTR(p_attrs,fullpath):"",
-               hints?hints:"");
-
-    *after = PA_UPDATE;
-    return 0;
-}
+struct copy_hints_t {
+    const char *name;
+    int         flag;
+} copy_hints[] = {
+    {"compress", COMPRESS}, /* compress target */
+    {"nosync",   NO_SYNC},  /* don't sync when the copy ends */
+    {"copyback", COPYBACK}, /* revert copy way: tgt->src */
+    {NULL, 0}
+};
 
 /** helper to set file attributes from a struct stat */
 static int file_clone_attrs(const char *tgt, const struct stat *st)
@@ -81,29 +59,8 @@ static int file_clone_attrs(const char *tgt, const struct stat *st)
     return 0;
 }
 
-/* log tag for built-in copy */
-#define CP_TAG "cp"
 
-#define COMPRESS        (1 << 0)
-#define USE_SENDFILE    (1 << 1)
-#define NO_SYNC         (1 << 2)
-#define COPYBACK        (1 << 3) /* retrieve a copy */
-
-#define NOSYNC_HINT   "nosync"
-#define CPBACK_HINT   "copyback"
-#define COMPRESS_HINT "compress"
-
-struct copy_hints_t {
-    const char *name;
-    int         flag;
-} copy_hints[] = {
-    {"compress", COMPRESS}, /* compress target */
-    {"nosync",   NO_SYNC},  /* don't sync when the copy ends */
-    {"copyback", COPYBACK}, /* revert copy way: tgt->src */
-    {NULL, 0}
-};
-
-static int hints2flags(const char *hints)
+int hints2flags(const char *hints)
 {
     int flg = 0;
 
@@ -350,8 +307,8 @@ out:
     return rc;
 }
 
-static int builtin_copy(const char *src, const char *dst, int dst_flags,
-                        bool save_attrs, int flags)
+int builtin_copy(const char *src, const char *dst, int dst_flags,
+                 bool save_attrs, int flags)
 {
     struct copy_info cp_nfo;
     int rc, err_close = 0;
@@ -409,64 +366,3 @@ close_src:
     return rc;
 }
 
-/** standard copy of file contents and its attributes */
-int common_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                const char *hints, post_action_e *after,
-                db_cb_func_t db_cb_fn, void *db_cb_arg)
-{
-    int rc;
-    int flags = hints2flags(hints);
-    /* flags for restore vs. flags for archive */
-    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
-
-    /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath' */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || !ATTR_MASK_TEST(p_attrs, backendpath))
-    {
-        DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
-        return -EINVAL;
-    }
-
-    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & COPYBACK), flags);
-    *after = PA_UPDATE;
-    return rc;
-}
-
-/** copy file contents using sendfile() */
-int common_sendfile(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                    const char *hints, post_action_e *after,
-                    db_cb_func_t db_cb_fn, void *db_cb_arg)
-{
-    int rc;
-    int flags = hints2flags(hints);
-    /* flags for restore vs. flags for archive */
-    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
-
-    /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath' */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || !ATTR_MASK_TEST(p_attrs, backendpath))
-    {
-        DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
-        return -EINVAL;
-    }
-
-    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & COPYBACK), flags | USE_SENDFILE);
-    *after = PA_UPDATE;
-    return rc;
-}
-
-/** copy and compress file contents */
-int common_gzip(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                const char *hints, post_action_e *after,
-                db_cb_func_t db_cb_fn, void *db_cb_arg)
-{
-    int rc;
-    int flags = hints2flags(hints);
-    /* flags for restore vs. flags for archive */
-    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
-
-    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & COPYBACK), flags | COMPRESS);
-    *after = PA_UPDATE;
-    return rc;
-}

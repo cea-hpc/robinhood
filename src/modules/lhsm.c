@@ -21,10 +21,13 @@
 #include "config.h"
 #endif
 
+#include "mod_internal.h"
 #include "rbh_logs.h"
+#include "rbh_misc.h"
 #include "list_mgr.h" /* for common robinhood types: entry_id_t, stripe_info_t... */
+#include "status_manager.h"
+
 #include <stdbool.h>
-#include "lhsm.h"
 
 /* tag for logs */
 #define LHSM_TAG "lhsm"
@@ -180,9 +183,9 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
 }
 
 /** perform hsm_release action */
-int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                 const char *hints, post_action_e *after,
-                 db_cb_func_t db_cb_fn, void *db_cb_arg)
+static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                        const char *hints, post_action_e *after,
+                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc = lhsm_action(HUA_RELEASE, p_entry_id, hints);
     //    if (rc == 0)
@@ -197,9 +200,9 @@ int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 }
 
 /** perform hsm_archive action */
-int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                 const char *hints, post_action_e *after,
-                 db_cb_func_t db_cb_fn, void *db_cb_arg)
+static int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                        const char *hints, post_action_e *after,
+                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc = lhsm_action(HUA_ARCHIVE, p_entry_id, hints);
     *after = PA_UPDATE;
@@ -207,9 +210,9 @@ int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 }
 
 /** perform hsm_remove action */
-int lhsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                const char *hints, post_action_e *after,
-                db_cb_func_t db_cb_fn, void *db_cb_arg)
+static int lhsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                       const char *hints, post_action_e *after,
+                       db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc = lhsm_action(HUA_REMOVE, p_entry_id, hints);
     *after = (rc != 0 ? PA_NONE : PA_RM_ONE);
@@ -590,7 +593,6 @@ static int lhsm_softrm_filter(struct sm_instance *smi, const entry_id_t *id,
     return 1;
 }
 
-
 /** Status manager for Lustre/HSM */
 status_manager_t lhsm_sm = {
     .name = "lhsm",
@@ -628,3 +630,25 @@ status_manager_t lhsm_sm = {
     /* XXX A status manager can load a configuration */
     /* XXX actions may need the same configuration... */
 };
+
+const char *mod_get_name(void)
+{
+    return "lhsm";
+}
+
+status_manager_t *mod_get_status_manager(void)
+{
+    return &lhsm_sm;
+}
+
+action_func_t mod_get_action_by_name(const char *action_name)
+{
+    if (strcmp(action_name, "lhsm.archive") == 0)
+        return lhsm_archive;
+    else if (strcmp(action_name, "lhsm.release") == 0)
+        return lhsm_release;
+    else if (strcmp(action_name, "lhsm.hsm_remove") == 0)
+        return lhsm_remove;
+    else
+        return NULL;
+}

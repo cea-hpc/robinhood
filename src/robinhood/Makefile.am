@@ -1,5 +1,5 @@
 AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
-AM_LDFLAGS= -lpthread
+AM_LDFLAGS= -lpthread -rpath $(pkglibdir)
 
 #if LUSTRE
 #LVERSION=`rpm -qa "lustre[-_]modules*" --qf "%{Version}\n" | tail -1`
@@ -40,8 +40,8 @@ rbh_diff_DEPENDENCIES=$(all_libs)
 #rbh_rebind_DEPENDENCIES=$(all_libs)
 #
 robinhood_SOURCES=rbh_daemon.c
-robinhood_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-robinhood_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+robinhood_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+robinhood_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
 rbh_report_SOURCES=rbh_report.c
 rbh_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
@@ -56,8 +56,8 @@ rbh_du_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_du_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
 rbh_diff_SOURCES=rbh_diff.c
-rbh_diff_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_diff_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+rbh_diff_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_diff_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
 #rbh_recov_SOURCES=rbh_recov.c
 #rbh_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)

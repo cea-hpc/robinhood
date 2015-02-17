@@ -14,7 +14,7 @@ endif
 
 libcommontools_la_SOURCES= RW_Lock.c uidgidcache.c rbh_misc.c \
                            global_config.c update_params.c queue.c \
-                           rbh_logs.c \
+                           rbh_logs.c rbh_modules.c \
                            $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
 
 indent:

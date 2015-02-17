@@ -1,21 +1,25 @@
 AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 
-noinst_LTLIBRARIES=
+pkglib_LTLIBRARIES=
 
-noinst_LTLIBRARIES+=libmodule_common.la
-libmodule_common_la_SOURCES=common_actions.c common_actions.h
+pkglib_LTLIBRARIES+=librbh_mod_common.la
+librbh_mod_common_la_SOURCES=common.c common.h mod_internal.c mod_internal.h
+librbh_mod_common_la_LDFLAGS=-version-info 0:0:0
 
 if LUSTRE_HSM
-noinst_LTLIBRARIES+=libmodule_lhsm.la
-libmodule_lhsm_la_SOURCES=lhsm.c lhsm.h
+pkglib_LTLIBRARIES+=librbh_mod_lhsm.la
+librbh_mod_lhsm_la_SOURCES=lhsm.c lhsm.h mod_internal.h
+librbh_mod_lhsm_la_LDFLAGS=-version-info 0:0:0
 endif
 if HSM_LITE
-noinst_LTLIBRARIES+=libmodule_backup.la
-libmodule_backup_la_SOURCES=backup.c
-libmodule_shook_la_CFLAGS=-D_HSM_LITE
+pkglib_LTLIBRARIES+=librbh_mod_backup.la
+librbh_mod_backup_la_SOURCES=backup.c mod_internal.c mod_internal.h
+librbh_mod_backup_la_CFLAGS=$(AM_CFLAGS) -D_HSM_LITE
+librbh_mod_backup_la_LDFLAGS=-version-info 0:0:0
 endif
 if SHOOK
-noinst_LTLIBRARIES+=libmodule_shook.la
-libmodule_shook_la_SOURCES=shook.c backup.c
-libmodule_shook_la_CFLAGS=-DHAVE_SHOOK
+pkglib_LTLIBRARIES+=librbh_mod_shook.la
+librbh_mod_shook_la_SOURCES=shook.c backup.c mod_internal.h
+librbh_mod_shook_la_CFLAGS=$(AM_CFLAGS) -DHAVE_SHOOK
+librbh_mod_shook_la_LDFLAGS=-version-info 0:0:0
 endif

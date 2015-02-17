@@ -19,14 +19,9 @@
 #include "status_manager.h"
 #include "rbh_misc.h"
 #include "rbh_logs.h"
+#include "rbh_modules.h"
 #include "Memory.h"
 
-#include "../modules/lhsm.h" /** FIXME drop this when dynamic module management is implemented */
-#include "../modules/backup.h" /** FIXME drop this when dynamic module management is implemented */
-
-/** list of loaded status managers */
-static status_manager_t **sm_cache = NULL;
-static unsigned int sm_count = 0;
 
 /** list of status manager instances */
 static sm_instance_t **sm_inst = NULL;
@@ -113,65 +108,19 @@ static status_manager_t basic_sm = {
 
 /* -------------- managing status managers ---------- */
 
-/** TODO load status manager from dynamic module */
 static status_manager_t *load_status_manager(const char *name)
 {
-    /** @TODO load from a dynamic module */
-#ifdef _LUSTRE_HSM
-    if (!strcasecmp(name, "lhsm"))
-        return &lhsm_sm;
-    else
-#endif
-    if (!strcasecmp(name, "backup"))
-        return &backup_sm;
-    else if (!strcasecmp(name, "basic"))
+    if (strcasecmp(name, "basic") == 0)
         return &basic_sm;
 
-    return NULL;
+    return module_get_status_manager(name);
 }
-
-/** indicate if a status manager definition is already loaded */
-static inline bool sm_loaded(const char *name, status_manager_t **sm_ptr)
-{
-    int i;
-    for (i = 0; i < sm_count; i++)
-    {
-        if (!strcasecmp(sm_cache[i]->name, name))
-        {
-            *sm_ptr = sm_cache[i];
-            return true;
-        }
-    }
-    return false;
-}
-
-/** get a loaded status manager or allocate a new one */
-static const status_manager_t *sm_get(const char *name)
-{
-    status_manager_t *tmp;
-
-    if (sm_loaded(name, &tmp))
-        return tmp;
-
-    tmp = load_status_manager(name);
-    if (tmp == NULL)
-        return NULL;
-
-    /* add it to the cache */
-    sm_count++;
-    sm_cache = realloc(sm_cache, sm_count * sizeof(status_manager_t*));
-    if (sm_cache == NULL)
-        return NULL;
-    sm_cache[sm_count-1] = tmp;
-
-    return tmp;
-}
-
 
 /** check if an instance of shared status manager exists */
-static inline bool sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
+static bool sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
 {
     int i;
+
     for (i = 0; i < sm_inst_count; i++)
     {
         if (!strcasecmp(sm_inst[i]->sm->name, name))
@@ -183,13 +132,15 @@ static inline bool sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
     return false;
 }
 
+
 /** create a status manager instance (if it does not already exist) */
 sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
 {
+    const status_manager_t *sm = load_status_manager(sm_name);
     sm_instance_t *smi = NULL;
 
-    /* check that the status manager exists (load it if necessary) */
-    const status_manager_t *sm = sm_get(sm_name);
+    /* load_status_manager() checks that the status manager exists and load it
+     * if necessary. NULL means that it really isn't available. */
     if (sm == NULL)
         return NULL;
 
