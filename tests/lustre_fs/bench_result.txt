@@ -44,7 +44,7 @@ mds_get_info = 4206
 ldlm_cancel = 2
 
 llog_origin_handle_create = 280
-llog_origin_handle_next_block = 375 
+llog_origin_handle_next_block = 375
 llog_origin_handle_read_header = 280
 
 event driven update w/ min update interval + periodic update:

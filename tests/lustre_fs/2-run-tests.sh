@@ -64,7 +64,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     export STATUS_MGR="backup"
     export DEFAULT_ARCHIVE="common.copy";
     export DEFAULT_PURGE="common.log";
-    export DEFAULT_HSMRM="common.unlink"; # in backend? 
+    export DEFAULT_HSMRM="common.unlink"; # in backend?
     mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
     is_lhsm=0
@@ -73,7 +73,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     export STATUS_MGR="shook"
     export DEFAULT_ARCHIVE="common.copy";
     export DEFAULT_PURGE="shook.release";
-    export DEFAULT_HSMRM="common.unlink"; # in backend? 
+    export DEFAULT_HSMRM="common.unlink"; # in backend?
     mkdir -p $BKROOT
 fi
 
@@ -767,7 +767,7 @@ function test_lru_policy
     :> rh_migr.log
 
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
 
     if (( $is_lhsm > 0 )); then
         migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
@@ -906,7 +906,7 @@ function xattr_test
 	sleep $sleep_time
 
 	echo "3-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log |  wc -l`
 	if (($nb_migr != 3)); then
@@ -1371,7 +1371,7 @@ function test_default
         (( $nb_b != 3 )) && error "unexpected number of migrated *.B files: $nb_b != 3"
         (( $nb_ac != 0 )) && error "unexpected number of migrated *.[AC] files: $nb_ac != 0"
     fi
-    
+
     # purge the files (if applicable)
     if (( ($is_hsmlite == 0) || ($shook != 0) )); then
 
@@ -1400,7 +1400,7 @@ function test_default
             purge_pat="Y*"
         fi
         other=$(( 9 - $nb_purge ))
-        
+
         nbp=$(grep "$REL_STR" rh_purge.log | grep -E "$ROOT/$purge_pat"| wc -l)
         nbnp=$(grep "$REL_STR" rh_purge.log | grep -vE "$ROOT/$purge_pat" | wc -l)
 
@@ -3568,7 +3568,7 @@ function get_db_info
     local config_file=$1
     local field=$2
     local entry=$3
-    
+
     $REPORT -f ./cfg/$config_file -e $entry -c | egrep -E "^$field," | cut -d ',' -f 2 | sed -e 's/^ //g'
 }
 
@@ -3583,7 +3583,7 @@ function test_root_changelog
 		return 1
     fi
 
-    # create a directory and a file 
+    # create a directory and a file
     local d=$ROOT/subdir
     local f=$ROOT/subdir/file
     mkdir $d || error "creating directory $d"
@@ -3633,7 +3633,7 @@ function test_root_changelog
     sleep 1
     # read the changelog
     readlog_chk $config_file
-    
+
     # check the id, path and parent for $ROOT, $d and $f
     idrb=$(get_db_info $config_file id $idr | tr -d '[]')
     [ "$idr" = "$idrb" ] || error "id doesn't match: $idr != $idrb"
@@ -3707,7 +3707,7 @@ function partial_paths
     f3=$($REPORT -f ./cfg/$config_file --dump --csv -q | grep "file3" | awk '{print $(NF)}')
     echo "file3 reported with path $f3"
     [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
-    
+
     # check filter path behavior
     # should report at least file2 (and optionnally file3 : must check its path is valid)
     f2=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1" | grep file2 | awk '{print $(NF)}')
@@ -3753,7 +3753,7 @@ function partial_paths
 	   $LFS changelog_clear lustre-MDT0000 cl1 0
 
         rm -f $ROOT/dir1/dir2/file3
-        readlog_chk $config_file 
+        readlog_chk $config_file
 
 	    if (( $is_lhsm + $is_hsmlite > 0 )); then
             $REPORT -f ./cfg/$config_file -Rcq > report.log
@@ -3776,9 +3776,9 @@ function partial_paths
             (( $(wc -l report.log | awk '{print $1}') == 1 )) || error "file3 not restored"
         fi
 	fi
-    
+
     # TODO check disaster recovery
-    
+
     rm -f report.log
 }
 
@@ -3898,7 +3898,7 @@ function test_compress
     (( $type_comp == 0 )) || error "No compressed file data expected in backend: found $type_comp"
     (( $name_ncomp == 4 )) || error "4 non-compressed file names expected in backend: found $name_ncomp"
     (( $type_ncomp == 4 )) || error "4 ASCII file data expected in backend: found $type_ncomp"
-    
+
     # turn compression on
     export compress=yes
 
@@ -4259,7 +4259,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
         # check their contents
         nbl=$(wc -l lovea | awk '{print $1}')
         nbo=$(wc -l fid_remap | awk '{print $1}')
-        
+
         echo "$nbl items in lovea, $nbo items in fid_remap"
         [[ "$nbf" == "$nbl" ]] || error "unexpected number of items in lovea $nbl: $nbf expected"
         [[ "$nbso" == "$nbo" ]] || error "unexpected number of items in fid_remap $nbo: $nbso expected"
@@ -4636,7 +4636,7 @@ function scan_check_no_update
 {
     cfg=$1
     mode=$2
-    
+
     # no stripe update expected for 2nd run
     :> rh.log
     :> rh.out
@@ -5044,7 +5044,7 @@ function test_hardlinks
     for f in $rmids; do
         grep "\[$f\]" find.out && error "deleted id ($f) found in find output"
     done
-    
+
     unset count_nb_final
     if (( $is_lhsm + $is_hsmlite == 1 )); then
         # check that removed entries are scheduled for HSM rm
@@ -5177,7 +5177,7 @@ function test_hl_count
   	countValues="1;$fcount"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
 
-    
+
     rm -f report.out
 }
 
@@ -5455,7 +5455,7 @@ function test_logs
             # wait for syslog to flush logs to disk
             sync; sleep 2
 			tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
-            
+
 			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z0-9_ ]* \|' > /tmp/extract_log
 			egrep -v 'ALERT|: [A-Za-Z0-9_ ]* \|' /tmp/extract_all > /tmp/extract_report
 			grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
@@ -5981,8 +5981,8 @@ function recov_filters
     [[ -z $sync_cnt ]] && sync_cnt=0
 
     #          full, delta, empty, rename, empty_new, empty_rename, nobkp
-    # synchro:    2             2       2                        2       
-    # modified:          2                                               
+    # synchro:    2             2       2                        2
+    # modified:          2
     # new:                                         2                    2
     echo "files: new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
     if [[ $flavor != since ]]; then
@@ -7006,7 +7006,7 @@ function check_migrate_arr
         fi
 
         [ "$DEBUG" = "1" ] && ls -R $BKROOT | grep $x
-        
+
         countMigrFile=`ls -R $BKROOT | grep $x | wc -l`
         if (($countMigrFile == 0)); then
             error "********** TEST FAILED (File System): $x is not archived"
@@ -7128,7 +7128,7 @@ function migration_file_type
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/link.1 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/link.1 -l DEBUG -L rh_migr.log
 
     nbError=0
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7143,7 +7143,7 @@ function migration_file_type
     ((nbError+=$?))
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7200,7 +7200,7 @@ function migration_file_owner
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -7213,7 +7213,7 @@ function migration_file_owner
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.3 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.3 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7262,7 +7262,7 @@ function migration_file_Last
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -7283,7 +7283,7 @@ function migration_file_Last
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7332,7 +7332,7 @@ function migration_file_ExtendedAttribut
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.4 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.4 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -7345,7 +7345,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.5 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.5 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7357,7 +7357,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -7472,7 +7472,7 @@ function migration_file_OST
 	done
 
 	echo "3-Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.2 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.2 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -7485,7 +7485,7 @@ function migration_file_OST
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.3 -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.3 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -9089,7 +9089,7 @@ function TEST_OTHER_PARAMETERS_4
 	done
 
 	echo "Migrate files (must fail)"
-	$RH -f ./cfg/$config_file --scan --run=migration --once -l DEBUG -L rh_migr.log 
+	$RH -f ./cfg/$config_file --scan --run=migration --once -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0

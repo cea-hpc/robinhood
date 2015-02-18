@@ -24,7 +24,7 @@ if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 fi
 
 if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
-	
+
 	for mdt in /proc/fs/lustre/mdt/lustre-MDT* ; do
 		echo -n "checking coordinator status on $(basename $mdt): "
 		status=`cat $mdt/hsm_control`
