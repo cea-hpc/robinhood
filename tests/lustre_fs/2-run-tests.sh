@@ -2900,36 +2900,25 @@ function test_ost_trigger
 	grep summary rh_purge.log || error "No purge was done"
     [ "$DEBUG" = "1" ] && cat rh_purge.log
 
-	stat_purge=`grep summary rh_purge.log | grep "OST #0" | awk '{print $(NF-9)" "$(NF-3)" "$(NF-2)}' | sed -e "s/[^0-9 ]//g"`
+    # Retrieve the size purged
+    # "2015/02/18 12:09:03 [5536/4] purge | Policy run summary: time=01s; target=OST#0; 42 successful actions (42.00/sec); volume: 84.00 MB (84.00 MB/sec); 0 entries skipped; 0 errors."
+    purged_total=`grep summary rh_purge.log | grep "OST#0;" | awk '{print $(NF-8)}' | sed -e "s/\.[0-9]\+//g"`
 
-	purged_ost=`echo $stat_purge | awk '{print $1}'`
-	purged_total=`echo $stat_purge | awk '{print $2}'`
-	needed_ost=`echo $stat_purge | awk '{print $3}'`
-
-    [ "$DEBUG" = "1" ] && echo "purged_ost=$purged_ost, total_purged=$purged_total, ost_purge_needed=$needed_ost"
-
-	# change blocks to MB (*512/1024/1024 == /2048)
-	((purged_ost=$purged_ost/2048))
-	((purged_total=$purged_total/2048))
-	((needed_ost=$needed_ost/2048))
+    [ "$DEBUG" = "1" ] && echo "total_purged=$purged_total"
 
 	# checks
-	# - needed_ost must be equal to the amount we computed (need_purge)
-	# - purged_ost must be over the amount we computed and under need_purge+1MB
-	# - purged_total must be twice purged_ost
-	(( $needed_ost == $need_purge )) || error ": invalid amount of data computed ($needed_ost != $need_purge)"
-	(( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) || error ": invalid amount of data purged ($purged_ost < $need_purge)"
-	(( $purged_total == 2*$purged_ost )) || error ": invalid total volume purged ($purged_total != 2*$purged_ost)"
+    (( $purged_total > $need_purge )) || error ": invalid amount of data purged ($purged_total <= $need_purge)"
+    (( $purged_total <= 2*($need_purge + 1) )) || error ": invalid amount of data purged ($purged_total < 2*($need_purge + 1)"
 
-	(( $needed_ost == $need_purge )) && (( $purged_ost >= $need_purge )) && (( $purged_ost <= $need_purge + 1 )) \
-		&& (( $purged_total == 2*$purged_ost )) && echo "OK: purge of OST#0 succeeded"
+    # Check that RH knows all OST are now below the high threshold.
+    grep "Top OSTs are all under high threshold" rh_purge.log || error "An OST is still above high threshold"
 
     # sync df values before checking df return
     wait_stable_df
 
 	full_vol1=`$LFS df $ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
-	purge_ost1=`grep summary rh_purge.log | grep "OST #1" | wc -l`
+	purge_ost1=`grep summary rh_purge.log | grep "OST#1" | wc -l`
 
 	if (($full_vol1 > $mb_h_threshold )); then
 		error ": OST#1 is not expected to exceed high threshold!"
