@@ -1900,6 +1900,11 @@ if (rules->whitelist_count > 0)
     free_whitelist(rules->whitelist_rules, rules->whitelist_count);
 else if (rules->whitelist_rules) /* preallocated? */
     free(rules->whitelist_rules);
+
+    rules->rules = NULL;
+    rules->ignore_list = NULL;
+    rules->whitelist_rules = NULL;
+    rules->whitelist_count = 0;
 }
 
 static void free_policy_descr(policy_descr_t *descr)
@@ -1984,7 +1989,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
 
     /* prealloc config arrays */
     PREALLOC_ARRAY_CONFIG(IGNORE_BLOCK, whitelist_item_t, whitelist_rules, err);
-    PREALLOC_ARRAY_CONFIG(IGNORE_FC, fileset_item_t *, ignore_list, free_ignore);
+    PREALLOC_ARRAY_CONFIG(IGNORE_FC, fileset_item_t *, ignore_list, err);
 
     /* don't use PREALLOC_ARRAY_CONFIG for rules, as we accept old rule name (policy)  */
     //PREALLOC_ARRAY_CONFIG(RULE_BLOCK, rule_item_t, rules, free_ignore_fc);
@@ -1996,7 +2001,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
         if (rules->rules == NULL)
         {
             rc = ENOMEM;
-            goto free_ignore_fc;
+            goto err;
         }
     }
     else if (count == 0)
@@ -2006,7 +2011,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     else
     {
         rc = -1;
-        goto free_ignore_fc;
+        goto err;
     }
 
     count = rh_config_GetNbItems(section);
@@ -2016,12 +2021,12 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     {
         char          *item_name;
         config_item_t  curr_item = rh_config_GetItemByIndex(section, i);
-        critical_err_check_goto(curr_item, section_name, free_policy);
+        critical_err_check_goto(curr_item, section_name, err);
 
         if (rh_config_ItemType(curr_item) == CONFIG_ITEM_BLOCK)
         {
             item_name = rh_config_GetBlockName(curr_item);
-            critical_err_check_goto(item_name, section_name, free_policy);
+            critical_err_check_goto(item_name, section_name, err);
 
             if (!strcasecmp(item_name, IGNORE_BLOCK))
             {
@@ -2032,7 +2037,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                                  &rules->whitelist_rules[curr_ign].attr_mask,
                                  msg_out, policy_descr->status_mgr);
                 if (rc)
-                    goto free_policy;
+                    goto err;
 
                 /* add expression attr mask to policy mask */
                 rules->run_attr_mask |= rules->whitelist_rules[curr_ign].attr_mask;
@@ -2047,7 +2052,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                                       &rules->rules[curr_rule],
                                       msg_out);
                 if (rc)
-                    goto free_policy;
+                    goto err;
 
                 rules->run_attr_mask |= rules->rules[curr_rule].attr_mask;
                 curr_rule++;
@@ -2057,7 +2062,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                 sprintf(msg_out, "'%s' sub-block unexpected in %s block, line %d.",
                          item_name, section_name, rh_config_GetItemLine(curr_item));
                 rc = EINVAL;
-                goto free_policy;
+                goto err;
             }
         }
         else                    /* not a block */
@@ -2067,7 +2072,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
 
             rc = rh_config_GetKeyValue(curr_item, &item_name, &value, &extra_args);
             if (rc)
-                goto free_policy;
+                goto err;
 
             /* only "ignore_fileclass" expected */
             if (strcasecmp(item_name, IGNORE_FC) != 0)
@@ -2075,7 +2080,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                 sprintf(msg_out, "'%s' parameter unexpected in %s block, line %d.",
                          item_name, section_name, rh_config_GetItemLine(curr_item));
                 rc = EINVAL;
-                goto free_policy;
+                goto err;
             }
 
             if (extra_args)
@@ -2084,7 +2089,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                          "Unexpected arguments for %s parameter, line %d.",
                          item_name, rh_config_GetItemLine(curr_item));
                 rc = EINVAL;
-                goto free_policy;
+                goto err;
             }
 
             /* find fileset in policy */
@@ -2096,7 +2101,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                 sprintf(msg_out, "Policy definition references unknown fileclass '%s', line %d.",
                          value, rh_config_GetItemLine(curr_item));
                 rc = EINVAL;
-                goto free_policy;
+                goto err;
             }
 
             rules->ignore_list[curr_ign_fc]->used_in_policy = 1;
@@ -2112,7 +2117,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                                  "Fileclass '%s' is simultaneously ignored and referenced as a target for policy '%s'",
                                  value, rules->rules[j].rule_id);
                         rc = EINVAL;
-                        goto free_policy;
+                        goto err;
                     }
             }
 
@@ -2126,18 +2131,9 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
 
     return 0;
 
-  free_policy:
-    if (rules->rules)
-        free(rules->rules);
-  free_ignore_fc:
-    if (rules->ignore_list)
-        free(rules->ignore_list);
-  free_ignore:
-    if (curr_ign > 0)
-        free_whitelist(rules->whitelist_rules, curr_ign);
-    else if (rules->whitelist_rules)
-        free(rules->whitelist_rules);
   err:
+    free_policy_rules(rules);
+
     return rc;
 }
 
