@@ -1720,8 +1720,6 @@ int check_policies(const entry_id_t * p_id, attr_set_t * p_attrs_new,
 }
 #endif
 
-static const char *empty_str = "";
-
 /* Analyse and replace params betweens brackets.
  * \param hints malloc'ated string.
  *        It can be reallocated or freed in this function.
@@ -1952,10 +1950,5 @@ void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
 
 void free_action_hints(char *hints)
 {
-    if (hints == NULL)
-        return;
-    else if (hints == empty_str)
-        return;
-    else
-        MemFree(hints);
+    MemFree(hints);
 }
