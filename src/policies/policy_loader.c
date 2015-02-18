@@ -336,12 +336,6 @@ static void free_whitelist(whitelist_item_t * p_items, unsigned int count)
         free(p_items);
 }
 
-static void set_default_rules(policy_rules_t *policy)
-{
-    /* no rule by default */
-    memset(policy, 0, sizeof(*policy));
-}
-
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, bool *manage_deleted,
                              char *msg_out)
@@ -566,10 +560,10 @@ static int read_policy_definitions(config_file_t config, policies_t *pol,
             else
                 pol->policy_list = (policy_descr_t *)realloc(pol->policy_list,
                         (pol->policy_count + 1) * sizeof(policy_descr_t));
-            pol->policy_count ++;
 
-            /* initialize rules */
-            set_default_rules(&pol->policy_list[pol->policy_count - 1].rules);
+            memset(&pol->policy_list[pol->policy_count], 0, sizeof(policy_descr_t));
+
+            pol->policy_count ++;
 
             /* analyze policy declaration */
             rc = parse_policy_decl(curr_item, block_name,
