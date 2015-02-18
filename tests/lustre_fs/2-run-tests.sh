@@ -6272,7 +6272,7 @@ function check_find
     c=`$FIND $args $dir | wc -l`
     (( $c == $count )) || error "find: $count entries expected in $dir, got: $c"
 
-    # same test with '-l option'
+    # same test with '-ls option'
     c=`$FIND $args $dir -ls | wc -l`
     (( $c == $count )) || error "find -ls: $count entries expected in $dir, got: $c"
 }
