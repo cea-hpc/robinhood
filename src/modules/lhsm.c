@@ -108,7 +108,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
         }
         else /* no archive_id, but some hints */
         {
-            new_hints = (char*)hints;
+            new_hints = strdup(hints);
             data_len = strlen(hints)+1;
         }
     }
