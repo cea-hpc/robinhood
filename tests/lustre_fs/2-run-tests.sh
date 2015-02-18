@@ -309,7 +309,7 @@ function get_id
 {
     local p=$1
     if (( $lustre_major >= 2 )); then
-        lfs path2fid $p | tr -d '[]'
+         $LFS path2fid $p | tr -d '[]'
     else
          stat -c "/%i" $p
     fi
@@ -747,7 +747,7 @@ function test_lru_policy
     # FIXME RBHv3
     if (( $is_lhsm > 0 )); then
         migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-              awk -F, '{print $1}' | xargs -n 1 -r lfs fid2path $ROOT |\
+              awk -F, '{print $1}' | xargs -n 1 -r $LFS fid2path $ROOT |\
               awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
     else
         migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
@@ -771,7 +771,7 @@ function test_lru_policy
 
     if (( $is_lhsm > 0 )); then
         migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-              awk -F, '{print $1}' | xargs -n 1 -r lfs fid2path $ROOT |\
+              awk -F, '{print $1}' | xargs -n 1 -r $LFS fid2path $ROOT |\
               awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
     else
 	    migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
@@ -2945,7 +2945,6 @@ function test_ost_order
 		return 1
 	fi
 
-
     # nb OSTs?
     nbost=`$LFS df $ROOT | grep OST | wc -l`
     maxidx=$((nbost -1))
@@ -2973,7 +2972,7 @@ function test_ost_order
         nbkb=$(($trig_kb + 1024*$i - $vol))
         nbmb=$(($nbkb/1024+1))
         for f in $(seq 1 $nbmb); do
-            lfs setstripe -c 1 -o $i $ROOT/test_ost_order.ost_$i.$f || error "lfs setstripe"
+            $LFS setstripe -c 1 -o $i $ROOT/test_ost_order.ost_$i.$f || error "lfs setstripe"
             dd if=/dev/zero of=$ROOT/test_ost_order.ost_$i.$f bs=1M count=$nbmb || error "dd"
         done
     done
@@ -4113,10 +4112,10 @@ function test_diff
 
     # is swap layout feature available?
     has_swap=0
-    lfs help | grep swap_layout > /dev/null && has_swap=1
+    $LFS help | grep swap_layout > /dev/null && has_swap=1
     # if so invert stripe for e and f
     if [ $has_swap -eq 1 ]; then
-	lfs swap_layouts $ROOT/dir.2/e  $ROOT/dir.2/f || error "lfs swap_layouts"
+        $LFS swap_layouts $ROOT/dir.2/e  $ROOT/dir.2/f || error "lfs swap_layouts"
     fi
 
     # need 1s difference for md and name GC
@@ -4352,7 +4351,7 @@ function test_rename
 	if (( $is_lhsm != 0 )); then
 		echo "  -archiving all data"
 		flush_data
-		lfs hsm_archive $files || error "executing lfs hsm_archive"
+		$LFS hsm_archive $files || error "executing lfs hsm_archive"
 		echo "  -Waiting for end of data migration..."
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
@@ -4719,17 +4718,17 @@ function stripe_update
 
     # stripe it
     echo "- stripe file"
-    lfs setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
-    idx=$(lfs getstripe -i $ROOT/file.1)
+    $LFS setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
+    idx=$($LFS getstripe -i $ROOT/file.1)
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
     check_stripe $config_file $ROOT/file.1 "ost#$idx"
 
     # no update expected for second run
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
@@ -4742,19 +4741,19 @@ function stripe_update
     fi
 
     # swap with another striped file
-    lfs setstripe -c 1 $ROOT/file.2 || error "creating striped file"
-    idx2=$(lfs getstripe -i $ROOT/file.2)
+    $LFS setstripe -c 1 $ROOT/file.2 || error "creating striped file"
+    idx2=$($LFS getstripe -i $ROOT/file.2)
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
     echo "- swap it with striped file"
-    lfs swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
     check_stripe $config_file $ROOT/file.1 "ost#$idx2"
 
     # no update expected for second run
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
@@ -4763,14 +4762,14 @@ function stripe_update
     # swap with non-striped file
     create_nostripe $ROOT/file.3 || error "creating unstriped file"
     echo "- swap it with non-striped file"
-    lfs swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
     check_stripe $config_file $ROOT/file.1 "none"
 
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
@@ -4816,10 +4815,10 @@ function stripe_no_update
 
     # stripe it
     echo "- stripe file"
-    lfs setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
-    idx=$(lfs getstripe -i $ROOT/file.1)
+    $LFS setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
+    idx=$($LFS getstripe -i $ROOT/file.1)
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
@@ -4834,12 +4833,12 @@ function stripe_no_update
     fi
 
     # swap with another striped file
-    lfs setstripe -c 1 $ROOT/file.2 || error "creating striped file"
-    idx2=$(lfs getstripe -i $ROOT/file.2)
+    $LFS setstripe -c 1 $ROOT/file.2 || error "creating striped file"
+    idx2=$($LFS getstripe -i $ROOT/file.2)
     [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
     echo "- swap it with striped file"
-    lfs swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
@@ -4849,8 +4848,8 @@ function stripe_no_update
     # swap with non-striped file
     create_nostripe $ROOT/file.3 || error "creating unstriped file"
     echo "- swap it with non-striped file"
-    lfs swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $(lfs getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
@@ -4926,7 +4925,7 @@ function test_hardlinks
 	if (( $is_lhsm != 0 )); then
 		echo "  -archiving all data"
 		flush_data
-		lfs hsm_archive $files || error "executing lfs hsm_archive"
+		$LFS hsm_archive $files || error "executing lfs hsm_archive"
 		echo "  -Waiting for end of data migration..."
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
@@ -5941,8 +5940,8 @@ function recov_filters
 
     echo "making deltas"
     for f in empty_new nobkp; do
-        lfs setstripe -c 1 -o 0 $ROOT/dir.match/$f
-        [[ $flavor != since ]] && lfs setstripe -c 1 -o 1 $ROOT/dir.nomatch/$f
+        $LFS setstripe -c 1 -o 0 $ROOT/dir.match/$f
+        [[ $flavor != since ]] && $LFS setstripe -c 1 -o 1 $ROOT/dir.nomatch/$f
     done
     for d in match nomatch ; do
         # skip no match if flavor is 'since'
