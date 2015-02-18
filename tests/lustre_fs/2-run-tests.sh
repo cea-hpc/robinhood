@@ -756,17 +756,9 @@ function test_lru_policy
 
 	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
 
-    # if robinhood logs fids, convert them to files
-    # FIXME RBHv3
-    if (( $is_lhsm > 0 )); then
-        migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-              awk -F, '{print $1}' | xargs -n 1 -r $LFS fid2path $ROOT |\
-              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
-    else
-        migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
-    fi
-
+    # Retrieve the names of migrated files.
+    migr=`egrep -o "$ARCH_STR '[^']+'" rh_migr.log | sed "s/.*'\(.*\)'/\1/" | \
+        awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
     nb_migr=$(echo $migr | wc -w)
 	if [[ "$migr" != "$expected_migr_1" ]]; then
         error "********** TEST FAILED: $nb_expected_migr_1 migration expected ${expected_migr_1:+(files $expected_migr_1)}, $nb_migr started ${migr:+(files $migr)}"
@@ -782,21 +774,16 @@ function test_lru_policy
 	echo "5-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
 
-    if (( $is_lhsm > 0 )); then
-        migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-              awk -F, '{print $1}' | xargs -n 1 -r $LFS fid2path $ROOT |\
-              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
-    else
-	    migr=`grep "$ARCH_STR" rh_migr.log | grep hints | sed 's/^.*(\(.*\),.*).*$/\1/' |\
-              awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
-    fi
+    # Retrieve the names of migrated files.
+    #   "2015/02/18 15:54:31 [17821/5] migration | migration success for '/mnt/lustre/file.1', matching rule 'default', creation_time 41s ago, size=1.00 MB"
+    migr=`egrep -o "$ARCH_STR '[^']+'" rh_migr.log | sed "s/.*'\(.*\)'/\1/" | \
+        awk -F. '{print $NF}' | sort | tr '\n' ' ' | xargs` # xargs does the trimming
     nb_migr=$(echo $migr | wc -w)
 	if [[ "$migr" != "$expected_migr_2" ]]; then
         error "********** TEST FAILED: $nb_expected_migr_2 migration expected ${expected_migr_2:+(files $expected_migr_2)}, $nb_migr started ${migr:+(files $migr)}"
 	else
         echo "OK: $nb_migr files migrated"
 	fi
-
 }
 
 function test_suspend_on_error
