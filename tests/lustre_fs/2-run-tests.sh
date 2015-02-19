@@ -94,6 +94,19 @@ fi
 
 LVERSION=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}"`
 
+# Compatibility macros. Some lfs setstripe options changed in Lustre
+# 2.3 (7a454853).
+#
+# --size|-s became --stripe-size|-S                (use $LFS_SS_SZ_OPT)
+# --index|-i|--offset|-o became --stripe-index|-i  (no macro, use -i)
+# --count|-c became --stripe-count|-c              (no macro, use -c)
+$LFS setstripe 2>&1 | grep stripe-index > /dev/null
+if [ $? -eq 0 ]; then
+    LFS_SS_SZ_OPT="--stripe-size"
+else
+    LFS_SS_SZ_OPT="--size"
+fi
+
 function flush_data
 {
 	if [[ -n "$SYNC" ]]; then
@@ -2990,7 +3003,7 @@ function test_ost_trigger
 
     [ "$DEBUG" = "1" ] && echo "empty_vol OST0000: $empty_vol MB, HW: $mb_h_threshold MB"
 
-	$LFS setstripe --count 2 --offset 0 -s 1m $ROOT || echo "error setting stripe_count=2"
+	$LFS setstripe -c 2 -i 0 $LFS_SS_SZ_OPT 1m $ROOT || echo "error setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
 	((count=$mb_h_threshold - $empty_vol + 1))
@@ -3077,7 +3090,7 @@ function test_ost_trigger
 	fi
 
 	# restore default striping
-	$LFS setstripe --count 2 --offset -1 $ROOT
+	$LFS setstripe -c 2 -i -1 $ROOT
 }
 
 function test_ost_order
@@ -3123,7 +3136,7 @@ function test_ost_order
         nbkb=$(($trig_kb + 1024*$i - $vol))
         nbmb=$(($nbkb/1024+1))
         for f in $(seq 1 $nbmb); do
-            lfs setstripe -c 1 -o $i $ROOT/test_ost_order.ost_$i.$f || error "lfs setstripe"
+            $LFS setstripe -c 1 -i $i $ROOT/test_ost_order.ost_$i.$f || error "lfs setstripe"
             dd if=/dev/zero of=$ROOT/test_ost_order.ost_$i.$f bs=1M count=$nbmb || error "dd"
         done
     done
@@ -6083,9 +6096,9 @@ function recov_filters
 
     for f in full delta rename empty empty_rnm; do
         if [[ $flavor != since ]]; then
-            $LFS setstripe -c 1 -o 0 $ROOT/dir.match/$f || error "setstripe failed"
+            $LFS setstripe -c 1 -i 0 $ROOT/dir.match/$f || error "setstripe failed"
         fi
-        $LFS setstripe -c 1 -o 1 $ROOT/dir.nomatch/$f || error "setstripe failed"
+        $LFS setstripe -c 1 -i 1 $ROOT/dir.nomatch/$f || error "setstripe failed"
     done
     # write data to full and delta
     for f in full delta rename; do
@@ -6110,7 +6123,7 @@ function recov_filters
         since=$(date +'%Y%m%d%H%M%S')
 
         for f in full delta rename empty empty_rnm; do
-            $LFS setstripe -c 1 -o 0 $ROOT/dir.match/$f || error "setstripe failed"
+            $LFS setstripe -c 1 -i 0 $ROOT/dir.match/$f || error "setstripe failed"
         done
         # write data to full and delta
         for f in full delta rename; do
@@ -6124,8 +6137,8 @@ function recov_filters
 
     echo "making deltas"
     for f in empty_new nobkp; do
-        lfs setstripe -c 1 -o 0 $ROOT/dir.match/$f
-        [[ $flavor != since ]] && lfs setstripe -c 1 -o 1 $ROOT/dir.nomatch/$f
+        $LFS setstripe -c 1 -i 0 $ROOT/dir.match/$f
+        [[ $flavor != since ]] && $LFS setstripe -c 1 -i 1 $ROOT/dir.nomatch/$f
     done
     for d in match nomatch ; do
         # skip no match if flavor is 'since'
@@ -6481,7 +6494,7 @@ function test_find
 	clean_logs
 
     # by default stripe all files on 0 and 1
-	$LFS setstripe --count 2 --offset 0 $ROOT || echo "error setting stripe on root"
+	$LFS setstripe -c 2 -i 0 $ROOT || echo "error setting stripe on root"
     # 1) create a FS tree with several levels:
     #   root
     #       file.1
@@ -6500,11 +6513,11 @@ function test_find
     mkdir $ROOT/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
-	$LFS setstripe --count 1 --offset 1  $ROOT/dir.2/file.2 || error "creating file with stripe"
+	$LFS setstripe -c 1 -i 1 $ROOT/dir.2/file.2 || error "creating file with stripe"
     mkdir $ROOT/dir.2/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
-	$LFS setstripe --count 1 --offset 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
+	$LFS setstripe -c 1 -i 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
     mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
 
     # scan FS content
@@ -6597,7 +6610,7 @@ function test_find
     check_find $ROOT "-f $cfg -mmin -120" 12 #all
 
     # restore default striping
-    $LFS setstripe --count 2 --offset -1 $ROOT
+    $LFS setstripe -c 2 -i -1 $ROOT
 }
 
 function test_du
