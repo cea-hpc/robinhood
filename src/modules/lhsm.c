@@ -60,8 +60,8 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
                 archive_id = str2int(next);
                 if ((int)archive_id == -1)
                 {
-                    DisplayLog(LVL_MAJOR, LHSM_TAG, "Invalid archive_id '%s': "
-                               "index expected", next);
+                    DisplayLog(LVL_MAJOR, LHSM_TAG,
+                               "Invalid archive_id '%s': index expected", next);
                     free(tmp_hints);
                     return -EINVAL;
                 }
@@ -151,8 +151,9 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
     free(req);
 
     if (rc)
-        DisplayLog(LVL_CRIT, LHSM_TAG, "ERROR performing HSM request(%s,"
-                   " root=%s, fid="DFID"): %s", hsm_user_action2name(action),
+        DisplayLog(LVL_CRIT, LHSM_TAG,
+                   "ERROR performing HSM request(%s, root=%s, fid="DFID"): %s",
+                   hsm_user_action2name(action),
                    mpath, PFID(p_id), strerror(-rc));
     return rc;
 
@@ -296,8 +297,8 @@ static int lhsm_get_status(const char *path, hsm_status_t *p_status,
          * Maybe is it HS_RELEASED without being HS_ARCHIVED (empty file?)
          * or maybe is it LOST???
          */
-        DisplayLog(LVL_MAJOR, LHSM_TAG, "Entry %s has inconsistent or"
-                   " unknown HSM flags %#X",
+        DisplayLog(LVL_MAJOR, LHSM_TAG,
+                   "Entry %s has inconsistent or unknown HSM flags %#X",
                    path, file_status.hus_states);
         return EINVAL;
     }
@@ -470,9 +471,9 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                 if (hsm_get_cl_error(logrec->cr_flags) != CLF_HSM_SUCCESS)
                 {
                     /* release records are not expected to be erroneous */
-                    DisplayLog(LVL_CRIT, LHSM_TAG, "ERROR: "
-                         "Unexpected HSM release event with error %d",
-                         hsm_get_cl_error(logrec->cr_flags));
+                    DisplayLog(LVL_CRIT, LHSM_TAG,
+                               "ERROR: Unexpected HSM release event with error %d",
+                               hsm_get_cl_error(logrec->cr_flags));
                     /* make sure of actual entry status */
                     *getit = true;
                 }
@@ -502,9 +503,10 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                 break;
 
             default:
-                DisplayLog(LVL_CRIT, LHSM_TAG, "ERROR: unknown HSM event:"
-                            "bitfield=%#x, event=%u", logrec->cr_flags,
-                            hsm_get_cl_event(logrec->cr_flags));
+                DisplayLog(LVL_CRIT, LHSM_TAG,
+                           "ERROR: unknown HSM event: bitfield=%#x, event=%u",
+                           logrec->cr_flags,
+                           hsm_get_cl_event(logrec->cr_flags));
                 /* skip */
                 return EINVAL;
         }
