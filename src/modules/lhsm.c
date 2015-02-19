@@ -120,6 +120,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
         rc = -errno;
         DisplayLog(LVL_CRIT, LHSM_TAG, "Cannot create HSM request: %s",
                    strerror(-rc));
+        free(new_hints);
         return rc;
     }
 
