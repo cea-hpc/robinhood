@@ -24,7 +24,8 @@ endif
 all_libs += ./librbhhelpers.la ../list_mgr/liblistmgr.la \
             ../common/libcommontools.la ../cfg_parsing/libconfigparsing.la
 
-sbin_PROGRAMS=robinhood rbh-report rbh-diff rbh-recov rbh-undelete rbh-import rbh-rebind
+#sbin_PROGRAMS=robinhood rbh-report rbh-diff rbh-recov rbh-undelete rbh-import rbh-rebind
+sbin_PROGRAMS=robinhood rbh-report rbh-diff
 bin_PROGRAMS=rbh-find rbh-du
 
 # dependencies:
@@ -33,11 +34,11 @@ rbh_report_DEPENDENCIES=$(all_libs)
 rbh_du_DEPENDENCIES=$(all_libs)
 rbh_find_DEPENDENCIES=$(all_libs)
 rbh_diff_DEPENDENCIES=$(all_libs)
-rbh_recov_DEPENDENCIES=$(all_libs)
-rbh_undelete_DEPENDENCIES=$(all_libs)
-rbh_import_DEPENDENCIES=$(all_libs)
-rbh_rebind_DEPENDENCIES=$(all_libs)
-
+#rbh_recov_DEPENDENCIES=$(all_libs)
+#rbh_undelete_DEPENDENCIES=$(all_libs)
+#rbh_import_DEPENDENCIES=$(all_libs)
+#rbh_rebind_DEPENDENCIES=$(all_libs)
+#
 robinhood_SOURCES=rbh_daemon.c
 robinhood_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 robinhood_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
@@ -58,21 +59,21 @@ rbh_diff_SOURCES=rbh_diff.c
 rbh_diff_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_diff_LDFLAGS=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_recov_SOURCES=rbh_recov.c
-rbh_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_recov_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-rbh_undelete_SOURCES=rbh_undelete.c
-rbh_undelete_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_undelete_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-rbh_import_SOURCES=rbh_import.c
-rbh_import_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_import_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
-
-rbh_rebind_SOURCES=rbh_rebind.c
-rbh_rebind_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-rbh_rebind_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+#rbh_recov_SOURCES=rbh_recov.c
+#rbh_recov_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+#rbh_recov_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+#
+#rbh_undelete_SOURCES=rbh_undelete.c
+#rbh_undelete_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+#rbh_undelete_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+#
+#rbh_import_SOURCES=rbh_import.c
+#rbh_import_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+#rbh_import_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+#
+#rbh_rebind_SOURCES=rbh_rebind.c
+#rbh_rebind_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+#rbh_rebind_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
 new: clean all
 
