@@ -154,7 +154,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
         DisplayLog(LVL_CRIT, LHSM_TAG,
                    "ERROR performing HSM request(%s, root=%s, fid="DFID"): %s",
                    hsm_user_action2name(action),
-                   mpath, PFID(p_id), strerror(-rc));
+                   get_mount_point(NULL), PFID(p_id), strerror(-rc));
     return rc;
 
 }
