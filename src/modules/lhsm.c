@@ -31,90 +31,114 @@
 
 #define ARCHIVE_HINT "archive_id"
 
+/**
+ * Extract the archive ID from the existing hints strings. If
+ * archive_id is not found, it is set to 0, and new_hints is set to
+ * NULL. Otherwise new_hints contains the new hints without theb
+ * archive_id
+ *
+ * Returns 0 on success, and negative errno on error.
+ */
+static int extract_archive_id(const char *hints, char **new_hints_ret,
+                              unsigned int *archive_id_ret)
+{
+    char *ptr;
+    char *in, *next, *tmp_hints;
+    ptrdiff_t archid_offset;
+    char *new_hints = NULL;
+    unsigned int archive_id;
+
+    *archive_id_ret = 0;
+
+    if (hints == NULL) {
+        *new_hints_ret = NULL;
+        return 0;
+    }
+
+    in = tmp_hints = strdup(hints);
+    ptr = NULL;
+    archid_offset = -1;
+    while ((next = strtok_r(in, ",", &ptr)))
+    {
+        if (!strncmp(next, ARCHIVE_HINT"=", strlen(ARCHIVE_HINT)+1))
+        {
+            archid_offset = (next - tmp_hints);
+            next += strlen(ARCHIVE_HINT)+1;
+            archive_id = str2int(next);
+            if ((int)archive_id == -1)
+            {
+                DisplayLog(LVL_MAJOR, LHSM_TAG,
+                           "Invalid archive_id '%s': index expected", next);
+                free(tmp_hints);
+                return -EINVAL;
+            }
+            *archive_id_ret = archive_id;
+            break;
+        }
+        in = NULL;
+    }
+    free(tmp_hints);
+
+    if (archid_offset != -1)
+    {
+        char *c_w, *c_r;
+        /* remove archive_id from original hints */
+        new_hints = strdup(hints);
+        c_w = new_hints + archid_offset;
+        c_r = strchr(c_w, ',');
+        if (c_r == NULL)
+        {
+            /* no ',' after, truncate hints in place */
+            *c_w = '\0';
+        }
+        else
+        {
+            /* skip ',' */
+            c_r++;
+            /* copy up to end of string */
+            while (*c_r)
+            {
+                *c_w = *c_r;
+                c_w++;
+                c_r++;
+            }
+            *c_w = '\0';
+        }
+
+        if (new_hints[0] == '\0')
+        {
+            /* new hints are empty */
+            free(new_hints);
+            new_hints = NULL;
+        }
+    }
+
+    *new_hints_ret = new_hints;
+
+    return 0;
+}
+
 /** Trigger an HSM action */
 static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
                        const char *hints)
 {
     struct hsm_user_request * req;
-    int data_len = 0;
+    int data_len;
+    const char *data;
     int rc;
     char *mpath;
     char *new_hints = NULL;
     unsigned int archive_id = 0;
 
     /* Extract archive_id from hints. Don't propagate it to the copytool. */
-    if (hints)
-    {
-        char *ptr = NULL;
-        char *in, *next, *tmp_hints;
-        ptrdiff_t archid_offset  = -1;
+    rc = extract_archive_id(hints, &new_hints, &archive_id);
+    if (rc != 0)
+        return rc;
 
-        data_len = strlen(hints)+1;
-        in = tmp_hints = strdup(hints);
-        while ((next = strtok_r(in, ",", &ptr)))
-        {
-            if (!strncmp(next, ARCHIVE_HINT"=", strlen(ARCHIVE_HINT)+1))
-            {
-                archid_offset = (next - tmp_hints);
-                next += strlen(ARCHIVE_HINT)+1;
-                archive_id = str2int(next);
-                if ((int)archive_id == -1)
-                {
-                    DisplayLog(LVL_MAJOR, LHSM_TAG,
-                               "Invalid archive_id '%s': index expected", next);
-                    free(tmp_hints);
-                    return -EINVAL;
-                }
-                break;
-            }
-            in = NULL;
-        }
-        /* this one was modified by strtok: drop it */
-        free(tmp_hints);
-
-        if (archid_offset != -1)
-        {
-            char *c_w, *c_r;
-            /* remove archive_id from original hints */
-            new_hints = strdup(hints);
-            c_w = new_hints + archid_offset;
-            c_r = strchr(c_w, ',');
-            if (c_r == NULL)
-            {
-                /* no ',' after, truncate hints in place */
-                *c_w = '\0';
-            }
-            else
-            {
-                /* skip ',' */
-                c_r++;
-                /* copy up to end of string */
-                while (*c_r)
-                {
-                    *c_w = *c_r;
-                    c_w++;
-                    c_r++;
-                }
-                *c_w = '\0';
-            }
-            data_len = strlen(new_hints)+1;
-            if (data_len == 1)
-            {
-                /* new hints are empty */
-                free(new_hints);
-                new_hints = NULL;
-                data_len = 0;
-            }
-        }
-        else /* no archive_id, but some hints */
-        {
-            new_hints = strdup(hints);
-            data_len = strlen(hints)+1;
-        }
-    }
+    data = new_hints ? new_hints : hints;
+    data_len = data ? strlen(data) + 1 : 0;
 
     req = llapi_hsm_user_request_alloc(1, data_len);
-
     if (!req)
     {
         rc = -errno;
@@ -133,17 +157,12 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
     req->hur_user_item[0].hui_extent.length = -1LL;
 
     req->hur_request.hr_itemcount = 1;
+    req->hur_request.hr_data_len = data_len;
 
-    if (new_hints != NULL)
-    {
-        req->hur_request.hr_data_len = data_len;
-        memcpy(hur_data(req), new_hints, data_len);
-        free(new_hints);
-    }
-    else
-    {
-        req->hur_request.hr_data_len = 0;
-    }
+    if (data)
+        memcpy(hur_data(req), data, data_len);
+
+    free(new_hints);
 
     /* make tmp copy as llapi_hsm_request arg is not const */
     mpath = strdup(get_mount_point(NULL));
