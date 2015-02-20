@@ -408,3 +408,5 @@ AC_MSG_NOTICE([Lustre     support is $build_lustre])
 AC_MSG_NOTICE([Backup     support is $build_backup])
 AC_MSG_NOTICE([Lustre/HSM support is $build_lhsm])
 test -d "/ccc" && AC_MSG_NOTICE([Shook      support is $build_shook])
+
+exit 0
