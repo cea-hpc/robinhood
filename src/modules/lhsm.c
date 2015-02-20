@@ -28,6 +28,7 @@
 #include "status_manager.h"
 
 #include <stdbool.h>
+#include <glib.h>
 
 /* tag for logs */
 #define LHSM_TAG "lhsm"
@@ -205,17 +206,35 @@ static int lhsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
 /** set of managed status */
 typedef enum {
-  STATUS_UNKNOWN = 0,           /* undetermined status */
   STATUS_NEW,                   /* file has no HSM flags (just created) */
   STATUS_MODIFIED,              /* file must be archived */
   STATUS_RESTORE_RUNNING,       /* file is being retrieved */
   STATUS_ARCHIVE_RUNNING,       /* file is being archived */
   STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
   STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
-  STATUS_RELEASE_PENDING,      /* file is being released */
+  STATUS_RELEASE_PENDING,       /* file is being released */
 
-  STATUS_COUNT                  /* number of possible file status */
+  STATUS_COUNT,                 /* number of possible file status */
 } hsm_status_t;
+
+/* XXX /!\ Keep in sync with hsm_status_t */
+static const char *lhsm_status_list[] = {
+    [STATUS_NEW]= "new",
+    [STATUS_MODIFIED] = "modified",
+    [STATUS_RESTORE_RUNNING] = "retrieving",
+    [STATUS_ARCHIVE_RUNNING] = "archiving",
+    [STATUS_SYNCHRO] = "synchro",
+    [STATUS_RELEASED] = "released",
+    [STATUS_RELEASE_PENDING] = "release_pending",
+};
+
+static const char *hsm_status2str(hsm_status_t st)
+{
+    if ((unsigned int)st >= STATUS_COUNT)
+        return NULL;
+    else
+        return lhsm_status_list[st];
+}
 
 /** get Lustre status and convert it to an internal scalar status */
 static int lhsm_get_status(const char *path, hsm_status_t *p_status,
@@ -315,18 +334,6 @@ static int lhsm_get_status(const char *path, hsm_status_t *p_status,
     return 0;
 }
 
-/* XXX /!\ Must match hsm_status_t order */
-static const  char* lhsm_status_list[] = {"new","modified","retrieving","archiving",
-                                          "synchro","released","release_pending"};
-
-static const char *hsm_status2str(hsm_status_t st)
-{
-    if ((st >= STATUS_COUNT) || (st == STATUS_UNKNOWN))
-        return NULL;
-    else
-        return lhsm_status_list[st-1]; /* st=1 => new */
-}
-
 /** get the HSM status of an entry */
 static int lhsm_status(struct sm_instance *smi,
                        const entry_id_t *id, const attr_set_t *attrs,
@@ -334,7 +341,7 @@ static int lhsm_status(struct sm_instance *smi,
 {
     int rc;
     char fid_path[RBH_PATH_MAX];
-    hsm_status_t st = STATUS_UNKNOWN;
+    hsm_status_t st;
     bool no_release = false,
          no_archive = false;
     const char *str_st;
@@ -582,7 +589,7 @@ status_manager_t lhsm_sm = {
     .name = "lhsm",
     .flags = SM_SHARED | SM_DELETED,
     .status_enum = lhsm_status_list,
-    .status_count = STATUS_COUNT - 1, /**< exclude 'unknown' which is implemented as NULL or empty status */
+    .status_count = STATUS_COUNT,
 
     /* This policy needs the ols status to process changelog callbacks.
      * As we don't know the actual index of the status manager instance (smi)
