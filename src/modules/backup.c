@@ -1456,6 +1456,7 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     }
     else if (lchown(dst, info.st_uid, info.st_gid))
     {
+        rc = -errno;
         DisplayLog(LVL_EVENT, RBHEXT_TAG, "error setting owner/group in backend on %s: %s",
                    dst, strerror(-rc));
     }
