@@ -109,6 +109,9 @@ struct obd_statfs {
  * liblustreapi. Then in Lustre 2.7, the commit 0f22e4 removed "struct
  * changelog_ext_rec" and introduced the flexible format.
  *
+ * Define HAVE_FLEX_CL for 2.7 Lustre, use HAVE_CHANGELOG_EXTEND_REC
+ * for Lustre 2.4->2.6, and nothing for the older versions.
+ *
  * Add accessors to make sense of all that:
  *
  * rh_rename_one_record: if the changelog is a CL_RENAME,
@@ -119,7 +122,26 @@ struct obd_statfs {
  * rh_get_cl_cr_name(): return a pointer to cr_name
  */
 
-#if HAVE_CHANGELOG_EXTEND_REC
+#if HAVE_DECL_CLF_RENAME
+/* Lustre 2.7 */
+#define CL_REC_TYPE struct changelog_rec
+#define HAVE_FLEX_CL            /* Flexible changelogs */
+
+static inline bool rh_is_rename_one_record(const struct changelog_rec *rec)
+{
+    return rec->cr_flags & CLF_RENAME;
+}
+
+static inline char *rh_get_cl_cr_name(const struct changelog_rec *rec)
+{
+    return changelog_rec_name(rec);
+}
+
+/* This doesn't make sense anymore but it is still defined by Lustre
+ * 2.7. */
+#undef HAVE_CHANGELOG_EXTEND_REC
+
+#elif HAVE_CHANGELOG_EXTEND_REC
 /* Lustre 2.3 to 2.6. */
 #define CL_REC_TYPE struct changelog_ext_rec
 

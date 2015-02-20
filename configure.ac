@@ -196,7 +196,7 @@ if test "x$support_lustre" = "xyes" ; then
     		# test changelog functions
 
 	    	AC_CHECK_LIB([lustreapi],[llapi_changelog_start],[have_llapi_changelog_start="yes"])
-		    if test "x$have_llapi_changelog_start" = "xyes"; then 
+		    if test "x$have_llapi_changelog_start" = "xyes"; then
 		        AC_DEFINE(HAVE_CHANGELOGS, 1, [Lustre changelogs records are structures])
                 AC_CHECK_DECL([CL_IOCTL],AC_DEFINE(_HAVE_CL_IOCTL,1,[CL_IOCTL is defined]),[],[
                     #define LPX64 "%#llx"
@@ -205,6 +205,16 @@ if test "x$support_lustre" = "xyes" ; then
                     #include <lustre/lustre_user.h>
                 ])
                 AC_CHECK_DECL([CL_LAYOUT],AC_DEFINE(HAVE_CL_LAYOUT,1,[Layout change emit changelog records]),[],[
+                    #define LPX64 "%#llx"
+                    #include <sys/types.h>
+                    #include <asm/types.h>
+                    #include <lustre/lustre_user.h>
+                ])
+
+                # changelog_ext_rec was removed by commit 0f22e4,
+                # which added the flexible changelog format. That
+                # commit added CLF_RENAME, so check for that symbol.
+                AC_CHECK_DECLS([CLF_RENAME],[],[],[
                     #define LPX64 "%#llx"
                     #include <sys/types.h>
                     #include <asm/types.h>
@@ -275,7 +285,7 @@ if test "x$support_lustre" = "xyes" ; then
     AM_CONDITIONAL(HSM_LITE,    test "x$have_fid" = "xyes")
 else
     AM_CONDITIONAL(LUSTRE, test 0 = 1 )
-    AM_CONDITIONAL(CHANGELOGS, test 0 = 1 ) 
+    AM_CONDITIONAL(CHANGELOGS, test 0 = 1 )
     AM_CONDITIONAL(USER_LOVEA, test  0 = 1 )
     AM_CONDITIONAL(LUSTRE_HSM,     test 0 = 1)
     AM_CONDITIONAL(SHOOK,       test  0 = 1)
@@ -309,7 +319,7 @@ AM_CONDITIONAL(USE_SQLITE_DB,   test "$DB" = "SQLITE")
 
 # @TODO check database libraries and path
 
-# Db dependent checks and flags 
+# Db dependent checks and flags
 case $DB in
     MYSQL)
 
@@ -332,9 +342,9 @@ case $DB in
 
     SQLITE)
         # check lib and headers
-        AC_CHECK_HEADER([sqlite3.h], HAVE_SQLITE_HEADER="true", 
+        AC_CHECK_HEADER([sqlite3.h], HAVE_SQLITE_HEADER="true",
                     AC_MSG_ERROR([sqlite-devel not installed]))
-        AC_CHECK_LIB([sqlite3], [sqlite3_exec], HAVE_SQLITE_LIB="true", 
+        AC_CHECK_LIB([sqlite3], [sqlite3_exec], HAVE_SQLITE_LIB="true",
                     AC_MSG_ERROR([sqlite3 library not found]))
         DB_CFLAGS="-D_SQLITE"
         DB_LDFLAGS="-lsqlite3"
