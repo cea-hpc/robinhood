@@ -702,7 +702,7 @@ static int check_statfs_thresholds(trigger_item_t *trig, const char *tgt_name,
         /* inode count */
         rc = check_count_thresholds(trig, tgt_name, stfs, &limit->count,
                                     &tmp_count);
-        if (tmp_count > tinfo->last_count);
+        if (tmp_count > tinfo->last_count)
             tinfo->last_count = tmp_count;
     }
     else if (trig->target_type == TGT_FS)
