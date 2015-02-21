@@ -222,6 +222,7 @@ static uint64_t scan_count(bool do_lock)
     if (do_lock)
         P(lock_scan);
 
+    count = 0;
     for (i = 0; i < fs_scan_config.nb_threads_scan; i++)
         count += thread_list[i].entries_handled;
 
@@ -1178,7 +1179,7 @@ static int process_one_task(robinhood_task_t *p_task,
     }
 
     /* As long as the current task path is (strictly)
-     * upper than partial scan root: just lookup, no readdir */ 
+     * upper than partial scan root: just lookup, no readdir */
     if (partial_scan_root && (strlen(p_task->path) <
                               strlen(partial_scan_root)))
     {
