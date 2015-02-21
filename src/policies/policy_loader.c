@@ -2199,7 +2199,7 @@ static int read_policies(config_file_t config, void *cfg, char *msg_out)
     policies_t    *pol = (policies_t *)cfg;
     int            rc, i;
 
-    memset(pol, 0, sizeof(pol));
+    memset(pol, 0, sizeof(*pol));
 
     /* read policy declarations, allocate policy descriptors */
     rc = read_policy_definitions(config, pol, msg_out);
