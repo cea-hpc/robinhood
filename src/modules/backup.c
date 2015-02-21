@@ -803,7 +803,10 @@ static inline int set_status_attr(sm_instance_t *smi, attr_set_t *pattrs, file_s
     const char *str_st = backup_status2str(st);
 
     if (str_st == NULL)
+    {
+        rc = -EINVAL;
         goto clean_status;
+    }
 
     /* check allocation of sm_status array */
     sm_status_ensure_alloc(&pattrs->attr_values.sm_status);
