@@ -610,7 +610,7 @@ static void report_activity(int flags)
 
 #ifndef _LUSTRE_HSM
     /* Scan interval */
-    if (getvar_helper(&lmgr, SCAN_INTERVAL_VAR, value) == 0)
+    if (getvar_helper(&lmgr, SCAN_INTERVAL_VAR, value, sizeof(value)) == 0)
     {
         timestamp = str2int(value);
         FormatDurationFloat(date, 128, timestamp);

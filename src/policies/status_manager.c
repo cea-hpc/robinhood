@@ -77,7 +77,7 @@ static int shook_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
     else if ( logrec->cr_type == CL_MTIME || logrec->cr_type == CL_TRUNC ||
               (logrec->cr_type == CL_CLOSE))
     {
-        /** @TODO do like Lustre/HSM: 
+        /** @TODO do like Lustre/HSM:
          * if file is modified or truncated, need to check its status
          * (probably modified) EXCEPT if its status is already 'modified'
          */
@@ -117,9 +117,12 @@ static status_manager_t basic_sm = {
 static status_manager_t *load_status_manager(const char *name)
 {
     /** @TODO load from a dynamic module */
+#ifdef _LUSTRE_HSM
     if (!strcasecmp(name, "lhsm"))
         return &lhsm_sm;
-    else if (!strcasecmp(name, "backup"))
+    else
+#endif
+    if (!strcasecmp(name, "backup"))
         return &backup_sm;
     else if (!strcasecmp(name, "basic"))
         return &basic_sm;
