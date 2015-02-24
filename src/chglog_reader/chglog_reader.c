@@ -663,37 +663,39 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
  * Create a fake rename record to ensure compatibility with older
  * Lustre records.
  *
- * This is only available LU-1331 is present on the Lustre server.
+ * rec_in is a single rename record of type CL_RENAME; Lustre won't
+ * issue a CL_EXT record for this rename. But RH's pipeline expects a
+ * CL_RENAME followed by a CL_EXT record. So this function creates an
+ * old fashion CL_RENAME that will be followed by a CL_EXT.
+ *
+ * This is only used if LU-1331 fix is present on the Lustre server.
  */
 static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
                                                CL_REC_TYPE *rec_in)
 {
     CL_REC_TYPE *rec;
+    size_t sname_len;
 
-    /* rename overwriting target entry */
-    rec = MemAlloc(sizeof(CL_REC_TYPE) + rec_in->cr_namelen + 1);
-    if (rec) {
-        /* Copy the structure and fix a few fields. */
-        memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + rec_in->cr_namelen);
+    /* Allocate enough space for the record and the source name. */
+    sname_len = changelog_rec_snamelen(rec_in);
+    rec = MemAlloc(sizeof(CL_REC_TYPE) + sname_len + 1);
+    if (rec == NULL)
+        return NULL;
 
-        /* copy source name to RNMFRM */
-        rec->cr_namelen = changelog_rec_snamelen(rec_in);
-        strncpy(rec->cr_name, changelog_rec_sname(rec_in), rec->cr_namelen);
-        rec->cr_name[rec->cr_namelen] = '\0';
+    /* Copy the structure and fix a few fields. */
+    *rec = *rec_in;
+    rec->cr_flags = 0; /* not used for RNMFRM */
+    rec->cr_namelen = sname_len + 1;
+    memcpy(rec->cr_name, changelog_rec_sname(rec_in), sname_len);
+    rec->cr_name[sname_len] = 0; /* terminate string */
 
-        rec->cr_flags = 0; /* not used for RNMFRM */
-        rec->cr_type = CL_RENAME;
-
-        /* we don't want to acknowledge this record as long as the 2
-         * records are not processed. acknowledge n-1 instead */
-        rec->cr_index = rec_in->cr_index - 1;
-
-        rec->cr_tfid = rec_in->cr_sfid; /* the renamed fid */
-        rec->cr_pfid = rec_in->cr_spfid; /* the source parent */
-    }
+    /* we don't want to acknowledge this record as long as the 2
+     * records are not processed. acknowledge n-1 instead */
+    rec->cr_index = rec_in->cr_index - 1;
+    rec->cr_tfid = rec_in->cr_sfid; /* the renamed fid */
+    rec->cr_pfid = rec_in->cr_spfid; /* the source parent */
 
     return rec;
-
 }
 #endif
 
