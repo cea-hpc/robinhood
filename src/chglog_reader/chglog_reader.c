@@ -595,56 +595,58 @@ static bool can_ignore_record(const reader_thr_info_t *p_info,
  * Create a fake unlink changelog record that will be used to remove a
  * file that is overriden during a rename operation.
  *
- * This is only available if LU-543 or LU-1331 are present on the
- * Lustre server.
+ * rec_in is a changelog of type CL_RENAME (if rename is recorded with
+ * one changelog record) or CL_EXT (if rename is recorded with
+ * CL_RENAME+CL_EXT). This function is called because the rename
+ * operation is deleting the destination, so we need to insert a fake
+ * CL_UNLINK into the pipeline for that operation.
  */
 static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
                                                CL_REC_TYPE *rec_in,
                                                unsigned int *insert_flags)
 {
     CL_REC_TYPE *rec;
+    size_t name_len;
 
-    /* rename overwriting target entry */
-    rec = MemAlloc(sizeof(CL_REC_TYPE) + rec_in->cr_namelen + 1);
-    if (rec) {
-        /* Copy the structure and fix a few fields. */
-        memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + rec_in->cr_namelen);
+    name_len = strlen(rec_in->cr_name);
+    rec = MemAlloc(sizeof(CL_REC_TYPE) + name_len + 1);
+    if (rec == NULL)
+        return NULL;
 
-        /* It is unclear whether cr_name is actually
-         * 0 terminated, so add one just in case. */
-        rec->cr_name[rec->cr_namelen] = '\0';
+    memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + name_len);
+    rec->cr_name[name_len] = 0; /* terminate string */
+    rec->cr_namelen = name_len + 1;
 
-        *insert_flags = PLR_FLG_FREE2;
+    *insert_flags = PLR_FLG_FREE2;
 
-        if (!cl_reader_config.mds_has_lu543) {
-            /* The server doesn't tell whether the rename operation will
-             * remove a file. */
-            *insert_flags |= GET_FID_FROM_DB;
-        }
+    if (!cl_reader_config.mds_has_lu543) {
+        /* The server doesn't tell whether the rename operation will
+         * remove a file. */
+        *insert_flags |= GET_FID_FROM_DB;
+    }
 
 #ifdef CLF_RENAME_LAST
-        /* The client support LU-1331 (since CLF_RENAME_LAST is
-         * defined) but that may not be the case of the server. */
-        if (cl_reader_config.mds_has_lu1331) {
-            rec->cr_flags = (rec_in->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
-        } else
+    /* The client support LU-1331 (since CLF_RENAME_LAST is
+     * defined) but that may not be the case of the server. */
+    if (cl_reader_config.mds_has_lu1331) {
+        rec->cr_flags = (rec_in->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
+    } else
 #endif
-        {
-            /* CLF_RENAME_LAST is not supported in this version of the
-             * client and/or the server. The pipeline will have to
-             * decide whether this is the last entry or not. */
-            rec->cr_flags = 0;
-            *insert_flags |= CHECK_IF_LAST_ENTRY;
-        }
-
-        rec->cr_type = CL_UNLINK;
-        rec->cr_index = rec_in->cr_index - 1;
-
-        DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-                   "Unlink: object="DFID", name=%.*s, flags=%#x",
-                   PFID(&rec->cr_tfid), rec->cr_namelen,
-                   rec->cr_name, rec->cr_flags);
+    {
+        /* CLF_RENAME_LAST is not supported in this version of the
+         * client and/or the server. The pipeline will have to
+         * decide whether this is the last entry or not. */
+        rec->cr_flags = 0;
+        *insert_flags |= CHECK_IF_LAST_ENTRY;
     }
+
+    rec->cr_type = CL_UNLINK;
+    rec->cr_index = rec_in->cr_index - 1;
+
+    DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+               "Unlink: object="DFID", name=%.*s, flags=%#x",
+               PFID(&rec->cr_tfid), rec->cr_namelen,
+               rec->cr_name, rec->cr_flags);
 
     return rec;
 
