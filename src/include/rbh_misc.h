@@ -24,6 +24,7 @@
 #endif
 #include <dirent.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "xplatform_print.h"
 
 /**

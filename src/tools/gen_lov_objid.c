@@ -57,8 +57,7 @@ int main( int argc, char **argv )
     char          *bin = basename( argv[0] );
     int            rc;
     char           err_msg[4096];
-    robinhood_config_t config;
-    int chgd = 0;
+    bool           chgd = false;
 
     /* options */
     char           config_file[MAX_OPT_LEN] = "";
@@ -123,39 +122,40 @@ int main( int argc, char **argv )
         fprintf(stderr, "Using config file '%s'.\n", config_file );
     }
 
-    /* only read ListMgr config */
+    /* initialize internal resources (glib, llapi, internal resources...) */
+    rc = rbh_init_internals();
+    if (rc != 0)
+        exit(rc);
 
-    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
+    /* load and set modules configuration */
+    if(rbh_cfg_load(0, config_file, err_msg))
     {
-        fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
-        exit( 1 );
+        fprintf(stderr, "Error reading configuration file '%s': %s\n",
+                config_file, err_msg);
+        exit(1);
     }
-    process_config_file = config_file;
 
-    /* set global configuration */
-    global_config = config.global_config;
-
-    if ( force_log_level )
-        config.log_config.debug_level = log_level;
+    if (force_log_level)
+        log_config.debug_level = log_level;
     else
-        config.log_config.debug_level = LVL_MAJOR; /* no event message */
+        log_config.debug_level = LVL_MAJOR; /* no event message */
 
     /* set logging to stderr for this tool */
-    strcpy( config.log_config.log_file, "stderr" );
-    strcpy( config.log_config.report_file, "stderr" );
-    strcpy( config.log_config.alert_file, "stderr" );
+    strcpy(log_config.log_file, "stderr");
+    strcpy(log_config.report_file, "stderr");
+    strcpy(log_config.alert_file, "stderr");
 
     /* Initialize logging */
-    rc = InitializeLogs( bin, &config.log_config );
-    if ( rc )
+    rc = InitializeLogs(bin);
+    if (rc)
     {
-        fprintf( stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
-                 rc, errno, strerror( errno ) );
-        exit( rc );
+        fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
+                 rc, errno, strerror(errno));
+        exit(rc);
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init(&config.lmgr_config, true);
+    rc = ListMgr_Init(true);
     if ( rc )
     {
         DisplayLog( LVL_CRIT, TAG, "Error %d initializing list manager", rc );

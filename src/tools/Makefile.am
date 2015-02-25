@@ -4,20 +4,17 @@ AM_LDFLAGS= -lpthread
 DATE=`date '+%F %T'`
 MISC_FLAGS="-DCOMPIL_DATE=\"$(DATE)\""
 
-all_libs= ../cfg_parsing/libconfigparsing.la \
-                ../fs_scan/libfsscan.la \
-                ../entry_processor/libentryproc.la \
-                ../policies/libpolicies.la
+all_libs=   ../cfg_parsing/librbhcfg.la         \
+            ../fs_scan/libfsscan.la             \
+            ../entry_processor/libentryproc.la  \
+            ../policies/libpolicies.la
 
 if CHANGELOGS
 all_libs += ../chglog_reader/libchglog_rd.la
 endif
 
-if HSM_LITE
-all_libs += ../backend_ext/libbackend_ext.la
-endif
-
-all_libs += ../list_mgr/liblistmgr.la ../common/libcommontools.la
+all_libs += ../robinhood/librbhhelpers.la ../list_mgr/liblistmgr.la \
+            ../common/libcommontools.la ../cfg_parsing/libconfigparsing.la
 
 #Lustre 2.x only
 if LUSTRE
