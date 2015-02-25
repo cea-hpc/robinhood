@@ -88,7 +88,7 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
                              bool update_if_exists)
 {
     bool     first;
-    int      i, rc;
+    int      i, rc = 0;
     int      total_si;
     GString *req = g_string_new("");
 

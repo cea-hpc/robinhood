@@ -922,7 +922,9 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
     case CRITERIA_FILENAME:
     case CRITERIA_OWNER:
     case CRITERIA_GROUP:
+#ifdef _LUSTRE
     case CRITERIA_POOL:
+#endif
         return snprintf( out_str, str_size, "%s %s \"%s\"", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), p_triplet->val.str );
 
@@ -934,7 +936,9 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 
         /* int values */
     case CRITERIA_DEPTH:
+#ifdef _LUSTRE
     case CRITERIA_OST:
+#endif
 #ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
 #endif

@@ -455,10 +455,11 @@ static bool check_maintenance_mode(policy_info_t *pol,
 
 static int check_trigger_type(trigger_item_t *t)
 {
-    if ((t->target_type == TGT_NONE ||
-        t->target_type == TGT_FS ||
-        t->target_type == TGT_OST) && /* XXX does not suport lists of target osts */
-        (t->list_size != 0))
+    if ((t->target_type == TGT_NONE || t->target_type == TGT_FS
+#ifdef _LUSTRE
+        || t->target_type == TGT_OST /* XXX does not suport lists of target osts */
+#endif
+        ) && (t->list_size != 0))
         RBH_BUG("Unexpected target for trigger");
     return 0;
 }
@@ -490,12 +491,14 @@ static const char *param2targetstr(const policy_param_t *param, char *str, size_
     {
         case TGT_FS:
             return "filesystem entries";
+#ifdef _LUSTRE
         case TGT_OST:
             snprintf(str, len, "OST#%u", param->optarg_u.index);
             return str;
         case TGT_POOL:
             snprintf(str, len, "pool %s", param->optarg_u.name);
             return str;
+#endif
         case TGT_USER:
             snprintf(str, len, "user %s", param->optarg_u.name);
             return str;
@@ -1314,9 +1317,12 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
     param.target = opt->target;
     param.optarg_u = opt->optarg_u;
 
-    if ((param.target == TGT_FS || param.target == TGT_OST
-        || param.target == TGT_POOL) &&
-        opt->target_value_u.usage_pct != -1.0)
+
+    if ((param.target == TGT_FS
+#ifdef _LUSTRE
+        || param.target == TGT_OST || param.target == TGT_POOL
+#endif
+        ) && opt->target_value_u.usage_pct != -1.0)
     {
         trigger_item_t trig;
         trigger_info_t info;
@@ -1335,6 +1341,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
             strcpy(tgtname, "filesystem");
             rc = get_fs_usage(pol, &stfs);
         }
+#ifdef _LUSTRE
         else if (param.target == TGT_OST)
         {
             snprintf(tgtname, sizeof(tgtname), "OST #%u", param.optarg_u.index);
@@ -1345,6 +1352,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
             snprintf(tgtname, sizeof(tgtname), "pool '%s'", param.optarg_u.name);
             rc = Get_pool_usage(param.optarg_u.name, &stfs);
         }
+#endif
         else
             RBH_BUG("Unexpected target type in targeted_run()");
 
@@ -1745,6 +1753,7 @@ static void print_ctr(int level, const char *tag, const char *header,
 
     FormatFileSize(buff, sizeof(buff), ctr->vol);
 
+#ifdef _LUSTRE
     if (tgt_type == TGT_OST || tgt_type == TGT_POOL)
     {
         DisplayLog(level, tag, "%s: %llu entries, total volume %s "
@@ -1752,6 +1761,7 @@ static void print_ctr(int level, const char *tag, const char *header,
                    ctr->count, buff, ctr->blocks, ctr->targeted);
     }
     else
+#endif
     {
         DisplayLog(level, tag, "%s: %llu entries, total volume %s "
                    "(%llu blocks)", header, ctr->count, buff, ctr->blocks);

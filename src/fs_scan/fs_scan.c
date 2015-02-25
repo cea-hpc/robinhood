@@ -648,6 +648,8 @@ static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev, const char *
 
 static bool noatime_permitted = true;
 
+/* only used to get FID */
+#ifdef _HAVE_FID
 static int openat_noatime(int pfd, const char *name, int rddir)
 {
     int fd = -1;
@@ -679,6 +681,7 @@ static int openat_noatime(int pfd, const char *name, int rddir)
 
     return fd;
 }
+#endif
 
 static int open_noatime(const char *path, int rddir)
 {

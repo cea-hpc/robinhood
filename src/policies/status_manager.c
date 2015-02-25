@@ -246,6 +246,7 @@ char *allowed_status_str(const status_manager_t *sm, char *buf, int sz)
     return buf;
 }
 
+#ifdef HAVE_CHANGELOGS
 int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
                   const attr_set_t *attrs, attr_set_t *refreshed_attrs,
                   uint64_t *status_need, uint64_t status_mask)
@@ -278,6 +279,7 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
     }
     return err_max;
 }
+#endif
 
 /** initialize all status managers having init function */
 int smi_init_all(int flags)

@@ -30,11 +30,13 @@ typedef int (*sm_status_func_t)(struct sm_instance *smi,
                              const entry_id_t *id, const attr_set_t *attrs,
                              attr_set_t *refreshed_attrs);
 
+#ifdef HAVE_CHANGELOGS
 /** function prototype for changelog callback */
 typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
                                const CL_REC_TYPE *logrec,
                                const entry_id_t *id, const attr_set_t *attrs,
                                attr_set_t *refreshed_attrs, bool *getit);
+#endif
 
 /** function prototype for status manager "executor" */
 typedef int (*sm_executor_func_t)(struct sm_instance *smi,
@@ -92,8 +94,10 @@ typedef struct status_manager {
     /** retrieve the status of an entry */
     sm_status_func_t   get_status_func;
 
+#ifdef HAVE_CHANGELOGS
     /** callback for changelogs */
     sm_cl_cb_func_t    changelog_cb;
+#endif
 
     /** callback for policy actions */
     /// FIXME how to know what action has been done?
@@ -187,6 +191,7 @@ const char *get_status_str(const status_manager_t *sm, const char *in_str);
  */
 char *allowed_status_str(const status_manager_t *sm, char *buf, int sz);
 
+#ifdef HAVE_CHANGELOGS
 /** Call changelog callbacks for all status manager instances
  * @param[in]     logrec   incoming changelog record
  * @param[in]     id       related entry id
@@ -203,6 +208,7 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec,
                   attr_set_t        *refreshed_attrs,
                   uint64_t          *status_need,
                   uint64_t           status_mask);
+#endif
 
 /** return the mask of all statuses, expect those not stored in DB */
 static inline uint64_t all_status_mask(void)

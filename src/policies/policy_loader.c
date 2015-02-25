@@ -174,7 +174,9 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
 
             /* integer conditions */
         case CRITERIA_DEPTH:
+#ifdef _LUSTRE
         case CRITERIA_OST:
+#endif
 
 #ifdef ATTR_INDEX_dircount
         case CRITERIA_DIRCOUNT:
@@ -240,7 +242,9 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
         case CRITERIA_FILENAME:
         case CRITERIA_OWNER:
         case CRITERIA_GROUP:
+#ifdef _LUSTRE
         case CRITERIA_POOL:
+#endif
             if (strcmp(p_triplet1->val.str, p_triplet2->val.str))
             {
                 DisplayLog(LVL_MAJOR, RELOAD_TAG,

@@ -15,18 +15,21 @@
 #include "config.h"
 #endif
 
+#include "rbh_misc.h"
 #include "rbh_cfg.h"
 #include "global_config.h"
 #include "rbh_logs.h"
 #include "xplatform_print.h"
 #include "uidgidcache.h"
+#include "status_manager.h"
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
 #include <stdio.h>
 #include <pthread.h>
-#include <libgen.h>             /* for dirname */
+#include <libgen.h>
 #include <stdarg.h>
 #include <fnmatch.h>
 #include <sys/types.h>
@@ -35,15 +38,12 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <string.h>
-#include "rbh_misc.h"
-#include "status_manager.h"
 
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
 #else
 #include <mntent.h>             /* for handling mntent */
 #endif
-
 
 /* Exa-scale definitions ;-) */
 #define KILO_BYTE  (1024LL)

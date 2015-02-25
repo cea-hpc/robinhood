@@ -18,6 +18,8 @@
 #ifndef _ROBINHOOD_MISC_H
 #define _ROBINHOOD_MISC_H
 
+#include "xplatform_print.h"
+#include "list_mgr.h"
 #include <sys/stat.h>
 #ifndef __FreeBSD__
 #include <sys/vfs.h>
@@ -25,7 +27,26 @@
 #include <dirent.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "xplatform_print.h"
+
+/* displaying FID */
+#ifndef _HAVE_FID
+#undef DFID
+#undef DFID_NOBRACE
+#undef PFID
+#undef SFID
+#undef RFID
+
+#define DFID "%"PRIX64"/%"PRI_STI
+#define DFID_NOBRACE DFID
+#define PFID(_pid) (_pid)->fs_key, (_pid)->inode
+#define SFID "0X%"PRIX64"/%"PRI_STI
+#define RFID(_pid) &((_pid)->fs_key), &((_pid)->inode)
+#define FID_SCAN_CNT 2
+#define RBH_FID_LEN 64
+
+#else
+#define FID_SCAN_CNT 3
+#endif
 
 /**
  * Common info
@@ -80,22 +101,6 @@
 #define unlikely(x)     (x)
 #endif
 
-/* displaying FID */
-#ifndef _HAVE_FID
-#undef DFID
-#undef PFID
-#undef SFID
-#undef RFID
-
-#define DFID "%"PRIX64"/%"PRI_STI
-#define PFID(_pid) (_pid)->fs_key, (_pid)->inode
-#define SFID "0X%"PRIX64"/%"PRI_STI
-#define RFID(_pid) &((_pid)->fs_key), &((_pid)->inode)
-#define FID_SCAN_CNT 2
-#else
-#define FID_SCAN_CNT 3
-#endif
-
 /**
  * Send a mail
  */
@@ -114,7 +119,6 @@ int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed, char * unmatc
  */
 void           TestLockFile( time_t * p_last_action );
 
-#include "list_mgr.h"
 
 /**
  * Convert a Posix attributes structure (returned by lstat)

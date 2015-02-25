@@ -417,6 +417,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         break;
 #endif
 
+#ifdef _LUSTRE
     case CRITERIA_POOL:
         *p_attr_index = ATTR_INDEX_stripe_info;
         *p_compar = Policy2FilterComparator(p_comp->op);
@@ -428,6 +429,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_uint = p_comp->val.integer;
         break;
+#endif
 
     case CRITERIA_STATUS:
         if (smi == NULL)
@@ -1789,6 +1791,7 @@ static char * analyze_hints_params(char * hints,
            }
            value = ATTR(p_entry_attr, name);
         }
+#ifdef _LUSTRE
         else if (!strcasecmp(begin_var, "ost_pool"))
         {
            if (!ATTR_MASK_TEST(p_entry_attr, stripe_info))
@@ -1799,6 +1802,7 @@ static char * analyze_hints_params(char * hints,
            }
            value = ATTR(p_entry_attr, stripe_info).pool_name;
         }
+#endif
         else
         {
             DisplayLog(LVL_CRIT,POLICY_TAG, "ERROR: unknown parameter '%s' in hints '%s'", begin_var, hints);

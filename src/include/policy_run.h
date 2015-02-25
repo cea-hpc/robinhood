@@ -39,8 +39,10 @@ typedef enum {
 typedef enum {
     TGT_NONE = 0,  /* if specified as a module parameter: check all triggers. */
     TGT_FS,    /* apply policies to the filesystem */
+#ifdef _LUSTRE
     TGT_OST,   /* apply policies to the specified OST */
     TGT_POOL,  /* apply policies to the specified pool of OSTs */
+#endif
     TGT_USER,  /* apply policies to the specified user */
     TGT_GROUP, /* apply policies to the specified group */
     TGT_FILE,  /* check/apply policies to the specified file */
@@ -115,10 +117,12 @@ static inline char *trigger2str(const trigger_item_t *trig)
     {
         case TGT_FS:
             return "global_usage";
+#ifdef _LUSTRE
         case TGT_OST:
             return "ost_usage";
         case TGT_POOL:
             return "pool_usage";
+#endif
         case TGT_USER:
             return "user_usage";
         case TGT_GROUP:

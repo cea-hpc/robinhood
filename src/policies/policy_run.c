@@ -773,10 +773,12 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
     /* depends on policy params (limits) */
     if (param->target_ctr.blocks != 0 || param->target_ctr.targeted != 0)
         mask |= ATTR_MASK_blocks;
+#ifdef _LUSTRE
     if (param->target == TGT_POOL || param->target == TGT_OST)
     {
         mask |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
     }
+#endif
 
     /* Get attrs to match policy scope */
     mask |= policy->descr->scope_mask;
@@ -815,14 +817,20 @@ static int entry2tgt_amount(const policy_param_t *p_param,
         /* When the target amount is not count, vol or blocks
          * This is the case for OST: the target is only a subset of the blocks.
          */
+#ifdef _LUSTRE
         if (p_param->target != TGT_OST && p_param->target) /* FIXME or pool? */
+#else
+        if (p_param->target)
+#endif
         {
             DisplayLog(LVL_CRIT, "PolicyRun", "unsupported targeted limit != OST");
             return -1;
         }
 
+#ifdef _LUSTRE
         p_ctr->targeted = BlocksOnOST(p_ctr->blocks, p_param->optarg_u.index,
                                      &ATTR(attrs, stripe_info), &ATTR(attrs, stripe_items));
+#endif
     }
 
     return 0;
@@ -880,6 +888,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run");
             return 0;
 
+#ifdef _LUSTRE
         case TGT_OST:   /* apply policies to the specified OST */
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on OST #%u",
                        p_param->optarg_u.index);
@@ -903,6 +912,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_info,
                                           WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
                                           fval, 0);
+#endif
 
         case TGT_USER:  /* apply policies to the specified user */
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' user files",

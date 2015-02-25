@@ -30,6 +30,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <string.h>
+#include <assert.h>
 
 /**
  * Logging domain tag

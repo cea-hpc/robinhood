@@ -228,10 +228,12 @@ static const struct trig_target_def target_defs[] = {
     { "scheduled",      TRIG_ALWAYS,    TGT_FS, false },
 
     { "global_usage",   TRIG_CONDITION, TGT_FS, false },
-    { "ost_usage",      TRIG_CONDITION, TGT_OST, false },
     { "user_usage",     TRIG_CONDITION, TGT_USER, true },
     { "group_usage",    TRIG_CONDITION, TGT_GROUP, true },
+#ifdef _LUSTRE
+    { "ost_usage",      TRIG_CONDITION, TGT_OST, false },
     { "pool_usage",     TRIG_CONDITION, TGT_POOL, true },
+#endif
 
     { NULL, 0, 0, false } /* terminal element */
 };
