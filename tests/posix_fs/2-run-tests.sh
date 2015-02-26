@@ -7,9 +7,9 @@ DB=robinhood_test
 
 #RBH_BINDIR="/usr/sbin"
 RBH_BINDIR="../../src/robinhood"
-RBH_MODDIR="../../src/modules/.libs"
+RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
 
-LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-$RBH_MODDIR}
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RBH_MODDIR
 export LD_LIBRARY_PATH
 
 XML="test_report.xml"
@@ -2940,17 +2940,18 @@ function junit_write_xml # (time, nb_failure, tests)
 	tests=$3
 
 	cp /dev/null $XML
-#	echo "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" > $XML
+
 	echo "<?xml version=\"1.0\" encoding=\"ISO8859-2\" ?>" > $XML
 	echo "<testsuite name=\"robinhood.PosixTests\" errors=\"0\" failures=\"$failure\" tests=\"$tests\" time=\"$time\">" >> $XML
-	cat $TMPXML_PREFIX.tc 		>> $XML
+	sed 's/[^[:print:]]//' $TMPXML_PREFIX.tc >> $XML
 	echo -n "<system-out><![CDATA[" >> $XML
-	cat $TMPXML_PREFIX.stdout 	>> $XML
+	sed 's/[^[:print:]]//' $TMPXML_PREFIX.stdout >> $XML
 	echo "]]></system-out>"		>> $XML
 	echo -n "<system-err><![CDATA[" >> $XML
-	cat $TMPXML_PREFIX.stderr 	>> $XML
+	sed 's/[^[:print:]]//' $TMPXML_PREFIX.stderr >> $XML
 	echo "]]></system-err>" 	>> $XML
 	echo "</testsuite>"		>> $XML
+
 }
 
 
