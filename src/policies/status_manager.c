@@ -282,7 +282,7 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
 #endif
 
 /** initialize all status managers having init function */
-int smi_init_all(int flags)
+int smi_init_all(run_flags_t flags)
 {
     int rc;
     int i = 0;

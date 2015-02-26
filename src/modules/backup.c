@@ -361,7 +361,7 @@ static char restripe_dirname[RBH_NAME_MAX] = "";
  * set_config function is supposed to have to been called before.
  * \param[in] flags from command line.
  */
-static int backup_init(struct sm_instance *smi, int flags)
+static int backup_init(struct sm_instance *smi, run_flags_t flags)
 {
     int rc;
 

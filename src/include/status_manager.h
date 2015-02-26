@@ -68,7 +68,7 @@ typedef recov_status_t (*undelete_func_t)(struct sm_instance *smi,
                                           attr_set_t *p_new_attrs,
                                           bool already_recovered);
 
-typedef int (*init_func_t)(struct sm_instance *smi, int flags);
+typedef int (*init_func_t)(struct sm_instance *smi, run_flags_t flags);
 
 #define SM_NAME_MAX 128
 
@@ -174,7 +174,7 @@ extern mod_cfg_funcs_t smi_cfg_hdlr;
 /** initialize all status managers (if they have init functions)
  * @param flags daemon runtime flags
  */
-int smi_init_all(int flags);
+int smi_init_all(run_flags_t flags);
 
 /** get the constant string that matches the input string
  * @param[in] sm status manager that manages the matched status name
