@@ -42,25 +42,27 @@ if BACKUP
   rpmbuild_opt += --with backup
 endif
 
-
-
 new: clean all
 
-rpms: robinhood.spec dist
+mydist:
+	umask 022; \
+	TAR_OPTIONS='--owner=0 --group=0 --numeric-owner --mode=u+rw,go+r-ws' $(MAKE) dist-gzip
+
+rpms: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" --define="_prefix $(prefix)" \
         --define="_sysconfdir @CONFDIR@" \
 		-ta $(distdir).tar.gz
 
-rpm: robinhood.spec dist
+rpm: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
         --define="_sysconfdir @CONFDIR@" \
 		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
-srpm: robinhood.spec dist
+srpm: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" --define="purpose $(purpose)" \
