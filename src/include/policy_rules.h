@@ -22,6 +22,7 @@
 
 #include "rbh_boolexpr.h"
 #include "list_mgr.h"
+#include "rbh_params.h"
 #include <sys/time.h>
 
 /** whitelist item is just a boolean expression */
@@ -58,11 +59,7 @@ typedef struct rmdir_policy_t
 #define FILESET_ID_LEN   128
 #define HINTS_LEN       4096
 
-typedef struct action_hint_t /** FIXME replace with a list of parameters */
-{
-    struct policy_descr_t *policy; /* hint for what policy? */
-    char                   hint_str[HINTS_LEN]; /* the hints itself */
-} action_hint_t;
+typedef struct rbh_params action_params_t;
 
 /* fileset definition */
 typedef struct fileset_item_t
@@ -80,33 +77,73 @@ typedef struct fileset_item_t
     /* flags for internal management */
     unsigned int   used_in_policy:1;           /* is the fileset referenced in a policy? */
 
-    /* action hints for policies */
-    action_hint_t *action_hints;
-    unsigned int   hints_count;
-    /** summary of attributes needed to build hints */
-    uint64_t       hints_attr_mask;
+    /* action parameters for policies (merged with parameters from "policy" and
+     * "rule", and overrides them).
+     * Each hash table key is a policy name (lower case),
+     * and the associated value is an action_params_t structure. */
+    GHashTable              *policy_action_params;
 
     /** @TODO aggregation policy */
 
 } fileset_item_t;
 
+/**
+ * Return the action parameters associated to a fileset for the given policy.
+ */
+action_params_t *get_fileset_policy_params(const fileset_item_t *fileset,
+                                           const char *policy_name);
+
+/* what to do with the entry after the policy action.
+ * returned by action_function */
+typedef enum {
+    PA_NONE,
+    PA_RM_ONE,
+    PA_RM_ALL,
+    PA_UPDATE
+} post_action_e;
+
+typedef int (*db_cb_func_t)(void *cb_arg, operation_type_t op,
+                            const entry_id_t *id, const attr_set_t *attrs);
+
+typedef int (*action_func_t)(const entry_id_t *id, attr_set_t *attrs,
+                             const action_params_t *params, post_action_e *what_after,
+                             db_cb_func_t db_cb_fn, void *db_cb_arg);
+
+typedef enum
+{
+    ACTION_NONE, /* not defined */
+    ACTION_FUNCTION,
+    ACTION_COMMAND
+} action_type_e;
+
+typedef struct policy_action
+{
+	action_type_e  type;
+    union {
+        char            command[RBH_PATH_MAX];
+        action_func_t   function;
+    } action_u; /* command for ACTION_COMMAND, function for ACTION_FUNCTION, ... */
+} policy_action_t ;
+
+
 /** policy rule */
 typedef struct rule_item_t
 {
-    char           rule_id[RULE_ID_LEN];
+    char                 rule_id[RULE_ID_LEN];
 
-    fileset_item_t **target_list;
-    unsigned int   target_count;
-
-    /* TODO add support for LUA rules */
+    fileset_item_t     **target_list;
+    unsigned int         target_count;
 
     /** condition for purging/migrating files */
-    bool_node_t    condition;
+    bool_node_t          condition;
     /** summary of attributes involved in boolean expression */
-    uint64_t       attr_mask;
+    uint64_t             attr_mask;
 
-    char           action_hints[HINTS_LEN];
-    // TODO: implement action per rule
+    /** if specified, overrides default action for the policy */
+     policy_action_t     action;
+    /** merged with default action_params from the policy and overrides them.
+     *  merged with fileclass action_params (overridden by them). */
+    action_params_t      action_params;
 } rule_item_t;
 
 /** list of rules for a policy */
@@ -121,7 +158,7 @@ typedef struct policy_rules_t
     rule_item_t   *rules;      /* one of them can be the default policy */
     unsigned int   rule_count;
 
-    /* minimum set of attributes for checking rules and building action_hints */
+    /* minimum set of attributes for checking rules and building action_params */
     uint64_t       run_attr_mask;
 
 } policy_rules_t;
@@ -140,38 +177,6 @@ static bool inline has_default_policy(policy_rules_t *list)
     }
     return false;
 }
-
-typedef enum
-{
-    ACTION_NONE,
-    ACTION_FUNCTION,
-    ACTION_COMMAND
-} action_type_e;
-
-/* what to do with the entry after the policy action.
- * returned by action_function */
-typedef enum {
-    PA_NONE,
-    PA_RM_ONE,
-    PA_RM_ALL,
-    PA_UPDATE
-} post_action_e;
-
-typedef int (*db_cb_func_t)(void *cb_arg, operation_type_t op,
-                            const entry_id_t *id, const attr_set_t *attrs);
-
-typedef int (*action_func_t)(const entry_id_t *id, attr_set_t *attrs,
-                             const char *hints, post_action_e *what_after,
-                             db_cb_func_t db_cb_fn, void *db_cb_arg);
-
-typedef struct policy_action_t
-{
-	action_type_e  type;
-    union {
-	    char            command[RBH_PATH_MAX];
-        action_func_t   function;
-    } action_u; /* command for ACTION_COMMAND, function for ACTION_FUNCTION, ... */
-} policy_action_t ;
 
 #ifdef HAVE_RM_POLICY
 typedef struct unlink_policy
@@ -348,12 +353,12 @@ policy_match_t policy_match_all(const policy_descr_t *policy,
                                 const time_modifier_t *time_mod,
                                 fileset_item_t **pp_fileset);
 
-char          *build_action_hints(const policy_descr_t *policy,
-                                  const rule_item_t *policy_case,
-                                  const fileset_item_t *fileset,
-                                  const entry_id_t *p_entry_id,
-                                  const attr_set_t *p_entry_attr);
-void           free_action_hints(char *hints);
+/* @TODO: for commands only:
+ * Some specific strings in parameter values are interpreted and replaced,
+ * according to the given entry id and its attributes:
+ * {fid}, {path}, {name}, {rule}, {fileclass}, {ost_pool}.
+ * For action functions: get these values directly from id and attrs arguments.
+ */
 
 /* Check if an entry is whitelisted for the given policy.
  * \param pp_fileset(out) the matched fileclass.

@@ -32,7 +32,7 @@
 
 /** perform a standard unlink() action */
 static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                         const char *hints, post_action_e *after,
+                         const action_params_t *params, post_action_e *after,
                          db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     const char *path = NULL;
@@ -53,13 +53,21 @@ static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
 /** just log it! */
 static int common_log(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                      const char *hints, post_action_e *after,
+                      const action_params_t *params, post_action_e *after,
                       db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    DisplayLog(LVL_MAJOR, "LogAction", "fid="DFID", path=%s, hints=%s",
+    GString *params_str = g_string_new("");
+
+    if (rbh_params_serialize(params, params_str, NULL,
+                             RBH_PARAM_CSV | RBH_PARAM_COMPACT))
+        /* ignore (just for logging) */
+        g_string_assign(params_str, "ERROR");
+
+    DisplayLog(LVL_MAJOR, "LogAction", "fid="DFID", path=%s, params={%s}",
                PFID(p_entry_id),
                ATTR_MASK_TEST(p_attrs,fullpath)?ATTR(p_attrs,fullpath):"",
-               hints?hints:"");
+               params_str->str);
+    g_string_free(params_str, TRUE);
 
     *after = PA_UPDATE;
     return 0;
@@ -67,13 +75,13 @@ static int common_log(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
 /** standard copy of file contents and its attributes */
 static int common_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                       const char *hints, post_action_e *after,
+                       const action_params_t *params, post_action_e *after,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
-    int flags = hints2flags(hints);
+    copy_flags_e flags = params2flags(params);
     /* flags for restore vs. flags for archive */
-    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
     /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath' */
     if (!ATTR_MASK_TEST(p_attrs, fullpath) || !ATTR_MASK_TEST(p_attrs, backendpath))
@@ -83,20 +91,20 @@ static int common_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     }
 
     rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & COPYBACK), flags);
+                      oflg, !(flags & CP_COPYBACK), flags);
     *after = PA_UPDATE;
     return rc;
 }
 
 /** copy file contents using sendfile() */
 static int common_sendfile(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                           const char *hints, post_action_e *after,
+                           const action_params_t *params, post_action_e *after,
                            db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
-    int flags = hints2flags(hints);
+    copy_flags_e flags = params2flags(params);
     /* flags for restore vs. flags for archive */
-    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
     /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath' */
     if (!ATTR_MASK_TEST(p_attrs, fullpath) || !ATTR_MASK_TEST(p_attrs, backendpath))
@@ -106,23 +114,23 @@ static int common_sendfile(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     }
 
     rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & COPYBACK), flags | USE_SENDFILE);
+                      oflg, !(flags & CP_COPYBACK), flags | CP_USE_SENDFILE);
     *after = PA_UPDATE;
     return rc;
 }
 
 /** copy and compress file contents */
 static int common_gzip(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                       const char *hints, post_action_e *after,
+                       const action_params_t *params, post_action_e *after,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
-    int flags = hints2flags(hints);
+    copy_flags_e flags = params2flags(params);
     /* flags for restore vs. flags for archive */
-    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
     rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & COPYBACK), flags | COMPRESS);
+                      oflg, !(flags & CP_COPYBACK), flags | CP_COMPRESS);
     *after = PA_UPDATE;
     return rc;
 }

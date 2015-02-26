@@ -32,114 +32,100 @@
 /* tag for logs */
 #define LHSM_TAG "lhsm"
 
-#define ARCHIVE_HINT "archive_id"
+#define DEFAULT_ARCHIVE_ID  0
+#define ARCHIVE_PARAM "archive_id"
+
+/** global static list of excluded variables for action parameters serialization. */
+static struct rbh_params *exclude_params = NULL;
 
 /**
- * Extract the archive ID from the existing hints strings. If
- * archive_id is not found, it is set to 0, and new_hints is set to
- * NULL. Otherwise new_hints contains the new hints without theb
- * archive_id
- *
- * Returns 0 on success, and negative errno on error.
+ * Get archive_id from action parameters.
+ * @return archive_id on success, a negative value or error.
  */
-static int extract_archive_id(const char *hints, char **new_hints_ret,
-                              unsigned int *archive_id_ret)
+static int get_archive_id(const action_params_t *params)
 {
-    char *ptr;
-    char *in, *next, *tmp_hints;
-    ptrdiff_t archid_offset;
-    char *new_hints = NULL;
-    unsigned int archive_id;
+    int         arch_id;
+    const char *val = rbh_param_get(params, ARCHIVE_PARAM);
 
-    *archive_id_ret = 0;
+    if (val == NULL)
+        return DEFAULT_ARCHIVE_ID;
 
-    if (hints == NULL) {
-        *new_hints_ret = NULL;
+    arch_id = str2int(val);
+    if (arch_id == -1)
+    {
+        DisplayLog(LVL_MAJOR, LHSM_TAG,
+                   "Invalid archive_id '%s': index expected", val);
+        return -EINVAL;
+    }
+
+    return arch_id;
+}
+
+
+/** Initialize action related global information.
+ * Prepare exclude set once to avoid reinitializing it for each action.
+ */
+static int init_action_global_info(void)
+{
+    struct rbh_params *new_params;
+    int rc;
+
+    if (exclude_params != NULL)
         return 0;
-    }
 
-    in = tmp_hints = strdup(hints);
-    ptr = NULL;
-    archid_offset = -1;
-    while ((next = strtok_r(in, ",", &ptr)))
+    new_params = (struct rbh_params *)calloc(1, sizeof(*new_params));
+    if (new_params == NULL)
+        return -ENOMEM;
+
+    /* initialize exclude list, as it is constant */
+    rc = rbh_param_set(new_params, ARCHIVE_PARAM, "", true);
+    if (rc)
     {
-        if (!strncmp(next, ARCHIVE_HINT"=", strlen(ARCHIVE_HINT)+1))
-        {
-            archid_offset = (next - tmp_hints);
-            next += strlen(ARCHIVE_HINT)+1;
-            archive_id = str2int(next);
-            if ((int)archive_id == -1)
-            {
-                DisplayLog(LVL_MAJOR, LHSM_TAG,
-                           "Invalid archive_id '%s': index expected", next);
-                free(tmp_hints);
-                return -EINVAL;
-            }
-            *archive_id_ret = archive_id;
-            break;
-        }
-        in = NULL;
-    }
-    free(tmp_hints);
-
-    if (archid_offset != -1)
-    {
-        char *c_w, *c_r;
-        /* remove archive_id from original hints */
-        new_hints = strdup(hints);
-        c_w = new_hints + archid_offset;
-        c_r = strchr(c_w, ',');
-        if (c_r == NULL)
-        {
-            /* no ',' after, truncate hints in place */
-            *c_w = '\0';
-        }
-        else
-        {
-            /* skip ',' */
-            c_r++;
-            /* copy up to end of string */
-            while (*c_r)
-            {
-                *c_w = *c_r;
-                c_w++;
-                c_r++;
-            }
-            *c_w = '\0';
-        }
-
-        if (new_hints[0] == '\0')
-        {
-            /* new hints are empty */
-            free(new_hints);
-            new_hints = NULL;
-        }
+        free(new_params);
+        return rc;
     }
 
-    *new_hints_ret = new_hints;
-
+    exclude_params = new_params;
     return 0;
+}
+
+/** lhsm module initialization function */
+static int lhsm_init(struct sm_instance *smi, run_flags_t flags)
+{
+    return init_action_global_info();
 }
 
 /** Trigger an HSM action */
 static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
-                       const char *hints)
+                       const action_params_t *params)
 {
     struct hsm_user_request * req;
-    int data_len;
-    const char *data;
     int rc;
     char *mpath;
-    char *new_hints = NULL;
-    unsigned int archive_id = 0;
+    unsigned int    archive_id = DEFAULT_ARCHIVE_ID;
+    GString        *args = NULL;
+    const char     *data = NULL;
+    int             data_len = 0;
 
-    /* Extract archive_id from hints. Don't propagate it to the copytool. */
-    rc = extract_archive_id(hints, &new_hints, &archive_id);
-    if (rc != 0)
+    /* Get archive_id from parameters. */
+    rc = get_archive_id(params);
+    if (rc < 0)
         return rc;
+    archive_id = rc;
 
-    data = new_hints ? new_hints : hints;
-    data_len = data ? strlen(data) + 1 : 0;
+    /* Serialize the parameters to pass them to the copytool.
+     * exclude archive_id, which is for internal use. */
+    args = g_string_new("");
+    rc = rbh_params_serialize(params, args, exclude_params,
+                              RBH_PARAM_CSV | RBH_PARAM_COMPACT);
+    if (rc)
+        goto free_args;
+
+    if (!GSTRING_EMPTY(args))
+    {
+        data = args->str;
+        data_len = args->len + 1;
+    }
 
     req = llapi_hsm_user_request_alloc(1, data_len);
     if (!req)
@@ -147,8 +133,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
         rc = -errno;
         DisplayLog(LVL_CRIT, LHSM_TAG, "Cannot create HSM request: %s",
                    strerror(-rc));
-        free(new_hints);
-        return rc;
+        goto free_args;
     }
 
     req->hur_request.hr_action = action;
@@ -165,8 +150,6 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
     if (data)
         memcpy(hur_data(req), data, data_len);
 
-    free(new_hints);
-
     /* make tmp copy as llapi_hsm_request arg is not const */
     mpath = strdup(get_mount_point(NULL));
     rc = llapi_hsm_request(mpath, req);
@@ -178,16 +161,17 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
                    "ERROR performing HSM request(%s, root=%s, fid="DFID"): %s",
                    hsm_user_action2name(action),
                    get_mount_point(NULL), PFID(p_id), strerror(-rc));
+free_args:
+    g_string_free(args, TRUE);
     return rc;
-
 }
 
 /** perform hsm_release action */
 static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                        const char *hints, post_action_e *after,
+                        const action_params_t *params, post_action_e *after,
                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    int rc = lhsm_action(HUA_RELEASE, p_entry_id, hints);
+    int rc = lhsm_action(HUA_RELEASE, p_entry_id, params);
     //    if (rc == 0)
     //{
     /* TODO set new status: in status manager? */
@@ -201,20 +185,20 @@ static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
 /** perform hsm_archive action */
 static int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                        const char *hints, post_action_e *after,
+                        const action_params_t *params, post_action_e *after,
                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    int rc = lhsm_action(HUA_ARCHIVE, p_entry_id, hints);
+    int rc = lhsm_action(HUA_ARCHIVE, p_entry_id, params);
     *after = PA_UPDATE;
     return rc;
 }
 
 /** perform hsm_remove action */
 static int lhsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                       const char *hints, post_action_e *after,
+                       const action_params_t *params, post_action_e *after,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    int rc = lhsm_action(HUA_REMOVE, p_entry_id, hints);
+    int rc = lhsm_action(HUA_REMOVE, p_entry_id, params);
     *after = (rc != 0 ? PA_NONE : PA_RM_ONE);
     return rc;
 }
@@ -620,7 +604,7 @@ status_manager_t lhsm_sm = {
      * FIXME also need to store the 'archive_id'!
      */
     .softrm_table_mask = SMI_MASK(0),
-    .undelete_func = NULL /* FIXME to be implemented */
+    .undelete_func = NULL, /* FIXME to be implemented */
 
     /* XXX about full disaster recovery: must recreate all metadata (incl. symlinks => need link field)
      * not only the entries managed by the policy.
@@ -629,6 +613,7 @@ status_manager_t lhsm_sm = {
 
     /* XXX A status manager can load a configuration */
     /* XXX actions may need the same configuration... */
+    .init_func = lhsm_init
 };
 
 const char *mod_get_name(void)

@@ -22,21 +22,19 @@
 /* log tag for built-in copy */
 #define CP_TAG "cp"
 
-#define COMPRESS        (1 << 0)
-#define USE_SENDFILE    (1 << 1)
-#define NO_SYNC         (1 << 2)
-#define COPYBACK        (1 << 3) /* retrieve a copy */
+typedef enum {
+    CP_COMPRESS        = (1 << 0),
+    CP_USE_SENDFILE    = (1 << 1),
+    CP_NO_SYNC         = (1 << 2),
+    CP_COPYBACK        = (1 << 3) /* retrieve a copy */
+} copy_flags_e;
 
-#define NOSYNC_HINT   "nosync"
-#define CPBACK_HINT   "copyback"
-#define COMPRESS_HINT "compress"
+/** These functions are shared by several modules (namely common & backup). */
+int builtin_copy(const char *src, const char *dst, int dst_oflags,
+                 bool save_attrs, copy_flags_e flags);
 
-/* These functions are shared by several modules (namely common & backup). */
-int builtin_copy(const char *src, const char *dst, int dst_flags,
-                 bool save_attrs, int flags);
-
-int hints2flags(const char *hints);
-
+/** set copy flags from a parameter set */
+copy_flags_e params2flags(const action_params_t *params);
 
 /* Public module interface */
 const char *mod_get_name(void);

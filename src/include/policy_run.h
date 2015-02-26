@@ -163,7 +163,8 @@ typedef struct policy_run_config_t
     /* min error count to suspend current policy (0=disable) */
     unsigned int   suspend_error_min;
 
-    /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
+    /* attr index of the sort order (e.g. last_mod, creation_time, ...).
+     * overrides default_lru_sort_attr (from policy descr). */
     int    lru_sort_attr;
 
     bool   check_action_status_on_startup;

@@ -30,13 +30,13 @@
 #include <zlib.h>
 
 
-struct copy_hints_t {
-    const char *name;
-    int         flag;
-} copy_hints[] = {
-    {"compress", COMPRESS}, /* compress target */
-    {"nosync",   NO_SYNC},  /* don't sync when the copy ends */
-    {"copyback", COPYBACK}, /* revert copy way: tgt->src */
+struct copy_params_t {
+    const char   *name;
+    copy_flags_e  flag;
+} copy_params[] = {
+    {"compress", CP_COMPRESS}, /* compress target */
+    {"nosync",   CP_NO_SYNC},  /* don't sync when the copy ends */
+    {"copyback", CP_COPYBACK}, /* revert copy way: tgt->src */
     {NULL, 0}
 };
 
@@ -60,44 +60,21 @@ static int file_clone_attrs(const char *tgt, const struct stat *st)
 }
 
 
-int hints2flags(const char *hints)
+copy_flags_e params2flags(const action_params_t *params)
 {
-    int flg = 0;
+    copy_flags_e flg = 0;
+    struct copy_params_t *curr_param;
 
-    if (hints)
+    if (params == NULL)
+        return 0;
+
+    for (curr_param = copy_params; curr_param->name != NULL; curr_param++)
     {
-        char *ptr = NULL;
-        char *in, *next, *tmp_hints;
-
-        in = tmp_hints = strdup(hints);
-        while ((next = strtok_r(in, ",", &ptr)))
-        {
-            bool found = false;
-            struct copy_hints_t *curr_hint;
-
-            for (curr_hint = copy_hints; curr_hint->name != NULL; curr_hint++)
-            {
-                unsigned int hlen = strlen(curr_hint->name);
-
-                if (!strncmp(next, curr_hint->name, hlen))
-                {
-                    if (next[hlen] != '\0' && next[hlen] != ',')
-                        continue; /* not really matching */
-                    next += hlen + 1;
-                    flg |= curr_hint->flag;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-                DisplayLog(LVL_MAJOR, CP_TAG, "Warning: unsupported hint for common copy action, near: \"%s\"", next);
-
-            in = NULL;
-        }
-        /* this one was modified by strtok: drop it */
-        free(tmp_hints);
+        const char *val = rbh_param_get(params, curr_param->name);
+        if (val != NULL)
+            flg |= curr_param->flag;
     }
+
     return flg;
 }
 
@@ -110,10 +87,10 @@ struct copy_info {
     struct stat  src_st;
 };
 
-static int flush_data(int srcfd, int dstfd, int flags)
+static int flush_data(int srcfd, int dstfd, copy_flags_e flags)
 {
     posix_fadvise(srcfd, 0, 0, POSIX_FADV_DONTNEED);
-    if (!(flags & NO_SYNC))
+    if (!(flags & CP_NO_SYNC))
     {
         if (fdatasync(dstfd) < 0)
             return -errno;
@@ -122,16 +99,17 @@ static int flush_data(int srcfd, int dstfd, int flags)
     return 0;
 }
 
-static inline bool compress_src(int flags)
+static inline bool compress_src(copy_flags_e flags)
 {
-    return ((flags & COMPRESS) && (flags & COPYBACK));
+    return ((flags & CP_COMPRESS) && (flags & CP_COPYBACK));
 }
-static inline bool uncompress_src(int flags)
+static inline bool uncompress_src(copy_flags_e flags)
 {
-    return ((flags & COMPRESS) && !(flags & COPYBACK));
+    return ((flags & CP_COMPRESS) && !(flags & CP_COPYBACK));
 }
 
-static int builtin_copy_standard(const struct copy_info *cp_nfo, int flags)
+static int builtin_copy_standard(const struct copy_info *cp_nfo,
+                                 copy_flags_e flags)
 {
     int srcfd, dstfd;
     struct stat dst_st;
@@ -259,7 +237,7 @@ out_free:
     MemFree(io_buff);
 
 out_close:
-    if (flags & COMPRESS)
+    if (flags & CP_COMPRESS)
         err_close = (gzclose(gz) != Z_OK);
 
     if (err_close && rc == 0)
@@ -272,7 +250,8 @@ out_close:
     return rc;
 }
 
-static int builtin_copy_sendfile(const struct copy_info *cp_nfo, int flags)
+static int builtin_copy_sendfile(const struct copy_info *cp_nfo,
+                                 copy_flags_e flags)
 {
     int rc;
     int srcfd = cp_nfo->src_fd;
@@ -307,8 +286,8 @@ out:
     return rc;
 }
 
-int builtin_copy(const char *src, const char *dst, int dst_flags,
-                 bool save_attrs, int flags)
+int builtin_copy(const char *src, const char *dst, int dst_oflags,
+                 bool save_attrs, copy_flags_e flags)
 {
     struct copy_info cp_nfo;
     int rc, err_close = 0;
@@ -333,7 +312,7 @@ int builtin_copy(const char *src, const char *dst, int dst_flags,
         goto close_src;
     }
 
-    cp_nfo.dst_fd = open(dst, dst_flags, cp_nfo.src_st.st_mode & 07777);
+    cp_nfo.dst_fd = open(dst, dst_oflags, cp_nfo.src_st.st_mode & 07777);
     if (cp_nfo.dst_fd < 0)
     {
         rc = -errno;
@@ -342,9 +321,9 @@ int builtin_copy(const char *src, const char *dst, int dst_flags,
         goto close_src;
     }
 
-    if (flags & COMPRESS)
+    if (flags & CP_COMPRESS)
         rc = builtin_copy_standard(&cp_nfo, flags);
-    else if (flags & USE_SENDFILE)
+    else if (flags & CP_USE_SENDFILE)
         rc = builtin_copy_sendfile(&cp_nfo, flags);
     else
         rc = builtin_copy_standard(&cp_nfo, flags);

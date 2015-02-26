@@ -79,19 +79,150 @@ static void free_queue_item(queue_item_t *item)
     MemFree(item);
 }
 
+static int add_param(const char *key, const char *val, void *udata)
+{
+    action_params_t *params = (action_params_t *)udata;
+
+    return rbh_param_set(params, key, val, true);
+}
+
+
+typedef struct subst_args {
+    action_params_t  *params;
+    const entry_id_t *id;
+    const attr_set_t *attrs;
+    const char **subst_array;
+} subst_args_t;
+
+/** substitute placeholders in a param value */
+static int subst_one_param(const char *key, const char *val, void *udata)
+{
+    subst_args_t *args = (subst_args_t *)udata;
+    gchar        *new_val;
+    char         *descr = NULL;
+
+    asprintf(&descr, "parameter %s='%s'", key, val);
+
+    new_val = subst_params(val, descr, args->id, args->attrs, args->params,
+                           args->subst_array, false);
+    free(descr);
+
+    if (!new_val)
+        return -EINVAL;
+
+    return rbh_param_set(args->params, key, new_val, true);
+}
+
+/**
+ * Build action parameters according to: (in growing priority)
+ *  - default policy action_params
+ *  - policy rule action_params
+ *  - action_params of the matched fileclass
+ * @param(out)  params  the params struct to be set
+ * @param(in)   policy  the policy to build params for
+ * @param(in)   rule    the matched policy rule
+ * @param(in)   fileset the matched fileset for the policy rule
+ * @return  0 on success, a negative value on error.
+ */
+static int build_action_params(action_params_t *params,
+                               const entry_id_t *id,
+                               const attr_set_t *attrs,
+                               const policy_info_t *policy,
+                               const rule_item_t *rule,
+                               const fileset_item_t *fileset)
+{
+    int   rc = 0;
+    char const* addl_params[5]; /* max: "fileclass" + its name, "rule" + its name, NULL */
+    int   last_param_idx = 0;
+    subst_args_t subst_param_args = {
+        .params = params,
+        .id = id,
+        .attrs = attrs
+    };
+
+    if (params == NULL)
+        return -EINVAL;
+
+    /* Merging parameters from:
+     * 1) TODO: trigger
+     * 2) policy rule
+     * 3) fileclass
+     */
+    if (rule != NULL)
+    {
+        rc = rbh_params_foreach(&rule->action_params, add_param, params);
+        if (rc)
+            goto err;
+
+        addl_params[last_param_idx] = "rule";
+        addl_params[last_param_idx + 1] = rule->rule_id;
+        last_param_idx += 2;
+    }
+
+    if (policy != NULL && policy->descr != NULL && fileset != NULL)
+    {
+        const action_params_t *fileset_params;
+
+        /* check if there are parameters for the given policy */
+        fileset_params = get_fileset_policy_params(fileset,
+                                                   policy->descr->name);
+        if (fileset_params != NULL)
+        {
+            rc = rbh_params_foreach(fileset_params, add_param, params);
+            if (rc)
+                goto err;
+        }
+
+        addl_params[last_param_idx] = "fileclass";
+        addl_params[last_param_idx + 1] = fileset->fileset_id;
+        last_param_idx += 2;
+    }
+
+    /* terminate the list of addl params */
+    addl_params[last_param_idx] = NULL;
+    subst_param_args.subst_array = addl_params;
+
+    /* replace placeholders in action params */
+    rc = rbh_params_foreach(params, subst_one_param, &subst_param_args);
+    if (rc)
+        goto err;
+
+    return 0;
+
+err:
+    rbh_params_free(params);
+    return rc;
+}
+
 /** Execute a policy action. */
-static int policy_action(policy_info_t *policy,
+static int policy_action(policy_info_t *policy, const rule_item_t *rule,
                          const entry_id_t *id, attr_set_t *p_attr_set,
-                         const char *hints, post_action_e *after)
+                         const action_params_t *params, post_action_e *after)
 {
     int rc = 0;
     sm_instance_t *smi = policy->descr->status_mgr;
-    const policy_action_t *actionp = &policy->descr->default_action;
+    const policy_action_t *actionp = NULL;
+
+    /* Get the action from policy rule, if defined.
+     * Else, get the default action for the policy. */
+    if (rule != NULL && rule->action.type != ACTION_NONE)
+        actionp = &rule->action;
+    else
+        actionp = &policy->descr->default_action;
 
     DisplayLog(LVL_EVENT, tag(policy),
-               "%sExecuting policy action on: " DFID_NOBRACE " (%s), hints='%s'",
+               "%sExecuting policy action on: " DFID_NOBRACE " (%s)",
                dry_run(policy)?"(dry-run) ":"", PFID(id),
-               ATTR(p_attr_set, fullpath), hints?hints:"<none>");
+               ATTR(p_attr_set, fullpath));
+    if (log_config.debug_level >= LVL_FULL)
+    {
+        GString *str = g_string_new("");
+        rc = rbh_params_serialize(params, str, NULL, RBH_PARAM_CSV);
+        if (rc == 0)
+            DisplayLog(LVL_FULL, TAG, "action_params: %s", str->str);
+        g_string_free(str, TRUE);
+    }
+
     if (dry_run(policy))
         return 0;
 
@@ -100,7 +231,7 @@ static int policy_action(policy_info_t *policy,
     if (smi != NULL && smi->sm->executor != NULL)
     {
         /* @TODO provide a DB callback */
-        rc = smi->sm->executor(smi, actionp, id, p_attr_set, hints,
+        rc = smi->sm->executor(smi, actionp, id, p_attr_set, params,
                                after, NULL, NULL);
     }
     else
@@ -109,32 +240,28 @@ static int policy_action(policy_info_t *policy,
         {
             case ACTION_FUNCTION:
                 /* @TODO provide a DB callback */
-                rc = actionp->action_u.function(id, p_attr_set, hints, after, NULL, NULL);
+                rc = actionp->action_u.function(id, p_attr_set, params, after,
+                                                NULL, NULL);
                 break;
             case ACTION_COMMAND: /* execute custom action */
             {
-                char strfid[RBH_FID_LEN];
-                sprintf(strfid, DFID, PFID(id));
+                char *descr = NULL;
+                gchar *cmd = NULL;
 
-                /* @TODO document allowed parameters in user documentation */
-                const char *vars[] = {
-                    "path",   ATTR_MASK_TEST(p_attr_set, fullpath)?
-                                 ATTR(p_attr_set, fullpath):"",
-                    "fsname", get_fsname(),
-                    "fid",    strfid,
-                    "hints",  hints,
-                    "policy", tag(policy),
-                    NULL, NULL
-                };
+                asprintf(&descr, "action command '%s'", actionp->action_u.command);
 
-                char *cmd = replace_cmd_parameters(actionp->action_u.command, vars);
+                /* replaces placeholders in command and properly quote them. */
+                /** @TODO add context stuff as addl parameters: fileclass, ... */
+                cmd = subst_params(actionp->action_u.command, descr,
+                                   id, p_attr_set, params, NULL, true);
+                free(descr);
                 if (cmd)
                 {
                     int rc = 0;
                     /* call custom purge command instead of unlink() */
                     DisplayLog(LVL_DEBUG, tag(policy), "cmd(%s)", cmd);
                     rc =  execute_shell_command(true, cmd, 0);
-                    free(cmd);
+                    g_free(cmd);
                     /* @TODO handle other hardlinks to the same entry */
                 }
                 else
@@ -1736,9 +1863,10 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     rule_item_t     *rule;
     fileset_item_t  *p_fileset;
     attr_set_t      attr_sav;
-    char            *hints = NULL;
     int lastrm;
     post_action_e   after_action = PA_NONE;
+    action_params_t params = {0};
+
 
 /* acknowledging helper */
 #define policy_ack(_q, _status, _pattrs, _tgt)  do {                    \
@@ -1977,9 +2105,15 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     if (rc != -1 && (!pol->first_eligible || (rc < pol->first_eligible)))
         pol->first_eligible = rc;
 
-    /* build hints */
-    hints = build_action_hints(pol->descr, rule, p_fileset, &p_item->entry_id,
-                               &new_attr_set);
+    /* build action parameters */
+    rc = build_action_params(&params, &p_item->entry_id, &new_attr_set, pol,
+                             rule, p_fileset);
+    if (rc)
+    {
+        policy_ack(&pol->queue, AS_ERROR, &p_item->entry_attr,
+                   p_item->targeted);
+        goto end;
+    }
 
     /* save attributes before doing the action */
     attr_sav = new_attr_set;
@@ -1987,7 +2121,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     /* apply action to the entry! */
     /* TODO RBHv3: action must indicate what to do with the entry
      * => db update, rm from filesystem etc... */
-    rc = policy_action(pol, &p_item->entry_id, &new_attr_set, hints, &after_action);
+    rc = policy_action(pol, rule, &p_item->entry_id, &new_attr_set, &params,
+                       &after_action);
+    rbh_params_free(&params);
 
 #if 0 // TODO handle status update (in action? using status manager?)
 #ifdef _LUSTRE_HSM
@@ -2030,8 +2166,6 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     rc = PurgeEntry(&p_item->entry_id, ATTR(&new_attr_set, fullpath));
 #endif
 #endif
-    if (hints)
-        free_action_hints(hints);
 
     if (rc != 0)
     {

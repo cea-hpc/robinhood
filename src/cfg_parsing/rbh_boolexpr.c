@@ -120,8 +120,8 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
     /* non escaped '?' must be replaced by '[!/]'
      * '**' must be replaced by '*'
      */
-    str_replace(regexpr, "?", "[!/]");
-    str_replace(regexpr, "**", "*");
+    str_subst(regexpr, "?", "[!/]");
+    str_subst(regexpr, "**", "*");
 
     return 0;
 }

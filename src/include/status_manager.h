@@ -42,7 +42,8 @@ typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
 typedef int (*sm_executor_func_t)(struct sm_instance *smi,
                                   const policy_action_t *action,
  /* arguments for the action : */ const entry_id_t *id, attr_set_t *attrs,
-                                  const char *hints, post_action_e *what_after,
+                                  const action_params_t *params,
+                                  post_action_e *what_after,
                                   db_cb_func_t db_cb_fn, void *db_cb_arg);
 
 /** function prototype to determine if a deleted entry must be inserted to SOFTRM table
@@ -152,6 +153,10 @@ typedef struct sm_instance
     const status_manager_t *sm;
     /** instance index: useful for status attribute index. */
     unsigned int smi_index;
+
+    /** status manager global context */
+    void        *context;
+
 } sm_instance_t;
 
 /** number of loaded status manager instances */

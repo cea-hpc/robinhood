@@ -432,18 +432,23 @@ static int TerminateScan(int scan_complete, time_t end)
 
     if (scan_complete && !EMPTY_STRING(fs_scan_config.completion_command))
     {
-        const char *vars[] = {
-            "cfg", config_file_path(),
-            "fspath", global_config.fs_path,
-            NULL, NULL
-        };
+        char  *descr = NULL;
+        gchar *cmd = NULL;
 
-        /* replace special args in completion command */
-        char * cmd = replace_cmd_parameters(fs_scan_config.completion_command, vars);
+        /* substitute special args in completion command.
+         * only use global std parameters (no entry attrs, nor action params,
+         * nor additional specific parameters).
+         */
+        asprintf(&descr, "scan completion command '%s'",
+                 fs_scan_config.completion_command);
+
+        cmd = subst_params(fs_scan_config.completion_command, descr,
+                           NULL, NULL, NULL, NULL, true);
+        free(descr);
         if (cmd)
         {
             execute_shell_command(true, cmd, 0);
-            free(cmd);
+            g_free(cmd);
         }
     }
 

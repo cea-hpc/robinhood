@@ -98,29 +98,62 @@ struct serialize_args {
     rbh_param_flags_e        flags;
 };
 
+/** escape the given delimiter in source string */
+static char *escape_delim(char *str, char delim, bool *free_it)
+{
+    char *c;
+
+    if (strchr(str, delim) == NULL)
+    {
+        *free_it = false;
+        return str;
+    }
+
+    c = malloc(2 * strlen(str) + 1);
+    strcpy(c, str);
+    str = c;
+    *free_it = true;
+
+    while ((c = strchr(c, delim)) != NULL)
+    {
+        /* shift the end of the string (including delimiter) */
+        memmove(c + 1, c, strlen(c) + 1);
+        /* escape it */
+        *c = '\\';
+        c += 2;
+    }
+
+    return str;
+}
+
 /** append a parameter to a CSV parameter serialization */
 static int param2csv(const char *key, const char *val, void *udata)
 {
     struct serialize_args *args = (struct serialize_args *)udata;
+    bool free_key = false;
+    bool free_val = false;
 
     /* skip ignored attrs */
     if (rbh_param_get(args->exclude_set, key) != NULL)
         return 0;
 
-    /* don't allow commas for CSV output */
-    if (strchr(val, ',') != NULL || (strchr(key, ',') != NULL))
-    {
-        DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: comma is not allowed in "
-                   "parameter values when dumping to CSV: parameter '%s', "
-                   "value '%s'", key, val);
-        return -EINVAL;
-    }
+    /* if there is a comma in key or value, escape it */
+    key = escape_delim((char *)key, ',', &free_key);
+    val = escape_delim((char *)val, ',', &free_val);
 
+   /* add comma delimiter if needed */
     if (!GSTRING_EMPTY(args->out_str))
         g_string_append(args->out_str,
                         (args->flags & RBH_PARAM_COMPACT) ? "," : ", ");
 
+    /* append key=value */
     g_string_append_printf(args->out_str, "%s=%s", key, val);
+
+    if (free_key)
+        free((char *)key);
+    if (free_val)
+        free((char *)val);
+
     return 0;
 }
 
@@ -148,6 +181,12 @@ int rbh_params_foreach(const struct rbh_params *params, rbh_params_iter_t cb,
     gpointer        key;
     gpointer        value;
     int             rc = 0;
+
+    if (params == NULL)
+        return -EINVAL;
+
+    if (params->param_set == NULL)
+        return 0;
 
     g_hash_table_iter_init(&iter, params->param_set);
     while (g_hash_table_iter_next(&iter, &key, &value)) {

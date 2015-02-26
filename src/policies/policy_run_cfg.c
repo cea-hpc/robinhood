@@ -870,6 +870,8 @@ static int polrun_reload(const char *blkname, policy_run_config_t *cfg_tgt,
 // FIXME can change action functions, but not cmd string
 //    if (strcmp(cfg_new->default_action, cfg_tgt->default_action))
 //        NO_PARAM_UPDT_MSG(blkname, "default_action");
+//  TODO parse action and action_params
+//       and set params_attr_mask accordingly.
 
     if (cfg_tgt->lru_sort_attr != cfg_new->lru_sort_attr)
         NO_PARAM_UPDT_MSG(blkname, "lru_sort_attr");

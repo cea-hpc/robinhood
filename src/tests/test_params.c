@@ -117,12 +117,24 @@ int main(int argc, char **argv)
     g_string_assign(dump, "");
     rbh_params_free(&e);
 
-    /* dump to CSV with a comma in values (should fail) */
+    /* dump to CSV with a comma in values (comma should be escaped) */
     if (rbh_param_set(&p, "key", "val,ue", false))
         abort();
-    if (rbh_params_serialize(&p, dump, NULL, RBH_PARAM_CSV | RBH_PARAM_COMPACT)
-            != -EINVAL)
+    if (rbh_params_serialize(&p, dump, NULL, RBH_PARAM_CSV | RBH_PARAM_COMPACT))
         abort();
+    if (!strstr(dump->str, "\\,"))
+        abort();
+    g_string_assign(dump, "");
+    rbh_params_free(&p);
+
+    /* dump to CSV with a comma in key (comma should be escaped) */
+    if (rbh_param_set(&p, "ke,y", "value", false))
+        abort();
+    if (rbh_params_serialize(&p, dump, NULL, RBH_PARAM_CSV | RBH_PARAM_COMPACT))
+        abort();
+    if (!strstr(dump->str, "\\,"))
+        abort();
+    g_string_assign(dump, "");
     rbh_params_free(&p);
 
     /* stress tests */
@@ -170,6 +182,8 @@ int main(int argc, char **argv)
     /* dump to CSV (non compact) */
     if (rbh_params_serialize(&p, dump, NULL, RBH_PARAM_CSV))
         abort();
+    /* truncate output at 1024 char */
+    printf("%.*s...\n", 1024, dump->str);
     /* compact: space expected after comma */
     if (!strstr(dump->str, ", "))
         abort();

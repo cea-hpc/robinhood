@@ -95,13 +95,13 @@ static backup_config_t config;
  */
 
 static int backup_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                       const char *hints, post_action_e *after,
+                       const action_params_t *params, post_action_e *after,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
-    int flags = hints2flags(hints);
+    copy_flags_e flags = params2flags(params);
     /* flags for restore vs. flags for archive */
-    int oflg = (flags & COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
     /* actions expect to get a source path in 'fullpath' and
      * targetpath in 'backendpath' */
@@ -115,7 +115,7 @@ static int backup_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     }
 
     rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & COPYBACK), flags);
+                      oflg, !(flags & CP_COPYBACK), flags);
 
     *after = PA_UPDATE;
     return rc;
@@ -1489,34 +1489,20 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
 }
 
 /** run a shell command to perform the copy */
-static int backup_command(const char *cmd_in,
-                          const entry_id_t *p_id, const char *fspath,
-                          const char *backendpath, const char *hints)
+static int backup_command(const char *cmd_in, const entry_id_t *p_id,
+                          const attr_set_t *p_attrs,
+                          const action_params_t *params)
 {
-    char strfid[RBH_FID_LEN];
-    char *cmd;
+    gchar *cmd;
     int rc = 0;
 
-    snprintf(strfid, sizeof(RBH_FID_LEN), DFID, PFID(p_id));
-
-    const char *vars[] = {
-        "path", fspath,
-        "fullpath", fspath, /* bot path and fullpath are allowed */
-        "targetpath", fspath,
-        "backendpath", fspath, /* bot targetpath and backendpath are allowed */
-        "fsname", get_fsname(),
-        "fid", strfid,
-        "hints", hints,
-        NULL, NULL
-    };
-
-    cmd = replace_cmd_parameters(cmd_in, vars);
+    cmd = subst_params(cmd_in, "backup command", p_id, p_attrs, params, NULL, true);
     if (cmd != NULL)
     {
         /* call custom purge command instead of unlink() */
         DisplayLog(LVL_DEBUG, RBHEXT_TAG, "cmd(%s)", cmd);
         rc =  execute_shell_command(true, cmd, 0);
-        free(cmd);
+        g_free(cmd);
     }
     else
         rc = errno;
@@ -1577,7 +1563,7 @@ static void path_restore(struct attr_save *save, attr_set_t *p_attrs)
 static int wrap_file_copy(sm_instance_t *smi,
                           const entry_id_t *p_id, attr_set_t *p_attrs,
                           const char *srcpath, const char *bkpath, bool bk_moved,
-                          const char *hints, const policy_action_t *action,
+                          const action_params_t *params, const policy_action_t *action,
                           post_action_e *after, db_cb_func_t db_cb_fn,
                           void *db_cb_arg)
 {
@@ -1600,28 +1586,29 @@ static int wrap_file_copy(sm_instance_t *smi,
     }
 #endif
 
+    /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath'
+     * So, build a fake attribute set with these values */
+    path_replace(&sav, p_attrs, srcpath, tmp);
+
     switch(action->type)
     {
         case ACTION_COMMAND:
-            rc = backup_command(action->action_u.command, p_id, srcpath, tmp, hints);
+            rc = backup_command(action->action_u.command, p_id, p_attrs, params);
             break;
 
         case ACTION_FUNCTION:
-            /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath'
-             * so, build a fake attribute set with these values */
-            path_replace(&sav, p_attrs, srcpath, tmp);
-
-            rc = action->action_u.function(p_id, p_attrs, hints, after, db_cb_fn, db_cb_arg);
-
-            /* restore real entry attributes */
-            path_restore(&sav, p_attrs);
+            rc = action->action_u.function(p_id, p_attrs, params, after, db_cb_fn, db_cb_arg);
             break;
 
         case ACTION_NONE:
             /* NOOP */
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, "copy(%s->%s): noop", srcpath, tmp);
             rc = 0;
+            break;
     }
+
+    /* restore real entry attributes */
+    path_restore(&sav, p_attrs);
 
     if (rc)
     {
@@ -1730,7 +1717,7 @@ static int wrap_file_copy(sm_instance_t *smi,
 /** Wrap command execution */
 static int backup_executor(sm_instance_t *smi, const policy_action_t *action,
                            const entry_id_t *p_id, attr_set_t *p_attrs,
-                           const char *hints, post_action_e *after,
+                           const action_params_t *params, post_action_e *after,
                            db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
@@ -1764,7 +1751,7 @@ static int backup_executor(sm_instance_t *smi, const policy_action_t *action,
 
     /* run the copy action */
     if (entry_type == TYPE_FILE)
-        rc = wrap_file_copy(smi, p_id, p_attrs, fspath, bkpath, bk_moved, hints,
+        rc = wrap_file_copy(smi, p_id, p_attrs, fspath, bkpath, bk_moved, params,
                             action, after, db_cb_fn, db_cb_arg);
     else if (entry_type == TYPE_LINK)
         rc = backup_symlink(smi, p_attrs, fspath, bkpath);
@@ -1783,7 +1770,7 @@ static int backup_executor(sm_instance_t *smi, const policy_action_t *action,
  * \retval  -EINVAL empty path provided
  */
 static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
-                         const char *hints, post_action_e *what_after,
+                         const action_params_t *params, post_action_e *what_after,
                          db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
@@ -2131,34 +2118,38 @@ static recov_status_t recov_file(const entry_id_t *p_id,
     if (!*no_copy)
     {
         struct attr_save sav = {0};
-        /* at least strlen('compress' + ',' + 'copyback' + '\0') = 18 */
-        char recov_hints[32];
-        post_action_e dummy_after;
+        action_params_t  recov_params = {0};
+        post_action_e    dummy_after;
 
-        /* In any case, append 'copyback' hint.
-         * If compression is enabled, append 'compress' hint.  */
-        strcpy(recov_hints, "copyback");
-        if (*compressed)
-            strcat(recov_hints, ",compress");
+        /* In any case, set 'copyback' param. */
+        if (rbh_param_set(&recov_params, "copyback", "1", false))
+        {
+            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: failed to set action param 'copyback'");
+            return RS_ERROR;
+        }
+        /* If compression is enabled, append 'compress' param.  */
+        if (rbh_param_set(&recov_params, "compress", "1", false))
+        {
+            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: failed to set action param 'compress'");
+            return RS_ERROR;
+        }
+
+        /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath'
+         * so, build a fake attribute set with these values */
+        path_replace(&sav, attrs, backend_path, fspath);
 
         switch(config.recovery_action.type)
         {
             case ACTION_COMMAND:
                 /* source is backend, target is filesystem */
                 rc = backup_command(config.recovery_action.action_u.command,
-                                    p_id, backend_path, fspath, recov_hints);
+                                    p_id, attrs, &recov_params);
                 break;
 
             case ACTION_FUNCTION:
-                /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath'
-                 * so, build a fake attribute set with these values */
-                path_replace(&sav, attrs, backend_path, fspath);
-
                 rc = config.recovery_action.action_u.function(p_id, attrs,
-                                        recov_hints, &dummy_after, NULL, NULL);
+                                       &recov_params, &dummy_after, NULL, NULL);
 
-                /* restore real entry attributes */
-                path_restore(&sav, attrs);
                 break;
 
             case ACTION_NONE:
@@ -2168,6 +2159,9 @@ static recov_status_t recov_file(const entry_id_t *p_id,
                 rc = 0;
                 break;
         }
+        /* restore real entry attributes */
+        path_restore(&sav, attrs);
+
         if (rc)
             return RS_ERROR;
 

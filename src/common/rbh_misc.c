@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2004-2009 CEA/DAM
+ * Copyright (C) 2004-2015 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -1916,12 +1916,12 @@ void rh_sleep( unsigned int seconds )
    }
 }
 
-/** replace a pattern in a string with another sub-string
+/** Substitute a pattern in a string with another sub-string
  * \param str_in_out must be large enough to receive
  *  the resulting string, and cannot exceed 1024.
  */
-int str_replace( char * str_in_out, const char * to_be_replaced,
-                 const char * replacement )
+int str_subst(char *str_in_out, const char *to_be_replaced,
+              const char *replacement)
 {
     size_t len_from = strlen(to_be_replaced);
     size_t len_to = strlen(replacement);
@@ -2165,110 +2165,22 @@ char *quote_shell_arg(const char *arg)
     return quoted;
 }
 
-/**
- * Replace special parameters {cfgfile}, {fspath}, ...
- * in the given cmd line.
- * Result string is allocated using malloc()
- * and must be released using free().
- * \param replace_array char** of param1, value1, param2, value2, ..., NULL, NULL
- */
-char *replace_cmd_parameters(const char *cmd_in, const char **replace_array)
-{
-#define CMDPARAMS "CmdParams"
-    int i;
-    char *pass_begin = NULL;
-    char *begin_var;
-    char *end_var;
-    char *quoted_arg;
-    const char *var_value;
-
-    pass_begin = strdup(cmd_in);
-    if (!pass_begin)
-        return NULL;
-
-    do
-    {
-        char * new_str = NULL;
-
-        /* look for a variable */
-        begin_var = strchr( pass_begin, '{' );
-
-        /* no more variables */
-        if ( !begin_var )
-            break;
-
-        *begin_var = '\0';
-        begin_var++;
-
-        /* get matching '}' */
-        end_var = strchr( begin_var, '}' );
-        if (!end_var)
-        {
-            DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unmatched '{' in command parameters '%s'", cmd_in);
-            free(pass_begin);
-            errno = EINVAL;
-            return NULL;
-        }
-
-        *end_var = '\0';
-        end_var++;
-
-        var_value = NULL;
-
-        /* compute final length, depending on variable name */
-        for (i = 0; replace_array[i] != NULL; i += 2)
-        {
-            const char *param = replace_array[i];
-            const char *value = replace_array[i+1];
-
-            if (!strcasecmp(begin_var, param))
-            {
-                var_value = value;
-                break;
-            }
-        }
-
-        if (var_value == NULL)
-        {
-            DisplayLog(LVL_CRIT,CMDPARAMS, "ERROR: unknown parameter '%s' in command parameters '%s'", begin_var, cmd_in);
-            errno = EINVAL;
-            goto err_free;
-        }
-
-        quoted_arg = quote_shell_arg(var_value);
-        if (!quoted_arg)
-            goto err_free;
-
-        /* allocate a new string */
-        new_str = malloc(strlen(pass_begin) + strlen(quoted_arg) +
-                         strlen(end_var) + 1);
-        if (!new_str)
-            goto err_free_quoted;
-
-        sprintf(new_str, "%s%s%s", pass_begin, quoted_arg, end_var);
-
-        free(pass_begin);
-        free(quoted_arg);
-        pass_begin = new_str;
-
-    } while(1);
-
-    return pass_begin;
-
-err_free_quoted:
-    free(quoted_arg);
-err_free:
-    free(pass_begin);
-    return NULL;
-}
-
 void upperstr(char *str)
 {
     int i = 0;
 
-    for(i = 0; str[i]; i++)
+    for (i = 0; str[i]; i++)
        str[i] = toupper(str[i]);
 }
+
+void lowerstr(char *str)
+{
+    int i = 0;
+
+    for (i = 0; str[i]; i++)
+       str[i] = tolower(str[i]);
+}
+
 
 int path2id(const char *path, entry_id_t *id, const struct stat *st)
 {

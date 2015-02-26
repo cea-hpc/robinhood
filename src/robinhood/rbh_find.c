@@ -891,11 +891,12 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             "", id->fullname,
             NULL, NULL
         };
-        char * cmd = replace_cmd_parameters(prog_options.exec_cmd, vars);
+        gchar *cmd = subst_params(prog_options.exec_cmd, "exec option",
+                                  &id->id, attrs, NULL, vars, true);
         if (cmd)
         {
             execute_shell_command(false, cmd, 0);
-            free(cmd);
+            g_free(cmd);
         }
     }
 

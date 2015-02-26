@@ -43,6 +43,11 @@
 #define OLD_POLICIES_BLOCK    "policies"
 #define POLICIES_BLOCK        "rules"
 
+#define OLD_ACT_PARAMS        "hints"
+#define ACT_PARAMS            "action_params"
+#define OLD_ACT_PARAMS_SFX    "_"OLD_ACT_PARAMS
+#define ACT_PARAMS_SFX        "_"ACT_PARAMS
+
 #define IGNORE_BLOCK          "ignore"
 #define IGNORE_FC             "ignore_fileclass"
 #define CONDITION_BLOCK       "condition"
@@ -66,12 +71,12 @@ policies_t policies = {0};
                                     }\
                                 } while (0)
 
-#define critical_err_check_goto(_ptr_, _blkname_, _label) do { if (!_ptr_) {\
-                                        sprintf(msg_out, "Internal error reading %s block in config file", _blkname_); \
-                                        rc = EFAULT; \
-                                        goto _label; \
-                                    }\
-                                } while (0)
+#define critical_err_check_goto(_ptr_, _blkname_, _rc, _label) \
+            do { if (!_ptr_) {\
+                               sprintf(msg_out, "Internal error reading %s block in config file", _blkname_); \
+                               (_rc) = EFAULT; \
+                               goto _label; \
+                             }} while (0)
 
 /**
  * Compare 2 boolean expressions
@@ -401,6 +406,8 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
         rh_strncpy(policy->default_action.action_u.command, extra[0],
                    sizeof(policy->default_action.action_u.command));
         policy->default_action.type = ACTION_COMMAND;
+
+        /** @TODO get parameter mask from action */
     }
     else
     {
@@ -854,11 +861,15 @@ static int write_template_filesets(FILE * output)
     print_end_block(output, 2);
 
 #ifdef HAVE_MIGR_POLICY
-    print_line(output, 2, "migration_hints = \"cos=3,class={FileClass},priority=2\" ;");
+    print_line(output, 2, "# arbitrary parameters to pass to the migration command");
+    print_line(output, 2, "migration_action_params {");
+    print_line(output, 2, "    cos      = 3;");
+    print_line(output, 2, "    priority = 2;");
+    print_line(output, 2, "}");
 #endif
 #ifdef _LUSTRE_HSM
     print_line(output, 2, "# target archive");
-    print_line(output, 2, "lhsm_archive_hints = \"archive_id=1\" ;");
+    print_line(output, 2, "lhsm_archive_params { archive_id = 1; }");
 #endif
     print_end_block(output, 1);
 
@@ -873,12 +884,16 @@ static int write_template_filesets(FILE * output)
     print_end_block(output, 2);
 
 #ifdef HAVE_MIGR_POLICY
-    print_line(output, 2, "migration_hints = \"cos=4,class={Fileclass},priority=5\";");
+    print_line(output, 2, "# arbitrary parameters to pass to the migration command");
+    print_line(output, 2, "migration_action_params {");
+    print_line(output, 2, "    cos      = 4;");
+    print_line(output, 2, "    priority = 5;");
+    print_line(output, 2, "}");
 #endif
 #ifdef _LUSTRE_HSM
     fprintf(output, "\n");
     print_line(output, 2, "# target archive");
-    print_line(output, 2, "lhsm_archive_hints = \"archive_id=2\" ;");
+    print_line(output, 2, "lhsm_archive_action_params { \"archive_id=2\" ; }");
 #endif
     print_end_block(output, 1);
     fprintf(output, "\n");
@@ -1156,154 +1171,575 @@ static int write_purge_policy_template(FILE * output)
 #endif /* purge policy */
 #endif /* 0 */
 
-/* get attribute mask for hints */
-static int hints_mask(const char *hints)
+/** duplicate a string and convert it to lower case */
+static char *strdup_lower(const char *str)
 {
-    int mask = 0;
-    const char *pass_begin = hints;
-    const char *begin_var;
-    const char *end_var;
-    char varname[128];
+    char *out;
 
-    do
-    {
-        /* look for a variable */
-        begin_var = strchr(pass_begin, '{');
+    out = strdup(str);
+    if (!out)
+        return NULL;
 
-        /* no more variables */
-        if (!begin_var)
-            break;
+    /* convert to lower case */
+    lowerstr(out);
 
-        /* get matching '}' */
-        end_var = strchr(begin_var, '}');
-        if (!end_var)
-        {
-           DisplayLog(LVL_CRIT,CHK_TAG, "ERROR: unmatched '{' in policy hints '%s'", hints);
-           return -1;
-        }
-
-        memset(varname, 0, sizeof(varname));
-        strncpy(varname, begin_var+1, end_var-begin_var-1);
-
-        if (!strcasecmp(varname, "path"))
-           mask |= ATTR_MASK_fullpath;
-        else if (!strcasecmp(varname, "name"))
-           mask |= ATTR_MASK_name;
-        else if (!strcasecmp(varname, "ost_pool"))
-           mask |= ATTR_MASK_stripe_info;
-        else if (strcasecmp(varname, "policy") &&
-                 strcasecmp(varname, "fileclass"))
-        {
-            DisplayLog(LVL_CRIT,CHK_TAG, "ERROR: unknown parameter '%s' in hints '%s'", varname, hints);
-            return -EINVAL;
-        }
-
-        pass_begin = end_var + 1;
-
-    } while(1);
-
-    return mask;
-
+    return out;
 }
 
-/* add hints for the given policy and fileset */
-static int append_policy_hint(fileset_item_t *fset, policy_descr_t *p,
-                              const char *hint, char *msg_out, int cfg_line)
+action_params_t *get_fileset_policy_params(const fileset_item_t *fileset,
+                                           const char *policy_name)
 {
-    int i, m;
+    action_params_t *params;
+    char *key;
 
-    /* get attribute mask for this hint */
-    m = hints_mask(hint);
-    if (m < 0)
-        return EINVAL;
+    if (fileset->policy_action_params == NULL)
+        return NULL;
 
-    fset->hints_attr_mask |= m;
-    p->rules.run_attr_mask |= m;
+    /* convert policy name to lower case */
+    key = strdup_lower(policy_name);
+    params = g_hash_table_lookup(fileset->policy_action_params, key);
+    free(key);
 
-    /* is there already a hint for this policy? */
-    for (i = 0; i < fset->hints_count; i++)
+#ifdef _DEBUG_POLICIES
+    fprintf(stderr, "Founds parameters for policy '%s' in fileset '%s'\n",
+            policy_name, fileset->fileset_id);
+#endif
+
+    return params;
+}
+
+/**
+ * Get an allocated action_params the given fileset and policy.
+ * @retval NULL if memory allocation fails.
+ */
+static action_params_t *alloc_policy_params(fileset_item_t *fset,
+                                            const char *policy_name,
+                                            char *msg_out)
+{
+    action_params_t *params = NULL;
+
+    if (fset->policy_action_params == NULL)
     {
-        if (fset->action_hints[i].policy == p)
-        {
-            /* append ',' + hint */
-            int prev_len = strlen(fset->action_hints[i].hint_str);
+        /* allocate an empty hash table */
+        fset->policy_action_params = g_hash_table_new_full(
+                                               g_str_hash, g_str_equal, free,
+                                               (GDestroyNotify)rbh_params_free);
 
-            if (snprintf(fset->action_hints[i].hint_str + prev_len,
-                         HINTS_LEN - prev_len, ",%s", hint) >= HINTS_LEN - prev_len)
-            {
-                sprintf(msg_out, "String too long for %s_hints line %d (max: %d).",
-                        p->name, cfg_line, HINTS_LEN);
-                return EOVERFLOW;
-            }
-            return 0;
+        if (fset->policy_action_params == NULL)
+            return NULL;
+    }
+    else
+        params = get_fileset_policy_params(fset, policy_name);
+
+    if (params == NULL)
+    {
+        /* allocate and add parameters for this policy, if they don't exist */
+        params = calloc(1, sizeof(action_params_t));
+        if (!params)
+            return NULL;
+
+#ifdef _DEBUG_POLICIES
+        fprintf(stderr, "Creating parameters for policy '%s' in fileset '%s'\n",
+                policy_name, fset->fileset_id);
+#endif
+        g_hash_table_insert(fset->policy_action_params,
+                            strdup_lower(policy_name), params);
+    }
+
+    return params;
+}
+
+/**
+ * Check if a policy name exists in a given policy set.
+ * @param[in]  p_pols the list of policies to search in
+ * @param[in]  name   the policy name to search for
+ * @param[out] index  index of the matching policy in the given list
+ */
+static bool _policy_exists(const policies_t *p_pols, const char *name, int *index)
+{
+    int i;
+
+    for (i = 0; i < p_pols->policy_count; i++)
+    {
+        if (!strcasecmp(name, p_pols->policy_list[i].name))
+        {
+            if (index != NULL)
+                *index = i;
+            return true;
         }
     }
-    /* not found, must increase hint list */
-    fset->action_hints = (action_hint_t *)realloc(fset->action_hints,
-                        (fset->hints_count + 1)* sizeof(action_hint_t));
-    if (fset->action_hints == NULL)
+    return false;
+}
+
+/** Search for a policy name in the global (current) list */
+bool policy_exists(const char *name, int *index)
+{
+    return _policy_exists(&policies, name, index);
+}
+
+/**
+ * Fill a action_params_t structure from a config block.
+ * @param[in]     param_block the action_params configuration block.
+ * @param[in,out] params      pointer to action_params_t to be filled.
+ * @param[in,out] mask        pointer to the attribute mask of placeholders
+ *                            in action param values.
+ */
+static int set_action_params(config_item_t param_block, action_params_t *params,
+                             uint64_t *mask, char *msg_out)
+{
+    int i, rc;
+
+    /* iterate on key/values of an action_params block */
+    for (i = 0; i < rh_config_GetNbItems(param_block); i++)
     {
-        strcpy(msg_out, "Cannot allocate memory");
-        return ENOMEM;
+        config_item_t  sub_item = rh_config_GetItemByIndex(param_block, i);
+        char          *subitem_name;
+        char          *value;
+        char          *descr;
+        uint64_t       m;
+        int            extra = 0;
+
+        rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra);
+        if (rc)
+            return rc;
+        if (extra)
+        {
+                sprintf(msg_out, "Unexpected extra argument for parameter '%s' in %s, line %u.",
+                        subitem_name, rh_config_GetBlockName(param_block),
+                        rh_config_GetItemLine(sub_item));
+                return EINVAL;
+        }
+
+#ifdef _DEBUG_POLICIES
+        fprintf(stderr, "adding parameter[%d]: '%s'\n", i, subitem_name);
+#endif
+
+        /* add param to the list (don't allow duplicates) */
+        rc = rbh_param_set(params, subitem_name, value, false);
+        if (rc)
+        {
+            if (rc == -EEXIST)
+                sprintf(msg_out, "Duplicate key '%s' in block %s, line %d.",
+                        subitem_name, rh_config_GetBlockName(param_block),
+                        rh_config_GetItemLine(sub_item));
+            else
+                sprintf(msg_out, "Failed to set key %s: %s", subitem_name,
+                        strerror(-rc));
+            return -rc;
+        }
+
+        /* build description (for logging purpose) */
+        if (asprintf(&descr, "%s::%s parameter, line %d",
+                     rh_config_GetBlockName(param_block), subitem_name,
+                     rh_config_GetItemLine(sub_item)) < 0)
+            return ENOMEM;
+
+        /* Get attribute mask for this parameter, in case it contains attribute
+         * placeholder */
+        m = params_mask(value, descr);
+        free(descr);
+        if (m == (uint64_t)-1LL)
+        {
+            sprintf(msg_out, "Unexpected parameters in %s, line %u.",
+                    rh_config_GetBlockName(param_block),
+                    rh_config_GetItemLine(sub_item));
+            return EINVAL;
+        }
+        *mask |= m;
     }
 
-    fset->hints_count++;
-    i = fset->hints_count-1;
-    fset->action_hints[i].policy = p;
-    if (strlen(hint) > HINTS_LEN)
-    {
-        sprintf(msg_out, "String too long for %s_hints line %d (max: %d).",
-                p->name, cfg_line, HINTS_LEN);
-        return EOVERFLOW;
-    }
-    strcpy(fset->action_hints[i].hint_str, hint);
     return 0;
 }
 
-/** test if the variable name is a policy hint */
-static inline bool match_policy_action_hints(const char *s)
+
+/** read a <policy>_action_params block in a fileset */
+static int read_fset_action_params(config_item_t param_block, const char *blk_name,
+                                   fileset_item_t *fset, policies_t *p_pols,
+                                   char *msg_out)
 {
-    return !fnmatch("*_hints", s, FNM_CASEFOLD);
+    int    rc = 0;
+    char  *pol_name;
+    int    pol_idx;
+    size_t sfx_len = strlen(ACT_PARAMS_SFX);
+    size_t blk_len = strlen(blk_name);
+    action_params_t *params;
+
+    if (blk_len < sfx_len)
+    {
+        sprintf(msg_out, "unexpected block name '%s' in this context, line %d: "
+                         "<policy_name>%s expected", blk_name,
+                         rh_config_GetItemLine(param_block), ACT_PARAMS_SFX);
+        return EINVAL;
+    }
+
+    /* parse the name to get the related param structure */
+    pol_name = strdup(blk_name);
+    if (pol_name == NULL)
+    {
+        strcpy(msg_out, "could not allocate memory");
+        return ENOMEM;
+    }
+
+    /* truncate ACT_PARAMS_SFX:
+     * 'xxxxx_yy': len=8, sfx_len=3
+     * zero str[5]=str[8-3]
+     */
+    pol_name[blk_len - sfx_len] = '\0';
+
+    pol_idx = -1;
+    if (!_policy_exists(p_pols, pol_name, &pol_idx) || pol_idx == -1)
+    {
+        sprintf(msg_out, "No declaration found for policy '%s' "
+                "while processing block '%s' line %d.", pol_name, blk_name,
+                rh_config_GetItemLine(param_block));
+        rc = ENOENT;
+        goto out_free;
+    }
+
+    params = alloc_policy_params(fset, pol_name, msg_out);
+    if (params == NULL) {
+        rc = ENOMEM;
+        goto out_free;
+    }
+
+#ifdef _DEBUG_POLICIES
+    fprintf(stderr, "processing parameters '%s' for fileset '%s'\n", pol_name, fset->fileset_id);
+#endif
+
+    rc = set_action_params(param_block, params,
+                           &p_pols->policy_list[pol_idx].rules.run_attr_mask,
+                           msg_out);
+
+out_free:
+    free(pol_name);
+    return rc;
 }
 
-/** parse and check a policy action hint from a fileset config item */
-static int parse_policy_action_hints(policies_t *p_policies, const char *hint_name,
-                                     const char *value, fileset_item_t *curr_fset,
-                                     char *msg_out, int cfg_line)
+/**
+ * Read a [<policy>_]action_params block in a policy or a rule.
+ * @param param_block   The configuration block to read from.
+ * @param blk_name      Name of the configuration block.
+ * @param policy        Name of the current policy.
+ * @param params        The action_param struct to be filled.
+ * @param[in,out] mask  Pointer to the attribute mask of placeholders
+ *                      in action param values.
+ * @param msg_out       Set to detailed error message in case of error.
+ */
+static int read_policy_action_params(config_item_t param_block,
+                                     const char *blk_name,
+                                     const char *policy_name,
+                                     action_params_t *params,
+                                     uint64_t *mask,
+                                     char *msg_out)
 {
-#define MAX_HINT_NAME_LEN 1024
-    char buff[MAX_HINT_NAME_LEN];
-    char *c;
-    int i;
+    int      rc = 0;
 
-    rh_strncpy(buff, hint_name, MAX_HINT_NAME_LEN);
-    c = strrchr(buff, '_');
-    if (c == NULL)
-        RBH_BUG("parse_policy_action_hints() called for an item that doesn't satisfy match_policy_action_hints()");
-    *c = '\0';
-    /* check the policy name exists */
-    for (i = 0; i < p_policies->policy_count; i++)
+    /* Check block name: allowed values are 'action_params'
+     * and '<policy>_action_params. */
+    if (strcasecmp(blk_name, ACT_PARAMS) != 0)
     {
-        if (!strcasecmp(p_policies->policy_list[i].name, buff))
-            return append_policy_hint(curr_fset, &p_policies->policy_list[i],
-                                      value, msg_out, cfg_line);
+        char *expected;
+
+        if (asprintf(&expected, "%s"ACT_PARAMS_SFX, policy_name) < 0)
+            return -ENOMEM;
+
+        /* expected: <policy>_action_params */
+        rc = strcasecmp(blk_name, expected);
+        free(expected);
+
+        if (rc != 0)
+        {
+            sprintf(msg_out, "Unexpected block name '%s' (line %u): "ACT_PARAMS
+                    " or %s"ACT_PARAMS_SFX" expected.", blk_name,
+                     rh_config_GetItemLine(param_block), policy_name);
+            return EINVAL;
+        }
     }
-    sprintf(msg_out, "No policy declaration found matching policy '%s', processing parameter '%s' line %d.",
-            buff, hint_name, cfg_line);
-    return ENOENT; /* policy not found */
+
+#ifdef _DEBUG_POLICIES
+    fprintf(stderr, "processing parameters for policy '%s'\n", policy_name);
+#endif
+
+    return set_action_params(param_block, params, mask, msg_out);
+}
+
+
+/** test if the variable name is a policy hint (deprecated) */
+static inline bool match_policy_action_hints(const char *s)
+{
+    return !fnmatch("*"OLD_ACT_PARAMS_SFX, s, FNM_CASEFOLD)
+           || !strcasecmp(s, OLD_ACT_PARAMS);
+}
+
+/** test if the variable name is a policy action params */
+static inline bool match_policy_action_params(const char *s)
+{
+    return !fnmatch("*"ACT_PARAMS_SFX, s, FNM_CASEFOLD)
+           || !strcasecmp(s, ACT_PARAMS);
+}
+
+static void free_fileclass(fileset_item_t *fset)
+{
+    /* free fileset definition */
+    FreeBoolExpr(&fset->definition, false);
+
+    /* free action params */
+    if (fset->policy_action_params != NULL)
+    {
+        g_hash_table_destroy(fset->policy_action_params);
+        fset->policy_action_params = NULL;
+    }
 }
 
 static void free_filesets(policies_t *p_policies)
 {
     int i;
+
     for (i = 0; i < p_policies->fileset_count; i++)
-    {
-        if(p_policies->fileset_list[i].action_hints != NULL)
-            free(p_policies->fileset_list[i].action_hints);
-    }
+        free_fileclass(&p_policies->fileset_list[i]);
+
     free(p_policies->fileset_list);
     p_policies->fileset_list = NULL;
     p_policies->fileset_count = 0;
+}
+
+/** get fileset from name (iterate up to count) */
+static fileset_item_t *_get_fileset_by_name_max(const policies_t *p_policies,
+                                                const char *name, int count)
+{
+    int i;
+
+    for (i = 0; i < count; i++)
+    {
+        if (!strcasecmp(p_policies->fileset_list[i].fileset_id, name))
+            return &p_policies->fileset_list[i];
+    }
+    return NULL;                /* not found */
+}
+
+fileset_item_t *get_fileset_by_name(const policies_t *p_policies,
+                                    const char *name)
+{
+    return _get_fileset_by_name_max(p_policies, name,
+                                    p_policies->fileset_count);
+}
+
+/** read a fileclass::definition block */
+static int read_fileclass_definition(config_item_t cfg_item,
+                                     fileset_item_t *fset,
+                                     policies_t *p_policies,
+                                     char *msg_out)
+{
+    int rc;
+
+    /* 2 possible definition types expected: boolean expression
+     * or fileset union and/or intersection */
+    switch (rh_config_ContentType(cfg_item))
+    {
+        case CONFIG_ITEM_BOOL_EXPR:
+            /* analyze boolean expression */
+            rc = GetBoolExpr(cfg_item, DEFINITION_BLOCK,
+                             &fset->definition, &fset->attr_mask,
+                             msg_out, NULL);
+            if (rc)
+                return rc;
+            break;
+
+        case CONFIG_ITEM_SET:
+            /* Build a policy boolean expression from a
+             * union/intersection or fileclasses */
+            rc = GetSetExpr(cfg_item, DEFINITION_BLOCK,
+                             &fset->definition, &fset->attr_mask,
+                             p_policies, msg_out);
+            if (rc)
+                return rc;
+            break;
+
+        default:
+            sprintf(msg_out, "Boolean expression or set-based definition "
+                    "expected in block '%s', line %d",
+                    rh_config_GetBlockName(cfg_item),
+                    rh_config_GetItemLine(cfg_item));
+            return EINVAL;
+    }
+
+    p_policies->global_fileset_mask |= fset->attr_mask;
+
+    if (fset->attr_mask & (
+#ifdef ATTR_INDEX_last_archive
+        ATTR_MASK_last_archive |
+#endif
+#ifdef ATTR_INDEX_last_restore
+        ATTR_MASK_last_restore |
+#endif
+        ATTR_MASK_last_access | ATTR_MASK_last_mod))
+    {
+       DisplayLog(LVL_MAJOR, CHK_TAG, "WARNING: in FileClass '%s', line %d: "
+                  "time-based conditions should be specified in policy "
+                  "condition instead of file class definition",
+                  fset->fileset_id, rh_config_GetItemLine(cfg_item));
+    }
+
+    return 0;
+}
+
+/** read a fileclass block */
+static int read_fileclass_block(config_item_t class_cfg, policies_t *p_policies,
+                                int curr_idx, char *msg_out)
+{
+    bool            definition_done = false;
+    const char     *class_name;
+    fileset_item_t *fset;
+    int             i, rc;
+
+    /* get fileclass name */
+    class_name = rh_config_GetBlockId(class_cfg);
+
+    if ((class_name == NULL) || (strlen(class_name) == 0))
+    {
+        sprintf(msg_out, "Fileclass name expected for block "
+                FILESET_BLOCK", line %d. "
+                "e.g. "FILESET_BLOCK" myclass { ...",
+                rh_config_GetItemLine(class_cfg));
+        return EINVAL;
+    }
+
+    /* check that class name is not already used (up to idx-1)*/
+    if (_get_fileset_by_name_max(p_policies, class_name, curr_idx) != NULL)
+    {
+        sprintf(msg_out, "Duplicate fileclass declaration: '%s', line %d.",
+                class_name, rh_config_GetItemLine(class_cfg));
+        return EINVAL;
+    }
+
+    fset = &p_policies->fileset_list[curr_idx];
+
+    rh_strncpy(fset->fileset_id, class_name, FILESET_ID_LEN);
+
+    /* set default */
+    fset->matchable = 1;
+
+    for (i = 0; i < rh_config_GetNbItems(class_cfg); i++)
+    {
+        config_item_t  sub_item = rh_config_GetItemByIndex(class_cfg, i);
+        char          *subitem_name;
+
+        critical_err_check(sub_item, FILESET_BLOCK);
+
+        switch (rh_config_ItemType(sub_item))
+        {
+            case CONFIG_ITEM_BLOCK:
+            {
+                subitem_name = rh_config_GetBlockName(sub_item);
+                critical_err_check(subitem_name, FILESET_BLOCK);
+
+                if (strcasecmp(subitem_name, DEFINITION_BLOCK) == 0)
+                {
+                    /* check double definition */
+                    if (definition_done)
+                    {
+                        sprintf(msg_out, "Double fileclass definition in "
+                                FILESET_BLOCK " block, line %d.",
+                                rh_config_GetItemLine(sub_item));
+                        return EINVAL;
+                    }
+
+                    /* read fileclass definition */
+                    rc = read_fileclass_definition(sub_item, fset,
+                                                   p_policies, msg_out);
+                    if (rc == 0)
+                        definition_done = true;
+                }
+                else if (match_policy_action_params(subitem_name))
+                {
+                    /* read policy action params */
+                    rc = read_fset_action_params(sub_item, subitem_name, fset,
+                                                 p_policies, msg_out);
+                }
+                else
+                {
+                    sprintf(msg_out, "'%s' sub-block unexpected in "
+                            FILESET_BLOCK " block, line %d.",
+                            subitem_name, rh_config_GetItemLine(sub_item));
+                    rc = EINVAL;
+                }
+                if (rc)
+                    return rc;
+
+                break;
+            }
+            case CONFIG_ITEM_VAR:
+            {
+                char          *value = NULL;
+                int            extra_args = 0;
+
+                rc = rh_config_GetKeyValue(sub_item, &subitem_name,
+                                           &value, &extra_args);
+                if (rc)
+                    return rc;
+
+                if (!strcasecmp(subitem_name, "report"))
+                {
+                    if (extra_args)
+                    {
+                        sprintf(msg_out,
+                                "Unexpected arguments for 'report' parameter, line %d.",
+                                rh_config_GetItemLine(sub_item));
+                        return EINVAL;
+                    }
+                    int tmp =str2bool(value);
+                    if (tmp == -1)
+                    {
+                        sprintf(msg_out,
+                                "Boolean expected for 'report' parameter, line %d.",
+                                rh_config_GetItemLine(sub_item));
+                        return EINVAL;
+                    }
+                    p_policies->fileset_list[i].matchable = tmp;
+                }
+                /* manage archive_id deprecation (now in action_params) */
+                else if (!strcasecmp(subitem_name,"archive_id")
+                      || !strcasecmp(subitem_name,"archive_num")) /* for backward compat. */
+                {
+                    sprintf(msg_out, "archive_id parameter (line %u) must be "
+                            "specified in a <policy>_action_params block.",
+                            rh_config_GetItemLine(sub_item));
+                    return EINVAL;
+                }
+                /* is the variable of the form <policy_name>_hints ? */
+                else if (match_policy_action_hints(subitem_name))
+                {
+                    sprintf(msg_out, "line %u: '<policy>_hints' parameters are no longer supported. "
+                            "Define a '<policy>_action_params' block instead.",
+                            rh_config_GetItemLine(sub_item));
+                    return EINVAL;
+                }
+                else
+                {
+                    DisplayLog(LVL_CRIT, "Config Check",
+                                "WARNING: unknown parameter '%s' in block '%s' line %d",
+                                subitem_name, FILESET_BLOCK, rh_config_GetItemLine(sub_item));
+                }
+                break;
+            }
+            default :
+                /* unexpected content */
+                    sprintf(msg_out,
+                             "Unexpected item in "FILESET_BLOCK" block, line %d.",
+                             rh_config_GetItemLine(sub_item));
+                    return EINVAL;
+        } /* switch on item type */
+
+    } /* loop on "fileclass" block contents */
+
+    if (!definition_done)
+    {
+        sprintf(msg_out,
+                "No definition in file class '%s', line %d", class_name,
+                rh_config_GetItemLine(class_cfg));
+        return ENOENT;
+    }
+    return 0;
 }
 
 
@@ -1311,7 +1747,7 @@ static void free_filesets(policies_t *p_policies)
 static int read_filesets(config_file_t config, policies_t *p_policies,
                          char *msg_out)
 {
-    unsigned int   i, j;
+    unsigned int   i;
     int            rc;
 
     /* get Filesets block */
@@ -1342,261 +1778,45 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
 
     for (i = 0; i < p_policies->fileset_count; i++)
     {
-        char          *block_name, *fsname;
-        bool           definition_done;
+        char          *block_name;
         config_item_t  curr_class = rh_config_GetItemByIndex(fileset_block, i);
 
-        critical_err_check_goto(curr_class, FILESETS_SECTION, clean_filesets);
+        critical_err_check_goto(curr_class, FILESETS_SECTION, rc,
+                                clean_filesets);
 
         if (rh_config_ItemType(curr_class) != CONFIG_ITEM_BLOCK)
         {
             strcpy(msg_out,
-                    "Only " FILESET_BLOCK " sub-blocks are expected in " FILESETS_SECTION
-                    " section");
+                   "Only "FILESET_BLOCK" sub-blocks are expected in "
+                   FILESETS_SECTION" section");
             rc = EINVAL;
             goto clean_filesets;
         }
         block_name = rh_config_GetBlockName(curr_class);
-        critical_err_check_goto(block_name, FILESETS_SECTION, clean_filesets);
-
-        definition_done = false;
+        critical_err_check_goto(block_name, FILESETS_SECTION, rc,
+                                clean_filesets);
 
         if (!strcasecmp(block_name, FILESET_BLOCK))
         {
-
-            /* get fileset name */
-            fsname = rh_config_GetBlockId(curr_class);
-
-            if ((fsname == NULL) || (strlen(fsname) == 0))
-            {
-                sprintf(msg_out, "Fileclass name expected for block "
-                         FILESET_BLOCK ", line %d. E.g. " FILESET_BLOCK " user_files { ...",
-                         rh_config_GetItemLine(curr_class));
-                rc = EINVAL;
+            /* read fileclass block contents */
+            rc = read_fileclass_block(curr_class, p_policies, i, msg_out);
+            if (rc)
                 goto clean_filesets;
-            }
-
-            /* check that class name is not already used */
-            for (j = 0; j < i; j++)
-            {
-                if (!strcasecmp(fsname, p_policies->fileset_list[j].fileset_id))
-                {
-                    sprintf(msg_out, "Fileclass '%s' is already defined in block #%d.",
-                            p_policies->fileset_list[j].fileset_id, j + 1);
-                    rc = EINVAL;
-                    goto clean_filesets;
-                }
-            }
-
-            rh_strncpy(p_policies->fileset_list[i].fileset_id, fsname,
-                       FILESET_ID_LEN);
-            /* set default */
-            p_policies->fileset_list[i].matchable = 1;
-
-            /* read file class block content */
-            for (j = 0; j < rh_config_GetNbItems(curr_class); j++)
-            {
-                config_item_t  sub_item = rh_config_GetItemByIndex(curr_class, j);
-                critical_err_check_goto(sub_item, FILESET_BLOCK, clean_filesets);
-                char          *subitem_name;
-
-                switch (rh_config_ItemType(sub_item))
-                {
-                    case CONFIG_ITEM_BLOCK:
-                    {
-                        subitem_name = rh_config_GetBlockName(sub_item);
-                        critical_err_check_goto(subitem_name, FILESET_BLOCK, clean_filesets);
-
-                        if (strcasecmp(subitem_name, DEFINITION_BLOCK) != 0)
-                        {
-                            sprintf(msg_out,
-                                     "'%s' sub-block unexpected in " FILESET_BLOCK " block, line %d.",
-                                     subitem_name, rh_config_GetItemLine(sub_item));
-                            rc = EINVAL;
-                            goto clean_filesets;
-                        }
-
-                        /* check double definition */
-                        if (definition_done)
-                        {
-                            sprintf(msg_out, "Double fileclass definition in "
-                                     FILESET_BLOCK " block, line %d.",
-                                     rh_config_GetItemLine(sub_item));
-                            rc = EINVAL;
-                            goto clean_filesets;
-                        }
-
-                        /* 2 possible definition types expected: boolean expression
-                         * or fileset union and/or intersection */
-                        switch (rh_config_ContentType(sub_item))
-                        {
-                            case CONFIG_ITEM_BOOL_EXPR:
-                                /* analyze boolean expression */
-                                rc = GetBoolExpr(sub_item, DEFINITION_BLOCK,
-                                                 &p_policies->fileset_list[i].definition,
-                                                 &p_policies->fileset_list[i].attr_mask,
-                                                 msg_out, NULL);
-                                if (rc)
-                                    goto clean_filesets;
-                                break;
-
-                            case CONFIG_ITEM_SET:
-                                /* Build a policy boolean expression from a
-                                 * union/intersection or fileclasses */
-                                rc = GetSetExpr(sub_item, DEFINITION_BLOCK,
-                                                 &p_policies->fileset_list[i].definition,
-                                                 &p_policies->fileset_list[i].attr_mask,
-                                                 p_policies, msg_out);
-                                if (rc)
-                                    goto clean_filesets;
-                                break;
-
-                            default:
-                                sprintf(msg_out, "Boolean expression or set-based definition expected in block '%s', "
-                                         "line %d", subitem_name,
-                                         rh_config_GetItemLine((config_item_t) sub_item));
-                                return EINVAL;
-                        }
-
-                        p_policies->global_fileset_mask |= p_policies->fileset_list[i].attr_mask;
-                        definition_done = true;
-
-                        if (p_policies->fileset_list[i].attr_mask & (
-#ifdef ATTR_INDEX_last_archive
-                            ATTR_MASK_last_archive |
-#endif
-#ifdef ATTR_INDEX_last_restore
-                            ATTR_MASK_last_restore |
-#endif
-                            ATTR_MASK_last_access | ATTR_MASK_last_mod))
-                        {
-                           DisplayLog(LVL_MAJOR, CHK_TAG, "WARNING: in FileClass '%s', line %d: "
-                                       "time-based conditions should be specified in policy condition instead of file class definition",
-                                       p_policies->fileset_list[i].fileset_id, rh_config_GetItemLine(sub_item));
-                        }
-                        break;
-                    }
-                    case CONFIG_ITEM_VAR:
-                    {
-                        char          *value = NULL;
-                        int            extra_args = 0;
-
-                        rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra_args);
-                        if (rc)
-                            goto clean_filesets;
-
-                        /* is the variable of the form <policy_name>_hints ? */
-                        if (match_policy_action_hints(subitem_name))
-                        {
-                            if (extra_args)
-                            {
-                                sprintf(msg_out,
-                                        "Unexpected arguments for hints parameter, line %d.",
-                                        rh_config_GetItemLine(sub_item));
-                                rc = EINVAL;
-                                goto clean_filesets;
-                            }
-
-                            rc = parse_policy_action_hints(p_policies, subitem_name,
-                                    value, &p_policies->fileset_list[i], msg_out,
-                                    rh_config_GetItemLine(sub_item));
-                            if (rc)
-                                goto clean_filesets;
-                        }
-                        else if (!strcasecmp(subitem_name, "report"))
-                        {
-                            if (extra_args)
-                            {
-                                sprintf(msg_out,
-                                        "Unexpected arguments for 'report' parameter, line %d.",
-                                        rh_config_GetItemLine(sub_item));
-                                rc = EINVAL;
-                                goto clean_filesets;
-                            }
-                            int tmp =str2bool(value);
-                            if (tmp == -1)
-                            {
-                                sprintf(msg_out,
-                                        "Boolean expected for 'report' parameter, line %d.",
-                                        rh_config_GetItemLine(sub_item));
-                                rc = EINVAL;
-                                goto clean_filesets;
-                            }
-                            p_policies->fileset_list[i].matchable = tmp;
-                        }
-#ifdef _LUSTRE_HSM
-                        /* manage archive_id */
-                        else if (!strcasecmp(subitem_name,"archive_id")
-                            || !strcasecmp(subitem_name,"archive_num")) /* for backward compat. */
-                        {
-                            sprintf(msg_out, "%s parameter is deprecated (line %u). Specify archive_id as policy hint, e.g. <policy>_hints=\"archive_id=<idx>\".",
-                                    subitem_name, rh_config_GetItemLine(sub_item));
-                            rc = EINVAL;
-                            goto clean_filesets;
-                        }
-                        else
-#endif
-                        {
-                            DisplayLog(LVL_CRIT, "Config Check",
-                                        "WARNING: unknown parameter '%s' in block '%s' line %d",
-                                        subitem_name, FILESET_BLOCK, rh_config_GetItemLine(sub_item));
-/*                            sprintf(msg_out,
-                                     "'%s' parameter unexpected in " FILESET_BLOCK " block, line %d.",
-                                     subitem_name, rh_config_GetItemLine(sub_item));
-                            rc = EINVAL;
-                            goto clean_filesets; */
-                        }
-                        break;
-                    }
-                    default :
-                        /* unexpected content */
-                            sprintf(msg_out,
-                                     "Unexpected item in "FILESET_BLOCK" block, line %d.",
-                                     rh_config_GetItemLine(sub_item));
-                            rc = EINVAL;
-                            goto clean_filesets;
-                } /* switch on item type */
-
-            } /* loop on "fileclass" block content */
-
-            if (!definition_done)
-            {
-                sprintf(msg_out,
-                         "No definition in file class '%s', line %d", fsname,
-                         rh_config_GetItemLine(curr_class));
-                rc = ENOENT;
-                goto clean_filesets;
-            }
-
-        }                       /* end of fileclass" block */
+        }
         else
         {
             sprintf(msg_out, "'%s' sub-block unexpected in %s section, line %d.",
-                     block_name, FILESETS_SECTION, rh_config_GetItemLine(curr_class));
+                    block_name, FILESETS_SECTION, rh_config_GetItemLine(curr_class));
             rc = EINVAL;
             goto clean_filesets;
         }
-
-
-    }                           /* end of "filesets" section */
+    } /* end of "filesets" section */
 
     return 0;
 
 clean_filesets:
     free_filesets(p_policies);
     return rc;
-}
-
-
-fileset_item_t *get_fileset_by_name(const policies_t *p_policies, const char *name)
-{
-    int            i;
-    for (i = 0; i < p_policies->fileset_count; i++)
-    {
-        if (!strcasecmp(p_policies->fileset_list[i].fileset_id, name))
-            return &p_policies->fileset_list[i];
-    }
-    return NULL;                /* not found */
 }
 
 #if 0
@@ -1664,11 +1884,11 @@ static int parse_rule_block(config_item_t config_item,
                             const policy_rules_t *policy_rules,
                             rule_item_t *rule, char *msg_out)
 {
-    char          *rule_name;
-    bool           is_default = false;
-    int            i, j, k, rc;
-    uint64_t       mask;
-    bool           definition_done = false;
+    char    *rule_name;
+    bool     is_default = false;
+    int      i, j, k, rc;
+    uint64_t mask;
+    bool     definition_done = false;
 
     /* initialize output */
     memset(rule, 0, sizeof(rule_item_t));
@@ -1694,7 +1914,7 @@ static int parse_rule_block(config_item_t config_item,
     /* save policy id */
     rh_strncpy(rule->rule_id, rule_name, sizeof(rule->rule_id));
 
-    /* read file block content */
+    /* read block contents */
     for (i = 0; i < rh_config_GetNbItems(config_item); i++)
     {
         config_item_t  sub_item = rh_config_GetItemByIndex(config_item, i);
@@ -1706,8 +1926,20 @@ static int parse_rule_block(config_item_t config_item,
             subitem_name = rh_config_GetBlockName(sub_item);
             critical_err_check(subitem_name, block_name);
 
-            /* TODO add support for LUA rules */
-            if (strcasecmp(subitem_name, CONDITION_BLOCK) != 0)
+            /* allowed blocks: action_params and condition */
+            if (match_policy_action_params(subitem_name))
+            {
+                /* read policy action params */
+                rc = read_policy_action_params(sub_item, subitem_name,
+                                               policy->name,
+                                               &rule->action_params,
+                                               &rule->attr_mask,
+                                               msg_out);
+                if (rc)
+                    return rc;
+                continue;
+            }
+            else if (strcasecmp(subitem_name, CONDITION_BLOCK) != 0)
             {
                 sprintf(msg_out, "'%s' sub-block unexpected in %s block, line %d.",
                          subitem_name, block_name, rh_config_GetItemLine(sub_item));
@@ -1733,21 +1965,17 @@ static int parse_rule_block(config_item_t config_item,
             rule->attr_mask |= mask;
             definition_done = true;
         }
-        else                    /* not a block */
+        else /* not a block */
         {
             char          *value = NULL;
             int            extra_args = 0;
             fileset_item_t *fs;
-            char hint_name[POLICY_NAME_LEN + sizeof("_hints") + 1];
-
-            sprintf(hint_name, "%s_hints", policy->name);
 
             rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra_args);
             if (rc)
                 return rc;
 
-            /* expected : target filesets or migration hints (for migrations policies) */
-
+            /* expected : target filesets or action parameters */
             if (!strcasecmp(subitem_name, "target_fileclass"))
             {
                 if (is_default)
@@ -1815,74 +2043,31 @@ static int parse_rule_block(config_item_t config_item,
                 /* add fileset mask to policy mask */
                 rule->attr_mask |= fs->attr_mask;
             }
-            /* allowed syntaxes:    hints, <policyname>_hints, action_hints */
-            else if (!strcasecmp(subitem_name, "hints") ||
-                     !strcasecmp(subitem_name, "action_hints") ||
-                     !strcasecmp(subitem_name, hint_name))
+            /* manage action_hints deprecation (now in action_params) */
+            else if (match_policy_action_hints(subitem_name))
             {
-                if (extra_args)
-                {
-                    sprintf(msg_out,
-                             "Unexpected arguments for %s parameter, line %d.",
-                             subitem_name, rh_config_GetItemLine(sub_item));
-                    return EINVAL;
-                }
-
-                /* get attribute mask for this hint */
-                rc = hints_mask(value);
-                if (rc < 0)
-                    return rc;
-                rule->attr_mask |= rc;
-
-                /* append hints */
-                if (EMPTY_STRING(rule->action_hints))
-                {
-                    if (strlen(value) > HINTS_LEN)
-                    {
-                        sprintf(msg_out, "String too large for %s line %d (max: %d).",
-                                subitem_name, rh_config_GetItemLine(sub_item), HINTS_LEN);
-                        return EOVERFLOW;
-                    }
-
-                    strcpy(rule->action_hints, value);
-                }
-                else            /* append with ',' */
-                {
-                    int            prev_len = strlen(rule->action_hints);
-                    if (prev_len + strlen(value) + 1 > HINTS_LEN)
-                    {
-                        sprintf(msg_out, "String too large for %s line %d (max: %d).",
-                                subitem_name, rh_config_GetItemLine(sub_item), HINTS_LEN);
-                        return EOVERFLOW;
-                    }
-
-                    rule->action_hints[prev_len] = ',';
-                    strcpy(rule->action_hints + prev_len + 1, value);
-                }
+                sprintf(msg_out, "'%s' (line %u) parameters are no longer supported. "
+                        "Define an 'action_params' block instead.",
+                        subitem_name, rh_config_GetItemLine(sub_item));
+                return EINVAL;
             }
-#ifdef _LUSTRE_HSM
-            /* archive_id is now managed as a hint */
+            /* manage archive_id deprecation (now in action_params) */
             else if (!strcasecmp(subitem_name, "archive_id")
                      || !strcasecmp(subitem_name, "archive_num")) /* for backward compat */
             {
-                sprintf(msg_out, "%s parameter is deprecated (line %u). Specify archive_id in %s, e.g. %s=\"archive_id=<idx>\".",
-                        subitem_name, rh_config_GetItemLine(sub_item), hint_name, hint_name);
+                sprintf(msg_out, "archive_id parameter (line %u) must be "
+                        "specified in a <policy>_action_params block.",
+                        rh_config_GetItemLine(sub_item));
                 return EINVAL;
             }
-#endif
             else
             {
                 DisplayLog(LVL_CRIT, "Config Check",
                             "WARNING: unknown parameter '%s' in block '%s' line %d",
                             subitem_name, block_name, rh_config_GetItemLine(sub_item));
-                /*sprintf(msg_out, "'%s' parameter unexpected in %s block, line %d.",
-                         subitem_name, block_name, rh_config_GetItemLine(sub_item));
-                return EINVAL;*/
             }
-
-
-        }                       /* end of vars */
-    }                           /* loop on "policy" block content */
+        } /* end of vars */
+    }     /* loop on "rule" block content */
 
     if (!definition_done)
     {
@@ -2026,12 +2211,12 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     {
         char          *item_name;
         config_item_t  curr_item = rh_config_GetItemByIndex(section, i);
-        critical_err_check_goto(curr_item, section_name, err);
+        critical_err_check_goto(curr_item, section_name, rc, err);
 
         if (rh_config_ItemType(curr_item) == CONFIG_ITEM_BLOCK)
         {
             item_name = rh_config_GetBlockName(curr_item);
-            critical_err_check_goto(item_name, section_name, err);
+            critical_err_check_goto(item_name, section_name, rc, err);
 
             if (!strcasecmp(item_name, IGNORE_BLOCK))
             {
@@ -2048,10 +2233,10 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                 rules->run_attr_mask |= rules->whitelist_rules[curr_ign].attr_mask;
                 curr_ign++;
             }
-            /* allow 'policy' or 'rule' */
-            else if (!strcasecmp(item_name, OLD_RULE_BLOCK) || !strcasecmp(item_name, RULE_BLOCK))
+            /* allow 'rule' or 'policy' */
+            else if (!strcasecmp(item_name, RULE_BLOCK) || !strcasecmp(item_name, OLD_RULE_BLOCK))
             {
-                /* parse 'policy' block */
+                /* parse 'rule' block */
                 rc = parse_rule_block(curr_item, item_name, p_policies,
                                       policy_descr, rules,
                                       &rules->rules[curr_rule],
@@ -2297,17 +2482,3 @@ mod_cfg_funcs_t policies_cfg_hdlr = {
     .write_template = write_policy_template
 };
 
-bool policy_exists(const char *name, int *index)
-{
-    int i;
-    for (i = 0; i < policies.policy_count; i++)
-    {
-        if (!strcasecmp(name, policies.policy_list[i].name))
-        {
-            if (index != NULL)
-                *index = i;
-            return true;
-        }
-    }
-    return false;
-}

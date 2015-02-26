@@ -396,10 +396,10 @@ void rh_sleep( unsigned int seconds );
  * \param str_in_out must be large enough to receive
  *  the resulting string, and cannot exceed 1024.
  */
-int str_replace( char * str_in_out, const char * to_be_replaced,
-                 const char * replacement );
+int str_subst(char *str_in_out, const char *to_be_replaced,
+              const char *replacement);
 
-static inline void replace_char(char *str, char c1, char c2)
+static inline void subst_char(char *str, char c1, char c2)
 {
     char *curr;
     for (curr = str; *curr != '\0'; curr++)
@@ -412,19 +412,42 @@ static inline void replace_char(char *str, char c1, char c2)
  */
 int execute_shell_command(int quiet, const char * cmd, int argc, ...);
 
+/**
+ * Quote an argument for shell commande line.
+ * The caller must free the returned string. */
 char *quote_shell_arg(const char *arg);
 
 /**
- * Replace special parameters {cfgfile}, {fspath}, ...
- * in the given cmd line.
- * Result string is allocated using malloc()
- * and must be released using free().
- * \param replace_array char** of param1, value1, param2, value2, ..., NULL, NULL
+ * Get the mask for placeholders in the given string.
+ * @param[in] str string to be parsed.
+ * @param[in] str_descr string context description to be displayed in
+ *                      error messages (e.g. "cfg_block::foo_param line 42").
  */
-char * replace_cmd_parameters(const char * cmd_in, const char **replace_array);
+uint64_t params_mask(const char *str, const char *str_descr);
+
+/**
+ * Replace special parameters {cfg}, {fspath}, ... in the given string.
+ * Result string is allocated by the function and must be released using g_free().
+ * @param[in] str_in    Input string with {} placeholders.
+ * @param[in] str_descr String description (for logging).
+ * @param[in] p_id      Pointer to entry id (if the command is executed on an entry).
+ * @param[in] p_attrs   Pointer to entry attrs (if the command is executed on an entry).
+ * @param[in] params    List of action parameters.
+ * @param[in] subst_array char** of param1, value1, param2, value2, ..., NULL, NULL.
+ * @param[in] quote     If true, escape and quote the replaced values as shell arguments.
+ */
+char *subst_params(const char *str_in,
+                   const char *str_descr,
+                   const entry_id_t *p_id,
+                   const attr_set_t *p_attrs,
+                   const action_params_t *params,
+                   const char **subst_array,
+                   bool quote);
 
 /** convert to upper case */
 void upperstr(char *str);
+/** convert to lower case */
+void lowerstr(char *str);
 
 /** recursively create a directoy and return its id */
 int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
