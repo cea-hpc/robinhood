@@ -28,7 +28,7 @@ if [[ "$1" == "mount" || -z "$1" ]]; then
 	fi
 
 	echo "Mounting lustre..."
-	./llmount.sh
+	OSTSIZE=400000 OSTCOUNT=4 ./llmount.sh
 
 	mount | grep /mnt/lustre
     exit $?
