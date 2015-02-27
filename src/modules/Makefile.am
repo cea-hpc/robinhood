@@ -11,6 +11,7 @@ if LUSTRE_HSM
 pkglib_LTLIBRARIES+=librbh_mod_lhsm.la
 librbh_mod_lhsm_la_SOURCES=lhsm.c lhsm.h mod_internal.h
 librbh_mod_lhsm_la_LDFLAGS=-version-info 0:0:0
+librbh_mod_lhsm_la_LIBADD=-llustreapi
 endif
 if HSM_LITE
 pkglib_LTLIBRARIES+=librbh_mod_backup.la
