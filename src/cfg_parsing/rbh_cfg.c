@@ -98,7 +98,7 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
                     p_curr->funcs->module_name);
             if (reload)
             {
-                DisplayLog(LVL_CRIT, RELOAD_TAG, err_msg_out);
+                DisplayLog(LVL_CRIT, RELOAD_TAG, "%s", err_msg_out);
                 continue;
             }
             else
@@ -120,7 +120,7 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
 
             if (reload)
             {
-                DisplayLog(LVL_CRIT, RELOAD_TAG, err_msg_out);
+                DisplayLog(LVL_CRIT, RELOAD_TAG, "%s", err_msg_out);
                 continue;
             }
             else
@@ -138,7 +138,7 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
 
             if (reload)
             {
-                DisplayLog(LVL_CRIT, RELOAD_TAG, err_msg_out);
+                DisplayLog(LVL_CRIT, RELOAD_TAG, "%s", err_msg_out);
                 continue;
             }
             else

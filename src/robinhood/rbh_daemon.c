@@ -360,21 +360,14 @@ static inline void display_help(const char *bin_name)
 {
     printf(cmd_help, bin_name);
     printf("\n");
-    printf(action_help);
-    printf("\n");
-    printf(run_help);
-    printf("\n");
-    printf(scan_help);
-    printf("\n");
-    printf(output_help);
-    printf("\n");
-    printf(behavior_help);
-    printf("\n");
-    printf(config_help);
-    printf("\n");
-    printf(log_help);
-    printf("\n");
-    printf(misc_help);
+    printf("%s\n", action_help);
+    printf("%s\n", run_help);
+    printf("%s\n", scan_help);
+    printf("%s\n", output_help);
+    printf("%s\n", behavior_help);
+    printf("%s\n", config_help);
+    printf("%s\n", log_help);
+    printf("%s", misc_help);
 }
 
 static inline void display_version(const char *bin_name)

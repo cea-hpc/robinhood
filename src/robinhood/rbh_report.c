@@ -313,19 +313,13 @@ static inline void display_help( char *bin_name )
 {
     printf(cmd_help, bin_name);
     printf("\n");
-    printf(stats_help);
-    printf("\n");
-    printf(maintenance_help);
-    printf("\n");
-    printf(filter_help);
-    printf("\n");
-    printf(acct_help);
-    printf("\n");
-    printf(cfg_help);
-    printf("\n");
-    printf(output_help);
-    printf("\n");
-    printf(misc_help);
+    printf("%s\n", stats_help);
+    printf("%s\n", maintenance_help);
+    printf("%s\n", filter_help);
+    printf("%s\n", acct_help);
+    printf("%s\n", cfg_help);
+    printf("%s\n", output_help);
+    printf("%s", misc_help);
 }
 
 static inline void display_version( char *bin_name )

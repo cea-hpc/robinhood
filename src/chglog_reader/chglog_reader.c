@@ -353,7 +353,7 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
     if (left <= 0)
         record_str[RBH_PATH_MAX-1] = '\0';
 
-    DisplayLog(debug_level, CHGLOG_TAG, record_str);
+    DisplayLog(debug_level, CHGLOG_TAG, "%s", record_str);
     if (f_changelog)
         fprintf(f_changelog, "%s\n", record_str);
 }
