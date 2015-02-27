@@ -6660,12 +6660,12 @@ function junit_write_xml # (time, nb_failure, tests)
 
 	echo "<?xml version=\"1.0\" encoding=\"ISO8859-2\" ?>" > $XML
 	echo "<testsuite name=\"robinhood.LustreTests\" errors=\"0\" failures=\"$failure\" tests=\"$tests\" time=\"$time\">" >> $XML
-	sed 's/[^[:print:]]//' $TMPXML_PREFIX.tc >> $XML
+	sed 's/[^[:print:]]//g' $TMPXML_PREFIX.tc >> $XML
 	echo -n "<system-out><![CDATA[" >> $XML
-	sed 's/[^[:print:]]//' $TMPXML_PREFIX.stdout >> $XML
+	sed 's/[^[:print:]]//g' $TMPXML_PREFIX.stdout >> $XML
 	echo "]]></system-out>"		>> $XML
 	echo -n "<system-err><![CDATA[" >> $XML
-	sed 's/[^[:print:]]//' $TMPXML_PREFIX.stderr >> $XML
+	sed 's/[^[:print:]]//g' $TMPXML_PREFIX.stderr >> $XML
 	echo "]]></system-err>" 	>> $XML
 	echo "</testsuite>"		>> $XML
 }
