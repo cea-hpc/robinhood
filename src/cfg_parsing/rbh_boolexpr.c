@@ -284,13 +284,13 @@ static int criteria2condition(const type_key_value *key_value,
         case PT_STRING:
             if ((flags & PFLG_NOT_EMPTY) && EMPTY_STRING(key_value->varvalue))
             {
-                sprintf("non-empty string expected for %s parameter",
+                sprintf(err_msg, "non-empty string expected for %s parameter",
                         key_value->varname);
                 return EINVAL;
             }
             if ((flags & PFLG_NO_SLASH) && SLASH_IN(key_value->varvalue))
             {
-                sprintf("no slash (/) expected in %s parameter",
+                sprintf(err_msg, "no slash (/) expected in %s parameter",
                         key_value->varname);
                 return EINVAL;
             }
@@ -347,7 +347,8 @@ static int criteria2condition(const type_key_value *key_value,
                 }
                 else
                 {
-                    sprintf("double star wildcard (**) not expected in %s parameter",
+                    sprintf(err_msg,
+                            "double star wildcard (**) not expected in %s parameter",
                             key_value->varname);
                     return EINVAL;
                 }
