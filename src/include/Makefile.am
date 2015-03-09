@@ -15,7 +15,8 @@ noinst_HEADERS=db_types.h  list_mgr.h RW_Lock.h \
 		policy_rules.h rmdir.h queue.h hsm_rm.h \
 		entry_proc_hash.h list.h \
         lustre/lustre_errno.h update_params.h \
-        db_schema.h db_schema.def pipeline_types.h
+        db_schema.h db_schema.def pipeline_types.h \
+        rbh_params.h
 
 db_schema.h: db_schema.def $(TYPEGEN)
 all: db_schema.h
