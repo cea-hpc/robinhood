@@ -108,12 +108,12 @@ if test "x$support_lustre" = "xyes" ; then
     AC_CHECK_LIB([lustreapi], [llapi_obd_statfs], [have_liblustre_api="yes"])
     AM_CONDITIONAL( LUSTRE, test  "x$have_liblustre_api" = "xyes" )
     AC_SUBST(LUSTRE)
-    build_lustre="ON"
 
     # lustre relative information and checks
     if test "x$have_liblustre_api" = "xyes" ; then
 
         AC_DEFINE(_LUSTRE, 1, [liblustreapi is available])
+        build_lustre="ON"
 
         AC_CHECK_HEADER([lustre/lustreapi.h], have_new_lustre_header="true", have_new_lustre_header="false")
         if test "$have_new_lustre_header" = "true"; then
