@@ -1,35 +1,15 @@
-AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
-AM_LDFLAGS= -lpthread
+AM_CFLAGS= -static $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
+AM_LDFLAGS= -lpthread -static
 
-check_PROGRAMS=create_nostripe test_forcestripe test_hash_func test_uidgidcache test_list_mgr test_entry_proc test_info_collector test_resource_monitor
+check_PROGRAMS=create_nostripe test_forcestripe test_uidgidcache test_params
+TESTS=test_uidgidcache test_params
 
-all_libs=	../cfg_parsing/libconfigparsing.la \
-                ../fs_scan/libfsscan.la \
-                ../entry_processor/libentryproc.la \
-                ../list_mgr/liblistmgr.la \
-                ../policies/libpolicies.la
+noinst_PROGRAMS=$(check_PROGRAMS)
 
-if CHANGELOGS
-all_libs += ../chglog_reader/libchglog_rd.la
-endif
+test_forcestripe_LDADD=$(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
 
-if HSM_LITE
-all_libs += ../backend_ext/libbackend_ext.la
-endif
-
-all_libs += ../robinhood/librbhhelpers.la ../list_mgr/liblistmgr.la ../common/libcommontools.la
-
-test_forcestripe_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
-
-test_list_mgr_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
-
-test_entry_proc_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
-
-test_info_collector_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
-
-test_resource_monitor_LDADD=$(all_libs)  $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
-
-test_uidgidcache_LDADD=$(all_libs) $(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
+test_uidgidcache_SOURCES=test_uidgidcache.c ../common/uidgidcache.c ../common/RW_Lock.c
+test_params_SOURCES=test_params.c ../common/rbh_params.c
 
 indent:
 	$(top_srcdir)/scripts/indent.sh

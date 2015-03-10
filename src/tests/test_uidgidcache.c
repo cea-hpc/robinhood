@@ -28,59 +28,87 @@
 #endif
 
 #include "uidgidcache.h"
+#include "rbh_logs.h"
+
 #include <stdio.h>
+#include <sys/time.h>
 
-typedef struct pw_cacheent__
+
+/* avoid linking with all robinhood libs */
+log_config_t log_config = { .debug_level = LVL_DEBUG };
+
+void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ...)
 {
-    struct passwd  pw;
+    if (LVL_DEBUG >= debug_level)
+    {
+        va_list args;
 
-    /* le buffer utilise par getpwnam_r pour stocker les chaines
-       512 => ~100/chaine contenue dans la structure */
-    char           buffer[512];
-
-    /* pour le chainage */
-    struct pw_cacheent__ *p_next;
-
-} pw_cacheent_t;
-
-
-typedef struct gr_cacheent__
-{
-    struct group   gr;
-
-    /* le buffer utilise par getpwnam_r pour stocker les chaines
-       on compte 16 caracteres par membre * 256 membres */
-    char           buffer[16 * 256];
-
-    /* pour le chainage */
-    struct gr_cacheent__ *p_next;
-
-} gr_cacheent_t;
+        va_start(args, format);
+        vprintf(format, args);
+        va_end(args);
+        printf("\n");
+    }
+}
 
 int main( int argc, char **argv )
 {
     unsigned int   i;
+    uid_t          u;
+    gid_t          g;
+    unsigned int   c;
+    struct timeval t0, tc, tr, tlast = {0};
 
-    InitUidGid_Cache(  );
+    InitUidGid_Cache();
 
-    for ( i = 0; i <= 10000; i++ )
+    gettimeofday(&t0, NULL);
+
+    for ( i = 0; i <= 10; i++ )
     {
-        uid_t          u;
-        struct passwd *ppw;
+        c = 0;
+        for ( u = 0; u <= 100; u++ )
+        {
+            struct passwd *ppw;
 
-        u = i % 2000 + 2000;
-        ppw = GetPwUid( u );
-
+            ppw = GetPwUid( u );
+            if (ppw)
+                c++;
+        }
+        gettimeofday(&tc, NULL);
+        timersub(&tc, &t0, &tr);
+        if (i == 0)
+            tlast = tr;
+        printf("loop %u, %u items: %lu.%06lu\n", i, c, tr.tv_sec, tr.tv_usec);
+        if (i == 1) {
+            /* compute speedup */
+            float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
+            printf("SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+        }
+        t0 = tc;
     }
 
-    for ( i = 0; i <= 5000; i++ )
+    for ( i = 0; i <= 10; i++ )
     {
-        gid_t          g;
-        struct group  *pgr;
+        c = 0;
+        for ( g = 0; g <= 100; g++ )
+        {
 
-        g = i % 1000 + 5000;
-        pgr = GetGrGid( g );
+            struct group  *pgr;
 
+            pgr = GetGrGid( g );
+            if (pgr)
+                c++;
+        }
+        gettimeofday(&tc, NULL);
+        timersub(&tc, &t0, &tr);
+        if (i == 0)
+            tlast = tr;
+        printf("loop %u, %u items: %lu.%06lu\n", i, c, tr.tv_sec, tr.tv_usec);
+        if (i == 1) {
+            /* compute speedup */
+            float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
+            printf("SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+        }
+        t0 = tc;
     }
 
     return 0;
