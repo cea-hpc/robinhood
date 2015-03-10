@@ -214,12 +214,12 @@ static int policy_action(policy_info_t *policy, const rule_item_t *rule,
                "%sExecuting policy action on: " DFID_NOBRACE " (%s)",
                dry_run(policy)?"(dry-run) ":"", PFID(id),
                ATTR(p_attr_set, fullpath));
-    if (log_config.debug_level >= LVL_FULL)
+    if (log_config.debug_level >= LVL_DEBUG)
     {
         GString *str = g_string_new("");
         rc = rbh_params_serialize(params, str, NULL, RBH_PARAM_CSV);
         if (rc == 0)
-            DisplayLog(LVL_FULL, TAG, "action_params: %s", str->str);
+            DisplayLog(LVL_DEBUG, TAG, "action_params: %s", str->str);
         g_string_free(str, TRUE);
     }
 

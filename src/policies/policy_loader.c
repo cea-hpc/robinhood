@@ -2046,9 +2046,9 @@ static int parse_rule_block(config_item_t config_item,
             /* manage action_hints deprecation (now in action_params) */
             else if (match_policy_action_hints(subitem_name))
             {
-                sprintf(msg_out, "'%s' (line %u) parameters are no longer supported. "
+                sprintf(msg_out, "line %u: '%s' parameters are no longer supported. "
                         "Define an 'action_params' block instead.",
-                        subitem_name, rh_config_GetItemLine(sub_item));
+                        rh_config_GetItemLine(sub_item), subitem_name);
                 return EINVAL;
             }
             /* manage archive_id deprecation (now in action_params) */

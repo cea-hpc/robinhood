@@ -841,8 +841,9 @@ function test_suspend_on_error
 
 	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
-    nb_fail_match=$(grep "hints='fail'" rh_migr.log | wc -l)
-    nb_ok_match=$(grep "<no_hints>" rh_migr.log | wc -l)
+    [ "$DEBUG" = "1" ] && grep action_params rh_migr.log
+    nb_fail_match=$(count_action_params rh_migr.log arg=fail)
+    nb_ok_match=$(count_action_params rh_migr.log arg=ok)
 
     echo "$nb_fail_match failed copies, $nb_ok_match successful copies"
     (($nb_ok_match == $nb_files_ok)) || error "expected $nb_files_ok successful copies (got $nb_ok_match)"
@@ -919,8 +920,8 @@ function xattr_test
 		echo "OK: $nb_migr files migrated"
 
         # checking policy rule
-        nb_migr_arch1=`grep "Executing policy action" rh_migr.log | grep "fileclass=xattr_bar" | wc -l`
-        nb_migr_arch2=`grep "Executing policy action" rh_migr.log | grep "fileclass=xattr_foo" | wc -l`
+        nb_migr_arch1=$(count_action_params rh_migr.log class=xattr_bar)
+        nb_migr_arch2=$(count_action_params rh_migr.log class=xattr_foo)
         nb_migr_arch3=`grep "matches the condition for policy rule 'default'" rh_migr.log | wc -l`
 
         if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
@@ -932,9 +933,9 @@ function xattr_test
         fi
 
         # checking archive nums
-        nb_migr_arch1=`grep "Executing policy action" rh_migr.log | grep "archive_id=1" | wc -l`
-        nb_migr_arch2=`grep "Executing policy action" rh_migr.log | grep "archive_id=2" | wc -l`
-        nb_migr_arch3=`grep "Executing policy action" rh_migr.log | grep "archive_id=3" | wc -l`
+        nb_migr_arch1=$(count_action_params rh_migr.log archive_id=1)
+        nb_migr_arch2=$(count_action_params rh_migr.log archive_id=2)
+        nb_migr_arch3=$(count_action_params rh_migr.log archive_id=3)
 
         if (( $nb_migr_arch1 != 1 || $nb_migr_arch2 != 1 || $nb_migr_arch3 != 1 )); then
             error "********** wrong archive_ids: 1x$nb_migr_arch1/2x$nb_migr_arch2/3x$nb_migr_arch3 (1x1/2x1/3x1 expected)"
@@ -2020,6 +2021,11 @@ function    test_sort_report
     rm -f report.out
 }
 
+function count_action_params # log, pattern
+{
+    grep action_params $1 | grep "$2" | wc -l
+}
+
 function path_test
 {
 	config_file=$1
@@ -2164,19 +2170,19 @@ function path_test
 	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	# count the number of file for each policy
-	nb_pol1=`grep hints rh_migr.log | grep absolute_path | wc -l`
-	nb_pol2=`grep hints rh_migr.log | grep absolute_tree | wc -l`
-	nb_pol3=`grep hints rh_migr.log | grep path_depth2 | wc -l`
-	nb_pol4=`grep hints rh_migr.log | grep tree_depth2 | wc -l`
-	nb_pol5=`grep hints rh_migr.log | grep relative_path | wc -l`
-	nb_pol6=`grep hints rh_migr.log | grep relative_tree | wc -l`
+	nb_pol1=$(count_action_params rh_migr.log class=absolute_path)
+	nb_pol2=$(count_action_params rh_migr.log  class=absolute_tree)
+	nb_pol3=$(count_action_params rh_migr.log  class=path_depth2)
+	nb_pol4=$(count_action_params rh_migr.log  class=tree_depth2)
+	nb_pol5=$(count_action_params rh_migr.log  class=relative_path)
+	nb_pol6=$(count_action_params rh_migr.log  class=relative_tree)
 
-	nb_pol7=`grep hints rh_migr.log | grep any_root_tree | wc -l`
-	nb_pol8=`grep hints rh_migr.log | grep any_root_path | wc -l`
-	nb_pol9=`grep hints rh_migr.log | grep any_level_tree | wc -l`
-	nb_pol10=`grep hints rh_migr.log | grep any_level_path | wc -l`
+	nb_pol7=$(count_action_params rh_migr.log  class=any_root_tree)
+	nb_pol8=$(count_action_params rh_migr.log  class=any_root_path)
+	nb_pol9=$(count_action_params rh_migr.log  class=any_level_tree)
+	nb_pol10=$(count_action_params rh_migr.log  class=any_level_path)
 
-	nb_unmatch=`grep hints rh_migr.log | grep unmatch | wc -l`
+	nb_unmatch=$(count_action_params rh_migr.log  class=unmatch)
 
 	(( $nb_pol1 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'absolute_path': $nb_pol1"
 	(( $nb_pol2 == 2 )) || error "********** TEST FAILED: wrong count of matching files for policy 'absolute_tree': $nb_pol2"
@@ -3320,13 +3326,15 @@ function fileclass_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
+	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
+
+    [ "$DEBUG" = "1" ] && grep action_params rh_migr.log
 
 	# count the number of file for each policy
-	nb_pol1=`grep hints rh_migr.log | grep even_and_B | wc -l`
-	nb_pol2=`grep hints rh_migr.log | grep even_and_not_B | wc -l`
-	nb_pol3=`grep hints rh_migr.log | grep odd_or_A | wc -l`
-	nb_pol4=`grep hints rh_migr.log | grep unmatched | wc -l`
+	nb_pol1=`grep action_params rh_migr.log | grep class=even_and_B | wc -l`
+	nb_pol2=`grep action_params rh_migr.log | grep class=even_and_not_B | wc -l`
+	nb_pol3=`grep action_params rh_migr.log | grep class=odd_or_A | wc -l`
+	nb_pol4=`grep action_params rh_migr.log | grep class=unmatched | wc -l`
 
 	(( $nb_pol1 == 2 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_B': $nb_pol1"
 	(( $nb_pol2 == 4 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'even_and_not_B': $nb_pol2"
@@ -4291,7 +4299,7 @@ function test_completion
         grep $ROOT out.2 || error "out.2 has unexpected content: $(cat out.2)"
     else
         # matching: CmdParams | ERROR: unmatched '{' in command parameters '../completion.sh {cfg'
-        grep "ERROR: unmatched '{' in command parameters" rh_scan.log || error "unreported cmd error"
+        grep "ERROR: unmatched '{' in scan completion command" rh_scan.log || error "unreported cmd error"
     fi
 
     rm -f out.1 out.2
