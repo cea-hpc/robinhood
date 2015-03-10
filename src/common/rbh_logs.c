@@ -433,7 +433,7 @@ static void clean_str(char *str)
 
     for (c = str; *c != '\0'; c++)
     {
-        if ((*c != '\n') && (!isprint(*c)))
+        if ((*c != '\n') && (*c != '\t') && (!isprint(*c)))
             *c = '?';
     }
 }
