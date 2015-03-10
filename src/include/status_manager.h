@@ -134,7 +134,7 @@ typedef struct status_manager {
 
 /** Status manager instance.
  * There can be one instance of a status manager
- * by policy, in the case status manager in not shared.
+ * by policy, in the case status manager is not shared.
  */
 typedef struct sm_instance
 {
