@@ -2119,52 +2119,6 @@ outfree:
     return rc;
 }
 
-char *quote_shell_arg(const char *arg)
-{
-    const char *replace_with = "'\\''";
-    char *arg_walk, *quoted, *quoted_walk;
-    int count = 0;
-
-    arg_walk = (char *) arg;
-    while (*arg_walk) {
-        if (*arg_walk == '\'') {
-            ++count;
-            if (count < 0) {
-                /* It's unlikely given our input, but avoid integer overflow. */
-                return NULL;
-            }
-        }
-        ++arg_walk;
-    }
-
-    quoted = (char *)calloc(1, strlen(arg) +
-                            (count * strlen(replace_with)) + 2 + 1);
-    if (!quoted)
-        return NULL;
-
-    quoted_walk = quoted;
-    *quoted_walk = '\'';
-    ++quoted_walk;
-
-    arg_walk = (char *) arg;
-    while (*arg_walk) {
-        if (*arg_walk == '\'') {
-            strcat(quoted_walk, replace_with);
-            quoted_walk += strlen(replace_with);
-        } else {
-            *quoted_walk = *arg_walk;
-            ++quoted_walk;
-        }
-        ++arg_walk;
-    }
-
-    *quoted_walk = '\'';
-    ++quoted_walk;
-    *quoted_walk = '\0';
-
-    return quoted;
-}
-
 void upperstr(char *str)
 {
     int i = 0;
