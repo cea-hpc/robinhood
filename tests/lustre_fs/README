@@ -1,17 +1,43 @@
-Lustre must be mounted as /mnt/lustre before running setup step and tests.
-(/usr/lib64/lustre/tests/llmount.sh)
+How to run the tests for Lustre
 
-1) set the purpose environment variable
-export PURPOSE=TMP_FS_MGR
+1) Have a Lustre filesystem
 
-2) setup the test environment
-./1-test_setup.sh
+Lustre must be mounted as /mnt/lustre before running setup step and
+tests. You can use llmount.sh to create the filesystem.
 
-3) Run the tests
+For instance, as root, run:
+  OSTSIZE=400000 OSTCOUNT=4 /usr/lib64/lustre/tests/llmount.sh
 
-for brief output:
+2) Set the purpose environment variable
+
+export PURPOSE=LUSTRE_HSM
+
+Available values for PURPOSE are:
+  TMP_FS_MGR
+  LUSTRE_HSM
+  BACKUP
+  SHOOK
+
+If unset, the default for PURPOSE is TMP_FS_MGR
+
+3) Setup the test environment
+
+As root, run:
+  ./1-test_setup.sh
+
+This will initialize the sql database, create the changelog client,
+start the Lustre posix copytool, and enable the HSM coordinator.
+
+4) Run the tests
+
+For brief output:
 	./2-run-tests.sh -q
-for full output:
+
+For full output:
 	./2-run-tests.sh
-to run only some tests:
+
+To run only some tests (here, test 3 and 4):
     ./2-run_tests.sh 3,4
+
+To get a debug output, set DEBUG to 1:
+   DEBUG=1 ./2-run-tests.sh
