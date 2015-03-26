@@ -892,7 +892,7 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             NULL, NULL
         };
         gchar *cmd = subst_params(prog_options.exec_cmd, "exec option",
-                                  &id->id, attrs, NULL, vars, true);
+                                  &id->id, attrs, NULL, vars, true, true);
         if (cmd)
         {
             execute_shell_command(false, cmd, 0);

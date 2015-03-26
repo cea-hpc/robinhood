@@ -67,7 +67,7 @@ int rbh_param_set(struct rbh_params *params, const char *key,
     return 0;
 }
 
-int rbh_list2params(struct rbh_params *params, const char **list)
+int rbh_list2params(struct rbh_params *params, const char **list, bool key_values)
 {
     const char **c;
 
@@ -79,14 +79,18 @@ int rbh_list2params(struct rbh_params *params, const char **list)
         /* don't provide a free function for value as we only push
          * static const strings to it */
         params->param_set = g_hash_table_new_full(g_str_hash, g_str_equal, free,
-                                                  NULL);
+                                                  key_values ? free : NULL);
         if (params->param_set == NULL)
             return -ENOMEM;
     }
 
-    for (c = list; *c != NULL; c++)
-        /* Value must not be NULL */
-        g_hash_table_replace(params->param_set, strdup(*c), "");
+    if (key_values)
+        for (c = list; *c != NULL; c += 2)
+            g_hash_table_replace(params->param_set, strdup(c[0]), strdup(c[1]));
+    else
+        for (c = list; *c != NULL; c++)
+            /* Value must not be NULL */
+            g_hash_table_replace(params->param_set, strdup(*c), "");
 
     return 0;
 }

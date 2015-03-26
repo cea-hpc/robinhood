@@ -39,7 +39,7 @@ static bool match_varname(const char *str, int len)
     int i;
 
     if (len == 0)
-        return false;
+        return true; /* allowed empty var */
 
     /* letter expected as first char */
     if (!isalpha(str[0]))
@@ -52,6 +52,12 @@ static bool match_varname(const char *str, int len)
 
     return true;
 }
+
+/** placeholder iterator flags */
+typedef enum {
+    PH_ALLOW_EMPTY   = (1 << 0), /**< allow empty variable names */
+    PH_STRICT_BRACES = (1 << 1), /**< strictly check open/close braces */
+} ph_flags_t;
 
 /**
  * Look for placeholders {xxx} in str and call ph_func for each
@@ -66,14 +72,14 @@ static bool match_varname(const char *str, int len)
  */
 static int placeholder_foreach(const char *str, const char *str_descr,
                         placeholder_func_t ph_func, void *udata,
-                        bool allow_empty_var)
+                        ph_flags_t flags)
 {
     const char *pass_begin = str;
 
     do
     {
         const char *begin_var;
-        const char *end_var;
+        const char *end_var = NULL;
         char       *var_name;
         int         rc;
 
@@ -86,20 +92,49 @@ static int placeholder_foreach(const char *str, const char *str_descr,
         /* look for a variable */
         begin_var = strchr(pass_begin, '{');
 
+        if (flags & PH_STRICT_BRACES)
+            /* check for unexpected '}' */
+            end_var = strchr(pass_begin, '}');
+
         /* no more variables */
         if (!begin_var)
-            break;
-
-        /* get matching '}' */
-        end_var = strchr(begin_var, '}');
-        if (!end_var)
         {
-            DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unmatched '{' in %s",
-                       str_descr);
-            return -EINVAL;
+            if ((flags & PH_STRICT_BRACES) && (end_var != NULL))
+            {
+                DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unexpected '}' near '%s' in %s",
+                           pass_begin, str_descr);
+                return -EINVAL;
+            }
+            /* don't check '}' */
+            break;
         }
 
-        if (!allow_empty_var && (end_var == begin_var + 1))
+        if (flags & PH_STRICT_BRACES)
+        {
+            if (end_var == NULL)
+            {
+                DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unmatched '{' in %s",
+                           str_descr);
+                return -EINVAL;
+            }
+            else if (end_var < begin_var)
+            {
+                DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unexpected '}' near '%.*s' in %s",
+                           (int)(begin_var - pass_begin + 1), pass_begin, str_descr);
+                return -EINVAL;
+            }
+            /* end_var is already set and is after begin_var */
+        }
+        else
+        {
+            /* get the first matching '}' after '{' */
+            end_var = strchr(begin_var, '}');
+            /* no strict braces control: allow no closing brace */
+            if (!end_var)
+                break;
+        }
+
+        if (!(flags & PH_ALLOW_EMPTY) && (end_var == begin_var + 1))
         {
             DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: empty var name in %s",
                        str_descr);
@@ -110,9 +145,15 @@ static int placeholder_foreach(const char *str, const char *str_descr,
          * skip the opening braces to look for a '{var}' section */
         if (!match_varname(begin_var + 1, end_var - begin_var - 1))
         {
-#ifdef _DEBUG_POLICIES
-            fprintf(stderr, "skip '%.*s'\n", end_var - begin_var - 1, begin_var + 1);
-#endif
+            /* unexpected format */
+            if (flags & PH_STRICT_BRACES)
+            {
+                DisplayLog(LVL_CRIT, PARAMS_TAG, "Unexpected variable syntax near '%.*s' in %s",
+                           (int)(end_var - begin_var + 1), begin_var, str_descr);
+                return -EINVAL;
+            }
+
+            /* just skip it and continue parsing */
             pass_begin = begin_var + 1;
             continue;
         }
@@ -160,6 +201,15 @@ static char *get_str_attr(const entry_id_t *id, const attr_set_t *attrs,
 {
     *free_str = false;
 
+    if (unlikely(attrs == NULL))
+        return NULL;
+    if ((attrs->attr_mask & (1LL << attr_index)) == 0)
+    {
+        DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: missing attribute '%s' to perform variable substitution",
+                   field_infos[attr_index].field_name);
+        return NULL;
+    }
+
     if (attr_index == ATTR_INDEX_stripe_info)
 #ifdef _LUSTRE
         return (char *)(ATTR(attrs, stripe_info).pool_name);
@@ -175,6 +225,9 @@ static char *get_fid_str(const entry_id_t *id, const attr_set_t *attrs,
                   int attr_index, bool *free_str)
 {
     char *fid_str;
+
+    if (unlikely(id == NULL))
+        return NULL;
 
     if (asprintf(&fid_str, DFID_NOBRACE, PFID(id)) < 0)
         return NULL;
@@ -283,7 +336,7 @@ uint64_t params_mask(const char *str, const char *str_descr)
         .str_descr   = str_descr
     };
 
-    if (placeholder_foreach(str, str_descr, set_param_mask, (void*)&args, false))
+    if (placeholder_foreach(str, str_descr, set_param_mask, (void*)&args, 0))
         return (uint64_t)-1LL;
 
     return args.mask;
@@ -390,7 +443,7 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
         {
             val = a->get_func(args->id, args->attrs, a->attr_index, &free_val);
             if (val == NULL)
-                return -EIO;
+                return -ENOENT;
         }
     }
 
@@ -439,13 +492,14 @@ out_free:
     return rc;
 }
 
+
 char *subst_params(const char *str_in,
                    const char *str_descr,
                    const entry_id_t *p_id,
                    const attr_set_t *p_attrs,
                    const action_params_t *params,
                    const char **subst_array,
-                   bool quote)
+                   bool quote, bool strict_braces)
 {
     struct build_cmd_args args = {
         .quote = quote,
@@ -465,7 +519,8 @@ char *subst_params(const char *str_in,
     if (!args.out_str || !args.str_descr)
         goto err_free;
 
-    if (placeholder_foreach(str_in, args.str_descr, build_cmd, (void*)&args, true))
+    if (placeholder_foreach(str_in, args.str_descr, build_cmd, (void*)&args,
+                       PH_ALLOW_EMPTY | (strict_braces ? PH_STRICT_BRACES : 0)))
         goto err_free;
 
     /* append the end of the string */

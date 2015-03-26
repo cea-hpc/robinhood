@@ -435,6 +435,7 @@ uint64_t params_mask(const char *str, const char *str_descr);
  * @param[in] params    List of action parameters.
  * @param[in] subst_array char** of param1, value1, param2, value2, ..., NULL, NULL.
  * @param[in] quote     If true, escape and quote the replaced values as shell arguments.
+ * @param[in] strict_braces If true, only allow braces for variable names like {var}.
  */
 char *subst_params(const char *str_in,
                    const char *str_descr,
@@ -442,7 +443,7 @@ char *subst_params(const char *str_in,
                    const attr_set_t *p_attrs,
                    const action_params_t *params,
                    const char **subst_array,
-                   bool quote);
+                   bool quote, bool strict_braces);
 
 /** convert to upper case */
 void upperstr(char *str);

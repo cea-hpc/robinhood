@@ -443,7 +443,7 @@ static int TerminateScan(int scan_complete, time_t end)
                  fs_scan_config.completion_command);
 
         cmd = subst_params(fs_scan_config.completion_command, descr,
-                           NULL, NULL, NULL, NULL, true);
+                           NULL, NULL, NULL, NULL, true, true);
         free(descr);
         if (cmd)
         {

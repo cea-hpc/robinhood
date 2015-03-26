@@ -104,7 +104,7 @@ static int subst_one_param(const char *key, const char *val, void *udata)
     asprintf(&descr, "parameter %s='%s'", key, val);
 
     new_val = subst_params(val, descr, args->id, args->attrs, args->params,
-                           args->subst_array, false);
+                           args->subst_array, false, false);
     free(descr);
 
     if (!new_val)
@@ -253,7 +253,7 @@ static int policy_action(policy_info_t *policy, const rule_item_t *rule,
                 /* replaces placeholders in command and properly quote them. */
                 /** @TODO add context stuff as addl parameters: fileclass, ... */
                 cmd = subst_params(actionp->action_u.command, descr,
-                                   id, p_attr_set, params, NULL, true);
+                                   id, p_attr_set, params, NULL, true, true);
                 free(descr);
                 if (cmd)
                 {

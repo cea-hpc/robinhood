@@ -1496,7 +1496,8 @@ static int backup_command(const char *cmd_in, const entry_id_t *p_id,
     gchar *cmd;
     int rc = 0;
 
-    cmd = subst_params(cmd_in, "backup command", p_id, p_attrs, params, NULL, true);
+    cmd = subst_params(cmd_in, "backup command", p_id, p_attrs, params, NULL,
+                       true, true);
     if (cmd != NULL)
     {
         /* call custom purge command instead of unlink() */

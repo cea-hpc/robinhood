@@ -57,8 +57,9 @@ typedef enum {
  * This allows more efficient searches in this set.
  * @param[out]  params Output parameter set.
  * @param[in]   list   List of parameter names (list terminated by NULL).
+ * @param[in]   key_values List items are {key1, value1, key2, value2, ...}
  */
-int rbh_list2params(struct rbh_params *params, const char **list);
+int rbh_list2params(struct rbh_params *params, const char **list, bool key_values);
 
 /**
  * Serialize a parameter list to a string.

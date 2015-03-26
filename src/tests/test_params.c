@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     g_string_assign(dump, "");
 
     /* use exclude lists */
-    if (rbh_list2params(&e, excl1))
+    if (rbh_list2params(&e, excl1, false))
         abort();
     if (rbh_params_serialize(&p, dump, &e, RBH_PARAM_CSV | RBH_PARAM_COMPACT))
         abort();
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     g_string_assign(dump, "");
     rbh_params_free(&e);
 
-    if (rbh_list2params(&e, excl2))
+    if (rbh_list2params(&e, excl2, false))
         abort();
     if (rbh_params_serialize(&p, dump, &e, RBH_PARAM_CSV | RBH_PARAM_COMPACT))
         abort();
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     g_string_assign(dump, "");
     rbh_params_free(&e);
 
-    if (rbh_list2params(&e, excl3))
+    if (rbh_list2params(&e, excl3, false))
         abort();
     if (rbh_params_serialize(&p, dump, &e, RBH_PARAM_CSV | RBH_PARAM_COMPACT))
         abort();
