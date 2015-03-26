@@ -395,6 +395,9 @@ int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
  */
 bool update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
 
+/** read an action params block from config */
+int read_action_params(config_item_t param_block, action_params_t *params,
+                       uint64_t *mask, char *msg_out);
 
 /**
  * Convert criteria to ListMgr data

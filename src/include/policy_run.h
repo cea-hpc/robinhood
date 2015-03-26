@@ -152,20 +152,25 @@ typedef struct policy_run_config_t
     time_t         check_action_status_delay;
     time_t         action_timeout;
 
-    /* interval for reporting progress of current policy run */
+    /** interval for reporting progress of current policy run */
     time_t         report_interval;
 
     time_t         pre_maintenance_window;
     time_t         maint_min_apply_delay;
 
-    /* min error percentage to suspend current policy (0=disable) */
+    /** min error percentage to suspend current policy (0=disable) */
     double         suspend_error_pct;
-    /* min error count to suspend current policy (0=disable) */
+    /** min error count to suspend current policy (0=disable) */
     unsigned int   suspend_error_min;
 
-    /* attr index of the sort order (e.g. last_mod, creation_time, ...).
+    /** attr index of the sort order (e.g. last_mod, creation_time, ...).
      * overrides default_lru_sort_attr (from policy descr). */
     int    lru_sort_attr;
+
+    /** default action parameters for the policy.
+     *  They can be overriden by action params from rule and fileset. */
+    action_params_t action_params;
+    uint64_t        params_mask; /**< mask from action params */
 
     bool   check_action_status_on_startup;
     bool   recheck_ignored_classes;

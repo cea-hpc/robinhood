@@ -1284,8 +1284,8 @@ bool policy_exists(const char *name, int *index)
  * @param[in,out] mask        pointer to the attribute mask of placeholders
  *                            in action param values.
  */
-static int set_action_params(config_item_t param_block, action_params_t *params,
-                             uint64_t *mask, char *msg_out)
+int read_action_params(config_item_t param_block, action_params_t *params,
+                       uint64_t *mask, char *msg_out)
 {
     int i, rc;
 
@@ -1406,9 +1406,9 @@ static int read_fset_action_params(config_item_t param_block, const char *blk_na
     fprintf(stderr, "processing parameters '%s' for fileset '%s'\n", pol_name, fset->fileset_id);
 #endif
 
-    rc = set_action_params(param_block, params,
-                           &p_pols->policy_list[pol_idx].rules.run_attr_mask,
-                           msg_out);
+    rc = read_action_params(param_block, params,
+                            &p_pols->policy_list[pol_idx].rules.run_attr_mask,
+                            msg_out);
 
 out_free:
     free(pol_name);
@@ -1460,7 +1460,7 @@ static int read_policy_action_params(config_item_t param_block,
     fprintf(stderr, "processing parameters for policy '%s'\n", policy_name);
 #endif
 
-    return set_action_params(param_block, params, mask, msg_out);
+    return read_action_params(param_block, params, mask, msg_out);
 }
 
 
@@ -2181,7 +2181,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     PREALLOC_ARRAY_CONFIG(IGNORE_BLOCK, whitelist_item_t, whitelist_rules, err);
     PREALLOC_ARRAY_CONFIG(IGNORE_FC, fileset_item_t *, ignore_list, err);
 
-    /* don't use PREALLOC_ARRAY_CONFIG for rules, as we accept old rule name (policy)  */
+    /* don't use PREALLOC_ARRAY_CONFIG for rules, as we also accept old rule name (policy)  */
     //PREALLOC_ARRAY_CONFIG(RULE_BLOCK, rule_item_t, rules, free_ignore_fc);
     count = rh_config_CountItemNames(section, RULE_BLOCK)+
                 rh_config_CountItemNames(section, OLD_RULE_BLOCK);

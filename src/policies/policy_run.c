@@ -115,7 +115,7 @@ static int subst_one_param(const char *key, const char *val, void *udata)
 
 /**
  * Build action parameters according to: (in growing priority)
- *  - default policy action_params
+ *  - policy action_params
  *  - policy rule action_params
  *  - action_params of the matched fileclass
  * @param(out)  params  the params struct to be set
@@ -144,10 +144,20 @@ static int build_action_params(action_params_t *params,
         return -EINVAL;
 
     /* Merging parameters from:
-     * 1) TODO: trigger
+     * (TODO) trigger?
+     * 1) policy
      * 2) policy rule
      * 3) fileclass
      */
+    /* params from policy */
+    if (likely(policy->config != NULL))
+    {
+        rc = rbh_params_foreach(&policy->config->action_params, add_param, params);
+        if (rc)
+            goto err;
+    }
+
+    /* rule: add and override previous params */
     if (rule != NULL)
     {
         rc = rbh_params_foreach(&rule->action_params, add_param, params);
@@ -159,7 +169,8 @@ static int build_action_params(action_params_t *params,
         last_param_idx += 2;
     }
 
-    if (policy != NULL && policy->descr != NULL && fileset != NULL)
+    /* fileset: add and override previous params */
+    if (fileset != NULL)
     {
         const action_params_t *fileset_params;
 
@@ -915,6 +926,9 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
 
     /* needed attributes to check policy rules */
     mask |= policy->descr->rules.run_attr_mask;
+
+    /* needed attributes to build action params */
+    mask |= policy->config->params_mask;
 
     // TODO class management
 

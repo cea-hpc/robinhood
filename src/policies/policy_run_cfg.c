@@ -55,6 +55,9 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     cfg->lru_sort_attr =  pol->default_lru_sort_attr;
 
+    cfg->action_params.param_set = NULL;
+    cfg->params_mask = 0LL;
+
     cfg->check_action_status_on_startup = true;
     cfg->recheck_ignored_classes = true;
 
@@ -489,7 +492,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     int            rc;
     char           block_name[1024];
     char           tmp[1024];
-    config_item_t  param_block;
+    config_item_t  param_block, action_params_block;
 
     /* parameter for CheckUnknownParams() */
     static const char *allowed[] = {
@@ -499,7 +502,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "check_actions_interval", "check_actions_on_startup",
         "recheck_ignored_classes",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
-        "db_result_size_max",
+        "db_result_size_max", "action_params",
         NULL
     };
 
@@ -577,6 +580,23 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         }
         else
             conf->lru_sort_attr = rc;
+    }
+
+    /* get subblock */
+    action_params_block = rh_config_GetItemByName(param_block, "action_params");
+    if (action_params_block != NULL)
+    {
+        if (rh_config_ItemType(action_params_block) != CONFIG_ITEM_BLOCK)
+        {
+            sprintf(msg_out, "A block is expected for configuration item '%s::action_params', line %d.",
+                    block_name, rh_config_GetItemLine(action_params_block));
+            return EINVAL;
+        }
+
+        rc = read_action_params(action_params_block, &conf->action_params,
+                                &conf->params_mask, msg_out);
+        if (rc)
+            return rc;
     }
 
     /* warn for unknown parameters */
@@ -1040,6 +1060,7 @@ static void policy_run_cfg_free(void *config)
             {
                 if (cfg->configs[i].trigger_list != NULL)
                     free_triggers(cfg->configs[i].trigger_list, cfg->configs[i].trigger_count);
+                rbh_params_free(&cfg->configs[i].action_params);
             }
             free(cfg->configs);
         }
