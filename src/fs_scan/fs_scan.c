@@ -447,9 +447,13 @@ static int TerminateScan(int scan_complete, time_t end)
         free(descr);
         if (cmd)
         {
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Executing scan completion command: %s", cmd);
             execute_shell_command(true, cmd, 0);
             g_free(cmd);
         }
+        else
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Invalid scan completion command: %s",
+                       fs_scan_config.completion_command);
     }
 
     if ( fsscan_once )

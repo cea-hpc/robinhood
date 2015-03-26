@@ -4278,7 +4278,31 @@ function test_completion
     # clean existing "out.*" files
     rm -f out.1 out.2
 
-    # flavors: OK or KO
+    done_str="Executing scan completion command"
+    fail_str="Invalid scan completion command"
+
+    # flavors:
+    case "$flavor" in
+        OK)
+            export TEST_CMD="../completion.sh {cfg} {fspath} out"
+            ;;
+        unmatched)
+            export TEST_CMD="../completion.sh {cfg"
+            err="ERROR: unmatched '{' in scan completion command"
+            ;;
+        invalid_ctx_id)
+            export TEST_CMD="../completion.sh {fid}"
+            err="fid is not available in this context"
+            ;;
+        invalid_ctx_attr)
+            export TEST_CMD="../completion.sh {fullpath}"
+            err="entry attributes are not available in this context"
+            ;;
+        invalid_attr)
+            export TEST_CMD="../completion.sh {foo}"
+            err="unexpected variable 'foo' in scan completion command"
+            ;;
+    esac
 
     # populate filesystem
     for i in `seq 1 10`; do
@@ -4291,6 +4315,8 @@ function test_completion
 
     # if flavor is OK: completion command must have been called
     if [ "$flavor" = "OK" ]; then
+        grep "$done_str" rh_scan.log || error "Completion command not executed"
+
         [ -f out.1 ] || error "file out.1 not found"
         [ -f out.2 ] || error "file out.2 not found"
         # out.1 contains cfg
@@ -4298,8 +4324,8 @@ function test_completion
         # out.2 contains fspath
         grep $ROOT out.2 || error "out.2 has unexpected content: $(cat out.2)"
     else
-        # matching: CmdParams | ERROR: unmatched '{' in command parameters '../completion.sh {cfg'
-        grep "ERROR: unmatched '{' in scan completion command" rh_scan.log || error "unreported cmd error"
+        grep "$fail_str" rh_scan.log || error "Completion command should fail"
+        grep "$err" rh_scan.log || error "unreported cmd error"
     fi
 
     rm -f out.1 out.2
@@ -9265,8 +9291,11 @@ run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/
 run_test 106a    test_diff info_collect2.conf "diff" "rbh-diff"
 run_test 106b    test_diff info_collect2.conf "diffapply" "rbh-diff --apply"
 run_test 106c    test_diff info_collect2.conf "scan" "robinhood --scan --diff"
-run_test 107a    test_completion test_completion.conf OK "scan completion command"
-run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion command"
+run_test 107a    test_completion test_completion.conf OK        "scan completion command"
+run_test 107b    test_completion test_completion.conf unmatched "wrong completion command (syntax error)"
+run_test 107c    test_completion test_completion.conf invalid_ctx_id "wrong completion command (using id)"
+run_test 107d    test_completion test_completion.conf invalid_ctx_attr "wrong completion command (using attr)"
+run_test 107e    test_completion test_completion.conf invalid_attr "wrong completion command (unknown var)"
 run_test 108a    test_rename info_collect.conf scan "rename cases (scan)"
 run_test 108b    test_rename info_collect.conf readlog "rename cases (readlog)"
 run_test 108c    test_rename info_collect.conf partial "rename cases (partial scans)"

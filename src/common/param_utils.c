@@ -201,8 +201,11 @@ static char *get_str_attr(const entry_id_t *id, const attr_set_t *attrs,
 {
     *free_str = false;
 
-    if (unlikely(attrs == NULL))
+    if (attrs == NULL)
+    {
+        DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: entry attributes are not available in this context");
         return NULL;
+    }
     if ((attrs->attr_mask & (1LL << attr_index)) == 0)
     {
         DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: missing attribute '%s' to perform variable substitution",
@@ -226,8 +229,11 @@ static char *get_fid_str(const entry_id_t *id, const attr_set_t *attrs,
 {
     char *fid_str;
 
-    if (unlikely(id == NULL))
+    if (id == NULL)
+    {
+        DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: entry fid is not available in this context");
         return NULL;
+    }
 
     if (asprintf(&fid_str, DFID_NOBRACE, PFID(id)) < 0)
         return NULL;
