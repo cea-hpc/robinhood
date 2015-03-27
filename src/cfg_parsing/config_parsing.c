@@ -55,6 +55,9 @@ void           yyreset( void );
 /* returns the file currently parsed (for tracing in case of error) */
 void           yy_set_current_file( char *file );
 
+/* free parser resources */
+int yylex_destroy(void);
+
 /* the global program structure, set after parsing */
 extern list_items *program_result;
 
@@ -106,6 +109,7 @@ config_file_t rh_config_ParseFile( char *file_path )
 
     if ( yyparse(  ) )
     {
+        yylex_destroy();
         fclose( configuration_file );
         return NULL;
     }
@@ -117,16 +121,16 @@ config_file_t rh_config_ParseFile( char *file_path )
     if ( !output_struct )
     {
         strcpy( extern_errormsg, strerror( errno ) );
+        yylex_destroy();
         fclose( configuration_file );
         return NULL;
     }
 
     output_struct->syntax_tree = program_result;
 
-    /* converts pointer to pointer */
+    yylex_destroy();
     fclose( configuration_file );
     return ( config_file_t ) output_struct;
-
 }
 
 
