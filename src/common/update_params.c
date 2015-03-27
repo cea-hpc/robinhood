@@ -180,6 +180,7 @@ static int read_update_params(config_file_t config, void *module_config,
     char           tmpstr[1024];
     char         **options = NULL;
     unsigned int   nb_options = 0;
+    config_item_t  updt_block;
 
     static const char *update_allow[] =
     {
@@ -194,24 +195,20 @@ static int read_update_params(config_file_t config, void *module_config,
     /* get db_update_params block */
 
     /* check the new name first */
-    config_item_t updt_block = rh_config_FindItemByName(config,
-                                                       UPDT_PARAMS_BLOCK);
-    if (updt_block == NULL)
+    rc = get_cfg_block(config, UPDT_PARAMS_BLOCK, &updt_block, msg_out);
+    if (rc == ENOENT)
     {
-        /* check old name for backward compat */
-        updt_block = rh_config_FindItemByName(config, OLD_UPDT_PARAMS_BLOCK);
-        if (updt_block)
-            DisplayLog(LVL_CRIT, TAG, "WARNING: block name '"
-                       OLD_UPDT_PARAMS_BLOCK"' is deprecated. Use '"
-                       UPDT_PARAMS_BLOCK"' instead");
-        else
-        {
-            /* not mandatory */
-#ifdef _DEBUG_PARSING
-            printf("%s block not found in config file\n", UPDT_PARAMS_BLOCK);
-#endif
+        /* try with the deprecated name */
+        rc = get_cfg_block(config, OLD_UPDT_PARAMS_BLOCK, &updt_block, msg_out);
+        if (rc == ENOENT)
+            /* not mandatory: no error */
             return 0;
-        }
+        else if (rc != 0)
+            return rc;
+        /* found the old name */
+        DisplayLog(LVL_CRIT, TAG, "WARNING: block name '"
+                   OLD_UPDT_PARAMS_BLOCK"' is deprecated. Use '"
+                   UPDT_PARAMS_BLOCK"' instead");
     }
 
     /* get parameters from this block */

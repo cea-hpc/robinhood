@@ -478,9 +478,17 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         return rc;
 
     /* get action_params subblock */
-    params_block = rh_config_GetItemByName(config_blk, "action_params");
+    bool unique = true;
+    params_block = rh_config_GetItemByName(config_blk, "action_params", &unique);
+
     if (params_block != NULL)
     {
+        if (!unique)
+        {
+            sprintf(msg_out, "Found duplicate block '%s' in '%s' line %d.",
+                    "action_params", block_name, rh_config_GetItemLine(params_block));
+            return EEXIST;
+        }
         if (rh_config_ItemType(params_block) != CONFIG_ITEM_BLOCK)
         {
             sprintf(msg_out, "A block is expected for configuration item '%s::action_params', line %d.",
@@ -563,21 +571,9 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     snprintf(block_name, sizeof(block_name), "%s"PARAM_SUFFIX, policy_name);
 
     /* get <policy>_parameters block */
-    param_block = rh_config_FindItemByName(config, block_name);
-    if (param_block == NULL)
-    {
-        sprintf(msg_out, "No parameter block found for policy '%s' (%s)",
-                policy_name, block_name);
-        /* not mandatory */
-        return 0;
-    }
-
-    /* check this is a block... */
-    if (rh_config_ItemType(param_block) != CONFIG_ITEM_BLOCK)
-    {
-        sprintf(msg_out, "A block is expected for configuration item '%s'", block_name);
-        return EINVAL;
-    }
+    rc = get_cfg_block(config, block_name, &param_block, msg_out);
+    if (rc)
+        return rc == ENOENT ? 0 : rc; /* not mandatory */
 
     /* read all scalar params */
     rc = read_scalar_params(param_block, block_name, cfg_params, msg_out);
@@ -604,9 +600,17 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     }
 
     /* get subblock */
-    action_params_block = rh_config_GetItemByName(param_block, "action_params");
+    bool unique = true;
+    action_params_block = rh_config_GetItemByName(param_block, "action_params", &unique);
     if (action_params_block != NULL)
     {
+        if (!unique)
+        {
+            sprintf(msg_out, "Found duplicate block '%s' in '%s' line %d.",
+                    "action_params", block_name,
+                    rh_config_GetItemLine(action_params_block));
+            return EEXIST;
+        }
         if (rh_config_ItemType(action_params_block) != CONFIG_ITEM_BLOCK)
         {
             sprintf(msg_out, "A block is expected for configuration item '%s::action_params', line %d.",

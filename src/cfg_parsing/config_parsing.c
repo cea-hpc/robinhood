@@ -480,38 +480,56 @@ int rh_config_GetExtraArgs( config_item_t item, char ***p_extra_arg_array )
     }
 }
 
+static const char *cfg_item_name(generic_item *item)
+{
+    switch (rh_config_ItemType((config_item_t)item))
+    {
+        case CONFIG_ITEM_BLOCK:
+            return item->item.block.block_name;
+        case CONFIG_ITEM_VAR:
+            return item->item.affect.varname;
+        default:
+            return NULL;
+    }
+}
+
 
 /* get an item from a list with the given name */
-static generic_item *GetItemFromList( generic_item * list, const char *name )
+static generic_item *GetItemFromList(generic_item *list, const char *name,
+                                     bool *ensure_unique)
 {
     generic_item  *curr;
+    generic_item  *save = NULL;
 
-    if ( !list )
-        return NULL;
-
-    for ( curr = list; curr != NULL; curr = curr->next )
+    for (curr = list; curr != NULL; curr = curr->next)
     {
-        switch ( rh_config_ItemType( ( config_item_t ) curr ) )
+        const char *item_name = cfg_item_name(curr);
+
+        if (item_name == NULL) /*unnamed item */
+            continue;
+
+        if (!STRNCMP(item_name, name, MAXSTRLEN))
         {
-        case CONFIG_ITEM_BLOCK:
-            if ( !STRNCMP( curr->item.block.block_name, name, MAXSTRLEN ) )
+            if (!(*ensure_unique))
+                /* return first match */
                 return curr;
-            break;
-        case CONFIG_ITEM_VAR:
-            if ( !STRNCMP( curr->item.affect.varname, name, MAXSTRLEN ) )
-                return curr;
-            break;
-        default:
-            break;
+
+            /* must check unicity */
+            if (save != NULL)
+            {
+                *ensure_unique = false;
+                return curr; /* return conflicting item */
+            }
+            else
+                save = curr;
         }
     }
-    /* not found */
-    return NULL;
-
+    return save;
 }
 
 /* Returns the block with the specified name. This name can be "BLOCK::SUBBLOCK::SUBBLOCK" */
-config_item_t rh_config_FindItemByName( config_file_t config, const char *name )
+config_item_t rh_config_FindItemByName(config_file_t config, const char *name,
+                                       bool *ensure_unique)
 {
     config_struct_t *config_struct = ( config_struct_t * ) config;
     generic_item  *block;
@@ -536,7 +554,7 @@ config_item_t rh_config_FindItemByName( config_file_t config, const char *name )
 
         /* it is a whole name */
         if ( !separ )
-            return ( config_item_t ) GetItemFromList( list, current );
+            return (config_item_t)GetItemFromList(list, current, ensure_unique);
         else
         {
             /* split the name */
@@ -547,7 +565,7 @@ config_item_t rh_config_FindItemByName( config_file_t config, const char *name )
             else
                 return NULL;    /* overflow */
 
-            block = GetItemFromList( list, current );
+            block = GetItemFromList(list, current, ensure_unique);
 
             /* not found or not a block ? */
             if ( !block || ( block->type != TYPE_BLOCK ) )
@@ -569,11 +587,12 @@ config_item_t rh_config_FindItemByName( config_file_t config, const char *name )
 /* Directly returns the value of the key with the specified name.
  * This name can be "BLOCK::SUBBLOCK::SUBBLOCK::VARNAME"
  */
-char          *rh_config_FindKeyValueByName( config_file_t config, const char *key_name )
+char *rh_config_FindKeyValueByName(config_file_t config, const char *key_name,
+                                   bool *ensure_unique)
 {
     generic_item  *var;
 
-    var = ( generic_item * ) rh_config_FindItemByName( config, key_name );
+    var = (generic_item *)rh_config_FindItemByName(config, key_name, ensure_unique);
 
     if ( !var || ( rh_config_ItemType( ( config_item_t ) var ) != CONFIG_ITEM_VAR ) )
         return NULL;
@@ -586,7 +605,8 @@ char          *rh_config_FindKeyValueByName( config_file_t config, const char *k
 
 
 /* Returns a block or variable with the specified name from the given block" */
-config_item_t rh_config_GetItemByName( config_item_t block, const char *name )
+config_item_t rh_config_GetItemByName(config_item_t block, const char *name,
+                                      bool *ensure_unique)
 {
     generic_item  *curr_block = ( generic_item * ) block;
     generic_item  *list;
@@ -610,7 +630,7 @@ config_item_t rh_config_GetItemByName( config_item_t block, const char *name )
 
         /* it is a whole name */
         if ( !separ )
-            return ( config_item_t ) GetItemFromList( list, current );
+            return (config_item_t)GetItemFromList(list, current, ensure_unique);
         else
         {
             /* split the name */
@@ -621,7 +641,7 @@ config_item_t rh_config_GetItemByName( config_item_t block, const char *name )
             else
                 return NULL;    /* overflow */
 
-            curr_block = GetItemFromList( list, current );
+            curr_block = GetItemFromList(list, current, ensure_unique);
 
             /* not found or not a block ? */
             if ( !curr_block || ( curr_block->type != TYPE_BLOCK ) )
@@ -642,11 +662,12 @@ config_item_t rh_config_GetItemByName( config_item_t block, const char *name )
 /* Directly returns the value of the key with the specified name
  * relative to the given block.
  */
-char          *rh_config_GetKeyValueByName( config_item_t block, const char *key_name )
+char *rh_config_GetKeyValueByName(config_item_t block, const char *key_name,
+                                  bool *ensure_unique)
 {
     generic_item  *var;
 
-    var = ( generic_item * ) rh_config_GetItemByName( block, key_name );
+    var = (generic_item *)rh_config_GetItemByName(block, key_name, ensure_unique);
 
     if ( !var || ( rh_config_ItemType( ( config_item_t ) var ) != CONFIG_ITEM_VAR ) )
     {

@@ -91,7 +91,7 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
     char         **options = NULL;
     unsigned int   nb_options = 0;
     char           tmpstr[1024];
-
+    config_item_t  lmgr_block;
     config_item_t  db_block;
 
     static const char *lmgr_allowed[] = {
@@ -147,19 +147,9 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
 #endif
 
     /* get ListManager block */
-    config_item_t  lmgr_block = rh_config_FindItemByName(config, LMGR_CONFIG_BLOCK);
-
-    if ( lmgr_block == NULL )
-    {
-        strcpy( msg_out, "Missing configuration block '" LMGR_CONFIG_BLOCK "'" );
-        return ENOENT;
-    }
-
-    if ( rh_config_ItemType( lmgr_block ) != CONFIG_ITEM_BLOCK )
-    {
-        strcpy( msg_out, "A block is expected for '" LMGR_CONFIG_BLOCK "' item" );
-        return EINVAL;
-    }
+    rc = get_cfg_block(config, LMGR_CONFIG_BLOCK, &lmgr_block, msg_out);
+    if (rc)
+        return rc;
 
     /* retrieve std parameters */
     rc = read_scalar_params(lmgr_block, LMGR_CONFIG_BLOCK, cfg_params, msg_out);
@@ -210,22 +200,9 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
     /* Database parameters */
 #ifdef _MYSQL
     /* get MySQL block */
-    db_block = rh_config_GetItemByName( lmgr_block, MYSQL_CONFIG_BLOCK );
-
-    if ( db_block == NULL )
-    {
-        strcpy( msg_out,
-                "Missing configuration block '" LMGR_CONFIG_BLOCK "::" MYSQL_CONFIG_BLOCK "'" );
-        return ENOENT;
-    }
-
-    if ( rh_config_ItemType( db_block ) != CONFIG_ITEM_BLOCK )
-    {
-        sprintf( msg_out,
-                 "A block is expected for '" LMGR_CONFIG_BLOCK "::" MYSQL_CONFIG_BLOCK
-                 "' item, line %d", rh_config_GetItemLine( db_block ) );
-        return EINVAL;
-    }
+    rc = get_cfg_block(config, LMGR_CONFIG_BLOCK"::"MYSQL_CONFIG_BLOCK, &db_block, msg_out);
+    if (rc)
+        return rc;
 
     /* DB std params */
     rc = read_scalar_params(db_block, MYSQL_CONFIG_BLOCK, db_params, msg_out);
@@ -280,23 +257,9 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
 
 #elif defined (_SQLITE)
     /* get SQLite block */
-
-    db_block = rh_config_GetItemByName( lmgr_block, SQLITE_CONFIG_BLOCK );
-
-    if ( db_block == NULL )
-    {
-        strcpy( msg_out,
-                "Missing configuration block '" LMGR_CONFIG_BLOCK "::" SQLITE_CONFIG_BLOCK "'" );
-        return ENOENT;
-    }
-
-    if ( rh_config_ItemType( db_block ) != CONFIG_ITEM_BLOCK )
-    {
-        sprintf( msg_out,
-                 "A block is expected for '" LMGR_CONFIG_BLOCK "::" SQLITE_CONFIG_BLOCK
-                 "' item, line %d", rh_config_GetItemLine( db_block ) );
-        return EINVAL;
-    }
+    rc = get_cfg_block(config, LMGR_CONFIG_BLOCK"::"SQLITE_CONFIG_BLOCK, &db_block, msg_out);
+    if (rc)
+        return rc;
 
     rc = read_scalar_params(db_block, SQLITE_CONFIG_BLOCK, db_params, msg_out);
     if (rc)

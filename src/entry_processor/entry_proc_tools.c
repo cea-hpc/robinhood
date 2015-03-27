@@ -413,6 +413,7 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
     int            rc, blc_index, i;
     entry_proc_config_t *conf = (entry_proc_config_t *)module_config;
     unsigned int next_idx = 0;
+    config_item_t entryproc_block;
 
     /* buffer to store arg names */
     char           *pipeline_names = NULL;
@@ -432,22 +433,16 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
     };
 
     /* get EntryProcessor block */
-    config_item_t  entryproc_block = rh_config_FindItemByName( config, ENTRYPROC_CONFIG_BLOCK );
-
-    if ( entryproc_block == NULL )
+    rc = get_cfg_block(config, ENTRYPROC_CONFIG_BLOCK, &entryproc_block, msg_out);
+    if (rc == ENOENT)
     {
-        strcpy( msg_out, "Missing configuration block '" ENTRYPROC_CONFIG_BLOCK "'" );
         /* set default pipeline config */
         set_default_pipeline_config(&std_pipeline_descr, std_pipeline, conf);
-        /* No error because no parameter is mandatory  */
+        /* No error because no parameter is mandatory */
         return 0;
     }
-
-    if ( rh_config_ItemType( entryproc_block ) != CONFIG_ITEM_BLOCK )
-    {
-        strcpy( msg_out, "A block is expected for '" ENTRYPROC_CONFIG_BLOCK "' item" );
-        return EINVAL;
-    }
+    if (rc)
+        return rc;
 
     /* read std params */
     rc = read_scalar_params(entryproc_block, ENTRYPROC_CONFIG_BLOCK, cfg_params, msg_out);

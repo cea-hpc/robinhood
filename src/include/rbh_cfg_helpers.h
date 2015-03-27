@@ -133,7 +133,10 @@ int           GetFloatParam(config_item_t block, const char *block_name,
                             char ***extra_args_tab, unsigned int *nb_extra_args,
                             char *err_msg);
 
-
+/**
+ * Get a Config block and check it is unique.
+ */
+int get_cfg_block(config_file_t config, const char *name, config_item_t *item, char *msg_out);
 
 /**
  * Types and function to parse a list of simple scalar configuration variables (with no extra args).

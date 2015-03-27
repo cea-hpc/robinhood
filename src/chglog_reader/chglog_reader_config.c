@@ -149,56 +149,67 @@ static void cl_reader_write_template(FILE *output)
 static int parse_mdt_block( config_item_t config_blk, const char *block_name,
                              mdt_def_t * p_mdt_def, char *msg_out )
 {
-    char         * str;
+    char *str;
+    bool  unique;
 
     /* 2 variables expected : 'mdt_name' and 'reader_id' */
-
-    static const char * expected_vars[] = { "mdt_name","reader_id", NULL };
+    static const char *expected_vars[] = { "mdt_name","reader_id", NULL };
 
     /* get 'mdt_name' value */
-
-    str = rh_config_GetKeyValueByName( config_blk, "mdt_name" );
-    if ( str == NULL )
-      {
-          DisplayLog(LVL_CRIT, "ChgLog config", "WARNING: no 'mdt_name' provided in %s block: using default value '%s'",
-                        block_name, default_mdt_def.mdt_name );
-          strcpy( p_mdt_def->mdt_name, default_mdt_def.mdt_name );
-      }
-    else if ( strlen( str ) >= MDT_NAME_MAX )
-      {
-          sprintf( msg_out, "MDT name '%s' is too long (max length=%u)", str, MDT_NAME_MAX );
-                return ENAMETOOLONG;
-      }
-    else if ( strncmp( "MDT", str, 3 ) != 0 )
-      {
-          sprintf( msg_out, "Invalid MDT name '%s'. \"MDT<index>\" expected", str );
-      }
+    unique = true;
+    str = rh_config_GetKeyValueByName(config_blk, "mdt_name", &unique);
+    if (str == NULL)
+    {
+        DisplayLog(LVL_CRIT, "ChgLog config", "WARNING: no 'mdt_name' provided in %s block: using default value '%s'",
+                   block_name, default_mdt_def.mdt_name);
+        strcpy(p_mdt_def->mdt_name, default_mdt_def.mdt_name);
+    }
+    else if (!unique)
+    {
+        sprintf(msg_out, "Found duplicate parameter '%s' in %s.\n", "mdt_name", block_name);
+        return EEXIST;
+    }
+    else if (strlen(str) >= MDT_NAME_MAX)
+    {
+        sprintf(msg_out, "MDT name '%s' is too long (max length=%u)", str, MDT_NAME_MAX);
+        return ENAMETOOLONG;
+    }
+    else if (strncmp("MDT", str, 3) != 0)
+    {
+        sprintf(msg_out, "Invalid MDT name '%s'. \"MDT<index>\" expected", str);
+        return EINVAL;
+    }
     else
-      {
-          strcpy( p_mdt_def->mdt_name, str );
-      }
+    {
+        strcpy(p_mdt_def->mdt_name, str);
+    }
 
     /* get 'reader_id' value */
-
-    str = rh_config_GetKeyValueByName( config_blk, "reader_id" );
-    if ( str == NULL )
-      {
-          DisplayLog(LVL_CRIT, "ChgLog config", "WARNING: no 'reader_id' provided in %s block: using default value '%s'",
-                        block_name, default_mdt_def.reader_id );
-          strcpy( p_mdt_def->reader_id, default_mdt_def.reader_id );
-      }
-    else if ( strlen( str ) >= MDT_NAME_MAX )
-      {
-          sprintf( msg_out, "Client id '%s' is too long (max length=%u)", str, READER_ID_MAX );
-                return ENAMETOOLONG;
-      }
+    unique = true;
+    str = rh_config_GetKeyValueByName(config_blk, "reader_id", &unique);
+    if (str == NULL)
+    {
+        DisplayLog(LVL_CRIT, "ChgLog config", "WARNING: no 'reader_id' provided in %s block: using default value '%s'",
+                   block_name, default_mdt_def.reader_id);
+        strcpy(p_mdt_def->reader_id, default_mdt_def.reader_id);
+    }
+    else if (!unique)
+    {
+        sprintf(msg_out, "Found duplicate parameter '%s' in %s.\n", "reader_id", block_name);
+        return EEXIST;
+    }
+    else if (strlen(str) >= MDT_NAME_MAX)
+    {
+        sprintf(msg_out, "Client id '%s' is too long (max length=%u)", str, READER_ID_MAX);
+        return ENAMETOOLONG;
+    }
     else
-      {
-          strcpy( p_mdt_def->reader_id, str );
-      }
+    {
+        strcpy(p_mdt_def->reader_id, str);
+    }
 
     /* display warnings for unknown parameters */
-    CheckUnknownParameters( config_blk, block_name, expected_vars );
+    CheckUnknownParameters(config_blk, block_name, expected_vars);
 
     return 0;
 }
@@ -207,7 +218,8 @@ static int parse_mdt_block( config_item_t config_blk, const char *block_name,
 static int cl_reader_read_cfg(config_file_t config, void *module_config,
                               char *msg_out)
 {
-    chglog_reader_config_t * p_config = (chglog_reader_config_t *) module_config;
+    chglog_reader_config_t *p_config = (chglog_reader_config_t *)module_config;
+    config_item_t  chglog_block;
     unsigned int   blc_index;
     int            rc;
 
@@ -240,11 +252,9 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
 
 
     /* get ChangeLog  block */
-    config_item_t  chglog_block = rh_config_FindItemByName(config, CHGLOG_CFG_BLOCK);
-
-    /* not mandatory */
-    if (chglog_block == NULL)
-        return 0;
+    rc = get_cfg_block(config, CHGLOG_CFG_BLOCK, &chglog_block, msg_out);
+    if (rc)
+        return rc == ENOENT ? 0 : rc; /* not mandatory */
 
     /* get scalar params */
     rc = read_scalar_params(chglog_block, CHGLOG_CFG_BLOCK, cfg_params, msg_out);

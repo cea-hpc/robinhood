@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <stdbool.h>
 
 /* opaque type */
 typedef caddr_t config_file_t;
@@ -133,27 +134,51 @@ int          rh_config_GetExtraArgs( config_item_t item, char ***p_extra_arg_arr
 
 
 /**
- * Returns a block or variable with the specified name. This name can be "BLOCK::SUBBLOCK::SUBBLOCK"
+ * Returns a block or variable with the specified name. This name can be "BLOCK::SUBBLOCK::SUBBLOCK".
+ *
+ * @param[in,out] ensure_unique Pointer to boolean. If set to true in input,
+ *                              the function checks the item name is unique.
+ *                              If it is not, the boolean is set to false in output and the conflicting item
+ *                              is returned (second item found).
  */
-config_item_t  rh_config_FindItemByName( config_file_t config, const char *name );
+config_item_t  rh_config_FindItemByName(config_file_t config, const char *name,
+                                        bool *ensure_unique);
 
 /**
  * Directly returns the value of the key with the specified name.
- * This name can be "BLOCK::SUBBLOCK::SUBBLOCK::VARNAME"
+ * This name can be "BLOCK::SUBBLOCK::SUBBLOCK::VARNAME".
+ *
+ * @param[in,out] ensure_unique Pointer to boolean. If set to true in input,
+ *                              the function checks the item name is unique.
+ *                              If it is not, the boolean is set to false in output and the conflicting item
+ *                              is returned (second item found).
  */
-char          *rh_config_FindKeyValueByName( config_file_t config, const char *key_name );
+char          *rh_config_FindKeyValueByName(config_file_t config, const char *key_name,
+                                            bool *ensure_unique);
 
 
 /**
- * Returns a block or variable with the specified name from the given block"
+ * Returns a block or variable with the specified name from the given block.
+ *
+ * @param[in,out] ensure_unique Pointer to boolean. If set to true in input,
+ *                              the function checks the item name is unique.
+ *                              If it is not, the boolean is set to false in output and the conflicting item
+ *                              is returned (second item found).
  */
-config_item_t  rh_config_GetItemByName( config_item_t block, const char *name );
+config_item_t rh_config_GetItemByName(config_item_t block, const char *name,
+                                      bool *ensure_unique);
 
 /**
  * Directly returns the value of the key with the specified name
  * relative to the given block.
+ *
+ * @param[in,out] ensure_unique Pointer to boolean. If set to true in input,
+ *                              the function checks the item name is unique.
+ *                              If it is not, the boolean is set to false in output and the conflicting item
+ *                              is returned (second item found).
  */
-char          *rh_config_GetKeyValueByName( config_item_t block, const char *key_name );
+char *rh_config_GetKeyValueByName(config_item_t block, const char *key_name,
+                                  bool *ensure_unique);
 
 /**
  * Get item line

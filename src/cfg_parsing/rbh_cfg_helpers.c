@@ -29,6 +29,39 @@ static inline bool is_stdname(const char *name)
            || !strcasecmp(name, "syslog"));
 }
 
+/** get param with the given name and check for existence and unicity */
+static int get_cfg_param(config_item_t block, const char *block_name,
+                         const char *var_name, param_flags_t flags,
+                         char **pname, char **pvalue, int *pextra,
+                         config_item_t *pitem, char *err_msg)
+{
+    bool          unique = true;
+    int           rc;
+
+    *pitem = rh_config_GetItemByName(block, var_name, &unique);
+    if (!*pitem)
+    {
+        if (flags & PFLG_MANDATORY)
+            sprintf(err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
+                    block_name, rh_config_GetItemLine(block));
+        /* return ENOENT in any case */
+        return ENOENT;
+    }
+    else if (!unique)
+    {
+        sprintf(err_msg, "Duplicate definition of parameter '%s' found in block '%s', line %d.",
+                var_name, block_name, rh_config_GetItemLine(*pitem));
+        return EEXIST;
+    }
+
+    rc = rh_config_GetKeyValue(*pitem, pname, pvalue, pextra);
+    if (rc)
+        sprintf(err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s",
+                block_name, var_name, rh_config_GetItemLine(*pitem),
+                rh_config_GetErrorMsg());
+    return rc;
+}
+
 /**
  * Misc. tools for config parsing
  */
@@ -50,24 +83,10 @@ int            GetStringParam(config_item_t block, const char *block_name,
     if ( extra_args_tab )
         *extra_args_tab = NULL;
 
-
-    curr_item = rh_config_GetItemByName( block, var_name );
-    if ( !curr_item )
-    {
-        if (flags & PFLG_MANDATORY)
-            sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
-                     block_name, rh_config_GetItemLine( block ) );
-        /* return ENOENT in any case */
-        return ENOENT;
-    }
-
-    rc = rh_config_GetKeyValue( curr_item, &name, &value, &extra );
-    if ( rc )
-    {
-        sprintf( err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s", block_name,
-                 var_name, rh_config_GetItemLine( curr_item ), rh_config_GetErrorMsg(  ) );
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
         return rc;
-    }
 
     rh_strncpy(target, value, target_size);
 
@@ -146,23 +165,10 @@ int  GetBoolParam(config_item_t block, const char *block_name,
 
     err_msg[0] = '\0';
 
-    curr_item = rh_config_GetItemByName( block, var_name );
-    if ( !curr_item )
-    {
-        if (flags & PFLG_MANDATORY)
-            sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
-                     block_name, rh_config_GetItemLine( block ) );
-        /* return ENOENT in any case */
-        return ENOENT;
-    }
-
-    rc = rh_config_GetKeyValue( curr_item, &name, &value, &extra );
-    if ( rc )
-    {
-        sprintf( err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s", block_name,
-                 var_name, rh_config_GetItemLine( curr_item ), rh_config_GetErrorMsg(  ) );
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
         return rc;
-    }
 
     tmp_bool = str2bool(value);
     if (tmp_bool == -1)
@@ -189,7 +195,6 @@ int  GetBoolParam(config_item_t block, const char *block_name,
     }
 
     return 0;
-
 }
 
 
@@ -217,23 +222,10 @@ int GetDurationParam(config_item_t block, const char *block_name,
     if ( extra_args_tab )
         *extra_args_tab = NULL;
 
-    curr_item = rh_config_GetItemByName( block, var_name );
-    if ( !curr_item )
-    {
-        if (flags & PFLG_MANDATORY)
-            sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
-                     block_name, rh_config_GetItemLine( block ) );
-        /* return ENOENT in any case */
-        return ENOENT;
-    }
-
-    rc = rh_config_GetKeyValue( curr_item, &name, &value, &extra );
-    if ( rc )
-    {
-        sprintf( err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s", block_name,
-                 var_name, rh_config_GetItemLine( curr_item ), rh_config_GetErrorMsg(  ) );
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
         return rc;
-    }
 
     timeval = str2duration( value );
     if ( timeval == -1 )
@@ -300,23 +292,10 @@ int GetSizeParam(config_item_t block, const char *block_name,
     if ( extra_args_tab )
         *extra_args_tab = NULL;
 
-    curr_item = rh_config_GetItemByName( block, var_name );
-    if ( !curr_item )
-    {
-        if (flags & PFLG_MANDATORY)
-            sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
-                     block_name, rh_config_GetItemLine( block ) );
-        /* return ENOENT in any case */
-        return ENOENT;
-    }
-
-    rc = rh_config_GetKeyValue( curr_item, &name, &value, &extra );
-    if ( rc )
-    {
-        sprintf( err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s", block_name,
-                 var_name, rh_config_GetItemLine( curr_item ), rh_config_GetErrorMsg(  ) );
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
         return rc;
-    }
 
     sizeval = str2size( value );
     if ( sizeval == ( unsigned long long ) -1 )
@@ -377,23 +356,10 @@ int            GetIntParam(config_item_t block, const char *block_name,
     if ( extra_args_tab )
         *extra_args_tab = NULL;
 
-    curr_item = rh_config_GetItemByName( block, var_name );
-    if ( !curr_item )
-    {
-        if (flags & PFLG_MANDATORY)
-            sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
-                     block_name, rh_config_GetItemLine( block ) );
-        /* return ENOENT in any case */
-        return ENOENT;
-    }
-
-    rc = rh_config_GetKeyValue( curr_item, &name, &value, &extra );
-    if ( rc )
-    {
-        sprintf( err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s", block_name,
-                 var_name, rh_config_GetItemLine( curr_item ), rh_config_GetErrorMsg(  ) );
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
         return rc;
-    }
 
     nb_read = sscanf( value, "%d%256s", &intval, tmpbuf );
     if ( nb_read < 1 )
@@ -468,23 +434,10 @@ int GetInt64Param(config_item_t block, const char *block_name,
     if ( extra_args_tab )
         *extra_args_tab = NULL;
 
-    curr_item = rh_config_GetItemByName( block, var_name );
-    if ( !curr_item )
-    {
-        if (flags & PFLG_MANDATORY)
-            sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
-                     block_name, rh_config_GetItemLine( block ) );
-        /* return ENOENT in any case */
-        return ENOENT;
-    }
-
-    rc = rh_config_GetKeyValue( curr_item, &name, &value, &extra );
-    if ( rc )
-    {
-        sprintf( err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s", block_name,
-                 var_name, rh_config_GetItemLine( curr_item ), rh_config_GetErrorMsg(  ) );
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
         return rc;
-    }
 
     nb_read = sscanf( value, "%"SCNu64"%256s", &intval, tmpbuf );
     if ( nb_read < 1 )
@@ -565,23 +518,10 @@ int           GetFloatParam(config_item_t block, const char *block_name,
     if ( extra_args_tab )
         *extra_args_tab = NULL;
 
-    curr_item = rh_config_GetItemByName( block, var_name );
-    if ( !curr_item )
-    {
-        if (flags & PFLG_MANDATORY)
-            sprintf( err_msg, "Missing mandatory parameter '%s' in block '%s', line %d", var_name,
-                     block_name, rh_config_GetItemLine( block ) );
-        /* return ENOENT in any case */
-        return ENOENT;
-    }
-
-    rc = rh_config_GetKeyValue( curr_item, &name, &value, &extra );
-    if ( rc )
-    {
-        sprintf( err_msg, "Error retrieving parameter value for '%s::%s', line %d:\n%s", block_name,
-                 var_name, rh_config_GetItemLine( curr_item ), rh_config_GetErrorMsg(  ) );
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
         return rc;
-    }
 
     nb_read = sscanf( value, "%lf%256s", &val, tmpbuf );
     if ( nb_read < 1 )
@@ -781,3 +721,31 @@ int read_scalar_params(config_item_t block, const char *block_name,
 }
 
 
+int get_cfg_block(config_file_t config, const char *name, config_item_t *item, char *msg_out)
+{
+    bool unique = true;
+    config_item_t block = rh_config_FindItemByName(config, name, &unique);
+
+    *item = NULL;
+
+    if (block == NULL)
+    {
+        sprintf(msg_out, "Missing configuration block '%s'", name);
+        return ENOENT;
+    }
+    else if (!unique)
+    {
+        sprintf(msg_out, "Found duplicate of block '%s' line %d.", name,
+                rh_config_GetItemLine(block));
+        return EEXIST;
+    }
+
+    if (rh_config_ItemType(block) != CONFIG_ITEM_BLOCK)
+    {
+        sprintf(msg_out, "A block is expected for '%s' item, line %d",
+                name, rh_config_GetItemLine(block));
+        return EINVAL;
+    }
+    *item = block;
+    return 0;
+}

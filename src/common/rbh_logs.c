@@ -986,6 +986,7 @@ static int log_cfg_read(config_file_t config, void *module_config, char *msg_out
     int            rc, tmpval;
     char           tmpstr[1024];
     log_config_t  *conf = ( log_config_t * ) module_config;
+    config_item_t  log_block;
 
     /* all allowed parameters names */
     static const char *allowed_params[] = { "debug_level", "log_file", "report_file",
@@ -1016,21 +1017,9 @@ static int log_cfg_read(config_file_t config, void *module_config, char *msg_out
     };
 
     /* get Log block */
-    config_item_t  log_block = rh_config_FindItemByName( config, RBH_LOG_CONFIG_BLOCK );
-
-    if ( log_block == NULL )
-    {
-        strcpy( msg_out, "Missing configuration block '" RBH_LOG_CONFIG_BLOCK "'" );
-        /* no parameter is mandatory => Not an error */
-        return 0;
-    }
-
-    if ( rh_config_ItemType( log_block ) != CONFIG_ITEM_BLOCK )
-    {
-        sprintf( msg_out, "A block is expected for '" RBH_LOG_CONFIG_BLOCK "' item, line %d",
-                 rh_config_GetItemLine( log_block ) );
-        return EINVAL;
-    }
+    rc = get_cfg_block(config, RBH_LOG_CONFIG_BLOCK, &log_block, msg_out);
+    if (rc)
+        return rc == ENOENT ? 0 : rc; /* not mandatory */
 
     /* read std parameters */
     rc = read_scalar_params(log_block, RBH_LOG_CONFIG_BLOCK, cfg_params, msg_out);

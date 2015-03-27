@@ -82,6 +82,7 @@ static int global_cfg_read(config_file_t config, void *module_config,
 {
     int              rc;
     global_config_t *conf = (global_config_t *)module_config;
+    config_item_t    general_block;
 
     static const char *allowed_params[] = {
         "fs_path", "fs_type", "stay_in_fs", "check_mounted",
@@ -105,19 +106,9 @@ static int global_cfg_read(config_file_t config, void *module_config,
     };
 
     /* get GENERAL block */
-    config_item_t  general_block = rh_config_FindItemByName( config, GLOBAL_CONFIG_BLOCK );
-
-    if ( general_block == NULL )
-    {
-        strcpy( msg_out, "Missing configuration block '" GLOBAL_CONFIG_BLOCK "'" );
-        return ENOENT;
-    }
-
-    if ( rh_config_ItemType( general_block ) != CONFIG_ITEM_BLOCK )
-    {
-        strcpy( msg_out, "A block is expected for '" GLOBAL_CONFIG_BLOCK "' item" );
-        return EINVAL;
-    }
+    rc = get_cfg_block(config, GLOBAL_CONFIG_BLOCK, &general_block, msg_out);
+    if (rc)
+        return rc;
 
     /* retrieve std parameters */
     rc = read_scalar_params(general_block, GLOBAL_CONFIG_BLOCK, cfg_params,

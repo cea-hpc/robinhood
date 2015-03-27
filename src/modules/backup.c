@@ -165,8 +165,9 @@ static void backup_cfg_write_default(FILE *output)
 
 static int backup_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
-    int               rc;
+    int              rc;
     backup_config_t *conf = (backup_config_t *) module_config;
+    config_item_t    block;
 
     const cfg_param_t backend_params[] = {
         {"root", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_REMOVE_FINAL_SLASH
@@ -193,17 +194,10 @@ static int backup_cfg_read(config_file_t config, void *module_config, char *msg_
         NULL
     };
 
-    /* get Backend block */
-    config_item_t  block = rh_config_FindItemByName(config, BACKUP_BLOCK);
-
-    if (block == NULL)
-	return 0; /* no error, it is not mandatory */
-
-    if (rh_config_ItemType(block) != CONFIG_ITEM_BLOCK)
-    {
-        strcpy(msg_out, "A block is expected for '" BACKUP_BLOCK "' item");
-        return EINVAL;
-    }
+    /* get Backup block */
+    rc = get_cfg_block(config, BACKUP_BLOCK, &block, msg_out);
+    if (rc)
+        return rc == ENOENT ? 0 : rc; /* not mandatory */
 
     /* read std parameters */
     rc = read_scalar_params(block, BACKUP_BLOCK, backend_params, msg_out);

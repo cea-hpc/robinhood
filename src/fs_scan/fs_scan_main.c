@@ -290,10 +290,11 @@ static void fs_scan_cfg_write_default(FILE *output)
 
 static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
-    int            rc, blc_index;
+    int               rc, blc_index;
     fs_scan_config_t *conf = ( fs_scan_config_t *)module_config;
-    bool scan_intl_set = false;
-    time_t scan_intl = 0;
+    bool              scan_intl_set = false;
+    time_t            scan_intl = 0;
+    config_item_t     fsscan_block;
 
     static const char * fsscan_allowed[] =
     {
@@ -321,20 +322,9 @@ static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg
     };
 
     /* get FS Scan block */
-    config_item_t  fsscan_block = rh_config_FindItemByName( config, FSSCAN_CONFIG_BLOCK );
-
-    if ( fsscan_block == NULL )
-    {
-        strcpy( msg_out, "Missing configuration block '" FSSCAN_CONFIG_BLOCK "'" );
-        /* No error because no parameter is mandatory  */
-        return 0;
-    }
-
-    if ( rh_config_ItemType( fsscan_block ) != CONFIG_ITEM_BLOCK )
-    {
-        strcpy( msg_out, "A block is expected for '" FSSCAN_CONFIG_BLOCK "' item" );
-        return EINVAL;
-    }
+    rc = get_cfg_block(config, FSSCAN_CONFIG_BLOCK, &fsscan_block, msg_out);
+    if (rc)
+        return rc == ENOENT ? 0 : rc; /* not mandatory */
 
     /* read scalar parameters */
     rc = read_scalar_params(fsscan_block, FSSCAN_CONFIG_BLOCK, cfg_params,

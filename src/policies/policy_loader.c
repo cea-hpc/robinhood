@@ -350,13 +350,14 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, bool *manage_deleted,
                              char *msg_out)
 {
-    int          rc, i;
+    int          rc;
     const char  *name;
     char         tmpstr[1024];
-    bool         has_scope = false;
     uint64_t     mask;
     char       **extra = NULL;
     unsigned int extra_cnt = 0;
+    bool         unique;
+    config_item_t sub_item;
 
     static const char *expect[] =
     {
@@ -486,59 +487,45 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
         }
         else if (extra_cnt != 0)
         {
-            sprintf(msg_out, "Too many arguments (%u) found for status manager '%s'",
-                    extra_cnt, tmpstr);
+            sprintf(msg_out, "Too many arguments (%d) found for status_manager parameter '%s', in block '%s %s'.",
+                    extra_cnt, tmpstr, block_name, name);
             return EINVAL;
         }
     }
 
-    /* parse sub blocks */
-    for (i = 0; i < rh_config_GetNbItems(config_blk); i++)
+    /* get scope parameter */
+    unique = true;
+    sub_item = rh_config_GetItemByName(config_blk, "scope", &unique);
+
+    if (sub_item == NULL)
     {
-        config_item_t  sub_item = rh_config_GetItemByIndex(config_blk, i);
-        critical_err_check(sub_item, block_name);
-        char          *subitem_name;
-
-        if (rh_config_ItemType(sub_item) == CONFIG_ITEM_BLOCK)
-        {
-            subitem_name = rh_config_GetBlockName(sub_item);
-            critical_err_check(subitem_name, block_name);
-
-            if (strcasecmp(subitem_name, SCOPE_BLOCK) != 0)
-            {
-                sprintf(msg_out, "'%s' sub-block unexpected in %s block, line %d.",
-                         subitem_name, block_name, rh_config_GetItemLine(sub_item));
-                return EINVAL;
-            }
-
-            /* check double declaration */
-            if (has_scope)
-            {
-                sprintf(msg_out, "Double scope declaration in policy %s, line %d.",
-                        policy->name, rh_config_GetItemLine(sub_item));
-                return EINVAL;
-            }
-
-            /* analyze boolean expression */
-            /* pass the status manager instance to interpret status condition
-             * depending on the context */
-            mask = 0;
-            rc = GetBoolExpr(sub_item, SCOPE_BLOCK, &policy->scope, &mask,
-                             msg_out, policy->status_mgr);
-            if (rc)
-                return rc;
-
-            policy->scope_mask = mask;
-            has_scope = true;
-        }
-    }
-
-    if (!has_scope)
-    {
-        sprintf(msg_out, "Missing mandatory parameter 'scope' in block '%s'",
-                block_name);
+        sprintf(msg_out, "Missing mandatory parameter 'scope' in block '%s %s'",
+                block_name, name);
         return ENOENT;
     }
+    if (!unique)
+    {
+        sprintf(msg_out, "Duplicate scope declaration in block '%s %s', line %d.",
+                block_name, name, rh_config_GetItemLine(sub_item));
+        return EEXIST;
+    }
+    if (rh_config_ItemType(sub_item) != CONFIG_ITEM_BLOCK)
+    {
+        sprintf(msg_out, "A sub-block is expected for '%s' item in block '%s %s', line %d",
+                "scope", block_name, name, rh_config_GetItemLine(sub_item));
+        return EINVAL;
+    }
+
+    /* analyze boolean expression */
+    /* pass the status manager instance to interpret status condition
+     * depending on the context */
+    mask = 0;
+    rc = GetBoolExpr(sub_item, SCOPE_BLOCK, &policy->scope, &mask,
+                     msg_out, policy->status_mgr);
+    if (rc)
+        return rc;
+
+    policy->scope_mask = mask;
 
     CheckUnknownParameters(config_blk, block_name, expect);
     return 0;
@@ -1749,15 +1736,12 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
 {
     unsigned int   i;
     int            rc;
+    config_item_t  fileset_block;
 
     /* get Filesets block */
-
-    config_item_t  fileset_block
-        = rh_config_FindItemByName(config, FILESETS_SECTION);
-
-    /* not mandatory */
-    if (fileset_block == NULL)
-        return 0;
+    rc = get_cfg_block(config, FILESETS_SECTION, &fileset_block, msg_out);
+    if (rc)
+        return rc == ENOENT ? 0 : rc; /* not mandatory */
 
     /* initialize global attributes mask */
     p_policies->global_fileset_mask = 0;
@@ -2155,26 +2139,27 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     section_name[sizeof(section_name)-1] = '\0';
 
     /* get policy section */
-    section = rh_config_FindItemByName(config, section_name);
-
-    if (section == NULL)
+    rc = get_cfg_block(config, section_name, &section, msg_out);
+    if (rc == ENOENT)
     {
+        /* try with old block name */
         snprintf(section_name, sizeof(section_name)-1, "%s_%s",
                  policy_descr->name, OLD_POLICIES_BLOCK);
         section_name[sizeof(section_name)-1] = '\0';
 
         /* get policy section */
-        section = rh_config_FindItemByName(config, section_name);
-
-        if (section != NULL)
-            /* Deprecation warning */
-            DisplayLog(LVL_MAJOR, LOADER_TAG, "WARNING: '*_"OLD_POLICIES_BLOCK
-                       "' block names are deprecated. Rename '%s' block to "
-                       "'%s_"POLICIES_BLOCK"'.", section_name,
-                       policy_descr->name);
-        else
-            /* not mandatory */
+        rc = get_cfg_block(config, section_name, &section, msg_out);
+        if (rc == ENOENT)
+            /* not mandatory: no error */
             return 0;
+        else if (rc != 0)
+            return rc;
+
+        /* Deprecation warning */
+        DisplayLog(LVL_MAJOR, LOADER_TAG, "WARNING: '*_"OLD_POLICIES_BLOCK
+                   "' block names are deprecated. Rename '%s' block to "
+                   "'%s_"POLICIES_BLOCK"'.", section_name,
+                   policy_descr->name);
     }
 
     /* prealloc config arrays */

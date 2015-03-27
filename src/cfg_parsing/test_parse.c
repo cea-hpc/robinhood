@@ -64,19 +64,22 @@ int main( int argc, char **argv )
             int            j;
             char          *nom;
             char          *val;
+            bool           uniq = false;
 
             /* affichage du nom de l'item : */
             block = rh_config_GetBlockByIndex( config, i );
 
             printf( "bloc %s\n", rh_config_GetBlockName( block ) );
 
-            if ( ( val_a = rh_config_GetKeyValueByName( block, "path" ) ) )
+            if ((val_a = rh_config_GetKeyValueByName(block, "path", &uniq)) != NULL)
             {
-                printf( "%s.path est defini et vaut %s\n", rh_config_GetBlockName( block ), val_a );
+                printf("%s.path est defini et vaut %s\n",
+                       rh_config_GetBlockName(block), val_a);
             }
             else
             {
-                printf( "%s.path n'est pas defini\n", rh_config_GetBlockName( block ) );
+                printf("%s.path n'est pas defini\n",
+                       rh_config_GetBlockName(block));
             }
 
 
