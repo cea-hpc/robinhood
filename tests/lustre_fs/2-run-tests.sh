@@ -8835,7 +8835,7 @@ function TEST_OTHER_PARAMETERS_1
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	# use robinhood for flushing (
-	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && shook == 1) )); then
+	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && $shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && $shook == 1) )); then
 		echo "Archiving files"
 		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
@@ -8850,23 +8850,11 @@ function TEST_OTHER_PARAMETERS_1
         ((nbError++))
 	fi
 
-    echo "Create /var/lock/rbh.lock"
-	touch "/var/lock/rbh.lock"
-
 	if (( $is_hsmlite == 0 || $shook != 0 || $is_lhsm != 0 )); then
 	    echo "Reading changelogs and Applying purge policy..."
-	    $RH -f ./cfg/$config_file --scan --run=purge -l DEBUG -L rh_purge.log  &
+	    $RH -f ./cfg/$config_file --scan --run=purge -l DEBUG -L rh_purge.log --once  &
 
-	    sleep 5
-	    nbError=0
-	    nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
-	    if (( $nb_purge != 0 )); then
-	        error "********** TEST FAILED (Log): $nb_purge files purged, but 0 expected"
-            ((nbError++))
-	    fi
-
-	    echo "Remove /var/lock/rbh.lock"
-	    rm "/var/lock/rbh.lock"
+	    sleep 1
 
 	    echo "wait robinhood"
 	    wait
@@ -8878,19 +8866,9 @@ function TEST_OTHER_PARAMETERS_1
 	    fi
     else #backup mod
 	    echo "Launch Migration in background"
-	    $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log  &
+	    $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log --once &
 
-	    sleep 5
-        wait_done 60
-
-        count=`find $BKROOT -type f -not -name "*.lov" | wc -l`
-        if (($count != 0)); then
-            error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
-            ((nbError++))
-        fi
-
-        echo "Remove /var/lock/rbh.lock"
-	    rm "/var/lock/rbh.lock"
+	    sleep 1
 
 	    echo "wait robinhood"
 	    wait
