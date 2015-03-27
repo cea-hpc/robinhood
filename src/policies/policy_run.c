@@ -144,8 +144,8 @@ static int build_action_params(action_params_t *params,
         return -EINVAL;
 
     /* Merging parameters from:
-     * (TODO) trigger?
      * 1) policy
+     * 2) trigger
      * 2) policy rule
      * 3) fileclass
      */
@@ -157,7 +157,15 @@ static int build_action_params(action_params_t *params,
             goto err;
     }
 
-    /* rule: add and override previous params */
+    /* add params from trigger (possibly override previous params)*/
+    if (policy->trigger_action_params != NULL)
+    {
+        rc = rbh_params_foreach(policy->trigger_action_params, add_param, params);
+        if (rc)
+            goto err;
+    }
+
+    /* add params from rule (possibly override previous params)*/
     if (rule != NULL)
     {
         rc = rbh_params_foreach(&rule->action_params, add_param, params);
@@ -169,7 +177,7 @@ static int build_action_params(action_params_t *params,
         last_param_idx += 2;
     }
 
-    /* fileset: add and override previous params */
+    /* add params from fileclass (possibly override previous params)*/
     if (fileset != NULL)
     {
         const action_params_t *fileset_params;
@@ -1488,6 +1496,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         RBH_BUG("p_param argument is NULL");
 
     p_pol_info->time_modifier = p_param->time_mod;
+    p_pol_info->trigger_action_params = p_param->action_params;
 
     memset(&p_pol_info->progress, 0, sizeof(p_pol_info->progress));
     if (p_summary)

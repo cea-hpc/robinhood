@@ -1239,6 +1239,8 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
         if(check_maintenance_mode(pol, &tmod))
             param.time_mod = &tmod;
 
+        param.action_params = &trig->action_params;
+
         /* run actions! */
         DisplayLog(LVL_EVENT, tag(pol), "Checking policy rules for %s",
                    param2targetstr(&param, buff, sizeof(buff)));
@@ -1328,6 +1330,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
         trigger_info_t info;
         struct statfs stfs;
         char tgtname[256];
+
         memset(&trig, 0, sizeof(trig));
         memset(&info, 0, sizeof(info));
 

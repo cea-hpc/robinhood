@@ -399,6 +399,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
     char           tmpstr[1024];
     char         **arg_tab;
     unsigned int   arg_count;
+    config_item_t  params_block;
 
     const struct trig_target_def *def;
 
@@ -409,6 +410,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         "high_threshold_vol", "low_threshold_vol",
         "high_threshold_cnt", "low_threshold_cnt",
         "alert_high", "alert_low", "post_trigger_wait",
+        "action_params",
         NULL
     };
 
@@ -474,6 +476,25 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
     rc = read_scalar_params(config_blk, block_name, cfg_params, msg_out);
     if (rc)
         return rc;
+
+    /* get action_params subblock */
+    params_block = rh_config_GetItemByName(config_blk, "action_params");
+    if (params_block != NULL)
+    {
+        if (rh_config_ItemType(params_block) != CONFIG_ITEM_BLOCK)
+        {
+            sprintf(msg_out, "A block is expected for configuration item '%s::action_params', line %d.",
+                    block_name, rh_config_GetItemLine(params_block));
+            return EINVAL;
+        }
+#ifdef _DEBUG_POLICIES
+        fprintf(stderr, "processing parameters for trigger '%s'\n", block_name);
+#endif
+        rc = read_action_params(params_block, &p_trigger_item->action_params,
+                                &p_trigger_item->params_mask, msg_out);
+        if (rc)
+            return rc;
+    }
 
     CheckUnknownParameters(config_blk, block_name, trigger_expect);
 
@@ -592,7 +613,9 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
                     block_name, rh_config_GetItemLine(action_params_block));
             return EINVAL;
         }
-
+#ifdef _DEBUG_POLICIES
+        fprintf(stderr, "processing parameters in '%s'\n", block_name);
+#endif
         rc = read_action_params(action_params_block, &conf->action_params,
                                 &conf->params_mask, msg_out);
         if (rc)
@@ -862,6 +885,9 @@ static void free_triggers(trigger_item_t * p_triggers, unsigned int count)
 
             /* free the arg list */
             free(p_triggers[i].list);
+
+            /* free action_params */
+            rbh_params_free(&p_triggers[i].action_params);
         }
     }
 

@@ -105,6 +105,10 @@ typedef struct trigger_item_t
     /* raise alert when it cannot reach low threshold */
     bool alert_lw;
 
+    /* action params (overrides policy action params) */
+    action_params_t action_params;
+    uint64_t        params_mask;
+
 } trigger_item_t;
 
 static inline char *trigger2str(const trigger_item_t *trig)
@@ -257,6 +261,7 @@ typedef struct policy_info_t
 {
     policy_descr_t  *descr;  /* point to policy descriptor */
     policy_run_config_t *config; /* policy run configuration */
+    const action_params_t *trigger_action_params; /* action parameters from trigger */
     entry_queue_t    queue;  /* processing queue */
     pthread_t       *threads; /* worker threads array (size in config) */
     pthread_t        trigger_thr; /* trigger checker thread */

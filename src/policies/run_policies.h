@@ -102,6 +102,9 @@ typedef struct policy_param_t
     target_u 	     optarg_u;
     counters_t       target_ctr;
     time_modifier_t *time_mod;
+
+    const action_params_t *action_params;
+
 } policy_param_t;
 
 int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
