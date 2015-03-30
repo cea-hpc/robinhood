@@ -23,13 +23,5 @@ libconfigparsing_la_SOURCES = conf_yacc.y conf_yacc.h conf_lex.l analyze.c confi
 
 librbhcfg_la_SOURCES        = rbh_cfg.c
 
-check_PROGRAMS		    = verif_syntax test_parsing
-
-verif_syntax_SOURCES	    = verif_syntax.c
-verif_syntax_LDADD         = libconfigparsing.la
-
-test_parsing_SOURCES	    = test_parse.c
-test_parsing_LDADD         =  libconfigparsing.la
-
 indent:
 	$(top_srcdir)/scripts/indent.sh
