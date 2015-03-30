@@ -1,5 +1,8 @@
 ACLOCAL_AMFLAGS = -I autotools/m4
 
+check-valgrind:
+	make -C src/tests check-valgrind
+
 SUBDIRS=src scripts tests web_gui
 
 rpm_dir=`pwd`/rpms

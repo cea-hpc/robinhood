@@ -1,6 +1,11 @@
 AM_CFLAGS= -static $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 AM_LDFLAGS= -lpthread -static
 
+# See autotools/m4/ax_valgrind_check.m4 for documentation
+@VALGRIND_CHECK_RULES@
+#VALGRIND_SUPPRESSIONS_FILES = my-project.supp
+#EXTRA_DIST = my-project.supp
+
 check_PROGRAMS=create_nostripe test_forcestripe test_uidgidcache test_params test_confparam
 TESTS=test_uidgidcache test_params test_confparam
 

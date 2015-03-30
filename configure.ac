@@ -72,6 +72,7 @@ AX_ENABLE_FLAG([bench-db], [test only: build special version for DB benchmarking
 AX_ENABLE_FLAG([bench-pipeline], [test only: build special version for pipeline benchmarking], [-D_BENCH_PIPELINE -D_BENCH_DB])
 AX_ENABLE_FLAG([gprof], [test only: add gprof info to the binaries], [-g -pg])
 AX_ENABLE_FLAG([gcov], [test only: add gcov info to the binaries], [--coverage])
+AX_VALGRIND_CHECK
 
 # behavior flags
 AX_DISABLE_FLAG([atfunc], [Don't use 'at' functions for scanning], [-D_NO_AT_FUNC])
