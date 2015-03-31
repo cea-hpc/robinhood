@@ -38,14 +38,27 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 		$LCTL set_param mdt.$(basename $mdt).hsm/grace_delay=10
 	done
 
+    # start copytool on a distinct mount point
+    [ -d "/mnt/lustre2" ] || mkdir "/mnt/lustre2"
+    # test if lustre2 is mounted
+    mount | grep "/mnt/lustre2 "
+    if (( $? != 0 )); then
+        mnt_str=$(mount | grep "/mnt/lustre " | awk '{print $1}')
+        if [[ -z "$mnt_str" ]]; then
+            echo "/mnt/lustre is not mounted"
+            exit 1
+        fi
+        mnt_opt=$(mount | grep "/mnt/lustre " | sed -e 's/.*(\([^)]*\))/\1/')
+        mount -t lustre -o $mnt_opt $mnt_str /mnt/lustre2 || exit 1
+    fi
+
 	echo "Checking if copytool is already running..."
 	if (( `pgrep -f lhsmtool_posix | wc -l` > 0 )); then
 		echo "Already running"
 	else
 		mkdir -p $BKROOT
-		$COPYTOOL --hsm_root=$BKROOT --no-shadow --daemon /mnt/lustre &
+		$COPYTOOL --hsm_root=$BKROOT --no-shadow --daemon /mnt/lustre2 &
 	fi
-
 fi
 
 # workaround for statahead issues
