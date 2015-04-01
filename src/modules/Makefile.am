@@ -3,13 +3,13 @@ AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 pkglib_LTLIBRARIES=
 
 pkglib_LTLIBRARIES+=librbh_mod_common.la
-librbh_mod_common_la_SOURCES=common.c common.h mod_internal.c mod_internal.h
+librbh_mod_common_la_SOURCES=common.c mod_internal.c mod_internal.h
 librbh_mod_common_la_LDFLAGS=-version-info 0:0:0
 librbh_mod_common_la_LIBADD=-lz
 
 if LUSTRE_HSM
 pkglib_LTLIBRARIES+=librbh_mod_lhsm.la
-librbh_mod_lhsm_la_SOURCES=lhsm.c lhsm.h mod_internal.h
+librbh_mod_lhsm_la_SOURCES=lhsm.c mod_internal.h
 librbh_mod_lhsm_la_LDFLAGS=-version-info 0:0:0
 librbh_mod_lhsm_la_LIBADD=-llustreapi
 endif

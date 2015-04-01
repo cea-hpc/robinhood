@@ -81,7 +81,7 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
 	doc/admin_guides \
     doc/install_webgui.txt \
 	ChangeLog \
-    man/*.1
+    man/*.1 man\Makefile.am
 
 
 

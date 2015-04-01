@@ -9,7 +9,7 @@ if MNTENTCOMPAT
 COMPAT_SRC=mntent_compat.c mntent_compat.h
 endif
 if SHOOK
-PURPOSE_SRC=shook_wrap.c
+#PURPOSE_SRC=shook_wrap.c
 endif
 
 libcommontools_la_SOURCES= RW_Lock.c uidgidcache.c rbh_misc.c rbh_params.c \
