@@ -171,10 +171,16 @@ typedef struct policy_run_config_t
      * overrides default_lru_sort_attr (from policy descr). */
     int    lru_sort_attr;
 
+    /** if specified, overrides default_action from the policy descriptor.
+     * Can then be overriden by rules. */
+    policy_action_t action;
+
     /** default action parameters for the policy.
      *  They can be overriden by action params from rule and fileset. */
     action_params_t action_params;
-    uint64_t        params_mask; /**< mask from action params */
+
+    /** attributes used in action and action_params */
+    uint64_t        run_attr_mask;
 
     bool   check_action_status_on_startup;
     bool   recheck_ignored_classes;

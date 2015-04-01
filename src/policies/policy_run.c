@@ -227,7 +227,8 @@ static int policy_action(policy_info_t *policy, const rule_item_t *rule,
     if (rule != NULL && rule->action.type != ACTION_NONE)
         actionp = &rule->action;
     else
-        actionp = &policy->descr->default_action;
+        /* defaults to default_action from */
+        actionp = &policy->config->action;
 
     DisplayLog(LVL_EVENT, tag(policy),
                "%sExecuting policy action on: " DFID_NOBRACE " (%s)",
@@ -936,7 +937,7 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
     mask |= policy->descr->rules.run_attr_mask;
 
     /* needed attributes to build action params */
-    mask |= policy->config->params_mask;
+    mask |= policy->config->run_attr_mask;
 
     // TODO class management
 

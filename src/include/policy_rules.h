@@ -136,14 +136,16 @@ typedef struct rule_item_t
 
     /** condition for purging/migrating files */
     bool_node_t          condition;
-    /** summary of attributes involved in boolean expression */
-    uint64_t             attr_mask;
 
-    /** if specified, overrides default action for the policy */
+    /** if specified, overrides policy defaults */
      policy_action_t     action;
     /** merged with default action_params from the policy and overrides them.
      *  merged with fileclass action_params (overridden by them). */
     action_params_t      action_params;
+
+    /** attributes involved in condition, action and action_params */
+    uint64_t             attr_mask;
+
 } rule_item_t;
 
 /** list of rules for a policy */
@@ -395,9 +397,15 @@ int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
  */
 bool update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
 
-/** read an action params block from config */
+/* read an action params block from config */
 int read_action_params(config_item_t param_block, action_params_t *params,
                        uint64_t *mask, char *msg_out);
+
+/* parse policy action value from config */
+int parse_policy_action(const char *name, const char *value,
+                        char **extra, unsigned int extra_cnt,
+                        policy_action_t *action,
+                        uint64_t *mask, char *msg_out);
 
 /**
  * Convert criteria to ListMgr data

@@ -55,8 +55,9 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     cfg->lru_sort_attr =  pol->default_lru_sort_attr;
 
+    cfg->action = pol->default_action;
     cfg->action_params.param_set = NULL;
-    cfg->params_mask = 0LL;
+    cfg->run_attr_mask = 0;
 
     cfg->check_action_status_on_startup = true;
     cfg->recheck_ignored_classes = true;
@@ -522,6 +523,8 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     char           block_name[1024];
     char           tmp[1024];
     config_item_t  param_block, action_params_block;
+    char         **extra = NULL;
+    unsigned int   extra_cnt = 0;
 
     /* parameter for CheckUnknownParams() */
     static const char *allowed[] = {
@@ -531,7 +534,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "check_actions_interval", "check_actions_on_startup",
         "recheck_ignored_classes",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
-        "db_result_size_max", "action_params",
+        "db_result_size_max", "action_params", "action",
         NULL
     };
 
@@ -581,6 +584,8 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         return rc;
 
     /* read specific parameters */
+
+    /* 'lru_sort_attr' overrides 'default_lru_sort_attr' from 'define_policy' */
     rc = GetStringParam(param_block, block_name, "lru_sort_attr",
                         PFLG_NO_WILDCARDS, tmp, sizeof(tmp), NULL, NULL,
                         msg_out);
@@ -597,6 +602,20 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         }
         else
             conf->lru_sort_attr = rc;
+    }
+
+    /* 'action' overrides 'default_action' from 'define_policy' */
+    rc = GetStringParam(param_block, block_name, "action",
+                        0, tmp, sizeof(tmp), &extra,
+                        &extra_cnt, msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT) {
+        rc = parse_policy_action("action", tmp, extra, extra_cnt,
+                                 &conf->action,
+                                 &conf->run_attr_mask, msg_out);
+        if (rc)
+            return rc;
     }
 
     /* get subblock */
@@ -621,7 +640,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         fprintf(stderr, "processing parameters in '%s'\n", block_name);
 #endif
         rc = read_action_params(action_params_block, &conf->action_params,
-                                &conf->params_mask, msg_out);
+                                &conf->run_attr_mask, msg_out);
         if (rc)
             return rc;
     }

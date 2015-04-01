@@ -346,6 +346,67 @@ static void free_whitelist(whitelist_item_t * p_items, unsigned int count)
         free(p_items);
 }
 
+/**
+ * Analyze a policy action parameter and set policy_action_t accordingly.
+ * @param[in]     name         parameter name.
+ * @param[in]     value        parameter value.
+ * @param[in]     extra        array of extra arguments.
+ * @param[in]     extra_cnt    item count in extra array.
+ * @param[out]    action       policy_action_t to be filled.
+ * @param[in,out] mask         Pointer to the attribute mask of placeholders
+ *                             in action command line.
+ * @return 0 on success, an error code on error.
+ */
+int parse_policy_action(const char *name, const char *value,
+                        char **extra, unsigned int extra_cnt,
+                        policy_action_t *action,
+                        uint64_t *mask, char *msg_out)
+{
+    if (!strcasecmp(value, "cmd"))
+    {
+        uint64_t m;
+
+        /* external command */
+        /* 1 single argument expected */
+        if (extra_cnt != 1)
+        {
+            sprintf(msg_out, "A single argument is expected for cmd. E.g.: %s = cmd(\"myscript.sh\");", name);
+            return EINVAL;
+        }
+        rh_strncpy(action->action_u.command, extra[0],
+                   sizeof(action->action_u.command));
+        action->type = ACTION_COMMAND;
+
+        /* Get attribute mask for this command, in case it contains attribute
+         * placeholder */
+        m = params_mask(action->action_u.command, name);
+        if (m == (uint64_t)-1LL)
+        {
+            sprintf(msg_out, "Unexpected parameters in %s cmd", name);
+            return EINVAL;
+        }
+        *mask |= m;
+    }
+    else /* <module>.<action_name> expected */
+    {
+        if (extra_cnt != 0)
+        {
+            sprintf(msg_out, "No extra argument is expected for '%s'", name);
+            return EINVAL;
+        }
+        action->action_u.function = module_get_action_by_name(value);
+        if (action->action_u.function == NULL)
+        {
+            sprintf(msg_out, "%s: unknown function '%s'", name, value);
+            return EINVAL;
+        }
+        action->type = ACTION_FUNCTION;
+    }
+
+    return 0;
+}
+
+
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, bool *manage_deleted,
                              char *msg_out)
@@ -384,47 +445,18 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     }
     rh_strncpy(policy->name, name, sizeof(policy->name));
 
+    /* read and parse default_action */
     rc = GetStringParam(config_blk, block_name, "default_action",
-                        PFLG_NO_WILDCARDS | PFLG_MANDATORY,
-                        tmpstr, sizeof(tmpstr), &extra, &extra_cnt, msg_out);
+                        PFLG_MANDATORY, tmpstr, sizeof(tmpstr), &extra,
+                        &extra_cnt, msg_out);
     if (rc)
         return rc;
-    if (!strcasecmp(tmpstr, "cmd"))
-    {
-        /* external command */
-        /* 1 single argument expected */
-        if (extra_cnt != 1)
-        {
-            strcpy(msg_out, "A single argument is expected for cmd. E.g.: default_action = cmd(\"myscript.sh\");");
-            return EINVAL;
-        }
-        /* absolute path expected */
-        else if (extra[0][0] != '/')
-        {
-            strcpy(msg_out, "An absolute path is expected for default_action::cmd");
-            return EINVAL;
-        }
-        rh_strncpy(policy->default_action.action_u.command, extra[0],
-                   sizeof(policy->default_action.action_u.command));
-        policy->default_action.type = ACTION_COMMAND;
 
-        /** @TODO get parameter mask from action */
-    }
-    else
-    {
-        if (extra_cnt != 0)
-        {
-            strcpy(msg_out, "No extra argument is expected for default_action");
-            return EINVAL;
-        }
-        policy->default_action.action_u.function = module_get_action_by_name(tmpstr);
-        if (policy->default_action.action_u.function == NULL)
-        {
-            sprintf(msg_out, "default_action: unknown function '%s'", tmpstr);
-            return EINVAL;
-        }
-        policy->default_action.type = ACTION_FUNCTION;
-    }
+    rc = parse_policy_action("default_action", tmpstr, extra, extra_cnt,
+                             &policy->default_action,
+                             &policy->rules.run_attr_mask, msg_out);
+    if (rc)
+        return rc;
 
     rc = GetStringParam(config_blk, block_name, "default_lru_sort_attr",
                         PFLG_NO_WILDCARDS | PFLG_MANDATORY, tmpstr, sizeof(tmpstr), NULL, NULL,
@@ -1450,7 +1482,6 @@ static int read_policy_action_params(config_item_t param_block,
     return read_action_params(param_block, params, mask, msg_out);
 }
 
-
 /** test if the variable name is a policy hint (deprecated) */
 static inline bool match_policy_action_hints(const char *s)
 {
@@ -2026,6 +2057,21 @@ static int parse_rule_block(config_item_t config_item,
 
                 /* add fileset mask to policy mask */
                 rule->attr_mask |= fs->attr_mask;
+            }
+            else if (!strcasecmp(subitem_name, "action"))
+            {
+                char **extra_arg_tab = NULL;
+
+                /* get extra args if there are */
+                if (extra_args)
+                    extra_args = rh_config_GetExtraArgs(sub_item, &extra_arg_tab);
+
+                /* action defined at the policy level: overrides policy defaults */
+                rc = parse_policy_action("action", value, extra_arg_tab,
+                                         extra_args, &rule->action,
+                                         &rule->attr_mask, msg_out);
+                if (rc)
+                    return rc;
             }
             /* manage action_hints deprecation (now in action_params) */
             else if (match_policy_action_hints(subitem_name))
