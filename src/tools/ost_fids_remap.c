@@ -27,21 +27,47 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "lustre_extended_types.h"
-#include "rbh_misc.h"
 
 static void usage(char *argv0)
 {
-        fprintf(stderr, "Usage: %s <ost_index> <ost_mount_point> <fid_remap_file>\n", basename(argv0));
-        exit(1);
+    char *bin = strdup(argv0);
+
+    fprintf(stderr, "Usage: %s <ost_index> <ost_mount_point> <fid_remap_file>\n",
+            basename(bin));
+    free(bin);
+    exit(1);
 }
 
+/**
+ * Convert a string to an integer
+ * @return -1 on error.
+ */
+static int str2int(const char *str)
+{
+    char           suffix[256];
+    int            nb_read, value;
+
+    if (str == NULL)
+        return -1;
+
+    nb_read = sscanf(str, "%d%s", &value, suffix);
+
+    if (nb_read <= 0)
+        return -1;              /* invalid format */
+
+    if ((nb_read == 1) || (suffix[0] == '\0'))
+        return value;           /* no suffix => 0K */
+    else
+        return -1;
+}
 
 int main(int argc, char ** argv)
 {
     char buff[4096];
-    char path[RBH_PATH_MAX];
+    char path[PATH_MAX];
     char xattr[4096];
     ssize_t s;
     int len, rc;

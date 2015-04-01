@@ -29,7 +29,6 @@ gen_lov_objid_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 gen_lov_objid_LDFLAGS=-static
 gen_lov_objid_LDADD=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-ost_fids_remap_DEPENDENCIES=$(all_libs)
 ost_fids_remap_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 
 endif
