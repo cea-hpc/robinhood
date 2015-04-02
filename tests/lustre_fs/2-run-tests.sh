@@ -161,11 +161,13 @@ function error
     grep_ctx_opt="-B 5 -A 1"
 
 	echo "ERROR $@"
- 	grep -i $grep_ctx_opt error *.log | grep -v "[ (]0 errors" | grep -v "LastScanErrors"
+    # prefilter false errors
+    grep -v "[ (]0 errors" *.log | grep -v "LastScanErrors" | grep -i $grep_ctx_opt error
 	NB_ERROR=$(($NB_ERROR+1))
 
 	if (($junit)); then
-	 	grep -i $grep_ctx_opt error *.log | grep -v "[ (]0 errors" | grep -v "LastScanErrors" >> $TMPERR_FILE
+        # prefilter false errors
+        grep -v "[ (]0 errors" *.log | grep -v "LastScanErrors" | grep -i $grep_ctx_opt error  >> $TMPERR_FILE
 		echo "ERROR $@" >> $TMPERR_FILE
 	fi
 
@@ -2750,6 +2752,223 @@ function test_size_updt
     fi
 
     pkill -9 $PROC
+}
+
+#used by test_action_params
+function check_action_param # $log $id $name $value
+{
+    local log=$1
+    local id=$2
+    local name=$3
+    local val=$4
+
+    line=$(grep 'action_params:' $log | grep "\[$id\]" | grep " $name=")
+    if [ -z "$line" ]; then
+        error "parameter '$name' not found for $id"
+        return 1
+    fi
+
+    local found=$(echo "$line" | sed -e "s/.* $name=\([^,]*\).*/\1/")
+    if [[ "$val" == "$found" ]]; then
+        echo "OK: $id: $name = $val"
+        return 0
+    else
+        error "$id: invalid value for parameter '$name': got '$found', '$val' expected."
+        return 1
+    fi
+}
+
+#used by test_action_params
+function check_rule_and_class #  $log $path $rule $class
+{
+    local log=$1
+    local path=$2
+    local rule=$3
+    local class=$4
+
+    if [[ -n "$class" ]]; then
+        grep "success for '$path', matching rule '$rule' (fileset=$class)" $log || error "action success not found for $path, rule $rule, class $class"
+    else
+        grep "success for '$path', matching rule '$rule'," $log || error "action success not found for $path, rule $rule"
+    fi
+}
+
+
+#used by test_action_params
+function check_action_patterns # $log $id $pattern...
+{
+    local log=$1
+    local id=$2
+    shift 2
+
+    local act=$(grep 'action:' $log | grep "\[$id\]"| sed -e "s/.*cmd(\(.*\))$/\1/" | tr -d "'")
+
+    for pattern in "$@"; do
+        echo "$act" | grep -- "$pattern" || error "pattern '$pattern' not found in cmd '$act'"
+    done
+}
+
+#used by test_action_params
+function check_action_function # $log $id $name
+{
+    local log=$1
+    local id=$2
+    local name=$3
+
+    grep "action:" $log | grep "\[$id\]" | grep $name || error "action $name expected"
+}
+
+function test_action_params
+{
+    config_file=$1
+
+	clean_logs
+
+    # create 1 file in each class + default
+    touch $ROOT/file.1a
+    touch $ROOT/file.1b
+    touch $ROOT/file.2
+    touch $ROOT/file.3
+    touch $ROOT/file.4
+
+    id1a=$(get_id $ROOT/file.1a)
+    id1b=$(get_id $ROOT/file.1b)
+    id2=$(get_id $ROOT/file.2)
+    id3=$(get_id $ROOT/file.3)
+    id4=$(get_id $ROOT/file.4)
+
+	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
+    check_db_error rh_scan.log
+
+    # BTW check classinfo report
+    $REPORT -f ./cfg/$config_file --class-info -q > rh_report.log || error "report error"
+    # find_valueInCSVreport $logFile $typeValues $countValues $colSearch
+    find_valueInCSVreport rh_report.log class1a 1  2 || error "invalid count for class1a"
+    find_valueInCSVreport rh_report.log class1b 1  2 || error "invalid count for class1b"
+    find_valueInCSVreport rh_report.log class2  1  2 || error "invalid count for class2"
+    find_valueInCSVreport rh_report.log class3  1  2 || error "invalid count for class3"
+
+    # run migration policy (force run to ignore rule time condition)
+    $RH -f ./cfg/$config_file --run=migration --force-all -l DEBUG -L rh_migr.log || error "policy run error"
+    check_db_error rh_migr.log
+
+    [ "$DEBUG" = "1" ] && egrep -e 'action:|action_params:' rh_migr.log
+
+    # check selected action and action_params for each file
+
+    # file.1a (class1a, rule migr1)
+    #   'prio = 4' from fileclass
+    #   'cos = 2' from rule
+    #   'archive_id = 1' (policy default)
+    #   'mode = trigger' from trigger
+    # action: lfs hsm_archive -a {archive_id} {fullpath} --data cos={cos},class={fileclass}"
+    ## BUG: the whole argument should be quoted (not the replaced part) in "cos={cos}").
+    check_action_param rh_migr.log $id1a prio 4
+    check_action_param rh_migr.log $id1a cos 2
+    check_action_param rh_migr.log $id1a archive_id 1
+    check_action_param rh_migr.log $id1a mode trigger
+    check_rule_and_class rh_migr.log $ROOT/file.1a "migr1" "class1a"
+    check_action_patterns rh_migr.log $id1a "-a 1" "$ROOT/file.1a" "cos=2" "class=class1a"
+
+    # file.1b (class1b, rule migr1)
+    #   'prio = 5' from fileclass
+    #   'cos = 2' from rule
+    #   'archive_id = 1' (policy default)
+    #   'mode = trigger' from trigger
+    check_action_param rh_migr.log $id1b prio 5
+    check_action_param rh_migr.log $id1b cos 2
+    check_action_param rh_migr.log $id1b archive_id 1
+    check_action_param rh_migr.log $id1b mode trigger
+    check_rule_and_class rh_migr.log $ROOT/file.1b "migr1" "class1b"
+    check_action_patterns rh_migr.log $id1b "-a 1" "$ROOT/file.1b" "cos=2" "class=class1b"
+
+    # file.2 (class2, rule migr2)
+    #   'cos = 4' from fileclass (override 'cos = 3' from rule).
+    #   'archive_id = 1' (policy default)
+    #   'mode = trigger' from trigger
+    # action: lhsm.archive (rule)
+    check_action_param rh_migr.log $id2 cos 4
+    check_action_param rh_migr.log $id2 archive_id 1
+    check_action_param rh_migr.log $id2 mode trigger
+    check_rule_and_class rh_migr.log $ROOT/file.2 "migr2" "class2"
+    check_action_function rh_migr.log "$id2" "lhsm.archive"
+
+    # file.3 (class3, rule migr3)
+    #   'archive_id = 2' (override 'archive_id = 1' from policy)
+    #   'cos = 1' (policy default)
+    #   'mode = over1' (override 'mode = trigger' from trigger)
+    # action from policy: lfs hsm_archive -a {archive_id} /mnt/lustre/.lustre/fid/{fid} --data cos={cos}
+    check_action_param rh_migr.log $id3 cos 1
+    check_action_param rh_migr.log $id3 archive_id 2
+    check_action_param rh_migr.log $id3 mode over1
+    check_action_patterns rh_migr.log $id3 "-a 2" "$ROOT/.lustre/fid/$id3" "cos=1"
+
+    # file.4 (no class, rule default)
+    #   'archive_id = 1' (policy default)
+    #   'cos = 1' (policy default)
+    #   'mode = over2' (override 'mode = trigger' from trigger)
+    check_action_param rh_migr.log $id4 cos 1
+    check_action_param rh_migr.log $id4 archive_id 1
+    check_action_param rh_migr.log $id4 mode over2
+    check_rule_and_class rh_migr.log $ROOT/file.4 "default" ""
+    check_action_patterns rh_migr.log $id4 "-a 1" "$ROOT/.lustre/fid/$id4" "cos=1"
+
+    if (($is_lhsm != 0)); then
+		wait_done 60 || error "Copy timeout"
+    fi
+
+    # check copy completion
+    $RH -f ./cfg/$config_file --readlog --once -l EVENT -L rh_chglogs.log || error "readlog"
+    check_db_error rh_chglogs.log
+
+	clean_logs
+
+    # now purge all (not by trigger)
+    ## BUG: don't quote again if an argument is already quoted
+    ## BUG: don't redirect &1 and &2 if the command already does
+    $RH -f ./cfg/$config_file $PURGE_OPT --force-all -l DEBUG -L rh_purge.log || error "policy run error"
+    check_db_error rh_purge.log
+
+    [ "$DEBUG" = "1" ] && egrep -e 'action:|action_params:' rh_purge.log
+
+    # no mode expected (not triggered)
+    grep "action_params:" rh_purge.log | grep " mode=" && error "no mode parameter expected"
+
+    # file.1a (class1a, rule purge1)
+    #   'arg = 2' from rule
+    # action: rm -f {fullpath}
+    check_action_param rh_purge.log $id1a arg 2
+    check_rule_and_class rh_purge.log $ROOT/file.1a "purge1" "class1a"
+    check_action_patterns rh_purge.log $id1a "rm -f" "$ROOT/file.1a"
+
+    # file.1b (class1b, rule purge1)
+    #   'arg = 55' from fileclass
+    # action: rm -f {fullpath}
+    check_action_param rh_purge.log $id1b arg 55
+    check_rule_and_class rh_purge.log $ROOT/file.1b "purge1" "class1b"
+    check_action_patterns rh_purge.log $id1b "rm -f" "$ROOT/file.1b"
+
+    # file.2 (class2, rule purge2)
+    #   'arg = 3' from rule
+    # action: echo '{fid}' '{rule}' '{arg}'  >> /tmp/purge.log
+    check_action_param rh_purge.log $id2 arg 3
+    check_rule_and_class rh_purge.log $ROOT/file.2 "purge2" "class2"
+    check_action_patterns rh_purge.log $id2 "echo" "$id2" "purge2" "3"
+    # FIXME grep the line in /tmp/purge.log
+
+    # file.3 (class3, rule purge3)
+    #   'arg = 1' from policy
+    # action: lhsm.release (policy definition default)
+    check_action_param rh_purge.log $id3 arg 1
+    check_rule_and_class rh_purge.log $ROOT/file.3 "purge3" "class3"
+    check_action_function rh_purge.log "$id3" "lhsm.release"
+
+    # file.4 (rule default)
+    #   'arg = 4' from rule
+    # action: lhsm.release (policy definition default)
+    check_action_param rh_purge.log $id4 arg 4
+    check_rule_and_class rh_purge.log $ROOT/file.4 "default" ""
+    check_action_patterns rh_purge.log $id4 "echo" "$id4" "default" "4"
 }
 
 
@@ -9359,6 +9578,7 @@ run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
 run_test 223  test_default test_default_case.conf "ignore entries if no default case is specified"
 run_test 224  test_undelete test_rm1.conf   "undelete"
 run_test 225  test_compress compress.conf "compressed archived files"
+run_test 226  test_action_params test_action_params.conf "custom policy actions and parameters"
 
 #### triggers ####
 
