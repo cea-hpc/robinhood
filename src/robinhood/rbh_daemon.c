@@ -133,9 +133,9 @@ static struct option option_tab[] = {
     {"usage-target", required_argument, NULL, TGT_USAGE}, /* usage target FS, OST or pool */
 
     /* For policies, this forces to apply policy to files in policy scope,
-     * by ignoring condition in policy rules.
+     * by ignoring condition of policy rules and 'ignore' statements.
      */
-    {"ignore-policies", no_argument, NULL, 'I'},
+    {"ignore-conditions", no_argument, NULL, 'I'},
     {"force", no_argument, NULL, 'F'},
 
     /* behavior flags */
@@ -145,7 +145,7 @@ static struct option option_tab[] = {
     {"detach", no_argument, NULL, 'd'},
     {"no-limit", no_argument, NULL, NO_LIMIT},
     {"no-gc", no_argument, NULL, NO_GC},
-    /* generic policies equivalent for --sync: alias to --once --no-limit --ignore-policies --force */
+    /* generic policies equivalent for --sync: alias to --once --no-limit --ignore-conditions --force */
     {"force-all", no_argument, NULL, FORCE_ALL},
     {"forceall", no_argument, NULL, FORCE_ALL},
 
@@ -291,8 +291,8 @@ static const char *run_help =
     ".\n"
     "    "  _B "--usage-target" B_ "=" _U"percent"U_ "\n"
     "        For FS, OST or pool targets of purge policies, specifies the target disk usage (in percent).\n"
-    "    " _B "-I" B_ ", " _B "--ignore-policies"B_"\n"
-    "        Apply policy to all entries in policy scope, without checking policy rules.\n"
+    "    " _B "-I" B_ ", " _B "--ignore-conditions"B_"\n"
+    "        Apply policy to all entries in policy scope, without checking policy rule conditions.\n"
     "    " _B "-F" B_ ", " _B "--force"B_"\n"
     "        Force applying policies even if no full scan has never been done (partial DB contents).\n"
     "    " _B "--no-limit"B_"\n"
@@ -303,7 +303,7 @@ static const char *run_help =
     "    " _B "--force-all"B_"\n"
     "        Force applying a policy to all eligible entries, without considering\n"
     "        policy limits and rule conditions.\n"
-    "        This is equivalent to: --once --no-limit --ignore-policies --force\n";
+    "        This is equivalent to: --once --no-limit --ignore-conditions --force\n";
 
 static const char *scan_help =
     _B "Scanning options:" B_ "\n"

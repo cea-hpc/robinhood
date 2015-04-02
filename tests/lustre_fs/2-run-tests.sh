@@ -5784,18 +5784,18 @@ function recovery_test
     # archive and modify files
     for i in `seq 1 $total`; do
         if (( $i <= $nb_full )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
                 grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
                     || error "$ROOT/dir.$i/link.$i should not have been migrated"
             fi
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
                 grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
@@ -5805,7 +5805,7 @@ function recovery_test
             mv "$ROOT/dir.$i/link.$i" "$ROOT/dir.$i/link_new.$i" || error "renaming link"
             mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $ROOT/dir.$i/file.$i"
             touch "$ROOT/dir.$i/file.$i"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
@@ -6233,15 +6233,15 @@ function import_test
 	# archive and modify files
 	for i in `seq 1 $total`; do
 		if (( $i <= $nb_full )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename)) )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
 			mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
 			mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-policies -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $ROOT/dir.$i/file.$i"
 			touch "$ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
