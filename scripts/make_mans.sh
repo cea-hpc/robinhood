@@ -3,10 +3,8 @@
 dir=$(readlink -m $(dirname $0))
 root=$(readlink -m "$dir/..")
 
-main=@PURPOSE_BIN@
-
-prefix=rbh-@PURPOSE_EXT@
-[[ @PURPOSE_EXT@ == tmpfs ]] && prefix='rbh'
+main=robinhood
+prefix=rbh
 
 which txt2man > /dev/null
 if (($? != 0)); then

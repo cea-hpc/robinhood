@@ -412,8 +412,7 @@ AC_CONFIG_FILES([Makefile
          web_gui/Makefile
          man/Makefile
          robinhood.spec
-         doc/doxygen/doxygen.cfg
-         scripts/make_mans.sh])
+         doc/doxygen/doxygen.cfg])
 AC_OUTPUT
 
 AC_MSG_NOTICE([Summary:])
