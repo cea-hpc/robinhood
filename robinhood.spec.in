@@ -71,11 +71,15 @@ Group: Applications/System
 Url: http://robinhood.sourceforge.net
 Source0: @PACKAGE@-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Summary: Accounting, reporting and purge tool for large filesystems
+Group: Applications/System
 
 %description
 Robinhood is a tool for monitoring and purging file systems. It is designed to
 process all its tasks in parallel, so it is particulary adapted for managing
 large file systems with millions of entries and petabytes of data.
+
+With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:shook}
 
 Generated using options: @ac_configure_args@
 
@@ -86,8 +90,8 @@ Group: Applications/System
 Release: @RELEASE@.noarch
 
 %description adm
-This RPM provides admin/config helper for Robinhood PolicyEngine (command rbh-config)
-which is common to all robinhood flavors.
+This RPM provides an admin/config helper for Robinhood PolicyEngine (command rbh-config).
+
 
 %package webgui
 Summary: Web interface to vizualize filesystems stats
@@ -99,6 +103,7 @@ Requires: php, php-mysql, php-xml, php-gd, php-pdo
 Web interface to vizualize filesystems stats.
 This uses robinhood database to display misc. user and group stats.
 
+
 %if %{with recovtools}
 %package recov-tools
 Summary: Tools for MDS recovery.
@@ -109,108 +114,6 @@ BuildRequires: libattr-devel
 Tools for MDS recovery.
 %endif
 
-
-#summary, description and dependencies of each purpose
-%if %{with lhsm}
-
-%define configure_purpose LUSTRE_HSM
-%define purpose lhsm
-%define purpose_svc robinhood-lhsm
-%define purpose_bin rbh-lhsm
-
-%package %{purpose}
-Summary: PolicyEngine for Lustre-HSM binding
-Group: Applications/System
-%pkg_dependencies
-Requires: %{name}-adm >= %{version}
-
-%description %{purpose}
-Monitor Lustre usage and trigger file migration and purges.
-
-Generated using options: @ac_configure_args@
-%else
-# backup mode
-%if %{with backup}
-
-%define configure_purpose BACKUP
-%define purpose backup
-%define purpose_svc robinhood-backup
-%define purpose_bin rbh-backup
-
-%package %{purpose}
-Summary: PolicyEngine for filesystem backup to external storage
-Group: Applications/System
-%pkg_dependencies
-Requires: %{name}-adm >= %{version}
-
-%description %{purpose}
-Backup modified files to an external backend.
-
-Generated using options: @ac_configure_args@
-%else
-# light HSM binding mode (using shook library)
-%if %{with shook}
-
-%define configure_purpose SHOOK
-%define purpose shook
-%define purpose_svc robinhood-shook
-%define purpose_bin rbh-shook
-
-%package %{purpose}
-Summary: PolicyEngine for simple HSM binding
-Group: Applications/System
-%pkg_dependencies
-Requires: %{name}-adm >= %{version}
-BuildRequires: shook-server >= 1.3.5
-Requires: shook-server >= 1.3.5
-
-%description %{purpose}
-Backup modified files to an external backend
-and automatically trigger data restore using
-shook library.
-
-Generated using options: @ac_configure_args@
-
-%package %{purpose}-annex
-Summary: Annex tools for simple HSM binding
-Group: Applications/System
-%pkg_dependencies
-BuildRequires: shook-server >= 1.3.5
-Requires: shook-server >= 1.3.5
-
-%description %{purpose}-annex
-Annex tools for simple HSM binding.
-Can run on different nodes than robinhood
-daemon.
-
-Generated using options: @ac_configure_args@
-
-%else
-
-# TMP FS MGR
-
-%define configure_purpose TMP_FS_MGR
-%define purpose tmpfs
-%define purpose_svc robinhood
-%define purpose_bin robinhood
-
-%package %{purpose}
-Summary: Accounting, reporting and purge tool for large filesystems
-Group: Applications/System
-%pkg_dependencies
-Requires: %{name}-adm >= %{version}
-
-%description %{purpose}
-Provides disk space fair-share, accounting, reporting facilities for
-any POSIX filesystem, with extra features for Lustre (OST usage management).
-Possibly trigger purge by LRU when free disk space is low.
-
-Generated using options: @ac_configure_args@
-
-%endif
-%endif
-%endif
-
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -218,53 +121,56 @@ Generated using options: @ac_configure_args@
 ./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
         --mandir=%{_mandir} \
         --libdir=%{_libdir}
-make
+make %{?_smp_mflags}
 
 %install
 rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/%{purpose}/templates
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/%{purpose}/includes
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes
 mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 
-$RPM_BUILD_ROOT/%{_prefix}/sbin/%{purpose_bin} -T $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/%{purpose}/templates/%{purpose}_detailed.conf
+$RPM_BUILD_ROOT/%{_prefix}/sbin/robinhood -T $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
 
 %if %{defined suse_version}
-install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/%{purpose_svc}
+install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/robinhood
 %else
-install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/%{purpose_svc}
+install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/robinhood
 %endif
 
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
-install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/@PURPOSE_SVC@
+install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/robinhood
 
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
-cp -r web_gui/acct/*	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
-cp    web_gui/acct/.htaccess	$RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+cp -r web_gui/acct/* $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+cp    web_gui/acct/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+
+rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.a
+rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.la
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
-%post %{purpose}
-if [ -x %{_initrddir}/%{purpose_svc} ]; then
-  if %{_initrddir}/%{purpose_svc} status | grep running | grep -v "not running"  >/dev/null 2>&1; then
-    %{_initrddir}/%{purpose_svc} stop
+%post
+if [ -x %{_initrddir}/robinhood ]; then
+  if %{_initrddir}/robinhood status | grep running | grep -v "not running"  >/dev/null 2>&1; then
+    %{_initrddir}/robinhood stop
     WASRUNNING=1
   fi
-  [ -x /sbin/chkconfig ] && /sbin/chkconfig --del %{purpose_svc}
-  [ -x /sbin/chkconfig ] && /sbin/chkconfig --add %{purpose_svc}
+  [ -x /sbin/chkconfig ] && /sbin/chkconfig --del robinhood
+  [ -x /sbin/chkconfig ] && /sbin/chkconfig --add robinhood
   if test x$WASRUNNING = x1; then
-    %{_initrddir}/%{purpose_svc} start
+    %{_initrddir}/robinhood start
   fi
 fi
 
 %preun
 if [ "$1" = 0 ]; then
-  if [ -x %{_initrddir}/%{purpose_svc} ]; then
-     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del %{purpose_svc}
-    if %{_initrddir}/%{purpose_svc} status | grep running | grep -v "not running" >/dev/null 2>&1; then
-      %{_initrddir}/%{purpose_svc} stop
+  if [ -x %{_initrddir}/robinhood ]; then
+     [ -x /sbin/chkconfig ] && /sbin/chkconfig --del robinhood
+    if %{_initrddir}/robinhood status | grep running | grep -v "not running" >/dev/null 2>&1; then
+      %{_initrddir}/robinhood stop
     fi
   fi
 fi
@@ -280,8 +186,8 @@ fi
 %endif
 
 %if %{with shook}
-%files %{purpose}-annex
-%{_sbindir}/%{purpose_bin}-rebind
+%files robinhood-annex
+%{_sbindir}/rbh-rebind
 %endif
 
 %files webgui
@@ -290,7 +196,7 @@ fi
 %defattr(750,root,apache)
 %{installdir_www}/robinhood
 
-%files %{purpose}
+%files
 %defattr(-,root,root,-)
 #%doc README
 #%doc COPYING
@@ -298,44 +204,40 @@ fi
 
 # everythink in sbin, except rbh-config which is in adm
 %if %{with shook}
-%exclude %{_sbindir}/%{purpose_bin}-rebind
-%{_sbindir}/%{purpose_bin}-import
-%{_sbindir}/%{purpose_bin}-recov
-%{_sbindir}/%{purpose_bin}-undo-rm
+%exclude %{_sbindir}/rbh-rebind
+%{_sbindir}/rbh-import
+%{_sbindir}/rbh-recov
+%{_sbindir}/rbh-undo-rm
 %endif
 
 %if %{with backup}
-%{_sbindir}/%{purpose_bin}-import
-%{_sbindir}/%{purpose_bin}-recov
-%{_sbindir}/%{purpose_bin}-rebind
-%{_sbindir}/%{purpose_bin}-undo-rm
+%{_sbindir}/rbh-import
+%{_sbindir}/rbh-recov
+%{_sbindir}/rbh-rebind
+%{_sbindir}/rbh-undo-rm
 %endif
 
-%{_sbindir}/%{purpose_bin}
-%{_sbindir}/*-report
-%{_sbindir}/*-diff
-%{_bindir}/*-du
-%{_bindir}/*-find
+%{_sbindir}/robinhood
+%{_sbindir}/rbh-report
+%{_sbindir}/rbh-diff
+%{_sbindir}/rbhext_*
+%{_bindir}/rbh-du
+%{_bindir}/rbh-find
 
-%if %{with backup}
-%{_sbindir}/rbhext_*
-%endif
-%if %{with shook}
-%{_sbindir}/rbhext_*
-%endif
+%{_libdir}/robinhood/librbh_mod_*.so*
 
 %{_mandir}/man1/*
 
-%config(noreplace) %{_sysconfdir}/sysconfig/%{purpose_svc}
+%config(noreplace) %{_sysconfdir}/sysconfig/robinhood
 
 %dir %{_sysconfdir}/robinhood.d
-%dir %{_sysconfdir}/robinhood.d/%{purpose}
-%dir %{_sysconfdir}/robinhood.d/%{purpose}/includes
-%dir %{_sysconfdir}/robinhood.d/%{purpose}/templates
+%dir %{_sysconfdir}/robinhood.d/
+%dir %{_sysconfdir}/robinhood.d/includes
+%dir %{_sysconfdir}/robinhood.d/templates
 
-%config %{_sysconfdir}/robinhood.d/%{purpose}/templates/%{purpose}_detailed.conf
+%config %{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
 
-%{_initrddir}/%{purpose_svc}
+%{_initrddir}/robinhood
 
 %changelog
 
