@@ -135,8 +135,7 @@ static struct diff_options options;
 #define U_ "[0m"
 
 static const char *help_string =
-    _B "%s"B_"\n"
-    "    List differences between robinhood database and the filesystem.\n"
+    _B "Usage:" B_ " %s [options]\n"
     "\n"
     _B "Options:" B_ "\n"
     "    " _B "-s" B_" "_U"dir"U_", " _B "--scan" B_ "=" _U "dir" U_ "\n"
@@ -147,7 +146,6 @@ static const char *help_string =
     "    " _B "-a" B_" {fs|db}, " _B "--apply" B_ "[={fs|db}]\n"
     "        "_B"db"B_" (default): apply changes to the database using the filesystem as the reference.\n"
     "        "_B"fs"B_": revert changes in the filesystem using the database as the reference.\n"
-    "\n"
     "    " _B "--dry-run" B_"\n"
     "        If --apply=fs, display operations on filesystem without performing them.\n"
 #ifdef _HSM_LITE
@@ -160,16 +158,19 @@ static const char *help_string =
     "        For MDS disaster recovery, write needed information to files in "_U"dir"U_".\n"
 #endif
     "\n"
-    "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
+    _B "Config file options:" B_ "\n"
+    "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "configfile" U_ "\n"
     "        Path to configuration file (or short name).\n"
-    "    " _B "-l" B_ " " _U "level" U_ ", " _B "--log-level=" B_ _U "level" U_ "\n"
+    "\n"
+
+    _B "Miscellaneous options:" B_ "\n"
+    "    " _B "-l" B_ " " _U "level" U_ ", " _B "--log-level=" B_ _U "loglevel" U_ "\n"
     "        Force the log verbosity level (overrides configuration value).\n"
-    "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n" "\n" _B
+    "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n" _B
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
     "    " _B "-V" B_ ", " _B "--version" B_ "\n"
     "        Display version info\n";
-
 
 static inline void display_help(char *bin_name)
 {
