@@ -113,6 +113,40 @@ static int subst_one_param(const char *key, const char *val, void *udata)
     return rbh_param_set(args->params, key, new_val, true);
 }
 
+static void set_addl_params(const char* addl_params[], unsigned int size,
+                            const rule_item_t *rule,
+                            const fileset_item_t *fileset)
+{
+    int   last_param_idx = 0;
+
+    if (rule != NULL)
+    {
+        if (unlikely(size < last_param_idx + 2))
+            RBH_BUG("set_addl_params: array parameter too small");
+
+        addl_params[last_param_idx] = "rule";
+        addl_params[last_param_idx + 1] = rule->rule_id;
+        last_param_idx += 2;
+    }
+
+    /* add params from fileclass (possibly override previous params)*/
+    if (fileset != NULL)
+    {
+        if (unlikely(size < last_param_idx + 2))
+            RBH_BUG("set_addl_params: array parameter too small");
+
+        addl_params[last_param_idx] = "fileclass";
+        addl_params[last_param_idx + 1] = fileset->fileset_id;
+        last_param_idx += 2;
+    }
+
+    if (unlikely(size < last_param_idx + 1))
+        RBH_BUG("set_addl_params: array parameter too small");
+
+    /* terminate the list of addl params */
+    addl_params[last_param_idx] = NULL;
+}
+
 /**
  * Build action parameters according to: (in growing priority)
  *  - policy action_params
@@ -132,8 +166,7 @@ static int build_action_params(action_params_t *params,
                                const fileset_item_t *fileset)
 {
     int   rc = 0;
-    char const* addl_params[5]; /* max: "fileclass" + its name, "rule" + its name, NULL */
-    int   last_param_idx = 0;
+    char const* addl_params[5]; /* 5 max: "fileclass" + its name, "rule" + its name, NULL */
     subst_args_t subst_param_args = {
         .params = params,
         .id = id,
@@ -171,10 +204,6 @@ static int build_action_params(action_params_t *params,
         rc = rbh_params_foreach(&rule->action_params, add_param, params);
         if (rc)
             goto err;
-
-        addl_params[last_param_idx] = "rule";
-        addl_params[last_param_idx + 1] = rule->rule_id;
-        last_param_idx += 2;
     }
 
     /* add params from fileclass (possibly override previous params)*/
@@ -191,14 +220,10 @@ static int build_action_params(action_params_t *params,
             if (rc)
                 goto err;
         }
-
-        addl_params[last_param_idx] = "fileclass";
-        addl_params[last_param_idx + 1] = fileset->fileset_id;
-        last_param_idx += 2;
     }
 
-    /* terminate the list of addl params */
-    addl_params[last_param_idx] = NULL;
+    set_addl_params(addl_params, sizeof(addl_params)/sizeof(char *), rule,
+                    fileset);
     subst_param_args.subst_array = addl_params;
 
     /* replace placeholders in action params */
@@ -214,7 +239,8 @@ err:
 }
 
 /** Execute a policy action. */
-static int policy_action(policy_info_t *policy, const rule_item_t *rule,
+static int policy_action(policy_info_t *policy,
+                         const rule_item_t *rule, const fileset_item_t *fileset,
                          const entry_id_t *id, attr_set_t *p_attr_set,
                          const action_params_t *params, post_action_e *after)
 {
@@ -239,7 +265,8 @@ static int policy_action(policy_info_t *policy, const rule_item_t *rule,
         GString *str = g_string_new("");
         rc = rbh_params_serialize(params, str, NULL, RBH_PARAM_CSV);
         if (rc == 0)
-            DisplayLog(LVL_DEBUG, TAG, "action_params: %s", str->str);
+            DisplayLog(LVL_DEBUG, tag(policy), DFID": action_params: %s",
+                       PFID(id), str->str);
         g_string_free(str, TRUE);
     }
 
@@ -260,26 +287,33 @@ static int policy_action(policy_info_t *policy, const rule_item_t *rule,
         {
             case ACTION_FUNCTION:
                 /* @TODO provide a DB callback */
-                rc = actionp->action_u.function(id, p_attr_set, params, after,
-                                                NULL, NULL);
+                DisplayLog(LVL_DEBUG, tag(policy), DFID": action: %s",
+                           PFID(id), actionp->action_u.func.name);
+                rc = actionp->action_u.func.call(id, p_attr_set, params, after,
+                                                 NULL, NULL);
                 break;
             case ACTION_COMMAND: /* execute custom action */
             {
                 char *descr = NULL;
                 gchar *cmd = NULL;
+                char const* addl_params[5];
+
+                set_addl_params(addl_params, sizeof(addl_params)/sizeof(char *),
+                                rule, fileset);
 
                 asprintf(&descr, "action command '%s'", actionp->action_u.command);
 
                 /* replaces placeholders in command and properly quote them. */
-                /** @TODO add context stuff as addl parameters: fileclass, ... */
                 cmd = subst_params(actionp->action_u.command, descr,
-                                   id, p_attr_set, params, NULL, true, true);
+                                   id, p_attr_set, params, addl_params,
+                                   true, true);
                 free(descr);
                 if (cmd)
                 {
                     int rc = 0;
                     /* call custom purge command instead of unlink() */
-                    DisplayLog(LVL_DEBUG, tag(policy), "cmd(%s)", cmd);
+                    DisplayLog(LVL_DEBUG, tag(policy), DFID": action: cmd(%s)",
+                               PFID(id), cmd);
                     rc =  execute_shell_command(true, cmd, 0);
                     g_free(cmd);
                     /* @TODO handle other hardlinks to the same entry */
@@ -2145,8 +2179,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     /* apply action to the entry! */
     /* TODO RBHv3: action must indicate what to do with the entry
      * => db update, rm from filesystem etc... */
-    rc = policy_action(pol, rule, &p_item->entry_id, &new_attr_set, &params,
-                       &after_action);
+    rc = policy_action(pol, rule, p_fileset, &p_item->entry_id, &new_attr_set,
+                       &params, &after_action);
     rbh_params_free(&params);
 
 #if 0 // TODO handle status update (in action? using status manager?)

@@ -116,12 +116,17 @@ typedef enum
     ACTION_COMMAND
 } action_type_e;
 
+struct action_func_info {
+    action_func_t call;
+    const char   *name;
+};
+
 typedef struct policy_action
 {
 	action_type_e  type;
     union {
         char            command[RBH_PATH_MAX];
-        action_func_t   function;
+        struct action_func_info func;
     } action_u; /* command for ACTION_COMMAND, function for ACTION_FUNCTION, ... */
 } policy_action_t ;
 

@@ -136,10 +136,12 @@ static void backup_cfg_set_default(void *module_config)
 
 #ifdef HAVE_SHOOK
     conf->recovery_action.type = ACTION_FUNCTION;
-    conf->recovery_action.action_u.function = rbh_shook_recov_file;
+    conf->recovery_action.action_u.func.name = "shook.recov_file";
+    conf->recovery_action.action_u.func.call = rbh_shook_recov_file;
 #else
     conf->recovery_action.type = ACTION_FUNCTION;
-    conf->recovery_action.action_u.function = backup_copy;
+    conf->recovery_action.action_u.func.name = "backup.copy";
+    conf->recovery_action.action_u.func.call = backup_copy;
 #endif
 }
 
@@ -1592,7 +1594,7 @@ static int wrap_file_copy(sm_instance_t *smi,
             break;
 
         case ACTION_FUNCTION:
-            rc = action->action_u.function(p_id, p_attrs, params, after, db_cb_fn, db_cb_arg);
+            rc = action->action_u.func.call(p_id, p_attrs, params, after, db_cb_fn, db_cb_arg);
             break;
 
         case ACTION_NONE:
@@ -2142,7 +2144,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
                 break;
 
             case ACTION_FUNCTION:
-                rc = config.recovery_action.action_u.function(p_id, attrs,
+                rc = config.recovery_action.action_u.func.call(p_id, attrs,
                                        &recov_params, &dummy_after, NULL, NULL);
 
                 break;

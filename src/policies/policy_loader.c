@@ -394,12 +394,13 @@ int parse_policy_action(const char *name, const char *value,
             sprintf(msg_out, "No extra argument is expected for '%s'", name);
             return EINVAL;
         }
-        action->action_u.function = module_get_action_by_name(value);
-        if (action->action_u.function == NULL)
+        action->action_u.func.call = module_get_action_by_name(value);
+        if (action->action_u.func.call == NULL)
         {
             sprintf(msg_out, "%s: unknown function '%s'", name, value);
             return EINVAL;
         }
+        action->action_u.func.name = strdup(value);
         action->type = ACTION_FUNCTION;
     }
 
