@@ -26,13 +26,13 @@
 #include "rbh_misc.h"
 #include "xplatform_print.h"
 #include "backend_ext.h"
+#include "rbh_basename.h"
 
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <libgen.h>
 #include <pthread.h>
 #include <signal.h>
 
@@ -98,12 +98,12 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
 
 
-static inline void display_help( char *bin_name )
+static inline void display_help(const char *bin_name)
 {
     printf( help_string, bin_name );
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(const char *bin_name)
 {
     printf( "\n" );
     printf( "Product:         " PACKAGE_NAME " import tool\n" );
@@ -160,10 +160,10 @@ static inline void display_version( char *bin_name )
     printf( "\n" );
 }
 
-static inline int import_helper(const char       *backend_path,
-                                char             *tgt_path, /* in/out */
-                                char             *new_backend_path,
-                                struct stat      *src_md)
+static int import_helper(const char       *backend_path,
+                         char             *tgt_path, /* in/out */
+                         char             *new_backend_path,
+                         struct stat      *src_md)
 {
     entry_id_t old_id, new_id;
     recov_status_t st;
@@ -171,15 +171,12 @@ static inline int import_helper(const char       *backend_path,
     int rc;
 
     /* to check src path */
-    char * name;
-    char * first;
-    char * second;
+    const char *name;
+    const char *first;
+    const char *second;
     char dummy[RBH_PATH_MAX] = "";
-    char tmp[RBH_PATH_MAX];
 
-    /* tmp copy of src path */
-    strcpy(tmp, backend_path);
-    name = basename(tmp);
+    name = rh_basename(backend_path);
 
     /* clean import path if it already has fid in it */
     if ((second = strrchr(name, '_')) && (second != name)
@@ -296,15 +293,16 @@ static int perform_import(const char * src_path, const char * tgt_path,
     if (!S_ISDIR(src_md.st_mode))
     {
         /* tmp copy of path to modify it */
-        strcpy(fs_path, tgt_path);
+        rh_strncpy(fs_path, tgt_path, sizeof(fs_path));
 
         /* is target an exitsting dir? (or link to a dir) */
         if ((stat(tgt_path, &tgt_md) == 0)
             && (S_ISDIR(tgt_md.st_mode)))
         {
             /* tmp copy of path to modify it */
-            strcpy(bk_path, src_path);
-            sprintf(fs_path, "%s/%s", tgt_path, basename(bk_path));
+            rh_strncpy(bk_path, src_path, sizeof(fs_path));
+            snprintf(fs_path, sizeof(fs_path), "%s/%s", tgt_path,
+                     rh_basename(bk_path));
         }
 
         if ((rc = import_helper(src_path, fs_path, new_bk_path, &src_md)))
@@ -317,7 +315,7 @@ static int perform_import(const char * src_path, const char * tgt_path,
     else
     {
         /* 2nd arg of import_helper is in/out */
-        strcpy(fs_path, tgt_path);
+        rh_strncpy(fs_path, tgt_path, sizeof(fs_path));
 
         /* import directory (create in the backend with the same rights and owner) */
         if ((rc = import_helper(src_path, fs_path, new_bk_path, &src_md)))
@@ -361,8 +359,8 @@ static int perform_import(const char * src_path, const char * tgt_path,
         else if (!strcmp(direntry.d_name, ".") || !strcmp(direntry.d_name, ".."))
             continue;
 
-        sprintf(bk_path, "%s/%s", src_path, direntry.d_name);
-        sprintf(fs_path, "%s/%s", tgt_path, direntry.d_name);
+        snprintf(bk_path, sizeof(bk_path), "%s/%s", src_path, direntry.d_name);
+        snprintf(fs_path, sizeof(fs_path), "%s/%s", tgt_path, direntry.d_name);
 
         /* what kind of entry is it? */
         if (lstat(bk_path, &md) != 0) {
@@ -417,7 +415,7 @@ static void terminate_handler( int sig )
 int main( int argc, char **argv )
 {
     int            c, option_index = 0;
-    char          *bin = basename( argv[0] );
+    const char    *bin;
 
     char           config_file[MAX_OPT_LEN] = "";
     uint64_t       total = 0;
@@ -433,6 +431,8 @@ int main( int argc, char **argv )
     char    badcfg[RBH_PATH_MAX];
 
     struct sigaction act_sigterm;
+
+    bin = rh_basename(argv[0]); /* supports NULL argument */
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab,

@@ -26,16 +26,16 @@
 #include "rbh_misc.h"
 #include "xplatform_print.h"
 #include "backend_ext.h"
+#include "rbh_basename.h"
 
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <libgen.h>
 #include <pthread.h>
 
-#define LOGTAG "UndoRm"
+#define LOGTAG "Undelete"
 
 static struct option option_tab[] =
 {
@@ -98,12 +98,12 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
 
 
-static inline void display_help( char *bin_name )
+static inline void display_help(const char *bin_name)
 {
     printf( help_string, bin_name );
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(const char *bin_name)
 {
     printf( "\n" );
     printf( "Product:         " PACKAGE_NAME " rm cancellation tool\n" );
@@ -485,7 +485,7 @@ static int undo_rm( void )
 int main( int argc, char **argv )
 {
     int            c, option_index = 0;
-    char          *bin = basename( argv[0] );
+    const char    *bin;
 
     char           config_file[MAX_OPT_LEN] = "";
 
@@ -498,6 +498,8 @@ int main( int argc, char **argv )
     robinhood_config_t config;
     int chgd = 0;
     char    badcfg[RBH_PATH_MAX];
+
+    bin = rh_basename(argv[0]); /* supports NULL argument */
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab,

@@ -21,7 +21,6 @@
 #include "config.h"
 #endif
 
-#include <libgen.h>             /* Posix versions of dirname/basename */
 #include <glib.h>
 
 #include "uidgidcache.h"

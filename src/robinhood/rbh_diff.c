@@ -28,6 +28,7 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "cmd_helpers.h"
+#include "rbh_basename.h"
 
 /* needed to dump their stats */
 #include "fs_scan_main.h"
@@ -39,9 +40,8 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <libgen.h>
 #include <pthread.h>
-#include <fcntl.h>              /* for open flags */
+#include <fcntl.h>
 #include <signal.h>
 
 #ifdef _LUSTRE
@@ -172,12 +172,12 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n"
     "        Display version info\n";
 
-static inline void display_help(char *bin_name)
+static inline void display_help(const char *bin_name)
 {
     printf(help_string, bin_name);
 }
 
-static inline void display_version(char *bin_name)
+static inline void display_version(const char *bin_name)
 {
     printf("\n");
     printf("Product:         " PACKAGE_NAME "\n");
@@ -418,13 +418,14 @@ static void   *signal_handler_thr(void *arg)
 int main(int argc, char **argv)
 {
     int            c, i, option_index = 0;
-    char          *bin = basename(argv[0]);
-
+    const char    *bin;
     int            rc;
     char           err_msg[4096];
     bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
     char           tag_name[256] = "";
+
+    bin = rh_basename(argv[0]);
 
     start_time = time(NULL);
 

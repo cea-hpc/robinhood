@@ -32,6 +32,7 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "cmd_helpers.h"
+#include "rbh_basename.h"
 
 /* needed to dump their stats */
 #include "fs_scan_main.h"
@@ -42,7 +43,6 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <libgen.h>
 #include <pthread.h>
 #include <fcntl.h>              /* for open flags */
 #include <signal.h>
@@ -839,10 +839,9 @@ static void create_pid_file( const char *pid_file )
                                         *action_mask |= _f_;            \
                                 } while(0)
 
-static int rh_read_parameters(int argc, char **argv, int *action_mask,
-                              struct rbh_options *opt)
+static int rh_read_parameters(const char *bin, int argc, char **argv,
+                              int *action_mask, struct rbh_options *opt)
 {
-    const char    *bin = basename(argv[0]);
     int            c, option_index = 0;
     bool           is_default_actions = true;
     char           extra_chr[1024];
@@ -1323,7 +1322,6 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
  */
 int main(int argc, char **argv)
 {
-    const char    *bin = basename(argv[0]);
     int            rc;
     bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
@@ -1333,10 +1331,13 @@ int main(int argc, char **argv)
     int           *pol_idx = NULL; /* list of policy indexes */
     unsigned int   policy_count = 0; /* number of policies in policy_index list */
     policy_opt_t   policy_opt;
+    const char    *bin;
+
+    bin = rh_basename(argv[0]);
 
     boot_time = time(NULL);
 
-    rc = rh_read_parameters(argc, argv, &action_mask, &options);
+    rc = rh_read_parameters(bin, argc, argv, &action_mask, &options);
     if (rc)
         exit((rc == -1 ? 0 : rc)); /* -1 is returned for normal exit */
 

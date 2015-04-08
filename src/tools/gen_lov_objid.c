@@ -25,6 +25,7 @@
 #include "rbh_cfg.h"
 #include "rbh_logs.h"
 #include "rbh_misc.h"
+#include "rbh_basename.h"
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -41,7 +42,7 @@ static const char *help_string =
     "Generate a lov_objid file for MDT according to max stripe object indexes.\n"
     "Increment each index by the safety "_U"margin"U_".\n";
 
-static inline void display_help(char *bin_name)
+static inline void display_help(const char *bin_name)
 {
     printf(help_string, bin_name);
 }
@@ -54,7 +55,7 @@ static inline void display_help(char *bin_name)
 int main( int argc, char **argv )
 {
     int            c = 0;
-    char          *bin = basename( argv[0] );
+    const char    *bin;
     int            rc;
     char           err_msg[4096];
     bool           chgd = false;
@@ -69,6 +70,8 @@ int main( int argc, char **argv )
 
     lmgr_t         lmgr;
     FILE         * out;
+
+    bin = rh_basename(argv[0]);
 
     /* parse command line options */
     while ((c = getopt(argc, argv, OPT_STRING)) != -1)

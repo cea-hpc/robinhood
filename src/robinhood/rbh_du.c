@@ -27,13 +27,13 @@
 #include "rbh_misc.h"
 #include "Memory.h"
 #include "xplatform_print.h"
+#include "rbh_basename.h"
 
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <libgen.h>
 #include <pthread.h>
 
 #define DU_TAG "du"
@@ -337,12 +337,12 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n"
     "        Display version info\n";
 
-static inline void display_help(char *bin_name)
+static inline void display_help(const char *bin_name)
 {
     printf(help_string, bin_name);
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(const char *bin_name)
 {
     printf( "\n" );
     printf( "Product:         " PACKAGE_NAME " 'du' command\n" );
@@ -696,8 +696,7 @@ out:
 int main( int argc, char **argv )
 {
     int            c, option_index = 0;
-    char          *bin = basename( argv[0] );
-
+    const char    *bin;
     char           config_file[MAX_OPT_LEN] = "";
     bool           force_log_level = false;
     int            log_level = 0;
@@ -706,6 +705,8 @@ int main( int argc, char **argv )
     char           err_msg[4096];
     char           badcfg[RBH_PATH_MAX];
     bool           fs_init = false;
+
+    bin = rh_basename(argv[0]);
 
     /* parse command line options */
     while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab,

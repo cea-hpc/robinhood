@@ -30,6 +30,7 @@ gen_lov_objid_LDFLAGS=-static
 gen_lov_objid_LDADD=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
 ost_fids_remap_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+ost_fids_remap_LDADD=../common/basename.o
 
 endif
 endif

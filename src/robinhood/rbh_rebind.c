@@ -27,13 +27,13 @@
 #include "xplatform_print.h"
 #include "backend_ext.h"
 #include "cmd_helpers.h"
+#include "rbh_basename.h"
 
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <libgen.h>
 #include <pthread.h>
 #include <signal.h>
 
@@ -86,12 +86,12 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
 
 
-static inline void display_help( char *bin_name )
+static inline void display_help(const char *bin_name)
 {
     printf( help_string, bin_name );
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(const char *bin_name)
 {
     printf( "\n" );
     printf( "Product:         " PACKAGE_NAME " rebind tool\n" );
@@ -229,8 +229,7 @@ static inline int rebind_helper(const char       *old_backend_path,
 int main( int argc, char **argv )
 {
     int            c, option_index = 0;
-    char          *bin = basename( argv[0] );
-
+    const char    *bin;
     char           config_file[MAX_OPT_LEN] = "";
 
     bool           force_log_level = false;
@@ -241,6 +240,8 @@ int main( int argc, char **argv )
     robinhood_config_t config;
     int chgd = 0;
     char badcfg[RBH_PATH_MAX];
+
+    bin = rh_basename(argv[0]);
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab,

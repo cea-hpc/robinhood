@@ -20,9 +20,9 @@
 #include "xplatform_print.h"
 #include "Memory.h"
 #include "rbh_misc.h"
+#include "rbh_basename.h"
 
 #include <errno.h>
-#include <libgen.h>             /* for basename */
 #include <dirent.h>             /* for DIR */
 #include <sys/ioctl.h>
 #include <pthread.h>
@@ -740,22 +740,19 @@ int Get_pool_usage( const char *poolname, struct statfs *pool_statfs )
 /* This code is an adaptation of llapi_mds_getfileinfo() in liblustreapi.
  * It is unused for now, but could be useful when SOM will be implemented.
  */
-int lustre_mds_stat(char *fullpath, int parentfd, struct stat *inode)
+int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
 {
     /* this buffer must be large enough for handling filename */
     char           buffer[1024];
     struct lov_user_mds_data *lmd = ( struct lov_user_mds_data * ) buffer;
-    char          *filename;
+    const char    *filename;
     int            rc;
 
     /* sanity checks */
     if ((fullpath == NULL) || (inode == NULL))
         return EINVAL;
 
-    filename = basename( fullpath );
-
-    if ( filename == NULL )
-        filename = fullpath;
+    filename = rh_basename(fullpath);
 
     memset(lmd, 0, sizeof(buffer));
     rh_strncpy(buffer, filename, strlen(filename) + 1);

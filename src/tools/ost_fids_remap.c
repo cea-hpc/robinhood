@@ -18,6 +18,8 @@
 #include "config.h"
 #endif
 
+#include "rbh_basename.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <attr/xattr.h>
@@ -31,13 +33,10 @@
 
 #include "lustre_extended_types.h"
 
-static void usage(char *argv0)
+static void usage(const char *argv0)
 {
-    char *bin = strdup(argv0);
-
     fprintf(stderr, "Usage: %s <ost_index> <ost_mount_point> <fid_remap_file>\n",
-            basename(bin));
-    free(bin);
+            rh_basename(argv0));
     exit(1);
 }
 

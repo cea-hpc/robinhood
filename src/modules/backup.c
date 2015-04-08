@@ -23,6 +23,7 @@
 #include "rbh_modules.h"
 #include "xplatform_print.h"
 #include "Memory.h"
+#include "rbh_basename.h"
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -370,8 +371,8 @@ static int backup_init(struct sm_instance *smi, run_flags_t flags)
         return rc;
     }
 
-    strcpy(lock_dirname, basename(LOCK_DIR));
-    strcpy(restripe_dirname, basename(RESTRIPE_DIR));
+    rh_strncpy(lock_dirname, rh_basename(LOCK_DIR), sizeof(lock_dirname));
+    rh_strncpy(restripe_dirname, rh_basename(RESTRIPE_DIR), sizeof(restripe_dirname));
 #endif
 
     /* check that backend filesystem is mounted */
@@ -696,8 +697,7 @@ static int transfer_cleanup(const char * backend_path)
 static int move_orphan(const char * path)
 {
     char dest[RBH_PATH_MAX];
-    char tmp[RBH_PATH_MAX];
-    char * fname;
+    const char *fname;
     int rc;
 
     /* does the trash directory exist? */
@@ -710,8 +710,7 @@ static int move_orphan(const char * path)
         return rc;
     }
 
-    strcpy(tmp, path);
-    fname = basename(tmp);
+    fname = rh_basename(path);
     if ( fname == NULL || (strcmp(fname, "/") == 0) || EMPTY_STRING(fname) )
     {
         DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Invalid path '%s'",
@@ -719,7 +718,7 @@ static int move_orphan(const char * path)
         return -EINVAL;
     }
     /* move the orphan to the directory */
-    sprintf( dest, "%s/%s/%s", config.root, TRASH_DIR, fname );
+    snprintf(dest, RBH_PATH_MAX, "%s/%s/%s", config.root, TRASH_DIR, fname);
 
     if ( rename(path, dest) != 0 )
     {
@@ -1875,8 +1874,7 @@ static int backup_rebind(const char *fs_path, const char *old_bk_path,
             /* only retry once if error is EXDEV */
             if (!retry && rc == -EXDEV)
             {
-                char tmp2[RBH_PATH_MAX];
-                char *fname;
+                const char *fname;
 
                 DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not move entry in the backend "
                             "because target path is in different device (error EXDEV): '%s'->'%s'",
@@ -1889,8 +1887,7 @@ static int backup_rebind(const char *fs_path, const char *old_bk_path,
                 strcpy(tmp, old_bk_path);
                 destdir = dirname(tmp);
                 /* 2-extract new filename */
-                strcpy(tmp2, fs_path);
-                fname = basename(tmp2);
+                fname = rh_basename(fs_path);
                 /* 3-build the new backend path */
     #ifdef  _HAVE_FID
                 sprintf(new_bk_path, "%s/%s__"DFID_NOBRACE, destdir, fname,

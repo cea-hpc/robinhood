@@ -25,13 +25,13 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include "xplatform_print.h"
+#include "rbh_basename.h"
 
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <libgen.h>
 #include <pthread.h>
 #include <signal.h>
 
@@ -148,12 +148,12 @@ static const char *help_string =
     "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
 
 
-static inline void display_help( char *bin_name )
+static inline void display_help(const char *bin_name)
 {
     printf( help_string, bin_name );
 }
 
-static inline void display_version( char *bin_name )
+static inline void display_version(const char *bin_name)
 {
     printf( "\n" );
     printf( "Product:         " PACKAGE_NAME " disaster recovery tool\n" );
@@ -582,7 +582,7 @@ static int recov_list(recov_type_e state)
 int main( int argc, char **argv )
 {
     int            c, option_index = 0;
-    char          *bin = basename( argv[0] );
+    const char    *bin;
 
     char           config_file[MAX_OPT_LEN] = "";
 
@@ -603,6 +603,8 @@ int main( int argc, char **argv )
     struct sigaction act_sigterm;
     int chgd = 0;
     char    badcfg[RBH_PATH_MAX];
+
+    bin = rh_basename(argv[0]); /* supports NULL argument */
 
     /* parse command line options */
     while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab, &option_index ) ) != -1 )

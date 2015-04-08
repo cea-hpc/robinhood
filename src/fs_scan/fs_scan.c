@@ -29,6 +29,7 @@
 #include "task_stack_mngmt.h"
 #include "task_tree_mngmt.h"
 #include "xplatform_print.h"
+#include "rbh_basename.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -43,7 +44,6 @@
 
 #include <string.h>
 #include <fcntl.h>
-#include <libgen.h>
 
 fs_scan_config_t fs_scan_config;
 run_flags_t      fsscan_flags = 0;
@@ -1287,7 +1287,8 @@ static int process_one_task(robinhood_task_t *p_task,
 #endif
 
         ATTR_MASK_SET(&op->fs_attrs, name);
-        strcpy(ATTR(&op->fs_attrs, name), basename(p_task->path));
+        rh_strncpy(ATTR(&op->fs_attrs, name), rh_basename(p_task->path),
+                   RBH_NAME_MAX);
 #ifdef _BENCH_DB
         sprintf(ATTR(&op->fs_attrs, name) + strlen(ATTR(&op->fs_attrs, name)), "%d", i);
 #endif
