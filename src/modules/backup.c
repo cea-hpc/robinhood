@@ -479,17 +479,6 @@ static bool backup_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
 #endif
 }
 
-#if 0 /** @TODO scope related? */
-    if ((entry_type == TYPE_LINK) &&
-        !config.archive_symlinks)
-        return -ENOTSUP;
-    else if ((entry_type != TYPE_FILE)
-         && (entry_type != TYPE_LINK)
-         && (entry_type != TYPE_NONE))
-        /* support other types? */
-        return -ENOTSUP;
-#endif
-
 typedef enum {
        FOR_LOOKUP,
        FOR_NEW_COPY
@@ -1496,7 +1485,8 @@ static int backup_command(const char *cmd_in, const entry_id_t *p_id,
     if (cmd != NULL)
     {
         /* call custom purge command instead of unlink() */
-        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "cmd(%s)", cmd);
+        DisplayLog(LVL_DEBUG, RBHEXT_TAG, DFID": action: cmd(%s)", PFID(p_id),
+                   cmd);
         rc =  execute_shell_command(true, cmd, 0);
         g_free(cmd);
     }
@@ -1593,6 +1583,8 @@ static int wrap_file_copy(sm_instance_t *smi,
             break;
 
         case ACTION_FUNCTION:
+            DisplayLog(LVL_DEBUG, RBHEXT_TAG, DFID": action: %s", PFID(p_id),
+                       action->action_u.func.name);
             rc = action->action_u.func.call(p_id, p_attrs, params, after, db_cb_fn, db_cb_arg);
             break;
 
@@ -1710,8 +1702,24 @@ static int wrap_file_copy(sm_instance_t *smi,
     return 0;
 }
 
+/** check this is a supported action */
+static bool backup_check_action_name(const char *name)
+{
+    if (strcasecmp(name, "archive") &&
+#ifdef _HAVE_SHOOK
+    strcasecmp(name, "release") &&
+#endif
+        /* special values for deleted entries (for backup_remove) */
+        strcasecmp(name, "removed") && strcasecmp(name, "deleted"))
+        return false;
+
+    return true;
+}
+
+
 /** Wrap command execution */
-static int backup_executor(sm_instance_t *smi, const policy_action_t *action,
+static int backup_executor(sm_instance_t *smi, const char *implements,
+                           const policy_action_t *action,
                            const entry_id_t *p_id, attr_set_t *p_attrs,
                            const action_params_t *params, post_action_e *after,
                            db_cb_func_t db_cb_fn, void *db_cb_arg)
@@ -1722,8 +1730,13 @@ static int backup_executor(sm_instance_t *smi, const policy_action_t *action,
     obj_type_t entry_type;
     bool bk_moved = false;
 
-    /** @TODO: if applying a policy for deleted entries,
-     * implement a different executor */
+    /** @TODO support execution of hsm_remove actions */
+    if (strcmp(implements, "archive"))
+    {
+        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Operation not supported by status manager %s: '%s'",
+                   smi->sm->name, implements);
+        return -ENOTSUP;
+    }
 
     /* check mandatory attributes, entry type and status */
     rc = backup_action_precheck(smi, p_id, p_attrs, bkpath, &entry_type,
@@ -1756,6 +1769,7 @@ static int backup_executor(sm_instance_t *smi, const policy_action_t *action,
 
     return rc;
 }
+
 
 /**
  * Performs entry removal in the backend
@@ -2628,7 +2642,7 @@ status_manager_t backup_sm = {
 #else
     .name = "backup",
 #endif
-    .flags = SM_SHARED | SM_DELETED,
+    .flags = SM_SHARED | SM_DELETED | SM_MULTI_ACTION,
     .status_enum = backup_status_list, /* unknown is empty(unset) status */
     .status_count = STATUS_COUNT - 1,
 
@@ -2646,6 +2660,9 @@ status_manager_t backup_sm = {
 //    .changelog_cb = backup_cl_cb, /* @TODO */
 
     .executor = backup_executor,
+
+    .check_action_name = backup_check_action_name,
+    /* no action callback as it has an executor */
 
     /* fields for managing deleted entries */
     .softrm_filter_mask = ATTR_MASK_type | SMI_MASK(0),

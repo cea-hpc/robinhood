@@ -1,7 +1,7 @@
 # used to be rbh 2.5 "migration" policy for Lustre/HSM
 define_policy lhsm_archive {
     scope { type == file and (status == new or status == modified) }
-    status_manager = lhsm;
+    status_manager = lhsm(archive);
     default_action = lhsm.archive;
     default_lru_sort_attr = last_mod;
 }
@@ -9,7 +9,7 @@ define_policy lhsm_archive {
 # used to be rbh 2.5 "purge" policy for Lustre/HSM
 define_policy lhsm_release {
     scope { type == file and status == synchro }
-    status_manager = lhsm;
+    status_manager = lhsm(release);
     default_action = lhsm.release;
     default_lru_sort_attr = last_access;
 }

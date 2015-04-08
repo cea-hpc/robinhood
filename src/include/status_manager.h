@@ -40,11 +40,25 @@ typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
 
 /** function prototype for status manager "executor" */
 typedef int (*sm_executor_func_t)(struct sm_instance *smi,
+                                  const char *implements,
                                   const policy_action_t *action,
  /* arguments for the action : */ const entry_id_t *id, attr_set_t *attrs,
                                   const action_params_t *params,
                                   post_action_e *what_after,
                                   db_cb_func_t db_cb_fn, void *db_cb_arg);
+
+/** function prototype for action callbacks
+ * @param[in,out] smi        status manager instance
+ * @param[in]     implements action type name
+ * @param[in]     id         the impacted entry id
+ * @param[in,out] attrs      entry attributes
+ * @param[in,out] what_after what to do with the entry (already set by the action,
+ *                           but can be overriden in this action callback).
+ */
+typedef int (*sm_action_cb_func_t)(struct sm_instance *smi,
+                                   const char *implements, int action_status,
+                                   const entry_id_t *id, attr_set_t *attrs,
+                                   post_action_e *what_after);
 
 /** function prototype to determine if a deleted entry must be inserted to SOFTRM table
  * @return <0 on error, 0 for false, 1 for true.
@@ -74,9 +88,10 @@ typedef int (*init_func_t)(struct sm_instance *smi, run_flags_t flags);
 #define SM_NAME_MAX 128
 
 typedef enum {
-    SM_SHARED   = (1<<0), /**< indicate the status manager can be shared between policies */
-    SM_NODB     = (1<<1), /**< the status is not stored in DB */
-    SM_DELETED  = (1<<2), /**< this status manager can manage deleted entries */
+    SM_SHARED       = (1<<0), /**< indicate the status manager can be shared between policies */
+    SM_NODB         = (1<<1), /**< the status is not stored in DB */
+    SM_DELETED      = (1<<2), /**< this status manager can manage deleted entries */
+    SM_MULTI_ACTION = (1<<3) /**< this status manager handles multiple type of actions */
 } sm_flags;
 
 /** Status manager definition */
@@ -100,8 +115,12 @@ typedef struct status_manager {
     sm_cl_cb_func_t    changelog_cb;
 #endif
 
-    /** callback for policy actions */
-    /// FIXME how to know what action has been done?
+    /** for multi-action status managers, check the status manager knowns
+     * the given action name */
+    bool (*check_action_name)(const char *);
+
+    /** callback for policy actions (action_name) */
+    sm_action_cb_func_t action_cb;
 
     /** If provided, the status manager wraps the action run */
     sm_executor_func_t  executor;
@@ -342,8 +361,25 @@ static inline bool smi_manage_deleted(sm_instance_t *smi)
 {
     if (smi == NULL)
         return false;
-    return !!(smi->sm->flags & SM_DELETED); /* the status manager handles file removal */
+    return (smi->sm->flags & SM_DELETED); /* the status manager handles file removal */
 }
+
+/** indicate if the status manager handles several types of actions */
+static inline bool smi_multi_action(sm_instance_t *smi)
+{
+    if (smi == NULL)
+        return false;
+    return (smi->sm->flags & SM_MULTI_ACTION); /* the status manager handles multiple types of actions */
+}
+
+/** check the status manager knows the given action name */
+static inline bool smi_support_action(sm_instance_t *smi, const char *name)
+{
+    if (smi == NULL || smi->sm == NULL || smi->sm->check_action_name == NULL)
+        return false;
+    return smi->sm->check_action_name(name);
+}
+
 
 /**
  * Retrieve the mask of attributes to be saved in SOFTRM table for all policies.

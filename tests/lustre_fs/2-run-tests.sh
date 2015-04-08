@@ -58,16 +58,20 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     shook=0
     PURPOSE="LUSTRE_HSM"
     export STATUS_MGR="lhsm"
-    export DEFAULT_ARCHIVE="lhsm.archive";
-    export DEFAULT_PURGE="lhsm.release";
-    export DEFAULT_HSMRM="lhsm.hsm_remove";
+    export MIGR_ACTION="archive"
+    export PURGE_ACTION="release"
+    export DEFAULT_ARCHIVE="lhsm.archive"
+    export DEFAULT_PURGE="lhsm.release"
+    export DEFAULT_HSMRM="lhsm.hsm_remove"
 elif [[ $PURPOSE = "BACKUP" ]]; then
     is_lhsm=0
     shook=0
     is_hsmlite=1
     export STATUS_MGR="backup"
+    export MIGR_ACTION="archive"
+    export PURGE_ACTION="archive" # not used, just to avoid config error
     export DEFAULT_ARCHIVE="common.copy";
-    export DEFAULT_PURGE="common.log";
+    export DEFAULT_PURGE="common.log"; # not used, just to avoid config error
     export DEFAULT_HSMRM="common.unlink"; # in backend?
     mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
@@ -75,6 +79,8 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     is_hsmlite=1
     shook=1
     export STATUS_MGR="shook"
+    export MIGR_ACTION="archive"
+    export PURGE_ACTION="release"
     export DEFAULT_ARCHIVE="common.copy";
     export DEFAULT_PURGE="shook.release";
     export DEFAULT_HSMRM="common.unlink"; # in backend?
@@ -387,6 +393,13 @@ function migration_test
 		echo "OK: no files migrated"
 	fi
 
+	if (( $is_lhsm != 0 )); then
+	    $REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
+        [ "$DEBUG" = "1" ] && cat report.out
+        check_status_count report.out archiving 0
+        check_status_count report.out archived 0
+    fi
+
 	echo "4-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
@@ -399,6 +412,23 @@ function migration_test
 	else
 		echo "OK: $nb_migr files migrated"
 	fi
+
+	if (( $is_lhsm != 0 )); then
+	    $REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
+        [ "$DEBUG" = "1" ] && cat report.out
+        check_status_count report.out archiving $expected_migr
+
+		wait_done 60 || error "Migration timeout"
+        # get completion log
+        $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "readlog"
+
+        # should be archived now
+	    $REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
+        [ "$DEBUG" = "1" ] && cat report.out
+        check_status_count report.out synchro $expected_migr
+    fi
+
+    rm -f report.out
 }
 
 # migrate a single file
@@ -4057,7 +4087,7 @@ function check_status_count
     status=$2
     count=$3
 
-    nst=$(grep -E "^$status" $report | cut -d ',' -f 3 | tr -d ' ')
+    nst=$(grep -E "^([ ]*)$status" $report | cut -d ',' -f 3 | tr -d ' ')
     [ -z "$nst" ] && nst=0
 
     [ "$DEBUG" = "1" ] && echo "$status: $nst"

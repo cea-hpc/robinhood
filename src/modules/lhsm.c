@@ -172,16 +172,8 @@ static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                         const action_params_t *params, post_action_e *after,
                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    int rc = lhsm_action(HUA_RELEASE, p_entry_id, params);
-    //    if (rc == 0)
-    //{
-    /* TODO set new status: in status manager? */
-    //    ATTR_MASK_SET( &new_attr_set, status );
-    //    ATTR( &new_attr_set, status ) = STATUS_ARCHIVE_RUNNING;
-    //}
-
-    *after = PA_UPDATE;
-    return rc;
+    /* 'after' is set in action callback */
+    return lhsm_action(HUA_RELEASE, p_entry_id, params);
 }
 
 /** perform hsm_archive action */
@@ -189,9 +181,8 @@ static int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                         const action_params_t *params, post_action_e *after,
                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    int rc = lhsm_action(HUA_ARCHIVE, p_entry_id, params);
-    *after = PA_UPDATE;
-    return rc;
+    /* 'after' is set in action callback */
+    return lhsm_action(HUA_ARCHIVE, p_entry_id, params);
 }
 
 /** perform hsm_remove action */
@@ -199,8 +190,8 @@ static int lhsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                        const action_params_t *params, post_action_e *after,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
+    /* 'after' is set in action callback */
     int rc = lhsm_action(HUA_REMOVE, p_entry_id, params);
-    *after = (rc != 0 ? PA_NONE : PA_RM_ONE);
     return rc;
 }
 
@@ -212,7 +203,6 @@ typedef enum {
   STATUS_ARCHIVE_RUNNING,       /* file is being archived */
   STATUS_SYNCHRO,               /* file has been synchronized in HSM, file can be purged */
   STATUS_RELEASED,              /* file is released (nothing to do). XXX should not be in DB? */
-  STATUS_RELEASE_PENDING,       /* file is being released */
 
   STATUS_COUNT,                 /* number of possible file status */
 } hsm_status_t;
@@ -225,7 +215,6 @@ static const char *lhsm_status_list[] = {
     [STATUS_ARCHIVE_RUNNING] = "archiving",
     [STATUS_SYNCHRO] = "synchro",
     [STATUS_RELEASED] = "released",
-    [STATUS_RELEASE_PENDING] = "release_pending",
 };
 
 static const char *hsm_status2str(hsm_status_t st)
@@ -405,6 +394,59 @@ static inline void set_lhsm_status(struct sm_instance *smi, attr_set_t *attrs, h
 static bool status_equal(struct sm_instance *smi, const attr_set_t *attrs, hsm_status_t status)
 {
     return !strcmp(STATUS_ATTR(attrs, smi->smi_index), hsm_status2str(status));
+}
+
+/** check this is a supported action */
+static bool lhsm_check_action_name(const char *name)
+{
+    if (strcasecmp(name, "archive") && strcasecmp(name, "release") &&
+        /* special values for deleted entries (for lhsm_remove) */
+        strcasecmp(name, "removed") && strcasecmp(name, "deleted"))
+        return false;
+
+    return true;
+}
+
+static int lhsm_action_callback(struct sm_instance *smi,
+                                const char *implements, int action_status,
+                                const entry_id_t *id, attr_set_t *attrs,
+                                post_action_e *what_after)
+{
+    if (smi == NULL || implements == NULL)
+        return -EINVAL;
+
+    if (!strcasecmp(implements, "archive"))
+    {
+        /* successful archive (asynchronous): now archive_running, else (failed): unchanged. */
+        if (action_status == 0)
+            set_lhsm_status(smi, attrs, STATUS_ARCHIVE_RUNNING);
+        else
+            /* (try to) update hsm_status on failure */
+            lhsm_status(smi, id, attrs, attrs);
+
+        *what_after = PA_UPDATE;
+        return 0;
+    }
+    else if (!strcasecmp(implements, "release"))
+    {
+        /* successful release (synchronous): now released, else: unchanged. */
+        if (action_status == 0)
+            set_lhsm_status(smi, attrs, STATUS_RELEASED);
+        else
+            /* (try to) update hsm_status on failure */
+            lhsm_status(smi, id, attrs, attrs);
+
+        *what_after = PA_UPDATE;
+        return 0;
+    }
+    else if (!strcasecmp(implements, "removed") || !strcasecmp(implements, "deleted"))
+    {
+        /* successful removed (asynchronous): drop from DB */
+        *what_after = (action_status != 0 ? PA_NONE : PA_RM_ONE);
+        return 0;
+    }
+    else
+        return -EINVAL;
 }
 
 /** changelog callback */
@@ -587,7 +629,7 @@ static int lhsm_softrm_filter(struct sm_instance *smi, const entry_id_t *id,
 /** Status manager for Lustre/HSM */
 status_manager_t lhsm_sm = {
     .name = "lhsm",
-    .flags = SM_SHARED | SM_DELETED,
+    .flags = SM_SHARED | SM_DELETED | SM_MULTI_ACTION,
     .status_enum = lhsm_status_list,
     .status_count = STATUS_COUNT,
 
@@ -601,8 +643,8 @@ status_manager_t lhsm_sm = {
     .get_status_func = lhsm_status,
     .changelog_cb = lhsm_cl_cb,
 
-    // TODO callback for policy actions
-    // FIXME how to know what action has been done?
+    .check_action_name = lhsm_check_action_name,
+    .action_cb = lhsm_action_callback,
 
     /* fields for managing deleted entries */
     .softrm_filter_mask = ATTR_MASK_type | SMI_MASK(0),

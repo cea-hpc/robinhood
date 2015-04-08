@@ -206,6 +206,8 @@ typedef struct policy_descr_t {
     char                name[POLICY_NAME_LEN];
     bool_node_t         scope;
     uint64_t            scope_mask;
+    const char         *implements; /* in the case of 'multi-action' status managers,
+                                       indicate the implemented action. */
     struct sm_instance *status_mgr;
     policy_action_t     default_action;
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */

@@ -278,7 +278,8 @@ static int policy_action(policy_info_t *policy,
     if (smi != NULL && smi->sm->executor != NULL)
     {
         /* @TODO provide a DB callback */
-        rc = smi->sm->executor(smi, actionp, id, p_attr_set, params,
+        rc = smi->sm->executor(smi, policy->descr->implements, actionp,
+                               id, p_attr_set, params,
                                after, NULL, NULL);
     }
     else
@@ -320,18 +321,27 @@ static int policy_action(policy_info_t *policy,
                 }
                 else
                     rc = errno;
+
+                /* external commands can't set 'after': default to update */
+                *after = PA_UPDATE;
+
                 break;
             }
             case ACTION_NONE:
                 rc = 0;
                 break;
         }
+
+        /* call action callback if there is no status manager executor to wrap actions */
+        if (smi->sm->action_cb != NULL)
+        {
+            rc = smi->sm->action_cb(smi, policy->descr->implements, rc,
+                                    id, p_attr_set, after);
+            if (rc)
+                DisplayLog(LVL_MAJOR, tag(policy), "Action callback failed for action '%s': rc=%d",
+                           policy->descr->implements ? policy->descr->implements : "<null>", rc);
+        }
     }
-//    if (rc == 0)
-//        // FIXME set post_action_e in case of external command
-//        *after = PA_RM_ONE;
-//    else
-//        *after = PA_UPDATE;
 
     return rc;
 }
@@ -2182,48 +2192,6 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     rc = policy_action(pol, rule, p_fileset, &p_item->entry_id, &new_attr_set,
                        &params, &after_action);
     rbh_params_free(&params);
-
-#if 0 // TODO handle status update (in action? using status manager?)
-#ifdef _LUSTRE_HSM
-    rc = PurgeEntry_ByFid(&p_item->entry_id, &new_attr_set);
-
-    if (rc == 0)
-    {
-        /* new status is release pending */
-        ATTR_MASK_SET(&new_attr_set, status);
-        ATTR(&new_attr_set, status) = STATUS_RELEASE_PENDING;
-    }
-    else
-    {
-        char fid_path[RBH_PATH_MAX];
-        BuildFidPath(&p_item->entry_id, fid_path);
-
-        /* we probably have a wrong status for this entry: refresh it */
-
-        rc = LustreHSM_GetStatus(fid_path, &ATTR(&new_attr_set, status),
-                                  &ATTR(&new_attr_set, no_release),
-                                  &ATTR(&new_attr_set, no_archive));
-        if (!rc)
-        {
-            ATTR_MASK_SET(&new_attr_set, status);
-            ATTR_MASK_SET(&new_attr_set, no_release);
-            ATTR_MASK_SET(&new_attr_set, no_archive);
-        }
-    }
-#elif defined(_HSM_LITE)
-    rc = PurgeEntry_ByFid(&p_item->entry_id, &new_attr_set);
-
-    if (rc == 0)
-    {
-        /* new status is released */
-        ATTR_MASK_SET(&new_attr_set, status);
-        ATTR(&new_attr_set, status) = STATUS_RELEASED;
-    }
-#else
-    /* FIXME should remove all paths to the object */
-    rc = PurgeEntry(&p_item->entry_id, ATTR(&new_attr_set, fullpath));
-#endif
-#endif
 
     if (rc != 0)
     {

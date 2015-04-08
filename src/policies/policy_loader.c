@@ -407,6 +407,20 @@ int parse_policy_action(const char *name, const char *value,
     return 0;
 }
 
+/** duplicate a string and convert it to lower case */
+static char *strdup_lower(const char *str)
+{
+    char *out;
+
+    out = strdup(str);
+    if (!out)
+        return NULL;
+
+    /* convert to lower case */
+    lowerstr(out);
+
+    return out;
+}
 
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, bool *manage_deleted,
@@ -504,25 +518,47 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
             return EINVAL;
         }
 
-        /* does this policy manage deleted entries? */
-        if (extra_cnt == 1 && (!strcasecmp(extra[0], "removed")
-                             || !strcasecmp(extra[0], "deleted")))
-        {
-            /* the status manager must handle them */
-            if (!smi_manage_deleted(policy->status_mgr))
-            {
-                sprintf(msg_out, "'%s' is specified for status manager '%s' whereas it cannot handle deleted entries.",
-                        extra[0], tmpstr);
-                return EINVAL;
-            }
-            policy->manage_deleted = true;
-            *manage_deleted = true;
-        }
-        else if (extra_cnt != 0)
+        if (extra_cnt > 1) /* max 1 argument expected */
         {
             sprintf(msg_out, "Too many arguments (%d) found for status_manager parameter '%s', in block '%s %s'.",
                     extra_cnt, tmpstr, block_name, name);
             return EINVAL;
+        }
+        else if (extra_cnt == 1)
+        {
+            /* special values 'removed' or 'deleted' means the policy applies to deleted files */
+            if  (!strcasecmp(extra[0], "removed") || !strcasecmp(extra[0], "deleted"))
+            {
+                /* the status manager must handle them */
+                if (!smi_manage_deleted(policy->status_mgr))
+                {
+                    sprintf(msg_out, "'%s' is specified for status manager '%s' whereas it cannot handle deleted entries.",
+                            extra[0], tmpstr);
+                    return EINVAL;
+                }
+                policy->manage_deleted = true;
+                *manage_deleted = true;
+                policy->implements = strdup_lower(extra[0]);
+            }
+            /* does the status manager support this action? */
+            else if (smi_support_action(policy->status_mgr, extra[0]))
+            {
+                /* save the implemented action in policy */
+                policy->implements = strdup_lower(extra[0]);
+            }
+            else
+            {
+                sprintf(msg_out, "status manager '%s' does not support action '%s' in block '%s %s'.",
+                        tmpstr, extra[0], block_name, name);
+                return EINVAL;
+            }
+        }
+        /* extra_cnt == 0 */
+        else if (smi_multi_action(policy->status_mgr))
+        {
+            sprintf(msg_out, "Missing mandatory argument for status_manager '%s' in block '%s %s': implemented action.",
+                    tmpstr, block_name, name);
+            return ENOENT;
         }
     }
 
@@ -1190,21 +1226,6 @@ static int write_purge_policy_template(FILE * output)
 #endif /* HSM switch */
 #endif /* purge policy */
 #endif /* 0 */
-
-/** duplicate a string and convert it to lower case */
-static char *strdup_lower(const char *str)
-{
-    char *out;
-
-    out = strdup(str);
-    if (!out)
-        return NULL;
-
-    /* convert to lower case */
-    lowerstr(out);
-
-    return out;
-}
 
 action_params_t *get_fileset_policy_params(const fileset_item_t *fileset,
                                            const char *policy_name)
