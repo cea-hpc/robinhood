@@ -63,7 +63,7 @@ fi
 
 # workaround for statahead issues
 f=`ls /proc/fs/lustre/llite/lustre-*/statahead_max`
-echo 0 > $f
+[[ -n "$f" ]] && echo 0 > $f
 
 # create testuser
 getent passwd testuser || useradd testuser || exit 1
