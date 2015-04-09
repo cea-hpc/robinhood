@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <glib.h>
 #include "lustre_extended_types.h"
 
 #ifdef _LLAPI_FORKS
@@ -283,11 +284,17 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
 }
 
 #ifdef _LUSTRE_HSM
+static const char *get_event_name(unsigned int cl_event)
+{
+    static const char *event_name[] = {
+        "archive", "restore", "cancel", "release", "remove", "state",
+    };
 
-static const char * event_name[] = {
-    "archive", "restore", "cancel", "release", "remove", "state"
-};
-#define CL_EVENT_MAX 5
+    if (cl_event >= G_N_ELEMENTS(event_name))
+        return "unknown";
+    else
+        return event_name[cl_event];
+}
 #endif
 
 #define CL_BASE_FORMAT "%s: %llu %02d%-5s %u.%09u 0x%x%s t="DFID
@@ -317,17 +324,10 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
 
 #ifdef _LUSTRE_HSM
     if (rec->cr_type == CL_HSM)
-    {
-        const char * event = NULL;
-        if (hsm_get_cl_event(rec->cr_flags) > CL_EVENT_MAX)
-            event = "unknown";
-        else
-            event = event_name[hsm_get_cl_event(rec->cr_flags)];
-
-        snprintf(flag_buff, 256, "(%s%s,rc=%d)", event,
-                 hsm_get_cl_flags(rec->cr_flags) & CLF_HSM_DIRTY? ",dirty":"",
-                 hsm_get_cl_error(rec->cr_flags));
-    }
+        g_snprintf(flag_buff, sizeof(flag_buff), "(%s%s,rc=%d)",
+                   get_event_name(hsm_get_cl_event(rec->cr_flags)),
+                   hsm_get_cl_flags(rec->cr_flags) & CLF_HSM_DIRTY? ",dirty":"",
+                   hsm_get_cl_error(rec->cr_flags));
 #endif
 
     len = snprintf(curr, left, CL_BASE_FORMAT, CL_BASE_ARG(mdt, rec));
