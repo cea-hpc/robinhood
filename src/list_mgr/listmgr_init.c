@@ -379,7 +379,7 @@ static const char *acct_table(void)
     bool is_annex = false;
     bool is_main = false;
 
-    if (lmgr_config.user_acct || lmgr_config.group_acct)
+    if (lmgr_config.acct)
     {
         int i;
         for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
@@ -909,8 +909,7 @@ static int create_table_stripe_items(db_conn_t *pconn)
 
 static void disable_acct(void)
 {
-    lmgr_config.user_acct = false;
-    lmgr_config.group_acct = false;
+    lmgr_config.acct = false;
     /* reset acct masks */
     acct_pk_attr_set = 0;
     acct_attr_set = 0;
@@ -923,7 +922,7 @@ static int check_table_acct(db_conn_t *pconn)
     char *fieldtab[MAX_DB_FIELDS];
 
     /* daemon mode with acccounting disabled: don't check ACCT table */
-    if (!lmgr_config.user_acct && !lmgr_config.group_acct && !report_only)
+    if (!lmgr_config.acct && !report_only)
         return DB_SUCCESS;
 
     rc = db_list_table_fields(pconn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS,
@@ -1054,7 +1053,7 @@ static int create_table_acct(db_conn_t *pconn)
     bool     first_acct_pk = true;
     bool     is_first_acct_field = true;
 
-    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
+    if (!lmgr_config.acct)
         return DB_SUCCESS;
 
     request = g_string_new("CREATE TABLE "ACCT_TABLE" (");
@@ -1255,7 +1254,7 @@ static int check_triggers_version(db_conn_t *pconn)
     char val[1024];
 
     /* no accounting or report_only: don't check triggers */
-    if (!lmgr_config.user_acct && !lmgr_config.group_acct && !report_only)
+    if (!lmgr_config.acct && !report_only)
     {
         DisplayLog(LVL_VERB, LISTMGR_TAG, "Accounting is disabled: all triggers will be dropped.");
         return DB_SUCCESS;
@@ -1313,7 +1312,7 @@ static int check_trig_acct_insert(db_conn_t *pconn)
     int rc;
     char strbuf[4096];
 
-    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
+    if (!lmgr_config.acct)
     {
         /* no acct: must delete trigger */
         if (!report_only)
@@ -1346,7 +1345,7 @@ static int check_trig_acct_delete(db_conn_t *pconn)
 {
     int rc;
     char strbuf[4096];
-    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
+    if (!lmgr_config.acct)
     {
         /* no acct: must delete trigger */
         if (!report_only)
@@ -1379,7 +1378,7 @@ static int check_trig_acct_update(db_conn_t *pconn)
 {
     int rc;
     char strbuf[4096];
-    if (!lmgr_config.user_acct && !lmgr_config.group_acct)
+    if (!lmgr_config.acct)
     {
         /* no acct: must delete trigger */
         if (!report_only)

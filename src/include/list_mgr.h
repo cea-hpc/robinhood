@@ -199,9 +199,8 @@ typedef struct lmgr_config_t
     time_t         connect_retry_min;            /* min retry delay when connection is lost */
     time_t         connect_retry_max;            /* max retry delay when connection is lost */
 
-    /* options to enable accounting */
-    bool user_acct;
-    bool group_acct;
+    /** enable accounting */
+    bool acct;
 } lmgr_config_t;
 
 /** config handlers */

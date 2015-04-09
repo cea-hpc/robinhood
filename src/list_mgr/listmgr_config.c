@@ -26,6 +26,9 @@
 #define MYSQL_CONFIG_BLOCK "MySQL"
 #define SQLITE_CONFIG_BLOCK "SQLite"
 
+/* tag for logging */
+#define TAG "LmgrConfig"
+
 /** exported variable available for list_mgr internals */
 lmgr_config_t  lmgr_config;
 
@@ -50,8 +53,7 @@ static void lmgr_cfg_set_default(void *module_config)
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
 #endif
 
-     conf->user_acct = true;
-     conf->group_acct = true;
+     conf->acct = true;
 }
 
 static void lmgr_cfg_write_default(FILE *output)
@@ -60,8 +62,7 @@ static void lmgr_cfg_write_default(FILE *output)
     print_line( output, 1, "commit_behavior             : transaction" );
     print_line( output, 1, "connect_retry_interval_min  : 1s" );
     print_line( output, 1, "connect_retry_interval_max  : 30s" );
-    print_line( output, 1, "user_acct  : enabled" );
-    print_line( output, 1, "group_acct : enabled" );
+    print_line( output, 1, "accounting  : enabled" );
     fprintf( output, "\n" );
 
 #ifdef _MYSQL
@@ -87,6 +88,7 @@ static void lmgr_cfg_write_default(FILE *output)
 static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int            rc;
+    bool           bval;
     lmgr_config_t *conf = (lmgr_config_t *)module_config;
     char         **options = NULL;
     unsigned int   nb_options = 0;
@@ -96,8 +98,9 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
 
     static const char *lmgr_allowed[] = {
         "commit_behavior", "connect_retry_interval_min",
-        "connect_retry_interval_max", "user_acct",
-        "group_acct", MYSQL_CONFIG_BLOCK, SQLITE_CONFIG_BLOCK,
+        "connect_retry_interval_max", "accounting",
+        MYSQL_CONFIG_BLOCK, SQLITE_CONFIG_BLOCK,
+        "user_acct", "group_acct", /* deprecated => accounting */
         NULL
     };
 
@@ -106,8 +109,7 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
          PFLG_NOT_NULL, &conf->connect_retry_min, 0},
         {"connect_retry_interval_max", PT_DURATION, PFLG_POSITIVE |
          PFLG_NOT_NULL, &conf->connect_retry_max, 0},
-        {"user_acct", PT_BOOL, 0, &conf->user_acct, 0},
-        {"group_acct", PT_BOOL, 0, &conf->group_acct, 0},
+        {"accounting", PT_BOOL, 0, &conf->acct, 0},
         END_OF_PARAMS
     };
 
@@ -195,6 +197,27 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
         }
     }
 
+    /* manage deprecated parameters */
+    rc = GetBoolParam(lmgr_block, LMGR_CONFIG_BLOCK, "user_acct", 0, &bval, NULL,
+                      NULL, msg_out);
+    if (rc == 0)
+    {
+        DisplayLog(LVL_CRIT, TAG, "WARNING: parameter %s::%s' is deprecated. Specify 'accounting = yes/no' instead.",
+                   LMGR_CONFIG_BLOCK, "user_acct");
+        DisplayLog(LVL_MAJOR, TAG, "Setting 'accounting = %s' for compatibility.", bool2str(bval));
+        conf->acct = bval;
+    }
+
+    rc = GetBoolParam(lmgr_block, LMGR_CONFIG_BLOCK, "group_acct", 0, &bval, NULL,
+                      NULL, msg_out);
+    if (rc == 0)
+    {
+        DisplayLog(LVL_CRIT, TAG, "WARNING: parameter %s::%s' is deprecated. Specify 'accounting = yes/no' instead.",
+                   LMGR_CONFIG_BLOCK, "group_acct");
+        DisplayLog(LVL_MAJOR, TAG, "Setting 'accounting = %s' for compatibility.", bool2str(bval));
+        conf->acct = bval;
+    }
+
     CheckUnknownParameters( lmgr_block, LMGR_CONFIG_BLOCK, lmgr_allowed );
 
     /* Database parameters */
@@ -274,13 +297,13 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
 static int lmgr_cfg_reload(lmgr_config_t *conf)
 {
     if ( conf->commit_behavior != lmgr_config.commit_behavior )
-        DisplayLog( LVL_MAJOR, "LmgrConfig",
+        DisplayLog( LVL_MAJOR, TAG,
                     LMGR_CONFIG_BLOCK
                     "::commit_behavior changed in config file, but cannot be modified dynamically" );
 
     if ( conf->connect_retry_min != lmgr_config.connect_retry_min )
     {
-        DisplayLog( LVL_EVENT, "LmgrConfig",
+        DisplayLog( LVL_EVENT, TAG,
                     LMGR_CONFIG_BLOCK
                     "::connect_retry_interval_min updated: %ld->%ld",
                     lmgr_config.connect_retry_min, conf->connect_retry_min );
@@ -289,7 +312,7 @@ static int lmgr_cfg_reload(lmgr_config_t *conf)
 
     if ( conf->connect_retry_max != lmgr_config.connect_retry_max )
     {
-        DisplayLog( LVL_EVENT, "LmgrConfig",
+        DisplayLog( LVL_EVENT, TAG,
                     LMGR_CONFIG_BLOCK
                     "::connect_retry_interval_max updated: %ld->%ld",
                     lmgr_config.connect_retry_max, conf->connect_retry_max );
@@ -299,30 +322,30 @@ static int lmgr_cfg_reload(lmgr_config_t *conf)
 #ifdef _MYSQL
 
     if ( strcmp( conf->db_config.server, lmgr_config.db_config.server ) )
-        DisplayLog( LVL_MAJOR, "LmgrConfig",
+        DisplayLog( LVL_MAJOR, TAG,
                     MYSQL_CONFIG_BLOCK
                     "::server changed in config file, but cannot be modified dynamically" );
     if ( strcmp( conf->db_config.db, lmgr_config.db_config.db ) )
-        DisplayLog( LVL_MAJOR, "LmgrConfig",
+        DisplayLog( LVL_MAJOR, TAG,
                     MYSQL_CONFIG_BLOCK
                     "::db changed in config file, but cannot be modified dynamically" );
     if ( strcmp( conf->db_config.user, lmgr_config.db_config.user ) )
-        DisplayLog( LVL_MAJOR, "LmgrConfig",
+        DisplayLog( LVL_MAJOR, TAG,
                     MYSQL_CONFIG_BLOCK
                     "::user changed in config file, but cannot be modified dynamically" );
     if ( strcmp( conf->db_config.password, lmgr_config.db_config.password ) )
-        DisplayLog( LVL_MAJOR, "LmgrConfig",
+        DisplayLog( LVL_MAJOR, TAG,
                     MYSQL_CONFIG_BLOCK
                     "::password changed in config file, but cannot be modified dynamically" );
 #elif defined (_SQLITE)
     if ( strcmp( conf->db_config.filepath, lmgr_config.db_config.filepath ) )
-        DisplayLog( LVL_MAJOR, "LmgrConfig",
+        DisplayLog( LVL_MAJOR, TAG,
                     SQLITE_CONFIG_BLOCK
                     "::db_file changed in config file, but cannot be modified dynamically" );
 
     if ( conf->db_config.retry_delay_microsec != lmgr_config.db_config.retry_delay_microsec )
     {
-        DisplayLog( LVL_EVENT, "LmgrConfig",
+        DisplayLog( LVL_EVENT, TAG,
                     SQLITE_CONFIG_BLOCK
                     "::retry_delay_microsec updated: %u->%u",
                     lmgr_config.db_config.retry_delay_microsec,
@@ -369,8 +392,7 @@ static void lmgr_cfg_write_template(FILE *output)
 
     print_line( output, 1, "# disable the following options if you are not interested in" );
     print_line( output, 1, "# user or group stats (to speed up scan)" );
-    print_line( output, 1, "user_acct  = enabled ;" );
-    print_line( output, 1, "group_acct = enabled ;" );
+    print_line( output, 1, "accounting  = enabled ;" );
     fprintf( output, "\n" );
 #ifdef _MYSQL
     print_begin_block( output, 1, MYSQL_CONFIG_BLOCK, NULL );

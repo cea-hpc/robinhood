@@ -19,8 +19,8 @@ cfg=$1
 tmp=$cfg.new
 cp "$cfg" "$tmp" || error "failed to create temporary copy of $cfg"
 
-old_blocks=("db_update_policy")
-new_blocks=("db_update_params")
+old_blocks=("db_update_policy" "user_acct")
+new_blocks=("db_update_params" "accounting")
 
 i=0
 while [ -n "${old_blocks[$i]}" ]; do

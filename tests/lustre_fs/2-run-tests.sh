@@ -1711,7 +1711,9 @@ function test_rh_acct_report
 {
         config_file=$1
         dircount=$2
-        descr_str="$3"
+        # used in acct.conf
+        export ACCT_SWITCH=$3
+        descr_str="$4"
 
         clean_logs
 
@@ -1838,7 +1840,9 @@ function test_acct_table
 {
         config_file=$1
         dircount=$2
-        descr_str="$3"
+        # used in acct.conf
+        export ACCT_SWITCH=$3
+        descr_str="$4"
 
         clean_logs
 
@@ -1858,12 +1862,19 @@ function test_acct_table
         $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
 	check_db_error rh_scan.log
 
-        echo "3.Checking acct table and triggers creation"
-        grep -q "Table ACCT_STAT created successfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
-        grep -q "Trigger ACCT_ENTRY_INSERT created successfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_INSERT trigger"
-        grep -q "Trigger ACCT_ENTRY_UPDATE created successfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
-        grep -q "Trigger ACCT_ENTRY_DELETE created successfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
-
+        if [[ "$ACCT_SWITCH" != "no" ]]; then
+            echo "3.Checking acct table and triggers creation"
+            grep -q "Table ACCT_STAT created successfully" rh_scan.log && echo "ACCT table creation: OK" || error "creating ACCT table"
+            grep -q "Trigger ACCT_ENTRY_INSERT created successfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_INSERT trigger"
+            grep -q "Trigger ACCT_ENTRY_UPDATE created successfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_UPDATE trigger"
+            grep -q "Trigger ACCT_ENTRY_DELETE created successfully" rh_scan.log && echo "ACCT_ENTRY_INSERT trigger creation: OK" || error "creating ACCT_ENTRY_DELETE trigger"
+        else
+            echo "3. Checking no ACCT table or trigger have been created"
+            grep -q "Table ACCT_STAT created successfully" rh_scan.log && error "table ACCT created"
+            grep -q "Trigger ACCT_ENTRY_INSERT created successfully" rh_scan.log && error "ACCT_ENTRY_INSERT trigger created"
+            grep -q "Trigger ACCT_ENTRY_UPDATE created successfully" rh_scan.log && error "ACCT_ENTRY_INSERT trigger created"
+            grep -q "Trigger ACCT_ENTRY_DELETE created successfully" rh_scan.log && error "ACCT_ENTRY_INSERT trigger created"
+        fi
 }
 
 #test dircount reports
@@ -9509,10 +9520,9 @@ run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
 run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
 run_test 101e 	test_info_collect2  info_collect2.conf	5 "diff+apply x2"
 run_test 102	update_test test_updt.conf 5 30 "db update policy"
-run_test 103a    test_acct_table common.conf 5 "Acct table and triggers creation"
-run_test 103b    test_acct_table acct_group.conf 5 "Acct table and triggers creation"
-run_test 103c    test_acct_table acct_user.conf 5 "Acct table and triggers creation"
-run_test 103d    test_acct_table acct_user_group.conf 5 "Acct table and triggers creation"
+run_test 103a    test_acct_table common.conf 5 "" "Acct table and triggers creation (default)"
+run_test 103b    test_acct_table acct.conf 5 "yes" "Acct table and triggers creation (accounting ON)"
+run_test 103c    test_acct_table acct.conf 5 "no" "Acct table and triggers creation (accounting OFF)"
 run_test 104     test_size_updt test_updt.conf 1 "test size update"
 run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/unlink"
 run_test 106a    test_diff info_collect2.conf "diff" "rbh-diff"
@@ -9621,11 +9631,9 @@ run_test 304    test_ost_order test_trig2.conf "OST purge order"
 
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
-run_test 401a   test_rh_acct_report common.conf 5 "reporting tool: config file without acct param"
-run_test 401b   test_rh_acct_report acct_user.conf 5 "reporting tool: config file with acct_user=true and acct_group=false"
-run_test 401c   test_rh_acct_report acct_group.conf 5 "reporting tool: config file with acct_user=false and acct_group=true"
-run_test 401d   test_rh_acct_report no_acct.conf 5 "reporting tool: config file with acct_user=false and acct_group=false"
-run_test 401e   test_rh_acct_report acct_user_group.conf 5 "reporting tool: config file with acct_user=true and acct_group=true"
+run_test 401a   test_rh_acct_report common.conf 5 "" "reporting tool: config file without acct param"
+run_test 401b   test_rh_acct_report acct.conf 5 "yes" "reporting tool: config file with accounting=no"
+run_test 401c   test_rh_acct_report acct.conf 5 "no" "reporting tool: config file with accounting=yes"
 run_test 402a   test_rh_report_split_user_group common.conf 5 "" "report with split-user-groups option"
 run_test 402b   test_rh_report_split_user_group common.conf 5 "--force-no-acct" "report with split-user-groups and force-no-acct option"
 run_test 403    test_sort_report common.conf 0 "Sort options of reporting command"
