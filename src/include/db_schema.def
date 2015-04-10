@@ -109,7 +109,7 @@ owner,      char,       DB_TEXT,   128,  FREQ_ACCESS
 gr_name,    char,       DB_TEXT,   128,  FREQ_ACCESS
 size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
-creation_time,  unsigned int,   DB_UINT,    0,       INIT_ONLY
+creation_time,  unsigned int,   DB_UINT,    0, FREQ_ACCESS
 last_access, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 last_mod, 	unsigned int, DB_UINT, 0, FREQ_ACCESS
 type,	    	char,   DB_ENUM_FTYPE, 32, FREQ_ACCESS
