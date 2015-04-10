@@ -62,9 +62,9 @@ static void append_field_def(int i, GString *str, int is_first, db_type_u *defau
         {
             char strtype[128];
 
-            /* VARCHAR is up to 255. For larger strings, use TEXT. */
-            if (field_infos[i].db_type_size < 256)
-                snprintf(strtype, sizeof(strtype),"VARCHAR(%u)", field_infos[i].db_type_size);
+            /* VARBINARY length is limited. For larger strings, use TEXT. */
+            if (field_infos[i].db_type_size <= MAX_VARBINARY)
+                snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", field_infos[i].db_type_size);
             else
                 rh_strncpy(strtype, "TEXT", sizeof(strtype));
 
@@ -656,7 +656,7 @@ static int create_table_dnames(db_conn_t *pconn)
     int         i, rc;
 
     request = g_string_new("CREATE TABLE "DNAMES_TABLE" (id "PK_TYPE", "
-                           "pkn VARCHAR(40) PRIMARY KEY");
+                           "pkn VARBINARY(40) PRIMARY KEY");
 
     for (i = 0; i < ATTR_COUNT; i++)
     {
@@ -834,7 +834,7 @@ static int create_table_stripe_info(db_conn_t *pconn)
     g_string_printf(request, "CREATE TABLE " STRIPE_INFO_TABLE
             " (id "PK_TYPE" PRIMARY KEY, validator INT, "
             "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, "
-            "pool_name VARCHAR(%u))",
+            "pool_name VARBINARY(%u))",
             MAX_POOL_LEN - 1);
     append_engine(request);
 
@@ -1195,7 +1195,7 @@ free_str:
 #define VERSION_VAR_FUNC    "VersionFunctionSet"
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
-#define FUNCTIONSET_VERSION    "1.1"
+#define FUNCTIONSET_VERSION    "1.2"
 #define TRIGGERSET_VERSION     "1.1"
 
 static int check_functions_version(db_conn_t *conn)
@@ -1658,11 +1658,11 @@ static int create_func_onepath(db_conn_t *pconn)
     /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same id in a given request */
     request = g_string_new(NULL);
     g_string_printf(request, "CREATE FUNCTION "ONE_PATH_FUNC"(param "PK_TYPE")"
-        " RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
+        " RETURNS VARBINARY(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
-            " DECLARE p VARCHAR(%u) DEFAULT NULL;"
+            " DECLARE p VARBINARY(%u) DEFAULT NULL;"
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"
-            " DECLARE n VARCHAR(%u) DEFAULT NULL;"
+            " DECLARE n VARBINARY(%u) DEFAULT NULL;"
             // returns path when parent is not found (NULL if id is not found)
             " DECLARE EXIT HANDLER FOR NOT FOUND RETURN CONCAT(pid,'/',p);"
             " SELECT parent_id, name INTO pid, p from NAMES where id=param LIMIT 1;"
@@ -1712,12 +1712,12 @@ static int create_func_thispath(db_conn_t *pconn)
     /* creating function to get a path for a file, for the given parent and name  */
     /* Note: use "DETERMINISTIC" assuming that it returns the same path for the same parent+name in a given request */
     request = g_string_new(NULL);
-    g_string_printf(request, "CREATE FUNCTION "THIS_PATH_FUNC"(pid_arg "PK_TYPE ", n_arg VARCHAR(%u))"
-        " RETURNS VARCHAR(%u) DETERMINISTIC READS SQL DATA"
+    g_string_printf(request, "CREATE FUNCTION "THIS_PATH_FUNC"(pid_arg "PK_TYPE ", n_arg VARBINARY(%u))"
+        " RETURNS VARBINARY(%u) DETERMINISTIC READS SQL DATA"
         " BEGIN"
-            " DECLARE p VARCHAR(%u) DEFAULT NULL;"
+            " DECLARE p VARBINARY(%u) DEFAULT NULL;"
             " DECLARE pid "PK_TYPE" DEFAULT NULL;"
-            " DECLARE n VARCHAR(%u) DEFAULT NULL;"
+            " DECLARE n VARBINARY(%u) DEFAULT NULL;"
             // returns path when parent is not found (NULL if id is not found)
             " DECLARE EXIT HANDLER FOR NOT FOUND RETURN CONCAT(pid,'/',p);"
             " SET pid=pid_arg;"

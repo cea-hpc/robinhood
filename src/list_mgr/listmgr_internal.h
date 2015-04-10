@@ -24,6 +24,18 @@
  * TOSTRING(FOO)    => "10"
  */
 
+#ifdef _MYSQL
+/* The length can be specified as a value from 0 to 255 before MySQL 5.0.3,
+*  and 0 to 65,535 in 5.0.3 and later versions */
+#    if MYSQL_VERSION_ID >= 50003
+#        define MAX_VARBINARY 65535
+#    else
+#        define MAX_VARBINARY 255
+#    endif
+#else
+#    define MAX_VARBINARY 255
+#endif
+
 /* primary key utils */
 #ifndef FID_PK
 
@@ -37,7 +49,7 @@ typedef DEF_PK(pktype);
 #define DPK      "'%s'"
 #define SPK      "%s"
 #define VALID( _p ) ((_p)->validator)
-#define PK_TYPE   "VARCHAR(" TOSTRING(PK_LEN) ")"
+#define PK_TYPE   "VARBINARY(" TOSTRING(PK_LEN) ")"
 
 #else
 #define DB_FID_LEN 64
@@ -57,7 +69,7 @@ typedef DEF_PK(pktype);
 #define DPK      "'%s'"
 #define SPK      "%s"
 #define VALID( _p ) (0)
-#define PK_TYPE   "VARCHAR(" TOSTRING(DB_FID_LEN) ")"
+#define PK_TYPE   "VARBINARY(" TOSTRING(DB_FID_LEN) ")"
 
 #endif
 
