@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2008, 2009, 2010 CEA/DAM
+ * Copyright (C) 2008-2015 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -256,7 +256,11 @@ static void entry_proc_cfg_set_default(void *module_config)
 {
     entry_proc_config_t *conf = (entry_proc_config_t *)module_config;
 
-    conf->nb_thread = 8;
+    if (lmgr_parallel_batches())
+        conf->nb_thread = 16;
+    else
+        conf->nb_thread = 10;
+
     conf->max_pending_operations = 10000; /* for efficient batching of 1000 ops */
     conf->max_batch_size = 1000;
     conf->match_classes = true;
@@ -272,8 +276,12 @@ static void entry_proc_cfg_set_default(void *module_config)
 static void entry_proc_cfg_write_default(FILE *output)
 {
     print_begin_block(output, 0, ENTRYPROC_CONFIG_BLOCK, NULL);
-    print_line(output, 1, "# batching strategy");
-    print_line(output, 1, "nb_threads             :  8");
+
+    if (lmgr_parallel_batches())
+        print_line(output, 1, "nb_threads             :  16");
+    else
+        print_line(output, 1, "nb_threads             :  10");
+
     print_line(output, 1, "max_pending_operations :  10000");
     print_line(output, 1, "max_batch_size         :  1000");
     print_line(output, 1, "match_classes          :  yes");
@@ -341,11 +349,16 @@ static int load_pipeline_config(const pipeline_descr_t * descr, pipeline_stage_t
             }
             if (p[i].stage_flags & STAGE_FLAG_MAX_THREADS)
             {
-                /* if batching is enabled and tmpval > 1: ERROR */
-                if ((i == descr->DB_APPLY) && (conf->max_batch_size != 1) && (tmpval > 1))
+                /* if batching is enabled and simultaneous batches are not
+                 * allowed: ERROR */
+                if (!lmgr_parallel_batches() && (i == descr->DB_APPLY)
+                    && (conf->max_batch_size != 1) && (tmpval > 1))
                 {
-                    sprintf(msg_out, "Wrong value for '%s': Parallelizing batched DB operations is not allowed.\n"
-                            "Remove this tuning, or disable batching (max_batch_size=1) to parallelize this stage.", varname);
+                    sprintf(msg_out, "Wrong value for '%s': Parallelizing batched DB operations "
+                            "is not allowed when accounting is ON.\n"
+                            "Remove this tuning, disable accounting (accounting = no)"
+                            " or disable batching (max_batch_size=1) to parallelize this stage.",
+                            varname);
                     return EINVAL;
                 }
 
@@ -353,7 +366,7 @@ static int load_pipeline_config(const pipeline_descr_t * descr, pipeline_stage_t
                     /* don't starve other steps: max is nb_thread-1 (except if nb_thread = 1)*/
                     p[i].max_thread_count = MIN2(conf->nb_thread - 1, tmpval);
                 else
-                    /* nb_thread at max */
+                    /* nb_thread at most */
                     p[i].max_thread_count = MIN2(conf->nb_thread, tmpval);
             }
             else if ( ( p[i].stage_flags & STAGE_FLAG_SEQUENTIAL )
@@ -379,17 +392,31 @@ static void set_default_pipeline_config(const pipeline_descr_t *descr,
         {
             p[i].stage_flags &= ~STAGE_FLAG_PARALLEL;
             p[i].stage_flags |= STAGE_FLAG_MAX_THREADS;
-            /* if nb thread = 1 or 2 => set the limit to 1
-             *                3      =>                  2
-             *                4-7    =>                  n-2
-             *                7+     =>                  80%
-             */
-            if (conf->nb_thread < 4)
-                p[i].max_thread_count = MAX2(conf->nb_thread - 1, 1);
-            else if (conf->nb_thread < 8)
-                p[i].max_thread_count = conf->nb_thread - 2;
-            else
-                p[i].max_thread_count = (8*conf->nb_thread)/10;
+
+            /* mode batching + parallel: 50% of threads at most for DB apply */
+            if (lmgr_parallel_batches() && conf->max_batch_size > 1)
+            {
+                /* 10 => 4, 20 => 8... => remove 1/5, then /2 => *2/5 */
+                /* if nb thread < 4 => 1 */
+                if (conf->nb_thread < 4)
+                    p[i].max_thread_count = 1;
+                else
+                    p[i].max_thread_count = 2*conf->nb_thread/5;
+            }
+            else /* not // + batching */
+            {
+                /* if nb thread = 1 or 2 => set the limit to 1
+                 *                3      =>                  2
+                 *                4-7    =>                  n-2
+                 *                7+     =>                  80%
+                 */
+                if (conf->nb_thread < 4)
+                    p[i].max_thread_count = MAX2(conf->nb_thread - 1, 1);
+                else if (conf->nb_thread < 8)
+                    p[i].max_thread_count = conf->nb_thread - 2;
+                else
+                    p[i].max_thread_count = (8*conf->nb_thread)/10;
+            }
         }
         else if (p[i].stage_flags & STAGE_FLAG_MAX_THREADS)
         {
@@ -399,7 +426,7 @@ static void set_default_pipeline_config(const pipeline_descr_t *descr,
         }
 
         /* if batching is enabled, DB_APPLY_THREAD_MAX = 1 */
-        if (conf->max_batch_size != 1)
+        if (!lmgr_parallel_batches() && conf->max_batch_size != 1)
         {
             if (p[i].stage_flags & STAGE_FLAG_PARALLEL)
                 RBH_BUG("step should no big tagged as 'PARALLEL' at this point");
@@ -692,7 +719,7 @@ static void entry_proc_cfg_write_template(FILE *output)
     fprintf( output, "\n" );
 
     print_line( output, 1, "# nbr of worker threads for processing pipeline tasks" );
-    print_line( output, 1, "nb_threads = 4 ;" );
+    print_line( output, 1, "nb_threads = 16 ;" );
     fprintf( output, "\n" );
     print_line( output, 1, "# Max number of operations in the Entry Processor pipeline." );
     print_line( output, 1, "# If the number of pending operations exceeds this limit, " );
@@ -714,7 +741,8 @@ static void entry_proc_cfg_write_template(FILE *output)
     {
         if (i == std_pipeline_descr.DB_APPLY)
         {
-            print_line(output, 1, "# Disable batching (max_batch_size=1) to allow parallelizing the following step:");
+            print_line(output, 1, "# Disable batching (max_batch_size=1) or accounting (accounting=no)");
+            print_line(output, 1, "# to allow parallelizing the following step:");
         }
 
         if ( std_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL )

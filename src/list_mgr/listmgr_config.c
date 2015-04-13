@@ -301,6 +301,11 @@ static int lmgr_cfg_reload(lmgr_config_t *conf)
                     LMGR_CONFIG_BLOCK
                     "::commit_behavior changed in config file, but cannot be modified dynamically" );
 
+    if (conf->acct != lmgr_config.acct)
+        DisplayLog(LVL_MAJOR, TAG,
+                   LMGR_CONFIG_BLOCK
+                   "::accounting changed in config file, but cannot be modified dynamically");
+
     if ( conf->connect_retry_min != lmgr_config.connect_retry_min )
     {
         DisplayLog( LVL_EVENT, TAG,
@@ -435,3 +440,8 @@ mod_cfg_funcs_t lmgr_cfg_hdlr = {
     .write_default = lmgr_cfg_write_default,
     .write_template =  lmgr_cfg_write_template
 };
+
+bool lmgr_parallel_batches(void)
+{
+    return !lmgr_config.acct;
+}

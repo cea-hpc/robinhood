@@ -1084,15 +1084,6 @@ void EntryProcessor_DumpCurrentStages( void )
         {
             P( pipeline[i].stage_mutex );
 
-            /* nb_current_entries cannot be higher than nb_threads, unless it's a batch.
-            is this case, nb_threads = 1 */
-            if ((pipeline[i].nb_current_entries > pipeline[i].nb_threads)
-                && (pipeline[i].nb_threads != 1))
-            {
-                DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "WARNING: inconsistent stage stats: %s: %u current entries, %u threads",
-                           entry_proc_pipeline[i].stage_name, pipeline[i].nb_current_entries, pipeline[i].nb_threads);
-            }
-
             if (pipeline[i].total_processed != 0)
                 tpe =
                     ( ( 1000.0 * pipeline[i].total_processing_time.tv_sec ) +

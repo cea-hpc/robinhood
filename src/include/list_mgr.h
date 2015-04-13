@@ -206,6 +206,11 @@ typedef struct lmgr_config_t
 /** config handlers */
 extern mod_cfg_funcs_t lmgr_cfg_hdlr;
 
+/** indicate if batched requests can be done simultaneously
+ * (risk of deadlock on ACCT table).
+ */
+bool lmgr_parallel_batches(void);
+
 /** Container to associate an ID with its pathname. */
 typedef struct wagon {
     entry_id_t id;
