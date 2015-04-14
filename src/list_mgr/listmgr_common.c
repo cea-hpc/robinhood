@@ -1461,23 +1461,23 @@ void append_size_range_fields(GString *str, bool leading_comma,
 }
 
 /* those functions are used for begin/commit/rollback */
-int lmgr_begin( lmgr_t * p_mgr )
+int _lmgr_begin(lmgr_t *p_mgr, int behavior)
 {
-    if ( lmgr_config.commit_behavior == 0 )
+    if (behavior == 0)
         /* autocommit */
         return DB_SUCCESS;
-    else if ( lmgr_config.commit_behavior == 1 )
+    else if (behavior == 1)
         /* commit every transaction */
-        return db_exec_sql( &p_mgr->conn, "BEGIN", NULL );
+        return db_exec_sql(&p_mgr->conn, "BEGIN", NULL);
     else
     {
-        int            rc = DB_SUCCESS;
+        int rc = DB_SUCCESS;
 
         /* if last operation was commited, issue a begin statement */
-        if ( p_mgr->last_commit == 0 )
+        if (p_mgr->last_commit == 0)
         {
-            rc = db_exec_sql( &p_mgr->conn, "BEGIN", NULL );
-            if ( rc )
+            rc = db_exec_sql(&p_mgr->conn, "BEGIN", NULL);
+            if (rc)
                 return rc;
         }
 
@@ -1487,35 +1487,35 @@ int lmgr_begin( lmgr_t * p_mgr )
     }
 }
 
-void lmgr_rollback( lmgr_t * p_mgr )
+void _lmgr_rollback(lmgr_t * p_mgr, int behavior)
 {
-    if ( lmgr_config.commit_behavior == 0 )
+    if (behavior == 0)
         return;
     else
     {
         /* we must rollback all operations since the last commit, to keep database into persistent state */
-        db_exec_sql( &p_mgr->conn, "ROLLBACK", NULL );
+        db_exec_sql(&p_mgr->conn, "ROLLBACK", NULL);
 
         p_mgr->last_commit = 0;
     }
 }
 
-int lmgr_commit( lmgr_t * p_mgr )
+int _lmgr_commit(lmgr_t * p_mgr, int behavior)
 {
-    if ( lmgr_config.commit_behavior == 0 )
+    if (behavior == 0)
         return DB_SUCCESS;
-    else if ( lmgr_config.commit_behavior == 1 )
-        return db_exec_sql( &p_mgr->conn, "COMMIT", NULL );
+    else if (behavior == 1)
+        return db_exec_sql(&p_mgr->conn, "COMMIT", NULL);
     else
     {
         /* if the transaction count is reached:
          * commit operations and result transaction count
          */
-        if ( ( p_mgr->last_commit % lmgr_config.commit_behavior == 0 ) || p_mgr->force_commit )
+        if ((p_mgr->last_commit % behavior == 0) || p_mgr->force_commit)
         {
             int            rc;
-            rc = db_exec_sql( &p_mgr->conn, "COMMIT", NULL );
-            if ( rc )
+            rc = db_exec_sql(&p_mgr->conn, "COMMIT", NULL);
+            if (rc)
                 return rc;
 
             p_mgr->last_commit = 0;
@@ -1543,13 +1543,13 @@ bool ListMgr_GetCommitStatus(lmgr_t *p_mgr)
         return true;
 }
 
-int lmgr_flush_commit( lmgr_t * p_mgr )
+int _lmgr_flush_commit(lmgr_t *p_mgr, int behavior)
 {
     int            rc;
-    if ( ( lmgr_config.commit_behavior > 1 ) && ( p_mgr->last_commit != 0 ) )
+    if ((behavior > 1) && (p_mgr->last_commit != 0))
     {
-        rc = db_exec_sql( &p_mgr->conn, "COMMIT", NULL );
-        if ( rc )
+        rc = db_exec_sql(&p_mgr->conn, "COMMIT", NULL);
+        if (rc)
             return rc;
 
         p_mgr->last_commit = 0;

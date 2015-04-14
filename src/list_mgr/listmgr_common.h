@@ -465,12 +465,29 @@ void entry_id2pk(const entry_id_t * p_id, PK_PARG_T p_pk);
 int pk2entry_id( lmgr_t * p_mgr, PK_ARG_T pk, entry_id_t * p_id );
 
 /* those functions are used for begin/commit/rollback */
-int            lmgr_begin( lmgr_t * p_mgr );
-void           lmgr_rollback( lmgr_t * p_mgr );
-int            lmgr_commit( lmgr_t * p_mgr );
+int            _lmgr_begin(lmgr_t *p_mgr, int behavior);
+void           _lmgr_rollback(lmgr_t *p_mgr, int behavior);
+int            _lmgr_commit(lmgr_t *p_mgr, int behavior);
+int            _lmgr_flush_commit(lmgr_t *p_mgr, int behavior);
+
+static inline int lmgr_begin(lmgr_t *p_mgr)
+{
+    return _lmgr_begin(p_mgr, lmgr_config.commit_behavior);
+}
+static inline void lmgr_rollback(lmgr_t *p_mgr)
+{
+    _lmgr_rollback(p_mgr, lmgr_config.commit_behavior);
+}
+static inline int lmgr_commit(lmgr_t *p_mgr)
+{
+    return _lmgr_commit(p_mgr, lmgr_config.commit_behavior);
+}
 
 /* to be called before closing a connection */
-int            lmgr_flush_commit( lmgr_t * p_mgr );
+static inline int lmgr_flush_commit(lmgr_t *p_mgr)
+{
+    return _lmgr_flush_commit(p_mgr, lmgr_config.commit_behavior);
+}
 
 /** manage delayed retry of retryable errors
  * \return != 0 if the transaction must be restarted
