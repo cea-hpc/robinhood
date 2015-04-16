@@ -1,0 +1,6 @@
+Documentation is now managed as wiki pages on project web site.
+It is available here:
+    https://github.com/cea-hpc/robinhood/wiki/Documentation
+
+To edit it:
+    git clone https://github.com/cea-hpc/robinhood.wiki.git
