@@ -338,8 +338,8 @@ static int TerminateScan(int scan_complete, time_t end)
         ListMgr_CloseAccess(&lmgr);
     }
 
-    /* if no entry was listed or scan is faulty, don't flush the pipeline. */
-    if ((scan_count(true) > 0) && scan_complete)
+    /* if scan is incomplete (aborted or failed), don't remove old entries in DB. */
+    if (scan_complete)
     {
         entry_proc_op_t *op;
 
@@ -527,14 +527,13 @@ static int RecursiveTaskTermination(thread_scan_info_t *p_info,
                     err_count += thread_list[i].entries_errors;
                 }
 
-                if (bool_scan_complete)
-                    DisplayLog(LVL_MAJOR, FSSCAN_TAG,
-                               "%s of %s %s, %u entries found (%u errors). Duration = %ld.%02lds",
-                               bool_scan_complete?"Full scan":"Scan",
-                               partial_scan_root?partial_scan_root:global_config.fs_path,
-                               bool_scan_complete?"completed":"aborted",
-                               count, err_count, duree_precise.tv_sec,
-                               duree_precise.tv_usec/10000);
+                DisplayLog(LVL_MAJOR, FSSCAN_TAG,
+                           "%s of %s %s, %u entries found (%u errors). Duration = %ld.%02lds",
+                           bool_scan_complete?"Full scan":"Scan",
+                           partial_scan_root?partial_scan_root:global_config.fs_path,
+                           bool_scan_complete?"completed":"aborted",
+                           count, err_count, duree_precise.tv_sec,
+                           duree_precise.tv_usec/10000);
 
                 DisplayLog( LVL_EVENT, FSSCAN_TAG, "Flushing pipeline..." );
 
