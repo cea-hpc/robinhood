@@ -9083,7 +9083,7 @@ function TEST_OTHER_PARAMETERS_1
 	sleep 1
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
 
-	# use robinhood for flushing (
+	# use robinhood for flushing
 	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && $shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && $shook == 1) )); then
 		echo "Archiving files"
 		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
@@ -9115,7 +9115,7 @@ function TEST_OTHER_PARAMETERS_1
 	    fi
     else #backup mod
 	    echo "Launch Migration in background"
-	    $RH -f ./cfg/$config_file --scan --run=migration -l DEBUG -L rh_migr.log --once &
+	    $RH -f ./cfg/$config_file --scan --run=migration --target=all -l DEBUG -L rh_migr.log --once &
 
 	    sleep 1
 
@@ -9240,7 +9240,7 @@ function TEST_OTHER_PARAMETERS_3
 	done
 
 	echo "Archives files"
-	$RH -f ./cfg/$config_file --scan --run=migration --once -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9352,7 +9352,7 @@ function TEST_OTHER_PARAMETERS_4
 	done
 
 	echo "Migrate files (must fail)"
-	$RH -f ./cfg/$config_file --scan --run=migration --once -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9360,7 +9360,7 @@ function TEST_OTHER_PARAMETERS_4
     if (( $count != 0 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
         ((nbError++))
-    elif grep "Error initializing backend" rh_migr.log > /dev/null; then
+    elif grep "Failed to initialize status manager backup" rh_migr.log > /dev/null; then
         echo "OK: backend not initialized"
     else
         error "Backend initialization SHOULD have FAILED"
@@ -9371,7 +9371,7 @@ function TEST_OTHER_PARAMETERS_4
 
     echo "Migrate files"
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log  &
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  &
 	pid=$!
     kill -9 $pid
 
@@ -9384,7 +9384,7 @@ function TEST_OTHER_PARAMETERS_4
 
     echo "Migrate files"
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log &
+	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log &
 	pid=$!
 
 	echo "sleep 30 seconds"
@@ -9678,15 +9678,18 @@ run_test 610 test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.
 run_test 611 test_migration MigrationStd_Type.conf 0 8 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_STD_TYPE"
 run_test 612 test_migration MigrationStd_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_STD_OWNER"
 run_test 613 test_migration MigrationStd_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_STD_SIZE"
+# XXX test 614 fails for other purposes than lhsm, as the defined policy scope does not include symlinks.
 run_test 614 test_migration MigrationStd_LastAccess.conf 12 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_ACCESS"
 run_test 615 test_migration MigrationStd_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_MODIFICATION"
 run_test 616 migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_OST"
 run_test 617 test_migration MigrationStd_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_EXTENDED_ATTRIBUT"
 run_test 618 migration_OST MigrationOST.conf 2 "file.3;file.4" "--run=migration --target=ost:1" "TEST_MIGRATION_OST"
 run_test 619 test_migration MigrationClass_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_CLASS_PATH_NAME"
+# XXX test 620 fails for other purposes than lhsm, as the defined policy scope does not include symlinks.
 run_test 620 test_migration MigrationClass_Type.conf 0 2 "link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_TYPE"
 run_test 621 test_migration MigrationClass_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OWNER"
 run_test 622 test_migration MigrationClass_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_CLASS_SIZE"
+# XXX test 623 fails for other purposes than lhsm, as the defined policy scope does not include symlinks.
 run_test 623 test_migration MigrationClass_LastAccess.conf 11 8 "file.1;file.2;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_ACCESS"
 run_test 624 test_migration MigrationClass_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_MODIFICATION"
 run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OST"
