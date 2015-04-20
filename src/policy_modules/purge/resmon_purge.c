@@ -48,6 +48,7 @@ static int purge_abort = FALSE;
 
 #define ignore_policies (resmon_flags & FLAG_IGNORE_POL)
 #define dry_run (resmon_flags & FLAG_DRY_RUN)
+#define no_sort (resmon_config.no_sort)
 
 /* queue of entries to be checked/purged */
 entry_queue_t  purge_queue;
@@ -156,11 +157,13 @@ static void FreePurgeItem( purge_item_t * item )
     MemFree( item );
 }
 
-
 static int heuristic_end_of_list( time_t last_access_time )
 {
     entry_id_t     void_id;
     attr_set_t     void_attr;
+
+    if (no_sort)
+        return FALSE;
 
     /* list all files if policies are ignored */
     if ( ignore_policies )
@@ -472,9 +475,9 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
     if (rc)
         return rc;
 
-    /* sort by last access */
+    /* sort by last access (unless 'no_sort' is specified) */
     sort_type.attr_index = ATTR_INDEX_last_access;
-    sort_type.order = SORT_ASC;
+    sort_type.order = no_sort ? SORT_NONE : SORT_ASC;
 
     rc = lmgr_simple_filter_init( &filter );
     if ( rc )
@@ -764,20 +767,29 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
                 if ( rc )
                     return rc;
 
-                /* filter on access time */
-                fval.value.val_int = last_entry_access;
-                rc = lmgr_simple_filter_add_or_replace( &filter,
-                                                        ATTR_INDEX_last_access,
-                                                        MORETHAN, fval,
-                                                        FILTER_FLAG_ALLOW_NULL);
-                if ( rc )
-                    return rc;
+                if (!no_sort)
+                {
+                    /* filter on access time */
+                    fval.value.val_int = last_entry_access;
+                    rc = lmgr_simple_filter_add_or_replace( &filter,
+                                                            ATTR_INDEX_last_access,
+                                                            MORETHAN, fval,
+                                                            FILTER_FLAG_ALLOW_NULL);
+                    if ( rc )
+                        return rc;
+                }
 
-                DisplayLog( LVL_DEBUG, PURGE_TAG,
-                            "Performing new request with a limit of %u entries"
-                            " and access >= %d and md_update < %ld ",
-                            opt.list_count_max, last_entry_access,
-                            last_request_time );
+                if (no_sort)
+                    DisplayLog(LVL_DEBUG, PURGE_TAG,
+                               "Performing new request with a limit of %u entries"
+                               " and md_update < %ld ",
+                               opt.list_count_max, last_request_time);
+                else
+                     DisplayLog(LVL_DEBUG, PURGE_TAG,
+                               "Performing new request with a limit of %u entries"
+                               " and access >= %d and md_update < %ld ",
+                               opt.list_count_max, last_entry_access,
+                               last_request_time);
 
                 nb_returned = 0;
                 it = ListMgr_Iterator( lmgr, &filter, &sort_type, &opt );
