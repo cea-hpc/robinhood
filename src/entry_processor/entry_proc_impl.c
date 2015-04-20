@@ -226,6 +226,71 @@ static int mk_bench_pipeline(unsigned int stages)
 }
 #endif
 
+static void tune_db_threads(pipeline_descr_t *descr, pipeline_stage_t *pipeline)
+{
+        pipeline_stage_t *stage = &pipeline[descr->DB_APPLY];
+
+        if (stage->stage_flags & STAGE_FLAG_PARALLEL)
+        {
+            /* no unlimited threads for DB_APPLY stage */
+            stage->stage_flags &= ~STAGE_FLAG_PARALLEL;
+            stage->stage_flags |= STAGE_FLAG_MAX_THREADS;
+
+            /* mode batching + parallel: 50% of threads at most for DB apply */
+            if (lmgr_parallel_batches() && entry_proc_conf.max_batch_size > 1)
+            {
+                /* 10 => 4, 20 => 8... => remove 1/5, then /2 => *2/5 */
+                /* if nb thread < 4 => 1 */
+                if (entry_proc_conf.nb_thread < 4)
+                    stage->max_thread_count = 1;
+                else
+                    stage->max_thread_count = 2*entry_proc_conf.nb_thread/5;
+            }
+            else if (entry_proc_conf.max_batch_size == 1) /* no batching, parallel */
+            {
+                /* if nb thread = 1 or 2 => set the limit to 1
+                 *                3      =>                  2
+                 *                4-7    =>                  n-2
+                 *                7+     =>                  80%
+                 */
+                if (entry_proc_conf.nb_thread < 4)
+                    stage->max_thread_count = MAX2(entry_proc_conf.nb_thread - 1, 1);
+                else if (entry_proc_conf.nb_thread < 8)
+                    stage->max_thread_count = entry_proc_conf.nb_thread - 2;
+                else
+                    stage->max_thread_count = (8*entry_proc_conf.nb_thread)/10;
+            }
+            else
+                stage->max_thread_count = 1;
+
+            DisplayLog(LVL_DEBUG, "EntryProc_Config", "DB_APPLY threads set to %u (batching: %s, parallel batching: %s)",
+                       stage->max_thread_count, bool2str(entry_proc_conf.max_batch_size > 1),
+                       bool2str(lmgr_parallel_batches()));
+        }
+        else if (stage->stage_flags & STAGE_FLAG_MAX_THREADS)
+        {
+            /* if batching is enabled and max nb_threads != 1 */
+            if (!lmgr_parallel_batches() && (entry_proc_conf.max_batch_size != 1)
+                && stage->max_thread_count > 1)
+            {
+                DisplayLog(LVL_MAJOR, "EntryProc_Config",
+                           "WARNING: invalid value for STAGE_DB_APPLY_threads_max (%u). "
+                           "Parallelizing batched DB operations is not allowed when accounting is enabled. "
+                           "Remove this tuning, disable accounting (*_acct = no), "
+                           "or disable batching (max_batch_size=1) to parallelize this stage.",
+                           stage->max_thread_count);
+                stage->max_thread_count = 1;
+            }
+            /* ensure DB_APPLY threads <= nbthread - 1 */
+            else if (stage->max_thread_count > entry_proc_conf.nb_thread - 1)
+            {
+                stage->max_thread_count = entry_proc_conf.nb_thread - 1;
+                DisplayLog(LVL_DEBUG, "EntryProc_Config", "DB_APPLY threads set to %u",
+                           stage->max_thread_count);
+            }
+        }
+}
+
 
 /**
  *  Initialize entry processor pipeline
@@ -265,18 +330,23 @@ int EntryProcessor_Init( const entry_proc_config_t * p_conf, pipeline_flavor_e f
     }
 #endif
 
-    DisplayLog(LVL_FULL, "EntryProc_Config", "nb_threads=%u", p_conf->nb_thread);
-    DisplayLog(LVL_FULL, "EntryProc_Config", "max_batch_size=%u", p_conf->max_batch_size);
+    /* apply DB thread tunings for batch and parallel batches */
+    tune_db_threads(&entry_proc_descr, entry_proc_pipeline);
+
+    DisplayLog(LVL_DEBUG, "EntryProc_Config", "nb_threads=%u",
+               entry_proc_conf.nb_thread);
+    DisplayLog(LVL_DEBUG, "EntryProc_Config", "max_batch_size=%u",
+               entry_proc_conf.max_batch_size);
     for (i = 0; i < entry_proc_descr.stage_count; i++)
     {
         if (entry_proc_pipeline[i].stage_flags & STAGE_FLAG_SEQUENTIAL)
-            DisplayLog(LVL_FULL,"EntryProc_Config","%s: sequential",
+            DisplayLog(LVL_DEBUG,"EntryProc_Config","%s: sequential",
                        entry_proc_pipeline[i].stage_name);
         else if (entry_proc_pipeline[i].stage_flags & STAGE_FLAG_PARALLEL)
-            DisplayLog(LVL_FULL,"EntryProc_Config","%s: parallel",
+            DisplayLog(LVL_DEBUG,"EntryProc_Config","%s: parallel",
                        entry_proc_pipeline[i].stage_name);
         else if (entry_proc_pipeline[i].stage_flags & STAGE_FLAG_MAX_THREADS)
-            DisplayLog(LVL_FULL,"EntryProc_Config","%s: %u threads max",
+            DisplayLog(LVL_DEBUG,"EntryProc_Config","%s: %u threads max",
                        entry_proc_pipeline[i].stage_name,
                        entry_proc_pipeline[i].max_thread_count);
     }
@@ -1086,8 +1156,9 @@ void EntryProcessor_DumpCurrentStages( void )
             P( pipeline[i].stage_mutex );
 
             /* nb_current_entries cannot be higher than nb_threads, unless it's a batch.
-            is this case, nb_threads = 1 */
+            is this case, nb_threads = 1 (except if simultaneous batches are allowed) */
             if ((pipeline[i].nb_current_entries > pipeline[i].nb_threads)
+                && !lmgr_parallel_batches()
                 && (pipeline[i].nb_threads != 1))
             {
                 DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "WARNING: inconsistent stage stats: %s: %u current entries, %u threads",

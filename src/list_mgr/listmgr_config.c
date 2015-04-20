@@ -490,3 +490,9 @@ int WriteLmgrConfigTemplate( FILE * output )
 
     return 0;
 }
+
+
+bool lmgr_parallel_batches(void)
+{
+    return !(lmgr_config.user_acct || lmgr_config.group_acct);
+}
