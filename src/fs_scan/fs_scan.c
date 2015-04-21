@@ -213,28 +213,6 @@ static void ResetScanStats(bool do_lock)
         V(lock_scan);
 }
 
-
-static uint64_t scan_count(bool do_lock)
-{
-    int      i;
-    uint64_t count;
-
-    if (do_lock)
-        P(lock_scan);
-
-    count = 0;
-    for (i = 0; i < fs_scan_config.nb_threads_scan; i++)
-        count += thread_list[i].entries_handled;
-
-    if (do_lock)
-        V(lock_scan);
-
-    return count;
-}
-
-
-
-
 static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct stat *p_stat)
 {
     entry_id_t     tmpid;
