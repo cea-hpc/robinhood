@@ -393,9 +393,6 @@ static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                                    GSTRING_SAFE(where));
     }
 
-    /* creating TMP table is a big request: reduce locking level */
-    big_request_now(p_mgr);
-
     /* create the temporary table */
     rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
     g_string_free(req, TRUE);
@@ -632,9 +629,6 @@ static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 {
     int             rc;
     unsigned int    rmcount = 0;
-
-    /* creating the TMP table is a big request: reduce locking level */
-    big_request_in_tx(p_mgr);
 
     /* We want the remove operation to be atomic */
 retry:

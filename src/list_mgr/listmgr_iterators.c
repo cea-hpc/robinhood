@@ -345,40 +345,9 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         it->opt_is_set = 0;
     }
 
-    /*
-     * Set READ COMMITTED isolation level for the big select
-     * so locks can be released immediatly after the record is read.
-     */
-retry:
-    it->in_tx = 0;
-    if (p_mgr->last_commit == 0)
-    {
-        rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
-        if (rc)
-        {
-            char errmsg[1024];
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Failed to set READ_COMMITTED isolation level: Error: %s",
-                       db_errmsg(&p_mgr->conn, errmsg, 1024));
-            /* continue anyway */
-        }
-        else /* do BEGIN..COMMIT only if setting the isolation level succeeded */
-        {
-            rc = lmgr_begin(p_mgr);
-            if (lmgr_delayed_retry(p_mgr, rc))
-                goto retry;
-            else if (rc)
-                goto free_it;
-            it->in_tx = 1;
-        }
-    }
-
     /* execute request */
-    rc = db_exec_sql( &p_mgr->conn, req->str, &it->select_result );
-
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
-    else if (rc)
+    rc = db_exec_sql(&p_mgr->conn, req->str, &it->select_result);
+    if (rc)
         goto free_it;
 
     if (filter_dir != NULL)
@@ -473,10 +442,5 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
 void ListMgr_CloseIterator( struct lmgr_iterator_t *p_iter )
 {
     db_result_free( &p_iter->p_mgr->conn, &p_iter->select_result );
-    if (p_iter->in_tx)
-    {
-        /* terminate the transaction */
-        lmgr_commit(p_iter->p_mgr);
-    }
     MemFree( p_iter );
 }

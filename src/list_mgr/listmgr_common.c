@@ -1887,48 +1887,6 @@ bool lmgr_batch_compat(uint64_t m1, uint64_t m2)
     return true;
 }
 
-/** Set READ COMMITTED isolation level for the next transaction
- * so locks can be released immediatly after the record is read.
- * - This can only be done if we are outside a transaction
- * - If the mode is autocommit, do it just before the big request
- *   (in big_request_now()).
- */
-void big_request_in_tx(lmgr_t *p_mgr)
-{
-    if ((p_mgr->last_commit == 0) && (lmgr_config.commit_behavior != 0))
-    {
-        if (db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED))
-        {
-            char errmsg[1024];
-
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Failed to set READ_COMMITTED isolation level: Error: %s",
-                       db_errmsg(&p_mgr->conn, errmsg, sizeof(errmsg)));
-            /* continue anyway */
-        }
-    }
-}
-
-/** Set READ COMMITTED isolation level for the next request (autocommit mode).
- */
-void big_request_now(lmgr_t *p_mgr)
-{
-    if (lmgr_config.commit_behavior == 0)
-    {
-        /* set READ COMMITTED isolation level for the next (big!) request
-         * so locks can be released immediatly after the record is read */
-        if (db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED))
-        {
-            char errmsg[1024];
-
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Failed to set READ_COMMITTED isolation level: Error: %s",
-                       db_errmsg(&p_mgr->conn, errmsg, sizeof(errmsg)));
-            /* continue anyway */
-        }
-    }
-}
-
 int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk, entry_id_t *p_id)
 {
     int rc;

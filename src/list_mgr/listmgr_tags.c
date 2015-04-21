@@ -78,18 +78,12 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
         }
     }
 
-    /* Creating a big table in the next transaction. */
-    big_request_in_tx(p_mgr);
-
 retry:
     rc = lmgr_begin( p_mgr );
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
         goto free_str;
-
-    /* big request right now */
-    big_request_now(p_mgr);
 
     /* create the table */
     rc = db_exec_sql(&p_mgr->conn, req->str, NULL);

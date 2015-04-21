@@ -495,9 +495,6 @@ static inline int lmgr_flush_commit(lmgr_t *p_mgr)
 #define lmgr_delayed_retry(_l, _e) _lmgr_delayed_retry(_l, _e, __func__, __LINE__)
 int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line);
 
-void big_request_in_tx(lmgr_t *p_mgr);
-void big_request_now(lmgr_t *p_mgr);
-
 /* get/set variable in DB */
 int lmgr_get_var(db_conn_t *pconn, const char *varname, char *value, int bufsize);
 int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value);
