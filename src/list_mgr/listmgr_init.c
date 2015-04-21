@@ -1083,18 +1083,6 @@ static int populate_acct_table(db_conn_t *pconn)
     attrmask2fieldlist(next, acct_pk_attr_set, T_ACCT, FALSE, FALSE, "", "");
     next = next + strlen(next);
 
-    /* set READ COMMITTED isolation level for the next (big!) request
-     * so locks can be released immediatly after the record is read */
-    rc = db_transaction_level(pconn, TRANS_NEXT, TXL_READ_COMMITTED);
-    if (rc)
-    {
-        char errmsg_buf[1024];
-        DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                   "Failed to set READ_COMMITTED isolation level: Error: %s",
-                   db_errmsg(pconn, errmsg_buf, sizeof(errmsg_buf)));
-        /* try to continue */
-    }
-
     rc = db_exec_sql(pconn, strbuf, NULL);
     if (rc)
     {
@@ -1981,6 +1969,20 @@ int ListMgr_InitAccess( lmgr_t * p_mgr )
 
     if ( rc )
         return rc;
+
+    /* set READ COMMITTED isolation level to avoid locking issues and
+     * performance drop. */
+    rc = db_transaction_level(&p_mgr->conn, TRANS_SESSION, TXL_READ_COMMITTED);
+    if (rc)
+    {
+        char errmsg_buf[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to set READ_COMMITTED isolation level: Error: %s",
+                   db_errmsg(&p_mgr->conn, errmsg_buf, sizeof(errmsg_buf)));
+        return rc;
+    }
+
 
     p_mgr->last_commit = 0;
     p_mgr->force_commit = FALSE;

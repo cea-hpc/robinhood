@@ -50,25 +50,6 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
     filter_str_stripe_info[0] = '\0';
     filter_str_stripe_items[0] = '\0';
 
-    /* This is needed for creating big temporary table.
-     * Set READ COMMITTED isolation level for the next transaction
-     * so locks can be released immediatly after the record is read.
-     * - This can only be done if we are outside a transaction
-     * - If the mode is autocommit, do it just before the create tmp table
-     *   statement.
-     */
-    if ((p_mgr->last_commit == 0) && (lmgr_config.commit_behavior != 0))
-    {
-        rc = db_transaction_level(&p_mgr->conn, TRANS_NEXT, TXL_READ_COMMITTED);
-        if ( rc )
-        {
-            char errmsg[1024];
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Failed to set READ_COMMITTED isolation level: Error: %s", db_errmsg( &p_mgr->conn, errmsg, 1024 ) );
-            /* continue anyway */
-        }
-    }
-
     if ( !p_filter
          || ( ( p_filter->filter_type == FILTER_SIMPLE )
               && ( p_filter->filter_simple.filter_count == 0 ) )
