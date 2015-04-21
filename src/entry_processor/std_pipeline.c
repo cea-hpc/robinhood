@@ -825,14 +825,14 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* XXX also retrieve needed attributes to check the scope? */
 
         /* get cached info from the DB */
-        p_op->db_attr_need |= status_allow_cached_attrs(status_scope)
+        p_op->db_attr_need |= attrs_for_status_mask(status_scope, false)
                               & ~p_op->fs_attrs.attr_mask;
 
-#ifdef _HSM_LITE
-        /* in case of unlink, we need the backend path */
-        if ( p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK )
-            p_op->db_attr_need |= ATTR_MASK_backendpath;
-#endif
+        /* in case of unlink, we need softrm filter masks */
+        if (p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK)
+        {
+            p_op->db_attr_need |= sm_softrm_mask();
+        }
 
         /* In case of a RENAME, match the new name (not the one from the DB). */
         if ((logrec->cr_type == CL_EXT)
@@ -922,8 +922,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
         /* get all needed attributes for status */
-        attr_allow_cached = status_allow_cached_attrs(status_scope);
-        attr_need_fresh = status_need_fresh_attrs(status_scope);
+        attr_allow_cached = attrs_for_status_mask(status_scope, false);
+        attr_need_fresh = attrs_for_status_mask(status_scope, true);
 
         /* what must be retrieved from DB: */
         p_op->db_attr_need |= (attr_allow_cached
@@ -1657,10 +1657,7 @@ int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
 
             PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs,
                        ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name
-#ifdef _HSM_LITE
-                       | ATTR_MASK_backendpath
-#endif
-                    , 1);
+                       | sm_softrm_mask(), true);
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
                         PFID(&p_op->entry_id), buff);
         }

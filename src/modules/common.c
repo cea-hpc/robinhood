@@ -23,6 +23,7 @@
 #include "policy_rules.h"
 #include "status_manager.h"
 #include "Memory.h"
+#include "rbh_params.h"
 #include <unistd.h>
 #include <utime.h>
 #include <fcntl.h>
@@ -80,17 +81,19 @@ static int common_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 {
     int rc;
     copy_flags_e flags = params2flags(params);
+    const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
+
     /* flags for restore vs. flags for archive */
     int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
-    /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath' */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || !ATTR_MASK_TEST(p_attrs, backendpath))
+    /* actions expect to get a source path in 'fullpath' and a targetpath in params */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
     {
         DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
         return -EINVAL;
     }
 
-    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
+    rc = builtin_copy(ATTR(p_attrs, fullpath), targetpath,
                       oflg, !(flags & CP_COPYBACK), flags);
     *after = PA_UPDATE;
     return rc;
@@ -103,18 +106,20 @@ static int common_sendfile(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 {
     int rc;
     copy_flags_e flags = params2flags(params);
+    const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
+
     /* flags for restore vs. flags for archive */
     int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
-    /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath' */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || !ATTR_MASK_TEST(p_attrs, backendpath))
+    /* actions expect to get a source path in 'fullpath' and a targetpath in params */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
     {
         DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
         return -EINVAL;
     }
 
-    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & CP_COPYBACK), flags | CP_USE_SENDFILE);
+    rc = builtin_copy(ATTR(p_attrs, fullpath), targetpath, oflg,
+                      !(flags & CP_COPYBACK), flags | CP_USE_SENDFILE);
     *after = PA_UPDATE;
     return rc;
 }
@@ -126,11 +131,20 @@ static int common_gzip(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 {
     int rc;
     copy_flags_e flags = params2flags(params);
+    const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
+
     /* flags for restore vs. flags for archive */
     int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
-    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & CP_COPYBACK), flags | CP_COMPRESS);
+    /* actions expect to get a source path in 'fullpath' and a targetpath in params */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
+    {
+        DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
+        return -EINVAL;
+    }
+
+    rc = builtin_copy(ATTR(p_attrs, fullpath), targetpath, oflg,
+                      !(flags & CP_COPYBACK), flags | CP_COMPRESS);
     *after = PA_UPDATE;
     return rc;
 }

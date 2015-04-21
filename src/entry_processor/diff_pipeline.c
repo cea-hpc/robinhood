@@ -188,8 +188,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
          p_op->db_attr_need |= ATTR_MASK_creation_time;
 #endif
 
-    attr_allow_cached = status_allow_cached_attrs(status_scope);
-    attr_need_fresh = status_need_fresh_attrs(status_scope);
+    attr_allow_cached = attrs_for_status_mask(status_scope, false);
+    attr_need_fresh = attrs_for_status_mask(status_scope, true);
     /* XXX check if entry is in policy scope? */
 
     /* what must be retrieved from DB: */
@@ -797,10 +797,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 char buff[2*RBH_PATH_MAX];
                 PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs,
                            ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name
-    #ifdef _HSM_LITE
-                           | ATTR_MASK_backendpath
-    #endif
-                        , 1);
+                           | sm_softrm_mask(), true);
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
                             PFID(&p_op->entry_id), buff);
             }

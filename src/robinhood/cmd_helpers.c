@@ -470,7 +470,7 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
          && (attrs->attr_mask & (1LL << attr_index)) == 0)
         return "";
 
-    if (attr_index >= ATTR_COUNT)
+    if (attr_index >= ATTR_COUNT && attr_index < ATTR_COUNT + sm_inst_count)
         return STATUS_ATTR(attrs, attr_index - ATTR_COUNT);
 
     switch(attr_index)
@@ -635,6 +635,14 @@ static const char *print_res_status(const db_value_t *val, bool csv,
     return status_format(val->value_u.val_str);
 }
 
+static const char *print_res_sm_info(const db_value_t *val, bool csv,
+                                     char *out, size_t out_sz)
+{
+    ListMgr_PrintAttr(out, out_sz, val->type, &val->value_u, "");
+    return out;
+}
+
+
 static const char *print_res_class(const db_value_t *val, bool csv,
                                    char *out, size_t out_sz)
 {
@@ -745,13 +753,22 @@ static inline struct attr_display_spec *attr_info(int index)
     static struct attr_display_spec tmp_rec = {-3, "?", 1, 1, NULL};
 
 
-    if (index >= ATTR_COUNT) /* status */
+    if (index >= ATTR_COUNT && index < ATTR_COUNT + sm_inst_count) /* status */
     {
         /* build a special decriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
         tmp_rec.name = get_sm_instance(index - ATTR_COUNT)->db_field;
         tmp_rec.length_csv = tmp_rec.length_full = 15;
         tmp_rec.result2str = print_res_status;
+        return &tmp_rec;
+    }
+    else if (index >= ATTR_COUNT + sm_inst_count) /* specific info */
+    {
+         /* build a special decriptor (/!\ not reentrant) */
+        tmp_rec.attr_index = index;
+        tmp_rec.name = sm_attr_info[i - (ATTR_COUNT + sm_inst_count)].db_attr_name;
+        tmp_rec.length_csv = tmp_rec.length_full = 15;
+        tmp_rec.result2str = print_res_sm_info;
         return &tmp_rec;
     }
 

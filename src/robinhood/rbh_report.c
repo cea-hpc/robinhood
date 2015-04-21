@@ -1273,11 +1273,8 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
         memcpy(list, list_std, sizeof(list_std));
         for (i = 0; i < sm_inst_count; i++)
         {
-            if ((get_sm_instance(i)->sm->flags & SM_NODB) == 0)
-            {
-                list[list_cnt] = i + ATTR_COUNT;
-                list_cnt++;
-            }
+            list[list_cnt] = i + ATTR_COUNT;
+            list_cnt++;
         }
         /* add fullpath */
         list[list_cnt] = ATTR_INDEX_fullpath;
@@ -3132,12 +3129,6 @@ int main( int argc, char **argv )
         rc = check_status_args(status_info_name, status_info_value, &strval, &smi);
         if (rc)
             exit(rc);
-        if (smi->sm->flags & SM_NODB)
-        {
-            fprintf(stderr, "ERROR: status report is not supported for '%s' status manager\n",
-                    smi->instance_name);
-            exit(EINVAL);
-        }
         report_status_info(smi->smi_index, strval, flags);
     }
 

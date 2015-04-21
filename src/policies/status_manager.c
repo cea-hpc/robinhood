@@ -27,20 +27,77 @@
 static sm_instance_t **sm_inst = NULL;
 unsigned int sm_inst_count = 0; /* must be available from other modules to handle attribute masks */
 
+/** list of status manager info */
+struct _sm_attr_info *sm_attr_info;
+int sm_attr_count;
+
+
 void sm_status_ensure_alloc(char const ***p_tab)
 {
-    if (*p_tab == NULL)
-        *p_tab = MemCalloc(sm_inst_count, sizeof(char *));
+    if (*p_tab != NULL || sm_inst_count == 0)
+        return;
+
+    *p_tab = MemCalloc(sm_inst_count, sizeof(char *));
 }
 
 void sm_status_free(char const ***p_tab)
 {
-    if (*p_tab != NULL)
-    {
-        MemFree(*p_tab);
-        *p_tab = NULL;
-    }
+    if (*p_tab == NULL)
+        return;
+
+    MemFree(*p_tab);
+    *p_tab = NULL;
 }
+
+/** allocate sm_info array */
+void sm_info_ensure_alloc(void ***p_tab)
+{
+    if (*p_tab != NULL || sm_attr_count == 0)
+        return;
+
+    *p_tab = MemCalloc(sm_attr_count, sizeof(void *));
+}
+
+/** free info array */
+void sm_info_free(void ***p_tab)
+{
+    int i;
+
+    if (*p_tab == NULL || sm_attr_count == 0)
+        return;
+
+    for (i = 0; i < sm_attr_count; i++)
+        free((*p_tab)[i]); /* strdup -> free */
+
+    MemFree(*p_tab);
+    *p_tab = NULL;
+}
+
+int set_sm_info(sm_instance_t *smi, attr_set_t *pattrs,
+                unsigned int attr_index, void *val)
+{
+    void **info;
+
+     /* check allocation of sm_info array */
+    sm_info_ensure_alloc(&pattrs->attr_values.sm_info);
+    if (pattrs->attr_values.sm_info == NULL)
+        return -ENOMEM;
+
+    if (unlikely(smi_info_index(smi, attr_index) >= ALL_ATTR_COUNT))
+        RBH_BUG("attr index out of range");
+
+    info = &SMI_INFO(pattrs, smi, attr_index);
+
+    if (*info != NULL)
+    /* free the previous value */
+        free(*info);
+
+    *info = val;
+    ATTR_MASK_INFO_SET(pattrs, smi, attr_index);
+
+    return 0;
+}
+
 
 /* contents of status_manager:
 name, flags, status_enum, status_count, status_needs_attrs_cached,
@@ -132,12 +189,43 @@ static bool sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
     return false;
 }
 
+/**
+ * As status managers don't know their index instance by advance,
+ * they provide generic masks as if there were only their own status and
+ * attributes.
+ * This function translates generic masks to the actual ones.
+ */
+static uint64_t actual_mask(sm_instance_t *smi, uint64_t mask)
+{
+    uint64_t       gen_bits;
+    uint64_t       gen_status;
+
+    /* generic attribute mask */
+    gen_bits = mask & bit_range(GENERIC_INFO_OFFSET, smi->sm->nb_info);
+    /* generic status mask */
+    gen_status = mask & SMI_MASK(0);
+
+    /* clean generic bits */
+    mask &= ~gen_bits;
+    mask &= ~gen_status;
+
+    /* replace with real bits */
+    if (gen_bits)
+        /* shift gen_bits by real offset - GENERIC_INFO_OFFSET */
+        mask |= (gen_bits << (smi_info_index(smi, 0) - GENERIC_INFO_OFFSET));
+
+    if (gen_status)
+        mask |= SMI_MASK(smi->smi_index);
+
+    return mask;
+}
 
 /** create a status manager instance (if it does not already exist) */
 sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
 {
     const status_manager_t *sm = load_status_manager(sm_name);
     sm_instance_t *smi = NULL;
+    int i;
 
     /* load_status_manager() checks that the status manager exists and load it
      * if necessary. NULL means that it really isn't available. */
@@ -156,25 +244,28 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     smi->sm = sm;
     smi->smi_index = sm_inst_count;
 
+    /* compute the offset of specific policy info in attribute structure */
+    if (sm_inst_count == 0)
+        smi->sm_info_offset = 0;
+    else
+         /* offset of smi info: previous attr count */
+         smi->sm_info_offset = sm_attr_count;
+
     if (sm->flags & SM_SHARED)
-    {
         /* If the status manager is shared between policies,
          * it just consists of the status manager name. */
         smi->instance_name = strdup(sm->name);
-    }
     else /* private status manager (1 instance per policy) */
-    {
         /* same as <policy name>\0 */
-        smi->instance_name = malloc(strlen(pol_name)+1);
-        if (smi->instance_name == NULL)
-            goto free_smi;
-        sprintf(smi->instance_name, "%s", pol_name);
-    }
+        smi->instance_name = strdup(pol_name);
+
+    if (smi->instance_name == NULL)
+        goto free_smi;
+
     /* <instance_name>_status */
-    smi->db_field = malloc(strlen(smi->instance_name)+8);
+    asprintf(&smi->db_field, "%s_status", smi->instance_name);
     if (smi->db_field == NULL)
         goto free_str1;
-    sprintf(smi->db_field, "%s_status", smi->instance_name);
 
     /* @TODO load its configuration */
     /* @TODO initialize it */
@@ -185,6 +276,29 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     if (sm_inst == NULL)
         goto free_str2;
     sm_inst[sm_inst_count-1] = smi;
+
+    /* the attribute mask cannot handle more that 64 attributes */
+    if (smi_info_index(smi, sm->nb_info - 1) >= 64)
+    {
+        DisplayLog(LVL_CRIT, "smi_create", "Too many policy-specific attributes (attribute mask is 64bits)");
+        goto free_str2;
+    }
+
+    sm_attr_count += sm->nb_info;
+    sm_attr_info = realloc(sm_attr_info, sm_attr_count * sizeof(struct _sm_attr_info));
+    if (sm_attr_info == NULL)
+        goto free_str2;
+
+    /* <instance_name>_<attr_name> */
+    for (i = 0; i < sm->nb_info; i++)
+    {
+        int tgt_idx = sm_attr_count - sm->nb_info + i;
+
+        asprintf(&sm_attr_info[tgt_idx].db_attr_name, "%s_%s", smi->instance_name,
+                 smi->sm->info_types[i].name);
+        sm_attr_info[tgt_idx].def = &smi->sm->info_types[i];
+        sm_attr_info[tgt_idx].smi = smi;
+    }
 
     return smi;
 
@@ -284,6 +398,7 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
 /** initialize all status managers having init function */
 int smi_init_all(run_flags_t flags)
 {
+#define INIT_TAG "smi_init"
     int rc;
     int i = 0;
     sm_instance_t *smi;
@@ -291,20 +406,46 @@ int smi_init_all(run_flags_t flags)
     for (i = 0, smi = get_sm_instance(i); smi != NULL;
          i++, smi = get_sm_instance(i))
     {
+
+        /* now that all smi are loaded sm_inst_count is known.
+         * so we can compute the real attribute masks */
+        smi->status_mask_fresh = actual_mask(smi, smi->sm->status_needs_attrs_fresh);
+        smi->status_mask_cached = actual_mask(smi, smi->sm->status_needs_attrs_cached);
+
+        if (smi->sm->flags & SM_DELETED)
+        {
+            smi->softrm_table_mask = actual_mask(smi, smi->sm->softrm_table_mask);
+            smi->softrm_filter_mask = actual_mask(smi, smi->sm->softrm_filter_mask);
+        }
+
+        DisplayLog(LVL_FULL, INIT_TAG, "%s.status=%#LX",smi->instance_name,
+                   (ull_t)SMI_MASK(smi->smi_index));
+        DisplayLog(LVL_FULL, INIT_TAG, "%s.infos=%#LX", smi->instance_name,
+                   (ull_t)smi_info_bits(smi));
+        DisplayLog(LVL_FULL, INIT_TAG, "%s.status_mask_fresh=%#LX",
+                   smi->instance_name, (ull_t)smi->status_mask_fresh);
+        DisplayLog(LVL_FULL, INIT_TAG, "%s.status_mask_cached=%#LX",
+                   smi->instance_name, (ull_t)smi->status_mask_cached);
+        DisplayLog(LVL_FULL, INIT_TAG, "%s.softrm_table_mask=%#LX",
+                   smi->instance_name, (ull_t)smi->softrm_table_mask);
+        DisplayLog(LVL_FULL, INIT_TAG, "%s.softrm_filter_mask=%#LX",
+                   smi->instance_name, (ull_t)smi->softrm_filter_mask);
+
         if (smi->sm->init_func == NULL)
             continue;
 
         rc = smi->sm->init_func(smi, flags);
         if (rc != 0)
         {
-            DisplayLog(LVL_CRIT, "smi_init", "Failed to initialize status manager %s: error=%d",
+            DisplayLog(LVL_CRIT, INIT_TAG, "Failed to initialize status manager %s: error=%d",
                        smi->instance_name, rc);
             return rc;
         }
         else
-            DisplayLog(LVL_VERB, "smi_init", "Status manager %s successfully initialized",
+            DisplayLog(LVL_VERB, INIT_TAG, "Status manager %s successfully initialized",
                        smi->instance_name);
     }
+
     return 0;
 }
 

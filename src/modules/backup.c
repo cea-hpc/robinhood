@@ -101,13 +101,14 @@ static int backup_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 {
     int rc;
     copy_flags_e flags = params2flags(params);
+    const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
+
     /* flags for restore vs. flags for archive */
     int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
     /* actions expect to get a source path in 'fullpath' and
      * targetpath in 'backendpath' */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) ||
-        !ATTR_MASK_TEST(p_attrs, backendpath))
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
     {
         DisplayLog(LVL_MAJOR, CP_TAG,
                    "Missing mandatory attribute to perform file copy "
@@ -115,8 +116,8 @@ static int backup_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
         return -EINVAL;
     }
 
-    rc = builtin_copy(ATTR(p_attrs, fullpath), ATTR(p_attrs, backendpath),
-                      oflg, !(flags & CP_COPYBACK), flags);
+    rc = builtin_copy(ATTR(p_attrs, fullpath), targetpath, oflg,
+                      !(flags & CP_COPYBACK), flags);
 
     *after = PA_UPDATE;
     return rc;
@@ -311,6 +312,23 @@ static const char *backup_status2str(file_status_t st)
         return backup_status_list[st-1]; /* st=1 => new */
 }
 
+/** enum of specific attributes */
+enum backup_info_e
+{
+    ATTR_BK_PATH = 0,
+    ATTR_LAST_ARCH
+};
+
+/** size of specific info to be stored in DB:
+ * backend_path: full path in backend
+ * last_archive: unix epoch
+ */
+static sm_info_def_t backup_info[] = {
+    [ATTR_BK_PATH] = { "bkpath", DB_TEXT, RBH_PATH_MAX-1 }, /* backend path */
+    [ATTR_LAST_ARCH] = { "lstarc", DB_UINT, 0 }             /* last archive */
+};
+
+
 /** helper to compare a status */
 static bool status_equal(struct sm_instance *smi, const attr_set_t *attrs, file_status_t status)
 {
@@ -496,7 +514,8 @@ typedef enum {
 /**
  * Build the path of a given entry in the backend.
  */
-static void entry2backend_path(const entry_id_t *p_id,
+static void entry2backend_path(sm_instance_t *smi,
+                               const entry_id_t *p_id,
                                const attr_set_t *p_attrs_in,
                                what_for_e what_for,
                                char *backend_path,
@@ -505,11 +524,11 @@ static void entry2backend_path(const entry_id_t *p_id,
     int pathlen;
     char rel_path[RBH_PATH_MAX];
 
-    if ( ATTR_MASK_TEST(p_attrs_in, backendpath) )
+    if (ATTR_MASK_INFO_TEST(p_attrs_in, smi, ATTR_BK_PATH))
     {
        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "%s: previous backend_path: %s",
                    (what_for == FOR_LOOKUP)?"LOOKUP":"NEW_COPY",
-                   ATTR(p_attrs_in, backendpath) );
+                   (char *)SMI_INFO(p_attrs_in, smi, ATTR_BK_PATH));
     }
     else if (ATTR_MASK_TEST(p_attrs_in, type) &&
              !strcasecmp(ATTR(p_attrs_in, type), STR_TYPE_DIR))
@@ -571,10 +590,10 @@ static void entry2backend_path(const entry_id_t *p_id,
     }
 #endif
 
-    if ( (what_for == FOR_LOOKUP) && ATTR_MASK_TEST(p_attrs_in, backendpath) )
+    if ((what_for == FOR_LOOKUP) && ATTR_MASK_INFO_TEST(p_attrs_in, smi, ATTR_BK_PATH))
     {
         /* For lookup, if there is a previous path in the backend, use it. */
-        strcpy(backend_path, ATTR(p_attrs_in, backendpath));
+        strcpy(backend_path, (char *)SMI_INFO(p_attrs_in, smi, ATTR_BK_PATH));
     }
     else /* in any other case, build a path from scratch */
     {
@@ -838,6 +857,48 @@ clean_status:
     return rc;
 }
 
+/** helper to get backend path from attribute structure */
+#define BKPATH(_pattr, _smi) ((char*)SMI_INFO((_pattr), (_smi), ATTR_BK_PATH))
+
+/** helper to set backend path */
+static inline int set_backend_path(sm_instance_t *smi, attr_set_t *pattrs,
+                                   const char *bkpath)
+{
+    char *info = strdup(bkpath);
+    int rc;
+
+    if (info == NULL)
+        return -ENOMEM;
+
+    rc = set_sm_info(smi, pattrs, ATTR_BK_PATH, info);
+    if (rc)
+        free(info);
+
+    return rc;
+}
+
+/** helper to set last_archive */
+static inline int set_last_archive(sm_instance_t *smi, attr_set_t *pattrs,
+                                   time_t last_arch)
+{
+    /* last_archive is stored as UINT */
+    unsigned int *info;
+    int rc;
+
+    info = malloc(sizeof(*info));
+    if (info == NULL)
+        return -ENOMEM;
+
+    *info = (unsigned int)last_arch;
+
+    rc = set_sm_info(smi, pattrs, ATTR_LAST_ARCH, info);
+    if (rc)
+        free(info);
+
+    return rc;
+}
+
+
 /** return the path to access an entry in the filesystem */
 static int entry_fs_path(const entry_id_t *p_id, const attr_set_t *p_attrs, char *fspath)
 {
@@ -881,7 +942,7 @@ static int backup_status(struct sm_instance *smi,
     }
 
     /* path to lookup the entry in the backend */
-    entry2backend_path(p_id, p_attrs_in, FOR_LOOKUP, bkpath, config.compress);
+    entry2backend_path(smi, p_id, p_attrs_in, FOR_LOOKUP, bkpath, config.compress);
 
     /* is the entry has a supported type? */
     entry_type = db2type(ATTR(p_attrs_in, type));
@@ -926,11 +987,12 @@ static int backup_status(struct sm_instance *smi,
         ATTR( p_attrs_changed, status ) = status;
 
         /* set backend path if it is not known */
-        if (!ATTR_MASK_TEST(p_attrs_in, backendpath)
-            && !ATTR_MASK_TEST(p_attrs_changed, backendpath))
+        if (!ATTR_MASK_INFO_TEST(p_attrs_in, smi, ATTR_BK_PATH)
+            && !ATTR_MASK_INFO_TEST(p_attrs_changed, smi, ATTR_BK_PATH))
         {
-            ATTR_MASK_SET(p_attrs_changed, backendpath);
-            strcpy(ATTR(p_attrs_changed, backendpath), bkpath);
+            rc = set_backend_path(smi, p_attrs_changed, bkpath);
+            if (rc)
+                return rc;
         }
 
         return 0;
@@ -999,9 +1061,7 @@ static int backup_status(struct sm_instance *smi,
                     return rc;
 
                 /* update path in the backend */
-                ATTR_MASK_SET( p_attrs_changed, backendpath );
-                strcpy( ATTR( p_attrs_changed, backendpath ), bkpath) ;
-                return 0;
+                return set_backend_path(smi, p_attrs_changed, bkpath);
         }
         else
         {
@@ -1010,9 +1070,7 @@ static int backup_status(struct sm_instance *smi,
                     return rc;
 
                 /* update path in the backend */
-                ATTR_MASK_SET( p_attrs_changed, backendpath );
-                strcpy( ATTR( p_attrs_changed, backendpath ), bkpath) ;
-                return 0;
+                return set_backend_path(smi, p_attrs_changed, bkpath);
         }
     }
     else if ( entry_type == TYPE_LINK )
@@ -1068,9 +1126,7 @@ static int backup_status(struct sm_instance *smi,
                 return rc;
 
             /* update path in the backend */
-            ATTR_MASK_SET( p_attrs_changed, backendpath );
-            strcpy( ATTR( p_attrs_changed, backendpath ), bkpath ) ;
-            return 0;
+            return set_backend_path(smi, p_attrs_changed, bkpath);
         }
         else /* same content */
         {
@@ -1079,9 +1135,7 @@ static int backup_status(struct sm_instance *smi,
                 return rc;
 
             /* update path in the backend */
-            ATTR_MASK_SET( p_attrs_changed, backendpath );
-            strcpy( ATTR( p_attrs_changed, backendpath ), bkpath ) ;
-            return 0;
+            return set_backend_path(smi, p_attrs_changed, bkpath);
         }
     }
     else
@@ -1374,7 +1428,7 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
     }
 
     /* compute path for target file */
-    entry2backend_path(p_id, p_attrs, FOR_NEW_COPY, bkpath, config.compress);
+    entry2backend_path(smi, p_id, p_attrs, FOR_NEW_COPY, bkpath, config.compress);
 
     /* check the status */
     if (status_equal(smi, p_attrs, STATUS_NEW))
@@ -1399,16 +1453,18 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
             return -EALREADY;
 
         /* check that previous path exists */
-        if (ATTR_MASK_TEST(p_attrs, backendpath))
+        if (ATTR_MASK_INFO_TEST(p_attrs, smi, ATTR_BK_PATH))
         {
+            char *bp = BKPATH(p_attrs, smi);
+
             /* need to check if the entry was renamed */
             *bk_moved = true;
-            if (lstat(ATTR(p_attrs,backendpath), &void_stat) != 0)
+            if (lstat(bp, &void_stat) != 0)
             {
                 rc = -errno;
                 DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in the backend (errno=%d, %s): "
-                           "entry will be archived again as %s.",
-                           ATTR(p_attrs,backendpath), -rc, strerror(-rc), bkpath);
+                           "entry will be archived again as %s.", bp,
+                           -rc, strerror(-rc), bkpath);
             }
         }
     }
@@ -1449,10 +1505,8 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     }
 
     set_status_attr(smi, p_attrs, STATUS_SYNCHRO);
-    ATTR_MASK_SET(p_attrs, backendpath);
-    strncpy(ATTR(p_attrs, backendpath), dst, sizeof(ATTR(p_attrs, backendpath)));
-    ATTR_MASK_SET(p_attrs, last_archive);
-    ATTR(p_attrs, last_archive) = time(NULL);
+    set_backend_path(smi, p_attrs, dst);
+    set_last_archive(smi, p_attrs, time(NULL));
 
     /* set symlink owner/group (ignore error, as link content is saved) */
     if (lstat(src, &info) != 0)
@@ -1507,41 +1561,30 @@ static int backup_command(const char *cmd_in, const entry_id_t *p_id,
 struct attr_save {
     uint64_t attr_mask;
     char *attr_path;
-    char *attr_bk;
 };
 
-/** replace path and backend path attributes, and save previous value in attr_save */
+/** replace path attribute with target in case of copyback, and save previous value in attr_save */
 static void path_replace(struct attr_save *save, attr_set_t *p_attrs,
-                         const char *path, const char *bkpath)
+                         const char *path)
 {
-    save->attr_mask = p_attrs->attr_mask
-                      & (ATTR_MASK_fullpath | ATTR_MASK_backendpath);
+    save->attr_mask = p_attrs->attr_mask & ATTR_MASK_fullpath;
     save->attr_path = ATTR_MASK_TEST(p_attrs, fullpath)?
                         strdup(ATTR(p_attrs, fullpath)):NULL;
-    save->attr_bk = ATTR_MASK_TEST(p_attrs, backendpath)?
-                        strdup(ATTR(p_attrs, backendpath)):NULL;
 
     ATTR_MASK_SET(p_attrs, fullpath);
-    ATTR_MASK_SET(p_attrs, backendpath);
     strncpy(ATTR(p_attrs, fullpath), path, sizeof(ATTR(p_attrs, fullpath)));
-    strncpy(ATTR(p_attrs, backendpath), bkpath, sizeof(ATTR(p_attrs, backendpath)));
 }
 
 /** retore path and backend path attributes, free allocated fields in attr_save */
 static void path_restore(struct attr_save *save, attr_set_t *p_attrs)
 {
     /* restore initial values */
-    p_attrs->attr_mask &= ~(ATTR_MASK_fullpath | ATTR_MASK_backendpath);
+    p_attrs->attr_mask &= ~ATTR_MASK_fullpath;
     p_attrs->attr_mask |= save->attr_mask;
     if (save->attr_path != NULL)
     {
         strcpy(ATTR(p_attrs, fullpath), save->attr_path);
         free(save->attr_path);
-    }
-    if (save->attr_bk != NULL)
-    {
-        strcpy(ATTR(p_attrs, backendpath), save->attr_bk);
-        free(save->attr_bk);
     }
 }
 
@@ -1553,14 +1596,17 @@ static int wrap_file_copy(sm_instance_t *smi,
                           post_action_e *after, db_cb_func_t db_cb_fn,
                           void *db_cb_arg)
 {
-    char tmp[RBH_PATH_MAX];
+    char *tmp = NULL;
     int rc;
     struct stat info;
     struct attr_save sav = {0};
+    action_params_t tmp_params = {0};
 
 
     /* build tmp copy path */
-    snprintf(tmp, sizeof(tmp), "%s.%s", bkpath, COPY_EXT);
+    asprintf(&tmp, "%s.%s", bkpath, COPY_EXT);
+    if (!tmp)
+        return -ENOMEM;
 
 #ifdef HAVE_SHOOK
     rc = shook_archive_start(get_fsname(), p_id, bkpath);
@@ -1568,24 +1614,30 @@ static int wrap_file_copy(sm_instance_t *smi,
     {
         DisplayLog(LVL_CRIT, RBHEXT_TAG, "Failed to initialize transfer: shook_archive_start() returned error %d",
                    rc);
-        return rc;
+        goto err_out;
     }
 #endif
 
-    /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath'
-     * So, build a fake attribute set with these values */
-    path_replace(&sav, p_attrs, srcpath, tmp);
+    /* actions expect to get a source path in 'fullpath' and targetpath in 'targetpath' parameter
+     * So, build a fake attribute and new parameter set with these values */
+    rc = rbh_params_copy(&tmp_params, params);
+    if (rc)
+        goto err_out;
+
+    rbh_param_set(&tmp_params, TARGET_PATH_PARAM, tmp, true);
+    path_replace(&sav, p_attrs, srcpath);
 
     switch(action->type)
     {
         case ACTION_COMMAND:
-            rc = backup_command(action->action_u.command, p_id, p_attrs, params);
+            rc = backup_command(action->action_u.command, p_id, p_attrs, &tmp_params);
             break;
 
         case ACTION_FUNCTION:
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, DFID": action: %s", PFID(p_id),
                        action->action_u.func.name);
-            rc = action->action_u.func.call(p_id, p_attrs, params, after, db_cb_fn, db_cb_arg);
+            rc = action->action_u.func.call(p_id, p_attrs, &tmp_params, after,
+                                            db_cb_fn, db_cb_arg);
             break;
 
         case ACTION_NONE:
@@ -1607,7 +1659,7 @@ static int wrap_file_copy(sm_instance_t *smi,
         unlink(tmp);
         /* the transfer failed. entry still needs to be archived */
         set_status_attr(smi, p_attrs, STATUS_MODIFIED);
-        return rc;
+        goto free_params;
     }
 
     /* finalize the transfer */
@@ -1640,21 +1692,30 @@ static int wrap_file_copy(sm_instance_t *smi,
 
         /* the transfer failed. entry still needs to be archived */
         set_status_attr(smi, p_attrs, STATUS_MODIFIED);
-        return rc;
+        goto free_params;
     }
 
     /* has the file been renamed since last copy? */
-    if (bk_moved && strcmp(bkpath, ATTR(p_attrs, backendpath)))
+    if (bk_moved)
     {
-        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Removing previous copy %s",
-                   ATTR(p_attrs, backendpath));
-        if (unlink(ATTR(p_attrs, backendpath)))
+        char *bp = ATTR_MASK_INFO_TEST(p_attrs, smi, ATTR_BK_PATH)?
+                    BKPATH(p_attrs, smi) : NULL;
+
+        /* bp is not supposed to be NULL when bk_moved is true */
+        assert(bp != NULL);
+
+        /* check if the backend path is different */
+        if(strcmp(bkpath, bp))
         {
-            rc = -errno;
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Error removing previous copy %s: %s",
-                       ATTR(p_attrs, backendpath), strerror(-rc));
-            /* ignore */
-            rc = 0;
+            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Removing previous copy %s", bp);
+            if (unlink(bp))
+            {
+                rc = -errno;
+                DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Error removing previous copy %s: %s",
+                           bp, strerror(-rc));
+                /* ignore */
+                rc = 0;
+            }
         }
     }
 
@@ -1669,10 +1730,8 @@ static int wrap_file_copy(sm_instance_t *smi,
 #endif
 
     set_status_attr(smi, p_attrs, STATUS_SYNCHRO);
-    ATTR_MASK_SET(p_attrs, backendpath);
-    strncpy(ATTR(p_attrs, backendpath), bkpath, sizeof(ATTR(p_attrs, backendpath)));
-    ATTR_MASK_SET(p_attrs, last_archive);
-    ATTR(p_attrs, last_archive) = time(NULL);
+    set_backend_path(smi, p_attrs, bkpath);
+    set_last_archive(smi, p_attrs, time(NULL));
 
     /* get and check attributes after the transfer */
     if (lstat(srcpath, &info) != 0)
@@ -1698,8 +1757,13 @@ static int wrap_file_copy(sm_instance_t *smi,
 
     /* update entry attributes */
     PosixStat2EntryAttr(&info, p_attrs, true);
+    rc = 0;
 
-    return 0;
+free_params:
+    rbh_params_free(&tmp_params);
+err_out:
+    free(tmp);
+    return rc;
 }
 
 /** check this is a supported action */
@@ -1784,13 +1848,19 @@ static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
                          db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
+    const char *bp;
 
     /* check mandatory arguments */
-    if (!ATTR_MASK_TEST(attrs, backendpath)
-        || EMPTY_STRING(ATTR(attrs,backendpath)))
-        return -EINVAL;
+    bp = rbh_param_get(params, TARGET_PATH_PARAM);
 
-    if (unlink(ATTR(attrs,backendpath)) == 0)
+    if (bp == NULL || EMPTY_STRING(bp))
+    {
+        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Missing mandatory action parameter '%s'",
+                   TARGET_PATH_PARAM);
+        return -EINVAL;
+    }
+
+    if (unlink(bp) == 0)
     {
         *what_after = PA_RM_ONE; /* drop from SOFTRM */
         return 0;
@@ -1799,14 +1869,13 @@ static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
     rc = -errno;
     if (rc == -ENOENT)
     {
-        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "'%s' not found in backend",
-                   ATTR(attrs,backendpath));
+        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "'%s' not found in backend", bp);
         *what_after = PA_RM_ONE; /* drop from SOFTRM */
     }
     else
     {
         DisplayLog(LVL_EVENT, RBHEXT_TAG, "Error removing '%s' from backend: %s",
-                   ATTR(attrs,backendpath), strerror(-rc));
+                   bp, strerror(-rc));
         *what_after = PA_NONE;
     }
     return rc;
@@ -1818,8 +1887,9 @@ static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
  * Notice: fs_path is not necessarily the current path of new_id
  * but it should be moved to this path at the end.
  */
-static int backup_rebind(const char *fs_path, const char *old_bk_path,
-                         char *new_bk_path, const entry_id_t *new_id)
+static int backup_rebind(sm_instance_t *smi, const char *fs_path,
+                         const char *old_bk_path, char *new_bk_path,
+                         const entry_id_t *new_id)
 {
     int rc;
     attr_set_t attrs_new;
@@ -1853,7 +1923,7 @@ static int backup_rebind(const char *fs_path, const char *old_bk_path,
     ATTR_MASK_SET(&attrs_new, fullpath);
 
     /* build new path in backend */
-    entry2backend_path(new_id, &attrs_new, FOR_NEW_COPY, new_bk_path,
+    entry2backend_path(smi, new_id, &attrs_new, FOR_NEW_COPY, new_bk_path,
                        compressed); /* Ensure the target name is not compressed
                                      * if the source was not. */
     /* set compression name if the previous entry was compressed */
@@ -2142,9 +2212,16 @@ static recov_status_t recov_file(const entry_id_t *p_id,
             return RS_ERROR;
         }
 
-        /* actions expect to get a source path in 'fullpath' and targetpath in 'backendpath'
-         * so, build a fake attribute set with these values */
-        path_replace(&sav, attrs, backend_path, fspath);
+        /* actions expect to get a source path in 'fullpath' and targetpath in 'targetpath' parameter
+         * So, build a fake attribute and new parameter set with these values */
+        path_replace(&sav, attrs, backend_path);
+
+        if (rbh_param_set(&recov_params, TARGET_PATH_PARAM, fspath, false))
+        {
+            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: failed to set action param '%s'",
+                       TARGET_PATH_PARAM);
+            return RS_ERROR;
+        }
 
         switch(config.recovery_action.type)
         {
@@ -2266,8 +2343,8 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     }
 #endif
 
-    if (ATTR_MASK_TEST(&attrs_old, backendpath))
-        backend_path = ATTR(&attrs_old, backendpath);
+    if (ATTR_MASK_INFO_TEST(&attrs_old, smi, ATTR_BK_PATH))
+        backend_path = BKPATH(&attrs_old, smi);
     else
     /* if there is no backend path, try to guess */
     {
@@ -2279,7 +2356,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         else
             lvl_log = LVL_VERB;
 
-        entry2backend_path(p_old_id, &attrs_old, FOR_LOOKUP, bkpath,
+        entry2backend_path(smi, p_old_id, &attrs_old, FOR_LOOKUP, bkpath,
                            config.compress);
         DisplayLog(lvl_log, RBHEXT_TAG,
                     "No backend path is set for '%s', guess it could be '%s'",
@@ -2290,9 +2367,13 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     /* Another status manager recovered it. Just rebind in the backend. */
     if (already_recovered)
     {
-        success_status = backup_rebind(fspath, backend_path,
-                                       ATTR(p_attrs_new, backendpath),
+        char bknew[RBH_PATH_MAX];
+
+        success_status = backup_rebind(smi, fspath, backend_path, bknew,
                                        p_new_id);
+        if (success_status == 0)
+            set_backend_path(smi, p_attrs_new, bknew);
+
         /* @FIXME make backup_rebind return a recov_status */
         return success_status;
     }
@@ -2519,19 +2600,18 @@ static recov_status_t backup_recover(struct sm_instance *smi,
             rc = set_status_attr(smi, p_attrs_new, STATUS_SYNCHRO);
 
         /* set the new entry path in backend, according to the new fid, and actual compression */
-        entry2backend_path(p_new_id, p_attrs_new,
-                           FOR_NEW_COPY,
-                           ATTR(p_attrs_new, backendpath), compressed);
-        ATTR_MASK_SET(p_attrs_new, backendpath);
+        entry2backend_path(smi, p_new_id, p_attrs_new,
+                           FOR_NEW_COPY, tmp, compressed);
+        set_backend_path(smi, p_attrs_new, tmp);
 
         /* recursively create the parent directory */
-        /* extract dir path */
-        rh_strncpy(tmp, ATTR(p_attrs_new, backendpath), sizeof(tmp));
+        /* Extract dir path. We can modify tmp now,
+         * as it has been copied by set_backend_path(). */
         destdir = dirname(tmp);
         if (destdir == NULL)
         {
             DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
-                        ATTR(p_attrs_new, backendpath));
+                       BKPATH(p_attrs_new, smi));
             return RS_ERROR;
         }
 
@@ -2540,24 +2620,24 @@ static recov_status_t backup_recover(struct sm_instance *smi,
             return RS_ERROR;
 
         /* rename the entry in backend */
-        if (strcmp(ATTR(p_attrs_new, backendpath), backend_path) != 0)
+        if (strcmp(BKPATH(p_attrs_new, smi), backend_path) != 0)
         {
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Moving the entry in backend: '%s'->'%s'",
-                        backend_path, ATTR(p_attrs_new, backendpath));
-            if (rename(backend_path, ATTR(p_attrs_new, backendpath)))
+                        backend_path, BKPATH(p_attrs_new, smi));
+            if (rename(backend_path, BKPATH(p_attrs_new, smi)))
             {
                 rc = errno;
                 DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not move entry in backend ('%s'->'%s'): %s",
-                            backend_path, ATTR(p_attrs_new, backendpath), strerror(rc));
+                            backend_path, BKPATH(p_attrs_new, smi), strerror(rc));
                 /* keep the old path */
-                strcpy(ATTR(p_attrs_new, backendpath), backend_path);
+                set_backend_path(smi, p_attrs_new, backend_path);
             }
         }
 
 #ifdef HAVE_SHOOK
         /* save new backendpath to filesystem */
         /* XXX for now, don't manage several hsm_index */
-        rc = shook_set_hsm_info(fspath, ATTR(p_attrs_new, backendpath), 0);
+        rc = shook_set_hsm_info(fspath, BKPATH(p_attrs_new, smi), 0);
         if (rc)
             DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
                        fspath, rc);
@@ -2645,12 +2725,13 @@ status_manager_t backup_sm = {
     .flags = SM_SHARED | SM_DELETED | SM_MULTI_ACTION,
     .status_enum = backup_status_list, /* unknown is empty(unset) status */
     .status_count = STATUS_COUNT - 1,
+    .nb_info = G_N_ELEMENTS(backup_info),
+    .info_types = backup_info,
 
     /* Previous backup path is also needed.
      * It is only in DB (so it is a cached information). */
-    /* FIXME manage backendpath and last_archive as policy specific info */
     .status_needs_attrs_cached = ATTR_MASK_type | ATTR_MASK_fullpath
-                                 | ATTR_MASK_last_archive | ATTR_MASK_backendpath,
+                                 | GENERIC_INFO_BIT(ATTR_BK_PATH), /* XXX used last_archive in v2.5? */
 
     /* needs fresh mtime/size information from lustre
      * to determine if the entry changed */
@@ -2667,8 +2748,8 @@ status_manager_t backup_sm = {
     /* fields for managing deleted entries */
     .softrm_filter_mask = ATTR_MASK_type | SMI_MASK(0),
 //    .softrm_filter_func = backup_softrm_filter, /* @TODO */
-    .softrm_table_mask = SMI_MASK(0) | ATTR_MASK_type |
-                         ATTR_MASK_backendpath | ATTR_MASK_fullpath,
+    .softrm_table_mask = SMI_MASK(0) | ATTR_MASK_type | ATTR_MASK_fullpath
+                         | GENERIC_INFO_BIT(ATTR_BK_PATH),
     .undelete_func = backup_recover,
 
     .cfg_funcs = &backup_cfg_hdlr,

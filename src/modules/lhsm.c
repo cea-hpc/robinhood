@@ -225,9 +225,75 @@ static const char *hsm_status2str(hsm_status_t st)
         return lhsm_status_list[st];
 }
 
+/** enum of specific attributes */
+enum lhsm_info_e
+{
+    ATTR_ARCHIVE_ID = 0,
+    ATTR_NO_RELEASE,
+    ATTR_NO_ARCHIVE,
+    ATTR_LAST_ARCHIVE,
+    ATTR_LAST_RESTORE
+};
+
+/** size of specific info to be stored in DB:
+ * archive_id: hsm_user_state returns a 32bits interger for archive_id.
+ * no_release: 0 or 1
+ * no_archive: 0 or 1
+ * last_archive: unix epoch
+ * last_restore: unix epoch
+ */
+static sm_info_def_t lhsm_info[] = {
+    [ATTR_ARCHIVE_ID] = { "archid", DB_UINT, 0 },
+    [ATTR_NO_RELEASE] = { "norels", DB_BOOL, 0 },
+    [ATTR_NO_ARCHIVE] = { "noarch", DB_BOOL, 0 },
+    [ATTR_LAST_ARCHIVE] = { "lstarc", DB_UINT, 0 },
+    [ATTR_LAST_RESTORE] = { "lstrst", DB_UINT, 0 },
+};
+
+/** helper to set bool attr */
+static inline int set_bool_info(sm_instance_t *smi, attr_set_t *pattrs,
+                                unsigned int attr_index, bool val)
+{
+    bool *info;
+    int rc;
+
+    info = malloc(sizeof(bool));
+    if (info == NULL)
+        return -ENOMEM;
+
+    *info = val;
+
+    rc = set_sm_info(smi, pattrs, attr_index, info);
+    if (rc)
+        free(info);
+
+    return rc;
+}
+
+/** helper to set uint attr */
+static inline int set_uint_info(sm_instance_t *smi, attr_set_t *pattrs,
+                                unsigned int attr_index, unsigned int val)
+{
+    unsigned int *info;
+    int rc;
+
+    info = malloc(sizeof(unsigned int));
+    if (info == NULL)
+        return -ENOMEM;
+
+    *info = val;
+
+    rc = set_sm_info(smi, pattrs, attr_index, info);
+    if (rc)
+        free(info);
+
+    return rc;
+}
+
 /** get Lustre status and convert it to an internal scalar status */
 static int lhsm_get_status(const char *path, hsm_status_t *p_status,
-                           bool *no_release, bool *no_archive)
+                           bool *no_release, bool *no_archive,
+                           unsigned int *archive_id)
 {
     struct hsm_user_state file_status;
     int                   rc;
@@ -236,6 +302,7 @@ static int lhsm_get_status(const char *path, hsm_status_t *p_status,
     *p_status = STATUS_NEW;
     *no_release = false;
     *no_archive = false;
+    *archive_id = DEFAULT_ARCHIVE_ID;
 
     /* get status */
     rc = llapi_hsm_state_get(path, &file_status);
@@ -245,6 +312,9 @@ static int lhsm_get_status(const char *path, hsm_status_t *p_status,
                     rc);
     if (rc != 0)
         return rc;
+
+    /* archive_id */
+    *archive_id = file_status.hus_archive_id;
 
     /* user flags */
 
@@ -333,6 +403,7 @@ static int lhsm_status(struct sm_instance *smi,
     hsm_status_t st;
     bool no_release = false,
          no_archive = false;
+    unsigned int archive_id = DEFAULT_ARCHIVE_ID;
     const char *str_st;
 
     if (ATTR_MASK_TEST(attrs, type) &&
@@ -347,8 +418,7 @@ static int lhsm_status(struct sm_instance *smi,
     if (rc)
         goto clean_status;
 
-    /** @TODO store no_release and no_archive as SM specific attributes */
-    rc = lhsm_get_status(fid_path, &st, &no_release, &no_archive);
+    rc = lhsm_get_status(fid_path, &st, &no_release, &no_archive, &archive_id);
     if (rc)
         goto clean_status;
 
@@ -367,6 +437,15 @@ static int lhsm_status(struct sm_instance *smi,
 
     STATUS_ATTR(refreshed_attrs, smi->smi_index) = str_st;
     ATTR_MASK_STATUS_SET(refreshed_attrs, smi->smi_index);
+
+    /* save archive_id */
+    rc = set_uint_info(smi, refreshed_attrs, ATTR_ARCHIVE_ID, archive_id);
+    if (rc)
+        goto clean_status;
+
+    /* update no_archive/no_release (non critical: ignore errors) */
+    set_bool_info(smi, refreshed_attrs, ATTR_NO_ARCHIVE, no_archive);
+    set_bool_info(smi, refreshed_attrs, ATTR_NO_RELEASE, no_release);
 
     return 0;
 
@@ -467,7 +546,12 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
         }
         /* else: file is already known. Preserve the known status. */
 
-        /* FIXME RBHv3 manage no_archive, no_release, last_archive, last_restore */
+        /* new entry: never archived or restored (non-critical: ignore errors)*/
+        set_uint_info(smi, refreshed_attrs, ATTR_LAST_ARCHIVE, 0);
+        set_uint_info(smi, refreshed_attrs, ATTR_LAST_RESTORE, 0);
+        /* no flag is set at creation */
+        set_bool_info(smi, refreshed_attrs, ATTR_NO_ARCHIVE, false);
+        set_bool_info(smi, refreshed_attrs, ATTR_NO_RELEASE, false);
     }
     else if ((logrec->cr_type == CL_MKDIR) || (logrec->cr_type == CL_RMDIR))
     {
@@ -482,7 +566,9 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                 /* is it a successfull copy? */
                 if (hsm_get_cl_error(logrec->cr_flags) == CLF_HSM_SUCCESS)
                 {
-                    /** @TODO RBHv3 remember last archive time */
+                     /* save last archive time (non-critical: ignore errors) */
+                     set_uint_info(smi, refreshed_attrs, ATTR_LAST_ARCHIVE,
+                                   cltime2sec(logrec->cr_time));
 
                     /* if dirty flag is set in the changelog record, the entry is dirty,
                      * else, it is up to date. */
@@ -509,7 +595,9 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
             case HE_RESTORE:
                 if (hsm_get_cl_error(logrec->cr_flags) == CLF_HSM_SUCCESS)
                 {
-                    /** @TODO RBHv3 remember last restore time */
+                    /* save last restore time (non-critical: ignore errors) */
+                    set_uint_info(smi, refreshed_attrs, ATTR_LAST_RESTORE,
+                                  cltime2sec(logrec->cr_time));
 
                     /* status is 'up-to-date' after a successful restore */
                     set_lhsm_status(smi, refreshed_attrs, STATUS_SYNCHRO);
@@ -632,10 +720,12 @@ status_manager_t lhsm_sm = {
     .flags = SM_SHARED | SM_DELETED | SM_MULTI_ACTION,
     .status_enum = lhsm_status_list,
     .status_count = STATUS_COUNT,
+    .nb_info = G_N_ELEMENTS(lhsm_info),
+    .info_types = lhsm_info,
 
-    /* This policy needs the ols status to process changelog callbacks.
+    /* This policy needs the previous status to process changelog callbacks.
      * As we don't know the actual index of the status manager instance (smi)
-     * we set it to SMI_MASK(0). It is translater later by accessors to
+     * we set it to SMI_MASK(0). It is translated later by accessors to
      * its actual index.  */
     .status_needs_attrs_cached = ATTR_MASK_type | SMI_MASK(0),
     .status_needs_attrs_fresh = 0,

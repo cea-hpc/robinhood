@@ -106,6 +106,15 @@ typedef enum {
 #define ATTR_MASK_STATUS_TEST(_p_set, _smi_idx) !!((_p_set)->attr_mask & SMI_MASK(_smi_idx))
 #define STATUS_ATTR(_p_set, _smi_idx) ((_p_set)->attr_values.sm_status[(_smi_idx)])
 
+/* policy specific attributes: bits after statuses */
+#define ATTR_MASK_INFO_SET(_p_set, _smi, _attr_idx) ((_p_set)->attr_mask |= smi_info_bit((_smi), (_attr_idx)))
+#define ATTR_MASK_INFO_UNSET(_p_set, _smi, _attr_idx) ((_p_set)->attr_mask &= ~smi_info_bit((_smi), (_attr_idx)))
+#define ATTR_MASK_INFO_TEST(_p_set, _smi, _attr_idx) !!((_p_set)->attr_mask & smi_info_bit((_smi), (_attr_idx)))
+#define SMI_INFO(_p_set, _smi, _attr_idx) ((_p_set)->attr_values.sm_info[(_smi)->sm_info_offset+(_attr_idx)])
+
+#define ALL_ATTR_COUNT (ATTR_COUNT + sm_inst_count + sm_attr_count)
+
+
 #define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
                          | ATTR_MASK_gr_name | ATTR_MASK_last_access \
                          | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
@@ -997,6 +1006,14 @@ void           ListMgr_MergeAttrSets(attr_set_t *p_target_attrset,
 
 /** return the mask of attributes that differ */
 int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src);
+
+/** print attribute value to display to the user
+ * @param quote string to quote string types (eg. "'").
+ * @return the same value as snprintf.
+ */
+int ListMgr_PrintAttr(char *str, int size, db_type_t type,
+                      const db_type_u *value_ptr, const char *quote);
+
 
 /**
  * Generate fields automatically from already existing fields,

@@ -276,10 +276,6 @@ static const struct param_descr std_params[] =
     {"fid", -1, get_fid_str},
     {"ost_pool", ATTR_INDEX_stripe_info, get_str_attr},
 
-    /* policy-specific attributes. XXX Should be managed differently? */
-    {"targetpath", ATTR_INDEX_backendpath, get_str_attr},
-    {"backendpath", ATTR_INDEX_backendpath, get_str_attr},
-
     /* global params */
     {"fsname", -1, get_fsname_param},
     {"fsroot", -1, get_fsroot_param},

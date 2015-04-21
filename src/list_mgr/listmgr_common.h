@@ -17,9 +17,10 @@
 #include "list_mgr.h"
 #include "listmgr_internal.h"
 #include "database.h"
+#include "status_manager.h"
+#include "rbh_logs.h"
 #include <stdint.h>
 #include <glib.h>
-#include "status_manager.h"
 
 #define ASSIGN_UNION( _u, _type, _address ) do {            \
                     switch( _type )                         \
@@ -149,6 +150,58 @@
                     }\
                     } while(0)
 
+/** duplicate a value of the given C type */
+#define TYPE_DUP(_t, _tgt, _src) do {        \
+        _t *__ptr;                           \
+        __ptr = calloc(1, sizeof(_t));       \
+        if (__ptr == NULL)                   \
+            return NULL;                     \
+        memcpy(__ptr, (_src), sizeof(_t));   \
+        (_tgt) = __ptr;                      \
+    } while(0)
+
+/** duplicate a value of the given DB type */
+static inline void *dup_value(db_type_t db_type, db_type_u uval)
+{
+    void *ptr = NULL;
+
+    switch(db_type)
+    {
+        case DB_ID:
+            TYPE_DUP(entry_id_t, ptr, &uval.val_id);
+            break;
+        case DB_ENUM_FTYPE:
+        case DB_TEXT:
+            ptr = (void *)strdup(uval.val_str);
+            break;
+        case DB_INT:
+            TYPE_DUP(int, ptr, &uval.val_int);
+            break;
+        case DB_UINT:
+            TYPE_DUP(unsigned int, ptr, &uval.val_uint);
+            break;
+        case DB_SHORT:
+            TYPE_DUP(short, ptr, &uval.val_short);
+            break;
+        case DB_USHORT:
+            TYPE_DUP(unsigned short, ptr, &uval.val_ushort);
+            break;
+        case DB_BIGINT:
+            TYPE_DUP(long long, ptr, &uval.val_bigint);
+            break;
+        case DB_BIGUINT:
+            TYPE_DUP(unsigned long long, ptr, &uval.val_biguint);
+            break;
+        case DB_BOOL:
+            TYPE_DUP(bool, ptr, &uval.val_bool);
+        break;
+        default:                              \
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unexpected type in %s: %d !!!",
+                       __func__, db_type);
+    }
+    return ptr;
+}
+
 /* precomputed masks for testing attr sets efficiently */
 extern uint64_t  main_attr_set;
 extern uint64_t  names_attr_set;
@@ -255,16 +308,17 @@ static inline bool is_status_field(unsigned int attr_index)
               (attr_index < ATTR_COUNT + sm_inst_count));
 }
 
-/** indicate if the attribute is a status field not stored in DB */
-static inline bool is_no_db_status(unsigned int attr_index)
+static inline bool is_sm_info_field(unsigned int attr_index)
 {
-    return is_status_field(attr_index) &&
-           ((get_sm_instance(attr_index - ATTR_COUNT)->sm->flags & SM_NODB) != 0);
+    return (attr_index >= ATTR_COUNT + sm_inst_count);
 }
 
 /** check if one of the given flags is set for the given field */
 static inline bool test_field_flag(unsigned int attr_index, int flags)
 {
+    if (attr_index >= ATTR_COUNT)
+        return false;
+
     return ((field_infos[attr_index].flags & flags) != 0);
 }
 
@@ -272,8 +326,7 @@ static inline bool test_field_flag(unsigned int attr_index, int flags)
 static inline bool is_read_only_field(unsigned int attr_index)
 {
     return ((attr_index < ATTR_COUNT)
-                && test_field_flag(attr_index, GENERATED | DIR_ATTR | REMOVED | FUNC_ATTR))
-           || is_no_db_status(attr_index);
+                && test_field_flag(attr_index, GENERATED | DIR_ATTR | REMOVED | FUNC_ATTR));
 }
 
 /** indicate if the field is stripe information */
@@ -293,7 +346,8 @@ static inline bool is_names_field(unsigned int attr_index)
 /** indicate if the field is in main table */
 static inline bool is_main_field(unsigned int attr_index)
 {
-    return (is_status_field(attr_index) && !is_no_db_status(attr_index))
+    return is_status_field(attr_index)
+           || is_sm_info_field(attr_index)
            || ((attr_index < ATTR_COUNT)
                && test_field_flag(attr_index, FREQ_ACCESS)
                && !is_stripe_field(attr_index)
@@ -527,16 +581,24 @@ static inline const char *field_name(int index)
 {
     if (index < ATTR_COUNT)
         return field_infos[index].field_name;
-    else /* status */
+    else if (index < ATTR_COUNT + sm_inst_count)/* status */
         return get_sm_instance(index - ATTR_COUNT)->db_field;
+    else if (index < ATTR_COUNT + sm_inst_count + sm_attr_count) /* specific SM info */
+        return sm_attr_info[index - ATTR_COUNT - sm_inst_count].db_attr_name;
+    else
+        return NULL;
 }
 
 static inline db_type_t field_type(int index)
 {
     if (index < ATTR_COUNT)
         return field_infos[index].db_type;
-    else /* status */
+    else if (index < ATTR_COUNT + sm_inst_count)/* status */
         return DB_TEXT;
+    else if (index < ATTR_COUNT + sm_inst_count + sm_attr_count) /* specific SM info */
+        return sm_attr_info[index - ATTR_COUNT - sm_inst_count].def->db_type;
+    else
+        RBH_BUG("Unexpected field type");
 }
 
 /** helper to check empty filter */

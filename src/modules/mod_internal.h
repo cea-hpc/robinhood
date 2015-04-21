@@ -22,6 +22,8 @@
 /* log tag for built-in copy */
 #define CP_TAG "cp"
 
+#define TARGET_PATH_PARAM "targetpath"
+
 typedef enum {
     CP_COMPRESS        = (1 << 0),
     CP_USE_SENDFILE    = (1 << 1),

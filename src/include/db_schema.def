@@ -117,13 +117,8 @@ mode,       unsigned short, DB_USHORT, 0, FREQ_ACCESS
 nlink,      unsigned int, DB_UINT, 0, FREQ_ACCESS
 # metadata update
 md_update,	 unsigned int, DB_UINT, 0, FREQ_ACCESS
-# FIXME only for non Lustre 2.x
+# FIXME only for POSIX or Lustre 1.8
 invalid, 	 bool, DB_BOOL, 0, FREQ_ACCESS
-
-# is file eligible for purge/migration? 
-# FIXME Lustre/HSM relative
-no_release,     bool, DB_BOOL, 0, FREQ_ACCESS
-no_archive,     bool, DB_BOOL, 0, FREQ_ACCESS
 
 # fileclasses and last update
 fileclass,        char,           DB_TEXT,   1024,   FREQ_ACCESS | SEPD_LIST
@@ -132,11 +127,6 @@ class_update,     unsigned int,   DB_UINT,      0,   FREQ_ACCESS
 # info that is set once for each file
 stripe_info, 	stripe_info_t,  DB_STRIPE_INFO, 0,   INIT_ONLY
 stripe_items,   stripe_items_t, DB_STRIPE_ITEMS, 0,  INIT_ONLY
-
-# FIXME backend relative info
-backendpath,	char,         DB_TEXT, RBH_PATH_MAX,  ANNEX_INFO
-last_archive,   unsigned int, DB_UINT, 0, ANNEX_INFO
-last_restore,   unsigned int, DB_UINT, 0, ANNEX_INFO
 
 # link content in annex info
 link,          char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR

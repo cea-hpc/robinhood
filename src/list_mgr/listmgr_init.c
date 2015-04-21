@@ -31,7 +31,7 @@ static bool report_only = false;
 #define MAX_DB_FIELDS 64
 
 
-static void append_status_def(const sm_instance_t *smi, GString *str, int is_first)
+static void append_status_def(const sm_instance_t *smi, GString *str, bool is_first)
 {
     int i;
 
@@ -45,15 +45,11 @@ static void append_status_def(const sm_instance_t *smi, GString *str, int is_fir
     g_string_append(str, ") DEFAULT ''");
 }
 
-static void append_field_def(int i, GString *str, int is_first, db_type_u *default_value)
+static void append_field(GString *str, bool is_first, db_type_t type,
+                         unsigned int size, const char *name,
+                         db_type_u *default_value)
 {
-    if (i >= ATTR_COUNT)
-    {
-        append_status_def(get_sm_instance(i - ATTR_COUNT), str, is_first);
-        return;
-    }
-
-    switch (field_infos[i].db_type)
+    switch (type)
     {
     case DB_STRIPE_INFO:   /* never in main table (ignored) */
     case DB_STRIPE_ITEMS:
@@ -63,78 +59,103 @@ static void append_field_def(int i, GString *str, int is_first, db_type_u *defau
             char strtype[128];
 
             /* VARBINARY length is limited. For larger strings, use TEXT. */
-            if (field_infos[i].db_type_size <= MAX_VARBINARY)
-                snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", field_infos[i].db_type_size);
+            if (size <= MAX_VARBINARY)
+                snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", size);
             else
                 rh_strncpy(strtype, "TEXT", sizeof(strtype));
 
             if (default_value)
                 g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
-                    field_infos[i].field_name, strtype, default_value->val_str);
+                    name, strtype, default_value->val_str);
             else
                 g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
-                    field_infos[i].field_name, strtype);
+                    name, strtype);
         }
         break;
     case DB_INT:
         if (default_value)
-            g_string_append_printf(str, "%s %s INT DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
+            g_string_append_printf(str, "%s %s INT DEFAULT %d", is_first ? "" : ",", name,
                 default_value->val_int);
         else
-            g_string_append_printf(str, "%s %s INT", is_first ? "" : ",", field_infos[i].field_name);
+            g_string_append_printf(str, "%s %s INT", is_first ? "" : ",", name);
         break;
     case DB_UINT:
         if (default_value)
-            g_string_append_printf(str, "%s %s INT UNSIGNED DEFAULT %u", is_first ? "" : ",", field_infos[i].field_name,
+            g_string_append_printf(str, "%s %s INT UNSIGNED DEFAULT %u", is_first ? "" : ",", name,
                 default_value->val_uint);
         else
-            g_string_append_printf(str, "%s %s INT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name);
+            g_string_append_printf(str, "%s %s INT UNSIGNED", is_first ? "" : ",", name);
         break;
     case DB_SHORT:
         if (default_value)
-            g_string_append_printf(str, "%s %s SMALLINT DEFAULT %hd", is_first ? "" : ",", field_infos[i].field_name,
+            g_string_append_printf(str, "%s %s SMALLINT DEFAULT %hd", is_first ? "" : ",", name,
                 default_value->val_short);
         else
-            g_string_append_printf(str, "%s %s SMALLINT", is_first ? "" : ",", field_infos[i].field_name);
+            g_string_append_printf(str, "%s %s SMALLINT", is_first ? "" : ",", name);
         break;
     case DB_USHORT:
         if (default_value)
-            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED DEFAULT %hu", is_first ? "" : ",", field_infos[i].field_name,
+            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED DEFAULT %hu", is_first ? "" : ",", name,
                 default_value->val_ushort);
         else
-            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name);
+            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED", is_first ? "" : ",", name);
         break;
     case DB_BIGINT:
         if (default_value)
-            g_string_append_printf(str, "%s %s BIGINT DEFAULT %lld", is_first ? "" : ",", field_infos[i].field_name,
+            g_string_append_printf(str, "%s %s BIGINT DEFAULT %lld", is_first ? "" : ",", name,
                 default_value->val_bigint);
         else
-            g_string_append_printf(str, "%s %s BIGINT", is_first ? "" : ",", field_infos[i].field_name);
+            g_string_append_printf(str, "%s %s BIGINT", is_first ? "" : ",", name);
         break;
     case DB_BIGUINT:
         if (default_value)
-            g_string_append_printf(str, "%s %s BIGINT UNSIGNED DEFAULT %llu", is_first ? "" : ",", field_infos[i].field_name,
+            g_string_append_printf(str, "%s %s BIGINT UNSIGNED DEFAULT %llu", is_first ? "" : ",", name,
                 default_value->val_biguint);
         else
-            g_string_append_printf(str, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", field_infos[i].field_name);
+            g_string_append_printf(str, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", name);
         break;
     case DB_BOOL:
         if (default_value)
-            g_string_append_printf(str, "%s %s BOOLEAN DEFAULT %d", is_first ? "" : ",", field_infos[i].field_name,
+            g_string_append_printf(str, "%s %s BOOLEAN DEFAULT %d", is_first ? "" : ",", name,
                 default_value->val_bool);
         else
-            g_string_append_printf(str, "%s %s BOOLEAN", is_first ? "" : ",", field_infos[i].field_name);
+            g_string_append_printf(str, "%s %s BOOLEAN", is_first ? "" : ",", name);
         break;
     case DB_ID:
-        g_string_append_printf(str, "%s %s "PK_TYPE, is_first ? "" : ",", field_infos[i].field_name);
+        g_string_append_printf(str, "%s %s "PK_TYPE, is_first ? "" : ",", name);
         break;
     case DB_ENUM_FTYPE:
         g_string_append_printf(str, "%s %s ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')",
-                        is_first ? "" : ",", field_infos[i].field_name,
+                        is_first ? "" : ",", name,
                         STR_TYPE_LINK, STR_TYPE_DIR, STR_TYPE_FILE, STR_TYPE_CHR,
                         STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK);
         break;
     }
+}
+
+
+static void append_field_def(int i, GString *str, bool is_first, db_type_u *default_value)
+{
+    if (is_status_field(i))
+    {
+        append_status_def(get_sm_instance(i - ATTR_COUNT), str, is_first);
+        return;
+    }
+    if (is_sm_info_field(i))
+    {
+        unsigned int idx = i - (ATTR_COUNT + sm_inst_count);
+
+        append_field(str, is_first, sm_attr_info[idx].def->db_type,
+                     sm_attr_info[idx].def->db_type_size,
+                     sm_attr_info[idx].db_attr_name, NULL);
+        return;
+    }
+
+
+    append_field(str, is_first, field_infos[i].db_type,
+                 field_infos[i].db_type_size,
+                 field_infos[i].field_name,
+                 default_value);
 }
 
 #define DROP_MESSAGE "\nYou should:\n\t1) backup current DB contents using 'rbh-config backup_db'\n\t2) empty the DB using 'rbh-config empty_db'\n\t3) start a new FS scan."
@@ -166,13 +187,13 @@ static int _check_field_name(const char *name, int *curr_field_index,
     /* check that this is the expected field */
     if (!strcmp(name, fieldtab[*curr_field_index]))
     {
-        DisplayLog(LVL_FULL, LISTMGR_TAG, "%s OK", name);
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "%s.%s OK", table, name);
         return 0;
     }
     else
     {
-        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s != %s", name,
-                   fieldtab[*curr_field_index]);
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s: %s expected, %s found", table,
+                   name, fieldtab[*curr_field_index]);
         if (!strcmp(table, ACCT_TABLE))
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
                        "Incompatible database schema (unexpected field '%s' in table %s: '%s' expected): "DROP_ACCT_MSG,
@@ -506,6 +527,7 @@ static int check_table_main(db_conn_t *pconn)
 {
     char strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+
     int rc = db_list_table_fields(pconn, MAIN_TABLE, fieldtab, MAX_DB_FIELDS,
                                   strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
@@ -517,7 +539,8 @@ static int check_table_main(db_conn_t *pconn)
         if (check_field_name("id", &curr_field_index, MAIN_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+        /* std fields + SM status + SM specific info */
+        for (i = 0; i < ALL_ATTR_COUNT; i++)
         {
             if (is_main_field(i) && !is_funcattr(i))
             {
@@ -547,7 +570,7 @@ static int create_table_main(db_conn_t *pconn)
 
     request = g_string_new("CREATE TABLE "MAIN_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
-    for (i = 0; i < ATTR_COUNT; i++)
+    for (i = 0; i < ALL_ATTR_COUNT; i++)
     {
         if (is_main_field(i) && !is_funcattr(i))
         {
@@ -566,24 +589,6 @@ static int create_table_main(db_conn_t *pconn)
         }
     }
 
-    /** Append status values (depends on policy definitions)
-     * @TODO RBHv3: enhance status management in DB:
-     * - support change in policy definitions (not order-sensitive? alter table?).
-     * - store previous policy definitions to detect changes.
-     * - For read-only usage, load status manager instances from DB
-     *       instead of relying on client configuration.
-     */
-    sm_instance_t *smi;
-
-    for (i = 0, smi = get_sm_instance(0); smi != NULL;
-         i++, smi = get_sm_instance(i))
-    {
-        /* status managers with SM_NODB tag have no info in DB */
-        if (smi->sm->flags & SM_NODB)
-            continue;
-
-        append_status_def(smi, request, 0);
-    }
     /* end of field list (null terminated) */
     g_string_append(request, ")");
     append_engine(request);
@@ -1120,7 +1125,7 @@ static int check_table_softrm(db_conn_t *pconn)
         if (check_field_name("id", &curr_index, SOFT_RM_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+        for (i = 0; i < ALL_ATTR_COUNT; i++)
         {
             if (is_softrm_field(i)) /* no func attr in softrm table */
             {
@@ -1148,7 +1153,7 @@ static int create_table_softrm(db_conn_t *pconn)
 
     request = g_string_new("CREATE TABLE "SOFT_RM_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+    for (i = 0; i < ALL_ATTR_COUNT; i++)
     {
         if (is_softrm_field(i))
             append_field_def(i, request, 0, NULL);

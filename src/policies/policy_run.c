@@ -354,12 +354,14 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
         case ATTR_INDEX_last_access:
             return (ATTR_MASK_TEST(p_attrs, last_access)?
                     ATTR(p_attrs, last_access) : -1);
+#if 0 /** FIXME how to implement it with policy-specific attributes? */
         case ATTR_INDEX_last_archive:
             return (ATTR_MASK_TEST(p_attrs, last_archive)?
                     ATTR(p_attrs, last_archive) : -1);
         case ATTR_INDEX_last_restore:
             return (ATTR_MASK_TEST(p_attrs, last_restore)?
                     ATTR(p_attrs, last_restore) : -1);
+#endif
         case ATTR_INDEX_rm_time:
             return (ATTR_MASK_TEST(p_attrs, rm_time)?
                     ATTR(p_attrs, rm_time) : -1);
@@ -386,7 +388,7 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
             ATTR_MASK_SET(p_attrs, last_mod);
             ATTR(p_attrs, last_mod) = value;
             break;
-
+#if 0 /** FIXME how to implement it with policy-specific attributes? */
         case ATTR_INDEX_last_archive:
             ATTR_MASK_SET(p_attrs, last_archive);
             ATTR(p_attrs, last_archive) = value;
@@ -396,6 +398,7 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
             ATTR_MASK_SET(p_attrs, last_restore);
             ATTR(p_attrs, last_restore) = value;
             break;
+#endif
 
         default:
             /* unsupported */

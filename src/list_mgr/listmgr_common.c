@@ -83,6 +83,47 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *v
     }
 }
 
+/** print attribute value to display to the user
+ * @param quote string to quote string types (eg. "'") */
+int ListMgr_PrintAttr(char *str, int size, db_type_t type,
+                      const db_type_u *value_ptr, const char *quote)
+{
+    switch (type)
+    {
+        case DB_ID:
+            return snprintf(str, size, DFID, PFID(&value_ptr->val_id));
+        case DB_TEXT:
+            return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
+        case DB_INT:
+            return snprintf(str, size, "%d", value_ptr->val_int);
+        case DB_UINT:
+            return snprintf(str, size, "%u", value_ptr->val_uint);
+        case DB_SHORT:
+            return snprintf(str, size, "%hd", value_ptr->val_short);
+            break;
+        case DB_USHORT:
+            return snprintf(str, size, "%hu", value_ptr->val_ushort);
+        case DB_BIGINT:
+            return snprintf(str, size, "%lld", value_ptr->val_bigint);
+            break;
+        case DB_BIGUINT:
+            return snprintf(str, size, "%llu", value_ptr->val_biguint);
+        case DB_BOOL:
+            if (value_ptr->val_bool)
+                strncpy(str, "1", size);
+            else
+                strncpy(str, "0", size);
+            return 1;
+        case DB_ENUM_FTYPE:
+            return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
+            break;
+        default:
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __FUNCTION__);
+            strncpy(str, "?", size);
+            return 1;
+    }
+}
+
 
 /* return 1 on success */
 int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
@@ -235,7 +276,7 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
     /* size: also used for size range stats */
     acct_attr_set |= ATTR_MASK_size | ATTR_MASK_blocks ;
 
-    for (i = 0; i < ATTR_COUNT; i++, mask <<= 1)
+    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
     {
         /* is it read only ? */
         if (is_read_only_field(i))
@@ -263,15 +304,6 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
         /* not mutually exclusive with previous */
         if (is_slinkattr(i))
             slink_attr_set |= mask;
-    }
-
-    /* add status to main table */
-    for (i = 0; i < sm_inst_count; i++)
-    {
-        main_attr_set |= SMI_MASK(i);
-
-        if (is_softrm_field(i + ATTR_COUNT))
-            softrm_attr_set |= mask;
     }
 }
 
@@ -470,7 +502,7 @@ int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool 
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
+    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
     {
         if (attr_mask & mask)
         {
@@ -555,7 +587,7 @@ int attrmask2fieldcomparison(GString *str, uint64_t attr_mask, table_enum table,
     uint64_t mask = 1;
     unsigned int  nbfields = 0;
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
+    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
     {
         if (attr_mask & mask)
         {
@@ -591,13 +623,20 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
         }
         t = field_infos[attr_index].db_type;
     }
-    else if (attr_index < ATTR_COUNT + sm_inst_count)
+    else if (is_status_field(attr_index))
     {
         ASSIGN_UNION(typeu, DB_TEXT, p_set->attr_values.sm_status[attr_index - ATTR_COUNT]);
         t = DB_TEXT;
     }
+    else if (is_sm_info_field(attr_index))
+    {
+        int info_idx = attr_index - (ATTR_COUNT + sm_inst_count);
+
+        t = sm_attr_info[info_idx].def->db_type;
+        ASSIGN_UNION(typeu, t, (char *)p_set->attr_values.sm_info[info_idx]);
+    }
     else
-        RBH_BUG("Attribute index exceeds max value (ATTR_COUNT + sm_inst_count)");
+        RBH_BUG("Attribute index exceeds max value ALL_ATTR_COUNT");
 
     printdbtype(p_mgr, str, t, &typeu);
 }
@@ -618,7 +657,7 @@ int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
+    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
     {
         if (p_set->attr_mask & mask)
         {
@@ -656,7 +695,7 @@ int attrset2updatelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
         return -DB_READ_ONLY_ATTR;
     }
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
+    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
     {
         if ((p_set->attr_mask & mask) && match_table(table, i))
         {
@@ -739,7 +778,7 @@ int result2attrset( table_enum table, char **result_tab,
     db_type_u      typeu;
     uint64_t       mask = 1;
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
+    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
     {
         if ((p_set->attr_mask & mask) && match_table(table, i))
         {
@@ -795,21 +834,40 @@ int result2attrset( table_enum table, char **result_tab,
                 continue;
             }
 
-            /* special case for fullpath which must be converted from relative to aboslute */
-            /* fullpath already includes root for SOFT_RM table */
             if ((i == ATTR_INDEX_fullpath) && (table != T_SOFTRM))
-                fullpath_db2attr(typeu.val_str, ATTR(p_set, fullpath));
-            else if (i >= ATTR_COUNT)
             {
+                /* special case for fullpath which must be converted from relative to aboslute */
+                /* fullpath already includes root for SOFT_RM table */
+                fullpath_db2attr(typeu.val_str, ATTR(p_set, fullpath));
+            }
+            else if (is_status_field(i))
+            {
+                int status_idx = i - ATTR_COUNT;
+
+                /* allocate status array */
                 sm_status_ensure_alloc(&p_set->attr_values.sm_status);
                 /* get the matching status from status enum */
-                p_set->attr_values.sm_status[i-ATTR_COUNT] =
-                    get_status_str(get_sm_instance(i - ATTR_COUNT)->sm, typeu.val_str);
-                if (p_set->attr_values.sm_status[i-ATTR_COUNT] == NULL)
-                {
-                    /* status = '' => not set */
+                p_set->attr_values.sm_status[status_idx] =
+                    get_status_str(get_sm_instance(status_idx)->sm, typeu.val_str);
+
+                /* status = '' => not set */
+                if (p_set->attr_values.sm_status[status_idx] == NULL)
                     p_set->attr_mask &= ~(1LL << i);
-                }
+            }
+            else if (is_sm_info_field(i))
+            {
+                int info_idx = i - (ATTR_COUNT + sm_inst_count);
+
+                /* allocate info array */
+                sm_info_ensure_alloc(&p_set->attr_values.sm_info);
+
+                /* allocate a copy of the value */
+                p_set->attr_values.sm_info[info_idx] =
+                    dup_value(field_type(i), typeu);
+
+                /* status = '' => not set */
+                if (p_set->attr_values.sm_info[info_idx] == NULL)
+                    p_set->attr_mask &= ~(1LL << i);
             }
             else if (is_sepdlist(i))
                 separated_db2list(typeu.val_str, ((char*)&p_set->attr_values + field_infos[i].offset),
@@ -1570,12 +1628,13 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
     uint64_t       mask = 1;
     db_type_u      typeu;
 
-    for ( i = 0; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1 )
+    for ( i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1 ) /* FIXME  leaks? */
     {
         if ( (update || !( p_target_attrset->attr_mask & mask ))
              && ( p_source_attrset->attr_mask & mask ) )
         {
-            if (i >= ATTR_COUNT)
+            /* status attr */
+            if (is_status_field(i))
             {
                 if (p_source_attrset->attr_values.sm_status == NULL)
                     RBH_BUG("status flag is set but status array is not allocated");
@@ -1584,9 +1643,29 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
                 p_target_attrset->attr_values.sm_status[i - ATTR_COUNT]
                     = p_source_attrset->attr_values.sm_status[i - ATTR_COUNT];
             }
+            /* SM specific info */
+            else if (is_sm_info_field(i))
+            {
+                unsigned int idx = i - (ATTR_COUNT + sm_inst_count);
+
+                if (p_source_attrset->attr_values.sm_info == NULL)
+                    RBH_BUG("specific info flag is set but info array is not allocated");
+
+                sm_info_ensure_alloc(&p_target_attrset->attr_values.sm_info);
+
+                /* free the previous value, if any */
+                if (p_target_attrset->attr_values.sm_info[idx] != NULL)
+                    free(p_target_attrset->attr_values.sm_info[idx]);
+
+                /* duplicate the field according to its type */
+                ASSIGN_UNION(typeu, field_type(i),
+                             p_source_attrset->attr_values.sm_info[idx]);
+
+                p_target_attrset->attr_values.sm_info[idx] =
+                    dup_value(field_type(i), typeu);
+            }
             else if (!is_stripe_field(i))
             {
-
                 ASSIGN_UNION( typeu, field_infos[i].db_type,
                               ( ( char * ) &p_source_attrset->attr_values +
                                 field_infos[i].offset ) );
@@ -1634,6 +1713,7 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
     }
 #endif
     sm_status_free(&p_set->attr_values.sm_status);
+    sm_info_free(&p_set->attr_values.sm_info);
 }
 
 /** return the mask of attributes that differ */
@@ -1644,17 +1724,29 @@ int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
     uint64_t common_mask = p_tgt->attr_mask & p_src->attr_mask;
     uint64_t diff_mask = 0;
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++, bit <<= 1)
+    for (i = 0; i < ALL_ATTR_COUNT; i++, bit <<= 1)
     {
         if (bit & common_mask)
         {
             int is_diff = 0;
 
-            if (i >= ATTR_COUNT)
+            /* status attr */
+            if (is_status_field(i))
             {
                 /** array is allocated as we check the common mask */
                 if (p_tgt->attr_values.sm_status[i - ATTR_COUNT]
                     != p_src->attr_values.sm_status[i - ATTR_COUNT])
+                    diff_mask |= bit;
+            }
+            /* SM specific info */
+            else if (is_sm_info_field(i))
+            {
+                unsigned int idx = i - (ATTR_COUNT + sm_inst_count);
+
+                DIFF_UNION(is_diff, field_type(i),
+                           p_src->attr_values.sm_info[idx],
+                           p_tgt->attr_values.sm_info[idx]);
+                if (is_diff)
                     diff_mask |= bit;
             }
             else if (!is_stripe_field(i))
@@ -1884,6 +1976,7 @@ bool lmgr_batch_compat(uint64_t m1, uint64_t m2)
         return false;
     if (!table_mask_compat(m1 & stripe_attr_set, m2 & stripe_attr_set))
         return false;
+
     return true;
 }
 

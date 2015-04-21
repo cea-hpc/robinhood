@@ -1541,22 +1541,6 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
     }
 #endif
 
-#ifdef ATTR_INDEX_last_copy
-    if ( mask & ATTR_MASK_last_copy )
-    {
-        if (brief)
-        {
-            written += snprintf( out_str + written, strsize - written, "copy=%u,",
-                    ATTR( p_attr_set, last_copy ));
-        }
-        else
-        {
-            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_copy ) );
-            written += snprintf( out_str + written, strsize - written, "Last Copy: %s ago\n", tmpbuf );
-        }
-    }
-#endif
-
 #ifdef _LUSTRE
     if ( mask & ATTR_MASK_stripe_items)
     {
@@ -1616,57 +1600,53 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
 
     for (i = 0; i < sm_inst_count; i++)
     {
+        sm_instance_t * smi = get_sm_instance(i);
+
+        /* print status */
         if (mask & SMI_MASK(i))
         {
-            sm_instance_t * smi = get_sm_instance(i);
-
             if (brief)
-            {
-                written +=
-                    snprintf(out_str + written, strsize - written, "%s=%s,",
-                             smi->db_field, STATUS_ATTR(p_attr_set, i));
-            }
+                format = "%s=%s,";
             else
+                format = "%s:  %s\n";
+
+            written +=
+                snprintf(out_str + written, strsize - written, format,
+                         smi->db_field, STATUS_ATTR(p_attr_set, i));
+        }
+        /* print specific info for this status manager */
+        if (mask & smi_info_bits(smi))
+        {
+            for (i = 0; i < smi->sm->nb_info; i++)
             {
-                written +=
-                    snprintf(out_str + written, strsize - written, "%s:  %s\n",
-                             smi->db_field, STATUS_ATTR(p_attr_set, i));
+                if (mask & smi_info_bit(smi, i))
+                {
+                    written += snprintf(out_str + written, strsize - written,
+                                        brief ? "%s=" : "%s:  ",
+                                        sm_attr_info[smi->sm_info_offset + i].db_attr_name);
+
+                    written += ListMgr_PrintAttr(out_str + written, strsize - written,
+                                                 sm_attr_info[smi->sm_info_offset + i].def->db_type,
+                                                 SMI_INFO(p_attr_set, smi, i),
+                                                 brief ? "'" : "\"");
+
+                    strncat(out_str + written, brief ? "," : "\n", strsize - written);
+                    written ++;
+                }
             }
         }
     }
-
-#ifdef ATTR_INDEX_backendpath
-    if ( mask & ATTR_MASK_backendpath )
-    {
-        if (brief)
-        {
-            written +=
-                snprintf(out_str + written, strsize - written, "backendpath='%s',",
-                         ATTR(p_attr_set, backendpath));
-        }
-        else
-        {
-            written +=
-                snprintf( out_str + written, strsize - written, "Backend path: \"%s\"\n",
-                         ATTR(p_attr_set, backendpath));
-        }
-    }
-#endif
 
     if ( mask & ATTR_MASK_link )
     {
         if (brief)
-        {
-            written +=
-                snprintf(out_str + written, strsize - written, "lnk='%s',",
-                         ATTR(p_attr_set, link));
-        }
+            format = "lnk='%s',";
         else
-        {
-            written +=
-                snprintf( out_str + written, strsize - written, "link: \"%s\"\n",
-                         ATTR(p_attr_set, link));
-        }
+            format = "link: \"%s\"\n";
+
+        written +=
+            snprintf(out_str + written, strsize - written, format,
+                     ATTR(p_attr_set, link));
     }
 
 
