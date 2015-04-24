@@ -91,17 +91,22 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t * p_filter, unsigned int
 
     /* @TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR and FILTER_FLAG_ALLOC_LIST */
 
-    if ( (comparator == LIKE) || (comparator == UNLIKE) )
+    if ((comparator == LIKE) || (comparator == UNLIKE) || (comparator == RLIKE))
     {
         int rc;
         char * newstr = MemAlloc( strlen(p_value->value.val_str)+1 );
 
-        rc = convert_regexp( p_value->value.val_str, newstr );
-        if ( rc )
+        if (comparator != RLIKE) /* value is a perl regexp, don't convert it */
         {
-            MemFree(newstr);
-            return rc;
+            rc = convert_regexp( p_value->value.val_str, newstr );
+            if ( rc )
+            {
+                MemFree(newstr);
+                return rc;
+            }
         }
+        else
+            strcpy(newstr, p_value->value.val_str);
 
         /* free the previous string */
         if ( flag & FILTER_FLAG_ALLOC_STR )

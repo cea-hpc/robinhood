@@ -905,6 +905,8 @@ char          *compar2str( filter_comparator_t compar )
         return " LIKE BINARY ";
     case UNLIKE:
         return " NOT LIKE BINARY ";
+    case RLIKE:
+        return " RLIKE BINARY ";
 #else
     case LIKE:
         return " LIKE ";

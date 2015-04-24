@@ -261,6 +261,7 @@ typedef enum
     MORETHAN_STRICT,
     LIKE,
     UNLIKE,
+    RLIKE,
     IN,
     NOTIN,
     ISNULL,
