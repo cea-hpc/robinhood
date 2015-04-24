@@ -698,7 +698,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int      next_stage = -1; /* -1 = skip */
     uint64_t attr_allow_cached = 0;
     uint64_t attr_need_fresh = 0;
-    uint64_t status_scope;
+    uint64_t status_scope = 0;
 
     const pipeline_stage_t *stage_info =
         &entry_proc_pipeline[p_op->pipeline_stage];
