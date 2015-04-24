@@ -16,6 +16,8 @@
 #include "config.h"
 #endif
 
+#include "RobinhoodConfig.h"
+
 #ifdef HAVE_RMDIR_POLICY
 #include "rmdir.h"
 #endif
@@ -30,7 +32,6 @@
 
 #include "uidgidcache.h"
 #include "list_mgr.h"
-#include "RobinhoodConfig.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
 #include "cmd_helpers.h"

@@ -38,6 +38,9 @@
 
 /* ------------ Types and global variables ------------ */
 
+/* Module configuration */
+resource_monitor_config_t resmon_config = {0};
+
 /* Running mode (default is daemon) */
 static resmon_opt_t module_args =
 {
@@ -1489,6 +1492,7 @@ static int check_usergroup_trigger( unsigned trigger_index )
 
         /* perform the purge */
         blocks_purged = nb_purged = 0;
+
         rc = perform_purge( &lmgr, &purge_param, &blocks_purged, &nb_purged );
 
         /* update last purge time and target */
@@ -1830,7 +1834,7 @@ static void   *force_fs_trigger_thr( void *arg )
     int            rc;
     unsigned long long purged, spec;
     char           timestamp[128];
-    trigger_item_t trig;
+    trigger_item_t trig = {0};
     double         curr_usage;
     char           status_str[1024];
     char           buff[1024];

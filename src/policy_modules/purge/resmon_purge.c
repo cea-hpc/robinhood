@@ -16,6 +16,7 @@
 #include "config.h"
 #endif
 
+#include "RobinhoodConfig.h"
 #include "resource_monitor.h"
 #include "resmon_purge.h"
 #include "queue.h"
@@ -24,7 +25,6 @@
 #include "RobinhoodMisc.h"
 #include "Memory.h"
 #include "xplatform_print.h"
-#include "RobinhoodConfig.h"
 
 #ifdef _HSM_LITE
 #include "backend_mgr.h"
@@ -40,15 +40,11 @@
 #define PURGE_TAG   "Purge"
 #define CHECK_PURGE_INTERVAL    1
 
-/* Module configuration */
-resource_monitor_config_t resmon_config;
-
 static int resmon_flags = 0;
 static int purge_abort = FALSE;
 
 #define ignore_policies (resmon_flags & FLAG_IGNORE_POL)
 #define dry_run (resmon_flags & FLAG_DRY_RUN)
-#define no_sort (resmon_config.no_sort)
 
 /* queue of entries to be checked/purged */
 entry_queue_t  purge_queue;
@@ -162,7 +158,7 @@ static int heuristic_end_of_list( time_t last_access_time )
     entry_id_t     void_id;
     attr_set_t     void_attr;
 
-    if (no_sort)
+    if (resmon_config.no_sort)
         return FALSE;
 
     /* list all files if policies are ignored */
@@ -477,7 +473,7 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
 
     /* sort by last access (unless 'no_sort' is specified) */
     sort_type.attr_index = ATTR_INDEX_last_access;
-    sort_type.order = no_sort ? SORT_NONE : SORT_ASC;
+    sort_type.order = (resmon_config.no_sort ? SORT_NONE : SORT_ASC);
 
     rc = lmgr_simple_filter_init( &filter );
     if ( rc )
@@ -767,7 +763,7 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
                 if ( rc )
                     return rc;
 
-                if (!no_sort)
+                if (!resmon_config.no_sort)
                 {
                     /* filter on access time */
                     fval.value.val_int = last_entry_access;
@@ -779,7 +775,7 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
                         return rc;
                 }
 
-                if (no_sort)
+                if (resmon_config.no_sort)
                     DisplayLog(LVL_DEBUG, PURGE_TAG,
                                "Performing new request with a limit of %u entries"
                                " and md_update < %ld ",

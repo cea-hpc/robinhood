@@ -24,6 +24,7 @@
 #include "rbh_const.h"
 #include "config_parsing.h"
 #include <sys/types.h>
+#include <stdbool.h>
 
 /**
  *  Trigger type
@@ -104,11 +105,12 @@ typedef struct resource_monitor_config_t
 	char         purge_command[RBH_PATH_MAX];
 #endif
 
+    bool recheck_ignored_classes;
+    bool no_sort;
+
 #ifdef ATTR_INDEX_status
-    unsigned int check_purge_status_on_startup:1;
+    bool check_purge_status_on_startup;
 #endif
-    unsigned int recheck_ignored_classes:1;
-    unsigned int no_sort:1;
 
 } resource_monitor_config_t;
 
