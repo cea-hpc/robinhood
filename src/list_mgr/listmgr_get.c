@@ -274,7 +274,15 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
                             main_count + annex_count + name_count);
         /* END_OF_LIST means it does not exist */
         if (rc == DB_END_OF_LIST)
+        {
+            p_info->attr_mask &= ~(main_attr_set|annex_attr_set|names_attr_set);
+
+            /* not found, but did not check MAIN yet */
+            if (checkmain)
+                goto next_table;
+
             rc = DB_NOT_EXISTS;
+        }
         if (rc)
             goto free_res;
 
@@ -303,6 +311,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
                 goto free_res;
         }
 
+next_table:
         db_result_free(&p_mgr->conn, &result);
     }
 
@@ -333,7 +342,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
             checkmain = false; /* entry exists */
     }
 #else
-    /* always clean them */
+    /* POSIX: always clean stripe bits */
     p_info->attr_mask &= ~(ATTR_MASK_stripe_info | ATTR_MASK_stripe_items);
 #endif
 
