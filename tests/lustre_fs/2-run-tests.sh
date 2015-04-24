@@ -1954,6 +1954,18 @@ function test_dircount_report
 		(($avg == $i)) || error "Invalid avg size $avg for dir.$i ($i expected)"
 	done
 
+    echo "3b. Checking topdirs + filterpath"
+	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$ROOT/dir.1" --csv -q > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+    # only one line expected
+    lines=$(wc -l report.out | awk '{print $1}')
+    (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
+    line=`grep "$ROOT/dir.1," report.out` || error "$ROOT/dir.1 not found in report"
+
+# BUGGY
+#    $REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$ROOT/dir.1*" --csv -q > report.out
+#    [ "$DEBUG" = "1" ] && echo && cat report.out
+
 	if [ $PURPOSE = "TMP_FS_MGR" ]; then
 		echo "4. Check empty dirs..."
 		# check empty dirs
@@ -1961,6 +1973,14 @@ function test_dircount_report
 		for i in `seq 1 $emptydir`; do
 			grep "$ROOT/empty.$i" report.out > /dev/null || error "$ROOT/empty.$i not found in top rmdir"
 		done
+
+        # test with filterpath
+        $REPORT -f ./cfg/$config_file --toprmdir --csv -q --filter-path="$ROOT/empty.1" > report.out
+        [ "$DEBUG" = "1" ] && cat report.out
+        # only one line expected
+        lines=$(wc -l report.out | awk '{print $1}')
+        (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
+        line=`grep "$ROOT/empty.1," report.out` || error "$ROOT/empty.1 not found in report"
 	fi
 
     rm -f report.out
