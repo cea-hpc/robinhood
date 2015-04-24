@@ -52,7 +52,7 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	CMD=rbh-lhsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving"
-	REL_STR="Releasing"
+	REL_STR="Released"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
 	shook=0
@@ -812,6 +812,8 @@ function test_purge_lru
 		return 1
 	fi
 
+    echo "NO_SORT=$NO_SORT"
+
 	clean_logs
 
     # initial scan
@@ -826,6 +828,7 @@ function test_purge_lru
     # access 4 files 
   	for i in {1..4}; do
 		dd if=$ROOT/file.$i of=/dev/null bs=1M count=1 >/dev/null 2>/dev/null || error "reading file.$i"
+        touch -a $ROOT/file.$i
         sleep 1
 	done
     
@@ -840,12 +843,17 @@ function test_purge_lru
     if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "Archiving files"
 		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "archiving files"
+		if (($is_lhsm != 0)); then
+            wait_done 60
+            # update file status
+		    $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+        fi
 	fi
 
     # md_update for purge must be > previous md updates
     sleep 1
 
-    $RH -f ./cfg/$config_file --purge-fs=0 --once -l DEBUG  -L rh_purge.log || error "purging files"
+    $RH -f ./cfg/$config_file --purge-fs=0 --once -l FULL  -L rh_purge.log || error "purging files"
 
     # if sorted: order should be 5 6 1 2 3 4
     exp_rank=(3 4 5 6 1 2)
@@ -855,7 +863,7 @@ function test_purge_lru
       	for i in {1..6}; do
             idx=$(($i-1))
             rank=$(lru_order_of rh_purge.log $ROOT/file.$i)
-            echo "file.$i purge rank #${exp_rank[$idx]}"
+            echo "file.$i purge rank $rank/#${exp_rank[$idx]}"
             [[ $rank == ${exp_rank[$idx]} ]] || error "file.$i should have been purge in #${exp_rank[$idx]} (got $rank)"
         done
 
