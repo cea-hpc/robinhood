@@ -187,10 +187,18 @@ static int mk_path_filter( lmgr_filter_t * filter, int do_display, int * initial
         if (path_filter[len-1] == '/')
             path_filter[len-1] = '\0';
 
+        /* as this is a RLIKE matching, shell regexp must be replaced by perl:
+         * [abc] => OK
+         * '*' => '.*'
+         * '?' => '.'
+         */
+        str_replace(path_filter, "*", ".*");
+        str_replace(path_filter, "?", ".");
+
         /* match 'path$' OR 'path/.*' */
         snprintf(path_regexp, RBH_PATH_MAX, "%s($|/.*)", path_filter);
-
         fv.value.val_str = path_regexp;
+
         lmgr_simple_filter_add(filter, ATTR_INDEX_fullpath, RLIKE, fv, 0);
     }
     return 0;

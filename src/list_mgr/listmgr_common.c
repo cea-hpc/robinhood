@@ -827,7 +827,7 @@ char          *compar2str( filter_comparator_t compar )
  *                           test looks like "dirattr >= x"
  */
 filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
-                        unsigned int * dir_attr_index)
+                        unsigned int * dir_attr_index, const char *prefix)
 {
     int i;
     filter_str[0] = '\0';
@@ -848,7 +848,10 @@ filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * 
             {
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Special filter on empty directory" );
                 /* empty directories are those with no parent_id in NAMES table */
-                strcpy( filter_str, "id NOT IN (SELECT distinct(parent_id) from "DNAMES_TABLE")" );
+                if (prefix)
+                    sprintf(filter_str, "%s.id NOT IN (SELECT distinct(parent_id) from "DNAMES_TABLE")", prefix);
+                else
+                    strcpy(filter_str, "id NOT IN (SELECT distinct(parent_id) from "DNAMES_TABLE")");
                 *dir_attr_index = index;
                 return FILTERDIR_EMPTY;
             }

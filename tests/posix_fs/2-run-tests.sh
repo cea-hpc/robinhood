@@ -819,8 +819,11 @@ function test_dircount_report
 
 	# create several dirs with different entry count (+10 for each)
 
+    match_empty1=0
+    match_dir1=0
 	for i in `seq 1 $dircount`; do
                 mkdir $ROOT/dir.$i
+                [[ $i == 1* ]] && ((match_dir1++))
                 echo "1.$i-Creating files in $ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $((10*$i))`; do
@@ -832,6 +835,7 @@ function test_dircount_report
 		# create 5 empty dirs
 		for i in `seq 1 $emptydir`; do
 			mkdir $ROOT/empty.$i
+            [[ $i == 1* ]] && ((match_empty1++))
 		done
 	fi
 
@@ -874,15 +878,17 @@ function test_dircount_report
 
     echo "3b. Checking topdirs + filterpath"
 	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$ROOT/dir.1" --csv -q > report.out
-    [ "$DEBUG" = "1" ] && cat report.out
+    [ "$DEBUG" = "1" ] && echo && cat report.out
     # only one line expected
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
     line=`grep "$ROOT/dir.1," report.out` || error "$ROOT/dir.1 not found in report"
 
-# BUGGY
-#    $REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$ROOT/dir.1*" --csv -q > report.out
-#    [ "$DEBUG" = "1" ] && echo && cat report.out
+    $REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$ROOT/dir.1*" --csv -q > report.out
+    [ "$DEBUG" = "1" ] && echo && cat report.out
+    lines=$(wc -l report.out | awk '{print $1}')
+    (( $lines == $match_dir1 )) || error "$match_dir1 expected in output (found $lines)"
+
 
 	if [ $PURPOSE = "TMP_FS_MGR" ]; then
 		echo "4. Check empty dirs..."
@@ -894,11 +900,16 @@ function test_dircount_report
 
         # test with filterpath
         $REPORT -f ./cfg/$config_file --toprmdir --csv -q --filter-path="$ROOT/empty.1" > report.out
-        [ "$DEBUG" = "1" ] && cat report.out
+        [ "$DEBUG" = "1" ] && echo && cat report.out
         # only one line expected
         lines=$(wc -l report.out | awk '{print $1}')
         (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
         line=`grep "$ROOT/empty.1," report.out` || error "$ROOT/empty.1 not found in report"
+
+        $REPORT -f ./cfg/$config_file --toprmdir --csv -q --filter-path="$ROOT/empty.1*" > report.out
+        [ "$DEBUG" = "1" ] && echo && cat report.out
+        lines=$(wc -l report.out | awk '{print $1}')
+        (( $lines == $match_empty1 )) || error "$match_empty1 expected in output (found $lines)"
 	fi
 }
 

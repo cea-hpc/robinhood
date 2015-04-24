@@ -299,7 +299,7 @@ typedef enum
 } filter_dir_e;
 
 filter_dir_e dir_filter(lmgr_t * p_mgr, char* filter_str, const lmgr_filter_t * p_filter,
-                        unsigned int * dir_attr_index);
+                        unsigned int * dir_attr_index, const char *prefix);
 
 unsigned int  append_size_range_fields(char * str, int leading_comma, char *prefix);
 

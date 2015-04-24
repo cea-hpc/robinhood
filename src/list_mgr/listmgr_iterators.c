@@ -79,7 +79,7 @@ static void append_dir_req(char * outstr, const char * req_start, const char * t
             case FILTERDIR_OTHER:
 
                 /* join dir entry attributes from main table with special dir attrs */
-                currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
+                currstr += sprintf(outstr, "%s INNER JOIN (", req_start);
                 currstr += append_dirattr_select(currstr, filter_dir_index, "dirattr");
                 currstr += sprintf(currstr, ") as da ON id=da.parent_id WHERE %s", filter_dir_str);
 
@@ -100,9 +100,9 @@ static void append_dir_req(char * outstr, const char * req_start, const char * t
         switch (filter_dir)
         {
             case FILTERDIR_NONE:
-                /* left join with dirattr_sort */
+                /* implicit filter on 'type == dir' */
                 /* @TODO optim: directly perform request on parent_id if no table_filter? */
-                currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
+                currstr += sprintf(outstr, "%s INNER JOIN (", req_start);
                 currstr += append_dirattr_select(currstr, sort_attr_index, "dirattr_sort");
                 currstr += sprintf(currstr, ") as ds ON id=ds.parent_id");
 
@@ -110,8 +110,8 @@ static void append_dir_req(char * outstr, const char * req_start, const char * t
                     sprintf( currstr, " WHERE %s", table_filter );
                 break;
             case FILTERDIR_EMPTY:
-                /* left join with dirattr_sort + add empty dir filter */
-                currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
+                /* join with empty dir filter + dirattr_sort */
+                currstr += sprintf(outstr, "%s INNER JOIN (", req_start);
                 currstr += append_dirattr_select(currstr, sort_attr_index, "dirattr_sort");
                 currstr += sprintf(currstr, "as ds ON id=ds.parent_id WHERE %s", filter_dir_str);
 
@@ -120,10 +120,10 @@ static void append_dir_req(char * outstr, const char * req_start, const char * t
                 break;
             case FILTERDIR_OTHER:
 
-                /* left join with dirattr_sort + left join on filter */
+                /* left join with dirattr_sort + right join on filter */
                 currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
                 currstr += append_dirattr_select(currstr, sort_attr_index, "dirattr_sort");
-                currstr += sprintf(currstr, ") ds ON id=ds.parent_id LEFT JOIN (");
+                currstr += sprintf(currstr, ") ds ON id=ds.parent_id RIGHT JOIN (");
                 currstr += append_dirattr_select(currstr, filter_dir_index, "dirattr");
                 currstr += sprintf(currstr, ") da ON id=da.parent_id WHERE %s",
                                    filter_dir_str);
@@ -212,9 +212,6 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
 
     if ( p_filter )
     {
-        filter_dir_type = dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index);
-        /* XXX is sort dirattr the same as filter dirattr? */
-
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
                                   FALSE, TRUE );
         filters += (filter_main > 0 ? 1 : 0);
@@ -239,11 +236,13 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                         filters, TRUE);
         filters += (filter_stripe_items > 0 ? 1 : 0);
 
+        filter_dir_type = dir_filter(p_mgr, filter_dir_str, p_filter,
+                                     &filter_dir_index, do_sort ?
+                                     table2name(sort_table) : MAIN_TABLE);
+        /* XXX is sort dirattr the same as filter dirattr? */
 
         if (filters == 0)
         {
-            /* for dirattr filter, we can deal with table mixing */
-
             /* all records */
             if (filter_dir_type == FILTERDIR_NONE)
                 DisplayLog( LVL_FULL, LISTMGR_TAG, "Empty filter: all records will be affected" );
@@ -460,6 +459,11 @@ struct lmgr_iterator_t *ListMgr_Iterator( lmgr_t * p_mgr,
                 sprintf( tmp, "SELECT DISTINCT(%s.id) AS id FROM %s", first_table, tables );
             else
                 sprintf( tmp, "SELECT %s.id AS id FROM %s", first_table, tables );
+
+            /* rebuild the dir filter with the right prefix */
+            filter_dir_str[0] = '\0';
+            dir_filter(p_mgr, filter_dir_str, p_filter,
+                       &filter_dir_index, first_table);
             append_dir_req( query, tmp, fields, sort_dirattr,
                             filter_dir_type, filter_dir_index, filter_dir_str);
         }
