@@ -79,7 +79,7 @@ static void append_dir_req(GString *from, GString *where, int sort_attr_index,
             case FILTERDIR_OTHER:
 
                 /* join dir entry attributes from main table with special dir attrs */
-                g_string_append(from, "  LEFT JOIN (");
+                g_string_append(from, " INNER JOIN (");
                 append_dirattr_select(from, filter_dir_index, "dirattr");
                 g_string_append_printf(from, ") AS da ON id=da.parent_id");
                 g_string_append(where, filter_dir_str); /* FIXME add AND? */
@@ -98,26 +98,26 @@ static void append_dir_req(GString *from, GString *where, int sort_attr_index,
         switch (filter_dir)
         {
             case FILTERDIR_NONE:
-                /* left join with dirattr_sort */
+                /* implicit filter on 'type == dir' */
                 /* @TODO optim: directly perform request on parent_id if no table_filter? */
-                g_string_append(from, "  LEFT JOIN (");
+                g_string_append(from, " INNER JOIN (");
                 append_dirattr_select(from, sort_attr_index, "dirattr_sort");
                 g_string_append(from, ") AS ds ON id=ds.parent_id");
                 break;
 
             case FILTERDIR_EMPTY:
-                /* left join with dirattr_sort + add empty dir filter */
-                g_string_append(from, "  LEFT JOIN (");
+                /* join with empty dir filter + dirattr_sort */
+                g_string_append(from, " INNER JOIN (");
                 append_dirattr_select(from, sort_attr_index, "dirattr_sort");
                 g_string_append(from ,") AS ds ON id=ds.parent_id");
                 g_string_append(where, filter_dir_str); /* FIXME add AND? */
                 break;
 
             case FILTERDIR_OTHER:
-                /* left join with dirattr_sort + left join on filter */
+                /* left join with dirattr_sort + right join on filter */
                 g_string_append(from, "  LEFT JOIN (");
                 append_dirattr_select(from, sort_attr_index, "dirattr_sort");
-                g_string_append(from, ") ds ON id=ds.parent_id LEFT JOIN (");
+                g_string_append(from, ") ds ON id=ds.parent_id RIGHT JOIN (");
                 append_dirattr_select(from, filter_dir_index, "dirattr");
                 g_string_append(from, ") da ON id=da.parent_id");
                 g_string_append(where, filter_dir_str);  /* FIXME add AND? */
@@ -241,7 +241,10 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
 
         /* check condition on directory */
         filter_dir = g_string_new(NULL);
-        filter_dir_type = dir_filter(p_mgr, filter_dir, p_filter, &filter_dir_index);
+        filter_dir_type = dir_filter(p_mgr, filter_dir, p_filter, &filter_dir_index,
+                                     (sort_table != T_NONE) ?
+                                        table2name(sort_table) : MAIN_TABLE);
+        /* XXX is sort dirattr the same as filter dirattr? */
 
         where = g_string_new(NULL);
         filter_where(p_mgr, p_filter, &fcnt, false, false, where);

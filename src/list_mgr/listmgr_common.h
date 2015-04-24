@@ -510,7 +510,8 @@ typedef enum
 } filter_dir_e;
 
 filter_dir_e dir_filter(lmgr_t * p_mgr, GString* filter_str,
-                        const lmgr_filter_t * p_filter, unsigned int *dir_attr_index);
+                        const lmgr_filter_t * p_filter, unsigned int *dir_attr_index,
+                        const char *prefix);
 
 void append_size_range_fields(GString *str, bool leading_comma,
                               const char *prefix);

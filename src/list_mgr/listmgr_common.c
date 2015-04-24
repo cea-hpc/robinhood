@@ -936,7 +936,7 @@ char          *compar2str( filter_comparator_t compar )
  *                           test looks like "dirattr >= x"
  */
 filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filter,
-                        unsigned int *dir_attr_index)
+                        unsigned int *dir_attr_index, const char *prefix)
 {
     int i;
 
@@ -958,8 +958,14 @@ filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t 
 
                 /* empty directories are those with no parent_id in NAMES table */
                 if (filter_str != NULL) /* allow passing no string */
-                    g_string_append(filter_str, "id NOT IN (SELECT distinct(parent_id) "
-                                    "FROM "DNAMES_TABLE")");
+                {
+                    if (prefix)
+                        g_string_append_printf(filter_str, "%s.id NOT IN (SELECT distinct(parent_id) "
+                                        "FROM "DNAMES_TABLE")", prefix);
+                    else
+                        g_string_append(filter_str, "id NOT IN (SELECT distinct(parent_id) "
+                                        "FROM "DNAMES_TABLE")");
+                }
                 if (dir_attr_index != NULL) /* allow passing no index */
                     *dir_attr_index = index;
 

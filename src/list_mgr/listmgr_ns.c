@@ -141,7 +141,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     /* check filters on other tables */
     if (!no_filter(p_filter))
     {
-        if (unlikely(dir_filter(p_mgr, NULL, p_filter, NULL) != FILTERDIR_NONE))
+        if (unlikely(dir_filter(p_mgr, NULL, p_filter, NULL, NULL) != FILTERDIR_NONE))
         {
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Directory filter not supported in %s()", __func__);
             rc = DB_NOT_SUPPORTED;
