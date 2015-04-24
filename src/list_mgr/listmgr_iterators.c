@@ -104,7 +104,7 @@ static void append_dir_req(char * outstr, const char * req_start, const char * t
                 /* @TODO optim: directly perform request on parent_id if no table_filter? */
                 currstr += sprintf(outstr, "%s LEFT JOIN (", req_start);
                 currstr += append_dirattr_select(currstr, sort_attr_index, "dirattr_sort");
-                currstr += sprintf(currstr, "as ds ON id=ds.parent_id");
+                currstr += sprintf(currstr, ") as ds ON id=ds.parent_id");
 
                 if (table_filter)
                     sprintf( currstr, " WHERE %s", table_filter );

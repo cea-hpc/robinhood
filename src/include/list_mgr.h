@@ -326,6 +326,7 @@ typedef enum
     MORETHAN_STRICT,
     LIKE,
     UNLIKE,
+    RLIKE,
     IN,
     NOTIN,
 } filter_comparator_t;
