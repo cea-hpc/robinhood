@@ -842,12 +842,21 @@ function test_purge_lru
 	# flush data for HSM flavors
     if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "Archiving files"
-		$RH -f ./cfg/$config_file --sync -l DEBUG  -L rh_migr.log || error "archiving files"
+		$RH -f ./cfg/$config_file --sync -l FULL  -L rh_migr.log || error "archiving files"
+
+        # all entries must be found
+        cnt=$(grep "$ARCH_STR '" rh_migr.log | wc -l)
+        [[ $cnt == 6 ]] || error "All entries should have been archived"
+
+        # DB request must not have access time criteria
+        grep "new request" rh_migr.log | grep last_mod && error "last_mod shouldn't be in request criteria"
+
 		if (($is_lhsm != 0)); then
             wait_done 60
             # update file status
 		    $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
         fi
+
 	fi
 
     # md_update for purge must be > previous md updates
@@ -869,7 +878,6 @@ function test_purge_lru
 
         # DB request must have access time criteria
         grep "new request" rh_purge.log | grep access || error "access should be in request criteria"
-
     else
         # all entries must be found
         cnt=$(grep "$REL_STR" rh_purge.log | wc -l)

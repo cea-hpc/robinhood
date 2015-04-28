@@ -16,13 +16,13 @@
 #include "config.h"
 #endif
 
+#include "RobinhoodConfig.h"
 #include "migration.h"
 #include "migr_arch.h"
 #include "queue.h"
 #include "list_mgr.h"
 #include "RobinhoodLogs.h"
 #include "RobinhoodMisc.h"
-#include "RobinhoodConfig.h"
 #include "Memory.h"
 #include "xplatform_print.h"
 
@@ -174,8 +174,11 @@ static int heuristic_end_of_list( time_t last_time )
     entry_id_t     void_id;
     attr_set_t     void_attr;
 
+    if (!migr_config.sort)
+        return FALSE;
+
     /* list all files if policies are ignored */
-    if ( ignore_policies )
+    if (ignore_policies)
         return FALSE;
 
     memset( &void_id, 0, sizeof( entry_id_t ) );
@@ -672,7 +675,8 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
     /* sort by last modification time */
     sort_type.attr_index = migr_config.lru_sort_attr;
-    sort_type.order = SORT_ASC;
+    sort_type.order = (migr_config.sort ? SORT_ASC : SORT_NONE);
+
 
     rc = lmgr_simple_filter_init( &filter );
     if ( rc )
@@ -954,19 +958,29 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
                     return rc;
 
                 /* filter on modification time (allow NULL) */
-                fval.value.val_int = last_sort_time;
-                rc = lmgr_simple_filter_add_or_replace(&filter,
-                                                       migr_config.lru_sort_attr,
-                                                       MORETHAN, fval,
-                                                       FILTER_FLAG_ALLOW_NULL );
-                if ( rc )
-                    return rc;
+                if (migr_config.sort)
+                {
+                    fval.value.val_int = last_sort_time;
+                    rc = lmgr_simple_filter_add_or_replace(&filter,
+                                                           migr_config.lru_sort_attr,
+                                                           MORETHAN, fval,
+                                                           FILTER_FLAG_ALLOW_NULL);
+                    if (rc)
+                        return rc;
 
-                DisplayLog( LVL_DEBUG, MIGR_TAG,
-                            "Performing new request with a limit of %u entries"
-                            " and %s >= %d and md_update < %ld ",
-                            opt.list_count_max, sort_attr_name,
-                            last_sort_time, first_request_time );
+                    DisplayLog(LVL_DEBUG, MIGR_TAG,
+                               "Performing new request with a limit of %u entries"
+                               " and %s >= %d and md_update < %ld ",
+                               opt.list_count_max, sort_attr_name,
+                               last_sort_time, first_request_time);
+                }
+                else
+                {
+                    DisplayLog(LVL_DEBUG, MIGR_TAG,
+                               "Performing new request with a limit of %u entries"
+                               " and md_update < %ld ",
+                               opt.list_count_max, first_request_time);
+                }
 
                 nb_returned = 0;
                 it = ListMgr_Iterator( lmgr, &filter, &sort_type, &opt );
@@ -990,9 +1004,12 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
 
             nb_returned++;
 
-            rc = get_sort_attr(&attr_set);
-            if (rc != -1)
-                last_sort_time = rc;
+            if (migr_config.sort)
+            {
+                rc = get_sort_attr(&attr_set);
+                if (rc != -1)
+                    last_sort_time = rc;
+            }
 
             sz = ATTR( &attr_set, size );
 
@@ -1006,13 +1023,11 @@ int perform_migration( lmgr_t * lmgr, migr_param_t * p_migr_param,
             nb_submitted++;
 
             /* periodically check if we have a chance to have more matching entries */
-            if ( nb_submitted % 1000 == 0 )
+            if (migr_config.sort && (nb_submitted % 1000 == 0)
+                && heuristic_end_of_list(last_sort_time))
             {
-                if ( heuristic_end_of_list( last_sort_time ) )
-                {
-                    end_of_list = TRUE;
-                    break;
-                }
+                end_of_list = TRUE;
+                break;
             }
         }
         while (!check_queue_limit(nb_submitted, submitted_vol, feedback_before, status_tab_before));

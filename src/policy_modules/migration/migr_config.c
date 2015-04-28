@@ -42,12 +42,13 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
     conf->suspend_error_pct = 0.0;
 
     conf->lru_sort_attr = ATTR_INDEX_last_mod;
+    conf->sort = false;
 
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
-    conf->backup_new_files = TRUE;
+    conf->backup_new_files = true;
 #endif
-    conf->recheck_ignored_classes = TRUE;
-    conf->check_copy_status_on_startup = TRUE;
+    conf->recheck_ignored_classes = true;
+    conf->check_copy_status_on_startup = true;
     conf->check_copy_status_delay = 30 * 60; /* 30 min */
     conf->migration_timeout = 2 * 3600; /* cancel migration pass after 2h of inactivity */
 
@@ -68,7 +69,7 @@ int Write_Migration_ConfigDefault( FILE * output )
     print_line( output, 1, "suspend_error_min     : disabled (0)" );
     print_line( output, 1, "pre_maintenance_window: 24h" );
     print_line( output, 1, "maint_migr_delay_min  : 30min" );
-    print_line( output, 1, "lru_sort_attr         : last_mod" );
+    print_line(output, 1, "lru_sort_attr         : none (no sort)");
 
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     print_line( output, 1, "backup_new_files      : TRUE" );
@@ -111,8 +112,8 @@ int Write_Migration_ConfigTemplate( FILE * output )
     print_line(output, 1, "suspend_error_pct = 50%% ;");
     print_line(output, 1, "suspend_error_min = 100 ;");
     fprintf( output, "\n" );
-    print_line( output, 1, "# sort order for applying migration policy" );
-    print_line( output, 1, "lru_sort_attr         = last_mod ;" );
+    print_line(output, 1, "# sort attr for applying migration policy ('none' to disable sorting)");
+    print_line(output, 1, "#lru_sort_attr         = last_mod ;");
     fprintf( output, "\n" );
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     print_line( output, 1, "# don't archive files that have never been archived before" );
@@ -226,19 +227,35 @@ int Read_Migration_Config( config_file_t config, void *module_config,
         /* is it a time attribute? */
 #ifdef ATTR_INDEX_last_archive
         if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ARCHIVE)))
+        {
             conf->lru_sort_attr = ATTR_INDEX_last_archive;
+            conf->sort = true;
+        }
+        else
+#endif
+#ifdef ATTR_INDEX_creation_time
+        if (!strcasecmp(tmp, criteria2str(CRITERIA_CREATION)))
+        {
+            conf->lru_sort_attr = ATTR_INDEX_creation_time;
+            conf->sort = true;
+        }
         else
 #endif
         if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_ACCESS)))
+        {
             conf->lru_sort_attr = ATTR_INDEX_last_access;
+            conf->sort = true;
+        }
         else if (!strcasecmp(tmp, criteria2str(CRITERIA_LAST_MOD)))
+        {
             conf->lru_sort_attr = ATTR_INDEX_last_mod;
-#ifdef ATTR_INDEX_creation_time
-        else if (!strcasecmp(tmp, criteria2str(CRITERIA_CREATION)))
-            conf->lru_sort_attr = ATTR_INDEX_creation_time;
-#endif
+            conf->sort = true;
+        }
+        else if (!strcasecmp(tmp, "none"))
+            conf->sort = false;
         else {
-            strcpy( msg_out, "time attribute expected for 'lru_sort_attr': creation, last_access, last_mod, last_archive...");
+            strcpy(msg_out, "time attribute (or 'none') expected for 'lru_sort_attr': "
+                   "creation, last_access, last_mod, last_archive, none...");
             return EINVAL;
         }
     }
@@ -343,7 +360,8 @@ int Reload_Migration_Config( void *module_config )
                     MIGR_PARAM_BLOCK
                     "::migration_queue_size changed in config file, but cannot be modified dynamically" );
 
-    if ( migr_config.lru_sort_attr != conf->lru_sort_attr )
+    if ((migr_config.lru_sort_attr != conf->lru_sort_attr)
+        || (migr_config.sort != conf->sort))
         DisplayLog( LVL_MAJOR, MIGRCFG_TAG, MIGR_PARAM_BLOCK "::lru_sort_attr"
                     " changed in config file, but cannot be modified dynamically" );
 

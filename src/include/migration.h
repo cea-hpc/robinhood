@@ -21,6 +21,7 @@
 
 #include "config_parsing.h"
 #include <sys/types.h>
+#include <stdbool.h>
 
 typedef struct migration_config_t
 {
@@ -44,12 +45,14 @@ typedef struct migration_config_t
 
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     unsigned int   lru_sort_attr;
+    bool           sort;
+
+    bool   check_copy_status_on_startup;
+    bool   recheck_ignored_classes;
 
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
-    unsigned int   backup_new_files:1;
+    bool   backup_new_files;
 #endif
-    unsigned int   check_copy_status_on_startup:1;
-    unsigned int   recheck_ignored_classes:1;
 
 } migration_config_t;
 
