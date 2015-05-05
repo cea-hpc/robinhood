@@ -252,12 +252,15 @@ int get_stripe_info(lmgr_t *p_mgr, PK_ARG_T pk, stripe_info_t *p_stripe_info,
         if (rc)
             goto out;
 
+#ifndef _LUSTRE_HSM
+        /* this is abnormal if LUSTRE/HSM feature is not present */
         if (p_stripe_info->stripe_count != db_result_nb_records(&p_mgr->conn, &result))
         {
             DisplayLog(LVL_MAJOR, LISTMGR_TAG,
                        "Warning: the number of stripe items (%d) doesn't match stripe count (%u)! (Pk="DPK")",
                        db_result_nb_records(&p_mgr->conn, &result), p_stripe_info->stripe_count, pk);
         }
+#endif
         p_items->count = db_result_nb_records(&p_mgr->conn, &result);
 
         if (p_items->count > 0)

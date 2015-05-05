@@ -83,10 +83,11 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
 
         if ( p_stripe_items )
         {
-            p_stripe_items->count = p_lum->lmm_stripe_count;
 
-            if ( p_lum->lmm_stripe_count > 0 )
+            if ( p_lum->lmm_stripe_count > 0  &&
+                (p_lum->lmm_pattern & LOV_PATTERN_F_RELEASED) == 0)
             {
+                p_stripe_items->count = p_lum->lmm_stripe_count;
                 p_stripe_items->stripe =
                     (stripe_item_t *)MemCalloc(p_lum->lmm_stripe_count,
                                                sizeof(stripe_item_t));
@@ -114,6 +115,7 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
             }
             else
             {
+                p_stripe_items->count = 0;
                 p_stripe_items->stripe = NULL;
             }
         }
@@ -139,10 +141,10 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
 
         if ( p_stripe_items )
         {
-            p_stripe_items->count = p_lum3->lmm_stripe_count;
-
-            if ( p_lum3->lmm_stripe_count > 0 )
+            if ( p_lum3->lmm_stripe_count > 0  &&
+                (p_lum3->lmm_pattern & LOV_PATTERN_F_RELEASED) == 0)
             {
+                p_stripe_items->count = p_lum3->lmm_stripe_count;
                 p_stripe_items->stripe =
                     (stripe_item_t *)MemCalloc(p_lum3->lmm_stripe_count,
                                                sizeof(stripe_item_t));
@@ -170,6 +172,7 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
             }
             else
             {
+                p_stripe_items->count = 0;
                 p_stripe_items->stripe = NULL;
             }
         }

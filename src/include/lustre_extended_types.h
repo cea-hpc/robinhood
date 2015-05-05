@@ -176,6 +176,10 @@ static inline char *rh_get_cl_cr_name(const struct changelog_rec *rec)
 
 #endif  /* HAVE_CHANGELOGS */
 
+#ifndef LOV_PATTERN_F_RELEASED
+#define LOV_PATTERN_F_RELEASED  0x80000000 /* HSM released file */
+#endif
+
 #ifdef _HAVE_FID
 
 /* The following stuff is to decode link EA from userspace */
@@ -285,7 +289,6 @@ static inline int fid_is_sane(const struct lu_fid *fid)
         fid_seq_is_rsvd(fid->f_seq));
 }
 #endif
-
 
 struct lu_buf {
         void   *lb_buf;
