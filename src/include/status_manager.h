@@ -287,6 +287,12 @@ static inline uint64_t all_status_mask(void)
     return bit_range(ATTR_COUNT, sm_inst_count);
 }
 
+/** return the mask of all specific info */
+static inline uint64_t all_sm_info_mask(void)
+{
+    return bit_range(ATTR_COUNT + sm_inst_count, sm_attr_count);
+}
+
 /**
  * As status managers don't know their index instance by advance,
  * they provide generic masks as if there were only their own status and
@@ -318,15 +324,8 @@ static inline uint64_t smi_info_bits(const sm_instance_t *smi)
 int set_sm_info(sm_instance_t *smi, attr_set_t *pattrs,
                 unsigned int attr_index, void *val);
 
-/** translate a generic mask SMI_MASK(0) to all status masks */
-static inline uint64_t translate_all_status_mask(uint64_t mask)
-{
-    if (!(mask & SMI_MASK(0)))
-        return mask;
-
-    /* remove SMI_MASK(0) and add all status mask */
-    return (mask & ~SMI_MASK(0)) | all_status_mask();
-}
+/** translate a generic mask SMI_MASK(0) and GENERIC_INFO_OFFSET to all status and info masks */
+uint64_t translate_all_status_mask(uint64_t mask);
 
 /**
  * Return needed attributes to determine entry status for the given

@@ -142,7 +142,7 @@ static const char *help_string =
     "        Only scan the specified subdir.\n"
     "    " _B "-d" B_" "_U"attrset"U_", " _B "--diff"B_"="_U"attrset"U_ " :\n"
     "        Display changes for the given set of attributes.\n"
-    "        "_U"attrset"U_" is a list of options in: path,posix,stripe,all,notimes,noatime.\n"
+    "        "_U"attrset"U_" is a list of options in: path,posix,stripe,all,status,notimes,noatime.\n"
     "    " _B "-a" B_" {fs|db}, " _B "--apply" B_ "[={fs|db}]\n"
     "        "_B"db"B_" (default): apply changes to the database using the filesystem as the reference.\n"
     "        "_B"fs"B_": revert changes in the filesystem using the database as the reference.\n"

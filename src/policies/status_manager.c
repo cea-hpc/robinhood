@@ -220,6 +220,33 @@ static uint64_t actual_mask(sm_instance_t *smi, uint64_t mask)
     return mask;
 }
 
+/** translate a generic mask SMI_MASK(0) and GENERIC_INFO_OFFSET to all status and info masks */
+uint64_t translate_all_status_mask(uint64_t mask)
+{
+    uint64_t       gen_bits;
+    uint64_t       gen_status;
+
+    /* generic attribute mask */
+    gen_bits = mask & bit_range(GENERIC_INFO_OFFSET, sm_attr_count);
+    /* generic status mask */
+    gen_status = mask & SMI_MASK(0);
+
+    /* clean generic bits */
+    mask &= ~gen_bits;
+    mask &= ~gen_status;
+
+    /* replace with real bits */
+    if (gen_bits)
+        mask |= all_sm_info_mask();
+
+    if (gen_status)
+        mask |= all_status_mask();
+
+    return mask;
+}
+
+
+
 /** create a status manager instance (if it does not already exist) */
 sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
 {

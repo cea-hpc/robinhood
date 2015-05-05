@@ -317,7 +317,7 @@ static const char *output_help =
     _B "Output options:" B_ "\n"
     "    " _B "--diff"B_"="_U"attrset"U_ "\n"
     "        When scanning or reading changelogs, display changes for the given set of attributes (to stdout).\n"
-    "        "_U"attrset"U_" is a list of values in: path,posix,stripe,all,notimes,noatime.\n";
+    "        "_U"attrset"U_" is a list of values in: path,posix,stripe,all,status,notimes,noatime.\n";
 
 static const char *behavior_help =
     _B "Behavior options:" B_ "\n"

@@ -310,6 +310,7 @@ struct __diffattr {
 #endif
     { ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id
      | POSIX_ATTR_MASK | ATTR_MASK_link | SMI_MASK(0) /* stands for all status */
+     | GENERIC_INFO_BIT(0) /* stands for all policy specific info */
 #ifdef ATTR_INDEX_creation_time
         | ATTR_MASK_creation_time
 #endif
@@ -317,6 +318,7 @@ struct __diffattr {
         | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
 #endif
     , "all", 0},
+    { SMI_MASK(0) /* stands for all status */, "status", 0},
     { ATTR_MASK_last_mod | ATTR_MASK_last_access
 #ifdef ATTR_INDEX_creation_time
         | ATTR_MASK_creation_time
