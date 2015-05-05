@@ -203,6 +203,9 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     /* retrieve source info for generated fields */
     add_source_fields_for_gen(&p_info->attr_mask);
 
+    /* don't get fields that are not in main, names, annex, stripe... */
+    p_info->attr_mask &= (main_attr_set | names_attr_set | annex_attr_set | stripe_attr_set | dir_attr_set | slink_attr_set);
+
     /* get info from main table (if asked) */
     main_count = attrmask2fieldlist(req, p_info->attr_mask, T_MAIN, false,
                                     false, "", "");

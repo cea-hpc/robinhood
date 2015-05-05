@@ -458,6 +458,19 @@ int check_status_args(const char *status_name, const char *status_value,
     return 0;
 }
 
+static inline bool is_status(int index)
+{
+    if (index < 0)
+        return false;
+    return (index >= ATTR_COUNT && index < ATTR_COUNT + sm_inst_count);
+}
+static inline bool is_sm_info(int index)
+{
+    if (index < 0)
+        return false;
+    return (index >= ATTR_COUNT + sm_inst_count);
+}
+
 /** print an attribute from attrs structure */
 const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
                      int attr_index, int csv, name_func name_resolver,
@@ -472,8 +485,17 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
          && (attrs->attr_mask & (1LL << attr_index)) == 0)
         return "";
 
-    if (attr_index >= ATTR_COUNT && attr_index < ATTR_COUNT + sm_inst_count)
+    if (is_status(attr_index))
         return STATUS_ATTR(attrs, attr_index - ATTR_COUNT);
+    else if (is_sm_info(attr_index))
+    {
+        unsigned int idx = attr_index - (ATTR_COUNT + sm_inst_count);
+        ListMgr_PrintAttr(out, out_sz,
+                          sm_attr_info[idx].def->db_type,
+                          attrs->attr_values.sm_info[idx],
+                          "");
+        return out;
+    }
 
     switch(attr_index)
     {
@@ -583,22 +605,6 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
 
 #ifdef ATTR_INDEX_invalid
         case ATTR_INDEX_invalid: return (ATTR(attrs, invalid) ? "yes" : "no");
-#endif
-#ifdef ATTR_INDEX_last_archive
-        case ATTR_INDEX_last_archive:
-            tt = ATTR(attrs, last_archive);
-            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-#endif
-#ifdef ATTR_INDEX_last_restore
-        case ATTR_INDEX_last_restore:
-            tt = ATTR(attrs, last_restore);
-            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
-            return out;
-#endif
-#ifdef ATTR_INDEX_backendpath
-        case ATTR_INDEX_backendpath:
-            return ATTR(attrs, backendpath);
 #endif
 
 #ifdef _LUSTRE
@@ -722,12 +728,6 @@ struct attr_display_spec {
         {ATTR_INDEX_md_update,     "md updt", 20, 20},
         {ATTR_INDEX_path_update,   "path updt", 20, 20},
         {ATTR_INDEX_class_update,  "class updt", 20, 20},
-#ifdef ATTR_INDEX_last_archive
-        {ATTR_INDEX_last_archive, "last_archive", 20, 20},
-#endif
-#ifdef ATTR_INDEX_last_restore
-        {ATTR_INDEX_last_restore, "last_restore", 20, 20},
-#endif
         /* sizes */
         /* 15 digits for 999To, 10 chars for 1024.21 GB */
         {ATTR_INDEX_blocks,    "spc_used", 15, 10, print_res_space},
@@ -736,9 +736,6 @@ struct attr_display_spec {
 
 #ifdef ATTR_INDEX_invalid
         {ATTR_INDEX_invalid, "invalid", 3, 3}, /* yes/no */
-#endif
-#ifdef ATTR_INDEX_backendpath
-        {ATTR_INDEX_backendpath, "backend_path", 40, 40},
 #endif
 #define STRIPE_TITLE "stripe_cnt, stripe_size,      pool"
         {ATTR_INDEX_stripe_info,  STRIPE_TITLE, sizeof(STRIPE_TITLE), sizeof(STRIPE_TITLE)},
@@ -755,7 +752,7 @@ static inline struct attr_display_spec *attr_info(int index)
     static struct attr_display_spec tmp_rec = {-3, "?", 1, 1, NULL};
 
 
-    if (index >= ATTR_COUNT && index < ATTR_COUNT + sm_inst_count) /* status */
+    if (is_status(index))
     {
         /* build a special decriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
@@ -764,11 +761,11 @@ static inline struct attr_display_spec *attr_info(int index)
         tmp_rec.result2str = print_res_status;
         return &tmp_rec;
     }
-    else if (index >= ATTR_COUNT + sm_inst_count) /* specific info */
+    else if (is_sm_info(index))
     {
          /* build a special decriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
-        tmp_rec.name = sm_attr_info[i - (ATTR_COUNT + sm_inst_count)].db_attr_name;
+        tmp_rec.name = sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].db_attr_name;
         tmp_rec.length_csv = tmp_rec.length_full = 15;
         tmp_rec.result2str = print_res_sm_info;
         return &tmp_rec;
@@ -792,8 +789,10 @@ const char *attrindex2name(unsigned int index)
 {
     int i;
 
-    if (index >= ATTR_COUNT) /* status */
+    if (is_status(index))
         return get_sm_instance(index - ATTR_COUNT)->db_field;
+    else if (is_sm_info(index))
+        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].db_attr_name;
 
     for (i = 0; attr[i].name != NULL; i++)
         if (attr[i].attr_index == index)
@@ -806,8 +805,10 @@ unsigned int attrindex2len(unsigned int index, int csv)
 {
     int i;
 
-    if (index >= ATTR_COUNT) /* status */
+    if (is_status(index))
         return 15;
+    else if (is_sm_info(index))
+        return 30;
 
     for (i = 0; attr[i].name != NULL; i++)
         if (attr[i].attr_index == index)

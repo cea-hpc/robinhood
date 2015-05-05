@@ -234,6 +234,10 @@ sm_instance_t *get_sm_instance(unsigned int n);
 /** wraps config handlers for all status managers */
 extern mod_cfg_funcs_t smi_cfg_hdlr;
 
+/** set status and attribute masks of status manager instances,
+ * once they are all loaded */
+void smi_update_masks(void);
+
 /** initialize all status managers (if they have init functions)
  * @param flags daemon runtime flags
  */

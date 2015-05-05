@@ -1565,10 +1565,11 @@ static int report_entry(const char *entry, int flags)
 
     if (ListMgr_Get(&lmgr, &id, &attrs) == DB_SUCCESS)
     {
-        int mask, i;
-        char str[RBH_PATH_MAX];
+        int      i;
+        uint64_t mask;
+        char     str[RBH_PATH_MAX];
 
-        for (i = 0, mask = 1; i < ATTR_COUNT + sm_inst_count; i++, mask <<= 1)
+        for (i = 0, mask = 1; i < ALL_ATTR_COUNT; i++, mask <<= 1)
         {
             if (mask & attrs.attr_mask)
             {

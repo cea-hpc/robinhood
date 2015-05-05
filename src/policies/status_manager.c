@@ -422,6 +422,31 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
 }
 #endif
 
+/** set status and attribute masks of status manager instances,
+ * once they are all loaded */
+void smi_update_masks(void)
+{
+#define MASK_TAG "smi_masks"
+    int i = 0;
+    sm_instance_t *smi;
+
+    for (i = 0, smi = get_sm_instance(i); smi != NULL;
+         i++, smi = get_sm_instance(i))
+    {
+        /* now that all smi are loaded sm_inst_count is known.
+         * so we can compute the real attribute masks */
+        smi->status_mask_fresh = actual_mask(smi, smi->sm->status_needs_attrs_fresh);
+        smi->status_mask_cached = actual_mask(smi, smi->sm->status_needs_attrs_cached);
+
+        if (smi->sm->flags & SM_DELETED)
+        {
+            smi->softrm_table_mask = actual_mask(smi, smi->sm->softrm_table_mask);
+            smi->softrm_filter_mask = actual_mask(smi, smi->sm->softrm_filter_mask);
+        }
+    }
+}
+
+
 /** initialize all status managers having init function */
 int smi_init_all(run_flags_t flags)
 {
@@ -433,31 +458,6 @@ int smi_init_all(run_flags_t flags)
     for (i = 0, smi = get_sm_instance(i); smi != NULL;
          i++, smi = get_sm_instance(i))
     {
-
-        /* now that all smi are loaded sm_inst_count is known.
-         * so we can compute the real attribute masks */
-        smi->status_mask_fresh = actual_mask(smi, smi->sm->status_needs_attrs_fresh);
-        smi->status_mask_cached = actual_mask(smi, smi->sm->status_needs_attrs_cached);
-
-        if (smi->sm->flags & SM_DELETED)
-        {
-            smi->softrm_table_mask = actual_mask(smi, smi->sm->softrm_table_mask);
-            smi->softrm_filter_mask = actual_mask(smi, smi->sm->softrm_filter_mask);
-        }
-
-        DisplayLog(LVL_FULL, INIT_TAG, "%s.status=%#LX",smi->instance_name,
-                   (ull_t)SMI_MASK(smi->smi_index));
-        DisplayLog(LVL_FULL, INIT_TAG, "%s.infos=%#LX", smi->instance_name,
-                   (ull_t)smi_info_bits(smi));
-        DisplayLog(LVL_FULL, INIT_TAG, "%s.status_mask_fresh=%#LX",
-                   smi->instance_name, (ull_t)smi->status_mask_fresh);
-        DisplayLog(LVL_FULL, INIT_TAG, "%s.status_mask_cached=%#LX",
-                   smi->instance_name, (ull_t)smi->status_mask_cached);
-        DisplayLog(LVL_FULL, INIT_TAG, "%s.softrm_table_mask=%#LX",
-                   smi->instance_name, (ull_t)smi->softrm_table_mask);
-        DisplayLog(LVL_FULL, INIT_TAG, "%s.softrm_filter_mask=%#LX",
-                   smi->instance_name, (ull_t)smi->softrm_filter_mask);
-
         if (smi->sm->init_func == NULL)
             continue;
 

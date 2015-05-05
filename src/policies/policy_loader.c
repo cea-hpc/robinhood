@@ -2426,7 +2426,12 @@ static int set_policies(void *cfg,  bool reload)
     if (reload)
         return reload_policies(p_policies);
     else
+    {
         policies = *p_policies;
+
+        /* update status manager masks, once they are all loaded */
+        smi_update_masks();
+    }
     return 0;
 }
 
