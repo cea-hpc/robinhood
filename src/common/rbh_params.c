@@ -201,3 +201,14 @@ int rbh_params_foreach(const struct rbh_params *params, rbh_params_iter_t cb,
 
     return rc;
 }
+
+/** helper callback to duplicate a parameter set */
+static int add_cb(const char *key, const char *val, void *udata)
+{
+    return rbh_param_set((action_params_t *)udata, key, val, true);
+}
+
+int rbh_params_copy(struct rbh_params *tgt, const struct rbh_params *src)
+{
+    return rbh_params_foreach(src, add_cb, tgt);
+}

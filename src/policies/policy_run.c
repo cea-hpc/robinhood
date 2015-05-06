@@ -79,14 +79,6 @@ static void free_queue_item(queue_item_t *item)
     MemFree(item);
 }
 
-static int add_param(const char *key, const char *val, void *udata)
-{
-    action_params_t *params = (action_params_t *)udata;
-
-    return rbh_param_set(params, key, val, true);
-}
-
-
 typedef struct subst_args {
     action_params_t  *params;
     const entry_id_t *id;
@@ -185,7 +177,7 @@ static int build_action_params(action_params_t *params,
     /* params from policy */
     if (likely(policy->config != NULL))
     {
-        rc = rbh_params_foreach(&policy->config->action_params, add_param, params);
+        rc = rbh_params_copy(params, &policy->config->action_params);
         if (rc)
             goto err;
     }
@@ -193,7 +185,7 @@ static int build_action_params(action_params_t *params,
     /* add params from trigger (possibly override previous params)*/
     if (policy->trigger_action_params != NULL)
     {
-        rc = rbh_params_foreach(policy->trigger_action_params, add_param, params);
+        rc = rbh_params_copy(params, policy->trigger_action_params);
         if (rc)
             goto err;
     }
@@ -201,7 +193,7 @@ static int build_action_params(action_params_t *params,
     /* add params from rule (possibly override previous params)*/
     if (rule != NULL)
     {
-        rc = rbh_params_foreach(&rule->action_params, add_param, params);
+        rc = rbh_params_copy(params, &rule->action_params);
         if (rc)
             goto err;
     }
@@ -216,7 +208,7 @@ static int build_action_params(action_params_t *params,
                                                    policy->descr->name);
         if (fileset_params != NULL)
         {
-            rc = rbh_params_foreach(fileset_params, add_param, params);
+            rc = rbh_params_copy(params, fileset_params);
             if (rc)
                 goto err;
         }

@@ -89,4 +89,10 @@ int rbh_params_serialize(const struct rbh_params *params, GString *str,
 int rbh_params_foreach(const struct rbh_params *params, rbh_params_iter_t cb,
                        void *udata);
 
+
+/**
+ * copy source parameters to a target parameter set.
+ */
+int rbh_params_copy(struct rbh_params *tgt, const struct rbh_params *src);
+
 #endif
