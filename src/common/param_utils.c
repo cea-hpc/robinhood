@@ -328,7 +328,7 @@ static int set_param_mask(const char *name, int begin_idx, int end_idx,
     if (a != NULL)
     {
         if (a->attr_index != -1)
-            args->mask |= (1 << a->attr_index);
+            args->mask |= (1LL << a->attr_index);
     }
 
     /* unknown param have no mask */

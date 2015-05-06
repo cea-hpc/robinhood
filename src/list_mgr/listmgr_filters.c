@@ -548,7 +548,7 @@ int lmgr_check_filter_fields(lmgr_filter_t *p_filter, uint64_t attr_mask, int *i
 
     for (i = 0; i < p_filter->filter_simple.filter_count; i++)
     {
-        uint64_t fmask = (1 << p_filter->filter_simple.filter_index[i]);
+        uint64_t fmask = (1LL << p_filter->filter_simple.filter_index[i]);
         if (fmask & ~attr_mask)
         {
             if (index)

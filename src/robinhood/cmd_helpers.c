@@ -467,7 +467,7 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
     /* if attr is not set in mask, print nothing */
     if  (attr_index != ATTR_INDEX_fullpath /* specific case */
          && attr_index != ATTR_INDEX_ID
-         && (attrs->attr_mask & (1 << attr_index)) == 0)
+         && (attrs->attr_mask & (1LL << attr_index)) == 0)
         return "";
 
     if (attr_index >= ATTR_COUNT)

@@ -1113,7 +1113,7 @@ static uint64_t list2mask(int *attr_list, int attr_count)
     mask = 0;
     for (i=0; i < attr_count; i++)
     {
-        tmpmask = 1 << attr_list[i];
+        tmpmask = 1LL << attr_list[i];
         mask |= tmpmask;
     }
     return mask;

@@ -219,7 +219,9 @@ static inline uint64_t slinkattr_fields(uint64_t attr_mask)
  */
 static inline bool is_acct_field(unsigned int attr_index)
 {
-    return !!((1 << attr_index) & acct_attr_set);
+    assert(attr_index < sizeof(acct_attr_set) * CHAR_BIT);
+
+    return ((1LL << attr_index) & acct_attr_set);
 }
 
 /**
@@ -228,7 +230,9 @@ static inline bool is_acct_field(unsigned int attr_index)
  */
 static inline bool is_acct_pk(unsigned int attr_index)
 {
-    return !!((1 << attr_index) & acct_pk_attr_set);
+    assert(attr_index < sizeof(acct_pk_attr_set) * CHAR_BIT);
+
+    return ((1LL << attr_index) & acct_pk_attr_set);
 }
 
 /**
@@ -237,7 +241,9 @@ static inline bool is_acct_pk(unsigned int attr_index)
  */
 static inline bool is_softrm_field(unsigned int attr_index)
 {
-    return !!((1 << attr_index) & softrm_attr_set);
+    assert(attr_index < sizeof(softrm_attr_set) * CHAR_BIT);
+
+    return ((1LL << attr_index) & softrm_attr_set);
 }
 
 /* ------------ */
@@ -245,7 +251,7 @@ static inline bool is_softrm_field(unsigned int attr_index)
 /** indicate if the attribute is a status field */
 static inline bool is_status_field(unsigned int attr_index)
 {
-    return !!((attr_index >= ATTR_COUNT) &&
+    return ((attr_index >= ATTR_COUNT) &&
               (attr_index < ATTR_COUNT + sm_inst_count));
 }
 
@@ -338,7 +344,7 @@ static inline bool is_recov_field(unsigned int attr_index)
 {
 #if 0 /** TODO implement recovery in RBHv3 */
     /* needed fields for disaster recovery */
-    return !!((1 << attr_index) & RECOV_ATTR_MASK);
+    return ((1LL << attr_index) & RECOV_ATTR_MASK);
 #else
     return false;
 #endif

@@ -291,7 +291,7 @@ void add_source_fields_for_gen(uint64_t * attr_mask)
              && ((field_infos[i].flags & GENERATED) || (field_infos[i].flags & DIR_ATTR))
              && (field_infos[i].gen_index != -1) )
         {
-           (*attr_mask) |= (1 << field_infos[i].gen_index);
+           (*attr_mask) |= (1LL << field_infos[i].gen_index);
         }
     }
 }
@@ -322,7 +322,7 @@ void           generate_fields( attr_set_t * p_set )
            /* is it generated from another field ? */
            if ( field_infos[i].gen_index != -1 )
            {
-                uint64_t src_mask = (1 << field_infos[i].gen_index);
+                uint64_t src_mask = (1LL << field_infos[i].gen_index);
                 /* is source set? */
                 if ( (p_set->attr_mask & src_mask) == 0 )
                 {
@@ -764,7 +764,7 @@ int result2attrset( table_enum table, char **result_tab,
                     || (result_tab[nbfields+2] == NULL))
                 {
                     /* must skip 3 columns in this case */
-                    p_set->attr_mask &= ~( 1 << i );
+                    p_set->attr_mask &= ~(1LL << i);
                     nbfields+=3;
                     continue;
                 }
@@ -780,7 +780,7 @@ int result2attrset( table_enum table, char **result_tab,
 #endif
             if ((result_tab == NULL) || (result_tab[nbfields] == NULL))
             {
-                p_set->attr_mask &= ~( 1 << i );
+                p_set->attr_mask &= ~(1LL << i);
                 nbfields++;
                 continue;
             }
@@ -790,7 +790,7 @@ int result2attrset( table_enum table, char **result_tab,
                            "Error: cannot parse field value '%s' (position %u) for %s",
                            result_tab[nbfields], nbfields, field_name(i));
                 RBH_BUG("DB value cannot be parsed: DB may be corrupted");
-                p_set->attr_mask &= ~( 1 << i );
+                p_set->attr_mask &= ~(1LL << i);
                 nbfields++;
                 continue;
             }
@@ -808,7 +808,7 @@ int result2attrset( table_enum table, char **result_tab,
                 if (p_set->attr_values.sm_status[i-ATTR_COUNT] == NULL)
                 {
                     /* status = '' => not set */
-                    p_set->attr_mask &= ~(1 << i);
+                    p_set->attr_mask &= ~(1LL << i);
                 }
             }
             else if (is_sepdlist(i))

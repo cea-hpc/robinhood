@@ -1659,7 +1659,7 @@ int main(int argc, char **argv)
             if (options.flags & RUNFLG_ONCE)
             {
                 running_mask = MODULE_MASK_POLICY_RUN;
-                policy_run_mask = (1 << i);
+                policy_run_mask = (1LL << i);
                 rc = policy_module_wait(&policy_run[i]);
                 policy_run_mask = 0;
                 running_mask = 0;
@@ -1669,7 +1669,7 @@ int main(int argc, char **argv)
                            rc);
             }
             else
-               policy_run_mask |= (1 << i);
+               policy_run_mask |= (1LL << i);
         }
         if (!(options.flags & RUNFLG_ONCE))
             running_mask |= MODULE_MASK_POLICY_RUN;
