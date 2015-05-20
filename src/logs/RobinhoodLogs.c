@@ -78,14 +78,16 @@ typedef struct _log_stream_
             RBH_LOG_STDIO,
             RBH_LOG_SYSLOG
     } log_type;
-
-    FILE * f_log; /* for regfile and stdio */
-    ino_t  f_ino; /* for regfile */
+    pthread_rwlock_t     f_lock; /* to protect the fields below _and logname_ */
+    FILE                *f_log;  /* for regfile and stdio */
+    ino_t                f_ino;  /* for regfile */
 } log_stream_t;
 
 #define RBH_LOG_INITIALIZER { .log_type = RBH_LOG_DEFAULT, \
+                          .f_lock   = PTHREAD_RWLOCK_INITIALIZER, \
                           .f_log    = NULL,        \
                           .f_ino    = -1, }
+
 /* log descriptors for each purpose (log, reports, alerts) */
 
 static log_stream_t log     = RBH_LOG_INITIALIZER;
@@ -102,9 +104,6 @@ static time_t  last_time_test = 0;
 
 /* time of last flush */
 static time_t  last_time_flush_log = 0;
-
-/* mutex for opening closing log file */
-static pthread_mutex_t mutex_reopen = PTHREAD_MUTEX_INITIALIZER;
 
 /* mutex for alert list */
 static pthread_mutex_t alert_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -343,11 +342,13 @@ int            TestDisplayLevel( int level )
 /* flush a single log descriptor */
 static void flush_log_descr( log_stream_t * p_log )
 {
+    pthread_rwlock_rdlock( &p_log->f_lock );
     if ( (p_log->log_type == RBH_LOG_STDIO) || (p_log->log_type == RBH_LOG_REGFILE) )
     {
         if ( p_log->f_log != NULL )
             fflush(p_log->f_log);
     }
+    pthread_rwlock_unlock( &p_log->f_lock );
 }
 
 
@@ -370,6 +371,16 @@ static void test_log_descr( const char * logname, log_stream_t * p_log )
     if ( p_log-> log_type != RBH_LOG_REGFILE )
         return;
 
+    /* If the lock is taken (another thread is doing the check)
+     * just wait for it to be released and safely continue to
+     * log after file may have been closed and switched
+     */
+    if ( pthread_rwlock_trywrlock( &p_log->f_lock ) != 0 ) {
+        pthread_rwlock_rdlock( &p_log->f_lock );
+        pthread_rwlock_unlock( &p_log->f_lock );
+        return;
+    }
+
     if ( stat( logname, &filestat ) == -1 )
     {
         if ( errno == ENOENT )
@@ -391,6 +402,8 @@ static void test_log_descr( const char * logname, log_stream_t * p_log )
         p_log->f_log = fopen( logname, "a" );
         p_log->f_ino = filestat.st_ino;
     }
+
+    pthread_rwlock_unlock( &p_log->f_lock );
 }
 
 
@@ -398,22 +411,13 @@ static void test_log_descr( const char * logname, log_stream_t * p_log )
 
 static void test_file_names( void )
 {
-    log_init_check(  );
-
-    /* if the lock is taken, return immediately
-     * (another thread is doing the check)
-     */
-    if ( pthread_mutex_trylock( &mutex_reopen ) != 0 )
-        return;
+    log_init_check( );
 
     test_log_descr( log_config.log_file, &log );
     test_log_descr( log_config.report_file, &report );
 
     if ( !EMPTY_STRING( log_config.alert_file ) )
         test_log_descr( log_config.alert_file, &alert );
-
-    pthread_mutex_unlock( &mutex_reopen );
-
 }
 
 
@@ -472,6 +476,7 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
         }
     }
 
+    pthread_rwlock_rdlock( &p_log->f_lock );
     /* if logs are not initalized or the log is a NULL FILE*,
      * default logging to stderr */
     if ((!log_initialized) ||
@@ -534,6 +539,7 @@ static void display_line_log( log_stream_t * p_log, const char * tag,
             fprintf(p_log->f_log, "%s\n", line_log);
         }
     }
+    pthread_rwlock_unlock( &p_log->f_lock );
 }
 
 
@@ -1139,9 +1145,9 @@ int ReloadLogConfig( void *module_config )
                     log_config.log_file, conf->log_file );
 
         /* lock file name to avoid reading inconsistent filenames */
-        pthread_mutex_lock( &mutex_reopen );
+        pthread_rwlock_wrlock( &log.f_lock );
         strcpy( log_config.log_file, conf->log_file );
-        pthread_mutex_unlock( &mutex_reopen );
+        pthread_rwlock_wrlock( &log.f_lock );
     }
 
     if ( strcmp( conf->report_file, log_config.report_file ) )
@@ -1150,9 +1156,9 @@ int ReloadLogConfig( void *module_config )
                     log_config.report_file, conf->report_file );
 
         /* lock file name to avoid reading inconsistent filenames */
-        pthread_mutex_lock( &mutex_reopen );
+        pthread_rwlock_wrlock( &report.f_lock );
         strcpy( log_config.report_file, conf->report_file );
-        pthread_mutex_unlock( &mutex_reopen );
+        pthread_rwlock_unlock( &report.f_lock );
     }
 
     if ( strcmp( conf->alert_file, log_config.alert_file ) )
@@ -1161,9 +1167,9 @@ int ReloadLogConfig( void *module_config )
                     log_config.alert_file, conf->alert_file );
 
         /* lock file name to avoid reading inconsistent filenames */
-        pthread_mutex_lock( &mutex_reopen );
+        pthread_rwlock_wrlock( &alert.f_lock );
         strcpy( log_config.alert_file, conf->alert_file );
-        pthread_mutex_unlock( &mutex_reopen );
+        pthread_rwlock_unlock( &alert.f_lock );
     }
 
     if ( strcmp( conf->alert_mail, log_config.alert_mail ) )
