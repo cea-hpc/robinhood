@@ -926,15 +926,27 @@ static int check_table_acct(db_conn_t *pconn)
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
 
-    /* daemon mode with acccounting disabled: don't check ACCT table */
-    if (!lmgr_config.acct && !report_only)
-        return DB_SUCCESS;
-
     rc = db_list_table_fields(pconn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS,
                               strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
         int curr_field_index = 0;
+
+        /* When running daemon mode with accounting disabled: drop ACCT table,
+         * else it may become inconsistent. */
+        if (!lmgr_config.acct && !report_only)
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                       "Accounting is disabled: dropping table "ACCT_TABLE);
+
+            rc = db_drop_component(pconn, DBOBJ_TABLE, ACCT_TABLE);
+            if (rc != DB_SUCCESS)
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Failed to drop table: Error: %s",
+                           db_errmsg(pconn, strbuf, sizeof(strbuf)));
+
+            return rc;
+        }
 
         /* check primary key */
         for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
