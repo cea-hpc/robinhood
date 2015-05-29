@@ -47,7 +47,7 @@ int SetDefault_Migration_Config( void *module_config, char *msg_out )
 #if defined(_LUSTRE_HSM) || defined(_HSM_LITE)
     conf->backup_new_files = true;
 #endif
-    conf->recheck_ignored_classes = true;
+    conf->recheck_ignored_classes = false;
     conf->check_copy_status_on_startup = true;
     conf->check_copy_status_delay = 30 * 60; /* 30 min */
     conf->migration_timeout = 2 * 3600; /* cancel migration pass after 2h of inactivity */
@@ -74,7 +74,7 @@ int Write_Migration_ConfigDefault( FILE * output )
 #if defined( _LUSTRE_HSM) || defined(_HSM_LITE)
     print_line( output, 1, "backup_new_files      : TRUE" );
 #endif
-    print_line( output, 1, "recheck_ignored_classes : TRUE" );
+    print_line( output, 1, "recheck_ignored_classes : FALSE" );
     print_line( output, 1, "check_copy_status_on_startup : TRUE" );
     fprintf( output, "\n" );
     print_line( output, 1, "check_copy_status_delay      : 30min" );
@@ -125,7 +125,7 @@ int Write_Migration_ConfigTemplate( FILE * output )
     print_line( output, 1, "# Enable it after changing fileclass definitions");
     print_line( output, 1, "# or if entries move from one class to another.");
     print_line( output, 1, "# This can significantly slow down policy application.");
-    print_line( output, 1, "recheck_ignored_classes = TRUE;" );
+    print_line( output, 1, "recheck_ignored_classes = FALSE;" );
     fprintf( output, "\n" );
     print_line( output, 1, "# do we check status of outstanding migration requests on startup?" );
     print_line( output, 1, "check_copy_status_on_startup = TRUE ;" );
