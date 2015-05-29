@@ -60,7 +60,7 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     cfg->run_attr_mask = 0;
 
     cfg->check_action_status_on_startup = true;
-    cfg->recheck_ignored_classes = true;
+    cfg->recheck_ignored_classes = false;
 
     return 0;
 }
@@ -103,7 +103,7 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "action_timeout          : 2h");
     print_line(output, 1, "check_actions_interval  : 30min");
     print_line(output, 1, "check_actions_on_startup: yes");
-    print_line(output, 1, "recheck_ignored_classes : yes" );
+    print_line(output, 1, "recheck_ignored_classes : no" );
     print_line(output, 1, "nb_threads              : 4");
     print_line(output, 1, "queue_size              : 4096");
     print_line(output, 1, "db_result_size_max      : 100000");
@@ -145,7 +145,7 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "# Enable it after changing fileclass definitions");
     print_line(output, 1, "# or if entries move from one class to another.");
     print_line(output, 1, "# This can significantly slow down policy application.");
-    print_line(output, 1, "#recheck_ignored_classes = yes" );
+    print_line(output, 1, "#recheck_ignored_classes = no;" );
     fprintf(output, "\n");
     print_line(output, 1, "# pre-maintenance feature parameters");
     print_line(output, 1, "#pre_maintenance_window = 24h;");
