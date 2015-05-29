@@ -40,7 +40,7 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
 #ifdef ATTR_INDEX_status
     conf->check_purge_status_on_startup = TRUE;
 #endif
-    conf->recheck_ignored_classes = TRUE;
+    conf->recheck_ignored_classes = FALSE;
 
     conf->trigger_list = NULL;
     conf->trigger_count = 0;
@@ -63,7 +63,7 @@ int Write_ResourceMon_ConfigDefault(FILE * output)
 #ifdef ATTR_INDEX_status
     print_line(output, 1, "check_purge_status_on_startup: TRUE");
 #endif
-    print_line(output, 1, "recheck_ignored_classes: TRUE");
+    print_line(output, 1, "recheck_ignored_classes: FALSE");
 #ifdef _TMP_FS_MGR
     print_line(output, 1, "purge_command          : <built-in: unlink>");
 #endif
@@ -108,7 +108,7 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line( output, 1, "# Enable it after changing fileclass definitions");
     print_line( output, 1, "# or if entries move from one class to another.");
     print_line( output, 1, "# This can significantly slow down policy application.");
-    print_line( output, 1, "recheck_ignored_classes = TRUE;" );
+    print_line( output, 1, "recheck_ignored_classes = no;" );
     fprintf( output, "\n" );
 
 #ifdef _TMP_FS_MGR
