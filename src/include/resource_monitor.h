@@ -106,7 +106,7 @@ typedef struct resource_monitor_config_t
 #endif
 
     bool recheck_ignored_classes;
-    bool no_sort;
+    bool sort;
 
 #ifdef ATTR_INDEX_status
     bool check_purge_status_on_startup;

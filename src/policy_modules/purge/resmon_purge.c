@@ -158,7 +158,7 @@ static int heuristic_end_of_list( time_t last_access_time )
     entry_id_t     void_id;
     attr_set_t     void_attr;
 
-    if (resmon_config.no_sort)
+    if (!resmon_config.sort)
         return FALSE;
 
     /* list all files if policies are ignored */
@@ -471,9 +471,9 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
     if (rc)
         return rc;
 
-    /* sort by last access (unless 'no_sort' is specified) */
+    /* sort by last access (only if 'sort' is specified) */
     sort_type.attr_index = ATTR_INDEX_last_access;
-    sort_type.order = (resmon_config.no_sort ? SORT_NONE : SORT_ASC);
+    sort_type.order = (resmon_config.sort ? SORT_ASC : SORT_NONE);
 
     rc = lmgr_simple_filter_init( &filter );
     if ( rc )
@@ -763,7 +763,7 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
                 if ( rc )
                     return rc;
 
-                if (!resmon_config.no_sort)
+                if (resmon_config.sort)
                 {
                     /* filter on access time */
                     fval.value.val_int = last_entry_access;
@@ -775,7 +775,7 @@ int perform_purge(lmgr_t *lmgr, purge_param_t *p_purge_param,
                         return rc;
                 }
 
-                if (resmon_config.no_sort)
+                if (!resmon_config.sort)
                     DisplayLog(LVL_DEBUG, PURGE_TAG,
                                "Performing new request with a limit of %u entries"
                                " and md_update < %ld ",

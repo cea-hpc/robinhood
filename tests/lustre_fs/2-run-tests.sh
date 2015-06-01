@@ -803,7 +803,7 @@ function lru_order_of
 function test_purge_lru
 {
 	config_file=$1
-    export NO_SORT=$2
+    export SORT_PARAM=$2
 	policy_str="$3"
 
 	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
@@ -812,7 +812,7 @@ function test_purge_lru
 		return 1
 	fi
 
-    echo "NO_SORT=$NO_SORT"
+    echo "SORT=$SORT_PARAM"
 
 	clean_logs
 
@@ -859,7 +859,7 @@ function test_purge_lru
     exp_rank=(3 4 5 6 1 2)
     # if not: can be any order
 
-    if [[ $NO_SORT == no ]]; then
+    if [[ $SORT_PARAM == yes ]]; then
       	for i in {1..6}; do
             idx=$(($i-1))
             rank=$(lru_order_of rh_purge.log $ROOT/file.$i)
@@ -9530,8 +9530,8 @@ run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
 run_test 223  test_default test_default_case.conf "ignore entries if no default case is specified"
 run_test 224  test_undelete test_rm1.conf   "undelete"
 run_test 225  test_compress compress.conf "compressed archived files"
-run_test 226a  test_purge_lru lru_purge.conf no "test purge order"
-run_test 226b  test_purge_lru lru_purge.conf yes "test purge order (no sort)"
+run_test 226a  test_purge_lru lru_purge.conf yes "test purge order (sort=yes)"
+run_test 226b  test_purge_lru lru_purge.conf no "test purge order (sort=no)"
 
 #### triggers ####
 

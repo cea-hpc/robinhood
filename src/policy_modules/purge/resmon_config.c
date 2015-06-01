@@ -36,7 +36,7 @@ int SetDefault_ResourceMon_Config( void *module_config, char *msg_out )
     conf->post_purge_df_latency = 60;   /*1 min */
     conf->purge_queue_size = 4096;
     conf->db_request_limit = 100000;
-    conf->no_sort = FALSE;
+    conf->sort = true;
 #ifdef ATTR_INDEX_status
     conf->check_purge_status_on_startup = TRUE;
 #endif
@@ -59,7 +59,7 @@ int Write_ResourceMon_ConfigDefault(FILE * output)
     print_line(output, 1, "post_purge_df_latency : 1min");
     print_line(output, 1, "purge_queue_size      : 4096");
     print_line(output, 1, "db_result_size_max    : 100000");
-    print_line(output, 1, "no_sort               : FALSE");
+    print_line(output, 1, "sort                  : TRUE");
 #ifdef ATTR_INDEX_status
     print_line(output, 1, "check_purge_status_on_startup: TRUE");
 #endif
@@ -95,8 +95,8 @@ int Write_ResourceMon_ConfigTemplate( FILE * output )
     print_line(output, 1, "db_result_size_max    = 100000 ;");
 
     fprintf(output, "\n");
-    print_line(output, 1, "# Disable sorting by access time");
-    print_line(output, 1, "#no_sort = TRUE ;");
+    print_line(output, 1, "# Enable/disable sorting by access time");
+    print_line(output, 1, "#sort = TRUE ;");
 
 #ifdef ATTR_INDEX_status
     fprintf( output, "\n" );
@@ -601,7 +601,7 @@ int Read_ResourceMon_Config( config_file_t config,
     static const char *purge_allowed[] = {
         "nb_threads_purge", "post_purge_df_latency",
         "purge_queue_size", "db_result_size_max",
-        "no_sort",
+        "sort",
 #ifdef ATTR_INDEX_status
         "check_purge_status_on_startup",
 #endif
@@ -651,12 +651,12 @@ int Read_ResourceMon_Config( config_file_t config,
         if ( ( rc != 0 ) && ( rc != ENOENT ) )
             return rc;
 
-        rc = GetBoolParam(param_block, PURGE_PARAM_BLOCK, "no_sort",
+        rc = GetBoolParam(param_block, PURGE_PARAM_BLOCK, "sort",
                           0, &intval, NULL, NULL, msg_out);
         if ((rc != 0) && (rc != ENOENT))
             return rc;
         else if (rc != ENOENT)
-            conf->no_sort = intval;
+            conf->sort = intval;
 
 #ifdef ATTR_INDEX_status
         rc = GetBoolParam( param_block, PURGE_PARAM_BLOCK, "check_purge_status_on_startup",
