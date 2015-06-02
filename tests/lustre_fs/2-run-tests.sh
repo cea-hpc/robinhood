@@ -845,7 +845,7 @@ function test_purge_lru
 		$RH -f ./cfg/$config_file --sync -l FULL  -L rh_migr.log || error "archiving files"
 
         # all entries must be found
-        cnt=$(grep "$ARCH_STR '" rh_migr.log | wc -l)
+        cnt=$(grep "$ARCH_STR" rh_migr.log | wc -l)
         [[ $cnt == 6 ]] || error "All entries should have been archived"
 
         # DB request must not have access time criteria
