@@ -957,10 +957,11 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
              * it now from the NAMES table, given the parent FID and the
              * filename. */
             p_op->get_fid_from_db = 0;
-            rc = ListMgr_Get_FID_from_Path( lmgr, &logrec->cr_pfid, logrec->cr_name, &p_op->entry_id );
 
+            rc = ListMgr_Get_FID_from_Path(lmgr, &logrec->cr_pfid,
+                                           rh_get_cl_cr_name(logrec),
+                                           &p_op->entry_id);
             if (!rc) {
-
                 if (!fid_is_sane(&logrec->cr_pfid))
                     DisplayLog(LVL_MAJOR, ENTRYPROC_TAG,
                                "Error: insane parent fid "DFID" from DB",
@@ -1140,8 +1141,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                     ", getstatus=%u"
 #endif
                     , changelog_type2str(logrec->cr_type), PFID(&p_op->entry_id),
-                    logrec->cr_flags & CLF_FLAGMASK, logrec->cr_namelen>0?
-                    logrec->cr_name:"<null>",
+                    logrec->cr_flags & CLF_FLAGMASK,
+                    logrec->cr_namelen ? rh_get_cl_cr_name(logrec) : "<null>",
                     NEED_GETSTRIPE(p_op)?1:0, NEED_GETATTR(p_op)?1:0,
                     NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0
 #ifdef ATTR_INDEX_status

@@ -90,11 +90,62 @@ struct obd_statfs {
 };
 #endif
 
-#ifdef HAVE_CHANGELOG_EXTEND_REC
-    #define CL_REC_TYPE struct changelog_ext_rec
+#ifdef HAVE_CHANGELOGS
+
+#include <stdbool.h>
+
+/*
+ * Untangle the various changes of Lustre userspace changelog
+ * API. Originally, there was the "struct changelog_rec". Then the
+ * "struct changelog_ext_rec" was added in Lustre 2.5, and all records
+ * given to the applications were converted to that format by
+ * liblustreapi. Then in Lustre 2.7, the commit 0f22e4 removed "struct
+ * changelog_ext_rec" and introduced the flexible format.
+ *
+ * Add accessors to make sense of all that:
+ *
+ * rh_rename_one_record: if the changelog is a CL_RENAME,
+ * rh_rename_one_record() will return false if it is followed by a
+ * CL_EXT record. Since the LU-1331 fix, rename operations use only
+ * one changelog record.
+ *
+ * rh_get_cl_cr_name(): return a pointer to cr_name
+ */
+
+#if HAVE_CHANGELOG_EXTEND_REC
+/* Lustre 2.3 to 2.6. */
+#define CL_REC_TYPE struct changelog_ext_rec
+
+static inline bool rh_is_rename_one_record(const struct changelog_ext_rec *rec)
+{
+    return rec->cr_flags & CLF_EXT_VERSION;
+}
+
+static inline char *rh_get_cl_cr_name(const struct changelog_ext_rec *rec)
+{
+    /* Don't use changelog_rec_name() because the cr_name has been
+     * moved by changelog_extend_rec(). So cr_name is always at the
+     * same spot, rename or not. */
+    return (char *)rec->cr_name;
+}
+
 #else
-    #define CL_REC_TYPE struct changelog_rec
+/* Lustre 2.1 to 2.2 */
+#define CL_REC_TYPE struct changelog_rec
+
+static inline bool rh_is_rename_one_record(const struct changelog_rec *rec)
+{
+    return false;
+}
+
+static inline char *rh_get_cl_cr_name(const struct changelog_rec *rec)
+{
+    return (char *)rec->cr_name;
+}
+
 #endif
+
+#endif  /* HAVE_CHANGELOGS */
 
 #ifdef _HAVE_FID
 

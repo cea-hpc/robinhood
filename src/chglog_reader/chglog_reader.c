@@ -301,7 +301,8 @@ static const char * event_name[] = {
                (uint32_t)cltime2sec((_rec_)->cr_time), cltime2nsec((_rec_)->cr_time), \
                (_rec_)->cr_flags & CLF_FLAGMASK, flag_buff, PFID(&(_rec_)->cr_tfid)
 #define CL_NAME_FORMAT "p="DFID" %.*s"
-#define CL_NAME_ARG(_rec_) PFID(&(_rec_)->cr_pfid), (_rec_)->cr_namelen, (_rec_)->cr_name
+#define CL_NAME_ARG(_rec_) PFID(&(_rec_)->cr_pfid), (_rec_)->cr_namelen, \
+        rh_get_cl_cr_name(_rec_)
 
 #ifdef HAVE_CHANGELOG_EXTEND_REC
 #define CL_EXT_FORMAT   "s="DFID" sp="DFID" %.*s"
@@ -392,7 +393,7 @@ static void set_name(CL_REC_TYPE * logrec, entry_proc_op_t * p_op)
     if (logrec->cr_namelen == 0)
         return;
     ATTR_MASK_SET(&p_op->fs_attrs, name);
-    rh_strncpy(ATTR(&p_op->fs_attrs, name), logrec->cr_name,
+    rh_strncpy(ATTR(&p_op->fs_attrs, name), rh_get_cl_cr_name(logrec),
                sizeof(ATTR(&p_op->fs_attrs, name)));
 
     /* parent id is always set when name is (Cf. comment in lfs.c) */
@@ -614,13 +615,13 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
     CL_REC_TYPE *rec;
     size_t name_len;
 
-    name_len = strlen(rec_in->cr_name);
+    name_len = strlen(rh_get_cl_cr_name(rec_in));
     rec = MemAlloc(sizeof(CL_REC_TYPE) + name_len + 1);
     if (rec == NULL)
         return NULL;
 
     memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + name_len);
-    rec->cr_name[name_len] = 0; /* terminate string */
+    rh_get_cl_cr_name(rec)[name_len] = 0; /* terminate string */
     rec->cr_namelen = name_len + 1;
 
     *insert_flags = PLR_FLG_FREE2;
@@ -652,10 +653,9 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
     DisplayLog(LVL_DEBUG, CHGLOG_TAG,
                "Unlink: object="DFID", name=%.*s, flags=%#x",
                PFID(&rec->cr_tfid), rec->cr_namelen,
-               rec->cr_name, rec->cr_flags);
+               rh_get_cl_cr_name(rec), rec->cr_flags);
 
     return rec;
-
 }
 
 #if defined(HAVE_CHANGELOG_EXTEND_REC)
@@ -686,8 +686,8 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
     *rec = *rec_in;
     rec->cr_flags = 0; /* not used for RNMFRM */
     rec->cr_namelen = sname_len + 1;
-    memcpy(rec->cr_name, changelog_rec_sname(rec_in), sname_len);
-    rec->cr_name[sname_len] = 0; /* terminate string */
+    memcpy(rh_get_cl_cr_name(rec), changelog_rec_sname(rec_in), sname_len);
+    rh_get_cl_cr_name(rec)[sname_len] = 0; /* terminate string */
 
     /* we don't want to acknowledge this record as long as the 2
      * records are not processed. acknowledge n-1 instead */
@@ -753,7 +753,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
 #ifdef HAVE_CHANGELOG_EXTEND_REC
         /* extended record: 1 single RENAME record per rename op;
          * there is no EXT. */
-        if (CHANGELOG_REC_EXTENDED(p_rec))
+        if (rh_is_rename_one_record(p_rec))
         {
             struct changelog_ext_rec * p_rec2;
 
@@ -786,7 +786,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             DisplayLog( LVL_DEBUG, CHGLOG_TAG,
                         "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%.*s",
                         PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),changelog_rec_sname(p_rec),
-                        PFID(&p_rec->cr_pfid), p_rec->cr_namelen, p_rec->cr_name );
+                        PFID(&p_rec->cr_pfid), p_rec->cr_namelen, rh_get_cl_cr_name(p_rec) );
 
             /* Ensure compatibility with older Lustre versions:
              * push RNMFRM to remove the old path from NAMES table.
