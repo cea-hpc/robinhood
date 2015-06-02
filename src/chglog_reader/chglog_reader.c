@@ -304,10 +304,8 @@ static const char * event_name[] = {
 #define CL_NAME_ARG(_rec_) PFID(&(_rec_)->cr_pfid), (_rec_)->cr_namelen, \
         rh_get_cl_cr_name(_rec_)
 
-#ifdef HAVE_CHANGELOG_EXTEND_REC
+#if defined(HAVE_CHANGELOG_EXTEND_REC) || defined(HAVE_FLEX_CL)
 #define CL_EXT_FORMAT   "s="DFID" sp="DFID" %.*s"
-#define CL_EXT_ARG(_rec_)  PFID(&(_rec_)->cr_sfid), PFID(&(_rec_)->cr_spfid), \
-                           changelog_rec_snamelen(_rec_), changelog_rec_sname(_rec_)
 #endif
 
 /* Dump a single record. */
@@ -348,14 +346,49 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
         curr += len;
         left -= len;
     }
-#ifdef HAVE_CHANGELOG_EXTEND_REC
-    if (left > 0 && fid_is_sane(&rec->cr_sfid))
-    {
-        len = snprintf(curr, left, " "CL_EXT_FORMAT, CL_EXT_ARG(rec));
-        curr += len;
-        left -= len;
-    }
+
+    if (left > 0) {
+#if defined(HAVE_FLEX_CL)
+        /* Newer versions. The cr_sfid is not directly in the
+         * changelog record anymore. CLF_RENAME is always present for
+         * backward compatibility; it describes the format of the
+         * record, but the rename extension will be zero'ed for
+         * non-rename records...
+         */
+        if (rec->cr_flags & CLF_RENAME) {
+            struct changelog_ext_rename *cr_rename;
+
+            cr_rename = changelog_rec_rename(rec);
+            if (fid_is_sane(&cr_rename->cr_sfid)) {
+                len = snprintf(curr, left, " "CL_EXT_FORMAT,
+                               PFID(&cr_rename->cr_sfid),
+                               PFID(&cr_rename->cr_spfid),
+                               (int)changelog_rec_snamelen(rec),
+                               changelog_rec_sname(rec));
+                curr += len;
+                left -= len;
+            }
+        }
+        if (rec->cr_flags & CLF_JOBID) {
+            struct changelog_ext_jobid *jobid = changelog_rec_jobid(rec);
+
+            len = snprintf(curr, left, " J=%s", jobid->cr_jobid);
+            curr += len;
+            left -= len;
+        }
+#elif defined(HAVE_CHANGELOG_EXTEND_REC)
+        if (fid_is_sane(&rec->cr_sfid)) {
+            len = snprintf(curr, left, " "CL_EXT_FORMAT,
+                           PFID(&rec->cr_sfid),
+                           PFID(&rec->cr_spfid),
+                           changelog_rec_snamelen((CL_REC_TYPE *)rec),
+                           changelog_rec_sname((CL_REC_TYPE *)rec));
+            curr += len;
+            left -= len;
+        }
 #endif
+    }
+
     if (left <= 0)
         record_str[RBH_PATH_MAX-1] = '\0';
 
@@ -658,7 +691,7 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
     return rec;
 }
 
-#if defined(HAVE_CHANGELOG_EXTEND_REC)
+#if defined(HAVE_CHANGELOG_EXTEND_REC) || defined(HAVE_FLEX_CL)
 /**
  * Create a fake rename record to ensure compatibility with older
  * Lustre records.
@@ -692,8 +725,20 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
     /* we don't want to acknowledge this record as long as the 2
      * records are not processed. acknowledge n-1 instead */
     rec->cr_index = rec_in->cr_index - 1;
+
+#ifdef HAVE_FLEX_CL
+    {
+        const struct changelog_ext_rename *cr_ren_in = changelog_rec_rename(rec_in);
+
+        rec->cr_flags = CLF_RENAME;
+        rec->cr_tfid = cr_ren_in->cr_sfid; /* the renamed fid */
+        rec->cr_pfid = cr_ren_in->cr_spfid; /* the source parent */
+    }
+#else
+    rec->cr_flags = 0; /* not used for RNMFRM */
     rec->cr_tfid = rec_in->cr_sfid; /* the renamed fid */
     rec->cr_pfid = rec_in->cr_spfid; /* the source parent */
+#endif
 
     return rec;
 }
@@ -750,12 +795,15 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             p_info->cl_rename = NULL;
         }
 
-#ifdef HAVE_CHANGELOG_EXTEND_REC
+#if defined(HAVE_CHANGELOG_EXTEND_REC) || defined(HAVE_FLEX_CL)
         /* extended record: 1 single RENAME record per rename op;
          * there is no EXT. */
         if (rh_is_rename_one_record(p_rec))
         {
-            struct changelog_ext_rec * p_rec2;
+            CL_REC_TYPE *p_rec2;
+#ifdef HAVE_FLEX_CL
+            struct changelog_ext_rename *cr_ren;
+#endif
 
             /* The MDS sent an extended record, so we have both LU-543
              * and LU-1331. */
@@ -783,10 +831,21 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
                 }
             }
 
-            DisplayLog( LVL_DEBUG, CHGLOG_TAG,
-                        "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%.*s",
-                        PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),changelog_rec_sname(p_rec),
-                        PFID(&p_rec->cr_pfid), p_rec->cr_namelen, rh_get_cl_cr_name(p_rec) );
+#ifdef HAVE_FLEX_CL
+            cr_ren = changelog_rec_rename(p_rec);
+            DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+                       "Rename: object="DFID", old parent/name="DFID"/%.*s, new parent/name="DFID"/%.*s",
+                       PFID(&cr_ren->cr_sfid), PFID(&cr_ren->cr_spfid),
+                       (int)changelog_rec_snamelen(p_rec), changelog_rec_sname(p_rec),
+                       PFID(&p_rec->cr_pfid),
+                       p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
+#else
+            DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+                       "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%.*s",
+                       PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),
+                       changelog_rec_sname(p_rec), PFID(&p_rec->cr_pfid),
+                       p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
+#endif
 
             /* Ensure compatibility with older Lustre versions:
              * push RNMFRM to remove the old path from NAMES table.
@@ -798,7 +857,11 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
 
             /* 2) update RNMTO */
             p_rec->cr_type = CL_EXT; /* CL_RENAME -> CL_RNMTO */
+#ifdef HAVE_FLEX_CL
+            p_rec->cr_tfid = cr_ren->cr_sfid; /* removed fid -> renamed fid */
+#else
             p_rec->cr_tfid = p_rec->cr_sfid; /* removed fid -> renamed fid */
+#endif
             insert_into_hash(p_info, p_rec, 0);
         }
         else
