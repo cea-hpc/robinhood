@@ -272,7 +272,7 @@ if test "x$support_lustre" = "xyes" ; then
         AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
         # fix with dynamic module management
         if test "x$have_shook" = "xyes"; then
-            PURPOSE_LDFLAGS="-lshooksvr" # FIXME only the module must be linked ahainst it
+            PURPOSE_LDFLAGS="-lshooksvr" # FIXME only the module must be linked against it
             #AC_DEFINE([HAVE_SHOOK], [1], [libshook is available]) # specified in module compil flags
             build_shook="ON"
         fi
