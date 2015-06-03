@@ -150,9 +150,9 @@ static void listmgr_optimizedstat(lmgr_report_t *p_report, lmgr_t *p_mgr,
 
         snprintf(attrname, sizeof(attrname), "attr%u", i);
 
-        if(is_acct_pk(report_desc_array[i].attr_index)
-           || is_acct_field(report_desc_array[i].attr_index)
-           || report_desc_array[i].report_type == REPORT_COUNT)
+        if ((report_desc_array[i].report_type == REPORT_COUNT)
+            || is_acct_pk(report_desc_array[i].attr_index)
+            || is_acct_field(report_desc_array[i].attr_index))
         {
             switch (report_desc_array[i].report_type)
             {
