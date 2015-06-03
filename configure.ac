@@ -302,10 +302,6 @@ AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="
 
 AC_SUBST(PURPOSE_CFLAGS)
 AC_SUBST(PURPOSE_LDFLAGS)
-#AC_SUBST(PURPOSE_BIN)
-#AC_SUBST(PURPOSE_EXT)
-#AC_SUBST(PURPOSE_SVC)
-#AC_DEFINE_UNQUOTED([PURPOSE_EXT],"$PURPOSE_EXT", [Directory extension for the given usage])
 
 CFLAGS="$CFLAGS -I\$(top_srcdir)/src/include"
 

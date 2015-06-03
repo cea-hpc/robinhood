@@ -3,25 +3,25 @@
 # robinhood.init 1.0 2008/02/07 Ph. Gregoire philippe.gregoire@cea.fr
 ##
 # chkconfig:	- 95 5
-# description:	@PURPOSE_SVC@ (filesystem purge and audit) service
-# processname:	/usr/sbin/@PURPOSE_BIN@
-# config:	/etc/robinhood.d/@PURPOSE_EXT@/<filesystem>.conf
+# description:	robinhood (filesystem purge and audit) service
+# processname:	/usr/sbin/robinhood
+# config:	/etc/robinhood.d/<filesystem>.conf
 ##
 
 # Source function library.
 . /etc/rc.d/init.d/functions
 
 # variables - may be overwritten by /etc/sysconfig/robinhood
-RH_CONF_DIR=@CONFDIR@/robinhood.d/@PURPOSE_EXT@	# directory containing configuration files
+RH_CONF_DIR=@CONFDIR@/robinhood.d	# directory containing configuration files
 RH_RUN_DIR=/					# directory where daemon will run
-DAEMON=@SBINDIR@/@PURPOSE_BIN@
+DAEMON=@SBINDIR@/robinhood
 
 # options for starting the daemon
 # eg. --scan --purge (leave empty for default actions).
 RBH_OPT=""
 
 # Source robinhood configuration.
-[ -f @CONFDIR@/sysconfig/@PURPOSE_SVC@ ] && . @CONFDIR@/sysconfig/@PURPOSE_SVC@
+[ -f @CONFDIR@/sysconfig/robinhood ] && . @CONFDIR@/sysconfig/robinhood
 
 VARRUN=/var/run
 RETVAL=0

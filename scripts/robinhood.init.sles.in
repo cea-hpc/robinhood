@@ -7,7 +7,7 @@
 # chkconfig:	- 95 5
 # description:	robinhood (filesystem purge and audit) service
 # processname:	/usr/sbin/robinhood
-# config:	/etc/robinhood.d/@PURPOSE_EXT@/<filesystem>.conf
+# config:	/etc/robinhood.d/<filesystem>.conf
 ##
 ### BEGIN INIT INFO
 # Provides:          robinhood
@@ -57,16 +57,16 @@ LOGLEVEL=1
 
 
 # variables - may be overwritten by /etc/sysconfig/robinhood
-RH_CONF_DIR=@CONFDIR@/robinhood.d/@PURPOSE_EXT@	# directory containing configuration files for this purpose
+RH_CONF_DIR=@CONFDIR@/robinhood.d/	# directory containing configuration files for this purpose
 RH_RUN_DIR=/				# directory where daemon will run
-DAEMON=/usr/sbin/@PURPOSE_BIN@
+DAEMON=/usr/sbin/robinhood
 
 # options for starting the daemon
 # eg. --scan --purge (leave empty for default actions).
 RBH_OPT=""
 
 # Source robinhood configuration.
-[ -f /etc/sysconfig/@PURPOSE_SVC@ ] && . /etc/sysconfig/@PURPOSE_SVC@
+[ -f /etc/sysconfig/robinhood ] && . /etc/sysconfig/robinhood
 
 VARRUN=/var/run
 RETVAL=0
@@ -89,11 +89,11 @@ pidfile_name()
 # - a full pathname :
 #	the script expects that file exists.
 # - a filename : <myconfigfile>
-#	the script expects to find file /etc/robinhood.d/@PURPOSE_EXT@/<myconfigfile>.
+#	the script expects to find file /etc/robinhood.d/<myconfigfile>.
 # - a filesystem name <fsname> :
-#	the scripts expects to find a file /etc/robinhood.d/@PURPOSE_EXT@/<fsname>.conf
+#	the scripts expects to find a file /etc/robinhood.d/<fsname>.conf
 # - an empty list :
-#	the script take all files directly under /etc/robinhood.d/@PURPOSE_EXT@
+#	the script take all files directly under /etc/robinhood.d/
 #
 build_fslist()
 {
