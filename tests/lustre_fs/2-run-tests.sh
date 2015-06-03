@@ -51,7 +51,8 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     UNDELETE=$RBH_BINDIR/rbh-lhsm-undo-rm
 	CMD=rbh-lhsm
 	PURPOSE="LUSTRE_HSM"
-	ARCH_STR="Start archiving"
+	ARCH_STR="Start archiving" # string followed by (fid, hints=...)
+	ARCH_STR2="Start archiving" # string followed by 'path', policy_rule ...
 	REL_STR="Released"
 elif [[ $PURPOSE = "BACKUP" ]]; then
 	is_lhsm=0
@@ -68,6 +69,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     UNDELETE=$RBH_BINDIR/rbh-backup-undo-rm
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
+	ARCH_STR2="Archived"
 	REL_STR="Purged"
 	mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
@@ -85,6 +87,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     UNDELETE=$RBH_BINDIR/rbh-shook-undo-rm
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
+	ARCH_STR2="Archived"
 	REL_STR="Purged"
 	mkdir -p $BKROOT
 fi
@@ -845,8 +848,8 @@ function test_purge_lru
 		$RH -f ./cfg/$config_file --sync -l FULL  -L rh_migr.log || error "archiving files"
 
         # all entries must be found
-        cnt=$(grep "$ARCH_STR" rh_migr.log | wc -l)
-        [[ $cnt == 6 ]] || error "All entries should have been archived"
+        cnt=$(grep "$ARCH_STR2 '" rh_migr.log | wc -l)
+        [[ $cnt == 6 ]] || error "All entries should have been archived (only $cnt/6)"
 
         # DB request must not have access time criteria
         grep "new request" rh_migr.log | grep last_mod && error "last_mod shouldn't be in request criteria"
@@ -1463,10 +1466,10 @@ function test_default
 
         # check archived files
         # *.B files must be archived. other files should be.
-        nb_b=$(grep "$ARCH_STR" rh_migr.log | grep -E "$ROOT/[XYZ]\.B"| wc -l)
-        nb_ac=$(grep "$ARCH_STR" rh_migr.log | grep -E "$ROOT/[XYZ]\.[AC]"| wc -l)
+        nb_b=$(grep "$ARCH_STR2 '" rh_migr.log | grep -E "$ROOT/[XYZ]\.B"| wc -l)
+        nb_ac=$(grep "$ARCH_STR2 '" rh_migr.log | grep -E "$ROOT/[XYZ]\.[AC]"| wc -l)
 
-        [ "$DEBUG" = "1" ] && grep "$ARCH_STR" rh_migr.log
+        [ "$DEBUG" = "1" ] && grep "$ARCH_STR2" rh_migr.log
 
         (( $nb_b != 3 )) && error "unexpected number of migrated *.B files: $nb_b != 3"
         (( $nb_ac != 0 )) && error "unexpected number of migrated *.[AC] files: $nb_ac != 0"
@@ -2607,10 +2610,10 @@ function policy_check_migr
 		&& echo "OK: fileclasses do not need update"
 
     # check effectively migrated files
-    m1_arch=`grep "$ARCH_STR" rh_migr.log | grep migrate1 | wc -l`
-    d1_arch=`grep "$ARCH_STR" rh_migr.log | grep default1 | wc -l`
-    w1_arch=`grep "$ARCH_STR" rh_migr.log | grep whitelist1 | wc -l`
-    i1_arch=`grep "$ARCH_STR" rh_migr.log | grep ignore1 | wc -l`
+    m1_arch=`grep "$ARCH_STR2" rh_migr.log | grep migrate1 | wc -l`
+    d1_arch=`grep "$ARCH_STR2" rh_migr.log | grep default1 | wc -l`
+    w1_arch=`grep "$ARCH_STR2" rh_migr.log | grep whitelist1 | wc -l`
+    i1_arch=`grep "$ARCH_STR2" rh_migr.log | grep ignore1 | wc -l`
 
     (( $w1_arch == 0 )) || error "whitelist1 should not have been migrated"
     (( $i1_arch == 0 )) || error "ignore1 should not have been migrated"
