@@ -381,10 +381,10 @@ case $DB in
         DB_CFLAGS="-D_MYSQL `$MYSQL_CONFIG --include`"
         DB_LDFLAGS=`mysql_config --libs_r`
 
-        if test "$MYSQL_VERSION" = "5" ; then
-            DB_CFLAGS="$DB_CFLAGS -D_MYSQL5"
-        else
+        if test "$MYSQL_VERSION" -lt "5" ; then
             AC_MSG_WARN([MySQL version is too old (<5), optimized accounting won't be supported.])
+        else
+            DB_CFLAGS="$DB_CFLAGS -D_MYSQL5"
         fi
         ;;
 
