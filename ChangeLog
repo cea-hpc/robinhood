@@ -1,3 +1,28 @@
+Changes between version 2.5.4 and 2.5.5:
+* [lustre] Support Lustre versions up to 2.7.
+* [DB performance] Allow both batching and parallelizing DB operations when
+  accounting is OFF. Benchmarks show a x3~x4 speedup of DB ingest rate in this
+  case.
+* [DB performance] Reduce lock contention on indexes of STRIPE_ITEMS table.
+* [acct] Avoid accounting stats inconsistency when this feature is enabled/
+  disabled/re-enabled.
+* [policy performance] Disable ignored class re-matching by default.
+* [policy performance] Disable sort by mtime by default.
+* [policy performance] Allow disabling sort by atime for purge policies.
+* [fix] Fix segfault when log rotation occurs under heavy logging.
+* [fix] When processing a RENAME changelog record, match the new path in
+  filesystem instead of building it from DB (which caused 'incomplete path'
+  errors).
+* [fix] Fix sendfile copy operation for backup mode.
+* [fix] Fix various requests about directories: --topdirs with --filter-path
+  option, --toprmdir, ...
+* [fix] Fix possible duplicate insert error when updated entry attributes are
+  only in ANNEX_INFO table (rare).
+* [fix] Some purge parameters may not be taken into account.
+* [packaging] clean permissions in distribution tarball.
+* [report performance] Improve performance of path matching when running
+  directory reports with --filter-path option.
+
 Changes between version 2.5.3 and 2.5.4:
 * [lustre] Lustre 2.4+: detect all stripe changes and update the DB accordingly.
 * [scan] Prevent from dropping entries from DB when opendir or stat fail.
