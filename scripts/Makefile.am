@@ -11,7 +11,8 @@ EXTRA_DIST= robinhood.init			\
 	demo/migr_purge.sh			\
 	demo/rh.migr_purge.conf			\
 	demo/write_data.sh  \
-    cmd2man.sh make_mans.sh fix_man_options.sh
+    cmd2man.sh make_mans.sh fix_man_options.sh \
+    ld.so.robinhood.conf.in
 
 dist_sbin_SCRIPTS=rbh-config
 if HSM_LITE

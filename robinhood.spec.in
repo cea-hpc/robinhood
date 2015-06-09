@@ -130,6 +130,7 @@ make install DESTDIR=$RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes
 mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d
 
 $RPM_BUILD_ROOT/%{_prefix}/sbin/robinhood -T $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
 
@@ -142,6 +143,8 @@ install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/robinhood
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
 install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/robinhood
 
+install -m 644 scripts/ld.so.robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d/robinhood.conf
+
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
 cp -r web_gui/acct/* $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 cp    web_gui/acct/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
@@ -153,6 +156,7 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.la
 rm -rf $RPM_BUILD_ROOT
 
 %post
+ldconfig
 if [ -x %{_initrddir}/robinhood ]; then
   if %{_initrddir}/robinhood status | grep running | grep -v "not running"  >/dev/null 2>&1; then
     %{_initrddir}/robinhood stop
@@ -174,6 +178,9 @@ if [ "$1" = 0 ]; then
     fi
   fi
 fi
+
+%postun
+ldconfig
 
 %files adm
 %{_sbindir}/rbh-config
@@ -234,6 +241,9 @@ fi
 %dir %{_sysconfdir}/robinhood.d/
 %dir %{_sysconfdir}/robinhood.d/includes
 %dir %{_sysconfdir}/robinhood.d/templates
+
+%dir %{_sysconfdir}/ld.so.conf.d
+%{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
 %config %{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
 

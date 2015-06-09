@@ -383,6 +383,9 @@ AC_SUBST(CONFDIR)
 AS_AC_EXPAND(SBINDIR, $sbindir)
 AC_SUBST(SBINDIR)
 
+AS_AC_EXPAND(LIBDIR, $libdir)
+AC_SUBST(LIBDIR)
+
 # for exporting to spec file
 AC_SUBST(ac_configure_args)
 
@@ -404,6 +407,7 @@ AC_CONFIG_FILES([Makefile
          scripts/robinhood.init
          scripts/robinhood.init.sles
          scripts/sysconfig_robinhood
+         scripts/ld.so.robinhood.conf
          tests/Makefile
          web_gui/Makefile
          man/Makefile
