@@ -277,7 +277,7 @@ int SendMail( const char *recipient, const char *subject, const char *message )
 int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed, char *unmatched,
                  size_t max_len)
 {
-    static const char *default_cfg_path = SYSCONFDIR"/robinhood.d/";
+    static const char *default_cfg_path = SYSCONFDIR"/robinhood.d";
     DIR *dir;
     struct dirent *ent;
     const char *cfg = cfg_in;
