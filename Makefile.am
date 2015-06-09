@@ -74,14 +74,17 @@ lcov:
 mans:
 	chmod +x ./scripts/make_mans.sh && ./scripts/make_mans.sh
 
-EXTRA_DIST= robinhood.spec robinhood.spec.in   		\
+EXTRA_DIST= robinhood.spec robinhood.spec.in \
 	autogen.sh \
-        doc/templates					\
-	LICENSE.fr.txt LICENSE.en.txt README.tmp_fs_mgr README.Lustre_HSM	\
+	doc/templates \
+	LICENSE.fr.txt LICENSE.en.txt README.tmp_fs_mgr README.Lustre_HSM \
 	doc/admin_guides \
-    doc/install_webgui.txt \
+	doc/install_webgui.txt \
+	doc/templates_v3/includes/lhsm.inc \
+	doc/templates_v3/includes/tmpfs.inc \
+	doc/templates_v3/template.conf \
 	ChangeLog \
-    man/*.1
+	man/*.1
 
 
 
