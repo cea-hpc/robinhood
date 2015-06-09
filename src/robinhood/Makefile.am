@@ -41,7 +41,7 @@ rbh_diff_DEPENDENCIES=$(all_libs)
 #
 robinhood_SOURCES=rbh_daemon.c
 robinhood_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-robinhood_LDFLAGS=-static $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
+robinhood_LDFLAGS=-rdynamic $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
 rbh_report_SOURCES=rbh_report.c
 rbh_report_CFLAGS=-static $(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
