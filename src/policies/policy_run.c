@@ -350,6 +350,8 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
 {
     switch(p->config->lru_sort_attr)
     {
+        case LRU_ATTR_NONE:
+            return -1;
         case ATTR_INDEX_creation_time:
             return (ATTR_MASK_TEST(p_attrs, creation_time)?
                     ATTR(p_attrs, creation_time) : -1);
@@ -434,8 +436,31 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
 #endif
 }
 
-/* alias to lighten the code */
-#define sort_attr_name(_p)  (field_infos[(_p)->config->lru_sort_attr].field_name)
+/** return attribute name from its index. */
+static const char *attrindex2name(int index)
+{
+    if (index < ATTR_COUNT)
+        return field_infos[index].field_name;
+    else if (is_status(index))
+        return get_sm_instance(index - ATTR_COUNT)->db_field;
+    else if (is_sm_info(index))
+        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].db_attr_name;
+
+    return "?";
+}
+
+/** return the name of the lru_sort_attr of the policy */
+static inline const char* sort_attr_name(const policy_info_t *pol)
+{
+    int attr = pol->config->lru_sort_attr;
+
+    if (attr == LRU_ATTR_NONE)
+        return "none";
+
+    assert(attr < (ATTR_COUNT + sm_inst_count + sm_attr_count));
+
+    return attrindex2name(attr);
+}
 
 /**
  * Given the timestamp of the last processed entry, this tries to guess
@@ -793,7 +818,8 @@ static int set_optimization_filters(policy_info_t *policy,
     /* avoid re-checking all old whitelisted entries at the beginning of the list,
      * so start from the first non-whitelisted file.
      * restart from initial file when no migration could be done. */
-    if (policy->first_eligible)
+    if ((policy->config->lru_sort_attr != LRU_ATTR_NONE)
+        && policy->first_eligible)
     {
         filter_value_t fval;
         char datestr[128];
@@ -958,7 +984,9 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
         updt_params.path.when != UPDT_ALWAYS)
         mask |= ATTR_MASK_path_update;
 #endif
-    mask |= (1LL << policy->config->lru_sort_attr);
+    if (policy->config->lru_sort_attr != LRU_ATTR_NONE)
+        mask |= (1LL << policy->config->lru_sort_attr);
+
     /* needed for size counter */
     mask |= ATTR_MASK_size;
     /* depends on policy params (limits) */
@@ -1347,8 +1375,10 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                 break;
             }
 
-            /* no new useless request */
-            if (heuristic_end_of_list(pol, *last_sort_time))
+            /* no new useless request when entries are sorted
+             * and the max time is reached */
+            if ((pol->config->lru_sort_attr != LRU_ATTR_NONE)
+               && heuristic_end_of_list(pol, *last_sort_time))
             {
                 st = PASS_EOL;
                 break;
@@ -1382,19 +1412,29 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                 return PASS_ERROR;
 
             /* filter on <sort_time> */
-            fval.value.val_int = *last_sort_time;
-            rc = lmgr_simple_filter_add_or_replace(filter,
-                                                   pol->config->lru_sort_attr,
-                                                   MORETHAN, fval,
-                                                   FILTER_FLAG_ALLOW_NULL);
-            if (rc)
-                return PASS_ERROR;
+            if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
+            {
+                fval.value.val_int = *last_sort_time;
+                rc = lmgr_simple_filter_add_or_replace(filter,
+                                                       pol->config->lru_sort_attr,
+                                                       MORETHAN, fval,
+                                                       FILTER_FLAG_ALLOW_NULL);
+                if (rc)
+                    return PASS_ERROR;
 
-            DisplayLog(LVL_DEBUG, tag(pol),
-                       "Performing new request with a limit of %u entries"
-                       " and %s >= %d and md_update < %ld ",
-                       req_opt->list_count_max, sort_attr_name(pol),
-                       *last_sort_time, pol->progress.policy_start);
+                DisplayLog(LVL_DEBUG, tag(pol),
+                           "Performing new request with a limit of %u entries"
+                           " and %s >= %d and md_update < %ld ",
+                           req_opt->list_count_max, sort_attr_name(pol),
+                           *last_sort_time, pol->progress.policy_start);
+            }
+            else
+            {
+                DisplayLog(LVL_DEBUG, tag(pol),
+                           "Performing new request with a limit of %u entries"
+                           " and md_update < %ld ", req_opt->list_count_max,
+                           pol->progress.policy_start);
+            }
 
             *db_current_list_count = 0;
             rc = iter_open(lmgr, it->it_type, it, filter, sort_type, req_opt);
@@ -1563,7 +1603,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     /* sort by last access */
     sort_type.attr_index = p_pol_info->config->lru_sort_attr; // TODO manage random
-    sort_type.order = SORT_ASC;
+    sort_type.order = p_pol_info->config->lru_sort_attr == LRU_ATTR_NONE ?
+                        SORT_NONE : SORT_ASC;
 
     rc = lmgr_simple_filter_init(&filter);
     if (rc)

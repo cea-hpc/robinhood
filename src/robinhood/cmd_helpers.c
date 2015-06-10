@@ -458,19 +458,6 @@ int check_status_args(const char *status_name, const char *status_value,
     return 0;
 }
 
-static inline bool is_status(int index)
-{
-    if (index < 0)
-        return false;
-    return (index >= ATTR_COUNT && index < ATTR_COUNT + sm_inst_count);
-}
-static inline bool is_sm_info(int index)
-{
-    if (index < 0)
-        return false;
-    return (index >= ATTR_COUNT + sm_inst_count);
-}
-
 /** print an attribute from attrs structure */
 const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
                      int attr_index, int csv, name_func name_resolver,

@@ -83,7 +83,15 @@ typedef enum {
 const char *criteria2str(compare_criteria_t crit);
 compare_criteria_t str2criteria(const char *str);
 
-#define ALLOWED_LRU_ATTRS_STR "creation, last_access, last_mod, last_archive, rm_time"
+#define LRU_ATTR_NONE  (-1)
+#define LRU_ATTR_INVAL (-2)
+
+#define ALLOWED_LRU_ATTRS_STR "none, creation, last_access, last_mod, last_archive, rm_time"
+/**
+ * Return the attribute index for the given lru_sort_attr string.
+ * @retval LRU_ATTR_NONE (-1) 'lru_sort_attr = none' (no sorting)
+ * @retval LRU_ATTR_INVAL (-2) invalid lru_sort_attr.
+ */
 int str2lru_attr(const char *str);
 
 typedef enum {

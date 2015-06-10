@@ -207,6 +207,28 @@ extern unsigned int sm_inst_count; /* defined in 'status_manager.c' */
 
 /** number of status manager specific informations */
 extern int sm_attr_count;
+
+static inline bool is_std_attr(int index)
+{
+    if (index < 0)
+        return false;
+
+    return (index < ATTR_COUNT);
+}
+
+static inline bool is_status(int index)
+{
+    if (index < 0)
+        return false;
+    return (index >= ATTR_COUNT && index < ATTR_COUNT + sm_inst_count);
+}
+static inline bool is_sm_info(int index)
+{
+    if (index < 0)
+        return false;
+    return (index >= ATTR_COUNT + sm_inst_count);
+}
+
 /** pointers to SM specific information */
 struct _sm_attr_info {
     char                *db_attr_name;

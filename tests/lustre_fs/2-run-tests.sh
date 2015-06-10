@@ -28,7 +28,7 @@ else
 fi
 
 SYNC_OPT="--run=migration --target=all --force-all"
-PURGE_OPT="--run=purge --target=all"
+PURGE_OPT="--run=purge --target=all --usage-target=0"
 
 RH="$RBH_BINDIR/robinhood $RBH_OPT"
 REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
@@ -822,6 +822,95 @@ function test_lru_policy
 	fi
 }
 
+function lru_order_of
+{
+    l="$1"
+    f="$2"
+    grep "$REL_STR" $l | grep -n "'$ROOT/file.$i'" | cut -d ':' -f 1
+}
+
+
+function test_purge_lru
+{
+	config_file=$1
+    export SORT_PARAM=$2
+	policy_str="$3"
+
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+    # initial scan
+    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    # create 6 files 
+  	for i in {1..6}; do
+		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+        sleep 1
+	done
+
+    # access 4 files 
+  	for i in {1..4}; do
+		dd if=$ROOT/file.$i of=/dev/null bs=1M count=1 >/dev/null 2>/dev/null || error "reading file.$i"
+        sleep 1
+	done
+    
+ 	# read changelogs
+	if (( $no_log )); then
+		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	else
+		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+	fi
+
+	# flush data for HSM flavors
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+		echo "Archiving files"
+		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "archiving files"
+
+        if (( $is_lhsm != 0 )); then
+    		echo "Waiting for end of data migration..."
+    		wait_done 60
+
+            # archive is asynchronous: read changelog to get the archive status
+            $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+        fi
+	fi
+
+    # md_update for purge must be > previous md updates
+    sleep 1
+
+    $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
+
+    # if sorted: order should be 5 6 1 2 3 4
+    exp_rank=(3 4 5 6 1 2)
+    # if not: can be any order
+
+    if [[ $SORT_PARAM != "none" ]]; then
+      	for i in {1..6}; do
+            idx=$(($i-1))
+            rank=$(lru_order_of rh_purge.log $ROOT/file.$i)
+            echo "file.$i purge rank #${exp_rank[$idx]}"
+            [[ $rank == ${exp_rank[$idx]} ]] || error "file.$i should have been purged in #${exp_rank[$idx]} (got $rank)"
+        done
+
+        # DB request must have access time criteria
+        grep "new request" rh_purge.log | grep access || error "access should be in request criteria"
+
+    else
+        # all entries must be found
+        cnt=$(grep "$REL_STR" rh_purge.log | wc -l)
+        [[ $cnt == 6 ]] || error "All entries should have been purged"
+
+        # DB request must not have access time criteria
+        grep "new request" rh_purge.log | grep access && error "access shouldn't be in request criteria"
+    fi
+
+}
+
 function test_suspend_on_error
 {
 	config_file=$1
@@ -1585,8 +1674,8 @@ function test_maint_mode
 	config_file=$1
 	window=$2 		# in seconds
 	migr_policy_delay=$3  	# in seconds
-	policy_str="$4"
-	delay_min=$5  		# in seconds
+	delay_min=$4  		# in seconds
+	policy_str="$5"
 
 	if (( $is_lhsm + $is_hsmlite == 0 )); then
 		echo "HSM test only: skipped"
@@ -9635,7 +9724,7 @@ run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined 
 run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
 run_test 215	mass_softrm    test_rm1.conf 11 1000    "rm are detected between 2 scans"
-run_test 216   test_maint_mode test_maintenance.conf 30 45 "pre-maintenance mode" 5
+run_test 216   test_maint_mode test_maintenance.conf 30 45 5 "pre-maintenance mode"
 run_test 217	migrate_symlink test1.conf 11 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
 run_test 219    test_rmdir_mix RemovingDir_Mixed.conf 11 "mixed rmdir policies"
@@ -9653,7 +9742,9 @@ run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
 run_test 223  test_default test_default_case.conf "ignore entries if no default case is specified"
 run_test 224  test_undelete test_rm1.conf   "undelete"
 run_test 225  test_compress compress.conf "compressed archived files"
-run_test 226  test_action_params test_action_params.conf "custom policy actions and parameters"
+run_test 226a  test_purge_lru lru_purge.conf last_access "test purge order (lru_sort_attr=last_access)"
+run_test 226b  test_purge_lru lru_purge.conf none "test purge order (lru_sort_attr=none)"
+run_test 227  test_action_params test_action_params.conf "custom policy actions and parameters"
 
 #### triggers ####
 

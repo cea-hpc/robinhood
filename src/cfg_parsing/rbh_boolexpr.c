@@ -227,8 +227,10 @@ int str2lru_attr(const char *str)
         else if (!strcasecmp(str, criteria2str(CRITERIA_RMTIME)))
             return ATTR_INDEX_rm_time;
 #endif
+        else if (!strcasecmp(str, "none"))
+            return LRU_ATTR_NONE;
         else
-            return -1;
+            return LRU_ATTR_INVAL;
 }
 
 #define CHECK_INT_VALUE(_v, _flg) do {\

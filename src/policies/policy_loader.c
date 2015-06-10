@@ -480,7 +480,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
         return rc;
     /* is it a time attribute? */
     rc = str2lru_attr(tmpstr);
-    if (rc == -1)
+    if (rc == LRU_ATTR_INVAL)
     {
         strcpy(msg_out, "time attribute expected for 'default_lru_sort_attr': "
                ALLOWED_LRU_ATTRS_STR"...");

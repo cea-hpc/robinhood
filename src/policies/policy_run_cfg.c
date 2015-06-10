@@ -594,7 +594,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     else if (rc != ENOENT) {
         /* is it a time attribute? */
         rc = str2lru_attr(tmp);
-        if (rc == -1)
+        if (rc == LRU_ATTR_INVAL)
         {
             strcpy(msg_out, "time attribute expected for 'lru_sort_attr': "
                    ALLOWED_LRU_ATTRS_STR"...");
