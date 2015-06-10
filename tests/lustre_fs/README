@@ -37,7 +37,7 @@ For full output:
 	./2-run-tests.sh
 
 To run only some tests (here, test 3 and 4):
-    ./2-run_tests.sh 3,4
+    ./2-run-tests.sh 3,4
 
 To get a debug output, set DEBUG to 1:
    DEBUG=1 ./2-run-tests.sh
