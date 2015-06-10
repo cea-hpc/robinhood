@@ -532,7 +532,8 @@ static int lhsm_action_callback(struct sm_instance *smi,
 /** changelog callback */
 static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                       const entry_id_t *id, const attr_set_t *attrs,
-                       attr_set_t *refreshed_attrs, bool *getit)
+                      attr_set_t *refreshed_attrs, bool *getit,
+                      proc_action_e *rec_action)
 {
     /* If this is a CREATE record, we know its status is NEW
      * (except if it is already set to another value) */
@@ -674,45 +675,47 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
             *getit = true;
         }
     }
+    else if ((logrec->cr_type == CL_UNLINK) && (logrec->cr_flags & CLF_UNLINK_LAST))
+    {
+            /* if CLF_UNLINK_HSM_EXISTS is set, we must clean something in the backend.
+             * always add the entry to the SOFTRM_TABLE.
+             */
+            if (logrec->cr_flags & CLF_UNLINK_HSM_EXISTS)
+            {
+               /* Don't care about softrm filter here as Lustre explicitely indicates
+                * there is something to be cleaned in the backend. */
+                *rec_action = PROC_ACT_SOFTRM_ALWAYS;
+            }
+            else /* remove the entry from DB */
+                *rec_action = PROC_ACT_RM_ALL;
+    }
+
     /* other records: keep default value for status need */
     return 0;
 }
 
-#if 0 /** FIXME LUSTRE_HSM specific? */
-
-                if (logrec->cr_flags & CLF_UNLINK_HSM_EXISTS)
-                    /* if CLF_UNLINK_HSM_EXISTS is set, we must clean something in the backend */
-                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-                else if (p_op->db_exists)
-                    /* nothing in the backend, just clean the entry in DB */
-                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-                else
-                    /* ignore the record */
-                    return STAGE_CHGLOG_CLR;
-#endif
-
-/** @TODO to be called in pipeline */
-
 /** function to determine if a deleted entry must be inserted to SOFTRM table
- * @return <0 on error, 0 for false, 1 for true.
  */
-static int lhsm_softrm_filter(struct sm_instance *smi, const entry_id_t *id,
-                              const attr_set_t *attrs)
+static proc_action_e lhsm_softrm_filter(struct sm_instance *smi, const entry_id_t *id,
+                                        const attr_set_t *attrs)
 {
     if (ATTR_MASK_TEST(attrs, type)
-        && !strcmp(ATTR(attrs, type), STR_TYPE_DIR))
+        && strcmp(ATTR(attrs, type), STR_TYPE_FILE) != 0)
     {
-        DisplayLog(LVL_FULL, LHSM_TAG, "Removing directory entry (no rm in backend)");
-        return 0;
+        DisplayLog(LVL_FULL, LHSM_TAG, "Removing non-file entry (no rm in backend)");
+        return PROC_ACT_RM_ALL;
     }
     else if (ATTR_MASK_STATUS_TEST(attrs, smi->smi_index)
              && status_equal(smi, attrs, STATUS_NEW))
     {
         DisplayLog(LVL_DEBUG, LHSM_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
                    PFID(id));
-        return 0;
+        return PROC_ACT_RM_ALL;
     }
-    return 1;
+    /* If we have a doubt, always insert to softrm.
+     *  In the worst case, it's just a useless hsm_rm operation.
+     */
+    return PROC_ACT_SOFTRM_ALWAYS;
 }
 
 /** Status manager for Lustre/HSM */

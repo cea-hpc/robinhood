@@ -31,11 +31,23 @@ typedef int (*sm_status_func_t)(struct sm_instance *smi,
                              attr_set_t *refreshed_attrs);
 
 #ifdef HAVE_CHANGELOGS
+/** changelog callback can indicate an  action for the record or the related entry.
+ * actions are ordered by priority (if a policy returns a higher value
+ * than others, this corresponding action is undertaken).
+ */
+typedef enum {
+    PROC_ACT_NONE    = 0,      /* no specific action */
+    PROC_ACT_RM_ALL,           /* remove entry from DB */
+    PROC_ACT_SOFTRM_IF_EXISTS, /* soft remove the entry if it was in DB */
+    PROC_ACT_SOFTRM_ALWAYS,    /* insert into SOFTRM even if it was not in DB */
+} proc_action_e;
+
 /** function prototype for changelog callback */
 typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
                                const CL_REC_TYPE *logrec,
                                const entry_id_t *id, const attr_set_t *attrs,
-                               attr_set_t *refreshed_attrs, bool *getit);
+                               attr_set_t *refreshed_attrs, bool *getit,
+                               proc_action_e *rec_action);
 #endif
 
 /** function prototype for status manager "executor" */
@@ -60,11 +72,12 @@ typedef int (*sm_action_cb_func_t)(struct sm_instance *smi,
                                    const entry_id_t *id, attr_set_t *attrs,
                                    post_action_e *what_after);
 
-/** function prototype to determine if a deleted entry must be inserted to SOFTRM table
- * @return <0 on error, 0 for false, 1 for true.
+/** When an entry is deleted, this function indicates what action is to be taken
+ * regarding the given status manager (remove from DB, move to softrm, ...)
  */
-typedef int (*softrm_filter_func_t)(struct sm_instance *smi,
-                                    const entry_id_t *id, const attr_set_t *attrs);
+typedef proc_action_e (*softrm_filter_func_t)(struct sm_instance *smi,
+                                              const entry_id_t *id,
+                                              const attr_set_t *attrs);
 
 /** Function to undelete an entry.
  *  If multiple status manager can undelete an entry,
@@ -290,13 +303,23 @@ char *allowed_status_str(const status_manager_t *sm, char *buf, int sz);
  *                              to determine entry status.
  * @param[in]     status_mask   mask of status managers that apply to the entry
  *                              (determined by policy scopes).
+ * @param[out]    post_action  action to take with this changelog record or
+ *                             the related entry.
  */
 int run_all_cl_cb(const CL_REC_TYPE *logrec,
                   const entry_id_t  *id,
                   const attr_set_t  *attrs,
                   attr_set_t        *refreshed_attrs,
                   uint64_t          *status_need,
-                  uint64_t           status_mask);
+                  uint64_t           status_mask,
+                  proc_action_e     *post_action);
+
+/** When an entry is deleted, this function indicates what action is to be taken
+ * by querying all status manager (remove from DB, move to softrm, ...)
+ */
+proc_action_e match_all_softrm_filters(const entry_id_t *id,
+                                       const attr_set_t *attrs);
+
 #endif
 
 /** return a mask with n bits 1 starting from offset.

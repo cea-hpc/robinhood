@@ -390,16 +390,20 @@ char *allowed_status_str(const status_manager_t *sm, char *buf, int sz)
 #ifdef HAVE_CHANGELOGS
 int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
                   const attr_set_t *attrs, attr_set_t *refreshed_attrs,
-                  uint64_t *status_need, uint64_t status_mask)
+                  uint64_t *status_need, uint64_t status_mask,
+                  proc_action_e *rec_action)
 {
     int rc, err_max = 0;
     int i = 0;
     sm_instance_t *smi;
 
+    *rec_action = PROC_ACT_NONE;
+
     for (i = 0, smi = get_sm_instance(i); smi != NULL;
          i++, smi = get_sm_instance(i))
     {
         bool getstatus = false;
+        proc_action_e curr_action = PROC_ACT_NONE;
 
         if (smi->sm->changelog_cb == NULL)
             continue;
@@ -409,18 +413,51 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
             continue;
 
         rc = smi->sm->changelog_cb(smi, logrec, id, attrs, refreshed_attrs,
-                                   &getstatus);
+                                   &getstatus, &curr_action);
         if (err_max == 0 || rc > err_max)
             err_max = rc;
 
-        if ((rc == 0) && getstatus)
+        if (rc == 0)
         {
-            *status_need |= SMI_MASK(i);
+            if (getstatus)
+                *status_need |= SMI_MASK(i);
+
+            /* keep the action with the highest priority */
+            if (curr_action > *rec_action)
+                *rec_action = curr_action;
         }
     }
     return err_max;
 }
 #endif
+
+/** When an entry is deleted, this function indicates what action is to be taken
+ * by querying all status manager (remove from DB, move to softrm, ...)
+ */
+proc_action_e match_all_softrm_filters(const entry_id_t *id,
+                                       const attr_set_t *attrs)
+{
+    int            i = 0;
+    proc_action_e  pa = PROC_ACT_RM_ALL; /* default is rm */
+    sm_instance_t *smi;
+
+    while ((smi = get_sm_instance(i)) != NULL)
+    {
+        if (smi_manage_deleted(smi) && smi->sm->softrm_filter_func != NULL)
+        {
+            proc_action_e  curr_pa;
+
+            curr_pa = smi->sm->softrm_filter_func(smi, id, attrs);
+
+            /* keep the action with the highest priority */
+            if (curr_pa > pa)
+                pa = curr_pa;
+        }
+        i++;
+    }
+    return pa;
+}
+
 
 /** set status and attribute masks of status manager instances,
  * once they are all loaded */

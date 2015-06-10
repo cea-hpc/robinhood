@@ -189,54 +189,7 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 }
 
-#ifdef HAVE_RM_POLICY /** @TODO manage it in RBHv3 */
-/** Indicate if an entry is concerned by soft remove mecanism */
-static inline bool soft_remove_filter(struct entry_proc_op_t *p_op)
-{
-    if (ATTR_FSorDB_TEST( p_op, type )
-        && !strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_DIR ))
-    {
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
-        return false;
-    }
-#ifdef ATTR_INDEX_status
-    else if (ATTR_FSorDB_TEST(p_op, status)
-        && (ATTR_FSorDB(p_op, status) == STATUS_NEW))
-    {
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
-                    PFID(&p_op->entry_id) );
-        return false;
-    }
-#endif
-#ifdef HAVE_SHOOK /** policy specific => move to status manager */
-    /* if the removed entry is a restripe source,
-     * we MUST NOT remove the backend entry
-     * as it will be linked to the restripe target
-     */
-    else if ( (ATTR_FSorDB_TEST(p_op, fullpath)
-               && !fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*",
-                     ATTR_FSorDB(p_op, fullpath), 0))
-        ||
-        (ATTR_FSorDB_TEST(p_op, name)
-         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR_FSorDB(p_op, name ),
-                     strlen(RESTRIPE_SRC_PREFIX))))
-    {
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing shook stripe source %s: no removal in backend!",
-                    ATTR_FSorDB_TEST(p_op, fullpath)?
-                    ATTR_FSorDB(p_op, fullpath) : ATTR_FSorDB(p_op, name));
-        return false;
-    }
-#endif
-    return true;
-}
-#else
-    /* no soft remove for this mode */
-#define soft_remove_filter(_op) (false)
-#endif
-
-
 #ifdef HAVE_CHANGELOGS
-
 /* does the CL record gives a clue about object type? */
 static obj_type_t cl2type_clue(CL_REC_TYPE *logrec)
 {
@@ -285,6 +238,7 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
     /* alias to the log record */
     CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
     uint64_t status_mask_need = 0LL;
+    proc_action_e rec_action = PROC_ACT_NONE;
 
     /* if this is a CREATE record, we know that its status is NEW. */
     if (logrec->cr_type == CL_CREATE)
@@ -410,8 +364,49 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
     /* Changelog callback for policies with a matching scope */
     add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true, &p_op->fs_attr_need);
     run_all_cl_cb(logrec, &p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
-                  &status_mask_need, p_op->fs_attr_need);
+                  &status_mask_need, p_op->fs_attr_need, &rec_action);
     p_op->fs_attr_need |= status_mask_need;
+
+    /* process the value of rec_action */
+    switch (rec_action)
+    {
+        case PROC_ACT_NONE: /* nothing particular */
+            break;
+        case PROC_ACT_RM_ALL: /* remove the entry if it exists */
+            if (p_op->db_exists)
+            {
+                p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+                return STAGE_PRE_APPLY;
+            }
+            else /* ignore the record */
+                return STAGE_CHGLOG_CLR;
+
+        case PROC_ACT_SOFTRM_IF_EXISTS:
+            /* if no policy manages deleted entries, don't SOFTRM */
+            if (!has_deletion_policy())
+            {
+                p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+                return STAGE_PRE_APPLY;
+            }
+            else if (p_op->db_exists)
+            {
+                /* soft remove when it exists */
+                p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+                return STAGE_PRE_APPLY;
+            }
+            else /* ignore the record */
+                return STAGE_CHGLOG_CLR;
+
+        case PROC_ACT_SOFTRM_ALWAYS:
+            /* if no policy manages deleted entries, don't SOFTRM */
+            if (!has_deletion_policy())
+                p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+            else
+                /* always soft remove */
+                p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+
+            return STAGE_PRE_APPLY;
+    }
 
     return STAGE_GET_INFO_FS;
 }
@@ -464,9 +459,9 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         {
             if (!has_deletion_policy())
             {
-                /* hsm_remove is disabled or file doesn't exist in the backend:
-                 * If the file was in DB: remove it, else skip the record. */
-                if ( p_op->db_exists )
+                /* no policy manages deleted entries, just drop removed entries
+                 * from DB */
+                if (p_op->db_exists)
                 {
                     p_op->db_op_type = OP_TYPE_REMOVE_LAST;
                     return STAGE_PRE_APPLY;
@@ -474,36 +469,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
                 else
                     /* ignore the record */
                     return STAGE_CHGLOG_CLR;
-
             }
-            else /* hsm removal enabled: must check if there is some cleaning
-                  * to be done in the backend */
-            {
-                /** FIXME status manager dependant */
-#ifdef _LUSTRE_HSM
-                /** FIXME to be handles in lhsm_removed CL callback */
-                if (logrec->cr_flags & CLF_UNLINK_HSM_EXISTS)
-                    /* if CLF_UNLINK_HSM_EXISTS is set, we must clean something in the backend */
-                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-                else if (p_op->db_exists)
-                    /* nothing in the backend, just clean the entry in DB */
-                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-                else
-                    /* ignore the record */
-                    return STAGE_CHGLOG_CLR;
-#else
-                /* If the entry exists in DB, this moves it from main table
-                 * to a remove queue, else, ignore the record. */
-                if (!p_op->db_exists)
-                    /* ignore the record */
-                    return STAGE_CHGLOG_CLR;
-                else if (soft_remove_filter(p_op)) /** FIXME to be provided by status manager */
-                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-                else
-                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-#endif
-                return STAGE_PRE_APPLY;
-            }
+            /* policy-specific cases are managed in changelog callbacks */
         }
         else if ( p_op->db_exists ) /* entry still exists and is known in DB */
         {
@@ -520,7 +487,6 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
              * before the rename operation. */
             return STAGE_CHGLOG_CLR;
         }
-
     } /* end if UNLINK */
     else if ( logrec->cr_type == CL_RENAME)
     {
@@ -532,6 +498,10 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     }
     else if ( logrec->cr_type == CL_RMDIR )
     {
+        /* XXX this piece of code suppose policies do not perform
+         * softrm on directories. This must be modified if
+         * some status managers care about directory removal.
+         */
         if (p_op->db_exists)
         {
             p_op->db_op_type = OP_TYPE_REMOVE_LAST;
@@ -544,74 +514,78 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         }
     } /* end if RMDIR */
 
-    if ( !p_op->db_exists )
+    /* not a removal */
+    if (logrec->cr_type != CL_UNLINK && logrec->cr_type != CL_RMDIR) /* not a removal */
     {
-        DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID"not in DB: INSERT", PFID(&p_op->entry_id));
-
-        /* non-unlink (or non-destructive unlink) record on unknown entry:
-         * insert entry to the DB */
-        p_op->db_op_type = OP_TYPE_INSERT;
-
-#ifdef ATTR_INDEX_creation_time
-        /* new entry, set insertion time */
-        ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
-        ATTR( &p_op->fs_attrs, creation_time ) = cltime2sec(logrec->cr_time);
-#endif
-
-        /* we must get info that is not provided by the chglog */
-        p_op->fs_attr_need |= (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
-                               | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
-                               | ATTR_MASK_link) & ~ p_op->fs_attrs.attr_mask;
-
-        /* if we needed fullpath (e.g. for policies), set it */
-        if ((p_op->db_attr_need & ATTR_MASK_fullpath) &&
-            !ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
-            p_op->fs_attr_need |= ATTR_MASK_fullpath;
-
-        /* EntryProc_FillFromLogRec() will determine
-         * what status are to be retrieved.
-         */
-    }
-    else /* non-unlink record on known entry */
-    {
-        uint64_t db_missing;
-
-        p_op->db_op_type = OP_TYPE_UPDATE;
-
-        /* check what information must be updated.
-         * missing info = DB query - retrieved */
-        db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
-
-        /* get attrs if some is missing */
-        if ((db_missing & POSIX_ATTR_MASK) &&
-            ((p_op->fs_attrs.attr_mask & POSIX_ATTR_MASK) != POSIX_ATTR_MASK))
-            p_op->fs_attr_need |= POSIX_ATTR_MASK;
-
-        /* get stripe info if missing (file only) */
-        if ((db_missing & ATTR_MASK_stripe_info) && !ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
-            && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)))
+        if (!p_op->db_exists)
         {
-            p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID"not in DB: INSERT", PFID(&p_op->entry_id));
+
+            /* non-unlink (or non-destructive unlink) record on unknown entry:
+             * insert entry to the DB */
+            p_op->db_op_type = OP_TYPE_INSERT;
+
+    #ifdef ATTR_INDEX_creation_time
+            /* new entry, set insertion time */
+            ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
+            ATTR( &p_op->fs_attrs, creation_time ) = cltime2sec(logrec->cr_time);
+    #endif
+
+            /* we must get info that is not provided by the chglog */
+            p_op->fs_attr_need |= (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
+                                   | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
+                                   | ATTR_MASK_link) & ~ p_op->fs_attrs.attr_mask;
+
+            /* if we needed fullpath (e.g. for policies), set it */
+            if ((p_op->db_attr_need & ATTR_MASK_fullpath) &&
+                !ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
+                p_op->fs_attr_need |= ATTR_MASK_fullpath;
+
+            /* EntryProc_FillFromLogRec() will determine
+             * what status are to be retrieved.
+             */
         }
+        else /* non-unlink record on known entry */
+        {
+            uint64_t db_missing;
 
-        /* get link content if missing (symlink only) */
-        if ((db_missing & ATTR_MASK_link) && !ATTR_MASK_TEST(&p_op->fs_attrs, link)
-            && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK)))
-                p_op->fs_attr_need |= ATTR_MASK_link;
+            p_op->db_op_type = OP_TYPE_UPDATE;
 
-        /* EntryProc_FillFromLogRec() will determine
-         * what status are to be retrieved. */
+            /* check what information must be updated.
+             * missing info = DB query - retrieved */
+            db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
 
-        /* Check md_update policy */
-        if (need_md_update(&p_op->db_attrs, &md_allow_event_updt))
-            p_op->fs_attr_need |= POSIX_ATTR_MASK;
+            /* get attrs if some is missing */
+            if ((db_missing & POSIX_ATTR_MASK) &&
+                ((p_op->fs_attrs.attr_mask & POSIX_ATTR_MASK) != POSIX_ATTR_MASK))
+                p_op->fs_attr_need |= POSIX_ATTR_MASK;
 
-        /* check if path update is needed (only if it was not just updated) */
-        if ((!ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) || !ATTR_MASK_TEST(&p_op->fs_attrs, name))
-            && (need_path_update(&p_op->db_attrs, NULL)
-                || (db_missing & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id))))
-            p_op->fs_attr_need |= ATTR_MASK_name
-                                  | ATTR_MASK_parent_id;
+            /* get stripe info if missing (file only) */
+            if ((db_missing & ATTR_MASK_stripe_info) && !ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
+                && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)))
+            {
+                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+            }
+
+            /* get link content if missing (symlink only) */
+            if ((db_missing & ATTR_MASK_link) && !ATTR_MASK_TEST(&p_op->fs_attrs, link)
+                && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK)))
+                    p_op->fs_attr_need |= ATTR_MASK_link;
+
+            /* EntryProc_FillFromLogRec() will determine
+             * what status are to be retrieved. */
+
+            /* Check md_update policy */
+            if (need_md_update(&p_op->db_attrs, &md_allow_event_updt))
+                p_op->fs_attr_need |= POSIX_ATTR_MASK;
+
+            /* check if path update is needed (only if it was not just updated) */
+            if ((!ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) || !ATTR_MASK_TEST(&p_op->fs_attrs, name))
+                && (need_path_update(&p_op->db_attrs, NULL)
+                    || (db_missing & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id))))
+                p_op->fs_attr_need |= ATTR_MASK_name
+                                      | ATTR_MASK_parent_id;
+        }
     }
 
     /* infer info from changelog record, then continue to next step */
@@ -1104,6 +1078,82 @@ next_step:
     return rc;
 }
 
+/** skip_record a record by acknowledging current operation */
+static int skip_record(struct entry_proc_op_t *p_op)
+{
+    int rc;
+
+#ifdef HAVE_CHANGELOGS
+    if (p_op->extra_info.is_changelog_record)
+        /* do nothing on DB but ack the record */
+        rc = EntryProcessor_Acknowledge(p_op, STAGE_CHGLOG_CLR, false);
+    else
+#endif
+        /* remove the operation from processing pipeline */
+        rc = EntryProcessor_Acknowledge(p_op, -1, true);
+
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc);
+    return rc;
+}
+
+#ifdef HAVE_CHANGELOGS
+/** take DB removal decision when an entry no longer exists in the filesystem */
+static int rm_record(struct entry_proc_op_t *p_op)
+{
+    attr_set_t merged_attrs = {0}; /* attrs from FS+DB */
+    proc_action_e pa;
+    int rc;
+
+    /* if the entry is no in DB, an no deletion policy is defined,
+     * just drop the log record */
+    if (!p_op->db_exists && !has_deletion_policy())
+        return skip_record(p_op);
+
+    ATTR_MASK_INIT(&merged_attrs);
+
+    ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
+    ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
+
+    pa =  match_all_softrm_filters(&p_op->entry_id, &merged_attrs);
+    switch (pa)
+    {
+        case PROC_ACT_NONE:
+            /* keep the current db_op_type */
+            break;
+
+        case PROC_ACT_RM_ALL:
+        /* Lustre 2 with changelog: we are here because lstat (by fid)
+         * on the entry failed, which ensure the entry no longer
+         * exists. Skip it. The entry will be removed by a subsequent
+         * UNLINK record.
+         *
+         * On other posix filesystems, the entry disappeared between
+         * its scanning and its processing... skip it so it will be
+         * cleaned at the end of the scan. */
+            return skip_record(p_op);
+
+        case PROC_ACT_SOFTRM_IF_EXISTS:
+            if (p_op->db_exists)
+                p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+            else
+                /* drop the record */
+                 return skip_record(p_op);
+            break;
+
+        case PROC_ACT_SOFTRM_ALWAYS:
+            p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+            break;
+    }
+
+    rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, false);
+    if (rc)
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc);
+    return rc;
+}
+#endif
+
+
 int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int            rc;
@@ -1156,27 +1206,20 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             if (ERR_MISSING(rc))
             {
                 DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s no longer exists", path );
-                /* schedule rm in the backend, if enabled */
-                if (!p_op->db_exists && !has_deletion_policy())
-                    goto skip_record;
-                else /* else, remove it from db */
-                    goto rm_record;
+                return rm_record(p_op);
             }
             else
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "lstat() failed on %s: %s", path,
                            strerror(rc));
+
             /* If lstat returns an error, drop the log record */
-            goto skip_record;
+            return skip_record(p_op);
         }
         else if (entry_md.st_nlink == 0)
         {
             /* remove pending */
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Entry %s has nlink=0: remove pending", path);
-            /* schedule rm in the backend, if enabled */
-            if (!p_op->db_exists && !has_deletion_policy())
-                goto skip_record;
-            else /* else, remove it from db */
-                goto rm_record;
+            return rm_record(p_op);
         }
 
         /* convert them to internal structure */
@@ -1268,7 +1311,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                                    path);
                         /* changelog: an UNLINK event will be raised, so we ignore current record
                          * scan: entry will be garbage collected at the end of the scan */
-                        goto skip_record;
+                        return skip_record(p_op);
                     }
                     else if (rc != 0)
                     {
@@ -1280,11 +1323,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         /* merge/update attributes */
                         ListMgr_MergeAttrSets(&p_op->fs_attrs, &new_attrs, true);
 
-                        /** @TODO
-                         * manage no_archive, no_release
-                         * manage last_archive, last_restore (init: 0 if status is 'new')
-                         * if entry is not supported: set extra_info.not_supp
-                         */
+                        /** @FIXME RBHv3 if entry is not supported: set extra_info.not_supp?  */
                     }
                 }
             }
@@ -1328,47 +1367,6 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if (rc)
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc);
     return rc;
-
-skip_record:
-#ifdef HAVE_CHANGELOGS
-    if (p_op->extra_info.is_changelog_record)
-    /* do nothing on DB but ack the record */
-        rc = EntryProcessor_Acknowledge(p_op, STAGE_CHGLOG_CLR, false);
-    else
-#endif
-    /* remove the operation from pipeline */
-        rc = EntryProcessor_Acknowledge(p_op, -1, true);
-
-    if (rc)
-        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc);
-    return rc;
-
-#ifdef HAVE_CHANGELOGS
-rm_record:
-    /* soft remove the entry, except if it was 'new' (not in backend)
-     * or not in DB.
-     */
-    if (!soft_remove_filter(p_op))
-        /* Lustre 2 with changelog: we are here because lstat (by fid)
-         * on the entry failed, which ensure the entry no longer
-         * exists. Skip it. The entry will be removed by a subsequent
-         * UNLINK record.
-         *
-         * On other posix filesystems, the entry disappeared between
-         * its scanning and its processing... skip it so it will be
-         * cleaned at the end of the scan. */
-        goto skip_record;
-    else if ( p_op->db_exists )
-        p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-    else
-        /* drop the record */
-        goto skip_record;
-
-    rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, false);
-    if ( rc )
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc );
-    return rc;
-#endif
 }
 
 

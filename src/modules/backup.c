@@ -1146,10 +1146,57 @@ static int backup_status(struct sm_instance *smi,
     /* TODO What about STATUS_REMOVED? */
 }
 
+#if 0 /* in changelog callback */
 
+                /* If the entry exists in DB, this moves it from main table
+                 * to a remove queue, else, ignore the record. */
+                if (!p_op->db_exists)
+                    /* ignore the record */
+                    return STAGE_CHGLOG_CLR;
+                else if (soft_remove_filter(p_op)) /** FIXME to be provided by status manager */
+                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
+                else
+                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
+#endif
 
+#if 0 /* in softrm filter */
+    if (ATTR_FSorDB_TEST( p_op, type )
+        && !strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_DIR ))
+    {
+        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
+        return false;
+    }
+#ifdef ATTR_INDEX_status
+    else if (ATTR_FSorDB_TEST(p_op, status)
+        && (ATTR_FSorDB(p_op, status) == STATUS_NEW))
+    {
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
+                    PFID(&p_op->entry_id) );
+        return false;
+    }
+#endif
+#ifdef HAVE_SHOOK /** policy specific => move to status manager */
+    /* if the removed entry is a restripe source,
+     * we MUST NOT remove the backend entry
+     * as it will be linked to the restripe target
+     */
+    else if ( (ATTR_FSorDB_TEST(p_op, fullpath)
+               && !fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*",
+                     ATTR_FSorDB(p_op, fullpath), 0))
+        ||
+        (ATTR_FSorDB_TEST(p_op, name)
+         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR_FSorDB(p_op, name ),
+                     strlen(RESTRIPE_SRC_PREFIX))))
+    {
+        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing shook stripe source %s: no removal in backend!",
+                    ATTR_FSorDB_TEST(p_op, fullpath)?
+                    ATTR_FSorDB(p_op, fullpath) : ATTR_FSorDB(p_op, name));
+        return false;
+    }
+#endif
+    return true;
 
-
+#endif
 
 typedef enum { TO_FS, TO_BACKEND } target_e;
 
