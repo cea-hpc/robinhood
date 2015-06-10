@@ -5893,6 +5893,10 @@ function test_cfg_parsing
 			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_detailed.conf"
 		fi
 
+    elif [[ $flavor == "templatev3" ]]; then
+
+		TEMPLATE=${TEMPLATE_DIR}_v3"/template.conf"
+
 	elif [[ $flavor == "generated" ]]; then
 
 		GEN_TEMPLATE="/tmp/template.$CMD"
@@ -9652,6 +9656,7 @@ run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert ba
 run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
 run_test 501b 	test_cfg_parsing detailed none		"parsing of detailed template"
 run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
+run_test 501d 	test_cfg_parsing templatev3 none	"parsing of Robinhood v3 template"
 run_test 502a    recovery_test	test_recov.conf  full    1 "FS recovery"
 run_test 502b    recovery_test	test_recov.conf  delta   1 "FS recovery with delta"
 run_test 502c    recovery_test	test_recov.conf  rename  1 "FS recovery with renamed entries"
