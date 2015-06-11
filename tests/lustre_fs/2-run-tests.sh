@@ -247,19 +247,19 @@ function clean_fs
 		wait_done 60
 	fi
 
-	echo "Cleaning filesystem..."
+    [ "$DEBUG" = "1" ] && echo "Cleaning filesystem..."
 	if [[ -n "$ROOT" ]]; then
 		 find "$ROOT" -mindepth 1 -delete 2>/dev/null
 	fi
 
 	if (( $is_hsmlite + $is_lhsm != 0 )); then
 		if [[ -n "$BKROOT" ]]; then
-			echo "Cleaning backend content..."
+			[ "$DEBUG" = "1" ] && echo "Cleaning backend content..."
 			find "$BKROOT" -mindepth 1 -delete 2>/dev/null
 		fi
 	fi
 
-	echo "Destroying any running instance of robinhood..."
+	[ "$DEBUG" = "1" ] && echo "Destroying any running instance of robinhood..."
 	pkill robinhood
 	pkill rbh-lhsm
 
@@ -270,10 +270,10 @@ function clean_fs
 	fi
 
 	sleep 1
-	echo "Cleaning robinhood's DB..."
+	[ "$DEBUG" = "1" ] && echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db robinhood_lustre > /dev/null
 
-	echo "Cleaning changelogs..."
+	[ "$DEBUG" = "1" ] && echo "Cleaning changelogs..."
 	if (( $no_log==0 )); then
 	   $LFS changelog_clear lustre-MDT0000 cl1 0
 	fi
@@ -7002,12 +7002,12 @@ function junit_write_xml # (time, nb_failure, tests)
 
 function cleanup
 {
-	echo "cleanup..."
-        if (( $quiet == 1 )); then
-                clean_fs | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
-        else
-                clean_fs
-        fi
+	echo "Filesystem cleanup..."
+    if (( $quiet == 1 )); then
+            clean_fs | tee "rh_test.log" | egrep -i -e "OK|ERR|Fail|skip|pass"
+    else
+            clean_fs
+    fi
 }
 
 function run_test
