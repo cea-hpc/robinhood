@@ -1161,6 +1161,104 @@ function link_unlink_remove_test
 
 }
 
+function test_hsm_remove
+{
+    config_file=$1
+    expected_rm=$2
+    sleep_time=$3
+    policy_str="$4"
+
+    if (( $is_lhsm + $is_hsmlite == 0 )); then
+        echo "HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+    if (( $no_log )); then
+        echo "changelog disabled: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    nb_files=$((2*$expected_rm))
+
+    # write 2 x expected_rm
+    echo "Writing $nb_files files..."
+    for i in $(seq 1 $nb_files); do
+        dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    done
+
+    # initial scan (files are known as 'new')
+    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
+    check_db_error rh_scan.log
+
+    # archive them all
+    if (( $is_lhsm != 0 )); then
+        echo "Archiving $expected_rm files..."
+        flush_data
+        for i in $(seq 1 $expected_rm); do
+            $LFS hsm_archive $ROOT/file.$i || error "executing lfs hsm_archive"
+        done
+
+        echo "Waiting for end of data migration..."
+        wait_done 60 || error "Migration timeout"
+    elif (( $is_hsmlite != 0 )); then
+        for i in $(seq 1 $expected_rm); do
+            $RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i --ignore-conditions -l DEBUG  -L rh_migr.log || error "migrating $ROOT/file.$i"
+        done
+    fi
+
+    # removing all files
+    echo "Removing all files"
+    rm -f $ROOT/file.*
+
+    # make sure rm operations are in the changelog
+    sleep 1
+
+    # robinhood reads the log but entries no longer exist: make sure it takes the right decision in this case
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    check_db_error rh_chglogs.log
+
+    echo "Checking report..."
+    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+    nb_ent=`wc -l rh_report.log | awk '{print $1}'`
+    if (( $nb_ent != $expected_rm )); then
+        error "Wrong number of deferred rm reported: $nb_ent"
+    fi
+    for i in $(seq 1 $expected_rm); do
+        grep "$ROOT/file.$i" rh_report.log > /dev/null || error "$ROOT/file.$i not found in deferred rm list"
+    done
+    for i in $(seq $(($expected_rm+1)) $nb_files); do
+        grep "$ROOT/file.$i" rh_report.log > /dev/null && error "$ROOT/file.$i shouldn't be in deferred rm list"
+    done
+
+    # deferred remove delay is not reached: nothing should be removed
+    echo "Performing HSM remove requests (before delay expiration)..."
+    $RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
+
+    nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
+    if (($nb_rm != 0)); then
+        echo "********** test failed: no removal expected, $nb_rm done"
+    else
+        echo "OK: no rm done"
+    fi
+
+    echo "Sleeping $sleep_time seconds..."
+    sleep $sleep_time
+
+    echo "Performing HSM remove requests (after delay expiration)..."
+    $RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
+
+    nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
+    if (($nb_rm != $expected_rm)); then
+        error "********** TEST FAILED: $expected_rm removals expected, $nb_rm done"
+    else
+        echo "OK: $nb_rm files removed from archive"
+    fi
+}
+
+
 function mass_softrm
 {
 	config_file=$1
@@ -9716,7 +9814,8 @@ run_test 209a	periodic_class_match_purge test_updt.conf 10 "fileclass matching 1
 run_test 209b	policy_check_purge test_check_purge.conf 10 "fileclass matching 2 (purge)"
 run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
-run_test 212	link_unlink_remove_test test_rm1.conf 1 11 "deferred hsm_remove"
+run_test 212a	link_unlink_remove_test test_rm1.conf 1 11 "deferred hsm_remove"
+run_test 212b   test_hsm_remove         test_rm1.conf 2 11 "deciding softrm for removed entries"
 run_test 213	migration_test_single test1.conf 11 11 "simple migration policy"
 run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
 run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
