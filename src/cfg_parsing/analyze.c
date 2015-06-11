@@ -732,11 +732,17 @@ void rh_config_free_list( list_items * list )
 /**
  * Resolve an environment variable.
  */
-void rh_config_resov_var(char *dstvalue, char*var)
+void rh_config_resolv_var(char *dstvalue, char*var)
 {
     char * val = getenv(var + 1); /* skip '$' */
     if (val == NULL)
+    {
+        fprintf(stderr, "WARNING: environment variable %s is not defined.\n",
+                var + 1);
         dstvalue[0] = '\0';
+    }
     else
+    {
         rh_strncpy(dstvalue, val, MAXSTRLEN);
+    }
 }

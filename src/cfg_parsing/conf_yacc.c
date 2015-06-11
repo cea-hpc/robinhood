@@ -1562,7 +1562,7 @@ yyreduce:
 
 /* Line 1455 of yacc.c  */
 #line 127 "conf_yacc.y"
-    {rh_config_resov_var((yyval.str_val),(yyvsp[(1) - (1)].str_val));}
+    {rh_config_resolv_var((yyval.str_val),(yyvsp[(1) - (1)].str_val));}
     break;
 
   case 14:

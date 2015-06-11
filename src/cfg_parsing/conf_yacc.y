@@ -124,7 +124,7 @@ definition:
 value:
 	IDENTIFIER	{strcpy($$,$1);}
 	| NON_IDENTIFIER_VALUE {strcpy($$,$1);}
-    | ENV_VAR {rh_config_resov_var($$,$1);}
+    | ENV_VAR {rh_config_resolv_var($$,$1);}
 	;
 
 affect:

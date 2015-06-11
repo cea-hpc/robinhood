@@ -249,7 +249,7 @@ void           rh_config_free_list( list_items * list );
 /**
  * Resolve an environment variable.
  */
-void rh_config_resov_var(char *dstvalue, char*var);
+void rh_config_resolv_var(char *dstvalue, char*var);
 
 
 
