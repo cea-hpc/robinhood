@@ -1237,6 +1237,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
                    ATTR_INDEX_stripe_items
     };
     int * list = NULL;
+    bool list_allocated = false;
     int list_cnt = 0;
 
     if (type == DUMP_OST)
@@ -1259,6 +1260,8 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
         list = calloc(list_cnt + sm_inst_count + 1, sizeof(int));
         if (list == NULL)
             exit(ENOMEM);
+
+        list_allocated = true;
 
         memcpy(list, list_std, sizeof(list_std));
         for (i = 0; i < sm_inst_count; i++)
@@ -1407,6 +1410,9 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     }
 
     ListMgr_CloseIterator( it );
+
+    if (list_allocated)
+        free(list);
 
     /* display summary */
     if ( !NOHEADER(flags) )
@@ -2296,6 +2302,8 @@ static void report_deferred_rm( int flags )
     /* list all deferred rm, even if non expired */
     rmlist = ListMgr_RmList(&lmgr, is_filter? &filter : NULL, &sort);
 
+    lmgr_simple_filter_free(&filter);
+
     if (rmlist == NULL)
     {
         DisplayLog( LVL_CRIT, REPORT_TAG,
@@ -2315,6 +2323,7 @@ static void report_deferred_rm( int flags )
         print_attr_values(0, list, list_cnt, &attrs, &id, CSV(flags), ResolvName);
 
         /* prepare next call */
+        ListMgr_FreeAttrs(&attrs);
         memset(&attrs, 0, sizeof(attrs));
     }
 
