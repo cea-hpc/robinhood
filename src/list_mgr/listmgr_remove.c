@@ -618,6 +618,8 @@ free_str:
         g_string_free(filter_names, TRUE);
     if (where != NULL)
         g_string_free(where, TRUE);
+    if (req != NULL)
+        g_string_free(req, TRUE);
 
     return rc;
 }
