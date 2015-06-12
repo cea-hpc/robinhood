@@ -54,7 +54,7 @@
 #define DEFAULT_CFG_VAR "RBH_CFG_DEFAULT"
 
 /**
- *  Miscelaneous parsing macros
+ *  Miscellaneous parsing macros
  */
 #define EMPTY_STRING( s ) ( (s)[0] == '\0' )
 #define FINAL_SLASH( s ) ( (strlen(s) > 1) && (s[strlen(s)-1] == '/') )
