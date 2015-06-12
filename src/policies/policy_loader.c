@@ -2151,8 +2151,13 @@ else if (rules->whitelist_rules) /* preallocated? */
 
 static void free_policy_descr(policy_descr_t *descr)
 {
-    /** FIXME free scope + sm_instance (+default action parameters) */
+    /** FIXME free sm_instance (+default action parameters) */
     free_policy_rules(&descr->rules);
+
+    FreeBoolExpr(&descr->scope, false);
+
+    free(descr->implements);
+    free(descr->default_action.action_u.func.name);
 }
 
 /* macro for preallocating array depending on configuration blocks in Read_Policy_ */
