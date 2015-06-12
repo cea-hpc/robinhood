@@ -92,6 +92,7 @@ static int subst_one_param(const char *key, const char *val, void *udata)
     subst_args_t *args = (subst_args_t *)udata;
     gchar        *new_val;
     char         *descr = NULL;
+    int           rc;
 
     asprintf(&descr, "parameter %s='%s'", key, val);
 
@@ -102,7 +103,11 @@ static int subst_one_param(const char *key, const char *val, void *udata)
     if (!new_val)
         return -EINVAL;
 
-    return rbh_param_set(args->params, key, new_val, true);
+    rc = rbh_param_set(args->params, key, new_val, true);
+
+    g_free(new_val);
+
+    return rc;
 }
 
 static void set_addl_params(const char* addl_params[], unsigned int size,
