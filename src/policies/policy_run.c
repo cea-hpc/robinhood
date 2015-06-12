@@ -1827,6 +1827,13 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
             return AS_STAT_FAILURE;
     }
 
+    /* creation time from DB has the priority on filesystem stat */
+    if (ATTR_MASK_TEST(&p_item->entry_attr, creation_time))
+    {
+        ATTR_MASK_SET(new_attr_set, creation_time);
+        ATTR(new_attr_set, creation_time) = ATTR(&p_item->entry_attr, creation_time);
+    }
+
     /* convert posix attributes to attr structure */
     PosixStat2EntryAttr(&entry_md, new_attr_set, true);
 
