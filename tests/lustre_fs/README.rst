@@ -70,3 +70,25 @@ To run only some tests (here, test 3 and 4)::
 To get a debug output, set DEBUG to 1::
 
   DEBUG=1 ./2-run-tests.sh
+
+
+Run the tests under Valgrind
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The test suite, and just a subset of the tests, can be run under
+valgrind by setting the WITH_VALGRIND environment variable. For
+instance::
+
+  WITH_VALGRIND=1 PURPOSE=LUSTRE_HSM ./2-run-tests.sh 301
+
+Each test instance will create a valgrind log file called
+`vg-test_<test number>-<pid>.log`
+
+It is possible to pass some extra parameters to valgrind by setting
+its VALGRIND_OPTS::
+
+  WITH_VALGRIND=1 PURPOSE=LUSTRE_HSM VALGRIND_OPTS="--tool=cachegrind" ./2-run-tests.sh 100
+
+By default, the output in the log files include a suppression rule for
+each error. These suppressions can be added to `valgrind.supp` to
+suppress the corresponding warning(s) in a subsequent run.

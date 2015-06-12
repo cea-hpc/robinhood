@@ -1,0 +1,95 @@
+# These leaks don't appear to be in Robinhood, but may be they are.
+# This file is a work in progress, and should be cleaned up once
+# Robinhood 3 stabilizes.
+
+# ???
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   fun:calloc
+   fun:my_thread_init
+   fun:mysql_server_init
+   fun:mysql_init
+   fun:db_connect
+   fun:ListMgr_InitAccess
+   ...
+}
+
+# The threads started by start_worker_threads() or
+# scan_starter_thread() aren't stopped on exit. So silence the
+# allocations they are making.
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   fun:calloc
+   fun:_dl_allocate_tls
+   fun:pthread_create@@GLIBC_2.2.5
+   ...
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   fun:calloc
+   fun:_dl_allocate_tls
+   fun:pthread_create@@GLIBC_2.2.5
+   ...
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   fun:calloc
+   fun:_dl_allocate_tls
+   fun:pthread_create@@GLIBC_2.2.5
+   ...
+}
+
+
+
+# ??
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Param
+   ioctl(generic)
+   fun:ioctl
+   fun:root_ioctl
+   fun:llapi_changelog_clear
+   fun:clear_changelog_records
+   fun:log_record_callback
+   fun:EntryProc_chglog_clr
+   fun:entry_proc_worker_thr
+   fun:start_thread
+   fun:clone
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Param
+   ioctl(generic)
+   fun:ioctl
+   fun:root_ioctl
+   fun:changelog_ioctl
+   fun:llapi_changelog_clear
+   fun:clear_changelog_records
+   fun:log_record_callback
+   fun:EntryProc_chglog_clr
+   fun:entry_proc_worker_thr
+   fun:start_thread
+   fun:clone
+}
+
+
+# Real leak - need to fix - test 211 and others
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   fun:calloc
+   fun:sm_status_ensure_alloc
+   fun:ListMgr_MergeAttrSets
+   fun:EntryProc_get_info_fs
+   fun:entry_proc_worker_thr
+   fun:start_thread
+   fun:clone
+}
+
+
+# test 214d - read after free
+

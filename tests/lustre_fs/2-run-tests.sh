@@ -30,14 +30,25 @@ fi
 SYNC_OPT="--run=migration --target=all --force-all"
 PURGE_OPT="--run=purge --target=all --usage-target=0"
 
-RH="$RBH_BINDIR/robinhood $RBH_OPT"
-REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
-FIND=$RBH_BINDIR/rbh-find
-DU=$RBH_BINDIR/rbh-du
-DIFF=$RBH_BINDIR/rbh-diff
-RECOV="$RBH_BINDIR/rbh-recov $RBH_OPT"
-UNDELETE=$RBH_BINDIR/rbh-undelete
-IMPORT="$RBH_BINDIR/rbh-import $RBH_OPT"
+if [ -z ${WITH_VALGRIND+x} ]; then
+    VALGRIND=
+else
+    # Run all executables under valgrind. Each instance will create a
+    # valgrind log file, vg-test_<test number>-<pid>.log
+    rm -f vg-test_*.log
+    export G_SLICE=always-malloc,debug-blocks
+    export G_DEBUG=fatal-warnings,fatal-criticals,gc-friendly
+    VALGRIND="valgrind --gen-suppressions=all --suppressions=valgrind.supp --leak-check=full --log-file=vg-test_%q{index}-%p.log"
+fi
+
+RH="$VALGRIND $RBH_BINDIR/robinhood $RBH_OPT"
+REPORT="$VALGRIND $RBH_BINDIR/rbh-report $RBH_OPT"
+FIND="$VALGRIND $RBH_BINDIR/rbh-find"
+DU="$VALGRIND $RBH_BINDIR/rbh-du"
+DIFF="$VALGRIND $RBH_BINDIR/rbh-diff"
+RECOV="$VALGRIND $RBH_BINDIR/rbh-recov $RBH_OPT"
+UNDELETE="$VALGRIND $RBH_BINDIR/rbh-undelete"
+IMPORT="$VALGRIND $RBH_BINDIR/rbh-import $RBH_OPT"
 CMD=robinhood
 ARCH_STR="migration success for"
 REL_STR="purge success for"
@@ -7400,7 +7411,7 @@ function cleanup
 
 function run_test
 {
-	index=$1
+    export index=$1
     # last argument
     title=${!#}
 
