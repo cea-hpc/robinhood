@@ -139,6 +139,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
 
     req->hur_request.hr_action = action;
     req->hur_request.hr_archive_id = archive_id;
+    req->hur_request.hr_flags = 0;
 
     req->hur_user_item[0].hui_fid = *p_id;
     req->hur_user_item[0].hui_extent.offset = 0 ;
