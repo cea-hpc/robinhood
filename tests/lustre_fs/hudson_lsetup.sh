@@ -8,7 +8,7 @@ export OSTCOUNT=4
 if [[ "$1" == "mount" || -z "$1" ]]; then
 
 	if [[ -z "$LUSTRE_SRC_DIR" ]]; then
-		LUSTRE_SRC_DIR=$HUDSON_DIR/workspace/Lustre-2.0/label/$NODE_LABEL
+		LUSTRE_SRC_DIR=/usr/lib64
 	fi
 
 	# moving to lustre test dir
