@@ -826,7 +826,7 @@ function lru_order_of
 {
     l="$1"
     f="$2"
-    grep "$REL_STR" $l | grep -n "'$ROOT/file.$i'" | cut -d ':' -f 1
+    grep "$REL_STR" $l | grep -n "'$f'" | cut -d ':' -f 1
 }
 
 
