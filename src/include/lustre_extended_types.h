@@ -134,7 +134,7 @@ static inline bool rh_is_rename_one_record(const struct changelog_rec *rec)
 
 static inline char *rh_get_cl_cr_name(const struct changelog_rec *rec)
 {
-    return changelog_rec_name(rec);
+    return changelog_rec_name((struct changelog_rec *)rec);
 }
 
 /* This doesn't make sense anymore but it is still defined by Lustre

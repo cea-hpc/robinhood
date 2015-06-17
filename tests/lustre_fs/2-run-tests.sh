@@ -4865,7 +4865,6 @@ function test_rename
         [ "$DEBUG" = "1" ] && find $BKROOT -type f -ls
 	fi
 
-
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
@@ -4887,6 +4886,19 @@ function test_rename
     count_nb_init=$(wc -l report.out | awk '{print $1}')
     count_path_init=$(wc -l find.out | awk '{print $1}')
 
+    # get entry fid before they are unlinked, moved...
+    name_from=(dir.1/file.1 dir.1/file.2 dir.2/file.1 dir.3/subdir dir.2/file.4)
+    id_from=()
+    for f in ${name_from[*]}; do
+        id_from+=( "$(get_id $ROOT/$f)" )
+    done
+
+    name_unlnk=(dir.2/file.2 dir.2/link_file)
+    id_unlnk=()
+    for f in ${name_unlnk[*]}; do
+        id_unlnk+=( "$(get_id $ROOT/$f)" )
+    done
+
     # rename entries
     echo "3. Renaming objects..."
     # 1) simple file rename
@@ -4900,6 +4912,13 @@ function test_rename
     # 5) overwritting a hardlink
     mv -f $ROOT/dir.2/file.4 $hlink
 
+    # get target fids
+    name_to=(dir.1/file.1.rnm dir.2/file.2.rnm dir.2/file.2 dir.3/subdir.rnm dir.3/subdir.rnm dir.2/link_file)
+    id_to=()
+    for f in ${name_to[*]}; do
+        id_to+=( "$(get_id $ROOT/$f)" )
+    done
+
     # namespace GC needs 1s difference
     sleep 1
 
@@ -4907,6 +4926,30 @@ function test_rename
     if [ "$flavor" = "readlog" ]; then
         echo "4. Reading changelogs..."
     	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+
+        ## check the "fake" records are correctly built
+
+        # "rename from"
+        for i in $(seq 1 ${#name_from[@]}); do
+            n=${name_from[$((i-1))]}
+            id=${id_from[$((i-1))]}
+            grep "RECORD:" rh_scan.log | egrep "RENME|RNMFM" | grep $(basename $n) | grep $id || error "Missing RENME $n"
+        done
+
+        # "rename to"
+        for i in $(seq 1 ${#name_to[@]}); do
+            n=${name_to[$((i-1))]}
+            id=${id_to[$((i-1))]}
+            grep "RECORD:" rh_scan.log | grep RNMTO | grep $(basename $n) | grep $id || error "Missing RNMTO $n"
+        done
+
+        # unlinked targets
+        for i in $(seq 1 ${#name_unlnk[@]}); do
+            n=${name_unlnk[$((i-1))]}
+            id=${id_unlnk[$((i-1))]}
+            grep "RECORD:" rh_scan.log | grep UNLNK | grep $(basename $n) | grep $id || error "Missing UNLNK $n"
+        done
+
     elif [ "$flavor" = "scan" ]; then
         echo "4. Scanning again..."
     	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
