@@ -116,7 +116,6 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
             sprintf(err_msg_out,
                     "Error %d reading %s configuration:\n%s",
                     rc, p_curr->funcs->module_name, msg_buf);
-            p_curr->funcs->free(cfg);
 
             if (reload)
             {
