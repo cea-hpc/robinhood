@@ -203,7 +203,7 @@ static inline bool match_table(table_enum t, unsigned int attr_index)
                ((t == T_DNAMES) && is_names_field(attr_index)) ||
                ((t == T_ANNEX) && is_annex_field(attr_index)) ||
                ((t == T_RECOV) && is_recov_field(attr_index)) ||
-               ((t == T_SOFTRM) && is_softrm_field(attr_index)) ||
+               ((t == T_SOFTRM || t == T_TMP_SOFTRM) && is_softrm_field(attr_index)) ||
                ((t == T_ACCT) && is_acct_field(attr_index)) ||
                ((t == T_ACCT) && is_acct_pk(attr_index));
 }
@@ -512,8 +512,9 @@ int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool 
                     g_string_append(str, ",");
 
                 if (is_funcattr(i) &&
-                    /* exception: fullpath is a real field in SOFT_RM table */
-                    !((table == T_SOFTRM) && (i == ATTR_INDEX_fullpath)))
+                    /* exception: fullpath is a real field in SOFT_RM and temporary softrm table */
+                    !((table == T_SOFTRM || table == T_TMP_SOFTRM)
+                      && (i == ATTR_INDEX_fullpath)))
                 {
                     print_func_call(str, i, prefix);
                     g_string_append_printf(str, "%s%s", for_update_str, suffix);
@@ -1120,9 +1121,10 @@ static void attr2filter_field(GString *str, table_enum table,
 {
     if (match_table(table, attr) || (table == T_NONE && !is_stripe_field(attr)))
     {
-        /* exception: fullpath is a real field in SOFT_RM table */
+        /* exception: fullpath is a real field in SOFT_RM and temporary softrm table */
         if (is_funcattr(attr) &&
-            !((table == T_SOFTRM) && (attr == ATTR_INDEX_fullpath)))
+            !((table == T_SOFTRM || table == T_TMP_SOFTRM)
+             && (attr == ATTR_INDEX_fullpath)))
         {
             char prefix[128] = "";
 

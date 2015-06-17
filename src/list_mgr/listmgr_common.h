@@ -420,6 +420,7 @@ typedef enum
     T_STRIPE_ITEMS,                              /* field in stripe items table */
     T_ACCT,                                      /* fields in accounting table */
     T_SOFTRM,                                    /* fields in softrm table (backup and HSM flavors only) */
+    T_TMP_SOFTRM,                                /* temporary table for filling SOFTRM */
     T_RECOV                                      /* fields in recov table (HSM flavors only) */
 } table_enum;
 
@@ -435,6 +436,7 @@ static inline const char * table2name(table_enum table)
         case T_STRIPE_ITEMS: return STRIPE_ITEMS_TABLE;
         case T_ACCT: return ACCT_TABLE;
         case T_SOFTRM: return SOFT_RM_TABLE;
+        case T_TMP_SOFTRM: return "TMP_TABLE_*";
         case T_RECOV: return RECOV_TABLE;
    }
    return NULL;

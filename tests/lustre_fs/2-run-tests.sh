@@ -1193,18 +1193,23 @@ function test_hsm_remove
     $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
     check_db_error rh_scan.log
 
+    # create 2 more files that robinhood won't know before their removal
+    # (1 archived, 1 not archived)
+    dd if=/dev/zero of=$ROOT/file.a bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.a"
+    dd if=/dev/zero of=$ROOT/file.b bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.b"
+
     # archive them all
     if (( $is_lhsm != 0 )); then
         echo "Archiving $expected_rm files..."
         flush_data
-        for i in $(seq 1 $expected_rm); do
+        for i in $(seq 1 $expected_rm) a; do
             $LFS hsm_archive $ROOT/file.$i || error "executing lfs hsm_archive"
         done
 
         echo "Waiting for end of data migration..."
         wait_done 60 || error "Migration timeout"
     elif (( $is_hsmlite != 0 )); then
-        for i in $(seq 1 $expected_rm); do
+        for i in $(seq 1 $expected_rm) a; do
             $RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i --ignore-conditions -l DEBUG  -L rh_migr.log || error "migrating $ROOT/file.$i"
         done
     fi
@@ -1223,14 +1228,15 @@ function test_hsm_remove
     echo "Checking report..."
     $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
     nb_ent=`wc -l rh_report.log | awk '{print $1}'`
-    if (( $nb_ent != $expected_rm )); then
+    if (( $nb_ent != $expected_rm  + 1 )); then
         error "Wrong number of deferred rm reported: $nb_ent"
     fi
-    for i in $(seq 1 $expected_rm); do
-        grep "$ROOT/file.$i" rh_report.log > /dev/null || error "$ROOT/file.$i not found in deferred rm list"
+    for i in $(seq 1 $expected_rm) a; do
+        grep "$ROOT/file.$i" rh_report.log || error "$ROOT/file.$i not found in deferred rm list"
     done
-    for i in $(seq $(($expected_rm+1)) $nb_files); do
-        grep "$ROOT/file.$i" rh_report.log > /dev/null && error "$ROOT/file.$i shouldn't be in deferred rm list"
+
+    for i in $(seq $(($expected_rm+1)) $nb_files) b; do
+        grep "$ROOT/file.$i" rh_report.log && error "$ROOT/file.$i shouldn't be in deferred rm list"
     done
 
     # deferred remove delay is not reached: nothing should be removed
@@ -1251,8 +1257,8 @@ function test_hsm_remove
     $RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
     nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
-    if (($nb_rm != $expected_rm)); then
-        error "********** TEST FAILED: $expected_rm removals expected, $nb_rm done"
+    if (($nb_rm != $expected_rm + 1)); then
+        error "********** TEST FAILED: $expected_rm+1 removals expected, $nb_rm done"
     else
         echo "OK: $nb_rm files removed from archive"
     fi

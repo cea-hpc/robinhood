@@ -261,6 +261,40 @@ static int listmgr_rm_all(lmgr_t * p_mgr)
     return DB_SUCCESS;
 }
 
+/** try to build the full path, if it is missing */
+static void set_fullpath(lmgr_t *p_mgr, attr_set_t *attrs)
+{
+    /* if fullpath is not determined, try to build it */
+    if (!ATTR_MASK_TEST(attrs, fullpath)
+        && ATTR_MASK_TEST(attrs, parent_id)
+        && ATTR_MASK_TEST(attrs, name))
+    {
+        attr_set_t dir_attrs = {0};
+
+        /* try to get parent path, so we can build <parent_path>/<name> */
+        ATTR_MASK_SET(&dir_attrs, fullpath);
+        if ((ListMgr_Get(p_mgr, &ATTR(attrs, parent_id), &dir_attrs) == DB_SUCCESS)
+            && ATTR_MASK_TEST(&dir_attrs, fullpath))
+        {
+            snprintf(ATTR(attrs, fullpath), RBH_PATH_MAX, "%s/%s",
+                     ATTR(&dir_attrs, fullpath), ATTR(attrs, name));
+            ATTR_MASK_SET(attrs, fullpath);
+        }
+        else /* display fullpath as <parent_id>/<name>*/
+        {
+            char tmp[RBH_PATH_MAX];
+            DEF_PK(parent_pk);
+
+            /* prefix with parent id */
+            entry_id2pk(&ATTR(attrs, parent_id), PTR_PK(parent_pk));
+            sprintf(tmp, "%s/%s", parent_pk, ATTR(attrs, name));
+            fullpath_db2attr(tmp, ATTR(attrs, fullpath));
+            ATTR_MASK_SET(attrs, fullpath);
+        }
+    }
+}
+
+
 /**
  * Insert a single entry to soft rm table.
  * p_old_attrs must include rm_time
@@ -279,7 +313,14 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
                    __func__);
     }
 
-    req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id");
+    set_fullpath(p_mgr, p_old_attrs);
+
+    /* if fullpath is set, update it */
+    if (ATTR_MASK_TEST(p_old_attrs, fullpath))
+        req = g_string_new("INSERT INTO " SOFT_RM_TABLE "(id");
+    else /* else, don't update */
+        req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id");
+
     attrmask2fieldlist(req, softrm_attr_set & p_old_attrs->attr_mask,
                        T_SOFTRM, true,  false, "","");
     g_string_append(req, ") VALUES (");
@@ -289,6 +330,9 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
 
     attrset2valuelist(p_mgr, req, p_old_attrs, T_SOFTRM, true);
     g_string_append(req, ")");
+
+    if (ATTR_MASK_TEST(p_old_attrs, fullpath))
+        g_string_append(req, " ON DUPLICATE KEY UPDATE fullpath=VALUES(fullpath)");
 
     rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
     if (rc)
@@ -529,7 +573,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     {
         g_string_assign(req, "SELECT id");
         nb += attrmask2fieldlist(req, softrm_attr_set & ~ATTR_MASK_rm_time,
-                                 T_SOFTRM, true, false, "","");
+                                 T_TMP_SOFTRM, true, false, "","");
         g_string_append_printf(req, " FROM %s", tmp_table_name);
     }
     else
@@ -563,7 +607,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
             old_attrs.attr_mask = softrm_attr_set & ~ATTR_MASK_rm_time;
 
             /* parse result attributes + set rm_time for listmgr_softrm_single */
-            rc = result2attrset(T_SOFTRM, field_tab + 1,  nb - 1, &old_attrs);
+            rc = result2attrset(T_TMP_SOFTRM, field_tab + 1,  nb - 1, &old_attrs);
             if (rc)
                 goto free_res;
 
@@ -708,35 +752,6 @@ int            ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
 
     if (p_old_attrs != NULL)
         ListMgr_MergeAttrSets(&all_attrs, p_old_attrs, true);
-
-    /* if fullpath is not determined, try to build it */
-    if (!ATTR_MASK_TEST(&all_attrs, fullpath)
-        && ATTR_MASK_TEST(&all_attrs, parent_id)
-        && ATTR_MASK_TEST(&all_attrs, name))
-    {
-        attr_set_t dir_attrs = {0};
-
-        /* try to get parent path, so we can build <parent_path>/<name> */
-        ATTR_MASK_SET(&dir_attrs, fullpath);
-        if ((ListMgr_Get(p_mgr, &ATTR(&all_attrs, parent_id), &dir_attrs) == DB_SUCCESS)
-            && ATTR_MASK_TEST(&dir_attrs, fullpath))
-        {
-            snprintf(ATTR(&all_attrs, fullpath), RBH_PATH_MAX, "%s/%s",
-                     ATTR(&dir_attrs, fullpath), ATTR(&all_attrs, name));
-            ATTR_MASK_SET(&all_attrs, fullpath);
-        }
-        else /* display fullpath as <parent_id>/<name>*/
-        {
-            char tmp[RBH_PATH_MAX];
-            DEF_PK(parent_pk);
-
-            /* prefix with parent id */
-            entry_id2pk(&ATTR(&all_attrs, parent_id), PTR_PK(parent_pk));
-            sprintf(tmp, "%s/%s", parent_pk, ATTR(&all_attrs, name));
-            fullpath_db2attr(tmp, ATTR(&all_attrs, fullpath));
-            ATTR_MASK_SET(&all_attrs, fullpath);
-        }
-    }
 
     if (!ATTR_MASK_TEST(&all_attrs, rm_time))
     {

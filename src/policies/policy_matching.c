@@ -436,17 +436,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
             RBH_BUG("status filter with no status manager in the context");
 
         *p_attr_index = ATTR_COUNT + smi->smi_index;
-        /* empty value stands for IS NULL */
-        if (EMPTY_STRING(p_comp->val.str))
-        {
-            if (p_comp->op == COMP_EQUAL)
-                *p_compar = ISNULL;
-            else
-                *p_compar = NOTNULL;
-        }
-        else
-            *p_compar = Policy2FilterComparator(p_comp->op);
-
+        *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_str = p_comp->val.str;
         break;
 
