@@ -175,6 +175,38 @@ static unsigned int GetThreadIndex( void )
 #endif
 }
 
+#if _LUSTRE && HAVE_LLAPI_LOG_CALLBACKS
+static inline enum llapi_message_level rbh_msg_level_convert(int level)
+{
+    switch (level) {
+        case LVL_CRIT:
+            return LLAPI_MSG_ERROR;
+
+        case LVL_MAJOR:
+            return LLAPI_MSG_WARN;
+
+        case LVL_EVENT:
+            return LLAPI_MSG_NORMAL;
+
+        case LVL_VERB:
+            return LLAPI_MSG_INFO;
+
+        case LVL_DEBUG:
+        case LVL_FULL:
+        default:
+            return LLAPI_MSG_DEBUG;
+    }
+}
+#endif
+
+void rbh_adjust_log_level_external(void)
+{
+#if _LUSTRE && HAVE_LLAPI_LOG_CALLBACKS
+    llapi_msg_set_level(rbh_msg_level_convert(log_config.debug_level));
+#endif
+}
+
+
 /* initialize a single log descriptor */
 static int init_log_descr( const char * logname, log_stream_t * p_log )
 {
@@ -278,42 +310,46 @@ static int check_syslog_facility( const char * descriptor, int * p_fac, int *p_l
 
 int InitializeLogs(const char *program_name)
 {
-    struct utsname uts;
-    char          *tmp;
-    int            rc;
+    struct utsname   uts;
+    char            *tmp;
+    int              rc;
 
     /* get node name */
-    if ( uname( &uts ) == -1 )
-        strcpy( machine_name, "???" );
+    if (uname(&uts) == -1)
+        strcpy(machine_name, "???");
     else
         rh_strncpy(machine_name, uts.nodename, RBH_PATH_MAX);
 
     /* if the name is the full machine name (node.subnet.domain.ext),
      * only kief the brief name */
-    if ( ( tmp = strchr( machine_name, '.' ) ) != NULL )
+    if ((tmp = strchr( machine_name, '.')) != NULL)
         *tmp = '\0';
 
-    if ( program_name == NULL )
-        strcpy( prog_name, "???" );
+    if ( program_name == NULL)
+        strcpy(prog_name, "???");
     else
         rh_strncpy(prog_name, program_name, RBH_PATH_MAX);
 
     /* open log files */
-    rc = init_log_descr( log_config.log_file, &log );
-    if (rc) return rc;
+    rc = init_log_descr(log_config.log_file, &log);
+    if (rc)
+        return rc;
 
-    rc = init_log_descr( log_config.report_file, &report );
-    if (rc) return rc;
+    rc = init_log_descr(log_config.report_file, &report);
+    if (rc)
+        return rc;
 
-    if ( !EMPTY_STRING( log_config.alert_file ) )
+    if (!EMPTY_STRING(log_config.alert_file))
     {
-        rc = init_log_descr( log_config.alert_file, &alert );
-        if (rc) return rc;
+        rc = init_log_descr(log_config.alert_file, &alert);
+        if (rc)
+            return rc;
     }
 
-    last_time_test = time( NULL );
+    /* Update log level for external components we get logs from (LLAPI...) */
+    rbh_adjust_log_level_external();
 
-
+    last_time_test = time(NULL);
     log_initialized = true;
 
     return 0;
@@ -543,25 +579,31 @@ static void display_line_log_( log_stream_t * p_log, const char * tag,
 
 void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ...)
 {
-    time_t         now = time( NULL );
-    va_list        args;
+    va_list args;
 
-    if ( log_config.debug_level >= debug_level )
+    va_start(args, format);
+    vDisplayLogFn(debug_level, tag, format, args);
+    va_end(args);
+}
+
+void vDisplayLogFn(log_level debug_level, const char *tag, const char *format,
+                   va_list ap)
+{
+    time_t  now = time(NULL);
+
+    if (log_config.debug_level >= debug_level)
     {
-        va_start( args, format );
-        display_line_log( &log, tag, format, args );
-        va_end( args );
+        display_line_log(&log, tag, format, ap);
 
-        /* test if it's time to flush. Also flush major errors, to display it immediately. */
-        if ( (now - last_time_flush_log > TIME_FLUSH_LOG)
-             || (debug_level >= LVL_MAJOR) )
+        /* test if it's time to flush.
+         * Also flush major errors, to display it immediately. */
+        if ((now - last_time_flush_log) > TIME_FLUSH_LOG || debug_level >= LVL_MAJOR)
         {
-            flush_log_descr( &log );
+            flush_log_descr(&log);
             last_time_flush_log = now;
         }
     }
-}                               /* DisplayLog */
-
+}
 
 
 /* Display a message in report file */
@@ -1168,6 +1210,7 @@ static int log_cfg_reload(log_config_t *conf)
         log_config.log_host = conf->log_host;
     }
 
+    rbh_adjust_log_level_external();
     return 0;
 }
 

@@ -87,14 +87,43 @@ int InitializeLogs(const char *prog_name);
 /* flush logs */
 void           FlushLogs(void);
 
+/**
+ * Adjust log levels of external components (such as libraries) we get
+ * messages from.
+ */
+void rbh_adjust_log_level_external(void);
 
-/* Displays a log message */
-void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ...)
-                  __attribute__((format(printf, 3, 4))); /* 3=format 4=params */
-#define DisplayLog(dbg_level,tag,format...) \
-    do { if (log_config.debug_level >= (dbg_level))   \
-            DisplayLogFn((dbg_level), (tag), format); \
-    } while(0)
+/**
+ * Display a log message.
+ * This should not be called directly but used via the DisplayLog macro below.
+ */
+void DisplayLogFn(log_level debug_level, const char *tag,
+                  const char *format, ...)__attribute__((format(printf, 3, 4)));
+
+/**
+ * Display a log message (variable arguments version).
+ * This should not be called directly but used via the vDisplayLog macro below.
+ */
+void vDisplayLogFn(log_level debug_level, const char *tag, const char *format,
+                   va_list ap);
+
+/**
+ * Emit a log record if the message is of high enough importance.
+ */
+#define DisplayLog(dbg_level, tag, ...) \
+    do { \
+        if (log_config.debug_level >= (dbg_level)) \
+            DisplayLogFn((dbg_level), (tag), __VA_ARGS__); \
+    } while (0)
+
+/**
+ * va_list-version of DisplayLog.
+ */
+#define vDisplayLog(dbg_level, tag, format, args) \
+    do { \
+        if (log_config.debug_level >= (dbg_level)) \
+            vDisplayLogFn((dbg_level), (tag), (format), args); \
+    } while (0)
 
 /* Abort due to a bug */
 #define RBH_BUG(_msg)   do { DisplayLog(LVL_CRIT, "BUG", "in %s::%s(), line %u: %s", \
@@ -122,6 +151,5 @@ void           Alert_EndBatching(void);
 
 /* Wait for next stat deadline */
 void           WaitStatsInterval(void);
-
 
 #endif

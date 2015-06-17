@@ -38,21 +38,61 @@
 #include "lustre_extended_types.h"
 
 /* for logs */
-#define TAG_STRIPE "GetStripe"
-#define TAG_CR_STRIPE "CreateStriped"
-#define TAG_OSTDF "OST_df"
-#define TAG_POOLDF "pool_df"
-#define TAG_MDSSTAT "mds_stat"
-#define TAG_FIDPATH "FidPath"
+#define TAG_STRIPE      "GetStripe"
+#define TAG_CR_STRIPE   "CreateStriped"
+#define TAG_OSTDF       "OST_df"
+#define TAG_POOLDF      "pool_df"
+#define TAG_MDSSTAT     "mds_stat"
+#define TAG_FIDPATH     "FidPath"
+#define TAG_LLAPI       "llapi"
+
+
+#if HAVE_LLAPI_LOG_CALLBACKS
+/**
+ * Map LLAPI log levels to robinhood's ones.
+ * The reverse mapping is performed by rbh_msg_level_convert() in rbh_logs.c
+ */
+static inline int lustre_msg_level_convert(enum llapi_message_level level)
+{
+    switch (level & LLAPI_MSG_MASK)
+    {
+        case LLAPI_MSG_FATAL:
+        case LLAPI_MSG_ERROR:
+            return LVL_CRIT;
+
+        case LLAPI_MSG_WARN:
+            return LVL_MAJOR;
+
+        case LLAPI_MSG_NORMAL:
+        case LLAPI_MSG_INFO:
+            return LVL_VERB;
+
+        case LLAPI_MSG_DEBUG:
+        default:
+            return LVL_DEBUG;
+    }
+}
+
+static void display_llapi_msg(enum llapi_message_level lvl, int err,
+                              const char *fmt, va_list ap)
+{
+    vDisplayLog(lustre_msg_level_convert(lvl), TAG_LLAPI, fmt, ap);
+}
+#endif
+
 
 /** initialize access to lustre */
 int Lustre_Init( void )
 {
-#ifdef HAVE_LLAPI_MSG_LEVEL
-    llapi_msg_set_level( LLAPI_MSG_OFF );
-/*    llapi_msg_set_level( LLAPI_MSG_MAX ); */
+#if HAVE_LLAPI_MSG_LEVEL
+# if HAVE_LLAPI_LOG_CALLBACKS
+    rbh_adjust_log_level_external();
+    llapi_error_callback_set(display_llapi_msg);
+    llapi_info_callback_set(display_llapi_msg);
+# else
+    llapi_msg_set_level(LLAPI_MSG_OFF);
+# endif
 #endif
-
     return 0;
 }
 
