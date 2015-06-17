@@ -358,19 +358,19 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
         if (rec->cr_flags & CLF_RENAME) {
             struct changelog_ext_rename *cr_rename;
 
-            cr_rename = changelog_rec_rename(rec);
+            cr_rename = changelog_rec_rename((CL_REC_TYPE *)rec);
             if (fid_is_sane(&cr_rename->cr_sfid)) {
                 len = snprintf(curr, left, " "CL_EXT_FORMAT,
                                PFID(&cr_rename->cr_sfid),
                                PFID(&cr_rename->cr_spfid),
-                               (int)changelog_rec_snamelen(rec),
-                               changelog_rec_sname(rec));
+                               (int)changelog_rec_snamelen((CL_REC_TYPE *)rec),
+                               changelog_rec_sname((CL_REC_TYPE *)rec));
                 curr += len;
                 left -= len;
             }
         }
         if (rec->cr_flags & CLF_JOBID) {
-            struct changelog_ext_jobid *jobid = changelog_rec_jobid(rec);
+            struct changelog_ext_jobid *jobid = changelog_rec_jobid((CL_REC_TYPE *)rec);
 
             len = snprintf(curr, left, " J=%s", jobid->cr_jobid);
             curr += len;
@@ -632,6 +632,45 @@ static int can_ignore_record(const reader_thr_info_t *p_info,
 }
 
 /**
+ * Convert rename flags to unlink flags, depending on Lustre client/server versions.
+ * @param[in]     flags            cr_flags from rename changelog record.
+ * @param[in,out] pipeline_flags   indicate if specific processing is needed in pipeline.
+ */
+static uint16_t cl_rename2unlink_flags(uint16_t flags, unsigned int *pipeline_flags)
+{
+    uint16_t retflg = 0;
+
+#ifdef CLF_RENAME_LAST
+    /* The client support LU-1331 (since CLF_RENAME_LAST is
+     * defined) but that may not be the case of the server. */
+    if (chglog_reader_config.mds_has_lu1331)
+    {
+        if (flags & CLF_RENAME_LAST)
+            retflg |= CLF_UNLINK_LAST;
+#ifdef CLF_RENAME_LAST_EXISTS
+        if (flags & CLF_RENAME_LAST_EXISTS)
+            retflg |= CLF_UNLINK_HSM_EXISTS;
+#endif
+
+    } else
+#endif
+    {
+        /* CLF_RENAME_LAST is not supported in this version of the
+         * client and/or the server. The pipeline will have to
+         * decide whether this is the last entry or not. */
+        *pipeline_flags |= CHECK_IF_LAST_ENTRY;
+    }
+
+    if (!chglog_reader_config.mds_has_lu543) {
+        /* The server doesn't tell whether the rename operation will
+         * remove a file. */
+        *pipeline_flags |= GET_FID_FROM_DB;
+    }
+
+    return retflg;
+}
+
+/**
  * Create a fake unlink changelog record that will be used to remove a
  * file that is overriden during a rename operation.
  *
@@ -648,37 +687,26 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
     CL_REC_TYPE *rec;
     size_t name_len;
 
+    /* Build a simple changelog record with no extention (jobid, rename...).
+     * So, just allocate enough space for the record and the source name. */
     name_len = strlen(rh_get_cl_cr_name(rec_in));
     rec = MemAlloc(sizeof(CL_REC_TYPE) + name_len + 1);
     if (rec == NULL)
         return NULL;
 
-    memcpy(rec, rec_in, sizeof(CL_REC_TYPE) + name_len);
+    /* Copy the fix part of the changelog structure */
+    memcpy(rec, rec_in, sizeof(CL_REC_TYPE));
+
+    /* set target flags before using any accessor on it */
+    rec->cr_flags = cl_rename2unlink_flags(rec_in->cr_flags, insert_flags);
+
+    /* record has to be freed */
+    *insert_flags |= PLR_FLG_FREE2;
+
+    /* unlinked entry is the target name */
+    memcpy(rh_get_cl_cr_name(rec), rh_get_cl_cr_name(rec_in), name_len);
     rh_get_cl_cr_name(rec)[name_len] = 0; /* terminate string */
     rec->cr_namelen = name_len + 1;
-
-    *insert_flags = PLR_FLG_FREE2;
-
-    if (!chglog_reader_config.mds_has_lu543) {
-        /* The server doesn't tell whether the rename operation will
-         * remove a file. */
-        *insert_flags |= GET_FID_FROM_DB;
-    }
-
-#ifdef CLF_RENAME_LAST
-    /* The client support LU-1331 (since CLF_RENAME_LAST is
-     * defined) but that may not be the case of the server. */
-    if (chglog_reader_config.mds_has_lu1331) {
-        rec->cr_flags = (rec_in->cr_flags & CLF_RENAME_LAST)? CLF_UNLINK_LAST : 0;
-    } else
-#endif
-    {
-        /* CLF_RENAME_LAST is not supported in this version of the
-         * client and/or the server. The pipeline will have to
-         * decide whether this is the last entry or not. */
-        rec->cr_flags = 0;
-        *insert_flags |= CHECK_IF_LAST_ENTRY;
-    }
 
     rec->cr_type = CL_UNLINK;
     rec->cr_index = rec_in->cr_index - 1;
@@ -709,16 +737,20 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
     CL_REC_TYPE *rec;
     size_t sname_len;
 
-    /* Allocate enough space for the record and the source name. */
+    /* Build a simple changelog record with no extention (jobid, rename...).
+     * So, just allocate enough space for the record and the source name. */
     sname_len = changelog_rec_snamelen(rec_in);
     rec = MemAlloc(sizeof(CL_REC_TYPE) + sname_len + 1);
     if (rec == NULL)
         return NULL;
 
-    /* Copy the structure and fix a few fields. */
-    *rec = *rec_in;
-    rec->cr_flags = 0; /* not used for RNMFRM */
-    rec->cr_namelen = sname_len + 1;
+    /* Copy the fix part of the changelog structure */
+    memcpy(rec, rec_in, sizeof(CL_REC_TYPE));
+
+    /* set target flags before using any accessor on it */
+    rec->cr_flags = 0; /* simplest record */
+
+    rec->cr_namelen = sname_len + 1; /* add 1 for final NULL-byte */
     memcpy(rh_get_cl_cr_name(rec), changelog_rec_sname(rec_in), sname_len);
     rh_get_cl_cr_name(rec)[sname_len] = 0; /* terminate string */
 
@@ -730,12 +762,10 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
     {
         const struct changelog_ext_rename *cr_ren_in = changelog_rec_rename(rec_in);
 
-        rec->cr_flags = CLF_RENAME;
         rec->cr_tfid = cr_ren_in->cr_sfid; /* the renamed fid */
         rec->cr_pfid = cr_ren_in->cr_spfid; /* the source parent */
     }
 #else
-    rec->cr_flags = 0; /* not used for RNMFRM */
     rec->cr_tfid = rec_in->cr_sfid; /* the renamed fid */
     rec->cr_pfid = rec_in->cr_spfid; /* the source parent */
 #endif
