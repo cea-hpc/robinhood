@@ -51,7 +51,7 @@ typedef struct log_config__
     /* batching of alerts:
      * 0=unlimited, 1=no batching, >1 maximum number of reported alerts per summary
      */
-    unsigned int   batch_alert_max;
+    int            batch_alert_max;
 
     time_t         stats_interval;
 

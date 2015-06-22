@@ -1056,7 +1056,7 @@ static int log_cfg_read(config_file_t config, void *module_config, char *msg_out
             /* TODO add cfg flag: clean if not found */
         {"stats_interval", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
             &conf->stats_interval, 0},
-        {"batch_alert_max", PT_DURATION, PFLG_POSITIVE, &conf->batch_alert_max, 0},
+        {"batch_alert_max", PT_INT, PFLG_POSITIVE, &conf->batch_alert_max, 0},
         {"alert_show_attrs", PT_BOOL,    0, &conf->alert_show_attrs, 0},
         {"log_procname",     PT_BOOL,    0, &conf->log_process, 0},
         {"log_hostname",     PT_BOOL,    0, &conf->log_host, 0},
