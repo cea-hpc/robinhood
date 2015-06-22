@@ -392,7 +392,8 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                               const sm_instance_t *smi, int expr_flag,
                               int depth, bool_op_t op_ctx)
 {
-    int                 index, rc, flag, new_depth;
+    int                 index, rc, new_depth;
+    int                 flag = 0;
     filter_comparator_t comp;
     filter_value_t      val;
     bool                must_free;
@@ -422,7 +423,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 
             flag = FILTER_FLAG_NOT;
 
-            if (allow_null(index, &comp, &val))
+            if ((expr_flag & FILTER_FLAG_ALLOW_NULL) || allow_null(index, &comp, &val))
                 flag |= FILTER_FLAG_ALLOW_NULL;
             if (must_free)
                 flag |= FILTER_FLAG_ALLOC_STR;
@@ -452,7 +453,9 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
-            flag = allow_null(index, &comp, &val)? FILTER_FLAG_ALLOW_NULL : 0;
+            if ((expr_flag & FILTER_FLAG_ALLOW_NULL)
+                || allow_null(index, &comp, &val))
+                flag |= FILTER_FLAG_ALLOW_NULL;
 
             if (must_free)
                 flag |= FILTER_FLAG_ALLOC_STR;
@@ -517,13 +520,14 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 
 /** Convert simple expressions to ListMgr filter (append filter) */
 int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr, lmgr_filter_t *filter,
-                                      const sm_instance_t *smi)
+                                      const sm_instance_t *smi, bool tolerant)
 {
     if (!is_simple_expr(boolexpr, 0, BOOL_AND))
         return DB_INVALID_ARG;
 
     /* default filter context is AND */
-    return append_simple_expr(boolexpr, filter, smi, 0, 0, BOOL_AND);
+    return append_simple_expr(boolexpr, filter, smi,
+                              tolerant ? FILTER_FLAG_ALLOW_NULL : 0, 0, BOOL_AND);
 }
 
 

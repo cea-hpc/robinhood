@@ -968,14 +968,18 @@ int lmgr_simple_filter_add_if_not_exist( lmgr_filter_t * p_filter,
 int            lmgr_simple_filter_free( lmgr_filter_t * p_filter );
 
 
+struct sm_instance;
 /** Convert simple expressions to ListMgr filter (append filter).
  * Imbrications of AND and OR filters produced by convert_boolexpr_to_simple_filter()
  * are only supported by listmgr_iterators. Callers that use convert_boolexpr_to_simple_filter()
- * must take care not using "OR" expression if they are using other listmgr calls
+ * must take care not using "OR" expression if they are using other listmgr calls.
+ * @param[in]     boolexpr  the boolean expression to be converted.
+ * @param[in,out] filter    the output filter to be appended.
+ * @param[in]     smi       the current status manager (if any).
+ * @param[in]     tolerant  make the request tolerant to missing (NULL) attributes.
  */
-struct sm_instance;
 int convert_boolexpr_to_simple_filter(struct bool_node_t *boolexpr, lmgr_filter_t *filter,
-                                      const struct sm_instance *smi);
+                                      const struct sm_instance *smi, bool tolerant);
 
 /** Set a complex filter structure */
 int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *boolexpr );
