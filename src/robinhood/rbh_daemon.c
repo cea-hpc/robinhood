@@ -1640,8 +1640,11 @@ int main(int argc, char **argv)
                                      &run_cfgs.configs[pol_idx[i]],
                                      &policy_opt);
             if (rc == ENOENT)
+            {
                 DisplayLog(LVL_CRIT, MAIN_TAG, "Policy %s is disabled.",
                            policies.policy_list[pol_idx[i]].name);
+                continue;
+            }
             else if (rc)
             {
                 fprintf(stderr, "Error %d initializing Migration module\n", rc);
