@@ -27,7 +27,8 @@
 #include <pthread.h>
 
 
-int ListMgr_Update(lmgr_t *p_mgr, entry_id_t *p_id, attr_set_t *p_update_set)
+int ListMgr_Update(lmgr_t *p_mgr, const entry_id_t *p_id,
+                   const attr_set_t *p_update_set)
 {
     int            rc;
     GString       *req;

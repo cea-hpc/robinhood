@@ -461,8 +461,8 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
 /**
  * Modifies an existing entry in the database.
  */
-int            ListMgr_Update(lmgr_t * p_mgr, entry_id_t *p_id,
-                              attr_set_t *p_update_set);
+int            ListMgr_Update(lmgr_t *p_mgr, const entry_id_t *p_id,
+                              const attr_set_t *p_update_set);
 
 /**
  * Applies a modification to all entries that match the specified filter.
