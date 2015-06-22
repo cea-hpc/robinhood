@@ -39,7 +39,7 @@ typedef enum
     AS_ACCESSED,            /* entry has been accessed recently */
     AS_MOVED,               /* entry has been moved or deleted */
     AS_WHITELISTED,         /* entry is whitelisted  */
-    AS_STATUS_CHANGED,      /* entry status has changed */
+    AS_OUT_OF_SCOPE,        /* entry is no longer in policy scope */
     AS_NO_POLICY,           /* entry matches no policy */
     AS_BAD_TYPE,            /* policy does not apply to this type of entry */
     AS_BUSY,                /* entry is is use */
@@ -62,7 +62,7 @@ static const char __attribute__(( __unused__ )) *action_status_descr[AS_ENUM_COU
     "accessed since last update",
     "moved or deleted since last update",
     "whitelisted/ignored",
-    "status has changed",
+    "out of scope",
     "no matching rule",
     "entry type out of scope",
     "entry is in use/busy",

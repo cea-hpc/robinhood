@@ -959,23 +959,16 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
 {
     uint64_t mask = 0LL;
 
-    /* Retrieve at least: fullpath, last_access, size, blcks
-     * because they are used for checking if info changed.
-     * Retrieve last_mod and stripe_info for logs and reports.
-     * Also retrieve info needed for blacklist/whitelist rules.
-     */
-/* need parent_id and name for ListMgr_Remove() prototype */
-
 /* TODO depends on the prototype of the action to be taken + fileset mask + condition mask... */
 
-/* needed for remove operations */
+    /* needed for ListMgr_Remove() operations */
 #ifdef HAVE_FID
     mask |= ATTR_MASK_name | ATTR_MASK_parent_id;
 #endif
     /* needed for posix operations, and for display */
     mask |= ATTR_MASK_fullpath;
 
-/* needed if update params != never */
+    /* needed if update params != never */
     if (updt_params.md.when != UPDT_NEVER &&
         updt_params.md.when != UPDT_ALWAYS )
         mask |= ATTR_MASK_md_update;
@@ -985,10 +978,11 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
         updt_params.path.when != UPDT_ALWAYS)
         mask |= ATTR_MASK_path_update;
 #endif
+    /* needed to check the entry order didn't change */
     if (policy->config->lru_sort_attr != LRU_ATTR_NONE)
         mask |= (1LL << policy->config->lru_sort_attr);
 
-    /* needed for size counter */
+    /* needed for size counters and logging, or to verify the entry didn't change */
     mask |= ATTR_MASK_size;
     /* depends on policy params (limits) */
     if (param->target_ctr.blocks != 0 || param->target_ctr.targeted != 0)
@@ -1012,7 +1006,12 @@ static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
     /* needed attributes to build action params */
     mask |= policy->config->run_attr_mask;
 
-    // TODO class management
+    /* if the policy manages deleted entries, get all
+     * SOFTRM attributes for the current status manager */
+    if (policy->descr->manage_deleted && (policy->descr->status_mgr != NULL))
+        mask |= policy->descr->status_mgr->softrm_table_mask;
+
+    // TODO class management?
 
     return mask;
 }
@@ -1654,38 +1653,6 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (!ignore_policies(p_pol_info))
         set_optimization_filters(p_pol_info, &filter);
 
-    /* optimization: do not retrieve whitelisted entries
-    * that do not need fileclass update. Skip this optimization
-     * if there is no 'ignore' statement.
-     */
-#if 0 // FIXME RBH v3: implement with new fileclass format
-    if (policies.purge_policies.whitelist_count > 0)
-    {
-        if (policies.updt_policy.fileclass.policy == UPDT_NEVER)
-        {
-            /* filter: release class != ignored */
-            fval.value.val_str = CLASS_IGNORED;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_release_class,
-                                         NOTEQUAL, fval, FILTER_FLAG_ALLOW_NULL);
-            if (rc)
-                return rc;
-        }
-        else if (policies.updt_policy.fileclass.policy == UPDT_PERIODIC)
-        {
-            /* filter: release class != ignored OR update <= now - period */
-            fval.value.val_str = CLASS_IGNORED;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_release_class,
-                                         NOTEQUAL, fval, FILTER_FLAG_ALLOW_NULL
-                                                        | FILTER_FLAG_BEGIN);
-            fval.value.val_uint = time(NULL) - policies.updt_policy.fileclass.period_max;
-            rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_rel_cl_update,
-                                         LESSTHAN, fval, FILTER_FLAG_ALLOW_NULL
-                                                        | FILTER_FLAG_OR
-                                                        | FILTER_FLAG_END);
-        }
-    }
-#endif
-
     /* Do not retrieve all entries at once, as the result may exceed the client memory! */
     opt.list_count_max = p_pol_info->config->db_request_limit;
     nb_returned = 0;
@@ -1770,7 +1737,8 @@ inline static int invalidate_entry(lmgr_t * lmgr, entry_id_t * p_entry_id)
 /* declaration from listmgr_common.c */
 extern uint64_t     readonly_attr_set;
 
-inline static int update_entry(lmgr_t * lmgr, entry_id_t * p_entry_id, attr_set_t * p_attr_set)
+inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
+                               const attr_set_t *p_attr_set)
 {
     int            rc;
     attr_set_t     tmp_attrset = *p_attr_set;
@@ -1844,15 +1812,14 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
     ATTR(new_attr_set, md_update) = time(NULL);
 
     /* get fullpath or name, if they are needed for applying policy */
-
     if (policy->descr->rules.run_attr_mask & (ATTR_MASK_fullpath | ATTR_MASK_name))
     {
         path_check_update(&p_item->entry_id, fid_path, new_attr_set,
                           policy->descr->rules.run_attr_mask);
     }
 
-#if 0 // TODO RBHv3: status management (only if scope is about status)
-#ifdef ATTR_INDEX_status
+#if 0 // TODO RBHv3: retrieve status from status manager if the scope
+      // relies on it
 #ifdef _LUSTRE_HSM
     /* For Lustre-HSM, don't care about fresh status because 'release'
      * is safe (Lustre locking + check of open/modified files)
@@ -1878,7 +1845,6 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
     rc = rbhext_get_status(&p_item->entry_id, new_attr_set, new_attr_set);
     if (rc)
         return PURGE_ERROR;
-#endif
 #endif
 #endif
 
@@ -1966,6 +1932,75 @@ else
     return PURGE_OK;
 }
 #endif
+
+/** check that time ordering did not change and that time attributes
+ * are consistent. */
+static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
+                                         const entry_id_t *p_id,
+                                         const attr_set_t *p_attrs_old,
+                                         const attr_set_t *p_attrs_new)
+{
+    if (pol->descr->manage_deleted)
+    {
+        /* deleted entry: no new attrs */
+
+        /* if lru sort order is rmtime and rmtime is not set: missing MD */
+        if ((pol->config->lru_sort_attr == ATTR_INDEX_rm_time)
+            && !ATTR_MASK_TEST(p_attrs_old, rm_time))
+        {
+            /* cannot determine if sort criteria has changed */
+            DisplayLog(LVL_VERB, tag(pol), "rm_time attribute is not set for deleted entry: skipping it");
+            return AS_MISSING_MD;
+        }
+        return AS_OK;
+    }
+
+    /* If the policy application is ordered, make sure the value used for
+     * ordering did not change. If so, update the entry so it will be
+     * correctly ordered for the next pass. */
+    if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
+    {
+        int val1, val2;
+
+        val1 = get_sort_attr(pol, p_attrs_old);
+        val2 = get_sort_attr(pol, p_attrs_new);
+
+        if ((val1 == -1) || (val2 == -1))
+        {
+            /* cannot determine if sort criteria has changed */
+            DisplayLog(LVL_VERB, tag(pol), "Cannot determine if sort criteria value"
+                       " changed (missing attribute %s): skipping entry.",
+                       sort_attr_name(pol));
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, p_id, p_attrs_new);
+            return AS_MISSING_MD;
+        }
+        else if (val1 != val2)
+        {
+            DisplayLog(LVL_DEBUG, tag(pol),
+                       "%s has been accessed/modified since last md update. Skipping entry.",
+                       ATTR(p_attrs_old, fullpath));
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, p_id, p_attrs_new);
+            return AS_ACCESSED;
+        }
+
+        /* LRU on access/modification: size change detected? */
+        if ((pol->config->lru_sort_attr == ATTR_INDEX_last_access
+             || pol->config->lru_sort_attr == ATTR_INDEX_last_mod)
+            && ATTR_MASK_TEST(p_attrs_old, size) && ATTR_MASK_TEST(p_attrs_new, size)
+            && (ATTR(p_attrs_old, size) != ATTR(p_attrs_new, size)))
+        {
+            DisplayLog(LVL_DEBUG, tag(pol),
+                       "%s has been modified since last md update (size changed). Skipping entry.",
+                       ATTR(p_attrs_old, fullpath));
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, p_id, p_attrs_new);
+            return AS_ACCESSED;
+        }
+    }
+    return AS_OK;
+}
 
 
 /**
@@ -2059,31 +2094,43 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 #endif
 #endif
 
-#if 0 // TODO RBHv3: status management
-#ifdef ATTR_INDEX_status
-    if (!ATTR_MASK_TEST(&new_attr_set, status))
+    /* check the entry still matches the policy scope */
+    switch (match_scope(pol->descr, &p_item->entry_id, &new_attr_set,
+                        !pol->descr->manage_deleted))
     {
-        DisplayLog(LVL_MAJOR, PURGE_TAG, "Warning: entry status should be set at this point");
-        Acknowledge(&purge_queue, PURGE_PARTIAL_MD, 0, 0);
-        goto end;
+        case POLICY_MATCH:
+            /* OK */
+            break;
+        case POLICY_NO_MATCH:
+            DisplayLog(LVL_DEBUG, tag(pol), "Entry %s no longer matches the scope of policy '%s'.",
+                       ATTR(&new_attr_set, fullpath), tag(pol));
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+            policy_ack(&pol->queue, AS_OUT_OF_SCOPE, &p_item->entry_attr,
+                       p_item->targeted);
+            goto end;
+            break;
+        default:
+            if (!pol->descr->manage_deleted)
+            {
+                DisplayLog(LVL_MAJOR, tag(pol),
+                           "Warning: cannot determine if entry %s matches the "
+                           "scope of policy '%s': skipping it.",
+                           ATTR(&new_attr_set, fullpath), tag(pol));
+                policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr,
+                           p_item->targeted);
+                goto end;
+            }
+            else
+            {
+                /* For deleted entries, we expect missing attributes.
+                 * so, continue anyway. */
+                DisplayLog(LVL_DEBUG, tag(pol),
+                           "Cannot determine if entry %s matches the "
+                           "scope of policy '%s'. Continuing anyway.",
+                           ATTR(&new_attr_set, fullpath), tag(pol));
+            }
     }
-    else if (ATTR(&new_attr_set, status) != STATUS_SYNCHRO)
-    {
-        /* status changed */
-        DisplayLog(LVL_MAJOR, PURGE_TAG,
-                    "%s: entry status recently changed (%s): skipping entry.",
-                    ATTR(&new_attr_set,fullpath),
-                    db_status2str(ATTR(&new_attr_set, status),1));
-
-        /* update DB and skip the entry */
-        update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-
-        /* Notify that this entry is whitelisted */
-        Acknowledge(&purge_queue, PURGE_STATUS_CHGD, 0, 0);
-        goto end;
-    }
-#endif
-#endif
 
     /* if ignore-policies flag is specified:
      * - don't check rules
@@ -2101,7 +2148,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                        ATTR(&p_item->entry_attr, fullpath),
                        p_fileset? p_fileset->fileset_id:"(ignore rule)");
 
-            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+
             policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
             goto end;
         }
@@ -2115,59 +2164,15 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
             goto end;
         }
 
-        /* 5) check that entry has not been accessed.
-         *   - If is has been accessed, update its info.
-         *   - Else, perform purge, and remove entry from database /!\ nlink ?.
-         */
-
-#if 0 // TODO RBHv3: how to handle atime check with generic policies?
-        bool atime_check = true;
-
-        /* for directories or links, don't check access time as it is modified
-         * by robinhood itself will collecting info about entry.
-         */
-        if (ATTR_MASK_TEST(&p_item->entry_attr, type) &&
-            (!strcmp(ATTR(&p_item->entry_attr, type), STR_TYPE_LINK)
-             || !strcmp(ATTR(&p_item->entry_attr, type), STR_TYPE_DIR)))
-            atime_check = false;
-
-        if ((atime_check && !ATTR_MASK_TEST(&p_item->entry_attr, last_access))
-             || !ATTR_MASK_TEST(&p_item->entry_attr, size))
+        /* check that time ordering did not change and that time attributes
+         * are consistent. */
+        rc = check_entry_times(pol, lmgr, &p_item->entry_id, &p_item->entry_attr,
+                               &new_attr_set);
+        if (rc != AS_OK)
         {
-            /* cannot determine if entry has been accessed: update and skip it */
-            DisplayLog(LVL_MAJOR, PURGE_TAG,
-                        "Warning: previous value of 'last_access' or 'size' "
-                        "is not available: cannot determine if entry has been "
-                        "accessed. Skipping entry.");
-            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-
-            /* Notify error */
-            Acknowledge(&purge_queue, PURGE_PARTIAL_MD, 0, 0);
-
+            policy_ack(&pol->queue, rc, &p_item->entry_attr, p_item->targeted);
             goto end;
         }
-
-        if ((atime_check && (ATTR(&p_item->entry_attr, last_access) < ATTR(&new_attr_set, last_access)))
-             || (ATTR(&p_item->entry_attr, size) != ATTR(&new_attr_set, size)))
-        {
-            DisplayLog(LVL_DEBUG, PURGE_TAG,
-                        "%s has been accessed or modified since it was updated. Skipping entry.",
-                        ATTR(&p_item->entry_attr, fullpath));
-            DisplayLog(LVL_FULL, PURGE_TAG,
-                        "atime before=%d, after=%d | size before=%llu, after=%llu",
-                        (int) ATTR(&p_item->entry_attr, last_access),
-                        (int) ATTR(&new_attr_set, last_access),
-                        (unsigned long long) ATTR(&p_item->entry_attr, size),
-                        (unsigned long long) ATTR(&new_attr_set, size));
-
-            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-
-            Acknowledge(&purge_queue, PURGE_ENTRY_ACCESSED, 0, 0);
-
-            goto end;
-        }
-#endif
-
     } /* end if 'don't ignore policies' */
 
     /* get policy rule for the entry */
@@ -2178,7 +2183,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         DisplayLog(LVL_DEBUG, tag(pol), "Entry %s matches no policy rule",
                    ATTR(&p_item->entry_attr, fullpath));
 
-        update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+        if (!pol->descr->manage_deleted)
+            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+
         policy_ack(&pol->queue, AS_NO_POLICY, &p_item->entry_attr,
                    p_item->targeted);
         goto end;
@@ -2196,7 +2203,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
             DisplayLog(LVL_DEBUG, tag(pol), "Entry %s doesn't match condition for policy rule '%s'",
                        ATTR(&p_item->entry_attr, fullpath), rule->rule_id);
 
-            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+
             policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
             goto end;
             break;
@@ -2322,7 +2331,10 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                 DisplayLog(LVL_CRIT, tag(pol), "Error %d removing entry from database.", rc);
         }
         else if (after_action == PA_UPDATE)
-            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+        {
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+        }
         else if (after_action ==  PA_RM_ONE)
         {
             lastrm = ATTR_MASK_TEST(&attr_sav, nlink)?
@@ -2532,7 +2544,8 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
             }
 #endif
             /* update entry status */
-            update_entry(lmgr, &q_item.entry_id,  &q_item.entry_attr);
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, &q_item.entry_id,  &q_item.entry_attr);
         }
         else
             nb_aborted ++;
