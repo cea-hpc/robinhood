@@ -743,15 +743,17 @@ status_manager_t lhsm_sm = {
     /* fields for managing deleted entries */
     .softrm_filter_mask = ATTR_MASK_type | SMI_MASK(0),
     .softrm_filter_func = lhsm_softrm_filter,
-    /** needed attributes for undelete in addition to POSIX and fullpath: lhsm_status (to know the status of the 'undeleted' entry)
-     * FIXME also need to store the 'archive_id'!
+
+    /** needed attributes for undelete in addition to POSIX and fullpath:
+     * - lhsm_status: to know the original status of the 'undeleted' entry.
+     * - archive_id: to know what archive the hsm_remove order must be sent to.
      */
-    .softrm_table_mask = SMI_MASK(0),
+    .softrm_table_mask = SMI_MASK(0) | GENERIC_INFO_BIT(ATTR_ARCHIVE_ID),
     .undelete_func = NULL, /* FIXME to be implemented */
 
     /* XXX about full disaster recovery: must recreate all metadata (incl. symlinks => need link field)
      * not only the entries managed by the policy.
-     * This was used to be done usung the contents of ENTRIES table.
+     * This was used to be done using the contents of ENTRIES table.
      */
 
     /* XXX A status manager can load a configuration */
