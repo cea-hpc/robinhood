@@ -490,5 +490,13 @@ char *name_status_mask(uint64_t mask, char *buf, int sz);
 /** retrieve a status manager from its name */
 sm_instance_t *smi_by_name(const char *smi_name);
 
+/** Search the given attribute name (status or policy specific info).
+ * If there is no smi in the context, name must be of the form '<sm_instance_name>.<attr_name>'
+ * else, it can be just <attr_name> (implicit sm_instance name).
+ * @retval  -ENOENT if the requested attribute is not set in attributes structure.
+ * @retval  -EINVAL if status manager or attr name is invalid.
+ */
+int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
+                const char *name, void **val, db_type_t *type);
 
 #endif

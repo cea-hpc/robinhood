@@ -140,6 +140,85 @@ sm_instance_t *smi_by_name(const char *smi_name)
     return NULL;
 }
 
+/** helper for sm_attr_get. Assume smi is set. */
+static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
+                        const char *attr_name, void **val, db_type_t *type)
+{
+    int i;
+
+    assert(smi != NULL);
+
+    if (!strcasecmp(attr_name, "status"))
+    {
+        /* XXX NULL or empty string? */
+        if (!ATTR_MASK_STATUS_TEST(p_attrs, smi->smi_index))
+            return -ENOENT;
+        if (p_attrs->attr_values.sm_status == NULL)
+            return -ENOENT;
+
+        *val = (char *)STATUS_ATTR(p_attrs, smi->smi_index);
+        *type = DB_TEXT;
+        return *val ? 0 : -ENOENT;
+    }
+
+    /* other attrs */
+    for (i = 0; i < smi->sm->nb_info; i++)
+    {
+        if (!strcasecmp(attr_name, smi->sm->info_types[i].user_name))
+        {
+            if (!ATTR_MASK_INFO_TEST(p_attrs, smi, i))
+                return -ENOENT;
+            if (p_attrs->attr_values.sm_info == NULL)
+                return -ENOENT;
+
+            *val = SMI_INFO(p_attrs, smi, i);
+            *type = smi->sm->info_types[i].db_type;
+            return *val ? 0 : -ENOENT;
+        }
+    }
+    return -EINVAL;
+}
+
+/* -EINVAL: invalid argument, -ENOENT: missing attribute value */
+int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
+                const char *name, void **val, db_type_t *type)
+{
+    const char *dot = strchr(name, '.');
+
+    /* if there is no smi in context, and no dot is found:
+     * nothing can't match */
+    if (!dot && !smi)
+        return -ENOENT;
+
+    if (dot)
+    {
+        char *smi_name = strndup(name, (ptrdiff_t)dot - (ptrdiff_t)name);
+        sm_instance_t *smi2;
+
+        /* get the status manager with the given name */
+        smi2 = smi_by_name(smi_name);
+        if (smi2 == NULL)
+        {
+            DisplayLog(LVL_CRIT, __func__, "ERROR: unknown status manager '%s' in parameter '%s'",
+                       smi_name, name);
+            free(smi_name);
+            return -EINVAL;
+        }
+        free(smi_name);
+
+        return get_smi_attr(smi2, p_attrs, dot+1, val, type);
+    }
+    else
+    {
+        int rc = get_smi_attr(smi, p_attrs, dot+1, val, type);
+
+        /* If no smi is explicitely specified, it was just
+         * a try to match. So, change EINVAL to ENOENT. */
+        return (rc == -EINVAL) ? -ENOENT : rc;
+    }
+}
+
+
 /* contents of status_manager:
 name, flags, status_enum, status_count, status_needs_attrs_cached,
 status_needs_attrs_fresh, get_status_func, changelog_cb.

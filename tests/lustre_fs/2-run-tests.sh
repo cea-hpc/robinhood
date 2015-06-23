@@ -1264,6 +1264,131 @@ function test_hsm_remove
     fi
 }
 
+# test that hsm_remove requests are sent to the right archive
+function test_lhsm_remove
+{
+    config_file=$1
+    nb_archive=$2
+    sleep_time=$3
+    policy_str="$4"
+
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+    if (( $no_log )); then
+        echo "changelog disabled: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    local default_archive=$(cat /proc/fs/lustre/mdt/lustre-MDT0000/hsm/default_archive_id)
+
+    # create nb_archive + 3 more files to test:
+    # - hsm_archive with no option
+    # - hsm_archive with -a 0
+    # - file that will be deleted before robinhood gets its archive_id
+
+    id=()
+    name=()
+    echo "Writing files..."
+    for i in $(seq 1 $nb_archive) no_opt 0 x ; do
+        dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+        name+=( "$i" )
+        id+=( "$(get_id "$ROOT/file.$i")" )
+    done
+
+    # initial scan (files are known as 'new')
+    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
+    check_db_error rh_scan.log
+
+    # archive then
+    echo "Archiving files..."
+    flush_data
+    for i in $(seq 1 $nb_archive); do
+        $LFS hsm_archive -a $i $ROOT/file.$i || error "executing lfs hsm_archive"
+    done
+    $LFS hsm_archive $ROOT/file.no_opt || error "executing lfs hsm_archive"
+    $LFS hsm_archive -a 0 $ROOT/file.0 || error "executing lfs hsm_archive"
+
+    echo "Waiting for end of data migration..."
+    wait_done 60 || error "Migration timeout"
+
+    # make sure rm operations are in the changelog
+    sleep 1
+
+    # robinhood reads the archive_id
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    check_db_error rh_chglogs.log
+
+    # now archive and remove the last file
+    $LFS hsm_archive -a 2 $ROOT/file.x || error "executing lfs hsm_archive"
+    echo "Waiting for end of data migration..."
+    wait_done 60 || error "Migration timeout"
+
+    echo "Removing all files"
+    rm -f $ROOT/file.*
+
+    # make sure rm operations are in the changelog
+    sleep 1
+
+    # read unlink records
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    check_db_error rh_chglogs.log
+
+
+    echo "Checking report..."
+    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+
+    nb_ent=`wc -l rh_report.log | awk '{print $1}'`
+    if (( $nb_ent != $nb_archive + 3 )); then
+        error "Wrong number of deferred rm reported: $nb_ent"
+    fi
+
+    for i in $(seq 1 ${#id[@]}); do
+        n=${name[$((i-1))]}
+        fid=${id[$((i-1))]}
+        grep "$fid" rh_report.log | grep $ROOT/file.$n || error "$ROOT/file.$n ($fid) not found in deferred rm list"
+    done
+
+    echo "Applying deferred remove operations"
+    $RH -f ./cfg/$config_file --run=hsm_remove --target=all --force-all -l DEBUG -L rh_rm.log  || error "hsm_remove"
+
+    for i in $(seq 1 ${#id[@]}); do
+        n=${name[$((i-1))]}
+        fid=${id[$((i-1))]}
+
+        echo $n
+        # specific cases
+        if [[ "$n" == "0" ]] || [[ "$n" == "no_opt" ]]; then
+            # robinhood should know the entry was in default archive
+            grep "action REMOVE" rh_rm.log | grep $fid | grep "archive_id=$default_archive" ||
+                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to default archive $default_archive"
+        elif [[ "$n" == "x" ]]; then
+            # robinhood doesn't know in was archive was the entry
+            # send to archive 0 (must be interpreted by coordinator as a broadcast to all archives)
+            grep "action REMOVE" rh_rm.log | grep $fid | grep "archive_id=0" ||
+                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to archive 0 (broadcast)"
+        else
+            # should be send to archive $i
+            grep "action REMOVE" rh_rm.log | grep "$fid" | grep "archive_id=$i" ||
+                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to archive_id $i"
+        fi
+    done
+
+
+    nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
+    if (($nb_rm != $nb_archive + 3)); then
+        error "********** TEST FAILED: $nb_archive + 3 removals expected, $nb_rm done"
+    else
+        echo "OK: $nb_rm files removed from archive"
+    fi
+}
+
+
 
 function mass_softrm
 {
@@ -9865,6 +9990,7 @@ run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions 
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
 run_test 212a	link_unlink_remove_test test_rm1.conf 1 11 "deferred hsm_remove"
 run_test 212b   test_hsm_remove         test_rm1.conf 2 11 "deciding softrm for removed entries"
+run_test 212c   test_lhsm_remove        test_rm1.conf 4 11 "test archive_id parameter for lhsm_remove"
 run_test 213	migration_test_single test1.conf 11 11 "simple migration policy"
 run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
 run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"

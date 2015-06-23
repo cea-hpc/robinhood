@@ -49,7 +49,7 @@ static int get_archive_id(const action_params_t *params)
     const char *val = rbh_param_get(params, ARCHIVE_PARAM);
 
     if (val == NULL)
-        return DEFAULT_ARCHIVE_ID;
+        return -ENOENT;
 
     arch_id = str2int(val);
     if (arch_id == -1)
@@ -98,21 +98,44 @@ static int lhsm_init(struct sm_instance *smi, run_flags_t flags)
 
 /** Trigger an HSM action */
 static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
-                       const action_params_t *params)
+                       const attr_set_t *attrs, const action_params_t *params)
 {
     struct hsm_user_request * req;
     int rc;
     char *mpath;
-    unsigned int    archive_id = DEFAULT_ARCHIVE_ID;
+    unsigned int    archive_id = DEFAULT_ARCHIVE_ID; /* default */
     GString        *args = NULL;
     const char     *data = NULL;
     int             data_len = 0;
 
-    /* Get archive_id from parameters. */
+    /* if archive_id is explicitely specified in action parameters, use it */
     rc = get_archive_id(params);
-    if (rc < 0)
+    if (rc == 0)
+    {
+        archive_id = rc;
+    }
+    else if (rc == -ENOENT)
+    {
+        /* for HSM_REMOVE, try to get it from previous attrs */
+        if (action == HUA_REMOVE)
+        {
+            db_type_t type;
+            unsigned int *tmp;
+
+            rc = sm_attr_get(NULL, attrs, "lhsm.archive_id", (void **)&tmp, &type);
+            if (rc == 0)
+            {
+                /* sanity check of returned type */
+                if (type != DB_UINT)
+                    DisplayLog(LVL_CRIT, LHSM_TAG, "Unexpected type for 'lhsm.archive_id'");
+                else
+                    archive_id = *tmp;
+            }
+        }
+        /* all other cases: keep default */
+    }
+    else if (rc < 0)
         return rc;
-    archive_id = rc;
 
     /* Serialize the parameters to pass them to the copytool.
      * exclude archive_id, which is for internal use. */
@@ -127,6 +150,9 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
         data = args->str;
         data_len = args->len + 1;
     }
+
+    DisplayLog(LVL_DEBUG, LHSM_TAG, "action %s, fid="DFID", archive_id=%u, parameters='%s'",
+               hsm_user_action2name(action), PFID(p_id), archive_id, args->str);
 
     req = llapi_hsm_user_request_alloc(1, data_len);
     if (!req)
@@ -174,7 +200,7 @@ static int lhsm_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     /* 'after' is set in action callback */
-    return lhsm_action(HUA_RELEASE, p_entry_id, params);
+    return lhsm_action(HUA_RELEASE, p_entry_id, p_attrs, params);
 }
 
 /** perform hsm_archive action */
@@ -183,7 +209,7 @@ static int lhsm_archive(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     /* 'after' is set in action callback */
-    return lhsm_action(HUA_ARCHIVE, p_entry_id, params);
+    return lhsm_action(HUA_ARCHIVE, p_entry_id, p_attrs, params);
 }
 
 /** perform hsm_remove action */
@@ -192,7 +218,7 @@ static int lhsm_remove(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     /* 'after' is set in action callback */
-    int rc = lhsm_action(HUA_REMOVE, p_entry_id, params);
+    int rc = lhsm_action(HUA_REMOVE, p_entry_id, p_attrs, params);
     return rc;
 }
 
