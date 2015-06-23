@@ -287,12 +287,12 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
         smi->instance_name = strdup(pol_name);
 
     if (smi->instance_name == NULL)
-        goto free_smi;
+        goto out_free;
 
     /* <instance_name>_status */
     asprintf(&smi->db_field, "%s_status", smi->instance_name);
     if (smi->db_field == NULL)
-        goto free_str1;
+        goto out_free;
 
     /* @TODO load its configuration */
     /* @TODO initialize it */
@@ -301,20 +301,20 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     sm_inst_count++;
     sm_inst = realloc(sm_inst, sm_inst_count * sizeof(sm_instance_t*));
     if (sm_inst == NULL)
-        goto free_str2;
+        goto out_free;
     sm_inst[sm_inst_count-1] = smi;
 
     /* the attribute mask cannot handle more that 64 attributes */
     if (smi_info_index(smi, sm->nb_info - 1) >= 64)
     {
         DisplayLog(LVL_CRIT, "smi_create", "Too many policy-specific attributes (attribute mask is 64bits)");
-        goto free_str2;
+        goto out_free;
     }
 
     sm_attr_count += sm->nb_info;
     sm_attr_info = realloc(sm_attr_info, sm_attr_count * sizeof(struct _sm_attr_info));
     if (sm_attr_info == NULL)
-        goto free_str2;
+        goto out_free;
 
     /* <instance_name>_<attr_name> */
     for (i = 0; i < sm->nb_info; i++)
@@ -329,12 +329,13 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
 
     return smi;
 
-free_str2:
-    free(smi->db_field);
-free_str1:
-    free(smi->instance_name);
-free_smi:
-    free(smi);
+out_free:
+    if (smi)
+    {
+        free(smi->db_field);
+        free(smi->instance_name);
+        free(smi);
+    }
     return NULL;
 }
 
