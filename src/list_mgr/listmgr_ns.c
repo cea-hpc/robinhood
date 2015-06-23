@@ -26,6 +26,7 @@
 #include "database.h"
 #include "Memory.h"
 #include "rbh_logs.h"
+#include "rbh_misc.h"
 #include <stdio.h>
 #include <stdlib.h>
 

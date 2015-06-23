@@ -98,6 +98,47 @@ int set_sm_info(sm_instance_t *smi, attr_set_t *pattrs,
     return 0;
 }
 
+/** build a string with the list of statuses in the given mask */
+char *name_status_mask(uint64_t mask, char *buf, int sz)
+{
+    int i = 0;
+    uint64_t m;
+    buf[0] = '\0';
+    char *cur = buf;
+
+    for (i = 0, m = (1LL << ATTR_COUNT); i < sm_inst_count; i++, m <<= 1)
+    {
+        if (mask & m)
+        {
+            sm_instance_t *smi = get_sm_instance(i);
+            /* append smi name */
+            if (!EMPTY_STRING(buf))
+            {
+                *cur = ',';
+                cur++;
+            }
+            rh_strncpy(cur, smi->instance_name, sz - (ptrdiff_t)(cur - buf));
+            cur += strlen(cur);
+        }
+    }
+    return buf;
+}
+
+/** retrieve a status manager from its name */
+sm_instance_t *smi_by_name(const char *smi_name)
+{
+    int i;
+
+    for (i = 0; i < sm_inst_count; i++)
+    {
+        sm_instance_t *smi = sm_inst[i];
+
+        if (!strcmp(smi->instance_name, smi_name))
+            return smi;
+    }
+    /* not found */
+    return NULL;
+}
 
 /* contents of status_manager:
 name, flags, status_enum, status_count, status_needs_attrs_cached,

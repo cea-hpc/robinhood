@@ -21,6 +21,7 @@
 #include "listmgr_common.h"
 #include "listmgr_stripe.h"
 #include "rbh_logs.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

@@ -484,48 +484,11 @@ static inline uint64_t sm_softrm_mask(void)
     return all;
 }
 
-#include "rbh_misc.h"
-
 /** build a string with the list of statuses in the given mask */
-static inline char *name_status_mask(uint64_t mask, char *buf, int sz)
-{
-    int i = 0;
-    uint64_t m;
-    buf[0] = '\0';
-    char *cur = buf;
-
-    for (i = 0, m = (1LL << ATTR_COUNT); i < sm_inst_count; i++, m <<= 1)
-    {
-        if (mask & m)
-        {
-            sm_instance_t *smi = get_sm_instance(i);
-            /* append smi name */
-            if (!EMPTY_STRING(buf))
-            {
-                *cur = ',';
-                cur++;
-            }
-            rh_strncpy(cur, smi->instance_name, sz - (ptrdiff_t)(cur - buf));
-            cur += strlen(cur);
-        }
-    }
-    return buf;
-}
+char *name_status_mask(uint64_t mask, char *buf, int sz);
 
 /** retrieve a status manager from its name */
-static inline sm_instance_t *smi_by_name(const char *smi_name)
-{
-    int i = 0;
-    sm_instance_t *smi;
+sm_instance_t *smi_by_name(const char *smi_name);
 
-    while ((smi = get_sm_instance(i)) != NULL)
-    {
-        if (!strcmp(smi->instance_name, smi_name))
-            return smi;
-        i++;
-    }
-    /* not found */
-    return NULL;
-}
 
 #endif
