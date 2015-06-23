@@ -1612,7 +1612,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
 
             written +=
                 snprintf(out_str + written, strsize - written, format,
-                         smi->db_field, STATUS_ATTR(p_attr_set, i));
+                         smi->user_name, STATUS_ATTR(p_attr_set, i));
         }
         /* print specific info for this status manager */
         if (mask & smi_info_bits(smi))
@@ -1623,7 +1623,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
                 {
                     written += snprintf(out_str + written, strsize - written,
                                         brief ? "%s=" : "%s:  ",
-                                        sm_attr_info[smi->sm_info_offset + i].db_attr_name);
+                                        sm_attr_info[smi->sm_info_offset + i].user_attr_name);
 
                     written += ListMgr_PrintAttr(out_str + written, strsize - written,
                                                  sm_attr_info[smi->sm_info_offset + i].def->db_type,

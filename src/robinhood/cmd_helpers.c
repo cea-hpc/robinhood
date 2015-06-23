@@ -743,7 +743,7 @@ static inline struct attr_display_spec *attr_info(int index)
     {
         /* build a special decriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
-        tmp_rec.name = get_sm_instance(index - ATTR_COUNT)->db_field;
+        tmp_rec.name = get_sm_instance(index - ATTR_COUNT)->user_name;
         tmp_rec.length_csv = tmp_rec.length_full = 15;
         tmp_rec.result2str = print_res_status;
         return &tmp_rec;
@@ -752,7 +752,7 @@ static inline struct attr_display_spec *attr_info(int index)
     {
          /* build a special decriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
-        tmp_rec.name = sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].db_attr_name;
+        tmp_rec.name = sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].user_attr_name;
         tmp_rec.length_csv = tmp_rec.length_full = 15;
         tmp_rec.result2str = print_res_sm_info;
         return &tmp_rec;
@@ -777,9 +777,9 @@ const char *attrindex2name(unsigned int index)
     int i;
 
     if (is_status(index))
-        return get_sm_instance(index - ATTR_COUNT)->db_field;
+        return get_sm_instance(index - ATTR_COUNT)->user_name;
     else if (is_sm_info(index))
-        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].db_attr_name;
+        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].user_attr_name;
 
     for (i = 0; attr[i].name != NULL; i++)
         if (attr[i].attr_index == index)

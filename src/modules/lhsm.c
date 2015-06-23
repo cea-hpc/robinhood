@@ -244,11 +244,11 @@ enum lhsm_info_e
  * last_restore: unix epoch
  */
 static sm_info_def_t lhsm_info[] = {
-    [ATTR_ARCHIVE_ID] = { "archid", DB_UINT, 0 },
-    [ATTR_NO_RELEASE] = { "norels", DB_BOOL, 0 },
-    [ATTR_NO_ARCHIVE] = { "noarch", DB_BOOL, 0 },
-    [ATTR_LAST_ARCHIVE] = { "lstarc", DB_UINT, 0 },
-    [ATTR_LAST_RESTORE] = { "lstrst", DB_UINT, 0 },
+    [ATTR_ARCHIVE_ID] = { ARCHIVE_PARAM, "archid", DB_UINT, 0 },
+    [ATTR_NO_RELEASE] = { "no_release", "norels", DB_BOOL, 0 },
+    [ATTR_NO_ARCHIVE] = { "no_archive", "noarch", DB_BOOL, 0 },
+    [ATTR_LAST_ARCHIVE] = { "last_archive", "lstarc", DB_UINT, 0 },
+    [ATTR_LAST_RESTORE] = { "last_restore", "lstrst", DB_UINT, 0 },
 };
 
 /** helper to set bool attr */

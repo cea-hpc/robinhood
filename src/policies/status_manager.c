@@ -292,6 +292,10 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     /* <instance_name>_status */
     asprintf(&smi->db_field, "%s_status", smi->instance_name);
     if (smi->db_field == NULL)
+       goto out_free;
+
+    asprintf(&smi->user_name, "%s.status", smi->instance_name);
+    if (smi->user_name == NULL)
         goto out_free;
 
     /* @TODO load its configuration */
@@ -321,8 +325,10 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     {
         int tgt_idx = sm_attr_count - sm->nb_info + i;
 
-        asprintf(&sm_attr_info[tgt_idx].db_attr_name, "%s_%s", smi->instance_name,
-                 smi->sm->info_types[i].name);
+        asprintf((char **)&sm_attr_info[tgt_idx].db_attr_name, "%s_%s", smi->instance_name,
+                 smi->sm->info_types[i].db_name);
+        asprintf((char **)&sm_attr_info[tgt_idx].user_attr_name, "%s.%s", smi->instance_name,
+                 smi->sm->info_types[i].user_name);
         sm_attr_info[tgt_idx].def = &smi->sm->info_types[i];
         sm_attr_info[tgt_idx].smi = smi;
     }
@@ -332,6 +338,7 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
 out_free:
     if (smi)
     {
+        free(smi->user_name);
         free(smi->db_field);
         free(smi->instance_name);
         free(smi);

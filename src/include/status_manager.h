@@ -108,7 +108,8 @@ typedef enum {
 
 /** descriptor of SM specific info */
 typedef struct sm_info_def {
-    const char    *name;
+    const char    *user_name; /**< full name for user interface (config, display...) */
+    const char    *db_name; /**< short name for db storage */
     db_type_t      db_type;
     unsigned int   db_type_size;  /**< size for strings */
 } sm_info_def_t;
@@ -192,6 +193,8 @@ typedef struct sm_instance
     char  *instance_name;
     /** name of the related field in DB, using for storing status. */
     char  *db_field;
+    /** name for user interface (config, reports...) */
+    char  *user_name;
     /** pointer to the status manager definition */
     const status_manager_t *sm;
     /** instance index: useful for status attribute index. */
@@ -244,7 +247,8 @@ static inline bool is_sm_info(int index)
 
 /** pointers to SM specific information */
 struct _sm_attr_info {
-    char                *db_attr_name;
+    const char          *db_attr_name;
+    const char          *user_attr_name;
     const sm_info_def_t *def;
     sm_instance_t       *smi;
 };

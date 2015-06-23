@@ -444,7 +444,7 @@ static const char *attrindex2name(int index)
     else if (is_status(index))
         return get_sm_instance(index - ATTR_COUNT)->db_field;
     else if (is_sm_info(index))
-        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].db_attr_name;
+        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].user_attr_name;
 
     return "?";
 }
