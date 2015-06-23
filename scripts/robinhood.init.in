@@ -87,22 +87,17 @@ build_fslist()
 #
 # daemon_exist()
 # check if process corresponding to pidfile exist.
-# it must run with the same args.
 #
 daemon_exist()
 {
 	local pidfile=$1
-	local cmdline=$2
 	local pid
 
 	if [ -f $pidfile ] ; then
 		# check if there is still some process
 		pid=$(<$pidfile)
 		if [ -z "${pid//[0-9]/}" -a -d "/proc/$pid" ] ; then
-			local cmd=$(tr '\0' ' ' </proc/$pid/cmdline)
-			if [[ ${cmd% } = $cmdline ]] ; then
-				return 0
-			fi
+			return 0
 		fi
 	fi
 	return 1
@@ -126,7 +121,7 @@ check_or_start_fs()
 	local label="Starting Robinhood for $conf "
 
 	# check if there is still some process
-	if daemon_exist $pidfile "$cmdline" ; then
+	if daemon_exist $pidfile ; then
 		if [[ $action = START ]] ; then
 			# According to LSB, running "start" on a service already running
 			# should be successful.
@@ -240,7 +235,7 @@ reload_fs()
 	fi
 
 	# check if there is still some process
-	if daemon_exist $pidfile "$cmdline" ; then
+	if daemon_exist $pidfile ; then
 		local pid=$(<$pidfile)
 
 		echo "Robinhood for $conf is running: process pid $pid"
