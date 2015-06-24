@@ -345,13 +345,14 @@ static int TerminateScan(int scan_complete, time_t end)
         }
         else
         {
+            /* clean names not seen during the scan */
             op->gc_names = 1;
 
-            /* Don't clean old entries for partial scan: dangerous if
-             * files have been moved from one part of the namespace to another.
-             * Clean names, however.
+            /* If we care about deleted entries and the scan was partial,
+             * it is dangerous to clean entries because files may have been
+             * moved from one part of the namespace to another.
              */
-            if (partial_scan_root)
+            if (partial_scan_root && has_deletion_policy())
                 op->gc_entries = 0;
             else
                 op->gc_entries = 1;
