@@ -946,7 +946,7 @@ void RaiseAlert( const char *title, const char *format, ... )
 /* Wait for next stat deadline */
 void WaitStatsInterval( void )
 {
-    rh_sleep( log_config.stats_interval );
+    rh_sleep(log_config.stats_interval > 0 ? log_config.stats_interval : 1);
 }
 
 
