@@ -330,7 +330,7 @@ static int policy_action(policy_info_t *policy,
         }
 
         /* call action callback if there is no status manager executor to wrap actions */
-        if (smi->sm->action_cb != NULL)
+        if (smi != NULL && smi->sm->action_cb != NULL)
         {
             rc = smi->sm->action_cb(smi, policy->descr->implements, rc,
                                     id, p_attr_set, after);
