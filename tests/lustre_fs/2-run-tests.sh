@@ -47,11 +47,12 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RBH_MODDIR
 export LD_LIBRARY_PATH
 
 #default: TMP_FS_MGR
-if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
+if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" || $PURPOSE = "TMPFS" ]]; then
     is_lhsm=0
     is_hsmlite=0
     shook=0
     PURPOSE="TMP_FS_MGR"
+    export DEFAULT_PURGE="common.unlink"
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     is_lhsm=1
     is_hsmlite=0
@@ -2883,30 +2884,30 @@ function policy_check_purge
 {
     # check that purge fileclasses are properly matched at scan time,
     # then at application time
-	config_file=$1
-	update_period=$2
-	policy_str="$3"
+    config_file=$1
+    update_period=$2
+    policy_str="$3"
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
+    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+        echo "No purge for backup purpose: skipped"
+        set_skipped
+        return 1
+    fi
 
     stf=5
 
-	clean_logs
+    clean_logs
 
-	#create test tree
-	touch $ROOT/ignore1
-	touch $ROOT/whitelist1
-	touch $ROOT/purge1
-	touch $ROOT/default1
+    #create test tree
+    touch $ROOT/ignore1
+    touch $ROOT/whitelist1
+    touch $ROOT/purge1
+    touch $ROOT/default1
 
     echo "1. scan..."
-	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
-	check_db_error rh_chglogs.log
+    # scan
+    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
+    check_db_error rh_chglogs.log
     # check that all files have been properly matched
 
     $REPORT -f ./cfg/$config_file --dump -q  > report.out
@@ -2932,8 +2933,8 @@ function policy_check_purge
 
                 echo "1ter. Waiting for end of data migration..."
                 wait_done 120 || error "Migration timeout"
-		echo "update db content..."
-		$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+        echo "update db content..."
+        $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
 
         elif (( $is_hsmlite != 0 )); then
                 $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
@@ -2968,15 +2969,15 @@ function policy_check_purge
     [ "$st1" = "to_be_ignored" ] || error "file should be in class 'to_be_ignored'"
     [ "$st2" = "" ] || error "file should not match a fileclass: $st2"
 
-	#we must have 2 lines like this: "Need to update fileclass (not set)"
-	nb_purge_match=`grep "matches the condition for policy rule 'purge_match'" rh_purge.log | wc -l`
-	nb_default=`grep "matches the condition for policy rule 'default'" rh_purge.log | wc -l`
+    #we must have 2 lines like this: "Need to update fileclass (not set)"
+    nb_purge_match=`grep "matches the condition for policy rule 'purge_match'" rh_purge.log | wc -l`
+    nb_default=`grep "matches the condition for policy rule 'default'" rh_purge.log | wc -l`
 
-	(( $nb_purge_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'purge_match': $nb_purge_match"
-	(( $nb_default == 1 )) || error "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
+    (( $nb_purge_match == 1 )) || error "********** TEST FAILED: wrong count of files matching 'purge_match': $nb_purge_match"
+    (( $nb_default == 1 )) || error "********** TEST FAILED: wrong count of files matching 'default': $nb_default"
 
     (( $nb_purge_match == 1 )) && (( $nb_default == 1 )) \
-		&& echo "OK: initial fileclass matching successful"
+        && echo "OK: initial fileclass matching successful"
 
     # check effectively purged files
     p1_arch=`grep "$REL_STR" rh_purge.log | grep purge1 | wc -l`
@@ -2990,13 +2991,24 @@ function policy_check_purge
     (( $d1_arch == 1 )) || error "default1 should have been purged"
 
     (( $w1_arch == 0 )) && (( $i1_arch == 0 )) && (( $p1_arch == 1 )) \
-    && (( $d1_arch == 1 )) && echo "OK: All expected purge actions triggered"
+        && (( $d1_arch == 1 )) && echo "OK: All expected purge actions triggered"
 
-    st1=$(grep purge1 report.out | cut -d ',' -f 6 | tr -d ' ')
-    st2=$(grep default1 report.out | cut -d ',' -f 6 | tr -d ' ')
+    if (( $is_lhsm + $is_hsmlite > 0 )); then
+        st1=$(grep purge1 report.out | cut -d ',' -f 6 | tr -d ' ')
+        st2=$(grep default1 report.out | cut -d ',' -f 6 | tr -d ' ')
 
-    [ "$st1" = "released" ] || [ "$st1" = "release_pending" ] || error "purge1 should be 'released' or 'release_pending' (actual: $st1)"
-    [ "$st2" = "released" ] || [ "$st2" = "release_pending" ] || error "default1 should be 'released' or 'release_pending' (actual: $st2)"
+        [ "$st1" = "released" ] || [ "$st1" = "release_pending" ] ||
+            error "purge1 should be 'released' or 'release_pending' (actual: $st1)"
+        [ "$st2" = "released" ] || [ "$st2" = "release_pending" ] ||
+            error "default1 should be 'released' or 'release_pending' (actual: $st2)"
+    else
+        # entries should be removed
+        grep purge1 report.out && error "purge1 should have been removed from DB"
+        grep default1 report.out && error "default1 should have been removed from DB"
+
+        [ -f $ROOT/purge1 ] && error "purge1 should have been removed from filesystem"
+        [ -f $ROOT/default1 ] && error "default1 should have been removed from filesystem"
+    fi
 
     rm -f report.out
 
