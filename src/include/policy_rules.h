@@ -125,7 +125,7 @@ typedef struct policy_action
 {
 	action_type_e  type;
     union {
-        char            command[RBH_PATH_MAX];
+        char                   *command;
         struct action_func_info func;
     } action_u; /* command for ACTION_COMMAND, function for ACTION_FUNCTION, ... */
 } policy_action_t ;

@@ -373,9 +373,10 @@ int parse_policy_action(const char *name, const char *value,
             sprintf(msg_out, "A single argument is expected for cmd. E.g.: %s = cmd(\"myscript.sh\");", name);
             return EINVAL;
         }
-        rh_strncpy(action->action_u.command, extra[0],
-                   sizeof(action->action_u.command));
         action->type = ACTION_COMMAND;
+        action->action_u.command = strdup(extra[0]);
+        if (action->action_u.command == NULL)
+            return ENOMEM;
 
         /* Get attribute mask for this command, in case it contains attribute
          * placeholder */
@@ -394,6 +395,7 @@ int parse_policy_action(const char *name, const char *value,
             sprintf(msg_out, "No extra argument is expected for '%s'", name);
             return EINVAL;
         }
+        action->type = ACTION_FUNCTION;
         action->action_u.func.call = module_get_action_by_name(value);
         if (action->action_u.func.call == NULL)
         {
@@ -401,7 +403,8 @@ int parse_policy_action(const char *name, const char *value,
             return EINVAL;
         }
         action->action_u.func.name = strdup(value);
-        action->type = ACTION_FUNCTION;
+        if (action->action_u.func.name == NULL)
+            return ENOMEM;
     }
 
     return 0;
@@ -2019,7 +2022,6 @@ static int parse_rule_block(config_item_t config_item,
                 {
                     sprintf(msg_out, "No target_fileclass expected for default policy, line %d.",
                              rh_config_GetItemLine(sub_item));
-                    /** @TODO free targets */
                     return EINVAL;
                 }
 
@@ -2131,17 +2133,46 @@ static int parse_rule_block(config_item_t config_item,
 
 }
 
+static void free_policy_action(policy_action_t *action)
+{
+    switch (action->type)
+    {
+        case ACTION_NONE: /* not set */
+            break;
+        case ACTION_FUNCTION:
+            free(action->action_u.func.name);
+            break;
+        case ACTION_COMMAND:
+            free(action->action_u.command);
+            break;
+    }
+}
+
+static void free_rules_list(rule_item_t *items, int count)
+{
+    int i;
+
+    for (i = 0; i < count; i++)
+    {
+        free(items[i].target_list);
+        FreeBoolExpr(&items[i].condition, false);
+        free_policy_action(&items[i].action);
+        rbh_params_free(&items[i].action_params);
+    }
+
+    free(items);
+}
+
 static void free_policy_rules(policy_rules_t *rules)
 {
-if (rules->rules)
-    /** FIXME rules contents must also be freed */
-    free(rules->rules);
-if (rules->ignore_list)
-    free(rules->ignore_list);
-if (rules->whitelist_count > 0)
-    free_whitelist(rules->whitelist_rules, rules->whitelist_count);
-else if (rules->whitelist_rules) /* preallocated? */
-    free(rules->whitelist_rules);
+    if (rules->rules)
+        free_rules_list(rules->rules, rules->rule_count);
+    if (rules->ignore_list)
+        free(rules->ignore_list);
+    if (rules->whitelist_count > 0)
+        free_whitelist(rules->whitelist_rules, rules->whitelist_count);
+    else if (rules->whitelist_rules) /* preallocated? */
+        free(rules->whitelist_rules);
 
     rules->rules = NULL;
     rules->ignore_list = NULL;
@@ -2149,15 +2180,14 @@ else if (rules->whitelist_rules) /* preallocated? */
     rules->whitelist_count = 0;
 }
 
+
 static void free_policy_descr(policy_descr_t *descr)
 {
-    /** FIXME free sm_instance (+default action parameters) */
+    /** FIXME free sm_instance */
     free_policy_rules(&descr->rules);
-
     FreeBoolExpr(&descr->scope, false);
-
     free(descr->implements);
-    free(descr->default_action.action_u.func.name);
+    free_policy_action(&descr->default_action);
 }
 
 /* macro for preallocating array depending on configuration blocks in Read_Policy_ */
