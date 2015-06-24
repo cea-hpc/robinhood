@@ -429,7 +429,7 @@ static const char *help_string =
     "    " _B "-atime" B_ " " _U "time_crit" U_ "\n"
     "       "TIME_HELP"\n"
     "    " _B "-amin" B_ " " _U "minute_crit" U_ "\n"
-    "       "TIME_HELP"\n"
+    "        same as '-atime "_U"N"U_"m'\n"
 #ifdef _LUSTRE
     "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
     "    " _B "-pool" B_ " " _U "ost_pool" U_ "\n"
