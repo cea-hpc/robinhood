@@ -623,94 +623,89 @@ function migrate_symlink
 	fi
 }
 
+# helper for test_rmdir
+# run rmdir_empty and rmdir_recurse policies
+# and check the correct amount of directories is matched
+function run_rmdirs
+{
+    config_file=$1
+    policy_str="$2"
+    expect_empty=$3
+    expect_recurs=$4
+
+    echo "Applying rmdir_empty policy ($policy_str)..."
+    $RH -f ./cfg/$config_file --run=rmdir_empty --target=all --once -l FULL -L rh_purge.log
+    [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_purge.log
+    grep "Policy run summary" rh_purge.log | grep rmdir_empty
+    cnt_empty=$(grep "Policy run summary" rh_purge.log | grep rmdir_empty | cut -d ';' -f 3 | awk '{print $1}')
+    :> rh_purge.log
+
+    echo "Applying rmdir_recurse policy ($policy_str)..."
+    $RH -f ./cfg/$config_file --run=rmdir_recurse --target=all --once -l FULL -L rh_purge.log
+    [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_purge.log
+    grep "Policy run summary" rh_purge.log | grep rmdir_recurse
+    cnt_recurs=$(grep "Policy run summary" rh_purge.log | grep rmdir_recurse | cut -d ';' -f 3 | awk '{print $1}')
+    :> rh_purge.log
+
+    if (( $cnt_empty == $expect_empty )); then
+        echo "OK: $cnt_empty empty directories removed"
+    else
+        error "$cnt_empty empty directories removed ($expect_empty expected)"
+    fi
+    if (( $cnt_recurs == $expect_recurs )); then
+        echo "OK: $cnt_recurs directories removed recursively"
+    else
+        error "$cnt_recurs directories removed recursively ($expect_recurs expected)"
+    fi
+}
+
 # test rmdir policies
 function test_rmdir
 {
-	config_file=$1
-	sleep_time=$2
-	policy_str="$3"
+    config_file=$1
+    sleep_time=$2
+    policy_str="$3"
 
-	if (( $is_lhsm + $is_hsmlite != 0 )); then
-		echo "No rmdir policy for hsm flavors: skipped"
-		set_skipped
-		return 1
-	fi
+    clean_logs
 
-	clean_logs
+    # initial scan
+    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+       check_db_error rh_chglogs.log
 
-	# initial scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-   	check_db_error rh_chglogs.log
+    EMPTY=empty
+    NONEMPTY=smthg
+    RECURSE=remove_me
 
-	EMPTY=empty
-	NONEMPTY=smthg
-	RECURSE=remove_me
+    echo "Create test directories"
 
-	echo "1-Create test directories"
+    # create 3 empty directories
+    mkdir "$ROOT/$EMPTY.1" "$ROOT/$EMPTY.2" "$ROOT/$EMPTY.3" || error "creating empty directories"
+    # create non-empty directories
+    mkdir "$ROOT/$NONEMPTY.1" "$ROOT/$NONEMPTY.2" "$ROOT/$NONEMPTY.3" || error "creating directories"
+    touch "$ROOT/$NONEMPTY.1/f" "$ROOT/$NONEMPTY.2/f" "$ROOT/$NONEMPTY.3/f" || error "populating directories"
+    # create "deep" directories for testing recurse rmdir
+    mkdir "$ROOT/$RECURSE.1"  "$ROOT/$RECURSE.2" || error "creating directories"
+    mkdir "$ROOT/$RECURSE.1/subdir.1" "$ROOT/$RECURSE.1/subdir.2" || error "creating directories"
+    touch "$ROOT/$RECURSE.1/subdir.1/file.1" "$ROOT/$RECURSE.1/subdir.1/file.2" "$ROOT/$RECURSE.1/subdir.2/file" || error "populating directories"
 
-	# create 3 empty directories
-	mkdir "$ROOT/$EMPTY.1" "$ROOT/$EMPTY.2" "$ROOT/$EMPTY.3" || error "creating empty directories"
-	# create non-empty directories
-	mkdir "$ROOT/$NONEMPTY.1" "$ROOT/$NONEMPTY.2" "$ROOT/$NONEMPTY.3" || error "creating directories"
-	touch "$ROOT/$NONEMPTY.1/f" "$ROOT/$NONEMPTY.2/f" "$ROOT/$NONEMPTY.3/f" || error "populating directories"
-	# create "deep" directories for testing recurse rmdir
-	mkdir "$ROOT/$RECURSE.1"  "$ROOT/$RECURSE.2" || error "creating directories"
-	mkdir "$ROOT/$RECURSE.1/subdir.1" "$ROOT/$RECURSE.1/subdir.2" || error "creating directories"
-	touch "$ROOT/$RECURSE.1/subdir.1/file.1" "$ROOT/$RECURSE.1/subdir.1/file.2" "$ROOT/$RECURSE.1/subdir.2/file" || error "populating directories"
+    echo "Reading changelogs..."
+    # read changelogs
+    if (( $no_log )); then
+        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+    else
+        $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+    fi
+    check_db_error rh_chglogs.log
 
-	echo "2-Reading changelogs..."
-	# read changelogs
-	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
-	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
-	fi
-    	check_db_error rh_chglogs.log
+    run_rmdirs $config_file "$policy_str" 0 0
+    echo "Sleeping $sleep_time seconds..."
+    sleep $sleep_time
 
-	echo "3-Applying rmdir policy ($policy_str)..."
-	$RH -f ./cfg/$config_file --rmdir --once -l FULL -L rh_purge.log 2>/dev/null
+    run_rmdirs $config_file "$policy_str" 0 2
+    echo "Sleeping $sleep_time seconds..."
+    sleep $sleep_time
 
-	grep "Empty dir removal summary" rh_purge.log || error "did not find summary line in log"
-	grep "Recursive dir removal summary" rh_purge.log || error "did not find summary line in log"
-
-	cnt_empty=`grep "Empty dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
-	cnt_recurs=`grep "Recursive dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
-
-	if (( $cnt_empty == 0 )); then
-		echo "OK: no empty directory removed for now"
-	else
-		error "$cnt_empty directories removed (too young)"
-	fi
-	if (( $cnt_recurs == 2 )); then
-		echo "OK: 2 top-level directories removed"
-	else
-		error "$cnt_recurs directories removed (2 expected)"
-	fi
-
-	cp /dev/null rh_purge.log
-	echo "4-Sleeping $sleep_time seconds..."
-	sleep $sleep_time
-
-	echo "5-Applying rmdir policy again ($policy_str)..."
-	# files should not be migrated this time: do not match policy
-	$RH -f ./cfg/$config_file --rmdir --once -l EVENT -L rh_purge.log 2>/dev/null
-
-	grep "Empty dir removal summary" rh_purge.log || error "did not file summary line in log"
-	grep "Recursive dir removal summary" rh_purge.log || error "did not file summary line in log"
-
-	cnt_empty=`grep "Empty dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
-	cnt_recurs=`grep "Recursive dir removal summary" rh_purge.log | cut -d '|' -f 2 | awk '{print $5}'`
-
-	if (( $cnt_empty == 3 )); then
-		echo "OK: 3 empty directories removed"
-	else
-		error "$cnt_empty directories removed (3 expected)"
-	fi
-	if (( $cnt_recurs == 0 )); then
-		echo "OK: no top-level directories removed"
-	else
-		error "$cnt_resurs directories removed (none expected)"
-	fi
+    run_rmdirs $config_file "$policy_str" 3 0
 }
 
 function test_lru_policy
@@ -7248,13 +7243,8 @@ function check_disabled
                        match='Policy hsm_remove is disabled'
                        ;;
                rmdir)
-                       if (( $is_hsmlite + $is_lhsm != 0 )); then
-                               echo "No rmdir policy for hsmlite or HSM purpose: skipped"
-                               set_skipped
-                               return 1
-                       fi
-                       cmd='--rmdir'
-                       match='Directory removal is disabled'
+                       cmd='--run=rmdir_empty'
+                       match='Policy rmdir_empty is disabled'
                        ;;
                class)
                        cmd='--scan'
@@ -10012,7 +10002,7 @@ run_test 214e  check_disabled  common.conf  class      "no class matching if non
 run_test 215	mass_softrm    test_rm1.conf 11 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 5 "pre-maintenance mode"
 run_test 217	migrate_symlink test1.conf 11 		"symlink migration"
-run_test 218	test_rmdir 	rmdir.conf 16 		"rmdir policies"
+run_test 218	test_rmdir 	rmdir.conf 11 		"rmdir policies"
 run_test 219    test_rmdir_mix RemovingDir_Mixed.conf 11 "mixed rmdir policies"
 # test sort order by last_archive, last_mod, creation
 # check order of application

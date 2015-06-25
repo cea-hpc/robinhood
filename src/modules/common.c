@@ -45,10 +45,33 @@ static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     else
         return EINVAL;
 
-    if (unlink(path) != 0)
+    if (unlink(path) != 0 && errno != ENOENT)
         return errno;
 
+    /* 1 less link */
     *after = PA_RM_ONE;
+    return 0;
+}
+
+/** perform a standard rmdir() action */
+static int common_rmdir(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                         const action_params_t *params, post_action_e *after,
+                         db_cb_func_t db_cb_fn, void *db_cb_arg)
+{
+    const char *path = NULL;
+
+    *after = PA_UPDATE;
+
+    if (ATTR_MASK_TEST(p_attrs,fullpath))
+        path = ATTR(p_attrs,fullpath);
+    else
+        return EINVAL;
+
+    if (rmdir(path) != 0 && errno != ENOENT)
+        return errno;
+
+    /* no hardlink for dirs */
+    *after = PA_RM_ALL;
     return 0;
 }
 
@@ -163,6 +186,8 @@ action_func_t mod_get_action_by_name(const char *action_name)
 {
     if (strcmp(action_name, "common.unlink") == 0)
         return common_unlink;
+    else if (strcmp(action_name, "common.rmdir") == 0)
+        return common_rmdir;
     else if (strcmp(action_name, "common.log") == 0)
         return common_log;
     else if (strcmp(action_name, "common.copy") == 0)
