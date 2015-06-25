@@ -19,7 +19,7 @@ $dir/test_parse $tstdir/ok.conf > /dev/null || error "Parsing failed"
 
 # check various parsing features (unicity, env variables, includes...)
 out=/tmp/tst.$$
-TEST_VAL=XYZ ./test_parse tst.data/test.conf > $out
+TEST_VAL=XYZ FILE_INC2=inc2.inc ./test_parse tst.data/test.conf > $out
 
 test_out "block1.fs_path is defined and is unique" $out
 test_out "block2.fs_path is defined and is not unique" $out 

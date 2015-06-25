@@ -995,9 +995,32 @@ YY_RULE_SETUP
                            set_error(err_str);
                            return _ERROR_;                        
                         }
-                        
+
+                        /* replace environment variables */
+                        if (YY_PARSED_STRING[0] == '$')
+                        {
+                            /* included file is an environment variable */
+                            char *val = getenv(YY_PARSED_STRING + 1); /* skip '$' */
+                            if (val == NULL)
+                            {
+                               snprintf(err_str, ERRLEN, "in \"%s\", line %d: environment variable '%s' is not set",
+                                        current_file, yylineno, YY_PARSED_STRING + 1);
+                               set_error(err_str);
+                               return _ERROR_;
+                            }
+                            else if (strlen(val) >= sizeof(YY_PARSED_STRING))
+                            {
+                               snprintf(err_str, ERRLEN, "in \"%s\", line %d: "
+                                        "file name too long in include statement",
+                                        current_file, yylineno);
+                               set_error(err_str);
+                               return _ERROR_;
+                            }
+                            rh_strncpy(YY_PARSED_STRING, val, MAXSTRLEN);
+                        }
+
                         include_stack[include_stack_index] = YY_CURRENT_BUFFER;
-                        lines_stack[include_stack_index] = yylineno;                        
+                        lines_stack[include_stack_index] = yylineno;
                         rh_strncpy(files_stack[include_stack_index], current_file, FILE_LEN);
                         
                         /* relative path management */
@@ -1006,8 +1029,8 @@ YY_RULE_SETUP
                          * 2) if there was no '/' in previous dir, the new path
                          *  is relative to the current dir.
                          */
-                        if ( ( YY_PARSED_STRING[0] == '/' )
-                            || ( strchr( current_file, '/') == NULL ) )
+                        if ((YY_PARSED_STRING[0] == '/')
+                            || (strchr( current_file, '/') == NULL))
                         {
                             rh_strncpy(new_file_path, YY_PARSED_STRING, FILE_LEN);
                         }
@@ -1065,7 +1088,7 @@ YY_RULE_SETUP
 case 5:
 /* rule 5 can match eol */
 YY_RULE_SETUP
-#line 210 "conf_lex.l"
+#line 233 "conf_lex.l"
 {
                             snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file, yylineno);
                             set_error(err_str);
@@ -1075,18 +1098,18 @@ YY_RULE_SETUP
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 217 "conf_lex.l"
+#line 240 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere du fichier */}
 	YY_BREAK
 case 7:
 /* rule 7 can match eol */
 YY_RULE_SETUP
-#line 219 "conf_lex.l"
+#line 242 "conf_lex.l"
 {BEGIN INCL_STRING; yylineno++;}/* ignore un saut de ligne echappe*/
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 220 "conf_lex.l"
+#line 243 "conf_lex.l"
 {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN INCL_STRING;/* caractere du fichier */}
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
@@ -1098,7 +1121,7 @@ case YY_STATE_EOF(ESC1):
 case YY_STATE_EOF(INCLUDE):
 case YY_STATE_EOF(INCL_STRING):
 case YY_STATE_EOF(INCL_ESC):
-#line 223 "conf_lex.l"
+#line 246 "conf_lex.l"
 { /* end of included file */
             DEBUG_LEX("<EOF>\n");
             
@@ -1124,7 +1147,7 @@ case YY_STATE_EOF(INCL_ESC):
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 248 "conf_lex.l"
+#line 271 "conf_lex.l"
 {
                     /* identifier */
                     DEBUG_LEX("[bloc:%s]\n",yytext);
@@ -1134,7 +1157,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 256 "conf_lex.l"
+#line 279 "conf_lex.l"
 {/* debut de bloc */
                         DEBUG_LEX("BEGIN_BLOCK\n");
                         BEGIN INBLOC;
@@ -1144,7 +1167,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 263 "conf_lex.l"
+#line 286 "conf_lex.l"
 {
 			DEBUG_LEX("(");
                         parenthesis++;
@@ -1153,12 +1176,12 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 269 "conf_lex.l"
+#line 292 "conf_lex.l"
 {DEBUG_LEX(",  "); return VALUE_SEPARATOR;}
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 270 "conf_lex.l"
+#line 293 "conf_lex.l"
 {BEGIN INBLOC;  DEBUG_LEX(")\n");
                 if ( parenthesis <= 0 )
                     {
@@ -1175,32 +1198,32 @@ YY_RULE_SETUP
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 284 "conf_lex.l"
+#line 307 "conf_lex.l"
 { DEBUG_LEX(" NOT "); return NOT; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 285 "conf_lex.l"
+#line 308 "conf_lex.l"
 { DEBUG_LEX(" AND "); return AND; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 286 "conf_lex.l"
+#line 309 "conf_lex.l"
 { DEBUG_LEX(" OR "); return OR; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 288 "conf_lex.l"
+#line 311 "conf_lex.l"
 { DEBUG_LEX(" UNION "); return UNION; }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 289 "conf_lex.l"
+#line 312 "conf_lex.l"
 { DEBUG_LEX(" INTER "); return INTER; }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 291 "conf_lex.l"
+#line 314 "conf_lex.l"
 {
                     /* environment variable */
                     DEBUG_LEX("[VAR:%s]",yytext);
@@ -1210,7 +1233,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 298 "conf_lex.l"
+#line 321 "conf_lex.l"
 {
                     /* identifier */
                     DEBUG_LEX("[%s]",yytext);
@@ -1220,7 +1243,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 306 "conf_lex.l"
+#line 329 "conf_lex.l"
 {   /* end of block */
                     if ( accolades <= 0 )
                     {
@@ -1249,47 +1272,47 @@ YY_RULE_SETUP
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 332 "conf_lex.l"
+#line 355 "conf_lex.l"
 { DEBUG_LEX(" EQUAL "); return EQUAL; }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 333 "conf_lex.l"
+#line 356 "conf_lex.l"
 { DEBUG_LEX(" SUP "); return GT; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 334 "conf_lex.l"
+#line 357 "conf_lex.l"
 { DEBUG_LEX(" SUP_OR_EQUAL "); return GT_EQ; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 335 "conf_lex.l"
+#line 358 "conf_lex.l"
 { DEBUG_LEX(" INF  "); return LT; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 336 "conf_lex.l"
+#line 359 "conf_lex.l"
 { DEBUG_LEX(" INF_OR_EQUAL "); return LT_EQ; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 337 "conf_lex.l"
+#line 360 "conf_lex.l"
 { DEBUG_LEX(" DIFF "); return DIFF; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 338 "conf_lex.l"
+#line 361 "conf_lex.l"
 { DEBUG_LEX(" DIFF "); return DIFF; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 339 "conf_lex.l"
+#line 362 "conf_lex.l"
 { DEBUG_LEX(" AFFECT "); return AFFECT; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 341 "conf_lex.l"
+#line 364 "conf_lex.l"
 {
                                 /* sub-block */
                                 DEBUG_LEX("\nBEGIN_SUB_BLOCK\n");
@@ -1300,70 +1323,70 @@ YY_RULE_SETUP
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 350 "conf_lex.l"
+#line 373 "conf_lex.l"
 {BEGIN STRING1;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 1 */
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 351 "conf_lex.l"
+#line 374 "conf_lex.l"
 {BEGIN STRING2;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 2 */
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 353 "conf_lex.l"
+#line 376 "conf_lex.l"
 {/* valeur */DEBUG_LEX("[value:%s]\n",yytext);rh_strncpy(yylval.str_val,yytext,MAXSTRLEN); return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 355 "conf_lex.l"
+#line 378 "conf_lex.l"
 {DEBUG_LEX(" end_AFFECT "); return END_AFFECT; }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 359 "conf_lex.l"
+#line 382 "conf_lex.l"
 {BEGIN ESC1;}
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 360 "conf_lex.l"
+#line 383 "conf_lex.l"
 {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
 	YY_BREAK
 case 37:
 /* rule 37 can match eol */
 YY_RULE_SETUP
-#line 361 "conf_lex.l"
+#line 384 "conf_lex.l"
 {snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 362 "conf_lex.l"
+#line 385 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 	YY_BREAK
 case 39:
 /* rule 39 can match eol */
 YY_RULE_SETUP
-#line 364 "conf_lex.l"
+#line 387 "conf_lex.l"
 {BEGIN STRING1;yylineno++;}/* ignore un saut de ligne echappe*/
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 365 "conf_lex.l"
+#line 388 "conf_lex.l"
 {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN STRING1;/* caractere de la chaine */}
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 367 "conf_lex.l"
+#line 390 "conf_lex.l"
 {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 42:
 /* rule 42 can match eol */
 YY_RULE_SETUP
-#line 368 "conf_lex.l"
+#line 391 "conf_lex.l"
 {snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 369 "conf_lex.l"
+#line 392 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext);DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 	YY_BREAK
 case 44:
@@ -1371,7 +1394,7 @@ case 44:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 371 "conf_lex.l"
+#line 394 "conf_lex.l"
 ;/* ignore */
 	YY_BREAK
 case 45:
@@ -1379,31 +1402,31 @@ case 45:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 372 "conf_lex.l"
+#line 395 "conf_lex.l"
 ;/* ignore */
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 373 "conf_lex.l"
+#line 396 "conf_lex.l"
 ;/* ignore */
 	YY_BREAK
 case 47:
 /* rule 47 can match eol */
 YY_RULE_SETUP
-#line 374 "conf_lex.l"
+#line 397 "conf_lex.l"
 yylineno++;/* ignore */
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 376 "conf_lex.l"
+#line 399 "conf_lex.l"
 { snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' unexpected",current_file,yylineno,*yytext); set_error(err_str);return _ERROR_;}
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 378 "conf_lex.l"
+#line 401 "conf_lex.l"
 ECHO;
 	YY_BREAK
-#line 1407 "conf_lex.c"
+#line 1430 "conf_lex.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2399,7 +2422,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 378 "conf_lex.l"
+#line 401 "conf_lex.l"
 
 
 

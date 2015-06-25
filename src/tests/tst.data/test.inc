@@ -4,7 +4,8 @@ block_inc1 {
     include_var = 42;
 }
 
-%include "inc2.inc"
+# include with an environment variable (value: "inc2.inc")
+%include "$FILE_INC2"
 
 block_inc2 {
     # env var in include

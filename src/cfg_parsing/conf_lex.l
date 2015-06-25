@@ -139,9 +139,32 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                            set_error(err_str);
                            return _ERROR_;                        
                         }
-                        
+
+                        /* replace environment variables */
+                        if (YY_PARSED_STRING[0] == '$')
+                        {
+                            /* included file is an environment variable */
+                            char *val = getenv(YY_PARSED_STRING + 1); /* skip '$' */
+                            if (val == NULL)
+                            {
+                               snprintf(err_str, ERRLEN, "in \"%s\", line %d: environment variable '%s' is not set",
+                                        current_file, yylineno, YY_PARSED_STRING + 1);
+                               set_error(err_str);
+                               return _ERROR_;
+                            }
+                            else if (strlen(val) >= sizeof(YY_PARSED_STRING))
+                            {
+                               snprintf(err_str, ERRLEN, "in \"%s\", line %d: "
+                                        "file name too long in include statement",
+                                        current_file, yylineno);
+                               set_error(err_str);
+                               return _ERROR_;
+                            }
+                            rh_strncpy(YY_PARSED_STRING, val, MAXSTRLEN);
+                        }
+
                         include_stack[include_stack_index] = YY_CURRENT_BUFFER;
-                        lines_stack[include_stack_index] = yylineno;                        
+                        lines_stack[include_stack_index] = yylineno;
                         rh_strncpy(files_stack[include_stack_index], current_file, FILE_LEN);
                         
                         /* relative path management */
@@ -150,8 +173,8 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                          * 2) if there was no '/' in previous dir, the new path
                          *  is relative to the current dir.
                          */
-                        if ( ( YY_PARSED_STRING[0] == '/' )
-                            || ( strchr( current_file, '/') == NULL ) )
+                        if ((YY_PARSED_STRING[0] == '/')
+                            || (strchr( current_file, '/') == NULL))
                         {
                             rh_strncpy(new_file_path, YY_PARSED_STRING, FILE_LEN);
                         }
