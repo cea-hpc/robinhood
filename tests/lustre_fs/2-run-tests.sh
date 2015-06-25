@@ -47,44 +47,50 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RBH_MODDIR
 export LD_LIBRARY_PATH
 
 #default: TMP_FS_MGR
-if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" || $PURPOSE = "TMPFS" ]]; then
+if [[ -z "$PURPOSE" || $PURPOSE = "TMP"* ]]; then
     is_lhsm=0
     is_hsmlite=0
     shook=0
     PURPOSE="TMP_FS_MGR"
-    export DEFAULT_PURGE="common.unlink"
+    STATUS_MGR=none
+    # get include for this flavor
+    cp -f ../../doc/templates_v3/includes/tmpfs.inc ./cfg/test_policies.inc || exit 1
+    # change policy names to the test framework names
+    sed -e "s/cleanup/purge/" -i ./cfg/test_policies.inc
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     is_lhsm=1
     is_hsmlite=0
     shook=0
-    PURPOSE="LUSTRE_HSM"
-    export STATUS_MGR="lhsm"
-    export MIGR_ACTION="archive"
-    export PURGE_ACTION="release"
-    export DEFAULT_ARCHIVE="lhsm.archive"
-    export DEFAULT_PURGE="lhsm.release"
-    export DEFAULT_HSMRM="lhsm.hsm_remove"
+    STATUS_MGR=lhsm
+    # get include for this flavor
+    cp -f ../../doc/templates_v3/includes/lhsm.inc ./cfg/test_policies.inc || exit 1
+    # change policy names to the test framework names
+    sed -e "s/lhsm_archive/migration/" -i ./cfg/test_policies.inc
+    sed -e "s/lhsm_release/purge/" -i ./cfg/test_policies.inc
+    sed -e "s/lhsm_remove/hsm_remove/" -i ./cfg/test_policies.inc
+
 elif [[ $PURPOSE = "BACKUP" ]]; then
     is_lhsm=0
     shook=0
     is_hsmlite=1
-    export STATUS_MGR="backup"
-    export MIGR_ACTION="archive"
-    export PURGE_ACTION="archive" # not used, just to avoid config error
-    export DEFAULT_ARCHIVE="common.copy";
-    export DEFAULT_PURGE="common.log"; # not used, just to avoid config error
-    export DEFAULT_HSMRM="common.unlink"; # in backend?
+    STATUS_MGR=backup
+    # get include for this flavor
+    cp -f ../../doc/templates_v3/includes/backup.inc ./cfg/test_policies.inc || exit 1
+    # change policy names to the test framework names
+    sed -e "s/backup_archive/migration/" -i ./cfg/test_policies.inc
+    sed -e "s/backup_remove/hsm_remove/" -i ./cfg/test_policies.inc
     mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
     is_lhsm=0
     is_hsmlite=1
     shook=1
-    export STATUS_MGR="shook"
-    export MIGR_ACTION="archive"
-    export PURGE_ACTION="release"
-    export DEFAULT_ARCHIVE="common.copy";
-    export DEFAULT_PURGE="shook.release";
-    export DEFAULT_HSMRM="common.unlink"; # in backend?
+    STATUS_MGR=shook
+    # get include for this flavor
+    INCLUDE="../../../doc/templates_v3/includes/shook.inc"
+    # change policy names to the test framework names
+    sed -e "s/shook_archive/migration/" -i ./cfg/test_policies.inc
+    sed -e "s/shook_release/purge/" -i ./cfg/test_policies.inc
+    sed -e "s/shook_remove/hsm_remove/" -i ./cfg/test_policies.inc
     mkdir -p $BKROOT
 fi
 
