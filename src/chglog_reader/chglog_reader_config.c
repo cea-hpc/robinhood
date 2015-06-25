@@ -227,7 +227,7 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
     {
         "force_polling", "polling_interval", "batch_ack_count",
         "queue_max_size", "queue_max_age", "queue_check_interval",
-        "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK,
+        "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK, "dump_file",
         NULL
     };
 
