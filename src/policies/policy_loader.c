@@ -1926,6 +1926,7 @@ static int parse_rule_block(config_item_t config_item,
 {
     char    *rule_name;
     bool     is_default = false;
+    bool     has_target = false;
     int      i, j, k, rc;
     uint64_t mask;
     bool     definition_done = false;
@@ -2073,6 +2074,7 @@ static int parse_rule_block(config_item_t config_item,
                     }
                 }
 
+                has_target = true;
                 /* append the fileset list */
                 rule->target_count++;
                 rule->target_list = (fileset_item_t **)realloc(rule->target_list,
@@ -2125,8 +2127,16 @@ static int parse_rule_block(config_item_t config_item,
 
     if (!definition_done)
     {
-        DisplayLog(LVL_MAJOR, CHK_TAG, "WARNING: in policy '%s', line %d: no condition specified!",
+        DisplayLog(LVL_MAJOR, CHK_TAG, "ERROR: in policy rule '%s', line %d: no condition specified!",
                    rule_name, rh_config_GetItemLine(config_item));
+        return EINVAL;
+    }
+    if (!has_target && !is_default)
+    {
+        DisplayLog(LVL_MAJOR, CHK_TAG, "ERROR: no target filesclass for policy rule '%s' line %d"
+                   " (or define a 'default' rule to match all entries).",
+                   rule_name, rh_config_GetItemLine(config_item));
+        return EINVAL;
     }
 
     return 0;
