@@ -1,0 +1,6 @@
+#!/bin/bash
+fsname=$1
+fid=$2
+path="$3"
+
+rm -f "$path"

@@ -333,11 +333,11 @@ function check_db_error
 
 function get_id
 {
-    local p=$1
+    local p="$1"
     if (( $lustre_major >= 2 )); then
-         $LFS path2fid $p | tr -d '[]'
+         $LFS path2fid "$p" | tr -d '[]'
     else
-         stat -c "/%i" $p
+         stat -c "/%i" "$p"
     fi
 }
 
@@ -1574,12 +1574,6 @@ function test_custom_purge
 	sleep_time=$2
 	policy_str="$3"
 
-	if (( $is_hsmlite + $is_lhsm > 0 )); then
-		echo "No custom purge for HSM purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
 	clean_logs
 
 	# initial scan
@@ -1604,11 +1598,11 @@ function test_custom_purge
 		# get fids of entries
 		fids=()
 		for i in `seq 1 10`; do
-			fids[$i]=$($LFS path2fid $ROOT/file.$i)
+			fids[$i]=$(get_id "$ROOT/file.$i")
         done
         i=11
         for f in  "$ROOT/foo1 \`pkill -9 $CMD\`" "$ROOT/foo2 ; exit 1" "$ROOT/foo3' ';' 'exit' '1'" ; do
-			fids[$i]=$($LFS path2fid "$f")
+			fids[$i]=$(get_id "$f")
             ((i=$i+1))
         done
         [ "$DEBUG" = "1" ] && echo "fsname=$fsname, fids=${fids[*]}"
@@ -1627,13 +1621,13 @@ function test_custom_purge
 
 	# checking that the custom command was called for each file
 	for  i in `seq 1 10`; do
-		line=$(grep "Executing " rh_purge.log | grep '/bin/rm' | grep $ROOT/file.$i)
+		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep $ROOT/file.$i)
         if [ -z "$line" ]; then
             error "No action found on $ROOT/file.$i"
             continue
         fi
         # split args
-        args=($(echo "$line" | sed -e "s/.*rm -f//" | tr -d "'"))
+        args=($(echo "$line" | sed -e "s/.*rm_script//" | tr -d "'"))
         fn=${args[0]}
         id=${args[1]}
         p=${args[2]}
@@ -1653,13 +1647,13 @@ function test_custom_purge
     i=11
     for f in  "$ROOT/foo1 \`pkill -9 $CMD\`" "$ROOT/foo2 ; exit 1" "$ROOT/foo3' ';' 'exit' '1'" ; do
         f0=$(echo "$f" | awk '{print $1}')
-		line=$(grep "Executing " rh_purge.log | grep '/bin/rm' | grep "$f0")
+		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep "$f0")
         if [ -z "$line" ]; then
             error "No action found on $f"
             continue
         fi
         # split args
-        args=($(echo "$line" | sed -e "s/.*rm -f//" | tr -d "'" | tr -d '\\' | cut -d '>' -f 1))
+        args=($(echo "$line" | sed -e "s/.*rm_script//" | tr -d "'" | tr -d '\\' | cut -d '>' -f 1))
         fn=${args[0]}
         id=${args[1]}
         unset args[0]
@@ -8821,67 +8815,62 @@ function test_removing
 
 function test_rmdir_mix
 {
-	config_file=$1
-	sleepTime=$2 # for age_rm_empty_dirs
+    config_file=$1
+    sleepTime=$2 # for age_rm_empty_dirs
 
-    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
-		echo "No removing dir for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
+    #  clean logs
+    clean_logs
 
-	#  clean logs
-	clean_logs
-
-	# prepare data
-	echo "1-Preparing Filesystem..."
+    # prepare data
+    echo "1-Preparing Filesystem..."
     # old dirempty
-	mkdir -p $ROOT/no_rm/dirempty
-	mkdir -p $ROOT/dirempty
+    mkdir -p $ROOT/no_rm/dirempty
+    mkdir -p $ROOT/dirempty
     sleep $sleepTime
 
     # new dirs
-	mkdir -p $ROOT/no_rm/dir1
-	mkdir -p $ROOT/no_rm/dir2
-	mkdir -p $ROOT/no_rm/dirempty_new
-	mkdir -p $ROOT/dir1
-	mkdir -p $ROOT/dir2
-	mkdir -p $ROOT/dirempty_new
-	echo "data" >  $ROOT/no_rm/dir1/file
-	echo "data" >  $ROOT/no_rm/dir2/file
-	echo "data" >  $ROOT/dir1/file
-	echo "data" >  $ROOT/dir2/file
+    mkdir -p $ROOT/no_rm/dir1
+    mkdir -p $ROOT/no_rm/dir2
+    mkdir -p $ROOT/no_rm/dirempty_new
+    mkdir -p $ROOT/dir1
+    mkdir -p $ROOT/dir2
+    mkdir -p $ROOT/dirempty_new
+    echo "data" >  $ROOT/no_rm/dir1/file
+    echo "data" >  $ROOT/no_rm/dir2/file
+    echo "data" >  $ROOT/dir1/file
+    echo "data" >  $ROOT/dir2/file
 
-	# launch the scan ..........................
-	echo "2-Scanning directories in filesystem ..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
+    # launch the scan ..........................
+    echo "2-Scanning directories in filesystem ..."
+    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
 
-    echo "3-Checking rmdir report"
-	$REPORT -f ./cfg/$config_file -l MAJOR -cq --top-rmdir > report.out
-    [ "$DEBUG" = "1" ] && cat report.out
-    # must report empty dirs (non ignored)
-    grep "no_rm/dirempty," report.out && error "top-rmdir report whitelisted dir"
-    grep "no_rm/dirempty_new," report.out && error "top-rmdir report whitelisted dir"
-    grep "$ROOT/dirempty," report.out | grep expired || error "top-rmdir did not report expired eligible dir"
-    grep "$ROOT/dirempty_new," report.out | grep -v expired || error "top-rmdir did not report non-expired eligible dir"
+## Deprecated in robinhood v3: --top-rmdir => to be replaced by --oldest-files or --oldest files"
+#    echo "3-Checking rmdir report"
+#    $REPORT -f ./cfg/$config_file -l MAJOR -cq --top-rmdir > report.out
+#    [ "$DEBUG" = "1" ] && cat report.out
+#    # must report empty dirs (non ignored)
+#    grep "no_rm/dirempty," report.out && error "top-rmdir report whitelisted dir"
+#    grep "no_rm/dirempty_new," report.out && error "top-rmdir report whitelisted dir"
+#    grep "$ROOT/dirempty," report.out | grep expired || error "top-rmdir did not report expired eligible dir"
+#    grep "$ROOT/dirempty_new," report.out | grep -v expired || error "top-rmdir did not report non-expired eligible dir"
 
-	# launch the rmdir ..........................
-	echo "4-Removing directories in filesystem ..."
-	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing rmdir"
+    # launch the rmdir ..........................
+    echo "4-Removing directories in filesystem ..."
+    $RH -f ./cfg/$config_file --run=rmdir --target=all -l DEBUG -L rh_rmdir.log --once || error "performing rmdir"
 
-	echo "5-Checking results ..."
+    echo "5-Checking results ..."
     exist="$ROOT/no_rm/dirempty;$ROOT/no_rm/dir1;$ROOT/no_rm/dir2;$ROOT/no_rm/dirempty_new;$ROOT/dir2;$ROOT/dirempty_new"
     noexist="$ROOT/dir1;$ROOT/dirempty"
 
-	# launch the validation for all remove process
-	exist_dirs_or_not $exist $noexist
-	res=$?
+    # launch the validation for all remove process
+    exist_dirs_or_not $exist $noexist
+    res=$?
 
-	if (( $res == 1 )); then
-		error "Test for RemovingDir_mixed failed"
+    if (( $res == 1 )); then
+        error "Test for RemovingDir_mixed failed"
     else
         echo "OK: Test successfull"
-	fi
+    fi
 }
 
 
