@@ -3815,7 +3815,7 @@ function test_periodic_trigger
 	sleep 2
 
 	# start periodic trigger in background
-	echo "3.1-checking trigger for first policy..."
+	echo "3.1-checking trigger for first policy run..."
 	$RH -f ./cfg/$config_file --run=purge -l DEBUG -L rh_purge.log &
 	sleep 2
 
@@ -3834,7 +3834,7 @@ function test_periodic_trigger
 	((sleep_time=$sleep_time-$delta))
 	sleep $(( $sleep_time + 2 ))
 	# now, *.2 must have been purged
-	echo "3.2-checking trigger for second policy..."
+	echo "3.2-checking trigger for second policy run..."
 
 	t2=`date +%s`
 	((delta=$t2 - $t0))
@@ -3864,8 +3864,8 @@ function test_periodic_trigger
 	check_released "$ROOT/foo.4"  && error "$ROOT/foo.4 shouldn't have been released after $delta s"
 	check_released "$ROOT/bar.4"  && error "$ROOT/bar.4 shouldn't have been released after $delta s"
 
-	# final check: 3x "Purge summary: 3 entries"
-	nb_pass=`grep "Purge summary: 3 entries" rh_purge.log | wc -l`
+	# final check: 3x "Policy run summary: [...] 3 successful actions"
+    nb_pass=$(grep -c "Policy run summary:.* 3 successful actions" rh_purge.log)
 	if (( $nb_pass == 3 )); then
 		echo "OK: triggered 3 times"
 	else
