@@ -263,7 +263,6 @@ retry:
                 shift += field_cnt.nb_annex;
             }
 
-#if 0 /* no chance it happens? */
 #ifdef _LUSTRE
             if (stripe_fields(attr_mask))
             {
@@ -275,7 +274,7 @@ retry:
                 }
             }
 #endif
-#endif
+
             generate_fields(&((*child_attr_list)[i]));
 
             /* Note: path is properly sized already to not overflow. */
