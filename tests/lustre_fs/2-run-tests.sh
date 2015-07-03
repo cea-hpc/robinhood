@@ -3221,6 +3221,12 @@ function test_action_params
 
 	clean_logs
 
+    if (( $is_hsmlite + $is_lhsm == 0 )); then
+       echo "No migration policy defined for this flavor: skipping test."
+       set_skipped
+       return 1
+    fi
+
     # create 1 file in each class + default
     touch $ROOT/file.1a
     touch $ROOT/file.1b
