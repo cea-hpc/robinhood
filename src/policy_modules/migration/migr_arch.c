@@ -1179,12 +1179,14 @@ static int check_entry( lmgr_t * lmgr, migr_item_t * p_item, attr_set_t * new_at
         DisplayLog( LVL_FULL, MIGR_TAG, "Update of HSM state (not known in DB)" );
         rc = LustreHSM_GetStatus( fid_path, &ATTR( new_attr_set, status ),
                                   &ATTR( new_attr_set, no_release ),
-                                  &ATTR( new_attr_set, no_archive ) );
+                                  &ATTR( new_attr_set, no_archive ),
+                                  &ATTR( new_attr_set, archive_id ) );
         if ( !rc )
         {
             ATTR_MASK_SET( new_attr_set, status );
             ATTR_MASK_SET( new_attr_set, no_release );
             ATTR_MASK_SET( new_attr_set, no_archive );
+            ATTR_MASK_SET( new_attr_set, archive_id );
         }
     }
 
@@ -1628,12 +1630,14 @@ static int ManageEntry( lmgr_t * lmgr, migr_item_t * p_item, int no_queue )
 
         int rc2 = LustreHSM_GetStatus(fid_path, &ATTR(&new_attr_set, status),
                                       &ATTR(&new_attr_set, no_release),
-                                      &ATTR(&new_attr_set, no_archive));
+                                      &ATTR(&new_attr_set, no_archive),
+                                      &ATTR(&new_attr_set, archive_id) );
         if (!rc2)
         {
             ATTR_MASK_SET( &new_attr_set, status );
             ATTR_MASK_SET( &new_attr_set, no_release );
             ATTR_MASK_SET( &new_attr_set, no_archive );
+            ATTR_MASK_SET( &new_attr_set, archive_id );
         }
     }
 #elif defined( _HSM_LITE )

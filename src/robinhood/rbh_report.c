@@ -2875,7 +2875,9 @@ static void report_deferred_rm( int flags )
 #ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
-
+#ifdef _LUSTRE_HSM
+    unsigned int archive_id = 0;
+#endif
     time_t soft_rm_time = 0;
     time_t expiration_time = 0;
     char           date_rm[128];
@@ -2914,6 +2916,9 @@ static void report_deferred_rm( int flags )
 #ifdef _HSM_LITE
                         bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                        &archive_id,
+#endif
                         &soft_rm_time, &expiration_time )) == DB_SUCCESS )
     {
         total_count++;
@@ -2927,6 +2932,9 @@ static void report_deferred_rm( int flags )
 #ifdef _HSM_LITE
             printf( "%3u, "DFID", %-40s, %19s, %19s, %s\n", index, PFID(&id),
                     last_known_path, date_rm, date_exp, bkpath );
+#elif _LUSTRE_HSM
+            printf( "%3u, "DFID", %-40s, %19s, %19s, %u\n", index, PFID(&id),
+                    last_known_path, date_rm, date_exp, archive_id );
 #else
             printf( "%3u, "DFID", %-40s, %19s, %19s\n", index, PFID(&id),
                     last_known_path, date_rm, date_exp );
@@ -2942,6 +2950,9 @@ static void report_deferred_rm( int flags )
             if ( !EMPTY_STRING(bkpath) )
                 printf( "Backend path:      %s\n", bkpath );
 #endif
+#ifdef _LUSTRE_HSM
+            printf( "Archive id:        %u\n", archive_id );
+#endif
             printf( "Lustre rm time:    %s\n", date_rm );
             if ( expiration_time <= time(NULL) )
                 printf( "HSM rm time:       %s (expired)\n", date_exp );
@@ -2953,6 +2964,9 @@ static void report_deferred_rm( int flags )
         last_known_path[0] = '\0';
 #ifdef _HSM_LITE
         bkpath[0] = '\0';
+#endif
+#ifdef _LUSTRE_HSM
+	archive_id = 0;
 #endif
         soft_rm_time = 0;
         expiration_time = 0;

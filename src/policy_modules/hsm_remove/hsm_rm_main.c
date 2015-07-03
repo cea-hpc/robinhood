@@ -71,11 +71,11 @@ static time_t  last_rm = 0;
  */
 
 #ifdef _LUSTRE_HSM
-static inline int HSM_rm( const entry_id_t * p_id )
+static inline int HSM_rm( const entry_id_t * p_id, unsigned int archive_id )
 {
     DisplayLog( LVL_FULL, HSMRM_TAG, "HSM_remove("DFID")", PFID(p_id) );
     if ( !dry_run )
-          return LustreHSM_Action( HUA_REMOVE, p_id, NULL, 0 );
+          return LustreHSM_Action( HUA_REMOVE, p_id, NULL, archive_id );
     return 0;
 }
 #elif defined(_HSM_LITE)
@@ -95,6 +95,9 @@ typedef struct hsm_rm_item__
 #ifdef _HSM_LITE
     char           backendpath[RBH_PATH_MAX];
 #endif
+#ifdef _LUSTRE_HSM
+    int            archive_id;
+#endif
 } hsm_rm_item_t;
 
 /**
@@ -103,7 +106,7 @@ typedef struct hsm_rm_item__
 #ifdef _HSM_LITE
 static void   *MkRmItem( entry_id_t * p_entry_id, char * bkpath )
 #elif defined(_LUSTRE_HSM)
-static void   *MkRmItem( entry_id_t * p_entry_id )
+static void   *MkRmItem( entry_id_t * p_entry_id, unsigned int archive_id )
 #endif
 {
     hsm_rm_item_t  *new_entry;
@@ -116,6 +119,10 @@ static void   *MkRmItem( entry_id_t * p_entry_id )
 
 #ifdef _HSM_LITE
     rh_strncpy(new_entry->backendpath, bkpath, RBH_PATH_MAX);
+#endif
+
+#ifdef _LUSTRE_HSM
+    new_entry->archive_id = archive_id;
 #endif
 
     return new_entry;
@@ -165,6 +172,9 @@ static int perform_hsm_rm( unsigned int *p_nb_removed, unsigned int * p_noop, un
     struct lmgr_rm_list_t *it = NULL;
 
     entry_id_t     entry_id;
+#ifdef _LUSTRE_HSM
+    unsigned int   archive_id;
+#endif
 
     unsigned int   status_tab1[HSMRM_STATUS_COUNT];
     unsigned int   status_tab2[HSMRM_STATUS_COUNT];
@@ -219,8 +229,8 @@ static int perform_hsm_rm( unsigned int *p_nb_removed, unsigned int * p_noop, un
 #ifdef _HSM_LITE
           bkpath[0] = '\0';
           rc = ListMgr_GetNextRmEntry( it, &entry_id, NULL, bkpath, NULL, NULL );
-#else
-          rc = ListMgr_GetNextRmEntry( it, &entry_id, NULL, NULL, NULL );
+#elif defined(_LUSTRE_HSM)
+          rc = ListMgr_GetNextRmEntry( it, &entry_id, NULL, &archive_id, NULL, NULL );
 #endif
 
           if ( rc == DB_END_OF_LIST )
@@ -238,7 +248,7 @@ static int perform_hsm_rm( unsigned int *p_nb_removed, unsigned int * p_noop, un
 #ifdef _HSM_LITE
           rc = Queue_Insert( &hsm_rm_queue, MkRmItem( &entry_id, bkpath ) );
 #elif defined(_LUSTRE_HSM)
-          rc = Queue_Insert( &hsm_rm_queue, MkRmItem( &entry_id ) );
+          rc = Queue_Insert( &hsm_rm_queue, MkRmItem( &entry_id, archive_id ) );
 #endif
           if ( rc )
               return rc;
@@ -315,7 +325,7 @@ static void   *Thr_Rm( void *arg )
 #ifdef _HSM_LITE
           rc = HSM_rm( &p_item->entry_id, p_item->backendpath );
 #elif defined(_LUSTRE_HSM)
-          rc = HSM_rm( &p_item->entry_id );
+          rc = HSM_rm( &p_item->entry_id, p_item->archive_id );
 #endif
 
           if (rc == -ENOENT)
@@ -367,8 +377,14 @@ static void   *Thr_Rm( void *arg )
 
                 /* report messages */
 
+#ifdef _LUSTRE_HSM
+                DisplayLog( LVL_DEBUG, HSMRM_TAG,
+                            "Remove request successful for entry "DFID" to archive_id=%u",
+                            PFID(&p_item->entry_id), p_item->archive_id );
+#else
                 DisplayLog( LVL_DEBUG, HSMRM_TAG,
                             "Remove request successful for entry "DFID, PFID(&p_item->entry_id) );
+#endif
 /*                            "Remove request for entry "DFID", removed from Lustre %s ago", ... */
 
                 DisplayReport( "HSM_remove "DFID, PFID(&p_item->entry_id) );

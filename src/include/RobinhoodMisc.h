@@ -224,7 +224,8 @@ static inline unsigned int cltime2nsec( uint64_t cltime )
 
 #ifdef _LUSTRE_HSM
 int            LustreHSM_GetStatus( const char *path, file_status_t * p_status,
-                                    int *no_release, int *no_archive );
+                                    int *no_release, int *no_archive,
+                                    unsigned int *archive_id );
 
 /** Trigger a HSM action
  * \param action HUA_ARCHIVE, HUA_RESTORE, HUA_RELEASE, HUA_REMOVE, HUA_CANCEL

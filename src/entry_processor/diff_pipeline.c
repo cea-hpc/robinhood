@@ -524,7 +524,8 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #elif defined(_LUSTRE_HSM)
         rc = LustreHSM_GetStatus( path, &ATTR( &p_op->fs_attrs, status ),
                                   &ATTR( &p_op->fs_attrs, no_release ),
-                                  &ATTR( &p_op->fs_attrs, no_archive ) );
+                                  &ATTR( &p_op->fs_attrs, no_archive ),
+                                  &ATTR( &p_op->fs_attrs, archive_id ) );
 #endif
         if ( ERR_MISSING( abs( rc )) )
         {
@@ -542,6 +543,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             ATTR_MASK_SET( &p_op->fs_attrs, status );
             ATTR_MASK_SET( &p_op->fs_attrs, no_release );
             ATTR_MASK_SET( &p_op->fs_attrs, no_archive );
+            ATTR_MASK_SET( &p_op->fs_attrs, archive_id );
 #endif
 
             /* if the entry has no flags, the entry has never been archived or restored */

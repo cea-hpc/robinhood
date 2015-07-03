@@ -564,6 +564,9 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
 #ifdef _HSM_LITE
                                        char * bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                                       unsigned int * last_known_archive_id,
+#endif
                                        time_t * soft_rm_time,
                                        time_t * expiration_time );
 
@@ -580,6 +583,9 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
                            char * last_known_path,
 #ifdef _HSM_LITE
                            char * bkpath,
+#endif
+#ifdef _LUSTRE_HSM
+                           unsigned int * last_known_archive_id,
 #endif
                            time_t * soft_rm_time,
                            time_t * expiration_time);

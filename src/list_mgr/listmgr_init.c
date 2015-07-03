@@ -701,6 +701,31 @@ static int create_table_dnames(db_conn_t *pconn)
     return DB_SUCCESS;
 }
 
+#ifdef _LUSTRE_HSM
+static inline int add_archiveid_in_table(db_conn_t * pconn, const char * table,
+                                         const char * prev_field)
+{
+    char strbuf[4096];
+    int rc;
+
+    /* alter statement */
+    sprintf(strbuf, "ALTER TABLE %s ADD COLUMN archive_id INTEGER UNSIGNED "
+                    "ZEROFILL AFTER %s ;", table, prev_field);
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Table alter request =\n%s", strbuf);
+
+    rc = db_exec_sql(pconn, strbuf, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to alter table: Error: %s",
+                   db_errmsg(pconn, strbuf, sizeof(strbuf)));
+        return rc;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Table %s altered successfully", table);
+    return DB_SUCCESS;
+}
+#endif
+
 static int check_table_annex(db_conn_t *pconn)
 {
     int rc, i;
@@ -725,8 +750,17 @@ static int check_table_annex(db_conn_t *pconn)
         {
             if (is_annex_field(i) && !is_funcattr(i))
             {
-                if (check_field(i, &curr_field_index, ANNEX_TABLE, fieldtab))
-                    return DB_BAD_SCHEMA;
+                if (check_field(i, &curr_field_index, ANNEX_TABLE, fieldtab)) {
+#ifdef _LUSTRE_HSM
+                    if (!strcmp("archive_id", field_infos[i].field_name)) {
+                        /* old DB missing new archive_id field in ANNEX_INFO */
+                        rc = add_archiveid_in_table(pconn, ANNEX_TABLE, "link");
+                        if (rc != DB_SUCCESS)
+                            return rc;
+                    } else
+#endif
+                        return DB_BAD_SCHEMA;
+                }
             }
         }
 
@@ -1216,6 +1250,14 @@ static int check_table_softrm(db_conn_t *pconn)
             return DB_BAD_SCHEMA;
         if (check_field_name("real_rm_time", &curr_index, SOFT_RM_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
+#ifdef _LUSTRE_HSM
+        if (check_field_name("archive_id", &curr_index, SOFT_RM_TABLE, fieldtab)) {
+            /* old DB missing new archive_id field in SOFT_RM */
+            rc = add_archiveid_in_table(pconn, SOFT_RM_TABLE, "real_rm_time");
+            if (rc != DB_SUCCESS)
+                return rc;
+        }
+#endif
 
         if (has_extra_field(curr_index, SOFT_RM_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
@@ -1242,8 +1284,11 @@ static int create_table_softrm(db_conn_t *pconn)
             "backendpath VARCHAR(%u), "
 #endif
             "soft_rm_time INT UNSIGNED, "
-            "real_rm_time INT UNSIGNED)",
-             field_infos[ATTR_INDEX_fullpath].db_type_size
+            "real_rm_time INT UNSIGNED"
+#ifdef _LUSTRE_HSM
+            ", archive_id INT UNSIGNED"
+#endif
+            ")", field_infos[ATTR_INDEX_fullpath].db_type_size
 #ifndef _LUSTRE_HSM
              , field_infos[ATTR_INDEX_backendpath].db_type_size
 #endif

@@ -7,8 +7,12 @@
 
 ROOT="/mnt/lustre"
 
+# switch between 2 sets of 2 lines/defines if running from build
+# or RPM install
+RBH_SBINDIR="../../src/robinhood"
 RBH_BINDIR="../../src/robinhood"
-#RBH_BINDIR="/usr/sbin"
+#RBH_SBINDIR="/usr/sbin"
+#RBH_BINDIR="/usr/bin"
 
 BKROOT="/tmp/backend"
 RBH_OPT=""
@@ -31,11 +35,11 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
 	is_lhsm=0
 	is_hsmlite=0
 	shook=0
-	RH="$RBH_BINDIR/robinhood $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
+	RH="$RBH_SBINDIR/robinhood $RBH_OPT"
+	REPORT="$RBH_SBINDIR/rbh-report $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-find
 	DU=$RBH_BINDIR/rbh-du
-    DIFF=$RBH_BINDIR/rbh-diff
+    DIFF=$RBH_SBINDIR/rbh-diff
 	CMD=robinhood
 	REL_STR="Purged"
 	PURPOSE="TMP_FS_MGR"
@@ -43,12 +47,12 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 	is_lhsm=1
 	is_hsmlite=0
 	shook=0
-	RH="$RBH_BINDIR/rbh-lhsm $RBH_OPT"
-	REPORT=$RBH_BINDIR/rbh-lhsm-report
+	RH="$RBH_SBINDIR/rbh-lhsm $RBH_OPT"
+	REPORT=$RBH_SBINDIR/rbh-lhsm-report
 	FIND=$RBH_BINDIR/rbh-lhsm-find
 	DU=$RBH_BINDIR/rbh-lhsm-du
-    DIFF=$RBH_BINDIR/rbh-lhsm-diff
-    UNDELETE=$RBH_BINDIR/rbh-lhsm-undo-rm
+    DIFF=$RBH_SBINDIR/rbh-lhsm-diff
+    UNDELETE=$RBH_SBINDIR/rbh-lhsm-undo-rm
 	CMD=rbh-lhsm
 	PURPOSE="LUSTRE_HSM"
 	ARCH_STR="Start archiving" # string followed by (fid, hints=...)
@@ -59,14 +63,14 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
 	shook=0
 	is_hsmlite=1
 
-	RH="$RBH_BINDIR/rbh-backup $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-backup-report $RBH_OPT"
-	RECOV="$RBH_BINDIR/rbh-backup-recov $RBH_OPT"
-	IMPORT="$RBH_BINDIR/rbh-backup-import $RBH_OPT"
+	RH="$RBH_SBINDIR/rbh-backup $RBH_OPT"
+	REPORT="$RBH_SBINDIR/rbh-backup-report $RBH_OPT"
+	RECOV="$RBH_SBINDIR/rbh-backup-recov $RBH_OPT"
+	IMPORT="$RBH_SBINDIR/rbh-backup-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-backup-find
 	DU=$RBH_BINDIR/rbh-backup-du
     DIFF=$RBH_BINDIR/rbh-backup-diff
-    UNDELETE=$RBH_BINDIR/rbh-backup-undo-rm
+    UNDELETE=$RBH_SBINDIR/rbh-backup-undo-rm
 	CMD=rbh-backup
 	ARCH_STR="Starting backup"
 	ARCH_STR2="Archived"
@@ -77,14 +81,14 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
 	is_hsmlite=1
 	shook=1
 
-	RH="$RBH_BINDIR/rbh-shook $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-shook-report $RBH_OPT"
-	RECOV="$RBH_BINDIR/rbh-shook-recov $RBH_OPT"
-	IMPORT="$RBH_BINDIR/rbh-shook-import $RBH_OPT"
+	RH="$RBH_SBINDIR/rbh-shook $RBH_OPT"
+	REPORT="$RBH_SBINDIR/rbh-shook-report $RBH_OPT"
+	RECOV="$RBH_SBINDIR/rbh-shook-recov $RBH_OPT"
+	IMPORT="$RBH_SBINDIR/rbh-shook-import $RBH_OPT"
 	FIND=$RBH_BINDIR/rbh-shook-find
 	DU=$RBH_BINDIR/rbh-shook-du
-    DIFF=$RBH_BINDIR/rbh-shook-diff
-    UNDELETE=$RBH_BINDIR/rbh-shook-undo-rm
+    DIFF=$RBH_SBINDIR/rbh-shook-diff
+    UNDELETE=$RBH_SBINDIR/rbh-shook-undo-rm
 	CMD=rbh-shook
 	ARCH_STR="Starting backup"
 	ARCH_STR2="Archived"
@@ -1150,6 +1154,134 @@ function link_unlink_remove_test
 	pkill -9 $PROC
 
 }
+
+# test that hsm-remove requests are sent to the right archive
+function test_archive_id
+{
+    config_file=$1
+    nb_archive=$2
+    sleep_time=$3
+    policy_str="$4"
+
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+    if (( $no_log )); then
+        echo "changelog disabled: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    local default_archive=$(cat /proc/fs/lustre/mdt/lustre-MDT0000/hsm/default_archive_id)
+
+    # create nb_archive + 3 more files to test:
+    # - hsm_archive with no option
+    # - hsm_archive with -a 0
+    # - file that will be deleted before robinhood gets its archive_id
+
+    id=()
+    name=()
+    echo "1-Writing files..."
+    for i in $(seq 1 $nb_archive) no_opt 0 x ; do
+        dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+        name+=( "$i" )
+        id+=( "$(get_id "$ROOT/file.$i")" )
+    done
+
+    # initial scan (files are known as 'new')
+    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
+    check_db_error rh_scan.log
+
+    # archive then
+    echo "2-Archiving files..."
+    flush_data
+    for i in $(seq 1 $nb_archive); do
+        $LFS hsm_archive -a $i $ROOT/file.$i || error "executing lfs hsm_archive"
+    done
+    $LFS hsm_archive $ROOT/file.no_opt || error "executing lfs hsm_archive"
+    $LFS hsm_archive -a 0 $ROOT/file.0 || error "executing lfs hsm_archive"
+
+    echo "3-Waiting for end of data migration..."
+    wait_done 60 || error "Migration timeout"
+
+    # make sure rm operations are in the changelog
+    sleep 1
+
+    # robinhood reads the archive_id
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    check_db_error rh_chglogs.log
+
+    # now archive and remove the last file
+    $LFS hsm_archive -a 2 $ROOT/file.x || error "executing lfs hsm_archive"
+    echo "4-Waiting for end of data migration..."
+    wait_done 60 || error "Migration timeout"
+
+    echo "5-Removing all files"
+    rm -f $ROOT/file.*
+
+    # make sure rm operations are in the changelog
+    sleep 1
+
+    # read unlink records
+    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    check_db_error rh_chglogs.log
+
+
+    echo "6-Checking report..."
+    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+
+    nb_ent=`wc -l rh_report.log | awk '{print $1}'`
+    if (( $nb_ent != $nb_archive + 3 )); then
+        error "Wrong number of deferred rm reported: $nb_ent"
+    fi
+
+    for i in $(seq 1 ${#id[@]}); do
+        n=${name[$((i-1))]}
+        fid=${id[$((i-1))]}
+        grep "$fid" rh_report.log | grep $ROOT/file.$n || error "$ROOT/file.$n ($fid) not found in deferred rm list"
+    done
+
+    echo "7-Sleeping $sleep_time seconds..."
+    sleep $sleep_time
+
+    echo "8-Applying deferred remove operations"
+    $RH -f ./cfg/$config_file --hsm-remove --once -l DEBUG -L rh_rm.log  || error "hsm-remove"
+
+    for i in $(seq 1 ${#id[@]}); do
+        n=${name[$((i-1))]}
+        fid=${id[$((i-1))]}
+
+        echo $n
+        # specific cases
+        if [[ "$n" == "0" ]] || [[ "$n" == "no_opt" ]]; then
+            # robinhood should know the entry was in default archive
+            grep "HSM_rm | Remove request successful for entry" rh_rm.log | grep $fid | grep "archive_id=$default_archive" ||
+                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to default archive $default_archive and successful"
+        elif [[ "$n" == "x" ]]; then
+            # robinhood doesn't know in was archive was the entry
+            # send to archive 0 (must be interpreted by coordinator as a broadcast to all archives)
+            grep "HSM_rm | Remove request successful for entry" rh_rm.log | grep $fid | grep "archive_id=0" ||
+                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to archive 0 (broadcast) and successful"
+        else
+            # should be send to archive $i
+            grep "HSM_rm | Remove request successful for entry" rh_rm.log | grep "$fid" | grep "archive_id=$i" ||
+                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to archive_id $i and successful"
+        fi
+    done
+
+
+    nb_rm=`grep "HSM_rm | Remove request successful for entry" rh_rm.log | wc -l`
+    if (($nb_rm != $nb_archive + 3)); then
+        error "********** TEST FAILED: $nb_archive + 3 removals expected, $nb_rm done"
+    else
+        echo "OK: $nb_rm files removed from archive"
+    fi
+}
+
 
 function mass_softrm
 {
@@ -9572,7 +9704,8 @@ run_test 209a	periodic_class_match_purge test_updt.conf 10 "periodic fileclass m
 run_test 209b	policy_check_purge test_check_purge.conf 10 "test fileclass matching (purge)"
 run_test 210	fileclass_test test_fileclass.conf 2 "complex policies with unions and intersections of filesets"
 run_test 211	test_pools test_pools.conf 1 "class matching with condition on pools"
-run_test 212	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+run_test 212a	link_unlink_remove_test test_rm1.conf 1 31 "deferred hsm_remove (30s)"
+run_test 212b   test_archive_id        test_rm1.conf 4 31 "test archive_id recording and usage"
 run_test 213	migration_test_single test1.conf 11 31 "last_mod>30s"
 run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
 run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"

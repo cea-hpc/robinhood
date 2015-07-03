@@ -224,6 +224,9 @@ static inline void display_rm_entry(entry_id_t * id, const char *last_known_path
 #ifdef _HSM_LITE
                              const char *bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                             unsigned int archive_id,
+#endif
                              time_t soft_rm_time, time_t expiration_time)
 {
     char           date_rm[128];
@@ -239,6 +242,9 @@ static inline void display_rm_entry(entry_id_t * id, const char *last_known_path
 #ifdef _HSM_LITE
     if ( !EMPTY_STRING(bkpath) )
         printf( "Backend path:      %s\n", bkpath );
+#endif
+#ifdef _LUSTRE_HSM
+    printf( "Archive id:        %u\n", archive_id );
 #endif
     printf( "Removal time:      %s\n", date_rm );
     if ( expiration_time <= time(NULL) )
@@ -257,7 +263,9 @@ static int list_rm( void )
 #ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
-
+#ifdef _LUSTRE_HSM
+    unsigned int archive_id = 0;
+#endif
     time_t soft_rm_time = 0;
     time_t expiration_time = 0;
 
@@ -270,12 +278,18 @@ static int list_rm( void )
 #ifdef _HSM_LITE
                             bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                            &archive_id,
+#endif
                             &soft_rm_time, &expiration_time );
         if (rc == DB_SUCCESS)
         {
             display_rm_entry( &id, last_known_path,
 #ifdef _HSM_LITE
                             bkpath,
+#endif
+#ifdef _LUSTRE_HSM
+                            archive_id,
 #endif
                             soft_rm_time, expiration_time);
         }
@@ -309,6 +323,9 @@ static int list_rm( void )
     #ifdef _HSM_LITE
                             bkpath,
     #endif
+    #ifdef _LUSTRE_HSM
+                            &archive_id,
+    #endif
                             &soft_rm_time, &expiration_time )) == DB_SUCCESS )
         {
             total_count++;
@@ -319,12 +336,18 @@ static int list_rm( void )
 #ifdef _HSM_LITE
                             bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                            &archive_id,
+#endif
                             soft_rm_time, expiration_time );
 
             /* prepare next call */
             last_known_path[0] = '\0';
 #ifdef _HSM_LITE
             bkpath[0] = '\0';
+#endif
+#ifdef _LUSTRE_HSM
+            archive_id = 0;
 #endif
             soft_rm_time = 0;
             expiration_time = 0;
@@ -404,6 +427,9 @@ static int undo_rm( void )
 #ifdef _HSM_LITE
     char   bkpath[RBH_PATH_MAX] = "";
 #endif
+#ifdef _LUSTRE_HSM
+    unsigned int archive_id = 0;
+#endif
     unsigned long long total_count = 0;
     lmgr_filter_t  filter;
 
@@ -413,12 +439,18 @@ static int undo_rm( void )
 #ifdef _HSM_LITE
                             bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                            &archive_id,
+#endif
                             NULL, NULL );
         if (rc == DB_SUCCESS)
         {
             undo_rm_helper( &id, last_known_path,
 #ifdef _HSM_LITE
                             bkpath
+#endif
+#ifdef _LUSTRE_HSM
+                            archive_id
 #endif
                             );
         }
@@ -451,6 +483,9 @@ static int undo_rm( void )
     #ifdef _HSM_LITE
                             bkpath,
     #endif
+    #ifdef _LUSTRE_HSM
+                            &archive_id,
+    #endif
                             NULL, NULL )) == DB_SUCCESS )
         {
             total_count++;
@@ -458,6 +493,9 @@ static int undo_rm( void )
             undo_rm_helper( &id, last_known_path,
 #ifdef _HSM_LITE
                             bkpath
+#endif
+#ifdef _LUSTRE_HSM
+                            archive_id
 #endif
                             );
         }

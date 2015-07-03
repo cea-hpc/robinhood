@@ -138,3 +138,4 @@ stripe_items,   stripe_items_t, DB_STRIPE_ITEMS, 0,  INIT_ONLY
 last_archive,   unsigned int, DB_UINT, 0, ANNEX_INFO
 last_restore,   unsigned int, DB_UINT, 0, ANNEX_INFO
 link,          char, DB_TEXT, RBH_PATH_MAX,     ANNEX_INFO | SLINK_ATTR
+archive_id,    unsigned int, DB_UINT, 0, ANNEX_INFO

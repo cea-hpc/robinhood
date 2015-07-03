@@ -183,6 +183,10 @@ retry:
 #define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath, backendpath"
 #define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath, backendpath"
 #define GET_SOFTRM_FIELDS "fullpath, backendpath"
+#elif _LUSTRE_HSM
+#define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath, archive_id"
+#define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath, archive_id"
+#define GET_SOFTRM_FIELDS "fullpath, archive_id"
 #else
 #define BUILD_SOFTRM_FIELDS ONE_PATH_FUNC"(%s.id) as fullpath"
 #define BUILD_SOFTRM_FIELDS_JOIN_NAMES THIS_PATH_FUNC"(parent_id,name) as fullpath"
@@ -205,7 +209,7 @@ static int listmgr_softrm_all( lmgr_t * p_mgr, time_t due_time )
     {
         sprintf( query, "INSERT IGNORE INTO " SOFT_RM_TABLE " (fid, "
                  GET_SOFTRM_FIELDS ", soft_rm_time, real_rm_time) "
-                "(SELECT "MAIN_TABLE".id, "BUILD_SOFTRM_FIELDS", "
+                 "(SELECT "MAIN_TABLE".id, "BUILD_SOFTRM_FIELDS", "
                  "%u, %u FROM "MAIN_TABLE " LEFT JOIN "ANNEX_TABLE
                  " ON " MAIN_TABLE ".id = " ANNEX_TABLE ".id)",
                  MAIN_TABLE,
@@ -270,6 +274,9 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
 #ifdef _HSM_LITE
                                    const char * backend_path,
 #endif
+#ifdef _LUSTRE_HSM
+                                   unsigned int archive_id,
+#endif
                                    time_t due_time )
 {
 #ifndef HAVE_RM_POLICY
@@ -290,7 +297,9 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
     if ( backend_path )
         curr += sprintf(curr, "backendpath, " );
 #endif
-
+#ifdef _LUSTRE_HSM
+    curr += sprintf(curr, "archive_id, " );
+#endif
     curr += sprintf(curr, "soft_rm_time, real_rm_time) "
                   "VALUES ('"DFID_NOBRACE"', ", PFID(p_id) );
 
@@ -306,7 +315,9 @@ static int listmgr_softrm_single( lmgr_t * p_mgr, const entry_id_t * p_id,
         curr += sprintf(curr, "'%s', ", escaped );
     }
 #endif
-
+#ifdef _LUSTRE_HSM
+    curr += sprintf( curr, " %u, ", archive_id );
+#endif
     curr += sprintf( curr, " %u, %u ) ",
                     (unsigned int)time(NULL),
                     (unsigned int)due_time );
@@ -644,11 +655,24 @@ retry:
 
         if (soft_rm)
         {
+#ifdef _LUSTRE_HSM
+            unsigned int archive_id=0;
+
+            if ((field_tab[2] != NULL) &&
+                (sscanf(field_tab[2], "%u", &archive_id) <= 0)) {
+                DisplayLog( LVL_MAJOR, LISTMGR_TAG, "Unexpected format for archive_id: '%s'",
+                            field_tab[2] );
+                rc = DB_REQUEST_FAILED;
+		goto free_res;
+            }
+#endif
             /* insert into softrm table */
             rc = listmgr_softrm_single( p_mgr, &id,
                                         field_tab[1],
 #ifdef _HSM_LITE
                                         field_tab[2],
+#elif _LUSTRE_HSM
+                                        archive_id,
 #endif
                                         real_remove_time );
 
@@ -744,6 +768,9 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
 #ifdef _HSM_LITE
     const char * backendpath = NULL;
 #endif
+#ifdef _LUSTRE_HSM
+    unsigned int archive_id = 0;
+#endif
     attr_set_t missing_attrs;
     ATTR_MASK_INIT( &missing_attrs );
 
@@ -769,6 +796,14 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
         ATTR_MASK_SET( &missing_attrs, backendpath );
 #endif
 
+#ifdef _LUSTRE_HSM
+    if (ATTR_MASK_TEST( p_old_attrs, archive_id ))
+        archive_id = ATTR(p_old_attrs, archive_id);
+    else
+        /* check if the previous entry had an archive_id */
+        ATTR_MASK_SET( &missing_attrs, archive_id );
+#endif
+
     if ( missing_attrs.attr_mask )
     {
         if ( ListMgr_Get( p_mgr, p_id, &missing_attrs ) == DB_SUCCESS )
@@ -778,6 +813,10 @@ int            ListMgr_SoftRemove( lmgr_t * p_mgr, const entry_id_t * p_id,
 #ifdef _HSM_LITE
             if ((backendpath == NULL) && ATTR_MASK_TEST( &missing_attrs, backendpath ))
                 backendpath = ATTR(&missing_attrs, backendpath);
+#endif
+#ifdef _LUSTRE_HSM
+            if ((archive_id == 0) && ATTR_MASK_TEST( &missing_attrs, archive_id ))
+                archive_id = ATTR(&missing_attrs, archive_id);
 #endif
         }
     }
@@ -793,6 +832,9 @@ retry:
     rc = listmgr_softrm_single( p_mgr, p_id, entry_path,
 #ifdef _HSM_LITE
     backendpath,
+#endif
+#ifdef _LUSTRE_HSM
+    archive_id,
 #endif
                                 real_remove_time );
     if (lmgr_delayed_retry(p_mgr, rc))
@@ -879,8 +921,8 @@ struct lmgr_rm_list_t * ListMgr_RmList( lmgr_t * p_mgr, int expired_only, lmgr_f
 
 #ifdef _HSM_LITE
     snprintf( query, 4096, "SELECT fid, fullpath, backendpath, soft_rm_time, real_rm_time "
-#else
-    snprintf( query, 4096, "SELECT fid, fullpath, soft_rm_time, real_rm_time "
+#elif defined(_LUSTRE_HSM)
+    snprintf( query, 4096, "SELECT fid, fullpath, archive_id, soft_rm_time, real_rm_time "
 #endif
                 "FROM "SOFT_RM_TABLE" "
                 "%s "
@@ -912,6 +954,9 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
 #ifdef _HSM_LITE
                                        char * bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                                       unsigned int * last_known_archive_id,
+#endif
                                        time_t * soft_rm_time,
                                        time_t * expiration_time )
 {
@@ -919,6 +964,8 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
     int i;
 
 #ifdef _HSM_LITE
+    #define SHIFT 1
+#elif _LUSTRE_HSM
     #define SHIFT 1
 #else
     #define SHIFT 0
@@ -961,6 +1008,13 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
             bkpath[0] = '\0';
     }
 #endif
+#ifdef _LUSTRE_HSM
+    if ( last_known_archive_id )
+    {
+	if ( sscanf( record[2], "%u", last_known_archive_id ) <= 0 )
+	    return DB_REQUEST_FAILED;
+    }
+#endif
 
     if ( soft_rm_time )
     {
@@ -993,6 +1047,9 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
 #ifdef _HSM_LITE
                            char * bkpath,
 #endif
+#ifdef _LUSTRE_HSM
+                           unsigned int * last_known_archive_id,
+#endif
                            time_t * soft_rm_time,
                            time_t * expiration_time)
 {
@@ -1008,6 +1065,8 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
 
 #ifdef _HSM_LITE
     snprintf( query, 4096, "SELECT fullpath, backendpath, soft_rm_time, real_rm_time "
+#elif _LUSTRE_HSM
+    snprintf( query, 4096, "SELECT fullpath, archive_id, soft_rm_time, real_rm_time "
 #else
     snprintf( query, 4096, "SELECT fullpath, soft_rm_time, real_rm_time "
 #endif
@@ -1060,7 +1119,13 @@ retry:
             bkpath[1] = '\0';
     }
 #endif
-
+#ifdef _LUSTRE_HSM
+    if ( last_known_archive_id )
+    {
+	if ( sscanf( record[1], "%u", last_known_archive_id ) <= 0 )
+            return DB_REQUEST_FAILED;
+    }
+#endif
     if ( soft_rm_time )
     {
         if ( sscanf( record[1+SHIFT], "%lu", soft_rm_time ) <= 0 )

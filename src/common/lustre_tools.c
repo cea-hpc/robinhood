@@ -545,7 +545,8 @@ int Lustre_GetNameParent(const char *path, int linkno,
 
 /** get Lustre status and convert it to internal Robinhood status */
 int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
-                         int *no_release, int *no_archive )
+                         int *no_release, int *no_archive,
+                         unsigned int *archive_id )
 {
     int            rc;
     struct hsm_user_state file_status;
@@ -563,6 +564,9 @@ int LustreHSM_GetStatus( const char *path, file_status_t * p_status,
                     rc );
     if (rc != 0)
         return rc;
+
+    /* always keep track of archive_id set/change */
+    *archive_id = file_status.hus_archive_id;
 
     /* user flags */
 
