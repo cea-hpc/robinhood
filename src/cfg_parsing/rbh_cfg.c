@@ -126,7 +126,7 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
                 goto config_free;
         }
 
-        rc = p_curr->funcs->set_config(cfg, false); /* not for reloading */
+        rc = p_curr->funcs->set_config(cfg, reload);
         if (rc != 0)
         {
             rc_final = rc;
