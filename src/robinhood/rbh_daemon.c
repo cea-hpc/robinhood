@@ -293,7 +293,7 @@ static const char *run_help =
     "        Don't limit the maximum number/volume of policy actions per pass.\n"
     "    " _B "--dry-run"B_"\n"
     "        Only report policy actions that would be performed without really doing them.\n"
-    "        Note: Robinhood DB is impacted as if the reported actions were realy done.\n"
+    "        Note: Robinhood DB is impacted as if the reported actions were really done.\n"
     "    " _B "--force-all"B_"\n"
     "        Force applying a policy to all eligible entries, without considering\n"
     "        policy limits and rule conditions.\n"
