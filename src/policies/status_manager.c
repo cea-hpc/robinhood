@@ -73,7 +73,7 @@ void sm_info_free(void ***p_tab)
     *p_tab = NULL;
 }
 
-int set_sm_info(sm_instance_t *smi, attr_set_t *pattrs,
+int set_sm_info(const sm_instance_t *smi, attr_set_t *pattrs,
                 unsigned int attr_index, void *val)
 {
     void **info;

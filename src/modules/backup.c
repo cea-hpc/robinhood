@@ -822,39 +822,9 @@ static int bk_lstat(const char *bkpath, struct stat *bkmd, bool check_compressed
 }
 
 /** helper to set the entry status for the given SMI */
-static inline int set_status_attr(sm_instance_t *smi, attr_set_t *pattrs, file_status_t st)
+static inline int set_backup_status(sm_instance_t *smi, attr_set_t *pattrs, file_status_t st)
 {
-    int rc;
-    const char *str_st = backup_status2str(st);
-
-    if (str_st == NULL)
-    {
-        rc = -EINVAL;
-        goto clean_status;
-    }
-
-    /* check allocation of sm_status array */
-    sm_status_ensure_alloc(&pattrs->attr_values.sm_status);
-    if (pattrs->attr_values.sm_status == NULL)
-    {
-        rc = -ENOMEM;
-        goto clean_status;
-    }
-
-    STATUS_ATTR(pattrs, smi->smi_index) = str_st;
-    ATTR_MASK_STATUS_SET(pattrs, smi->smi_index);
-
-    return 0;
-
-clean_status:
-    if (pattrs->attr_values.sm_status != NULL)
-        /* don't free it as it contains a const char* */
-        STATUS_ATTR(pattrs, smi->smi_index) = NULL;
-
-    /* Clean the status from the mask */
-    ATTR_MASK_STATUS_UNSET(pattrs, smi->smi_index);
-
-    return rc;
+    return set_status_attr(smi, pattrs, backup_status2str(st));
 }
 
 /** helper to get backend path from attribute structure */
@@ -881,23 +851,8 @@ static inline int set_backend_path(sm_instance_t *smi, attr_set_t *pattrs,
 static inline int set_last_archive(sm_instance_t *smi, attr_set_t *pattrs,
                                    time_t last_arch)
 {
-    /* last_archive is stored as UINT */
-    unsigned int *info;
-    int rc;
-
-    info = malloc(sizeof(*info));
-    if (info == NULL)
-        return -ENOMEM;
-
-    *info = (unsigned int)last_arch;
-
-    rc = set_sm_info(smi, pattrs, ATTR_LAST_ARCH, info);
-    if (rc)
-        free(info);
-
-    return rc;
+    return set_uint_info(smi, pattrs, ATTR_LAST_ARCH, (unsigned int)last_arch);
 }
-
 
 /** return the path to access an entry in the filesystem */
 static int entry_fs_path(const entry_id_t *p_id, const attr_set_t *p_attrs, char *fspath)
@@ -1008,7 +963,7 @@ static int backup_status(struct sm_instance *smi,
             return rc;
         else if (rc > 0)/* current archive */
         {
-            return set_status_attr(smi, p_attrs_changed, STATUS_ARCHIVE_RUNNING);
+            return set_backup_status(smi, p_attrs_changed, STATUS_ARCHIVE_RUNNING);
         }
     }
 
@@ -1028,7 +983,7 @@ static int backup_status(struct sm_instance *smi,
                         "'%s' does not exist in the backend (new entry): %s",
                         bkpath, strerror(-rc) );
             /* no entry in the backend: new entry */
-            return set_status_attr(smi, p_attrs_changed, STATUS_NEW);
+            return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
         }
     }
 
@@ -1043,7 +998,7 @@ static int backup_status(struct sm_instance *smi,
             rc = move_orphan( bkpath );
             if (rc)
                 return rc;
-            return set_status_attr(smi, p_attrs_changed, STATUS_NEW);
+            return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
         }
         /* compare mtime and size to check if the entry changed */
         /* XXX consider it modified this even if mtime is smaller */
@@ -1056,7 +1011,7 @@ static int backup_status(struct sm_instance *smi,
                                "Warning: mtime in filesystem < mtime in backend (%s)",
                                bkpath);
 
-                rc = set_status_attr(smi, p_attrs_changed, STATUS_MODIFIED);
+                rc = set_backup_status(smi, p_attrs_changed, STATUS_MODIFIED);
                 if (rc)
                     return rc;
 
@@ -1065,7 +1020,7 @@ static int backup_status(struct sm_instance *smi,
         }
         else
         {
-                rc = set_status_attr(smi, p_attrs_changed, STATUS_SYNCHRO);
+                rc = set_backup_status(smi, p_attrs_changed, STATUS_SYNCHRO);
                 if (rc)
                     return rc;
 
@@ -1088,7 +1043,7 @@ static int backup_status(struct sm_instance *smi,
             if (rc)
                 return rc;
 
-            return set_status_attr(smi, p_attrs_changed, STATUS_NEW);
+            return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
         }
 
         rc = entry_fs_path(p_id, p_attrs_in, fspath);
@@ -1102,7 +1057,7 @@ static int backup_status(struct sm_instance *smi,
             if ( rc == -ENOENT )
             {
                 /* entry disapeared */
-                return set_status_attr(smi, p_attrs_changed, STATUS_NEW);
+                return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
             }
             else
                 return rc;
@@ -1121,7 +1076,7 @@ static int backup_status(struct sm_instance *smi,
         if ( strcmp(lnk1, lnk2) )
         {
             /* symlink content is different */
-            rc = set_status_attr(smi, p_attrs_changed, STATUS_MODIFIED);
+            rc = set_backup_status(smi, p_attrs_changed, STATUS_MODIFIED);
             if (rc)
                 return rc;
 
@@ -1130,7 +1085,7 @@ static int backup_status(struct sm_instance *smi,
         }
         else /* same content */
         {
-            rc = set_status_attr(smi, p_attrs_changed, STATUS_SYNCHRO);
+            rc = set_backup_status(smi, p_attrs_changed, STATUS_SYNCHRO);
             if (rc)
                 return rc;
 
@@ -1551,7 +1506,7 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
         return rc;
     }
 
-    set_status_attr(smi, p_attrs, STATUS_SYNCHRO);
+    set_backup_status(smi, p_attrs, STATUS_SYNCHRO);
     set_backend_path(smi, p_attrs, dst);
     set_last_archive(smi, p_attrs, time(NULL));
 
@@ -1562,7 +1517,7 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
         DisplayLog(LVL_EVENT, RBHEXT_TAG, "Error performing lstat(%s): %s",
                    src, strerror(-rc));
         /* there is something wrong: set the status to unknown */
-        set_status_attr(smi, p_attrs, STATUS_UNKNOWN);
+        set_backup_status(smi, p_attrs, STATUS_UNKNOWN);
     }
     else if (lchown(dst, info.st_uid, info.st_gid))
     {
@@ -1705,7 +1660,7 @@ static int wrap_file_copy(sm_instance_t *smi,
         /* cleanup tmp copy */
         unlink(tmp);
         /* the transfer failed. entry still needs to be archived */
-        set_status_attr(smi, p_attrs, STATUS_MODIFIED);
+        set_backup_status(smi, p_attrs, STATUS_MODIFIED);
         goto free_params;
     }
 
@@ -1738,7 +1693,7 @@ static int wrap_file_copy(sm_instance_t *smi,
                    tmp, bkpath, strerror(-rc));
 
         /* the transfer failed. entry still needs to be archived */
-        set_status_attr(smi, p_attrs, STATUS_MODIFIED);
+        set_backup_status(smi, p_attrs, STATUS_MODIFIED);
         goto free_params;
     }
 
@@ -1776,7 +1731,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     }
 #endif
 
-    set_status_attr(smi, p_attrs, STATUS_SYNCHRO);
+    set_backup_status(smi, p_attrs, STATUS_SYNCHRO);
     set_backend_path(smi, p_attrs, bkpath);
     set_last_archive(smi, p_attrs, time(NULL));
 
@@ -1786,7 +1741,7 @@ static int wrap_file_copy(sm_instance_t *smi,
         rc = -errno;
         DisplayLog(LVL_EVENT, RBHEXT_TAG, "Error performing final lstat(%s): %s",
                    srcpath, strerror(-rc));
-        set_status_attr(smi, p_attrs, STATUS_UNKNOWN);
+        set_backup_status(smi, p_attrs, STATUS_UNKNOWN);
         return rc;
     }
 
@@ -1799,7 +1754,7 @@ static int wrap_file_copy(sm_instance_t *smi,
                    "mtime before/after: %u/%"PRI_TT,
                    srcpath, ATTR(p_attrs, size), info.st_size,
                    ATTR(p_attrs, last_mod), info.st_mtime);
-        set_status_attr(smi, p_attrs, STATUS_MODIFIED);
+        set_backup_status(smi, p_attrs, STATUS_MODIFIED);
     }
 
     /* update entry attributes */
@@ -2641,10 +2596,10 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 #ifdef HAVE_SHOOK
         /* only files are recovered as released, others are synchro */
         if (S_ISREG(st_dest.st_mode))
-            rc = set_status_attr(smi, p_attrs_new, STATUS_RELEASED);
+            rc = set_backup_status(smi, p_attrs_new, STATUS_RELEASED);
         else
 #endif
-            rc = set_status_attr(smi, p_attrs_new, STATUS_SYNCHRO);
+            rc = set_backup_status(smi, p_attrs_new, STATUS_SYNCHRO);
 
         /* set the new entry path in backend, according to the new fid, and actual compression */
         entry2backend_path(smi, p_new_id, p_attrs_new,

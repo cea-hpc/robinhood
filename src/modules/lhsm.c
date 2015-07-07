@@ -277,46 +277,6 @@ static sm_info_def_t lhsm_info[] = {
     [ATTR_LAST_RESTORE] = { "last_restore", "lstrst", DB_UINT, 0 },
 };
 
-/** helper to set bool attr */
-static inline int set_bool_info(sm_instance_t *smi, attr_set_t *pattrs,
-                                unsigned int attr_index, bool val)
-{
-    bool *info;
-    int rc;
-
-    info = malloc(sizeof(bool));
-    if (info == NULL)
-        return -ENOMEM;
-
-    *info = val;
-
-    rc = set_sm_info(smi, pattrs, attr_index, info);
-    if (rc)
-        free(info);
-
-    return rc;
-}
-
-/** helper to set uint attr */
-static inline int set_uint_info(sm_instance_t *smi, attr_set_t *pattrs,
-                                unsigned int attr_index, unsigned int val)
-{
-    unsigned int *info;
-    int rc;
-
-    info = malloc(sizeof(unsigned int));
-    if (info == NULL)
-        return -ENOMEM;
-
-    *info = val;
-
-    rc = set_sm_info(smi, pattrs, attr_index, info);
-    if (rc)
-        free(info);
-
-    return rc;
-}
-
 /** get Lustre status and convert it to an internal scalar status */
 static int lhsm_get_status(const char *path, hsm_status_t *p_status,
                            bool *no_release, bool *no_archive,
@@ -420,6 +380,13 @@ static int lhsm_get_status(const char *path, hsm_status_t *p_status,
     return 0;
 }
 
+/** helper to set the LHSM status in attribute structure */
+static inline int set_lhsm_status(struct sm_instance *smi, attr_set_t *attrs, hsm_status_t status)
+{
+    return set_status_attr(smi, attrs, hsm_status2str(status));
+}
+
+
 /** get the HSM status of an entry */
 static int lhsm_status(struct sm_instance *smi,
                        const entry_id_t *id, const attr_set_t *attrs,
@@ -431,7 +398,6 @@ static int lhsm_status(struct sm_instance *smi,
     bool no_release = false,
          no_archive = false;
     unsigned int archive_id = DEFAULT_ARCHIVE_ID;
-    const char *str_st;
 
     if (ATTR_MASK_TEST(attrs, type) &&
         strcmp(ATTR(attrs, type), STR_TYPE_FILE) != 0)
@@ -449,21 +415,9 @@ static int lhsm_status(struct sm_instance *smi,
     if (rc)
         goto clean_status;
 
-    /* set status in refreshed attrs */
-    str_st = hsm_status2str(st);
-    if (str_st == NULL)
+    rc = set_lhsm_status(smi, refreshed_attrs, st);
+    if (rc)
         goto clean_status;
-
-    /* check allocation of sm_status array */
-    sm_status_ensure_alloc(&refreshed_attrs->attr_values.sm_status);
-    if (refreshed_attrs->attr_values.sm_status == NULL)
-    {
-        rc = -ENOMEM;
-        goto clean_status;
-    }
-
-    STATUS_ATTR(refreshed_attrs, smi->smi_index) = str_st;
-    ATTR_MASK_STATUS_SET(refreshed_attrs, smi->smi_index);
 
     /* save archive_id */
     rc = set_uint_info(smi, refreshed_attrs, ATTR_ARCHIVE_ID, archive_id);
@@ -485,15 +439,6 @@ clean_status:
     ATTR_MASK_STATUS_UNSET(refreshed_attrs, smi->smi_index);
 
     return rc;
-}
-
-/** helper to set the LHSM status in attribute structure */
-static inline void set_lhsm_status(struct sm_instance *smi, attr_set_t *attrs, hsm_status_t status)
-{
-    /* new file, status is known */
-    sm_status_ensure_alloc(&attrs->attr_values.sm_status);
-    STATUS_ATTR(attrs, smi->smi_index) = hsm_status2str(status);
-    ATTR_MASK_STATUS_SET(attrs, smi->smi_index);
 }
 
 /** helper to compare a LHSM status */

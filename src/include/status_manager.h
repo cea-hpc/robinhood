@@ -374,7 +374,7 @@ static inline uint64_t smi_info_bits(const sm_instance_t *smi)
 }
 
 /** helper to set/overwrite a SM info */
-int set_sm_info(sm_instance_t *smi, attr_set_t *pattrs,
+int set_sm_info(const sm_instance_t *smi, attr_set_t *pattrs,
                 unsigned int attr_index, void *val);
 
 /** translate a generic mask SMI_MASK(0) and GENERIC_INFO_OFFSET to all status and info masks */

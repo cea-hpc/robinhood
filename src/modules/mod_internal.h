@@ -38,11 +38,87 @@ int builtin_copy(const char *src, const char *dst, int dst_oflags,
 /** set copy flags from a parameter set */
 copy_flags_e params2flags(const action_params_t *params);
 
-/* Public module interface */
+/** helper to set the entry status for the given SMI */
+static inline int set_status_attr(const sm_instance_t *smi, attr_set_t *pattrs,
+                                  const char *str_st)
+{
+    int rc;
+
+    if (str_st == NULL)
+    {
+        rc = -EINVAL;
+        goto clean_status;
+    }
+
+    /* check allocation of sm_status array */
+    sm_status_ensure_alloc(&pattrs->attr_values.sm_status);
+    if (pattrs->attr_values.sm_status == NULL)
+    {
+        rc = -ENOMEM;
+        goto clean_status;
+    }
+
+    STATUS_ATTR(pattrs, smi->smi_index) = str_st;
+    ATTR_MASK_STATUS_SET(pattrs, smi->smi_index);
+
+    return 0;
+
+clean_status:
+    if (pattrs->attr_values.sm_status != NULL)
+        /* don't free it as it contains a const char* */
+        STATUS_ATTR(pattrs, smi->smi_index) = NULL;
+
+    /* Clean the status from the mask */
+    ATTR_MASK_STATUS_UNSET(pattrs, smi->smi_index);
+
+    return rc;
+}
+
+/** helper to set bool attr */
+static inline int set_bool_info(const sm_instance_t *smi, attr_set_t *pattrs,
+                                unsigned int attr_index, bool val)
+{
+    bool *info;
+    int rc;
+
+    info = malloc(sizeof(bool));
+    if (info == NULL)
+        return -ENOMEM;
+
+    *info = val;
+
+    rc = set_sm_info(smi, pattrs, attr_index, info);
+    if (rc)
+        free(info);
+
+    return rc;
+}
+
+/** helper to set uint attr */
+static inline int set_uint_info(const sm_instance_t *smi, attr_set_t *pattrs,
+                                unsigned int attr_index, unsigned int val)
+{
+    unsigned int *info;
+    int rc;
+
+    info = malloc(sizeof(unsigned int));
+    if (info == NULL)
+        return -ENOMEM;
+
+    *info = val;
+
+    rc = set_sm_info(smi, pattrs, attr_index, info);
+    if (rc)
+        free(info);
+
+    return rc;
+}
+
+/* ---- Public module interface ---- */
+
 const char *mod_get_name(void);
 
 status_manager_t *mod_get_status_manager(void);
 
 action_func_t mod_get_action_by_name(const char *action_name);
-
 #endif
