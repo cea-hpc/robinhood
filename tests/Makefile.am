@@ -4,7 +4,7 @@ EXTRA_DIST= lustre_fs/1-test_setup.sh	\
 	lustre_fs/3-tests-lustre.sh	\
 	lustre_fs/4-test_report.sh		\
 	lustre_fs/cleanup.sh		\
-	lustre_fs/README			\
+	lustre_fs/README.rst		\
 	lustre_fs/bench_rpc.sh		\
 	lustre_fs/cfg		    \
     posix_fs/1-test_setup.sh    \
