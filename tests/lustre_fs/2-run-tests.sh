@@ -2218,14 +2218,13 @@ function test_dircount_report
                         dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1 count=$i 2>/dev/null || error "creating $ROOT/dir.$i/file.$j"
                 done
         done
-	if [ $PURPOSE = "TMP_FS_MGR" ]; then
-                echo "1bis. Creating empty directories..."
-		# create 5 empty dirs
-		for i in `seq 1 $emptydir`; do
-			mkdir $ROOT/empty.$i
-            [[ $i == 1* ]] && ((match_empty1++))
-		done
-	fi
+
+    echo "1bis. Creating empty directories..."
+    # create 5 empty dirs
+    for i in `seq 1 $emptydir`; do
+        mkdir $ROOT/empty.$i
+        [[ $i == 1* ]] && ((match_empty1++))
+    done
 
 
 	# read changelogs
@@ -2306,7 +2305,7 @@ function test_dircount_report
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == $match_empty1 )) || error "$match_empty1 expected in output (found $lines)"
 
-    rm -f report.out
+    [ "$DEBUG" = "1" ] || rm -f report.out
 }
 
 # test report options: avg_size, by-count, count-min and reverse
@@ -8702,12 +8701,6 @@ function test_removing
 	testKey=$2  #== key word for specific tests
 	sleepTime=$3
 
-    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
-		echo "No removing dir for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
 	#  clean logs ..............................
 	clean_logs
 
@@ -8771,9 +8764,9 @@ function test_removing
 	# launch the rmdir ..........................
 	echo "3-Removing directories in filesystem ..."
 	if [ $testKey == "lastAccess" ]; then
-	$RH -f ./cfg/$config_file --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	$RH -f ./cfg/$config_file --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 	else
-	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	$RH -f ./cfg/$config_file --scan --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 	fi
 
 	# launch the validation ..........................
@@ -8854,17 +8847,6 @@ function test_rmdir_mix
     echo "2-Scanning directories in filesystem ..."
     $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
 
-<<<<<<< HEAD
-## Deprecated in robinhood v3: --top-rmdir => to be replaced by --oldest-files or --oldest files"
-#    echo "3-Checking rmdir report"
-#    $REPORT -f ./cfg/$config_file -l MAJOR -cq --top-rmdir > report.out
-#    [ "$DEBUG" = "1" ] && cat report.out
-#    # must report empty dirs (non ignored)
-#    grep "no_rm/dirempty," report.out && error "top-rmdir report whitelisted dir"
-#    grep "no_rm/dirempty_new," report.out && error "top-rmdir report whitelisted dir"
-#    grep "$ROOT/dirempty," report.out | grep expired || error "top-rmdir did not report expired eligible dir"
-#    grep "$ROOT/dirempty_new," report.out | grep -v expired || error "top-rmdir did not report non-expired eligible dir"
-=======
     echo "3-Checking old dirs report"
     $REPORT -f ./cfg/$config_file -l MAJOR -cq --oldest-empty-dirs > report.out
     [ "$DEBUG" = "1" ] && cat report.out
@@ -8878,7 +8860,6 @@ function test_rmdir_mix
     grep "no_rm/dir1," report.out && error "no_rm/dir2 in empty dir report"
     grep "$ROOT/dir2," report.out && error "$ROOT/dir1 in empty dir report"
     grep "$ROOT/dir2," report.out && error "$ROOT/dir2 in empty dir report"
->>>>>>> f2aa0c3... turn old-files to oldest-files
 
     # launch the rmdir ..........................
     echo "4-Removing directories in filesystem ..."
@@ -8914,12 +8895,6 @@ function test_removing_ost
 	set_skipped
 	return 1
 
-    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
-		echo "No removing dir for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
 	clean_logs
 
 	echo "Create Pools ..."
@@ -8942,7 +8917,7 @@ function test_removing_ost
 	$LFS setstripe  -p lustre.$POOL2 $ROOT/dir2/file.3 -c 1 >/dev/null 2>/dev/null
 
 	echo "Removing directories in filesystem ..."
-	$RH -f ./cfg/$config_file --scan --rmdir -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	$RH -f ./cfg/$config_file --scan --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 
 	# launch the validation ..........................
 	echo "Checking results ..."
@@ -9171,7 +9146,7 @@ function test_report_generation_1
 	typeValuesAlt="$ROOT/dir1;$ROOT,;$ROOT/dir5"
 	countValues="1;2;3"
 	colSearch=1
-    	[ "$DEBUG" = "1" ] && cat report.out
+    [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || \
 	find_allValuesinCSVreport $logFile $typeValuesAlt $countValues $colSearch || \
 	error "validating Largest folders list (--top-dirs)"
@@ -9195,30 +9170,7 @@ function test_report_generation_1
         find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--oldest-files)"
     fi
 
-<<<<<<< HEAD
-   echo -e "\n 10-Oldest and empty directories of Filesystem..."
-   if (( $is_hsmlite + $is_lhsm != 0 )); then
-       echo "No rmdir policy for hsmlite or HSM purpose: skipped"
-   else
-        $REPORT -f ./cfg/$config_file --top-rmdir --csv > report.out || error "performing Oldest and empty folders list (--top-rmdir)"
-        nb_dir3=`grep "dir3" $logFile | wc -l`
-        if (( nb_dir3==0 )); then
-            error "validating Oldest and empty folders list (--top-rmdir) : dir3 not found"
-        fi
-        nb_dir4=`grep "dir4" $logFile | wc -l`
-        if (( nb_dir4==0 )); then
-            error "validating Oldest and empty folders list (--top-rmdir) : dir4 not found"
-        fi
-        nb_dir6=`grep "dir6" $logFile | wc -l`
-        if (( nb_dir6==0 )); then
-            error "validating Oldest and empty folders list (--top-rmdir) : dir6 not found"
-        fi
-        nb_dir7=`grep "dir7" $logFile | wc -l`
-        if (( nb_dir7==0 )); then
-            error "validating Oldest and empty folders list (--top-rmdir) : dir7 not found"
-        fi
-=======
-   echo -e "\n 10-Oldest empty directories of Filesystem..."
+    echo -e "\n 10-Oldest empty directories of Filesystem..."
     $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv > report.out || error "performing oldest empty folders list (--oldest-empty-dirs)"
     [ "$DEBUG" = "1" ] && cat report.out
     nb_dir3=`grep "dir3" $logFile | wc -l`
@@ -9236,7 +9188,6 @@ function test_report_generation_1
     nb_dir7=`grep "dir7" $logFile | wc -l`
     if (( nb_dir7==0 )); then
         error "validating Oldest and empty folders list (--oldest-empty-dirs) : dir7 not found"
->>>>>>> f2aa0c3... turn old-files to oldest-files
     fi
 
 	# launch another scan ..........................
@@ -10111,87 +10062,88 @@ run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir 
 
 
 #### Tests by Sogeti ####
-run_test 601 test_alerts Alert_Path_Name.conf "pathName" 0 "TEST_ALERT_PATH_NAME"
-run_test 602 test_alerts Alert_Type.conf "type" 0 "TEST_ALERT_TYPE"
-run_test 603 test_alerts Alert_Owner.conf "owner" 0 "TEST_ALERT_OWNER"
-run_test 604 test_alerts Alert_Size.conf "size" 0 "TEST_ALERT_SIZE"
-run_test 605 test_alerts Alert_LastAccess.conf "lastAccess" 60 "TEST_ALERT_LAST_ACCESS"
-run_test 606 test_alerts Alert_LastModification.conf "lastModif" 60 "TEST_ALERT_LAST_MODIFICATION"
-run_test 607 test_alerts_OST Alert_OST.conf "TEST_ALERT_OST"
-run_test 608 test_alerts Alert_ExtendedAttribute.conf "extAttributes" 0 "TEST_ALERT_EXTENDED_ATTRIBUT"
-run_test 609 test_alerts Alert_Dircount.conf "dircount" 0 "TEST_ALERT_DIRCOUNT"
+run_test 600a test_alerts Alert_Path_Name.conf "pathName" 0 "TEST_ALERT_PATH_NAME"
+run_test 600b test_alerts Alert_Type.conf "type" 0 "TEST_ALERT_TYPE"
+run_test 600c test_alerts Alert_Owner.conf "owner" 0 "TEST_ALERT_OWNER"
+run_test 600d test_alerts Alert_Size.conf "size" 0 "TEST_ALERT_SIZE"
+run_test 600e test_alerts Alert_LastAccess.conf "lastAccess" 60 "TEST_ALERT_LAST_ACCESS"
+run_test 600f test_alerts Alert_LastModification.conf "lastModif" 60 "TEST_ALERT_LAST_MODIFICATION"
+run_test 600g test_alerts_OST Alert_OST.conf "TEST_ALERT_OST"
+run_test 600h test_alerts Alert_ExtendedAttribute.conf "extAttributes" 0 "TEST_ALERT_EXTENDED_ATTRIBUT"
+run_test 600i test_alerts Alert_Dircount.conf "dircount" 0 "TEST_ALERT_DIRCOUNT"
 
-run_test 610 test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_test_migration_PATH_NAME"
-run_test 611 test_migration MigrationStd_Type.conf 0 8 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_STD_TYPE"
-run_test 612 test_migration MigrationStd_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_STD_OWNER"
-run_test 613 test_migration MigrationStd_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_STD_SIZE"
-# XXX test 614 fails for other purposes than lhsm, as the defined policy scope does not include symlinks.
-run_test 614 test_migration MigrationStd_LastAccess.conf 12 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_ACCESS"
-run_test 615 test_migration MigrationStd_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_MODIFICATION"
-run_test 616 migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_OST"
-run_test 617 test_migration MigrationStd_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_EXTENDED_ATTRIBUT"
-run_test 618 migration_OST MigrationOST.conf 2 "file.3;file.4" "--run=migration --target=ost:1" "TEST_MIGRATION_OST"
-run_test 619 test_migration MigrationClass_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_CLASS_PATH_NAME"
-# XXX test 620 fails for other purposes than lhsm, as the defined policy scope does not include symlinks.
-run_test 620 test_migration MigrationClass_Type.conf 0 2 "link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_TYPE"
-run_test 621 test_migration MigrationClass_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OWNER"
-run_test 622 test_migration MigrationClass_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_CLASS_SIZE"
-# XXX test 623 fails for other purposes than lhsm, as the defined policy scope does not include symlinks.
-run_test 623 test_migration MigrationClass_LastAccess.conf 11 8 "file.1;file.2;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_ACCESS"
-run_test 624 test_migration MigrationClass_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_MODIFICATION"
-run_test 625 migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OST"
-run_test 626 test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
-run_test 627 test_migration MigrationUser.conf 0 1 "file.3" "--run=migration --target=user:testuser" "TEST_MIGRATION_USER"
-run_test 628 test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--run=migration --target=group:testgroup" "TEST_MIGRATION_GROUP"
-run_test 629 test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--run=migration --target=file:$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
-run_test 630 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
-run_test 631 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--run=migration --target=file:$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
-run_test 632 test_migration MigrationFile_Size.conf 1 1 "file.8" "--run=migration --target=file:$ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
-run_test 633 migration_file_Last MigrationFile_LastAccess.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_ACCESS"
-run_test 634 migration_file_Last MigrationFile_LastModification.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_MODIFICATION"
-run_test 635 migration_file_OST MigrationFile_OST.conf 1 "file.3" "TEST_MIGRATION_FILE_OST"
-run_test 636 migration_file_ExtendedAttribut MigrationFile_ExtendedAttribut.conf 0 1 "file.4"  "TEST_MIGRATION_FILE_EXTENDED_ATTRIBUT"
+run_test 601a test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_test_migration_PATH_NAME"
+run_test 601b test_migration MigrationStd_Type.conf 0 8 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_STD_TYPE"
+run_test 601c test_migration MigrationStd_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_STD_OWNER"
+run_test 601d test_migration MigrationStd_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_STD_SIZE"
+run_test 601e test_migration MigrationStd_LastAccess.conf 12 9  "file.1;file.2;file.3;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_ACCESS"
+run_test 601f test_migration MigrationStd_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_STD_LAST_MODIFICATION"
+run_test 601g test_migration MigrationStd_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_EXTENDED_ATTRIBUT"
+run_test 601h test_migration MigrationClass_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_CLASS_PATH_NAME"
+run_test 601i test_migration MigrationClass_Type.conf 0 2 "link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_TYPE"
+run_test 601j test_migration MigrationClass_Owner.conf 0 1 "file.3" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OWNER"
+run_test 601k test_migration MigrationClass_Size.conf 0 2 "file.6;file.7" "--run=migration --target=all" "TEST_MIGRATION_CLASS_SIZE"
+run_test 601l test_migration MigrationClass_LastAccess.conf 11 8 "file.1;file.2;file.4;file.5;file.6;file.7;link.1;link.2" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_ACCESS"
+run_test 601m test_migration MigrationClass_LastModification.conf 11 2 "file.8;file.9" "--run=migration --target=all" "TEST_MIGRATION_CLASS_LAST_MODIFICATION"
+run_test 601n test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
+run_test 601o test_migration MigrationUser.conf 0 1 "file.3" "--run=migration --target=user:testuser" "TEST_MIGRATION_USER"
+run_test 601p test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--run=migration --target=group:testgroup" "TEST_MIGRATION_GROUP"
+run_test 601q test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--run=migration --target=file:$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
+run_test 601r test_migration MigrationFile_Size.conf 1 1 "file.8" "--run=migration --target=file:$ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
 
-run_test 637 trigger_purge_QUOTA_EXCEEDED TriggerPurge_QuotaExceeded.conf "TEST_TRIGGER_PURGE_QUOTA_EXCEEDED"
-run_test 638 trigger_purge_OST_QUOTA_EXCEEDED TriggerPurge_OstQuotaExceeded.conf "TEST_TRIGGER_PURGE_OST_QUOTA_EXCEEDED"
-run_test 639 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_UserQuotaExceeded.conf "user 'root'" "TEST_TRIGGER_PURGE_USER_QUOTA_EXCEEDED"
-run_test 640 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_GroupQuotaExceeded.conf "group 'root'" "TEST_TRIGGER_PURGE_GROUP_QUOTA_EXCEEDED"
+run_test 602a migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_OST"
+run_test 602b migration_OST MigrationOST.conf 2 "file.3;file.4" "--run=migration --target=ost:1" "TEST_MIGRATION_OST"
+run_test 602c migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OST"
 
-run_test 641 test_purge PurgeStd_Path_Name.conf 0 7 "file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_STD_PATH_NAME"
-run_test 642 test_purge_tmp_fs_mgr PurgeStd_Type.conf 0 8 "link.1;link.2" "--run=purge --target=all" "TEST_PURGE_STD_TYPE"
-run_test 643 test_purge PurgeStd_Owner.conf 0 9 "file.3" "--run=purge --target=all" "TEST_PURGE_STD_OWNER"
-run_test 644 test_purge PurgeStd_Size.conf 0 8 "file.6;file.7" "--run=purge --target=all" "TEST_PURGE_STD_SIZE"
-run_test 645 test_purge PurgeStd_LastAccess.conf 10 9 "file.8" "--run=purge --target=all" "TEST_PURGE_STD_LAST_ACCESS"
-run_test 646 test_purge PurgeStd_LastModification.conf 30 9 "file.8" "--run=purge --target=all" "TEST_PURGE_STD_LAST_MODIFICATION"
-run_test 647 purge_OST PurgeStd_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_STD_OST"
-run_test 648 test_purge PurgeStd_ExtendedAttribut.conf 0 9 "file.4" "--run=purge --target=all" "TEST_PURGE_STD_EXTENDED_ATTRIBUT"
-run_test 649 purge_OST PurgeOST.conf 2 "file.3;file.4" "--run=purge --target=ost:1 --usage-target=0" "TEST_PURGE_OST"
-run_test 650 test_purge PurgeClass_Path_Name.conf 0 9 "file.1" "--run=purge --target=all" "TEST_PURGE_CLASS_PATH_NAME"
-run_test 651 test_purge PurgeClass_Type.conf 0 2 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_TYPE"
-run_test 652 test_purge PurgeClass_Owner.conf 0 3 "file.1;file.2;file.4;file.5;file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_OWNER"
-run_test 653 test_purge PurgeClass_Size.conf 0 8 "file.6;file.7" "--run=purge --target=all" "TEST_PURGE_CLASS_SIZE"
-run_test 654 test_purge PurgeClass_LastAccess.conf 20 9 "file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_LAST_ACCESS"
-run_test 655 test_purge PurgeClass_LastModification.conf 20 9 "file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_LAST_MODIFICATION"
-run_test 656 purge_OST PurgeClass_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_OST"
-run_test 657 test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
+run_test 603 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
+run_test 604 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--run=migration --target=file:$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
+run_test 605 migration_file_Last MigrationFile_LastAccess.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_ACCESS"
+run_test 606 migration_file_Last MigrationFile_LastModification.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_MODIFICATION"
+run_test 607 migration_file_OST MigrationFile_OST.conf 1 "file.3" "TEST_MIGRATION_FILE_OST"
+run_test 608 migration_file_ExtendedAttribut MigrationFile_ExtendedAttribut.conf 0 1 "file.4"  "TEST_MIGRATION_FILE_EXTENDED_ATTRIBUT"
 
-run_test 658 test_removing RemovingEmptyDir.conf "emptyDir" 31 "TEST_REMOVING_EMPTY_DIR"
-run_test 659 test_removing RemovingDir_Path_Name.conf "pathName" 0 "TEST_REMOVING_DIR_PATH_NAME"
-run_test 660 test_removing RemovingDir_Owner.conf "owner" 0 "TEST_REMOVING_DIR_OWNER"
-run_test 661 test_removing RemovingDir_LastAccess.conf "lastAccess" 31 "TEST_REMOVING_DIR_LAST_ACCESS"
-run_test 662 test_removing RemovingDir_LastModification.conf "lastModif" 31 "TEST_REMOVING_DIR_LAST_MODIFICATION"
-run_test 663 test_removing_ost RemovingDir_OST.conf "TEST_REMOVING_DIR_OST"
-run_test 664 test_removing RemovingDir_ExtendedAttribute.conf "extAttributes" 0 "TEST_REMOVING_DIR_EXTENDED_ATTRIBUT"
-run_test 665 test_removing RemovingDir_Dircount.conf "dircount" 0 "TEST_REMOVING_DIR_DIRCOUNT"
+run_test 609 trigger_purge_QUOTA_EXCEEDED TriggerPurge_QuotaExceeded.conf "TEST_TRIGGER_PURGE_QUOTA_EXCEEDED"
+run_test 610 trigger_purge_OST_QUOTA_EXCEEDED TriggerPurge_OstQuotaExceeded.conf "TEST_TRIGGER_PURGE_OST_QUOTA_EXCEEDED"
+run_test 611 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_UserQuotaExceeded.conf "user 'root'" "TEST_TRIGGER_PURGE_USER_QUOTA_EXCEEDED"
+run_test 612 trigger_purge_USER_GROUP_QUOTA_EXCEEDED TriggerPurge_GroupQuotaExceeded.conf "group 'root'" "TEST_TRIGGER_PURGE_GROUP_QUOTA_EXCEEDED"
 
-run_test 666 test_report_generation_1 Generation_Report_1.conf "TEST_REPORT_GENERATION_1"
-run_test 667 report_generation2 "TEST_REPORT_GENERATION_2"
+run_test 613a test_purge PurgeStd_Path_Name.conf 0 7 "file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_STD_PATH_NAME"
+run_test 613b test_purge_tmp_fs_mgr PurgeStd_Type.conf 0 8 "link.1;link.2" "--run=purge --target=all" "TEST_PURGE_STD_TYPE"
+run_test 613c test_purge PurgeStd_Owner.conf 0 9 "file.3" "--run=purge --target=all" "TEST_PURGE_STD_OWNER"
+run_test 613d test_purge PurgeStd_Size.conf 0 8 "file.6;file.7" "--run=purge --target=all" "TEST_PURGE_STD_SIZE"
+run_test 613e test_purge PurgeStd_LastAccess.conf 10 9 "file.8" "--run=purge --target=all" "TEST_PURGE_STD_LAST_ACCESS"
+run_test 613f test_purge PurgeStd_LastModification.conf 30 9 "file.8" "--run=purge --target=all" "TEST_PURGE_STD_LAST_MODIFICATION"
+run_test 613g test_purge PurgeStd_ExtendedAttribut.conf 0 9 "file.4" "--run=purge --target=all" "TEST_PURGE_STD_EXTENDED_ATTRIBUT"
+run_test 613h test_purge PurgeClass_Path_Name.conf 0 9 "file.1" "--run=purge --target=all" "TEST_PURGE_CLASS_PATH_NAME"
+run_test 613i test_purge PurgeClass_Type.conf 0 2 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_TYPE"
+run_test 613j test_purge PurgeClass_Owner.conf 0 3 "file.1;file.2;file.4;file.5;file.6;file.7;file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_OWNER"
+run_test 613k test_purge PurgeClass_Size.conf 0 8 "file.6;file.7" "--run=purge --target=all" "TEST_PURGE_CLASS_SIZE"
+run_test 613l test_purge PurgeClass_LastAccess.conf 20 9 "file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_LAST_ACCESS"
+run_test 613m test_purge PurgeClass_LastModification.conf 20 9 "file.8" "--run=purge --target=all" "TEST_PURGE_CLASS_LAST_MODIFICATION"
+run_test 613n test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
 
-run_test 668 TEST_OTHER_PARAMETERS_1 OtherParameters_1.conf "TEST_OTHER_PARAMETERS_1"
-run_test 669 TEST_OTHER_PARAMETERS_2 OtherParameters_2.conf "TEST_OTHER_PARAMETERS_2"
-run_test 670 TEST_OTHER_PARAMETERS_3 OtherParameters_3.conf "TEST_OTHER_PARAMETERS_3"
-run_test 671 TEST_OTHER_PARAMETERS_4 OtherParameters_4.conf "TEST_OTHER_PARAMETERS_4"
-run_test 672 TEST_OTHER_PARAMETERS_5 OtherParameters_5.conf "TEST_OTHER_PARAMETERS_5"
+run_test 614a purge_OST PurgeStd_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_STD_OST"
+run_test 614b purge_OST PurgeOST.conf 2 "file.3;file.4" "--run=purge --target=ost:1 --usage-target=0" "TEST_PURGE_OST"
+run_test 614c purge_OST PurgeClass_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_OST"
+
+run_test 615a test_removing RemovingEmptyDir.conf "emptyDir" 11 "TEST_REMOVING_EMPTY_DIR"
+run_test 615b test_removing RemovingDir_Path_Name.conf "pathName" 0 "TEST_REMOVING_DIR_PATH_NAME"
+run_test 615c test_removing RemovingDir_Owner.conf "owner" 0 "TEST_REMOVING_DIR_OWNER"
+run_test 615d test_removing RemovingDir_LastAccess.conf "lastAccess" 11 "TEST_REMOVING_DIR_LAST_ACCESS"
+run_test 615e test_removing RemovingDir_LastModification.conf "lastModif" 11 "TEST_REMOVING_DIR_LAST_MODIFICATION"
+run_test 615f test_removing RemovingDir_ExtendedAttribute.conf "extAttributes" 0 "TEST_REMOVING_DIR_EXTENDED_ATTRIBUT"
+run_test 615g test_removing RemovingDir_Dircount.conf "dircount" 0 "TEST_REMOVING_DIR_DIRCOUNT"
+
+run_test 616 test_removing_ost RemovingDir_OST.conf "TEST_REMOVING_DIR_OST"
+
+run_test 617 test_report_generation_1 Generation_Report_1.conf "TEST_REPORT_GENERATION_1"
+run_test 618 report_generation2 "TEST_REPORT_GENERATION_2"
+
+run_test 619 TEST_OTHER_PARAMETERS_1 OtherParameters_1.conf "TEST_OTHER_PARAMETERS_1"
+run_test 620 TEST_OTHER_PARAMETERS_2 OtherParameters_2.conf "TEST_OTHER_PARAMETERS_2"
+run_test 621 TEST_OTHER_PARAMETERS_3 OtherParameters_3.conf "TEST_OTHER_PARAMETERS_3"
+run_test 622 TEST_OTHER_PARAMETERS_4 OtherParameters_4.conf "TEST_OTHER_PARAMETERS_4"
+run_test 623 TEST_OTHER_PARAMETERS_5 OtherParameters_5.conf "TEST_OTHER_PARAMETERS_5"
 
 run_test 700 test_changelog common.conf "Changelog record suppression"
 

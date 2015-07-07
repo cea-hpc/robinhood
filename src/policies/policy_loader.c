@@ -2014,7 +2014,11 @@ static int parse_rule_block(config_item_t config_item,
 
             rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra_args);
             if (rc)
+            {
+                sprintf(msg_out, "Failed to parse configuration item line %d (block or key=value expected)",
+                        rh_config_GetItemLine(sub_item));
                 return rc;
+            }
 
             /* expected : target filesets or action parameters */
             if (!strcasecmp(subitem_name, "target_fileclass"))
@@ -2127,20 +2131,19 @@ static int parse_rule_block(config_item_t config_item,
 
     if (!definition_done)
     {
-        DisplayLog(LVL_MAJOR, CHK_TAG, "ERROR: in policy rule '%s', line %d: no condition specified!",
-                   rule_name, rh_config_GetItemLine(config_item));
+        sprintf(msg_out, "No condition specified in policy rule '%s', line %d",
+                rule_name, rh_config_GetItemLine(config_item));
         return EINVAL;
     }
     if (!has_target && !is_default)
     {
-        DisplayLog(LVL_MAJOR, CHK_TAG, "ERROR: no target filesclass for policy rule '%s' line %d"
-                   " (or define a 'default' rule to match all entries).",
-                   rule_name, rh_config_GetItemLine(config_item));
+        sprintf(msg_out, "No target fileclass specified in policy rule '%s', line %d "
+                "(or define a 'default' rule to match all entries).",
+                rule_name, rh_config_GetItemLine(config_item));
         return EINVAL;
     }
 
     return 0;
-
 }
 
 static void free_policy_action(policy_action_t *action)
@@ -2274,13 +2277,13 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                    "'%s_"POLICIES_BLOCK"'.", section_name,
                    policy_descr->name);
     }
+    msg_out[0] = '\0';
 
     /* prealloc config arrays */
     PREALLOC_ARRAY_CONFIG(IGNORE_BLOCK, whitelist_item_t, whitelist_rules, err);
     PREALLOC_ARRAY_CONFIG(IGNORE_FC, fileset_item_t *, ignore_list, err);
+    /* can't use PREALLOC_ARRAY_CONFIG for rules, as we also accept old rule name (policy)  */
 
-    /* don't use PREALLOC_ARRAY_CONFIG for rules, as we also accept old rule name (policy)  */
-    //PREALLOC_ARRAY_CONFIG(RULE_BLOCK, rule_item_t, rules, free_ignore_fc);
     count = rh_config_CountItemNames(section, RULE_BLOCK)+
                 rh_config_CountItemNames(section, OLD_RULE_BLOCK);
     if (count > 0)
@@ -2288,6 +2291,7 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
         rules->rules = (rule_item_t *)calloc(count, sizeof(rule_item_t));
         if (rules->rules == NULL)
         {
+            strcpy(msg_out, "memory allocation failed");
             rc = ENOMEM;
             goto err;
         }
@@ -2298,6 +2302,10 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
     }
     else
     {
+        sprintf(msg_out, "Unexpected number of blocks: %d + %d = %d\n",
+                rh_config_CountItemNames(section, RULE_BLOCK),
+                rh_config_CountItemNames(section, OLD_RULE_BLOCK),
+                count);
         rc = -1;
         goto err;
     }
