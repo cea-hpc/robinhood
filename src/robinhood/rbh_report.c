@@ -124,14 +124,17 @@ static struct option option_tab[] = {
     {"top-dirs", optional_argument, NULL, 'd'},
     {"topsize", optional_argument, NULL, 's'},
     {"top-size", optional_argument, NULL, 's'},
-    {"toppurge", optional_argument, NULL, 'p'},
-    {"top-purge", optional_argument, NULL, 'p'},
-#ifdef HAVE_RMDIR_POLICY
-    {"toprmdir", optional_argument, NULL, OPT_TOPRMDIR},
-    {"top-rmdir", optional_argument, NULL, OPT_TOPRMDIR},
-#endif
     {"topusers", optional_argument, NULL, 'U'},
     {"top-users", optional_argument, NULL, 'U'},
+
+    {"toppurge", optional_argument, NULL, 'p'}, /* deprecated */
+    {"top-purge", optional_argument, NULL, 'p'}, /* deprecated */
+    {"oldest-files", optional_argument, NULL, 'o'}, /* replacement for top-purge */
+
+    {"toprmdir", optional_argument, NULL, OPT_TOPRMDIR}, /* deprecated */
+    {"top-rmdir", optional_argument, NULL, OPT_TOPRMDIR}, /* deprecated */
+    {"oldest-empty-dirs", optional_argument, NULL, 'O'}, /* replacement for top-rmdir */
+
     {"deferred-rm", no_argument, NULL, 'R' },
     {"dump", no_argument, NULL, 'D' },
     {"dump-all", no_argument, NULL, 'D' }, /* for backward compatibility */
@@ -183,7 +186,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDe:u:g:d:s:p:rU:P:C:Rf:cql:hVFS"
+#define SHORT_OPT_STRING    "aiDe:u:g:d:s:p:rU:P:C:Rf:cql:hVFSo:O:"
 
 static const char *cmd_help = _B "Usage:" B_ " %s [options]\n";
 
@@ -210,14 +213,15 @@ static const char *stats_help =
     "        Display largest directories. Optional argument indicates the number of directories to be returned (default: 20).\n"
     "    " _B "--top-size" B_ "[=" _U "cnt" U_ "], " _B "-s" B_ " " _U "cnt" U_ "\n"
     "        Display largest files. Optional argument indicates the number of files to be returned (default: 20).\n"
-    "    " _B "--top-purge" B_ "[=" _U "cnt" U_ "], " _B "-p" B_ " " _U "cnt" U_ "\n"
-    "        Display oldest entries eligible for purge. Optional argument indicates the number of entries to be returned (default: 20).\n"
-#ifdef HAVE_RMDIR_POLICY
-    "    " _B "--top-rmdir" B_ "[=" _U "cnt" U_ "]\n"
-    "        Display oldest empty directories eligible for rmdir. Optional argument indicates the number of dirs to be returned (default: 20).\n"
-#endif
     "    " _B "--top-users" B_ "[=" _U "cnt" U_ "], " _B "-U" B_ " " _U "cnt" U_ "\n"
     "        Display top disk space consumers. Optional argument indicates the number of users to be returned (default: 20).\n"
+    "    " _B "--oldest-files" B_ "[=" _U "cnt" U_ "], " _B "-o" B_ " " _U "cnt" U_ "\n"
+    "        Display oldest files in the filesystem (ordered by access time).\n"
+    "        Optional argument indicates the number of entries to be displayed (default: 20).\n"
+    "        Tip: use '--reverse' option to display newest files.\n"
+    "    " _B "--oldest-empty-dirs" B_ "[=" _U "cnt" U_ "], " _B "-O" B_ " " _U "cnt" U_ "\n"
+    "        Display oldest empty directories in the filesystem (ordered by modification time).\n"
+    "        Optional argument indicates the number of dirs to be returned (default: 20).\n"
     "    " _B "--deferred-rm" B_ ", " _B "-R" B_ "\n"
     "        Display files to be removed from HSM.\n"
     "    "  _B "--dump" B_ ", " _B "-D" B_ "\n"
@@ -1936,13 +1940,8 @@ static void report_topsize( unsigned int count, int flags )
     ListMgr_CloseIterator( it );
 }
 
-/** @TODO a revoir pour rbh V3 */
-static void report_toppurge( unsigned int count, int flags )
+static void report_oldest(obj_type_t type, unsigned int count, int flags)
 {
-    /* To be retrieved: non whitelisted, non directories, non invalid
-     * fullpath, type, last_access, last_mod, size, stripe_info
-     * => sorted by last_access ASC
-     */
     int            rc, index;
     uint64_t       mask_sav;
     lmgr_sort_type_t sorttype;
@@ -1953,9 +1952,10 @@ static void report_toppurge( unsigned int count, int flags )
     attr_set_t     attrs;
     entry_id_t     id;
 
-    int list[] = {
+    int list_files[] = {
                 ATTR_INDEX_fullpath,
-                ATTR_INDEX_type,
+                ATTR_INDEX_owner,
+                ATTR_INDEX_gr_name,
                 ATTR_INDEX_last_access,
                 ATTR_INDEX_last_mod,
                 ATTR_INDEX_size,
@@ -1963,50 +1963,62 @@ static void report_toppurge( unsigned int count, int flags )
                 ATTR_INDEX_stripe_info,
                 ATTR_INDEX_stripe_items
                 };
-    int list_cnt = sizeof(list)/sizeof(int);
 
-    lmgr_simple_filter_init( &filter );
+    int list_dirs[] = {
+                ATTR_INDEX_fullpath,
+                ATTR_INDEX_owner,
+                ATTR_INDEX_gr_name,
+                ATTR_INDEX_last_mod
+                };
 
-    /* select only non directories */
-    fv.value.val_str = STR_TYPE_DIR;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, NOTEQUAL, fv, 0 );
+    int *list = NULL;
+    int  list_cnt;
+
+    lmgr_simple_filter_init(&filter);
+
+    if (type == TYPE_DIR)
+    {
+        list = list_dirs;
+        list_cnt = sizeof(list_dirs)/sizeof(int);
+
+        /* only consider empty directories */
+        fv.value.val_uint = 0;
+        lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, EQUAL, fv, 0);
+
+        fv.value.val_str = STR_TYPE_DIR;
+        sorttype.attr_index = ATTR_INDEX_last_mod;
+    }
+    else
+    {
+        list = list_files;
+        list_cnt = sizeof(list_files)/sizeof(int);
+        fv.value.val_str = STR_TYPE_FILE;
+        sorttype.attr_index = ATTR_INDEX_last_access;
+    }
+
+    /* select only the requested type */
+    lmgr_simple_filter_add(&filter, ATTR_INDEX_type, EQUAL, fv, 0);
 
     /* append global filters */
-    mk_global_filters( &filter, !NOHEADER(flags), NULL );
+    mk_global_filters(&filter, !NOHEADER(flags), NULL);
 
-    /* select only non whitelisted */
-#ifdef ATTR_INDEX_release_class
-    fv.value.val_str = CLASS_IGNORED;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, NOTEQUAL, fv,
-                            FILTER_FLAG_ALLOW_NULL);
-#endif
-#if defined(ATTR_INDEX_no_release)
-    fv.value.val_bool = true;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_no_release, NOTEQUAL, fv,
-                            FILTER_FLAG_ALLOW_NULL);
-#endif
-
-#ifdef ATTR_INDEX_status
-    fv.value.val_int = STATUS_SYNCHRO;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_status, EQUAL, fv, 0);
-#endif
-
+#ifndef _HAVE_FID
 #ifdef ATTR_INDEX_invalid
     /* select only non invalid */
     fv.value.val_bool = true;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0);
+    lmgr_simple_filter_add(&filter, ATTR_INDEX_invalid, NOTEQUAL, fv, 0);
+#endif
 #endif
 
-    sorttype.attr_index = ATTR_INDEX_last_access;
     sorttype.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
 
-    /* select only the top size */
+    /* select only the top count */
     opt.list_count_max = count;
     opt.force_no_acct = 0;
     /* skip missing entries */
     opt.allow_no_attr = 0;
 
-    ATTR_MASK_INIT( &attrs );
+    ATTR_MASK_INIT(&attrs);
     mask_sav = attrs.attr_mask = list2mask(list, list_cnt);
 
     it = ListMgr_Iterator( &lmgr, &filter, &sorttype, &opt );
@@ -2037,130 +2049,7 @@ static void report_toppurge( unsigned int count, int flags )
     }
 
     ListMgr_CloseIterator( it );
-
 }
-
-#ifdef HAVE_RMDIR_POLICY
-static void report_toprmdir( unsigned int count, int flags )
-{
-    /* To be retrieved for dirs:
-     * fullpath, owner, last_mod
-     * filter: type=dir, not invalid, not whitelisted, empty
-     * => sorted by last_mod ASC
-     */
-    int            rc, index;
-    uint64_t       mask_sav;
-    lmgr_sort_type_t sorttype;
-    lmgr_filter_t  filter;
-    filter_value_t fv;
-    lmgr_iter_opt_t opt;
-    struct lmgr_iterator_t *it;
-    attr_set_t     attrs;
-    entry_id_t     id;
-    char           date[128];
-    char           dur[128];
-    struct tm      t;
-
-    int list[] = {
-                ATTR_INDEX_fullpath,
-                ATTR_INDEX_owner,
-                ATTR_INDEX_gr_name,
-                ATTR_INDEX_last_mod
-                };
-    int list_cnt = sizeof(list)/sizeof(int);
-
-
-    lmgr_simple_filter_init( &filter );
-
-    /* select only directories */
-    fv.value.val_str = STR_TYPE_DIR;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_type, EQUAL, fv, 0 );
-
-    /* select only non ignored */
-    fv.value.val_str = CLASS_IGNORED;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_release_class, NOTEQUAL, fv,
-                            FILTER_FLAG_ALLOW_NULL);
-
-    /* select only non invalid */
-    fv.value.val_bool = true;
-    lmgr_simple_filter_add( &filter, ATTR_INDEX_invalid, NOTEQUAL, fv, FILTER_FLAG_ALLOW_NULL);
-
-    /* only consider empty directories */
-    fv.value.val_uint = 0;
-    rc = lmgr_simple_filter_add( &filter, ATTR_INDEX_dircount, EQUAL, fv, 0);
-
-    mk_global_filters( &filter, !NOHEADER(flags), NULL );
-
-    /* order by last_mod asc */
-    sorttype.attr_index = ATTR_INDEX_last_mod;
-    sorttype.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
-
-    /* select only the top dirs */
-    opt.list_count_max = count;
-    opt.force_no_acct = 0;
-    /* allow missing entries */
-    opt.allow_no_attr = 1;
-
-    ATTR_MASK_INIT( &attrs );
-    ATTR_MASK_SET( &attrs, fullpath );
-    ATTR_MASK_SET( &attrs, owner );
-    ATTR_MASK_SET( &attrs, gr_name );
-    ATTR_MASK_SET( &attrs, last_mod );
-
-    mask_sav = attrs.attr_mask;
-
-    it = ListMgr_Iterator( &lmgr, &filter, &sorttype, &opt );
-
-    lmgr_simple_filter_free( &filter );
-
-    if ( it == NULL )
-    {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR: Could not retrieve top directories from database." );
-        return;
-    }
-
-    if (!(NOHEADER(flags)))
-        print_attr_list_custom(1, list, list_cnt, NULL, CSV(flags), "rmdir_deadline", 20);
-
-    index = 0;
-    while ( ( rc = ListMgr_GetNext( it, &id, &attrs ) ) == DB_SUCCESS )
-    {
-        time_t         mod = ATTR( &attrs, last_mod );
-
-        index++;
-        /* format last mod */
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &mod, &t ) );
-
-        if ( policies.rmdir_policy.age_rm_empty_dirs == 0 )
-            strcpy( dur, "disabled" );
-        else if ( ATTR( &attrs, last_mod ) <
-                  time( NULL ) - policies.rmdir_policy.age_rm_empty_dirs )
-            strcpy( dur, "expired" );
-        else if ( CSV(flags) )
-            sprintf( dur, "%u",
-                     ( unsigned int ) ( ATTR( &attrs, last_mod ) - time( NULL ) +
-                                        policies.rmdir_policy.age_rm_empty_dirs ) );
-        else
-            FormatDurationFloat( dur, 128,
-                                 ATTR( &attrs,
-                                       last_mod ) - time( NULL ) +
-                                 policies.rmdir_policy.age_rm_empty_dirs );
-
-
-        print_attr_values_custom(index, list, list_cnt, &attrs, &id,
-                                 CSV(flags), NULL, dur, 20);
-
-        ListMgr_FreeAttrs( &attrs );
-
-        /* prepare next call */
-        attrs.attr_mask = mask_sav;
-    }
-
-    ListMgr_CloseIterator( it );
-
-}
-#endif
 
 static void report_topuser( unsigned int count, int flags )
 {
@@ -2624,8 +2513,8 @@ int main( int argc, char **argv )
 
     int            topdirs = 0;
     int            topsize = 0;
-    int            toppurge = 0;
-    int            toprmdir = 0;
+    int            old_files = 0;
+    int            old_dirs = 0;
     int            topuser = 0;
     int            deferred_rm = 0;
 
@@ -2814,35 +2703,43 @@ int main( int argc, char **argv )
             break;
 
         case 'p':
-            if ( optarg )
-            {
-                toppurge = str2int( optarg );
-                if ( toppurge == -1 )
-                {
-                    fprintf( stderr,
-                             "Invalid parameter '%s' for --toppurge option: positive integer expected\n",
-                             optarg );
-                    exit( 1 );
-                }
-            }
-            else
-                toppurge = DEFAULT_TOP_SIZE;
-            break;
+            fprintf(stderr, "ERROR: --top-purge report is deprecated. You can use --oldest-files instead.\n");
+            return EINVAL;
 
         case OPT_TOPRMDIR:
-            if ( optarg )
+            fprintf(stderr, "ERROR: --top-rmdir report is deprecated. You can use --oldest-empty-dirs instead.\n");
+            return EINVAL;
+
+        case 'o':
+            if (optarg)
             {
-                toprmdir = str2int( optarg );
-                if ( toprmdir == -1 )
+                old_files = str2int(optarg);
+                if (old_files == -1)
                 {
-                    fprintf( stderr,
-                             "Invalid parameter '%s' for --toprmdir option: positive integer expected\n",
-                             optarg );
-                    exit( 1 );
+                    fprintf(stderr,
+                            "Invalid parameter '%s' for --oldest-files option: positive integer expected\n",
+                            optarg);
+                    exit(1);
                 }
             }
             else
-                toprmdir = DEFAULT_TOP_SIZE;
+                old_files = DEFAULT_TOP_SIZE;
+            break;
+
+        case 'O':
+            if (optarg)
+            {
+                old_dirs = str2int(optarg);
+                if (old_dirs == -1)
+                {
+                    fprintf(stderr,
+                            "Invalid parameter '%s' for --oldest-empty-dirs option: positive integer expected\n",
+                            optarg);
+                    exit(1);
+                }
+            }
+            else
+                old_dirs = DEFAULT_TOP_SIZE;
             break;
 
         case 'U':
@@ -2968,14 +2865,10 @@ int main( int argc, char **argv )
         size_profile.range_ratio_sort = REVERSE(flags)?SORT_ASC:SORT_DESC;
 
     if ( !activity && !fs_info && !user_info && !group_info
-         && !topsize && !toppurge && !topuser && !dump_all
-         && !dump_user && !dump_group && !class_info && !entry_info
+         && !topsize && !topuser && !dump_all && !dump_user
+         && !dump_group && !class_info && !entry_info
          && (status_name == NULL) && (status_info_name == NULL)
-         && !topdirs
-        && !deferred_rm
-#ifdef HAVE_RMDIR_POLICY
-         && !toprmdir
-#endif
+         && !topdirs && !deferred_rm && !old_dirs && !old_files
 #ifdef _LUSTRE
         && !dump_ost
 #endif
@@ -3078,13 +2971,11 @@ int main( int argc, char **argv )
     if ( topsize )
         report_topsize( topsize, flags );
 
-    if ( toppurge )
-        report_toppurge( toppurge, flags );
+    if (old_files)
+        report_oldest(TYPE_FILE, old_files, flags);
 
-#ifdef HAVE_RMDIR_POLICY
-    if ( toprmdir )
-        report_toprmdir( toprmdir, flags );
-#endif
+    if (old_dirs)
+        report_oldest(TYPE_DIR, old_dirs, flags);
 
     if ( topuser )
         report_topuser( topuser, flags );

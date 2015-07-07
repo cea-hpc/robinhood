@@ -2285,28 +2285,26 @@ function test_dircount_report
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == $match_dir1 )) || error "$match_dir1 expected in output (found $lines)"
 
+    echo "4. Check empty dirs..."
+    # check empty dirs
+    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv > report.out
+    [ "$DEBUG" = "1" ] && echo && cat report.out
+    for i in `seq 1 $emptydir`; do
+        grep "$ROOT/empty.$i" report.out > /dev/null || error "$ROOT/empty.$i not found in empty dirs"
+    done
 
-	if [ $PURPOSE = "TMP_FS_MGR" ]; then
-		echo "4. Check empty dirs..."
-		# check empty dirs
-		$REPORT -f ./cfg/$config_file --toprmdir --csv > report.out
-		for i in `seq 1 $emptydir`; do
-			grep "$ROOT/empty.$i" report.out > /dev/null || error "$ROOT/empty.$i not found in top rmdir"
-		done
+    # test with filterpath
+    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$ROOT/empty.1" > report.out
+    [ "$DEBUG" = "1" ] && echo && cat report.out
+    # only one line expected
+    lines=$(wc -l report.out | awk '{print $1}')
+    (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
+    line=`grep "$ROOT/empty.1," report.out` || error "$ROOT/empty.1 not found in report"
 
-        # test with filterpath
-        $REPORT -f ./cfg/$config_file --toprmdir --csv -q --filter-path="$ROOT/empty.1" > report.out
-        [ "$DEBUG" = "1" ] && echo && cat report.out
-        # only one line expected
-        lines=$(wc -l report.out | awk '{print $1}')
-        (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
-        line=`grep "$ROOT/empty.1," report.out` || error "$ROOT/empty.1 not found in report"
-
-        $REPORT -f ./cfg/$config_file --toprmdir --csv -q --filter-path="$ROOT/empty.1*" > report.out
-        [ "$DEBUG" = "1" ] && echo && cat report.out
-        lines=$(wc -l report.out | awk '{print $1}')
-        (( $lines == $match_empty1 )) || error "$match_empty1 expected in output (found $lines)"
-	fi
+    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$ROOT/empty.1*" > report.out
+    [ "$DEBUG" = "1" ] && echo && cat report.out
+    lines=$(wc -l report.out | awk '{print $1}')
+    (( $lines == $match_empty1 )) || error "$match_empty1 expected in output (found $lines)"
 
     rm -f report.out
 }
@@ -8856,6 +8854,7 @@ function test_rmdir_mix
     echo "2-Scanning directories in filesystem ..."
     $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
 
+<<<<<<< HEAD
 ## Deprecated in robinhood v3: --top-rmdir => to be replaced by --oldest-files or --oldest files"
 #    echo "3-Checking rmdir report"
 #    $REPORT -f ./cfg/$config_file -l MAJOR -cq --top-rmdir > report.out
@@ -8865,6 +8864,21 @@ function test_rmdir_mix
 #    grep "no_rm/dirempty_new," report.out && error "top-rmdir report whitelisted dir"
 #    grep "$ROOT/dirempty," report.out | grep expired || error "top-rmdir did not report expired eligible dir"
 #    grep "$ROOT/dirempty_new," report.out | grep -v expired || error "top-rmdir did not report non-expired eligible dir"
+=======
+    echo "3-Checking old dirs report"
+    $REPORT -f ./cfg/$config_file -l MAJOR -cq --oldest-empty-dirs > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
+    # must report empty dirs
+    grep "no_rm/dirempty," report.out || error "no_rm/dirempty not in empty dir report"
+    grep "no_rm/dirempty_new," report.out || error "no_rm/dirempty_new not in empty dir report"
+    grep "$ROOT/dirempty," report.out || error "$ROOT/dirempty not in empty dir report"
+    grep "$ROOT/dirempty_new," report.out || error "$ROOT/dirempty_new not in empty dir report"
+    # must no report other dirs
+    grep "no_rm/dir1," report.out && error "no_rm/dir1 in empty dir report"
+    grep "no_rm/dir1," report.out && error "no_rm/dir2 in empty dir report"
+    grep "$ROOT/dir2," report.out && error "$ROOT/dir1 in empty dir report"
+    grep "$ROOT/dir2," report.out && error "$ROOT/dir2 in empty dir report"
+>>>>>>> f2aa0c3... turn old-files to oldest-files
 
     # launch the rmdir ..........................
     echo "4-Removing directories in filesystem ..."
@@ -9169,18 +9183,19 @@ function test_report_generation_1
     if (( 0 )); then
         if (( $is_hsmlite + $is_lhsm != 0 )); then
         $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log  --once || error "performing migration"
-        $REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
+        $REPORT -f ./cfg/$config_file --oldest-files=4 --csv > report.out || error "performing Oldest entries list (--oldest-files)"
         typeValues="link\.3;link\.1;link\.2;file\.1"
         countValues="1;2;3;4"
         else
-        $REPORT -f ./cfg/$config_file --top-purge=4 --csv > report.out || error "performing Oldest entries list (--top-purge)"
+        $REPORT -f ./cfg/$config_file --oldest-files=4 --csv > report.out || error "performing Oldest entries list (--oldest-files)"
         typeValues="file\.3;file\.4;file\.5;link\.3"
         countValues="1;2;3;4"
         fi
         colSearch=1
-        find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--top-purge)"
+        find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Oldest entries list (--oldest-files)"
     fi
 
+<<<<<<< HEAD
    echo -e "\n 10-Oldest and empty directories of Filesystem..."
    if (( $is_hsmlite + $is_lhsm != 0 )); then
        echo "No rmdir policy for hsmlite or HSM purpose: skipped"
@@ -9202,6 +9217,26 @@ function test_report_generation_1
         if (( nb_dir7==0 )); then
             error "validating Oldest and empty folders list (--top-rmdir) : dir7 not found"
         fi
+=======
+   echo -e "\n 10-Oldest empty directories of Filesystem..."
+    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv > report.out || error "performing oldest empty folders list (--oldest-empty-dirs)"
+    [ "$DEBUG" = "1" ] && cat report.out
+    nb_dir3=`grep "dir3" $logFile | wc -l`
+    if (( nb_dir3==0 )); then
+        error "validating Oldest and empty folders list (--oldest-empty-dirs) : dir3 not found"
+    fi
+    nb_dir4=`grep "dir4" $logFile | wc -l`
+    if (( nb_dir4==0 )); then
+        error "validating Oldest and empty folders list (--oldest-empty-dirs) : dir4 not found"
+    fi
+    nb_dir6=`grep "dir6" $logFile | wc -l`
+    if (( nb_dir6==0 )); then
+        error "validating Oldest and empty folders list (--oldest-empty-dirs) : dir6 not found"
+    fi
+    nb_dir7=`grep "dir7" $logFile | wc -l`
+    if (( nb_dir7==0 )); then
+        error "validating Oldest and empty folders list (--oldest-empty-dirs) : dir7 not found"
+>>>>>>> f2aa0c3... turn old-files to oldest-files
     fi
 
 	# launch another scan ..........................

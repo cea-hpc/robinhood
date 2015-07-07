@@ -74,7 +74,7 @@ static void append_dir_req(GString *from, GString *where, int sort_attr_index,
 
             case FILTERDIR_EMPTY:
                 /* only empty dir filter is to be appended */
-                g_string_append(where, filter_dir_str); /* FIXME add AND? */
+                g_string_append_printf(where, " AND %s", filter_dir_str);
                 break;
 
             case FILTERDIR_OTHER:
@@ -83,7 +83,7 @@ static void append_dir_req(GString *from, GString *where, int sort_attr_index,
                 g_string_append(from, " INNER JOIN (");
                 append_dirattr_select(from, filter_dir_index, "dirattr");
                 g_string_append_printf(from, ") AS da ON id=da.parent_id");
-                g_string_append(where, filter_dir_str); /* FIXME add AND? */
+                g_string_append_printf(where, " AND %s", filter_dir_str);
                 break;
 
             default:
