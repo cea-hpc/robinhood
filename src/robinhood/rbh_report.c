@@ -1372,13 +1372,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
 #ifdef _LUSTRE
         else
         {
-            const char * has_data;
-#if defined(ATTR_INDEX_status) && defined(HAVE_PURGE_POLICY)
-            /* no data if the file is released */
-            if (ATTR_MASK_TEST(&attrs, status) && ATTR(&attrs, status) == STATUS_RELEASED)
-                has_data = "no";
-            else
-#endif
+            const char *has_data;
 
             if (!ATTR_MASK_TEST(&attrs, size) || !ATTR_MASK_TEST(&attrs, stripe_info)
                 || !ATTR_MASK_TEST(&attrs, stripe_items))
