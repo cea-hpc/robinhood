@@ -167,17 +167,13 @@ int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
 
 static void separated_list2db(const char *list, char *db, int size)
 {
-    db[0] = '+';
-    strncpy(db+1, list, size-3); /* leave room for '+\0' */
-    strcat(db, "+");
+    snprintf(db, size, LIST_SEP_STR_ESC"%s"LIST_SEP_STR_ESC, list);
 }
 
 static void separated_list2match(const char *list, char *db, int size)
 {
     /* <item>  is matched using expression '%+<item>+%' */
-    strcpy(db, "%+");
-    strncat(db, list, size-5); /* leave room for '+%\0' */
-    strcat(db, "+%");
+    snprintf(db, size, "%%"LIST_SEP_STR_ESC"%s"LIST_SEP_STR_ESC"%%", list);
 }
 
 static void separated_db2list(const char *db, char *list, int size)

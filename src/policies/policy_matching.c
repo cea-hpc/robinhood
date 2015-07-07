@@ -1094,7 +1094,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
                 }
                 else if (left > 1)
                 {
-                    *pcur = LIST_SEP;
+                    *pcur = LIST_SEP_CHAR;
                     pcur++;
                     strncpy(pcur, fset->fileset_id, left - 1);
                     left -= strlen(pcur)+1;

@@ -1738,7 +1738,7 @@ static int read_fileclass_block(config_item_t class_cfg, policies_t *p_policies,
                                 rh_config_GetItemLine(sub_item));
                         return EINVAL;
                     }
-                    p_policies->fileset_list[i].matchable = tmp;
+                    fset->matchable = tmp;
                 }
                 /* manage archive_id deprecation (now in action_params) */
                 else if (!strcasecmp(subitem_name,"archive_id")

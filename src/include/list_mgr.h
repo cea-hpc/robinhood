@@ -120,7 +120,10 @@ typedef enum {
                          | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
                          | ATTR_MASK_nlink)
 
-#define LIST_SEP '+'
+#define LIST_SEP_CHAR    '+'
+#define LIST_SEP_STR     "+"
+/** for use in printf (in case it includes special char) */
+#define LIST_SEP_STR_ESC  LIST_SEP_STR
 
 /* String representation in database (not in config file)
  *

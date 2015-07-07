@@ -3240,7 +3240,7 @@ function test_action_params
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
     check_db_error rh_scan.log
 
-    # BTW check classinfo report
+    # check classinfo report
     $REPORT -f ./cfg/$config_file --class-info -q > rh_report.log || error "report error"
     # find_valueInCSVreport $logFile $typeValues $countValues $colSearch
     find_valueInCSVreport rh_report.log class1a 1  2 || error "invalid count for class1a"
@@ -3899,19 +3899,19 @@ function fileclass_test
 
 	# create test tree
 
-	mkdir -p $ROOT/dir_A
-	mkdir -p $ROOT/dir_B
-	mkdir -p $ROOT/dir_C
+	mkdir -p $ROOT/dir_A # odd or A
+	mkdir -p $ROOT/dir_B # none
+	mkdir -p $ROOT/dir_C # none
 
 	# classes are:
 	# 1) even_and_B
 	# 2) even_and_not_B
 	# 3) odd_or_A
-	# 4) other
+	# 4) none
 
-	echo "data" > $ROOT/dir_A/file.0 #2
+	echo "data" > $ROOT/dir_A/file.0 #2+3
 	echo "data" > $ROOT/dir_A/file.1 #3
-	echo "data" > $ROOT/dir_A/file.2 #2
+	echo "data" > $ROOT/dir_A/file.2 #2+3
 	echo "data" > $ROOT/dir_A/file.3 #3
 	echo "data" > $ROOT/dir_A/file.x #3
 	echo "data" > $ROOT/dir_A/file.y #3
@@ -3928,7 +3928,8 @@ function fileclass_test
 	echo "data" > $ROOT/dir_C/file.x #4
 	echo "data" > $ROOT/dir_C/file.y #4
 
-	# => 2x 1), 4x 2), 8x 3), 2x 4)
+	# policies => 2x 1), 4x 2), 8x 3), 2x 4)
+	# matching => 2x 1), 2x 2) 2x 2+3) 9x3) 4x 4)
 
 	echo "1bis-Sleeping $sleep_time seconds..."
 	sleep $sleep_time
@@ -3942,6 +3943,27 @@ function fileclass_test
 		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 	check_db_error rh_chglogs.log
+
+    # check classinfo report
+    $REPORT -f ./cfg/$config_file --class-info -q > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log
+
+    # fileclasses with 'report = no' are not expected in the report
+    for f in  even_files odd_files in_dir_A in_dir_B; do
+        egrep "[ +]$f[,+]" rh_report.log && error "non matchable fileclass '$f' should not be in report"
+    done
+
+    # check other fileclasses
+    # find_valueInCSVreport $logFile $typeValues $countValues $colSearch
+	# matching => 2x 1), 2x 2) 8x 3) 2x 2+3) 4x 4)
+    expect=( 2 2 9 2 4 )
+    i=0
+    for f in  even_and_B even_and_not_B odd_or_A 'odd_or_A\+even_and_not_B' none; do
+        val=$(egrep "[^+]$f[^+]" rh_report.log | cut -d ',' -f 2 | tr -d ' ')
+        echo "$f: $val"
+        [ "$val" = "${expect[$i]}" ] || error "$f: ${expect[$i]} expected, got $val"
+        ((i++))
+    done
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
@@ -9325,18 +9347,18 @@ function find_valueInCSVreport
     line=$(grep $typeValue $logFile)
     #echo $line
     if (( ${#line} == 0 )); then
-	    #echo "=====> NOT found for $typeValue"
+	    [ "$DEBUG" = "1" ] && echo "=====> NOT found for $typeValue" >&2
 	    return 1
     fi
 
     # get found value count for this value type
     foundCount=$(grep $typeValue $logFile | cut -d ',' -f $colSearch | tr -d ' ')
     #echo "foundCount=$foundCount**"
-    if (( $foundCount != $countValue )); then
-	    #echo "=====> NOT found pour $typeValue : $countValue =/$foundCount"
+    if [[ "$foundCount" != "$countValue" ]]; then
+	    [ "$DEBUG" = "1" ] && echo "=====> NOT found for $typeValue : $countValue != $foundCount" >&2
 	    return 1
     else
-	    #echo "=====> found for $typeValue : $countValue "
+	    [ "$DEBUG" = "1" ] && echo "=====> found for $typeValue : $countValue " >&2
 	    return 0
     fi
 }
