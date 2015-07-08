@@ -2763,7 +2763,7 @@ status_manager_t backup_sm = {
 
 const char *mod_get_name(void)
 {
-    return "backup";
+    return backup_sm.name;
 }
 
 status_manager_t *mod_get_status_manager(void)

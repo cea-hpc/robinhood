@@ -159,7 +159,17 @@ int parse_policy_action(const char *name, const char *value,
                         policy_action_t *action,
                         attr_mask_t *mask, char *msg_out)
 {
-    if (!strcasecmp(value, "cmd"))
+    if (!strcasecmp(value, "none"))
+    {
+        if (extra_cnt != 0)
+        {
+            sprintf(msg_out, "No extra argument is expected for '%s = %s'", name, value);
+            return EINVAL;
+        }
+
+        action->type = ACTION_NONE;
+    }
+    else if (!strcasecmp(value, "cmd"))
     {
         attr_mask_t m;
         bool error = false;
@@ -190,7 +200,7 @@ int parse_policy_action(const char *name, const char *value,
     {
         if (extra_cnt != 0)
         {
-            sprintf(msg_out, "No extra argument is expected for '%s'", name);
+            sprintf(msg_out, "No extra argument is expected for '%s = %s'", name, value);
             return EINVAL;
         }
         action->type = ACTION_FUNCTION;
