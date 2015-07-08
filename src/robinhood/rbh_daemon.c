@@ -434,10 +434,12 @@ static void running_mask2str(int mask, uint64_t pol_mask, char *str)
         strcat(str, "policy_run(");
         for (i = 0; i < policy_run_cpt; i++)
         {
-            if ((pol_mask) & (1<<i))
+            if ((pol_mask) & (1LL<<i))
+            {
                 strcat(str, policy_run[i].descr->name);
-            if (i != policy_run_cpt - 1)
-                strcat(str, ",");
+                if (i != policy_run_cpt - 1)
+                    strcat(str, ",");
+            }
         }
         strcat(str, "),");
     }
@@ -449,6 +451,18 @@ static void running_mask2str(int mask, uint64_t pol_mask, char *str)
     return;
 }
 
+/** prevent from dumping module stats when the daemon is shutting down */
+static pthread_mutex_t  shutdown_mtx  = PTHREAD_MUTEX_INITIALIZER;
+
+/** signal flags */
+static int     terminate_sig = 0;
+static bool    reload_sig    = false;
+static bool    dump_sig      = false;
+
+/** async signal handler */
+static pthread_t        sig_thr;
+
+/** dump stats of all modules */
 static void dump_stats(lmgr_t *lmgr, const int *module_mask,
                        const uint64_t *p_policy_mask)
 {
@@ -456,32 +470,39 @@ static void dump_stats(lmgr_t *lmgr, const int *module_mask,
         time_t         now;
         struct tm      date;
 
+        if (pthread_mutex_trylock(&shutdown_mtx) != 0)
+            /* daemon is shutting down, don't dump stats */
+            return;
 
-        now = time( NULL );
-        strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &now, &date ) );
+        now = time(NULL);
+        strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
+                 localtime_r(&now, &date));
 
-        DisplayLog( LVL_MAJOR, "STATS",
-                    "==================== Dumping stats at %s =====================", tmp_buff );
-        DisplayLog( LVL_MAJOR, "STATS", "======== General statistics =========" );
-        DisplayLog( LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str );
+        DisplayLog(LVL_MAJOR, "STATS",
+                    "==================== Dumping stats at %s =====================", tmp_buff);
+        DisplayLog(LVL_MAJOR, "STATS", "======== General statistics =========");
+        DisplayLog(LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str);
         running_mask2str(*module_mask, *p_policy_mask, tmp_buff);
         DisplayLog(LVL_MAJOR, "STATS", "Started modules: %s", tmp_buff);
 
-        if ( *module_mask & MODULE_MASK_FS_SCAN )
+        if (*module_mask & MODULE_MASK_FS_SCAN)
         {
-            FSScan_DumpStats(  );
-            FSScan_StoreStats( lmgr );
+            FSScan_DumpStats();
+            FSScan_StoreStats(lmgr);
         }
 
 #ifdef HAVE_CHANGELOGS
-        if ( *module_mask & MODULE_MASK_EVENT_HDLR )
+        if (*module_mask & MODULE_MASK_EVENT_HDLR)
         {
             cl_reader_dump_stats();
             cl_reader_store_stats(lmgr);
         }
 #endif
-        if ( *module_mask & MODULE_MASK_ENTRY_PROCESSOR )
-            EntryProcessor_DumpCurrentStages(  );
+
+        if (*module_mask & MODULE_MASK_ENTRY_PROCESSOR)
+        {
+            EntryProcessor_DumpCurrentStages();
+        }
 
         if (*module_mask & MODULE_MASK_POLICY_RUN
             && *p_policy_mask != 0LL
@@ -489,15 +510,18 @@ static void dump_stats(lmgr_t *lmgr, const int *module_mask,
             && policy_run != NULL)
         {
             int i;
+
             for (i = 0; i <  policy_run_cpt; i++)
             {
-                if ((*p_policy_mask) & (1<<i))
+                if ((*p_policy_mask) & (1LL<<i))
                     policy_module_dump_stats(&policy_run[i]);
             }
         }
 
+        pthread_mutex_unlock(&shutdown_mtx);
+
         /* Flush stats */
-        FlushLogs(  );
+        FlushLogs();
 }
 
 static void  *stats_thr( void *arg )
@@ -515,18 +539,15 @@ static void  *stats_thr( void *arg )
 
     DisplayLog( LVL_VERB, MAIN_TAG, "Statistics thread started" );
 
-    while ( 1 )
+    WaitStatsInterval();
+    while (!terminate_sig)
     {
-        WaitStatsInterval(  );
         dump_stats(&lmgr, &running_mask, &policy_run_mask);
+        WaitStatsInterval();
     }
+    return NULL;
 }
 
-
-static int     terminate_sig = 0;
-static bool    reload_sig = false;
-static bool    dump_sig = false;
-static pthread_t sig_thr;
 
 #define SIGHDL_TAG  "SigHdlr"
 
@@ -613,7 +634,6 @@ static void   *signal_handler_thr( void *arg )
 
 
     /* signal flag checking loop */
-
     while ( 1 )
     {
         /* check for signal every second */
@@ -621,11 +641,21 @@ static void   *signal_handler_thr( void *arg )
 
         if ( terminate_sig != 0 )
         {
+            const struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+
             if ( terminate_sig == SIGTERM )
                 DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGTERM received: performing clean daemon shutdown" );
             else if ( terminate_sig == SIGINT )
                 DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
             FlushLogs(  );
+
+            /* wait up to 1s to get the termination mutex (avoids dumping stats while terminating the daemon) */
+            if (pthread_mutex_timedlock(&shutdown_mtx, &timeout) != 0)
+            {
+                /* Something when wrong for an unexpected reason, but we have to shutdown now!
+                 * => continuing */
+                DisplayLog(LVL_MAJOR, SIGHDL_TAG, "WARNING: Failed to get termination mutex: %m");
+            }
 
             /* first ask policy consummers and feeders to stop (long operations first) */
 
@@ -638,7 +668,7 @@ static void   *signal_handler_thr( void *arg )
                 int i;
                 for (i = 0; i <  policy_run_cpt; i++)
                 {
-                    if (policy_run_mask & (1<<i))
+                    if (policy_run_mask & (1LL<<i))
                     {
                         int rc = policy_module_stop(&policy_run[i]);
                         if (rc)
@@ -661,6 +691,9 @@ static void   *signal_handler_thr( void *arg )
             /* 2b - stop feeding from scan */
             if (running_mask & MODULE_MASK_FS_SCAN)
             {
+                /* avoid stats thread to try dumping the stats while terminating */
+                running_mask &= ~MODULE_MASK_FS_SCAN;
+
                 /* stop FS scan (blocking) */
                 FSScan_Terminate(  );
                 FlushLogs(  );
@@ -671,6 +704,9 @@ static void   *signal_handler_thr( void *arg )
             /* 4 - entry processor can be stopped */
             if (running_mask & MODULE_MASK_ENTRY_PROCESSOR)
             {
+                /* avoid stats thread to try dumping the status while terminating */
+                running_mask &= ~MODULE_MASK_ENTRY_PROCESSOR;
+
                 /* drop pipeline waiting operations and terminate threads */
                 EntryProcessor_Terminate(false);
 
@@ -690,19 +726,21 @@ static void   *signal_handler_thr( void *arg )
                 && policy_run_cpt != 0
                 && policy_run != NULL)
             {
-                int i;
+                int i, rc;
+
+                running_mask &= ~MODULE_MASK_POLICY_RUN;
+
                 for (i = 0; i < policy_run_cpt; i++)
                 {
-                    if (policy_run_mask & (1<<i))
+                    if (policy_run_mask & (1LL<<i))
                     {
-                        int rc = policy_module_wait(&policy_run[i]);
+                        policy_run_mask &= ~(1LL<<i);
+                        rc = policy_module_wait(&policy_run[i]);
                         if (rc)
                             DisplayLog(LVL_CRIT, SIGHDL_TAG, "Failure while waiting for policy module '%s' to end (rc=%d).",
                                        policy_run[i].descr->name, rc);
-                        policy_run_mask &= ~(1<<i);
                         FlushLogs();
                     }
-                    running_mask &= ~MODULE_MASK_POLICY_RUN;
                 }
             }
 

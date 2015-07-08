@@ -1239,7 +1239,7 @@ int EntryProcessor_Terminate(bool flush_ops)
 
     DisplayLog( LVL_EVENT, ENTRYPROC_TAG, "Pipeline successfully flushed" );
 
-    EntryProcessor_DumpCurrentStages(  );
+    EntryProcessor_DumpCurrentStages();
 
     return 0;
 }
