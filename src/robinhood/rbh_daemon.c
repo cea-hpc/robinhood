@@ -20,12 +20,6 @@
 #include "config.h"
 #endif
 
-#if 0
-#ifdef HAVE_RMDIR_POLICY
-#include "rmdir.h"
-#endif
-#endif
-
 #include "policy_run.h"
 #include "list_mgr.h"
 #include "rbh_cfg.h"

@@ -32,28 +32,6 @@ typedef struct whitelist_item_t
     uint64_t       attr_mask;   /**< summary of attributes involved in boolean expression */
 } whitelist_item_t;
 
-#ifdef HAVE_RMDIR_POLICY
-
-typedef struct rmdir_policy_t
-{
-    time_t         age_rm_empty_dirs;
-
-    /* ignored directories */
-    whitelist_item_t *whitelist_rules;
-    unsigned int   whitelist_count;
-
-    /* directory to be removed recursively (even if not empty) */
-    whitelist_item_t *recursive_rmdir_rules;
-    unsigned int      recursive_rmdir_count;
-
-    uint64_t          global_attr_mask;             /**< minimum set of attributes for checking all rules */
-} rmdir_policy_t;
-
-#define NO_DIR_POLICY( p_pol ) (((p_pol)->whitelist_count + (p_pol)->recursive_rmdir_count == 0) && ((p_pol)->age_rm_empty_dirs == 0))
-
-
-#endif
-
 #define POLICY_NAME_LEN  128
 #define RULE_ID_LEN      128
 #define FILESET_ID_LEN   128
@@ -185,14 +163,6 @@ static bool inline has_default_policy(policy_rules_t *list)
     return false;
 }
 
-#ifdef HAVE_RM_POLICY
-typedef struct unlink_policy
-{
-    bool    hsm_remove; /* feature enabled? */
-    time_t  deferred_remove_delay; /* 0=ASAP */
-} unlink_policy_t;
-#endif
-
 /* ======================================================================
  * Function for managing all policy configuration (migration, purge, unlink)
  * ======================================================================*/
@@ -247,55 +217,7 @@ static inline bool has_deletion_policy(void)
     return !!policies.manage_deleted;
 }
 
-#if 0
-typedef struct policies_t
-{
-#ifdef HAVE_PURGE_POLICY
-    policy_list_t  purge_policies;
-#endif
-#ifdef HAVE_MIGR_POLICY
-    policy_list_t  migr_policies;
-#endif
-#ifdef HAVE_RM_POLICY
-    unlink_policy_t unlink_policy;
-#endif
-#ifdef HAVE_RMDIR_POLICY
-    rmdir_policy_t rmdir_policy;
-#endif
-    fileset_list_t filesets;
-
-    updt_policy_t  updt_policy;
-} policies_t;
-extern policies_t policies;
-
-/* ==============================================
- *  Functions for applying policies to entries
- * ==============================================*/
-
-static inline int is_file_class_defined(void)
-{
-#ifdef HAVE_PURGE_POLICY
-    if ( !NO_POLICY( &policies.purge_policies ) )
-        return true;
-#endif
-#ifdef HAVE_MIGR_POLICY
-   if ( !NO_POLICY( &policies.migr_policies ) )
-        return true;
-#endif
-
-    return false;
-}
-
-static inline int is_dir_class_defined(void)
-{
-#ifdef HAVE_RMDIR_POLICY
-    if ( !NO_DIR_POLICY( &policies.rmdir_policy) )
-        return true;
-#endif
-    return false;
-}
-#endif
-
+/** determine the fileclasses an entry matches for reports (report != no)*/
 int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
                   const attr_set_t *p_attrs_cached);
 
