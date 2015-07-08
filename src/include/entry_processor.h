@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2008, 2009 CEA/DAM
+ * Copyright (C) 2008-2015 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -34,17 +34,9 @@
 /* Tag for Logs */
 #define ENTRYPROC_TAG   "EntryProc"
 
-#define ALERT_TITLE_MAX 256
-typedef struct alert_item_t
-{
-    char           title[ALERT_TITLE_MAX];
-    bool_node_t    boolexpr;
-    attr_mask_t    attr_mask;
-} alert_item_t;
-
 /* === pipeline stage flags ===  */
 
-/* paralellism */
+/* parallelism */
 #define STAGE_FLAG_SEQUENTIAL    0x00000001
 #define STAGE_FLAG_FORCE_SEQ     0x00000002     /* temporarily force sequential */
 #define STAGE_FLAG_MAX_THREADS   0x00000004     /* hard coded limit */

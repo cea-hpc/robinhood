@@ -196,8 +196,6 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* what must be retrieved from DB: */
     tmp = attr_mask_and_not(&attr_allow_cached, &p_op->fs_attrs.attr_mask);
     p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-    tmp = attr_mask_and_not(&entry_proc_conf.alert_attr_mask, &p_op->fs_attrs.attr_mask);
-    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
     /* no dircount for non-dirs */
     if (ATTR_MASK_TEST(&p_op->fs_attrs, type) &&

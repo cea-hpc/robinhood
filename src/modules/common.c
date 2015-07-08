@@ -199,4 +199,3 @@ action_func_t mod_get_action_by_name(const char *action_name)
     else
         return NULL;
 }
-
