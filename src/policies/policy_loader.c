@@ -425,11 +425,40 @@ static char *strdup_lower(const char *str)
     return out;
 }
 
+/**
+ * Check if a policy name exists in a given policy set.
+ * @param[in]  p_pols the list of policies to search in
+ * @param[in]  name   the policy name to search for
+ * @param[out] index  index of the matching policy in the given list
+ */
+static bool _policy_exists(const policies_t *p_pols, const char *name, int *index)
+{
+    int i;
+
+    for (i = 0; i < p_pols->policy_count; i++)
+    {
+        if (!strcasecmp(name, p_pols->policy_list[i].name))
+        {
+            if (index != NULL)
+                *index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Search for a policy name in the global (current) list */
+bool policy_exists(const char *name, int *index)
+{
+    return _policy_exists(&policies, name, index);
+}
+
+
 static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                              policy_descr_t *policy, bool *manage_deleted,
-                             char *msg_out)
+                             const policies_t *pols, char *msg_out)
 {
-    int          rc;
+    int          rc, prev;
     const char  *name;
     char         tmpstr[1024];
     uint64_t     mask;
@@ -450,12 +479,16 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     {
         strcpy(msg_out, "Missing name for '"POLICY_DECLARATION"' block "
                "(ex: "POLICY_DECLARATION" my_policy { ...");
-        return ENOENT;
+        return EINVAL;
     }
 
-    /* @TODO check the policy name is not already used! */
+    /* check the policy is not already defined */
+    if (_policy_exists(pols, name, &prev))
+    {
+        sprintf(msg_out, "Duplicate definition of policy '%s'.", name);
+        return EINVAL;
+    }
 
-    /* parse the parameter */
     if (strlen(name) > POLICY_NAME_LEN - 1)
     {
         sprintf(msg_out, "Policy name is too long (max: %u).", POLICY_NAME_LEN - 1);
@@ -634,17 +667,17 @@ static int read_policy_definitions(config_file_t config, policies_t *pol,
 
             memset(&pol->policy_list[pol->policy_count], 0, sizeof(policy_descr_t));
 
-            pol->policy_count ++;
-
             /* analyze policy declaration */
             rc = parse_policy_decl(curr_item, block_name,
-                                   &pol->policy_list[pol->policy_count - 1],
-                                   &manage_deleted, msg_out);
+                                   &pol->policy_list[pol->policy_count],
+                                   &manage_deleted, pol, msg_out);
             if (rc)
                 return rc;
 
             if (manage_deleted)
                 pol->manage_deleted = 1;
+
+            pol->policy_count ++;
         }
     }
     return 0;
@@ -1291,34 +1324,6 @@ static action_params_t *alloc_policy_params(fileset_item_t *fset,
     }
 
     return params;
-}
-
-/**
- * Check if a policy name exists in a given policy set.
- * @param[in]  p_pols the list of policies to search in
- * @param[in]  name   the policy name to search for
- * @param[out] index  index of the matching policy in the given list
- */
-static bool _policy_exists(const policies_t *p_pols, const char *name, int *index)
-{
-    int i;
-
-    for (i = 0; i < p_pols->policy_count; i++)
-    {
-        if (!strcasecmp(name, p_pols->policy_list[i].name))
-        {
-            if (index != NULL)
-                *index = i;
-            return true;
-        }
-    }
-    return false;
-}
-
-/** Search for a policy name in the global (current) list */
-bool policy_exists(const char *name, int *index)
-{
-    return _policy_exists(&policies, name, index);
 }
 
 /**
