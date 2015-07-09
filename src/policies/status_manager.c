@@ -210,7 +210,7 @@ int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
     }
     else
     {
-        int rc = get_smi_attr(smi, p_attrs, dot+1, val, type);
+        int rc = get_smi_attr(smi, p_attrs, name, val, type);
 
         /* If no smi is explicitely specified, it was just
          * a try to match. So, change EINVAL to ENOENT. */
