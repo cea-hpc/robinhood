@@ -1969,7 +1969,7 @@ static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
         {
             /* cannot determine if sort criteria has changed */
             DisplayLog(LVL_VERB, tag(pol), "Cannot determine if sort criteria value"
-                       " changed (missing attribute %s): skipping entry.",
+                       " changed (missing attribute '%s'): skipping entry.",
                        sort_attr_name(pol));
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, p_id, p_attrs_new);
@@ -2117,6 +2117,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                            "Warning: cannot determine if entry %s matches the "
                            "scope of policy '%s': skipping it.",
                            ATTR(&new_attr_set, fullpath), tag(pol));
+
+                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
                 policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr,
                            p_item->targeted);
                 goto end;
@@ -2150,7 +2152,6 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-
             policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
             goto end;
         }
@@ -2160,6 +2161,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s is whitelisted: skipping it.",
                        ATTR(&p_item->entry_attr, fullpath));
+
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
             policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr, p_item->targeted);
             goto end;
         }
@@ -2170,6 +2174,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                                &new_attr_set);
         if (rc != AS_OK)
         {
+            /* check_entry_times already updates the entry */
             policy_ack(&pol->queue, rc, &p_item->entry_attr, p_item->targeted);
             goto end;
         }
@@ -2207,6 +2212,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                 update_entry(lmgr, &p_item->entry_id, &new_attr_set);
 
             policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
+
             goto end;
             break;
         case POLICY_MATCH:
@@ -2221,6 +2227,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                        "Warning: cannot determine if entry %s matches the "
                        "condition for policy rule '%s': skipping it.",
                        ATTR(&p_item->entry_attr, fullpath), rule->rule_id);
+
+            if (!pol->descr->manage_deleted)
+                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
             policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr,
                        p_item->targeted);
             goto end;
@@ -2237,6 +2246,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                              rule, p_fileset);
     if (rc)
     {
+        if (!pol->descr->manage_deleted)
+            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
         policy_ack(&pol->queue, AS_ERROR, &p_item->entry_attr,
                    p_item->targeted);
         goto end;
